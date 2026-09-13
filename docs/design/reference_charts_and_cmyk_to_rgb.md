@@ -1,14 +1,17 @@
 # Charts that aim at a reference condition, and the CMYK to RGB question
 
 **Status: ANALYSIS, awaiting a ruling. Nothing here is built and nothing here is
-confirmed behaviour.** It answers the two questions asked on 2026-09-12 in
-issue #182, and it records the measurements so nobody has to make them again.
+confirmed behaviour.** Sections 1 to 6 answer the two questions asked on
+2026-09-12 in issue #182. Sections 7 to 12 answer the two asked on 2026-09-13,
+about an iterative RGB search and about where a profiling patch set comes from.
+It records the measurements so nobody has to make them again.
 
-Everything below was measured on 2026-09-12 from commit `73f9ab85`. The raw
-output, the scripts and the on-screen artefacts are in the proof folder for that
-date. No ISO tolerance value and no reference data value appears in this file:
-only aggregate results, and where a licence-clean stand-in was needed the aims
-came from Argyll's public-domain `cmyk.icm` and are labelled as such.
+Sections 1 to 6 were measured on 2026-09-12 from commit `73f9ab85`. Sections 7
+to 12 were measured on 2026-09-13 from commit `e66dde29`. The raw output, the
+scripts and the artefacts are in the proof folder for each date. No ISO
+tolerance value and no reference data value appears in this file: only aggregate
+results, and where a licence-clean stand-in was needed the aims came from
+Argyll's public-domain `cmyk.icm` and are labelled as such.
 
 Two profiles carry most of the numbers, both real measurements of the same Canon
 Pro-300 on two papers: one on Canon Semi-Gloss read with an i1Pro, one on Epson
@@ -313,3 +316,437 @@ flight and should be designed with it rather than after it.
 3. Should coverage be offered on its own, before any chart is built, as a plain
    answer to "can my printer do this condition at all"? It costs almost nothing
    and it may be the most useful single number here.
+
+---
+
+# Part two, 2026-09-13: the iterative search, and where a patch set comes from
+
+Measured from commit `e66dde29`. The screen on the measuring machine was
+**locked** for the whole session (`CGSSessionScreenIsLocked` was true), so
+`scripts/onscreen_capture.py` correctly refused to photograph a window and no
+screenshot exists for this part. The app's own shipped functions were driven
+instead, with `CHROMIQ_SETTINGS_FILE` and `CHROMIQ_PRESETS_DIR` sandboxed;
+`custom_output_path` was empty before and after, and nothing under the user's
+working folder was written.
+
+Two profiles carry the printer numbers, the same two as part one: one real
+measurement of a Canon Pro-300 on Canon Semi-Gloss, one on Epson Premium
+Semi-Gloss. Three more profiles were built for this part with `colprof -qh` from
+three real printing conditions' own characterisation data, so that "a profile
+built under that printing condition" could be tested rather than imagined. They
+are called press A, press B and press C below. Their `.ti3` inputs were
+intermediates and were deleted.
+
+---
+
+## 7. The first question: search RGB values until the expected Lab matches
+
+> *"alter RGB values and calculate expected lab value ... Is this a doable
+> method? ... The method is independent of a printer profile perhaps?"*
+
+### 7.1 It is doable, and it works
+
+It was implemented and run: a damped Gauss-Newton search over RGB, one residual
+per patch in Lab, the whole 1,617-patch condition solved at once so that each
+iteration is one batch evaluation rather than 1,617 separate ones. Started from
+mid-grey, against the user's own profile, tolerance 0.1 dE00:
+
+| | result |
+|---|---:|
+| patches brought inside 0.1 dE00 | **1,559 of 1,617 (96.4 %)** |
+| residual to the aim, mean | **0.055 dE00** |
+| residual on the patches the printer can reach | 0.0014 dE00 |
+| cost | 40 iterations, 161 batch evaluations, 10.0 s |
+
+So the answer to "is this doable" is yes, and it is accurate. The 58 patches it
+cannot reach are outside the printer's gamut; no method reaches those.
+
+### 7.2 But the whole method already ships inside ArgyllCMS
+
+A search that repeatedly asks a profile "what would this RGB print as" and
+steps towards the aim is a **numerical inverse of the profile's forward table**.
+That is not a new idea and it does not need writing: `xicclu -fif` is exactly
+it, and it is already installed. The comparison, same aims, same profile:
+
+| method | mean | median | 95th | max | inside 0.1 | calls | seconds |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| `xicclu -fb`, the baked B2A table | 0.345 | 0.204 | 1.152 | 4.163 | 293 | 2 | **0.07** |
+| `xicclu -fif`, the numerical inverse | **0.059** | 0.000 | 0.000 | 4.082 | 1,560 | 2 | **0.17** |
+| the search, cold start | **0.055** | 0.000 | 0.000 | 4.097 | 1,559 | 161 | 9.60 |
+| the inversion, then the search | 0.054 | 0.000 | 0.000 | 4.082 | 1,559 | 163 | 9.68 |
+
+On the 1,567 patches the printer can actually reach, `-fif` averages 0.0015
+dE00 and the search 0.0014. They are the same answer. The search costs **56
+times more wall time** to produce it.
+
+On the weaker profile the picture is the same: `-fb` 0.883 mean, `-fif` 0.435,
+the search 0.454.
+
+**Pros of the search, honestly:** it is six times more accurate than the baked
+backward table, it needs no B2A tag in the profile, the stopping rule is stated
+in the unit anybody cares about (dE00, not device units), and it reports per
+patch whether it got there. **Cons:** every one of those pros is also true of
+`-fif`, which is two lines of code away and 56 times faster, and a hand-written
+search adds a convergence failure mode that nobody has to own otherwise.
+
+### 7.3 And this found a real fault in what ChromIQ does today
+
+`workflow/gamut_target.py` calls `backward_device` with no ink limit, and
+`workflow/xicclu_runner.py` only switches to `-fif` when an ink limit is given.
+So every verification chart ChromIQ builds today takes the **baked table**, the
+worst row of that comparison. Driven through the app's own
+`reference_sets.read_aims` and its own eleven bundled sets, 792 patches, Canon
+Semi-Gloss:
+
+| | mean | max | inside 0.5 dE00 |
+|---|---:|---:|---:|
+| `-fb`, what ships today | 0.366 | 3.830 | 659 of 792 (83.2 %) |
+| `-fif` | **0.052** | 3.405 | **770 of 792 (97.2 %)** |
+
+A seven-fold improvement in the average, for one flag and a tenth of a second.
+Checked that this is the numerical inverse and not the ink limit that reaches
+it: a direct `xicclu -fif` with **no** `-l` flag at all reproduces 0.0589
+exactly, as do non-binding limits of 300, 400 and 1000.
+
+This is the one place where the question has already paid for itself. It is a
+change to propose, not one to make unasked.
+
+### 7.4 The clause that matters: is it independent of a printer profile?
+
+**No. It cannot be, and this is the heart of it.**
+
+Step 1 of the proposal says "calculate expected lab value". Something has to do
+that calculating. An RGB triple is not a colour; it is an instruction to a
+machine. To know what colour it will become, you need a description of the
+machine and the paper, and a description of a machine and a paper measured into
+a table **is** a profile, whatever it is called. The search does not remove the
+profile. It only moves it from an explicit inversion into the inner loop, where
+it is easier to forget it is there.
+
+There is exactly one way to run the search without the user's profile, which is
+to substitute a generic assumption. That was measured. The search was run to
+convergence against sRGB, and then the two real printers were asked what those
+RGB values actually print as:
+
+| | mean | median | 95th | max |
+|---|---:|---:|---:|---:|
+| Canon Pro-300 on Canon Semi-Gloss | **7.99** | 6.99 | 19.25 | 33.27 |
+| Canon Pro-300 on Epson Premium SG | 4.91 | 4.83 | 8.56 | 13.69 |
+
+Of 1,617 patches, **164 land inside 2.5 dE00 and 48 inside 1.0**. The search
+believed it had solved 1,422 of them to within 0.1. It had solved them against
+a monitor space that is not in the room.
+
+Two further facts settle it:
+
+* **12.1 % of the condition (195 patches) is not inside sRGB at all**, so the
+  search cannot even pretend there; it stops short by 4.69 dE00 on average and
+  11.62 at worst.
+* **The answer depends on which generic you pick.** The same search run against
+  Adobe RGB instead of sRGB chooses different RGB values: on the 1,422 patches
+  both solved, the two answers differ by 6.12 levels per channel on average and
+  90.6 at worst, and printed on the real printer those two "correct" answers are
+  **3.96 dE00 apart on average and 16.95 at worst**. A quantity that changes
+  when you change an arbitrary assumption is not a property of the colour.
+
+For scale: the direct CMYK formula measured 12.10 dE00 in part one. The generic
+search is 7.99. It is better, and it is still four to eight times outside
+anything a verification could use. The generic assumption is the entire error.
+
+---
+
+## 8. Could a generic patch set and chart preset be shipped?
+
+This was the actual request behind question one, so it deserves a plain answer.
+
+**A generic patch set that verifies against a reference condition cannot be
+built, and no amount of work will produce one.** The reason is in part one,
+section 1.3, and it was re-measured this round: the RGB that produces a given
+colour is a property of the printer and the paper, not of the colour. Two
+profiles of the *same printer* differing only in paper agreed on **0 of 1,617**
+aims. A single shipped list of RGB values is therefore right for at most one
+printer on one paper, and shipping it would tell every other user their printer
+is broken.
+
+**The nearest achievable thing, and it is worth having, is a generic chart
+*preset* rather than a generic patch *set*.** Everything except the RGB numbers
+can be fixed, shipped and identical for every user:
+
+* which reference condition is being aimed at, and its Lab aims;
+* the patch count, the page size, the instrument, the layout, the randomisation,
+  the strip geometry, the file naming;
+* the reachability test, its intent and its margin;
+* the report's rows, its verdict words and its limits.
+
+Only the device column is computed at generate time, from the user's own
+profile, in the tenth of a second `-fif` costs. Two users of the same preset
+then print physically different sheets that aim at exactly the same colours,
+which is the thing that makes their reports comparable. That is a preset in
+every sense a user cares about, and it is the honest version of what was asked
+for.
+
+The one genuinely generic artefact that can ship, and should, is the **coverage
+figure**: this printer on this paper can reach N of M colours of this condition,
+answerable before a sheet is printed. Measured through the app's own
+`gamut_target.flags_in_gamut` on the eleven bundled sets, 792 patches:
+
+| | safe margin | full margin |
+|---|---:|---:|
+| Canon Semi-Gloss, absolute | 85.7 % | 95.6 % |
+| Canon Semi-Gloss, media-relative | 94.7 % | 98.2 % |
+| Epson Premium SG, absolute | 71.3 % | 83.7 % |
+| Epson Premium SG, media-relative | 80.2 % | 92.3 % |
+
+The absolute rows reproduce part one's 679 of 792 and 565 of 792 exactly. Both
+intents are correct and they answer different questions, so **whichever number
+is shown to a user has to be labelled with its intent**; quoting one as though
+it were the other is a nine-point error.
+
+---
+
+## 9. The second question, first half: must the profile match the printing condition?
+
+> *"the profile used to invert lab values ... must have been built from
+> measurements on paper and where the chart was printed for the same printing
+> conditions. Else one can not invert the lab numbers and get the correct
+> values."*
+
+This is half right, and the half that is right matters. It is worth separating
+the two halves precisely, because the conclusion drawn from it does not follow.
+
+### 9.1 The half that is right: the device values really do differ
+
+Condition A's own Lab aims were pushed backwards through three real profiles,
+its own and two built from other printing conditions, and the resulting CMYK
+compared against condition A's own device column:
+
+| | mean | 95th | max |
+|---|---:|---:|---:|
+| through A's own profile | 12.21 | 42.37 | 85.28 points of 100 |
+| through B's profile | 18.25 | 65.54 | 100.00 |
+| through C's profile | 17.23 | 60.00 | 100.00 |
+
+So yes: use a different condition's profile and you get very different numbers
+out. That is real and it is measured.
+
+### 9.2 The half that is wrong: those numbers are not incorrect
+
+They are the correct answer to a different question, and the question they
+answer is the useful one. Each set of device values was printed on the press
+its own profile describes, which is the only press that can accept it:
+
+| | mean | 95th | max |
+|---|---:|---:|---:|
+| A's aims via A's profile, printed on press A | **0.070** | 0.334 | 8.822 dE00 |
+| A's aims via B's profile, printed on press B | 5.892 | 19.801 | 33.504 |
+| A's aims via C's profile, printed on press C | 6.066 | 21.162 | 31.252 |
+
+Press A reproduces its own condition's aims to 0.070 dE00. Presses B and C fall
+short by about 6, and that shortfall is gamut, not arithmetic: those presses
+physically cannot make some of condition A's colours. Nothing here is *wrong*.
+Each inversion did its job on its own device.
+
+The genuine mistake, the one the rule is worth stating to prevent, is different:
+take the device values B's profile produced and send them to press A.
+
+| | mean | 95th | max |
+|---|---:|---:|---:|
+| A's aims via B's profile, printed on **press A** | 8.714 | 22.643 | 46.706 dE00 |
+| A's aims via C's profile, printed on **press A** | 8.320 | 22.222 | 33.892 |
+
+### 9.3 So the rule is real, and it is about the printer, not the reference
+
+Stated correctly: **the profile you invert must describe the device and paper
+that will physically print the chart.** The reference's printing condition never
+enters, because the reference is only supplying the Lab aims.
+
+On the two real RGB printers, which is the case ChromIQ is actually in:
+
+| | mean | 95th | max |
+|---|---:|---:|---:|
+| inverted through Canon SG, printed on Canon SG | **0.059** | 0.000 | 4.082 dE00 |
+| inverted through Epson PSG, printed on Epson PSG | **0.435** | 4.209 | 8.976 |
+| inverted through Epson PSG, printed on Canon SG | 10.643 | 22.467 | 34.945 |
+| inverted through Canon SG, printed on Epson PSG | 11.062 | 25.849 | 36.057 |
+
+The rule bites hard, and it bites on printer identity. Using the wrong printer's
+profile costs about 11 dE00, which is as bad as the direct CMYK formula.
+
+### 9.4 And one printer profile serves every reference condition
+
+This is what disposes of the worry entirely. If the user's own profile had to
+match the reference's condition, a user would need a different profile per
+condition and would never have one. They do not:
+
+| the user's profile | condition A aims | condition B aims | condition C aims |
+|---|---:|---:|---:|
+| Canon Semi-Gloss | 0.059 | **0.000** | 0.005 |
+| Epson Premium SG | 0.435 | 0.037 | 0.044 |
+
+One profile, three unrelated printing conditions, and the worst average is 0.435
+dE00 with the rest at or near zero. Condition B, whose gamut is small enough to
+sit entirely inside the Canon's, is reproduced at **0.000 mean over all 1,617
+aims**. There is no per-condition profile to go and find, because the user's own
+profile already answers for all of them.
+
+---
+
+## 10. The second question, second half: the common patch set
+
+> *"all the FOGRA reference files with same patch count have the same CMYK
+> numbers, but differs in the lab numbers ... we do not have the common patch
+> set used in a profiling chart"*
+
+### 10.1 The observation is correct, and it is stronger than stated
+
+Checked across the 100 reference files present on the machine for this work:
+
+| layout the files declare | patches | files | share one device column? |
+|---|---:|---:|---|
+| ECI2002 | 1,485 | 28 | **yes, all identical** |
+| ISO 12642-2 | 1,617 | 22 | **yes**, 21 byte-identical, the 22nd the same 1,588 quadruples reordered |
+| MediaWedge3 subset | 72 | 20 | **yes, all identical** |
+| IT8.7/3 (ISO 12642:1996) | 928 | 26 | three variants, not one |
+| TC9.18, RGB | 918 | 2 | **yes**, identical as a multiset |
+
+On the 1,617-patch family the one apparent exception is not one: its device
+column contains exactly the same 1,588 unique quadruples as the others, in a
+different row order, with **0 quadruples in one and not the other**. So the
+reading is right. One patch set, printed under many conditions, measured each
+time.
+
+It holds on the RGB side too, which nobody had checked: the **two RGB reference
+conditions on this machine share one 918-patch RGB device set exactly**, 0
+triples in one and not the other. That set is structurally a nine-level cube of
+729 patches plus 182 more, including 11 extra steps on the neutral axis.
+
+And the layouts nest cleanly:
+
+| | unique device values | relationship |
+|---|---:|---|
+| IT8.7/3 | 836 | |
+| ECI2002 | 1,457 | a strict superset of IT8.7/3 |
+| ISO 12642-2 | 1,588 | a strict superset of ECI2002, adding 131 |
+
+The 131 additions are not scattered: 130 of them sit on a single black plane,
+and the level ladder the two layouts use is character for character the same.
+
+### 10.2 But the conclusion drawn from it does not follow
+
+The conclusion was that the common patch set is the missing piece. Two separate
+measurements say otherwise.
+
+**First, it is not missing.** ArgyllCMS already ships `ref/ECI2002R.ti2`, 1,485
+rows, whose device column **is** the ECI2002 patch set exactly, and
+`ref/ECI2002.ti2`, the same set at 8-bit quantisation with 54 padding whites.
+Both are AGPL, both are on every machine that runs ChromIQ, and neither carries
+the licensed measurement: their XYZ column matches the rights holder's measured
+values in **0 of 1,485 and 0 of 1,539 rows**. It is a stand-in, exactly as it
+should be. On the RGB side, the common 918-patch set is likewise recoverable,
+being shared identically by two independent reference files.
+
+**Second, and this is the part that settles it, having the patch set does not
+give you a verification.** The proposed workflow was run end to end on the RGB
+side, where the common set is genuinely in hand: print those 918 RGB values on
+the user's printer, measure them, compare against the reference file's Lab.
+
+| | mean | median | 95th | max | inside 2.5 |
+|---|---:|---:|---:|---:|---:|
+| Canon Pro-300 on Canon Semi-Gloss | **8.02** | 7.97 | 14.53 | 21.51 | 43 of 918 |
+| Canon Pro-300 on Epson Premium SG | 11.92 | 10.36 | 25.52 | 35.11 | 14 of 918 |
+
+Eight dE00, with the patch set, on the better printer. The same thing on the
+CMYK side: send the shared 1,617-patch device set to three different printing
+conditions and the colours that come out differ from each other by **6.12, 6.56
+and 2.16 dE00 on average**, reaching 18.32.
+
+That divergence is not a fault to be engineered away. It is the whole reason the
+reference files differ from one another in the first place. A profiling chart's
+job is to sample a device evenly; a verification chart's job is to aim at named
+colours. The same list of device values cannot do both, because the second job
+is defined in colour and the first is defined in ink.
+
+For comparison, on the same aims and the same printers, the route that inverts
+the user's own profile:
+
+| | all 1,617 aims | on the reachable patches |
+|---|---|---|
+| Canon Semi-Gloss | 0.059 mean, 4.082 max | **0.001 mean, 0.434 max** (1,567 patches) |
+| Epson Premium SG | 0.435 mean, 8.976 max | **0.003 mean, 0.493 max** (1,460 patches) |
+
+Those reachable-subset figures supersede part one's 0.28 and 1.47, which were
+measured through the baked backward table. With the numerical inverse the
+floor is far lower than part one reported.
+
+### 10.3 Does the rights holder supply a patch set that is not a reference file?
+
+**No.** Checked by opening every file rather than by reasoning about it. Of the
+103 files in the four published archives on this machine, 100 carry a data
+table and **every one of the 100 is a reference file**: the device column always
+arrives welded to a measured colour column. **Zero** are device values only. The
+remaining three are a readme and two files whose data table uses a column layout
+the parser did not read.
+
+So the answer to the question as asked is no. But the thing wanted is available
+anyway, from two other directions:
+
+1. **The layouts are published standards, not the rights holder's property.**
+   The files themselves name them: ISO 12642-2 for the 1,617-patch target
+   (IT8.7/4), ISO 12642-1 for the 928 (IT8.7/3), ECI2002 for the 1,485, and the
+   72-patch wedge which the rights holder's own readme states is a valid subset
+   of ISO 12642-1, ISO 12647-2 and ISO 12642-3. A device-value definition
+   carries no measurement and is separable from the licensed part by
+   construction.
+2. **One of them is already installed.** `ECI2002R.ti2` is the 1,485-patch
+   profiling target, under a free licence, sitting in the Argyll folder ChromIQ
+   already reads its `.cht` files from.
+
+### 10.4 The best course of action, given all of that
+
+Not to obtain the patch set, because obtaining it changes nothing measurable. If
+one is wanted anyway, in descending order of cost:
+
+1. **Nothing.** ChromIQ profiles RGB printers, and a CMYK patch set cannot be
+   printed on one. This is the honest answer for the CMYK layouts.
+2. For the RGB case, the **918-patch RGB set** is already usable and needs no
+   grant, being shared identically by two independent published references. It
+   is a fine profiling chart. It is not a verification chart, per the 8.02
+   figure above.
+3. If a CMYK verification path ever ships (question S5 in part one), the
+   reference's **own** device column is the right chart and is already inside
+   the file. No separate patch set is needed there either.
+
+---
+
+## 11. What changed in the recommendation
+
+The recommendation from part one stands: build the chart by inverting the
+user's own profile at the reference's own Lab aims, restricted to the patches
+the printer can reach. This round strengthened it and corrected one figure.
+
+* The inversion should use the **numerical inverse** (`-fif`), not the baked
+  backward table. Measured over the app's own eleven bundled sets, that is
+  0.366 to 0.052 dE00 average and 83.2 % to 97.2 % of patches inside 0.5 dE00.
+  `workflow/xicclu_runner.py` can only reach `-fif` by being handed an ink
+  limit, which is meaningless for an RGB profile, so it needs a way to ask for
+  the numerical inverse directly. That is the whole change.
+* Part one's floor of 0.28 mean and 1.47 max on the reachable patches was
+  measured through the baked table. Through the numerical inverse it is
+  **0.001 mean and 0.434 max**.
+* Coverage figures must carry their intent. 85.7 % and 94.7 % are the same
+  printer and the same sets under absolute and media-relative.
+
+---
+
+## 12. What is being asked for, this round
+
+1. Is it agreed that the search is a numerical profile inversion under another
+   name, and that the right move is to switch ChromIQ's verification inversion
+   from the baked table to `-fif` rather than to write a search?
+2. Is the "generic chart preset, per-printer device column" shape of section 8
+   the right reading of what was wanted, given that a genuinely generic patch
+   set costs 7.99 dE00 and a shipped RGB list agrees with 0 of 1,617 aims on a
+   second paper?
+3. Is a bare profiling patch set still wanted for its own sake, now that having
+   one measures 8.02 dE00 as a verification, and given that the 1,485-patch
+   version already ships free with ArgyllCMS?
