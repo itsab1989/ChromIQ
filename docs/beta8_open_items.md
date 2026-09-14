@@ -5734,3 +5734,63 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   like a finding.
 
   His sequence is asked for rather than guessed at.
+
+### B8-123 · The challenge round on the 2026-09-14 batch: five faults, all two hours old
+- blocks release: no
+- status: FIXED
+- found by: the adversary round run against `b3bbafbe` and `de04179d` before
+  tagging beta 13, at Basti's explicit instruction to run the loop on Knut's
+  latest request. Four drivers, real windows, real Generate, ink measured off
+  the app's own TIFFs.
+- evidence:
+  test_the_two_rows_are_separate_exclusive_groups,
+  test_changing_your_mind_back_records_nothing,
+  test_the_pick_is_applied_outside_the_body_so_it_cannot_double,
+  test_the_body_leaves_the_pick_for_the_wrapper,
+  test_the_report_window_applies_the_pick_through_its_own_door,
+  test_patch_first_warns_too,
+  test_the_label_checks_stay_area_first_only.
+  Mutating back to the shipped state reproduces F1 and F2 exactly.
+- detail: five, every one written that night. Recorded in full because the
+  shapes recur.
+
+  **F1. QT'S AUTO-EXCLUSIVITY IS PER PARENT WIDGET.** Both radio rows were laid
+  into `_head_grid`, so the ten buttons were ONE exclusive group: picking a set
+  for the run unchecked "Default for new runs", and one row could show two
+  filled buttons. The opening state looked right only by accident, because
+  `setChecked` runs before `addWidget` reparents. **A row of radios needs its
+  own `QButtonGroup` the moment a second row shares its parent.**
+
+  **F2. AND IT REBOUND THE RUN TO THE SET THE USER CANCELLED.** The first click
+  never unchecked the original, so clicking the original again was a no-op on
+  an already-checked button: the handler did not fire and the abandoned pick
+  stayed recorded. `test_picking_the_set_it_already_has_records_nothing` passed
+  throughout, because it clicked the already-checked radio FIRST, where the
+  no-op gives the right answer. **The order a test clicks in is part of what it
+  proves.**
+
+  **F3. A WINDOW MUST NOT SEE ITS OWN CHANGE AS SOMEBODY ELSE'S.** Applying the
+  pick inside `_on_open_limits` put it before the body's own after-snapshot, so
+  the "did what this run is judged by change?" test caught the window's own
+  write: two identical recalculate questions, two archive folders, a silent
+  revert of the preference just set, and a box blaming another window. The body
+  records; a `finally` outside it applies, once, across a dozen early returns.
+
+  **F4. WIDENING A GUARD LETS THROUGH WHAT IT WAS ALSO HOLDING.** Letting the
+  bottom checks run in patch-first (B8-1xx's real fix) took the HEIGHT check
+  with the width one. The height check asks about `r.margin_bottom`, the
+  REQUESTED margin; patch-first reserves the band instead. Measured on a real
+  Generate: patches ending 263.99 mm, text at 288.37, 24.38 mm of clear paper,
+  under a red line claiming a collision. The width check is right in both modes
+  and stays; the height check is area-first again.
+
+  **F5. A COMPOSITION CHANGED IN ONE CALL SITE OF TWO.** `_sync_type_combo_to`
+  still set the line to the type's description after the line became the
+  generated list, leaving a description carrying a "show all" link to a list it
+  does not name, over a contradicting tooltip.
+
+  **AND IT CAUGHT AN UNSANDBOXED PROBE OF MINE** pinning `custom_output_path`
+  in the real plist for the second time in one session. Unset, verified by
+  value. Probe scripts now set `CHROMIQ_SETTINGS_FILE` and
+  `CHROMIQ_PRESETS_DIR` as environment variables before `core` is imported at
+  all, which is the only ordering that works.
