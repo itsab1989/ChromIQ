@@ -290,6 +290,38 @@ def _fmt(v, dec: int = 2) -> str:
     return f"{v:.{dec}f}" if isinstance(v, (int, float)) else "—"
 
 
+def _small_sample_sentence(r: "dict | None") -> str:
+    """Why the worst-5 % row was withheld, naming the population it counted.
+
+    Two sentences, because the honest answer depends on whether the profile's
+    gamut took patches out of the reckoning. A chart of 20 whose within-gamut
+    subset is 18 is not "a chart of 20 patches, at least 20 are needed": that
+    reads as a condition met and a row withheld anyway, which is what was
+    measured on screen.
+    """
+    from workflow.measurement_report import graded_de00
+    r = r or {}
+    graded, _src = graded_de00(r)
+    n = graded.get("n")
+    total = r.get("patches")
+    if isinstance(n, int) and isinstance(total, int) and n != total:
+        # ONE OF THEM FALLS, NOT FALL. A twenty-patch sheet with nineteen
+        # colours outside the gamut reaches n = 1, and "(s)" is banned in this
+        # project's user-facing text.
+        return (tr("{total} patches were measured and one of them falls inside "
+                   "the profile's gamut; at least 20 are needed to split off "
+                   "the worst 5 %").format(total=total) if n == 1 else
+                tr("{total} patches were measured and {n} of them fall inside "
+                   "the profile's gamut; at least 20 are needed to split off "
+                   "the worst 5 %").format(total=total, n=n))
+    _count = n if isinstance(n, int) else total if total is not None else None
+    if _count == 1:
+        return tr("the chart has one patch; at least 20 are needed to split "
+                  "off the worst 5 %")
+    return tr("the chart has {n} patches; at least 20 are needed to split off "
+              "the worst 5 %").format(n=_count if _count is not None else "?")
+
+
 def _is_raw_drift(r: dict) -> bool:
     """A recorded-raw verification sheet judged against the design: its job is
     drift, not accuracy — Pass/Fail against the profile thresholds would fail
@@ -2755,9 +2787,14 @@ class MeasurementReportDialog(QDialog):
                                        "has no aim for it"),
             "no_ramp": tr("the chart has no tone ramp with at least three steps "
                           "between 30 % and 70 %"),
-            "small_sample": tr("the chart has {n} patches; at least 20 are needed "
-                               "to split off the worst 5 %").format(
-                                   n=r.get("patches", "?")),
+            # **THE POPULATION THAT WAS GRADED, NOT THE CHART'S OWN COUNT.**
+            # Measured on a 20-patch chart: the row was withheld and the
+            # sentence read *"the chart has 20 patches; at least 20 are
+            # needed"*, which tells a reader the condition is met and the row
+            # was withheld anyway. The verdict is passed on the WITHIN-gamut
+            # subset (`graded_de00`), and that was 18. `{n}` was filled from
+            # `report["patches"]`, which is the sheet.
+            "small_sample": _small_sample_sentence(r),
             "printing_unrecorded": tr("how this sheet was printed is not "
                                       "recorded, so this value is shown for "
                                       "information only"),

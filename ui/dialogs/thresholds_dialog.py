@@ -47,6 +47,7 @@ from core.logger import get_logger
 from ui.fade_scroll import attach_edge_fades
 from ui.styles import ACCENT_WARN, SPEC_GREEN
 from ui.tab_header import dialog_masthead
+from ui.tooltip_button import TooltipButton
 from ui.theme import resolve_mode
 from ui.widgets import NoScrollDoubleSpinBox, WorkAreaClamped
 from workflow.compliance_sets import (GROUP_LABELS, GROUP_ORDER, ROWS, SET_BY_ID,
@@ -621,7 +622,32 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                 lab.setStyleSheet("padding-left: 12px;")
                 if row.status == "unmeasurable" and row.note:
                     lab.setToolTip(tr(row.note))
-                g.addWidget(lab, r, 0)
+                # THE NAME AND ITS INFO ICON SHARE COLUMN 0, with the icon
+                # pushed to the right edge of that column so the icons line up
+                # in a straight column of their own. Knut, 2026-09-14: *"Right
+                # aligned to the end of each metric name, add an info help
+                # icon, where each help icon describes the metric for that line
+                # and details the conditions used to detect if a chart contains
+                # the patches needed to assess and judge this metric."*
+                #
+                # The text of both halves lives on the ROW, in
+                # `compliance_sets.ROWS`, so the window cannot describe a row
+                # the limits table does not have and a new row cannot be added
+                # without one. `Row.__post_init__` refuses a row with no blurb.
+                cell = QWidget(self)
+                _h = QHBoxLayout(cell)
+                # THE GRID'S OWN HORIZONTAL SPACING IS ZERO, so without a
+                # right margin here the icon's edge lands one pixel from the
+                # unit text and reads as "ⓘΔE00". Photographed on all thirty
+                # rows, in three languages, at two window sizes.
+                _h.setContentsMargins(0, 0, 10, 0)
+                _h.setSpacing(6)
+                _h.addWidget(lab)
+                _h.addStretch(1)
+                _h.addWidget(TooltipButton(tr(row.label),
+                                           self._row_help(row), self,
+                                           min_width=460, color=SPEC_GREEN))
+                g.addWidget(cell, r, 0)
                 unit = QLabel(row.unit, self)
                 unit.setStyleSheet(faint)
                 g.addWidget(unit, r, 1)
@@ -631,6 +657,29 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                     self._cells[(col, row.id)] = w
                     self._column_widgets[col].append(w)
                 r += 1
+
+    @staticmethod
+    def _row_help(row) -> str:
+        """What one metric measures, and when a chart can be judged on it.
+
+        Two paragraphs, always in the same order, because Knut asked for both
+        in one icon: *"describes the metric for that line and details the
+        conditions used to detect if a chart contains the patches needed"*.
+
+        An `unmeasurable` row has no detection to describe and never had one;
+        its `note` already says why ChromIQ does not evaluate it at all, and it
+        is framed here so the icon does not read as a fault.
+        """
+        parts = [tr(row.blurb)]
+        if row.detect:
+            parts.append(tr("How ChromIQ decides your chart can be judged on "
+                            "this row") + "\n" + tr(row.detect))
+        elif row.note:
+            parts.append(tr("ChromIQ does not evaluate this row: {why}. There "
+                            "is nothing to detect on your chart, and the cell "
+                            "shows a cross in every limit set.").format(
+                                why=tr(row.note)))
+        return "\n\n".join(parts)
 
     def _column_editable(self, col: str) -> bool:
         # A WINDOW THAT WRITES NOTHING OFFERS NOTHING TO WRITE WITH.

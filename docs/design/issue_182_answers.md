@@ -2001,3 +2001,98 @@ pending one, which is not what he asked for.
 **Confirmed by:** *nobody yet.* Driven on the real window over fourteen steps
 with the document fingerprinted at each, so "nothing changed" is measured
 rather than assumed (`scripts/drive_182_generate_waits.py`).
+
+## 2w. Knut, 2026-09-14: a help icon per metric, and the five rows that have no detection
+
+> *"In report limits window (Edit limits button) the first column is a name for
+> each metric. Right aligned to the end of each metric name, add an info help
+> icon, where each help icon describes the metric for that line and details the
+> conditions used to detect if a chart contains the patches needed to assess
+> and judge this metric. If any metric is missing a detection method for
+> checking if a chart used for verification contains needed patches, then this
+> detection method must be determined and specified."*
+
+Built. Thirty icons, one per row, lined up at the right edge of the name
+column, each holding two paragraphs: what the metric measures, and how ChromIQ
+decides whether your chart can be judged on it. The text lives on the ROW, in
+`compliance_sets.ROWS`, so a row cannot be added without it (`__post_init__`
+refuses), and `tests/test_every_metric_says_how_it_is_detected.py` reads the
+numbers in the sentences back out of `measurement_report`'s own constants, so a
+changed threshold cannot leave the window promising the old one.
+
+### Which rows can be judged at all, measured
+
+Eleven of the thirty carry a verdict. Fourteen are `unmeasurable` and always
+were: they need a gloss meter, a xenon rig, nine readings at set positions, or
+a workflow ChromIQ does not have, and their icons say exactly that. The
+remaining **five have no detection method**, which is what his last sentence is
+about.
+
+### The three reference rows are dead on every ChromIQ chart, and the icon says so
+
+**MEASURED: `needs_reference_file` in 80 of 80 saved reports in the demo
+package**, for *Paper white, difference from the reference paper*, *Solid
+colours, largest difference* and *Cyan, magenta and yellow solids, largest hue
+difference*. Those three need a colorimetric reference sidecar, which only the
+profile-gamut chart module writes. They are also the three rows both Custom
+columns put a number on. So the rows a user is most likely to type a limit into
+are the rows an ordinary chart can never answer, and the icon now says which
+kind of chart supplies them.
+
+### Rows 8, 9, 10: the control strip
+
+The population is the standard's own control strip, a named strip with a
+published patch list that ChromIQ does not hold and cannot invent. But the
+detection does not need the list, only a declaration. **Proposed, and awaiting
+Knut:**
+
+> A chart carries a control strip when a sidecar `<chart stem>.control-strip.json`
+> sits beside it holding `{"name": "<the strip's own name>", "sample_ids":
+> ["A1", "A2", ...]}`, or when the `.ti1` / `.ti2` carries a CGATS keyword
+> `CONTROL_STRIP_IDS` naming the same ids.
+>
+> The row is computable when the sidecar exists, when **k**, the count of those
+> ids present in the measured `.ti3`, is **at least 8** (below eight an average
+> over the strip says nothing), and when a reference exists for them. The 95th
+> percentile row needs **k >= 20**, because its nearest rank `ceil(0.95 k)`
+> equals `k` for every k below 20 and it would simply repeat the largest.
+>
+> Two reason codes, because they send a reader to different places:
+> `no_control_strip` and `control_strip_too_small`.
+
+Nothing in that reads a standard. It answers *"does this chart have a strip and
+is it big enough"*, which is the question he asked the detection to answer.
+
+### Rows 18 and 19: a specification change, not a fault
+
+*Outer-gamut patches* and *Surface-gamut patches* are missing the DEFINITION of
+their population, not the detection. ChromIQ could define its own and compute
+them honestly today:
+
+> **Surface-gamut patches**: every patch whose device values touch the surface
+> of the device cube, `min(v, 100 - v) <= 2.0` for at least one of R, G, B.
+> Computable with at least 10 such patches carrying a reference.
+>
+> **Outer-gamut patches**: the top quartile by chroma, `C*ab = hypot(a*, b*)`,
+> requiring at least 20 patches so the average is not one or two readings.
+
+**But those rows sit under the heading "Selected patches of the standard's
+chart", and giving them ChromIQ's own definition while leaving that heading is
+exactly the "attributing coverage to a standard" mistake `compliance_sets.py`
+already records being made twice.** If Knut wants them computable, the group
+heading and the row names change with them. Until he says so, the icons say
+plainly that ChromIQ does not judge those rows and why.
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.* The icons are built and driven on screen
+(`scripts/drive_182_metric_help_icons.py`, thirty icons, three of the info
+dialogs photographed). The three proposals above are proposals.
+
+### And one fault found while mapping the table
+
+The *Worst 5 % of patches* row could be withheld with a sentence that
+contradicted itself: **measured on a 20-patch chart, *"the chart has 20
+patches; at least 20 are needed"***. The verdict is passed on the within-gamut
+subset, which was 18, and `{n}` was filled from the sheet's own count. The
+sentence now names the population that was actually counted.

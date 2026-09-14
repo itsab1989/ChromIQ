@@ -1,5 +1,40 @@
 # Changelog
 
+## v4.3.0-beta.15
+
+**Every row of the Report limits window now explains itself.** An info icon at
+the end of each metric name says what that metric measures and how ChromIQ
+decides whether your chart can be judged on it, including the rows it cannot
+judge and why.
+
+### New
+
+- **An info icon on all thirty metric rows**, lined up at the right-hand end of
+  the names. Each opens a panel with two paragraphs: what the row measures, in
+  a printer's words, and the condition your chart has to meet for the row to
+  carry a verdict. The numbers in those conditions (eight grey steps, twelve
+  device units at a solid corner, three ramp steps over twenty tone points,
+  twenty patches for a worst twentieth) are the ones the report really applies.
+
+- **The rows ChromIQ cannot judge say so, and say what is missing.** Fourteen
+  rows need an instrument or a protocol ChromIQ does not have, and name it.
+  Five more have no way to detect whether your chart carries the patches at
+  all: the three control-strip rows and the two selected-patch rows. Their
+  icons say that plainly rather than inventing a condition.
+
+- **And the three rows that need a reference file now say which chart supplies
+  it.** Paper white, Solid colours and the CMY hue difference can only be
+  judged on a chart built from a profile's gamut, which is not obvious from
+  the row names and is why they read N-A on an ordinary test chart.
+
+### Fixed
+
+- **The worst-5 % row could say the condition was met and withhold the verdict
+  anyway.** On a twenty-patch chart it read "the chart has 20 patches; at least
+  20 are needed", while the count that decides the row is of the patches inside
+  the profile's gamut, which was eighteen. It now names the population that was
+  actually counted, in the singular where there is one of them.
+
 ## v4.3.0-beta.14
 
 **The Measurement Report waits for its Generate button, the text along the

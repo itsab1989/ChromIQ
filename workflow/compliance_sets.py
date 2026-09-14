@@ -227,94 +227,225 @@ class Row:
     metric_key: "str | None" = None
     #: why ChromIQ cannot measure it (``unmeasurable`` rows only); English
     note: str = ""
+    #: WHAT THIS ROW MEASURES, in one sentence a printer user can read, and
+    #: WHEN CHROMIQ CAN JUDGE A CHART ON IT. Knut, 2026-09-14: *"add an info
+    #: help icon, where each help icon describes the metric for that line and
+    #: details the conditions used to detect if a chart contains the patches
+    #: needed to assess and judge this metric."* English source strings,
+    #: displayed through `tr()`; `detect` is left empty on an `unmeasurable`
+    #: row, where `note` already says why there is nothing to detect.
+    blurb: str = ""
+    detect: str = ""
 
     def __post_init__(self) -> None:
         assert self.status in ROW_STATUSES, self.status
         assert self.group in GROUP_LABELS, self.group
+        assert self.blurb, f"{self.id} has no blurb"
+        if self.status == "unmeasurable":
+            assert self.note and not self.detect, self.id
+        else:
+            assert self.detect, f"{self.id} has no detection sentence"
 
+
+#: The detection conditions, written once because rows share them. Knut,
+#: 2026-09-14, asked each row's help icon to *"detail the conditions used to
+#: detect if a chart contains the patches needed to assess and judge this
+#: metric"*, and to say so plainly where a row has no detection at all.
+#:
+#: These are the conditions the code really applies, in a user's words. The
+#: arithmetic behind each one is in `measurement_report.row_values` and the
+#: blocks it calls; `tests/test_every_metric_says_how_it_is_detected.py` holds
+#: the two together.
+_D_REFERENCE_WHITE = (
+    "ChromIQ can judge this row only when the chart carries a colorimetric "
+    "reference, which is a file of aim values measured beside the chart, and "
+    "the chart has a patch within 12 device units of bare paper. Charts built "
+    "from your profile's gamut carry that reference; an ordinary test chart "
+    "has no aim for this row and the report says so instead of guessing.")
+_D_REFERENCE_SOLIDS = (
+    "ChromIQ can judge this row only when the chart carries a colorimetric "
+    "reference and has a patch at one or more of the four solid corners: cyan, "
+    "magenta, yellow, and the composite black where all three inks are at "
+    "full. A corner counts as present when a patch sits within 12 device units "
+    "of it, and the row reports the worst of the corners that were found, not "
+    "of all four. Charts built from your profile's gamut carry that reference; "
+    "an ordinary test chart has no aim for this row.")
+_D_REFERENCE_CMY = (
+    "ChromIQ can judge this row only when the chart carries a colorimetric "
+    "reference and has a patch at one or more of the cyan, magenta and yellow "
+    "solid corners, within 12 device units. The row reports the worst of the "
+    "corners that were found, not of all three. Charts built from your "
+    "profile's gamut carry that reference; an ordinary test chart has no aim "
+    "for this row.")
+_D_CONTROL_STRIP = (
+    "ChromIQ has no way to tell whether your chart carries the standard's own "
+    "control strip, so this row is never judged. The strip is a specific list "
+    "of patches published with the standard, and ChromIQ does not hold that "
+    "list. For this row to work, a chart would have to declare its strip, and "
+    "that is a change still to be agreed.")
+_D_GREY_RAMP = (
+    "ChromIQ can judge this row when the chart has a grey ramp: patches whose "
+    "red, green and blue values are within one unit of each other, at least "
+    "eight distinct steps of it, reaching white at one end and black at the "
+    "other, and carrying reference values. Bare paper counts as one of those "
+    "steps and can be the white end on its own, but it is left out of the "
+    "figure itself. The report names whichever of those is missing.")
+_D_ALL_PATCHES = (
+    "ChromIQ can judge this row on any VERIFICATION sheet it built, because "
+    "every patch carries the colour it was asked for. A run's own profiling "
+    "chart is printed raw before a profile exists, so its numbers are shown "
+    "for information only and no row on it is judged. A measurement with no "
+    "reference values at all is not judged either, and the report says so.")
+_D_WORST5 = (
+    "As the rows above, a verification sheet only, and the chart needs at "
+    "least twenty patches counted, so that a worst twentieth exists to "
+    "average. Where the report separates colours the profile could never "
+    "print, the count is of the patches inside the gamut, and that is the "
+    "number the report quotes.")
+_D_RAMPS = (
+    "ChromIQ can judge this row when the chart has a single-ink or grey ramp "
+    "with at least three distinct steps between 30 % and 70 % tone value, "
+    "spanning at least twenty points of it, and carrying reference values. Any "
+    "one of the four axes, red, green, blue or grey, is enough.")
+_D_OUTER_GAMUT = (
+    "ChromIQ does not judge this row. The population is the standard's own "
+    "list of saturated patches, which ChromIQ does not hold, so it can neither "
+    "find those patches on your chart nor say whether they are there. Giving "
+    "the row a definition of its own is a change still to be agreed.")
+_D_SURFACE_GAMUT = (
+    "ChromIQ does not judge this row. The population is the standard's own "
+    "list of patches on the surface of the printable colour solid, which "
+    "ChromIQ does not hold. Giving the row a definition of its own is a change "
+    "still to be agreed.")
 
 ROWS: "tuple[Row, ...]" = (
     # -- Paper
     Row("substrate_de00_max", "substrate",
-        "Paper white, difference from the reference paper", "ΔE00", "ref"),
+        "Paper white, difference from the reference paper", "ΔE00", "ref",
+        blurb='How far the bare paper you printed on sits from the paper the reference describes. A paper that is bluer, warmer or darker than the aim moves every colour printed on it.',
+        detect=_D_REFERENCE_WHITE),
     Row("substrate_overprinted_de00_max", "substrate",
         "Overprinted proofing paper against the production paper", "ΔE00",
         "unmeasurable",
-        note="needs the production paper measured as well"),
+        note="needs the production paper measured as well",
+        blurb='Whether the proofing stock, once printed, matches the stock the job will really run on.'),
     Row("substrate_gloss_class", "substrate", "Gloss class of the paper", "",
-        "unmeasurable", note="needs a gloss meter or the paper maker's data sheet"),
+        "unmeasurable", note="needs a gloss meter or the paper maker's data sheet",
+        blurb='Which gloss band the paper falls in. Gloss changes how dark a black can look and how a proof compares with a press sheet.'),
     Row("substrate_fluorescence_class", "substrate",
         "Fluorescence class of the paper", "", "unmeasurable",
-        note="needs a brightness reading with and without UV"),
+        note="needs a brightness reading with and without UV",
+        blurb='How much optical brightener the paper carries. Brighteners glow under the ultraviolet in daylight, so the paper can measure and look bluer than it is.'),
     # -- Solid colours
     Row("solids_de00_max", "solids",
-        "Solid colours, largest difference", "ΔE00", "ref"),
+        "Solid colours, largest difference", "ΔE00", "ref",
+        blurb='The worst of the four solid ink corners against what they should be. Solids are where an ink is laid down at full strength, so they show the ink itself rather than the profile.',
+        detect=_D_REFERENCE_SOLIDS),
     Row("cmy_solids_dhab_max", "solids",
-        "Cyan, magenta and yellow solids, largest hue difference", "ΔH*ab", "ref"),
+        "Cyan, magenta and yellow solids, largest hue difference", "ΔH*ab", "ref",
+        blurb='Whether the three chromatic solids drifted in hue, ignoring how light or how saturated they are. A hue shift in a solid is the one error the eye finds hardest to forgive.',
+        detect=_D_REFERENCE_CMY),
     Row("spot_solids_de00_max", "solids",
         "Spot colours, largest difference", "ΔE00", "unmeasurable",
-        note="ChromIQ has no spot-colour workflow"),
+        note="ChromIQ has no spot-colour workflow",
+        blurb='Named brand inks, such as a company colour, against their published book values.'),
     # -- Control strip
     Row("control_strip_de00_avg", "control_strip",
-        "Control-strip patches, average", "ΔE00", "unknown"),
+        "Control-strip patches, average", "ΔE00", "unknown",
+        blurb='The average colour error over the strip of patches the standard publishes for checking a press or a proof.',
+        detect=_D_CONTROL_STRIP),
     Row("control_strip_de00_max", "control_strip",
-        "Control-strip patches, largest", "ΔE00", "unknown"),
+        "Control-strip patches, largest", "ΔE00", "unknown",
+        blurb='The worst single patch of that published strip.',
+        detect=_D_CONTROL_STRIP),
     Row("control_strip_de00_p95", "control_strip",
-        "Control-strip patches, 95th percentile", "ΔE00", "unknown"),
+        "Control-strip patches, 95th percentile", "ΔE00", "unknown",
+        blurb='The error that 95 % of the published strip stays under, so one bad patch does not decide the result.',
+        detect=_D_CONTROL_STRIP),
     # -- Grey ramp (K-h)
     Row("grey_balance_neutral_ramp_avg", "grey_ramp",
-        "Grey balance of the grey ramp, average", "ΔCh", "build"),
+        "Grey balance of the grey ramp, average", "ΔCh", "build",
+        blurb='How neutral your greys are on average: how far each step of the grey ramp sits from having no colour cast at all. Lightness is ignored, only the cast is counted.',
+        detect=_D_GREY_RAMP),
     Row("grey_balance_neutral_ramp_max", "grey_ramp",
-        "Grey balance of the grey ramp, largest", "ΔCh", "build"),
+        "Grey balance of the grey ramp, largest", "ΔCh", "build",
+        blurb='The worst single step of the grey ramp. One step with a cast is visible in a photograph even when the average looks healthy.',
+        detect=_D_GREY_RAMP),
     # -- All patches (ChromIQ's five, shape A merge with the ISO all-patch rows)
     Row("all_de00_avg", "all_patches", "All patches, average", "ΔE00", "now",
-        metric_key="avg_all"),
+        metric_key="avg_all",
+        blurb='The average colour error over the whole chart. The headline number, and the one to watch over time.',
+        detect=_D_ALL_PATCHES),
     Row("best95_de00_avg", "all_patches", "Best 95 % of patches, average", "ΔE00",
-        "now", metric_key="avg_low95"),
+        "now", metric_key="avg_low95",
+        blurb='The average with the worst twentieth of the patches thrown out, so a handful of very hard colours cannot hide an otherwise good result.',
+        detect=_D_ALL_PATCHES),
     Row("worst5_de00_avg", "all_patches", "Worst 5 % of patches, average", "ΔE00",
-        "now", metric_key="avg_high5"),
+        "now", metric_key="avg_high5",
+        blurb='How bad the hardest colours are: the average over the worst twentieth alone. This is the row that answers what happens at the edge of what the printer can do.',
+        detect=_D_WORST5),
     Row("all_de00_max", "all_patches", "All patches, largest", "ΔE00", "now",
-        metric_key="max_all"),
+        metric_key="max_all",
+        blurb='The single worst patch on the sheet. Useful for finding a misread or a damaged patch as well as a real error.',
+        detect=_D_ALL_PATCHES),
     Row("all_de00_p95", "all_patches", "All patches, 95th percentile", "ΔE00",
-        "now", metric_key="max_low95"),
+        "now", metric_key="max_low95",
+        blurb='The error 95 % of the chart stays under, counted by rank rather than by fitting a curve.',
+        detect=_D_ALL_PATCHES),
     # -- Selected patches of the standard's chart
     Row("outer_gamut_226_de00_avg", "selected",
-        "Outer-gamut patches, average", "ΔE00", "unknown"),
+        "Outer-gamut patches, average", "ΔE00", "unknown",
+        blurb="The average error over the standard's own set of saturated patches at the edge of the printable colours.",
+        detect=_D_OUTER_GAMUT),
     Row("surface_gamut_de00_avg", "selected",
-        "Surface-gamut patches, average", "ΔE00", "unknown"),
+        "Surface-gamut patches, average", "ΔE00", "unknown",
+        blurb='The average error over the patches that sit on the outside of the printable colour solid, where a profile has least room.',
+        detect=_D_SURFACE_GAMUT),
     Row("ramps_30_70_dl_max", "selected",
         "Single-colour ramps 30 % to 70 %, largest lightness difference", "ΔL*",
-        "build"),
+        "build",
+        blurb='Whether the mid-tones of each single ink, and of grey, land at the right lightness. This is the part of a ramp the eye reads as contrast.',
+        detect=_D_RAMPS),
     # -- Not evaluated by ChromIQ (✕ rows; notes in the report)
     Row("uniformity_sd", "not_evaluated",
         "Evenness across the sheet, nine locations (spread of L*, a*, b*)", "",
-        "unmeasurable", note="needs nine readings at set positions on one sheet"),
+        "unmeasurable", note="needs nine readings at set positions on one sheet",
+        blurb='Whether one sheet prints the same colour in the middle as in the corners, read at nine set places.'),
     Row("uniformity_de00_max_from_mean", "not_evaluated",
         "Evenness across the sheet, largest difference from the mean", "ΔE00",
-        "unmeasurable", note="needs nine readings at set positions on one sheet"),
+        "unmeasurable", note="needs nine readings at set positions on one sheet",
+        blurb='The worst of those nine places against their own average.'),
     Row("macro_uniformity_score", "not_evaluated",
         "Macro-uniformity score", "", "unmeasurable",
-        note="a scanned-image method; ChromIQ measures patches, not areas"),
+        note="a scanned-image method; ChromIQ measures patches, not areas",
+        blurb='Banding, mottle and streaks judged over areas of print rather than over patches.'),
     Row("repeatability_de00_max", "not_evaluated",
         "Repeatability from print to print and day to day", "ΔE00",
-        "unmeasurable", note="a timed protocol, not a property of one sheet"),
+        "unmeasurable", note="a timed protocol, not a property of one sheet",
+        blurb='Whether the same file prints the same colour today, tomorrow and on the next sheet.'),
     Row("permanence_de00_max", "not_evaluated",
         "Permanence in storage", "ΔE00", "unmeasurable",
-        note="needs climate chambers"),
+        note="needs climate chambers",
+        blurb='How far the print moves while it is simply stored.'),
     Row("fading_24h_de00_max", "not_evaluated",
         "Fading in the dark, first 24 hours", "ΔE00", "unmeasurable",
-        note="a timed physical test"),
+        note="a timed physical test",
+        blurb='How much the print changes in its first day in the dark, while the ink is still settling.'),
     Row("light_fastness", "not_evaluated", "Light fastness", "", "unmeasurable",
-        note="needs a xenon exposure rig"),
+        note="needs a xenon exposure rig",
+        blurb='How well the print holds up under strong light over time.'),
     Row("stabilization_minutes_max", "not_evaluated",
         "Print stabilisation and rub resistance", "", "unmeasurable",
-        note="needs the rub apparatus of the standard"),
+        note="needs the rub apparatus of the standard",
+        blurb='How long a print needs before it is stable enough to measure, and whether the surface survives handling.'),
     Row("tone_value_limits", "not_evaluated", "Tone value reproduction limits", "",
-        "unmeasurable", note="ChromIQ measures no tone value"),
+        "unmeasurable", note="ChromIQ measures no tone value",
+        blurb='Whether the lightest and darkest tones that should print separately actually do.'),
     Row("measurement_condition", "not_evaluated",
         "Measurement condition (M0, M1, M2) stated and matched", "",
         "unmeasurable",
-        note="ArgyllCMS records no measurement condition in the file"),
+        note="ArgyllCMS records no measurement condition in the file",
+        blurb="Whether the instrument's illumination condition is stated and matches the one the limits assume."),
 )
 
 ROW_BY_ID: "dict[str, Row]" = {r.id: r for r in ROWS}

@@ -108,6 +108,16 @@ def _compliance_set_keys() -> set[str]:
         out.add(row.label)
         if row.note:
             out.add(row.note)
+        # …AND THE TWO HALVES OF THE ROW'S HELP ICON (Knut, 2026-09-14), which
+        # reach the screen the same invisible way, through `tr(row.blurb)`.
+        # Without this sweep thirty descriptions and eleven conditions would
+        # ship English in twelve languages and nothing would say so: the
+        # everyday tier noticed only the THREE frame strings around them,
+        # because those are the only ones written as literals.
+        if row.blurb:
+            out.add(row.blurb)
+        if row.detect:
+            out.add(row.detect)
     for st in cs.SETS:
         out.add(st.label)
         if st.blurb:

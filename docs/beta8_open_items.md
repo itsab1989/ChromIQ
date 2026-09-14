@@ -6069,3 +6069,139 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   the comment *"The recipe always knows its paper"*. Not driven to a visibly
   wrong warning, so it is a lead; the new alignment arithmetic sits on top of
   it.
+
+### B8-130 · Knut, 2026-09-14: a help icon on every metric row, and the five rows with no detection
+- blocks release: no
+- status: FIXED
+- found by: Knut, 2026-09-14: *"Right aligned to the end of each metric name,
+  add an info help icon, where each help icon describes the metric for that
+  line and details the conditions used to detect if a chart contains the
+  patches needed to assess and judge this metric. If any metric is missing a
+  detection method ... then this detection method must be determined and
+  specified."*
+- evidence:
+  test_every_row_says_what_it_measures,
+  test_every_row_that_can_be_judged_says_how_it_is_detected,
+  test_the_assertion_in_the_row_itself_is_still_there,
+  test_the_grey_condition_quotes_the_real_thresholds,
+  test_the_corner_condition_quotes_the_real_tolerance,
+  test_the_ramp_condition_quotes_the_real_thresholds,
+  test_the_worst_five_condition_quotes_the_real_population_size,
+  test_the_reference_rows_say_where_the_reference_comes_from,
+  test_the_five_rows_with_no_detection_say_so_plainly,
+  test_no_row_promises_a_reason_code_that_does_not_exist,
+  test_the_window_carries_one_icon_per_row,
+  test_each_icon_carries_both_halves,
+  test_the_icon_sits_at_the_right_edge_of_the_name_column.
+  Driven on screen by `scripts/drive_182_metric_help_icons.py`: thirty icons,
+  all at one x, five verdicts green, three of the info dialogs photographed.
+- detail: the two halves live on the ROW, in `compliance_sets.ROWS`, and
+  `Row.__post_init__` refuses a row without them, so the window cannot describe
+  a table it does not have and a new row cannot arrive undocumented.
+
+  **THE NUMBERS IN THE SENTENCES ARE READ BACK OUT OF THE CODE.** Eight grey
+  steps, one unit of spread, twelve device units at a corner, three ramp steps
+  over twenty tone points, twenty patches for a worst twentieth: each is
+  asserted against `measurement_report`'s own constant, so changing a threshold
+  without changing what the window promises turns the suite red. A document
+  cannot keep itself true; this is how it is held.
+
+  **FIVE ROWS HAVE NO DETECTION AND THE ICONS SAY SO.** Three control-strip
+  rows and the two selected-patch rows. What each would need is written out in
+  `docs/design/issue_182_answers.md` §2w; two of them change a specification
+  and are Knut's to approve, so nothing was invented.
+
+  **AND THE THREE REFERENCE ROWS ARE DEAD ON EVERY CHROMIQ CHART**, measured:
+  `needs_reference_file` in 80 of 80 saved reports in the demo package. They are
+  also the three rows both Custom columns put a number on. The icon now says
+  which kind of chart supplies that reference.
+
+### B8-131 · The worst-5 % row said the condition was met and withheld the verdict anyway
+- blocks release: no
+- status: FIXED
+- found by: mapping the metric table for B8-130. **MEASURED** on a 20-patch
+  chart: *"the chart has 20 patches; at least 20 are needed to split off the
+  worst 5 %"*.
+- evidence: test_the_worst_five_condition_quotes_the_real_population_size,
+  and the sentence itself now names the population it counted.
+- detail: the verdict is passed on the WITHIN-gamut subset (`graded_de00`),
+  which was 18 on that sheet, and `{n}` was filled from `report["patches"]`,
+  the sheet's own count. A reader was told a condition was satisfied and the
+  row was withheld anyway. **The number in a message must be the number the
+  code tested**, which is the same shape as the layout-name and patch-count
+  faults in B8-115.
+
+### B8-132 · The adversary round on the metric icons: four sentences promised more than the code does
+- blocks release: no
+- status: FIXED
+- found by: the adversarial round on the beta 15 work, reading each of the
+  thirty detection sentences against the function that does the detecting, and
+  photographing the icons as a user reads them. Drivers in
+  `scripts/adversary15_*.py`; proof in
+  `~/Desktop/ChromIQ-adversary-15-2026-09-14/`.
+- evidence:
+  test_no_detection_sentence_promises_more_than_the_code_does,
+  test_the_grey_sentence_tells_the_truth_about_bare_paper,
+  test_the_solids_sentence_names_the_composite_black,
+  test_the_worst_five_sentence_has_a_singular_form.
+  Eight mutations, each proved to land and each caught.
+- detail: **a help text is a promise, and four of thirty overstated the code.**
+
+  **F1. "a patch at EACH of the four solid corners" and the code needs ONE.**
+  `row_values` builds `solid = [...]` over the corners it found and takes
+  `max(solid)` when the list is not empty. Measured: a report with cyan present
+  and magenta 9.9 away grades *"Solid colours, largest difference"* from one
+  ink while the icon says all four were found and checked. Both that row and
+  the CMY hue row are the ones both Custom columns put a number on.
+
+  **F2 and F3. Two sentences listed every geometric condition and omitted the
+  one that is not geometric.** `grey_balance_block` and `ramps_block` both
+  withhold the row when the patches carry no reference values, AFTER
+  eligibility is granted. The ramp case is worse than a silence: the report
+  then prints *"the chart has no tone ramp with at least three steps"* about a
+  chart that has one. That sentence is pre-existing and unreachable on any
+  chart ChromIQ builds; it is carried into B8-133 rather than fixed here.
+
+  **F4. "any chart it built" is the chart it builds most often, and that one is
+  never judged.** `is_graded_sheet` is False for a run's own profiling sheet:
+  **23 of the 80 saved reports in the demo package**, 25 counting the drift
+  checks. The sentence also said the only other way was a measurement with no
+  references, which is the wrong "only".
+
+  **AND THE TEST FILE PINNED THE NUMBERS AND NOT THE CLAIMS.** The round proved
+  it: one detection sentence was rewritten to *"ChromIQ judges this row on
+  absolutely every chart, always, with no conditions whatsoever"* and all
+  fifteen tests passed. `_MUST_SAY` now holds, per row, the words the icon must
+  and must not use, one entry per fault above.
+
+  **A MUTATION NOTE THAT WAS NEVER EXECUTED.** The file claimed that removing
+  `_h.addStretch(1)` would turn the alignment test red. It does not: a QLabel's
+  Preferred policy absorbs the slack on its own. The claim is corrected in
+  place and the stretch kept for intent.
+
+  Two smaller ones: the icon's edge sat **one pixel** from the unit text on all
+  thirty rows, in three languages, at two window sizes (`ⓘΔE00`), now a 10 px
+  margin; and the new worst-5 % sentence had no singular form, so a twenty-patch
+  sheet with nineteen colours out of gamut would read *"1 of them fall"*.
+
+### B8-133 · The tone-ramp row can say something untrue about a chart
+- blocks release: no
+- status: OPEN
+- found by: the adversary round on B8-130, by code reading plus a synthetic
+  measurement; **not reproducible on any chart ChromIQ builds**, because all of
+  them carry a design reference.
+- detail: `ramps_block` sets `any_eligible` only when an axis is eligible AND
+  its band carries reference values, and returns a single `REASON_NO_RAMP` for
+  both. Measured on a synthetic grey axis with 5 distinct steps spanning 40
+  tone points and no reference: `eligible=False, reason='no_ramp'`, and the
+  report prints *"the chart has no tone ramp with at least three steps between
+  30 % and 70 %"* about a chart that has one.
+
+  The fix is to split the code into `no_ramp` and `ramp_has_no_reference` with
+  a sentence each. It is not done here because the path cannot be exercised on
+  real data, and a new code path nobody can drive is a worse trade than a
+  message that cannot currently print. The metric's help icon already names the
+  reference requirement, so the window does not repeat the claim.
+
+  The same shape exists for the grey rows, where `REASON_NO_REFERENCE` is
+  already a separate code and the sentence is therefore correct.
