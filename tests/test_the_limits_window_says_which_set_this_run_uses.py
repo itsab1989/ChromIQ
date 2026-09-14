@@ -102,11 +102,75 @@ def test_choosing_one_records_the_pick_and_writes_nothing(tmp_path, qapp):
 
 
 def test_picking_the_set_it_already_has_records_nothing(tmp_path, qapp):
+    """**THIS PASSED FOR THE WRONG REASON ONCE.** It clicked the already-checked
+    radio FIRST, where an auto-exclusive no-op happens to give the right
+    answer. The real question is what happens after a different pick, which is
+    the next test."""
     dlg, _run, _s = _dialog(tmp_path, qapp, editable=True)
     try:
         dlg._run_set_radios["chromiq_tight"].setChecked(True)
         qapp.processEvents()
         assert dlg.run_set_chosen == ""
+    finally:
+        dlg.close()
+
+
+def test_changing_your_mind_back_records_nothing(tmp_path, qapp):
+    """Pick another set, then put the original back. Nothing is chosen.
+
+    **THE RUN WAS REBOUND TO THE SET THE USER CANCELLED.** With both rows in
+    one auto-exclusive group the first click never unchecked the original, so
+    clicking it again was a no-op on an already-checked button: the handler did
+    not fire, `run_set_chosen` kept the abandoned pick, and the radio the user
+    had just pressed went dark. Driven end to end by an adversary round, a run
+    on `chromiq_tight` came out on `chromiq_quick` after the user put it back.
+    """
+    dlg, _run, _s = _dialog(tmp_path, qapp, editable=True)
+    try:
+        dlg._run_set_radios["chromiq_quick"].setChecked(True)
+        qapp.processEvents()
+        assert dlg.run_set_chosen == "chromiq_quick"
+        dlg._run_set_radios["chromiq_tight"].setChecked(True)
+        qapp.processEvents()
+        assert dlg.run_set_chosen == "", (
+            "putting the original set back left the abandoned pick recorded")
+        checked = [c for c, rb in dlg._run_set_radios.items() if rb.isChecked()]
+        assert checked == ["chromiq_tight"], (
+            f"the row shows {checked}: the radio the user pressed is not the "
+            f"one that is filled")
+    finally:
+        dlg.close()
+
+
+def test_the_two_rows_are_separate_exclusive_groups(tmp_path, qapp):
+    """MUTATION: drop either `QButtonGroup` and this goes red.
+
+    Qt's auto-exclusivity is per PARENT WIDGET and both rows are laid into the
+    same header grid, so without their own groups all ten radios were one
+    group: picking a set for the run silently unchecked "Default for new runs",
+    and one row could show TWO filled buttons at once. Photographed by an
+    adversary round on the very window written to stop a radio row being read
+    wrong.
+    """
+    dlg, _run, _s = _dialog(tmp_path, qapp, editable=True)
+    try:
+        before = [c for c, rb in dlg._default_radios.items() if rb.isChecked()]
+        assert before, "no default is shown at all"
+        dlg._run_set_radios["chromiq_quick"].setChecked(True)
+        qapp.processEvents()
+        after = [c for c, rb in dlg._default_radios.items() if rb.isChecked()]
+        assert after == before, (
+            f"picking a set for the run moved the app-wide default from "
+            f"{before} to {after}")
+        run_on = [c for c, rb in dlg._run_set_radios.items() if rb.isChecked()]
+        assert len(run_on) == 1, f"{len(run_on)} radios filled in one row: {run_on}"
+        # …and the other way round.
+        dlg._default_radios["chromiq_tight"].setChecked(True)
+        qapp.processEvents()
+        still = [c for c, rb in dlg._run_set_radios.items() if rb.isChecked()]
+        assert still == run_on, (
+            f"changing the default moved the run's own row from {run_on} to "
+            f"{still}")
     finally:
         dlg.close()
 
@@ -159,22 +223,81 @@ def test_there_is_no_row_when_there_is_no_run(tmp_path, qapp):
 
 
 def test_the_report_window_applies_the_pick_through_its_own_door(tmp_path, qapp):
-    """Read off the syntax tree: `_on_open_limits` must drive `_set_combo`,
-    not call `bind_run` or `_on_set_chosen` itself. Every guard lives on that
-    one path and a second caller is a second set of guards to keep in step."""
+    """Read off the syntax tree: the body RECORDS the pick and the wrapper
+    APPLIES it by driving `_set_combo`. Neither may call `bind_run`: every
+    guard lives on `_on_set_chosen` and a second caller is a second set of
+    guards to keep in step."""
     import ast
     import inspect
     import textwrap
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
 
-    src = inspect.getsource(MeasurementReportDialog._on_open_limits)
-    tree = ast.parse(textwrap.dedent(src))
-    names = {n.func.id for n in ast.walk(tree)
-             if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
-    attrs = {n.func.attr for n in ast.walk(tree)
-             if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
-    assert "run_set_chosen" in src, "the pick is never read"
-    assert "setCurrentIndex" in attrs, (
-        "the pick is not applied by driving the pulldown")
-    assert "bind_run" not in names, (
-        "_on_open_limits rebinds the run itself, bypassing its own guards")
+    body = inspect.getsource(MeasurementReportDialog._open_limits_window)
+    wrap = inspect.getsource(MeasurementReportDialog._on_open_limits)
+    assert "run_set_chosen" in body, "the body never reads the pick"
+    assert "setCurrentIndex" in wrap, (
+        "the wrapper does not apply the pick by driving the pulldown")
+    for name, src in (("body", body), ("wrapper", wrap)):
+        names = {n.func.id for n in ast.walk(ast.parse(textwrap.dedent(src)))
+                 if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
+        assert "bind_run" not in names, (
+            f"{name} rebinds the run itself, bypassing its own guards")
+
+
+def test_the_pick_is_applied_outside_the_body_so_it_cannot_double(tmp_path, qapp):
+    """**THE FAULT THIS SHAPE EXISTS FOR.** Applying the pick inside the body
+    made the body's own "did what this run is judged by change?" snapshot see
+    the movement the window had just made, and report it as somebody else's:
+    one pick asked the recalculate question TWICE and archived the run's saved
+    reports twice. An adversary round drove it with a default-for-new-runs pick
+    beside a run pick and counted two archive folders.
+
+    The body has a dozen early returns, so the application has to sit in a
+    `finally` outside it to be exactly once on all of them.
+    """
+    import ast
+    import inspect
+    import textwrap
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+
+    tree = ast.parse(textwrap.dedent(
+        inspect.getsource(MeasurementReportDialog._on_open_limits)))
+    tries = [n for n in ast.walk(tree) if isinstance(n, ast.Try)]
+    assert tries and tries[0].finalbody, (
+        "the pick is not applied in a finally, so an early return skips it")
+    fin = ast.dump(ast.Module(body=tries[0].finalbody, type_ignores=[]))
+    assert "setCurrentIndex" in fin, (
+        "the finally does not apply the pick")
+    body = inspect.getsource(MeasurementReportDialog._open_limits_window)
+    assert "setCurrentIndex" not in body or "_set_combo.setCurrentIndex" not in body, (
+        "the body applies the pick as well, so it can happen twice")
+
+
+def test_the_body_leaves_the_pick_for_the_wrapper(tmp_path, qapp):
+    """A behavioural half to go with the two source checks: after the body has
+    run, the pick is parked on the window and nothing has been rebound yet."""
+    from ui.dialogs.thresholds_dialog import ThresholdsDialog
+    from workflow.run_compliance import run_limits
+    from tests.test_import_measurement_module import (_cgats, _PATCHES,
+                                                      _verify_env)
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    from workflow.run_compliance import ensure_bound
+    s, _fm, _ctl, run = _verify_env(tmp_path)
+    v = run.new_verification()
+    v.ensure_dir()
+    v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES), encoding="utf-8")
+    ensure_bound(run, None, "chromiq_tight")
+    win = MeasurementReportDialog(s, None, initial_ti3=v.measurement_ti3)
+    win.show()
+    qapp.processEvents()
+    try:
+        # The limits window, driven the way the button drives it.
+        td = ThresholdsDialog(s, win, run=run, run_editable=True)
+        td._run_set_radios["chromiq_quick"].setChecked(True)
+        qapp.processEvents()
+        assert td.run_set_chosen == "chromiq_quick"
+        assert run_limits(run, {}).set_id == "chromiq_tight", (
+            "the limits window rebound the run on its own")
+        td.close()
+    finally:
+        win.close()

@@ -37,9 +37,10 @@ holds up to two hundred spin boxes.
 from __future__ import annotations
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import (QCheckBox, QDialog, QFrame, QGridLayout,
-                             QHBoxLayout, QLabel, QPushButton, QRadioButton,
-                             QScrollArea, QSizePolicy, QVBoxLayout, QWidget)
+from PyQt6.QtWidgets import (QButtonGroup, QCheckBox, QDialog, QFrame,
+                             QGridLayout, QHBoxLayout, QLabel, QPushButton,
+                             QRadioButton, QScrollArea, QSizePolicy,
+                             QVBoxLayout, QWidget)
 
 from core.i18n import tr
 from core.logger import get_logger
@@ -192,6 +193,18 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         #: and a second copy of those here would be a second set to keep in
         #: step.
         self._run_set_radios: "dict[str, QRadioButton]" = {}
+        #: EACH ROW IS ITS OWN EXCLUSIVE GROUP, AND THE ROWS ARE NOT.
+        #:
+        #: Qt's auto-exclusivity is per PARENT WIDGET, and both rows are laid
+        #: into `_head_grid`, so without these the ten radios were one group:
+        #: picking a set for the run silently unchecked "Default for new runs",
+        #: and the row the user had just clicked could end up showing TWO
+        #: filled buttons. An adversary round photographed exactly that, in the
+        #: window written to stop a radio row being read wrong. The initial
+        #: state looked right only by accident, because `setChecked` runs
+        #: before `addWidget` reparents the button.
+        self._default_group: "QButtonGroup | None" = None
+        self._run_set_group: "QButtonGroup | None" = None
         self.run_set_chosen: str = ""
         self._syncing = False
 
@@ -523,6 +536,10 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                 continue
             rb = QRadioButton(self)
             rb.setProperty("set_id", col)
+            if self._default_group is None:
+                self._default_group = QButtonGroup(self)
+                self._default_group.setExclusive(True)
+            self._default_group.addButton(rb)
             rb.setChecked(col == self._default_set)
             rb.toggled.connect(self._on_default_toggled)
             rb.setToolTip(tr("A new profile run is bound to this set at its "
@@ -565,6 +582,10 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                     continue
                 rb = QRadioButton(self)
                 rb.setProperty("set_id", col)
+                if self._run_set_group is None:
+                    self._run_set_group = QButtonGroup(self)
+                    self._run_set_group.setExclusive(True)
+                self._run_set_group.addButton(rb)
                 rb.setChecked(col == self._run_set_id)
                 rb.setEnabled(bool(self._run_editable))
                 rb.setToolTip(

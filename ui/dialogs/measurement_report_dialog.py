@@ -2548,7 +2548,23 @@ class MeasurementReportDialog(QDialog):
         combo.blockSignals(True)
         combo.setCurrentIndex(i)
         combo.blockSignals(False)
-        self._set_type_blurb(self._type_blurb_for(type_id))
+        # THE LINE IS THE GENERATED LIST, NOT THE TYPE'S DESCRIPTION, and this
+        # call was left on the old composition when that changed. Reachable
+        # without contrivance: make the run folder read-only, change the type,
+        # `set_run_report_type` raises and this puts the pulldown back. An
+        # adversary round photographed the result: a line describing the report
+        # type, carrying a "show all" link that opens a list of generated
+        # reports the line does not mention, over a tooltip contradicting the
+        # visible text, and it stays that way until the next refresh.
+        #
+        # `_type_blurb_for` also has nothing to do with what the run holds, so
+        # the link's own reason has to go with it.
+        self._generated_full = self._generated_types_detail(
+            self._run_ctx.run if self._run_ctx else None)
+        self._set_type_blurb(self._generated_types_line(
+            self._run_ctx.run if self._run_ctx else None)
+            or self._type_blurb_for(type_id))
+        self._type_combo.setToolTip(self._type_blurb_for(type_id))
 
     def _set_strip(self, full: str) -> None:
         """One line on screen, elided to the window; the whole message as the
@@ -3953,6 +3969,37 @@ class MeasurementReportDialog(QDialog):
              + "\n\n" + _what)
 
     def _on_open_limits(self) -> None:
+        """Open the limits window, then apply the set it was asked for.
+
+        **THE PICK IS APPLIED AFTER, AND OUTSIDE, THE BODY.** Applying it in
+        line asked the recalculate question TWICE and archived the run's saved
+        reports twice: the body takes a snapshot of the run AFTER the point the
+        pick was being applied, so its own "did what this run is judged by
+        change?" test saw the movement this window had just made, and reported
+        it as somebody else's. On the refusal path it also reverted the
+        preferences the user had just set, silently, and raised a box accusing
+        another window of a change nothing else had made. Found by an
+        adversary round driving one pick with a default-for-new-runs pick
+        beside it.
+
+        The body has a dozen early returns, so `finally` is what makes "exactly
+        once, at the end" true on all of them.
+        """
+        self._pending_run_set_pick = ""
+        try:
+            self._open_limits_window()
+        finally:
+            pick = str(getattr(self, "_pending_run_set_pick", "") or "")
+            self._pending_run_set_pick = ""
+            if pick:
+                _i = self._set_combo.findData(pick)
+                if _i >= 0 and self._set_combo.currentIndex() != _i:
+                    # Fires `_on_set_chosen`, which is the one writer: it
+                    # re-checks the lock, catches a preferences change
+                    # underneath, and asks about recalculating.
+                    self._set_combo.setCurrentIndex(_i)
+
+    def _open_limits_window(self) -> None:
         from ui.dialogs.thresholds_dialog import ThresholdsDialog
         ctx = self._run_ctx
         # EDITABLE MEANS NOT LOCKED, and this line asked a narrower question.
@@ -4011,13 +4058,9 @@ class MeasurementReportDialog(QDialog):
         # about recalculating the run's saved reports. Driving the combo rather
         # than calling `_on_set_chosen` directly also keeps the control on
         # screen in step with what was chosen.
-        _run_set_pick = str(getattr(dlg, "run_set_chosen", "") or "")
+        self._pending_run_set_pick = str(getattr(dlg, "run_set_chosen", "") or "")
         dlg.deleteLater()
         self._forget_limits()
-        if _run_set_pick:
-            _i = self._set_combo.findData(_run_set_pick)
-            if _i >= 0 and self._set_combo.currentIndex() != _i:
-                self._set_combo.setCurrentIndex(_i)      # fires _on_set_chosen
 
         # DID WHAT THIS RUN IS JUDGED BY CHANGE? That is the whole test, and it
         # replaces asking which control was touched, which is the question that

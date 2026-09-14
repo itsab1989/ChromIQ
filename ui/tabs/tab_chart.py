@@ -20722,8 +20722,29 @@ class TabChart(QWidget):
                 float(getattr(r, "helper_marker_edge_mm", 0.0) or 0.0),
                 float(getattr(r, "helper_marker_len_mm", 0.0) or 0.0),
                 bool(getattr(r, "helper_markers_top_bottom", True)))
-            _o = text_edge_fit.sheet_text_overlap(
-                r.margin_bottom, _b_edge, nlines, _line_mm)
+            # THE HEIGHT CHECK IS AREA-FIRST ONLY, AND THAT IS NOT AN OVERSIGHT.
+            # It asks whether the bottom line's box fits inside `r.margin_bottom`,
+            # the margin the user REQUESTED, which is the room the line has only
+            # while the margins are the law. In patch-first the engine RESERVES
+            # the band (`raster._furniture_reserves_mm` -> `bottom_reserve_mm`)
+            # and moves the patches up out of the way, so the requested margin
+            # is not the room and the question is meaningless.
+            #
+            # Widening the guard to let the bottom checks run in patch-first
+            # (the fix for the silent WIDTH check) let this one through with it,
+            # and it is false there: an adversary round drove a real Generate at
+            # A4 with `margin_bottom` 8 mm, measured the app's own TIFF, and
+            # found the patches ending at 263.99 mm with the text at 288.37,
+            # **24.38 mm of clear paper between them**, under a red line saying
+            # the text runs into the patches. With `LayoutRecipe`'s default 6 mm
+            # bottom margin a single 9 pt line already fired it.
+            #
+            # The WIDTH check below stays in both modes: the paper is the same
+            # width whatever sized the patches, and that one was measured
+            # missing.
+            _o = (text_edge_fit.sheet_text_overlap(
+                      r.margin_bottom, _b_edge, nlines, _line_mm)
+                  if _labels_can_overflow else None)
             if _o is not None:
                 # ONE LINE OR TWO, SAID AS ONE OR TWO. "(s)" is banned in this
                 # project's user-facing text, and the two cases really do have
