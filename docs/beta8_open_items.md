@@ -5625,3 +5625,112 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   it; chart notes of nothing but spaces were appended and dropped again by the
   stamper's filter, a safety net doing the design's job. Both are stripped at
   the source. The second was found by the test written for the first.
+
+### B8-119 · The limits window never said which set the run was bound to
+- blocks release: no
+- status: FIXED
+- found by: Knut, 2026-09-13, on `Report-Limits-Report-Types` run 5.
+- evidence:
+  test_the_row_shows_the_set_the_run_is_bound_to,
+  test_it_is_a_different_row_from_the_default_for_new_runs,
+  test_choosing_one_records_the_pick_and_writes_nothing,
+  test_picking_the_set_it_already_has_records_nothing,
+  test_a_locked_run_cannot_be_changed_from_here,
+  test_a_click_on_a_locked_run_records_nothing,
+  test_there_is_no_row_when_there_is_no_run,
+  test_the_report_window_applies_the_pick_through_its_own_door.
+  Three mutations, each proved to land. Driven on screen with
+  `scripts/drive_182_limits_radio_case.py`, on his own run and on the pack's
+  own locked run.
+- detail: *"The Judged against is set to 'ChromIQ tight', but when opening
+  'Edit Limits' window the 'ChromIQ default' was enabled. Manually clicking any
+  of the 5 radio-buttons to select a limit set did nothing."*
+
+  **BOTH HALVES WERE TRUE AND NEITHER WAS A BROKEN CONTROL.** Driven before
+  anything was changed: run 5 really is bound to `chromiq_tight`, the only
+  radio row on that window really is headed "Default for new runs", and
+  clicking one really did move `compliance_default_set` and leave the run
+  alone. Two different questions, one row of radios, and the window never
+  stated the answer to the one he was looking for.
+
+  So the row he expected sits BESIDE the one that was there. Repurposing the
+  existing row would have deleted CH-1 / S-13 without anyone asking.
+
+  It writes nothing: `_on_set_chosen` is the single writer and carries the lock
+  re-check, the preferences-moved check and the recalculate question. The pick
+  is recorded and applied through the pulldown on close, so there is one path
+  and one set of guards.
+
+### B8-120 · The generated-reports line was cut off by the type's description
+- blocks release: no
+- status: FIXED
+- found by: Knut, 2026-09-13.
+- evidence:
+  test_the_line_carries_the_list_and_not_the_type_description,
+  test_a_short_list_needs_no_link,
+  test_a_list_too_long_for_the_line_opens_in_full,
+  test_the_link_opens_a_window_naming_every_type,
+  test_the_tooltip_is_the_whole_list,
+  test_a_run_with_nothing_generated_still_says_so,
+  test_which_types_exist_is_the_half_that_survives_elision,
+  test_the_line_beside_the_pulldown_describes_the_chosen_type.
+  Two mutations, each proved to land.
+- detail: *"the end of the text is cut off with a '...' at the end. All
+  generated reports should be listed clearly and visible, even if it is a list
+  of 6 report types. This might require a taller text area. If limited space,
+  this could be handled with one-line text that opens for more detailed
+  information."*
+
+  The taller area is the one thing that cannot be done here, and the comment
+  beside the widget says why: a word-wrapped label of its own pushed this
+  window's bottom off an 800 px screen twice. So it is his second option.
+
+  An earlier round had already moved the list in FRONT of the type's
+  description, but the two still shared one elided line, so the description was
+  still pushing the list out on any narrow window; a wide window merely hid it.
+  The line is the list now. What a type is for keeps the two homes it already
+  had, the pulldown's entries and its tooltip; what a run holds had none. When
+  the list still will not fit, the line grows a "show all" link that opens the
+  whole thing, one type per line.
+
+### B8-121 · The save panel lost the folder between ChromIQ and macOS
+- blocks release: no
+- status: FIXED
+- found by: Knut, 2026-09-13: *"Clicking Save Report as PDF opens a file window
+  that does not open in the currently open project, for the selected run, and
+  for the correct level in the folder structure according to the rules set for
+  where reports are saved."*
+- evidence:
+  test_the_save_panel_is_given_the_folder_not_just_the_name,
+  test_a_missing_folder_still_falls_back_to_a_bare_name.
+  Mutation: pass the bare name again and both go red.
+- detail: measured first, and the caller was right all along.
+  `_report_dir()` returned `<project>/runs/run5/verifications/reports`, the
+  documented home for a report covering several checks of one run, and that
+  reached `save_file_dialog` intact. What did not reach the panel was the
+  FOLDER: `selectFile` was handed a bare file name, and a native macOS save
+  panel keeps its own last-used directory when it is given only a name. It gets
+  the absolute path now. The beta.16 fall-back for a folder that does not exist
+  is unchanged and still tested.
+
+### B8-122 · REPORTED, NOT REPRODUCED: the report text following the set and type
+- blocks release: no
+- status: OPEN
+- found by: Knut, 2026-09-13: *"When I changed the Judged against option to
+  another limit set, the report scope and report text did not update to specify
+  correct limit set. The same happened if I changed the report type."*
+- detail: driven twice and it followed both times, so nothing is claimed as
+  fixed.
+
+  With the type pinned to one that prints the row, changing the set moved the
+  on-screen document's "Judged against" from "ChromIQ tight" to "ChromIQ
+  default (recommended)"; changing the type re-rendered the document and named
+  the new type in it. Both checked on the rendered VIEW, not only on a
+  recomputed body, because the view is what he reads.
+
+  A first probe reported "no change" and was wrong: run 5 was already on the
+  type it was being switched to, so the document was identical for the right
+  reason. That is recorded because it is the kind of measurement that looks
+  like a finding.
+
+  His sequence is asked for rather than guessed at.
