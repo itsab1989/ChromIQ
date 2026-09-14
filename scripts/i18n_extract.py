@@ -118,6 +118,8 @@ def _compliance_set_keys() -> set[str]:
             out.add(row.blurb)
         if row.detect:
             out.add(row.detect)
+        if row.remedy:
+            out.add(row.remedy)
     for st in cs.SETS:
         out.add(st.label)
         if st.blurb:

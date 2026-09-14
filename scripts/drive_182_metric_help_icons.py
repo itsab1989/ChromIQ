@@ -163,8 +163,15 @@ def main() -> int:
         d.close()
         pump(app, 300)
 
+    judgeable = [r for r in cs.ROWS
+                 if r.status not in ("unmeasurable", "unknown")]
     verdicts = {
         "every row carries an icon": len(xs) == len(cs.ROWS),
+        "every judgeable row tells the reader what to do": all(
+            r.remedy for r in judgeable),
+        "no row that cannot be judged offers advice": not [
+            r for r in cs.ROWS if r.remedy and r.status in (
+                "unmeasurable", "unknown")],
         "the icons line up in one column": len(set(xs)) == 1 and xs[0] > 0,
         "every row says what it measures": all(r["has_blurb"] for r in rows),
         "every row says how it is detected, or why it is not":

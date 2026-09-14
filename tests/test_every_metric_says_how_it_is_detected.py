@@ -148,8 +148,12 @@ def test_the_five_rows_with_no_detection_say_so_plainly():
                    "surface_gamut_de00_avg"]
     for rid in ids:
         text = next(r.detect for r in cs.ROWS if r.id == rid)
-        assert "still to be agreed" in text, rid
+        # SAID IN THE PRODUCT'S TERMS, not the project's. These three sentences
+        # used to end "and that is a change still to be agreed", which is true
+        # between Knut and me and tells a reader nothing.
         assert ("never judged" in text or "does not judge this row" in text), rid
+        assert "stays empty in every limit set" in text, rid
+        assert "does not hold that list" in text or "ChromIQ cannot read" in text, rid
 
 
 def test_no_row_promises_a_reason_code_that_does_not_exist():
@@ -325,3 +329,77 @@ def test_the_worst_five_sentence_has_a_singular_form():
     assert "18 of them fall inside" in many, many
     alone = _small_sample_sentence({"patches": 1, "de00": {"n": 1}})
     assert "one patch" in alone and "1 patches" not in alone, alone
+
+
+# --------------------------------------------- and it tells you what to do
+def test_every_judgeable_row_names_a_lever():
+    """Basti, 2026-09-14, asked whether these icons were as useful as the rest
+    of the app's help. They were not: every other help text in ChromIQ ends
+    with something to change, and these stopped at the diagnosis.
+
+    Only rows that CAN be judged get one. On a row that needs a gloss meter
+    there is nothing on the chart to change, and advice there would be
+    invention.
+
+    MUTATION: drop `remedy=` from any judgeable row and this goes red.
+    """
+    judgeable = [r for r in cs.ROWS
+                 if r.status not in ("unmeasurable", "unknown")]
+    assert len(judgeable) == 11, len(judgeable)
+    for row in judgeable:
+        assert row.remedy, f"{row.id} tells the reader nothing to do"
+        assert len(row.remedy.split()) >= 25, (
+            f"{row.id}'s advice is a stub: {row.remedy!r}")
+    for row in cs.ROWS:
+        if row.status in ("unmeasurable", "unknown"):
+            assert not row.remedy, (
+                f"{row.id} cannot be judged and still offers advice")
+
+
+def test_the_lever_names_a_control_a_reader_can_find():
+    """Advice that does not name a screen is not advice.
+
+    MUTATION: replace any remedy with a sentence that names no part of the
+    app and this goes red.
+    """
+    places = ("Create Chart", "FROM PROFILE GAMUT", "preset", "chart")
+    for row in cs.ROWS:
+        if not row.remedy:
+            continue
+        assert any(p.lower() in row.remedy.lower() for p in places), (
+            f"{row.id}'s advice names nowhere to go: {row.remedy!r}")
+
+
+def test_the_help_shows_the_lever_under_its_own_heading(qapp, tmp_path):
+    from core.i18n import tr
+    from core.settings import AppSettings
+    from ui.dialogs.thresholds_dialog import ThresholdsDialog
+    d = ThresholdsDialog(AppSettings(), None)
+    try:
+        row = next(r for r in cs.ROWS if r.id == "grey_balance_neutral_ramp_avg")
+        body = d._row_help(row)
+        assert tr("What you can do about it") in body
+        assert tr(row.remedy) in body
+        assert body.index(tr(row.detect)) < body.index(tr(row.remedy)), (
+            "the advice comes before the condition it is advice about")
+        # …and a row with nothing to change says nothing rather than padding.
+        none = d._row_help(next(r for r in cs.ROWS
+                                if r.id == "permanence_de00_max"))
+        assert tr("What you can do about it") not in none
+    finally:
+        d.close()
+
+
+def test_no_help_text_talks_about_the_project_instead_of_the_product():
+    """Three rows used to end "and that is a change still to be agreed", which
+    is true between Knut and me and means nothing to a reader.
+
+    MUTATION: put the phrase back and this goes red.
+    """
+    banned = ("still to be agreed", "to be agreed", "awaiting confirmation",
+              "we have not", "Knut")
+    for row in cs.ROWS:
+        for text in (row.blurb, row.detect, row.remedy, row.note):
+            for phrase in banned:
+                assert phrase.lower() not in (text or "").lower(), (
+                    f"{row.id} talks about the project: {phrase!r}")

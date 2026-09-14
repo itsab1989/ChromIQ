@@ -674,7 +674,13 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         if row.detect:
             parts.append(tr("How ChromIQ decides your chart can be judged on "
                             "this row") + "\n" + tr(row.detect))
-        elif row.note:
+        # …AND THE LEVER, which every other help text in this app ends with and
+        # the first version of these thirty did not. Only where there is one:
+        # on a row that needs a gloss meter, advice would be invention.
+        if row.remedy:
+            parts.append(tr("What you can do about it") + "\n"
+                         + tr(row.remedy))
+        if not row.detect and row.note:
             parts.append(tr("ChromIQ does not evaluate this row: {why}. There "
                             "is nothing to detect on your chart, and the cell "
                             "shows a cross in every limit set.").format(

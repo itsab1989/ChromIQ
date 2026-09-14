@@ -6205,3 +6205,40 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 
   The same shape exists for the grey rows, where `REASON_NO_REFERENCE` is
   already a separate code and the sentence is therefore correct.
+
+### B8-134 · The metric icons diagnosed and never said what to do
+- blocks release: no
+- status: FIXED
+- found by: Basti, 2026-09-14, reading the beta 15 changelog: *"is the provided
+  info friendly, extensive and easy to understand and correct as always?"*
+  Measured before answering: the new help is **78 words at the median** against
+  **76** for the app's other 256 tooltips, so it was not thin. Three real
+  weaknesses were visible on reading it.
+- evidence:
+  test_every_judgeable_row_names_a_lever,
+  test_the_lever_names_a_control_a_reader_can_find,
+  test_the_help_shows_the_lever_under_its_own_heading,
+  test_no_help_text_talks_about_the_project_instead_of_the_product,
+  test_the_five_rows_with_no_detection_say_so_plainly.
+  Driven on screen; seven verdicts green, four dialogs photographed.
+- detail: three things, and the first is the one that mattered.
+
+  **EVERY OTHER HELP TEXT IN THIS APP ENDS WITH A LEVER, AND THESE ENDED WITH A
+  DIAGNOSIS.** *"Raise 'Left' under 'Margins (mm)' by about 3.1 mm"* is the
+  house style; the thirty new icons said what the row measures and when it can
+  be judged, and stopped. A reader whose chart had six grey steps was told the
+  row needed eight and not that a chart with a longer grey ramp is the fix, nor
+  where to get one. Eleven rows now carry a `remedy` naming the screen and the
+  control; the nineteen that cannot be judged carry none, because advice about
+  a gloss meter would be invention.
+
+  **THREE ROWS TALKED ABOUT THE PROJECT, NOT THE PRODUCT.** They ended *"and
+  that is a change still to be agreed"*, which is true between Knut and me and
+  means nothing to anyone opening the panel. They now say what the reader can
+  observe: the cell stays empty in every limit set, and why. A test bans the
+  phrase and four others like it.
+
+  **AND TWO CONDITION SENTENCES PACKED FOUR CLAUSES INTO ONE.** The grey-ramp
+  and solid-corner conditions are three short paragraphs each now. Same facts,
+  same numbers, still asserted against the code's own constants.
+

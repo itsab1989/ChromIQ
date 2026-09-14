@@ -236,6 +236,9 @@ class Row:
     #: row, where `note` already says why there is nothing to detect.
     blurb: str = ""
     detect: str = ""
+    #: the lever a reader can pull, on a row that CAN be judged. Empty where
+    #: there is nothing on the chart to change.
+    remedy: str = ""
 
     def __post_init__(self) -> None:
         assert self.status in ROW_STATUSES, self.status
@@ -245,6 +248,8 @@ class Row:
             assert self.note and not self.detect, self.id
         else:
             assert self.detect, f"{self.id} has no detection sentence"
+        if self.remedy:
+            assert self.status not in ("unmeasurable", "unknown"), self.id
 
 
 #: The detection conditions, written once because rows share them. Knut,
@@ -263,13 +268,15 @@ _D_REFERENCE_WHITE = (
     "from your profile's gamut carry that reference; an ordinary test chart "
     "has no aim for this row and the report says so instead of guessing.")
 _D_REFERENCE_SOLIDS = (
-    "ChromIQ can judge this row only when the chart carries a colorimetric "
-    "reference and has a patch at one or more of the four solid corners: cyan, "
-    "magenta, yellow, and the composite black where all three inks are at "
-    "full. A corner counts as present when a patch sits within 12 device units "
-    "of it, and the row reports the worst of the corners that were found, not "
-    "of all four. Charts built from your profile's gamut carry that reference; "
-    "an ordinary test chart has no aim for this row.")
+    "Two things are needed. The chart has to carry a colorimetric reference, "
+    "which is a file of aim values measured beside it. And it has to have a "
+    "patch at one or more of the four solid corners: cyan, magenta, yellow, "
+    "and the composite black where all three inks are at full.\n\n"
+    "A corner counts as present when a patch sits within 12 device units of "
+    "it. The row then reports the worst of the corners that were found, not of "
+    "all four, so on a chart with only cyan it is a verdict on cyan.\n\n"
+    "Charts built from your profile's gamut carry the reference. An ordinary "
+    "test chart has no aim for this row.")
 _D_REFERENCE_CMY = (
     "ChromIQ can judge this row only when the chart carries a colorimetric "
     "reference and has a patch at one or more of the cyan, magenta and yellow "
@@ -279,17 +286,21 @@ _D_REFERENCE_CMY = (
     "for this row.")
 _D_CONTROL_STRIP = (
     "ChromIQ has no way to tell whether your chart carries the standard's own "
-    "control strip, so this row is never judged. The strip is a specific list "
-    "of patches published with the standard, and ChromIQ does not hold that "
-    "list. For this row to work, a chart would have to declare its strip, and "
-    "that is a change still to be agreed.")
+    "control strip, so this row is never judged and the cell stays empty in "
+    "every limit set.\n\n"
+    "The strip is a specific list of patches published with the standard, and "
+    "ChromIQ does not hold that list. A chart would have to say for itself "
+    "which of its patches make up the strip, and ChromIQ cannot read that "
+    "yet.")
 _D_GREY_RAMP = (
-    "ChromIQ can judge this row when the chart has a grey ramp: patches whose "
-    "red, green and blue values are within one unit of each other, at least "
-    "eight distinct steps of it, reaching white at one end and black at the "
-    "other, and carrying reference values. Bare paper counts as one of those "
-    "steps and can be the white end on its own, but it is left out of the "
-    "figure itself. The report names whichever of those is missing.")
+    "The chart needs a grey ramp. A patch counts as grey when its red, green "
+    "and blue values are within one unit of each other.\n\n"
+    "There have to be at least eight distinct steps of it, it has to reach "
+    "white at one end and black at the other, and the patches have to carry "
+    "reference values.\n\n"
+    "Bare paper counts as one of those steps and can be the white end on its "
+    "own, but it is left out of the figure itself. The report names whichever "
+    "of those is missing.")
 _D_ALL_PATCHES = (
     "ChromIQ can judge this row on any VERIFICATION sheet it built, because "
     "every patch carries the colour it was asked for. A run's own profiling "
@@ -308,22 +319,57 @@ _D_RAMPS = (
     "spanning at least twenty points of it, and carrying reference values. Any "
     "one of the four axes, red, green, blue or grey, is enough.")
 _D_OUTER_GAMUT = (
-    "ChromIQ does not judge this row. The population is the standard's own "
-    "list of saturated patches, which ChromIQ does not hold, so it can neither "
-    "find those patches on your chart nor say whether they are there. Giving "
-    "the row a definition of its own is a change still to be agreed.")
+    "ChromIQ does not judge this row, and the cell stays empty in every limit "
+    "set.\n\n"
+    "The patches this row is about are the standard's own list of saturated "
+    "colours. ChromIQ does not hold that list, so it can neither find those "
+    "patches on your chart nor tell you whether they are there.")
 _D_SURFACE_GAMUT = (
-    "ChromIQ does not judge this row. The population is the standard's own "
-    "list of patches on the surface of the printable colour solid, which "
-    "ChromIQ does not hold. Giving the row a definition of its own is a change "
-    "still to be agreed.")
+    "ChromIQ does not judge this row, and the cell stays empty in every limit "
+    "set.\n\n"
+    "The patches this row is about are the standard's own list of colours on "
+    "the outside of the printable colour solid. ChromIQ does not hold that "
+    "list, so it cannot find them on your chart.")
+
+#: **AND WHAT TO DO ABOUT IT.** Every other help text in this app ends with a
+#: lever a reader can pull; the first version of these thirty stopped at the
+#: diagnosis. Basti, 2026-09-14, asked whether the new icons were as friendly
+#: and as useful as the app's usual help, and this is the half that was
+#: missing. Only rows that CAN be judged get one: on a row that needs a gloss
+#: meter there is nothing on the chart to change, and inventing advice would be
+#: worse than the silence.
+_R_REFERENCE = (
+    "Build the verification chart with FROM PROFILE GAMUT on the Create Chart "
+    "tab. That chart is made from your own profile and carries the aim values "
+    "this row is measured against, so the row can be judged. A chart made any "
+    "other way will keep reading N-A here however good the print is.")
+_R_GREY_RAMP = (
+    "Use a chart with a longer grey ramp: at least eight steps of neutral "
+    "grey, running from white through to black. Most of the built-in presets "
+    "have one. If you are building your own patch set on the Create Chart tab, "
+    "add grey steps until there are eight or more.")
+_R_ALL_PATCHES = (
+    "Nothing needs changing on the chart: any verification sheet ChromIQ "
+    "builds can be judged on this row. If it is blank, the measurement is "
+    "either the run's own profiling sheet, which is not graded, or a file with "
+    "no reference values, and the report says which.")
+_R_WORST5 = (
+    "Use a chart with at least twenty patches, and remember that colours your "
+    "profile cannot print are set aside first, so a small chart of difficult "
+    "colours can still fall short. On a chart this small the other four "
+    "accuracy rows are still judged.")
+_R_RAMPS = (
+    "Use a chart with a tone ramp through the mid-tones: three steps between "
+    "30 % and 70 % of one single ink, or of grey, is enough. The built-in "
+    "presets have one; a patch set you build yourself may not.")
 
 ROWS: "tuple[Row, ...]" = (
     # -- Paper
     Row("substrate_de00_max", "substrate",
         "Paper white, difference from the reference paper", "ΔE00", "ref",
         blurb='How far the bare paper you printed on sits from the paper the reference describes. A paper that is bluer, warmer or darker than the aim moves every colour printed on it.',
-        detect=_D_REFERENCE_WHITE),
+        detect=_D_REFERENCE_WHITE,
+        remedy=_R_REFERENCE),
     Row("substrate_overprinted_de00_max", "substrate",
         "Overprinted proofing paper against the production paper", "ΔE00",
         "unmeasurable",
@@ -340,11 +386,13 @@ ROWS: "tuple[Row, ...]" = (
     Row("solids_de00_max", "solids",
         "Solid colours, largest difference", "ΔE00", "ref",
         blurb='The worst of the four solid ink corners against what they should be. Solids are where an ink is laid down at full strength, so they show the ink itself rather than the profile.',
-        detect=_D_REFERENCE_SOLIDS),
+        detect=_D_REFERENCE_SOLIDS,
+        remedy=_R_REFERENCE),
     Row("cmy_solids_dhab_max", "solids",
         "Cyan, magenta and yellow solids, largest hue difference", "ΔH*ab", "ref",
         blurb='Whether the three chromatic solids drifted in hue, ignoring how light or how saturated they are. A hue shift in a solid is the one error the eye finds hardest to forgive.',
-        detect=_D_REFERENCE_CMY),
+        detect=_D_REFERENCE_CMY,
+        remedy=_R_REFERENCE),
     Row("spot_solids_de00_max", "solids",
         "Spot colours, largest difference", "ΔE00", "unmeasurable",
         note="ChromIQ has no spot-colour workflow",
@@ -366,32 +414,39 @@ ROWS: "tuple[Row, ...]" = (
     Row("grey_balance_neutral_ramp_avg", "grey_ramp",
         "Grey balance of the grey ramp, average", "ΔCh", "build",
         blurb='How neutral your greys are on average: how far each step of the grey ramp sits from having no colour cast at all. Lightness is ignored, only the cast is counted.',
-        detect=_D_GREY_RAMP),
+        detect=_D_GREY_RAMP,
+        remedy=_R_GREY_RAMP),
     Row("grey_balance_neutral_ramp_max", "grey_ramp",
         "Grey balance of the grey ramp, largest", "ΔCh", "build",
         blurb='The worst single step of the grey ramp. One step with a cast is visible in a photograph even when the average looks healthy.',
-        detect=_D_GREY_RAMP),
+        detect=_D_GREY_RAMP,
+        remedy=_R_GREY_RAMP),
     # -- All patches (ChromIQ's five, shape A merge with the ISO all-patch rows)
     Row("all_de00_avg", "all_patches", "All patches, average", "ΔE00", "now",
         metric_key="avg_all",
         blurb='The average colour error over the whole chart. The headline number, and the one to watch over time.',
-        detect=_D_ALL_PATCHES),
+        detect=_D_ALL_PATCHES,
+        remedy=_R_ALL_PATCHES),
     Row("best95_de00_avg", "all_patches", "Best 95 % of patches, average", "ΔE00",
         "now", metric_key="avg_low95",
         blurb='The average with the worst twentieth of the patches thrown out, so a handful of very hard colours cannot hide an otherwise good result.',
-        detect=_D_ALL_PATCHES),
+        detect=_D_ALL_PATCHES,
+        remedy=_R_ALL_PATCHES),
     Row("worst5_de00_avg", "all_patches", "Worst 5 % of patches, average", "ΔE00",
         "now", metric_key="avg_high5",
         blurb='How bad the hardest colours are: the average over the worst twentieth alone. This is the row that answers what happens at the edge of what the printer can do.',
-        detect=_D_WORST5),
+        detect=_D_WORST5,
+        remedy=_R_WORST5),
     Row("all_de00_max", "all_patches", "All patches, largest", "ΔE00", "now",
         metric_key="max_all",
         blurb='The single worst patch on the sheet. Useful for finding a misread or a damaged patch as well as a real error.',
-        detect=_D_ALL_PATCHES),
+        detect=_D_ALL_PATCHES,
+        remedy=_R_ALL_PATCHES),
     Row("all_de00_p95", "all_patches", "All patches, 95th percentile", "ΔE00",
         "now", metric_key="max_low95",
         blurb='The error 95 % of the chart stays under, counted by rank rather than by fitting a curve.',
-        detect=_D_ALL_PATCHES),
+        detect=_D_ALL_PATCHES,
+        remedy=_R_ALL_PATCHES),
     # -- Selected patches of the standard's chart
     Row("outer_gamut_226_de00_avg", "selected",
         "Outer-gamut patches, average", "ΔE00", "unknown",
@@ -405,7 +460,8 @@ ROWS: "tuple[Row, ...]" = (
         "Single-colour ramps 30 % to 70 %, largest lightness difference", "ΔL*",
         "build",
         blurb='Whether the mid-tones of each single ink, and of grey, land at the right lightness. This is the part of a ramp the eye reads as contrast.',
-        detect=_D_RAMPS),
+        detect=_D_RAMPS,
+        remedy=_R_RAMPS),
     # -- Not evaluated by ChromIQ (✕ rows; notes in the report)
     Row("uniformity_sd", "not_evaluated",
         "Evenness across the sheet, nine locations (spread of L*, a*, b*)", "",

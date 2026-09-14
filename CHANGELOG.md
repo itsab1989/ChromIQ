@@ -1,5 +1,28 @@
 # Changelog
 
+## v4.3.0-beta.16
+
+**The metric help now tells you what to do about it.** The icons added in beta
+15 explained what each row measures and when ChromIQ can judge it, and then
+stopped. Every other help text in the app ends with something you can change,
+and these do now too.
+
+### Changed
+
+- **Eleven of the thirty metric icons gained a "What you can do about it"
+  section**, naming the screen and the control: build the verification chart
+  with FROM PROFILE GAMUT, use a chart with at least eight grey steps, use one
+  with a tone ramp through the mid-tones. The nineteen rows ChromIQ cannot
+  judge carry no advice, because there is nothing on the chart to change.
+
+- **Three rows stopped talking about the project.** They ended "and that is a
+  change still to be agreed", which meant nothing to anyone reading the panel.
+  They now say what you can see: the cell stays empty in every limit set, and
+  why.
+
+- **The two longest conditions are three short paragraphs instead of one long
+  sentence.** The grey ramp and the solid corners, same facts and same numbers.
+
 ## v4.3.0-beta.15
 
 **Every row of the Report limits window now explains itself.** An info icon at
