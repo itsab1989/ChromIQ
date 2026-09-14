@@ -222,6 +222,8 @@ def build_chart(
     chart_text_size_mm: float = 0.0,
     chart_text_bold: bool = False,
     chart_text_italic: bool = False,
+    #: Where the bottom lines sit across the page (Knut, 2026-09-14).
+    chart_text_align: str = "left_margin",
     helper_markers: bool = False,
     helper_marker_edge: float = 2.0,
     helper_marker_len: float = 2.0,
@@ -429,7 +431,8 @@ def build_chart(
         strip_label_offset_mm=strip_label_offset_mm,
         chart_text=chart_text, chart_text_font=chart_text_font,
         chart_text_size_mm=chart_text_size_mm, chart_text_bold=chart_text_bold,
-        chart_text_italic=chart_text_italic, stamp_text=stamp_text,
+        chart_text_italic=chart_text_italic,
+        chart_text_align=chart_text_align, stamp_text=stamp_text,
         helper_markers=helper_markers,
         helper_marker_edge_mm=helper_marker_edge,
         helper_marker_len_mm=helper_marker_len,

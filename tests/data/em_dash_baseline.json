@@ -74,7 +74,6 @@
   "<span style='color:#606060; font-size:11px'>-K and -I are mutually exclusive — enable only one at a time.</span>",
   "A calibration chart is a plain ramp of one channel at a time, so its size is decided by “Single Channel Steps” below — not by filling a number of pages. That is why the automatic patch counts are switched off here.\n\nChange “Run type” back to “Profiling” and your previous settings come back exactly as you left them.",
   "A calibration describes your printer, your paper and your inks — not one particular profile — so a project keeps exactly one, in its “cal” folder, and every profile run can use it. There is no run to pick here.\n\nSwitch “Run type” to Profiling or Verification to choose a run again.",
-  "A chart can be printed with six-sided patches instead of squares — pick the SpectroScan in Create Chart and set the layout to Hexagonal. They pack together like a honeycomb, so more patches fit on a sheet, and each patch is ringed by six neighbours, which helps when you are placing a hand-held instrument on it.\n\nUntil now the scanner and camera tools refused such a chart outright, on the grounds that the recognition file could not describe a hexagon. That reasoning was wrong: the recognition file describes the little square that gets SAMPLED inside each patch, not the shape you printed — and a hexagonal chart has been read and turned into a working profile.\n\nTwo things are still rough, which is why this is a beta switch.\n\nScanIn, the Argyll program that finds your chart in the scan, works out how the sheet is rotated by looking for long straight edges. A honeycomb has none running across it — only the slanted sides of the hexagons — so it sometimes measures the rotation badly, and occasionally gives up on the scan altogether, even when you have placed the four corners yourself.\n\nAnd the square that gets sampled is a comfortable fit inside a rectangle but a tight one inside a hexagon. Above a Sample area of roughly 64 % it reaches past the slanted sides into the patches next door and the colours come back mixed. Keep Sample area at or below 60 %.\n\nWith this off — the default — nothing changes: hexagonal charts are turned away with an explanation, exactly as before. With it on, they are accepted, and the alignment mesh draws each cell as the six-sided patch it really is so you can see it sitting on the chart. Check the profile before you trust it; if a scan is refused, switch this back off and print the chart with square patches instead.\n\nDefault: off",
   "A copy of the calibration chart exactly as it was printed, kept from the moment you start measuring it — “Restore Used Chart” puts it back.",
   "A copy of the chart this profile run was measured with, kept so the measurement always describes a chart you still have. ChromIQ saves it automatically the moment a measurement starts. If you later change or re-create the chart, the “Restore Used Chart” button beside the Profile run brings this one back — your measurement is never touched. Only the chart's own files are copied: never the measurement, the profile or ChromIQ's own book-keeping.",
   "A copy of the verification chart this dated check was measured with, kept so the results always describe a chart you still have. ChromIQ saves it automatically the moment a verification measurement starts. If you later change the verification chart, the “Restore Used Chart” button beside the Verification date puts this one back — your measurements are never touched. Page images are rebuilt from these files, and are stored here as well when the chart carries no layout recipe to rebuild them from.",
@@ -130,7 +129,6 @@
   "Adds extra wedge patches along the perceptually-true neutral\naxis of your printer + paper, as defined by the pre-conditioning\nICC profile loaded via -c.\n\nHow it differs from -g (Grey Axis Steps):\n  • -g walks RGB device values (R = G = B): 0/0/0, 32/32/32,\n    64/64/64 … That assumes equal device values print as a\n    neutral grey, which is only true on a perfectly linearised\n    printer.  On a real printer the \"device grey ramp\" usually\n    has a colour cast.\n  • -n asks the supplied profile: \"what RGB values does THIS\n    printer actually need to reproduce a neutral L*a*b*\n    (a* = b* = 0) patch at each lightness step?\"  Those\n    (typically non-equal) RGB values get added as patches.\n\nHow it differs from -N (Neutral Axis Emphasis):\n  • -N is a 0–1 dial that biases the existing OFPS patch\n    distribution toward the neutral region.  It does not add\n    named steps.\n  • -n adds explicit, profile-derived neutral patches on top\n    of whatever the rest of the distribution produces.\n\nWhen to use it:\n  • You already have a first-pass ICC profile for this paper\n    and you're building a refinement chart.  Load that profile\n    under Pre-conditioning Profile (-c), then set -n to 32–64\n    to densely characterise the corrected neutral axis.\n  • For a first-time chart with no -c, leave this at 0 —\n    without a pre-conditioning profile there is no \"true\"\n    neutral axis to sample from, and -g already covers the\n    device-space ramp.\n\nTypical refinement values: 32 for routine work, 64 for\nfine-art / proofing where neutrality is critical.\n\nRequires -c to be set; has no effect otherwise.\n",
   "Adds patches on a body-centered cubic (BCC) lattice — denser\nthan a plain cube grid because it places points at both the\ncube corners and the cube centres. N is the number of\nsubdivisions along each axis.\n\nSet to 0 (default) to skip — this is a niche knob.\n\nWhen to use it:\n  • You want regular, lattice-aligned patch positions but\n    with better packing than -m gives, without going all the\n    way to OFPS.\n  • Research / repeatability scenarios where the BCC structure\n    itself is the point.\n\nNote: this is the *step counter* form (adds to your patch list);\nfor a chart whose *entire* distribution is BCC, use the\n\"Patch Distribution\" selector above and pick the body-centered\ncubic option there.\n\nTick the checkbox to enable.\n",
   "Adds pure paper white and the deepest black the printer can lay — two anchors that matter for a good profile. 'Each' is how many of white and of black the finished chart should hold — and any white or black the other ticked sets already contribute counts toward that number. A 3D cube, Saturated edges or Gamut-corner emphasis includes one of each, and so does a Neutral grey ramp with 2 or more steps. So with one of those ticked, 'each: 1' adds 0 extra patches and 'each: 3' adds 4 (2 more whites and 2 more blacks) — deliberate, so the chart ends up with exactly the number you asked for, never more. The copies are kept identical even when 'Ensure unique colours' is on, which is handy for averaging repeats.",
-  "Adds the full breakdown for every run in the report, each on a page of its own: the colour-accuracy table with its Pass/Fail verdicts against your thresholds, paper white and darkest black, the eight cube corners, and the worst patches with their expected and measured colours side by side.\n\nHandy when you want to see WHY a run passed or failed, not just that it did — for example which patches pushed the average over your threshold.\n\nIt makes the report, and the saved PDF, considerably longer — which is why it starts unticked.",
   "After building a profile, ChromIQ asks how closely it matches the colours it was built from, and shows you the answer as a quality number. This time no number came back at all — the answer was “{raw}”, which is what happens when the measurements handed over had nothing in them to match against.\n\nSo the file on disk is a profile in name only, and nothing has confirmed that it describes your scanner. Treat it as unchecked: read the warnings above, put right what they name, and build again before you use it for anything.",
   "After every build, colprof reports how well the finished profile fits its own measurements (\"peak err\"). An aligned read fits well; a grid that sat only half a patch off reads believable BLENDS of neighbouring colours — too subtle for the checks above, but the fit error jumps (60–90 instead of under 10).\n\nWhen the peak error is above this limit, ChromIQ warns you to check the diagnostic images before trusting the profile.",
   "Alignment check — {w}",
@@ -292,7 +290,6 @@
   "Draws a long dotted line at each of the four margins ChromIQ has just MEASURED — right where the patch area meets the white paper.\n\nThis is the double-check for the numbers above: if the Left figure says 8.0 mm, this line shows you where those 8 mm end. It is a different thing from the instrument-margin lines above, which show what your ruler NEEDS rather than what the chart HAS — and you can have both sets on at once to compare them.\n\nDefault: off.",
   "Draws the CIELAB coordinate axes and two reference points inside the 3D viewer.\n\nThe axes show the direction of each colour dimension:\n  • L* axis (vertical) — lightness, from black at the bottom to white at the top\n  • a* axis — green (−a*) toward red/magenta (+a*)\n  • b* axis — blue/violet (−b*) toward yellow/amber (+b*)\n\nTwo small spheres mark the white point (lightest reproducible colour) and the\nblack point (darkest reproducible colour) of the profile.\n\nKeeping this enabled makes it much easier to read and orient the 3D gamut model.",
   "Draws the minimum margins your instrument needs straight onto the preview, as short dotted lines — one for each edge of the paper.\n\nUse it to see at a glance whether the patches keep far enough from the edges: a patch area that stays inside all four dotted lines is good to go. A line is black where that margin is fine and red where it is too tight, so a problem edge finds you rather than the other way round.\n\nYou also get a thin solid rectangle marking the true edge of the sheet, because the page is drawn slightly inside the preview's white border — a 0 mm margin would sit right on that line.\n\nThe minimums are yours to set: Preferences → Instrument Margins, per instrument and paper size.\n\nDefault: off.",
-  "Drift since the previous raw check ({prev}): average {avg} ΔE00, maximum {max} — this print measured against that print, patch by patch, {n} patches. Small numbers mean your printer still behaves as it did then; growing numbers mean drift — worth re-profiling when they matter to you. (Pass/Fail against the profile thresholds is not shown here: a raw sheet is not expected to match the design closely, so it would fail even a perfectly healthy printer.)",
   "Dry run (-d)  —  simulate without writing any files",
   "Duplicate this run. Makes a new run holding a copy of this run's chart, its measurement and the profile built from it, so you can carry on from here without changing anything you already have.\n\nNothing is moved and nothing is overwritten — this run stays exactly as it is. Verification runs and their chart are not copied, so the new run is free to use a different one.",
   "Duplicating works on a profiling run. A project has exactly one calibration, so there is nothing to duplicate here — switch “Run type” to Profiling to duplicate a run.",
@@ -306,7 +303,6 @@
   "Every ChromIQ project lives in its own folder (inside ~/ChromIQ, or your custom output folder from Settings), named after the profile. Everything you would print, install or keep sits right at the top of each run folder; the paperwork is grouped into a few folders whose names already tell you whether you care about them. Each build is a “run” (runs/run1, run2 …); a run's profiling work sits in the run folder, and any later checks of the finished profile — “verification” runs — accrue as dated folders inside verifications/, kept apart so the two never mix. Below: first the three files that matter, then what each folder means, then every file in detail. “{name}” stands for your profile's name.",
   "Every file a ChromIQ project folder can contain — what created it, when, and what it's for.",
   "Every instrument reading wobbles a little — dark patches most of all. With this ticked, the engine estimates how noisy YOUR measurement actually was (from the repeated white and black patches on the chart) and fits the profile so it follows your printer instead of chasing that noise.\n\nHow it stays safe: the engine first diagnoses the chart itself — the repeated white and black patches reveal how much your readings actually scatter. Only when that scatter is clearly above what a healthy instrument produces (twice the published level or more) does the noise handling engage; on a clean measurement it steps aside automatically and you get exactly the profile you would have gotten anyway — bit for bit. Ticking this can therefore never make a profile worse, and the log always tells you which way it went.\n\nWhen it helps: older or budget instruments, strip readings that occasionally jitter, charts measured in a hurry. On a deliberately noisy test measurement it cut the profile's errors by roughly 15–20% and reduced false \"please remeasure this patch\" warnings from dozens to a handful.\n\nBonus either way: the build log gains a confidence map — plain sentences telling you how well each region (shadows, midtones, highlights, saturated colours) is supported by your chart.\n\nDefault: off.",
-  "Every instrument takes a fixed number of readings per second, so how long a patch takes decides how many readings it gets. Set that rate, how many patches one of your strips holds, and the minimum readings you want per patch — the reading speed at the end of each row follows from those three, and each instrument's ⓘ works it through. The defaults suit each instrument; raise the minimum for more careful measurements, or set it to “Off” to silence the hint for that instrument.",
   "Every main action, and each of the different ways to reach it — plus what ChromIQ cannot do today.",
   "Every strip has been read, but one patch still has no reading. Everything you have read so far is safe.\n\nThis usually happens when some patches were read one at a time in “Patch-by-patch mode” and one was stepped over.\n\nTo finish it, start measuring again with “Patch-by-patch mode” ticked and “Refine / resume existing measurement (-r)” ticked. ChromIQ picks up where the readings stop, so you only measure the patch that is still missing rather than the whole chart again.\n\n•  Re-read Individual Strips — stay in this session and read a strip again now. Use “f” and “b” to move between strips, “n” to jump to the next unread one, and “d” when you are done.\n\n•  Close — finish here. ChromIQ asks whether to keep what you have measured so far, so nothing is decided behind your back.",
   "Every strip has been read, but {n} patches still have no reading. Everything you have read so far is safe.\n\nThis usually happens when some patches were read one at a time in “Patch-by-patch mode” and a few were stepped over.\n\nTo finish them, start measuring again with “Patch-by-patch mode” ticked and “Refine / resume existing measurement (-r)” ticked. ChromIQ picks up where the readings stop, so you only measure the patches that are still missing rather than the whole chart again.\n\n•  Re-read Individual Strips — stay in this session and read a strip again now. Use “f” and “b” to move between strips, “n” to jump to the next unread one, and “d” when you are done.\n\n•  Close — finish here. ChromIQ asks whether to keep what you have measured so far, so nothing is decided behind your back.",
@@ -546,7 +542,6 @@
   "Opening argyllcms.com — download the latest version ({hint}), then unpack and set the bin path above.",
   "Opens a report on the chart you've measured: how close each patch came to the colour the chart was designed to have — the average, worst and spread of the colour difference (ΔE00), the worst-offending patches with their colours side by side, and the paper white and darkest black.\n\nIts real strength is comparing over time: if you turn on “Save a measurement report after each measurement” in Settings, ChromIQ keeps a dated report beside every chart, and this window shows how the latest one has changed from the last — a rising colour difference or a shifting white/black points to ageing inks, a drifting printer, or a drifting instrument.\n\nMeasure the chart first, then open this. Screen colours are approximate; the numbers come from your measurement file.",
   "Optional .cal file whose calibration curves are applied when estimating\nthe ink limit for patch generation.  Overrides any .cal embedded in\nthe ICC target .ti3 file produced by a previous profiling pass.\n\nUse this when you have a validated device calibration (e.g. from\nprintcal/applycal) and want targen to account for it when computing\nhow many patches are needed in the shadow region.\n\nType \"none\" in the field (without quotes) to explicitly prevent any\n.cal from being used, even if one is embedded in the .ti3.\n\nLeave blank for most workflows — only needed when you are managing\na separate calibration curve independently from the profile.\n",
-  "Optional free-text label stamped onto the right edge of the chart TIFFs alongside the targen and printtarg commands that produced them. Useful for recording the exact printer/paper combination this chart was made for, so you can match it to the right ICC profile months later. Patch pixels are not modified — only the white margin to the right of the patches is stamped.",
   "Optional text printed in the bottom margin of every sheet. Use Insert ▾ to drop in a placeholder — it's replaced with a human-readable value when the chart is built: {project} (profile name), {page} (“page 1/3”), {date}, {paper} (e.g. “A4 landscape”), {instrument} (e.g. “i1Pro3+”), {patchcount}, {pages}, {seed}, {dpi}. The Preview line shows how it will read.",
   "Optional — Click “Build Profile” again. The refined .ti3 produces a more accurate profile.",
   "Optional — On the Check & Refine tab click “{analyse}”. ChromIQ runs profcheck and flags any patches whose ΔE is above your refinement threshold (2.0 is a sensible starting point). If outliers are found, ChromIQ offers to send you back to the Measure tab to re-read only the affected strips.",
@@ -606,7 +601,6 @@
   "Printing a verification chart WITHOUT the profile — the chart's own numbers go straight to the paper. Measuring it answers a different question: has the printer changed since last time? It cannot judge the profile, because no profile took part. The Print Chart tab's “Colour” row chooses between the two, and the report records which way each sheet was printed.",
   "Printing and measuring a small chart THROUGH the finished profile to see how close the result lands (in ΔE). The honest way to judge a profile — better than trusting the build report.",
   "Prints short dashes along all four edges of the sheet, so you can lay a ruler against the paper and line your instrument up with a row of patches.\n\nWhat you get: a dash at the centre of every patch and one between each pair, evenly spaced the whole way along. They follow your patch spacing automatically, so they stay correct whatever else you change.\n\nYou need this if you read a chart with a hand-held instrument along a ruler. Leave it off for a chart you read without one — the dashes cost nothing but ink, and some people prefer a clean sheet.\n\nPress Generate Chart after changing this: the dashes are printed onto the sheet, and the preview only shows you where they will land. If “Auto-update preview when a layout setting changes” is ticked, the sheet is rebuilt for you and there is nothing more to do.\n\nDefault: off.",
-  "Prints the exact settings that produced this chart along its right edge, so the sheet explains itself.\n\nWhat is stamped depends on how the chart was laid out: with the ChromIQ layout engine it is the targen command and the engine's own layout settings, and with printtarg it is the targen and printtarg command lines. The ChromIQ version is included either way, beside Argyll's own vertical ID line.\n\nWHY YOU MIGHT WANT IT: months later you can read the printed sheet and make exactly the same chart again, without having to remember what you chose.\n\nSwitch it off if you would rather keep the right margin clean and print only your own chart notes — or leave the sheet completely unmarked by clearing the notes box as well.",
   "Prints the help card you are reading — handy for the keyboard shortcuts, or a workflow to follow at the printer. Your usual print window opens, so you can choose the printer, the paper and how many copies. To see the pages first, or to keep them, use “Save as PDF…” beside this button.",
   "Profile install folder — where “Install profile” copies a finished .icc (leave blank for your system's colour-profile folder):",
   "Profile type (-a) — the shape of the maths inside the profile, and how it describes what your device does with colour. All four choices build a working profile. What separates them is how many measured patches they need before they are any good, and how they behave on colours your target did not contain.",
@@ -628,7 +622,6 @@
   "Recolour individual spacers (overrides the palette for those gaps): on the page preview in the centre, click a spacer to select it, or drag a box to select several. {add} adds to the selection, {remove} removes. Selected spacers get a magenta outline — then click “Paint…”.",
   "Recommended. Copies the whole project — every run, chart, measurement, profile and verification — into your working folder, then opens the copy. The original is left untouched.",
   "Recovered the readings from an interrupted measurement — they are now this run's measurement, and you can carry on from where it stopped.",
-  "Rectangular or hexagonal patches. Rectangular is the default; hexagonal is worth considering on a CR30, for a reason that does not apply to the other instruments.\n\nThe CR30 is a ROUND instrument: a 33 mm barrel reading through a 4 mm circular window. A round window can never use the corners of a square patch, so on a square grid that paper is spent for nothing. Hexagons are the tightest way to pack round openings into a sheet — 90.7 % of the area is within reach of a circle, against 78.5 % for squares — so you keep the same 4 mm of clearance all round the window while each patch uses less paper. Measured on A4 at the standard size and default margins: 345 patches rectangular, 405 hexagonal. The gain depends on the paper — on A3 it is much smaller.\n\nIt is also reasonable to expect a honeycomb to be easier to aim at, since its six sides close in on the centre of the cell where four right angles do not. That part has NOT been measured, and we would rather say so than have you plan around it. What is measured is the packing above.\n\nThe shape costs a CR30 nothing to read. It matters only to an instrument that has to travel ALONG a row of patches, and a CR30 never does — you lift it onto one patch, press the button on the instrument, and lift it onto the next.\n\nTwo costs, both real. The scanner and camera tools turn a honeycomb chart away unless you switch them on for it in Preferences → Beta; and the ruler helper markers are not drawn on a honeycomb, because it has no straight rows to line a ruler against. If you want either of those, stay on Rectangular.\n\nEither shape is a grid with row indicators down the left and column letters along the top, so you can always find the patch ChromIQ is asking for. Patch size is PROVISIONAL: 12 mm is a reasoned starting point, chosen because the CR30's body hides the patch once you set it down and you are aiming from the cells around it — but the smallest patch a CR30 can read has never been measured. Make them bigger in Patch size below if you find yourself missing patches.",
   "Red, green, blue — how images, monitors, scanners and (from the computer's side) most photo printers describe colour.",
   "Redo — in the chart layout editor",
   "Redrawing the pages would have changed the chart itself, so the restored chart has been put back exactly as it was. Your measurement still matches the chart file beside it. The pages shown here were drawn from a different layout — create the chart again in this tab if you need printable pages.",
@@ -698,7 +691,6 @@
   "So every tab agrees on what you're working with, the Create Chart tab now mirrors this loaded chart — “{name}”. Its patch recipe and page layout are shown locked, because the chart already exists; ChromIQ won't change it.\n\nNothing you built before is lost: any chart you'd generated earlier is still safe in its own project folder under ~/ChromIQ, and you can open it again at any time with “Open Chart File (.ti2)” at the top left of the window.\n\nIf you'd like to build a NEW chart starting from these settings, tick the “Edit patch recipe (override preset)” or “Edit page layout (override preset)” checkbox in the Create Chart tab, make your changes, and click “Generate Chart” — the loaded chart stays untouched. For charts made with the ChromIQ layout engine, the panels really do show the chart's own creation settings — patch size, spacers, margins, seed, notes and patch count are all restored from the chart itself.",
   "Soft, muted colours across every hue — dusty blues, sages, soft pinks and taupes. This is where most photos actually live, between the near-neutral greys and the vivid sets. Each of the 'layers' is a chroma shell of 'per layer' patches, so the two multiply.",
   "Some charts print the same colour more than once. This is the biggest colour difference between copies of the same patch — a direct measure of how repeatable the read was. Under ~1 ΔE is excellent; large values hint at instrument noise or a smudged chart.",
-  "Some of a chart's design colours can be brighter or more saturated than this printer and paper can physically produce — no profile can print them, however good it is. Where the report can tell (it asks the run's profile), it splits the colour-accuracy figures into two groups: “Within the profile's gamut” — the colours that were genuinely printable, the fair measure of accuracy — and “Beyond it” — the unreachable ones, whose distance describes the limit of the gamut, not a mistake of the profile. Every patch stays counted and visible; the Pass/Fail verdict judges the within-gamut figures.",
   "Some readings for this chart were saved when a measurement stopped early, and they are still here — but they are sitting in a backup file rather than in the run's own measurement, so ChromIQ has been ignoring them.\n\nRecover them and they become this run's measurement, exactly as if the earlier session had ended there: you can carry on where it stopped, see what was read as an overlay on the chart, and you will be warned before anything replaces them. The backup file is kept either way.\n\nNothing is overwritten — this run has no measurement of its own at the moment.",
   "Something magnetic was against the measuring opening, and that changes what the instrument does: instead of measuring your patch, it takes a white calibration from whatever it is resting on.\n\nThe usual culprit is not obvious. A laptop has magnets in its lid and body, and they reach straight through a sheet of paper; so do fridge doors, magnetic desk mats, tool trays and the instrument's own cap.\n\nEVERYTHING YOU MEASURED BEFORE THIS IS SAFE, and is already saved. ChromIQ refused this reading before using it, so nothing wrong has gone into your measurement file.\n\nBut nothing more can be measured until the white calibration is taken again — until then every reading would be wrong by an amount nothing afterwards could detect.\n\nMove your chart onto something non-magnetic — a book, a pad of paper, a wooden desk — then press “Recalibrate now” and ChromIQ will take the white calibration for you and carry on from the patch you were on.\n\nWhat ChromIQ detected: {reason}",
   "Source ICC profile used to compute the perceptual rendering\nintent gamut mapping tables (A2B / B2A perceptual).\nWithout this, the perceptual intent uses the colorimetric\ndata directly (no gamut compression).\nTypically set to a standard RGB working space like\nAdobeRGB or ProPhoto RGB.\nBoth .icc and .icm files are accepted — ICM is simply\nMicrosoft's name for the ICC profile format, they are\nidentical.\n",
@@ -723,7 +715,6 @@
   "Swap the chart in <b>{label}</b> and leave everything else standing: the measurement, the profile, the reports and the verifications stay put, and nothing moves to <code>old/</code>. <b>ChromIQ cannot check that these patches are the ones your measurement was taken with</b> — only you can, and if they are not, the run keeps a measurement that no longer matches its chart. {sidecar}",
   "Switch the feature on first: Preferences → “Enable calibration options”. Until you do, none of this appears — which is deliberate, because most people never need it. Switching it on adds “Calibration” to the “Run type” list in the Profile-run bar above the tabs, and adds two modules to the Calibration & Profiling tab.",
   "Switches from strip reading to single-patch measurement mode.\n\nInstead of scanning entire strips, chartread guides you patch\nby patch across the chart. This is significantly slower — one\nreading per patch — but more reliable on heavily textured\nsurfaces or when strip reading consistently fails on a\nparticular chart layout.\n\nRED OUTLINES WORK DIFFERENTLY HERE\nWhile you measure, a patch that looks like a misread is outlined in red. The two reading modes decide that differently, and deliberately so.\n\nReading a STRIP, the whole strip arrives at once, so ChromIQ can ask two questions: is this patch past your colour-error limit (Preferences → Beta), AND does it stand out from the other patches of its own strip? Both must be true. That second question matters because a chart's expected colours are design values and a printer does not reproduce them — on a good print, vivid patches sit far from their design colour quite legitimately, and without the comparison half a normal chart would light up red.\n\nReading PATCH BY PATCH, there is no strip to compare against — the patch you have just read is the only one that has arrived. So this mode asks the plainer question on its own: is this patch past your limit?\n\nWhat that means in practice: patch by patch flags MORE patches than strip reading does on the same chart, and vivid colours are among them. That is the honest consequence of having no neighbours to compare with — not a fault, and not something to read as “your printer is worse than the strips suggested”. If it flags more than you want, raise the limit in Preferences → Beta.",
-  "Switches the CR30 chart from rectangular to hexagonal patches. Rectangular is the default.\n\nThe CR30 is a ROUND instrument — a 33 mm barrel reading through a 4 mm circular window — and a round window can never use the corners of a square patch. Hexagons are the tightest way to pack round openings into a sheet (90.7 % of the area is within reach of a circle, against 78.5 % for squares), so you keep the same 4 mm of clearance all round the window while each patch uses less paper. Measured on A4 at the standard size and default margins: 345 patches rectangular, 405 hexagonal. The gain depends on the paper — on A3 it is much smaller.\n\nIt is also reasonable to expect a honeycomb to be easier to aim at, since its six sides close in on the centre of the cell where four right angles do not. That has NOT been measured, so please do not plan around it; the packing above is what has.\n\nNo extra hardware, and nothing changes about how you measure. The shape only matters to an instrument that has to travel along a row of patches, and the CR30 never does.\n\nTwo costs, both real. The scanner and camera tools turn a honeycomb chart away unless you switch them on for it in Preferences → Beta; and the ruler helper markers are not drawn on a honeycomb, because it has no straight rows to line a ruler against.\n\nHas no effect on i1Pro, i1Pro 3 Plus or ColorMunki — the option is hidden when those are selected.",
   "Switches the SpectroScan chart layout from rectangular to hexagonal patches. Hexagons tessellate more tightly than rectangles, so roughly 14% more patches fit on the same sheet — useful for squeezing extra colour samples out of large papers.\n\nNo extra hardware is required. The SpectroScan's XY scanner reads each patch individually under a motorised arm, so it doesn't care whether the patch is square or hexagonal.\n\nHas no effect on i1Pro, i1Pro 3 Plus or ColorMunki — the option is hidden when those are selected.",
   "Switches the entire app between its visual themes.\n\n  • System (Auto) — follow your macOS Appearance setting and react if you change it while ChromIQ is running.\n  • Light — force the light theme even if your system is dark.\n  • Dark  — force the dark theme even if your system is light.\n  • Neutral — a light grey workspace with no colour in it, so nothing around a preview or a gamut view tints your judgement of it. System (Auto) never chooses this one; ask for it here.\n\nChanges preview instantly. Click OK to keep them, or Cancel to revert.",
   "Taking the reading — keep the instrument still.",
@@ -939,7 +930,6 @@
   "Two rare kinds of instrument read a whole sheet at once instead of one strip at a time: motorised XY tables (the GretagMacbeth SpectroScan) and autonomous chart readers (the X-Rite i1iSis and DTP70).\n\nWhen this box is OFF (the default), ChromIQ measures these with Argyll's own chartread — the long-proven path. Everything works; you just don't get the engine's live preview for them.\n\nWhen it is ON, the ChromIQ engine drives them too, so you get the same extras as strip and patch reading: the expected-vs-measured preview fills in as sheets are read, and the result is saved after every sheet.\n\nThis path is new and has NOT yet been tested on real SpectroScan or i1iSis hardware — so it is off by default. If you own one of these and want to help, turn it on and check the result; if anything looks wrong, switch it back off and the measurement runs the classic way. Needs the chart-reading engine above to be on.\n\nDefault: off",
   "Two ways to decide patch size against how many fit. Whichever you pick, its own settings appear directly below this box.\n\n• Prioritise patch size — you set the patch size, or a scale to grow and shrink the instrument's standard size, and ChromIQ fits as many patches as it can. Simple, but the last strip may not reach the far margin. Leave the size on “auto” and ChromIQ uses the size your instrument prefers.\n\n• Prioritise chart area — you decide the GRID and ChromIQ sizes the patches so it fills the space inside your margins. Two ways to describe the grid: by patch width, where you give the smallest patch you are willing to read and ChromIQ fits as many as that allows; or by columns and rows, where you say how many strips and how many patches per strip you want. Either way the patch area lands exactly where you defined it, and you trade patch size for the grid you asked for. Watch that the patches don't get too small for your instrument to read.",
   "Type a name in Create Chart and press “Generate Chart” — the first build creates the project folder.",
-  "Typeface, size and style of BOTH sets of labels — the strip letters across the top and the row numbers down the left. Bundled fonts are listed first, then every font installed on your system. Size “auto” fits the strip letters to the strip width, and the row numbers follow the same size; the left margin widens or narrows with them, so changing the font or the size re-lays the page. Bold applies to both. Italic greys out for fonts that don't offer it, which includes both of the bundled ones.",
   "Underline — long (10 “_”)",
   "Underline — short (5 “_”)",
   "Undo — in the chart layout editor",
@@ -1060,7 +1050,6 @@
   "[INFO] Measurement stopped — no measurement (.ti3) file was created.",
   "[INFO] Measurement was interrupted — partial readings saved.",
   "[INFO] Multi-ink measurement — Argyll colprof can't build these, using the ChromIQ engine.",
-  "[INFO] The patch-identity check could not run ({reason}) — the import continues.",
   "[NOTE] ChromIQ asked the CR30 to take its white calibration. It cannot check the result — the instrument reports the same value whatever is under the cap.",
   "[NOTE] If you have the CR30's phone app open, close it or turn Bluetooth off on the phone. While that app is connected it takes the instrument's button presses for itself, and ChromIQ never sees them — the patch simply stays highlighted and nothing happens.",
   "[NOTE] Skip initial calibration (-N) is switched on, so your instrument will not be calibrated before this measurement.\nThat is fine if you calibrated it earlier in this session. If you did not, readings can drift and whole patches may come back as “inconsistent” — switch the option off in the measurement options and start again.",
@@ -1146,7 +1135,6 @@
   "→ This file is for verification only — do not build a profile from it. Open it in Tools ▸ Inspect a measurement to check the profile.",
   "⚠  You are printing via the Windows printer dialog. You must disable colour management in your printer driver before printing — otherwise the printer applies its own corrections and the chart will be unusable for accurate ICC profiling.\n\nHow to disable colour management: after clicking Print, open the printer's Properties / Preferences and look for a colour-management section:\n  • Epson:  \"Epson Color Controls\" → Off (No Color Adjustment)\n  • Canon:  \"Color Options\" → Manual → None\n  • HP:     \"Color Options\" → Application Managed Colors\n  • Others: look for \"No Color Management\", \"Off\", or \"Application Controlled\"\n\nAllow pigment inks to dry fully before measuring (at least 1 h; 24 h for best accuracy).",
   "⚠  You are printing via the macOS printer dialog. Verify that the paper, media type, and quality you pick match the media you are printing on — wrong settings cause incorrect ink laydown and invalid colour measurements.\n\nColour management is disabled automatically. ChromIQ declares the chart as already being in the printer's own colour space (so no colour transform is applied) and sets the driver's \"no colour correction\" option — the same technique dedicated tools like Print-Tool use. The dialog's \"Color Matching\" pane will be greyed out; that is expected.\n\nYou don't need to change any colour setting. Just don't switch an ICC profile or rendering intent back on, and pick the correct paper / media type and print quality.\n\nIMPORTANT: never click Cancel (or Abort) in any of the dialog's panes or sub-windows — always close them with OK. Cancel reverts the colour-off setting ChromIQ applied; OK keeps it. When in doubt, OK is always the safe button.\n\nPrefer no dialog at all? Untick \"Use default macOS printer dialog\" in Preferences to send the chart straight to the queue via lp (colour management is forced off there too).\n\nAllow pigment inks to dry fully before measuring (at least 1 h; 24 h for best accuracy).",
-  "⚠ Bottom margin is too small for the sheet text — it overflows toward the page edge.",
   "⚠ Choose your target first, then the scan. Under “A chart I made in ChromIQ”, pick the .ti3 of a chart you built here (it needs its .channels.json alongside). An older .ti3 from a plain scanin run won't work — for a bought target, switch to “A standard target I own” above and load its .cht.",
   "⚠ No chart layout found: the chart “{name}” has no .channels.json with usable geometry next to it. ChromIQ writes that sidecar when it creates a chart — pick the chart inside its original folder (or copy the .channels.json along with it).",
   "⚠ Not every patch on this page could be read — the grid placement is probably off. Check the diagnostic image (if saved), realign the grid on this page's scan and build again; a profile from a partial read will be wrong.",
@@ -1155,11 +1143,9 @@
   "⚠ Self-check: colprof reports a peak fit error of {p} with an average of {a} — an aligned read keeps the average well under {al}. A grid sitting slightly off on one page (even by half a patch) produces exactly this. Check the diagnostic images, realign and rebuild before trusting this profile. (Thresholds: Preferences → Scanner Limits.)",
   "⚠ Strip length {len:.0f} mm exceeds the {ruler:.0f} mm instrument ruler — the strip may not fit your jig",
   "⚠ The chart you picked can't be used — fix that first, then choose the scan. The problem was:",
-  "⚠ The left margin was widened from {asked:.1f} mm to {got:.1f} mm to fit the row indicators. The labels start {floor:.1f} mm in from the page edge and their text needs {band:.1f} mm. “Clip” is set to {clip:.1f} mm and is not what is holding them out there, so lowering it moves nothing — the note under “Text distance from edge” names what is. To get that paper back, switch “Show row indicators” off or use a smaller label size.",
   "⚠ This chart already carries its geometry (.channels.json) — there is nothing to pick. The .cht row is only used for charts made outside ChromIQ.",
   "⚠ This chart's stored scan geometry doesn't match the chart: {g_pages} for {t_pages}. The chart fills its pages right to the limit, and printtarg needs slightly more room in scan mode. Reduce the Patch Size Scale a little (e.g. 0.90 instead of 0.93) and regenerate — or use a ChromIQ layout-engine chart.",
   "⚠ This link's source colour space is unknown — make sure your images are already in it, or pick the source profile above.",
-  "⚠ Top margin is too small for the strip labels — they overflow toward the page edge.",
   "⚠ {w}: a nearby grid position matches the chart better than the current one — the grid probably sits a fraction of a patch off. Nudge it and check again. (Placement agreement: {a}, floor {f} %. Patches reading furthest from expectation: {worst}.)",
   "⚠ {w}: sample boxes sit on patch edges — realign the grid. Worst placed: {worst}. (Placement agreement: {a}.)",
   "⚠ {w}: the patches in {groups} read like their neighbours' colours — a grid edge probably sits about one cell off there.",
@@ -1287,10 +1273,6 @@
   [
    "de",
    "519ab78981e1fb19"
-  ],
-  [
-   "de",
-   "55b1f7c212a5b34f"
   ],
   [
    "de",
@@ -1642,10 +1624,6 @@
   ],
   [
    "fr",
-   "55b1f7c212a5b34f"
-  ],
-  [
-   "fr",
    "5686e27f2aafd6b7"
   ],
   [
@@ -1882,10 +1860,6 @@
   ],
   [
    "nl",
-   "55b1f7c212a5b34f"
-  ],
-  [
-   "nl",
    "5686e27f2aafd6b7"
   ],
   [
@@ -1995,10 +1969,6 @@
   [
    "no",
    "519ab78981e1fb19"
-  ],
-  [
-   "no",
-   "55b1f7c212a5b34f"
   ],
   [
    "no",
@@ -2122,10 +2092,6 @@
   ],
   [
    "pl",
-   "55b1f7c212a5b34f"
-  ],
-  [
-   "pl",
    "5686e27f2aafd6b7"
   ],
   [
@@ -2227,10 +2193,6 @@
   [
    "pt",
    "519ab78981e1fb19"
-  ],
-  [
-   "pt",
-   "55b1f7c212a5b34f"
   ],
   [
    "pt",
@@ -2451,10 +2413,6 @@
   [
    "ru",
    "5243f12d8d183811"
-  ],
-  [
-   "ru",
-   "55b1f7c212a5b34f"
   ],
   [
    "ru",
@@ -2826,10 +2784,6 @@
   ],
   [
    "ru",
-   "e66ca873dd988708"
-  ],
-  [
-   "ru",
    "e9e6b0753b79a030"
   ],
   [
@@ -2871,10 +2825,6 @@
   [
    "ru",
    "fa8bd546e44f5c08"
-  ],
-  [
-   "ru",
-   "fc9b3b94f79858c7"
   ],
   [
    "ru",
@@ -2923,10 +2873,6 @@
   [
    "sv",
    "519ab78981e1fb19"
-  ],
-  [
-   "sv",
-   "55b1f7c212a5b34f"
   ],
   [
    "sv",
@@ -3015,10 +2961,6 @@
   [
    "zh_CN",
    "519ab78981e1fb19"
-  ],
-  [
-   "zh_CN",
-   "55b1f7c212a5b34f"
   ],
   [
    "zh_CN",

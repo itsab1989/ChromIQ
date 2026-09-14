@@ -927,7 +927,7 @@ class MeasurementReportDialog(QDialog):
         self._all_runs_check.toggled.connect(
             lambda on: (settings.set("report_show_all_runs",
                                      "true" if on else "false"),
-                        self._refresh()))
+                        self._settings_touched()))
         out_row.addWidget(self._all_runs_check)
         out_row.addWidget(TooltipButton(
             tr("Show all measurement runs"),
@@ -947,7 +947,7 @@ class MeasurementReportDialog(QDialog):
         self._detail_check.toggled.connect(
             lambda on: (settings.set("report_show_details",
                                      "true" if on else "false"),
-                        self._render()))
+                        self._settings_touched()))
         out_row.addWidget(self._detail_check)
         out_row.addWidget(TooltipButton(
             tr("Show detailed data for each run"),
@@ -964,6 +964,22 @@ class MeasurementReportDialog(QDialog):
             self, min_width=440, color=SPEC_GREEN))
         out_row.addStretch(1)
         top_v.addLayout(out_row)
+        #: Says the document is older than the settings. **ON ITS OWN ROW,
+        #: DIRECTLY UNDER THE BUTTON IT NAMES.** Put inside `out_row` with a
+        #: stretch, as it was first built, it competed with four buttons and a
+        #: photograph of the real window showed the result: "Generate report"
+        #: read "erate rep", "Save report as PDF…" read "report as", "Reveal
+        #: folder" read "veal fold", and the warning itself was cut off at "or
+        #: put the s". A hidden widget claims no space in a Qt layout, so the
+        #: row below costs nothing until the moment it has something to say.
+        self._stale_label = QLabel(
+            tr("⚠ Settings changed. Click “Generate report” to build the "
+               "report with them, or put the setting back."), self)
+        self._stale_label.setStyleSheet(
+            f"color: {_C['fail']}; font-weight: bold")
+        self._stale_label.setWordWrap(True)
+        self._stale_label.setVisible(False)
+        top_v.addWidget(self._stale_label)
 
         # #182 (Knut D8, D20): the two Pass-threshold spin boxes are gone. A
         # report is judged against the LIMIT SET bound to its profile run; the
@@ -1520,7 +1536,9 @@ class MeasurementReportDialog(QDialog):
             self._hidden_runs.add(key)
         else:
             self._hidden_runs.discard(key)
-        self._refresh()
+        # WHICH MEASUREMENTS THE REPORT IS ABOUT is one of the five settings he
+        # named, so the document waits for Generate like the other four.
+        self._settings_touched()
 
     def _load(self, path: Path) -> None:
         """Open the report on a measurement — the profile that owns it becomes the
@@ -1593,15 +1611,112 @@ class MeasurementReportDialog(QDialog):
         self._report, self._ti3 = None, None
         self._rebuild_from_sources()
 
+    #: The five controls that describe WHAT REPORT TO MAKE, as opposed to which
+    #: measurements exist. Knut, 2026-09-14, having asked for this and been
+    #: asked whether he meant it: *"This change give the user more feeling of
+    #: control and understanding of when something should change, or when a
+    #: change will result in a changed report, and will see that it does change
+    #: or not when clicking 'Generate report'. It will also give a user a
+    #: chance to undo a changed field, if not wanting to regenerate the report.
+    #: Make the change."*
+    #:
+    #: His observation was that the button looked inert, because the document
+    #: already followed every control: *"The generate report button seems not
+    #: to do much, as the report auto-generates whenever report type or judged
+    #: against is changed."*
+    _SETTINGS_THAT_NEED_GENERATING = (
+        "report type", "judged against", "show all measurement runs",
+        "show detailed data", "the measurements ticked in the list")
+
+    def _doc_settings(self) -> tuple:
+        """Those five settings AS THEY STAND NOW, in one comparable value.
+
+        The banner is a COMPARISON, never a flag. Knut asked for both halves in
+        one sentence: *"It will also give a user a chance to undo a changed
+        field, if not wanting to regenerate the report."* A flag set on every
+        change cannot see an undo, so putting the control back would leave a
+        red line over a document that already matches it, which is the same
+        lie the other way round.
+        """
+        def _data(name: str) -> str:
+            combo = getattr(self, name, None)
+            if combo is None:
+                return ""
+            try:
+                return str(combo.currentData() or "")
+            except RuntimeError:          # the window is going away
+                return ""
+        return (
+            _data("_type_combo"),
+            _data("_set_combo"),
+            bool(getattr(self, "_all_runs_check", None) is not None
+                 and self._all_runs_check.isChecked()),
+            bool(getattr(self, "_detail_check", None) is not None
+                 and self._detail_check.isChecked()),
+            tuple(sorted(getattr(self, "_hidden_runs", ()) or ())),
+        )
+
+    def _settings_touched(self) -> None:
+        """One of those five moved: keep the DOCUMENT as it is and say so.
+
+        The control keeps its own new value, and whatever that value does on
+        disk it still does: choosing a limit set still binds the run and still
+        asks about recalculating its saved reports, because that is a
+        deliberate act with its own question, not a redraw. What waits is the
+        document on screen, so a reader can put a control back and be sure
+        nothing moved under them.
+        """
+        self._forget_limits()
+        self._sync_limit_controls()
+        # **NOTHING WAITS FOR A BUTTON THAT CANNOT BE PRESSED.** `Generate
+        # report` writes a dated report into ONE run, so it is disabled when
+        # the window is on a measurement that belongs to no run, when SEVERAL
+        # profiles are loaded, and when every measurement has been unticked.
+        # The two tick boxes and the run ticks stay live in all three.
+        #
+        # An adversary round drove the middle one, which is this window's main
+        # job: with two profiles loaded, "Show detailed data" froze the
+        # document and a red line told the reader to press a greyed-out button.
+        # Those settings did nothing at all, ever, and the only way out was to
+        # put the control back. Before the deferral they repainted at once, and
+        # where there is nothing to press they do so again.
+        #
+        # Read AFTER `_sync_limit_controls`, which is what recomputes it.
+        btn = getattr(self, "_generate_btn", None)
+        if btn is not None and btn.isEnabled():
+            self._show_stale_banner()
+            return
+        self._refresh_trend()
+        self._render()
+
+    def _show_stale_banner(self) -> None:
+        if getattr(self, "_stale_label", None) is None:
+            return
+        built = getattr(self, "_doc_built_with", None)
+        self._stale_label.setVisible(
+            built is not None and tuple(built) != self._doc_settings())
+
     def _refresh(self) -> None:
         """Repaint both the trend charts and the report body (they share the same
-        run set, so both react to Show-all / thresholds / the profile list)."""
+        run set, so both react to Show-all / thresholds / the profile list).
+
+        Everything that is NOT one of the five settings above still repaints at
+        once: opening a measurement, adding or removing one, the limits window
+        writing a number. Those change what there IS to report on, and leaving
+        the document showing a measurement that is no longer loaded would be a
+        different kind of lie from the one this defers.
+        """
         self._forget_limits()
         self._sync_limit_controls()
         self._refresh_trend()
         self._render()
 
     def _render(self) -> None:
+        # THE DOCUMENT IS ABOUT TO MATCH THE CONTROLS, so this is the one place
+        # that may record what it was built from. Anything that repaints goes
+        # through here, so nothing else has to remember to clear the banner.
+        self._doc_built_with = self._doc_settings()
+        self._show_stale_banner()
         if not self._sources:
             self._view.setHtml(self._empty_html())
             return
@@ -2517,8 +2632,19 @@ class MeasurementReportDialog(QDialog):
         ctx = self._run_ctx
         if ctx is None:
             # Not in a run: a session-only choice, nothing stored (CH-14).
+            #
+            # THROUGH THE ONE DOOR, like every other setting. This branch kept
+            # calling `_refresh` after the other four learned to wait, so on a
+            # measurement outside any project the type pulldown still rebuilt
+            # the document on its own while the limit pulldown two rows below
+            # it did not. An adversary round drove both in one window and
+            # photographed the difference; Knut's original complaint, *"the
+            # report auto-generates whenever report type … is changed"*, was
+            # still true there. `_settings_touched` repaints here anyway,
+            # because a measurement in no run has no Generate button to press,
+            # so the behaviour is the same and there is now one rule.
             self._session_type = type_id
-            self._refresh()
+            self._settings_touched()
             return
         if self._run_state_now(ctx.run) != self._run_state_at_sync:
             self._sync_type_combo_to(current)
@@ -2535,7 +2661,11 @@ class MeasurementReportDialog(QDialog):
             self._sync_type_combo_to(current)
             return
         self._forget_limits()
-        self._refresh()
+        # THE TYPE IS STORED ON THE RUN AND THE DOCUMENT WAITS. Every refusal
+        # path above still calls `_refresh`, because those PUT THE CONTROL BACK
+        # and the document has to match the control again. This is the path
+        # where the change took.
+        self._settings_touched()
 
     def _sync_type_combo_to(self, type_id: str) -> None:
         """Put the pulldown back on *type_id* without re-entering the handler."""
@@ -3107,7 +3237,11 @@ class MeasurementReportDialog(QDialog):
             self._limits = RunLimits(set_id, tr(SET_BY_ID[set_id].label),
                                      effective_limits(set_id, self._overrides()),
                                      label_en=SET_BY_ID[set_id].label, bound=False)
-            self._refresh()
+            # THE ONE DOOR, which will repaint rather than defer here: a
+            # measurement in no run has no Generate button to press.
+            # `_forget_limits` deliberately KEEPS an unbound session choice, so
+            # the RunLimits just built survives it.
+            self._settings_touched()
             return
         # IS IT STILL UNLOCKED? THIS DOOR NEVER ASKED.
         # The lock is read when the window refreshes, to decide whether this
@@ -3200,9 +3334,10 @@ class MeasurementReportDialog(QDialog):
             log.warning("could not store the limit set on %s: %s", ctx.run.dir, exc)
         self._forget_limits()
         # Every saved report of the run now follows the new set, once
-        # (D23, CH-29).
+        # (D23, CH-29). THAT still happens at once: it is a deliberate act with
+        # its own question, not a redraw. What waits is the document on screen.
         self._recalculate_run()
-        self._refresh()
+        self._settings_touched()
 
     def _saved_report_count(self, run) -> int:
         """How many saved report FILES a recalculation would rewrite.
@@ -4650,9 +4785,32 @@ class MeasurementReportDialog(QDialog):
         # one paragraph. `_gap()` is the report's own empty line, used under
         # every section heading, so the spacing matches the rest of the
         # document rather than inventing a margin here.
+        #
+        # AND IT IS LABELLED AS A DESCRIPTION. Knut, 2026-09-14, reading the
+        # demo package's own description off the top of this section:
+        #
+        #   "The values change in the report, but the Report scope is not
+        #    updated and is constantly saying: 'Grey and tone check, ChromIQ
+        #    tight … Limits: bound to ChromIQ tight, and still open …'. This
+        #    text, and possibly much of the other text in a report, is not
+        #    updated when I change report type or judged against."
+        #
+        # Every word of that paragraph is the RUN'S DESCRIPTION, a field a
+        # person writes, and the package's own descriptions name a report type
+        # and a limit set because he asked for them to (2026-09-11: *"Be
+        # specific in the explanation, so that user understands that chosen
+        # limits are bound to chosen 'ChromIQ default' thresholds"*). So a
+        # description can contradict the live lines above it, and unlabelled it
+        # reads as one of them. It is the same trap for any user who writes
+        # "judged with ChromIQ tight" in the box and later changes the set.
+        #
+        # The label is faint and the description keeps its weight, because it
+        # is still the heading of this section, which is what he asked for.
         desc = self._run_description()
         out = (_h2(tr("Report Scope")) + _gap()
-               + (f"<div style='font-weight:bold;margin:0 0 4px'>"
+               + (f"<div style='color:{_C['faint']};margin:0'>"
+                  + html.escape(tr("Run description")) + "</div>"
+                  + f"<div style='font-weight:bold;margin:0 0 4px'>"
                   + html.escape(desc) + "</div>" + _gap() if desc else "")
                + "<div>" + html.escape(intro)
                + "</div><ul style='margin:2px 0 6px'>" + items + "</ul>"
@@ -5427,11 +5585,46 @@ class MeasurementReportDialog(QDialog):
         _one_page = _tid == REPORT_TYPE_SUMMARY and report_type_is_built(_tid)
         if _one_page:
             runs = self._one_measurement(runs)
-        if _tid != REPORT_TYPE_FULL and report_type_is_built(_tid):
-            created_line += ("<div style='margin:2px 0 0;font-weight:bold'>"
-                             + html.escape(tr("Report type:")) + " "
-                             + html.escape(tr(report_type_name(_tid)))
-                             + "</div>")
+        # **NAME THE TYPE THE DOCUMENT ACTUALLY IS, ALWAYS.** Knut,
+        # 2026-09-14, with two PDFs of the same run attached: *"The top of the
+        # Report scope also does not show the report type generated."* The
+        # guard used to be `_tid != REPORT_TYPE_FULL`, so the DEFAULT type
+        # produced a document that never said what it was, and his two files
+        # prove it: the Grey-and-tone one carries this line and the Full colour
+        # check one carries nothing at all. The paragraph above about T2 being
+        # "today's report unchanged" was our reasoning for the silence, not his
+        # ruling, and he has now asked for the opposite.
+        #
+        # An UNBUILT type renders as the full report, so the type NAMED here is
+        # the one that was produced, never the one that was asked for. That is
+        # the half of the old guard worth keeping: naming a document after a
+        # report it is not is worse than saying nothing.
+        _produced = _tid if report_type_is_built(_tid) else REPORT_TYPE_FULL
+        _head_bits = [html.escape(tr("Report type:")) + " "
+                      + html.escape(tr(report_type_name(_produced)))]
+        # …AND WHAT IT WAS JUDGED AGAINST, in the same place. It was in the
+        # document already, in the "Judged against" row of Report Results and
+        # again under each run's own table, and both follow the pulldown
+        # correctly; what was missing is a line where a reader opening a saved
+        # PDF looks first. Knut: *"there are texts that should state correct
+        # report type used and judged against."*
+        #
+        # ONE SET, OR NONE NAMED. Two profile runs can be bound to different
+        # sets, and one name at the head of a document covering both would be a
+        # claim about columns it does not describe. The per-column row below
+        # already answers that case and keeps answering it.
+        _sets = {self._judged_label_for(r, mark_unsaved=False)
+                 for r in runs if not _is_raw_drift(r)}
+        if len(_sets) == 1:
+            _head_bits.append(html.escape(tr("Judged against:")) + " "
+                              + html.escape(_sets.pop()))
+        # ONE LINE, NOT TWO. The one-page summary is exactly that, one page,
+        # and `test_and_keeps_room_for_a_description_of_ordinary_length` keeps
+        # 60 px of margin under it so the next sentence anybody adds does not
+        # silently make it two. Two new lines here spent 30 of those 60. The
+        # separator is the report's own middle dot.
+        created_line += ("<div style='margin:2px 0 0;font-weight:bold'>"
+                         + " &middot; ".join(_head_bits) + "</div>")
         if for_pdf:
             head = (f"<div style='font-size:22px;font-weight:bold;color:{_C["head"]}'>"
                     + html.escape(self._report_title(runs)) + "</div>"

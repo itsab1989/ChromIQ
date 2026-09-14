@@ -1,5 +1,62 @@
 # Changelog
 
+## v4.3.0-beta.14
+
+**The Measurement Report waits for its Generate button, the text along the
+bottom of a sheet can be aligned three ways, and every report now says what it
+is and what judged it.** All of it is Knut's, asked for and ruled on in one
+morning.
+
+### New
+
+- **"Generate report" now decides when the report changes.** Five settings move
+  the control and leave the document standing: Report type, Judged against,
+  Show all measurement runs, Show detailed data, and the measurements ticked in
+  the list. A red line under the buttons says the report has not been built with
+  them yet, and pressing the button builds it. Put a setting back and the line
+  goes away on its own, with nothing to press. Everything else still repaints at
+  once: opening a measurement, adding or removing one, or writing a limit
+  number changes what there is to report on, not how it is shown. Where there is
+  no single run to write a report into, and so no button to press, the settings
+  repaint at once as they always did.
+
+- **An Alignment box for the text along the bottom of a sheet.** In the Sheet
+  text frame, under Size, with three choices that both bottom lines follow: your
+  Custom text and the layout summary. "Left margin" starts them at the patch
+  area's left margin, so they share a left edge and a long line grows only to
+  the right. "Centre of available space" is the placement earlier betas had.
+  "Centre between left and right margin" centres them on the patch area, so
+  they line up with the patches above rather than with the paper. Left margin
+  is the default, so a chart made before this option existed changes to it.
+
+- **Every report names its type and the limit set it was judged against**, at
+  the top, on one line. The type was named for five of the six report types and
+  not for the one most reports are, so a saved PDF of a Full colour check said
+  nothing about what it was. The limit set was in the document already, in the
+  Report Results table and under each run, but not where a reader opening a PDF
+  looks first.
+
+### Changed
+
+- **The too-wide warning for the bottom text names the alignment.** The room a
+  line has depends on where it starts, so the message now says how much there is
+  between the start of the line and the limit it runs into, and offers the
+  Alignment box as one of the ways to fix it. The side limits themselves are
+  unchanged in all three alignments.
+
+- **A run's description is labelled as one in the report.** It is a field you
+  write, and no report can update it, so a description that mentions a limit set
+  can end up contradicting the live lines above it once the run is judged
+  against something else.
+
+### Fixed
+
+- **"Centre between left and right margin" could warn about text that was
+  entirely on the paper.** The check asked for the widest line that stays
+  centred; the sheet anchors a line that will not centre at the side limit
+  instead, and prints it. So a line too wide to centre was called too wide to
+  print, by as much as 26 mm on a small sheet with nothing actually running off.
+
 ## v4.3.0-beta.13
 
 **The limits window now says which set your run is judged by, and three faults

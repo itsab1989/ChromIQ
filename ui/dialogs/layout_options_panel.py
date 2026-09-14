@@ -31,6 +31,7 @@ from ui.widgets import (
     set_ink,
 )
 from ui.warning_sign import ask, inform
+from workflow import text_edge_fit as _TEF
 from workflow.hex_support import hex_two_heights_note
 from workflow.layout_engine.presets import LayoutRecipe
 
@@ -2023,6 +2024,24 @@ class LayoutOptionsPanel(QWidget):
         self.ct_italic.toggled.connect(self._emit)
         self.stamp_command = WrappingCheckBox(tr("Stamp layout summary along the bottom"), self)
         self.stamp_command.toggled.connect(self._emit)
+        # KNUT, 2026-09-14. Both bottom lines follow this, and his own list is
+        # the pulldown: *"1. Left margin (default) … 2. Centre of available
+        # space: This is the alignment type already in the design on beta 13.
+        # 3. Centre between left and right margin."* The DATA is the stable
+        # English key that goes into the recipe; the text is what a reader sees.
+        self.chart_text_align = ElidingComboBox(self)
+        for _key, _label in ((_TEF.BOTTOM_TEXT_LEFT_MARGIN, tr("Left margin")),
+                             (_TEF.BOTTOM_TEXT_CENTRE_AVAILABLE,
+                              tr("Centre of available space")),
+                             (_TEF.BOTTOM_TEXT_CENTRE_MARGINS,
+                              tr("Centre between left and right margin"))):
+            self.chart_text_align.addItem(_label, _key)
+        self.chart_text_align.currentIndexChanged.connect(self._emit)
+        # NOT `_track_answer`. That set is `INSTRUMENT_DEFAULTED`, the four
+        # fields an instrument choice fills in for you, and touching one of
+        # them makes `layout_explicit` true for the whole recipe. Alignment is
+        # not filled in by an instrument, so recording it there would make a
+        # cosmetic pick look like "this person has taken the layout over".
         add_row(stg, 0, tr("Custom text:"),
                 cell_fill(self.chart_text, self.insert_token_btn),
                 tip=TooltipButton(
@@ -2056,13 +2075,32 @@ class LayoutOptionsPanel(QWidget):
                                    "the patches if it must be, and the message "
                                    "under the measured margins says which edge "
                                    "and what to change."), self))
-        stg.addWidget(self.stamp_command, 4, 1)
+        add_row(stg, 4, tr("Alignment:"), self.chart_text_align,
+                tip=TooltipButton(
+                    tr("Sheet-text alignment"),
+                    tr("Where the bottom lines sit across the page. Both of "
+                       "them follow this: your Custom text and, when it is on, "
+                       "the layout summary.\n\n"
+                       "Left margin: each line starts at the patch area's "
+                       "left margin, so the two share a left edge and a long "
+                       "line grows to the right only.\n\n"
+                       "Centre of available space: each line is centred "
+                       "between the two side limits, which are the distances "
+                       "under “Text distance from edge (mm)”, the clip border "
+                       "and the margin on the clip border's side.\n\n"
+                       "Centre between left and right margin: each line is "
+                       "centred on the patch area instead, so it lines up with "
+                       "the patches above it rather than with the paper.\n\n"
+                       "Whichever you pick, a line is never started inside a "
+                       "side limit, and the message under the measured margins "
+                       "still says when one runs off."), self))
+        stg.addWidget(self.stamp_command, 5, 1)
         stg.addWidget(TooltipButton(
             tr("Stamp layout summary"),
             tr("Prints a one-line summary of how the chart was made (engine, "
                "instrument, paper, dpi, patch count, seed) in the bottom margin. "
                "Handy for re-creating an identical chart later from the printed "
-               "sheet alone."), self), 4, 2)
+               "sheet alone."), self), 5, 2)
         # Min distance from the paper edge to text, one per text-bearing side
         # (Knut #93): top = strip labels, bottom = sheet text, clip = notes/clip
         # band. Independent of the margins; text overflows toward this line (and a
@@ -2089,9 +2127,9 @@ class LayoutOptionsPanel(QWidget):
         # the combos and the spin widths were fixed. Spanning 0-2 lets Qt charge
         # it to the whole grid instead, and the left margin below keeps Knut's
         # indent on screen.
-        stg.addWidget(QLabel(tr("Text distance from edge (mm):"), self), 5, 0, 1, 2)
+        stg.addWidget(QLabel(tr("Text distance from edge (mm):"), self), 6, 0, 1, 2)
         _te.setContentsMargins(16, 0, 0, 0)
-        stg.addWidget(_te_w, 6, 0, 1, 3)
+        stg.addWidget(_te_w, 7, 0, 1, 3)
         self._text_edge_tip = TooltipButton(
             tr("Text distance from edge"),
             tr("The minimum distance from the paper edge to the text on each side "
@@ -2113,7 +2151,7 @@ class LayoutOptionsPanel(QWidget):
                "patches to be useful. Move whichever one is in the way: give "
                "the text more room here, or shift the dashes with their own "
                "“Distance from page edge”."), self)
-        stg.addWidget(self._text_edge_tip, 5, 2)
+        stg.addWidget(self._text_edge_tip, 6, 2)
         # WHEN THE NUMBER IN THE BOX IS NOT THE NUMBER THAT APPLIES.
         #
         # "Clip" is a request, not a result: the row-label band's floor is
@@ -4923,6 +4961,10 @@ class LayoutOptionsPanel(QWidget):
         _ctf = self.chart_text_font.findData(r.chart_text_font)
         self.chart_text_font.setCurrentIndex(_ctf if _ctf >= 0 else 0)
         self.chart_text_size.setValue(mm_to_pt(r.chart_text_size_mm))
+        _ai = self.chart_text_align.findData(
+            str(getattr(r, "chart_text_align", "")
+                or _TEF.BOTTOM_TEXT_ALIGN_DEFAULT))
+        self.chart_text_align.setCurrentIndex(max(0, _ai))
         self.text_edge.setValue(getattr(r, "text_edge_mm", 4.0) or 4.0)
         self.text_edge_top.setValue(getattr(r, "text_edge_top_mm", 4.0) or 4.0)
         self.text_edge_clip.setValue(getattr(r, "text_edge_clip_mm", 4.0) or 4.0)
@@ -5110,6 +5152,8 @@ class LayoutOptionsPanel(QWidget):
         r.chart_text = self.chart_text.text()
         r.chart_text_font = self.chart_text_font.currentData() or "Inter"
         r.chart_text_size_mm = pt_to_mm(self.chart_text_size.value())
+        r.chart_text_align = str(self.chart_text_align.currentData()
+                                 or _TEF.BOTTOM_TEXT_ALIGN_DEFAULT)
         r.text_edge_mm = self.text_edge.value()
         r.text_edge_top_mm = self.text_edge_top.value()
         r.text_edge_clip_mm = self.text_edge_clip.value()

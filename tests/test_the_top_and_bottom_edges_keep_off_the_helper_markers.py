@@ -254,40 +254,41 @@ def test_the_letters_hold_their_distance_and_overlap_the_patches():
         "margin, so something is still holding them off the patches")
 
 
-def test_the_bottom_line_is_centred_between_the_two_side_bounds():
-    """Knut, comment 5651269930 (an EDIT of his first, looser answer):
+def test_the_bottom_line_starts_at_the_patch_area_left_margin():
+    """Knut, 2026-09-14, superseding the centring rule he gave two days before:
 
-        "the bottom text ("Stamp layout summary on the sheet") is horizontally
-         centred between following (example uses A4 paper size, Portrait):
-         Helper markers are off and Clip-border off: (0+Clip) and (210 - Clip)"
+        for the sake of beauty, I find it better that the two bottom text type
+        (in Sheet text frame) should be left-aligned against the patch area
+        left margin, instead of centred against available horizontal space.
 
-    and his reason, from the post that edit replaced: *"so that text can
-    equally expand to both sides if the text string length is increased."*
+    So on this recipe the ink begins at the 12 mm left margin, not at the
+    105.0 mm centre of his two bounds and not at the 4.0 mm "Clip" reserve the
+    line started at before either rule. The bounds themselves are UNCHANGED,
+    which is his own *"Leave limit detection as is for the left side"*.
 
-    A4 at "Clip" 4.0 with no border and no markers puts the bounds at 4.0 and
-    206.0, so the centre is 105.0 mm. The line used to START at 4.0.
+    MUTATION: put the centring arithmetic back in `raster.render_pages` and
+    this goes red at 101 mm.
     """
     lo, hi = tef.bottom_text_bounds_mm(210.0, 4.0)
     assert (lo, hi) == pytest.approx((4.0, 206.0))
     r = _recipe(chart_text="IIIIIIIIII")
     band = _moved(_render(r)[0], _render(r, chart_text="")[0])
     assert band is not None
-    mid = (band[2] + band[3]) / 2.0
-    assert abs(mid - (lo + hi) / 2.0) < 1.0, (
-        f"the line runs {band[2]:.2f} to {band[3]:.2f} mm, centred on "
-        f"{mid:.2f} mm, and the two bounds put the centre at "
-        f"{(lo + hi) / 2.0:.2f} mm")
-    assert band[2] > 8.0, (
-        f"the line still starts {band[2]:.2f} mm in, at the reserve; it is "
-        "left-anchored, not centred")
+    assert band[2] == pytest.approx(12.0, abs=0.6), (
+        f"the line runs {band[2]:.2f} to {band[3]:.2f} mm; left-aligned on a "
+        "12 mm left margin it has to begin at 12 mm")
+    assert band[3] < 105.0, (
+        f"the line ends at {band[3]:.2f} mm, which is past the centre of the "
+        "page: ten narrow characters cannot reach there from 12 mm unless "
+        "they are still being centred")
 
 
-@pytest.mark.parametrize("side,expect_lo,expect_hi", [
-    ("left", 26.0, 206.0),
-    ("right", 4.0, 184.0),
+@pytest.mark.parametrize("side,expect_lo,expect_hi,expect_start", [
+    ("left", 26.0, 206.0, 26.0),
+    ("right", 4.0, 184.0, 12.0),
 ])
 def test_a_clip_border_bounds_the_bottom_line_on_its_own_side(
-        side, expect_lo, expect_hi):
+        side, expect_lo, expect_hi, expect_start):
     """Two more rows of his table, and the ones only a chart with a band shows.
 
     Knut, comment 5651269930::
@@ -306,15 +307,21 @@ def test_a_clip_border_bounds_the_bottom_line_on_its_own_side(
     lo, hi = tef.bottom_text_bounds_mm(210.0, 4.0, clip_border_mm=26.0,
                                        clip_side=side)
     assert (lo, hi) == pytest.approx((expect_lo, expect_hi))
+    # AND WHERE THE LINE NOW STARTS INSIDE THEM (Knut, 2026-09-14): the left
+    # bound is the floor and the 12 mm left margin is the anchor, so a border
+    # on the LEFT (26 mm, wider than the margin) still pushes the line to 26
+    # while a border on the RIGHT leaves it at the margin.
+    assert tef.bottom_text_anchor_mm(
+        210.0, 4.0, clip_border_mm=26.0, clip_side=side,
+        margin_left_mm=12.0, margin_right_mm=12.0) == pytest.approx(expect_start)
     r = _recipe(chart_text="IIIIIIIIII", chart_text_size_mm=3.2,
                 clip_border=True, clip_border_width_mm=26.0, clip_side=side)
     band = _moved(_render(r)[0],
                   _render(r, chart_text="")[0])
     assert band is not None
-    mid = (band[2] + band[3]) / 2.0
-    assert abs(mid - (lo + hi) / 2.0) < 1.5, (
-        f"with the border on the {side} the line is centred on {mid:.2f} mm "
-        f"and his bounds put the centre at {(lo + hi) / 2.0:.2f} mm")
+    assert band[2] == pytest.approx(expect_start, abs=0.6), (
+        f"with the border on the {side} the line begins at {band[2]:.2f} mm "
+        f"and it has to begin at {expect_start:.2f} mm")
 
 
 def test_a_border_narrower_than_the_reserve_keeps_the_reserve():
@@ -337,13 +344,16 @@ def test_a_border_narrower_than_the_reserve_keeps_the_reserve():
         == pytest.approx((8.0, 202.0))
 
 
-def test_a_longer_bottom_line_grows_the_same_amount_at_both_ends():
-    """His reason, measured rather than restated.
+def test_a_longer_bottom_line_grows_only_to_the_right():
+    """Knut's own consequence, measured rather than restated.
 
-    A left-anchored line grows only to the right, so the two ends move by very
-    different amounts; a centred one splits the growth. Ten characters against
-    thirty, at a TYPED size so nothing shrinks and the comparison is about
-    placement alone.
+        This means a long text only gets warning when hitting towards the right
+        side limits.
+
+    A left-aligned line grows only to the right; the centred one this replaced
+    split the growth between the two ends, which is what the assertions below
+    used to say. Ten characters against thirty, at a TYPED size so nothing
+    shrinks and the comparison is about placement alone.
     """
     short = _moved(_render(_recipe(chart_text="I" * 10,
                                    chart_text_size_mm=3.2))[0],
@@ -354,12 +364,12 @@ def test_a_longer_bottom_line_grows_the_same_amount_at_both_ends():
     assert short is not None and longer is not None
     grew_left = short[2] - longer[2]
     grew_right = longer[3] - short[3]
-    assert grew_left > 1.0 and grew_right > 1.0, (
-        f"the line grew {grew_left:.2f} mm to the left and {grew_right:.2f} mm "
-        "to the right; a centred line grows at both ends")
-    assert abs(grew_left - grew_right) < 1.0, (
-        f"it grew {grew_left:.2f} mm left and {grew_right:.2f} mm right, which "
-        "is not equal expansion")
+    assert grew_right > 1.0, (
+        f"the longer line only reaches {grew_right:.2f} mm further right; it "
+        "has to grow somewhere")
+    assert abs(grew_left) < 0.3, (
+        f"the line grew {grew_left:.2f} mm to the LEFT, so its left edge "
+        "moved: it is being centred, not left-aligned")
 
 
 def test_the_long_line_really_does_not_fit_at_the_starting_size():
@@ -372,27 +382,54 @@ def test_the_long_line_really_does_not_fit_at_the_starting_size():
     r = _recipe(chart_text=LONG, chart_text_size_mm=3.2)
     band = _moved(_render(r)[0], _render(r, chart_text="")[0])
     assert band is not None
-    assert band[3] - band[2] > tef.bottom_text_room_mm(210.0, 4.0), (
+    # THE ROOM THIS RECIPE HAS, which is measured from the 12 mm left margin
+    # the line is anchored at, not from the 4 mm "Clip" bound (Knut,
+    # 2026-09-14). Asking for the anchor-less figure here overstated the room
+    # by 8 mm.
+    _room = tef.bottom_text_room_mm(210.0, 4.0, margin_left_mm=12.0,
+                                    margin_right_mm=12.0)
+    assert _room == pytest.approx(194.0)
+    assert band[3] - band[2] > _room, (
         f"the line takes {band[3] - band[2]:.2f} mm and the sheet has "
-        f"{tef.bottom_text_room_mm(210.0, 4.0):.2f}; it fits, so it cannot "
-        "show that anything shrinks")
+        f"{_room:.2f}; it fits, so it cannot show that anything shrinks")
 
 
 def test_a_long_bottom_line_on_auto_shrinks_until_it_fits():
     """Proved by comparison, because "it fits" can be true without shrinking.
 
     The same sentence at a TYPED 3.2 mm (the size "auto" starts from, and one
-    nothing shrinks) is the control: if the automatic one is not narrower, no
+    nothing shrinks) is the control: if the automatic one is not smaller, no
     shrinking happened.
+
+    **MEASURED ON THE TYPE'S HEIGHT, NOT ON WHERE THE LINE ENDS.** The right
+    edge stopped being able to answer this the day the line was left-aligned:
+    :data:`LONG` is longer than the page even at the 7 pt floor, so both the
+    automatic and the typed render are cut by the paper edge at 210.06 mm and
+    the two right edges are identical while the sizes are not. The band's
+    HEIGHT is the size itself, and the paper cannot clip it.
     """
     r = _recipe(chart_text=LONG, chart_text_size_mm=0.0)
-    auto = _moved(_render(r)[0], _render(r, chart_text="")[0])
-    fixed = _moved(_render(r, chart_text_size_mm=3.2)[0],
-                   _render(r, chart_text="")[0])
+    blank = _render(r, chart_text=" ")[0]
+    auto = _moved(_render(r)[0], blank)
+    fixed = _moved(_render(r, chart_text_size_mm=3.2)[0], blank)
     assert auto is not None and fixed is not None
-    assert auto[3] < fixed[3] - 1.0, (
-        f"auto reaches {auto[3]:.2f} mm and a typed 3.2 mm reaches "
-        f"{fixed[3]:.2f}; auto did not shrink")
+    assert (auto[1] - auto[0]) < (fixed[1] - fixed[0]) - 0.3, (
+        f"auto's type stands {auto[1] - auto[0]:.2f} mm tall and a typed "
+        f"3.2 mm stands {fixed[1] - fixed[0]:.2f} mm; auto did not shrink")
+    # …and a line that CAN reach the floor and fit is narrower on the paper,
+    # which is the same fact where the paper is not in the way.
+    # 130 characters: `raster.sheet_text_width_mm` puts it at 247.7 mm at
+    # 3.2 mm and 188.3 mm at the 7 pt floor, so it straddles this recipe's
+    # 194 mm of room and the shrink both starts and finishes inside the page.
+    mid = LONG[:130]
+    r2 = _recipe(chart_text=mid, chart_text_size_mm=0.0)
+    blank2 = _render(r2, chart_text=" ")[0]
+    a2 = _moved(_render(r2)[0], blank2)
+    f2 = _moved(_render(r2, chart_text_size_mm=3.2)[0], blank2)
+    assert a2 is not None and f2 is not None
+    assert a2[3] < f2[3] - 1.0, (
+        f"auto reaches {a2[3]:.2f} mm and a typed 3.2 mm reaches "
+        f"{f2[3]:.2f}; auto did not shrink")
 
 
 def test_the_shrink_stops_at_seven_point_and_then_the_panel_must_speak():
@@ -409,7 +446,9 @@ def test_the_shrink_stops_at_seven_point_and_then_the_panel_must_speak():
     assert auto is not None
     assert auto[3] > 210.0 - 4.0, (
         f"auto stopped at {auto[3]:.2f} mm, so it shrank past the 7 pt floor")
-    assert tef.bottom_text_overflow(210.0, 4.0, auto[3] - auto[2]) is not None
+    assert tef.bottom_text_overflow(
+        210.0, 4.0, auto[3] - auto[2],
+        margin_left_mm=12.0, margin_right_mm=12.0) is not None
 
 
 def test_a_line_that_fits_is_left_at_its_full_size():
@@ -438,7 +477,9 @@ def test_a_typed_bottom_size_is_not_shrunk_and_the_panel_must_say_so():
     assert band[3] > 210.0 - 4.0, (
         f"a typed size stopped at {band[3]:.2f} mm; it must be drawn exactly "
         "as typed, and this one does not fit")
-    assert tef.bottom_text_overflow(210.0, 4.0, band[3] - band[2]) is not None
+    assert tef.bottom_text_overflow(
+        210.0, 4.0, band[3] - band[2],
+        margin_left_mm=12.0, margin_right_mm=12.0) is not None
 
 
 # ------------------------------------------------------------- the warning

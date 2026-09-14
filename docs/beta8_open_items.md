@@ -5456,7 +5456,7 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   test_a_narrower_margin_changes_nothing,
   test_his_own_worked_example_still_gives_202_mm,
   test_the_room_and_the_overflow_both_take_the_margins,
-  test_the_renderer_centres_between_the_same_bounds,
+  test_the_renderer_uses_the_same_bounds_and_the_same_anchor,
   test_a_typed_size_is_not_described_as_a_shrink_that_stopped,
   test_no_message_still_claims_a_typed_size_stopped_shrinking,
   test_the_auto_case_still_says_where_shrinking_stops,
@@ -5794,3 +5794,278 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   value. Probe scripts now set `CHROMIQ_SETTINGS_FILE` and
   `CHROMIQ_PRESETS_DIR` as environment variables before `core` is imported at
   all, which is the only ordering that works.
+
+### B8-124 · "Generate report" looked inert, because every setting redrew the document
+- blocks release: no
+- status: FIXED
+- found by: Knut, 2026-09-13, testing beta 12: *"The generate report button
+  seems not to do much, as the report auto-generates whenever report type or
+  judged against is changed."* Put back to him with the cost of changing it,
+  and he ruled on 2026-09-14: *"This change give the user more feeling of
+  control and understanding of when something should change, or when a change
+  will result in a changed report, and will see that it does change or not when
+  clicking "Generate report". It will also give a user a chance to undo a
+  changed field, if not wanting to regenerate the report. Make the change."*
+- evidence:
+  test_a_fresh_window_says_nothing,
+  test_the_two_tick_boxes_wait_and_say_so,
+  test_the_ticked_measurements_are_one_of_the_five,
+  test_generate_builds_the_document_and_clears_the_warning,
+  test_a_new_measurement_still_appears_at_once,
+  test_every_one_of_the_five_goes_through_one_door,
+  test_the_banner_is_a_comparison_and_not_a_flag,
+  test_choosing_a_type_WAITS_FOR_GENERATE_and_says_so,
+  test_putting_the_type_back_takes_the_warning_away.
+- detail: five settings now move the CONTROL and leave the DOCUMENT standing,
+  with a red line beside the button saying so: report type, judged against,
+  show all measurement runs, show detailed data, and the measurements ticked in
+  the list. Everything else still repaints at once, because it changes what
+  there IS to report on rather than how it is presented.
+
+  **THE BANNER IS A COMPARISON, NOT A FLAG.** His second sentence is the one
+  that decides the implementation: *"a chance to undo a changed field."* A
+  boolean set on every change cannot see an undo, so putting a control back
+  would leave a red line over a document that already matches it, which is the
+  same lie the other way round. `_doc_settings()` snapshots the five, `_render`
+  records what the document was built from, and the banner is the two being
+  different.
+
+  **AND WHAT A SETTING DOES ON DISK IT STILL DOES AT ONCE.** Choosing a limit
+  set still binds the run and still asks its recalculate question; choosing a
+  type still stores it on the run. Deferring those would have turned a
+  deliberate act into a pending one, which is not what he asked for.
+
+### B8-125 · The bottom lines get an Alignment control, with three options
+- blocks release: no
+- status: FIXED
+- found by: Knut, 2026-09-14, in two posts an hour apart. First: *"for the sake
+  of beauty, I find it better that the two bottom text type (in Sheet text
+  frame) should be left-aligned against the patch area left margin, instead of
+  centred against available horizontal space. This means a long text only gets
+  warning when hitting towards the right side limits. This is ok. Leave limit
+  detection as is for the left side, as alignment of text may change again
+  later."* Then, with the control he wanted instead: *"However, in some cases
+  the centre adjustment is best, depending on the setup. I thus suggest a new
+  input box to be added below the Size input box in the Sheet text frame … 1.
+  Left margin (default) … 2. Centre of available space: This is the alignment
+  type already in the design on beta 13. 3. Centre between left and right
+  margin … Leave side-limit detection as it is designed. Depending on the set
+  alignment of text, a long text may trigger a warning on either sides, or only
+  one side. The new alignment parameter must be added in the list of parameters
+  so that it is saved/remembered or loaded in all cases … Test it thoroughly,
+  that all alignment options result in the correct behaviour on screen, tested
+  on presets for each instrument type."*
+- evidence:
+  test_his_three_names_are_the_three_keys,
+  test_the_patch_area_centre_is_between_the_margins_not_the_paper,
+  test_the_room_is_what_that_alignment_leaves,
+  test_the_bounds_are_the_same_two_whatever_the_alignment,
+  test_a_line_never_starts_inside_the_left_bound,
+  test_left_margin_starts_both_lines_at_the_margin,
+  test_centre_of_available_space_is_the_beta_13_placement,
+  test_centre_between_the_margins_is_a_different_centre,
+  test_the_two_bottom_lines_follow_the_same_rule,
+  test_the_renderer_and_the_panel_ask_the_same_function,
+  test_the_alignment_travels_through_every_door,
+  test_the_engine_actually_receives_it,
+  test_every_cell_holds_at_most_one_widget.
+  **Driven on screen** by `scripts/drive_182_bottom_text_alignment.py`: one
+  engine preset from each of the six instrument groups in the built-in
+  dropdown, all three alignments on each, the ink measured off the app's own
+  TIFFs and checked against arithmetic written out longhand in the driver, with
+  a photograph of the new pulldown per instrument. Six verdicts, all green.
+  Nine mutations proved to land across this entry and B8-124.
+- detail (the first half, left-alignment):
+  test_the_bottom_line_starts_at_the_patch_area_left_margin,
+  test_a_clip_border_bounds_the_bottom_line_on_its_own_side,
+  test_a_longer_bottom_line_grows_only_to_the_right,
+  test_a_left_aligned_line_cannot_use_the_paper_behind_it,
+  test_his_own_worked_example_still_gives_202_mm,
+  test_the_renderer_uses_the_same_bounds_and_the_same_anchor,
+  test_the_long_line_really_does_not_fit_at_the_starting_size,
+  test_a_long_bottom_line_on_auto_shrinks_until_it_fits.
+  Measured on rendered A4 sheets, ink read off the raster.
+
+  `text_edge_fit.bottom_text_anchor_mm` is the new anchor, and it is
+  the left MARGIN held inside his existing bounds. His last sentence is why the
+  bounds are untouched: the left bound is still `max(Clip, R, border, margin)`
+  exactly as comment 5651269930 and his 2026-09-13 follow-up specify it, and it
+  is the floor the anchor cannot cross, so a margin narrower than the reserve
+  cannot start the line inside furniture.
+
+  **ONE THING HIS "LEAVE LIMIT DETECTION AS IS" DID NOT COVER, AND IT IS
+  REPORTED RATHER THAN ASSUMED.** The room the width check measures is now
+  `right bound - anchor`, not `right bound - left bound`. Leaving the old
+  figure would have let a typed size run off the right-hand side of the paper
+  with nothing said whenever the left margin is wider than the left bound: on
+  A4 with 12 mm margins that is an 8 mm blind gap, and a silent overflow is the
+  exact fault he reported against beta 8. His own sentence, *"a long text only
+  gets warning when hitting towards the right side limits"*, is what the new
+  figure implements. His 202 mm example is unchanged where it lives, on the
+  bounds. **Raised in the beta 14 reply for his ruling.**
+
+  The warning's own wording changed with it: it used to say the sheet leaves so
+  many mm *"between the distances you set for the two side edges"*, which named
+  two controls of which only one is still in the arithmetic, and did not name
+  the margin that now decides where the line starts.
+
+
+### B8-126 · The new report warning ate the four buttons it was pointing at
+- blocks release: no
+- status: FIXED
+- found by: LOOKING AT THE PHOTOGRAPH. The banner for B8-124 was first added
+  inside the button row with a stretch, the everyday tier was green, and the
+  first on-screen driver run showed why that meant nothing: on the real
+  1500 px window "Generate report" read *"erate rep"*, "Save report as PDF…"
+  read *"report as"*, "Reveal folder" read *"veal fold"*, and the warning
+  itself was cut off at *"or put the s"*.
+- evidence:
+  test_the_warning_does_not_squash_the_buttons_it_names.
+  Photographs before and after in the beta 14 proof folder.
+- detail: it has its own row now, directly under the row it talks about, with
+  word wrap on. A hidden widget claims no space in a Qt layout, so the row
+  costs nothing until the warning speaks.
+
+  **THE TEST THAT CATCHES IT IS NOT THE ONE THAT LOOKS OBVIOUS.** Asserting
+  that the buttons keep their `sizeHint` width passed under the mutation:
+  offscreen at 1200 px there was still room, so nothing was clipped and the
+  check proved nothing. What Qt will answer honestly is the WINDOW'S OWN
+  MINIMUM WIDTH: with the label back in the row it goes from 996 px to 1072 px
+  the moment the warning appears, and with it on its own wrapped row it does
+  not move. Measured both ways before the assertion was written.
+
+### B8-127 · The adversary round on beta 14: four faults, all mine, all hours old
+- blocks release: no
+- status: FIXED
+- found by: the adversarial round run against the beta 14 work before tagging,
+  driving real windows with the ink measured off the app's own renders. Four
+  drivers left in `scripts/adv14_*.py`; proof in
+  `~/Desktop/ChromIQ-adversary-2026-09-14/`.
+- evidence:
+  test_the_room_is_what_that_alignment_leaves,
+  test_a_centred_line_is_never_called_too_wide_while_it_fits,
+  test_nothing_waits_for_a_button_that_cannot_be_pressed,
+  test_the_last_measurement_unticked_leaves_nothing_to_generate,
+  test_the_loose_type_pulldown_goes_through_the_same_door,
+  test_an_at_once_door_never_leaves_the_window_saying_something_untrue.
+  Nine mutations, every one proved to land and every one caught.
+- detail: four, and the shapes are worth keeping.
+
+  **F1. A CHECK AND A PLACEMENT THAT DISAGREE PRINT THE DISAGREEMENT AS A
+  NUMBER.** `bottom_text_room_mm` answered "the widest line that stays
+  CENTRED" for the new between-margins alignment, while `bottom_text_start_mm`
+  anchors a line that will not centre at the left bound instead, exactly as the
+  centred renderer always did. So a line too wide to centre was called too wide
+  to print. Driven on the real i1Pro 100x150 preset: the panel said 26 mm of a
+  77 mm line ran off, and the app's own render put the ink at 19.30 to
+  95.63 mm inside a 96.0 mm bound. A 144-cell sweep found nine cells warning
+  about ink that fits, every one this alignment, and zero cells where ink
+  crossed a bound in silence. The fix is the closed form of "the widest line
+  the clamp actually lets fit", checked against a brute-force search of the
+  real placement over 20,000 random geometries with zero mismatches.
+
+  **F2. NOTHING MAY WAIT FOR A BUTTON THAT CANNOT BE PRESSED.** "Generate
+  report" is disabled when the window is on a measurement in no run, when
+  SEVERAL profiles are loaded, and when every measurement is unticked; the two
+  tick boxes and the run ticks stay live in all three. So with two profiles
+  loaded, which is this window's main job, "Show detailed data" froze the
+  document and a red line told the reader to press a greyed-out button. Those
+  settings did nothing at all, ever. Found twice within the hour, by reading
+  the enable condition and by driving it.
+
+  **F3. THE DOOR THAT WAS NOT REWIRED WAS THE ONE NOBODY LOOKED AT.**
+  `_on_type_chosen`'s no-run branch still called `_refresh` after the other
+  four learned to wait, so on a loose measurement the type pulldown rebuilt the
+  document on its own while the limit pulldown two rows below it did not.
+  Knut's original complaint was still true in that corner.
+  `test_every_one_of_the_five_goes_through_one_door` did not catch it: it
+  asserted `_settings_touched()` is IN the method, and it was, on the other
+  branch. **A check that a call exists somewhere in a method says nothing about
+  the branch that runs.**
+
+  **F4. A DOOR THAT REPAINTS AT ONCE ADOPTS A PENDING SETTING**, and that is
+  accepted rather than fixed: adding a measurement rebuilds the document from
+  the controls, which include the change nobody confirmed, and the banner then
+  correctly goes quiet. No statement the window makes is untrue at any step;
+  what is lost is the cheap undo, for one setting, at a moment that had to
+  rebuild the report anyway. Building from the committed five instead means
+  rendering from a snapshot rather than from the window, which is a different
+  window. The invariant is pinned instead: the banner is up exactly when the
+  document does not match the controls.
+
+  **AND TWO OF THE ADVERSARY'S OWN PROBES WERE WRONG BEFORE THEY WERE RIGHT**,
+  which is recorded because both shapes recur: a hand-copied "off" recipe made
+  the diff measure a sheet that was not the same sheet, and
+  `bottom_text_overflow`'s `needed_w_mm` is the THIRD positional, not the
+  seventh, so a `*pos, need` call fed the width in as `markers_sides` and made
+  every warning in the first sweep meaningless.
+
+### B8-128 · Knut, 2026-09-14: a report never said which type it was
+- blocks release: no
+- status: FIXED
+- found by: Knut, 2026-09-14, with two PDFs of the same run attached: *"there
+  are texts that should state correct report type used and judged against, but
+  is not changing this. The top of the Report scope also does not show the
+  report type generated."*
+- evidence:
+  test_the_default_type_names_itself_too,
+  test_every_built_type_names_itself,
+  test_the_head_can_never_name_a_type_this_build_cannot_make,
+  test_the_limit_set_is_named_at_the_top,
+  test_two_runs_bound_to_different_sets_name_none_at_the_top,
+  test_the_run_description_is_labelled_as_one,
+  test_and_keeps_room_for_a_description_of_ordinary_length.
+  Measured on his own two files with pypdf before anything was changed.
+- detail: three separate things, and only two of them were bugs.
+
+  **THE DEFAULT TYPE NEVER NAMED ITSELF.** The line was guarded by
+  `_tid != REPORT_TYPE_FULL`, so the type most reports are is the one type that
+  produced a document saying nothing about what it was. His two PDFs prove it:
+  the Grey-and-tone one carries `Report type: Grey and tone check` on page 1
+  and the Full colour check one carries no such line. The code comment
+  justifying the silence was OUR reasoning, not his ruling.
+
+  **THE LIMIT SET WAS IN THE DOCUMENT BUT NOT AT THE TOP.** The "Judged
+  against" row of Report Results says "Custom ISO 12647-7" in one of his files
+  and "ChromIQ default" in the other, correctly, and each run's detail names it
+  again, so the body does follow the pulldown. It is now named beside the type,
+  where a reader opening a saved PDF looks first, and only when the loaded runs
+  agree on one set: one name over a document covering two differently bound
+  runs would be a claim about a column it does not describe.
+
+  **AND THE PARAGRAPH HE QUOTED AS EVIDENCE IS THE RUN'S DESCRIPTION**, which
+  no report can update. The demo package writes descriptions that name a report
+  type and a limit set because he asked for that sentence on 2026-09-11, so
+  once a run is rebound the description contradicts the live lines above it.
+  Unlabelled, it reads as one of them. It carries a faint "Run description"
+  label now, which is the same trap closed for any user who writes "judged with
+  ChromIQ tight" in the box. **Raised in the beta 14 reply, because the label
+  is an addition to text he specified.**
+
+  The two new lines cost the one-page summary 30 px of its 60 px margin, so the
+  type and the set share one line separated by the report's own middle dot.
+
+### B8-129 · Two leads found while fixing the above, neither driven to a fault
+- blocks release: no
+- status: OPEN
+- found by: writing tests for B8-127 and needing two measurements that the list
+  could tell apart.
+- detail: **a run's identity in the report list is `created|ti3 name`**
+  (`_run_key`), and `created` falls back to the measurement file's own mtime.
+  Two dated verifications written inside one second are therefore ONE key, and
+  unticking either hides both. Real, reproducible in a test fixture, and not
+  reachable by hand at ordinary speeds; it needs a tie-break, not a redesign.
+
+  **And a verification created while the report window is open is never picked
+  up**: `_append_source` answers False for a second verification of a run
+  already loaded, so `_load` does nothing at all. Whether that is right
+  (the window lists what it read when it opened) or wrong is a question for
+  Knut, not a fix to make unasked.
+
+  Also carried forward from the adversary round: after a real Generate Chart,
+  the run's stored `create_chart_ui.engine_recipe.paper` read "A4" for a chart
+  built at 100x150 mm, while `meta.json` and the TIFF both say 100x150.
+  `_engine_text_notes` computes every bottom-text bound from `r.paper` under
+  the comment *"The recipe always knows its paper"*. Not driven to a visibly
+  wrong warning, so it is a lead; the new alignment arithmetic sits on top of
+  it.

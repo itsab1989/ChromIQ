@@ -86,10 +86,43 @@ def test_his_own_worked_example_still_gives_202_mm():
     """**THE CONSERVATIVE READING, AND WHY.** Applied to BOTH sides the margin
     would contradict his earlier, already-confirmed A4 example, *"210 - Clip x2
     = 202mm"*, which has margins and ignores them. Driven that way, six tests
-    pinning 202 went red. The margin joins the border's side only."""
+    pinning 202 went red. The margin joins the border's side only.
+
+    Pinned on the BOUNDS, which is where that rule lives and which his
+    2026-09-14 left-alignment ruling explicitly leaves alone: *"Leave limit
+    detection as is for the left side."* The two bounds are still 4.0 and
+    206.0, which is his 202 mm, and no margin moved either of them.
+    """
+    left, right = tef.bottom_text_bounds_mm(
+        210.0, 4.0, margin_left_mm=12.0, margin_right_mm=12.0)
+    assert (left, right) == (4.0, 206.0)
+    assert right - left == pytest.approx(202.0)
+
+
+def test_a_left_aligned_line_cannot_use_the_paper_behind_it():
+    """His 202 mm of BOUNDS is not 202 mm of ROOM once the line starts at the
+    left margin.
+
+    Knut, 2026-09-14: *"left-aligned against the patch area left margin … This
+    means a long text only gets warning when hitting towards the right side
+    limits."* The line begins at 12.0 and the right limit is still 206.0, so
+    what it may occupy is 194.0. Leaving the old 202 here would have let a
+    typed size run 8 mm off the right-hand side of the paper with nothing said,
+    which is the fault he reported against beta 8 in the first place.
+
+    MUTATION: return `right - left` from `bottom_text_room_mm` and this goes
+    red while the test above stays green, which is the pair being kept apart.
+    """
+    assert tef.bottom_text_anchor_mm(
+        210.0, 4.0, margin_left_mm=12.0, margin_right_mm=12.0
+    ) == pytest.approx(12.0)
     assert tef.bottom_text_room_mm(
         210.0, 4.0, margin_left_mm=12.0, margin_right_mm=12.0
-    ) == pytest.approx(202.0)
+    ) == pytest.approx(194.0)
+    # and a margin INSIDE the left bound moves nothing: the bound is the floor.
+    assert tef.bottom_text_anchor_mm(210.0, 4.0, margin_left_mm=1.0) == 4.0
+    assert tef.bottom_text_room_mm(
+        210.0, 4.0, margin_left_mm=1.0) == pytest.approx(202.0)
 
 
 def test_the_room_and_the_overflow_both_take_the_margins():
@@ -107,25 +140,26 @@ def test_the_room_and_the_overflow_both_take_the_margins():
     assert over is not None and over.overlap_mm == pytest.approx(1.5)
 
 
-def test_the_renderer_centres_between_the_same_bounds():
+def test_the_renderer_uses_the_same_bounds_and_the_same_anchor():
     """The panel warns about what the sheet does, or it is noise. Read off the
-    syntax tree: `render_pages` must hand the margins to the same function."""
+    syntax tree: `render_pages` must hand the margins to the same functions."""
     import ast
     import inspect
     import textwrap
     from workflow.layout_engine import raster
 
     tree = ast.parse(textwrap.dedent(inspect.getsource(raster.render_pages)))
-    calls = [n for n in ast.walk(tree)
-             if isinstance(n, ast.Call)
-             and isinstance(n.func, ast.Attribute)
-             and n.func.attr == "bottom_text_bounds_mm"]
-    assert calls, "render_pages no longer asks for the bounds at all"
-    for c in calls:
-        named = {kw.arg for kw in c.keywords}
-        assert {"margin_left_mm", "margin_right_mm"} <= named, (
-            "the renderer centres the bottom line between bounds that do not "
-            "know about the margins, so the panel and the sheet disagree")
+    for name in ("bottom_text_bounds_mm", "bottom_text_anchor_mm"):
+        calls = [n for n in ast.walk(tree)
+                 if isinstance(n, ast.Call)
+                 and isinstance(n.func, ast.Attribute)
+                 and n.func.attr == name]
+        assert calls, f"render_pages no longer asks for {name} at all"
+        for c in calls:
+            named = {kw.arg for kw in c.keywords}
+            assert {"margin_left_mm", "margin_right_mm"} <= named, (
+                f"the renderer asks {name} a question that does not know "
+                f"about the margins, so the panel and the sheet disagree")
 
 
 # --------------------------------------- 5: a typed size never shrank at all

@@ -373,7 +373,7 @@ def test_a_type_the_menu_calls_BUILT_produces_a_different_document(tmp_path, qap
         dlg.close()
 
 
-def test_choosing_a_type_REDRAWS_the_report_on_screen(tmp_path, qapp):
+def test_choosing_a_type_WAITS_FOR_GENERATE_and_says_so(tmp_path, qapp):
     """THE WINDOW, NOT THE FUNCTION THAT BUILDS ITS TEXT.
 
     Every other test here asks `_report_body_html` what the document is. That
@@ -381,8 +381,21 @@ def test_choosing_a_type_REDRAWS_the_report_on_screen(tmp_path, qapp):
     the controls without redrawing, and ten checks passed while the two
     photographs were identical and both showed the full report.
 
-    MUTATION: drop the `self._refresh()` at the end of `_on_type_chosen` and
-    this goes red.
+    **THIS TEST USED TO ASSERT THE OPPOSITE, AND KNUT CHANGED THE RULE.**
+    2026-09-14, on *"The Generate report button"*:
+
+        This change give the user more feeling of control and understanding of
+        when something should change, or when a change will result in a changed
+        report, and will see that it does change or not when clicking "Generate
+        report". It will also give a user a chance to undo a changed field, if
+        not wanting to regenerate the report. Make the change.
+
+    So the pulldown moving is no longer a redraw. It stores the type on the run
+    exactly as before, the document stands still, and the window says why.
+    Pressing the button is what builds it.
+
+    MUTATION: put `self._refresh()` back at the end of `_on_type_chosen` and
+    this goes red on the first assertion.
     """
     from workflow.measurement_report import REPORT_TYPE_GREY
     dlg, run = _dialog(tmp_path, qapp)
@@ -391,8 +404,46 @@ def test_choosing_a_type_REDRAWS_the_report_on_screen(tmp_path, qapp):
         i = _ids(dlg).index(REPORT_TYPE_GREY)
         dlg._type_combo.setCurrentIndex(i)
         qapp.processEvents()
+        assert dlg._view.toHtml() == before, \
+            "the document rebuilt itself instead of waiting for Generate"
+        assert dlg._stale_label.isVisible(), \
+            "the setting moved and nothing on screen says the report has not"
+        # AND THE BUTTON IS WHAT BUILDS IT.
+        dlg._on_generate_report()
+        qapp.processEvents()
         assert dlg._view.toHtml() != before, \
-            "the pulldown moved and the report on screen did not"
+            "“Generate report” did not rebuild the document with the new type"
+        assert not dlg._stale_label.isVisible(), \
+            "the document was rebuilt and the warning is still up"
+    finally:
+        dlg.close()
+
+
+def test_putting_the_type_back_takes_the_warning_away(tmp_path, qapp):
+    """*"It will also give a user a chance to undo a changed field, if not
+    wanting to regenerate the report."*
+
+    A one-way flag cannot see an undo: it would leave a red line over a
+    document that already matches every control, which is the same lie the
+    other way round. The banner is a COMPARISON against what the document was
+    built from.
+
+    MUTATION: make `_settings_touched` set a `_doc_is_stale` flag that
+    `_show_stale_banner` reads, and this goes red.
+    """
+    from workflow.measurement_report import REPORT_TYPE_GREY
+    dlg, run = _dialog(tmp_path, qapp)
+    try:
+        was = dlg._type_combo.currentIndex()
+        assert not dlg._stale_label.isVisible()
+        dlg._type_combo.setCurrentIndex(_ids(dlg).index(REPORT_TYPE_GREY))
+        qapp.processEvents()
+        assert dlg._stale_label.isVisible()
+        dlg._type_combo.setCurrentIndex(was)
+        qapp.processEvents()
+        assert not dlg._stale_label.isVisible(), (
+            "the type is back where the document was built from and the "
+            "window still says the report is out of date")
     finally:
         dlg.close()
 

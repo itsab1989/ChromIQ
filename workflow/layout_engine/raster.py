@@ -1320,6 +1320,10 @@ def render_pages(
     chart_text: str = "",
     chart_text_font: str = "Inter",
     chart_text_size_mm: float = 0.0,
+    #: Where the bottom lines sit across the page (Knut, 2026-09-14):
+    #: "left_margin" (his default), "available" (the beta 13 centring) or
+    #: "between_margins". `text_edge_fit.BOTTOM_TEXT_ALIGNMENTS`.
+    chart_text_align: str = "left_margin",
     chart_text_bold: bool = False,
     chart_text_italic: bool = False,
     stamp_text: str = "",
@@ -2054,9 +2058,19 @@ def render_pages(
         _btxt = [t for t in (_chart_text, stamp_text) if t]
         if _btxt:
             from workflow import text_edge_fit as _tef
-            # THE LINE IS CENTRED BETWEEN THE TWO SIDE BOUNDS, NOT STARTED AT
-            # THE LEFT ONE. Knut, #182, comment 5651269930, which is an EDIT of
-            # his first answer and supersedes it:
+            # WHERE THE LINE SITS ACROSS THE PAGE IS THE USER'S CHOICE, out of
+            # three (Knut, 2026-09-14): "Left margin", which is his default and
+            # anchors both lines on the patch area's left margin; "Centre of
+            # available space", which is the rule quoted below and was the only
+            # one in beta 13; and "Centre between left and right margin", which
+            # centres them on the patch area instead of on his two bounds.
+            # `text_edge_fit.bottom_text_start_mm` is all three, and his two
+            # bounds still hold the line in every one of them: *"Leave
+            # side-limit detection as it is designed."*
+            #
+            # WHAT IT REPLACED, kept because the bounds it describes are still
+            # the ones in force. Knut, #182, comment 5651269930, which is an
+            # EDIT of his first answer and supersedes it:
             #
             #   "the bottom text ("Stamp layout summary on the sheet") is
             #    horizontally centred between following (example uses A4 paper
@@ -2097,6 +2111,19 @@ def render_pages(
                 # the line is bounded by what is really there.
                 margin_left_mm=float(getattr(geom, "margin_l", 0.0) or 0.0),
                 margin_right_mm=float(getattr(geom, "margin_r", 0.0) or 0.0))
+            _align = str(chart_text_align or _tef.BOTTOM_TEXT_ALIGN_DEFAULT)
+            _centre_mm = _tef.bottom_text_centre_mm(
+                paper_w_mm, float(getattr(geom, "margin_l", 0.0) or 0.0),
+                float(getattr(geom, "margin_r", 0.0) or 0.0))
+            _anchor_mm = _tef.bottom_text_anchor_mm(
+                paper_w_mm,
+                float(getattr(geom, "text_edge_clip_mm", 0.0) or 0.0),
+                helper_markers, helper_marker_edge_mm, helper_marker_len_mm,
+                helper_markers_sides,
+                clip_border_mm=_clip_w_mm,
+                clip_side=str(getattr(geom, "clip_side", "left") or "left"),
+                margin_left_mm=float(getattr(geom, "margin_l", 0.0) or 0.0),
+                margin_right_mm=float(getattr(geom, "margin_r", 0.0) or 0.0))
             _sfont_px = px(chart_text_size_mm or _tef.SHEET_TEXT_DEFAULT_MM)
             # SIZE "auto" SHRINKS, AND STOPS AT 7 pt. Knut, same section:
             # *"Size=auto allows the text to be shrunk down to 7pt, and then
@@ -2106,12 +2133,26 @@ def render_pages(
             # boxes already follow (`text_edge_fit.text_floor_pt`).
             if not (chart_text_size_mm or 0.0):
                 _floor_px = max(1, px(_tef.pt_to_mm(_tef.AUTO_SHRINK_FLOOR_PT)))
-                # THE ROOM IS THE DISTANCE BETWEEN THE TWO BOUNDS the line is
-                # centred between, which is the same figure the panel's width
-                # warning uses. Written as `paper_w - 2 x reserve` it ignored
-                # the clip border, so on a chart with a band the shrink stopped
-                # while the line still ran under it.
-                _room_mm = max(0.0, _r_mm - _l_mm)
+                # THE ROOM IS FROM WHERE THE LINE STARTS TO THE RIGHT BOUND,
+                # which is the same figure the panel's width warning uses
+                # (`text_edge_fit.bottom_text_room_mm`, one function for both).
+                # It was the distance between the two bounds while the line was
+                # centred between them; a left-aligned line cannot use the
+                # paper behind its own anchor, and shrinking against the old
+                # figure would have let "auto" stop while the line still ran
+                # off the right-hand side. Written as `paper_w - 2 x reserve`
+                # it ignored the clip border too, so on a chart with a band the
+                # shrink stopped while the line still ran under it.
+                _room_mm = _tef.bottom_text_room_mm(
+                    paper_w_mm,
+                    float(getattr(geom, "text_edge_clip_mm", 0.0) or 0.0),
+                    helper_markers, helper_marker_edge_mm,
+                    helper_marker_len_mm, helper_markers_sides,
+                    clip_border_mm=_clip_w_mm,
+                    clip_side=str(getattr(geom, "clip_side", "left") or "left"),
+                    margin_left_mm=float(getattr(geom, "margin_l", 0.0) or 0.0),
+                    margin_right_mm=float(getattr(geom, "margin_r", 0.0) or 0.0),
+                    align=_align)
                 while _sfont_px > _floor_px:
                     if sheet_text_width_mm(_btxt, _sfont_px * 25.4 / dpi,
                                            chart_text_font, chart_text_bold,
@@ -2145,29 +2186,25 @@ def render_pages(
                                              helper_marker_len_mm,
                                              helper_markers_top_bottom)
             yy = H - px(_bot) - line_h * len(_btxt)
-            # EACH LINE IS CENTRED ON ITS OWN, which is what "text can equally
-            # expand to both sides" asks for: with the custom text and the
-            # settings stamp both switched on they are different lengths, and
-            # centring the pair as a block would leave the shorter one off
-            # centre. The centre itself is the midpoint of his two bounds.
-            _mid_px = px((_l_mm + _r_mm) / 2.0)
-            _lo_px, _hi_px = px(_l_mm), px(_r_mm)
+            # EACH LINE IS PLACED ON ITS OWN, not the pair as a block. On the
+            # left-margin alignment that makes no difference (they share a left
+            # edge, which is the whole point of it); on either centred one it
+            # is what "text can equally expand to both sides" asks for, since
+            # the custom text and the layout summary are different lengths and
+            # centring the pair would leave the shorter one off centre.
             for ln in _btxt:
                 try:
                     _bb = draw.textbbox((0, 0), ln, font=sfont)
-                    _lw = _bb[2] - _bb[0]
+                    _lw_mm = (_bb[2] - _bb[0]) * 25.4 / dpi
                     _bx = _bb[0]
                 except Exception:      # noqa: BLE001 - a width, never a blocker
-                    _lw, _bx = int(draw.textlength(ln, font=sfont)), 0
-                # A LINE TOO WIDE FOR THE BOUNDS STAYS ANCHORED AT THE LEFT ONE
-                # rather than being centred out over both. Centring an
-                # over-long line spends half the overflow on the clip band or
-                # the marker comb at the left, where his rule says the text
-                # starts; the panel already warns that the rest runs off.
-                _x0 = _mid_px - _lw // 2 - _bx
-                if _lw >= (_hi_px - _lo_px):
-                    _x0 = _lo_px - _bx
-                _x0 = max(0, _x0)
+                    _lw_mm = draw.textlength(ln, font=sfont) * 25.4 / dpi
+                    _bx = 0
+                # `_bx` is the glyph's own left bearing, so the INK starts
+                # where the rule says rather than the pen.
+                _x0 = max(0, px(_tef.bottom_text_start_mm(
+                    _lw_mm, _l_mm, _r_mm, align=_align,
+                    anchor_mm=_anchor_mm, centre_mm=_centre_mm)) - _bx)
                 draw.text((_x0, yy), ln, font=sfont, fill=(0, 0, 0))
                 if collect_device_geom and _sfile:
                     _geom_rows.append(("text", _x0, yy + _sasc, ln,

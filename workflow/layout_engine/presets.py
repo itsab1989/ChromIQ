@@ -20,6 +20,7 @@ from dataclasses import asdict, dataclass, field, fields, replace
 from pathlib import Path
 
 from . import permutation
+from .. import text_edge_fit as _tef
 
 SUPPORTED_INSTRUMENTS = ("i1", "p3", "CM", "41", "51", "SS", "CR30")
 
@@ -207,6 +208,12 @@ class LayoutRecipe:
     chart_text_size_mm: float = 0.0      # 0 = default (~3.2 mm)
     chart_text_bold: bool = False
     chart_text_italic: bool = False
+    # Where the two bottom lines sit across the page (Knut, 2026-09-14):
+    # "left_margin" (his default), "available" (the beta 13 centring between
+    # the two side bounds) or "between_margins" (centred on the patch area).
+    # `text_edge_fit.BOTTOM_TEXT_ALIGNMENTS` is the list; the key is stored, so
+    # a recipe written on one language reads the same on another.
+    chart_text_align: str = "left_margin"
     # Ruler helper markers (#152, Knut): short printed dashes along all four
     # page edges, lined up with the strips across the page and the patches down
     # it, so a ruler can be laid on the sheet accurately while measuring.
@@ -349,6 +356,12 @@ class LayoutRecipe:
             chart_text=d.get("chart_text", ""),
             chart_text_font=d.get("chart_text_font", "Inter"),
             chart_text_size_mm=float(d.get("chart_text_size_mm") or 0.0),
+            # A RECIPE WRITTEN BEFORE THIS OPTION EXISTED GETS HIS DEFAULT,
+            # which changes how its sheet looks. That is what he asked for
+            # ("Left margin (default)"), and it is written down here so it is
+            # not later mistaken for a migration that was forgotten.
+            chart_text_align=(d.get("chart_text_align")
+                              or _tef.BOTTOM_TEXT_ALIGN_DEFAULT),
             helper_markers=bool(d.get("helper_markers", False)),
             helper_marker_edge_mm=float(d.get("helper_marker_edge") or 2.0),
             helper_marker_len_mm=float(d.get("helper_marker_len") or 2.0),
@@ -533,6 +546,8 @@ class LayoutRecipe:
             "chart_text": self.chart_text,
             "chart_text_font": self.chart_text_font,
             "chart_text_size_mm": self.chart_text_size_mm,
+            "chart_text_align": (self.chart_text_align
+                                 or _tef.BOTTOM_TEXT_ALIGN_DEFAULT),
             "helper_markers": bool(self.helper_markers),
             "helper_marker_edge": self.helper_marker_edge_mm or 2.0,
             "helper_marker_len": self.helper_marker_len_mm or 2.0,

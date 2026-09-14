@@ -349,7 +349,15 @@ def bottom_text_bounds_mm(paper_w_mm: float, text_edge_clip_mm: float,
                           clip_side: str = "left",
                           margin_left_mm: float = 0.0,
                           margin_right_mm: float = 0.0) -> tuple[float, float]:
-    """The two page-edge distances the bottom line is centred BETWEEN, in mm.
+    """The two page-edge distances the bottom line is held BETWEEN, in mm.
+
+    **THE LINE IS NO LONGER CENTRED BETWEEN THEM** (Knut, 2026-09-14, quoted in
+    :func:`bottom_text_anchor_mm`): it starts at the patch area's left margin
+    and these two stay exactly as he specified them, as the floor the anchor
+    cannot cross and the limit the line may not pass on the right. His own
+    words for keeping them: *"Leave limit detection as is for the left side, as
+    alignment of text may change again later."* Everything below is that rule,
+    unchanged.
 
     Knut, #182, comment 5651269930 (an edit of 5649955254, and the edit is the
     one that counts: his first wording said only "centred according to page
@@ -445,6 +453,119 @@ def bottom_text_bounds_mm(paper_w_mm: float, text_edge_clip_mm: float,
     return (left, right)
 
 
+#: The three ways the bottom lines may sit across the page. Knut, 2026-09-14,
+#: naming all three himself after asking for the first one alone earlier the
+#: same morning::
+#:
+#:     1. Left margin (default): this is the new option mentioned above, where
+#:        any of the two bottom text types are left adjusted against the left
+#:        margin.
+#:     2. Centre of available space: This is the alignment type already in the
+#:        design on beta 13.
+#:     3. Centre between left and right margin: This type is new, where the
+#:        centre alignment is set between the patch area left margin and right
+#:        margin.
+#:
+#: The keys are stored in the recipe, so they are English and stable; the words
+#: a reader sees are in the panel's pulldown.
+BOTTOM_TEXT_LEFT_MARGIN = "left_margin"
+BOTTOM_TEXT_CENTRE_AVAILABLE = "available"
+BOTTOM_TEXT_CENTRE_MARGINS = "between_margins"
+BOTTOM_TEXT_ALIGNMENTS = (BOTTOM_TEXT_LEFT_MARGIN, BOTTOM_TEXT_CENTRE_AVAILABLE,
+                          BOTTOM_TEXT_CENTRE_MARGINS)
+#: His "(default)". A chart written before this option existed has no value for
+#: it, and `from_dict` gives it this one, so every old preset changes alignment
+#: on load. That is deliberate and is what he asked for; the note is here so a
+#: later reader does not "fix" it back.
+BOTTOM_TEXT_ALIGN_DEFAULT = BOTTOM_TEXT_LEFT_MARGIN
+
+
+def bottom_text_centre_mm(paper_w_mm: float, margin_left_mm: float,
+                          margin_right_mm: float) -> float:
+    """The midpoint of the PATCH AREA, for his third alignment.
+
+    *"the centre alignment is set between the patch area left margin and right
+    margin"* — so it is the middle of the two margins and not of the paper, and
+    on a sheet whose two margins differ it sits off the paper's own centre.
+    """
+    w = max(0.0, float(paper_w_mm or 0.0))
+    left = max(0.0, float(margin_left_mm or 0.0))
+    right = w - max(0.0, float(margin_right_mm or 0.0))
+    if right < left:
+        return w / 2.0
+    return (left + right) / 2.0
+
+
+def bottom_text_start_mm(width_mm: float, left_mm: float, right_mm: float,
+                         *, align: str = BOTTOM_TEXT_ALIGN_DEFAULT,
+                         anchor_mm: float = 0.0,
+                         centre_mm: float = 0.0) -> float:
+    """Where a bottom line of *width_mm* starts, in mm from the left page edge.
+
+    One function for the renderer and for anything that wants to say where the
+    ink will land, so the two cannot drift. *left_mm* / *right_mm* are the
+    bounds from :func:`bottom_text_bounds_mm`, *anchor_mm* the left-margin
+    anchor from :func:`bottom_text_anchor_mm`, and *centre_mm* the patch-area
+    midpoint from :func:`bottom_text_centre_mm`.
+
+    **A LINE IS NEVER STARTED LEFT OF THE LEFT BOUND.** Both centred modes can
+    ask for that when the line is wider than the room, and the bound is the
+    limit this module keeps on all four sides. It is also exactly what the
+    centred renderer already did with an over-long line: *"A line too wide for
+    the bounds stays anchored at the left one."*
+    """
+    w = max(0.0, float(width_mm or 0.0))
+    key = str(align or BOTTOM_TEXT_ALIGN_DEFAULT).strip().lower()
+    if key == BOTTOM_TEXT_CENTRE_AVAILABLE:
+        start = (float(left_mm) + float(right_mm)) / 2.0 - w / 2.0
+    elif key == BOTTOM_TEXT_CENTRE_MARGINS:
+        start = float(centre_mm) - w / 2.0
+    else:
+        start = float(anchor_mm)
+    return max(float(left_mm), start)
+
+
+def bottom_text_anchor_mm(paper_w_mm: float, text_edge_clip_mm: float,
+                          markers_on: bool = False, marker_edge_mm: float = 0.0,
+                          marker_len_mm: float = 0.0,
+                          markers_sides: bool = True, *,
+                          clip_border_mm: float = 0.0,
+                          clip_side: str = "left",
+                          margin_left_mm: float = 0.0,
+                          margin_right_mm: float = 0.0) -> float:
+    """Where the bottom line STARTS, in mm from the left page edge.
+
+    **THE LINE IS LEFT-ALIGNED ON THE PATCH AREA, NOT CENTRED. Knut,
+    2026-09-14**, superseding his own centring rule of comment 5651269930:
+
+        for the sake of beauty, I find it better that the two bottom text type
+        (in Sheet text frame) should be left-aligned against the patch area
+        left margin, instead of centred against available horizontal space.
+        This means a long text only gets warning when hitting towards the right
+        side limits. This is ok. Leave limit detection as is for the left side,
+        as alignment of text may change again later.
+
+    So the anchor is the LEFT MARGIN, which is the patch area's own left edge,
+    and his last sentence is why the left bound is still computed exactly as it
+    was: :func:`bottom_text_bounds_mm` is untouched, and it is the floor here.
+    A margin smaller than that bound would start the line inside a reserve the
+    same document protects on all four sides, so the anchor never goes left of
+    it; a margin larger than it moves the line right, which is the change he
+    asked for.
+
+    Clamped at the right bound as well, for the pathological sheet whose left
+    margin is wider than the paper it is on.
+    """
+    left, right = bottom_text_bounds_mm(paper_w_mm, text_edge_clip_mm,
+                                        markers_on, marker_edge_mm,
+                                        marker_len_mm, markers_sides,
+                                        clip_border_mm=clip_border_mm,
+                                        clip_side=clip_side,
+                                        margin_left_mm=margin_left_mm,
+                                        margin_right_mm=margin_right_mm)
+    return min(max(left, max(0.0, float(margin_left_mm or 0.0))), right)
+
+
 def bottom_text_room_mm(paper_w_mm: float, text_edge_clip_mm: float,
                         markers_on: bool = False, marker_edge_mm: float = 0.0,
                         marker_len_mm: float = 0.0,
@@ -452,7 +573,8 @@ def bottom_text_room_mm(paper_w_mm: float, text_edge_clip_mm: float,
                         clip_border_mm: float = 0.0,
                         clip_side: str = "left",
                         margin_left_mm: float = 0.0,
-                        margin_right_mm: float = 0.0) -> float:
+                        margin_right_mm: float = 0.0,
+                        align: str = BOTTOM_TEXT_ALIGN_DEFAULT) -> float:
     """How wide the bottom-of-sheet text may be before it crosses a reserve.
 
     Knut's worked A4 example, from the "Bottom page edge" section:
@@ -475,6 +597,17 @@ def bottom_text_room_mm(paper_w_mm: float, text_edge_clip_mm: float,
     centred between, so a clip border on one side takes its width out of the
     line's room rather than the reserve. With no border described this is his
     two-reserve figure exactly, which is what every caller got before.
+
+    **AND IT IS MEASURED FROM WHERE THE LINE STARTS** (Knut, 2026-09-14, the
+    quotation in :func:`bottom_text_anchor_mm`). A left-aligned line cannot use
+    the paper to the left of its own anchor, so the room is
+    ``right bound - anchor``. His *"leave limit detection as is for the left
+    side"* is kept literally: the left BOUND is unchanged and is still the
+    floor the anchor cannot cross. What changed is that a left margin wider
+    than that bound now takes its width out of the room, because the drawn line
+    really does start there. Leaving the old figure would have let a typed size
+    run off the right-hand side of the paper with nothing said, which is the
+    exact fault he reported against beta 8.
     """
     left, right = bottom_text_bounds_mm(paper_w_mm, text_edge_clip_mm,
                                         markers_on, marker_edge_mm,
@@ -483,7 +616,47 @@ def bottom_text_room_mm(paper_w_mm: float, text_edge_clip_mm: float,
                                         clip_side=clip_side,
                                         margin_left_mm=margin_left_mm,
                                         margin_right_mm=margin_right_mm)
-    return max(0.0, right - left)
+    # **AND IT DEPENDS ON THE ALIGNMENT**, because the room is "the widest line
+    # that still fits between his two bounds", and where a line starts decides
+    # that. Knut, 2026-09-14: *"Leave side-limit detection as it is designed.
+    # Depending on the set alignment of text, a long text may trigger a warning
+    # on either sides, or only one side."* The bounds themselves are the same
+    # two in all three modes, which is the "as it is designed" half.
+    key = str(align or BOTTOM_TEXT_ALIGN_DEFAULT).strip().lower()
+    if key == BOTTOM_TEXT_CENTRE_AVAILABLE:
+        return max(0.0, right - left)
+    if key == BOTTOM_TEXT_CENTRE_MARGINS:
+        centre = bottom_text_centre_mm(paper_w_mm, margin_left_mm,
+                                       margin_right_mm)
+        # **THE CLAMP IS PART OF THE ANSWER, AND LEAVING IT OUT PRODUCED A
+        # WARNING ABOUT INK THAT WAS ENTIRELY ON THE PAPER.** This read
+        # `2 x min(centre - left, right - centre)`, which is the widest line
+        # that stays centred. But `bottom_text_start_mm` does not keep a line
+        # centred once it would start inside the left bound: it anchors it
+        # there instead, exactly as the centred renderer always did. So a line
+        # too wide to centre is NOT too wide to print, and the old figure
+        # called it an overflow.
+        #
+        # Measured by an adversary round on the real i1Pro 100x150 preset: the
+        # panel said 26 mm of a 77 mm line ran off, and the app's own render
+        # put the ink at 19.30 to 95.63 mm inside a 96.0 mm bound. Nine cells
+        # of a 144-cell sweep warned about ink that fits, every one of them
+        # this alignment, and none of the other two ever did.
+        #
+        # The closed form below is "the widest line the clamp actually lets
+        # fit", checked against a brute-force search of the real placement over
+        # 20,000 random geometries with zero mismatches:
+        #
+        # * a centre at or LEFT of the bounds' midpoint clamps before the near
+        #   bound can bind, so the whole gap is available;
+        # * a centre RIGHT of it never clamps, so the near bound binds twice,
+        #   half the line each side.
+        mid = (left + right) / 2.0
+        if centre <= mid:
+            return max(0.0, right - left)
+        return max(0.0, 2.0 * (right - centre))
+    anchor = min(max(left, max(0.0, float(margin_left_mm or 0.0))), right)
+    return max(0.0, right - anchor)
 
 
 #: The hair `raster._vtext` keeps off the ENDS of a clip line so a glyph's
@@ -533,7 +706,9 @@ def bottom_text_overflow(paper_w_mm: float, text_edge_clip_mm: float,
                          clip_border_mm: float = 0.0,
                          clip_side: str = "left",
                          margin_left_mm: float = 0.0,
-                         margin_right_mm: float = 0.0) -> "Overlap | None":
+                         margin_right_mm: float = 0.0,
+                         align: str = BOTTOM_TEXT_ALIGN_DEFAULT
+                         ) -> "Overlap | None":
     """The bottom line's WIDTH against the paper it has, or None when it fits.
 
     The fourth side's version of the check the other three already make. Named
@@ -551,7 +726,8 @@ def bottom_text_overflow(paper_w_mm: float, text_edge_clip_mm: float,
                                         clip_border_mm=clip_border_mm,
                                         clip_side=clip_side,
                                         margin_left_mm=margin_left_mm,
-                                        margin_right_mm=margin_right_mm),
+                                        margin_right_mm=margin_right_mm,
+                                        align=align),
                     max(0.0, float(needed_w_mm or 0.0)))
 
 

@@ -1863,3 +1863,141 @@ left.
 "For now" is doing work in that sentence and is recorded as written. If he
 comes back to it, the remedy is the one he chose for the grey rows on the same
 day: a verdict plus a numbered note saying what the number is measuring.
+
+## 2u. Knut's ruling of 2026-09-14: the bottom lines get an ALIGNMENT, and it supersedes 2m-3
+
+He asked twice in one morning, and the second post replaces the first. It is
+recorded that way here so the sequence cannot be misread later: the first ask
+was for left-alignment alone, the second for a control offering all three.
+
+> **First.** *"for the sake of beauty, I find it better that the two bottom
+> text type (in Sheet text frame) should be left-aligned against the patch area
+> left margin, instead of centred against available horizontal space. This
+> means a long text only gets warning when hitting towards the right side
+> limits. This is ok. Leave limit detection as is for the left side, as
+> alignment of text may change again later."*
+
+> **Then.** *"However, in some cases the centre adjustment is best, depending
+> on the setup. I thus suggest a new input box to be added below the Size input
+> box in the Sheet text frame. The "Alignment" input box should be placed
+> aligned with the other selection and input boxes in that frame, so it looks
+> nice and orderly. The Alignment input bod shall have three options in its
+> pulldown list: 1. Left margin (default): this is the new option mentioned
+> above, where any of the two bottom text types are left adjusted against the
+> left margin. 2. Centre of available space: This is the alignment type already
+> in the design on beta 13. 3. Centre between left and right margin: This type
+> is new, where the centre alignment is set between the patch area left margin
+> and right margin. This is a slightly different centring of the text, which is
+> useful in some cases. Leave side-limit detection as it is designed. Depending
+> on the set alignment of text, a long text may trigger a warning on either
+> sides, or only one side. The new alignment parameter must be added in the
+> list of parameters so that it is saved/remembered or loaded in all cases for
+> a profile run or run type, when changing profile run or run type, or when
+> loading a preset, generating chart and all the other events that will load,
+> save or generate … like all other parameters. Please make this change. Test
+> it thoroughly, that all alignment options result in the correct behaviour on
+> screen, tested on presets for each instrument type."*
+
+**§2m-3 IS NOT WITHDRAWN, IT IS NOW ONE OF THREE.** Its two bounds are exactly
+what they were, and his option 2 is its placement, kept and named. That is why
+`text_edge_fit.bottom_text_bounds_mm` has no alignment argument at all: the
+side limits cannot be moved by a choice about placement, which is the cleanest
+way to keep *"Leave side-limit detection as it is designed"* true.
+
+### The three placements, written once
+
+`text_edge_fit.bottom_text_start_mm` is all three, and the renderer and the
+panel both go through it and through `bottom_text_room_mm`:
+
+| option | the key stored | where a line of width *w* starts |
+|---|---|---|
+| Left margin | `left_margin` | `bottom_text_anchor_mm`, which is the left margin held at or right of the left bound |
+| Centre of available space | `available` | the midpoint of the two bounds, less *w*/2 |
+| Centre between left and right margin | `between_margins` | `bottom_text_centre_mm`, the midpoint of the patch area, less *w*/2 |
+
+and in every one of them the start is clamped to the LEFT BOUND, so a line
+wider than its room is anchored there rather than spilling half its overflow
+into the clip band. That is what the centred renderer already did with an
+over-long line, kept.
+
+### The room follows the placement, and that is his own sentence
+
+*"Depending on the set alignment of text, a long text may trigger a warning on
+either sides, or only one side."* The room is "the widest line that still fits
+between the two bounds", so it depends on where the line starts:
+
+* `left_margin`: `right bound - anchor`;
+* `available`: `right bound - left bound`, which is his earlier 202 mm example
+  on A4 unchanged;
+* `between_margins`: twice the distance from the patch-area midpoint to the
+  NEARER bound, because a centred line grows at both ends.
+
+On A4 with a 12 mm left margin and a 30 mm right one those are 194, 202 and
+184 mm, against bounds of (4.0, 206.0) in all three cases.
+
+**ONE CONSEQUENCE HE DID NOT SPELL OUT, AND IT IS REPORTED RATHER THAN
+ASSUMED.** Before this, the width check measured `right bound - left bound`
+whatever the margins were. Left-aligned, that would let a typed size run off
+the right of the paper with nothing said whenever the left margin is wider than
+the left bound: on A4 with 12 mm margins, an 8 mm blind gap. A silent overflow
+is the fault he reported against beta 8 in the first place, so the room is
+measured from where the line starts. His 202 mm example is untouched where it
+lives, on the bounds.
+
+### A chart made before the option existed
+
+`LayoutRecipe.from_dict` gives it `left_margin`, his default, so an old preset
+or a stored chart changes alignment when it is loaded. That is what "(default)"
+means and it is deliberate; the note is in the code so a later reader does not
+undo it.
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.* Built and driven on screen against one engine
+preset from each of the six instrument groups, all three options on each, with
+the ink measured off the app's own TIFFs
+(`scripts/drive_182_bottom_text_alignment.py`). His *"Test it thoroughly … on
+presets for each instrument type"* is that run; whether the result is what he
+wants to see is his to say.
+
+## 2v. Knut's ruling of 2026-09-14: the report waits for "Generate report"
+
+> *"This change give the user more feeling of control and understanding of when
+> something should change, or when a change will result in a changed report,
+> and will see that it does change or not when clicking "Generate report". It
+> will also give a user a chance to undo a changed field, if not wanting to
+> regenerate the report. Make the change."*
+
+answering his beta 12 observation, *"The generate report button seems not to do
+much, as the report auto-generates whenever report type or judged against is
+changed."*
+
+Five settings now move the control and leave the document standing, with a red
+line under the buttons: **Report type**, **Judged against**, **Show all
+measurement runs**, **Show detailed data for each run**, and **the measurements
+ticked in the list**. Pressing the button builds the document with them and
+clears the line.
+
+**WHAT DOES NOT WAIT, AND WHY THE LINE IS DRAWN THERE.** Opening a
+measurement, adding or removing one, and the limits window writing a number all
+still repaint at once. Those change what there IS to report on; the five change
+how the same measurements are PRESENTED. A document quietly showing a
+measurement the list beside it no longer contains would be a worse lie than the
+one this defers.
+
+**AND THE BANNER IS A COMPARISON, NOT A FLAG**, which is his second sentence
+doing the work. A boolean set on every change cannot see an undo, so putting a
+control back would leave a red line over a document that already matches it.
+`_doc_settings()` snapshots the five, `_render` records what the document was
+built from, and the banner is the two being different.
+
+**WHAT A SETTING DOES ON DISK IT STILL DOES AT ONCE.** Choosing a limit set
+still binds the run and still asks its recalculate question; choosing a type
+still stores it on the run. Deferring those would turn a deliberate act into a
+pending one, which is not what he asked for.
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.* Driven on the real window over fourteen steps
+with the document fingerprinted at each, so "nothing changed" is measured
+rather than assumed (`scripts/drive_182_generate_waits.py`).

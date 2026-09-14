@@ -20822,7 +20822,16 @@ class TabChart(QWidget):
                     # text column starts at 178.5, and 4.45 mm of the bottom
                     # line printed inside it.
                     margin_left_mm=float(getattr(geom, "margin_l", 0.0) or 0.0),
-                    margin_right_mm=float(getattr(geom, "margin_r", 0.0) or 0.0))
+                    margin_right_mm=float(getattr(geom, "margin_r", 0.0) or 0.0),
+                    # …AND THE ALIGNMENT, because where a line STARTS decides
+                    # how much of the paper it can use. Knut, 2026-09-14:
+                    # *"Leave side-limit detection as it is designed.
+                    # Depending on the set alignment of text, a long text may
+                    # trigger a warning on either sides, or only one side."*
+                    # The bounds are the same two in all three modes; the room
+                    # between them is not.
+                    align=str(getattr(r, "chart_text_align", "")
+                              or text_edge_fit.BOTTOM_TEXT_ALIGN_DEFAULT))
                 if _wo is not None:
                     _auto = not float(getattr(r, "chart_text_size_mm", 0.0) or 0.0)
                     # WHOSE LINE IS IT. Both sentences below offer "Shorten the
@@ -20844,20 +20853,30 @@ class TabChart(QWidget):
                     # thirteen catalogues and offered two remedies, neither of
                     # them the Size box, which is the one Knut asked for. The
                     # shared sentence says both, from the constant.
+                    # THE ROOM IS MEASURED FROM WHERE THE LINE STARTS, and the
+                    # sentence says so WITHOUT naming a side, because since
+                    # 2026-09-14 the user chooses between three alignments and
+                    # each of them runs into a different limit. The old
+                    # wording, "between the distances you set for the two side
+                    # edges", named two controls and was true of exactly one of
+                    # the three. Alignment is named as a remedy, because it is
+                    # now the biggest lever on this number.
                     over.append((tr(
                         "⚠ The sheet text along the bottom is too wide for the "
-                        "paper. It needs {need:.0f} mm of line and the sheet "
-                        "leaves {avail:.0f} mm between the distances you set "
-                        "for the two side edges, so {short:.0f} mm of it runs "
-                        "off. Shorten the text, or lower “Clip” under “Text "
-                        "distance from edge (mm)”.") if _auto else tr(
+                        "paper. It needs {need:.0f} mm of line and there are "
+                        "{avail:.0f} mm between where it starts and the side "
+                        "limit it runs into, so {short:.0f} mm of it runs off. "
+                        "Shorten the text, lower “Clip” under “Text distance "
+                        "from edge (mm)”, or try another “Alignment” under "
+                        "“Sheet text”.") if _auto else tr(
                         "⚠ The sheet text along the bottom is too wide for the "
-                        "paper. It needs {need:.0f} mm of line and the sheet "
-                        "leaves {avail:.0f} mm between the distances you set "
-                        "for the two side edges, so {short:.0f} mm of it runs "
-                        "off. Set Size to “auto” under “Sheet text” and it "
-                        "shrinks to fit, shorten the text, or lower “Clip” "
-                        "under “Text distance from edge (mm)”.")).format(
+                        "paper. It needs {need:.0f} mm of line and there are "
+                        "{avail:.0f} mm between where it starts and the side "
+                        "limit it runs into, so {short:.0f} mm of it runs off. "
+                        "Set Size to “auto” under “Sheet text” and it shrinks "
+                        "to fit, shorten the text, lower “Clip” under “Text "
+                        "distance from edge (mm)”, or try another "
+                        "“Alignment”.")).format(
                             need=_wo.needed_mm, avail=max(0.0, _wo.available_mm),
                             short=_wo.overlap_mm)
                         + _off_bottom
