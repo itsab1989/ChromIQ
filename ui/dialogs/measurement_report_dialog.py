@@ -1019,7 +1019,19 @@ class MeasurementReportDialog(QDialog):
         self._type_blurb = QLabel(self)
         self._type_blurb.setWordWrap(False)
         self._type_blurb.setStyleSheet("color: palette(mid); padding-left: 4px")
+        # …AND WHEN IT DOES NOT FIT, A WAY TO READ IT. Knut, 2026-09-13: *"the
+        # end of the text is cut off with a '...' at the end. All generated
+        # reports should be listed clearly and visible, even if it is a list of
+        # 6 report types. This might require a taller text area. If limited
+        # space, this could be handled with one-line text that opens for more
+        # detailed information."* The taller area is the thing the comment
+        # above rules out, so it is his second option: the line stays one line
+        # and grows a link that opens the whole list.
+        self._type_blurb.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextBrowserInteraction)
+        self._type_blurb.linkActivated.connect(self._show_generated_reports)
         self._type_blurb_full = ""
+        self._generated_full = ""
         type_row.addWidget(self._type_blurb, 1)
         top_v.addLayout(type_row)
 
@@ -2345,9 +2357,18 @@ class MeasurementReportDialog(QDialog):
             # precisely what Knut asked the window to show. What a type is FOR
             # has another home, the pulldown's own entries and the help button
             # beside it; what a run already holds has none.
+            # ONE THING ON THE LINE, NOT TWO. An earlier round moved the
+            # generated list in front of the type's description because, with
+            # both on one elided line, the half that got cut was the list. It
+            # is still one line, so the description was still pushing the list
+            # out on any window narrow enough: what the type is FOR has two
+            # other homes, the pulldown's own entries and its tooltip, and what
+            # the run already holds has none. So the line is the list, and the
+            # description keeps the tooltip.
             blurb = self._type_blurb_for(current)
             already = self._generated_types_line(run)
-            self._set_type_blurb(f"{already}  ·  {blurb}" if already else blurb)
+            self._generated_full = self._generated_types_detail(run)
+            self._set_type_blurb(already or blurb)
             self._type_combo.setToolTip(blurb)
         # The button writes a report for the run the window is on. With no run,
         # or with several loaded, there is no single place for it to go.
@@ -2392,11 +2413,50 @@ class MeasurementReportDialog(QDialog):
         reason."""
         from PyQt6.QtGui import QFontMetrics
         self._type_blurb_full = full or ""
+        import html as _html
         fm = QFontMetrics(self._type_blurb.font())
         room = max(120, self.width() - self._type_blurb.x() - 40)
-        self._type_blurb.setText(
-            fm.elidedText(self._type_blurb_full, Qt.TextElideMode.ElideRight, room))
-        self._type_blurb.setToolTip(self._type_blurb_full)
+        # THE LINK COSTS ROOM TOO, so the text is elided into what is left
+        # rather than into the whole width and then having a link appended past
+        # the edge.
+        link_txt = tr("show all")
+        link_w = fm.horizontalAdvance("  " + link_txt) if self._generated_full else 0
+        shown = fm.elidedText(self._type_blurb_full, Qt.TextElideMode.ElideRight,
+                              max(80, room - link_w))
+        was_cut = shown != self._type_blurb_full
+        if was_cut and self._generated_full:
+            self._type_blurb.setText(
+                f"{_html.escape(shown)}&nbsp;&nbsp;"
+                f"<a href='#generated'>{_html.escape(link_txt)}</a>")
+        else:
+            self._type_blurb.setText(shown)
+        self._type_blurb.setToolTip(self._generated_full or self._type_blurb_full)
+
+    def _generated_types_detail(self, run) -> str:
+        """Every report this run has produced, one per line, or "".
+
+        The long form behind the link. `_generated_types_line` is the same
+        facts on one line; this is what a reader gets when that line will not
+        fit, which on six types it never will.
+        """
+        if run is None:
+            return ""
+        from workflow.measurement_report import (generated_report_types,
+                                                 report_type_name)
+        counts = generated_report_types(run)
+        if not counts:
+            return ""
+        return "\n".join(
+            tr("{type} ({count})").format(type=tr(report_type_name(tid)), count=n)
+            for tid, n in sorted(counts.items()))
+
+    def _show_generated_reports(self, _href: str = "") -> None:
+        """The whole list, when the one line could not hold it."""
+        if not self._generated_full:
+            return
+        from ui.warning_sign import inform
+        inform(self, tr("Reports generated for this run"),
+               self._generated_full)
 
     @staticmethod
     def _disable_item(model, row: int) -> None:

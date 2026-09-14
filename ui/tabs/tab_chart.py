@@ -20492,14 +20492,29 @@ class TabChart(QWidget):
                                 # message has already named.
                     except Exception:      # noqa: BLE001 — never fatal
                         pass
-            # The text-overflow warning only applies in "margins are law" mode,
-            # which is now AREA-FIRST (Knut #93): there the label/text lives inside
-            # the margin, so a too-small margin overflows toward the page edge. In
-            # patch-first the band is reserved above/below the patches, no overflow.
-            if r.layout_mode != "area_first":
-                return warns + over, over
+            # The STRIP AND ROW LABEL overflow warnings only apply in "margins
+            # are law" mode, which is now AREA-FIRST (Knut #93): there the label
+            # lives inside the margin, so a too-small margin overflows toward
+            # the page edge. In patch-first the band is reserved above/below the
+            # patches and cannot overflow.
+            #
+            # **THIS USED TO BE A `return`, AND IT TOOK THE BOTTOM SHEET TEXT
+            # WITH IT.** The paper is the same width in both modes, so a bottom
+            # line too long for it runs off in both; only the LABEL argument
+            # above is mode-specific. Found by an adversary round: same recipe,
+            # A4 with a 24 mm clip border and a typed 13 pt line, rendered and
+            # the ink measured. Area-first warned that 200 mm ran off.
+            # Patch-first printed the identical ink, from 4.19 mm to 210.06 on
+            # a 210 mm sheet, cut mid-word at the paper's edge, and said
+            # nothing at all. `raster.py` asserts in a comment that "the panel
+            # already warns that the rest runs off"; in this mode it did not.
+            #
+            # Patch-first is the DEFAULT for SpectroScan and CR30, and
+            # `LayoutRecipe.from_dict` falls back to it for any preset dict
+            # without the key, so this was not a corner.
+            _labels_can_overflow = r.layout_mode == "area_first"
             lab = geom.label_band_mm if geom.label_band_mm >= 0 else geom.txhisl
-            if r.show_strip_indicators and lab > 0:
+            if _labels_can_overflow and r.show_strip_indicators and lab > 0:
                 # THE LETTERS NOW HOLD THEIR DISTANCE AND OVERLAP THE PATCHES,
                 # so this reports an overlap again, and this time it is true.
                 # Knut, #182, comment 5649810914: *"the strip labels do not
@@ -20626,12 +20641,14 @@ class TabChart(QWidget):
             # fires while the user is looking at the thing working is how
             # people learn to ignore warnings. The raise itself is reported
             # above; these two describe what happens when there is no raise.
-            if geom.rlwi > 0 and not _raised_l and r.margin_left < 0.5:
+            if (_labels_can_overflow and geom.rlwi > 0 and not _raised_l
+                    and r.margin_left < 0.5):
                 warns.append(tr(
                     "⚠ There is no room for the row indicators down the left, "
                     "so they will not be printed. Give the left margin about "
                     "2 mm to get them back."))
-            elif geom.rlwi > 0 and not _raised_l and r.margin_left + 0.05 < 2.0:
+            elif (_labels_can_overflow and geom.rlwi > 0 and not _raised_l
+                  and r.margin_left + 0.05 < 2.0):
                 warns.append(tr(
                     "⚠ The left margin is tight for the row indicators, so the "
                     "patches will cover part of each one. About 2 mm prints "
@@ -20665,7 +20682,8 @@ class TabChart(QWidget):
             # is true again instead of deleting a guard.
             _border_w = (float(getattr(r, "clip_border_width_mm", 0.0) or 0.0)
                          if getattr(r, "clip_border", False) else 0.0)
-            if geom.rlwi > 0 and geom.fill_beyond_ruler and geom.lbord > 0 \
+            if _labels_can_overflow and geom.rlwi > 0 \
+                    and geom.fill_beyond_ruler and geom.lbord > 0 \
                     and _floor_l + 0.05 < _border_w \
                     and r.clip_content_mode != "off" \
                     and (getattr(geom, "clip_side", "left") or "left") == "left":

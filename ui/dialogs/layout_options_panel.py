@@ -70,12 +70,31 @@ MM_PER_PT = 25.4 / 72.0          # ≈ 0.3528
 
 
 def mm_to_pt(mm: float) -> float:
-    """Round-trip-stable mm → points for the size spinboxes (0 stays 0=auto)."""
-    return round(float(mm or 0.0) * PT_PER_MM)
+    """Round-trip-stable mm → points for the size spinboxes (0 stays 0=auto).
+
+    **SNAPPED TO THE HALF-POINT GRID, WHICH IS WHAT THE BOXES STEP BY.** This
+    rounded to a WHOLE point, and until 2026-09-13 that was round-trip stable
+    because the boxes were whole points too. Giving them a 0.5 step without
+    moving this line made the feature inert the moment anything reloaded a
+    recipe: an adversary round drove it on screen and photographed a box typed
+    at "9,5" reading "9,0" after `_set_engine_recipe`, which every preset,
+    every chart opened from disk and every restored session goes through.
+    Fifteen of the thirty-one grid values between 5 and 20 pt were lost, and
+    not even consistently (7.5 rounded UP to 8, 9.5 DOWN to 9).
+
+    `pt_to_mm` keeps two decimals, so 9.5 pt is stored as 3.35 mm and comes
+    back as 9.4961: rounding that to the nearest HALF gives 9.5 again. The two
+    functions are a pair and have to be read together.
+    """
+    return round(float(mm or 0.0) * PT_PER_MM * 2.0) / 2.0
 
 
 def pt_to_mm(pt: float) -> float:
-    """Points → mm for storing/rendering (0 stays 0=auto)."""
+    """Points → mm for storing/rendering (0 stays 0=auto).
+
+    Two decimals is 0.01 mm, about 0.028 pt, which is finer than half the
+    half-point grid `mm_to_pt` snaps back to. See there.
+    """
     return round(float(pt or 0.0) * MM_PER_PT, 2)
 
 

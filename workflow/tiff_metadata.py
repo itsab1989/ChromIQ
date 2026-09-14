@@ -1164,7 +1164,22 @@ def fit_rotated_line(
     if fixed:
         font_px = floor_px
     else:
-        font_px = max(floor_px, min(28, strip_w - 8 if anchor_px is None
+        # THE CAP IS A SIZE, SO IT IS IN POINTS. It was the literal 28 PIXELS,
+        # which is a different size at every raster: 13.44 pt at 150 dpi,
+        # 10.08 at 200, and 6.72 at 300, which is BELOW the 7 pt floor. So from
+        # 240 dpi upwards the start was clamped to the floor, the shrink loop
+        # had nowhere to go, and a long note went straight to being truncated
+        # with an ellipsis at the smallest size allowed instead of being fitted
+        # at a readable one. 300 dpi is `LayoutRecipe`'s default.
+        #
+        # Found by an adversary round measuring the half-point shrink and
+        # discovering it never ran: putting the old step back changed the
+        # outcome in 0 of 24 configurations at 200 to 600 dpi.
+        #
+        # 10 pt is what the old constant meant at 200 dpi, which is the raster
+        # it was chosen at.
+        font_px = max(floor_px, min(text_edge_fit.pt_to_px(NOTE_START_MAX_PT, dpi),
+                                    strip_w - 8 if anchor_px is None
                                     else strip_w - _gap))
 
     # THE SIZE IS CARRIED IN POINTS, NOT PIXELS. The loop used to hold an
@@ -1218,6 +1233,11 @@ def fit_rotated_line(
         log.info("Chart note shortened to fit the margin: %d of %d characters",
                  len(shown) - 1, len(text))
 
+
+#: The largest size the right-margin note STARTS at before fitting, in points.
+#: A size, not a pixel count: see `fit_rotated_line` for what a pixel constant
+#: did at 300 dpi.
+NOTE_START_MAX_PT = 10.0
 
 #: The widest strip the right-margin note is ever drawn into, in pixels.
 #: `_stamp_one`: ``strip_w = min(40, …)``. Repeated as a name so the predictor

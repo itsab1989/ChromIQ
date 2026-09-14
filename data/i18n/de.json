@@ -5442,5 +5442,7 @@
   "⚠ The chart notes down the right edge are too long for the sheet. The last {lost} characters are cut off and replaced by “…”. Shorten the notes, set a smaller Size under “Sheet text”, or use a taller paper.": "⚠ Die Chart-Notizen am rechten Rand sind zu lang für das Blatt. Die letzten {lost} Zeichen werden abgeschnitten und durch „…“ ersetzt. Kürze die Notizen, setze eine kleinere Größe unter „Blatttext“, oder nimm ein höheres Papier.",
   "Judge this run against this set. Available while “Unlock this run's limits” is ticked in the report window, or until a second dated verification locks the run.": "Diesen Durchgang gegen diesen Satz bewerten. Verfügbar, solange „Grenzwerte dieses Durchgangs entsperren“ im Berichtsfenster angehakt ist, oder bis eine zweite datierte Verifizierung den Durchgang sperrt.",
   "This run's set is locked. Tick “Unlock this run's limits” in the report window to change it.": "Der Satz dieses Durchgangs ist gesperrt. Hake „Grenzwerte dieses Durchgangs entsperren“ im Berichtsfenster an, um ihn zu ändern.",
-  "Used for this run": "Für diesen Durchgang verwendet"
+  "Used for this run": "Für diesen Durchgang verwendet",
+  "Reports generated for this run": "Für diesen Durchgang erzeugte Berichte",
+  "show all": "alle anzeigen"
 }

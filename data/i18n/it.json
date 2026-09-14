@@ -5442,5 +5442,7 @@
   "⚠ The chart notes down the right edge are too long for the sheet. The last {lost} characters are cut off and replaced by “…”. Shorten the notes, set a smaller Size under “Sheet text”, or use a taller paper.": "⚠ Le note del grafico lungo il bordo destro sono troppo lunghe per il foglio. Gli ultimi {lost} caratteri vengono tagliati e sostituiti da «…». Accorcia le note, imposta una dimensione minore in «Testo foglio», oppure usa una carta più alta.",
   "Judge this run against this set. Available while “Unlock this run's limits” is ticked in the report window, or until a second dated verification locks the run.": "Giudica questa sessione con questo set. Disponibile finché «Sblocca i limiti di questa sessione» è spuntato nella finestra del report, o finché una seconda verifica datata non blocca la sessione.",
   "This run's set is locked. Tick “Unlock this run's limits” in the report window to change it.": "Il set di questa sessione è bloccato. Spunta «Sblocca i limiti di questa sessione» nella finestra del report per cambiarlo.",
-  "Used for this run": "Usato per questa sessione"
+  "Used for this run": "Usato per questa sessione",
+  "Reports generated for this run": "Report generati per questa sessione",
+  "show all": "mostra tutti"
 }

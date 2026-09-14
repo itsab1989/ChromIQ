@@ -5442,5 +5442,7 @@
   "⚠ The chart notes down the right edge are too long for the sheet. The last {lost} characters are cut off and replaced by “…”. Shorten the notes, set a smaller Size under “Sheet text”, or use a taller paper.": "⚠ As notas da carta ao longo da margem direita são demasiado longas para a folha. Os últimos {lost} caracteres são cortados e substituídos por «…». Encurte as notas, defina um tamanho menor em «Texto de folha», ou use um papel mais alto.",
   "Judge this run against this set. Available while “Unlock this run's limits” is ticked in the report window, or until a second dated verification locks the run.": "Avaliar esta execução com este conjunto. Disponível enquanto «Desbloquear os limites desta execução» estiver marcado na janela do relatório, ou até uma segunda verificação datada bloquear a execução.",
   "This run's set is locked. Tick “Unlock this run's limits” in the report window to change it.": "O conjunto desta execução está bloqueado. Marque «Desbloquear os limites desta execução» na janela do relatório para o alterar.",
-  "Used for this run": "Usado para esta execução"
+  "Used for this run": "Usado para esta execução",
+  "Reports generated for this run": "Relatórios gerados para esta execução",
+  "show all": "mostrar todos"
 }

@@ -224,11 +224,15 @@ def test_which_types_exist_is_the_half_that_survives_elision(tmp_path, qapp,
     Already generate…", and what the ellipsis ate was precisely the thing Knut
     asked the window to show.
 
-    Both sentences share one elided line, so the order decides which half a
-    user reads. What a type is FOR has another home: the pulldown's own entries
-    and the help button beside it. What a run already holds has none.
+    **PUTTING THE LIST FIRST WAS NOT ENOUGH, AND HE SAID SO.** 2026-09-13: *"the
+    end of the text is cut off with a '...' at the end. All generated reports
+    should be listed clearly and visible, even if it is a list of 6 report
+    types."* With both sentences on one elided line the description was still
+    pushing the list out on any narrow window; it only took a wider window to
+    hide the problem. The line is the LIST now, and what a type is for keeps
+    the two homes it already had: the pulldown's own entries and its tooltip.
 
-    MUTATION: put the blurb first again and this goes red.
+    MUTATION: join the blurb back on and this goes red.
     """
     from core.i18n import tr
     from workflow.measurement_report import report_type_name
@@ -242,9 +246,10 @@ def test_which_types_exist_is_the_half_that_survives_elision(tmp_path, qapp,
         line = dlg._type_blurb_full
         blurb = dlg._type_blurb_for(REPORT_TYPE_FULL)
         named = tr(report_type_name(REPORT_TYPE_GREY))
-        assert named in line and blurb in line, line
-        assert line.index(named) < line.index(blurb), (
-            "the generated list is after the blurb, so elision eats it first")
+        assert named in line, line
+        assert blurb not in line, (
+            "the type's description shares the line again, so it can push the "
+            "generated list off the end: " + line)
         # …and the blurb is still reachable, on the control it describes
         assert dlg._type_combo.toolTip() == blurb
     finally:

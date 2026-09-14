@@ -5442,5 +5442,7 @@
   "⚠ The chart notes down the right edge are too long for the sheet. The last {lost} characters are cut off and replaced by “…”. Shorten the notes, set a smaller Size under “Sheet text”, or use a taller paper.": "⚠ Kartnotatene langs høyre kant er for lange for arket. De siste {lost} tegnene blir kuttet og erstattet med «…». Kort ned notatene, sett en mindre størrelse under «Arktekst», eller bruk et høyere papir.",
   "Judge this run against this set. Available while “Unlock this run's limits” is ticked in the report window, or until a second dated verification locks the run.": "Vurder denne kjøringen mot dette settet. Tilgjengelig så lenge «Lås opp grensene for denne kjøringen» er huket av i rapportvinduet, eller til en andre datert verifisering låser kjøringen.",
   "This run's set is locked. Tick “Unlock this run's limits” in the report window to change it.": "Settet for denne kjøringen er låst. Huk av «Lås opp grensene for denne kjøringen» i rapportvinduet for å endre det.",
-  "Used for this run": "Brukt for denne kjøringen"
+  "Used for this run": "Brukt for denne kjøringen",
+  "Reports generated for this run": "Rapporter laget for denne kjøringen",
+  "show all": "vis alle"
 }

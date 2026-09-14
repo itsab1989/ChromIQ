@@ -5442,5 +5442,7 @@
   "⚠ The chart notes down the right edge are too long for the sheet. The last {lost} characters are cut off and replaced by “…”. Shorten the notes, set a smaller Size under “Sheet text”, or use a taller paper.": "⚠ 右侧边缘的色卡备注对这张纸来说太长了。最后 {lost} 个字符被截去并替换为「…」。请缩短备注，在「页面文字」中设一个更小的字号，或者换用更高的纸。",
   "Judge this run against this set. Available while “Unlock this run's limits” is ticked in the report window, or until a second dated verification locks the run.": "按此限值集判定本次运行。只要报告窗口中勾选了“解锁本次运行的限值”，或在第二次带日期的验证锁定本次运行之前，均可使用。",
   "This run's set is locked. Tick “Unlock this run's limits” in the report window to change it.": "本次运行的限值集已锁定。请在报告窗口中勾选“解锁本次运行的限值”后再更改。",
-  "Used for this run": "用于本次运行"
+  "Used for this run": "用于本次运行",
+  "Reports generated for this run": "为本次运行生成的报告",
+  "show all": "显示全部"
 }

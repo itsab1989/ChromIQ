@@ -5779,7 +5779,7 @@ class ScannerProfileDialog(_ToolDialogBase):
                     "floor {f} %). Patches reading furthest from "
                     "expectation: {worst}.").format(
                         w=where, a=self._agreement_txt(report),
-                        f=f"{floor}", worst=worst)
+                        f=f"{floor:.0f}", worst=worst)
                 self._log.appendPlainText("⚠ " + msg)
                 self._align_warnings.append(msg)
             elif p.is_printer:
@@ -6588,7 +6588,7 @@ class ScannerProfileDialog(_ToolDialogBase):
                     "(Placement agreement: {a}, floor {f} %. Patches "
                     "reading furthest from expectation: {worst}.)").format(
                         w=where, a=self._agreement_txt(report),
-                        f=f"{floor}", worst=worst))
+                        f=f"{floor:.0f}", worst=worst))
         if not out:
             if agree is not None:
                 out.append(tr(

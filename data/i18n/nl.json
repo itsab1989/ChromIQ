@@ -5442,5 +5442,7 @@
   "⚠ The chart notes down the right edge are too long for the sheet. The last {lost} characters are cut off and replaced by “…”. Shorten the notes, set a smaller Size under “Sheet text”, or use a taller paper.": "⚠ De kaartnotities langs de rechterrand zijn te lang voor het vel. De laatste {lost} tekens vallen weg en worden vervangen door “…”. Kort de notities in, stel een kleinere grootte in onder “Veltekst”, of gebruik hoger papier.",
   "Judge this run against this set. Available while “Unlock this run's limits” is ticked in the report window, or until a second dated verification locks the run.": "Deze run tegen deze set beoordelen. Beschikbaar zolang „Limieten van deze run ontgrendelen” is aangevinkt in het rapportvenster, of totdat een tweede gedateerde verificatie de run vergrendelt.",
   "This run's set is locked. Tick “Unlock this run's limits” in the report window to change it.": "De set van deze run is vergrendeld. Vink „Limieten van deze run ontgrendelen” aan in het rapportvenster om hem te wijzigen.",
-  "Used for this run": "Gebruikt voor deze run"
+  "Used for this run": "Gebruikt voor deze run",
+  "Reports generated for this run": "Rapporten gemaakt voor deze run",
+  "show all": "alles tonen"
 }

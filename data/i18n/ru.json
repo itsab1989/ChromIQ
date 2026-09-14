@@ -5442,5 +5442,7 @@
   "⚠ The chart notes down the right edge are too long for the sheet. The last {lost} characters are cut off and replaced by “…”. Shorten the notes, set a smaller Size under “Sheet text”, or use a taller paper.": "⚠ Заметки мишени вдоль правого края слишком длинные для листа. Последние {lost} символов обрезаются и заменяются на «…». Сократите заметки, задайте меньший размер в «Текст листа» или возьмите бумагу повыше.",
   "Judge this run against this set. Available while “Unlock this run's limits” is ticked in the report window, or until a second dated verification locks the run.": "Оценивать этот прогон по этому набору. Доступно, пока в окне отчёта отмечено «Разблокировать допуски этого прогона», или пока вторая датированная верификация не заблокирует прогон.",
   "This run's set is locked. Tick “Unlock this run's limits” in the report window to change it.": "Набор этого прогона заблокирован. Чтобы изменить его, отметьте «Разблокировать допуски этого прогона» в окне отчёта.",
-  "Used for this run": "Используется для этого прогона"
+  "Used for this run": "Используется для этого прогона",
+  "Reports generated for this run": "Отчёты, созданные для этого прогона",
+  "show all": "показать все"
 }
