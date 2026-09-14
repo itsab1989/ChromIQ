@@ -1,5 +1,52 @@
 # Changelog
 
+## v4.3.0-beta.13
+
+**The limits window now says which set your run is judged by, and three faults
+from beta 12 are undone.** Half-point text sizes did not survive being saved,
+one warning printed a raw float, and a chart laid out patch-first could put its
+bottom line off the edge of the paper without a word.
+
+### New
+
+- **"Used for this run" in the Report limits window.** The window showed a row
+  of radios headed "Default for new runs", which is about future runs, and said
+  nothing at all about the set the run in front of you is judged by. There is a
+  row for that now. It follows the same lock as the pulldown, and choosing a set
+  there is the same act as choosing it in the report window, question and all.
+
+### Fixed
+
+- **Half-point sizes were lost the moment anything reloaded them.** The Size
+  boxes stepped half a point but the value was rounded to a whole one on its way
+  back out of a saved recipe, so 9.5 became 9 through every preset, every chart
+  opened from disk and every restored session. Fifteen of the thirty-one sizes
+  between 5 and 20 pt could not be kept.
+
+- **A scanner warning printed "floor 55.00000000000001 %".** Two messages that
+  quote a percentage were caught up in beta 12's change to how point sizes are
+  printed.
+
+- **A chart laid out with "Prioritise patch size" never checked its bottom
+  line.** The paper is the same width in either layout mode, but only one of
+  them was looking: a line too long for the sheet ran off the edge, cut
+  mid-word, with nothing said. Patch-first is the default for the SpectroScan
+  and the CR30.
+
+- **The note down the right edge stopped shrinking at 300 dpi.** Its starting
+  size was capped in pixels rather than in points, and at the default
+  resolution that cap sat below the smallest size allowed, so a long note was
+  cut short instead of being fitted.
+
+- **The list of reports already generated for a run was cut off.** It shared one
+  line with the description of the chosen report type. The line is the list now,
+  and where the list is still too long it opens in full.
+
+- **Save report as PDF opened in the wrong folder.** The right folder was worked
+  out correctly and then lost: the save panel was told the file name without the
+  directory, so it reopened wherever it had been last.
+
+
 ## v4.3.0-beta.12
 
 **Half a point at a time.** Whole points turned out to be a coarse grid for
