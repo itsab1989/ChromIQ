@@ -3544,7 +3544,22 @@ def save_file_dialog(
         # different order from an Open dialog until this was added.
         dlg.setProxyModel(NameOrderProxy(dlg))
     if default_name:
-        dlg.selectFile(default_name)
+        # THE WHOLE PATH, NOT THE BARE NAME. `selectFile` with a name alone
+        # leaves the directory to the dialog, and the macOS native save panel
+        # keeps its own last-used folder: Knut, 2026-09-13, on Save report as
+        # PDF: *"opens a file window that does not open in the currently open
+        # project, for the selected run, and for the correct level in the
+        # folder structure according to the rules set for where reports are
+        # saved."* Measured here: the caller's `start_path` was correct and
+        # inside the project all along, so the location was being lost between
+        # this function and the panel.
+        #
+        # An absolute path sets both the folder and the name, on the native
+        # and the Qt dialog alike. `start_dir` is still set on the constructor
+        # above, so the fall-back for a folder that does not exist is
+        # unchanged: `p.parent` was checked there and this only re-states the
+        # same place when it was good.
+        dlg.selectFile(str(p) if _is_dir_safe(p.parent) else default_name)
     if not native:
         dlg.setSidebarUrls(_sidebar_urls(extra_path, extra_paths))
         _open_up_sidebar(dlg)

@@ -184,6 +184,15 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         self._column_widgets: "dict[str, list[QWidget]]" = {}
         self._column_checks: "dict[str, QCheckBox]" = {}
         self._default_radios: "dict[str, QRadioButton]" = {}
+        #: The "Used for this run" radios, and the set the user picked with
+        #: them, or "" if they touched none. READ BY THE REPORT WINDOW ON
+        #: CLOSE: this dialog does not rebind a run itself, because the one
+        #: writer (`MeasurementReportDialog._on_set_chosen`) carries the lock
+        #: re-check, the preferences-moved check and the recalculate question,
+        #: and a second copy of those here would be a second set to keep in
+        #: step.
+        self._run_set_radios: "dict[str, QRadioButton]" = {}
+        self.run_set_chosen: str = ""
         self._syncing = False
 
         if run is not None:
@@ -521,6 +530,55 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
             self._default_radios[col] = rb
             g.addWidget(rb, 2, ci, Qt.AlignmentFlag.AlignRight)
             self._column_widgets[col].append(rb)
+        # row 3: WHICH SET THIS RUN USES, and it is a different question from
+        # the row above it.
+        #
+        # Knut, 2026-09-13, on `Report-Limits-Report-Types` run 5: *"The Judged
+        # against is set to 'ChromIQ tight', but when opening 'Edit Limits'
+        # window the 'ChromIQ default' was enabled. Manually clicking any of
+        # the 5 radio-buttons to select a limit set did nothing."*
+        #
+        # Both halves were true and neither was a broken control. Driven on
+        # screen: the run really is bound to `chromiq_tight`, the row he
+        # clicked really is "Default for new runs", and clicking it really did
+        # move `compliance_default_set` and leave the run alone. What the
+        # window never said, anywhere, is which set THIS RUN uses, so the only
+        # radios on screen read as the run's selector.
+        #
+        # So the answer is the row he expected, beside the one that was there,
+        # rather than repurposing a specified setting (CH-1 / S-13) nobody
+        # asked to lose. It follows his rule exactly: enabled only when the run
+        # is editable, which `_run_editable` already computes from the same
+        # predicate the report window's pulldown uses (the unlock tick OR a run
+        # with a single dated verification).
+        #
+        # IT WRITES NOTHING ITSELF. `MeasurementReportDialog._on_set_chosen` is
+        # the one writer, and it carries the lock re-check, the
+        # preferences-moved-underneath check and the recalculate question. A
+        # second implementation here would be a second set of those guards to
+        # keep in step, which is the fault this file has been bitten by twice.
+        # The choice is recorded and the report window applies it on close.
+        if self._run is not None:
+            g.addWidget(QLabel(tr("Used for this run"), self), 3, 0)
+            for ci, col in enumerate(cols, start=2):
+                if col == RUN_COLUMN or col not in selectable:
+                    continue
+                rb = QRadioButton(self)
+                rb.setProperty("set_id", col)
+                rb.setChecked(col == self._run_set_id)
+                rb.setEnabled(bool(self._run_editable))
+                rb.setToolTip(
+                    tr("Judge this run against this set. Available while "
+                       "“Unlock this run's limits” is ticked in the report "
+                       "window, or until a second dated verification locks the "
+                       "run.")
+                    if self._run_editable else
+                    tr("This run's set is locked. Tick “Unlock this run's "
+                       "limits” in the report window to change it."))
+                rb.toggled.connect(self._on_run_set_toggled)
+                self._run_set_radios[col] = rb
+                g.addWidget(rb, 3, ci, Qt.AlignmentFlag.AlignRight)
+                self._column_widgets[col].append(rb)
 
     def _build_rows(self) -> None:
         """The scrolled half: the groups and their limit rows."""
@@ -820,6 +878,23 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
             rb.setChecked(True)
         finally:
             self._syncing = _was
+
+    def _on_run_set_toggled(self, on: bool) -> None:
+        """Remember which set the user picked for THIS RUN. Writes nothing.
+
+        The radios are disabled when the run is not editable, so this cannot
+        fire on a locked run through the UI; the guard is here as well because
+        `setChecked` from code does not care about `setEnabled`, and a future
+        caller that syncs the row must not be able to record a choice through
+        it.
+        """
+        if not on or self._syncing:
+            return
+        rb = self.sender()
+        col = rb.property("set_id") if rb is not None else None
+        if not col or not self._run_editable:
+            return
+        self.run_set_chosen = "" if col == self._run_set_id else str(col)
 
     def _on_default_toggled(self, on: bool) -> None:
         if not on:

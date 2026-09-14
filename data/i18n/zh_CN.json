@@ -5439,5 +5439,8 @@
   "This measurement is not in a project, so it has no saved report and no run of its own. Its words are worked out now against the limit set {label} chosen in this window.": "此测量不属于任何项目，因此既没有已保存的报告，也没有自己的运行。它的判定现在按本窗口中选择的限值集 {label} 计算。",
   "Size is set to {size} pt under “Sheet text” and a typed size is printed exactly as typed, so it never shrinks to fit. On “auto” it would shrink down to {floor} pt.": "尺寸在“页面文字”中设为 {size} pt，手动指定的尺寸会照原样打印，因此不会缩小。若设为“auto”，则会缩小到 {floor} pt。",
   "⚠ The chart notes down the right edge are too long for the sheet. The last character is cut off and replaced by “…”. Shorten the notes, set a smaller Size under “Sheet text”, or use a taller paper.": "⚠ 右侧边缘的色卡备注对这张纸来说太长了。最后 1 个字符被截去并替换为「…」。请缩短备注，在「页面文字」中设一个更小的字号，或者换用更高的纸。",
-  "⚠ The chart notes down the right edge are too long for the sheet. The last {lost} characters are cut off and replaced by “…”. Shorten the notes, set a smaller Size under “Sheet text”, or use a taller paper.": "⚠ 右侧边缘的色卡备注对这张纸来说太长了。最后 {lost} 个字符被截去并替换为「…」。请缩短备注，在「页面文字」中设一个更小的字号，或者换用更高的纸。"
+  "⚠ The chart notes down the right edge are too long for the sheet. The last {lost} characters are cut off and replaced by “…”. Shorten the notes, set a smaller Size under “Sheet text”, or use a taller paper.": "⚠ 右侧边缘的色卡备注对这张纸来说太长了。最后 {lost} 个字符被截去并替换为「…」。请缩短备注，在「页面文字」中设一个更小的字号，或者换用更高的纸。",
+  "Judge this run against this set. Available while “Unlock this run's limits” is ticked in the report window, or until a second dated verification locks the run.": "按此限值集判定本次运行。只要报告窗口中勾选了“解锁本次运行的限值”，或在第二次带日期的验证锁定本次运行之前，均可使用。",
+  "This run's set is locked. Tick “Unlock this run's limits” in the report window to change it.": "本次运行的限值集已锁定。请在报告窗口中勾选“解锁本次运行的限值”后再更改。",
+  "Used for this run": "用于本次运行"
 }

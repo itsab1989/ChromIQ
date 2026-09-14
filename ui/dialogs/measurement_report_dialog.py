@@ -3941,8 +3941,23 @@ class MeasurementReportDialog(QDialog):
         # preferences are put back only when the user refuses.
         collided = bool(getattr(dlg, "run_limits_collided", False))
         prefs_collided = bool(getattr(dlg, "prefs_collided", False))
+        # DID THEY PICK A SET FOR THIS RUN IN THERE? The limits window's "Used
+        # for this run" row records a choice and writes nothing (Knut,
+        # 2026-09-13: the only radios on that window were "Default for new
+        # runs", so clicking one moved the app default and left the run alone,
+        # which read as a dead control). It is applied HERE, through the
+        # pulldown, so it takes the one guarded path: the lock is re-checked,
+        # a preferences change underneath is caught, and the user is asked
+        # about recalculating the run's saved reports. Driving the combo rather
+        # than calling `_on_set_chosen` directly also keeps the control on
+        # screen in step with what was chosen.
+        _run_set_pick = str(getattr(dlg, "run_set_chosen", "") or "")
         dlg.deleteLater()
         self._forget_limits()
+        if _run_set_pick:
+            _i = self._set_combo.findData(_run_set_pick)
+            if _i >= 0 and self._set_combo.currentIndex() != _i:
+                self._set_combo.setCurrentIndex(_i)      # fires _on_set_chosen
 
         # DID WHAT THIS RUN IS JUDGED BY CHANGE? That is the whole test, and it
         # replaces asking which control was touched, which is the question that
