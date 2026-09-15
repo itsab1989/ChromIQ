@@ -123,7 +123,7 @@ def main() -> int:
     # preferences or projects. (A probe of mine once left Basti's target_name
     # pointing at a folder it had deleted.)
     import core.settings as cs
-    ini = Path(tempfile.mkdtemp()) / "drive.ini"
+    ini = Path(tempfile.mkdtemp(prefix="chromiq-test-")) / "drive.ini"
     cs.QSettings = lambda *a, **k: _QS(str(ini), _QS.Format.IniFormat)
     s = cs.AppSettings()
     s.set("custom_output_path", str(work))

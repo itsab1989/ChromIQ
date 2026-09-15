@@ -153,7 +153,7 @@ def main() -> int:      # noqa: PLR0915, PLR0912
         app.installEventFilter(F(app))
 
     import core.settings as cs
-    ini = Path(tempfile.mkdtemp()) / "drive.ini"
+    ini = Path(tempfile.mkdtemp(prefix="chromiq-test-")) / "drive.ini"
     cs.QSettings = lambda *a, **k: _QS(str(ini), _QS.Format.IniFormat)
     s = cs.AppSettings()
     s.set("custom_output_path", str(work))

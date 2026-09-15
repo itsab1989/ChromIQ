@@ -34,7 +34,7 @@ def _laid_out(dlg, runs):
     """(pages, body height, available height) for the PDF of *runs*."""
     from PyQt6.QtCore import QMarginsF, QSizeF
     from PyQt6.QtGui import QPageLayout, QPageSize, QPdfWriter, QTextDocument
-    out = Path(tempfile.mkdtemp()) / "x.pdf"
+    out = Path(tempfile.mkdtemp(prefix="chromiq-test-")) / "x.pdf"
     writer = QPdfWriter(str(out))
     writer.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
     writer.setPageMargins(QMarginsF(_MARGIN_MM, _MARGIN_MM, _MARGIN_MM,

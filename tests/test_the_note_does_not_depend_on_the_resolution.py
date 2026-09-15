@@ -49,7 +49,7 @@ def _sheet(dpi: float, patch_right_mm: float, w_mm=210.0, h_mm=297.0) -> Path:
         return int(round(v * dpi / 25.4))
     a = np.full((px(h_mm), px(w_mm), 3), 255, np.uint8)
     a[px(20):px(h_mm) - px(20), px(20):px(patch_right_mm)] = (200, 60, 60)
-    p = Path(tempfile.mkdtemp()) / "s.tif"
+    p = Path(tempfile.mkdtemp(prefix="chromiq-test-")) / "s.tif"
     tifffile.imwrite(str(p), a, resolution=(dpi, dpi), photometric="rgb")
     return p
 

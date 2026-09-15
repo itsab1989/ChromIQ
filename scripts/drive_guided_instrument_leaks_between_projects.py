@@ -211,7 +211,7 @@ def run(app) -> int:
               "   <<< the reported symptom")
         bad += 1
 
-    (SHOTS if SHOTS.exists() else Path(tempfile.mkdtemp())).mkdir(
+    (SHOTS if SHOTS.exists() else Path(tempfile.mkdtemp(prefix="chromiq-test-"))).mkdir(
         parents=True, exist_ok=True)
     (SHOTS / "leak-report.json").write_text(json.dumps({
         "A_after_build": a_after_build, "B_after_build": b_after_build,

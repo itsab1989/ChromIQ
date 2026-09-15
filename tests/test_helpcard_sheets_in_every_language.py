@@ -61,7 +61,7 @@ import ui.pdf_layout as pdf_layout
 if %(disable_rule)r:
     pdf_layout.drop_orphan_tail = lambda *a, **k: None
 import tempfile, pathlib
-tmp = pathlib.Path(tempfile.mkdtemp())
+tmp = pathlib.Path(tempfile.mkdtemp(prefix="chromiq-test-"))
 only_colophon, thin = [], []
 for wf in WORKFLOWS:
     for size in ("A4", "Letter"):

@@ -76,7 +76,7 @@ def report_dialog(qapp):
 
     from core.settings import AppSettings
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
-    d = Path(tempfile.mkdtemp())
+    d = Path(tempfile.mkdtemp(prefix="chromiq-test-"))
     st = AppSettings()
     st._qs = QSettings(str(d / "s.ini"), QSettings.Format.IniFormat)
     dlg = MeasurementReportDialog(st, None)

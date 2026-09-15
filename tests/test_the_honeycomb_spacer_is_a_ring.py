@@ -78,7 +78,7 @@ def _ti1(d: Path, n: int = 210) -> Path:
 
 def _render(flat_top: bool, spacer_mode: str, dpi: int = 600,
             palette=None):
-    d = Path(tempfile.mkdtemp())
+    d = Path(tempfile.mkdtemp(prefix="chromiq-test-"))
     ti1 = _ti1(d)
     out = d / "out"
     out.mkdir()
@@ -493,7 +493,7 @@ def test_edge_spacers_reach_the_ring(flat_top):
     not. The first ring painted all six sides whatever the box said, so the
     control did nothing on a honeycomb, which is the quietest kind of broken."""
     a = _render(flat_top, "colored", dpi=300, palette=NO_WHITE)[1]
-    d = Path(tempfile.mkdtemp())
+    d = Path(tempfile.mkdtemp(prefix="chromiq-test-"))
     ti1 = _ti1(d)
     out = d / "on"
     out.mkdir()
@@ -521,7 +521,7 @@ def test_the_outside_band_is_a_full_width_spacer(flat_top):
     way, which is what keeps the instrument reading the same area everywhere."""
     dpi = 600
     g = I.build("CR30", hflag=True, hex_flat_top=flat_top, spacer_on=True)
-    d = Path(tempfile.mkdtemp())
+    d = Path(tempfile.mkdtemp(prefix="chromiq-test-"))
     ti1 = _ti1(d)
     out = d / "on"
     out.mkdir()
@@ -713,7 +713,7 @@ def test_a_huge_spacer_still_prints_inside_the_margins():
 
     from workflow.layout_engine import chart as le_chart
 
-    d = Path(tempfile.mkdtemp())
+    d = Path(tempfile.mkdtemp(prefix="chromiq-test-"))
     ti1 = _ti1(d, 120)
     M, dpi = 20.0, 300
     for asked in (1.3, 40.0, 300.0):
@@ -805,7 +805,7 @@ def test_the_margin_inspector_reports_where_the_ink_actually_is():
 
     from workflow.margin_inspector import measure_from_engine
 
-    d = Path(tempfile.mkdtemp())
+    d = Path(tempfile.mkdtemp(prefix="chromiq-test-"))
     ti1 = _ti1(d, 210)
     dpi = 600
     for flat_top in (False, True):
@@ -866,7 +866,7 @@ def test_the_recorded_box_and_the_ink_round_the_same_way():
     import numpy as np
     from PIL import Image
 
-    d = Path(tempfile.mkdtemp())
+    d = Path(tempfile.mkdtemp(prefix="chromiq-test-"))
     N = 300
 
     def col(i):
@@ -998,7 +998,7 @@ def test_a_honeycomb_never_prints_outside_its_margins(flat_top, edge, ring):
     import numpy as np
     from PIL import Image
 
-    d = Path(tempfile.mkdtemp())
+    d = Path(tempfile.mkdtemp(prefix="chromiq-test-"))
     ti1 = _ti1(d, 210)
     M, dpi = 20.0, 600
     out = d / "o"

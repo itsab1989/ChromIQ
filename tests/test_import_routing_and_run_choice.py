@@ -17,7 +17,7 @@ import pytest
 
 @pytest.fixture()
 def work():
-    return pathlib.Path(tempfile.mkdtemp())
+    return pathlib.Path(tempfile.mkdtemp(prefix="chromiq-test-"))
 
 
 #: A chart and a measurement of it, in the shape ChromIQ actually writes —

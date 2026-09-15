@@ -129,7 +129,7 @@ def verification(run, vid, measured=True):
 def main(app):
 
     # ---- E-states -------------------------------------------------------
-    tmp = tempfile.mkdtemp()
+    tmp = tempfile.mkdtemp(prefix="chromiq-test-")
     proj = make_project(tmp, runs=3)
     b = Bar(proj)
 
@@ -255,7 +255,7 @@ def main(app):
     shutil.rmtree(tmp, ignore_errors=True)
 
     # ---- P1 + renumbering, on a fresh project ---------------------------
-    tmp = tempfile.mkdtemp()
+    tmp = tempfile.mkdtemp(prefix="chromiq-test-")
     proj = make_project(tmp, runs=4)
     for rid in ("run1", "run2", "run3", "run4"):
         (proj.run(rid).dir / "marker.txt").write_text(rid, encoding="utf-8")
@@ -287,7 +287,7 @@ def main(app):
     shutil.rmtree(tmp, ignore_errors=True)
 
     # ---- P5: the last run ------------------------------------------------
-    tmp = tempfile.mkdtemp()
+    tmp = tempfile.mkdtemp(prefix="chromiq-test-")
     proj = make_project(tmp, runs=1)
     run1 = proj.run("run1")
     (run1.dir / f"{run1.stem}.ti3").write_text("MEAS", encoding="utf-8")

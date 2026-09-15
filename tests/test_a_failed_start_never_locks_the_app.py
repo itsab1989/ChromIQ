@@ -38,7 +38,7 @@ def _pump(qapp, ms=800):
 def test_on_finish_fires_when_the_binary_cannot_start(broken_runner, qapp):
     runner, _ = broken_runner
     seen = []
-    runner.run("colprof", ["-v"], pathlib.Path(tempfile.mkdtemp()),
+    runner.run("colprof", ["-v"], pathlib.Path(tempfile.mkdtemp(prefix="chromiq-test-")),
                on_finish=seen.append)
     _pump(qapp)
     assert seen == [-1], (

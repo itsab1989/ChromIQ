@@ -7413,3 +7413,41 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   help text carries.
 - evidence: test_the_changelog_does_not_contradict_the_help_it_describes,
   test_the_help_says_a_chromiq_set_drops_those_rows_rather_than_n_a.
+
+### B8-178 · 57 GB of temp folders the sweep was not allowed to recognise
+- blocks release: no
+- status: FIXED
+- found by: Basti, 2026-09-15, after the beta 17 tag: *"there should be around
+  80gb of files from this session still being around ... something is filling
+  up my space during those sessions"*. Measured on his machine, not inferred.
+- evidence: test_no_test_file_makes_a_temp_folder_the_sweep_cannot_see (826
+  parametrised cases, one per test file),
+  test_the_drivers_in_scripts_do_the_same. Mutation proved to land: a bare
+  `tempfile.mkdtemp()` written into any test file turns it red, and the tree
+  restored byte for byte afterwards.
+- detail: `$TMPDIR` held **62 GB in 29,759 entries**, and 57 GB of it sat in
+  27,600 folders named `tmpXXXXXXXX`. The two big groups: **1,150 folders
+  holding one 143 MB `s.tif` each, 53 GB**, from
+  `test_the_note_does_not_depend_on_the_resolution.py` building an A4 sheet at
+  six resolutions, and **1,053 folders of help-card PDFs, 3.9 GB**.
+
+  This is [[project_the_suite_leaked_198gb_of_temp]] again, through the door
+  that fix deliberately left ajar. `_sweep_stale_temp_dirs` may not judge an
+  unprefixed folder BY NAME, because `tmp*` is what every application's
+  `mkdtemp` produces, so it judges by CONTENTS and fails closed. A folder
+  holding one `.tif`, or forty-two `.pdf`s, carries none of the markers it
+  knows (`.ti1 .ti2 .ti3 .cht .cie .icc .cal`, `project.json`, `meta.json`),
+  so it was left where it was, for ever. Both halves of that were right; the
+  half that was missing is that a test may not create a folder the sweep is
+  not allowed to recognise.
+
+  **38 call sites in 24 test files and 1 driver** now pass
+  `prefix="chromiq-test-"`, which the sweep takes by name. The one file that
+  must keep calling `mkdtemp()` bare is
+  `test_the_sweep_sees_an_unprefixed_temp_folder.py`, whose whole subject is
+  the contents rule; it is exempt by name.
+
+  Measured after the fix: a full everyday tier leaves **244 prefixed folders**
+  and the next run's sweep reports *"removed this run's temp files (1.94 GB)"*.
+  Bounded at one run instead of unbounded. Freed on his disk: **61 GB**, from
+  562 to 623 GB.

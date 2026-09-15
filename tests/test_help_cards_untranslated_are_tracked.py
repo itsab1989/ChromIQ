@@ -567,7 +567,7 @@ def test_the_echo_detector_is_not_vacuous():
 
     sample = ("This is a long English sentence that no translator has touched "
               "yet and which must be counted as an echo.")
-    tmp = pathlib.Path(tempfile.mkdtemp()) / "xx.json"
+    tmp = pathlib.Path(tempfile.mkdtemp(prefix="chromiq-test-")) / "xx.json"
     tmp.write_text(json.dumps({"@language_name": "Test", sample: sample}),
                    encoding="utf-8")
     c = json.loads(tmp.read_text(encoding="utf-8"))

@@ -63,7 +63,7 @@ def main() -> int:
         print(f"no Demo-09 in {pkg}")
         return 2
 
-    work = Path(tempfile.mkdtemp())
+    work = Path(tempfile.mkdtemp(prefix="chromiq-test-"))
     shutil.copytree(src, work / src.name)
 
     try:
@@ -95,7 +95,7 @@ def main() -> int:
     # developer's own preferences or projects.
     from PyQt6.QtCore import QSettings as _QS
     import core.settings as cs
-    ini = Path(tempfile.mkdtemp()) / "drive.ini"
+    ini = Path(tempfile.mkdtemp(prefix="chromiq-test-")) / "drive.ini"
     cs.QSettings = lambda *a, **k: _QS(str(ini), _QS.Format.IniFormat)
     s = cs.AppSettings()
     s.set("custom_output_path", str(work))
@@ -344,7 +344,7 @@ def main() -> int:
                                      slot_for_verification)
     from workflow.verify_chart_snapshot import slot_has_snapshot
 
-    pristine = Path(tempfile.mkdtemp()) / src.name
+    pristine = Path(tempfile.mkdtemp(prefix="chromiq-test-")) / src.name
     shutil.copytree(src, pristine)
     _proj = _Project.load(pristine)
     for rid in [r.id for r in _proj.all_runs()]:

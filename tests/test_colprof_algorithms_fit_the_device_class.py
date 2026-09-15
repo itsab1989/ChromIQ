@@ -504,7 +504,7 @@ def _synthetic_ti3(directory: Path, device_class: str) -> Path:
 
 
 def _build(colprof: str, ti3: Path, letter: str) -> "tuple[int, Path | None, str]":
-    work = Path(tempfile.mkdtemp())
+    work = Path(tempfile.mkdtemp(prefix="chromiq-test-"))
     try:
         base = work / "chart"
         shutil.copy(ti3, base.with_suffix(".ti3"))
@@ -516,7 +516,7 @@ def _build(colprof: str, ti3: Path, letter: str) -> "tuple[int, Path | None, str
         icc = next((p for p in (base.with_suffix(".icc"), base.with_suffix(".icm"))
                     if p.is_file() and p.stat().st_size > 1000), None)
         if icc is not None:
-            icc = Path(shutil.copy(icc, tempfile.mkdtemp()))
+            icc = Path(shutil.copy(icc, tempfile.mkdtemp(prefix="chromiq-test-")))
         return r.returncode, icc, (r.stdout + r.stderr)
     finally:
         shutil.rmtree(work, ignore_errors=True)
@@ -556,7 +556,7 @@ def test_real_colprof_refuses_the_letters_this_app_stopped_offering():
     colprof = argyll_tool("colprof")
     if colprof is None:
         pytest.skip("colprof not present")
-    work = Path(tempfile.mkdtemp())
+    work = Path(tempfile.mkdtemp(prefix="chromiq-test-"))
     try:
         ti3 = _synthetic_ti3(work, "OUTPUT")
         for letter in "gGsSm":
@@ -584,7 +584,7 @@ def test_aX_really_does_make_the_same_printer_profile_as_ax():
     colprof = argyll_tool("colprof")
     if colprof is None:
         pytest.skip("colprof not present")
-    work = Path(tempfile.mkdtemp())
+    work = Path(tempfile.mkdtemp(prefix="chromiq-test-"))
     try:
         ti3 = _synthetic_ti3(work, "OUTPUT")
         blobs = {}

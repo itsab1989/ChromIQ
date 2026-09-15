@@ -133,7 +133,7 @@ def test_the_recorded_boxes_still_describe_where_the_ink_is():
 
     from workflow.layout_engine import chart as le_chart
 
-    d = Path(tempfile.mkdtemp())
+    d = Path(tempfile.mkdtemp(prefix="chromiq-test-"))
     N = 300
 
     def col(i):
@@ -336,7 +336,7 @@ def test_a_resized_rotated_chart_stays_inside_its_margins():
 
     from workflow.layout_engine import chart as le_chart
 
-    d = Path(tempfile.mkdtemp())
+    d = Path(tempfile.mkdtemp(prefix="chromiq-test-"))
     lines = ["CTI1", "", 'DESCRIPTOR "m"', 'ORIGINATOR "ChromIQ"',
              'KEYWORD "SAMPLE_LOC"', "NUMBER_OF_FIELDS 7", "BEGIN_DATA_FORMAT",
              "SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z", "END_DATA_FORMAT",
@@ -394,7 +394,7 @@ def test_a_row_number_sits_on_the_patch_it_names():
 
     from workflow.layout_engine import chart as le_chart
 
-    d = Path(tempfile.mkdtemp())
+    d = Path(tempfile.mkdtemp(prefix="chromiq-test-"))
     lines = ["CTI1", "", 'DESCRIPTOR "r"', 'ORIGINATOR "ChromIQ"',
              'KEYWORD "SAMPLE_LOC"', "NUMBER_OF_FIELDS 7", "BEGIN_DATA_FORMAT",
              "SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z", "END_DATA_FORMAT",
@@ -494,7 +494,7 @@ def _multipage(flat_top: bool, patches: int = 1400, dpi: int = 150,
 
     from workflow.layout_engine import chart as le_chart
 
-    d = Path(tempfile.mkdtemp())
+    d = Path(tempfile.mkdtemp(prefix="chromiq-test-"))
     lines = ["CTI1", "", 'DESCRIPTOR "mp"', 'ORIGINATOR "ChromIQ"',
              'KEYWORD "SAMPLE_LOC"', "NUMBER_OF_FIELDS 7", "BEGIN_DATA_FORMAT",
              "SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z", "END_DATA_FORMAT",
@@ -607,7 +607,7 @@ def test_the_row_label_band_clears_the_apex_and_not_the_stagger():
 
     from workflow.layout_engine import chart as le_chart
 
-    d = Path(tempfile.mkdtemp())
+    d = Path(tempfile.mkdtemp(prefix="chromiq-test-"))
     lines = ["CTI1", "", 'DESCRIPTOR "e9"', 'ORIGINATOR "ChromIQ"',
              'KEYWORD "SAMPLE_LOC"', "NUMBER_OF_FIELDS 7", "BEGIN_DATA_FORMAT",
              "SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z", "END_DATA_FORMAT",
@@ -863,7 +863,7 @@ def _scanner_dialog_over_a_turned_chart(monkeypatch):
 
     from workflow.layout_engine import chart as le_chart
 
-    d = Path(tempfile.mkdtemp())
+    d = Path(tempfile.mkdtemp(prefix="chromiq-test-"))
     lines = ["CTI1", "", 'DESCRIPTOR "mesh"', 'ORIGINATOR "ChromIQ"',
              'KEYWORD "SAMPLE_LOC"', "NUMBER_OF_FIELDS 7", "BEGIN_DATA_FORMAT",
              "SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z", "END_DATA_FORMAT",
