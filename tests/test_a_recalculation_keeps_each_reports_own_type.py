@@ -58,8 +58,16 @@ def test_the_window_really_guards_it_this_way():
     import inspect
 
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
-    src = inspect.getsource(MeasurementReportDialog)
-    i = src.index("stamp_report_type(rep, ctx.run)", src.index("_recalculate_run"))
+    # THE METHOD'S OWN SOURCE, not the class's with an index hunted out of it.
+    # This read `src.index("stamp_report_type(rep, ctx.run)",
+    # src.index("_recalculate_run"))` over the whole class, so the anchor was
+    # the first MENTION of the method anywhere — a comment in another method
+    # naming it moved the anchor above `_on_generate_report`, and the test then
+    # inspected that method's stamping instead and failed on work that had not
+    # touched this rule at all. Asking `inspect.getsource` for the method cannot
+    # drift.
+    src = inspect.getsource(MeasurementReportDialog._recalculate_run)
+    i = src.index("stamp_report_type(rep, ctx.run)")
     window = src[max(0, i - 400):i]
     assert 'get("report_type")' in window, \
         "the recalculation stamps the type without asking whether the report has one"

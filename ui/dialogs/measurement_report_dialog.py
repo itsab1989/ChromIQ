@@ -1455,8 +1455,35 @@ class MeasurementReportDialog(QDialog):
                         runs.append(rep)
                     except Exception:  # noqa: BLE001 — one bad date must
                         continue       # not empty the whole history
-        if not runs:
-            # THE SAME MARKER THE DATED FALL-BACK ABOVE SETS, AND FOR THE SAME
+        if not any(self._report_is_about(r, ti3) for r in runs):
+            # THE MEASUREMENT THE WINDOW WAS OPENED ON IS ALWAYS IN ITS OWN
+            # HISTORY. This said `if not runs:`, so the measurement in hand was
+            # used only when the project had NO saved report anywhere — and
+            # `list_project_reports` above deliberately gathers EVERY run of the
+            # project. In a project with more than one profile run, the first
+            # report anybody generated therefore became the answer for every
+            # other run: opened on run 2, the window showed run 1's measurement,
+            # `_origin_dir` pointed at run 1's folder, and Generate filed run 1's
+            # numbers into run 1's reports/ while run 2 went on saying "No report
+            # has been generated for this run yet" for ever. No error, no log
+            # line; the tester who met it reported a button that does nothing.
+            # Photographed on screen, 2026-09-15, in a two-run project.
+            #
+            # The gathering itself is right and stays: the trend across a
+            # printer's builds is the feature (#40, Knut). What was wrong is that
+            # the history was also being read as the subject. So the subject is
+            # added to the history explicitly, exactly as the dated fall-back
+            # above adds a date measured with the report switched off.
+            #
+            # A MEASUREMENT THAT CANNOT BE READ NOW SAYS SO, where a project
+            # with another run's report used to answer with that other run's
+            # numbers. The build below raises, `_add_source` turns it into the
+            # error page naming the file, and that is the same thing a one-run
+            # project has always done. Silently right-looking and wrong is the
+            # failure this whole change is about. (The window cannot be opened
+            # on a file that is simply MISSING: `__init__` checks `exists()`.)
+            #
+            # THE SAME MARKER THAT FALL-BACK SETS, AND FOR THE SAME
             # REASON. This report is being built right now, from a measurement
             # that never had one saved beside it — the run's own profiling
             # chart is the everyday case, because ChromIQ saves a report under
@@ -1469,9 +1496,10 @@ class MeasurementReportDialog(QDialog):
             # column: *"The statemend 'It was saved by a version of ChromIQ
             # that did not yet keep the verdict together with the
             # measurements' seems wrong."* It was.
-            runs = [build_report(ti3, argyll_bin=self._argyll_bin())]
-            runs[0]["_origin_dir"] = str(ti3.parent)
-            runs[0]["_fresh"] = True
+            fresh = build_report(ti3, argyll_bin=self._argyll_bin())
+            fresh["_origin_dir"] = str(ti3.parent)
+            fresh["_fresh"] = True
+            runs.append(fresh)
         runs.sort(key=lambda r: str(r.get("created") or ""))
         from workflow.measurement_report import annotate_raw_drift
         annotate_raw_drift(runs)
@@ -1524,20 +1552,73 @@ class MeasurementReportDialog(QDialog):
             self._view.setHtml(self._error_html(str(exc)))
             return
         if added:
-            runs = self._sources[0]["runs"]
             # The window was opened ON this measurement — with "Show all
             # measurement runs" off it must show exactly that date, as its
             # own tooltip promises, not silently the history's newest
             # (found by Knut's report demo package, 2026-08-10).
-            mine = [r for r in runs
-                    if str(r.get("_origin_dir", "")) == str(ti3.parent)]
-            self._report = (mine[-1] if mine else runs[-1])
+            # ...AND THE SOURCE IT WAS JUST GIVEN, not `_sources[0]`, which is
+            # a different measurement as soon as anything was loaded first.
+            self._report = self._subject_of(self._sources[-1])
             self._rebuild_from_sources()
 
     @staticmethod
+    def _report_is_about(r: dict, ti3: Path) -> bool:
+        """Whether a gathered report describes THIS measurement file.
+
+        A saved report keeps the measurement's bare file NAME (`build_report`
+        stores no path), and `_gather_runs` records the folder it was read from
+        as `_origin_dir`, so the pair is the identity. The folder alone is not:
+        a run folder holds `<name>.ti3` beside `preconditioning.ti3` and
+        `merged.ti3`, and somebody's Downloads folder holds whatever they put
+        there. A report saved before the name was kept carries none, and is
+        matched on its folder alone rather than declared foreign.
+        """
+        if str(r.get("_origin_dir", "")) != str(ti3.parent):
+            return False
+        name = str(r.get("ti3") or "")
+        return (not name) or Path(name).name == ti3.name
+
+    def _subject_of(self, src: dict) -> dict:
+        """THE MEASUREMENT A SOURCE IS ABOUT: the file the window was opened on,
+        or the file the user added, never the newest thing in its history.
+
+        The history a source carries deliberately spans the project's runs (#40,
+        Knut: the printer's full measurement history), so its newest entry is
+        routinely a DIFFERENT run's measurement. Every place that needs "the
+        measurement in hand" asks this, and every place that wants the trend
+        asks `_runs_for_report`.
+        """
+        runs = src.get("runs") or []
+        ti3 = src.get("ti3")
+        if ti3 is not None:
+            ti3 = Path(ti3)
+            mine = [r for r in runs if self._report_is_about(r, ti3)]
+            if mine:
+                return mine[-1]
+            # Nothing about this exact file: a report from its own FOLDER is
+            # still this run's, which is nearer than the history's newest.
+            here = [r for r in runs
+                    if str(r.get("_origin_dir", "")) == str(ti3.parent)]
+            if here:
+                return here[-1]
+        return runs[-1]
+
+    @staticmethod
     def _run_key(r: dict) -> str:
-        """A stable identity for one run across list rebuilds."""
-        return f"{r.get('created', '')}|{r.get('ti3', '')}"
+        """A stable identity for one run across list rebuilds.
+
+        THE FOLDER IS PART OF IT. Created plus file name was not an identity in
+        a project with several profile runs: every run's measurement carries the
+        SAME file name (the sanitised project name), so two runs measured in the
+        same second were one key. Unticking one row then hid both, and the
+        one-page summary could pick either. The same collision is on record for
+        two dated verifications built at load time
+        (`tests/test_the_one_page_summary_is_about_one_sheet.py`); this removes
+        the class rather than the instance. Session-only: `_hidden_runs` is the
+        only thing that keeps one.
+        """
+        return (f"{r.get('_origin_dir', '')}|{r.get('created', '')}"
+                f"|{r.get('ti3', '')}")
 
     def _run_row_label(self, r: dict) -> str:
         """'2026-08-10 12:04 — printed raw — no profile' — the date plus how
@@ -1669,7 +1750,10 @@ class MeasurementReportDialog(QDialog):
             except Exception as exc:  # noqa: BLE001
                 failed.append(f"{Path(path).name} — {exc}")
         if added:
-            self._report = self._sources[0]["runs"][-1]
+            # The first source's own measurement, not the newest thing in its
+            # history — which, since the history spans the project's runs, is
+            # routinely another run's (see `_subject_of`).
+            self._report = self._subject_of(self._sources[0])
             self._rebuild_from_sources()
         if failed and not added:
             self._view.setHtml(self._error_html(
@@ -1709,7 +1793,7 @@ class MeasurementReportDialog(QDialog):
                 del self._sources[si]
         if self._sources:
             first = self._sources[0]
-            self._report = first["runs"][-1]
+            self._report = self._subject_of(first)
             self._ti3 = first.get("ti3") or first["dir"] / f'{first["name"]}.ti3'
         else:
             self._report, self._ti3 = None, None
@@ -1936,6 +2020,60 @@ class MeasurementReportDialog(QDialog):
             return reports_subdir(lca.parent)
         return reports_subdir(lca)
 
+    def _reports_to_generate(self) -> list:
+        """WHICH MEASUREMENTS THIS BUTTON WRITES A REPORT FOR, which is not the
+        same question as what the document covers.
+
+        `_runs_for_document` answers "what is this page about", and that may
+        legitimately span the project's runs: the trend across a printer's
+        builds is the feature (#40, Knut). What Generate writes is narrower, for
+        two reasons that are both in the design record:
+
+        * the report TYPE is stored on the run (§10 of
+          `docs/design/measurement_report_limits.md`), and this method stamps
+          the WINDOW's run's type on every file it writes;
+        * the limit set belongs to the run (§5), and it stamps the WINDOW's
+          limits with it.
+
+        Filing such a file into another run's folder therefore writes that run's
+        measurement under this run's yardstick and this run's type, which is the
+        cross-run leak this window shipped with. The comment on the button's own
+        enable line already said what it should do: *"the button writes a report
+        for the run the window is on"*.
+
+        So: never across a run boundary, and one report per MEASUREMENT rather
+        than one per report already saved of it. That second rule is its own
+        fault — the count doubled on every press, because each saved report came
+        back as a history entry and each history entry was written again. Driven
+        on screen: three presses on one profiling run left four files.
+
+        A measurement in no run (an imported file, CH-14) has no run boundary to
+        stay inside, so it keeps whatever the document covers, deduplicated.
+        """
+        runs = self._runs_for_document()
+        ctx = self._run_ctx
+        mine: "set[str] | None" = None
+        if ctx is not None:
+            # ASKED OF THE RUN, NOT MATCHED OUT OF A STRING — `…/runs/run10`
+            # starts with `…/runs/run1`, and this window has paid for that once
+            # already (see `_recalculate_run`).
+            mine = {str(ctx.run.dir)}
+            try:
+                mine |= {str(v.dir) for v in ctx.run.verifications()}
+            except Exception:                            # noqa: BLE001
+                pass
+        out, seen = [], set()
+        for r in runs:
+            origin = str(r.get("_origin_dir") or "")
+            if not origin or (mine is not None and origin not in mine):
+                continue
+            key = (origin, Path(str(r.get("ti3") or "")).name)
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(r)
+        return out
+
     def _on_generate_report(self) -> None:
         """Save a report of the type now chosen, for the run now shown.
 
@@ -1951,7 +2089,7 @@ class MeasurementReportDialog(QDialog):
         when you switch.
         """
         ctx = self._run_ctx
-        reports = self._runs_for_document()
+        reports = self._reports_to_generate()
         if ctx is None or not reports:
             return
         from workflow.measurement_report import (save_report, stamp_report_type,
@@ -2596,8 +2734,19 @@ class MeasurementReportDialog(QDialog):
             self._type_combo.setToolTip(blurb)
         # The button writes a report for the run the window is on. With no run,
         # or with several loaded, there is no single place for it to go.
+        #
+        # AND IT ASKS THE LIST IT WILL ACTUALLY WRITE FROM. It asked
+        # `_runs_for_report`, which is everything loaded: unticking the row of
+        # the run you are standing in left the button enabled over an empty
+        # target list, so pressing it wrote nothing and said nothing. That is
+        # the same "a button that does nothing" the cross-run fault presented
+        # as, and an adversary round drove it on screen the same day the fault
+        # was fixed. A disabled button is visibly refusing; a live one that
+        # writes nothing is not. The all-unticked case already disabled it, so
+        # this only makes the rule reach the row that matters.
         self._generate_btn.setEnabled(
-            run is not None and not several and bool(self._runs_for_report()))
+            run is not None and not several
+            and bool(self._reports_to_generate()))
         # A ONE-PAGE SUMMARY IS ABOUT ONE SHEET, so the tick that widens every
         # other report to the whole history is disabled rather than left to do
         # nothing visible. See `_one_measurement` for what it was doing before.
