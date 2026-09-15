@@ -5099,7 +5099,6 @@
   "this gamut source profile ({reason})": "此色域源配置文件（{reason}）",
   "this row needs a reference file for the printing condition; the chart's design has no aim for it": "this row needs a reference file for the printing condition; the chart's design has no aim for it",
   "this run has no measurement, as before": "本次运行仍然没有测量，和之前一样",
-  "this value was not computed for this report; the measurement file could not be read again": "this value was not computed for this report; the measurement file could not be read again",
   "through this run's profile": "通过此运行的配置文件",
   "tiffgamut could not build the image gamut.{s}": "tiffgamut 无法构建图像色域。{s}",
   "times": "次",
@@ -5523,5 +5522,6 @@
   "⚠ This run already holds a measurement, and an import never writes over one. ChromIQ will offer to make a new run beside it with a copy of the same chart, and file this measurement there instead.": "⚠ 本次运行已经有一份测量，导入绝不会覆盖它。ChromIQ 会提议在旁边新建一次运行、复制同一张色卡，并把这份测量归档到那里。",
   "This run already holds a measurement, and ChromIQ could not open the project it would need to make a new run beside it. Nothing has been imported and nothing has been changed.": "本次运行已经有一份测量，ChromIQ 无法打开在旁边新建一次运行所需要的项目。没有导入任何内容，也没有更改任何内容。",
   "this file is a chart, not a measurement of one. It is the list of colours to print, and the numbers in it are the colours ChromIQ ASKED for, not the ones an instrument read back. Choose the file your measuring software saved instead.": "这个文件是色卡，不是对色卡的测量。它是要打印的颜色清单，其中的数字是 ChromIQ 要求的颜色，而不是仪器读回来的颜色。请改为选择你的测量软件保存的文件。",
-  "Before anything is filed, the measurement is checked patch for patch against this run's chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.": "Before anything is filed, the measurement is checked patch for patch against this run's chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes."
+  "Before anything is filed, the measurement is checked patch for patch against this run's chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.": "Before anything is filed, the measurement is checked patch for patch against this run's chart ({name}). It was designed with {n} patches and prints {sheet} squares, because its last strip is filled out, so a measurement of the whole sheet holds {sheet}. A file that does not match is refused, and nothing changes.",
+  "this value is not in this saved report; it was not one of the values ChromIQ kept when the report was saved": "this value is not in this saved report; it was not one of the values ChromIQ kept when the report was saved"
 }

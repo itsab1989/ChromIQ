@@ -1403,8 +1403,34 @@ class MeasurementReportDialog(QDialog):
             # place, and it was a draft confirmed by nobody.
             stale = _report_needs_rebuilding(rep)
             if stale:
-                run_ti3 = p.parent.parent / ti3.name
-                if run_ti3.is_file():
+                # ...FROM ITS OWN MEASUREMENT, AND THIS USED TO BE
+                # `p.parent.parent / ti3.name`, WHICH IS WHATEVER IS IN THE RUN
+                # FOLDER TODAY. Every measurement of one run carries the same
+                # file name, so a run that has been measured again does not
+                # hold this report's measurement any more: it was copied into
+                # `old/<stamp>/` and a different sheet took its place under
+                # that name. The rebuild then recomputed the row from a
+                # DIFFERENT measurement, kept the old date and the old verdict,
+                # and printed today's numbers under a date five weeks old.
+                #
+                # Measured on one real disk: of 54 saved reports, FOUR describe
+                # the measurement still live in their run folder. On
+                # CR30-Test/runs/run1 the window drew seventeen dated rows and
+                # every one of them read 8 patches, ΔE00 avg 11.948, paper
+                # white L* 66.97 — the sheet measured on 8 September — while
+                # the row dated 29 August had been saved with 20 patches, ΔE00
+                # 15.907 and white L* 92.39. The over-time trend (#40) drew
+                # seventeen points in five flat lines across five weeks.
+                # Photographed in `~/Desktop/ChromIQ-beta18-proof/
+                # combined-round-3/B1-seventeen-dates-one-sheet.png`.
+                #
+                # `_measurement_for` answers with the run's measurement only
+                # while it still IS this report's measurement, by the stamp
+                # `build_report` wrote into the report, and with None
+                # otherwise. A row that keeps the numbers it was saved with is
+                # honest; a row filled in from another sheet is not.
+                run_ti3 = self._measurement_for(rep, p.parent.parent, ti3)
+                if run_ti3 is not None:
                     try:
                         created = rep.get("created")
                         # The verdict this report was SAVED with is a RECORD,
@@ -1641,6 +1667,47 @@ class MeasurementReportDialog(QDialog):
                     >= str(out[at].get("_report_file") or "")):
                 out[at] = r
         return out
+
+    @staticmethod
+    def _measurement_for(rep: dict, run_dir: Path,
+                         opened_on: Path) -> "Path | None":
+        """The measurement a SAVED report was built from, or None.
+
+        A saved report keeps the measurement's bare file NAME and its
+        ``created`` stamp, and `workflow.measurement_report.created_stamp_for`
+        is the one rule that produced that stamp. So the file in the run folder
+        is this report's measurement when its own stamp is the report's, and is
+        a DIFFERENT measurement of the same run when it is not: measuring again
+        copies the previous ``.ti3`` into ``old/<when>/`` and writes the new one
+        under the same name.
+
+        NONE IS AN ANSWER, and it is the one that matters. The caller then
+        leaves the saved report exactly as it was saved rather than recompute it
+        from a sheet somebody else measured.
+
+        THE ARCHIVED COPY IS NOT OFFERED, ON PURPOSE. ``old/<when>/<name>.ti3``
+        is the right measurement and can be found the same way, but it sits
+        alone: `_find_reference_ti2` looks beside the file, in its ``chart/``
+        snapshot and at the run root, and an archive folder has none of those,
+        so a report rebuilt from it would come back with no design reference
+        and therefore no accuracy figures at all. A row that keeps the numbers
+        it was saved with is better than a row rebuilt into emptiness.
+
+        The NAME comes from the report, not from the file the window was opened
+        on: a run folder can hold reports naming a different chart (a project
+        copied out of another), and rebuilding those from this run's
+        measurement is the same mistake in smaller print. `opened_on` is the
+        fall-back for a report saved before the name was kept.
+        """
+        from workflow.measurement_report import created_stamp_for
+        want = str(rep.get("created") or "")
+        if not want:
+            return None
+        name = Path(str(rep.get("ti3") or "")).name or opened_on.name
+        live = run_dir / name
+        if live.is_file() and created_stamp_for(live) == want:
+            return live
+        return None
 
     @staticmethod
     def _report_is_about(r: dict, ti3: Path) -> bool:
@@ -3127,8 +3194,18 @@ class MeasurementReportDialog(QDialog):
                                       "information only"),
             "no_corners": tr("the chart has no patch at the colour corners this "
                              "row needs"),
-            "not_computed": tr("this value was not computed for this report; "
-                               "the measurement file could not be read again"),
+            # WHAT THE CODE MEANS, WHICH IS NOT WHAT THIS USED TO SAY.
+            # `REASON_NOT_COMPUTED` is set when the BLOCK IS MISSING FROM THIS
+            # REPORT; it says nothing about whether a file can be read. The old
+            # sentence named a cause, "the measurement file could not be read
+            # again", and that cause was untrue in both cases that reach here:
+            # a report saved before the row existed was never asked for the
+            # value, and a report of a measurement that has since been
+            # re-measured has its own .ti3 sitting in the run's old/ folder.
+            # This sentence is the one thing that is true of both.
+            "not_computed": tr("this value is not in this saved report; it "
+                               "was not one of the values ChromIQ kept when "
+                               "the report was saved"),
         }
         return texts.get(code or "", "")
 

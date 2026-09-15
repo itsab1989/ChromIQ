@@ -8451,3 +8451,68 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   `test_the_frame_actually_hands_the_notes_the_worst_page` exists at all, since
   the first seven tests all called `_worst_page_report` themselves and every
   one of them stayed GREEN under it.
+
+### B8-205 · Every dated row in the Measurement Report carried today's sheet's numbers
+- blocks release: no
+- status: FIXED
+- found by: combined adversary round 3, 2026-09-15, attacking round 2's own
+  fix on the real disks that fix was measured on
+  (`drive_the_measurement_a_window_is_about.py`,
+  `drive_one_sheet_under_every_date.py`).
+- detail: WHAT A USER SEES, photographed on `CR30-Test/runs/run1` copied out of
+  a real working folder (`B1-seventeen-dates-one-sheet.png`). That run holds
+  seventeen distinct measurements and twenty-two archived copies in `old/`.
+  Round 2 restored one row per measurement, so the window listed all seventeen
+  dates across five weeks, "No. of Measurements: 17", "Date range 2026-08-28 –
+  2026-09-08". **Every one of those rows read 8 patches, ΔE00 average 11.948,
+  paper white L\* 66.97** — the sheet measured on 8 September. The row dated
+  29 August had been saved with 20 patches, ΔE00 15.907 and white L\* 92.39.
+  Sixteen of the seventeen rows had their saved numbers replaced, and the
+  over-time trend (#40) — the thing the window's own subtitle promises — drew
+  seventeen points in five perfectly flat lines. Surveyed over that whole disk:
+  of 54 saved reports, **four** describe the measurement still live in their
+  run folder, so 50 rows in that user's history were showing another sheet.
+- cause: `_gather_runs` rebuilds a saved report whose schema or block set is out
+  of date, and took the measurement to rebuild from as
+  `p.parent.parent / ti3.name` — the run folder plus the name of the file the
+  window was opened on. Every measurement of one run carries that same name:
+  the stem is the sanitised project name, and measuring again copies the
+  previous `.ti3` into `old/<when>/` and writes the new one over it. So for
+  every report but the newest that path is a different measurement. The
+  rebuild kept the saved date and the saved verdict and replaced every number,
+  which is why the fault was invisible until round 2 stopped the rows being
+  collapsed into one.
+- fix: `workflow.measurement_report.created_stamp_for` is the rule
+  `build_report` stamps `created` with, lifted out of it so there are two
+  callers and one rule. `MeasurementReportDialog._measurement_for` answers with
+  the run's measurement only while its own stamp is still this report's, and
+  `None` otherwise; the rebuild is skipped for a `None`, so the row keeps the
+  numbers it was saved with. The name comes from the report, not from the file
+  the window was opened on. The archived copy in `old/<when>/` is deliberately
+  NOT offered as a rebuild source: `_find_reference_ti2` looks beside the file,
+  in its `chart/` snapshot and at the run root, and an archive folder has none
+  of those, so a report rebuilt from it would come back with no design
+  reference and therefore no accuracy figures at all.
+- also: the reason printed beside such a row said *"this value was not computed
+  for this report; the measurement file could not be read again"*. That names a
+  cause `REASON_NOT_COMPUTED` never meant — it means the block is missing from
+  the saved report — and the cause was untrue in both cases that reach it. The
+  module's own docstring had said so since 2026-09-13. It now reads *"this
+  value is not in this saved report; it was not one of the values ChromIQ kept
+  when the report was saved"*, with the German translated and the stale key
+  removed from all twelve catalogues.
+- evidence: test_each_row_carries_its_own_measurements_numbers,
+  test_the_trend_draws_a_different_point_for_each_measurement,
+  test_the_measurement_still_in_the_run_folder_is_still_rebuilt,
+  test_created_stamp_for_is_the_stamp_build_report_writes,
+  test_a_date_only_measured_keyword_reads_the_same_both_ways,
+  test_a_report_naming_another_chart_is_not_rebuilt_from_this_run,
+  test_a_measurement_whose_stamp_moved_is_not_claimed,
+  test_no_row_is_told_its_measurement_could_not_be_read. MUTATIONS PROVED,
+  each one grepped out of the file the run reads before the run that judged it:
+  putting the rebuild's source back to `p.parent.parent / ti3.name` turns 2
+  red, making `_measurement_for` always answer None turns 3 red, dropping the
+  stamp condition turns 3 red, taking the name from the window instead of the
+  report turns 1 red, making `created_stamp_for` fall back to `now()` turns 4
+  red, removing its date-only branch turns 1 red, and restoring the old
+  sentence turns 1 red.

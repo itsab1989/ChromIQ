@@ -442,6 +442,71 @@ def _rgb_to_0_100(rgb):
     return arr * (100.0 / 255.0) if float(arr.max()) > 101.0 else arr
 
 
+#: The keyword a converted i1Profiler export carries its measurement date in.
+_MEASURED_KEYWORD = "CHROMIQ_MEASURED"
+
+
+def _measured_keyword(ti3_path: Path) -> str:
+    """``CHROMIQ_MEASURED`` off a ``.ti3``'s header, without parsing the table.
+
+    A cheap scan, because :func:`created_stamp_for` is asked about every
+    archived measurement in a run's ``old/`` folder and a full
+    :func:`parse_ti3` of each would make opening the report window a job. It
+    reads the header only: CGATS keywords stand above ``BEGIN_DATA_FORMAT``,
+    and the loop stops there.
+    """
+    try:
+        text = read_text(ti3_path, lenient=True)
+    except OSError:
+        return ""
+    for ln in text.splitlines():
+        s = ln.strip()
+        if s.startswith("BEGIN_DATA"):
+            break
+        head, _, rest = s.partition(" ")
+        if head == _MEASURED_KEYWORD:
+            return rest.strip().strip('"').strip()
+    return ""
+
+
+def created_stamp_for(ti3_path: str | Path, *,
+                      keywords: "dict | None" = None) -> str:
+    """The ``created`` stamp a report of *ti3_path* carries. THE ONE RULE.
+
+    Date the report by the MEASUREMENT date when the ``.ti3`` carries one
+    (``CHROMIQ_MEASURED``, written by Convert i1Profiler → TI3 from the
+    export's date), so imported runs trend by when they were measured and not
+    by when the report was built. Native chartread files have no such keyword,
+    so the FILE's own time is used — not ``now()``, or every date on a history
+    rebuilt for the trend collapses onto the moment the window was opened
+    (Sebastian, 2026-08-10: four dates, one identical timestamp).
+
+    IT IS A FUNCTION BECAUSE IT IS AN IDENTITY, not only a date. A saved report
+    keeps the measurement's bare file NAME, and every measurement of one run
+    carries the same name: the run's chart is re-measured, the previous file is
+    copied into ``old/<stamp>/`` and the new one takes its place. So the only
+    thing on disk that tells one of a run's measurements from another is this
+    stamp, and :meth:`MeasurementReportDialog._measurement_for` matches a saved
+    report to its own measurement with it. Two callers, one rule, so a report
+    built from a file always matches that file.
+    """
+    ti3_path = Path(ti3_path)
+    if keywords is None:
+        measured = _measured_keyword(ti3_path)
+    else:
+        measured = str(keywords.get(_MEASURED_KEYWORD) or "")
+    measured = measured.strip()
+    if re.match(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$", measured):
+        return measured if measured.count(":") == 2 else measured + ":00"
+    if re.match(r"^\d{4}-\d{2}-\d{2}$", measured):
+        return f"{measured}T00:00:00"
+    try:
+        return datetime.fromtimestamp(
+            ti3_path.stat().st_mtime).isoformat(timespec="seconds")
+    except OSError:
+        return datetime.now().isoformat(timespec="seconds")
+
+
 def build_report(ti3_path: str | Path, worst_n: int = 16,
                  argyll_bin: "str | Path | None" = None) -> dict:
     """Compute a measurement report from a measured ``.ti3``.
@@ -454,25 +519,7 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
     data = parse_ti3(ti3_path)
     lab = [xyz_to_lab((x / 100.0, y / 100.0, z / 100.0)) for x, y, z in data.xyz]
 
-    # Date the report by the MEASUREMENT date when the .ti3 carries one
-    # (CHROMIQ_MEASURED, written by Convert i1Profiler → TI3 from the export's
-    # date), so imported runs trend by when they were measured, not when the
-    # report is built. Native chartread files have no such keyword → build time.
-    _measured = str(data.keywords.get("CHROMIQ_MEASURED") or "").strip()
-    if re.match(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$", _measured):
-        _created = _measured if _measured.count(":") == 2 else _measured + ":00"
-    elif re.match(r"^\d{4}-\d{2}-\d{2}$", _measured):
-        _created = f"{_measured}T00:00:00"
-    else:
-        # No keyword: the FILE's own time, not now() — a history rebuilt for
-        # the trend must date each point by when it was measured, or every
-        # date collapses onto the moment the window was opened (Sebastian,
-        # 2026-08-10: four dates, one identical timestamp).
-        try:
-            _created = datetime.fromtimestamp(
-                ti3_path.stat().st_mtime).isoformat(timespec="seconds")
-        except OSError:
-            _created = datetime.now().isoformat(timespec="seconds")
+    _created = created_stamp_for(ti3_path, keywords=data.keywords)
     report: dict = {
         "schema": REPORT_SCHEMA,
         "created": _created,

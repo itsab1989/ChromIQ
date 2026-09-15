@@ -6,6 +6,8 @@ reference" and an empty trend because the cached reports were stale)."""
 from __future__ import annotations
 
 import json
+import os
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -50,6 +52,15 @@ def _make_run(tmp_path: Path) -> Path:
     run.mkdir(parents=True)
     (run / "c.ti2").write_text(_TI2, encoding="utf-8")
     (run / "c.ti3").write_text(_TI3, encoding="utf-8")
+    # ITS OWN .TI3, WHICH THE FIXTURE HAS TO STATE. `_gather_runs` rebuilds a
+    # stale report from the measurement that report was BUILT FROM, matched by
+    # the stamp `build_report` wrote into it (B8-205: every measurement of one
+    # run carries the same file name, so "the file in the run folder" is not an
+    # identity and a run measured seventeen times had every row rebuilt from
+    # the newest sheet). This report is dated 2026-01-02, so the .ti3 it is
+    # about carries that time.
+    _t = datetime.fromisoformat("2026-01-02T10:00:00").timestamp()
+    os.utime(run / "c.ti3", (_t, _t))
     reps = run / "reports"
     reps.mkdir()
     (reps / "report_2026-01-02_10-00-00.json").write_text(json.dumps(_OLD_REPORT), encoding="utf-8")
