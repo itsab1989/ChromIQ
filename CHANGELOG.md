@@ -1,5 +1,239 @@
 # Changelog
 
+## v4.3.0-beta.17
+
+**A warning about the bottom text that was measuring the wrong two numbers, and
+help text that answers what the Report type and Judged against pulldowns are
+actually for.**
+
+### Fixed
+
+- **The panel said nothing while the settings line down the right edge was cut
+  short.** It predicted "Chart layout <name>" where the sheet stamps the targen
+  command, which is 23 characters longer, so the "last N characters are cut
+  off" warning under-counted and, on an ordinary chart, never appeared at all.
+  Measured on the rendered sheet: 15 characters lost and the line ending
+  "ChromI...", at every right margin from 6 to 30 mm. The prediction now asks
+  which route the Generate button will take, so a chart laid out from a stored
+  patch set still reads "Chart layout" and a fresh one reads targen.
+
+- **"The sheet text runs into the patches" appeared over sheets with five
+  millimetres of clear paper.** The check compared the bottom margin you typed
+  against the height of the text block, and neither of those is the distance
+  between the patches and the text: the text is anchored on the paper edge and
+  never moves with the margin, and the patch area is held back above it by the
+  layout engine. Reported by Knut on the CR30 Letter 792-patch straight preset
+  at an 11.0 mm bottom margin. It now measures where the patch area really
+  stops, through the same geometry the renderer uses, and agrees with the
+  rendered sheet to within 0.03 mm across a sweep from 7.5 to 16 mm.
+
+- **And the advice in that warning named a number that did not work.** "Raise
+  Bottom under Margins (mm) by about 3.4 mm" bought 1.7 mm of clearance,
+  because the patch grid is re-fitted every time the margin moves. The number
+  now comes from the layout itself: the margin is walked up until the block
+  really clears, so what the sentence promises is what typing it in does.
+
+- **Sheet text at Size auto only shrank on width.** A line that fitted
+  sideways but was too tall kept its size. It shrinks on either now.
+
+- **The engine's bottom reserve had 4.2 mm per line written into it as a
+  number**, beside the constant it is meant to be. One constant now, so the
+  renderer and the warning cannot drift apart.
+
+- **The "lower B" advice could still promise room it cannot buy.** Where "B"
+  under "Text distance from edge (mm)" sits above the ruler helper markers'
+  reach, lowering it moves the text only down to the markers and then stops.
+  Measured on screen: the offer was made at six settings of "B" and pulling it
+  all the way bought 5 mm of a larger shortfall. The panel asks the sheet now,
+  by rebuilding the layout with "B" at the bottom of its range, and only offers
+  the lever where it really closes the gap.
+
+- **And a "B" of 0 is not the bottom of that range.** A box reading 0 draws the
+  text at 4.0 mm, so the only way to move it lower is to raise the number to
+  0.1. Nobody is told to lower a box that already reads 0 any more.
+
+- **The rise the warning names now survives a click of the spin box.** The
+  amount of margin that clears the text is not always monotone: on some layouts
+  a whole row of patches drops out and comes back, so on one measured sheet a
+  rise of 9.7 mm cleared, 9.8 did not and 9.9 cleared again. The number named
+  is one whose neighbours clear too, and it sits on the 0.5 mm step the box
+  uses.
+
+- **And the panel got slow while that warning was up.** Working out how much
+  more margin really clears the text meant rebuilding the page layout about a
+  dozen times per keystroke, which made every 0.5 mm step of the bottom margin
+  cost 120 to 210 ms, in exactly the state you are turning that box to get out
+  of. It starts from the shortfall now, remembers what it has already tried,
+  and works in the 0.5 mm steps the box itself uses, so a warning step costs
+  about twice a quiet one instead of six times. The number it names is also one
+  you can reach with the arrows rather than one you would have to type.
+
+- **The warning offered a way out through the helper markers and had never
+  tried it.** Where the markers hold the text above "B", the message said
+  switching them off hands that distance back. Driven on screen across 24 such
+  sheets, **16 of them still had the warning after doing exactly that**, with
+  the ruler markers thrown away for nothing. That sentence is now offered only
+  where switching the markers off and taking "B" down really clears the text.
+
+- **The shortcut that made the panel fast could make the advice four times too
+  big.** Starting the search at the shortfall and walking up misses the sheets
+  where a smaller rise drops a whole strip and clears it: on one, the answer
+  was 2.5 mm and the shortcut said 9.5. It probes below the hint first now, and
+  agrees with the slow search on all 380 states measured.
+
+- **And the advice could ask for a margin the box does not hold.** "Bottom"
+  stops at 60 mm, while the search was capping the RISE at 60: on 160 of 1,501
+  sheets it named a total above that, so the box clamped and the warning
+  stayed. The search is capped at what the box can take, and a sheet no margin
+  can rescue now gets its own message, which names no rise at all.
+
+- **That message used to offer a larger paper, and a larger paper does not
+  help.** Switching to each of the fourteen other papers in the pulldown, A2
+  included, left the warning exactly where it was; the patch bottom moves four
+  hundredths of a millimetre between A4 and A2, because the bottom text is
+  printed from the paper edge. It now says so, and points at the one lever that
+  does work: a smaller sheet text.
+
+- **And it could ask you to raise the bottom margin "by about 0.0 mm"**, which
+  you could reach by doing exactly what it said one step earlier. It does not
+  name a rise at all when no rise will do.
+
+- **The warning pointed at a margin box that is greyed out** whenever "Use
+  instrument margins" is ticked, which is how the presets ship, and said
+  nothing about the tick. It now adds the box's own explanation.
+
+- **And the rise it named was worked out on a sheet you have to leave.** That
+  tick is part of the layout as well as the lock, so the number was measured
+  with it on while the only way to type the number is to take it off: on 12 of
+  57 locked sheets the number did not clear once it came off. It is measured on
+  the sheet you can type into now.
+
+- **"A larger paper does not help" was wrong on a third of the sheets that said
+  it.** The text does not move with the paper, but the patches are re-fitted to
+  every sheet and can end higher on a bigger one, so a larger sheet sometimes
+  does clear it, and the warning directly above has been saying so all along.
+  The panel now tries every larger paper your instrument offers before it says
+  anything, and where one of them clears it, it says nothing.
+
+- **A helper-marker box typed 0 draws 2.0 mm, and every warning read it as 0.**
+  On 91 reachable sheets the bottom check was silent while the engine's own
+  reserve said the text reached the patches. The bottom checks read those two
+  boxes the way the engine reads them now.
+
+- **And "a larger paper does not help" was still wrong, for a second reason.**
+  The check added for it compared sheets by area, while whether the text clears
+  the patches is decided by height: on A2 landscape nothing in the pulldown is
+  larger by area, so the panel went back to asserting it. A sheet that is
+  smaller by area but taller, A3+ portrait for instance, does clear it. Sheets
+  are compared by both sides now.
+
+- **The strip-letter warning read the helper-marker boxes raw as well.** A box
+  typed 0 draws 2 mm, so with both boxes at 0 the letters could sit on the
+  first row of patches with nothing said. Every notice now reads those boxes
+  the way the engine reads them.
+
+- **The live preview drew no helper markers at all where the printed sheet
+  carried 44 of them.** With "Distance from page edge" and "Marker length" both
+  typed 0 the engine still prints 2 mm dashes at 2 mm, and the preview read the
+  boxes literally, so it showed a sheet without markers and did not say it was
+  out of date. The preview reads those two boxes the way the engine reads them
+  now. If you have ever seen the preview and the printed sheet disagree about
+  the dashes, this was why.
+
+- **Two more sentences in the new help were tightened** where they over-reached:
+  an ordinary test chart is missing the aim values those particular rows need
+  rather than aim values altogether, and the row icons say what a row needs
+  where there is nothing to change.
+
+- **The height check had a side effect nobody asked for: at 300 dpi every
+  "Size auto" bottom line shrank to the smallest size it is allowed.** The new
+  test compared a line box measured in whole pixels against a plain 4.2 mm, and
+  at 150, 240, 300 and 360 dpi no size can satisfy that, not even the floor the
+  shrinking stops at. 300 dpi is the default. The comparison is now against the
+  band as that resolution can actually draw it, and a "Size auto" line is the
+  same size at every resolution again.
+
+- **The same warning was completely silent in patch-first layouts**, which is
+  the default for the SpectroScan and the CR30. Measured on twenty states: the
+  text ran into the patches by up to 25 mm with nothing said, because the check
+  was gated to area-first layouts by a reason that no longer applies.
+
+- **"Lower B under Text distance from edge (mm)" was advice that did nothing**
+  whenever the ruler helper markers hold the text further up than "B", which is
+  most presets that print markers. Seven values of "B" on one sheet, no
+  movement at all. The message now offers that lever only where it moves the
+  text, and otherwise says what is holding it and which control hands the
+  distance back.
+
+- **Four of the help text's own claims were wrong and are now measured.** The
+  Printing record does not turn every row into INFO (a row the chart cannot
+  supply stays N-A); an ordinary test chart does not simply read N-A on the
+  paper and solid rows, because a ChromIQ set puts no limit on them and they
+  are dropped from the table instead; the report does not name those rows when
+  it drops them; and "half" and "twice" describe the colour difference rows,
+  not the grey ones.
+
+- **In six languages the new warning named a margin box that window does not
+  have.** The two "raise the bottom margin" sentences were rewritten and
+  re-translated, and the Italian, Norwegian, Polish, Russian and Swedish
+  versions ended up naming a word that is not on the box, while all four
+  Chinese versions named the box that sits under "Text distance from edge
+  (mm)" instead, which the same notice then refers to in its proper sense one
+  sentence later. Every language now names that box exactly as its own Create
+  Chart window labels it, and a test reads the label out of each catalogue and
+  looks for it in all four messages.
+
+- **And the warning could say that no bottom margin will clear the text while
+  one does.** On a small custom paper the search asked the largest margin the
+  box holds, found that the sheet cannot be laid out that way at all, and read
+  that single answer as a verdict on every smaller margin, which it is not:
+  whether a margin clears the text is not a question that gets steadily better
+  as the margin grows. Measured on a 62 by 88 mm card with two lines of sheet
+  text: the panel said to shrink the text or drop a line, and typing 36.5 mm
+  into the very box it names cleared it, as did every step up to 47.0. The
+  search now walks the whole range before it denies anything, and it stays
+  about as quick as a quiet keystroke.
+
+- **Move a margin box and the warning under it did not change.** "Measured
+  from Preview" only refreshed when a chart was built, so every notice on it
+  described the last build rather than the boxes you were turning. Raise
+  "Bottom" by the amount the warning itself asks for and the red line stayed,
+  word for word, until you pressed Generate; type a bigger sheet-text size and
+  it went on quoting the old one. Measured in the real window with eleven
+  keyboard and mouse gestures: eight of them left the wrong sentence on screen.
+  This is older than the warnings above, and it is why they were hard to
+  believe.
+
+- **In the FROM PROFILE GAMUT module the panel said nothing at all.** Its
+  margins, sheet text and helper-marker boxes lay the sheet out exactly as
+  Manual's do, and "Measured from Preview" reports the sheet, but every text
+  warning was held back: a bottom margin and a text size that collide produced
+  three warnings in Manual and none there, on the same chart. All of them speak
+  in both modules now. Guided is unaffected, since it has no such boxes.
+
+### Changed
+
+- **The Report type help now describes every type, when you would use it, and
+  which limit set goes with it.** All six types are listed with their own
+  descriptions, taken from the pulldown itself so the help cannot fall behind
+  it; a paragraph says when a reader reaches for each; and another says which
+  Judged against set suits which type, and that the pairings are habits rather
+  than rules.
+
+- **Both that icon and the Judged against icon now explain what the chart has
+  to carry.** A row is judged only when the sheet has the patches it needs: at
+  least eight grey steps from white to black for the grey rows, a single-ink or
+  grey ramp through the mid-tones for the tone row, and, for the paper and
+  solid rows, a chart built with FROM PROFILE GAMUT, which picks its colours
+  from what your profile can actually print and carries an aim value for each
+  of them. An ordinary test chart carries no such aim values, and what you see
+  then depends on the set: a ChromIQ set puts no limit on those rows anyway, so
+  they are left out of the table altogether, while a Custom ISO set shows them
+  as N-A.
+
+- **All three new paragraphs are translated into the twelve languages**, and
+  each one names the controls the way that language's window names them.
+
 ## v4.3.0-beta.16
 
 **The metric help now tells you what to do about it.** The icons added in beta

@@ -649,6 +649,81 @@ def _restore_sentence(outcome: str, refused: bool = True) -> str:
               "run's own numbers back.")
 
 
+
+#: **WHICH SET SUITS WHICH TYPE, AND WHAT THE CHART HAS TO DO WITH IT.** Knut,
+#: 2026-09-14: *"the help text for the report type and judged against must
+#: describe properly what each option are, when they are normally used, and
+#: which Judged against limit sets are normally matched with which report type.
+#: It should also be explained how report type and limit sets depend on
+#: selection of the right chart / preset to be used and how the colors in that
+#: chart is selected for verification."*
+#:
+#: The two paragraphs are shared by BOTH tooltips, because the question reads
+#: the same from either control and a reader opens whichever one they are
+#: standing on. The per-type descriptions are not repeated here: they are data
+#: (`measurement_report.REPORT_TYPE_MENU`), already translated, and
+#: :func:`_types_and_pairing_help` lists them from there so a seventh type
+#: cannot appear in the pulldown and be missing from the help.
+#: WHEN A READER WOULD REACH FOR EACH ONE. The menu's own blurbs say what a
+#: type IS; this says on which day you pick it, which is the half of Knut's
+#: question the data cannot answer for itself.
+_WHEN_HELP = (
+    "When you would reach for each. Full colour check is the one you keep: "
+    "everything ChromIQ measures, for your own eye and for the record. Colour "
+    "summary is the page you hand over with the job, one sheet somebody can "
+    "read without knowing the vocabulary. Grey and tone check is for chasing "
+    "a neutral problem, when greys go warm or the mid-tones sit heavy and the "
+    "colour rows are only noise. Printing record is for a job you have to "
+    "document without grading, a print you were asked to record rather than "
+    "to approve. The two ISO types are for a print that has to answer to a "
+    "printing condition somebody else supplied; they are greyed today, and "
+    "pointing at the greyed entry says why.")
+_PAIRING_HELP = (
+    "Which limit set suits which type. Full colour check and Colour summary "
+    "are the everyday pair for ChromIQ default, the set for checking a profile "
+    "you built: 2.0 average and 3.0 maximum on the colour difference rows. "
+    "ChromIQ tight halves those two, for critical work once a printer is "
+    "behaving, and Quick check doubles them, for a health check only a clearly "
+    "drifted printer fails; the grey rows move with them. Grey and "
+    "tone check keeps three rows, the two grey balance ones and the mid-tone "
+    "ramp, and those are the three a ChromIQ set says least about: the grey "
+    "rows are recommendations, so the worst they can report is COND, and no "
+    "ChromIQ set puts a limit on the mid-tone ramp at all, so it is shown for "
+    "information. A Custom ISO set you have filled in judges all three. "
+    "Printing record grades nothing: every row it can compute reads INFO "
+    "whichever set is beside it, though the document still names the set it "
+    "would otherwise have used. The two ISO types belong with the matching "
+    "Custom ISO set, the one you have typed the published tolerances into from "
+    "your own copy of the standard. Any set can be chosen with any type; the "
+    "pairs above are the usual habits, not rules.")
+_CHART_HELP = (
+    "And the chart you printed decides what any of it can say. A row is judged "
+    "only when the sheet carries the patches that row needs: at least eight "
+    "grey steps from white to black for the grey rows, a single-ink or grey "
+    "ramp through the mid-tones for the tone row, and, for the paper and solid "
+    "rows, a chart built with FROM PROFILE GAMUT on the Create Chart tab. That "
+    "one picks its colours from what your own profile can actually print and "
+    "carries an aim value for each of them, which is the thing those rows are "
+    "measured against. An ordinary test chart carries no such aim values, and "
+    "what you see then depends on the set: a ChromIQ set puts no limit on "
+    "those rows anyway, so they are left out of the table altogether, while a "
+    "Custom ISO set shows them as N-A and the note under the results says what "
+    "the chart was missing. Each row's own info icon in the Report limits "
+    "window says what that row needs, and what to change where anything can "
+    "be.")
+
+
+def _types_and_pairing_help() -> str:
+    """The six types with their own one-line descriptions, then the two shared
+    paragraphs. Built from the menu data so the help cannot fall behind it."""
+    from workflow.measurement_report import REPORT_TYPE_MENU
+    lines = [f"{tr(name)}: {tr(blurb)}"
+             for _tid, name, blurb, _built in REPORT_TYPE_MENU]
+    return ("\n\n" + tr("What each one is for") + "\n" + "\n".join(lines)
+            + "\n\n" + tr(_WHEN_HELP)
+            + "\n\n" + tr(_PAIRING_HELP) + "\n\n" + tr(_CHART_HELP))
+
+
 class MeasurementReportDialog(QDialog):
     #: The three facts a refusal has to report, set on the way through
     #: `_on_open_limits` and read by the three `_say_*` methods. Declared here
@@ -1056,7 +1131,8 @@ class MeasurementReportDialog(QDialog):
                "document and the dates can be compared. Another run in the "
                "project may use a different one.\n\n"
                "A type shown greyed is one ChromIQ cannot produce yet. The "
-               "line under it says what is missing."),
+               "line under it says what is missing.")
+            + _types_and_pairing_help(),
             self, min_width=460, color=SPEC_GREEN))
         #: What the chosen type is for, or, on a type that cannot be produced,
         #: what is missing. It rides on the SAME row, elided, with the whole
@@ -1121,7 +1197,8 @@ class MeasurementReportDialog(QDialog):
                "editing after the first measurement.\n\n"
                "A measurement that is not in a ChromIQ project (an imported "
                "file) is judged with the default set for this session only; "
-               "nothing is stored for it."),
+               "nothing is stored for it.")
+            + "\n\n" + tr(_PAIRING_HELP) + "\n\n" + tr(_CHART_HELP),
             self, min_width=460, color=SPEC_GREEN))
         judged_row.addStretch(1)
         top_v.addLayout(judged_row)

@@ -81,7 +81,17 @@ class _Tab:
     `TabChart` implementation, so the fake supplies the STATE and the class
     supplies the BEHAVIOUR.
     """
-    _manual_btn = _Btn()
+    def _current_mode(self):
+        """The gate `_engine_text_notes` really asks, and NOT `_manual_btn`.
+
+        The FROM PROFILE GAMUT module is the Manual page with its own targen
+        section, and it leaves that BUTTON unchecked; keying the notices on it
+        turned every one of them off there (adversary round 21, measured on
+        screen). This stand-in carries no `_manual_btn` on purpose, so a revert
+        to the button spelling makes the file go red rather than quietly
+        produce no notices at all.
+        """
+        return "manual"
     _manual_layout_panel = object()
     _settings = _Settings()
     # Widgets the borrowed helpers reach for; None is the "not built yet"

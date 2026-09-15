@@ -947,11 +947,60 @@ def sheet_text_overlap(margin_bottom_mm: float, text_edge_mm: float,
     reserve is a limit on this edge as it is on the other three, the overflow
     goes inward over the patches where Knut's ruling of 2026-09-12 puts it,
     and this sentence's ``need`` is what the block really takes.
+
+    **AND ITS FIRST ARGUMENT IS THE WRONG NUMBER ON AN ENGINE CHART.** Kept
+    because it is the arithmetic, and because a dozen tests state it in these
+    terms; the caller that matters now asks
+    :func:`bottom_text_block_overlap` with the patch area's REAL bottom
+    instead. See that function for why.
+    """
+    return bottom_text_block_overlap(margin_bottom_mm, text_edge_mm,
+                                     lines, line_mm)
+
+
+def bottom_text_block_overlap(patch_bottom_mm: float, reserve_mm: float,
+                              lines: int,
+                              line_mm: float = SHEET_TEXT_LINE_MM
+                              ) -> "Overlap | None":
+    """The bottom text block against the paper below the patch area.
+
+    *patch_bottom_mm* is how far the patch area's bottom edge really sits above
+    the paper edge, *reserve_mm* the distance the block is anchored at
+    (:func:`sheet_text_bottom_mm`, the larger of "B" and the markers' own
+    reach). The block occupies from ``reserve`` to ``reserve + lines x line``
+    up from the edge, so it reaches the patches exactly when the room between
+    them, ``patch_bottom - reserve``, is smaller than the block.
+
+    **THE REQUESTED BOTTOM MARGIN IS NOT WHERE THE PATCHES ARE, AND ASKING IT
+    PRODUCED A WARNING ABOUT A SHEET WITH FIVE MILLIMETRES TO SPARE.** Knut,
+    2026-09-14, on the CR30 Letter 792-patch straight preset::
+
+        When bottom margin is 11.0mm there is a warning ... You can clearly see
+        that there is ample space both on top and below the bottom text line,
+        so the warning should not happen. Measurements are obviously calculated
+        wrong. Bottom margin in Measured from Preview shows 12.8mm.
+
+    Measured on the app's own sheets, sweeping the bottom margin over
+    7.5, 9, 10, 11, 11.5, 13 and 16 mm with the text at Size auto:
+
+    | requested margin | patches end | the text's ink | clear gap | the panel |
+    |---|---|---|---|---|
+    | 7.5 | 13.84 | 7.37 to 10.41 | **3.43** | warns |
+    | 11.0 | 15.62 | 7.37 to 10.41 | **5.21** | warns |
+    | 11.5 | 15.88 | 7.37 to 10.41 | 5.47 | quiet |
+    | 16.0 | 23.75 | 7.37 to 10.41 | 13.34 | quiet |
+
+    The text never moves, because it is anchored on the paper edge; the patches
+    move with the margin but never come near it, because
+    `raster._furniture_reserves_mm` holds back ``reserve + 4.2 x lines``
+    BELOW the margin. So the old test, ``margin - "B" < lines x line``, was
+    comparing two numbers neither of which is the distance in question, and it
+    flipped at 11.5 mm on a sheet that does not change.
     """
     n = max(0, int(lines or 0))
     line = max(0.0, float(line_mm or 0.0)) or SHEET_TEXT_LINE_MM
     return _overlap("bottom",
-                    float(margin_bottom_mm or 0.0) - float(text_edge_mm or 0.0),
+                    float(patch_bottom_mm or 0.0) - float(reserve_mm or 0.0),
                     n * line)
 
 

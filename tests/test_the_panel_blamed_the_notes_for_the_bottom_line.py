@@ -265,10 +265,22 @@ def test_the_prediction_sets_the_layout_name_the_build_sets():
         "the prediction never sets chart_layout_name, so with a patch set "
         "armed it measures a targen line the sheet does not stamp")
     call = assigned[0].value
+    # …AND IT ASKS THE PREDICATE, NOT THE LABEL. `_active_layout_name` answers
+    # "what would this chart's layout be called", falling back to the stem of
+    # `_current_ti1_path`, which EVERY finished build sets. Asking it directly
+    # here made the panel predict "Chart layout <stem>" for an ordinary Manual
+    # targen build, whose sheet stamps the targen command instead: 23
+    # characters short, and the panel then went silent while the rendered
+    # sheet cut 15 characters and printed "ChromI…" (adversary round 22,
+    # measured and photographed on screen, 2026-09-15).
+    # `_predicted_chart_layout_name` mirrors the routes `_on_generate` takes
+    # and still answers with `_active_layout_name()` on every one of them that
+    # goes through `_generate_from_ti1` — so Knut's ColorMunki case above is
+    # unchanged.
     assert (isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute)
-            and call.func.attr == "_active_layout_name"), (
-        "the prediction invents a layout name instead of asking the same "
-        "method `_generate_from_ti1` asks")
+            and call.func.attr == "_predicted_chart_layout_name"), (
+        "the prediction invents a layout name instead of asking the predicate "
+        "that mirrors what `_on_generate` will really hand the stamper")
 
 
 # --------------------------------------------------- his rule, in his words

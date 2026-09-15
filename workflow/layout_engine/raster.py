@@ -373,7 +373,11 @@ def _furniture_reserves_mm(geom, kw: dict) -> tuple[float, float, float]:
         float(kw.get("helper_marker_edge") or 0.0),
         float(kw.get("helper_marker_len") or 0.0),
         bool(kw.get("helper_markers_top_bottom", True)))
-    bottom = (_edge + 4.2 * nlines) if nlines else 0.0
+    # ONE NUMBER FOR THE RESERVE, THE SHRINK AND THE CHECK. This was the
+    # literal 4.2 while `text_edge_fit.SHEET_TEXT_LINE_MM` was the same value
+    # in three other places; a line box that grows past it is exactly the case
+    # the bottom-text warning is about, so the two must not drift.
+    bottom = (_edge + _tef.SHEET_TEXT_LINE_MM * nlines) if nlines else 0.0
     return label_band, bottom, ink_bottom
 
 
@@ -409,6 +413,37 @@ def resolve_placeholders(t: str, ctx: dict) -> str:
         return t.format(**ctx) if t else ""
     except (KeyError, IndexError, ValueError):
         return t                           # leave unknown placeholders literal
+
+
+def sheet_text_reserve_mm(dpi: float = 300.0) -> float:
+    """The bottom-text band the engine holds back per line, AS THIS DPI DRAWS IT.
+
+    :data:`text_edge_fit.SHEET_TEXT_LINE_MM` is 4.2 mm, but a raster reserves a
+    whole number of pixels, and :func:`sheet_text_line_mm` measures in the same
+    quantised space: its own floor is ``round(4.2 * dpi / 25.4)`` px read back
+    as millimetres. At 150, 240, 300 and 360 dpi that is **4.2333 mm**, larger
+    than the 4.2 it used to be compared against.
+
+    **THE AUTO SHRINK COMPARED THE TWO AND COULD NEVER BE SATISFIED.** With the
+    height term added on 2026-09-14 the loop asked
+    ``sheet_text_line_mm(...) <= SHEET_TEXT_LINE_MM``; at those four
+    resolutions no size can satisfy that, not even the 7 pt floor, so every
+    "Size auto" bottom line was shrunk to the floor whatever room it had, and
+    300 dpi is `LayoutRecipe`'s default. Measured on one real sheet, A4, Size
+    auto, the text "ChromIQ", 7.5 mm of clear paper under the patches: the ink
+    came out 1.947 x 9.991 mm at 300 dpi where the same recipe at 200 dpi, and
+    the same sheet before the change, draws 2.540 x 13.1 mm.
+
+    One function, so the loop and the check compare like with like.
+    """
+    try:
+        d = float(dpi)
+        if d <= 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        d = 300.0
+    from workflow import text_edge_fit as _tef
+    return max(1, int(round(_tef.SHEET_TEXT_LINE_MM * d / 25.4))) * 25.4 / d
 
 
 def sheet_text_line_mm(size_mm: float, font_family: str = "",
@@ -2153,10 +2188,45 @@ def render_pages(
                     margin_left_mm=float(getattr(geom, "margin_l", 0.0) or 0.0),
                     margin_right_mm=float(getattr(geom, "margin_r", 0.0) or 0.0),
                     align=_align)
+                # …AND THE HEIGHT, WHICH NOTHING ASKED ABOUT. Knut,
+                # 2026-09-14: *"the size = auto setting should shrink size when
+                # the height or width comes close to its limits."* The loop
+                # only ever measured the width, so a face whose line box grew
+                # past the room the engine set aside for it stayed at its full
+                # size and the patches were the ones that had to give way.
+                #
+                # THE ROOM IS THE ONE THE ENGINE RESERVED, which is
+                # `SHEET_TEXT_LINE_MM` per line (`_furniture_reserves_mm`), so
+                # a line that fits it cannot reach the patch area at all. That
+                # is a rule the renderer can apply without asking where the
+                # patches ended up.
                 while _sfont_px > _floor_px:
-                    if sheet_text_width_mm(_btxt, _sfont_px * 25.4 / dpi,
-                                           chart_text_font, chart_text_bold,
-                                           chart_text_italic, dpi) <= _room_mm:
+                    _fits_w = sheet_text_width_mm(
+                        _btxt, _sfont_px * 25.4 / dpi, chart_text_font,
+                        chart_text_bold, chart_text_italic, dpi) <= _room_mm
+                    # …AGAINST THE RESERVE AS THIS DPI CAN EXPRESS IT, NOT
+                    # AGAINST 4.2 mm. `sheet_text_line_mm` rounds through whole
+                    # pixels and its own floor is `round(4.2 * dpi / 25.4)` px
+                    # read back as millimetres: **4.2333 mm at 150, 240, 300
+                    # and 360 dpi**, which is larger than the 4.2 it was
+                    # compared against. `_fits_h` was therefore False for EVERY
+                    # size at those resolutions -- 300 dpi is `LayoutRecipe`'s
+                    # default -- and the loop ran to the 7 pt floor on every
+                    # chart, however much paper was free.
+                    #
+                    # MEASURED, same recipe and seed, A4, Size auto, the short
+                    # text "ChromIQ", 7.5 mm of clear paper under the patches:
+                    # at 300 dpi the ink came out **1.947 mm tall and 9.991 mm
+                    # wide** where the same sheet at HEAD, and the same sheet
+                    # at 200 dpi in both trees, is **2.540 x 13.1 mm**. The
+                    # rule is "the face's ink fits the band the engine
+                    # reserves", and the band is a whole number of pixels.
+                    _reserve_mm = sheet_text_reserve_mm(dpi)
+                    _fits_h = sheet_text_line_mm(
+                        _sfont_px * 25.4 / dpi, chart_text_font,
+                        chart_text_bold, chart_text_italic,
+                        dpi) <= _reserve_mm + 1e-9
+                    if _fits_w and _fits_h:
                         break
                     _sfont_px -= 1
             sfont = _font(_sfont_px, chart_text_font,

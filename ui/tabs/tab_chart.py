@@ -2574,6 +2574,363 @@ KNUT_PRESET_KEYS = frozenset(KNUT_PRESETS_BY_KEY)
 # folder, can carry one; the Full-layout-setup family uses these), then an
 # optional shared ``recipes.json`` keyed by the preset's display name (a legacy
 # fallback; no shipped family relies on it any more).
+#: What the "Margins (mm)" boxes step by, which is the granularity any advice
+#: about them has to be given in: a rise named to the tenth is a number nobody
+#: can reach with the arrows.
+_MARGIN_STEP_MM = 0.5
+
+#: The largest number the "Margins (mm)" boxes hold. `layout_options_panel`
+#: builds them with `small_mm(top=60.0)`, so a remedy that asks for more than
+#: this is asking for something the reader cannot type: measured, 160 of 1,501
+#: reachable warning states named a total above it, and the box simply clamps.
+_MARGIN_BOX_MAX_MM = 60.0
+
+#: How far past the bisection's answer the stability walk may look, in steps.
+#: Twelve millimetres of paper, and every step is a geometry rebuild.
+_MARGIN_WALK_STEPS = 24
+
+#: The smallest "B" a person can actually put in the box that the engine reads
+#: as itself. `LayoutRecipe.effective_text_edge_mm` is ``text_edge_mm or 4.0``,
+#: so a typed 0.0 is read as 4.0 and 0.1 is the real bottom of the range.
+_MIN_TEXT_EDGE_MM = 0.1
+
+
+#: What `LayoutRecipe.build_kwargs` substitutes for a marker box left at 0.
+#: Named here so the warnings, the gates and the live overlay all read the
+#: sheet the same way; `presets.py` holds the authoritative `or 2.0`.
+_MARKER_DEFAULT_MM = 2.0
+
+
+def _marker_reserve_args(r) -> "tuple[float, float]":
+    """The helper markers' edge and length AS THE ENGINE WILL READ THEM.
+
+    **A BOX TYPED 0 MEANS 2.0 mm ON THE SHEET AND MEANT 0.0 mm IN THE
+    WARNING.** `LayoutRecipe.build_kwargs` sends
+    ``helper_marker_edge_mm or 2.0`` and ``helper_marker_len_mm or 2.0``
+    (:data:`_MARKER_DEFAULT_MM`), so a
+    reader who types 0 into "Distance from page edge (mm)" or "Marker length
+    (mm)" still gets 2 mm markers; every warning on this panel read the recipe
+    field raw and therefore predicted a text reserve up to 4 mm smaller than
+    the one the engine holds back.
+
+    MEASURED, 2026-09-14, on Knut's CR30 Letter preset in the real window
+    (`scripts/adv17e_the_gates_the_ceiling_and_the_markers.py`, P6): with both
+    boxes at 0 the panel predicts a 1.00 mm reserve where
+    `raster._furniture_reserves_mm` holds back 5.00 mm. Rendered through the
+    same kwargs `chart.build_chart` uses, the sheet with both boxes at 0 and
+    the sheet with both at 2 are the SAME sheet, ink from 6.48 to 13.46 mm in
+    each. A sweep of the reachable states found **91** in which the bottom
+    check was silent while the engine's own reserve says the block reaches the
+    patches.
+
+    The panel must predict what the engine does, so the ``or 2.0`` lives here
+    once and every side reads it. Whether a box that accepts 0 and draws 2 is
+    itself right is a question for the layout, not for a warning, and it is
+    reported rather than changed here.
+    """
+    return (float(getattr(r, "helper_marker_edge_mm", 0.0) or 0.0) or 2.0,
+            float(getattr(r, "helper_marker_len_mm", 0.0) or 0.0) or 2.0)
+
+
+def _bottom_clears_with(r, nlines: int, line_mm: float, **changes) -> bool:
+    """Ask the SHEET whether a named change really clears the bottom text.
+
+    Rebuilds the whole geometry with *changes* applied to the recipe and
+    reports whether the block still reaches the patches. ``False`` when the
+    layout cannot be built, which withholds an offer rather than inventing one.
+    """
+    from dataclasses import replace
+    from workflow import text_edge_fit as _tef
+    from workflow.layout_engine import instruments
+    try:
+        cand = replace(r, **changes)
+        geom = instruments.geom_from_build_kwargs(cand.build_kwargs())
+        bottom = predicted_patch_bottom_mm(cand, geom)
+        if bottom is None:
+            return False
+        anchor = _tef.sheet_text_bottom_mm(
+            cand.effective_text_edge_mm,
+            bool(getattr(cand, "helper_markers", False)),
+            *_marker_reserve_args(cand),
+            bool(getattr(cand, "helper_markers_top_bottom", True)))
+        return _tef.bottom_text_block_overlap(
+            float(bottom), anchor, nlines, line_mm) is None
+    except Exception:          # noqa: BLE001 - an offer, never a blocker
+        return False
+
+
+def markers_off_clears(r, nlines: int, line_mm: float) -> bool:
+    """Whether the route the MARKERS sentence names ever finishes the job.
+
+    **THE SECOND SENTENCE WAS MADE TO ASK THE SHEET AND THE FIRST ONE WAS
+    NOT.** When the ruler helper markers hold the text above "B",
+    :func:`_bottom_lever_note` says so and then names a way out: *"Switching
+    'Print helper markers' off, or shortening them, hands that distance back
+    to 'B'."* Nothing ever tried it. The best that route can do is the markers
+    gone AND "B" at the bottom of its range, which puts the block
+    ``_MIN_TEXT_EDGE_MM`` from the paper edge, so that is what is asked here.
+
+    MEASURED ON SCREEN, 2026-09-14, Knut's CR30 Letter preset, both layout
+    modes, three bottom margins, one and two lines, three sizes
+    (`scripts/adv17c_the_route_gate_one_names.py`): 24 states offered the
+    sentence and in **16** of them switching the markers off and taking "B"
+    to 0.1 in the real window left the warning exactly where it was.
+    Photographed at area_first / 8 mm / 40 pt: the room went from 7.1 mm to
+    14.0 mm against 17.1 mm needed, and the reader had thrown away the ruler
+    helper markers for it.
+
+    That is the same shape as the lever round 2 withheld and as the "raise
+    Bottom by the size of the overlap" fault the whole block was rewritten to
+    remove, so it gets the same treatment: the sentence is offered only where
+    the sheet says the route finishes, and where it does not, the message's
+    measured "Raise Bottom" remedy stands on its own.
+    """
+    return _bottom_clears_with(r, nlines, line_mm, helper_markers=False,
+                               text_edge_mm=_MIN_TEXT_EDGE_MM)
+
+
+def lowering_b_clears(r, nlines: int, line_mm: float) -> bool:
+    """Whether taking "B" to the bottom of its range really clears the text.
+
+    **THE LEVER IS A LAYOUT QUESTION, NOT AN ARITHMETIC ONE, AND ANSWERING IT
+    BY ARITHMETIC SHIPPED A FALSE PROMISE.** Lowering "B" lowers the anchor the
+    block hangs from, which buys room -- but only down to the ruler helper
+    markers' own reach, and in patch-first it also lowers
+    `raster._furniture_reserves_mm`'s band, which can bring the patches down
+    with it and buy nothing at all. So the sheet is asked: rebuild the geometry
+    with "B" at the bottom of its range and see whether the overlap is gone.
+
+    MEASURED ON SCREEN, 2026-09-14, Knut's CR30 Letter preset in area_first at
+    24 pt with the markers on (reach 7.0 mm), "B" swept 12 mm down to 0: at
+    12, 11, 10, 9, 8 and 7 the anchor followed "B" and the panel offered the
+    lever; pulling it all the way to 0 moved the anchor only to 7.0, bought
+    5 mm of the room that was short, and left the warning on screen. That is
+    the same shape as the "raise Bottom by the size of the overlap" fault this
+    whole block was rewritten to remove.
+
+    ``False`` when the layout cannot be built, which withholds the offer rather
+    than inventing one.
+    """
+    return _bottom_clears_with(r, nlines, line_mm,
+                               text_edge_mm=_MIN_TEXT_EDGE_MM)
+
+
+def _locked_margins_note(r) -> str:
+    """The sentence for a reader whose "Margins (mm)" boxes are READ-ONLY.
+
+    **THE REMEDY NAMES A BOX THE READER CANNOT TOUCH, AND IT IS THE DEFAULT
+    STATE.** `LayoutRecipe` ships ``use_instrument_margins = True``, and
+    `layout_options_panel._sync_instrument_margins` does
+    ``self.margins[k].setEnabled(not on)``, so with "Use instrument margins"
+    ticked all four margin boxes are greyed out. The height message's main
+    clause is *"Raise “Bottom” under “Margins (mm)” by about X mm"*, and
+    nothing in it said the tick has to come off first.
+
+    MEASURED ON SCREEN, 2026-09-14, Knut's CR30 Letter preset, Size 40 pt,
+    both layout modes (`scripts/adv17d_raise_bottom_by_0_0_mm.py`): with the
+    box ticked, ``margins["b"].isEnabled()`` is **False** in both modes and
+    the message still names the box, by name, with a number. Photographed
+    with the greyed box and the warning in one picture.
+
+    The sentence is the one the BOX ITSELF already carries as its tooltip,
+    reused verbatim so there is no new string and no thirteenth translation to
+    wait for: a reader who hovers the grey box and a reader who reads the
+    warning are told the same thing in the same words.
+
+    Every other margin remedy on this panel ("Raising “Right” under “Margins
+    (mm)”…") has the same fault and is left alone here; it is reported, not
+    swept, because the block under attack is this one.
+    """
+    try:
+        if not bool(getattr(r, "use_instrument_margins", False)):
+            return ""
+        # `tr`, NOT AN ALIAS, and the string byte-for-byte as
+        # `layout_options_panel` spells it: the extractor matches on the
+        # literal, and one character apart is a fourteenth key nobody
+        # translated.
+        return " " + tr(
+            "Locked to your instrument's minimum margins because "
+            "“Use instrument margins” is ticked. Untick it to type your "
+            "own margins.")
+    except Exception:          # noqa: BLE001 - a sentence, never a blocker
+        return ""
+
+
+def _larger_paper_note(r, nlines: int, line_mm: float) -> str:
+    """"A larger paper does not help" — ASKED OF THE SHEET, NOT ASSERTED.
+
+    **THE CLAIM WAS FALSE ON A THIRD OF THE STATES THAT MAKE IT.** It was
+    written into both "no margin clears it" wordings as a plain statement, on
+    the reasoning that the text is anchored on the paper edge, so it does not
+    move. That half is true. The half that decides the question is where the
+    PATCHES stop, and they move: the patch block is re-fitted to every sheet,
+    so a taller or wider one can lift its bottom edge clear of a line that was
+    running into it.
+
+    MEASURED, 2026-09-14. A sweep of the reachable states on Knut's CR30
+    preset found the message firing in 84 and **29 of them falsified**: from
+    seven different base papers, in both layout modes, at two lines of 72 pt,
+    another paper in the very same pulldown cleared the collision the message
+    says nothing can. Driven in the real window
+    (`scripts/adv17e_a_larger_paper_does_help.py`), A4 in area_first at a
+    59.5 mm bottom margin: the panel printed *"No bottom margin this sheet
+    allows will clear it … A larger paper does not help"* and switching to
+    **A3** left three warnings where there had been four, the bottom-text one
+    gone. Photographed both ways.
+
+    The round-4 measurement behind the sentence was fourteen papers in ONE
+    state, where the shortfall was far larger than a sheet can buy. So the
+    sentence gets the same treatment as every other remedy in this block: it is
+    offered only where the sheet says it is true, and where some larger paper
+    does clear the collision, nothing is said rather than something false.
+
+    It costs one geometry rebuild per larger paper and runs ONLY in the
+    "no margin the box holds clears it" branch, which is the rarest of the
+    four messages; the loop stops at the first paper that clears, so the false
+    case is the cheap one.
+    """
+    try:
+        from workflow.layout_engine import papers as _papers
+        here = str(getattr(r, "paper", "") or "")
+        w, h = _papers.dimensions_mm(here)
+        for code, _label, dims in _papers.list_papers(
+                getattr(r, "instrument", None) or None, for_engine=True):
+            if code == here:
+                continue
+            # **LARGER IN A DIMENSION, NOT LARGER IN AREA.** The first version
+            # of this loop skipped anything whose AREA was no bigger, and what
+            # decides a bottom collision is how far down the sheet the patch
+            # grid stops -- which is a question about HEIGHT (and about width,
+            # through the columns). Area answers neither.
+            #
+            # MEASURED, 2026-09-14, on a sweep of the reachable states: the
+            # denial was falsified by a paper the area test skips in **44** of
+            # them. The worst is the widest sheet in the pulldown, A2
+            # landscape: nothing is larger than it by area, so the loop tried
+            # NOTHING AT ALL and the sentence was exactly the unchecked
+            # assertion it was written to stop being. Driven in the real
+            # window (`scripts/adv17f_three_faults_on_screen.py`), CR30,
+            # patch-first, bottom margin 60 mm, 72 pt, two lines: the panel
+            # printed *"No bottom margin this sheet allows will clear it …
+            # A larger paper does not help"* on A2 landscape, and switching to
+            # **A2 portrait** -- the same sheet turned round, 174 mm taller,
+            # 38 patches a pass against 25 -- left three warnings where there
+            # had been four, the bottom-text one gone. Photographed both ways.
+            #
+            # A candidate smaller on BOTH sides is still skipped, because the
+            # sentence is about a LARGER paper and a smaller one that happens
+            # to clear does not falsify it. That also keeps this cheap: from A2
+            # landscape it leaves three candidates, not fourteen.
+            if (float(dims[0]) <= float(w) + 1e-9
+                    and float(dims[1]) <= float(h) + 1e-9):
+                continue
+            if _bottom_clears_with(r, nlines, line_mm, paper=code):
+                return ""
+        # `tr`, NOT AN ALIAS: `scripts/i18n_extract.py` matches the name.
+        return " " + tr(
+            "A larger paper does not help: the text is printed from the paper "
+            "edge, so it stays where it is.")
+    except Exception:          # noqa: BLE001 - a sentence, never a blocker
+        return ""
+
+
+def _bottom_lever_note(effective_b_mm: float, anchor_mm: float,
+                       lever_clears=True,
+                       typed_b_mm: "float | None" = None,
+                       markers_route_clears=True) -> str:
+    """The sentence about "B", which is not always a lever at all.
+
+    The bottom text is anchored at the LARGER of "B" under "Text distance from
+    edge (mm)" and the ruler helper markers' own reach, so with the markers on
+    for top and bottom, lowering "B" moves nothing. Measured on Knut's CR30
+    Letter preset, markers on (edge 4.0 + length 2.0 + 1.0 = 7.0 mm): B typed
+    at 7, 5, 4, 3, 2, 1 and 0 left the anchor at 7.00 mm, the text at 16.89 mm
+    and the overlap at 1.27 mm, with the warning up the whole time. With the
+    markers off the same lever clears the collision at B = 3.0.
+
+    **AND THAT COMPARISON ALONE WAS NOT ENOUGH.** It only ever asked whether
+    the markers ALREADY hold the text, which is the case where "B" is at or
+    below their reach; type "B" ABOVE it and the anchor equals "B", the second
+    sentence is chosen, and the lever then stops dead at the markers with the
+    warning still up. *lever_clears* is :func:`lowering_b_clears`, which asks
+    the sheet instead, and where the answer is no the sentence is simply left
+    off: the message's "Raise Bottom" remedy is measured to work and does not
+    need a second one that does not.
+
+    So the offer is made only where it is real, and where it is not, the
+    sentence says what is holding the text instead of naming a box that does
+    nothing. Appended rather than edited into each message, the way
+    :func:`_auto_floor_note` is, so the two long messages stay one key each.
+
+    **AND IT CANNOT RAISE.** Its caller's whole body is inside one
+    `except Exception: pass`, so an exception here does not lose one sentence,
+    it loses every notice on the panel; it is the only one of the three new
+    call sites in that block with no guard of its own.
+    """
+    # `tr`, NOT AN ALIAS. `scripts/i18n_extract.py` matches the name, so a
+    # `tr as _tr` import hides both sentences from the extractor: they would
+    # never be listed as missing and never be translated.
+    def _asked(gate) -> bool:
+        """A gate's answer, ASKED ONLY WHERE IT IS READ.
+
+        Each gate is a whole geometry rebuild. Passed as values, both were
+        computed on every refresh while at most one was ever read: measured on
+        screen on Knut's CR30 preset with "B" typed as 0, where branch 2
+        returns before either is looked at, stepping the bottom margin over
+        twenty different values so nothing is cached, the pair cost **29.8 ms
+        of a 54.9 ms notice pass**, more than everything else in it together.
+        A plain bool still works, so every existing caller and test is
+        unaffected.
+        """
+        try:
+            return bool(gate() if callable(gate) else gate)
+        except Exception:      # noqa: BLE001 - a gate, never a blocker
+            return False
+
+    try:
+        # 1. THE MARKERS HOLD IT — AND THE WAY OUT IT NAMES HAS TO WORK.
+        #    True whenever the anchor is above the "B" the engine reads, and it
+        #    names a control that really moves. But the sentence does not stop
+        #    at "B is not your lever": it goes on to name a route, *"switching
+        #    'Print helper markers' off, or shortening them, hands that
+        #    distance back to 'B'"*, and NOTHING ASKED THE SHEET ABOUT IT.
+        #    Driven on screen on Knut's CR30 preset, 24 states offered this
+        #    sentence and in 16 the route it names left the warning exactly
+        #    where it was: see :func:`markers_off_clears`. It is the same false
+        #    promise the sibling sentence below was made to stop making, so it
+        #    gets the same gate, and where the route does not finish the
+        #    message's measured "Raise Bottom" remedy stands alone.
+        if float(anchor_mm or 0.0) > float(effective_b_mm or 0.0) + 0.05:
+            if not _asked(markers_route_clears):
+                return ""
+            return " " + tr(
+                "Lowering “B” under “Text distance from edge (mm)” will not help "
+                "here: the ruler helper markers hold the text {anchor:.1f} mm from "
+                "the paper edge, which is further up than “B”. Switching "
+                "“Print helper markers” off, or shortening them, hands that "
+                "distance back to “B”.").format(anchor=float(anchor_mm))
+        # 2. A "B" TYPED AS 0 CANNOT BE LOWERED, AND IT IS NOT AT THE BOTTOM.
+        #    `LayoutRecipe.effective_text_edge_mm` is `text_edge_mm or 4.0`, so
+        #    a box reading 0.0 draws the text at 4.0 mm and the only way to
+        #    move it DOWN is to RAISE the number to 0.1. Telling somebody to
+        #    lower a box that already reads 0 is the same class of false
+        #    promise as naming a rise that does not clear, so the sentence is
+        #    withheld: the "Raise Bottom" remedy beside it is measured to work
+        #    and needs no companion that does not. The 0-means-4.0 reading
+        #    itself is B8-141, open.
+        _typed = effective_b_mm if typed_b_mm is None else typed_b_mm
+        if float(_typed or 0.0) <= 0.0:
+            return ""
+        # 3. AND THE SHEET SAYS WHETHER PULLING IT CLEARS ANYTHING.
+        if not _asked(lever_clears):
+            return ""
+        return " " + tr(
+            "Lowering “B” under “Text distance from edge (mm)” moves the text "
+            "down towards the paper edge instead, which buys the same room.")
+    except Exception:          # noqa: BLE001 - a sentence, never a blocker
+        return ""
+
+
 def _auto_floor_note(size_pt: float, floor_pt: float,
                      frame: str = "sheet") -> str:
     """The sentence that says the 7 pt floor belongs to "auto", or "".
@@ -3408,6 +3765,280 @@ def _is_named(file_mgr, *, unknown: bool = False) -> bool:
         return bool(fn())
     except Exception:      # noqa: BLE001 — never let a guard crash the UI
         return unknown
+
+
+def predicted_patch_bottom_mm(r, geom, npat: "int | None" = None
+                              ) -> "float | None":
+    """How far the patch area's bottom edge will sit above the paper edge.
+
+    The bottom sheet text is anchored on the PAPER EDGE and never moves with
+    the margin, so the only question worth asking is where the patches will
+    stop. `geometry.compute` and `geometry.placement` are the two functions
+    `render_pages` lays the page out with, so asking them is asking the sheet.
+
+    MEASURED against the app's own rendered TIFFs on the CR30 Letter
+    792-patch straight preset, bottom margin swept 7.5 to 16 mm: predicted
+    13.87 / 14.62 / 15.12 / 15.62 / 15.87 / 16.62 / 23.75 against measured
+    13.84 / 14.61 / 15.11 / 15.62 / 15.88 / 16.64 / 23.75.
+
+    **IT IS EXACT ON A FULL PAGE AND PESSIMISTIC ON A LOOSE ONE.** Measured
+    again on a 480-patch chart across three papers and three bottom margins,
+    both layout modes: patch-first agrees to 0.06 mm, area_first runs from
+    **1.42 mm low to 0.13 mm high**. Low means it puts the patches deeper than
+    they are, which can only warn early; the 0.13 mm the other way is inside
+    the slack this check already carries, since it measures the line's BOX and
+    the ink sits about 2 mm inside it.
+
+    **A MODULE FUNCTION, NOT A METHOD, ON PURPOSE.** Its one caller is
+    `TabChart._engine_text_notes`, whose whole body sits inside a single
+    `except Exception: pass`, so an attribute this method cannot find does not
+    lose one sentence, it loses EVERY warning on the panel. Written as
+    `self._predicted_patch_bottom_mm(...)` it did exactly that within the hour,
+    and the silence looked like the fix working.
+
+    ``None`` when the page cannot be laid out at all, which is a different
+    complaint with its own message.
+    """
+    from workflow.layout_engine import geometry, papers
+    try:
+        # THE WORST CASE, which is a FULL page: a short last page puts its
+        # patches higher and could only hide a collision.
+        #
+        # AND THE COUNT DOES NOT CHANGE IT. `geometry.compute` returns the
+        # page's capacity in `steps_in_pass`, so this argument is accepted for
+        # the day a layout needs it and is not what decides the answer today:
+        # measured at 12, 60, 120, 480, 2 000 and 100 000 patches, area_first
+        # and patch-first, the prediction is identical.
+        n = max(1, int(npat or 100_000))
+        w, h = papers.dimensions_mm(r.paper)
+        lay = geometry.compute(geom, w, h, n)
+        pl = geometry.placement(geom, w, h, lay)
+        last = (pl.y0_first + (lay.steps_in_pass - 1) * (pl.plen + pl.pspa)
+                + pl.plen)
+        return float(h) - float(last)
+    except Exception:          # noqa: BLE001 — a prediction, never a blocker
+        return None
+
+
+def margin_rise_that_clears_mm(r, npat, reserve_mm: float, lines: int,
+                               line_mm: float, *, hint_mm: float = 0.0,
+                               cap_mm: float = 60.0) -> "float | None":
+    """How much MORE bottom margin really moves the patches clear of the text.
+
+    **NOT THE SIZE OF THE OVERLAP, WHICH IS WHAT THIS SENTENCE USED TO NAME
+    AND WHICH DOES NOT WORK.** The patch grid is re-fitted every time the
+    margin moves, so the patch area's bottom edge travels about HALF a
+    millimetre per millimetre asked for: measured on the CR30 Letter 792-patch
+    straight preset, the margins 7.5 / 9 / 10 / 11 / 11.5 / 13 / 16 mm put the
+    patch bottom at 13.84 / 14.61 / 15.11 / 15.62 / 15.88 / 16.64 / 23.75 mm.
+    So a message that said "raise Bottom by about 3.4 mm" over a 3.4 mm
+    overlap bought 1.7 mm, and the warning was still on screen after the reader
+    did exactly what it said. Driven on screen at 28 pt and at 48 pt: both
+    remedies were applied to the spin box and both left the warning up; with
+    the number below, both clear it.
+
+    So the layout is asked instead, and asked PROPERLY: the whole geometry is
+    rebuilt for each candidate margin, because in ``area_first`` the patch
+    length itself is fitted to the margins (`plen` 8.49 against 8.68 mm on one
+    5 mm move), and a shortcut that replaced `margin_b` on a geometry built
+    once answered 9.8 mm where a rebuild answers 15.0. It is a bisection on a
+    0.1 mm grid, about a dozen rebuilds, and it runs only when there is already
+    an overlap to report.
+
+    Returns a rise that was TESTED to clear, never one inferred, or ``None``
+    when nothing inside *cap_mm* does; the caller then falls back to naming the
+    overlap, which is honest about the size of the problem if not about the
+    cure.
+    """
+    from dataclasses import replace
+    from workflow import text_edge_fit as _tef
+    from workflow.layout_engine import instruments
+    try:
+        # **THE SHEET THE READER WILL BE ON, NOT THE ONE THEY ARE LOOKING AT.**
+        # With "Use instrument margins" ticked the four margin boxes are
+        # read-only (`layout_options_panel._sync_instrument_margins`), so the
+        # only way to raise "Bottom" at all is to untick it -- and the tick is
+        # part of the GEOMETRY, not just of the widgets:
+        # `instruments.geom_from_build_kwargs` sets
+        # ``margins_are_law = area_first or use_instrument_margins``. A number
+        # measured with the tick on is therefore measured on a sheet that stops
+        # existing the moment the reader does what the sentence beside it tells
+        # them to do.
+        #
+        # MEASURED, 2026-09-14, on Knut's CR30 Letter preset: of 57 locked
+        # states that named a rise, **12** did not clear once the tick came
+        # off, all of them in patch-first, and the unticked sheet's own answer
+        # was larger every time (4.5 named where 8.5 clears, 8.0 where 12.0
+        # does). Driven in the real window as well
+        # (`scripts/adv17e_the_rise_named_through_a_locked_box.py`): untick,
+        # type the number, and the warning is still there. area_first is
+        # unaffected, because `law` is already True there either way.
+        if bool(getattr(r, "use_instrument_margins", False)):
+            r = replace(r, use_instrument_margins=False)
+        asked = float(getattr(r, "margin_bottom", 0.0) or 0.0)
+        # WHAT THE BOX WILL HOLD IS THE REAL CEILING. It stops at 60 mm, so a
+        # rise beyond `60 - asked` is a number the reader can neither type nor
+        # click to; the box clamps and the warning stays up.
+        cap_mm = min(float(cap_mm), _MARGIN_BOX_MAX_MM - asked)
+        if cap_mm <= 0:
+            return None
+        seen: dict = {}
+
+        def clears(delta: float) -> bool:
+            """One candidate, remembered.
+
+            THE COUNT IS THE COST. Each miss is a whole geometry rebuild, and
+            an adversary round measured the first version of this search making
+            **301 of them for one answer**: 120 to 210 ms per turn of the spin
+            box in the real window, on exactly the panel a reader is turning to
+            make the warning go away.
+            """
+            key = round(delta, 1)
+            if key in seen:
+                return seen[key]
+            # A MARGIN THE SHEET CANNOT TAKE ANSWERS "no". `geometry.compute`
+            # raises `LayoutError` ("paper too short: a single pass of patches
+            # does not fit") on a candidate that leaves no room for the
+            # patches, and `predicted_patch_bottom_mm` already turns that into
+            # ``None``, which is the same answer as "does not clear". Nothing
+            # is caught here, because nothing here has been measured to raise.
+            cand = replace(r, margin_bottom=asked + key)
+            geom = instruments.geom_from_build_kwargs(cand.build_kwargs())
+            bottom = predicted_patch_bottom_mm(cand, geom)
+            ok = bottom is not None and _tef.bottom_text_block_overlap(
+                float(bottom), reserve_mm, lines, line_mm) is None
+            seen[key] = ok
+            return ok
+
+        def grid(x: float) -> float:
+            """*x* rounded UP onto the spin box's own 0.5 mm grid."""
+            import math
+            return round(math.ceil((float(x) - 1e-9) / _MARGIN_STEP_MM)
+                         * _MARGIN_STEP_MM, 1)
+
+        def walk_from(first: float, steps: int = _MARGIN_WALK_STEPS
+                      ) -> "float | None":
+            """Up the grid from *first*, one probe a step, stopping at the
+            first point with two clear points above it.
+
+            *steps* is how far it may look. The default is the near-miss window
+            the hint path uses; the ceiling branch below walks the whole range,
+            because that is the only branch that would otherwise give up.
+            """
+            run, probe = 0, round(first, 1)
+            for _step in range(int(steps) + 1):
+                if probe > cap_mm + 1e-9:
+                    return None
+                if clears(probe):
+                    run += 1
+                    if run == 3:
+                        return round(probe - 2 * _MARGIN_STEP_MM, 1)
+                else:
+                    run = 0
+                probe = round(probe + _MARGIN_STEP_MM, 1)
+            return None
+
+        # THE OVERLAP FIRST, BECAUSE IT IS USUALLY THE ANSWER. The caller
+        # already knows how much room is short; a sweep of 775 overlapping
+        # states found the answer landing within 0.1 mm of that number in most
+        # of them. Three probes settle the common case, where the search used
+        # to spend twelve, and a probe is a whole geometry rebuild: measured on
+        # screen at **120 to 210 ms per turn of the spin box**, on exactly the
+        # panel a reader is turning to make the warning go away. Walking a few
+        # grid points up from there covers the near misses, which are the rest
+        # of the common cases; the bisection below is for the rare sheet where
+        # the answer is nowhere near the overlap.
+        #
+        # **AND THE OVERLAP IS A CEILING, NOT AN ANSWER — TAKING IT FOR ONE
+        # MADE THE ADVICE NEARLY FOUR TIMES TOO BIG.** The walk only ever goes
+        # UP from the hint, so when the true answer is BELOW the overlap the
+        # bisection was never reached and the reader was told to give away
+        # bottom margin the sheet did not need. Measured over 380 overlapping
+        # states, an adversary round found **77 of them** answered larger than
+        # the bisection's own answer, the worst on a Letter patch-first sheet,
+        # 18 mm bottom margin, two lines at 28 pt: the hint path said **9.5 mm
+        # where 2.5 mm clears**, because a whole strip drops out at 2.5 and
+        # the patch bottom jumps from 21.4 mm to 32.4. Same function, same
+        # state, `hint_mm=0` answers 2.5.
+        #
+        # ONE MORE PROBE SETTLES IT. If the grid point BELOW the hint's answer
+        # does not clear, the hint's answer is the smallest one and nothing
+        # more need be asked; that is the common case and it costs a single
+        # rebuild. If it does clear, the hint was loose and it becomes the
+        # bracket the bisection runs inside, which is still far cheaper than
+        # bisecting the whole 60 mm. Measured over the same 380 states: this
+        # agrees with the un-hinted bisection in **every one**, at 7.34 probes
+        # a call against 9.04 with no hint at all, where taking the hint for
+        # the answer cost 5.97 and was wrong in 77.
+        _bracket = float(cap_mm)
+        if hint_mm and hint_mm > 0:
+            _hint = walk_from(grid(hint_mm))
+            if _hint is not None:
+                _below = round(_hint - _MARGIN_STEP_MM, 1)
+                if _below < 0 or not clears(_below):
+                    return _hint
+                _bracket = _hint
+        # ON THE SPIN BOX'S OWN GRID. "Margins (mm)" steps in 0.5 mm, so a rise
+        # named to the tenth is a number a reader cannot reach with the arrows,
+        # and every tenth probed is a rebuild paid for nothing.
+        if _bracket >= cap_mm and not clears(cap_mm):
+            # **THE CEILING IS ONE POINT ON A PREDICATE THIS FUNCTION ITSELF
+            # DOCUMENTS AS NOT MONOTONE.** Ten lines below: *"a rise of 9.7 mm
+            # clears, 9.8 does not, and 9.9 clears again, because a whole row
+            # of patches drops out and comes back"*. Reading the largest rise
+            # as a verdict on every smaller one therefore answers `None` --
+            # *"No bottom margin this sheet allows will clear it"* -- on sheets
+            # where a margin the reader can type does clear it, and on a small
+            # paper the ceiling is not merely worse, it is unbuildable.
+            #
+            # MEASURED ON SCREEN, 2026-09-15
+            # (`scripts/adv20c_no_margin_clears_it_except_36_5.py`), i1Pro,
+            # Paper = Custom 62 x 88 mm, patch-first, markers on, two lines at
+            # 36 pt over a 6 mm bottom margin, photographed both ways with the
+            # chart really built and the message read back off the "Measured
+            # from Preview" field: four warnings on the panel against three. The
+            # ceiling cannot be laid out at all, so `clears` answers no for
+            # it; 36.5 mm clears, and so does every grid point to 47.0.
+            #
+            # So the grid is walked before anything is denied, with the SAME
+            # stability rule the hint path uses: the first point with two clear
+            # points above it. `seen` remembers every probe either path already
+            # paid for, and this runs only in the branch that was about to give
+            # up, which is the rarest of the four bottom messages.
+            #
+            # AND IT IS CHEAP ENOUGH TO DO. Measured in the real window on the
+            # sheet above, a fresh bottom margin every turn so nothing is
+            # cached: the whole notice pass is **29.5 ms** where the walk finds
+            # 30.5 and **45.2 ms** on a sheet where no margin clears and all
+            # 120 grid points are probed. The number this file records as the
+            # cost that had to be fixed is 120 to 210 ms a turn.
+            return walk_from(0.0, int(cap_mm / _MARGIN_STEP_MM) + 1)
+        lo, hi = 0.0, float(_bracket)
+        while hi - lo > _MARGIN_STEP_MM + 1e-9:
+            mid = round(round((lo + hi) / (2.0 * _MARGIN_STEP_MM))
+                        * _MARGIN_STEP_MM, 1)
+            if mid <= lo or mid >= hi:
+                break
+            if clears(mid):
+                hi = mid
+            else:
+                lo = mid
+        # …AND IT SHOULD SURVIVE A CLICK PAST IT. The predicate is NOT
+        # monotone. Reproduced on a plain i1 Letter sheet, two lines of 12 mm
+        # type over a 20 mm bottom margin: a rise of 9.7 mm clears, **9.8 does
+        # not**, and 9.9 clears again, because a whole row of patches drops out
+        # and comes back; a sweep of 775 overlapping states found 135 behaving
+        # that way. So the answer is the first grid point that has two clear
+        # grid points above it, found with a sliding window that costs ONE
+        # probe per step rather than three.
+        #
+        # **IT IS A GUARD, NOT A FIX FOR A STATE ANYBODY CAN SHOW.** In that
+        # 775-state sweep, and in about 240 states measured here, no answer
+        # ever failed to clear. What the sweep found is overshoot, and this
+        # window can only ever make the answer smaller than the bisection's.
+        return walk_from(round(hi, 1)) or round(hi, 1)
+    except Exception:          # noqa: BLE001 — a remedy, never a blocker
+        return None
 
 
 class TabChart(QWidget):
@@ -5820,6 +6451,35 @@ class TabChart(QWidget):
         # It compares, so a value moved and moved back takes the notice away
         # again; nothing here decides who moved it.
         self._refresh_unapplied_warning()
+        # …AND THE PANEL'S OWN NOTICES, WHICH ARE ABOUT THE BOXES BEING MOVED.
+        #
+        # `_engine_text_notes` says so in its own docstring: the collision "is
+        # predicted here from the recipe, because the user has to be told while
+        # they are still moving the spin boxes". It was not. Nothing refreshed
+        # the "Measured from Preview" frame on a LAYOUT change, so every notice
+        # on it stood frozen at the last build until something else repainted:
+        # `_on_chart_settings_touched` was given this same call on 2026-09-13
+        # for the notes box and the stamp tick, and the other twenty controls
+        # were left behind.
+        #
+        # MEASURED ON SCREEN, 2026-09-15, on this tree AND on v4.3.0-beta.16
+        # (`scripts/adv23e_the_notice_after_every_gesture.py`, run in a HEAD
+        # worktree as well): i1Pro, A4, one 24 pt line, bottom margin 8 mm,
+        # one real Generate, then eleven real gestures on the boxes. In **8 of
+        # them** the sentence on the panel was not the sentence the state had
+        # earned, in both trees, by the same count. Holding Up until "Bottom"
+        # read 14.0 mm — which is past the 5.5 mm rise the message itself asks
+        # for — left the red warning standing word for word; typing 60 into
+        # Size left it saying 10.3 mm where the state needs 25.7.
+        #
+        # THE COST, MEASURED BEFORE IT WAS ADDED (`adv23f`): one refresh is
+        # **8.5 to 20.3 ms median** across both layout modes, with and without
+        # sheet text, at 24 and 72 pt, worst single pass 63.7 ms. That is the
+        # same order as the 17.2 ms the sibling call above was accepted at.
+        # Guarded on there BEING a chart to measure, exactly as that one is, so
+        # a keystroke before anything is built costs nothing.
+        if getattr(self, "_margin_tiffs", None):
+            self._update_margin_inspector()
         # #133: while the gamut module is active its sheet estimate follows the
         # Manual layout live — every layout change lands here, so this is the
         # one hook that keeps the "≈ N sheets" line honest.
@@ -12788,6 +13448,63 @@ class TabChart(QWidget):
             return Path(ti1).stem
         return None
 
+    def _predicted_chart_layout_name(self) -> "str | None":
+        """The ``chart_layout_name`` the NEXT build will hand the stamper, or
+        None when it will stamp the targen command instead.
+
+        :meth:`_active_layout_name` answers *"what would this chart's layout be
+        called"*, and it falls back to ``Path(self._current_ti1_path).stem`` —
+        which every finished build sets, an ordinary targen build included.
+        But the BUILD only carries a layout name down the ``_generate_from_ti1``
+        route; ``_on_generate`` leaves the field None and the stamper prints the
+        targen command. Asking the first question when the second one is meant
+        made the "Measured from Preview" note-length prediction 23 characters
+        short on every Manual chart, and the panel then said nothing at all
+        while the rendered sheet cut 15 characters and printed "ChromI…"
+        (measured on screen, 2026-09-15,
+        `scripts/adv22c_press_generate_twice_and_the_warning_changes.py`).
+
+        So this mirrors the branches ``_on_generate`` actually takes, the same
+        way :meth:`_pending_patch_set_total` mirrors them for the patch count.
+        """
+        # The FROM PROFILE GAMUT module hands every build to
+        # `_generate_from_ti1`, so its sheet always carries a layout name.
+        if getattr(self, "_gamut_active", False):
+            return self._active_layout_name()
+        # Guided has no from-.ti1 route of its own: it runs targen.
+        if self._current_mode() != "manual":
+            return None
+        # A reflected chart is not built from here at all (`_on_generate`
+        # refuses), and unlocking it drops the reflection and runs targen.
+        if getattr(self, "_reflected_active", False):
+            return None
+        if getattr(self, "_applied_active", False) \
+                and getattr(self, "_applied_src_dir", None) is not None:
+            changed = (self._applied_targen_sig is not None
+                       and self._targen_signature() != self._applied_targen_sig)
+            return None if changed else self._active_layout_name()
+        if getattr(self, "_prebuilt_active", False) \
+                and getattr(self, "_prebuilt_key", None) is not None:
+            changed = (self._prebuilt_targen_sig is not None
+                       and self._targen_signature() != self._prebuilt_targen_sig)
+            return None if changed else self._active_layout_name()
+        if getattr(self, "_preset_ti1_path", None) is not None:
+            opted_in = bool(self._override_targen_check is not None
+                            and self._override_targen_check.isChecked())
+            changed = (opted_in
+                       and self._preset_ti1_targen_sig is not None
+                       and self._targen_signature() != self._preset_ti1_targen_sig)
+            return None if changed else self._active_layout_name()
+        if getattr(self, "_tc918_active", False):
+            return (self._active_layout_name()
+                    if self._targen_signature() == self._tc918_targen_sig
+                    else None)
+        if getattr(self, "_knut_active", False):
+            return (self._active_layout_name()
+                    if self._targen_signature() == self._knut_targen_sig
+                    else None)
+        return None
+
     def _generate_from_ti1(self, ti1_path: Path, *, ask: bool = True,
                            preview: bool = False) -> bool:
         """Create the target by running printtarg only on an existing .ti1.
@@ -19494,7 +20211,35 @@ class TabChart(QWidget):
         warns: list[str] = []
         over: list[str] = []
         try:
-            manual = (self._manual_btn is not None and self._manual_btn.isChecked())
+            # **`_current_mode()`, NOT `_manual_btn.isChecked()`** — the same
+            # distinction `_helper_marker_lines_frac` spends twelve lines on,
+            # eighty lines down this file, and for the same reason.
+            #
+            # The FROM PROFILE GAMUT module IS the Manual page with the targen
+            # group swapped out (#133 §10): "Margins (mm)", "Sheet text",
+            # "Text distance from edge" and the marker boxes are Manual's own
+            # live widgets there, the auto-update preview runs, and
+            # `_on_generate_gamut` builds the sheet from exactly them. But
+            # `_switch_mode("gamut")` does `self._manual_btn.setChecked(False)`,
+            # so keying on the BUTTON turned every notice in this method off in
+            # the one module whose sheet those boxes lay out.
+            #
+            # MEASURED ON SCREEN, 2026-09-15
+            # (`scripts/adv21d_the_gamut_module_hears_nothing.py`): i1Pro, A4,
+            # margins 12/12/6/12 with the tick off, markers on top and bottom,
+            # one line of sheet text at 36 pt. One chart, one "Measured from
+            # Preview" report (left 26.0, right 12.0, top 13.0, bottom 7.8 mm),
+            # read three times without touching a layout box: MANUAL prints
+            # "▼ 3 warnings" including *"The sheet text along the bottom runs
+            # into the patches … Raise “Bottom” … by about 13.5 mm"*, FROM
+            # PROFILE GAMUT prints none of them, and MANUAL again brings all
+            # three back. Photographed all three ways.
+            #
+            # `_current_mode()` answers "which settings lay the sheet out?",
+            # which is the question this gate is really asking; `_mode_name()`
+            # is the one that distinguishes the module and is deliberately not
+            # used here.
+            manual = self._current_mode() == "manual"
             if not (manual and getattr(self, "_manual_layout_panel", None) is not None
                     and bool(self._settings.get("use_chromiq_layout_engine", False))):
                 return warns, over
@@ -19657,13 +20402,19 @@ class TabChart(QWidget):
                               or 0.0)
             _bot_edge = float(getattr(r, "effective_text_edge_mm",
                                       getattr(r, "text_edge_mm", 0.0)) or 0.0)
+            # …AND THE MARKERS AS THE ENGINE READS THEM. See
+            # `_marker_reserve_args`: a box typed 0 draws 2.0 mm, and reading
+            # the field raw made every side notice in this method measure
+            # against a reserve up to 4 mm narrower than the one the sheet
+            # keeps. The bottom checks were swept on 2026-09-14 and these were
+            # left; the top one was then measured SILENT over strip letters
+            # really printed on the patches.
+            _mk_edge, _mk_len = _marker_reserve_args(r)
             _eff_edge = text_edge_fit.side_text_edge_mm(
                 _clip_edge,
                 helper_markers=bool(getattr(r, "helper_markers", False)),
-                marker_edge_mm=float(
-                    getattr(r, "helper_marker_edge_mm", 0.0) or 0.0),
-                marker_len_mm=float(
-                    getattr(r, "helper_marker_len_mm", 0.0) or 0.0),
+                marker_edge_mm=_mk_edge,
+                marker_len_mm=_mk_len,
                 marker_sides=bool(
                     getattr(r, "helper_markers_sides", True)))
             _note_side = "right"
@@ -19971,8 +20722,7 @@ class TabChart(QWidget):
                     # the one the note is drawn into, so it under-reported the
                     # characters that are cut off.
                     _mk = (bool(getattr(r, "helper_markers", False)),
-                           float(getattr(r, "helper_marker_edge_mm", 0.0) or 0.0),
-                           float(getattr(r, "helper_marker_len_mm", 0.0) or 0.0),
+                           *_marker_reserve_args(r),
                            bool(getattr(r, "helper_markers_top_bottom", True)))
                     _note_top = text_edge_fit.edge_reserve_mm(_top_edge, *_mk)
                     _note_bot = text_edge_fit.edge_reserve_mm(_bot_edge, *_mk)
@@ -19995,7 +20745,28 @@ class TabChart(QWidget):
                             # anywhere. Measured: the predicted line was 143
                             # characters, "targen -d2 -f612 -e1 -B1 -G test"
                             # where the sheet stamps "Chart layout test |".
-                            _pm.chart_layout_name = self._active_layout_name()
+                            #
+                            # …AND THE SAME QUESTION HAS TO BE ASKED THE WAY
+                            # GENERATE ASKS IT, or the fix above simply moves
+                            # the lie to the other mode. `_active_layout_name()`
+                            # answers with `Path(_current_ti1_path).stem` for
+                            # ANY chart that has been built, and
+                            # `_current_ti1_path` is set by every finished
+                            # build, targen ones included — while
+                            # `chart_layout_name` is set on the BUILD only by
+                            # `_generate_from_ti1`. So from the first ordinary
+                            # Manual build onwards the panel predicted "Chart
+                            # layout <stem>" for a sheet that stamps "targen
+                            # -d2 -f609 -e4 -B4 -G -g35 <stem>", 23 characters
+                            # longer. Measured on screen, i1Pro / A4 / 14 pt /
+                            # notes "Canon Pro-1000 / Photo Rag 308": the
+                            # rendered sheet ends "…ChromI…" with 15 characters
+                            # cut, and the panel said NOTHING, at every right
+                            # margin from 6.0 to 30.0 mm.
+                            # `_predicted_chart_layout_name` mirrors the routes
+                            # `_on_generate` really takes.
+                            _pm.chart_layout_name = \
+                                self._predicted_chart_layout_name()
                             # THE COUNT THE STAMPED LINE WILL CARRY. `-f<N>` is
                             # in the targen line, so the wrong N is the wrong
                             # LENGTH: `params.patches` is 0 on a chart built
@@ -20372,8 +21143,7 @@ class TabChart(QWidget):
                     # door.
                     _marker_floor_mm = text_edge_fit.helper_marker_reserve_mm(
                         bool(getattr(r, "helper_markers", False)),
-                        float(getattr(r, "helper_marker_edge_mm", 0.0) or 0.0),
-                        float(getattr(r, "helper_marker_len_mm", 0.0) or 0.0),
+                        *_marker_reserve_args(r),
                         bool(getattr(r, "helper_markers_sides", True)))
                     if _clip_target > 0.05 and _clip_target + 0.05 >= _marker_floor_mm:
                         _msg += " " + tr(
@@ -20585,8 +21355,15 @@ class TabChart(QWidget):
                 _ov = text_edge_fit.strip_label_overlap(
                     _patch_top, _top_edge, max(0.0, _drawn), _off,
                     bool(getattr(r, "helper_markers", False)),
-                    float(getattr(r, "helper_marker_edge_mm", 0.0) or 0.0),
-                    float(getattr(r, "helper_marker_len_mm", 0.0) or 0.0),
+                    # …AS THE ENGINE READS THEM. With both marker boxes typed
+                    # 0 the renderer still draws 2 + 2 mm markers and
+                    # `geometry.strip_label_reserve_mm` puts the label band
+                    # 5.0 mm down, while this asked for 1.0. Measured on
+                    # screen, A4 area_first, top margin 8.0 mm, "T" 2.0 mm:
+                    # the band's ink ends at 8.94 mm and the first patch row
+                    # starts at 8.04, so 0.90 mm of every strip letter is on
+                    # the patches and this check said nothing.
+                    *_marker_reserve_args(r),
                     bool(getattr(r, "helper_markers_top_bottom", True)),
                     gap_mm=float(getattr(geom, "strip_indicator_gap", 0.0) or 0.0))
                 if _ov is not None and _ov.from_markers:
@@ -20719,8 +21496,10 @@ class TabChart(QWidget):
             _b_edge = text_edge_fit.sheet_text_bottom_mm(
                 _bot_edge,
                 bool(getattr(r, "helper_markers", False)),
-                float(getattr(r, "helper_marker_edge_mm", 0.0) or 0.0),
-                float(getattr(r, "helper_marker_len_mm", 0.0) or 0.0),
+                # …AND AS THE ENGINE READS THEM. See `_marker_reserve_args`:
+                # a box typed 0 is 2.0 mm on the sheet, and reading the field
+                # raw made this check silent on 91 colliding states.
+                *_marker_reserve_args(r),
                 bool(getattr(r, "helper_markers_top_bottom", True)))
             # THE HEIGHT CHECK IS AREA-FIRST ONLY, AND THAT IS NOT AN OVERSIGHT.
             # It asks whether the bottom line's box fits inside `r.margin_bottom`,
@@ -20742,30 +21521,179 @@ class TabChart(QWidget):
             # The WIDTH check below stays in both modes: the paper is the same
             # width whatever sized the patches, and that one was measured
             # missing.
-            _o = (text_edge_fit.sheet_text_overlap(
-                      r.margin_bottom, _b_edge, nlines, _line_mm)
-                  if _labels_can_overflow else None)
+            # **AND IT ASKED THE REQUESTED MARGIN, WHICH IS NOT WHERE THE
+            # PATCHES ARE.** Knut, 2026-09-14, on the CR30 Letter 792-patch
+            # straight preset: *"When bottom margin is 11.0mm there is a
+            # warning ... You can clearly see that there is ample space both on
+            # top and below the bottom text line, so the warning should not
+            # happen."* Reproduced on screen and measured off the app's own
+            # sheets, sweeping the margin from 7.5 to 16 mm: the text never
+            # moves (its ink sits 7.37 to 10.41 mm up in every one, because it
+            # is anchored on the PAPER EDGE), the patches move but never come
+            # near it, and the narrowest real gap is **3.43 mm at a 7.5 mm
+            # margin**. The panel warned at 7.5, 9, 10 and 11 and fell silent
+            # at 11.5, tracking a number with no effect on the sheet.
+            #
+            # `raster._furniture_reserves_mm` holds back
+            # `sheet_text_bottom_mm + 4.2 x lines` BELOW the margin, so the
+            # patch area's real bottom is the margin plus that reserve plus
+            # whatever the row pitch rounds up. Only the MEASURED bottom is
+            # exact, and the panel has it: this frame is "Measured from
+            # Preview" and its report carries the patch rectangles.
+            #
+            # AND IT IS PREDICTED, NOT MEASURED. The measured report describes
+            # the chart already in the PREVIEW, not the settings being edited:
+            # driven across the same seven margins, `report.bottom_mm` was
+            # **10.29 mm every time**, which is why Knut read 12.8 mm in
+            # "Measured from Preview" while the box said 11.0. The prediction
+            # below runs `geometry.compute` and `geometry.placement`, the same
+            # two functions the renderer uses, and agreed with the app's own
+            # rendered sheets to within 0.03 mm on all seven.
+            # **NOTHING HERE MAY REACH THROUGH `self` FOR SOMETHING THAT CAN
+            # BE ABSENT.** This whole body is inside one
+            # `except Exception: pass`, so an AttributeError does not lose a
+            # sentence, it loses every warning on the panel. `getattr` with a
+            # default, and a module function for the arithmetic.
+            # NO PATCH COUNT IS ASKED FOR, AND THE FIRST VERSION ASKED TWO.
+            # It read `_onscreen_patch_total()` and `_estimate_patch_total()`
+            # and passed the answer down. Measured afterwards: the answer does
+            # not move. `geometry.compute` returns the page's CAPACITY in
+            # `steps_in_pass`, so 12, 60, 120, 480, 2 000 and 100 000 patches
+            # all predict the same bottom, in both layout modes. The plumbing
+            # was inert, and two test fakes had grown counters to feed it; a
+            # counter that can raise inside this blanket `except` is a real
+            # hazard for nothing gained.
+            _patch_bottom = predicted_patch_bottom_mm(r, geom)
+            # BOTH LAYOUT MODES, and that is the change of 2026-09-14.
+            # This check used to be gated on `_labels_can_overflow` because it
+            # asked about the REQUESTED margin, which is not the room in
+            # patch-first. It asks where the patches really are now, and that
+            # question is as well posed in one mode as the other. Measured on
+            # Knut's CR30 Letter preset, twenty states, ink read off the app's
+            # own sheets: in patch-first the text ran into the patches by 6.60,
+            # 9.28 and 25.02 mm with the panel silent, because the only thing
+            # this frame said there was the WIDTH warning, whose remedies are
+            # all about width.
+            _o = (text_edge_fit.bottom_text_block_overlap(
+                      float(_patch_bottom), _b_edge, nlines, _line_mm)
+                  if _patch_bottom is not None else None)
+            # THE RISE, WORKED OUT ONCE. ``None`` means no margin the box will
+            # hold clears it, and the sentence appended below says so rather
+            # than naming a number nobody can type.
+            _rise = (margin_rise_that_clears_mm(
+                         r, None, _b_edge, nlines, _line_mm,
+                         hint_mm=_o.overlap_mm)
+                     if _o is not None else None)
             if _o is not None:
                 # ONE LINE OR TWO, SAID AS ONE OR TWO. "(s)" is banned in this
                 # project's user-facing text, and the two cases really do have
                 # different fixes: with both switched on, turning one off is a
                 # remedy the single-line case cannot offer.
-                over.append((tr(
+                # THE NUMBERS ARE THE MEASURED ONES NOW. "the bottom margin
+                # leaves X mm" named a control the sheet does not obey; what a
+                # reader can check against the preview is where the patches
+                # really stop.
+                # FOUR SENTENCES, BECAUSE THERE ARE FOUR CASES AND NAMING A
+                # RISE OF 0.0 mm IS NOT ONE OF THEM. Where no margin the box
+                # holds will clear it, the message used to name the largest
+                # rise left and append a sentence saying it would not be
+                # enough; at a margin already on the ceiling that came out as
+                # **"Raise “Bottom” under “Margins (mm)” by about 0.0 mm"**,
+                # reached by doing exactly what the app had said one step
+                # earlier. So that case gets its own wording and never names a
+                # number the reader is meant to type.
+                #
+                # AND IT NO LONGER SAYS ANYTHING ABOUT PAPER OF ITS OWN.
+                # The first draft offered a larger paper as a remedy; the
+                # second flatly denied it ("A larger paper does not help: the
+                # text is printed from the paper edge, so it stays where it
+                # is"), on fourteen papers measured in ONE state. The text
+                # really is anchored on the paper edge, and that is the half of
+                # the question that does not decide it: the PATCHES are
+                # re-fitted to every sheet. Measured over the reachable states,
+                # the denial was false in 29 of the 84 that made it, and on
+                # screen A3 cleared a sheet A4 could not. The clause is a
+                # separate, gated sentence now -- see `_larger_paper_note`.
+                over.append(((tr(
                     "⚠ The sheet text along the bottom runs into the patches. "
                     "It is printed {edge:.1f} mm up from the paper edge and "
-                    "needs {need:.1f} mm of room, and the bottom margin leaves "
-                    "{avail:.1f} mm. Raise “Bottom” under “Margins (mm)” by "
-                    "about {short:.1f} mm, or lower “B” under “Text distance "
-                    "from edge (mm)”.") if nlines == 1 else tr(
+                    "needs {need:.1f} mm of room, and the patches come down to "
+                    "{bottom:.1f} mm, leaving {avail:.1f} mm. Raise “Bottom” "
+                    "under “Margins (mm)” by about {short:.1f} mm.")
+                    if nlines == 1 else tr(
                     "⚠ The two lines of sheet text along the bottom run into "
                     "the patches. They are printed {edge:.1f} mm up from the "
-                    "paper edge and need {need:.1f} mm of room, and the bottom "
-                    "margin leaves {avail:.1f} mm. Raise “Bottom” under "
-                    "“Margins (mm)” by about {short:.1f} mm, lower “B” under "
-                    "“Text distance from edge (mm)”, or switch one of the two "
-                    "lines off.")).format(
+                    "paper edge and need {need:.1f} mm of room, and the "
+                    "patches come down to {bottom:.1f} mm, leaving "
+                    "{avail:.1f} mm. Raise “Bottom” under “Margins (mm)” by "
+                    "about {short:.1f} mm, or switch one of the two lines "
+                    "off.")) if _rise is not None else (tr(
+                    "⚠ The sheet text along the bottom runs into the patches. "
+                    "It is printed {edge:.1f} mm up from the paper edge and "
+                    "needs {need:.1f} mm of room, and the patches come down to "
+                    "{bottom:.1f} mm, leaving {avail:.1f} mm. No bottom margin "
+                    "this sheet allows will clear it: “Bottom” under “Margins "
+                    "(mm)” stops at {max:.0f} mm and even that leaves the text "
+                    "in the patches. Make the sheet text smaller under “Sheet "
+                    "text”.")
+                    if nlines == 1 else tr(
+                    "⚠ The two lines of sheet text along the bottom run into "
+                    "the patches. They are printed {edge:.1f} mm up from the "
+                    "paper edge and need {need:.1f} mm of room, and the "
+                    "patches come down to {bottom:.1f} mm, leaving "
+                    "{avail:.1f} mm. No bottom margin this sheet allows will "
+                    "clear it: “Bottom” under “Margins (mm)” stops at "
+                    "{max:.0f} mm and even that leaves the text in the "
+                    "patches. Make the sheet text smaller under “Sheet text”, "
+                    "or switch one of the two lines off."))).format(
                         edge=_b_edge, need=_o.needed_mm,
-                        avail=max(0.0, _o.available_mm), short=_o.overlap_mm))
+                        bottom=float(_patch_bottom),
+                        avail=max(0.0, _o.available_mm),
+                        # THE NUMBER THAT ACTUALLY WORKS, asked of the layout
+                        # rather than derived from the overlap. See
+                        # `margin_rise_that_clears_mm`: the overlap was too
+                        # small every time, because the patch grid is re-fitted
+                        # as the margin moves.
+                        max=_MARGIN_BOX_MAX_MM,
+                        # …and `short` is only read by the two sentences that
+                        # have a rise to name. `_rise` is None in the other
+                        # two, and `str.format` ignores what it is not asked
+                        # for, so nothing invents a number there.
+                        short=(_rise if _rise is not None else 0.0))
+                    # …AND THE PAPER CLAUSE IS ASKED OF THE SHEET. It used
+                    # to be written into both "no margin clears it" wordings as
+                    # a plain statement and was measured false in 29 of the 84
+                    # states that make it: see `_larger_paper_note`, and a
+                    # photograph of the same panel clearing on A3. Appended
+                    # only in that branch, because it is the only one that
+                    # claims nothing else will do.
+                    + (_larger_paper_note(r, nlines, _line_mm)
+                       if _rise is None else "")
+                    # …AND WHETHER THE BOX IS EVEN OPEN. See
+                    # `_locked_margins_note`: with "Use instrument margins"
+                    # ticked the four margin boxes are read-only, which is
+                    # `LayoutRecipe`'s own default, and the remedy above names
+                    # one of them. It comes first because the ceiling sentence
+                    # below talks about how far the box goes, which is a
+                    # question for after it can be typed in at all.
+                    + _locked_margins_note(r)
+                    + _bottom_lever_note(
+                        _bot_edge, _b_edge,
+                        # …AND THE OFFER IS ASKED OF THE SHEET. See
+                        # `lowering_b_clears`: above the markers' reach the
+                        # lever stops at them, and in patch-first it can lower
+                        # the engine's own band with it and buy nothing.
+                        lambda: lowering_b_clears(r, nlines, _line_mm),
+                        # THE TYPED VALUE, NOT THE EFFECTIVE ONE. `_bot_edge`
+                        # is already `text_edge_mm or 4.0`, so a box reading 0
+                        # arrives here as 4.0 and the "lower it" sentence was
+                        # being offered to somebody whose box is already at 0.
+                        float(getattr(r, "text_edge_mm", 0.0) or 0.0),
+                        # …AND THE MARKERS SENTENCE IS ASKED OF THE SHEET AS
+                        # WELL. See `markers_off_clears`: it names a way out,
+                        # and on 16 of 24 states driven on screen that way out
+                        # left the warning up.
+                        lambda: markers_off_clears(r, nlines, _line_mm)))
             # …AND THE SAME BLOCK HAS A WIDTH, WHICH NOTHING ASKED ABOUT.
             # Knut, #182, "Bottom page edge": *"The width of the defined text
             # … should also be checked against the available space, taking
@@ -20805,8 +21733,7 @@ class TabChart(QWidget):
                 _wo = text_edge_fit.bottom_text_overflow(
                     _pw, _clip_edge, _w,
                     bool(getattr(r, "helper_markers", False)),
-                    float(getattr(r, "helper_marker_edge_mm", 0.0) or 0.0),
-                    float(getattr(r, "helper_marker_len_mm", 0.0) or 0.0),
+                    *_marker_reserve_args(r),
                     bool(getattr(r, "helper_markers_sides", True)),
                     clip_border_mm=_cb_mm,
                     clip_side=str(getattr(r, "clip_side", "left") or "left"),
@@ -21155,18 +22082,32 @@ class TabChart(QWidget):
         # changed nothing on screen. `_current_mode()` asks which PAGE is
         # showing, which is the real question; `_mode_name()` is the one that
         # distinguishes the module and is deliberately not used here.
+        # AND BOTH BRANCHES READ WHAT THE ENGINE DRAWS, NOT WHAT THE BOX SAYS.
+        #
+        # `LayoutRecipe.build_kwargs` sends `helper_marker_edge_mm or 2.0` and
+        # `helper_marker_len_mm or 2.0`, so a box typed 0 still prints 2 mm
+        # dashes at 2 mm from the edge. This overlay claims to BE the ink on
+        # the sheet, and with both boxes at 0 it drew **nothing at all** while
+        # the app's own TIFF, written in the same second, carried 44 dash
+        # columns in its top 6 mm. Measured on screen by an adversary round,
+        # 2026-09-14: overlay 88 dashes against sheet 88 at 2.0/2.0, overlay 0
+        # against sheet 88 at 0.0/0.0, and the second photograph is a crop of
+        # the real TIFF with the tick row plainly above the strip letters.
+        # It is the same `or 2.0` convention that B8-158 and B8-162 caught in
+        # the warnings, on the one surface that is supposed to be the picture.
         manual = self._current_mode() == "manual"
         if manual:
             on = bool(panel.helper_markers_cb.isChecked())
-            edge_mm = float(panel.helper_marker_edge.value())
-            len_mm = float(panel.helper_marker_len.value())
+            edge_mm = (float(panel.helper_marker_edge.value())
+                       or _MARKER_DEFAULT_MM)
+            len_mm = (float(panel.helper_marker_len.value())
+                      or _MARKER_DEFAULT_MM)
             per_patch = int(panel.helper_marker_per_patch.value())
             top_bottom = bool(panel.helper_markers_top_bottom.isChecked())
             sides = bool(panel.helper_markers_sides.isChecked())
         else:
             on = bool(getattr(rec, "helper_markers", False))
-            edge_mm = float(getattr(rec, "helper_marker_edge_mm", 0.0) or 0.0)
-            len_mm = float(getattr(rec, "helper_marker_len_mm", 0.0) or 0.0)
+            edge_mm, len_mm = _marker_reserve_args(rec)
             per_patch = int(getattr(rec, "helper_marker_per_patch", 0) or 0)
             top_bottom = bool(getattr(rec, "helper_markers_top_bottom", False))
             sides = bool(getattr(rec, "helper_markers_sides", False))
@@ -21200,6 +22141,20 @@ class TabChart(QWidget):
             per_patch=per_patch, top_bottom=top_bottom, sides=sides)
         wanted = (True, edge_mm, len_mm, per_patch, top_bottom, sides)
         printed = tuple(getattr(rec, k) for k in self._HM_KEYS)
+        # AND THE SHEET'S SIDE OF THE COMPARISON READS THEM THE SAME WAY.
+        #
+        # `LayoutRecipe.to_dict` is `asdict`, so `channels.json` records the
+        # 0.0 that was typed, while the sheet it describes was drawn with the
+        # 2.0 `build_kwargs` substituted. Coercing only the CONTROLS made
+        # `pending` true for ever on such a chart. Measured in the real window,
+        # 2026-09-14 (`scripts/adv18b_the_caption_that_cannot_be_cleared.py`):
+        # a chart generated with both boxes at 0 drew its own 214 dashes in the
+        # accent colour under "Markers not on this sheet yet - press Generate
+        # Chart"; a second Generate did not clear it, and no value the two
+        # boxes can hold clears it either, because the left-hand side can never
+        # be 0.0 again. The control, generated at 2.0/2.0, is the same 214
+        # dashes in plain black with no caption.
+        printed = (printed[0], *_marker_reserve_args(rec), *printed[3:])
         # Floats come from spin boxes on both sides, so compare them as the user
         # sees them (0.1 mm) rather than bit for bit.
         pending = manual and not (bool(printed[0]) == wanted[0]

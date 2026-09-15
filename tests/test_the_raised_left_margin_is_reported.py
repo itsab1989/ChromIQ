@@ -27,11 +27,6 @@ from workflow.layout_engine import instruments            # noqa: E402
 from workflow.layout_engine.presets import LayoutRecipe   # noqa: E402
 
 
-class _Btn:
-    def isChecked(self):
-        return True
-
-
 class _Settings:
     def get(self, key, default=None):
         return True if key == "use_chromiq_layout_engine" else default
@@ -39,7 +34,16 @@ class _Settings:
 
 class _Tab:
     """Just enough TabChart for the method under test to run."""
-    _manual_btn = _Btn()
+    def _current_mode(self):
+        """The gate `_engine_text_notes` really asks, and NOT `_manual_btn`.
+
+        The FROM PROFILE GAMUT module is the Manual page with its own targen
+        section, and it leaves that BUTTON unchecked; keying the notices on it
+        turned every one of them off there. The stand-in carries no
+        `_manual_btn` on purpose, so a revert to the button spelling makes this
+        file go red rather than quietly produce no notices.
+        """
+        return "manual"
     _manual_layout_panel = object()
     _settings = _Settings()
 

@@ -6242,3 +6242,1174 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   and solid-corner conditions are three short paragraphs each now. Same facts,
   same numbers, still asserted against the code's own constants.
 
+
+### B8-135 · The bottom-text height warning measured the margin, not the patches
+- blocks release: no
+- status: FIXED
+- found by: Knut, 2026-09-14, on the CR30 Letter 792-patch straight preset:
+  *"When bottom margin is 11.0mm there is a warning ... You can clearly see
+  that there is ample space both on top and below the bottom text line, so the
+  warning should not happen. Measurements are obviously calculated wrong.
+  Bottom margin in Measured from Preview shows 12.8mm."*
+- evidence:
+  test_his_case_is_quiet_and_a_real_collision_is_not,
+  test_the_old_question_gave_the_wrong_answer_on_his_sheet,
+  test_the_prediction_matches_the_renderer_on_a_real_layout,
+  test_the_panel_predicts_the_patch_bottom_rather_than_measuring_it,
+  test_the_notes_survive_a_tab_that_cannot_count_its_patches,
+  test_auto_shrinks_on_the_height_as_well_as_the_width.
+  Driven on screen with scripts/drive_182_knut_bottom_text_height.py: 6 of 6
+  green on his own preset, sheets rendered and the ink measured rather than the
+  prediction re-asked.
+- detail: the check asked `margin_bottom - "B" < lines x line`, and neither of
+  those numbers is the distance in question. The text is anchored on the PAPER
+  EDGE and never moves with the margin; the patch area's bottom is held back by
+  `raster._furniture_reserves_mm`, which already subtracts the text band, so on
+  his sheet the patches end at 15.62 mm with the ink stopping at 10.41 mm, a
+  clear gap of 5.21 mm, and the panel warned. Swept over 7.5, 9, 10, 11, 11.5,
+  13 and 16 mm: the ink is at 7.37 to 10.41 mm at every one of them, and the
+  old test flipped at 11.5 mm on a sheet that does not change.
+
+  `text_edge_fit.bottom_text_block_overlap(patch_bottom, reserve, lines, line)`
+  is the question worth asking, and `tab_chart.predicted_patch_bottom_mm`
+  answers where the patches really end, through `geometry.compute` and
+  `geometry.placement`, which is what the renderer uses. `_furniture_reserves_mm`
+  also stopped guessing a literal 4.2 mm per line and asks `SHEET_TEXT_LINE_MM`.
+
+  **AND THE FIRST FIX PUT THE LOOKUP ON `self`.** `_engine_text_notes` wraps its
+  whole body in one `except Exception: pass`, so an AttributeError there loses
+  EVERY warning on the panel rather than one sentence: four tests went quiet and
+  the silence read like the fix working. It is a module function now, and the
+  patch count is read with `getattr(self, "...", lambda: None)()`.
+
+### B8-136 · The Report type and Judged against help did not answer the question
+- blocks release: no
+- status: FIXED
+- found by: Knut, 2026-09-14: *"the help text for the report type and judged
+  against must describe properly what each option are, when they are normally
+  used, and which Judged against limit sets are normally matched with which
+  report type. It should also be explained how report type and limit sets
+  depend on selection of the right chart / preset to be used and how the colors
+  in that chart is selected for verification."*
+- evidence:
+  test_the_help_lists_every_type_the_pulldown_offers,
+  test_a_seventh_type_cannot_be_missing_from_the_help,
+  test_both_icons_answer_the_pairing_and_the_chart_question,
+  test_the_help_says_the_things_a_reader_came_for,
+  test_every_language_names_the_controls_as_that_language_shows_them.
+  Four mutations proved to land. Driven on screen with
+  scripts/drive_182_report_type_help.py: ten verdicts green, both icons
+  photographed, both documents rendered and diffed.
+- detail: four questions, and the help now answers them in four pieces. The six
+  types are listed from `REPORT_TYPE_MENU` with their own descriptions, so a
+  seventh type cannot appear in the pulldown and be missing from the help; a
+  paragraph says when a reader would reach for each; a second says which limit
+  set suits which type and that the pairs are habits rather than rules; a third
+  says what the printed chart has to carry before a row can be judged at all,
+  and that a chart built with FROM PROFILE GAMUT is where the aim values come
+  from. The last two ride on BOTH icons, because the question reads the same
+  from either control.
+
+  **ONE SENTENCE OF THE FIRST DRAFT WAS FALSE, AND THE DRIVER CAUGHT IT.** It
+  said the Printing record judges nothing "so the set beside it changes nothing
+  in the document". Rendered both types on one measurement and diffed them: the
+  type turns every verdict into INFO, and the document still names the set at
+  the top and in Report Scope. The sentence says so now.
+
+  **AND ELEVEN OF THE TWELVE TRANSLATIONS POINTED AT NAMES NOBODY WOULD FIND.**
+  The limit-set names are English in every catalogue but the German one, and
+  "Report limits" is untranslated in eleven, while the Create Chart tab and the
+  FROM PROFILE GAMUT button ARE translated, differently, in all twelve. The
+  first draft invented local names in five places per language.
+  `test_every_language_names_the_controls_as_that_language_shows_them` reads
+  each name out of that language's own catalogue and looks for it in the
+  paragraph, so the next such drift is red rather than shipped.
+
+### B8-137 · The other three edges name a remedy of the same wrong size
+- blocks release: no
+- status: OPEN
+- found by: this session, 2026-09-14, while fixing B8-135. Raised rather than
+  changed: it is pre-existing, it is smaller than the bottom case, and the
+  wording it would need has to go through twelve catalogues.
+- evidence: measured on the CR30 Letter 792-patch straight preset through
+  `geometry.placement`: the patch area starts at x 12.78 mm against an 11.0 mm
+  left margin, its right edge lands at 188.28 mm against 189.9 mm of paper
+  before the 26.0 mm right margin, and the first row starts at 18.56 mm against
+  a margin plus leader of 18.0 mm. So there is 1.78, 1.62 and 0.56 mm of real
+  paper the top, left and right checks do not know about, where the bottom's
+  was 4.6 mm.
+- detail: two halves, and the first is the milder one.
+
+  **THE ROOM THEY MEASURE IS THE MARGIN, NOT THE PATCHES.** Same shape as
+  B8-135, and the numbers above say it is worth between half a millimetre and
+  two, so a warning can appear over a sheet with a little clear paper. The
+  bottom edge is now measured against `predicted_patch_bottom_mm`; the other
+  three would each need their own prediction.
+
+  **AND "RAISE X BY ABOUT N MM" IS THE OVERLAP, WHICH IS NOT WHAT IT COSTS.**
+  The patch grid is re-fitted when a margin moves, so the edge travels less
+  than the margin does. `tab_chart.margin_rise_that_clears_mm` is the shape of
+  the answer for the bottom; the other three want the same treatment.
+
+### B8-138 · The height fix shrank every "Size auto" bottom line at 300 dpi
+- blocks release: yes
+- status: FIXED
+- found by: the adversary round on 2026-09-14, hours after B8-135 introduced it.
+- evidence:
+  test_the_shrink_can_always_stop,
+  test_the_reserve_is_the_band_this_dpi_can_draw,
+  test_a_typed_size_above_the_reserve_is_what_can_collide (now at six
+  resolutions, not one),
+  test_auto_shrinks_on_the_height_as_well_as_the_width.
+  Sheets rendered at 150, 200, 240, 300 and 360 dpi and the ink measured.
+- detail: the new height term asked
+  `sheet_text_line_mm(...) <= text_edge_fit.SHEET_TEXT_LINE_MM`.
+  `sheet_text_line_mm` rounds through whole PIXELS, and its own floor is
+  `round(4.2 x dpi / 25.4)` px read back as millimetres: **4.2333 mm at 150,
+  240, 300 and 360 dpi**, which is larger than the 4.2 it was compared with. No
+  size could satisfy it at those resolutions, not even the 7 pt floor the loop
+  stops at, so every chart with Size auto had its bottom line shrunk all the way
+  down however much paper was free. **300 dpi is `LayoutRecipe`'s default.**
+  Measured on one sheet with 7.5 mm of clear paper under the patches: the ink
+  came out 1.947 x 9.991 mm at 300 dpi where the same recipe at 200 dpi, and the
+  same sheet before the change, draws 2.540 x 13.1 mm.
+
+  `raster.sheet_text_reserve_mm(dpi)` is the band as that dpi can draw it, and
+  the loop compares against it. **And the test that named this feature was green
+  throughout**: it grepped `render_pages` for `_fits_h`. It now also requires
+  the term to be off the bare constant.
+
+### B8-139 · The bottom height check was silent in patch-first
+- blocks release: no
+- status: FIXED
+- found by: the adversary round, 2026-09-14.
+- evidence:
+  test_the_panel_speaks_in_both_layout_modes.
+  Driven on screen with scripts/adv17_bottom_text_quiet_and_colliding.py, 20 states on
+  Knut's CR30 Letter preset with the ink read off the app's own sheets: before,
+  three real collisions in patch-first (6.60, 9.28 and 25.02 mm of overlap)
+  with no height warning at all; after, every collision in both modes is named
+  and no sheet with a clear gap is warned about except the sub-millimetre case
+  below.
+- detail: `_labels_can_overflow` gated the whole bottom block on area_first,
+  because the old check asked about the REQUESTED margin, which is not the room
+  in patch-first. That reason died with B8-135: the check asks where the patches
+  really are now, and that question is as well posed in one mode as the other.
+  Patch-first is the default for SpectroScan and CR30.
+
+  **ONE CONSERVATIVE CASE REMAINS, AND IT IS THE MODEL, NOT A BUG.** The check
+  measures the line's BOX (ascent plus descent), and the ink sits about 2 mm
+  inside it, so at 28 pt in patch-first it warns with 0.64 mm of clear paper.
+  The engine reserves boxes too, so the box is the honest unit; the residue is
+  named here rather than left to be re-found.
+
+### B8-140 · "Lower B" was advice that did nothing on Knut's own preset
+- blocks release: no
+- status: FIXED
+- found by: the adversary round, 2026-09-14.
+- evidence: test_the_lever_is_only_offered_where_it_moves_the_text; driven on
+  screen with the markers on and off, both sentences read off the panel.
+- detail: the bottom text is anchored at the LARGER of "B" under "Text distance
+  from edge (mm)" and the ruler helper markers' own reach. With the markers on,
+  which is his preset (edge 4.0 + length 2.0 + 1.0 = 7.0 mm), B typed at 7, 5,
+  4, 3, 2, 1 and 0 left the anchor at 7.00 mm and the overlap at 1.27 mm, with
+  the warning up the whole time: seven values, zero movement. The message now
+  offers the lever only where it moves the text, and where it does not it says
+  what is holding it and which control hands the distance back.
+
+### B8-141 · The "lower B" offer promised room it could not buy
+- blocks release: no
+- status: FIXED
+- found by: the second adversary round, 2026-09-14, on the sentence the FIRST
+  round had just caused to be written. Then a second case found here while
+  checking that fix.
+- evidence:
+  test_the_lever_is_only_offered_where_it_moves_the_text,
+  test_the_lever_is_withheld_when_it_cannot_close_the_gap,
+  test_a_b_of_zero_is_not_offered_as_a_lever,
+  test_the_lever_sentence_cannot_take_the_panel_down_with_it.
+  Driven on screen with scripts/adv17b_the_lever_that_stops_at_the_markers.py
+  and adv17b_the_lever_offer_is_kept.py.
+- detail: two ways to promise nothing, and the first is the interesting one.
+
+  **THE SENTENCE WAS CHOSEN BY ARITHMETIC AND THE LEVER IS A LAYOUT.** It asked
+  only whether the anchor already sat above "B", which detects the case where
+  the markers hold the text and misses the case where "B" is ABOVE their reach:
+  there the anchor follows "B", so the arithmetic said "lowering it buys the
+  same room", and the lever then stops dead at the markers. Measured on screen
+  on the CR30 Letter preset at 24 pt with a 7.0 mm marker reach, "B" swept 12
+  down to 0: the offer was made at 12, 11, 10, 9, 8 and 7, and pulling it all
+  the way to 0 bought 5 mm of a larger shortfall and left the warning up. That
+  is the same shape as the "raise Bottom by the size of the overlap" fault this
+  whole block was written to remove. `tab_chart.lowering_b_clears` rebuilds the
+  geometry with "B" at the bottom of its range and asks the sheet; where the
+  answer is no, no sentence is appended, because the "Raise Bottom" remedy
+  beside it is measured to work and needs no companion that does not.
+
+  **AND A "B" TYPED AS 0 IS NOT AT THE BOTTOM OF ITS RANGE.**
+  `effective_text_edge_mm` is `text_edge_mm or 4.0`, so a box reading 0.0 draws
+  the text at 4.0 mm, and the caller was handing the note that effective 4.0 as
+  though it were the typed value. A reader at 0.0 was told to lower it. The
+  typed value is passed now and the sentence is withheld there. The 0-means-4.0
+  reading itself is B8-144.
+
+### B8-142 · Two claims in the help were still not exact
+- blocks release: no
+- status: FIXED
+- found by: the second adversary round, 2026-09-14.
+- evidence: test_the_help_says_the_things_a_reader_came_for (both phrases are
+  in the forbidden list now), test_the_numbers_in_the_help_are_the_numbers_in_the_sets.
+- detail: **"the grey rows move with them, by less" was false in the direction
+  it mattered.** Read out of `_CHROMIQ_FACTORY`: Quick check takes the grey
+  maximum from 3.0 to 7.0 while the colour maximum goes 3.0 to 6.0, so that row
+  moves MORE, by 4.0 against 3.0 and by 2.33x against 2.0. The qualifier is
+  gone, in English and in all twelve catalogues.
+
+  **And two sentences over-reached.** "An ordinary test chart carries no aim
+  values" is true only of the colorimetric aims the paper and solid rows need,
+  while the grey and tone rows on the same paragraph are judged from an
+  ordinary chart's own design values; it says "no such aim values" now. "Each
+  row's own info icon says what to change" promises a change for the three rows
+  that carry no remedy at all, and says "what that row needs, and what to
+  change where anything can be" instead.
+
+### B8-143 · The rise the message names was a knife edge
+- blocks release: no
+- status: FIXED
+- found by: the second adversary round, 2026-09-14, brute-forcing the predicate
+  on a 0.1 mm grid across 80 overlapping states.
+- evidence: test_the_rise_survives_a_click_past_it.
+- detail: the predicate is not monotone. Six of the eighty states the round
+  swept, all area_first, clear, stop clearing and clear again as the margin
+  rises, because a whole row of patches drops out and comes back.
+  **Reproduced here**, on a plain i1 Letter sheet with two lines of 12 mm type
+  over a 20 mm bottom margin: 9.7 mm clears, 9.8 does not, 9.9 clears again.
+  The margin spin box steps in 0.5 mm, so a number that only works typed to the
+  tenth is not advice. The search returns the first rise whose neighbourhood
+  clears, itself and the two spin-box steps above it, and the number is still
+  one that was tested rather than inferred.
+
+  **WHAT COULD NOT BE REPRODUCED, AND IT IS WRITTEN DOWN RATHER THAN QUIETLY
+  KEPT.** The round also reported a case where the NAMED rise was itself a
+  knife edge (17.4 clearing, 17.5 and 17.6 not). Re-measured across about 240
+  states here, two instruments, three papers, both layout modes, five bottom
+  margins and four line configurations, plus Knut's own preset: the bisection's
+  own answer survived its neighbours every time. So the walk is a guard for a
+  property worth holding, not a fix for a failure on record here, and no
+  mutation of it turns a test red. `test_the_rise_survives_a_click_past_it`
+  says so in its own docstring.
+
+### B8-144 · A "B" of 0 is read as 4.0 mm and nothing on screen says so
+- blocks release: no
+- status: OPEN
+- found by: this session, 2026-09-14, while fixing B8-141.
+- evidence: `LayoutRecipe.effective_text_edge_mm` is
+  `float(self.text_edge_mm or TEXT_EDGE_DEFAULT_MM)`, and the same "0 means the
+  default" reading is used for "T" and for "Clip". The spin box's own minimum
+  is 0.
+- detail: a user who types 0 to push the text as low as it goes gets it drawn
+  at 4.0 mm, and the only way to move it lower is to RAISE the box to 0.1.
+  Nothing in the window explains that. Three ways out, and the choice is not
+  ours to make alone: treat 0 as 0 and give "unset" another spelling; raise the
+  spin box's minimum to 0.1 so the state cannot be reached; or leave the
+  reading and say so in the field's own help. Raised for Knut and Basti rather
+  than changed mid-release. Nothing in the app now offers advice that depends
+  on it.
+
+### B8-145 · The remedy search made the panel sluggish while the warning was up
+- blocks release: yes
+- status: FIXED
+- found by: the second adversary round, in a correction it sent after its own
+  report: its first latency probe called the panel fifteen times on an
+  UNCHANGED recipe and measured a warm cache. Re-measured by stepping the real
+  spin box, which is what a hand does.
+- evidence: scripts/adv17b_what_a_spin_box_step_costs.py, driven on screen
+  before and after; test_the_rise_is_a_number_the_spin_box_can_reach.
+- detail: `margin_rise_that_clears_mm` was making about a dozen geometry
+  rebuilds per call, and a rebuild is 16 ms cold. Measured stepping the bottom
+  margin 0.5 mm at a time with the warning up: **117.7 ms median on his preset
+  and 147.9 ms with the patch size on auto**, against 16 to 31 ms for a quiet
+  step. An 8x regression on the panel's response, in exactly the state a reader
+  is turning that box to get out of.
+
+  Three changes, and the first is the one that mattered:
+
+  * **the overlap is the starting point.** The caller already knows how much
+    room is short, and a 775-state sweep found the answer landing within 0.1 mm
+    of that number in most of them. The search takes it as a hint, walks up the
+    grid from there, and settles the common case in three probes;
+  * **candidates are memoised** inside a call, so the walk never re-probes what
+    the bisection already asked;
+  * **it works on the 0.5 mm grid the margin box steps in**, which is five
+    times fewer candidates and, more to the point, a number a reader can reach
+    with the arrows. A rise named to the tenth was advice nobody could click.
+
+  After, on screen: **67.1 ms median on his preset, 70.1 ms on auto**, quiet
+  steps 19 to 31 ms. A warning step is about twice a quiet one rather than six
+  times. The bisection is still there for a sheet whose answer is nowhere near
+  the overlap.
+
+  **AND THE SWEEP CORRECTED A NUMBER OF ITS OWN.** The round first reported 6
+  non-monotone states of 80, from a sample; the full run found **135 of 775**,
+  and **none** where the named rise failed to clear. What it does show is
+  overshoot, which the grid walk can only reduce.
+
+### B8-146 · The markers sentence named a route nothing had tried
+- blocks release: no
+- status: FIXED
+- found by: the third adversary round, 2026-09-14.
+- evidence: scripts/adv17c_the_route_gate_one_names.py, driven on screen on
+  Knut's CR30 Letter preset, with the photographs
+  `01-gate1-the-sentence.png` / `02-gate1-after-the-route.png` /
+  `05-gate1-after-the-fix.png`; test_the_markers_sentence_names_a_route_that_has_to_finish.
+- detail: B8-141 made *"lowering B buys the same room"* conditional on the
+  sheet's own answer. **The sentence beside it, in the same message, was left
+  deciding from one comparison.** When the ruler helper markers hold the text
+  above "B" it says so and then names a way out of its own, *"switching
+  'Print helper markers' off, or shortening them, hands that distance back to
+  'B'"*, and nothing ever tried it.
+
+  Driven on screen, both layout modes, bottom margins 8 / 11 / 14, one and two
+  lines, 14 / 24 / 40 pt: **24 states offered the sentence and 16 of them left
+  the warning exactly where it was** after the markers were switched off and
+  "B" taken to 0.1 in the real window. Photographed at area_first / 8 mm /
+  40 pt: the room went from 7.1 mm to 14.0 mm against 17.1 mm needed, and the
+  ruler helper markers were gone for it.
+
+  `markers_off_clears` asks the sheet the same way `lowering_b_clears` does,
+  and where the route does not finish, the message's measured "Raise Bottom"
+  remedy stands alone. Re-driven after the fix: 8 states still offer it and all
+  8 clear.
+
+### B8-147 · The overlap hint made the advice nearly four times too big
+- blocks release: no
+- status: FIXED
+- found by: the third adversary round, 2026-09-14, attacking B8-145's own fix.
+- evidence: test_the_hint_is_a_ceiling_and_never_the_answer; a 380-state sweep
+  comparing the hinted answer against the same function called with `hint_mm=0`.
+- detail: B8-145 hands `margin_rise_that_clears_mm` the overlap as a starting
+  point and walks UP the grid from it, which is where the speed came from. But
+  the walk only ever goes up, so **on any sheet whose answer lies BELOW the
+  overlap the bisection was never reached at all**. Of 380 overlapping states,
+  **77 answered larger than the un-hinted search**. The worst: a plain i1
+  Letter sheet in patch-first, 18 mm bottom margin, two lines at 28 pt, overlap
+  9.02 mm. A 2.5 mm rise drops one whole strip off the page and takes the patch
+  bottom from 21.4 mm to 32.4, which clears it; the hint path said **9.5 mm**.
+  Seven millimetres of bottom margin given away on a chart that is already two
+  pages, and the same function with `hint_mm=0` answers 2.5.
+
+  The cure is one probe: the grid point below the hint's answer. If it does not
+  clear, the hint's answer is the smallest and nothing more need be asked, which
+  is the common case; if it does, the hint was loose and becomes the bracket
+  the bisection runs inside. Over the same 380 states this agrees with the
+  un-hinted bisection in **every one**, at 7.34 probes a call against 9.04 with
+  no hint and 5.97 for the version that was wrong in 77. Measured in isolation,
+  86 warning states: **2.69 ms to 3.27 ms per call**, under 1 % of a warning
+  step. Re-measured on screen with `scripts/adv17b_what_a_spin_box_step_costs.py`,
+  the warning step stays about twice a quiet one, which is where B8-145 left it.
+
+### B8-148 · Typing 0.1 into a "B" that reads 0 clears the warning, unsaid
+- blocks release: no
+- status: OPEN
+- found by: the third adversary round, 2026-09-14.
+- evidence: scripts/adv17c_the_route_gate_one_names.py, gate 2, with
+  `03-gate2-box-reads-zero.png`.
+- detail: the consequence of B8-144 inside the message. With "B" reading 0 the
+  text is drawn 4.0 mm up, and RAISING the box to 0.1 moves it 3.9 mm DOWN.
+  Driven on screen on Knut's preset, **21 warning states had a box reading 0
+  and in 5 of them typing 0.1 cleared the warning outright**, while the panel
+  named only the bottom margin. Photographed at area_first / 8 mm / 24 pt: the
+  message asks for 0.5 mm of bottom margin where one keystroke in the other box
+  does it.
+
+  Not fixed here, for two reasons. Saying it needs a new user-facing sentence,
+  which is §M's to approve before it is written into a tab, and twelve
+  catalogues after that; and the sentence would only exist because of the
+  0-means-4.0 reading B8-144 asks Knut and Basti to settle. Fixing B8-144 in
+  any of its three ways removes this with it.
+
+### B8-149 · The advised rise could exceed what the margin box will hold
+- blocks release: no
+- status: FIXED
+- found by: the third adversary round, 2026-09-14, and fixed here rather than
+  left open, because a number nobody can type is the same false promise as a
+  number that does not work.
+- evidence: test_no_margin_the_box_holds_is_said_rather_than_asked_for; the
+  round's own sweep of 1,501 reachable warning states.
+- detail: the search capped the RISE at 60 mm while "Bottom" holds an ABSOLUTE
+  60 (`layout_options_panel.small_mm(top=60.0)`), so **160 of 1,501** states
+  named a total above it, worst 72.9 mm: the box clamps and the warning stays
+  up after the reader has done exactly what it said. Every one of them was at a
+  typed sheet-text size of 64 or 72 pt.
+
+  The search is capped at `60 - the margin now` and returns nothing when
+  nothing inside that clears. The message then names the largest rise the box
+  holds and appends a sentence that says plainly it will not be enough on its
+  own, with the two levers that do work: a smaller sheet text, or a larger
+  paper. One new string, translated into all twelve catalogues.
+
+
+### B8-150 · "Or print the chart on a larger paper" was false
+- blocks release: yes
+- status: FIXED
+- found by: the fourth adversary round, 2026-09-14, on a sentence added here an
+  hour earlier for B8-149.
+- evidence: test_the_ceiling_sentence_is_really_printed_on_the_panel (now on
+  both the one-line and the two-line wording, each with a proven mutation);
+  the round's `run3.log` and `A2-largest-paper-still-warns.png`.
+- detail: the sentence for a sheet no margin can rescue offered two levers and
+  only one of them existed. Driven on screen on the CR30 Letter preset at two
+  lines of 72 pt: switching to **each of the fourteen other papers in the
+  pulldown, A2 Portrait and A2 Landscape included, left the warning exactly
+  where it was**. In geometry the patch bottom moves from **21.00 mm on A4 to
+  21.04 mm on A2**, four times the area for four hundredths of a millimetre,
+  because the bottom text is anchored on the PAPER EDGE and the patch area is
+  the margin plus the engine's reserve. Neither depends on the size of the
+  sheet.
+
+  The clause is gone, and in its place the sentence says why the obvious idea
+  does not work, so a reader does not spend a sheet of A2 finding out. The
+  other lever it names was measured sound: at a 20 mm margin with two lines,
+  72 pt down to 18 pt clears.
+
+### B8-151 · "Raise “Bottom” under “Margins (mm)” by about 0.0 mm"
+- blocks release: yes
+- status: FIXED
+- found by: the fourth adversary round, 2026-09-14. Verbatim from the window,
+  and reachable by doing what the app itself had just said: at a 55 mm margin
+  it asks for 5.0 mm, you type it, and at 60 it asks for 0.0.
+- evidence: test_no_advice_ever_asks_for_a_rise_of_zero, over fifteen states at
+  the top of the margin range; test_the_ceiling_sentence_is_really_printed_on_the_panel.
+- detail: the "no margin can do it" case was built as the ordinary message plus
+  an appended sentence, so it still carried "Raise “Bottom” by about {short}",
+  with `short` falling back to `min(overlap, 60 - margin)`. At the ceiling that
+  is zero. It also did not name the largest rise the box holds, as its own
+  comment claimed: at patch-first with a 6 mm margin it named 49.0 where the
+  box had 54.0 left.
+
+  That case has its own message now, one line and two, and names no rise at
+  all: it says the box stops at 60 mm, that even that leaves the text in the
+  patches, and what to do instead. The appended note is gone.
+
+  **AND WRITING THIS DELETED THE FIX BESIDE IT.** Replacing the note meant
+  slicing the file between two function definitions, and B8-146's
+  `_locked_margins_note` sat between them: it went with the slice, the blanket
+  `except Exception: pass` in `_engine_text_notes` swallowed the NameError, and
+  **every notice on the panel went silent**. Found by disabling the swallow
+  deliberately and re-running one recipe, restored from the working-tree
+  backup taken at 19:49. The same trap as 2026-09-13, one file away.
+
+### B8-152 · "The line under the pulldown says why" said nothing of the kind
+- blocks release: no
+- status: FIXED
+- found by: the fourth adversary round, 2026-09-14, first by reading the code
+  and then on screen across all six demo projects.
+- evidence: test_the_help_says_the_things_a_reader_came_for (the old clause is
+  in its forbidden list now, the new one in its required list);
+  scripts/adv17d_the_line_under_the_pulldown.py, run5c.log,
+  P5b-no-report-generated-yet.png.
+- detail: `_WHEN_HELP` said of the two ISO report types *"they are greyed
+  today, and the line under the pulldown says why"*. Measured in both states:
+  a run that HAS reports shows "Already generated for this run: Full colour
+  check (3)", and a run with none shows "No report has been generated for this
+  run yet." **Six of six projects, neither state mentions the ISO types.**
+
+  The reason really is on screen, but somewhere else: it is the disabled row's
+  own tooltip inside the open list, which is where `_not_built_line` is hung.
+  The sentence points there now.
+
+  **AND THE `blurb` HALF OF THAT LINE IS DEAD CODE.**
+  `_set_type_blurb(already or blurb)` can never reach `blurb`, because
+  `_generated_types_line` returns the "No report has been generated" sentence
+  rather than "" when a run has none. So the chosen type's own description
+  never appears under the pulldown either. Raised as B8-154 rather than changed
+  here: the line is Knut's "show which type of reports have been generated" and
+  what else may compete for it is his call.
+
+### B8-153 · Two geometry rebuilds per keystroke, at most one of them read
+- blocks release: no
+- status: FIXED
+- found by: the fourth adversary round, 2026-09-14, on screen.
+- evidence: test_a_gate_is_only_asked_where_its_answer_is_read,
+  test_the_call_site_hands_the_gates_over_unrun (both mutations proved red);
+  scripts/adv17d_two_rebuilds_where_one_is_read.py, run4.log.
+- detail: `_bottom_lever_note` has three branches and each reads at most one of
+  its two gates; a "B" typed as 0 returns before either. They were passed as
+  VALUES, so both ran on every refresh. Measured on Knut's CR30 preset with "B"
+  at 0, stepping the bottom margin over twenty different values so nothing is
+  cached: **54.9 ms per step with the gates live against 25.1 ms with them
+  stubbed**, so 29.8 ms, more than the rest of the notice pass together, spent
+  on two answers nobody read. They are passed as callables now and asked after
+  the branch is chosen. A plain bool still works, so no existing caller or test
+  had to change.
+
+  **Re-measured with the same driver after the fix:** 36.2 ms per step against
+  23.8 stubbed, so **12.4 ms**, and the call counts over twenty steps are
+  `lowering_b 0, markers_off 18`. The one that remains is the gate the chosen
+  branch really reads, which is honest work; the wasted one is gone.
+
+### B8-154 · The line under the Report type pulldown can never show a type's own description
+- blocks release: no
+- status: OPEN
+- found by: the fourth adversary round, 2026-09-14, while proving B8-152.
+- evidence: `_set_type_blurb(already or blurb)` in `_sync_type_combo`, and
+  `_generated_types_line`, which returns "No report has been generated for this
+  run yet." rather than "" for a run with none.
+- detail: so `already` is always truthy and the `blurb` branch is unreachable.
+  The description of the type you have chosen is in the combo's own tooltip and
+  nowhere else. Two ways out and both are Knut's call, since the line is his
+  request: let the line fall back to the description when a run has no reports,
+  or drop the dead branch and leave the description in the tooltip.
+
+### B8-155 · The custom paper boxes take tenths and the recipe drops them
+- blocks release: no
+- status: OPEN
+- found by: the fourth adversary round, 2026-09-14, while clearing its own
+  suspicion that `predicted_patch_bottom_mm` goes silent on a Custom paper. It
+  does not: Custom is measured and warns exactly like a named paper.
+- evidence: `LayoutOptionsPanel.selection()` builds the code with
+  `int(self.custom_w.value())`; typing 215.9 x 279.4 reached the engine as
+  216 x 279 and moved the predicted patch bottom by 0.3 mm.
+- detail: pre-existing, unrelated to this change set, and not chased. Recorded
+  so the next person measuring a custom sheet is not surprised by it.
+
+### B8-156 · "A larger paper does not help" was false on a third of the sheets that said it
+- blocks release: yes
+- status: FIXED
+- found by: the fifth adversary round, 2026-09-14, on a sentence written here
+  two hours earlier to replace a DIFFERENT false claim about paper (B8-150).
+- evidence: test_a_larger_paper_is_asked_of_the_sheet_before_it_is_denied;
+  the round's own sweep (7 papers x 2 modes x 7 margins x 1-2 lines x 9 sizes:
+  the message fired in 84 states and the claim was false in 29);
+  note-A4-area_first-mb59.5-72pt.png and CLEARED-...-A3.png, driven on screen.
+  **Re-measured here independently**: four states where a larger sheet really
+  clears the collision (patch-first, A4 at 72 pt, two lines: A3 and A2 both
+  clear) and the panel denies none of them, against sixteen where nothing
+  clears and it still says so.
+- detail: B8-150 replaced a false lever with an explanation, and the
+  explanation was **reasoned rather than measured**. It is true that the text
+  does not move with the paper, because it is anchored on the paper edge. It is
+  not true that the collision cannot be cleared by a larger sheet, because the
+  PATCHES are re-fitted to every sheet and can end higher on a bigger one. The
+  chart-notes warning directly above it has said "or use a taller paper" all
+  along, so the panel contradicted itself in one frame.
+
+  `_larger_paper_note` asks the sheet instead: it rebuilds the layout on every
+  larger paper the instrument offers and stops at the first that clears, and
+  where one does, it says nothing at all. The clause is its own appended
+  sentence now, lifted out of the two message strings with its translation, and
+  it runs only in the branch where no margin can help.
+
+  **The lesson is the one this project keeps relearning**: a sentence about
+  what a control cannot do is a claim about the layout, and the layout answers
+  questions, it does not accept arguments.
+
+### B8-157 · The rise was measured on a sheet the reader has to leave
+- blocks release: no
+- status: FIXED
+- residue: one state is not fixable from a recipe and is named in the detail
+- found by: the fifth adversary round, 2026-09-14.
+- evidence: test_the_rise_is_measured_on_the_sheet_the_reader_can_type_in;
+  STILL-WARNS-patch_first-36pt.png.
+- detail: "Use instrument margins" greys all four margin boxes AND is part of
+  the geometry (`margins_are_law = area_first or use_instrument_margins`), so
+  the rise was worked out on a sheet whose margins are law while the only way
+  to type that rise is to take the tick off, which changes the law. Measured on
+  the CR30 preset: of 57 locked states naming a rise, **12 did not clear once
+  the tick came off**, all patch-first, the unticked sheet always needing more
+  (4.5 named where 8.5 clears). On screen, from the state the preset ships in,
+  2 of 10; from a state the reader ticked themselves, 7 of 10.
+
+  The search answers for `use_instrument_margins=False` now, which is the sheet
+  the reader can actually type into. On screen the ship-state case is 0 of 10,
+  area_first answers are byte-identical, and over 94 locked overlapping states
+  the number changes but never which of the four messages is chosen.
+
+  **NOT FIXABLE FROM A RECIPE, AND NAMED AS SUCH:** unticking also restores the
+  other three margins from the panel's `_saved_margins`, which the recipe does
+  not carry, so in that state no number the message can print is right. The
+  panel recomputes the moment the tick comes off, which is the mitigation.
+
+### B8-158 · A marker box typed 0 is 2.0 mm on the sheet and was 0.0 in the warning
+- blocks release: no
+- status: FIXED
+- residue: the bottom checks only; the top and side checks are reported, not swept
+- found by: the fifth adversary round, 2026-09-14. **Inherited from HEAD, not
+  introduced by this change set.**
+- evidence: test_a_marker_box_typed_zero_is_read_as_the_engine_reads_it; P6 on
+  screen, and the two sheets rendered through the kwargs `build_chart` itself
+  passes.
+- detail: `build_kwargs` sends `helper_marker_edge_mm or 2.0` and
+  `helper_marker_len_mm or 2.0`, so a box typed 0 draws 2.0 mm, while every
+  warning read the recipe field raw. The panel predicted a 1.00 mm reserve
+  where the engine holds back 5.00, and the 0/0 sheet and the 2/2 sheet render
+  identically, ink 6.48 to 13.46 mm in each. **91 reachable states where the
+  bottom check is silent while the engine's own reserve says the block reaches
+  the patches.** `_marker_reserve_args` is now used by the two gates and both
+  bottom checks. The top and side checks still read the fields raw: reported,
+  following the convention B8-146 set, rather than swept mid-release.
+
+  The box that accepts 0 and draws 2 is a layout question rather than a warning
+  question, and it is left for Basti and Knut, beside B8-144 and B8-155.
+
+### B8-159 · "The greyed entry itself says why" was the second wrong place
+- blocks release: no
+- status: FIXED
+- found by: the fifth adversary round, 2026-09-14, on the sentence written for
+  B8-152 an hour earlier.
+- evidence: test_the_help_says_the_things_a_reader_came_for (both earlier
+  wordings are in its forbidden list now); the round's on-screen hover test.
+- detail: B8-152 moved the claim off the line under the pulldown and onto the
+  greyed row. Driven on screen, the greyed row's own TEXT is just the type's
+  name, "Validation print check (ISO 12647-8)", and says nothing about why; the
+  reason arrives as a TOOLTIP when the pointer rests on it. So the sentence now
+  says that pointing at the greyed entry is what tells you. Third wording, and
+  each one was measured rather than argued.
+
+### B8-160 · The larger-paper loop filtered by area, and the collision is decided by height
+- blocks release: yes
+- status: FIXED
+- found by: the sixth adversary round, 2026-09-14, on the fix the FIFTH round
+  wrote two hours earlier for B8-156.
+- evidence: test_a_larger_paper_is_asked_about_by_size_not_by_area;
+  scripts/adv17f_three_faults_on_screen.py, P1-A2-landscape-denies-*.png and
+  P1-CLEARED-by-A2.png. **Re-measured here**: on A2 landscape the CR30 offers
+  A3+ portrait, which is 36 % SMALLER by area and 63 mm TALLER, and it clears
+  the collision; the panel no longer denies it.
+- detail: `_larger_paper_note` skipped any candidate whose `w * h` was not
+  greater than the current sheet's. Nothing in the pulldown is larger than A2
+  landscape by area, so on that sheet the loop ran over an empty list and the
+  sentence was exactly the unchecked assertion it had been written to remove.
+  A headless sweep found **44 reachable states** falsified by a paper the area
+  test skips, including A3+ portrait and Tabloid. The corroboration is that the
+  branch cost 4.2 ms where a real pass costs 8.8 to 21.5: it was doing nothing.
+
+  A candidate is skipped now only when it is no larger on **both** sides.
+
+  **AND ROUND 5'S OWN TEST COULD NEVER HAVE CAUGHT IT**, because its helper
+  re-implemented the same area filter: the fake re-implemented the code and
+  validated it. That trap is in this project's memory under
+  `feedback_a_fake_that_reimplements_validates_itself`, and it has now cost two
+  rounds in one evening.
+
+### B8-161 · The width warning's two remedies are ungated
+- blocks release: no
+- status: OPEN
+- found by: the sixth adversary round, 2026-09-14.
+- evidence: P2-width-warning-clip-4-0.png and
+  P2-width-warning-clip-0-1-UNCHANGED.png, driven on screen; a sweep of
+  reachable warning states.
+- detail: the bottom-text WIDTH message offers "lower Clip under Text distance
+  from edge (mm)" and "try another Alignment", and neither is asked of the
+  sheet. The side reserve is the LARGER of "Clip", the ruler markers' reach,
+  the clip border and the margin, so once another of those wins, winding Clip
+  down changes nothing. Measured on i1/A4 with markers at 4 + 2: Clip at 4.0,
+  2.0, 1.0, 0.5 and 0.1 all leave the reported room at **177 mm** and the
+  warning up. **368 reachable states** where lowering Clip to 0.1 moves the room
+  by exactly 0.00 mm, every one of them with the markers on, which is Knut's own
+  #182 case; in **324** of those no alignment clears it either, so both remedies
+  in that sentence are dead at once.
+
+  Not fixed here on purpose: gating a clause inside a fully translated sentence
+  means splitting the string across twelve catalogues, and new user-facing text
+  is governed by §M-PROPOSED. It is the same fault the three sibling sentences
+  were gated for, so it should be done, but it is Basti's and Knut's call.
+
+### B8-162 · The strip-letter check read the marker boxes raw
+- blocks release: no
+- status: FIXED
+- found by: the sixth adversary round, 2026-09-14, extending B8-158 to the
+  call sites round 5 had deliberately left.
+- evidence: test_no_notice_reads_a_marker_box_raw,
+  test_the_strip_letters_are_judged_with_the_markers_the_engine_draws;
+  P3b-BEFORE-the-fix.png and P3b-AFTER-the-fix.png.
+- detail: with both marker boxes typed 0 the engine draws 2 mm and
+  `geometry.strip_label_reserve_mm` puts the label band 5.0 mm down, while the
+  panel asked for 0 + 0 + 1 = 1.0. Measured on i1/A4 with an 8.0 mm top margin:
+  the band reaches 9.91 mm and the first patch row starts at 9.00, so **0.91 mm
+  of every strip letter sits on the first row of patches** and the panel said
+  nothing; 15 such states in a sweep. All four remaining raw reads now go
+  through `_marker_reserve_args`, including the "lowering Clip would also do it"
+  gate, which was misfiring for the same reason.
+
+  Reported honestly by the round: with a live preview report the panel uses the
+  measured patch-ink top, which on the honeycomb presets sits below the
+  placement box, so the collision does not arise there. It is reachable through
+  the info icon and on rectangular-patch sheets, which is where it was measured.
+
+### B8-163 · The live preview drew no helper markers where the sheet carried 44
+- blocks release: yes
+- status: FIXED
+- found by: the seventh adversary round, 2026-09-14. **Inherited from HEAD**,
+  not from this change set, and it is the same `or 2.0` convention as B8-158
+  and B8-162, on the one surface that claims to be the picture.
+- evidence:
+  test_no_raw_marker_read_survives_anywhere_in_the_panel (the source rule now
+  covers both overlay branches, and the mutation that defeated the old guard
+  was proved red here),
+  test_the_gates_answer_with_the_markers_the_engine_draws.
+  **Stated honestly: the overlay itself has no unit test.** The function needs a
+  live panel and a .ti2 on disk, so what guards it is the source rule plus the
+  on-screen driver below, which counts dashes on the overlay and on the sheet
+  and compares them.
+  Driven on screen with scripts/adv17g_the_overlay_and_the_note.py:
+  F2-boxes-2-2-overlay-88-sheet-88.png,
+  F2-after-Generate-overlay-empty-sheet-inked.png, and a crop of the app's own
+  TIFF, F2-the-real-tiff-top-10mm-boxes-typed-0.png, with the tick row plainly
+  above the strip letters. **Re-driven here after the fix: boxes at 0.0/0.0
+  now give overlay 88 dashes against sheet 88, where they gave 0 against 88.**
+- detail: `_helper_marker_lines_frac` read `helper_marker_edge_mm` and
+  `helper_marker_len_mm` raw, in both the Manual and the Guided branch, while
+  `build_kwargs` sends `... or 2.0`. So with both boxes typed 0 the overlay drew
+  nothing at all and the sheet printed 2 mm dashes at 2 mm from the edge, and
+  the caption did not say "press Generate Chart": the app was asserting that
+  what you see IS the ink. Both branches read the engine's values now, through
+  `_marker_reserve_args` and the named `_MARKER_DEFAULT_MM`.
+
+  **This is the symptom shape of Knut's #152**, the overlay and the sheet
+  disagreeing about dashes, and it is worth telling him it is fixed here.
+
+### B8-164 · Three of the four marker call sites were guarded by a spelling
+- blocks release: no
+- status: FIXED
+- found by: the seventh adversary round, 2026-09-14, attacking round 6's tests
+  rather than round 6's code.
+- evidence: test_the_gates_answer_with_the_markers_the_engine_draws (a
+  behavioural guard) and the rewritten
+  test_no_raw_marker_read_survives_anywhere_in_the_panel; both mutations proved
+  red, including the exact spelling that defeated the old guard.
+- detail: `test_no_notice_reads_a_marker_box_raw` matched `getattr(r,` on the
+  line, so the same read written as a plain attribute passed it: the round
+  rewrote three call sites that way and the file stayed green, 31 passed each
+  time. Worse, the site inside `_bottom_clears_with` was guarded by **nothing**,
+  and the raw read there flips `lowering_b_clears` in **5 of 140** reachable
+  states, every one of them to True, which is the "lower B and it clears"
+  promise this whole block exists to stop making. The `_eff_edge` site changed
+  the panel's notices in **384 of 768** grid states and was caught only by the
+  grep.
+
+  There are two guards now: a behavioural one that asks the gates whether a box
+  typed 0 answers as a box typed 2.0 does, and a source rule that bans a read of
+  either field anywhere in the module unless the line also says what a 0 means.
+
+### B8-165 · The stamper is handed a different marker reserve from the one the panel prints
+- blocks release: no
+- status: OPEN
+- found by: the seventh adversary round, 2026-09-14.
+- evidence: `workflow/chart_creator.py:1858-1867` and `:1968-1969` pass
+  `getattr(_rec, "helper_marker_edge_mm", 0.0) or 0.0` into `side_text_edge_mm`
+  and `edge_reserve_mm`; measured in the real app, the panel computes 5.00 mm
+  for a recipe where `chart_creator` hands the stamper 1.00 mm, and the panel
+  prints its number in the message ("printed 5.0 mm in from the paper edge").
+  On the app's own sheet, feeding the stamper the two competing numbers moves
+  real ink by **4.07 mm**.
+- detail: left open on purpose. Aligning the stamper with the engine changes
+  where ink lands on a printed sheet, which is not a change to slip into a beta
+  overnight, and the round was honest about the limit of its own evidence: in
+  the non-packing path the ink did not move across twenty states, and in the
+  packing state it reached, the raw placement still cleared the dashes by
+  0.33 mm. So: a proven divergence, proven ink movement, harm not yet
+  demonstrated. Knut and Basti decide.
+
+### B8-166 · The "press Generate Chart" caption could never be cleared on a sheet built with a marker box at 0
+- blocks release: yes
+- status: FIXED
+- found by: the eighth adversary round, 2026-09-15, attacking B8-163's own fix.
+  **Introduced by this change set**, not inherited: the `or 2.0` that B8-163
+  added to the CONTROLS was not added to the SHEET's side of the same
+  comparison.
+- evidence: test_a_sheet_built_with_a_box_at_zero_is_not_a_proposal (mutation
+  proved red: removing the coercion on the `printed` side puts the caption
+  back). Driven on screen with
+  scripts/adv18b_the_caption_that_cannot_be_cleared.py:
+  F1-after-one-Generate-caption-still-on.png shows the dashes in the accent
+  colour under "Not on this sheet yet" on a chart generated one second earlier
+  with exactly those markers; F1-after-a-second-Generate-caption-still-on.png
+  shows a second Generate not clearing it; and
+  F1-control-generated-at-2-2-no-caption.png is the same 214 dashes in plain
+  black with no caption.
+- detail: `_helper_marker_lines_frac` compares `wanted`, read off the controls
+  through `_MARKER_DEFAULT_MM`, against `printed`, read off the chart's own
+  recipe raw. `LayoutRecipe.to_dict` is `asdict`, so `channels.json` stores the
+  0.0 that was typed while the sheet was drawn with the 2.0 `build_kwargs`
+  substituted. 0.0 != 2.0, so `pending` was true for ever: a second Generate
+  writes 0.0 again, and no value the two boxes can hold clears it, because the
+  left-hand side can never be 0.0. Measured over six box values and two
+  Generates, all True; the control at 2.0/2.0, False. The `printed` side now
+  reads the sheet through `_marker_reserve_args` as well.
+
+### B8-167 · B8-163's fix was guarded by nothing at all
+- blocks release: no
+- status: FIXED
+- found by: the eighth adversary round, 2026-09-15.
+- evidence: test_a_box_typed_zero_draws_the_dashes_the_engine_draws (mutation
+  proved red). Before it: reverting the two `or _MARKER_DEFAULT_MM` in the
+  Manual branch left the everyday tier at **14,617 passed, exit 0**.
+- detail: B8-163's own evidence line says so ("the overlay itself has no unit
+  test") and named the source rule and a driver in its place. A source rule
+  cannot see that branch: it reads `panel.helper_marker_edge.value()`, which
+  carries neither field name, so the rule's FIELDS never match the line. The
+  new test builds the same chart twice, once with both boxes at 0 and once at
+  2.0, and requires the overlay to put the dashes in the same places -- which
+  is what the engine does with them. It also pins `_MARKER_DEFAULT_MM` itself:
+  moving the engine's default to 3.0 while leaving the constant at 2.0 turns it
+  red, which nothing did before.
+
+### B8-168 · The source rule's "dict key" exemption swallowed every getattr read
+- blocks release: no
+- status: FIXED
+- found by: the eighth adversary round, 2026-09-15, attacking B8-164's
+  replacement rule the way B8-164 attacked the one before it.
+- evidence: test_no_raw_marker_read_survives_anywhere_in_the_panel (the
+  exemption now wants a colon, or a line that says `_settings.`; the mutation
+  below was proved red against the tightened rule and green against the old
+  one). Driven on screen with
+  scripts/adv18c_the_guided_branch_on_a_manual_sheet.py.
+- detail: the exemption was `["']field["']\s*[:,)]`, which matches a dict key
+  AND every `getattr(obj, "helper_marker_edge_mm", 0.0)` -- the exact spelling
+  the original fault was written in. `test_no_notice_reads_a_marker_box_raw`
+  cannot cover for it: it is scoped to `_engine_text_notes`, and it matches the
+  literal `getattr(r,`, so `getattr(rec,` is invisible to it as well. Put
+  `float(getattr(rec, "helper_marker_edge_mm", 0.0) or 0.0)` into the overlay's
+  GUIDED branch -- which is live whenever a chart built in Manual is on screen
+  and GUIDED is pressed -- and the preview went from the sheet's own **214
+  dashes to none**, measured in the real window, while the everyday tier came
+  back **14,619 passed, exit 0**.
+
+### B8-169 · The new warning named a margin box that six languages do not have
+- blocks release: no
+- status: FIXED
+- found by: the ninth adversary round, 2026-09-15, attacking the twelve
+  catalogues the change set itself re-translated. **Introduced by this change
+  set**: every one of the strings it replaced named the box correctly.
+- evidence: test_every_language_names_the_margin_box_as_that_language_shows_it
+  (12 cases, one per catalogue). Mutation proved to land: putting «Nederst»
+  back into `no.json` turns it red for `no` alone, 11 others green. Re-measured
+  here independently of the round: 12 languages x 4 messages, 0 problems after
+  the fix. Driven in the real window in Norwegian and photographed in Chinese.
+- detail: the two "raise the bottom margin" wordings were rewritten and
+  re-translated, and in **it, no, pl, ru, sv** the translation named a word
+  that is not on the box, while in **zh_CN** all four new wordings named 「下」,
+  which is what that same window calls the **"B"** box under "Text distance
+  from edge (mm)" -- and the next sentence of the same notice uses 「下」 in
+  exactly that other sense. A reader following the advice would have hunted for
+  a control that is not there, or turned the wrong one.
+
+  | | the window labels the box | the message said | now |
+  |---|---|---|---|
+  | it | Basso | *Inferiore* | Basso |
+  | no | Bunn | *Nederst* | Bunn |
+  | pl | Dół | *Dolny* | Dół |
+  | ru | Низ | *Снизу* | Низ |
+  | sv | Nederkant | *Nederst* | Nederkant |
+  | zh_CN | 底部 (B = 下) | *下*, all four | 底部 |
+
+  This is the third time in one beta that a promise named a control by a word
+  the reader's own window does not use (B8-142 for the German set names, B8-136
+  for the help paragraphs). The guard written for those was scoped to the three
+  report-help paragraphs, so it had nothing to say about the chart warnings
+  edited in the same change set. The new guard reads each language's own
+  `Bottom` label out of its own catalogue and looks for it in all four
+  messages.
+
+### B8-170 · The source rule was defeated by an ordinary line wrap
+- blocks release: no
+- status: FIXED
+- found by: the ninth adversary round, 2026-09-15, attacking B8-168's
+  replacement rule the way B8-168 attacked B8-164's, which attacked the one
+  before that. Third generation of the same rule, third hole.
+- evidence: test_no_raw_marker_read_survives_anywhere_in_the_panel, now walking
+  STATEMENTS (`_logical_lines`) rather than physical lines. Three mutations
+  proved to land here, each red with the fix and the tree restored byte for
+  byte afterwards: the wrapped `getattr` spelling (**green before this fix**),
+  the single-line plain attribute, and a subscript read through `to_dict()`.
+  The four affected test files: 96 passed.
+- detail: the rule exempted a line whose `.strip()` starts with a quote as
+  "prose naming the field". Wrap the read the way a formatter would and the
+  continuation line starts with the quoted field name::
+
+      edge_mm = float(getattr(rec,
+                              "helper_marker_edge_mm", 0.0) or 0.0)
+
+  Round 9 put that spelling into the overlay's Guided branch: three test files
+  came back **57 passed** and the Guided overlay drew **0 dashes on a sheet
+  carrying 214**, which is B8-162 back with nothing said.
+
+  Joining each statement onto one line closes it by construction, because the
+  text a rule sees now starts where the statement starts, and a
+  `_marker_reserve_args` two lines down still exempts the read it belongs to.
+  Comments are stripped, so a SAFE word in a trailing comment can no longer
+  exempt the code beside it. The dict-key and settings-key exemptions were
+  replaced by the sentence they were both instances of: **a name is not a
+  read**, so where the field appears only as a quoted string and the statement
+  never reaches through an object for it, there is no box being read. A
+  subscript is a read and stays in.
+
+### B8-171 · "No bottom margin will clear it", and 36.5 mm clears it
+- blocks release: no
+- status: FIXED
+- found by: the tenth adversary round, 2026-09-15, sweeping the warning states
+  round 9 had not reached. **Introduced by this change set**: neither
+  `margin_rise_that_clears_mm` nor the two "no bottom margin" wordings exist in
+  `git show HEAD:ui/tabs/tab_chart.py`.
+- evidence: test_a_ceiling_that_cannot_be_built_does_not_deny_every_margin_below_it.
+  Mutation proved to land here as well as by the round: putting `return None`
+  back gives `assert None is not None`, and the tree restored byte for byte
+  after. Driven on screen, i1Pro, Paper = Custom 62 x 88 mm, patch-first,
+  markers on at 4.0 + 2.0 mm, two lines at 36 pt over a 6 mm bottom margin, the
+  chart really built and the wording read back off the "Measured from Preview"
+  field; photographed both ways, four warnings against three.
+- detail: one line decided it,
+
+      if _bracket >= cap_mm and not clears(cap_mm): return None
+
+  which reads the largest rise the box holds as a verdict on every smaller one,
+  on a predicate the same function documents twenty lines below as **not
+  monotone** (B8-143: 9.7 clears, 9.8 does not, 9.9 clears again). On a small
+  paper the ceiling is not merely worse than the answer, it cannot be laid out
+  at all, so the single probe that failed denied everything under it. The
+  reader was told to shrink their sheet text or throw a line away while typing
+  36.5 into the box they were looking at fixed it, and so did every grid point
+  to 47.0.
+
+  The grid is walked before anything is denied now, with B8-143's own stability
+  rule and through the existing memo, and only in the branch that was about to
+  give up. Measured in the real window with a fresh margin every turn: the
+  whole notice pass is **29.5 ms** where the walk finds an answer and **45.2 ms**
+  where all 120 grid points are probed, against the 120 to 210 ms B8-145 was
+  raised for.
+
+  The round's own first sweep reported 14 of these and corrected itself to one:
+  a candidate margin that raises `LayoutError` produces no notices at all,
+  which a naive predicate reads as "cleared". Same shape as
+  [[feedback_a_perfect_result_can_be_the_bug]].
+
+### B8-172 · Round 9's rewritten marker rule still waved four spellings through
+- blocks release: no
+- status: FIXED
+- found by: the tenth adversary round, 2026-09-15, attacking B8-170 the way
+  B8-170 attacked B8-168, which attacked B8-164. Fourth generation.
+- evidence: test_no_raw_marker_read_survives_a_rule_that_reads_the_code, with 8
+  parametrised "must catch" cases (every spelling that has ever got through)
+  and 6 "must not catch" ones. Proved end to end: `float(asdict(rec).get(
+  "helper_marker_edge_mm", 0.0) or 0.0)` in the live Guided branch left **147
+  marker tests and B8-170's own rule green**, and only the new rule red.
+- detail: the four spellings were `r.__dict__.get(...)`, `asdict(r).get(...)`,
+  `operator.attrgetter(...)(r)`, and the one that matters:
+
+      replace(r, helper_marker_edge_mm=float(r.helper_marker_edge_mm or 0.0))
+
+  exempted whole by the `helper_marker_edge_mm\s*=` rule that exists to let a
+  recipe be BUILT. A statement can build one and read a box in the same breath.
+
+  The new rule asks the code through its AST rather than its text: an attribute
+  load of the field, a subscript by its name, or its name handed to something
+  that looks a value up. Dict keys, key tuples, settings keys, recipe-building
+  keywords and plain writes are exempt by construction rather than by a
+  pattern. Both sibling rules are kept.
+
+  **Reported, not fixed:** a local alias (`_F = "helper_marker_edge_mm"` then
+  `getattr(r, _F)`) leaves no field name in the reading statement, and no
+  source rule without dataflow can see it. The behavioural guard
+  `test_the_gates_answer_with_the_markers_the_engine_draws` is the only thing
+  that speaks for a read in another module.
+
+### B8-173 · Three help claims were checked as phrases, never as facts
+- blocks release: no
+- status: FIXED
+- found by: the tenth adversary round, 2026-09-15.
+- evidence: test_the_three_claims_nothing_was_reading_out_of_the_code.
+- detail: `test_the_help_says_the_things_a_reader_came_for` asked that the words
+  "eight grey steps" appear in the paragraph; nothing tied the eight to
+  `GREY_MIN_LEVELS`. Same for "the two ISO types are greyed today" and
+  "Printing record grades nothing". All three are true on 2026-09-15, so this
+  is a guard gap rather than a fault, but it is the kind that goes stale in
+  silence, in twelve languages, the day a constant moves.
+
+### B8-174 · FROM PROFILE GAMUT heard none of the panel's text warnings
+- blocks release: no
+- status: FIXED
+- found by: the eleventh adversary round, 2026-09-15, driving the same chart
+  through all three modules. **Inherited**, in the sense that the gate predates
+  this change set; what this change set did is fill the method behind it with
+  the four bottom wordings, the rise search, `_larger_paper_note` and
+  `_locked_margins_note`, every one of which was silent there.
+- evidence: test_manual_says_it, test_the_gamut_module_says_it_too,
+  test_guided_still_says_nothing, test_the_gate_asks_the_mode_and_not_the_button
+  (the Manual control, the gamut case, Guided must stay silent, and the
+  spelling). Mutation proved to land here as well as by the round: restoring
+  `self._manual_btn.isChecked()` turns 2 of the 4 red, and the tree came back
+  byte for byte. Driven on screen and photographed three ways on one chart:
+  MANUAL 3 notices, FROM PROFILE GAMUT 0, MANUAL again 3.
+- detail: `_engine_text_notes` asked `self._manual_btn.isChecked()`, and
+  `_switch_mode("gamut")` unchecks that button. The module's own margin, sheet
+  text and marker boxes are on screen and editable, the chart is built from
+  them and "Measured from Preview" reports the sheet, so a reader there had
+  every reason to expect the warning and got silence. The gate asks
+  `_current_mode() == "manual"` now, which is the question it was really
+  asking; `_helper_marker_lines_frac`, eighty lines further down the same file,
+  already spends twelve lines of comment on this exact trap.
+
+  **Seven other sites in the file ask `_manual_btn.isChecked()`**
+  (`current_layout_combo`, `_active_instrument_flag`, `_active_paper_code`,
+  `_suggest_target_name` among them). Same latent shape, outside this change
+  set, each needing its own judgement. Reported, not swept.
+
+  Two hardenings came with it, neither a fault today. The AST marker rule was
+  blind to a lookup whose name comes from a variable while the statement still
+  spells the field out, which is not exotic: `tab_chart.py:22008` already
+  writes `tuple(getattr(rec, k) for k in self._HM_KEYS)`, so it is the shape
+  the next raw read arrives in. And "Grey and tone check keeps three rows" was
+  asserted as a phrase; it is pinned to the three row ids now.
+
+- and the round corrected itself twice, both times the same shape as
+  [[feedback_a_perfect_result_can_be_the_bug]]: 11 false "no margin clears it"
+  reports came from measuring the line box with PIL's fallback font where the
+  panel uses the recipe's own (2 mm of difference at the same Size), and 1,292
+  false "lever fails" reports came from holding the text block at its old
+  anchor while lowering "B". Re-run correctly: 0 of 435 and 0 of 10,301.
+
+### B8-175 · The stamp prediction named the layout, and the sheet stamped targen
+
+- blocks release: no
+- status: FIXED
+- found by: adversary round 22, 2026-09-15, on screen in a real window, the
+  rendered TIFF's own right-hand strip cropped and read
+  (`~/Desktop/ChromIQ-adversary-22-2026-09-15/C-second-right-margin-tail.png`).
+  Drivers `scripts/adv22c_press_generate_twice_and_the_warning_changes.py`
+  (both stamped lines, both crops) and
+  `scripts/adv22d_the_margin_where_the_panel_says_nothing.py` (49 right margins
+  from 6.0 to 30.0 mm).
+- evidence:
+  test_an_ordinary_manual_build_predicts_the_targen_line,
+  test_guided_predicts_the_targen_line,
+  test_the_gamut_module_predicts_a_layout_name,
+  test_a_bundled_patch_set_preset_predicts_its_layout_name,
+  test_a_loaded_patch_set_predicts_its_layout_name,
+  test_an_edited_recipe_falls_back_to_the_targen_line,
+  test_a_loaded_patch_set_keeps_its_name_while_the_panel_is_locked,
+  test_the_prediction_asks_the_predicate_not_the_label,
+  test_the_predicate_never_answers_from_the_ti1_path_alone,
+  test_the_prediction_sets_the_layout_name_the_build_sets.
+  Restoring `self._active_layout_name()` at the call site turns 7 of them red.
+- detail: WHAT A USER SEES. On i1Pro / A4, Sheet text Size 14 pt, right margin
+  12 mm, "Stamp settings down the right edge" on and Chart Notes reading
+  "Canon Pro-1000 / Photo Rag 308", the rendered sheet's right-hand line ends
+
+      … | ChromIQ layout engine | ChromI…
+
+  15 characters cut and replaced by an ellipsis, and the "Measured from
+  Preview" panel says **nothing at all** about it. Swept at every right margin
+  from 6.0 to 30.0 mm in half-millimetre steps: 49 of 49 silent, and 49 of 49
+  cutting.
+
+  THE CAUSE. `_engine_text_notes` predicts the stamped line by building it
+  itself, and B8-153 (2026-09-13, Knut's ColorMunki report) added
+  `_pm.chart_layout_name = self._active_layout_name()` so a chart laid out from
+  an armed patch set would predict "Chart layout <name>" rather than a targen
+  command the sheet never prints. That was right for the case it was written
+  for and wrong everywhere else: `_active_layout_name()` falls back to
+  `Path(self._current_ti1_path).stem`, and `_on_generate_finished` sets
+  `_current_ti1_path` after EVERY build, an ordinary targen build included,
+  while the build itself only carries a layout name down the
+  `_generate_from_ti1` route. So from a user's first Manual build onwards the
+  panel measured
+
+      Canon Pro-1000 / Photo Rag 308 | Chart layout adv22c | …          122 ch
+
+  for a sheet that stamps
+
+      Canon Pro-1000 / Photo Rag 308 | targen -d2 -f609 -e4 -B4 -G -g35 adv22c | …   145 ch
+
+  and the "Measured from Preview" frame only has something to measure once a
+  chart exists, so this is the state the notice is nearly always read in.
+
+  THE FIX. `_predicted_chart_layout_name` mirrors the branches `_on_generate`
+  really takes, the way `_pending_patch_set_total` already mirrors them for the
+  patch count: the gamut module and every from-.ti1 route answer with
+  `_active_layout_name()`, and everything else answers None. Measured on screen
+  afterwards on both sides: an ordinary targen build now says "the last 15
+  characters are cut off", which is exactly what the photograph shows, and
+  selecting a bundled Knut preset still answers
+  "ColorMunki-A4-84p-1page-Portrait-Fast Reading Speed-Hand Held-w26.0mm", so
+  B8-153 stays fixed.
+
+- also driven and found clean in the same round, listed so nobody re-runs it:
+  the FROM PROFILE GAMUT module's recipe against MANUAL's on one layout (every
+  field identical, paper to clip border); the remedy named there typed in and
+  the notice clearing, with 0.6 mm less still warning; Guided (silent, and its
+  layout panel is not on screen at all, so there is no lever for a notice to
+  name); the warning across a paper switch to A3 and back and across a run-type
+  switch to Verification and back, the stated rise exact in every one; and the
+  quoted control names in all twelve catalogues, 16 messages each, 0 naming a
+  box by words its own UI does not use.
+
+### B8-176 · Move a margin box and the warning under it does not move (INHERITED)
+- blocks release: no
+- status: FIXED
+- found by: adversary round 23 (2026-09-15), on screen in the real window,
+  `scripts/adv23e_the_notice_after_every_gesture.py`; cost measured before the
+  fix by `scripts/adv23f_what_a_panel_refresh_costs.py`
+- INHERITED, NOT THIS CHANGE SET. The same driver run in a worktree at
+  v4.3.0-beta.16 gives the same count, 8 of 11, with beta 16's own wording. The
+  bottom-text work of this round put new sentences on a frame that was already
+  frozen; it did not freeze it.
+- detail: WHAT A USER SEES. i1Pro, A4, one line of sheet text at 24 pt, bottom
+  margin 8 mm, one real Generate, then eleven real keyboard and mouse gestures
+  on the boxes. In **8 of them** the sentence the "Measured from Preview" frame
+  was really showing was not the sentence the state had earned:
+  * holding Up until "Bottom" reads 14.0 mm, which is past the 5.5 mm rise the
+    message itself asks for, leaves the red warning standing word for word;
+  * pasting 20 into the box, and tabbing out of it, likewise;
+  * typing 60 into Size leaves it saying the text needs 10.3 mm of room where
+    the state needs 25.7.
+  The frame only comes back to life on the next Generate, so the app tells you
+  to do something, you do it, and the app goes on saying it.
+- cause: `_refresh_manual_command_preview` is the single hook every targen row,
+  every printtarg row and the whole layout panel routes through, and it called
+  `_maybe_schedule_auto_preview` (which does nothing unless the user has opted
+  into the live preview, and `auto_update_preview` ships **False**) and
+  `_refresh_unapplied_warning` (a different label). Nothing asked the panel for
+  a fresh report. `_on_chart_settings_touched` was given exactly this call on
+  2026-09-13 for the chart-notes box and the stamp tick, with its docstring
+  recording the same measurement ("toggling the tick, 0 refreshes, six times
+  out of six"); the other twenty controls were left behind.
+- fix: the same two lines in `_refresh_manual_command_preview`, behind the same
+  `_margin_tiffs` guard, so a keystroke before anything is built still costs
+  nothing. Re-driven afterwards: **0 of 11**.
+- cost, measured BEFORE it was added, because this hook fires on every
+  keystroke: one refresh is 8.5 to 20.3 ms median over both layout modes, with
+  and without sheet text, at 24 and 72 pt; worst single pass 63.7 ms. The
+  sibling call was accepted at 17.2 ms.
+- evidence: test_a_layout_change_repaints_the_measured_from_preview_frame,
+  test_the_layout_panel_really_routes_through_that_hook,
+  test_the_refresh_is_guarded_on_there_being_a_chart.
+  Deleting the call turns 2 of the 3 red.
+
+### B8-177 · The beta 17 release notes re-assert a claim the same entry says was wrong
+- blocks release: no
+- status: FIXED
+- found by: adversary round 23 (2026-09-15), reading the changelog against the
+  window, `scripts/adv23d_the_report_help_in_three_languages.py`
+- INTRODUCED BY THIS CHANGE SET.
+- detail: WHAT A USER SEES. `CHANGELOG.md`'s v4.3.0-beta.17 entry becomes the
+  GitHub Release body verbatim (`build-release.yml`, `build-windows.yml`,
+  `build-linux.yml` all `awk` it out by tag), so it is the first thing a tester
+  reads. Its **Fixed** section says one of the help text's own claims was wrong
+  and is now measured: *"an ordinary test chart does not simply read N-A on the
+  paper and solid rows, because a ChromIQ set puts no limit on them and they
+  are dropped from the table instead"*. Its **Changed** section, further down
+  and therefore the last word, says *"An ordinary test chart has no aim values,
+  and those rows read N-A."* The shipped help text (`_CHART_HELP`) says the
+  corrected version, so the release notes also misdescribe the change they are
+  announcing.
+- measured, on screen, in the real Measurement Report window on a project with
+  five dated verifications: Full colour check on ChromIQ default lists seven
+  rows and `substrate_de00_max` and `solids_de00_max` are **not among them**,
+  and the note under the results names only the two grey rows. They read N-A
+  only under a Custom ISO set, which is not the default and not the set the
+  same paragraph pairs those two report types with.
+- fix: the Changed bullet now carries the measured sentence, the same one the
+  help text carries.
+- evidence: test_the_changelog_does_not_contradict_the_help_it_describes,
+  test_the_help_says_a_chromiq_set_drops_those_rows_rather_than_n_a.

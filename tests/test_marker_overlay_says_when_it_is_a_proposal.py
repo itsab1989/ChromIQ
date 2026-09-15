@@ -203,3 +203,104 @@ def test_the_dashes_land_where_the_printed_ones_are(qapp):
     # on the SIGNED mean, because that is what a systematic bias looks like.
     assert sum(errors) / len(errors) > -0.5, (
         f"the dashes sit systematically low — truncated, not rounded: {errors}")
+
+
+# ---- adversary round 8 ----------------------------------------------------
+def _tab_with_chart_built_at(qapp, tmp_path, edge_mm: float, len_mm: float):
+    """A chart really GENERATED with those two marker values, in the tab."""
+    import json as _json
+
+    from PyQt6.QtCore import QSettings
+
+    from core.argyll_runner import ArgyllRunner
+    from core.file_manager import FileManager
+    from core.settings import AppSettings
+    from ui.tabs.tab_chart import KNUT_PRESETS, TabChart
+    from workflow.layout_engine.chart import build_from_recipe
+    from workflow.layout_engine.presets import LayoutRecipe
+
+    tmp_path = Path(tmp_path)
+    tmp_path.mkdir(parents=True, exist_ok=True)
+    s = AppSettings()
+    s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    s.set("custom_output_path", str(tmp_path / "out"))
+    tab = TabChart(ArgyllRunner(s), FileManager(s), s)
+    tab._switch_mode("manual")
+
+    preset = next(p for p in KNUT_PRESETS if p.slug.startswith("cm_a4_204p"))
+    rec = LayoutRecipe.from_dict(preset.layout_recipe)
+    rec.helper_markers = True
+    rec.helper_marker_edge_mm = edge_mm
+    rec.helper_marker_len_mm = len_mm
+    rec.helper_marker_per_patch = 3
+    res, _ = build_from_recipe(resource_path(preset.ti1_asset),
+                               tmp_path / "chart", rec)
+    tab._margin_tiffs = list(res.tiff_paths)
+    tab._margin_ti2 = Path(res.ti2_path)
+    Path(res.ti2_path).with_suffix(".channels.json").write_text(_json.dumps({
+        "layout": {"engine": "chromiq", "recipe": rec.to_dict(),
+                   "seed": res.seed}}), encoding="utf-8")
+    lp = tab._manual_layout_panel
+    lp.helper_markers_cb.setChecked(True)
+    lp.helper_marker_edge.setValue(edge_mm)
+    lp.helper_marker_len.setValue(len_mm)
+    lp.helper_marker_per_patch.setValue(3)
+    return tab
+
+
+def test_a_box_typed_zero_draws_the_dashes_the_engine_draws(qapp, tmp_path):
+    """THE OVERLAY IS THE ONE SURFACE THAT CLAIMS TO BE THE INK.
+
+    `LayoutRecipe.build_kwargs` sends ``helper_marker_edge_mm or 2.0``, so a
+    box typed 0 prints 2 mm dashes 2 mm in from the edge. An adversary round
+    measured the overlay drawing **nothing at all** in that state while the
+    TIFF the app had just written carried 44 dash columns in its top 6 mm, and
+    the fix -- ``value() or _MARKER_DEFAULT_MM`` in `_helper_marker_lines_frac`
+    -- went in with no test of its own: reverting those two `or`s left the
+    whole everyday tier green (14,617 passed, exit 0, measured 2026-09-14).
+
+    MUTATION: drop either ``or _MARKER_DEFAULT_MM`` from the Manual branch and
+    this goes red, because the two sheets stop being the same sheet.
+    """
+    zero = _tab_with_chart_built_at(qapp, tmp_path / "zero", 0.0, 0.0)
+    two = _tab_with_chart_built_at(qapp, tmp_path / "two", 2.0, 2.0)
+    z_lines, _z_pending = zero._helper_marker_lines_frac()
+    t_lines, _t_pending = two._helper_marker_lines_frac()
+    assert t_lines, "the 2.0/2.0 control drew no dashes at all; re-measure"
+    assert z_lines, (
+        "the overlay drew NOTHING for two boxes typed 0, on a sheet the "
+        "engine prints 2 mm dashes on")
+    assert len(z_lines) == len(t_lines), (
+        f"{len(z_lines)} dashes against the same sheet's {len(t_lines)}")
+    for a, b in zip(z_lines, t_lines):
+        assert max(abs(x - y) for x, y in zip(a, b)) < 1e-9, (
+            "the two sheets are drawn identically by the engine and the "
+            "overlay put their dashes in different places")
+
+
+def test_a_sheet_built_with_a_box_at_zero_is_not_a_proposal(qapp, tmp_path):
+    """…AND THE CAPTION MUST NOT OUTLIVE THE GENERATE THAT ANSWERS IT.
+
+    `to_dict` is `asdict`, so `channels.json` stores the raw 0.0 while the
+    controls are read as the 2.0 the engine drew. Coercing one side only made
+    `pending` true for ever: measured in the real window, 2026-09-14, a chart
+    generated at 0.0/0.0 showed its own dashes in the accent colour under
+    "Markers not on this sheet yet - press Generate Chart", a second Generate
+    did not clear it, and neither did any value the boxes can hold
+    (`scripts/adv18b_the_caption_that_cannot_be_cleared.py`).
+
+    MUTATION: read `rec` raw on the `printed` side and this goes red.
+    """
+    tab = _tab_with_chart_built_at(qapp, tmp_path, 0.0, 0.0)
+    lines, pending = tab._helper_marker_lines_frac()
+    assert lines, "no dashes to judge; re-measure"
+    assert pending is False, (
+        "the sheet was generated with exactly these markers and the preview "
+        "still says they are not on it yet -- and pressing Generate Chart "
+        "writes the same 0.0 back, so the caption can never be cleared")
+    # …and the flag has not simply been switched off: a real change still
+    # raises it on the same chart.
+    tab._manual_layout_panel.helper_marker_per_patch.setValue(5)
+    _lines2, pending2 = tab._helper_marker_lines_frac()
+    assert pending2 is True, (
+        "a genuinely different comb no longer raises the proposal flag")
