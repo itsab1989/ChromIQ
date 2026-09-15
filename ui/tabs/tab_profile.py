@@ -5185,6 +5185,31 @@ class TabProfile(QWidget):
         if self._runner.is_running or self._engine_builder.is_running:
             return
 
+        # CLEAR THE LOG BEFORE THE QUESTIONS, NOT AFTER THEM.
+        #
+        # This sat seven lines below, and `_confirm_rebuild_over_verifications`
+        # -> `_archive_superseded_profile` writes into this very log the only
+        # two sentences that ever name where a person's history went:
+        # "The previous profile was moved to: <folder>" and "The verification
+        # measurements made against it were moved to: <folder>". They were
+        # erased milliseconds after being written and nobody had ever read one.
+        #
+        # Driven on screen on a real project with a real profile and two real
+        # dated verifications (combined round 7, `E-result.json`,
+        # `E1-the-question-that-archives-them.png`): "Build here anyway" moved
+        # the `.icc` into `runs/run1/old/2026-09-16_000225/` and BOTH dated
+        # verifications into `verifications/old/2026-09-16_000225/`, wrote both
+        # lines, and the clear below took them; the log on screen afterwards
+        # held the profiler's own output and nothing else. The window names
+        # `old/`, so nobody is stranded - what is lost is the dated folder, the
+        # one thing that says WHICH archive is theirs.
+        #
+        # `ui/tabs/tab_measure.py::_on_start` records the identical fault and
+        # the identical fix in its own words: every calibration message was
+        # "erased milliseconds after being written… None of it had ever been
+        # seen by anybody."
+        self._log.clear()
+
         params = self._collect_params()
         if not self._validate_gamut_source(params):
             return
@@ -5201,7 +5226,7 @@ class TabProfile(QWidget):
         # fresh file so Check & Refine keeps working on the physical chart.
         params = self._apply_preconditioning_merge(params)
         self._active_params = params
-        self._log.clear()
+        # (the log was cleared before the questions - see above)
         engine = self._resolve_engine(params)
         # Which builder's output `_on_log_line` is reading. The colprof
         # progress parsing must never be applied to the ChromIQ engine's

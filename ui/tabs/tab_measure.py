@@ -11852,7 +11852,44 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         return choice["action"], method
 
     def _start_averaging_read(self) -> None:
-        """Re-run a fresh, full read of the same chart for the averaging set."""
+        """Re-run a fresh, full read of the same chart for the averaging set.
+
+        AND A READ THAT NEVER STARTS IS AN ENDING TOO.
+
+        "Measure again to average" has already MOVED the finished measurement
+        into `reads/read1.ti3` by the time this runs — `_apply_completion_action`
+        promotes it and only then fires this through a timer. `_on_start` then
+        asks its questions, and every one of them can be answered no: it has a
+        dozen early returns, and rounds 5 and 6 closed only the endings that
+        happen AFTER chartread has run. This is the branch where chartread never
+        runs at all, and nothing here put the measurement back.
+
+        WHAT A PERSON SAW, driven on screen in a real window with two DIFFERENT
+        real refusals (combined round 7, `A-result.json` / `B-result.json`,
+        `A2-stored-chart-differs.png`, `B3-bidirectional-reading-on-a-fixed-
+        order-chart.png`): a finished 240-patch measurement, "Measure again to
+        average", then Cancel on "Stored chart differs" (A) or on the
+        bidirectional warning (B). Afterwards, in both:
+
+        * the run folder held **no** `.ti3` — the reading was in `reads/`,
+        * **nothing at all was said**; the log's last line was still
+          "[INFO] First read saved as reads/read1.ti3",
+        * the Build Profile tab still NAMED `runs/run1/<chart>.ti3`, a file that
+          no longer existed, and pressing Build Profile answered
+          "[ERROR] No valid .ti3 file selected."
+
+        …under a window whose own words are *"Cancel — nothing is written and no
+        measurement starts."* Something had been written: the measurement had
+        left the run. And that window knows it is an averaging set — its last
+        paragraph says so.
+
+        `_session_live` is the honest marker: `_on_start` sets it at its point of
+        no return, one line before `self._manager.start(...)`, so every refusal
+        above it leaves it False. The restore is round 5's own, sentence and
+        all, because what happened is the same thing it already describes: the
+        reading you took is kept, measure again whenever you want the two
+        averaged.
+        """
         if self._ti1_path is None:
             return
         if self._runner.is_running:
@@ -11862,7 +11899,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         cb = self._resume_cb if self._current_mode() == "guided" else self._m_resume_cb
         if cb.isChecked():
             cb.setChecked(False)
+        # NOT ASSIGNED HERE, only read. `_on_measure_done` clears it at the end
+        # of every session, so it is already False; forcing it would be the one
+        # way this could corrupt a session that really is live.
         self._on_start()
+        if not getattr(self, "_session_live", False):
+            self._restore_a_read_when_the_set_lost_its_measurement(
+                self._ti1_path.with_suffix(".ti3"))
 
     def _run_average_and_proceed(
         self, base: Path, reads: list[Path], method: str

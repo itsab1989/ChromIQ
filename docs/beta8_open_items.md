@@ -9168,3 +9168,114 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   many words, or the translations are shortened, which the standing rule freezes
   during a beta. Reported with the numbers so the choice can be made rather than
   made for him.
+
+---
+
+### B8-218 · "Measure again to average" moved the reading away, then the read never started
+- blocks release: yes
+- status: FIXED
+- found by: combined adversary round 7, 2026-09-16, pointed at the averaging
+  door's one remaining branch. Rounds 5 and 6 closed every ending that happens
+  AFTER chartread has run; this is the one where chartread never runs at all.
+- detail: WHAT A USER SAW, driven on screen in a real window on a real
+  240-patch measurement, with TWO DIFFERENT real refusals. Press **Measure
+  again to average** at "Measurement Complete", then press **Cancel** on the
+  next window ChromIQ shows:
+
+  * "Stored chart differs" (`A-result.json`, `A2-stored-chart-differs.png`), whose own words are
+    *"Cancel - nothing is written and no measurement starts"* and whose last
+    paragraph reads *"You are averaging several readings of this run."*
+  * the fixed-order bidirectional warning (`B-result.json`,
+    `B3-Bidirectional-reading-on-a-fixed-order-chart.png`), where **Cancel is
+    the DEFAULT button**, so a stray Return lands on it.
+
+  Afterwards, in both, identically:
+  * the run folder held **no `.ti3` at all**; the reading was in
+    `reads/read1.ti3`,
+  * **nothing whatever was said** - the log's last line was still
+    "[INFO] First read saved as reads/read1.ti3",
+  * the Build Profile tab still NAMED `runs/run1/<chart>.ti3`, a file that no
+    longer existed (`B9-the-build-profile-tab.png`), and pressing **Build
+    Profile** answered "[ERROR] No valid .ti3 file selected." about a chart
+    that had been measured perfectly well a minute earlier.
+- cause: `_apply_completion_action("again")` calls
+  `Run.promote_measurement_to_read`, which MOVES the measurement into
+  `reads/readN.ti3`, and only then fires `_start_averaging_read` through a
+  zero-delay timer. `_on_start` has **12 early returns**, several of them
+  windows with a Cancel button, and `_start_averaging_read` ended on a bare
+  `self._on_start()`.
+- fix: `_start_averaging_read` reads `_session_live` after `_on_start` returns.
+  That is the marker `_on_start` sets at its own point of no return, one line
+  before `self._manager.start(...)`, so every refusal above it leaves it False.
+  The restore is round 5's own mechanism AND round 5's own sentence, so **no new
+  user-facing string was added and no translation is missing**. Not assigned
+  here, only read: writing it would be the one way this could switch off a
+  session that really is live.
+- proved after: `C-result.json` / `D-result.json`, the same two drives on the
+  fixed tree - the run holds its `.ti3` again, `reads/read1.ti3` is still there
+  (a COPY, never a move), the log carries the true sentence, and pressing Build
+  Profile really runs the profiler.
+- evidence: test_measure_again_really_does_empty_the_run_first,
+  test_a_read_that_never_starts_leaves_the_run_holding_a_measurement,
+  test_the_measurement_it_puts_back_is_the_reading_that_was_taken,
+  test_the_read_is_still_in_the_reads_folder,
+  test_the_log_says_what_was_kept,
+  test_the_set_is_still_live_so_the_next_read_still_averages,
+  test_a_read_that_really_starts_is_not_interfered_with,
+  test_nothing_is_put_back_when_the_set_is_not_live,
+  test_the_start_is_judged_by_the_marker_on_start_actually_sets,
+  test_start_averaging_read_never_assigns_the_marker,
+  test_on_start_still_sets_the_marker_at_its_point_of_no_return.
+  Two mutations proved to land and both caught: removing the restore (4 tests
+  red) and restoring UNCONDITIONALLY, over a read that really started (2 red).
+
+---
+
+### B8-219 · The only lines naming where a profile's history went were erased milliseconds later
+- blocks release: no
+- status: FIXED
+- found by: combined adversary round 7, 2026-09-16, enumerating the same shape
+  on doors no combined round had looked at.
+- detail: "Build here anyway" on M-PROFILE-VERIFY runs
+  `_archive_superseded_profile`, which MOVES the run's built profile into
+  `runs/runN/old/<timestamp>/` and EVERY dated verification measurement into
+  `verifications/old/<timestamp>/`, and writes the two lines naming those exact
+  folders into the Build Profile tab's log. `_on_build` then called
+  `self._log.clear()` seven lines further down.
+- driven on screen on a real project holding a real profile and two real dated
+  verifications (`E-result.json`, `E1-the-question-that-archives-them.png`): after "Build here anyway",
+  `old/2026-09-16_000225/Demo-Switching.icc` and
+  `verifications/old/2026-09-16_000225/` holding both dated folders - and a log
+  showing the profiler's output and nothing else. The clear was WATCHED at the
+  instant it fired and it held exactly those two lines.
+- GRADED HONESTLY, because it is smaller than it looks: the window above
+  already names `old/` and the `old` folder inside `verifications`, so nobody
+  is stranded and nothing is lost. What is lost is the TIMESTAMPED folder, the
+  one thing that says which archive is theirs when a run has several.
+- fix: the clear moves ABOVE the questions, which is the same fix
+  `ui/tabs/tab_measure.py::_on_start` records in its own words for the
+  calibration messages - they were *"erased milliseconds after being written…
+  None of it had ever been seen by anybody."* Safe because the one thing
+  written before it, "No valid .ti3 file selected", returns immediately.
+- proved after: `H-result.json` - both lines stand at the top of the on-screen
+  log, above the profiler's output.
+- evidence: test_the_archive_really_names_its_folders_in_the_tabs_log,
+  test_the_archive_really_moves_the_profile_and_the_verifications,
+  test_the_question_that_archives_is_asked_from_on_build,
+  test_the_log_is_cleared_before_the_question_that_archives,
+  test_the_log_is_cleared_before_every_step_that_writes_into_it,
+  test_the_log_is_cleared_exactly_once_in_on_build,
+  test_the_first_refusal_still_says_its_piece.
+  Two mutations proved to land and both caught: the clear moved back below the
+  archive (2 red), and "keeping" it by clearing TWICE (1 red).
+- a note for the next reader, not a fault: these order tests read `_on_build`
+  with its docstring and every `#` comment STRIPPED. The first version indexed
+  raw source and went red on a correct tree, because the comment explaining the
+  fix names `_confirm_rebuild_over_verifications` in prose above the clear. The
+  same hazard is live in the existing
+  `test_rebuild_warning_wiring.py::test_the_question_comes_before_the_build`,
+  which indexes raw source for "colprof" and went red on this round's comment
+  until the word was removed from it. It fails SAFE (a false alarm, never a
+  false pass) and was left alone.
+
+---
