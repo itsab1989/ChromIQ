@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -51,7 +50,6 @@ from ui.ti2_loader import (has_spectral_data, instrument_label, is_colormunki,
 _TAB_COLOR = "#9f82ff"  # Check & Refine tab accent
 
 from ui.styles import SPEC_VIOLET, TAB_COLORS
-from workflow.profile_builder import _profile_dir as _get_profile_dir
 from workflow.scanin_target import has_scanner_geometry
 from workflow.profcheck_runner import (
     REFINE_DE_THRESHOLD,
@@ -1821,15 +1819,35 @@ class TabCheckRefine(QWidget):
             def _on_install():
                 try:
                     _persist_and_build_scanner()
-                    profile_dir = _get_profile_dir()
-                    profile_dir.mkdir(parents=True, exist_ok=True)
-                    # Install under the project name (Run.stem), so the system
-                    # ColorSync folder ends up with descriptive,
-                    # non-colliding filenames even when the on-disk profile is
-                    # the build-time `merged.icc`.
-                    install_stem = Run.for_dir(icc.parent).stem
-                    dest = profile_dir / f"{install_stem}{icc.suffix}"
-                    shutil.copy2(icc, dest)
+                    # THROUGH THE SAME DOOR AS BUILD ICC PROFILE'S INSTALL.
+                    # This used to be its own shutil.copy2 under its own name
+                    # rule, and never read "Name the installed copy after the
+                    # description" at all: with the tick on and the description
+                    # "RR ColorJet Canon Pro-1100 v5", the Build tab installed
+                    # "RR ColorJet Canon Pro-1100 v5.icc" and this button
+                    # installed "Pro-1100-ColorJet3.icc", from the same window
+                    # in the same tick.
+                    #
+                    # The description comes from the PROFILE'S OWN 'desc' tag
+                    # rather than a field on another tab: it is a fact about
+                    # the file being installed, it is what colprof was given
+                    # when this profile was built, and it is the name other
+                    # applications list the profile under. the tester's point was
+                    # exactly that the two should match.
+                    from workflow.profile_builder import (
+                        install_profile_file, installed_profile_name)
+                    desc = ""
+                    try:
+                        from workflow.icc_info import read_icc
+                        desc = read_icc(icc).description or ""
+                    except Exception:      # noqa: BLE001 — a name, not the install
+                        log.debug("could not read the description out of %s",
+                                  icc, exc_info=True)
+                    # The fallback keeps the old behaviour when the tick is
+                    # off: the project name, not a role name like merged.icc.
+                    dest = install_profile_file(
+                        icc, installed_profile_name(desc, self._settings),
+                        fallback_stem=Run.for_dir(icc.parent).stem)
                     dlg.accept()
                     self._log.appendPlainText(f"[OK] Profile installed to {dest}")
                 except Exception as exc:

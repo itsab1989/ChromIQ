@@ -5653,14 +5653,17 @@ class TabProfile(QWidget):
     def _install_name(self) -> "str | None":
         """The file name (no extension) for the installed copy, or None for
         the plain copy. Reads the ACTIVE mode's description field — the one
-        on screen next to the checkbox."""
-        if not self._settings.get("install_named_by_description", False):
-            return None
+        on screen next to the checkbox.
+
+        The decision and the sanitising both live in
+        :func:`workflow.profile_builder.installed_profile_name`, which Check
+        and Refine's Install button calls too, so the two buttons cannot
+        disagree about the name again.
+        """
+        from workflow.profile_builder import installed_profile_name
         edit = (self._desc_edit if self._current_mode() == "guided"
                 else self._m_desc_edit)
-        import re
-        safe = re.sub(r'[\\/:*?"<>|]+', "_", edit.text().strip()).strip(" .")
-        return safe or None
+        return installed_profile_name(edit.text(), self._settings)
 
     def _on_install(self) -> None:
         if not self._icc_path:

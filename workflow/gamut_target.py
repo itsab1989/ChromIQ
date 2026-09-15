@@ -48,8 +48,10 @@ injectable runners — never the ArgyllRunner singleton, always with a timeout.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import math
+import struct
 import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -228,6 +230,92 @@ def _spread_order(n: int) -> "list[int]":
     return order
 
 
+#: (profile path, profile digest, intent letter, bin dir, colour count, colour
+#: digest) → (device, back). Bounded, because each entry holds two rows per
+#: colour asked about.
+_ROUND_TRIP_CACHE: "dict[tuple, tuple[list, list]]" = {}
+_ROUND_TRIP_CACHE_MAX = 3
+
+
+def clear_round_trip_cache() -> None:
+    """Forget every remembered round trip. For tests, and for anything that
+    wants the profiles re-read from disk."""
+    _ROUND_TRIP_CACHE.clear()
+
+
+def _round_trip(
+    labs: "list[tuple[float, float, float]]",
+    profile: Path,
+    bin_dir: "str | Path",
+    letter: str,
+    runner: "Callable[..., subprocess.CompletedProcess]",
+) -> "tuple[list, list]":
+    """Lab → device → Lab′ through *profile*, the one place that asks.
+
+    **THE MARGIN IS NOT PART OF THE QUESTION.** It is a threshold applied to
+    the answer, and so is the patch count, so re-asking xicclu when only one
+    of those changed spends seconds re-deriving numbers that cannot have
+    moved. Both entry points share this function and its memo, so flicking
+    Margin after the reach is known costs nothing.
+
+    Only a REAL ``subprocess.run`` is remembered. An injected runner is a
+    test's stand-in for the process and its answers are the test's business,
+    so those callers always re-run.
+    """
+    from workflow.xicclu_runner import XiccluError, backward_device, forward_lab
+
+    key = None
+    if runner is subprocess.run:
+        try:
+            # THE PROFILE'S CONTENTS, not its name and timestamp. `shutil.copy2`
+            # PRESERVES the modification time, and ChromIQ really does copy an
+            # ICC onto a run's own profile path that way (`ui/ti2_loader.py`
+            # importing a measurement with its profile beside it), so path +
+            # size + mtime can describe two different profiles. Reading it
+            # costs about 2 ms against the second this saves, and it makes a
+            # stale answer impossible rather than unlikely.
+            h = hashlib.blake2b(profile.read_bytes(), digest_size=16)
+            # THE COLOURS THEMSELVES, digested too, because `flags_in_gamut` is
+            # handed an arbitrary list by the measurement report: a key that
+            # said only how MANY there were would serve one set of colours the
+            # answer computed for a different set of the same length.
+            c = hashlib.blake2b(digest_size=16)
+            for lab in labs:
+                c.update(struct.pack("<3d", *lab))
+            # The PATH joins both digests. Two identical profiles in two places
+            # then get an entry each, which is a little wasteful and never
+            # wrong; keying on the contents alone made every caller holding the
+            # same small stand-in profile share one answer, which is how this
+            # broke `test_gamut_target.py` when it was first written.
+            key = (str(profile.resolve()), h.hexdigest(), letter,
+                   str(bin_dir), len(labs), c.hexdigest())
+        except (OSError, struct.error, TypeError):
+            key = None
+    if key is not None and key in _ROUND_TRIP_CACHE:
+        return _ROUND_TRIP_CACHE[key]
+
+    try:
+        # RGB output profiles have no K channel — no -k rule.
+        # THE NUMERIC INVERSE, because this device value is going on paper.
+        # `-fb` reads the profile's baked B2A table, which is a fast
+        # approximation of an inverse; over the eleven bundled sets it lands
+        # 0.366 dE00 from the aim on average against 0.052 for `-fif`, and 659
+        # of 792 patches inside 0.5 against 770. It cost 0.17 s for 1,617.
+        device = backward_device(labs, profile, bin_dir, intent=letter,
+                                 k_rule=None, numeric_inverse=True,
+                                 runner=runner)
+        back = forward_lab(device, profile, bin_dir, intent=letter,
+                           runner=runner)
+    except XiccluError as exc:
+        raise GamutTargetError(str(exc)) from exc
+
+    if key is not None:
+        while len(_ROUND_TRIP_CACHE) >= _ROUND_TRIP_CACHE_MAX:
+            _ROUND_TRIP_CACHE.pop(next(iter(_ROUND_TRIP_CACHE)))
+        _ROUND_TRIP_CACHE[key] = (device, back)
+    return device, back
+
+
 def select_gamut_targets(
     profile: Path,
     count: int,
@@ -252,7 +340,6 @@ def select_gamut_targets(
     result is deterministic, and a smaller chart's colours are a subset of a
     larger chart's for the same profile.
     """
-    from workflow.xicclu_runner import XiccluError, backward_device, forward_lab
     profile = Path(profile)
     if not profile.is_file():
         raise GamutTargetError(f"the profile file is missing: {profile}")
@@ -264,20 +351,7 @@ def select_gamut_targets(
     letter = intent_letter(intent)
 
     labs = load_master_labs(master_path)
-    try:
-        # RGB output profiles have no K channel — no -k rule.
-        # THE NUMERIC INVERSE, because this device value is going on paper.
-        # `-fb` reads the profile's baked B2A table, which is a fast
-        # approximation of an inverse; over the eleven bundled sets it lands
-        # 0.366 dE00 from the aim on average against 0.052 for `-fif`, and 659
-        # of 792 patches inside 0.5 against 770. It cost 0.17 s for 1,617.
-        device = backward_device(labs, profile, bin_dir, intent=letter,
-                                 k_rule=None, numeric_inverse=True,
-                                 runner=runner)
-        back = forward_lab(device, profile, bin_dir, intent=letter,
-                           runner=runner)
-    except XiccluError as exc:
-        raise GamutTargetError(str(exc)) from exc
+    device, back = _round_trip(labs, profile, bin_dir, letter, runner)
 
     selection = GamutSelection(
         master_version=MASTER_SET_VERSION, master_total=len(labs),
@@ -358,8 +432,11 @@ def flags_in_gamut(
     thresholds as :func:`select_gamut_targets` — Lab → B2A → device → A2B →
     Lab′; a reachable colour comes back within interpolation error, a clipped
     one lands on the gamut surface and moves far. Used by the measurement
-    report's split statistics (Knut, 2026-08-10)."""
-    from workflow.xicclu_runner import XiccluError, backward_device, forward_lab
+    report's split statistics (Knut, 2026-08-10).
+
+    Shares :func:`_round_trip` with :func:`select_gamut_targets`, so the
+    numeric inverse is asked for in one place and the two can never drift into
+    answering the same question differently."""
     profile = Path(profile)
     if not profile.is_file():
         raise GamutTargetError(f"the profile file is missing: {profile}")
@@ -367,16 +444,7 @@ def flags_in_gamut(
     if threshold is None:
         raise GamutTargetError(f"unknown margin {margin!r}")
     letter = intent_letter(intent)
-    try:
-        # The numeric inverse here too, for the reason above: a chart built
-        # from these values is printed.
-        device = backward_device(list(labs), profile, bin_dir, intent=letter,
-                                 k_rule=None, numeric_inverse=True,
-                                 runner=runner)
-        back = forward_lab(device, profile, bin_dir, intent=letter,
-                           runner=runner)
-    except XiccluError as exc:
-        raise GamutTargetError(str(exc)) from exc
+    _device, back = _round_trip(list(labs), profile, bin_dir, letter, runner)
     return [math.dist(lab, lab2) <= threshold
             for lab, lab2 in zip(labs, back)]
 

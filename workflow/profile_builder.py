@@ -275,6 +275,117 @@ def _profile_dir() -> Path:
     return icc_install_dir()
 
 
+#: Names Windows refuses for a file whatever extension follows them, so
+#: "CON.icc" is as unusable there as "CON". ChromIQ ships on Windows and the
+#: description is free text, so a user may type any of these.
+_WINDOWS_RESERVED_STEMS = frozenset(
+    {"CON", "PRN", "AUX", "NUL"}
+    | {f"COM{i}" for i in range(1, 10)}
+    | {f"LPT{i}" for i in range(1, 10)})
+
+#: A generous cap on the installed copy's stem. The system profile folder's own
+#: path eats into Windows' 260-character limit, and a name past this is not a
+#: name anybody reads anyway.
+MAX_INSTALL_STEM = 100
+
+
+def sanitise_install_stem(text: str) -> "str | None":
+    """A file name (no extension) for the installed copy, or None.
+
+    One sanitiser for BOTH Install buttons, so the two cannot drift.
+
+    Beyond the characters Windows forbids it handles three more things a plain
+    character filter keeps and Windows still refuses: a **reserved device
+    name** ("CON", "nul", "COM1" — matched whatever the case, and repaired
+    with a trailing underscore rather than thrown away), a name far too
+    **long**, and **control characters**. Returns None when nothing usable is
+    left, which the caller reads as "keep the project's own name".
+    """
+    import unicodedata
+    if not text:
+        return None
+    # Control characters are illegal in a Windows file name and invisible in a
+    # dialog, so a pasted description can carry one with nothing to see.
+    cleaned = "".join(ch for ch in text
+                      if unicodedata.category(ch) != "Cc")
+    safe = re.sub(r'[\\/:*?"<>|]+', "_", cleaned).strip(" .")
+    if not safe:
+        return None
+    if len(safe) > MAX_INSTALL_STEM:
+        # Trim, then strip again: the cut can land on a space or a dot, and
+        # Windows refuses a name ending in either.
+        safe = safe[:MAX_INSTALL_STEM].strip(" .")
+        if not safe:
+            return None
+    if safe.upper() in _WINDOWS_RESERVED_STEMS:
+        safe = f"{safe}_"
+    return safe
+
+
+def installed_profile_name(description: "str | None", settings) -> "str | None":
+    """The stem the INSTALLED COPY should carry, or None for a plain copy.
+
+    THE ONE PLACE that decides, because ChromIQ has two Install buttons and
+    they disagreed: Build ICC profile honoured Knut's "Name the installed copy
+    after the description" tick and Check and Refine did not, so the same
+    profile, the same tick and the same description installed under two
+    different names depending on which button was pressed.
+
+    The project's own file is never touched, which is the deliberate half of
+    the rule (:meth:`ProfileBuilder.install_profile`).
+    """
+    try:
+        if not settings.get("install_named_by_description", False):
+            return None
+    except Exception:      # noqa: BLE001 — a name must never break an install
+        return None
+    return sanitise_install_stem((description or "").strip())
+
+
+def install_profile_file(icc_path: Path,
+                         install_name: "str | None" = None,
+                         *, fallback_stem: "str | None" = None) -> Path:
+    """Copy *icc_path* into the system ICC profile folder; return where it went.
+
+    **THE ONE DOOR.** ChromIQ has two Install buttons — Build ICC profile's and
+    Check and Refine's "Install Profile Anyway" — and they used to be two
+    separate copies with two different naming rules, so the same profile, the
+    same tick and the same description installed under two different names
+    depending on which one was pressed. Both come through here now.
+
+    ``install_name`` (no extension) names the INSTALLED COPY only. The
+    project's own file always keeps its stem: that is the deliberate half of
+    Knut's rule, and nothing here writes to the source.
+
+    ``fallback_stem`` is what to call the copy when there is no
+    ``install_name``, for a profile whose file on disk is ROLE-named: Check and
+    Refine can be handed ``merged.icc`` or ``calibrated.icc``, and a system
+    profile folder full of files called "merged" names nothing. Without it the
+    source file's own name is kept, which is the long-standing behaviour for a
+    normal ``<project>.icc``.
+
+    An installed profile of the same name is replaced, which is the normal way
+    to update one.
+    """
+    profile_dir = _profile_dir()
+    try:
+        profile_dir.mkdir(parents=True, exist_ok=True)
+    except PermissionError:
+        log.warning("Cannot create profile dir %s — elevation may be required",
+                    profile_dir)
+        raise
+    if install_name:
+        name = f"{install_name}.icc"
+    elif fallback_stem:
+        name = f"{fallback_stem}{icc_path.suffix}"
+    else:
+        name = icc_path.name
+    dest = profile_dir / name
+    shutil.copy2(icc_path, dest)
+    log.info("Profile installed: %s", dest)
+    return dest
+
+
 @dataclass
 class ProfileParams:
     ti3_path: Path
@@ -495,25 +606,30 @@ class ProfileBuilder:
         return list(self._matched_warnings)
 
     def install_profile(self, icc_path: Path,
-                        install_name: "str | None" = None) -> Path:
+                        install_name: "str | None" = None,
+                        *, fallback_stem: "str | None" = None) -> Path:
         """Copy .icc file to the system ICC profile folder. Returns the installed path.
+
+        **THE ONE DOOR.** Both Install buttons come through here, so the name
+        they give the installed copy cannot drift apart again.
 
         ``install_name`` (no extension) names the INSTALLED COPY only — Knut's
         "Profile file name same as description for installed copy" checkbox.
         The project's own file always keeps its name; an installed profile of
         the same name is replaced, which is the normal way to update one.
+
+        ``fallback_stem`` is what to call the copy when there is no
+        ``install_name``, for a profile whose file on disk is ROLE-named:
+        Check and Refine can be handed ``merged.icc`` or ``calibrated.icc``,
+        and a system profile folder full of files called "merged" names
+        nothing. Without it the source file's own name is kept, which is the
+        long-standing behaviour for a normal ``<project>.icc``.
+
+        The work is :func:`install_profile_file`; this stays because the Build
+        tab holds a builder and reads better for it.
         """
-        profile_dir = _profile_dir()
-        try:
-            profile_dir.mkdir(parents=True, exist_ok=True)
-        except PermissionError:
-            log.warning("Cannot create profile dir %s — elevation may be required", profile_dir)
-            raise
-        name = f"{install_name}.icc" if install_name else icc_path.name
-        dest = profile_dir / name
-        shutil.copy2(icc_path, dest)
-        log.info("Profile installed: %s", dest)
-        return dest
+        return install_profile_file(icc_path, install_name,
+                                    fallback_stem=fallback_stem)
 
     def sanity_check(self, icc_path: Path, log_output: str = "") -> list[str]:
         """Return list of warning strings; empty = pass."""
