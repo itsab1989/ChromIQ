@@ -9038,3 +9038,133 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   judged it: dropping the `_undo_the_run` call turns 2 red, making the sentence
   unconditionally the "removed again" one turns 1, and making it unconditionally
   the plain one turns 1.
+
+### B8-215 · An average that refused left the run holding no measurement at all
+- blocks release: no
+- status: FIXED
+- found by: combined adversary round 6, 2026-09-15, attacking round 5's own
+  fix from the side it does not reach (`drive_averaging_failed.py`).
+- detail: WHAT A USER SEES. Switch averaging on, measure, press **Measure
+  again to average**, read again, press **Average all reads & build**, and let
+  `average` refuse. It refuses for ordinary reasons ArgyllCMS has its own
+  messages for: reads with different field sets or different patch counts, a
+  measurement file it cannot read, or simply a non-zero exit because the output
+  could not be written. Driven on screen with a REAL Argyll refusal
+  (`A-result.json`, `A1-the-averaging-failed-window.png`,
+  `A2-the-build-profile-tab-it-sends-you-to.png`,
+  `A3-the-report-window-after-the-refusal.png`): two promoted reads,
+  `average: Error - File 'reads/read2.ti3' has 15 sets, file 'reads/read1.ti3
+  has 90`, and afterwards the run folder held **no `.ti3` at all**, the
+  Measurement Report window opened on that run with **zero rows**, and the
+  Build Profile tab read **"No file selected"** — under a window whose last
+  sentence promises that the individual reads are still saved and that the
+  person can continue from the Build Profile tab using one of them.
+- cause: `Run.promote_measurement_to_read` MOVES every read into
+  `reads/readN.ti3`, and `AverageRunner` writes its output only on success. The
+  failure branch of `_run_average_and_proceed` showed its window and returned.
+  It is the THIRD ending of the shape round 5 fixed (B8-213) and the only one
+  that can only ever be reached when something has already gone wrong, which is
+  why five rounds walked past it.
+- fix: the mechanism round 5 wrote is now shared rather than copied
+  (`_put_the_last_read_back`) and this branch calls it: the newest read is
+  COPIED back to `Run.measurement_ti3`, `reads/` keeps every read it has, the
+  log names the read that was kept, and `measure_finished` arms the tab the
+  window sends the person to. The failure window is unchanged and still shown.
+- measured after the fix (`D-result.json`): the run folder holds its own
+  `.ti3` again, `reads/` still holds `read1.ti3` and `read2.ti3`, the dated
+  report lands in the run's own `reports/` rather than nowhere, the Measurement
+  Report window shows its row instead of none, and the Build Profile tab holds
+  the run's measurement — which is what makes the window's sentence true rather
+  than merely hopeful.
+- evidence: test_a_refused_average_leaves_the_run_holding_a_measurement,
+  test_the_measurement_it_keeps_is_the_read_taken_last,
+  test_every_read_is_still_in_the_reads_folder,
+  test_the_tab_the_window_names_is_armed_with_it,
+  test_the_log_says_which_read_it_kept,
+  test_the_failure_window_is_still_shown,
+  test_a_run_that_still_holds_a_measurement_is_not_written_over,
+  test_a_refusal_with_nothing_in_reads_says_nothing_and_does_nothing,
+  test_both_endings_put_a_read_back_through_the_same_helper,
+  test_the_helper_copies_rather_than_moves. MUTATIONS PROVED, four, each read
+  back out of the file before the run that judged it: dropping the
+  `_put_the_last_read_back` call turns 5 red, dropping the
+  `measure_finished.emit` turns 1, keeping `reads[0]` instead of `reads[-1]`
+  turns 1, and removing the "the run already holds one" guard turns 1.
+
+### B8-216 · A refused import moved the project to another run, under "nothing has been changed"
+- blocks release: no
+- status: FIXED
+- found by: combined adversary round 6, 2026-09-15
+  (`drive_duplicate_refused.py`, `probe_duplicate_run_drift.py`).
+- detail: WHAT A USER SEES. A three-run project standing on Run 1. Import a
+  measurement into Run 1, which already holds one; answer **Make a new run**;
+  the copy is refused, as a full disk or a share that has gone away refuses it.
+  ChromIQ says *"Nothing has been imported and nothing has been changed."*
+  Driven on screen (`B-result.json`,
+  `B2-the-refusal-that-moved-the-project.png`): afterwards `project.json` read
+  `current_run: run3`, and a fresh open of that project stood on **Run 3**, not
+  the run the person had been working in.
+- cause: `Project.duplicate_run` makes the new run with `new_run()`, runs its
+  OWN `_discard_run(just_created=True)` rollback when the copy fails — which
+  points `current_run` at `runs[-1]` — and then RE-RAISES. `_undo_the_run` is
+  the shared function written for exactly this accident, and its own docstring
+  describes it in these words; but it began `if made_here is None: return`, and
+  `made_here` is still None at this handler because it is assigned on the line
+  AFTER the one that raised. So the restore was dead code at the one refusal it
+  was written for, on BOTH import doors, and the Measure tab's door never
+  called it there at all. Round 4 found the same restore dead for a different
+  reason (a field name that does not exist); this is the second way it read as
+  a fix and did nothing.
+- fix: discarding a run is now conditional in `_undo_the_run` and putting the
+  manifest back is not — every caller is on a refusal path, and on a refusal
+  path the project belongs where the person left it. The Measure tab's two
+  step-3 refusals call it through `_put_the_project_back`, with the MANIFEST's
+  own value (`run_the_project_is_on`) rather than the bar's, because the bar
+  can read "New run" while the manifest names a run.
+- measured after the fix (`C-result.json`): the same journey, the same refusal,
+  and afterwards `current_run` is `run1` and a fresh open stands on Run 1.
+- evidence: test_a_refused_duplicate_really_does_move_the_manifest,
+  test_undo_the_run_puts_the_project_back_with_no_run_to_discard,
+  test_undo_the_run_still_discards_a_run_it_made,
+  test_undo_the_run_with_nothing_to_go_back_to_changes_nothing,
+  test_a_run_that_is_gone_is_not_restored_over,
+  test_the_measure_tabs_import_puts_the_project_back,
+  test_both_of_the_measure_tabs_refusals_call_it. MUTATIONS PROVED, two, each
+  read back out of the file before the run that judged it: restoring
+  `_undo_the_run`'s `if made_here is None: return` turns 2 red, and dropping
+  the Measure tab's `_put_the_project_back` calls turns 1.
+
+### B8-217 · Two Measure-tab options cannot be read in seven languages
+- blocks release: no
+- status: OPEN
+- found by: combined adversary round 6, 2026-09-15, sweeping the merged set as
+  a first-time user in German and in the dark appearance
+  (`probe_clipped_everywhere.py`, `E5-messen-tab-dunkel-deutsch.png`).
+- detail: WHAT A USER SEES. On the Measure tab, under **Live preview**, the two
+  options "Show only measured patches" and "Show patch values on hover" share
+  one row. In German they read *"Nur gemessene Messfelder anzeig"* and
+  *"Messfeldwerte beim Überfahren a"*: hard-clipped mid-word, with no ellipsis.
+  Measured rather than read off the photograph, as given-width against the
+  width the control's own text needs: de 231 vs 241 and 231 vs 269, pt 231 vs
+  244 and 231 vs 283, ru 231 vs 261 and 231 vs 292, es 240 vs 299, it 269 vs
+  319, fr 231 vs 261, nl 238 vs 244. Ten controls across seven languages.
+  English, Norwegian, Polish, Swedish, Japanese and Chinese all fit.
+- and widening the window does not help: measured at 1480, 1800 and the full
+  1728 px screen, the width given stays 231 px, because `tab_measure.py:1881`
+  pins the left pane with `setFixedWidth(580)` while its own `sizeHint` there is
+  636.
+- the same sweep over every checkbox, radio button and push button on all five
+  tabs in all thirteen languages found NOTHING else: the only other hit is the
+  `✕` button on Check & Refine, 28 px against a `sizeHint` of 80, which is a
+  one-glyph button at Qt's minimum button width and reads correctly in every
+  language including English. A false positive of the probe, named here so
+  nobody re-finds it.
+- not a regression of the merged set: `setFixedWidth(580)` dates from
+  `744f54c1`, 2026-04-29, *"fixed panel widths"*. The project's own guard for
+  this (`test_i18n.py::test_short_labels_stay_compact`) skips any English source
+  longer than 24 characters, and both of these are 26.
+- why it is not fixed here: both remedies are a decision, not a repair. Either
+  the two options stop sharing a row, which is the layout Basti asked for in as
+  many words, or the translations are shortened, which the standing rule freezes
+  during a beta. Reported with the numbers so the choice can be made rather than
+  made for him.

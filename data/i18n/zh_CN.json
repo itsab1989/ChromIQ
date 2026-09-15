@@ -5530,5 +5530,6 @@
   "You stopped at the stored-chart question, so nothing has been imported and nothing has been changed. The new run ChromIQ had started making has been removed again, and your own file is untouched where it is.": "You stopped at the stored-chart question, so nothing has been imported and nothing has been changed. The new run ChromIQ had started making has been removed again, and your own file is untouched where it is.",
   "[OK] {read} is this run's measurement now. The individual reads are kept in the run's reads folder.": "[OK] {read} 现在是本次运行的测量。各次读取仍保留在运行的 reads 文件夹中。",
   "[INFO] The reading you already took is kept: {read} is this run's measurement again. Measure the chart once more whenever you want the two averaged.": "[INFO] 你已经取得的读取会保留：{read} 重新成为本次运行的测量。想把两次取平均时，再测一次图表即可。",
-  "The measurement has not been filed, and nothing has been changed. The new run ChromIQ had started making has been removed again, and your own file is untouched where it is. The reason: {reason}.": "测量数据未被归档，也没有任何内容被更改。ChromIQ 刚开始创建的新运行已被移除，你自己的文件仍原封不动地留在原处。原因：{reason}。"
+  "The measurement has not been filed, and nothing has been changed. The new run ChromIQ had started making has been removed again, and your own file is untouched where it is. The reason: {reason}.": "测量数据未被归档，也没有任何内容被更改。ChromIQ 刚开始创建的新运行已被移除，你自己的文件仍原封不动地留在原处。原因：{reason}。",
+  "[INFO] The reads are all kept. {read}, the one you took last, is this run's measurement, so you can build from it or measure the chart again.": "[INFO] 所有读取都会保留。最后取得的 {read} 就是本次运行的测量，所以你可以据此创建配置文件，或者再测一次图表。"
 }

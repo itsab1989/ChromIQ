@@ -10616,6 +10616,16 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         except Exception:      # noqa: BLE001 — a missing bar is not a reason
             was_on = ""         # to block an import
         was_current = was_on
+        # …AND WHAT THE MANIFEST ITSELF SAID, which is a different question.
+        # `profile_run` is the BAR; `current_run` is the field `duplicate_run`'s
+        # rollback rewrites and the field a fresh open of this project stands
+        # on. The bar can be empty ("New run") while the manifest is not, so a
+        # refusal that moved the manifest needs the manifest's own answer to
+        # put it back.
+        was_in_manifest = ""
+        if proj is not None:
+            from ui.measurement_filing import run_the_project_is_on
+            was_in_manifest = run_the_project_is_on(proj.root) or ""
         if run.measurement_ti3.is_file():
             if proj is None:
                 # NOT IN SILENCE. Without a project there is nowhere to put a
@@ -10632,6 +10642,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             try:
                 go = ask_to_make_a_new_run(self, proj, run)
             except (OSError, ValueError) as exc:
+                self._put_the_project_back(proj, was_in_manifest)
                 self._say_import_failed(exc)
                 return
             if not go:
@@ -10639,6 +10650,14 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             try:
                 run = proj.duplicate_run(run, ("chart",))
             except (OSError, ValueError) as exc:
+                # AND THE PROJECT IS PUT BACK WHERE THE PERSON LEFT IT.
+                # `duplicate_run` makes the run with `new_run()`, undoes it
+                # itself when the copy fails, and that undo points the manifest
+                # at `runs[-1]` - so a refusal HERE moved a three-run project
+                # from Run 1 to Run 3 under "nothing has been changed" (driven,
+                # combined round 6). `made_here` is still None at this line, so
+                # the shared `_undo_the_run` was doing nothing here at all.
+                self._put_the_project_back(proj, was_in_manifest)
                 self._say_import_failed(exc)
                 return
             made_here, was_current = run, was_on
@@ -10770,6 +10789,20 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # CHROMIQ_MEASURED), so it trends beside the others correctly.
         self.measure_finished.emit(dst)
         self._show_import_done_profiling(run, dst)
+
+    @staticmethod
+    def _put_the_project_back(proj, was_on: str) -> None:
+        """Point the manifest at the run the person was on, if it has moved.
+
+        The same act `_undo_the_run` performs, reached without a run to discard:
+        these two handlers refuse AFTER `duplicate_run` has already moved
+        `current_run` to `runs[-1]` through its own rollback, and before
+        `made_here` has been assigned.
+        """
+        from ui.measurement_filing import _undo_the_run
+        if proj is None or not was_on:
+            return
+        _undo_the_run(proj, None, was_on)
 
     def _say_import_failed(self, exc: Exception) -> None:
         """A run that could not be made, said in a sentence. Both call sites
@@ -11657,26 +11690,45 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         """
         if ti3 is None or not self._averaging_active:
             return
+        kept = self._put_the_last_read_back(ti3)
+        if kept is None:
+            return
+        self._log.appendPlainText("\n" + tr(
+            "[INFO] The reading you already took is kept: {read} is this "
+            "run's measurement again. Measure the chart once more whenever "
+            "you want the two averaged.").format(read=kept.name))
+
+    def _put_the_last_read_back(self, ti3) -> "Path | None":
+        """Copy the newest file in ``reads/`` back to ``Run.measurement_ti3``.
+
+        The MECHANISM shared by every ending that can leave an averaging set's
+        run holding nothing; each caller says its own sentence, because what
+        happened differs and the sentence is the part the person reads.
+
+        Returns the read that was put back, or None when there was nothing to
+        do: no run, no reads, the run already holds a measurement, or the copy
+        itself was refused. A COPY, never a move — `reads/` keeps every read it
+        has, so a retry promotes the next one beside them exactly as before.
+        """
+        if ti3 is None:
+            return None
         try:
             run = Run.for_dir(Path(ti3).parent)
             if run.measurement_ti3.is_file():
-                return
+                return None
             reads = run.reads()
         except Exception:      # noqa: BLE001 — never break an ending
-            return
+            return None
         if not reads:
-            return
+            return None
         import shutil
         try:
             shutil.copy2(reads[-1], run.measurement_ti3)
         except OSError as exc:
             log.warning("could not put %s back as the run's measurement: %s",
                         reads[-1].name, exc)
-            return
-        self._log.appendPlainText("\n" + tr(
-            "[INFO] The reading you already took is kept: {read} is this "
-            "run's measurement again. Measure the chart once more whenever "
-            "you want the two averaged.").format(read=reads[-1].name))
+            return None
+        return reads[-1]
 
     def _show_completion_dialog(
         self, current: Path, reads: list[Path]
@@ -11827,6 +11879,36 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 fail = self._avg_runner.primary_failure()
                 detail = fail[1] if fail else tr("see the output log above.")
                 self._log.appendPlainText(f"[ERROR] Averaging failed — {detail}")
+                # AN AVERAGE THAT REFUSES IS AN ENDING TOO, and it leaves the
+                # run with nothing unless somebody puts a read back. Every read
+                # has already been MOVED into `reads/` by
+                # `promote_measurement_to_read`, and `average` writes its output
+                # only on success — so this branch used to hand the person back
+                # a run holding no `.ti3` at all: the Measurement Report window
+                # opened on it with ZERO rows and the Build Profile tab read
+                # "No file selected", under a window telling them they could
+                # "continue from the Build Profile tab using one of them".
+                #
+                # Driven on screen with a REAL Argyll refusal (combined round 6,
+                # `A-result.json`, `A1-the-averaging-failed-window.png`): two
+                # promoted reads, `average: Error - File 'reads/read2.ti3' has
+                # 15 sets, file 'reads/read1.ti3 has 90`, and afterwards the run
+                # folder held no `.ti3`, the report window listed nothing and
+                # the tab the window names held nothing.
+                #
+                # Round 5 gave the other two endings of this shape a file back
+                # (B8-213); this is the third, and it takes the same mechanism
+                # and the same rule: the newest read, COPIED, `reads/` intact.
+                kept = self._put_the_last_read_back(out)
+                if kept is not None:
+                    self._log.appendPlainText("\n" + tr(
+                        "[INFO] The reads are all kept. {read}, the one you "
+                        "took last, is this run's measurement, so you can "
+                        "build from it or measure the chart again.").format(
+                            read=kept.name))
+                    # …and the tab the window sends them to is armed with it,
+                    # exactly as every other ending arms it.
+                    self.measure_finished.emit(out)
                 self._show_average_failed_dialog(detail)
                 return
             self._log.appendPlainText(

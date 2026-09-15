@@ -206,14 +206,33 @@ def _undo_the_run(proj, made_here, was_current) -> None:
     only right when that is where the person was. Import into a two-run project
     and be refused, and it moved them from run 1 to run 2 under a window saying
     nothing had been changed.
+
+    AND `made_here` IS NOT THE ONLY WAY THE MANIFEST MOVES. This began
+    `if made_here is None: return`, which switched the whole function off at the
+    one refusal the docstring above describes: `duplicate_run` calls
+    `new_run()`, runs its OWN `_discard_run` rollback when the copy fails, and
+    RE-RAISES — so the manifest has already moved to `runs[-1]` by the time the
+    handler runs, while `made_here` is still None because it is assigned on the
+    line after the one that raised. Both import doors then said "nothing has
+    been changed" over a project standing somewhere else.
+
+    Driven on screen (combined round 6, `B-result.json`,
+    `B2-the-refusal-that-moved-the-project.png`): a three-run project standing
+    on Run 1, an import into Run 1 answered with "Make a new run", the copy
+    refused as a full disk refuses it, and afterwards `project.json` read
+    `current_run: run3` and a fresh open stood on Run 3 - under
+    "Nothing has been imported and nothing has been changed."
+
+    So discarding a run is CONDITIONAL and putting the manifest back is not:
+    every caller is on a refusal path, and on a refusal path the project
+    belongs where the person left it.
     """
-    if made_here is None:
-        return
-    try:
-        proj._discard_run(made_here, just_created=True)
-    except Exception:      # noqa: BLE001 — never lose the message
-        log.warning("import: could not undo the run it made", exc_info=True)
-        return
+    if made_here is not None:
+        try:
+            proj._discard_run(made_here, just_created=True)
+        except Exception:      # noqa: BLE001 — never lose the message
+            log.warning("import: could not undo the run it made", exc_info=True)
+            return
     if not was_current:
         return
     try:
