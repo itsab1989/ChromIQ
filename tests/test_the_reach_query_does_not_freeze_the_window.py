@@ -20,6 +20,7 @@ Two things fixed it and both are guarded here.
 from __future__ import annotations
 
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -176,6 +177,33 @@ def test_every_slice_falls_back_to_icclu_together(tmp_path, monkeypatch):
         "some slices fell back to icclu and others did not")
     for i, vals in enumerate(out):
         assert vals[0] == pytest.approx((i % 100) / 100.0, abs=1e-9)
+
+
+def test_a_failing_slice_raises_once_and_waits_for_the_rest(tmp_path, monkeypatch):
+    """ADVERSARY ROUND 4: a profile xicclu cannot read.
+
+    Split, the failure happens in a worker thread, so the question is whether
+    it still reaches the caller as one `XiccluError` and whether the other
+    processes are waited for rather than abandoned. Measured against a real
+    corrupt profile too: `GamutTargetError` in 0.23 s with no xicclu left
+    running.
+    """
+    prof = _profile(tmp_path)
+    started, finished = [], []
+
+    def run(cmd, **kw):
+        started.append(1)
+        time.sleep(0.02)
+        finished.append(1)
+        return subprocess.CompletedProcess(
+            cmd, 1, stdout="", stderr="xicclu: Error - File not readable")
+
+    monkeypatch.setattr(subprocess, "run", run)
+    with pytest.raises(X.XiccluError):
+        X._run_xicclu(tmp_path, ["-fif", "-ia", "-pl"], prof, _rows(3000),
+                      subprocess.run)
+    assert started and len(finished) == len(started), (
+        "the pool was abandoned with processes still going")
 
 
 def test_the_worker_count_is_bounded_by_the_rows_and_the_cores():
