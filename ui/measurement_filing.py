@@ -536,6 +536,64 @@ def say_what_was_filed(parent, filed: Path) -> None:
             parent, min_width=580).exec()
 
 
+def ask_to_make_a_new_run(parent, proj, run) -> bool:
+    """§I.9's question, asked wherever an import meets a run that already holds
+    a measurement: may ChromIQ make a new run beside it, with a copy of the
+    same chart, and file the import there?
+
+    True to go ahead, False when the person said no. `duplicate_run_plan` is
+    left to raise: every caller has its own rollback to run first, and
+    swallowing the reason here is how one of them would end up reporting a
+    different cause from the other.
+
+    ONE COPY OF THESE WORDS, and that is the whole reason this is a function.
+    The Measure tab's IMPORT module became the second door to ask this question
+    (Katrina, 2026-09-15), and the fault the shared helpers in this file exist
+    to prevent is precisely two doors describing the same act differently — see
+    `say_what_was_filed`, which was written after exactly that happened
+    (round 2, T1-G). The text below is the text `file_into_project` has shown
+    since 2026-09-01; it has not been re-worded in the move.
+
+    A RUN IS NEVER DISPLACED, which is the rule underneath the question. The
+    road to a second result is a new place to put it, not an overwrite: a run's
+    `.icc`, its `reports/` and its verifications all describe the measurement
+    that is in it, and writing over that `.ti3` orphans every one of them while
+    leaving them on screen looking current.
+    """
+    from PyQt6.QtWidgets import QMessageBox
+    plan = proj.duplicate_run_plan(run, ("chart",))
+    n_files = sum(len(files) for _g, files, _s in plan)
+    # "Run 2", not "Run run2" — the same translated label §S4.7 uses.
+    _run_label = tr("Run {n}").format(
+        n=getattr(run, "number", None) or run.id.replace("run", ""))
+    box = QMessageBox(parent)
+    box.setIcon(QMessageBox.Icon.NoIcon)
+    _t = tr("That run already has a measurement")
+    box.setWindowTitle(_t)
+    box.setText(_t)
+    box.setInformativeText(tr(
+        "{label} already holds a measurement, and ChromIQ does not "
+        "write over one.\n\nInstead it can make a new run beside it "
+        "with a copy of the same chart ({n} chart files), and file the "
+        "measurement you are importing there. Nothing in {label} is "
+        "touched.").format(label=_run_label, n=n_files))
+    _go = box.addButton(tr("Make a new run"),
+                        QMessageBox.ButtonRole.AcceptRole)
+    _stop = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+    box.setDefaultButton(_stop)
+    # THE TWO HOUSE RULES FOR EVERY WINDOW, and this one had neither.
+    # `fit_message_box_buttons` sizes each button to the words it will
+    # actually paint — without it "Make a new run" came out as "lake a
+    # new ru", clipped at both ends, which is the very fault Knut
+    # reported on the Delete windows (#130) and had these helpers
+    # written for. `spread_message_box_buttons` puts CANCEL ON THE FAR
+    # RIGHT, never between the safe answer and the one that acts.
+    fit_message_box_buttons(box)
+    spread_message_box_buttons(box, order=[_go, _stop])
+    box.exec()
+    return box.clickedButton() is _go
+
+
 def refuse_it_does_not_belong(parent, reason: str) -> None:
     """The one window BOTH doors show for a measurement of a different chart.
 
@@ -997,41 +1055,12 @@ def file_into_project(parent, name: str, measurement: Path, fm, ctl,
     # a second result is a NEW PLACE to put it.
     if run.measurement_ti3.is_file():
         try:
-            plan = proj.duplicate_run_plan(run, ("chart",))
+            go = ask_to_make_a_new_run(parent, proj, run)
         except (OSError, ValueError) as exc:
             _undo_the_run(proj, made_here, was_current)
             return _cannot_file(parent, str(exc) or type(exc).__name__,
                                 project=name)
-        n_files = sum(len(files) for _g, files, _s in plan)
-        # "Run 2", not "Run run2" — the same translated label §S4.7 uses.
-        _run_label = tr("Run {n}").format(
-            n=getattr(run, "number", None) or run.id.replace("run", ""))
-        box = QMessageBox(parent)
-        box.setIcon(QMessageBox.Icon.NoIcon)
-        _t = tr("That run already has a measurement")
-        box.setWindowTitle(_t)
-        box.setText(_t)
-        box.setInformativeText(tr(
-            "{label} already holds a measurement, and ChromIQ does not "
-            "write over one.\n\nInstead it can make a new run beside it "
-            "with a copy of the same chart ({n} chart files), and file the "
-            "measurement you are importing there. Nothing in {label} is "
-            "touched.").format(label=_run_label, n=n_files))
-        _go = box.addButton(tr("Make a new run"),
-                            QMessageBox.ButtonRole.AcceptRole)
-        _stop = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
-        box.setDefaultButton(_stop)
-        # THE TWO HOUSE RULES FOR EVERY WINDOW, and this one had neither.
-        # `fit_message_box_buttons` sizes each button to the words it will
-        # actually paint — without it "Make a new run" came out as "lake a
-        # new ru", clipped at both ends, which is the very fault Knut
-        # reported on the Delete windows (#130) and had these helpers
-        # written for. `spread_message_box_buttons` puts CANCEL ON THE FAR
-        # RIGHT, never between the safe answer and the one that acts.
-        fit_message_box_buttons(box)
-        spread_message_box_buttons(box, order=[_go, _stop])
-        box.exec()
-        if box.clickedButton() is not _go:
+        if not go:
             return True                      # cancelled; nothing touched
         try:
             run = proj.duplicate_run(run, ("chart",))

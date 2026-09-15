@@ -352,11 +352,28 @@ def test_the_device_values_are_attached_before_the_copy_is_filed():
     import inspect
 
     from ui.tabs.tab_measure import TabMeasure
-    src = inspect.getsource(TabMeasure._on_import_measurement)
-    assert "complete_from_chart" in src, \
-        "the verification door never asks the chart for the device values"
-    assert src.index("complete_from_chart") < src.index("shutil.copy2"), \
-        "the copy is filed before the chart supplies the device values"
+
+    # BOTH DOORS, since the Measure tab's IMPORT module began serving profiling
+    # runs too (§I.9's amended "Where the door is", 2026-09-15). The split that
+    # gave each run type its own method is what caught the gap: this assertion
+    # named `_on_import_measurement`, which is now only the router, and the
+    # profiling door had never learned the step at all — the same file that was
+    # refused with "No device RGB columns" on a verification run would have
+    # been refused on a profiling one.
+    for door, chart in (
+            (TabMeasure._import_into_verification, "verify_chart_ti2"),
+            (TabMeasure._import_into_profiling_run, "chart_ti2")):
+        src = inspect.getsource(door)
+        assert "complete_from_chart" in src, (
+            f"{door.__name__} never asks the chart for the device values")
+        assert src.index("complete_from_chart") < src.index("shutil.copy2"), (
+            f"{door.__name__} files the copy before the chart supplies the "
+            "device values")
+        # The CALL, not the import line above it: splitting on the first
+        # occurrence lands on `from workflow.measurement_import import
+        # complete_from_chart` and reads the next eighty characters of nothing.
+        assert f"complete_from_chart(converted, run.{chart})" in src, (
+            f"{door.__name__} completes from the wrong chart")
 
 
 @pytest.fixture(scope="module")

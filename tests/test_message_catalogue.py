@@ -143,6 +143,16 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # DONE was approved by Sebastian on 2026-08-10
                                  # (seen live: "messages were good").
                                  "M-IMPORT-MISMATCH", "M-IMPORT-DATE-TAKEN",
+                                 # 2026-09-15: the same module now files into a
+                                 # PROFILING run as well (Katrina at Red River
+                                 # Paper looked for it on the Measurement tab
+                                 # and found it only on Build ICC profile;
+                                 # Sebastian ruled "add it, do not move it").
+                                 # M-IMPORT-DONE is approved and speaks only of
+                                 # verifications and of a dated folder a
+                                 # profiling run does not have, so its twin is
+                                 # new wording and waits here.
+                                 "M-IMPORT-DONE-PROFILING",
                                  # 2026-09-12: an i1Profiler export of a chart
                                  # i1Profiler did not generate carries no
                                  # device values at all, so the patch-identity
@@ -502,6 +512,7 @@ WINDOW_SOURCES = [
     ("ui.tabs.tab_check_refine", "TabCheckRefine", "_warn_converted_measurement"),
     ("ui.tabs.tab_measure", "TabMeasure", "_show_import_refusal"),
     ("ui.tabs.tab_measure", "TabMeasure", "_show_import_done"),
+    ("ui.tabs.tab_measure", "TabMeasure", "_show_import_done_profiling"),
     ("ui.tabs.tab_measure", "TabMeasure", "_show_verification_saved"),
     ("ui.tabs.tab_measure", "TabMeasure", "_ask_how_printed"),
     ("ui.tabs.tab_chart", "TabChart", "_patchset_missing_message"),

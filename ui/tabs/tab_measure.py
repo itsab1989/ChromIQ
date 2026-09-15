@@ -9745,30 +9745,15 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             color=_TAB_COLOR)
         self._import_browse_btn.clicked.connect(self._on_import_browse)
         row.addWidget(self._import_browse_btn)
-        row.addWidget(TooltipButton(
+        # THE HELP FOLLOWS THE RUN TYPE, because the module now serves two
+        # of them (§I.9, amended 2026-09-15). Built with the verification
+        # text and re-filled by `_update_import_panel` on every refresh,
+        # which is the same signal that already keeps the info box current
+        # — so the two can never describe different acts.
+        self._import_help_btn = TooltipButton(
             tr("Import a measurement made in i1Profiler"),
-            tr("Use this when this run's verification chart was printed and "
-               "measured outside ChromIQ — typically on an i1iO table in "
-               "i1Profiler, using the chart's exported patch list from the "
-               "run's exports folder.\n\n"
-               "What to pick: i1Profiler's own measurement file (.mxf or "
-               ".cxf), its CGATS text export (.txt), or a measurement that is "
-               "already a .ti3. Measure with the chart's NORMAL export — not "
-               "the file with “shuffled” in its name — so the patches come "
-               "back in the order ChromIQ sent them.\n\n"
-               "What happens when you press Import Measurement:\n"
-               "1. ChromIQ converts the file to Argyll's .ti3 format for you "
-               "(nothing to do by hand).\n"
-               "2. It checks, patch for patch, that the measurement really "
-               "belongs to this run's verification chart. A file that does "
-               "not match is refused before anything is written.\n"
-               "3. It files a copy in its own dated verification folder — the "
-               "same place a measurement made here would go — together with a "
-               "copy of the chart it was measured against.\n\n"
-               "Your original file is never moved or changed. Afterwards, "
-               "open Tools ▸ “Measurement report” to see the colour-accuracy "
-               "figures — the imported measurement is already in place there."),
-            grp, min_width=480))
+            self._import_help_body(verifying=True), grp, min_width=480)
+        row.addWidget(self._import_help_btn)
         g.addLayout(row)
         ll.addWidget(grp)
 
@@ -9796,6 +9781,64 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         scroll.setWidget(left)
         return scroll
 
+    @staticmethod
+    def _import_help_body(*, verifying: bool) -> str:
+        """The ⓘ button's standing help, in the words of the act being
+        performed.
+
+        Two bodies rather than one hedged one. The verification text is the
+        text this module shipped with (#133, seen live by Sebastian on
+        2026-08-10) and is not re-worded here; the profiling text is its twin,
+        and names the run's own chart, the run's own measurement and the tab
+        that builds from it. A profiling reader is never told about
+        verifications (§I.9).
+        """
+        if verifying:
+            return tr(
+                "Use this when this run's verification chart was printed and "
+                "measured outside ChromIQ — typically on an i1iO table in "
+                "i1Profiler, using the chart's exported patch list from the "
+                "run's exports folder.\n\n"
+                "What to pick: i1Profiler's own measurement file (.mxf or "
+                ".cxf), its CGATS text export (.txt), or a measurement that is "
+                "already a .ti3. Measure with the chart's NORMAL export — not "
+                "the file with “shuffled” in its name — so the patches come "
+                "back in the order ChromIQ sent them.\n\n"
+                "What happens when you press Import Measurement:\n"
+                "1. ChromIQ converts the file to Argyll's .ti3 format for you "
+                "(nothing to do by hand).\n"
+                "2. It checks, patch for patch, that the measurement really "
+                "belongs to this run's verification chart. A file that does "
+                "not match is refused before anything is written.\n"
+                "3. It files a copy in its own dated verification folder — the "
+                "same place a measurement made here would go — together with a "
+                "copy of the chart it was measured against.\n\n"
+                "Your original file is never moved or changed. Afterwards, "
+                "open Tools ▸ “Measurement report” to see the colour-accuracy "
+                "figures — the imported measurement is already in place there.")
+        return tr(
+            "Use this when this run's chart was printed and measured outside "
+            "ChromIQ, typically on an i1iO table in i1Profiler, using the "
+            "chart's exported patch list from the run's exports folder.\n\n"
+            "What to pick: i1Profiler's own measurement file (.mxf or .cxf), "
+            "its CGATS text export (.txt), or a measurement that is already a "
+            ".ti3. Measure with the chart's NORMAL export, not the file with "
+            "“shuffled” in its name, so the patches come back in the order "
+            "ChromIQ sent them.\n\n"
+            "What happens when you press Import Measurement:\n"
+            "1. ChromIQ converts the file to Argyll's .ti3 format for you "
+            "(nothing to do by hand).\n"
+            "2. It checks, patch for patch, that the measurement really "
+            "belongs to this run's chart. A file that does not match is "
+            "refused before anything is written.\n"
+            "3. It files a copy as this run's own measurement, together with a "
+            "copy of the chart it was measured against. A run that already "
+            "holds a measurement is never written over: ChromIQ offers a new "
+            "run beside it instead.\n\n"
+            "Your original file is never moved or changed. Afterwards you can "
+            "build a profile from it on the Build ICC profile tab, exactly as "
+            "if the chart had been read here.")
+
     def _apply_import_box_style(self) -> None:
         """Paint the import info box in the Measure tab's green — readable in
         both themes (the shared QLabel#info chrome is magenta, so this box
@@ -9821,10 +9864,31 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             body=body_color, mode=getattr(self, "_mode", "dark"), kind="note"))
 
     def _import_available(self) -> bool:
-        """The IMPORT module exists only while the shared Run type is
-        Verification — a profiling measurement must come from a real read
-        here, never from an outside file (#133 §9.1)."""
-        return self._is_verification_run()
+        """Whether the IMPORT module has anywhere to file a measurement.
+
+        IT USED TO BE VERIFICATION ONLY, on the reasoning that *"a profiling
+        measurement must come from a real read here, never from an outside
+        file"* (#133 §9.1). §I.9 withdrew that in as many words on 2026-08-31 —
+        the app already builds a profile from a partial measurement made here,
+        and Tools already advertises bringing i1Profiler readings back *"so you
+        can build a profile from them"* — and Katrina found the consequence a
+        fortnight later: the same act lived on two different tabs depending on
+        which kind of run you were doing.
+
+        So the answer is now "anything but a calibration". A calibration is the
+        one run type that still cannot import, and for a data-safety reason
+        rather than a preference: there is one `cal/` per project, shared by
+        every run, and `Calibration.reset()` has no `old/` archive
+        (`calibration_run_type.md` §3 D1), so an import there has no safe way to
+        displace what is already present (§I.9).
+        """
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None:
+            return False
+        try:
+            return not ctl.target.is_calibration()
+        except Exception:      # noqa: BLE001 — a visibility rule never raises
+            return False
 
     def _refresh_import_visibility(self) -> None:
         """Follow the bar: show/hide the IMPORT mode button, leave the module
@@ -9899,6 +9963,15 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         if not hasattr(self, "_import_box_body"):
             return
         parts: "list[str]" = []
+        # THE HELP IS PART OF THE PANEL, and is refreshed with it. A ⓘ built
+        # once at construction time describes whichever run type happened to be
+        # on the bar when the tab was built, which for a restored session is
+        # not the one on screen.
+        help_btn = getattr(self, "_import_help_btn", None)
+        if help_btn is not None:
+            help_btn.set_content(
+                tr("Import a measurement made in i1Profiler"),
+                self._import_help_body(verifying=self._is_verification_run()))
         path = getattr(self, "_import_path", None)
         if path is None:
             self._import_file_lbl.setText(tr("No file chosen yet"))
@@ -9925,7 +9998,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                     "with ArgyllCMS's txt2ti3 for you.").format(
                         name=Path(path).name))
         run = self._guard_run()
-        chart = run.verify_chart_ti2 if run is not None else None
+        # WHICH CHART, ASKED ONCE. The module serves two run types since
+        # §I.9's "Where the door is" was amended, and the chart the panel NAMES
+        # has to be the chart the validation CHECKS — see `_import_chart_for`.
+        verifying = self._is_verification_run()
+        chart = self._import_chart_for(run)
         if chart is not None and chart.exists():
             n = self._chart_patch_count(chart)
             from workflow.measurement_state import sheet_patches
@@ -9937,6 +10014,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 # user whose measurement held 420. The chart was DESIGNED with
                 # 408 and PRINTS 420, because its last strip is filled out, and
                 # a person reading the sheet reads what is on it.
+                #
+                # SIX SENTENCES RATHER THAN THREE WITH A NOUN SLOTTED IN. The
+                # chart's name is a placeholder; "verification chart" against
+                # "chart" is not, because a translator needs the whole sentence
+                # to put the words in their own order. A profiling reader is
+                # never told about verifications (§I.9).
                 parts.append(tr(
                     "Before anything is filed, the measurement is checked "
                     "patch for patch against this run's verification chart "
@@ -9944,6 +10027,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                     "{sheet} squares, because its last strip is filled out, so "
                     "a measurement of the whole sheet holds {sheet}. A file "
                     "that does not match is refused, and nothing changes."
+                ).format(name=chart.name, n=n, sheet=sheet) if verifying else tr(
+                    "Before anything is filed, the measurement is checked "
+                    "patch for patch against this run's chart ({name}). It was "
+                    "designed with {n} patches and prints {sheet} squares, "
+                    "because its last strip is filled out, so a measurement of "
+                    "the whole sheet holds {sheet}. A file that does not match "
+                    "is refused, and nothing changes."
                 ).format(name=chart.name, n=n, sheet=sheet))
             elif n:
                 parts.append(tr(
@@ -9951,13 +10041,23 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                     "patch for patch against this run's verification chart "
                     "({name}, {n} patches). A file that does not match is "
                     "refused, and nothing changes.").format(name=chart.name,
-                                                            n=n))
+                                                            n=n) if verifying
+                    else tr(
+                    "Before anything is filed, the measurement is checked "
+                    "patch for patch against this run's chart ({name}, {n} "
+                    "patches). A file that does not match is refused, and "
+                    "nothing changes.").format(name=chart.name, n=n))
             else:
                 parts.append(tr(
                     "Before anything is filed, the measurement is checked "
                     "patch for patch against this run's verification chart "
                     "({name}). A file that does not match is refused, and "
-                    "nothing changes.").format(name=chart.name))
+                    "nothing changes.").format(name=chart.name) if verifying
+                    else tr(
+                    "Before anything is filed, the measurement is checked "
+                    "patch for patch against this run's chart ({name}). A "
+                    "file that does not match is refused, and nothing "
+                    "changes.").format(name=chart.name))
         parts.append(self._import_destination_text(run))
         parts.append(tr(
             "Your original file is not moved or changed — ChromIQ files a "
@@ -9970,10 +10070,26 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "Choose a measurement file first — press the green folder button "
             "above."))
 
+    def _import_chart_for(self, run) -> "Path | None":
+        """The chart THIS import will be judged against.
+
+        The one place the two run types part company, and the reason it is a
+        method: the panel names a chart, the validation checks against a chart,
+        and a build that took them from two different lines is exactly how a
+        profiling import would come to be paired against a verification's
+        chart. Both callers ask here.
+        """
+        if run is None:
+            return None
+        return run.verify_chart_ti2 if self._is_verification_run() \
+            else run.chart_ti2
+
     def _import_destination_text(self, run) -> str:
         """Where the measurement will be filed, named exactly — so 'where are
         my files?' is answered before the import runs."""
         ctl = getattr(self, "_target_ctl", None)
+        if not self._is_verification_run():
+            return self._import_destination_text_profiling(run)
         if run is None:
             return tr(
                 "Pick a profile run in the bar above first — the measurement "
@@ -9997,6 +10113,32 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "A new dated folder is created for it (named after today's date "
             "and time), under:\n{folder}").format(
                 folder=str(run.verifications_dir))
+
+    def _import_destination_text_profiling(self, run) -> str:
+        """The destination line for a profiling run: the run's own measurement,
+        and — before it is pressed rather than after — what happens if that
+        slot is taken.
+
+        SAYING IT UP FRONT IS THE POINT. §I.9's answer to a run that already
+        holds a measurement is a new run beside it, not an overwrite; a person
+        who reads that only in the window that asks it has already committed to
+        the act. The verification twin above does the same thing with its own
+        "that verification already holds a measurement" note.
+        """
+        if run is None:
+            return tr(
+                "Pick a profile run in the bar above first: the measurement "
+                "is filed as that run's own measurement.")
+        text = tr(
+            "It will be filed as this run's measurement, in:\n{folder}"
+        ).format(folder=str(run.dir))
+        if run.measurement_ti3.exists():
+            text += "\n\n" + tr(
+                "⚠ This run already holds a measurement, and an import "
+                "never writes over one. ChromIQ will offer to make a new run "
+                "beside it with a copy of the same chart, and file this "
+                "measurement there instead.")
+        return text
 
     def _on_import_browse(self) -> None:
         # The house file dialog — sidebar shortcuts incl. the working folder
@@ -10089,12 +10231,65 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         box.exec()
         return box.clickedButton() is go
 
+    def _convert_import_file(self, run, path: Path) -> "Path | None":
+        """§I.4 for both doors: the chosen file as a `.ti3` in the run's cache.
+
+        `.mxf`/`.cxf` are read directly, `.txt` goes through txt2ti3, and a
+        `.ti3` passes through untouched. None means the conversion failed and
+        has already said so on screen. The user's original is never touched.
+
+        ONE COPY, because the two doors must convert identically: the profiling
+        door judges the converted file against `Run.chart_ti2` and the
+        verification door against `Run.verify_chart_ti2`, and that is the ONLY
+        difference there is meant to be between them.
+        """
+        # ASKED OF THE FILE THE PERSON PICKED, BEFORE ANYTHING IS CONVERTED.
+        #
+        # Challenge round 6, 2026-09-15: the run's own `.ti2` picked as the
+        # measurement was FILED, in silence, as the run's measurement. The chart
+        # and the measurement sit in the same folder under the same stem and are
+        # both CGATS tables, so it is an easy slip — and every check downstream
+        # was blind to it. A `.ti2` is not a `.ti3`, so it goes through txt2ti3
+        # first, and what comes back is a well-formed CTI3 table of the chart's
+        # own aim values: it parses as a full set of readings, the patch count
+        # matches exactly because it is the same file, and the identity check
+        # compares the chart with itself and reports a flawless match. The
+        # profile built from it would describe a printer that never printed.
+        from workflow.measurement_import import (CHART_NOT_A_MEASUREMENT,
+                                                 looks_like_a_chart)
+        if looks_like_a_chart(path):
+            from ui.measurement_filing import refuse_it_does_not_belong
+            refuse_it_does_not_belong(self, tr(CHART_NOT_A_MEASUREMENT))
+            return None
+        try:
+            from workflow.reference_convert import (
+                ReferenceConvertError, convert_i1profiler_measurement)
+            argyll = self._settings.get("argyll_bin_path",
+                                        "/Applications/Argyll/bin")
+            converted = convert_i1profiler_measurement(
+                Path(path), argyll, run.ensure_cache_dir() / "import")
+        except ReferenceConvertError as exc:
+            self._say_on_screen(
+                tr("The file could not be converted"), str(exc))
+            return None
+        if converted != Path(path):
+            self._log.appendPlainText("\n" + tr(
+                "[OK] Converted {name} to Argyll's .ti3 format.").format(
+                    name=Path(path).name))
+        return Path(converted)
+
     def _on_import_measurement(self) -> None:
-        """The whole import, through the same doors a native verification read
-        uses: guards → convert → validate → dated folder + chart snapshot →
-        file the copy → say where it went. Nothing is written until the file
-        has passed validation, and the user's original is never touched."""
-        from workflow import measurement_messages as M
+        """The whole import, through the same doors a native read uses:
+        guards → convert → validate → the run's own filing → say where it went.
+        Nothing is written until the file has passed validation, and the user's
+        original is never touched.
+
+        TWO RUN TYPES, ONE BUTTON (§I.9, amended 2026-09-15). The guards up to
+        and including "is there a file" are the same question whichever kind of
+        run this is, so they are asked once, here; everything after them differs
+        in WHERE the measurement belongs, and is split into the two methods
+        below.
+        """
         if self._runner.is_running:
             return
         ctl = getattr(self, "_target_ctl", None)
@@ -10117,6 +10312,19 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                    "you made in i1Profiler — then press Import Measurement "
                    "again."))
             return
+        if not self._is_verification_run():
+            self._import_into_profiling_run(ctl, run, Path(path))
+            return
+        self._import_into_verification(ctl, run, Path(path))
+
+    def _import_into_verification(self, ctl, run, path: Path) -> None:
+        """§I.1-§I.8 for a verification run, exactly as it shipped in #133.
+
+        Lifted out of `_on_import_measurement` unchanged when the profiling
+        door was added: this path was confirmed on hardware by Sebastian on
+        2026-08-10, so the split must not be able to alter it.
+        """
+        from workflow import measurement_messages as M
         # A chosen dated verification that already holds its measurement is
         # refused BEFORE anything is converted or written (§ the import never
         # replaces a result).
@@ -10129,21 +10337,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
         # 1) Convert — into the run's cache (always safe to delete); a .ti3
         #    passes through untouched.
-        try:
-            from workflow.reference_convert import (
-                ReferenceConvertError, convert_i1profiler_measurement)
-            argyll = self._settings.get("argyll_bin_path",
-                                        "/Applications/Argyll/bin")
-            converted = convert_i1profiler_measurement(
-                Path(path), argyll, run.ensure_cache_dir() / "import")
-        except ReferenceConvertError as exc:
-            self._say_on_screen(
-                tr("The file could not be converted"), str(exc))
+        converted = self._convert_import_file(run, path)
+        if converted is None:
             return
-        if converted != Path(path):
-            self._log.appendPlainText("\n" + tr(
-                "[OK] Converted {name} to Argyll's .ti3 format.").format(
-                    name=Path(path).name))
 
         # 2) Validate — before anything is filed.
         verdict = self._import_verdict(converted, run.verify_chart_ti2)
@@ -10230,6 +10426,343 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # how, unless a record already travelled with the chart snapshot.
         self._ask_how_printed(dst)
         self._show_import_done(verification, dst)
+
+    def _import_into_profiling_run(self, ctl, run, path: Path) -> None:
+        """§I.9: the same import, filed as the run's OWN measurement.
+
+        The sequence is §I.1-§I.8 with the three substitutions §I.9 names, and
+        it is written to reach the SAME code the Build ICC profile tab's import
+        reaches at every step where the two could disagree:
+
+        * **I.5** judges against `Run.chart_ti2`, never `verify_chart_ti2`, and
+          judges it with `measurement_import.assess` — the function that door
+          uses. §I.10's partial rule comes with it: fewer readings than the
+          chart has patches is FILED and both counts are stated; more readings
+          is refused, because that is a different chart.
+        * **I.6** keeps the chart snapshot. For a profiling run
+          `_snapshot_verification_chart` routes to `_snapshot_profiling_chart`
+          on its own, so the run keeps a copy of the chart this measurement was
+          made from — without it the filed `.ti3` has no record of what it is a
+          measurement OF.
+        * **I.7** copies to `Run.measurement_ti3`, the run's canonical stem,
+          never the source file's name: the report finds a measurement's chart
+          by that stem (`measurement_report._find_reference_ti2`) and anything
+          else falls back to `reference_source: device` without saying so.
+
+        AND A RUN THAT ALREADY HOLDS A MEASUREMENT IS NOT DISPLACED. That is
+        the rule §I.9 states and the one this project has already broken once:
+        writing over the `.ti3` leaves the run's `.icc` and its reports
+        describing a measurement that no longer exists, with nothing on screen
+        saying so. The answer is a new place to put it — `duplicate_run` with
+        `groups=("chart",)`, the chart only — asked with the same window the
+        other door asks it with.
+
+        NO AVERAGING SLOT. An import is a standalone read and the tab already
+        treats one that way: `_promote_completed_read` files into
+        `reads/readN.ti3` only while an averaging set is live, and a standalone
+        read *"ignores any reads/ left over from an earlier session"*. An
+        imported file has no position in a sequence of reads taken here, so it
+        lands where a standalone read lands.
+        """
+        from ui.measurement_filing import (ask_to_make_a_new_run,
+                                           finish_the_import,
+                                           refuse_it_does_not_belong)
+
+        # A CHART TO JUDGE IT AGAINST, FIRST. Without one `assess` has nothing
+        # to compare and accepts anything at all — the exact fault the other
+        # door was given this guard for (§I.9, driven 2026-09-01: "a six-patch
+        # file bearing no relation to anything went into a real project with
+        # not one word on screen").
+        if not run.chart_ti2.is_file():
+            self._say_on_screen(
+                tr("There is no chart to check this measurement against"),
+                tr("A measurement is filed against the chart it was made "
+                   "from, and this run has no chart in it yet. Make or load "
+                   "the chart first, then import the measurement, and ChromIQ "
+                   "can tell you whether the two match."))
+            return
+
+        # 1) Convert (§I.4) — into the run's cache; the original is untouched.
+        converted = self._convert_import_file(run, path)
+        if converted is None:
+            return
+
+        # 2) Validate (§I.5) — BEFORE anything is written, against this run's
+        #    own chart. THROUGH `_import_verdict`, the wrapper both doors use,
+        #    and not through `assess` directly: the verification door's own
+        #    docstring records what a second copy of that rule cost twice in
+        #    two days. The refusal window is the shared one, so the two doors
+        #    cannot describe the same file differently (round 2, T1-G).
+        verdict = self._import_verdict(converted, run.chart_ti2)
+        if not verdict.ok:
+            refuse_it_does_not_belong(self, verdict.reason)
+            return
+
+        # 2a) A MEASUREMENT WITH NO DEVICE VALUES TAKES THEM FROM THE CHART,
+        #     here exactly as on the verification door.
+        #
+        #     i1Profiler's measure tool reads a chart it did not generate, so
+        #     it has no colour space to express device values in and exports
+        #     none at all. The verification door learned to take them from the
+        #     chart on 2026-09-12, after a user's complete i1iO reading of her
+        #     own chart was refused with "No device RGB columns"; the profiling
+        #     door was written the same week and would have refused the same
+        #     file for the same reason, which is the identical fault one door
+        #     further along. Caught by that fix's own test noticing this door
+        #     did not exist yet.
+        #
+        #     On the CONVERTED COPY in the run's cache, never on the user's
+        #     file, and after the names have been checked — the other order
+        #     would let `verify_patch_identity` compare the chart's device
+        #     values with a copy of themselves and answer "verified" whatever
+        #     had happened.
+        if verdict.device_from_chart:
+            from workflow import measurement_messages as M
+            #     AND THE PERSON IS ASKED FIRST, because this is the one thing
+            #     ChromIQ genuinely cannot check.
+            if not self._ask_import_question(
+                    M.M_IMPORT_DEVICE_FROM_CHART,
+                    tr("Import it"),
+                    count=verdict.n_measured,
+                    chart=run.chart_ti2.name):
+                self._log.appendPlainText("\n" + tr(
+                    "[INFO] The import was cancelled. Nothing has been "
+                    "changed."))
+                return
+            from workflow.measurement_import import complete_from_chart
+            n = complete_from_chart(converted, run.chart_ti2)
+            if not n:
+                refuse_it_does_not_belong(self, tr(
+                    "this file carries no device values, and the chart's own "
+                    "values could not be read to supply them"))
+                return
+            self._log.appendPlainText("\n" + (tr(
+                "[OK] This measurement carries no device values, so ChromIQ "
+                "paired it with {chart} by patch name and took the device "
+                "value of the one patch from the chart.") if n == 1 else tr(
+                "[OK] This measurement carries no device values, so ChromIQ "
+                "paired it with {chart} by patch name and took the device "
+                "values of all {count} patches from the chart.")).format(
+                    chart=run.chart_ti2.name, count=n))
+
+        # 3) Make room (§I.9) — never an overwrite.
+        proj = ctl.project_or_none()
+        if run.measurement_ti3.is_file():
+            if proj is None:
+                # NOT IN SILENCE. Without a project there is nowhere to put a
+                # duplicate, so the import cannot go on — but a button that
+                # does nothing at all reads as a broken app, which is the fault
+                # this project has fixed on four other doors.
+                self._say_on_screen(
+                    tr("ChromIQ could not make a new run"),
+                    tr("This run already holds a measurement, and ChromIQ "
+                       "could not open the project it would need to make a "
+                       "new run beside it. Nothing has been imported and "
+                       "nothing has been changed."))
+                return
+            try:
+                go = ask_to_make_a_new_run(self, proj, run)
+            except (OSError, ValueError) as exc:
+                self._say_import_failed(exc)
+                return
+            if not go:
+                return                       # cancelled; nothing touched
+            try:
+                run = proj.duplicate_run(run, ("chart",))
+            except (OSError, ValueError) as exc:
+                self._say_import_failed(exc)
+                return
+            # THE BAR MOVES BEFORE THE SNAPSHOT, not after it.
+            # `_snapshot_profiling_chart` reads `target.profile_run` to decide
+            # WHICH run to copy a chart into, so a bar still pointing at the
+            # original would re-snapshot the source run and leave the copy —
+            # the run the measurement is about to land in — with no record of
+            # its own chart.
+            try:
+                ctl.set_profile_run(run.id)
+            except Exception:      # noqa: BLE001 — the file still gets filed
+                log.warning("import: could not point the bar at %s", run.id,
+                            exc_info=True)
+
+        # 4) The chart snapshot (§I.6). For a profiling run this routes to
+        #    `_snapshot_profiling_chart` inside the shared method.
+        if not self._snapshot_verification_chart():
+            return
+
+        # 5) File it (§I.7) — the run's canonical stem.
+        dst = run.measurement_ti3
+        import shutil
+        try:
+            shutil.copy2(converted, dst)
+        except (OSError, ValueError) as exc:
+            # A COPY THAT FAILS MUST END IN A SENTENCE, not in a traceback out
+            # of a Qt slot: a read-only folder, a full disk or a share that has
+            # gone away are ordinary things to meet here.
+            log.warning("import: could not copy the measurement into %s", dst,
+                        exc_info=True)
+            self._say_on_screen(
+                tr("ChromIQ could not write into that run"),
+                tr("The measurement has not been filed, and nothing has been "
+                   "changed. Your own file is untouched where it is. The "
+                   "reason: {reason}.").format(
+                       reason=getattr(exc, "strerror", None) or exc))
+            return
+        self._log.appendPlainText(
+            "\n" + tr("[OK] Measurement imported.") + f"\nSaved: {dst}")
+
+        # 6) The shared ending (§I.8): point the bar at the run the file went
+        #    into, refresh it, and say §I.10's partial sentence if it applies —
+        #    one copy of that sentence, in `say_what_was_filed`.
+        finish_the_import(self, ctl, run.id, dst,
+                          self._adopt_imported_measurement)
+        # …AND THE TAB THAT BUILDS FROM IT IS ARMED, exactly as it is after a
+        # read made here. `MainWindow._on_measure_done` is what puts a finished
+        # measurement into Build ICC profile (`set_ti3_path(ti3,
+        # propagate=False)`), and a native session emits this one line before
+        # it offers to go there.
+        #
+        # CHALLENGE ROUND 2 FOUND IT MISSING. The done window says "You can
+        # build a profile from it now on the Build ICC profile tab" and carries
+        # a **Build the profile** button — and that button emitted only
+        # `proceed_to_profile`, which changes tab and nothing else. The person
+        # arrived on a tab that was still holding whatever it held before, in
+        # front of a sentence promising it held their import. A message is a
+        # promise.
+        #
+        # AND IT ALSO SAVES THE DATED REPORT, DELIBERATELY. The same signal is
+        # wired to `_maybe_save_measurement_report`, so an import now accrues a
+        # dated accuracy report beside the measurement exactly as a read made
+        # here does — when the person has that Settings option on, and silently
+        # not at all when they have not. Found by driving it (round 4) rather
+        # than designed in, so it is written down here instead of left as a
+        # surprise: it is the behaviour the feature wants. Knut's reason for
+        # dated reports is that they accrue for over-time comparison, and an
+        # imported measurement already carries the date it was MEASURED rather
+        # than the date it was converted (`reference_convert` stamps
+        # CHROMIQ_MEASURED), so it trends beside the others correctly.
+        self.measure_finished.emit(dst)
+        self._show_import_done_profiling(run, dst)
+
+    def _say_import_failed(self, exc: Exception) -> None:
+        """A run that could not be made, said in a sentence. Both call sites
+        end the same way, so the promise they make is the same one."""
+        self._say_on_screen(
+            tr("ChromIQ could not make a new run"),
+            tr("Nothing has been imported and nothing has been changed. The "
+               "reason: {reason}.").format(
+                   reason=getattr(exc, "strerror", None) or exc))
+
+    def _adopt_imported_measurement(self, filed: Path) -> None:
+        """What this tab does with the copy the shared ending just filed.
+
+        The chart first, because everything else is read from beside it: after
+        a duplicate the measurement lives in a DIFFERENT run from the one the
+        preview was showing, and a tab still pointed at the old chart would
+        draw its overlay from the old run's `.ti3`. Then the progress readout,
+        through the same method `_on_measure_done` uses once a session's file
+        is authoritative.
+        """
+        try:
+            chart = Path(filed).with_suffix(".ti2")
+            if chart.is_file() and chart != self._chart_file_for(
+                    getattr(self, "_ti1_path", None)):
+                self.set_ti1_path(chart)
+                # …and Create Chart follows, by the signal this tab already
+                # uses to reflect a chart it has loaded.
+                run = Run.for_dir(chart.parent)
+                self.chart_load_requested.emit(chart, list(run.chart_tiffs()))
+        except Exception:      # noqa: BLE001 — the file is filed either way
+            log.warning("import: could not show the chart of %s", filed,
+                        exc_info=True)
+        # AND IT MUST NOT THEN ASK ABOUT THE FILE IT JUST FILED.
+        #
+        # Found by driving it, twice (challenge rounds 1 and 2, 2026-09-15).
+        # `_maybe_offer_existing_overlay` opens "This chart already has a
+        # measurement — show the overlay? refine / resume it?" with a warning
+        # that starting a new measurement would REPLACE it. Every word of it is
+        # true and none of it is a question the person asked: they were told
+        # one second earlier that the measurement had been imported. The window
+        # is for ARRIVING at a run somebody measured earlier.
+        #
+        # Round 1 put this inside the chart-changed branch above, which covers
+        # only the import that DUPLICATES the run. Round 2 drove the ordinary
+        # one: the chart does not change, so nothing was silenced, and simply
+        # coming back to the Measure tab raised the window through
+        # `showEvent` → `_queue_overlay_offer`. A remedy that depends on which
+        # branch the import took is not a remedy; the silence belongs to the
+        # import.
+        #
+        # Through the mechanism that already exists for this shape — Knut's
+        # per-run "stop asking about the run I am working through" (#131,
+        # 2026-07-28) — rather than a new flag, so it is scoped to THIS run in
+        # THIS project and every other run still asks.
+        try:
+            scope = self._replace_warning_scope()
+            if scope is not None:
+                self._offer_silenced.add(scope)
+        except Exception:      # noqa: BLE001 — the file is filed either way
+            log.warning("import: could not silence the overlay offer",
+                        exc_info=True)
+        # AN IMPORT IS NOT A MEMBER OF AN AVERAGING SET (§I.9). A set left live
+        # by an earlier session would otherwise still be live, and the next
+        # read taken here would be averaged with the file that was imported —
+        # a sheet measured somewhere else, on another instrument, on another
+        # day. Opting into averaging again starts a clean set, exactly as it
+        # does after any standalone read.
+        self._averaging_active = False
+        try:
+            self._refresh_progress_from_files()
+        except Exception:      # noqa: BLE001
+            log.warning("import: could not refresh the progress readout",
+                        exc_info=True)
+        self._update_import_panel()
+
+    def _show_import_done_profiling(self, run, dst: Path) -> None:
+        """The success window for a profiling import — the §M text, plus the
+        two buttons §I.9's I.8 names: the measurement report, and the tab that
+        builds a profile from what was just filed."""
+        from PyQt6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QPushButton,
+                                     QVBoxLayout)
+        from workflow import measurement_messages as M
+        title, body = M.M_IMPORT_DONE_PROFILING.render(
+            run=tr("Run {n}").format(
+                n=getattr(run, "number", None) or run.id.replace("run", "")),
+            folder=str(run.dir))
+        dlg = QDialog(self)
+        dlg.setWindowTitle(title)
+        dlg.setMinimumWidth(560)
+        lay = QVBoxLayout(dlg)
+        lay.setSpacing(16)
+        lay.setContentsMargins(24, 20, 24, 20)
+        msg = QLabel(title + "\n\n" + body, dlg)
+        msg.setWordWrap(True)
+        lay.addWidget(msg)
+        row = QHBoxLayout()
+        row.addStretch(1)
+        close_btn = QPushButton(tr("Close"), dlg)
+        close_btn.clicked.connect(dlg.reject)
+        report_btn = QPushButton(tr("Open measurement report"), dlg)
+        report_btn.clicked.connect(lambda: dlg.done(2))
+        build_btn = QPushButton(tr("Build the profile"), dlg)
+        build_btn.setObjectName("primary")
+        build_btn.setDefault(True)
+        build_btn.clicked.connect(dlg.accept)
+        row.addWidget(close_btn)
+        row.addWidget(report_btn)
+        row.addWidget(build_btn)
+        lay.addLayout(row)
+        tint_dialog_primary(dlg, _TAB_COLOR)
+        answer = dlg.exec()
+        if answer == 2:
+            from ui.dialogs.measurement_report_dialog import \
+                MeasurementReportDialog
+            MeasurementReportDialog(self._settings, self,
+                                    initial_ti3=dst).exec()
+        elif answer == QDialog.DialogCode.Accepted:
+            # The tab that builds from it — the same signal the completion
+            # dialog's "Build profile" answer uses, so there is one route to
+            # tab 4 rather than this window inventing a second one.
+            self.proceed_to_profile.emit()
 
     def _show_import_done(self, verification, dst: Path) -> None:
         """The success window — the §M text, plus a button straight into the
