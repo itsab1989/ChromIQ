@@ -1372,11 +1372,24 @@ class MeasurementReportDialog(QDialog):
         from workflow.measurement_report import (build_report,
                                                   list_project_reports)
         runs: list[dict] = []
+        # READ FIRST, THEN JUDGE. `_measurement_for` has to know whether the
+        # folder a report came from has ever held more than ONE measurement
+        # under that name, and one of the two places that is written down is
+        # the set of dates the folder's own reports carry. So every file is
+        # read once into a list and the dates are counted before anything is
+        # rebuilt, rather than each report being judged in ignorance of its
+        # neighbours.
+        saved: "list[tuple]" = []
+        dates_by_origin: "dict[str, set]" = {}
         for p in list_project_reports(ti3.parent):
             try:
                 rep = json.loads(read_text(p))
             except Exception:  # noqa: BLE001
                 continue
+            saved.append((p, rep))
+            dates_by_origin.setdefault(str(p.parent.parent), set()).add(
+                str(rep.get("created") or ""))
+        for p, rep in saved:
             # Reports saved by an older ChromIQ carry an older schema whose
             # metric set predates the current one (no avg_all/max_all …), so the
             # window would show "no accuracy data" for them. Rebuild such a
@@ -1429,7 +1442,9 @@ class MeasurementReportDialog(QDialog):
                 # `build_report` wrote into the report, and with None
                 # otherwise. A row that keeps the numbers it was saved with is
                 # honest; a row filled in from another sheet is not.
-                run_ti3 = self._measurement_for(rep, p.parent.parent, ti3)
+                run_ti3 = self._measurement_for(
+                    rep, p.parent.parent, ti3,
+                    dates_here=dates_by_origin.get(str(p.parent.parent)))
                 if run_ti3 is not None:
                     try:
                         created = rep.get("created")
@@ -1487,7 +1502,8 @@ class MeasurementReportDialog(QDialog):
                         runs.append(rep)
                     except Exception:  # noqa: BLE001 — one bad date must
                         continue       # not empty the whole history
-        if not any(self._report_is_about(r, ti3) for r in runs):
+        if not any(self._is_this_measurement(r, ti3, dates_by_origin)
+                   for r in runs):
             # THE MEASUREMENT THE WINDOW WAS OPENED ON IS ALWAYS IN ITS OWN
             # HISTORY. This said `if not runs:`, so the measurement in hand was
             # used only when the project had NO saved report anywhere — and
@@ -1668,46 +1684,132 @@ class MeasurementReportDialog(QDialog):
                 out[at] = r
         return out
 
+    def _is_this_measurement(self, r: dict, ti3: Path,
+                             dates_by_origin: "dict | None" = None) -> bool:
+        """Whether a gathered row is about the measurement THIS FILE HOLDS NOW.
+
+        ONE IDENTITY, THREE USES. `_measurement_for` already answers "which
+        measurement is this report's"; this asks the same question from the
+        other end, so the history, the rebuild and the subject cannot disagree
+        about what a measurement is. They did: this line used to ask
+        `_report_is_about`, which matches on the run folder plus the bare file
+        NAME, and every measurement of one run carries that pair.
+
+        WHAT THAT COST, driven on screen through the app's own
+        `MeasurementSession` and its own `_maybe_save_measurement_report`
+        (`~/Desktop/ChromIQ-beta18-proof/combined-round-3/`,
+        `L1-the-window-on-a-measurement-with-no-report-of-its-own.png`). With
+        *Preferences ▸ Save measurement report* switched off, a run measured
+        again leaves no report of the new sheet, and the eleven reports already
+        in the folder answered "yes, this measurement is in the history". No
+        row was added for it, so the window opened on a measurement of 90
+        patches read 2026-09-15 and described one of 15 patches read on
+        2026-08-08 — an older sheet, its verdict and its date — and Generate
+        report would have filed a report about that older sheet while the page
+        in front of the reader was supposed to be about the new one.
+
+        `_report_is_about` is unchanged and still right where it is used: it
+        picks the subject out of a history that already contains the right row,
+        and its deliberate looseness is what lets a report saved before the
+        name was kept still belong to its folder.
+        """
+        if str(r.get("_origin_dir", "")) != str(ti3.parent):
+            return False
+        here = (dates_by_origin or {}).get(str(ti3.parent))
+        return self._measurement_for(r, ti3.parent, ti3,
+                                     dates_here=here) == ti3.parent / ti3.name
+
     @staticmethod
-    def _measurement_for(rep: dict, run_dir: Path,
-                         opened_on: Path) -> "Path | None":
+    def _measurement_for(rep: dict, run_dir: Path, opened_on: Path, *,
+                         dates_here: "set | None" = None) -> "Path | None":
         """The measurement a SAVED report was built from, or None.
 
         A saved report keeps the measurement's bare file NAME and its
         ``created`` stamp, and `workflow.measurement_report.created_stamp_for`
         is the one rule that produced that stamp. So the file in the run folder
-        is this report's measurement when its own stamp is the report's, and is
-        a DIFFERENT measurement of the same run when it is not: measuring again
-        copies the previous ``.ti3`` into ``old/<when>/`` and writes the new one
-        under the same name.
+        is certainly this report's measurement when its own stamp is the
+        report's.
 
-        NONE IS AN ANSWER, and it is the one that matters. The caller then
-        leaves the saved report exactly as it was saved rather than recompute it
-        from a sheet somebody else measured.
+        WHEN THE STAMP DOES NOT MATCH, THAT IS NOT YET AN ANSWER, and the first
+        cut of this said it was. It refused everything whose stamp had moved,
+        and a dated verification's stamp moves for reasons that have nothing to
+        do with measuring again: the demo package writes its reports with the
+        dates it wants the history to show and leaves the files with the time
+        they were generated. Driven on `Demo-Switching/runs/run2` on screen,
+        both dated rows lost their ΔE block entirely — `avg_all` None, an empty
+        trend — where the code before B8-205 had shown 20.146 and 20.042
+        correctly, because a dated verification folder holds exactly ONE
+        measurement and rebuilding from "the file in the folder" is right
+        there. That is the shape B8-205 is NOT about.
 
-        THE ARCHIVED COPY IS NOT OFFERED, ON PURPOSE. ``old/<when>/<name>.ti3``
-        is the right measurement and can be found the same way, but it sits
-        alone: `_find_reference_ti2` looks beside the file, in its ``chart/``
-        snapshot and at the run root, and an archive folder has none of those,
-        so a report rebuilt from it would come back with no design reference
-        and therefore no accuracy figures at all. A row that keeps the numbers
-        it was saved with is better than a row rebuilt into emptiness.
+        So the stamp settles it one way and the FOLDER settles it the other.
+        The file is refused only where something on disk says this folder has
+        held more than one measurement under that name:
 
-        The NAME comes from the report, not from the file the window was opened
-        on: a run folder can hold reports naming a different chart (a project
-        copied out of another), and rebuilding those from this run's
-        measurement is the same mistake in smaller print. `opened_on` is the
-        fall-back for a report saved before the name was kept.
+        * an archived copy of it in ``old/<when>/``, which is what
+          `MeasurementSession.begin` leaves behind every time a measurement is
+          made over another one; or
+        * another saved report in the same folder carrying a different
+          ``created``, which cannot happen unless there was another
+          measurement to report.
+
+        Neither is true of a run measured once, or of any dated verification
+        folder. Both are true many times over of the run this was found on
+        (`CR30-Test/runs/run1`: 22 archives, 17 distinct dates).
+
+        THE NAME COMES FROM THE REPORT, and falls back to the file the window
+        is about when the folder has no such file. Renaming a target renames
+        the measurement and leaves the saved reports naming the old stem, so
+        "the report names a file that is not here" is an everyday state and not
+        a foreign report. A report that names a file which IS here, and a
+        different one, is left alone.
+
+        THE ARCHIVED COPY IS NOT OFFERED AS A REBUILD SOURCE, ON PURPOSE, AND
+        THE FIRST REASON WRITTEN HERE FOR THAT WAS WRONG. It said an archived
+        measurement cannot find a design reference. It can:
+        `_find_reference_ti2` climbs three levels for a dated verification, and
+        from ``runs/runN/old/<when>/`` those same three levels land on the run
+        root, so `build_report` on an archive comes back with
+        ``reference_source: design`` and a full ΔE block. Measured on three
+        archives of `CR30-Test/runs/run1` before this paragraph was rewritten.
+
+        The real reasons are two, and both are about being WRONG rather than
+        empty. The reference it finds is whatever chart is in the run TODAY,
+        and `_find_reference_ti2`'s own docstring records what that costs: a
+        trend point that jumped to ΔE ≈ 41 after the chart was swapped, against
+        an honest 2.8. A dated verification is protected from that by the
+        ``chart/`` snapshot written beside it at measure time; an ``old/``
+        archive has no snapshot, and a profiling run's chart can be generated
+        again into the same run. And `_sheet_kind` reads the FOLDER, so a
+        measurement rebuilt from ``old/<when>/`` comes back as ``standalone``
+        and stops being the profiling sheet it was.
+
+        The numbers a saved report already holds were computed from the right
+        measurement AND the chart of the day. Nothing available now beats that,
+        so where this answers None nothing replaces them.
         """
         from workflow.measurement_report import created_stamp_for
         want = str(rep.get("created") or "")
         if not want:
             return None
-        name = Path(str(rep.get("ti3") or "")).name or opened_on.name
-        live = run_dir / name
-        if live.is_file() and created_stamp_for(live) == want:
+        named = str(rep.get("ti3") or "")
+        live = run_dir / (Path(named).name or opened_on.name)
+        if not live.is_file():
+            if named and (run_dir / opened_on.name).is_file():
+                live = run_dir / opened_on.name   # the target was renamed
+            else:
+                return None
+        if created_stamp_for(live) == want:
             return live
-        return None
+        # The stamp has moved. Only the folder can say whether that is because
+        # a different measurement is standing here now.
+        old_root = run_dir / "old"
+        if old_root.is_dir() and any((d / live.name).is_file()
+                                     for d in old_root.iterdir() if d.is_dir()):
+            return None
+        if any(c and c != want for c in (dates_here or set())):
+            return None
+        return live
 
     @staticmethod
     def _report_is_about(r: dict, ti3: Path) -> bool:

@@ -8489,10 +8489,19 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   `None` otherwise; the rebuild is skipped for a `None`, so the row keeps the
   numbers it was saved with. The name comes from the report, not from the file
   the window was opened on. The archived copy in `old/<when>/` is deliberately
-  NOT offered as a rebuild source: `_find_reference_ti2` looks beside the file,
-  in its `chart/` snapshot and at the run root, and an archive folder has none
-  of those, so a report rebuilt from it would come back with no design
-  reference and therefore no accuracy figures at all.
+  NOT offered as a rebuild source, and the first reason written down for that
+  was wrong and is corrected here: an archived measurement CAN find a design
+  reference (`_find_reference_ti2` climbs three levels for a dated
+  verification, and from `runs/runN/old/<when>/` those land on the run root),
+  measured on three archives of `CR30-Test/runs/run1`. The real reasons are
+  that the reference it finds is whatever chart is in the run TODAY, which is
+  the failure `_find_reference_ti2`'s own docstring records (a trend point that
+  jumped to delta-E 41 after the chart was swapped, against an honest 2.8, and
+  an `old/` archive has no `chart/` snapshot to outrank it), and that
+  `_sheet_kind` reads the folder, so a measurement rebuilt from `old/<when>/`
+  comes back as `standalone` and stops being the profiling sheet it was. The
+  numbers a saved report already holds were computed from the right measurement
+  AND the chart of the day; nothing available now beats that.
 - also: the reason printed beside such a row said *"this value was not computed
   for this report; the measurement file could not be read again"*. That names a
   cause `REASON_NOT_COMPUTED` never meant — it means the block is missing from
@@ -8506,8 +8515,9 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   test_the_measurement_still_in_the_run_folder_is_still_rebuilt,
   test_created_stamp_for_is_the_stamp_build_report_writes,
   test_a_date_only_measured_keyword_reads_the_same_both_ways,
-  test_a_report_naming_another_chart_is_not_rebuilt_from_this_run,
+  test_the_reports_own_name_wins_while_the_folder_has_that_file,
   test_a_measurement_whose_stamp_moved_is_not_claimed,
+  test_an_archived_measurement_is_never_the_rebuild_source,
   test_no_row_is_told_its_measurement_could_not_be_read. MUTATIONS PROVED,
   each one grepped out of the file the run reads before the run that judged it:
   putting the rebuild's source back to `p.parent.parent / ti3.name` turns 2
@@ -8516,3 +8526,257 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   report turns 1 red, making `created_stamp_for` fall back to `now()` turns 4
   red, removing its date-only branch turns 1 red, and restoring the old
   sentence turns 1 red.
+
+### B8-206 · B8-205's first cut took the accuracy figures off every dated verification
+- blocks release: no
+- status: FIXED
+- found by: combined adversary round 3 attacking its OWN fix, 2026-09-15, on
+  the demo package the project rebuilds before every beta
+  (`drive_a_demo_dated_verification.py`).
+- detail: WHAT A USER SEES, photographed on `Demo-Switching/runs/run2` on
+  screen, with the same drive run against the code before B8-205 and after it
+  (`G0-BEFORE-result.json` beside `G-result.json`). Before B8-205 the two dated
+  verification rows read 64 patches, ΔE00 average **20.146** and **20.042**,
+  each with its grey block and its example colours. After B8-205's first cut
+  both read **`avg_all: None`** — no ΔE block at all, nothing on the trend, and
+  two rows saying "this value is not in this saved report". Those are the rows
+  Knut reads out of the shared demo package, and it is the same complaint he
+  made on 2026-09-11 about example colours, arriving again by a new route.
+- cause: B8-205 said a saved report's measurement is the file whose
+  `created_stamp_for` equals the report's `created`, and refused everything
+  else. A dated verification's stamp moves for reasons that have nothing to do
+  with measuring again: the demo package writes each report with the date it
+  wants the history to show and leaves the file with the time it was generated,
+  and renaming a target renames the measurement while the saved reports go on
+  naming the old stem (`Demo-Full-RGB-verify.ti3` beside a folder holding
+  `Demo-Switching-verify.ti3`). A `verifications/<date>/` folder holds exactly
+  ONE measurement, so "the file in the folder" was right there all along. That
+  is the shape B8-205 is not about.
+- fix: the stamp settles it one way and the FOLDER settles it the other.
+  `_measurement_for` refuses the file only where something on disk says the
+  folder has held more than one measurement under that name: an archived copy
+  in `old/<when>/`, which `MeasurementSession.begin` leaves every time a
+  measurement is made over another, or another saved report in the same folder
+  carrying a different `created`, which cannot exist without another
+  measurement. Neither is true of a run measured once or of any dated
+  verification; both are true many times over of `CR30-Test/runs/run1` (22
+  archives, 17 distinct dates). The reports are now read once into a list and
+  their dates counted per origin folder before anything is rebuilt, so no
+  report is judged in ignorance of its neighbours. The name still comes from
+  the report and falls back to the file the window is about only when the
+  folder has no file of that name, which is the renamed-target state.
+- also: two claims written down in B8-205 were wrong and are corrected in
+  place. The archived copy CAN find a design reference (`_find_reference_ti2`
+  climbs three levels for a dated verification, and from
+  `runs/runN/old/<when>/` those land on the run root) — measured on three
+  archives of `CR30-Test/runs/run1`. It is still not rebuilt from, for two
+  reasons that are about being wrong rather than empty: the reference it finds
+  is whatever chart is in the run today, which is the failure
+  `_find_reference_ti2`'s own docstring records, and `_sheet_kind` reads the
+  folder, so an archived profiling sheet comes back as `standalone`. And
+  `_measured_keyword` now reads through `parse_ti3`'s own `_KW_RE` rather than
+  splitting on a space: the two readers of the one rule agreed over 128 .ti3
+  files on one real disk and **not one of them carried the keyword**, so that
+  sample said nothing about the branch where a drift would live.
+- evidence: test_a_renamed_target_still_finds_its_own_measurement,
+  test_two_dates_in_one_folder_are_two_measurements,
+  test_a_measurement_whose_stamp_moved_is_not_claimed,
+  test_the_reports_own_name_wins_while_the_folder_has_that_file,
+  test_an_archived_measurement_is_never_the_rebuild_source,
+  test_the_keyword_is_read_through_parse_ti3s_own_regex, and B8-205's own
+  test_each_row_carries_its_own_measurements_numbers and
+  test_the_trend_draws_a_different_point_for_each_measurement, which must stay
+  green through all of it. MUTATIONS PROVED, eleven, each read back out of the
+  file before the run that judged it: not consulting the `old/` archive turns 2
+  red, not consulting the folder's other report dates turns 3, removing the
+  renamed-target fall-back turns 1, taking the name from the window turns 1,
+  dropping the stamp check turns 5, making `_measurement_for` always answer
+  None turns 6, putting the rebuild's source back to `p.parent.parent /
+  ti3.name` turns 2, `created_stamp_for` falling back to `now()` turns 6,
+  removing its date-only branch turns 1, splitting the keyword on a space turns
+  1, and restoring the old sentence turns 1.
+
+### B8-207 · "Location being edited" was drawn black on the near-black rail
+- blocks release: no
+- status: FIXED
+- found by: combined adversary round 3, 2026-09-15, settling a suspicion the
+  round's own pause note had written down as unproven
+  (`drive_the_location_line_geometry.py`, `drive_the_rail_label_contrast.py`).
+- detail: WHAT A USER SEES, in the DEFAULT appearance, on every screen of the
+  app: the line under the Profile-run bar that answers "where are my files?"
+  is unreadable. Measured **#000000 on the #070707 rail, 1.04:1**
+  (`J-result.json`, `J1-dark-the-rail.png`). Light (17.65:1) and Neutral
+  (14.17:1) were unaffected, because there near-black on a pale rail happens to
+  be legible. Counted in the photograph rather than judged by eye: across the
+  sixteen pixel rows of the label's own band, **zero** rows carry ink that
+  differs from the rail by more than a hair, while the row above (the
+  dropdowns) and the rows below (the tab strip) do.
+- cause: `MastheadHeader._paint_center_widget_text` exists for exactly this —
+  the bar's labels are plain `QLabel`s with no background of their own, so on
+  the rail they take the application palette and vanish; its own docstring
+  records fixing "Profile run:", "Run type:" and the first-run hint at 1.11:1.
+  It sets a stylesheet naming `QLabel#target_bar_label` and
+  `QLabel#target_bar_hint`. The bar has a THIRD object name:
+  `QLabel#target_bar_location`, added for #130, never in the rule. An
+  enumeration is how it was missed.
+- fix: the location line takes `rail_hint_fg`, the colour the rail already uses
+  for text meant to be READ rather than glanced at, which is what the first-run
+  sentence uses: 4.56:1 dark, 8.71:1 light, 12.84:1 neutral. **The weight is
+  Basti's call** — this is a legibility repair, not a design decision, and if
+  he wants the line quieter `ver_fg` is 3.72:1 dark.
+- and the guard no longer takes a list from anybody:
+  `test_every_label_on_the_rail_is_readable_on_it` walks every `QLabel` on the
+  hosted widget, in all three appearances, and measures the colour each one
+  actually ends up with. A fourth label added tomorrow is covered without
+  anyone remembering the file.
+- also: three rounds of photographs showed this line looking half cut off, and
+  two explanations were wrong. It is not clipped: the label is 127..143 px in a
+  masthead whose bottom is at 146, and Qt's own `visibleRegion` for it equals
+  its rect. It is not a capture artefact either. It was contrast all along.
+- evidence: test_every_label_on_the_rail_is_readable_on_it (dark, light and
+  neutral), test_the_labels_are_coloured_for_the_rail_not_the_app_palette.
+  MUTATIONS PROVED, each read back out of the file before the run that judged
+  it: removing the `target_bar_location` rule turns the dark case red at
+  1.04:1, painting the hint in the rail's own background turns all three red,
+  and removing the `_paint_center_widget_text()` call from `set_center_widget`
+  turns 2 red.
+
+### B8-208 · The report window described an older sheet than the one just measured
+- blocks release: no
+- status: FIXED
+- found by: combined adversary round 3, 2026-09-15, proving a suspicion the
+  round's own pause note had written down as unproven
+  (`drive_the_three_remaining_suspicions.py`).
+- detail: WHAT A USER SEES. Switch off *Preferences ▸ Save measurement report*,
+  measure a run that already has reports, then open the Measurement Report
+  window on it. The window opened on a measurement of **90 patches read
+  2026-09-15** and described one of **15 patches read on 2026-08-08** — that
+  older sheet's figures, its date and its verdict — with no row for the sheet
+  just measured anywhere in the list or on the trend. Pressing *Generate
+  report* would then have filed a report **about the older sheet**, stamped
+  with this window's limits and this window's report type, while the page in
+  front of the reader was supposed to be about the new one. Photographed on
+  screen (`L1-the-window-on-a-measurement-with-no-report-of-its-own.png`) with
+  the state built through the app's own `MeasurementSession` (the archive a
+  real read leaves) and its own `_maybe_save_measurement_report` (which
+  declined: 11 report files before and 11 after, read off disk rather than
+  assumed).
+- cause: `_gather_runs` decides whether to add the measurement in hand to its
+  own history with `_report_is_about`, which matches on the run folder plus the
+  bare file NAME. Every measurement of one run carries that pair, so eleven
+  older reports answered "yes, it is already here". No row was added, and
+  `_subject_of` then fell through to the newest SAVED report. It predates all
+  three rounds; it was invisible while round 1 and round 2 were collapsing the
+  rows, and it is the third face of the same wrong idea of what a measurement
+  is.
+- fix: `_is_this_measurement` asks `_measurement_for` — the identity B8-205 and
+  B8-206 already built — from the other end, so the history, the rebuild and
+  the subject cannot disagree about what a measurement is. ONE identity, three
+  uses. `_report_is_about` is untouched and still right where it is used: it
+  picks the subject out of a history that already holds the right row, and its
+  deliberate looseness is what lets a report saved before the name was kept
+  still belong to its folder.
+- evidence: test_a_measurement_with_no_report_of_its_own_is_still_its_own_row,
+  test_generate_files_a_report_about_the_measurement_in_hand,
+  test_a_run_with_one_measurement_does_not_list_it_twice. MUTATIONS PROVED,
+  each read back out of the file before the run that judged it: putting the
+  guard back to `_report_is_about` turns 2 red, comparing `created` directly
+  instead of asking `_measurement_for` turns 6 red (including four of the
+  one-page-summary family, which is the duplicate-row failure this must not
+  cause), and dropping the origin check turns
+  `test_several_runs_still_each_get_their_own_row` red.
+
+### B8-209 · Tools ▸ Measurement report opened on the profile run while the bar said Calibration
+- blocks release: no
+- status: FIXED
+- found by: combined adversary round 3, 2026-09-15, walking the Tools menu
+  door, which no round had reached (`drive_the_surfaces_no_round_reached.py`).
+- detail: WHAT A USER SEES. Set Run type to Calibration, open Tools ▸
+  Measurement report. The window describes the PROFILE run's measurement:
+  driven on screen on `Demo-Switching`, `runs/run2/Demo-Switching.ti3` at **240
+  patches**, with the calibration's own `cal/Demo-Switching-cal.ti3` — **64
+  patches** — sitting unread beside it, and *Generate report* would have filed
+  the report into `runs/run2/reports/`, which is another selection's folder.
+  (`O-result.json`, `O1-tools-door-calibration.png`.)
+- cause: `tools_dialogs._report_seed` reads "for a verification target the
+  newest measured date; otherwise the run's own measurement". A calibration
+  falls into "otherwise", and `resolve_run` hands back a RUN for a target that
+  is not one. Same shape as `MainWindow._current_chart_ti2`'s "A CALIBRATION IS
+  A THIRD TARGET, AND THIS KNEW ONLY ONE", and as beta.165's: two run types
+  assumed where there are three.
+- fix: the calibration is answered first, with `Calibration.ti3`, and a
+  calibration that has nothing measured answers None rather than borrowing a
+  run's measurement. `docs/design/tool_availability.md` §4 gives this tool ● in
+  S5, noted *"Reports on a measurement this selection has"*; **that table is a
+  DRAFT awaiting Knut's confirmation**, so what is fixed is only the part that
+  needs no ruling — one selection's report must not be filed into another
+  selection's folder. Whether a calibration with nothing measured should open
+  empty or be greyed out is his call and is untouched.
+- also: THE FIRST CUT OF THIS FIX WAS INERT and looked right on screen. It
+  asked the Calibration for `measurement_ti3`, which is a Run's and a
+  Verification's spelling and not a Calibration's; `_report_seed`'s
+  `except Exception` swallowed the `AttributeError` and it answered None for
+  every calibration, which is indistinguishable from "nothing measured yet". It
+  was caught by driving the window again instead of trusting the edit, and
+  `test_the_calibration_branch_is_not_swallowed_by_the_guard` asserts the file
+  EXISTS as well as being returned so the inert version cannot come back.
+- evidence: test_a_calibration_seeds_its_own_measurement,
+  test_a_calibration_with_nothing_measured_borrows_no_run,
+  test_the_calibration_branch_is_not_swallowed_by_the_guard,
+  test_a_profiling_run_still_seeds_its_own_measurement,
+  test_a_verification_still_seeds_its_newest_date. MUTATIONS PROVED, each read
+  back out of the file before the run that judged it: removing the calibration
+  branch turns 3 red, letting a calibration with nothing measured fall through
+  to the run turns 1 red, and spelling it `measurement_ti3` again turns 2 red.
+
+### B8-210 · The frame said 176.0 mm and the notice inside it said 0.0 mm
+- blocks release: no
+- status: FIXED
+- found by: combined adversary round 3, 2026-09-15, attacking round 2's own
+  fix (B8-204) with the question the coordinator asked of it: does the frame's
+  own numbers still agree with the page the user is looking at
+  (`drive_the_second_and_third_page.py`, re-run against this tree).
+- detail: WHAT A USER SEES, photographed on a real three-page A4 chart at page
+  3 of 3 (`P3-create-chart-on-page-3-of-3.png` and `P3-crop-the-frame.png`).
+  The "Measured from Preview" frame printed **Right (to first patch) 176.0**
+  and the red notice INSIDE THE SAME FRAME, an inch below it, said **"the right
+  margin leaves 0.0 mm … Raise “Right” under “Margins (mm)” by about 5.1
+  mm"**. Two numbers for one edge, 176 mm apart, on one screen, and the advice
+  was wrong for the sheet in front of the reader: that page has 176 mm of room.
+  The notices even name the frame while quoting their number ("the patch area
+  in “Measured from Preview” comes down to …").
+- cause: B8-204 made the notices judge the tightest page of the chart, which is
+  right (paging forward used to make a red warning vanish), and deliberately
+  left the frame showing the page on screen, which is also right (#83: the
+  guides must land on the patches the reader can see). Nobody asked what the
+  two say together. On a part-full last page they are different sheets.
+- fix: neither half moves. One plain sentence is printed above the notices,
+  naming the page the frame is measuring: *"The notices here are judged on the
+  page of this chart where the edge is tightest, which is not the page on
+  screen. The margins measured in this frame are page 3's own."* It appears
+  only where the four edges actually differ, so pages 1 and 2 of the same chart
+  are untouched (photographed: `P1-crop-the-frame.png`).
+- and it goes on the panel's SURFACE, not onto its ⓘ. `text_warnings` reach
+  the ⓘ only, and this panel's own comment says why that is not enough:
+  *"an ⓘ is only read if it is asked for"*. The contradiction is between two
+  numbers a reader sees at once. A new `notice_preamble` argument carries it,
+  and it is deliberately NOT counted: a chart with one fault still says
+  "1 warning".
+- **for Basti's eye**: the sentence is painted in the same red as the notices,
+  because the panel's status is one label with one ink. It is a qualifier and
+  not a fault, so a quieter ink would read better if he wants one.
+- evidence: test_the_reader_is_told_when_the_notice_is_about_another_page,
+  test_the_two_sheets_are_compared_edge_by_edge,
+  test_the_sentence_is_not_counted_as_a_warning,
+  test_no_preamble_when_there_is_nothing_to_reconcile, alongside B8-204's
+  eight, which stay green. MUTATIONS PROVED, each read back out of the file
+  before the run that judged it: not passing `notice_preamble` turns 1 red,
+  comparing the two reports by identity instead of edge by edge turns 1 red,
+  counting the preamble as a warning turns 1 red, and not printing it turns 1
+  red.
+- also: the four sides were checked for the other half of the same question,
+  whether the per-side worst can make up a sheet that does not exist. It
+  cannot: every text-fit check reads exactly ONE measured edge
+  (`_note_margin = _meas_r`, `_side_margin = _meas_r if _clip_on_right else
+  _meas_l`, `_patch_top = _meas_t`, `_patch_bottom = _meas_b`), so no sentence
+  mixes two pages' numbers into one arithmetic statement.

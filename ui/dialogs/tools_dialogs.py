@@ -2375,10 +2375,43 @@ def _report_seed(parent, project) -> "Path | None":
     target's, so the window shows the loaded project's reports right away
     instead of opening empty (Sebastian, 2026-08-10). For a verification
     target the newest measured date; otherwise the run's own measurement.
-    None when nothing is measured yet — the Add button covers the rest."""
+    None when nothing is measured yet — the Add button covers the rest.
+
+    A CALIBRATION IS A THIRD TARGET, AND THIS KNEW ONLY TWO. It read "for a
+    verification target the newest measured date; otherwise the run's own
+    measurement", and a calibration fell into "otherwise": `resolve_run` hands
+    back a RUN for a target that is not one, so with Run type = Calibration
+    Tools ▸ Measurement report opened on the PROFILE run's measurement.
+    Measured on screen on `Demo-Switching` with the bar genuinely on
+    Calibration (`~/Desktop/ChromIQ-beta18-proof/combined-round-3/`,
+    `O-result.json`): the window described `runs/run2/Demo-Switching.ti3`, 240
+    patches, while `cal/Demo-Switching-cal.ti3` sat unread beside it, and
+    Generate report would have filed the calibration's report into
+    `runs/run2/reports/`. Same shape as `MainWindow._current_chart_ti2`'s
+    "A CALIBRATION IS A THIRD TARGET, AND THIS KNEW ONLY ONE", and as
+    beta.165's: two run types assumed where there are three.
+
+    `docs/design/tool_availability.md` §4 gives this tool ● in S5 with the
+    note *"Reports on a measurement this selection has"*, so a calibration
+    with nothing measured answers None rather than borrowing a run's
+    measurement. That table is a DRAFT awaiting Knut's confirmation; what is
+    fixed here is the part that needs no ruling, which is that one selection's
+    report must not be filed into another selection's folder.
+    """
     try:
         run = None
         ctl = getattr(parent, "_target_ctl", None)
+        if ctl is not None and project is not None \
+                and ctl.target.is_calibration():
+            # `Calibration.ti3`, NOT `measurement_ti3`: a Run and a
+            # Verification spell it the second way and a Calibration does not,
+            # and the first cut of this used the Run's spelling. The
+            # `except Exception` below swallowed the AttributeError and the
+            # fix answered None for every calibration — right-looking on
+            # screen, and inert. Caught by driving it again rather than by
+            # trusting the edit.
+            cal = project.calibration.ti3
+            return cal if cal.exists() else None
         if ctl is not None and project is not None:
             from core.measurement_target import resolve_run
             run = resolve_run(project, ctl.target)

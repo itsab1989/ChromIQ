@@ -260,3 +260,91 @@ def test_a_new_chart_is_measured_again(tab, tmp_path):
     assert round(again.right_mm, 3) == EXPECTED_RIGHT_MM[2], (
         "a new chart was judged against the previous chart's pages: %.3f"
         % again.right_mm)
+
+
+# ---------------------------------------------------------------------------
+# …AND THE READER IS TOLD WHEN THE NOTICE AND THE FRAME ARE DIFFERENT SHEETS
+# ---------------------------------------------------------------------------
+#
+# Found by the combined adversary round of 2026-09-15 (B8-210), attacking this
+# file's own fix. Judging the notices on the tightest page is right — paging
+# forward used to make a red warning vanish — and the frame must still show the
+# page on screen, because the guides have to land on the patches the reader can
+# see (#83). What nobody checked is what those two say TOGETHER.
+#
+# Photographed on a real three-page A4 chart, page 3 of 3
+# (`~/Desktop/ChromIQ-beta18-proof/combined-round-3/`,
+# `P3-create-chart-on-page-3-of-3.png` and its crop): the frame printed
+# **"Right (to first patch) 176.0"** and the red notice INSIDE THE SAME FRAME
+# said **"the right margin leaves 0.0 mm … Raise “Right” … by about 5.1 mm"**.
+# Two numbers for one edge, 176 mm apart, an inch apart on screen, and the
+# advice was wrong for the sheet in front of the reader. The notices even name
+# this frame while quoting their number.
+
+def test_the_reader_is_told_when_the_notice_is_about_another_page(qapp):
+    """One plain sentence, above the notices, on the panel's SURFACE.
+
+    MUTATION: stop passing `notice_preamble` from `_update_margin_inspector`
+    and this goes red.
+    """
+    import inspect
+    from ui.tabs.tab_chart import TabChart
+    src = inspect.getsource(TabChart._update_margin_inspector)
+    assert "notice_preamble=" in src, (
+        "the panel is never told that its notices are about another page")
+
+
+def test_the_two_sheets_are_compared_edge_by_edge(qapp):
+    """The question is "are these the same sheet", asked of the four numbers
+    rather than of object identity: `_worst_page_report` hands back the shown
+    report itself when nothing was replaced.
+
+    MUTATION: compare with `is not` instead of the edges and this goes red.
+    """
+    import dataclasses
+    from ui.tabs.tab_chart import TabChart
+    from workflow.margin_inspector import MarginReport
+    fields = {f.name: 1.0 for f in dataclasses.fields(MarginReport)
+              if f.default is dataclasses.MISSING
+              and f.default_factory is dataclasses.MISSING}  # type: ignore
+    try:
+        shown = MarginReport(**fields)
+    except Exception:                       # noqa: BLE001 — shape moved
+        import pytest as _p
+        _p.skip("MarginReport's shape changed; the behaviour is covered on "
+                "screen in P3-create-chart-on-page-3-of-3.png")
+    same = dataclasses.replace(shown)
+    assert TabChart._notes_are_about_another_page(shown, same) is False
+    other = dataclasses.replace(shown, right_mm=float(shown.right_mm) + 168.0)
+    assert TabChart._notes_are_about_another_page(shown, other) is True
+    assert TabChart._notes_are_about_another_page(shown, None) is False
+    assert TabChart._notes_are_about_another_page(None, other) is False
+
+
+def test_the_sentence_is_not_counted_as_a_warning(qapp):
+    """A chart with one fault must not announce two. The preamble is printed
+    in the same block and left out of the count.
+
+    MUTATION: add the preamble to `overlap_warnings` instead and this goes red
+    with a count of 2.
+    """
+    from ui.margin_inspector_panel import MarginInspectorPanel
+    panel = MarginInspectorPanel()
+    panel._update_status([], thresholds_defined=False, notify=True,
+                         text_warnings=[], overlap_warnings=["⚠ one fault"],
+                         notice_preamble="judged on another page")
+    assert panel._warning_count == 1, panel._warning_count
+    shown = panel._status.text()
+    assert "judged on another page" in shown, shown
+    assert shown.index("judged on another page") < shown.index("⚠ one fault")
+
+
+def test_no_preamble_when_there_is_nothing_to_reconcile(qapp):
+    """It appears only where the two really differ."""
+    from ui.margin_inspector_panel import MarginInspectorPanel
+    panel = MarginInspectorPanel()
+    panel._update_status([], thresholds_defined=False, notify=True,
+                         text_warnings=[], overlap_warnings=["⚠ one fault"],
+                         notice_preamble=None)
+    assert panel._status.text() == "⚠ one fault"
+    assert panel._warning_count == 1

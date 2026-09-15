@@ -246,50 +246,102 @@ def test_a_date_only_measured_keyword_reads_the_same_both_ways(tmp_path):
     assert build_report(p)["created"] == created_stamp_for(p)
 
 
-def test_a_report_naming_another_chart_is_not_rebuilt_from_this_run(tmp_path):
-    """A run folder can hold reports that name a different measurement — a
-    project copied out of another one, which is on the real disk this round
-    read. The name comes from the REPORT.
-
-    MUTATION: take the name from `opened_on` instead of `rep["ti3"]` and this
-    goes red.
-    """
+def _folder(tmp_path, names, stamps=None):
+    """A run folder holding the named .ti3 files, with a time on each."""
     from tests.test_import_measurement_module import _cgats, _PATCHES
+    run = tmp_path / "runs" / "run1"
+    run.mkdir(parents=True)
+    for i, n in enumerate(names):
+        f = run / n
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(_cgats("CTI3", [(r * (1 - i * 0.05), g, b)
+                                     for r, g, b in _PATCHES]), encoding="utf-8")
+        if stamps and stamps[i] is not None:
+            os.utime(f, (stamps[i], stamps[i]))
+    return run
+
+
+def test_the_reports_own_name_wins_while_the_folder_has_that_file(tmp_path):
+    """A run folder holds `<name>.ti3` beside `preconditioning.ti3` and
+    `merged.ti3`, and a report about one of them must never be rebuilt from
+    another. While the file the report NAMES is in the folder, that is the
+    file, and nothing falls back.
+
+    MUTATION: take the name from `opened_on` first and this goes red.
+    """
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
     from workflow.measurement_report import created_stamp_for
-    run_dir = tmp_path / "run1"
-    run_dir.mkdir()
-    mine = run_dir / "mine.ti3"
-    mine.write_text(_cgats("CTI3", _PATCHES), encoding="utf-8")
-    stamp = created_stamp_for(mine)
-    assert MeasurementReportDialog._measurement_for(
-        {"created": stamp, "ti3": "somebody-elses.ti3"}, run_dir, mine) is None
-    assert MeasurementReportDialog._measurement_for(
-        {"created": stamp, "ti3": "mine.ti3"}, run_dir, mine) == mine
+    run = _folder(tmp_path, ["chart.ti3", "merged.ti3"],
+                  [time.time() - 7200, time.time() - 3600])
+    want = created_stamp_for(run / "merged.ti3")
+    assert created_stamp_for(run / "chart.ti3") != want
+    got = MeasurementReportDialog._measurement_for(
+        {"created": want, "ti3": "merged.ti3"}, run, run / "chart.ti3")
+    assert got == run / "merged.ti3", got
+    # …and the report about the chart is not answered with merged.ti3 either.
+    got = MeasurementReportDialog._measurement_for(
+        {"created": created_stamp_for(run / "chart.ti3"), "ti3": "chart.ti3"},
+        run, run / "merged.ti3")
+    assert got == run / "chart.ti3", got
+
+
+def test_a_renamed_target_still_finds_its_own_measurement(tmp_path):
+    """RENAMING A TARGET RENAMES THE MEASUREMENT AND LEAVES THE REPORTS NAMING
+    THE OLD STEM, and the demo package ships exactly that state with dates it
+    wrote by hand. Driven on screen on `Demo-Switching/runs/run2`: refusing it
+    took the ΔE block off both dated rows and emptied the trend, where the code
+    before B8-205 had them right. One measurement has ever been in this folder,
+    so the file the window is about is that measurement.
+
+    MUTATION: remove the `opened_on` fall-back and this goes red; remove the
+    "no archive, no other date" guard and
+    `test_a_measurement_whose_stamp_moved_is_not_claimed` goes red instead.
+    """
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    run = _folder(tmp_path, ["new-name-verify.ti3"], [time.time() - 60])
+    got = MeasurementReportDialog._measurement_for(
+        {"created": "2026-05-20T09:05:00", "ti3": "old-name-verify.ti3"},
+        run, run / "new-name-verify.ti3")
+    assert got == run / "new-name-verify.ti3", got
 
 
 def test_a_measurement_whose_stamp_moved_is_not_claimed(tmp_path):
     """The whole point of the None. Once the run has been measured again the
-    file under that name is a different sheet, and nothing may be recomputed
-    from it.
+    file under that name is a different sheet, and the archive
+    `MeasurementSession.begin` leaves behind is what says so.
 
-    MUTATION: drop the `created_stamp_for(live) == want` condition and this
-    goes red.
+    MUTATION: drop the `old/` check and this goes red.
     """
-    from tests.test_import_measurement_module import _cgats, _PATCHES
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
     from workflow.measurement_report import created_stamp_for
-    run_dir = tmp_path / "run1"
-    run_dir.mkdir()
-    m = run_dir / "chart.ti3"
-    m.write_text(_cgats("CTI3", _PATCHES), encoding="utf-8")
-    was = created_stamp_for(m)
+    run = _folder(tmp_path, ["chart.ti3", "old/2026-01-02_030405/chart.ti3"],
+                  [time.time(), time.time() - 9000])
+    was = created_stamp_for(run / "old" / "2026-01-02_030405" / "chart.ti3")
+    assert was != created_stamp_for(run / "chart.ti3")
     assert MeasurementReportDialog._measurement_for(
-        {"created": was, "ti3": "chart.ti3"}, run_dir, m) == m
-    later = time.time() + 600
-    os.utime(m, (later, later))
+        {"created": was, "ti3": "chart.ti3"}, run, run / "chart.ti3") is None
+
+
+def test_two_dates_in_one_folder_are_two_measurements(tmp_path):
+    """The other half of the folder evidence, and the half that works when the
+    archive is gone. Two saved reports of one file carrying two different
+    dates cannot both be about the one measurement standing there.
+
+    MUTATION: drop the `dates_here` check and this goes red.
+    """
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    from workflow.measurement_report import created_stamp_for
+    run = _folder(tmp_path, ["chart.ti3"], [time.time()])
+    now = created_stamp_for(run / "chart.ti3")
+    two = {now, "2026-01-02T03:04:05"}
     assert MeasurementReportDialog._measurement_for(
-        {"created": was, "ti3": "chart.ti3"}, run_dir, m) is None
+        {"created": "2026-01-02T03:04:05", "ti3": "chart.ti3"},
+        run, run / "chart.ti3", dates_here=two) is None
+    # …and with only its own date recorded, the same report is accepted.
+    assert MeasurementReportDialog._measurement_for(
+        {"created": "2026-01-02T03:04:05", "ti3": "chart.ti3"},
+        run, run / "chart.ti3",
+        dates_here={"2026-01-02T03:04:05"}) == run / "chart.ti3"
 
 
 def test_no_row_is_told_its_measurement_could_not_be_read(qapp):
@@ -309,3 +361,178 @@ def test_no_row_is_told_its_measurement_could_not_be_read(qapp):
     assert text, "the reason has no sentence at all"
     assert "could not be read" not in text, text
     assert "saved report" in text, text
+
+
+# ---------------------------------------------------------------------------
+# why the archived copy is not rebuilt from, pinned as facts rather than
+# as a sentence in a docstring (round 3 wrote a false one there first)
+# ---------------------------------------------------------------------------
+
+def test_an_archived_measurement_is_never_the_rebuild_source(tmp_path):
+    """The archive IS findable and IS readable, and is still refused.
+
+    The first reason written down for refusing it was that an archived
+    measurement can find no design reference. It can: `_find_reference_ti2`
+    climbs three levels for a dated verification, and from
+    `runs/runN/old/<when>/` those same three levels land on the run root. This
+    test states the fact that was got wrong, so the next reader does not have
+    to take a docstring's word for it, and then states the refusal.
+
+    MUTATION: add an `old/` search to `_measurement_for` and this goes red.
+    """
+    from tests.test_import_measurement_module import _cgats, _PATCHES
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    from workflow.measurement_report import (_find_reference_ti2, _sheet_kind,
+                                             created_stamp_for)
+    run = tmp_path / "runs" / "run1"
+    (run / "old" / "2026-01-02_030405").mkdir(parents=True)
+    run.joinpath("c.ti2").write_text(_cgats("CTI2", _PATCHES), encoding="utf-8")
+    run.joinpath("c.ti3").write_text(_cgats("CTI3", _PATCHES), encoding="utf-8")
+    archived = run / "old" / "2026-01-02_030405" / "c.ti3"
+    archived.write_text(_cgats("CTI3", [(r * 0.8, g * 0.8, b * 0.8)
+                                        for r, g, b in _PATCHES]), encoding="utf-8")
+    # AN EARLIER TIME ON THE ARCHIVE, or the control is not the state. Written
+    # in the same second as the live file the two carry the same stamp, the
+    # live file answers for the archived report, and the test passes for a
+    # reason that has nothing to do with what it is about. It did, first time.
+    then = time.time() - 4 * 3600
+    os.utime(archived, (then, then))
+    assert created_stamp_for(archived) != created_stamp_for(run / "c.ti3")
+    # The fact the docstring got wrong: it finds the run's CURRENT chart.
+    assert _find_reference_ti2(archived) == run / "c.ti2"
+    # …and one of the two real reasons: it stops being a profiling sheet.
+    assert _sheet_kind(run / "c.ti3") == "profiling"
+    assert _sheet_kind(archived) == "standalone"
+    # The refusal itself.
+    assert MeasurementReportDialog._measurement_for(
+        {"created": created_stamp_for(archived), "ti3": "c.ti3"},
+        run, run / "c.ti3") is None
+
+
+def test_the_keyword_is_read_through_parse_ti3s_own_regex(tmp_path):
+    """ONE RULE, TWO READERS, AND THEY MUST NOT PART COMPANY. `build_report`
+    hands `created_stamp_for` the keywords `parse_ti3` found; `_measurement_for`
+    makes it read the file. A file whose keyword line one reader sees and the
+    other does not would silently stop matching itself.
+
+    128 .ti3 files on one real disk agreed, and NOT ONE of them carried this
+    keyword, so that sample said nothing about this branch. These lines do: the
+    tab is the separator a hand-rolled "split on the first space" loses, and
+    `_KW_RE` allows any whitespace.
+
+    MUTATION: read the keyword with `s.partition(" ")` again and the tab case
+    goes red.
+    """
+    from tests.test_import_measurement_module import _cgats, _PATCHES
+    from workflow.measurement_report import build_report, created_stamp_for
+    for i, kw in enumerate((
+            'CHROMIQ_MEASURED "2026-03-04T05:06:07"',
+            'CHROMIQ_MEASURED\t"2026-03-04T05:06:07"',
+            'CHROMIQ_MEASURED   "2026-03-04T05:06:07"',
+            'CHROMIQ_MEASURED 2026-03-04T05:06:07')):
+        p = tmp_path / f"k{i}.ti3"
+        p.write_text(_cgats("CTI3", _PATCHES, extra_keywords=kw + "\n"),
+                     encoding="utf-8")
+        assert created_stamp_for(p) == "2026-03-04T05:06:07", kw
+        assert build_report(p)["created"] == created_stamp_for(p), kw
+
+
+# ---------------------------------------------------------------------------
+# …and the measurement in hand is in its own history even with no report of it
+# ---------------------------------------------------------------------------
+
+def _measured_again_with_the_report_switched_off(tmp_path):
+    """One run: measured, reported, then measured AGAIN with *Save measurement
+    report* off. The archive is the app's own — `MeasurementSession.begin` is
+    what a real read calls — so the folder ends in the state a user reaches by
+    switching one preference."""
+    from workflow.measurement_report import build_report, save_report
+    from workflow.measurement_session import MeasurementSession
+    s, run = _env_and_run(tmp_path)
+    first = time.time() - 7200
+    _measure_again(run, 1.0, first)
+    save_report(build_report(run.measurement_ti3), run.dir)
+    sess = MeasurementSession(run.measurement_ti3, run.chart_ti2,
+                              old_dir=run.old_dir)
+    assert sess.begin() is not None, "the control failed: nothing was archived"
+    _measure_again(run, 0.7, time.time())
+    sess.finish(resumed=False)
+    assert len(list((run.dir / "reports").glob("report_*.json"))) == 1, (
+        "the control failed: the second measurement left a report of its own")
+    return s, run
+
+
+def test_a_measurement_with_no_report_of_its_own_is_still_its_own_row(
+        tmp_path, qapp):
+    """THE FAULT: the window opened on a measurement described an older one.
+
+    The history test was `_report_is_about`, which matches on the run folder
+    plus the bare file NAME, and every measurement of one run carries that
+    pair. So eleven older reports answered "this measurement is already in the
+    history", no row was added for the sheet in hand, and the subject fell
+    through to the newest SAVED report.
+
+    MUTATION: put the guard back to `self._report_is_about(r, ti3)` and this
+    goes red, with the window describing the first measurement.
+    """
+    from workflow.measurement_report import build_report
+    s, run = _measured_again_with_the_report_switched_off(tmp_path)
+    now = build_report(run.measurement_ti3)
+    dlg = _window_on(s, run.measurement_ti3, qapp)
+    try:
+        subject = dlg._report or {}
+        assert str(subject.get("created")) == str(now["created"]), (
+            "the window is opened on the measurement of %s and describes the "
+            "one of %s" % (now["created"], subject.get("created")))
+        white = float((subject.get("paper_white") or {}).get("lab")[0])
+        assert abs(white - float(now["paper_white"]["lab"][0])) < 0.005
+        assert len(dlg._runs_for_document()) == 2, (
+            "%d row(s) for two measurements" % len(dlg._runs_for_document()))
+    finally:
+        dlg.close()
+
+
+def test_generate_files_a_report_about_the_measurement_in_hand(tmp_path, qapp):
+    """The consequence that writes to disk, kept apart from the one that only
+    reads: with the subject wrong, Generate report filed a report about a sheet
+    measured hours earlier, stamped with this window's limits and type.
+
+    MUTATION: put the guard back to `self._report_is_about(r, ti3)` and this
+    goes red, naming the older measurement's date.
+    """
+    from workflow.measurement_report import build_report
+    s, run = _measured_again_with_the_report_switched_off(tmp_path)
+    now = build_report(run.measurement_ti3)
+    dlg = _window_on(s, run.measurement_ti3, qapp)
+    try:
+        about = [str(g.get("created")) for g in dlg._reports_to_generate()]
+        assert about == [str(now["created"])], (
+            "Generate would file about %r; the measurement in hand is %s"
+            % (about, now["created"]))
+    finally:
+        dlg.close()
+
+
+def test_a_run_with_one_measurement_does_not_list_it_twice(tmp_path, qapp):
+    """THE THING THIS MUST NOT EAT, and the shape the first cut of it broke: a
+    saved report and the measurement it is about are ONE row, not two, even
+    when the stamp has moved under the report (a renamed target, or the demo
+    package's hand-written dates).
+
+    MUTATION: make `_is_this_measurement` compare `created` directly instead of
+    asking `_measurement_for`, and this goes red with 2 rows for 1 measurement.
+    """
+    from workflow.measurement_report import build_report, save_report
+    s, run = _env_and_run(tmp_path)
+    _measure_again(run, 1.0, time.time() - 3600)
+    rep = build_report(run.measurement_ti3)
+    rep["created"] = "2026-05-20T09:05:00"      # a date the file does not carry
+    save_report(rep, run.dir)
+    dlg = _window_on(s, run.measurement_ti3, qapp)
+    try:
+        rows = dlg._runs_for_document()
+        assert len(rows) == 1, (
+            "one measurement is listed %d times: %r"
+            % (len(rows), [r.get("created") for r in rows]))
+    finally:
+        dlg.close()

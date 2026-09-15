@@ -477,6 +477,7 @@ class MarginInspectorPanel(QGroupBox):
         thresholds: dict | None = None,
         text_warnings: "list[str] | None" = None,
         overlap_warnings: "list[str] | None" = None,
+        notice_preamble: "str | None" = None,
     ) -> None:
         """Show ``report``'s margins and the pass/fail status.
 
@@ -493,12 +494,21 @@ class MarginInspectorPanel(QGroupBox):
         red, in the message field of the 'Measured from Preview' frame"*, so the
         user can widen the margin or change the text distance and make it line
         up. They reach the ⓘ as well, because the caller passes them in both.
+
+        ``notice_preamble`` is one plain sentence printed ABOVE those notices
+        and OUTSIDE the warning count. It exists for the one thing that is not
+        a fault and still has to be read without a hover: the notices are
+        judged on the page of the chart where an edge is tightest, and the
+        margins in this frame are the page on screen's, so on a part-full last
+        page the two disagree (B8-210). It is not a warning and must not be
+        counted as one, or a chart with a single fault would announce two.
         """
         self._last_report = ((report, list(violations)),
                              {"thresholds_defined": thresholds_defined,
                               "notify": notify, "thresholds": thresholds,
                               "text_warnings": text_warnings,
-                              "overlap_warnings": overlap_warnings})
+                              "overlap_warnings": overlap_warnings,
+                              "notice_preamble": notice_preamble})
         if report is None:
             self.show_placeholder()
             return
@@ -565,7 +575,8 @@ class MarginInspectorPanel(QGroupBox):
 
         self._update_status(violations, thresholds_defined=thresholds_defined,
                             notify=notify, text_warnings=text_warnings,
-                            overlap_warnings=overlap_warnings)
+                            overlap_warnings=overlap_warnings,
+                            notice_preamble=notice_preamble)
 
     # ------------------------------------------------------------------
     def _repaint_status(self) -> None:
@@ -585,12 +596,14 @@ class MarginInspectorPanel(QGroupBox):
         thresholds_defined: bool, notify: bool,
         text_warnings: "list[str] | None" = None,
         overlap_warnings: "list[str] | None" = None,
+        notice_preamble: "str | None" = None,
     ) -> None:
         self._last_status = (list(violations),
                              {"thresholds_defined": thresholds_defined,
                               "notify": notify,
                               "text_warnings": list(text_warnings or []),
-                              "overlap_warnings": list(overlap_warnings or [])})
+                              "overlap_warnings": list(overlap_warnings or []),
+                              "notice_preamble": notice_preamble})
         if not notify:
             self._status.setVisible(False)
             self._warning_count = 0
@@ -653,7 +666,13 @@ class MarginInspectorPanel(QGroupBox):
         # patches, which is the 10 x 15 cm photo card exactly. So both lists are
         # shown, violations first, rather than the first one winning.
         if margin_lines or overlap_warnings:
-            self._status.setText("\n".join(margin_lines + overlap_warnings))
+            # THE PREAMBLE IS PRINTED AND NOT COUNTED. It says which sheet the
+            # notices below were measured on; the count is how many things are
+            # wrong, and this is not one of them.
+            _lines = margin_lines + overlap_warnings
+            if notice_preamble:
+                _lines = [notice_preamble, ""] + _lines
+            self._status.setText("\n".join(_lines))
             self._warning_count = len(margin_lines) + len(overlap_warnings)
             # A VERDICT IS CENTRED; A PARAGRAPH IS NOT. A margin violation is
             # one short line and reads well centred, which is why it is. An

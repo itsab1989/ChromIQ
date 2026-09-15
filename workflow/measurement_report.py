@@ -449,12 +449,23 @@ _MEASURED_KEYWORD = "CHROMIQ_MEASURED"
 def _measured_keyword(ti3_path: Path) -> str:
     """``CHROMIQ_MEASURED`` off a ``.ti3``'s header, without parsing the table.
 
-    A cheap scan, because :func:`created_stamp_for` is asked about every
-    archived measurement in a run's ``old/`` folder and a full
-    :func:`parse_ti3` of each would make opening the report window a job. It
-    reads the header only: CGATS keywords stand above ``BEGIN_DATA_FORMAT``,
-    and the loop stops there.
+    A cheap scan, because :func:`created_stamp_for` is asked about the run's
+    measurement once per saved report and a full :func:`parse_ti3` of each
+    would make opening the report window a job. It reads the header only:
+    CGATS keywords stand above ``BEGIN_DATA_FORMAT``, and the loop stops there.
+
+    THROUGH `parse_ti3`'S OWN REGEX, because the two must never disagree.
+    `build_report` hands :func:`created_stamp_for` the keywords `parse_ti3`
+    found; every other caller makes it read the file. If the two readings can
+    differ, a report built from a file stops matching that same file and the
+    rebuild is silently skipped for every imported measurement. A hand-rolled
+    "split on the first space" was the first cut and it parts company with
+    `_KW_RE` on a tab, on runs of spaces and on an unquoted value. Measured
+    over 128 .ti3 files on one real disk the two agreed everywhere, and NONE
+    of them carried this keyword, so that sample said nothing at all about the
+    branch where a drift would live.
     """
+    from workflow.ti3_analysis import _KW_RE
     try:
         text = read_text(ti3_path, lenient=True)
     except OSError:
@@ -463,9 +474,9 @@ def _measured_keyword(ti3_path: Path) -> str:
         s = ln.strip()
         if s.startswith("BEGIN_DATA"):
             break
-        head, _, rest = s.partition(" ")
-        if head == _MEASURED_KEYWORD:
-            return rest.strip().strip('"').strip()
+        m = _KW_RE.match(s)
+        if m is not None and m.group(1) == _MEASURED_KEYWORD:
+            return m.group(2)
     return ""
 
 

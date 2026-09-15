@@ -19430,8 +19430,38 @@ class TabChart(QWidget):
         # the guides land on the patches the reader can see (#83). The sheet
         # text is printed on EVERY page, so "does it fit" has to be answered by
         # the page it fits worst on.
-        warns, overlaps = self._engine_text_notes(
-            self._worst_page_report(report))
+        _judged_on = self._worst_page_report(report)
+        warns, overlaps = self._engine_text_notes(_judged_on)
+        # …AND THE READER IS TOLD WHEN THOSE TWO ARE NOT THE SAME SHEET.
+        #
+        # The notices quote the number they were judged on and name this very
+        # frame while doing it ("the right margin leaves 0.0 mm", "the patch
+        # area in “Measured from Preview” comes down to …"). The frame shows
+        # the page on screen, because the guides must land on the patches the
+        # reader can see (#83). On a part-full last page those are different
+        # sheets, and the reader gets both at once: photographed on a real
+        # three-page A4 chart, page 3 of 3
+        # (`~/Desktop/ChromIQ-beta18-proof/combined-round-3/`,
+        # `P3-create-chart-on-page-3-of-3.png`), the frame printed **176.0 mm**
+        # for the right edge and the red notice inside the same frame said
+        # **"the right margin leaves 0.0 mm … Raise “Right” … by about
+        # 5.1 mm"**. Two numbers for one edge, 176 mm apart, one inch apart on
+        # screen, and the advice was wrong for the sheet in front of the
+        # reader.
+        #
+        # Neither half moves: the notice must still be judged on the tightest
+        # page (B8-204 — paging forward used to make the warning vanish) and
+        # the frame must still show the page on screen (#83). What was missing
+        # is the sentence that makes them agree.
+        # IT GOES ON THE PANEL'S SURFACE, NOT ONTO ITS ⓘ. `text_warnings`
+        # reach the ⓘ only, and this panel's own comment says why that is not
+        # enough: *"an ⓘ is only read if it is asked for"*. The contradiction
+        # is between two numbers a reader sees at once, so the sentence that
+        # reconciles them has to be where they are.
+        _preamble = (self._judged_elsewhere_note()
+                     if (warns or overlaps)
+                     and self._notes_are_about_another_page(report, _judged_on)
+                     else None)
         if getattr(self, "_ruler_over_mm", None):
             warns = list(warns) + [tr(
                 "⚠ Strip length {len:.0f} mm exceeds the {ruler:.0f} mm "
@@ -19444,9 +19474,48 @@ class TabChart(QWidget):
             thresholds=thresholds,
             text_warnings=warns,
             overlap_warnings=overlaps,
+            notice_preamble=_preamble,
         )
         self._refresh_margin_guides(report, thresholds, violations)
         self._refresh_measured_guides(report)
+
+    @staticmethod
+    def _notes_are_about_another_page(shown, judged) -> bool:
+        """Whether the notices were judged on a different sheet from the frame.
+
+        Asked by comparing the four edges rather than by identity, because
+        `_worst_page_report` returns *shown* itself whenever nothing was
+        replaced, and a `dataclasses.replace` that happened to change nothing
+        would still be a new object.
+        """
+        if shown is None or judged is None or judged is shown:
+            return False
+        for name in ("top_mm", "bottom_mm", "left_mm", "right_mm"):
+            a, b = getattr(shown, name, None), getattr(judged, name, None)
+            if a is None or b is None:
+                continue
+            if abs(float(a) - float(b)) > 0.05:
+                return True
+        return False
+
+    def _judged_elsewhere_note(self) -> str:
+        """The one sentence that tells the two halves apart, naming the page
+        the frame is showing so the reader can see which number is which."""
+        page = 0
+        try:
+            page = int(self._preview.current_page()) + 1
+        except Exception:      # noqa: BLE001 — a note never raises
+            page = 0
+        if page > 0:
+            return tr(
+                "The notices here are judged on the page of this chart where "
+                "the edge is tightest, which is not the page on screen. The "
+                "margins measured in this frame are page {page}'s own."
+            ).format(page=page)
+        return tr(
+            "The notices here are judged on the page of this chart where the "
+            "edge is tightest, which is not the page on screen. The margins "
+            "measured in this frame are the shown page's own.")
 
     def _worst_page_report(self, shown):
         """*shown*, with each of the four edges replaced by the LEAST room any
