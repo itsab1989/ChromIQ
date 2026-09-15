@@ -8205,3 +8205,94 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   test_saying_no_to_that_question_writes_nothing,
   test_the_device_values_are_attached_before_the_copy_is_filed
 
+
+---
+
+### B8-200 · One measurement was listed as several measurement runs, and unticking either row emptied the page
+- blocks release: no
+- status: FIXED
+- found by: combined adversary round 1 on the merged tree, 2026-09-15, driving
+  the real app in a real window
+  (`~/Desktop/ChromIQ-beta18-proof/combined-round-1/`,
+  `drive_two_reports_one_second.py`). It is a SEAM: the state is reached by an
+  ordinary journey only because two streams meet at it.
+- detail: WHAT A USER SEES, photographed in
+  `D2-report-window-with-two-saved-reports.png`. A run whose single measurement
+  has two saved reports of it opens the Measurement Report window on **"2
+  runs"**, with two rows reading `2026-09-15 14:12 — printing method not
+  recorded` word for word identical, **"No. of Measurements: 2"** for a chart
+  measured once, and *Trend over time (this printer)* drawing flat lines from
+  the measurement to itself between one date and the same date. Unticking
+  EITHER row emptied the page: `build_report` stamps `created` from the
+  MEASUREMENT and not from the moment Generate was pressed, so two reports of
+  one measurement always carry the same `created` — measured, 2 rows under
+  **1** distinct `_run_key`, and hiding one row left **0**.
+- why now: the import door added to the Measurement tab saves a dated report by
+  side effect (`measure_finished` is wired to
+  `_maybe_save_measurement_report`), so the first press of **Generate report**
+  after an import is the SECOND report of that measurement. Neither the import
+  work nor the report work produces that state alone, which is why each was
+  green in isolation. It is not a race: it needs no two clicks in one second.
+- cause: `_gather_runs` yielded one row per report FILE. `_reports_to_generate`
+  had already been given the correct rule for the writing side in the same
+  batch — *"one report per MEASUREMENT rather than one per report already saved
+  of it"*, keyed on `(origin, ti3 name)` — and the reading side kept the old
+  one, so the count the writer had just stopped doubling was doubled again on
+  the way back in. The same class is on record twice already in this window:
+  the dated-verification `covered` set ("10 rows for 5 dates") and
+  `_reports_to_generate` itself.
+- fix: `MeasurementReportDialog._one_row_per_measurement`, applied in
+  `_gather_runs`, keeps the NEWEST saved report of each measurement — newest by
+  file name, because `save_report` names a second report of the same second
+  `report_<stamp>_2.json`. The row then carries the type and the limits most
+  recently asked for.
+- what it deliberately does NOT change: several report types per run stay
+  (Knut, 2026-09-11 — *"A user should be allowed to print several report types
+  for a run … The Report window must thus show which type of reports have been
+  generated"*). Every file stays on disk, and which types exist is said where
+  it always was, by `_generated_types_line`: the after picture
+  (`D4-FIXED-two-saved-reports-one-row.png`) shows **"1 run"**, one row, **"No.
+  of Measurements: 1"**, the honest "a trend graph needs at least two
+  measurement runs", and **"Already generated for this run: Full colour check
+  (2)"** still counting both files. The cross-run history (#40) is untouched:
+  the run folder is half the key.
+- evidence: test_two_saved_reports_of_one_measurement_are_one_row,
+  test_hiding_one_row_never_hides_another,
+  test_the_row_kept_is_the_newest_report_of_that_measurement,
+  test_several_runs_still_each_get_their_own_row,
+  test_the_bookkeeping_this_needs_never_reaches_a_saved_file.
+  Three mutations were proved to land in the file the run reads and each turns
+  the right tests red: removing the call (4 red), flipping the newest-wins
+  tie-break (1 red), and dropping the run folder from the key (1 red).
+
+---
+
+### B8-201 · The handler that exists to keep a window opening raised NameError out of itself
+- blocks release: no
+- status: FIXED
+- latent: no caller reaches it in the shipped app today (see `reach` below)
+- found by: combined adversary round 1, 2026-09-15, sweeping the merged tree
+  for names bound nowhere before trusting the six functions one stream deleted.
+  INHERITED, not this batch: the line has been there since 2026-08-28.
+- detail: `ui/widgets.py::widen_message_box` ends
+  `except Exception:  # noqa: BLE001 — a window must still open` followed by
+  `log.debug(...)`. The module binds `_log`; `log` is bound nowhere at module
+  level, and an `except Exception` cannot catch a `NameError` raised inside
+  itself — so the one line written to KEEP the window opening threw the
+  traceback to the caller instead. Reproduced directly: handing the function a
+  widget whose layout is not a QGridLayout gives
+  `NameError: name 'log' is not defined`.
+- reach: all six callers are in `ui/measurement_target_bar.py` and all six pass
+  a `QMessageBox`, whose layout IS the QGridLayout `addItem(item, r, c, rs, cs)`
+  wants, so nothing meets it in the shipped app today. The seventh caller,
+  with any other layout, would have — and that case is the entire reason the
+  handler is written.
+- fix: `_log.debug(...)`, the name the module has. It was the lone typo:
+  every other swallowed error in `ui/widgets.py` already logs through
+  `_log` (lines 511, 1179, 1431 and 1564), so nothing else in the file
+  carries it, and a sweep of every `except` handler in `ui/`,
+  `workflow/` and `core/` for a logger name the module never binds
+  found no other.
+- evidence: test_a_box_that_cannot_be_widened_still_opens. MUTATION PROVED:
+  restoring `log.debug` in `ui/widgets.py` turns it red with the NameError,
+  and nothing else in that file.

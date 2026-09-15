@@ -59,3 +59,32 @@ def test_the_widener_is_a_minimum_not_a_fixed_width():
     # …and it must never raise: a window has to open even if this cannot run.
     tree = ast.parse(src)
     assert any(isinstance(n, ast.Try) for n in ast.walk(tree))
+
+
+def test_a_box_that_cannot_be_widened_still_opens(qapp):
+    """The `try` above is only a promise until something is thrown at it.
+
+    Found by the combined adversary round, 2026-09-15. The handler logged
+    through `log`, and this module binds `_log`; `log` is bound nowhere at
+    module level, so the one line that exists to KEEP the window opening raised
+    `NameError` out of the handler and the caller got a traceback instead of a
+    window. An `except Exception` cannot catch a `NameError` raised inside
+    itself, so the guard defeated its own purpose exactly when it was needed.
+
+    A QMessageBox's layout is the QGridLayout `addItem(item, r, c, rs, cs)`
+    wants, so every caller today is safe and nothing had reached it yet. This
+    hands it the case the handler was written for: a widget whose layout is not
+    a grid.
+
+    MUTATION: put `log.debug` back in `ui/widgets.py` and this goes red with
+    `NameError: name 'log' is not defined`.
+    """
+    from PyQt6.QtWidgets import QVBoxLayout, QWidget
+
+    from ui.widgets import widen_message_box
+    w = QWidget()
+    QVBoxLayout(w)                       # not a grid: addItem will refuse
+    try:
+        widen_message_box(w)             # must return quietly
+    finally:
+        w.deleteLater()

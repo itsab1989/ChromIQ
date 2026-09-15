@@ -1426,7 +1426,13 @@ class MeasurementReportDialog(QDialog):
             # (Knut's "Where are my files?" card) needs the origin recorded
             # here — reports/report_*.json sits one level under it.
             rep["_origin_dir"] = str(p.parent.parent)
+            # Session-only, and the tie-break below. `save_report` names a
+            # second report of the same second `report_<stamp>_2.json`, so the
+            # file name sorts in the order the files were written.
+            rep["_report_file"] = p.name
             runs.append(rep)
+        # ONE ROW PER MEASUREMENT, NOT ONE PER REPORT FILE OF IT.
+        runs = self._one_row_per_measurement(runs)
         # #130/#133: a dated verification trends across ALL of this run's
         # dates. A date measured with "Save measurement report" switched off
         # has no saved report — build its report fresh here, so the history is
@@ -1560,6 +1566,60 @@ class MeasurementReportDialog(QDialog):
             # a different measurement as soon as anything was loaded first.
             self._report = self._subject_of(self._sources[-1])
             self._rebuild_from_sources()
+
+    @staticmethod
+    def _one_row_per_measurement(runs: list) -> list:
+        """The gathered history, with the SAME MEASUREMENT listed once.
+
+        A row in this window is a MEASUREMENT: it is labelled with the
+        measurement's date, it is one point on "Trend over time (this
+        printer)", and it is what "No. of Measurements" counts. A saved report
+        is a document ABOUT a measurement, and a run may hold several of them
+        legitimately, which is Knut's ruling of 2026-09-11: *"A user should be
+        allowed to print several report types for a run … The Report window
+        must thus show which type of reports have been generated"*. Which types
+        exist is said by its own line above the table
+        (`_generated_types_line`); it was never the job of the run list, and
+        the run list cannot do it anyway, because every row of it carries the
+        same date and reads identically.
+
+        WHAT IT LOOKED LIKE. `_gather_runs` yielded one row per report FILE, so
+        a run with two saved reports of one measurement showed "2 runs", two
+        identical rows, "No. of Measurements: 2", and a trend line drawn from
+        the measurement to itself between one date and the same date. And
+        because `build_report` stamps `created` from the MEASUREMENT (not from
+        the moment Generate was pressed), the two rows also shared a
+        `_run_key`, so unticking either one took both off the page. Driven on
+        screen 2026-09-15 in `~/Desktop/ChromIQ-beta18-proof/combined-round-1/`
+        (`D2-report-window-with-two-saved-reports.png`): 2 rows, 1 distinct
+        key, and hiding one row left 0.
+
+        IT IS THE OTHER HALF OF A RULE THIS WINDOW ALREADY APPLIES.
+        `_reports_to_generate` writes "one report per MEASUREMENT rather than
+        one per report already saved of it", for the same reason and with the
+        same key; the reading side was left on the old rule, so the count the
+        writer had just stopped doubling was doubled again on the way back in.
+
+        The newest report of a measurement wins, so the row carries the type
+        and the limits the user most recently asked for. Nothing is deleted:
+        every file stays on disk and the types line still counts them all.
+        """
+        seen: "dict[tuple, int]" = {}
+        out: list = []
+        for r in runs:
+            origin = str(r.get("_origin_dir") or "")
+            if not origin:
+                out.append(r)     # nothing to key on: never merged with another
+                continue
+            key = (origin, Path(str(r.get("ti3") or "")).name)
+            at = seen.get(key)
+            if at is None:
+                seen[key] = len(out)
+                out.append(r)
+            elif (str(r.get("_report_file") or "")
+                    >= str(out[at].get("_report_file") or "")):
+                out[at] = r
+        return out
 
     @staticmethod
     def _report_is_about(r: dict, ti3: Path) -> bool:

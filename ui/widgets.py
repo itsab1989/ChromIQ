@@ -1127,7 +1127,14 @@ def widen_message_box(box, px: int = 660) -> None:
                                  QSizePolicy.Policy.Minimum),
                      grid.rowCount(), 0, 1, grid.columnCount())
     except Exception:      # noqa: BLE001 — a window must still open
-        log.debug("could not widen the message box", exc_info=True)
+        # `_log`, which is what this module binds. `log` is bound nowhere at
+        # module level, so the handler that exists to KEEP the window opening
+        # raised `NameError` out of itself instead: the caller got a traceback
+        # where the comment above promises a window. Every caller today hands
+        # in a QMessageBox, whose layout is the QGridLayout `addItem` wants, so
+        # nothing reaches it yet; the next caller with a different layout would
+        # have, and this handler's whole purpose is the case nobody predicted.
+        _log.debug("could not widen the message box", exc_info=True)
 
 
 def order_message_box_buttons(box, buttons) -> None:
