@@ -460,34 +460,57 @@ def test_every_write_in_the_filing_path_is_guarded():
     import re
 
     from ui.measurement_filing import file_into_project
-    src = inspect.getsource(file_into_project)
+    from ui.tabs.tab_measure import TabMeasure
 
-    for call in ("proj.duplicate_run(", "proj.duplicate_run_plan(",
-                 "shutil.copy2("):
-        assert call in src, f"{call} is no longer in this function"
-        # the line before the one holding it must open a `try:` block
-        lines = src.splitlines()
-        at = next(n for n, ln in enumerate(lines) if call in ln)
-        before = next(ln.strip() for ln in reversed(lines[:at]) if ln.strip())
-        assert before == "try:", (
-            f"{call} is not inside a try — a destination that cannot be "
-            f"written to takes the whole app down. It is preceded by "
-            f"{before!r}")
+    # BOTH DOORS, since 2026-09-15. The Measure tab's IMPORT module files into
+    # a profiling run too (Katrina's report, §I.9's amended "Where the door
+    # is"), and it performs the same three writes: the duplicate question, the
+    # duplicate itself, and the copy. A door that got this right and a door
+    # that did not is exactly the drift the shared helpers exist to stop, so
+    # the guard is asserted over both of them rather than over one.
+    #
+    # `proj.duplicate_run_plan(` moved out of `file_into_project` in the same
+    # change: it is inside `ask_to_make_a_new_run`, which deliberately lets it
+    # raise so each caller can run its OWN rollback before reporting. The call
+    # each caller has to guard is therefore the helper, and it is named here.
+    doors = {
+        "file_into_project": (
+            inspect.getsource(file_into_project),
+            ("proj.duplicate_run(", "ask_to_make_a_new_run(",
+             "shutil.copy2(")),
+        "TabMeasure._import_into_profiling_run": (
+            inspect.getsource(TabMeasure._import_into_profiling_run),
+            ("proj.duplicate_run(", "ask_to_make_a_new_run(",
+             "shutil.copy2(")),
+    }
+    for where, (src, calls) in doors.items():
+        for call in calls:
+            assert call in src, f"{call} is no longer in {where}"
+            # the line before the one holding it must open a `try:` block
+            lines = src.splitlines()
+            at = next(n for n, ln in enumerate(lines) if call in ln)
+            before = next(ln.strip()
+                          for ln in reversed(lines[:at]) if ln.strip())
+            assert before == "try:", (
+                f"{where}: {call} is not inside a try — a destination that "
+                f"cannot be written to takes the whole app down. It is "
+                f"preceded by {before!r}")
 
-    # …and every one of those handlers must take ValueError as well as
-    # OSError: `json.JSONDecodeError` is a ValueError, and a damaged manifest
-    # is how the first of these was found.
-    # EVERY `except … as exc:` in the function, not only the parenthesised
-    # ones — narrowing a guard back to a bare `except OSError as exc:` is
-    # exactly the mutation this has to see, and a regex that only matched
-    # `except (…)` skipped straight over it.
-    handlers = re.findall(r"except (.+?) as exc:", src)
-    assert len(handlers) >= 4, (
-        f"only {len(handlers)} guarded writes; the filing path has more")
-    for h in handlers:
-        assert "OSError" in h and "ValueError" in h, (
-            f"a guard catches only {h} — a damaged project.json raises "
-            "ValueError, and in a Qt slot that ends the process")
+        # …and every one of those handlers must take ValueError as well as
+        # OSError: `json.JSONDecodeError` is a ValueError, and a damaged
+        # manifest is how the first of these was found.
+        # EVERY `except … as exc:` in the function, not only the parenthesised
+        # ones — narrowing a guard back to a bare `except OSError as exc:` is
+        # exactly the mutation this has to see, and a regex that only matched
+        # `except (…)` skipped straight over it.
+        handlers = re.findall(r"except (.+?) as exc:", src)
+        assert len(handlers) >= 3, (
+            f"{where}: only {len(handlers)} guarded writes; the filing path "
+            "has more")
+        for h in handlers:
+            assert "OSError" in h and "ValueError" in h, (
+                f"{where}: a guard catches only {h} — a damaged project.json "
+                "raises ValueError, and in a Qt slot that ends the process")
 
 
 def test_a_project_that_did_not_open_is_never_filed_into(qapp, tmp_path,

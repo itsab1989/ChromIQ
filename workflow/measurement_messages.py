@@ -1064,6 +1064,17 @@ M_IMPORT_DEVICE_FROM_CHART = _m(
     count_key="count",
     approved=False)
 
+M_IMPORT_DONE_PROFILING = _m(
+    "M-IMPORT-DONE-PROFILING",
+    "The measurement was imported",
+    "It is filed as the measurement of {run}, in:\n{folder}\n\n"
+    "A copy of the chart it was measured against is stored with the run, so "
+    "the result stays interpretable even if the chart is replaced later.\n\n"
+    "You can build a profile from it now on the Build ICC profile tab, or "
+    "open Tools \u25b8 \u201cMeasurement report\u201d first to see the "
+    "colour-accuracy figures.",
+    approved=False)
+
 # --- PROPOSED: feature A, printing a verification chart through its profile -
 # The two failure windows of the print-time conversion (#130,
 # verification_printing_and_target.md §3.2 rows A10/A11 and §6 S9/S10). Both
@@ -2422,6 +2433,7 @@ CATALOGUE = {m.id: m for m in (
     M_CM_NO_CCTIFF, M_CM_CONVERT_FAILED, M_CM_PROFCHECK_CONVERTED,
     M_VERIFY_CREATE_NO_PROFILE, M_GAMUT_NO_PROFILE,
     M_IMPORT_MISMATCH, M_IMPORT_DATE_TAKEN, M_IMPORT_DONE,
+    M_IMPORT_DONE_PROFILING,
     M_IMPORT_DEVICE_FROM_CHART,
     M_VERIFY_SAVED, M_HOW_PRINTED,
     M_NO_INSTRUMENT, M_NO_INSTRUMENT_FAST,

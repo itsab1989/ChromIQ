@@ -7993,3 +7993,215 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 - owner: not this agent's area. `ui/tabs/tab_measure.py` is owned by another
   agent in another worktree, and moving a button between panels is a layout
   decision for that file's owner.
+
+### B8-194 · Importing an i1Profiler measurement into a profiling run could only be done on the Build ICC profile tab
+- blocks release: no
+- status: FIXED
+- found by: a tester, 2026-09-15: *"an odd thing: when doing an icc profile,
+  importing from another program is on the Build ICC Profile tab, and when
+  doing a verification, importing is on the Measurement tab. Probably makes
+  sense for it to be on the Measurement tab on both?"*
+- detail: the Measure tab's IMPORT module existed (#133) but was shown only
+  while the shared Run type was **Verification** (`_import_available` returned
+  `_is_verification_run()`), and every path inside it reached for
+  `Run.verify_chart_ti2`: the panel named the verification chart, the
+  validation compared against it, the copy went into a dated
+  `verifications/<date>/` folder and was stamped `CHROMIQ_VERIFICATION "true"`.
+  So the same act, "bring the readings I made in i1Profiler back in", lived on
+  two different tabs depending on which kind of run you were doing, and the one
+  a person looked for first was not there. §I.9 of
+  `unified_measurement_management.md` had already withdrawn the reasoning
+  ("profiling runs cannot import at all") on 2026-08-31, on two measured
+  grounds: the app already builds a profile from a partial measurement made
+  here, and Tools already advertises bringing i1Profiler readings back *"so you
+  can build a profile from them"*.
+- fix: Sebastian's ruling, 2026-09-15: *"It is probably the easiest option to
+  add the import module in the measurement tab in a profiling run as well"* —
+  **add it, do not move it**. The Build ICC profile tab's import is untouched.
+  `_import_available` now answers "anything but a calibration" (§I.9's one
+  surviving limit, for a data-safety reason: one `cal/` per project and no
+  `old/` archive). `_on_import_measurement` became a router over two methods:
+  `_import_into_verification`, lifted out unchanged because Sebastian confirmed
+  that path on hardware on 2026-08-10, and `_import_into_profiling_run`, which
+  is §I.1-§I.8 with §I.9's three substitutions — judged against
+  `Run.chart_ti2`, the run's own chart snapshot kept, and copied to
+  `Run.measurement_ti3`, the canonical stem the report finds a chart by.
+  The two doors share the code that decides and the code that speaks —
+  `measurement_import.assess`, `measurement_filing.refuse_it_does_not_belong`,
+  the new shared `measurement_filing.ask_to_make_a_new_run` (lifted out of
+  `file_into_project` with its wording unchanged) and
+  `measurement_filing.finish_the_import` — so they cannot drift into saying
+  different things about the same file, which is the fault round 2 of the
+  import-door review (T1-G) was written after. Driven on screen end to end: the
+  module appears in a profiling run, refuses a measurement of a different chart
+  of the same size ("206 of 210 patches do not hold the colour the chart asked
+  for"), files one that belongs at the run's own stem, and colprof then builds
+  a real 192,296-byte profile from it, peak err 1.89 / avg 0.56 / RMS 0.65.
+  New wording: **M-IMPORT-DONE-PROFILING**, in §M-PROPOSED and unapproved —
+  the approved import-done window speaks only of verifications and of a dated
+  folder a profiling run does not have.
+- evidence: test_import_button_appears_for_profiling_and_verification,
+  test_a_calibration_run_still_cannot_import,
+  test_a_profiling_import_is_judged_against_the_runs_own_chart,
+  test_a_measurement_of_the_verification_chart_is_refused_here,
+  test_the_chart_the_panel_names_is_the_chart_it_is_judged_against,
+  test_it_lands_on_the_runs_canonical_stem,
+  test_it_never_lands_in_a_verification_folder,
+  test_it_is_not_stamped_as_a_verification,
+  test_it_does_not_write_into_the_reads_folder,
+  test_an_existing_measurement_is_never_written_over,
+  test_declining_the_new_run_writes_nothing,
+  test_the_panel_says_so_before_the_button_is_pressed,
+  test_a_profiling_reader_is_never_told_about_verifications,
+  test_the_help_follows_the_run_type,
+  test_the_how_printed_question_is_not_asked_for_a_profiling_sheet,
+  test_a_partial_measurement_is_filed_and_both_counts_are_stated,
+  test_more_readings_than_the_chart_has_patches_is_refused,
+  test_a_run_with_no_chart_cannot_accept_anything,
+  test_a_new_run_on_the_bar_is_explained_not_imported_into,
+  test_switching_run_type_keeps_the_module_honest,
+  test_every_write_in_the_filing_path_is_guarded
+
+### B8-195 · After a profiling import the app asked whether to refine the measurement it had just filed
+- blocks release: no
+- status: FIXED
+- found by: the challenge rounds on B8-194, rounds 1 and 2, 2026-09-15 — both
+  on screen. Round 1 caught it because it BLOCKED the driver: a modal stood on
+  the machine until the process was killed.
+- detail: `_maybe_offer_existing_overlay` opens *"This chart already has a
+  measurement"* with two checkboxes and the warning *"If you leave 'Refine /
+  resume' unticked and start a new measurement, it will REPLACE this existing
+  measurement"*. Every word of it is true and none of it is a question the
+  person asked: one second earlier the import's own window had told them the
+  measurement was filed. The window exists for ARRIVING at a run somebody
+  measured earlier. Two different routes reached it, which is why it took two
+  rounds: an import into a full run duplicates the run, so the chart on screen
+  changes and `set_ti1_path` queues the offer; and after an ordinary import the
+  chart does not change, so nothing queued it — until simply coming back to the
+  Measure tab raised it through `showEvent` → `_queue_overlay_offer`.
+- fix: the import adds its own run's scope to `_offer_silenced` after filing,
+  through the per-run mechanism Knut already specified for this shape (#131,
+  2026-07-28: stop asking about the run I am working through) rather than a new
+  flag — so it is scoped to that run in that project, and every other run still
+  asks. Round 1's first attempt put it inside the chart-changed branch and
+  covered only one of the two routes; a remedy that depends on which branch the
+  import took is not a remedy, and the parametrised guard below drives both.
+  Two more silences the same rounds found: an import no longer joins a live
+  averaging set (§I.9 — the next read would otherwise be averaged with a sheet
+  measured on another instrument on another day), and a full run whose project
+  cannot be opened now says so instead of returning from the button with
+  nothing on screen.
+- evidence: test_the_import_does_not_then_ask_about_the_file_it_just_filed,
+  test_the_silence_is_scoped_to_the_run_the_import_went_into,
+  test_an_import_does_not_join_a_live_averaging_set,
+  test_a_full_run_with_no_reachable_project_says_so
+
+### B8-196 · The import's own window said a profile could be built from it on a tab that was not holding it
+- blocks release: no
+- status: FIXED
+- found by: the challenge round on B8-194, round 2, 2026-09-15, by reading what
+  a native measurement does and what the import did not; confirmed on screen
+  afterwards, with the driver only LOOKING at the tab rather than loading it.
+- detail: M-IMPORT-DONE-PROFILING says *"You can build a profile from it now on
+  the Build ICC profile tab"* and the window carries a **Build the profile**
+  button. That button emitted `proceed_to_profile`, which changes tab and
+  nothing else. A measurement made here reaches Build ICC profile through
+  `measure_finished` → `MainWindow._on_measure_done` →
+  `set_ti3_path(ti3, propagate=False)`, and a native session emits that line
+  BEFORE it offers to go to tab 4. The import emitted neither, so the person
+  pressed a button that promised a ready tab and arrived at one still holding
+  whatever it held before. A message is a promise.
+- fix: `_import_into_profiling_run` emits `measure_finished` with the filed
+  copy immediately after the shared ending and BEFORE the done window, so the
+  tab is armed whether or not the button is pressed, and by the same one line
+  a read made here uses. Driven on screen: after the import the Build ICC
+  profile tab holds the run's own `.ti3` with its Build Profile button enabled,
+  and no window of its own is raised on the way.
+- evidence: test_the_tab_that_builds_from_it_is_actually_holding_it
+
+### B8-197 · The run's own chart could be imported as its own measurement, in silence
+- blocks release: no
+- status: FIXED
+- found by: the challenge round on B8-194, round 6, 2026-09-15, on screen —
+  the round that stopped driving the journeys that work and drove only the
+  doors that are supposed to refuse.
+- detail: the chart and the measurement sit in the same run folder under the
+  same stem and are both CGATS tables, so picking the wrong one is an ordinary
+  slip. Every check the import has was blind to it, and each one for a good
+  reason. A `.ti2` is not a `.ti3`, so the file goes through txt2ti3 first, and
+  what comes back is a well-formed CTI3 table of the chart's own AIM XYZ —
+  printtarg writes those into every `.ti2` it lays out. So `parse_ti3` reads it
+  as a complete set of 210 readings; the patch count matches EXACTLY, because
+  it is the same file; and `verify_patch_identity` compares the chart with
+  itself and reports a flawless match. It was copied to `Run.measurement_ti3`
+  with nothing at all on screen, and the profile built from it would describe a
+  printer that had never printed anything: a perfect result, which is exactly
+  when to be suspicious. Reachable from the Measure tab by choosing "All files"
+  in the file dialog, and from the Build ICC profile door under any name at
+  all, since that one accepts a measurement wherever it comes from. The
+  `.ti3`-named variant is reachable without changing the filter at all.
+- fix: the file says what it is on its first line, so ask it.
+  `measurement_import.looks_like_a_chart` reads the CGATS table keyword and
+  `assess` refuses `CTI1`/`CTI2` before it tries to parse anything, which
+  catches a chart carrying a `.ti3` name on BOTH doors. That alone is not
+  enough for a `.ti2`, because conversion destroys the evidence before `assess`
+  ever sees it, so the Measure tab's door asks the same question of the file
+  the PERSON picked, before anything is converted. One sentence, in one
+  constant, so the two places cannot drift. Driven on screen afterwards: the
+  chart is refused with that sentence and nothing is written, while a text
+  file, an empty file and a genuinely partial measurement all still end the way
+  they did.
+- evidence: test_the_runs_own_chart_cannot_be_imported_as_its_measurement,
+  test_a_chart_is_refused_by_what_the_file_says_it_is
+
+### B8-198 · An import saved a dated measurement report, by accident rather than by decision
+- blocks release: no
+- status: FIXED
+- found by: the challenge round on B8-194, round 4, 2026-09-15 — read out of the
+  Measure tab's own log in a photograph, not predicted.
+- detail: B8-196's fix emits `measure_finished` so the Build ICC profile tab is
+  armed, and that signal is ALSO wired to `_maybe_save_measurement_report`. So
+  an import began accruing a dated accuracy report beside the measurement. The
+  behaviour is right — it is what the feature wants, it obeys the person's own
+  Settings switch, and an imported measurement already carries the date it was
+  MEASURED rather than converted (`reference_convert` stamps
+  `CHROMIQ_MEASURED`), so it trends beside the others correctly — but it was
+  nobody's decision, and an undocumented side effect is a fault waiting for the
+  next person who deletes the line that causes it.
+- fix: written down at the line that causes it, and guarded, so it is a
+  decision. Nothing about the behaviour changed. Re-checked after the
+  Measurement Report window was changed to file under the run it was asked
+  from: the report an import accrues lands under the run the measurement went
+  into, including when that is a run the import created by duplicating.
+- evidence: test_an_import_accrues_a_dated_report_like_a_read_made_here,
+  test_the_report_lands_under_the_run_the_import_went_into
+
+### B8-199 · The new profiling import door refused a measurement with no device values, which the verification door had just been taught to accept
+- blocks release: no
+- status: FIXED
+- found by: the rebase of B8-194 onto the tip, 2026-09-15 — by B8's OWN test
+  for the verification fix (`test_the_device_values_are_attached_before_the_copy_is_filed`)
+  going red, because the split that gave each run type its own method left that
+  assertion looking at a router.
+- detail: i1Profiler's measure tool reads a chart it did not generate, so it
+  has no colour space to express device values in and exports none at all. The
+  verification door was taught on 2026-09-12 to key the pairing on the patch
+  NAME and take the device values from the chart, after a user's complete i1iO
+  reading of her own chart was refused with "No device RGB columns". The
+  profiling door was written the same week, against a base that did not have
+  that fix, and reached `assess` directly rather than through
+  `_import_verdict` — so the identical file, imported one door along, met the
+  identical refusal. Neither door had changed behaviour; the two were written
+  days apart against different bases, which is exactly the drift the shared
+  rule exists to prevent.
+- fix: the profiling door goes through `_import_verdict` like its twin, and
+  carries the same §2a block against `Run.chart_ti2`: the person is asked
+  first (**M-IMPORT-DEVICE-FROM-CHART**, which names the chart and is run-type
+  neutral), the values are completed on the CONVERTED COPY in the run's cache
+  and never on the user's file, and a No writes nothing. The source assertion
+  that caught it now names both doors and checks each completes from its own
+  chart, so a third door could not inherit the gap.
+- evidence: test_a_measurement_with_no_device_values_is_imported_here_too,
+  test_saying_no_to_that_question_writes_nothing,
+  test_the_device_values_are_attached_before_the_copy_is_filed
+

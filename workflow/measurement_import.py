@@ -74,15 +74,79 @@ class ImportVerdict:
     device_from_chart: bool = False
 
 
+def _cgats_table_kind(path: Path) -> str:
+    """The CGATS keyword the file opens with (``CTI1``/``CTI2``/``CTI3``/…), or
+    "" when it does not announce one.
+
+    The first non-blank line of an ArgyllCMS table IS its type — printtarg
+    writes `CTI2` at the top of every chart it lays out, chartread writes
+    `CTI3` at the top of every measurement — so this is the file saying what it
+    is rather than anybody guessing from a suffix.
+    """
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as fh:
+            for _ in range(8):
+                line = fh.readline()
+                if not line:
+                    break
+                word = line.strip().split()[:1]
+                if word:
+                    return word[0].upper()
+    except OSError:
+        return ""
+    return ""
+
+
+def looks_like_a_chart(path: "Path | str") -> bool:
+    """Is this file a CHART rather than a measurement of one?
+
+    Public because it has to be asked TWICE, in two different places, and the
+    second one is not obvious. `assess` asks it below and catches a chart that
+    arrives under a `.ti3` name — but a chart picked as a `.ti2` never reaches
+    `assess` looking like one: it is not a `.ti3`, so the import hands it to
+    txt2ti3 first, and what comes back out is a well-formed CTI3 table of the
+    chart's aim values with nothing left in it to give the game away. So the
+    door asks this of the file the PERSON picked, before anything is converted.
+    """
+    return _cgats_table_kind(Path(path)) in ("CTI1", "CTI2")
+
+
+#: The one sentence both places say about it, so they cannot drift.
+CHART_NOT_A_MEASUREMENT = (
+    "this file is a chart, not a measurement of one. It is the list of "
+    "colours to print, and the numbers in it are the colours ChromIQ "
+    "ASKED for, not the ones an instrument read back. Choose the file "
+    "your measuring software saved instead.")
+
+
 def assess(ti3: Path, chart_ti2: "Path | None") -> ImportVerdict:
     """Decide whether *ti3* is a measurement OF *chart_ti2*.
 
-    Order matters: the patch count is the cheap, clear check and gives the
-    clearest sentence, so it runs first. The identity comparison — the one the
-    report itself uses — runs second and is what catches a file of the right
-    SIZE but the wrong chart.
+    Order matters: is it a measurement at all, then the patch count (the cheap,
+    clear check, and the clearest sentence), then the identity comparison — the
+    one the report itself uses — which is what catches a file of the right SIZE
+    but the wrong chart.
     """
     from workflow.ti3_analysis import Ti3ParseError, parse_ti3
+
+    # A CHART IS NOT A MEASUREMENT OF ITSELF, and nothing below could tell.
+    #
+    # Found by driving the refusal doors (challenge round 6, 2026-09-15) with
+    # the run's own `.ti2` picked as the measurement — an easy slip, since the
+    # chart and the measurement sit in the same folder under the same stem and
+    # both are CGATS tables. printtarg writes the chart's AIM XYZ into the
+    # `.ti2`, so `parse_ti3` reads it happily as a full set of readings, the
+    # patch count matches exactly (it is the same file), and
+    # `verify_patch_identity` compares the chart against itself and reports a
+    # flawless match. It was filed, in silence, as the run's measurement — and
+    # a profile built from it would be a profile of a printer that had never
+    # printed anything.
+    #
+    # The file says what it is on its first line, so ask it. Here rather than
+    # in one door, because both doors reach `assess` and neither could see it.
+    if looks_like_a_chart(ti3):
+        return ImportVerdict(False, tr(CHART_NOT_A_MEASUREMENT))
+
     try:
         measured = parse_ti3(ti3)
     except (Ti3ParseError, OSError) as exc:
