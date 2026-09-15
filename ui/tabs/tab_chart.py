@@ -19356,6 +19356,16 @@ class TabChart(QWidget):
         # image measurement for printtarg charts.
         self._ruler_over_mm = None
         _geom_ruler = None
+        # EVERY PAGE, BEFORE THE ONE ON SCREEN, AND THE ORDER IS NOT COSMETIC.
+        # The sheet text prints on all of them, so `_worst_page_report` needs
+        # them all; the frame is about the page in front of the reader, and
+        # `tests/test_margin_inspector_tab.py::
+        # test_inspector_follows_the_displayed_page` proves that by watching
+        # which TIFF `measure_margins` was asked for LAST (#83). Measuring the
+        # whole chart afterwards made that last call a different page, and the
+        # #83 guard caught it. It runs once per chart, so paying for it here
+        # costs a page turn nothing.
+        self._ensure_worst_page_cache(dpi)
         report = None
         if self._margin_ti2 is not None:
             from workflow.margin_inspector import measure_from_engine
@@ -19415,7 +19425,13 @@ class TabChart(QWidget):
         # handed `report=None` and, under the ruling, would have gone silent
         # about the very collision the red field beside it is naming.
         self._margin_report = report
-        warns, overlaps = self._engine_text_notes(report)
+        # …AND THE TEXT NOTICES ARE ABOUT THE CHART, NOT ABOUT THE PAGE ON
+        # SCREEN. `report` is deliberately the page the preview is showing, so
+        # the guides land on the patches the reader can see (#83). The sheet
+        # text is printed on EVERY page, so "does it fit" has to be answered by
+        # the page it fits worst on.
+        warns, overlaps = self._engine_text_notes(
+            self._worst_page_report(report))
         if getattr(self, "_ruler_over_mm", None):
             warns = list(warns) + [tr(
                 "⚠ Strip length {len:.0f} mm exceeds the {ruler:.0f} mm "
@@ -19431,6 +19447,124 @@ class TabChart(QWidget):
         )
         self._refresh_margin_guides(report, thresholds, violations)
         self._refresh_measured_guides(report)
+
+    def _worst_page_report(self, shown):
+        """*shown*, with each of the four edges replaced by the LEAST room any
+        page of this chart leaves on that side.
+
+        THE SHEET TEXT IS PRINTED ON EVERY PAGE, AND ONLY ONE PAGE IS MEASURED.
+        Knut's ruling of 2026-09-15 made all four text-fit checks read the
+        measured sheet instead of a prediction, and the measured sheet is the
+        page the preview happens to be showing: `_update_margin_inspector` says
+        so itself, because the guides must land on the patches the reader can
+        see (#83). A prediction was the same number for every page. A
+        measurement is not, and a PART-FULL LAST PAGE is the case that proves
+        it: its patches stop early, so the paper beside them is the width of
+        the empty half of the sheet.
+
+        Driven on screen 2026-09-15 on a real three-page A4 chart, one set of
+        settings, "Text distance from edge" Clip at 10 mm
+        (`~/Desktop/ChromIQ-beta18-proof/combined-round-2/`, `K1`/`K2`/`K3`):
+        the right margin measures **7.985 mm** on pages 1 and 2 and **175.964
+        mm** on page 3, and the panel said
+
+            "⚠ The chart notes down the right edge run over the patches …
+             the right margin leaves 0.0 mm … Raise “Right” … by about 5.1 mm"
+
+        on pages 1 and 2 and **nothing at all** on page 3. Paging forward made
+        a red warning disappear with nothing saying why, and a reader who
+        looked at the last page was told nothing about the two sheets that
+        clip. Top, bottom and left measured identically on all three pages to
+        0.001 mm, so the right edge is where it bites, and it bites on both of
+        its readers: the chart note and the clip border's own content.
+
+        So each edge is judged on its worst page. It is measured once per
+        chart, not once per page turn: `_margin_tiffs` changes only when a
+        chart is generated or loaded, which is the moment the same ruling says
+        these numbers may be recomputed.
+        """
+        tiffs = list(getattr(self, "_margin_tiffs", None) or [])
+        if shown is None or len(tiffs) < 2:
+            return shown
+        cached = getattr(self, "_worst_page_cache", None)
+        if cached is None or cached[0] != self._worst_page_key():
+            return shown          # nothing measured: judge the page in hand
+        edges = cached[1]
+        if not edges:
+            return shown
+        # `dataclasses.replace`, NOT copy-then-setattr: `MarginReport` is a
+        # FROZEN dataclass, so assigning to a field raises
+        # `FrozenInstanceError`, which is an `AttributeError`. A first cut of
+        # this caught that and returned the page's own report, so the fix was
+        # inert and the driven pages still disagreed. It was caught by driving
+        # it again rather than by trusting the edit.
+        import dataclasses
+        worst = {}
+        for name in ("top_mm", "bottom_mm", "left_mm", "right_mm"):
+            seen = [v for v in (e.get(name) for e in edges) if v is not None]
+            here = getattr(shown, name, None)
+            if here is not None:
+                seen.append(float(here))
+            if seen:
+                worst[name] = min(seen)
+        if not worst:
+            return shown
+        try:
+            return dataclasses.replace(shown, **worst)
+        except Exception:      # noqa: BLE001 — a report of another shape
+            return shown       # judges its own page rather than nothing
+
+    def _worst_page_key(self):
+        """What the cached measurement is OF. A new chart is a new key, so the
+        pages of the previous one can never judge this one's text."""
+        return (tuple(str(t) for t in (getattr(self, "_margin_tiffs", None)
+                                       or [])),
+                str(getattr(self, "_margin_ti2", None)))
+
+    def _ensure_worst_page_cache(self, dpi: float) -> None:
+        """Measure every page of the chart, once per chart.
+
+        Called from `_update_margin_inspector` BEFORE the page on screen is
+        measured, so the frame's own measurement stays the last one made -- see
+        the note at the call site.
+        """
+        tiffs = list(getattr(self, "_margin_tiffs", None) or [])
+        key = self._worst_page_key()
+        if len(tiffs) < 2:
+            self._worst_page_cache = (key, [])
+            return
+        cached = getattr(self, "_worst_page_cache", None)
+        if cached is not None and cached[0] == key:
+            return
+        self._worst_page_cache = (key, self._measure_every_page(tiffs, dpi))
+
+    def _measure_every_page(self, tiffs, dpi: float) -> list:
+        """``[{edge: mm}]``, one entry per page. Best effort: a page that
+        cannot be measured is left out rather than making the whole chart
+        unjudgeable."""
+        from pathlib import Path as _P
+        from workflow.margin_inspector import measure_margins
+        out: list = []
+        ch = _P(self._margin_ti2).with_suffix(".channels.json") \
+            if self._margin_ti2 is not None else None
+        for i, t in enumerate(tiffs):
+            rep = None
+            try:
+                if ch is not None and ch.is_file():
+                    from workflow.margin_inspector import measure_from_engine
+                    eng = measure_from_engine(ch, i)
+                    if eng is not None:
+                        rep = eng[0]
+                if rep is None:
+                    rep = measure_margins(t, dpi=dpi, ti2_path=self._margin_ti2)
+            except Exception:      # noqa: BLE001 — one bad page must not
+                rep = None         # silence the whole chart
+            if rep is None:
+                continue
+            out.append({n: float(getattr(rep, n)) for n in
+                        ("top_mm", "bottom_mm", "left_mm", "right_mm")
+                        if getattr(rep, n, None) is not None})
+        return out
 
     def _refresh_measured_guides(self, report) -> None:
         """Push long purple/blue lines at the measured margins (patch-area edges)

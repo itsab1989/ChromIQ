@@ -1182,12 +1182,29 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
     # Mode switching
     # ------------------------------------------------------------------
 
+    def _guided_available(self) -> bool:
+        """Whether the GUIDED module is offered at all.
+
+        Preferences → Calibration options hides it, which is that feature's own
+        promise in as many words: *"When active: the guided modes in all tabs
+        are hidden"* (`docs/design/calibration_run_type.md`, §the Settings
+        card). Asked as a question rather than read off the button, because
+        `_switch_mode` needs the answer before the button exists.
+        """
+        return not bool(getattr(self, "_calibration_mode", False))
+
     def _switch_mode(self, mode: str) -> None:
-        # IMPORT exists only while the shared Run type is Verification; asked
+        # IMPORT exists only while the shared Run type allows it; asked
         # for at any other moment (e.g. a restored state) it falls back to
         # Guided rather than showing a module that cannot run (#133).
         if mode == "import" and not self._import_available():
             mode = "guided"
+        # …AND GUIDED IS NOT ALWAYS THERE TO FALL BACK TO. With Preferences →
+        # Calibration options on it is hidden, so landing on it would put the
+        # person on a module with no button to leave it by. Manual is the
+        # module that feature locks to, and it is the one that is always there.
+        if mode == "guided" and not self._guided_available():
+            mode = "manual"
         if mode == "guided":
             self._stack.setCurrentIndex(0)
         elif mode == "import":
@@ -1749,10 +1766,49 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._fit_log_height()
 
     def set_calibration_mode(self, enabled: bool) -> None:
-        """Hide guided mode toggle and lock to manual when calibration mode is active."""
-        self._mode_row_widget.setVisible(not enabled)
-        if enabled:
+        """Hide the GUIDED module and lock to manual while Preferences →
+        Calibration options is on.
+
+        IT USED TO HIDE THE WHOLE ROW, AND THE ROW HAS THREE BUTTONS IN IT.
+        When this was written it held two, GUIDED and MANUAL, so hiding it said
+        exactly what the preference promises: *"the guided modes in all tabs
+        are hidden"*. #133 then put IMPORT in the same row, and the measurement
+        import door was widened to profiling runs, so from that day a person
+        who had switched this preference on could not reach the import module
+        AT ALL, on any run type, and nothing said why: `_import_available()`
+        answered True, `_refresh_import_visibility` showed the button, and the
+        button's parent was hidden underneath it. Measured on screen on a
+        PROFILING run with the preference on
+        (`~/Desktop/ChromIQ-beta18-proof/combined-round-2/`,
+        `H-measure-tab-calibration-mode-ON.png` beside `...-OFF.png`): the
+        three buttons are simply not on the tab.
+
+        So the GUIDED button goes, which is what the sentence promises, and the
+        row stays for as long as it still offers a choice.
+        """
+        self._calibration_mode = bool(enabled)
+        self._guided_btn.setVisible(not enabled)
+        # Only when the person is actually standing on the guided module: this
+        # also runs on any Preferences save, and kicking somebody out of the
+        # import module they are filling in is not what "lock to manual" means.
+        if enabled and self._stack.currentIndex() == 0:
             self._switch_mode("manual")
+        self._refresh_import_visibility()
+        self._sync_mode_row_visibility()
+
+    def _sync_mode_row_visibility(self) -> None:
+        """The row is on screen while it still offers a CHOICE.
+
+        MANUAL on its own is not one: it is the module already showing, and a
+        lone checked button that does nothing is worse than no row. So the row
+        follows the two buttons that can appear and disappear.
+        """
+        if not hasattr(self, "_mode_row_widget"):
+            return
+        row = self._mode_row_widget
+        self._mode_row_widget.setVisible(
+            self._guided_btn.isVisibleTo(row)
+            or self._import_btn.isVisibleTo(row))
 
     # ------------------------------------------------------------------
     def set_appearance(self, mode: str) -> None:
@@ -9898,9 +9954,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         avail = self._import_available()
         self._import_btn.setVisible(avail)
         if not avail and self._stack.currentIndex() == 2:
+            # `_switch_mode` lands on manual instead when guided is hidden.
             self._switch_mode("guided")
         elif self._stack.currentIndex() == 2:
             self._update_import_panel()
+        # The row shows or hides with the buttons in it, so a bar change that
+        # takes IMPORT away takes the empty row with it.
+        self._sync_mode_row_visibility()
 
     def _refresh_import_controls(self) -> None:
         """Swap the action row for the active module: IMPORT shows one Import

@@ -1603,15 +1603,36 @@ class MeasurementReportDialog(QDialog):
         The newest report of a measurement wins, so the row carries the type
         and the limits the user most recently asked for. Nothing is deleted:
         every file stays on disk and the types line still counts them all.
+
+        AND THE KEY IS `_run_key`, WHICH INCLUDES THE DATE. This first shipped
+        keyed on the folder and the file name alone, and that is not a
+        measurement: measuring a run AGAIN archives the previous `.ti3` into
+        `old/` and writes the new one under the SAME name, so one run folder
+        accrues a dated report per measurement, which is the whole of the
+        over-time trend (#40). On a real disk, `printer-test/runs/run1` holds
+        eleven such reports and fifty-five archived measurements; the window
+        opened on it said "1 run", "No. of Measurements: 1", a date range of
+        one day to the same day, and "A trend graph needs at least two
+        measurement runs … tick 'Show all measurement runs'" with that box
+        already ticked, while the line above it read "Already generated for
+        this run: Full colour check (11)". Ten of the eleven measurements were
+        gone from the list, from the tables and from the trend. Photographed on
+        screen in `~/Desktop/ChromIQ-beta18-proof/combined-round-2/`
+        (`E1-report-window-on-a-run-measured-many-times.png`).
+
+        `_run_key` is this class's own answer to "which run is this", and its
+        docstring gives the reason for each of its three parts. Two reports OF
+        ONE MEASUREMENT still merge, because `build_report` stamps `created`
+        from the measurement, so they share it; two MEASUREMENTS never do.
         """
-        seen: "dict[tuple, int]" = {}
+        seen: "dict[str, int]" = {}
         out: list = []
         for r in runs:
             origin = str(r.get("_origin_dir") or "")
             if not origin:
                 out.append(r)     # nothing to key on: never merged with another
                 continue
-            key = (origin, Path(str(r.get("ti3") or "")).name)
+            key = MeasurementReportDialog._run_key(r)
             at = seen.get(key)
             if at is None:
                 seen[key] = len(out)
@@ -2109,6 +2130,17 @@ class MeasurementReportDialog(QDialog):
 
         A measurement in no run (an imported file, CH-14) has no run boundary to
         stay inside, so it keeps whatever the document covers, deduplicated.
+
+        ONE FILE PER FOLDER, AND IT IS ABOUT THE MEASUREMENT IN HAND. The
+        folder is the unit because a dated verification keeps one report per
+        date and each date is its own folder. Inside a folder the history can
+        hold MANY measurements (measuring again archives the previous `.ti3`
+        and reuses its name), and only one of them is the run's measurement
+        today, so "the first one seen" is the oldest and exactly the wrong one:
+        it would file a report of a sheet measured hours earlier, stamped with
+        this window's limits and this window's type, while the page in front of
+        the user described a different sheet. So the row the window is ON wins,
+        and where the window is on neither, the later measurement does.
         """
         runs = self._runs_for_document()
         ctx = self._run_ctx
@@ -2122,16 +2154,25 @@ class MeasurementReportDialog(QDialog):
                 mine |= {str(v.dir) for v in ctx.run.verifications()}
             except Exception:                            # noqa: BLE001
                 pass
-        out, seen = [], set()
+        subject = self._run_key(self._report) if self._report else None
+        out: list = []
+        seen: "dict[tuple, int]" = {}
         for r in runs:
             origin = str(r.get("_origin_dir") or "")
             if not origin or (mine is not None and origin not in mine):
                 continue
             key = (origin, Path(str(r.get("ti3") or "")).name)
-            if key in seen:
+            at = seen.get(key)
+            if at is None:
+                seen[key] = len(out)
+                out.append(r)
                 continue
-            seen.add(key)
-            out.append(r)
+            kept = out[at]
+            if subject is not None and self._run_key(kept) == subject:
+                continue                       # the window's own row stays
+            if (subject is not None and self._run_key(r) == subject) or \
+                    str(r.get("created") or "") > str(kept.get("created") or ""):
+                out[at] = r
         return out
 
     def _on_generate_report(self) -> None:

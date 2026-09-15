@@ -8296,3 +8296,158 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 - evidence: test_a_box_that_cannot_be_widened_still_opens. MUTATION PROVED:
   restoring `log.debug` in `ui/widgets.py` turns it red with the NameError,
   and nothing else in that file.
+
+### B8-202 · A run measured eleven times listed one measurement, and lost ten points off its trend
+- blocks release: no
+- status: FIXED
+- found by: combined adversary round 2 on the merged tree, 2026-09-15, attacking
+  the round before it (B8-200) and driving the real app in a real window
+  (`~/Desktop/ChromIQ-beta18-proof/combined-round-2/`,
+  `drive_the_runs_a_run_remembers.py`).
+- detail: WHAT A USER SEES, photographed in
+  `E1-report-window-on-a-run-measured-many-times.png`. A real project off a real
+  disk, `printer-test/runs/run1`: eleven dated reports of eleven distinct
+  measurements, fifty-five archived measurements in `old/`. The Measurement
+  Report window opened on it said **"printer-test · 1 run"**, one row reading
+  `2026-08-08 13:36`, **"No. of Measurements: 1"**, a date range of
+  `2026-08-08 – 2026-08-08` for a session that ran from 11:48 to 13:36, and
+  *"A trend graph needs at least two measurement runs. Add another measurement,
+  or, if the profile you have loaded already holds more than one run, tick
+  'Show all measurement runs' above"* **with that box already ticked** — while
+  the line above it read **"Already generated for this run: Full colour check
+  (11)"**. The window knew about eleven and listed one. Ten measurements were
+  gone from the list, the tables, the PDF and the trend.
+- reach: four projects on one real disk were already in this state before the
+  round began, with 11, 17, 8 and 4 distinct measurements in a single run
+  folder. No unusual act is needed: measuring a run AGAIN archives the previous
+  `.ti3` into `old/` and writes the new one under the same stem, and with
+  *Save measurement report* on each measurement leaves its own dated report.
+  That accrual IS the over-time trend the window's subtitle promises (#40).
+- cause: B8-200's `_one_row_per_measurement` keyed on
+  `(_origin_dir, ti3 file name)`. Every measurement of one run carries the same
+  pair, because the stem is the sanitised project name. `_run_key`, three
+  methods below it in the same class, answers the same question with
+  `_origin_dir | created | ti3` and its docstring gives the reason for each of
+  the three parts; the new rule was a coarser expression of it, written a
+  commit earlier.
+- fix: the row rule asks `_run_key`. Two reports OF ONE MEASUREMENT still merge
+  under it — `build_report` stamps `created` from the measurement, so they share
+  it, which is exactly what B8-200 measured — and two MEASUREMENTS never do.
+  The writing side moved with it: with the history restored,
+  `_reports_to_generate` saw several rows per folder again and kept the FIRST,
+  which is the oldest, so Generate would have filed a report about a sheet
+  measured hours earlier under this window's limits and this window's type. The
+  row the window is ON wins now, and where the window is on neither, the later
+  measurement does.
+- evidence: test_every_measurement_of_a_run_is_its_own_row,
+  test_the_trend_gets_a_point_for_every_measurement,
+  test_two_reports_of_one_measurement_are_still_one_row,
+  test_generate_files_a_report_about_the_measurement_in_hand,
+  test_generate_still_writes_one_file_per_press,
+  test_the_row_rule_and_the_run_identity_are_the_same_key. MUTATIONS PROVED,
+  each checked to be in the file the run reads before the run: the coarse key
+  turns 3 red, the first-row-wins rule in `_reports_to_generate` turns 1 red,
+  and removing the dedup call altogether turns 5 red (B8-200's four and this
+  file's one). After the fix the same window says **"printer-test · 11 runs"**,
+  eleven rows, "No. of Measurements: 11" and a trend with eleven points
+  (`E21-report-window-on-a-run-measured-many-times.png`).
+
+### B8-203 · Switching on Preferences ▸ Calibration options removed the IMPORT door from every run type
+- blocks release: no
+- status: FIXED
+- needs confirmation: the Measure tab now shows a `MANUAL | IMPORT` row where it
+  showed none. `docs/design/calibration_run_type.md` promises only that *"the
+  guided modes in all tabs are hidden"*, which is kept; that a row is visible at
+  all in this state is a change a person should look at.
+- found by: combined adversary round 2, 2026-09-15, walking the run types on
+  screen (`drive_calibration_and_switching.py`,
+  `/tmp/chromiq-comb2-work/probe_import_reachable.py`).
+- detail: WHAT A USER SEES, photographed on a PROFILING run, the same project,
+  the same run, the preference the only difference:
+  `H-measure-tab-calibration-mode-OFF.png` shows the mode row
+  `GUIDED | MANUAL | IMPORT`; `H-measure-tab-calibration-mode-ON.png` shows no
+  row at all. With the preference on there is no way to reach the measurement
+  import module from the Measure tab, on any run type, and nothing says why.
+- cause: `TabMeasure.set_calibration_mode` hid the whole `_mode_row_widget`.
+  When that line was written the row held two buttons, GUIDED and MANUAL, so
+  hiding it said exactly what the preference promises. #133 then put IMPORT in
+  the same row and this week widened that door from verification runs to
+  profiling ones, so the rule built for it was inert underneath:
+  `_import_available()` answered **True**, `_refresh_import_visibility` called
+  `_import_btn.setVisible(True)`, and `isVisible()` was **False** with
+  `isVisibleTo(parent)` **True** — the button's own parent was hidden over it.
+- why no test caught it: every test the import work shipped with asks
+  `_import_btn.isVisibleTo(tab)` and none of them calls `set_calibration_mode`,
+  so the row they measure through was never hidden in them.
+- fix: the GUIDED button is hidden, which is the sentence the preference
+  promises; the row stays while it still offers a choice. A calibration run
+  still has no row, because there is nothing to choose there. `_switch_mode`
+  falls back to manual rather than guided when guided is not offered, or leaving
+  the import module for a calibration would have stranded the person on a module
+  whose button is hidden. `set_calibration_mode` also stopped forcing manual on
+  somebody standing in the import module, since it runs on any Preferences save.
+- evidence: test_the_import_button_is_reachable_with_calibration_options_on,
+  test_pressing_it_reaches_the_import_module,
+  test_the_guided_module_is_still_hidden,
+  test_a_calibration_run_still_has_no_mode_row,
+  test_leaving_the_import_module_never_lands_on_the_hidden_guided_one,
+  test_the_preference_off_is_exactly_as_it_was. MUTATIONS PROVED: restoring
+  `self._mode_row_widget.setVisible(not enabled)` turns 2 red, removing the
+  guided-fallback clause from `_switch_mode` turns 1 red, and always showing the
+  row turns 1 red. Driven again after the fix
+  (`H2-FIXED-import-reachable-with-calibration-options-on.png`): the row reads
+  `MANUAL | IMPORT`, pressing IMPORT opens the module, and a calibration run is
+  unchanged.
+
+### B8-204 · Paging to the last sheet of a chart made a red text-overlap warning disappear
+- blocks release: no
+- status: FIXED
+- found by: combined adversary round 2, 2026-09-15, on the second and third
+  page, which round 1 never reached
+  (`drive_the_second_and_third_page.py`).
+- detail: WHAT A USER SEES, photographed page by page on a real three-page A4
+  chart with one set of settings and *Text distance from edge* ▸ Clip at 10 mm
+  (`K41`/`K42`/`K43-create-chart-on-page-N-of-3.png`). The measured right margin
+  is **7.985 mm** on pages 1 and 2 and **175.964 mm** on page 3, because the
+  part-full last page's patches stop early and the paper beside them is the
+  width of the empty half of the sheet. The panel said
+
+  > ⚠ The chart notes down the right edge run over the patches. They are
+  > printed 10.0 mm in from the paper edge, need 2.7 mm at 7 pt, and the right
+  > margin leaves 0.0 mm … Raise "Right" under "Margins (mm)" by about 5.1 mm
+
+  on pages 1 and 2, and **nothing at all** on page 3. Pressing *Next* made a red
+  warning disappear with nothing saying why, and a reader who happened to be on
+  the last page was told nothing about the two sheets that clip.
+- cause: Knut's ruling of 2026-09-15 made all four text-fit checks read the
+  MEASURED sheet rather than a prediction, and the measured sheet is the page
+  the preview is showing — `_update_margin_inspector` says so itself, because
+  the guides must land on the patches the reader can see (#83), and
+  `_engine_text_notes` is called from inside that same method and re-runs on
+  `page_changed`. A prediction was the same number on every page. A measurement
+  is not. Two readers of that edge are affected: the chart note
+  (`chart_note_overlap`) and the clip border's own content
+  (`clip_content_overlap`). Top, bottom and left measured identically on all
+  three pages to 0.001 mm, so the right edge is where it bites today.
+- fix: `_worst_page_report` hands the notices a report whose four edges are the
+  least room ANY page of the chart leaves, while the frame's own numbers and
+  guides stay the page on screen. `_ensure_worst_page_cache` measures the whole
+  chart once per chart, and BEFORE the page on screen is measured, because
+  `test_inspector_follows_the_displayed_page` proves #83 by watching which TIFF
+  `measure_margins` was asked for LAST; measuring the chart afterwards moved
+  that, and the #83 guard caught it in the full run.
+- evidence: test_the_verdict_is_the_worst_page_not_the_page_on_screen,
+  test_the_frame_actually_hands_the_notes_the_worst_page,
+  test_every_side_is_taken_from_its_own_worst_page,
+  test_the_frame_still_shows_the_page_on_screen,
+  test_a_one_page_chart_is_untouched,
+  test_it_is_measured_once_per_chart_and_not_once_per_page_turn,
+  test_a_new_chart_is_measured_again,
+  test_the_pages_really_do_measure_differently. MUTATIONS PROVED: `max` for
+  `min` turns 3 red, removing the cache's early return turns 1 red, and handing the notices the
+  page on screen turns 1 red, and moving the whole-chart pass back to AFTER the
+  shown page turns the #83 guard `test_inspector_follows_the_displayed_page`
+  red — the first of those is why
+  `test_the_frame_actually_hands_the_notes_the_worst_page` exists at all, since
+  the first seven tests all called `_worst_page_report` themselves and every
+  one of them stayed GREEN under it.
