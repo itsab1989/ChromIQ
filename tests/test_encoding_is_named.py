@@ -865,10 +865,18 @@ def test_the_ascii_pin_would_notice_ensure_ascii_false(tmp_path, monkeypatch):
     go red.
     """
     import core.file_manager as fm
-    real_dumps = json.dumps
+    real_dumps, real_dump = json.dumps, json.dump
     monkeypatch.setattr(
         fm.json, "dumps",
         lambda obj, **kw: real_dumps(obj, **{**kw, "ensure_ascii": False}))
+    # AND `json.dump`, because `save_manifest` goes through
+    # `write_json_atomically` since B8-222 and that writes with `dump`, not
+    # `dumps`. Patching only `dumps` left this mutation unable to land, and the
+    # test said so in its own words rather than passing quietly - which is
+    # exactly what it is for.
+    monkeypatch.setattr(
+        fm.json, "dump",
+        lambda obj, fh, **kw: real_dump(obj, fh, **{**kw, "ensure_ascii": False}))
 
     root = tmp_path / NAME
     proj = Project.create(root, NAME)

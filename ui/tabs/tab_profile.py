@@ -5213,6 +5213,12 @@ class TabProfile(QWidget):
         params = self._collect_params()
         if not self._validate_gamut_source(params):
             return
+        # A BUILD THAT CANNOT START MUST NOT ARCHIVE ANYTHING FIRST.
+        # `_confirm_rebuild_over_verifications` below MOVES this run's profile
+        # and every dated verification measurement out of the way, and the
+        # builder is only launched afterwards. See the method.
+        if self._refuse_when_the_profiler_is_not_installed(params):
+            return
         # The profile is written beside the measurement it is built from, so a
         # measurement belonging to another run quietly builds into that run.
         if not self._confirm_building_outside_the_selected_run():
@@ -5379,6 +5385,58 @@ class TabProfile(QWidget):
         if self._ti3_path:
             self.profile_built.emit(self._ti3_path, self._icc_path)
         self._show_build_result_dialog(self._icc_path, [])
+
+    def _refuse_when_the_profiler_is_not_installed(self, params) -> bool:
+        """Say "ChromIQ could not start colprof" BEFORE anything is moved.
+
+        `_confirm_rebuild_over_verifications` -> `_archive_superseded_profile`
+        MOVES the run's built profile into ``runs/runN/old/<date>/`` and every
+        dated verification measurement into ``verifications/old/<date>/``, and
+        only then is colprof launched. With the ArgyllCMS folder pointing
+        somewhere wrong, colprof never starts, and
+        :meth:`_report_if_the_tool_could_not_start` ends with the words
+        **"Nothing was changed in your project."**
+
+        Driven on screen (combined round 8, `D-result.json`,
+        `D2-ChromIQ-could-not-start-colprof.png`) on a real run holding a real
+        profile and two real dated verification measurements: after *Build here
+        anyway* the run held **no profile at all** - the `.icc` was in
+        `old/2026-09-16_003327/` and both verifications in
+        `verifications/old/2026-09-16_003327/` - under a window saying nothing
+        had been changed. Round 7 wrote this down as a lead it could not force,
+        because `ArgyllRunner._resolve` falls back to a bare ``PATH`` lookup and
+        its probes found a working colprof there.
+
+        Asked HERE rather than mended afterwards, which is the same fix round 7
+        made for the archive's own log lines: move the step above the question
+        instead of undoing it below. Nothing is moved, so the sentence the
+        window already says is true, and no new message text is needed.
+
+        Only for a build that really would run colprof, and never a guess:
+        with the profile engine enabled the build may not need Argyll at all,
+        and a multi-ink measurement is answered by its own window below.
+        """
+        if bool(self._settings.get("profile_engine_beta", False)):
+            return False
+        # THE CHEAP, CERTAIN QUESTION FIRST, and this order is the fix to the
+        # fix: asking `is_multi_ink` first meant an UNREADABLE measurement
+        # (which raises) stood the guard down and archived the run's history
+        # anyway. Caught by this round's own test, which files a one-byte
+        # `.ti3` exactly as a half-written one would look.
+        if self._runner.tool_is_installed("colprof"):
+            return False
+        try:
+            if is_multi_ink(params.ti3_path):
+                return False   # answered by the multi-ink window below
+        except Exception:      # noqa: BLE001 - unreadable: colprof is still
+            log.warning("could not read %s while checking the builder; "
+                        "treating colprof as the builder",
+                        getattr(params, "ti3_path", None), exc_info=True)
+        self._runner.last_failed_to_start = "colprof"
+        # No log line of its own: the window below says the whole thing, and
+        # "colprof exited with code -1" would be untrue - it never ran.
+        self._report_if_the_tool_could_not_start()
+        return True
 
     def _report_if_the_tool_could_not_start(self) -> bool:
         """Tell the user when ChromIQ could not launch the tool at all."""

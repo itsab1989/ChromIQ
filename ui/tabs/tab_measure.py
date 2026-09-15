@@ -6189,19 +6189,32 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # overwrites the file it resumed from, so this is the last moment the
         # previous readings still exist to be protected.
         self._begin_session_guard(_ti3_pre)
-        if sys.platform == "win32":
-            subprocess.run(
-                ["taskkill", "/F", "/IM", "chartread.exe"],
-                capture_output=True,
-                stdin=subprocess.DEVNULL,
-                creationflags=subprocess.CREATE_NO_WINDOW,
-            )
-        else:
-            subprocess.run(
-                ["killall", "-q", "chartread"],
-                capture_output=True,
-                stdin=subprocess.DEVNULL,
-            )
+        # A TIDY-UP MUST NEVER BE THE THING THAT STOPS THE SESSION.
+        # This is the last bare launch left in the start path after B8-220, and
+        # it has the same shape: a `subprocess.run` that raises stops `_on_start`
+        # halfway - here with the previous measurement ALREADY archived by the
+        # question above and the session guard already begun, so nothing would
+        # ever call `_finish_session_guard` to put it back. `killall` and
+        # `taskkill` are system binaries and this round could not drive it;
+        # guarded because the consequence is the fault above, not because a
+        # failure was measured.
+        try:
+            if sys.platform == "win32":
+                subprocess.run(
+                    ["taskkill", "/F", "/IM", "chartread.exe"],
+                    capture_output=True,
+                    stdin=subprocess.DEVNULL,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
+                )
+            else:
+                subprocess.run(
+                    ["killall", "-q", "chartread"],
+                    capture_output=True,
+                    stdin=subprocess.DEVNULL,
+                )
+        except OSError:
+            log.warning("could not sweep a stray chartread before starting; "
+                        "carrying on", exc_info=True)
         # W8 — START MEASUREMENT WRITES THIS TAB'S SETTINGS FOR THIS TARGET.
         #
         # `per_target_settings.md` §3: *"Load settings when activating tab, Save

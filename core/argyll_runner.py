@@ -606,6 +606,86 @@ class ArgyllRunner(QObject):
     # PTY mode (macOS/Linux) / pipe mode (Windows)
     # ------------------------------------------------------------------
 
+    def _the_tool_never_started(
+        self,
+        bin_path: "Path | str",
+        on_finish: "Callable[[int], None] | None",
+        exc: BaseException,
+        on_line: "Callable[[str], None] | None" = None,
+    ) -> None:
+        """A launch that RAISED must report back, exactly as a failed QProcess does.
+
+        THE APPLICATION ABORTED HERE. :meth:`run`'s QProcess path already says
+        why this matters, in its own words: *"A PROCESS THAT NEVER STARTS MUST
+        STILL REPORT BACK … When the binary is missing or not executable,
+        QProcess emits `errorOccurred` (FailedToStart) and NOTHING else — so
+        every caller's `on_finish` was simply never called."* It connects
+        :meth:`_on_failed_to_start` for that.
+
+        The three launchers below had no such handler at all. They call
+        ``subprocess.Popen`` bare, so a missing binary raises
+        ``FileNotFoundError`` **inside the Qt slot that pressed the button** —
+        and PyQt6 answers an unhandled exception in a slot with ``qFatal()``.
+        Not an error dialog, not a log line: the process aborts.
+
+        Measured on screen, combined round 8, with ``argyll_bin_path`` pointing
+        at a folder holding no ArgyllCMS and no ArgyllCMS on ``PATH`` — which is
+        the ordinary shape of a user's machine, because ChromIQ's default is
+        ``/Applications/Argyll/bin`` and nothing puts Argyll on ``PATH``:
+
+        * press **Start Measurement**, answer *Measure anyway* to "This chart is
+          fully measured" — **exit 134 (SIGABRT)**, no window, no log line, and
+          the finished measurement already moved into ``runs/run1/old/<date>/``
+          by the archive that question performs. The run holds no measurement.
+        * press **Measure again to average** — **exit 134** again, from inside
+          ``_start_averaging_read`` one line above the ``_session_live`` check
+          that exists to put the reading back. The run holds no ``.ti3`` and the
+          reading sits in ``reads/read1.ti3``, where nothing in ChromIQ looks.
+
+        So the marker round 7 added is not wrong; it is never reached. Reporting
+        the failure the way the QProcess path reports it gives every ending that
+        already exists its turn: ``_on_measure_done`` runs, ``_session_live``
+        goes back to False, the session guard judges the session, and the
+        averaging restore puts the read back.
+
+        Delivered through a zero-delay timer, like the refused-run branch of
+        :meth:`run`, so the caller still standing in ``_on_start`` is never
+        re-entered before it has finished starting.
+
+        AND ONE LINE GOES INTO THE RUN'S OWN OUTPUT, because the ending the
+        Measure tab then reaches says *"Measurement failed - see output above"*
+        and there was nothing above: the reason was logged to the Python log,
+        which no user reads. A message that points at something must point at
+        something.
+        """
+        tool = Path(bin_path).name or str(bin_path)
+        log.error("ArgyllRunner: %s could not be started at all (%s) — check "
+                  "the ArgyllCMS path in Preferences", tool, exc)
+        # The same field the QProcess path sets, so the tab that asked for the
+        # run can TELL the user rather than printing a bare exit code.
+        self.last_failed_to_start = tool
+        self._pty_proc   = None
+        self._pty_master = None
+        self._run_on_finish = None
+        self._run_on_line   = None
+
+        def _report() -> None:
+            if on_line is not None:
+                # THE KEY THE BUILD PROFILE TAB'S OWN WINDOW ALREADY USES for
+                # its title, so this adds NO new user-facing string and is
+                # already translated into all twelve languages. The instruction
+                # is on screen either way: the slab under the masthead on this
+                # very tab reads "ArgyllCMS not found. Open Preferences to set
+                # the path."
+                from core.i18n import tr
+                on_line("[ERROR] " + tr(
+                    "ChromIQ could not start {tool}").format(tool=tool))
+            self.finished.emit(-1)
+            if on_finish is not None:
+                on_finish(-1)
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(0, _report)
+
     def _run_pty(
         self,
         tool: str,
@@ -629,14 +709,21 @@ class ArgyllRunner(QObject):
         if _excl:
             _env["ARGYLL_EXCLUDE_SERIAL_SCAN"] = _excl
         master_fd, slave_fd = pty.openpty()
-        self._pty_proc = subprocess.Popen(
-            [str(bin_path)] + args,
-            stdin=slave_fd, stdout=slave_fd, stderr=slave_fd,
-            cwd=str(cwd),
-            close_fds=True,
-            start_new_session=True,
-            env=_env,
-        )
+        try:
+            self._pty_proc = subprocess.Popen(
+                [str(bin_path)] + args,
+                stdin=slave_fd, stdout=slave_fd, stderr=slave_fd,
+                cwd=str(cwd),
+                close_fds=True,
+                start_new_session=True,
+                env=_env,
+            )
+        except OSError as exc:
+            # Both ends, or the pty leaks for the life of the process.
+            os.close(master_fd)
+            os.close(slave_fd)
+            self._the_tool_never_started(bin_path, on_finish, exc, on_line)
+            return
         os.close(slave_fd)
         self._pty_master = master_fd
         self._pty_gen += 1
@@ -675,14 +762,18 @@ class ArgyllRunner(QObject):
         si.wShowWindow = 0   # SW_HIDE
 
         CREATE_NEW_CONSOLE = 0x10
-        self._pty_proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            creationflags=CREATE_NEW_CONSOLE,
-            startupinfo=si,
-            cwd=str(cwd),
-        )
+        try:
+            self._pty_proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                creationflags=CREATE_NEW_CONSOLE,
+                startupinfo=si,
+                cwd=str(cwd),
+            )
+        except OSError as exc:
+            self._the_tool_never_started(bin_path, on_finish, exc, on_line)
+            return
         self._pty_master        = None
         self._use_console_input = True
         self._pty_gen += 1
@@ -704,14 +795,18 @@ class ArgyllRunner(QObject):
         on_finish: Callable[[int], None] | None,
     ) -> None:
         log.info("Run (pipe): %s %s  [cwd=%s]", bin_path, " ".join(args), cwd)
-        self._pty_proc = subprocess.Popen(
-            [str(bin_path)] + args,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            cwd=str(cwd),
-            creationflags=_CREATE_NO_WINDOW,
-        )
+        try:
+            self._pty_proc = subprocess.Popen(
+                [str(bin_path)] + args,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                cwd=str(cwd),
+                creationflags=_CREATE_NO_WINDOW,
+            )
+        except OSError as exc:
+            self._the_tool_never_started(bin_path, on_finish, exc, on_line)
+            return
         self._pty_master = None
         self._pty_gen += 1
 
@@ -1001,6 +1096,22 @@ class ArgyllRunner(QObject):
         first on ``PATH``.
         """
         return self._resolve(tool)
+
+    def tool_is_installed(self, tool: str) -> bool:
+        """Could this tool be launched right now, without launching it?
+
+        For a caller that must not START anything before it has asked its
+        questions: a build that cannot run must not archive the profile it was
+        going to replace. :meth:`_resolve` answers with a bare NAME when the
+        configured folder holds nothing, precisely so a ``PATH`` install still
+        works, so a bare ``Path.is_file()`` on its answer would call a perfectly
+        good ArgyllCMS missing. Both places are asked, in that order.
+        """
+        found = self._resolve(tool)
+        if found.is_absolute():
+            return found.is_file() and os.access(found, os.X_OK)
+        import shutil
+        return shutil.which(str(found)) is not None
 
     def _resolve(self, tool: str) -> Path:
         # Bundled helpers (chromiq-chartread) pass their absolute path —

@@ -9279,3 +9279,193 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   false pass) and was left alone.
 
 ---
+
+### B8-220 · A reader that could not be launched said nothing, and left the Measure tab stuck for ever
+- blocks release: yes
+- status: FIXED
+- found by: combined adversary round 8, 2026-09-16, asking whether round 7's
+  `_session_live` marker is true in every state. It is. The state it cannot
+  reach is the one where `_on_start` never RETURNS at all.
+- detail: `ArgyllRunner.run`'s QProcess path connects `errorOccurred` for
+  exactly this, and says why in its own words: *"A PROCESS THAT NEVER STARTS
+  MUST STILL REPORT BACK … every caller's `on_finish` was simply never
+  called."* The three launchers underneath it had no such handler.
+  `_run_pty` — the path stock chartread ALWAYS takes, because
+  `MeasureManager._launch_stock` passes `use_pty=True` — calls
+  `subprocess.Popen` bare, and a missing binary raises `FileNotFoundError`
+  inside the Qt slot that pressed the button. `main.py` installs a
+  `sys.excepthook`, so the process does not die: the exception is logged where
+  no user looks and the call stops halfway, one line past
+  `self._session_live = True`.
+- reached the way a user reaches it, and the status line says so out loud:
+  the ArgyllCMS folder in Preferences pointing somewhere wrong (moved, renamed,
+  on a volume that went away, mistyped), with ArgyllCMS not on `PATH` —  which
+  is the ordinary shape of a machine, because ChromIQ's default is
+  `/Applications/Argyll/bin` and nothing puts Argyll on `PATH`.
+  `_check_argyll_binaries(initial=False)` warns and leaves the path alone, by
+  design; only the launch was unguarded.
+- driven on screen, twice, in real windows (`H-result.json`, `I-result.json`,
+  `H8-what-the-person-is-left-with.png`):
+  - **Start Measurement**, answering *Measure anyway* to "This chart is fully
+    measured": the Measure tab shows "Progress: 0.0%", **Start greyed, Stop
+    live**, every option greyed and *"Keep calm! Scan each strip with a slow,
+    steady motion."* Nothing is running. The finished measurement has already
+    been moved into `runs/run1/old/<date>/`, so the run holds **no `.ti3` at
+    all**, and the log's last line says only that it was moved. There is no way
+    back but restarting the app, and `_session_live` stays True so the app-wide
+    event filter goes on eating arrow keys everywhere in ChromIQ — measured,
+    `eventFilter` returned True for a Left arrow.
+  - **Measure again to average**: the run holds no `.ti3`, the reading is
+    stranded in `reads/read1.ti3`, **the log is completely empty** and the
+    Build Profile tab still names the file that has gone. That is B8-218's own
+    damage, reached one line ABOVE the check round 7 added to undo it.
+- a correction to this round's own first two drives, recorded because it was
+  nearly reported as a finding: run WITHOUT `main.py`'s `sys.excepthook` the
+  same press exits **134 (SIGABRT)**, because PyQt6 answers an unhandled slot
+  exception with `qFatal()` only while the default hook is installed. Measured
+  both ways (`probe-default.log`, `probe-mainpy.log`). **The shipped app does
+  not crash.** A driver that does not install what `main.py` installs is
+  measuring a different program.
+- fix: `ArgyllRunner._the_tool_never_started` — the launch failure is reported
+  exactly as the QProcess path reports it (`last_failed_to_start` set,
+  `on_finish(-1)`), through a zero-delay timer so the caller still standing in
+  `_on_start` is never re-entered, and with one line into the run's OWN output
+  so the ending's *"see output above"* points at something. All three launchers
+  are guarded, and the pty's two descriptors are closed on the failing path.
+  Nothing else changed: every ending that already exists then gets its turn.
+- proved after, on screen (`E-result.json`, `F-result.json`):
+  - Start Measurement: §S3's own window, *"Because nothing was measured, your
+    previous measurement has been put back exactly where it was — this read has
+    changed nothing at all"*, and the run **holds its `.ti3` again**;
+    `_session_live` False, Start live, Stop grey, the arrow key no longer eaten.
+  - Measure again to average: round 5's own sentence, *"The reading you already
+    took is kept: read1.ti3 is this run's measurement again"*, the run holding
+    its `.ti3` and `reads/read1.ti3` still there.
+- evidence: test_a_pty_reader_that_cannot_start_calls_on_finish,
+  test_the_launch_failure_never_escapes_into_the_caller,
+  test_nothing_is_left_running_after_a_failed_launch,
+  test_the_failed_tool_is_named_for_the_tab_that_asked,
+  test_the_run_output_says_why_before_the_ending_reads_it,
+  test_the_reason_arrives_before_the_finish,
+  test_the_pty_is_not_leaked_when_the_launch_fails,
+  test_all_three_launchers_are_present_to_be_checked,
+  test_every_launcher_guards_the_call_that_starts_the_process,
+  test_the_reporter_does_not_re_enter_its_caller.
+  Three mutations proved to land and all three caught: the `_run_pty` guard
+  removed, back to a bare Popen (8 red); the guard kept but the pty left open
+  (1 red, 25 descriptors to 49); the guard kept but the reason no longer said
+  in the run's output (2 red).
+- a note for the next reader: `workflow/spot_read_manager.py` is the other
+  `use_pty=True` caller (Tools ▸ read single patches) and is covered by the
+  same fix, because the guard is in the launcher rather than in either caller.
+- the same shape swept for, across every door, from the AST: after this fix the
+  only bare launch left in shipped code was the stray-chartread sweep in
+  `_on_start` itself (`killall` / `taskkill`), which is now guarded too —
+  UNDRIVEN, and recorded as such: they are system binaries and this round could
+  not make either missing. `workflow/chart_creator._probe` (targen/printtarg,
+  the patch-capacity binary search) is bare as well and is **not** a fault: its
+  only caller, `tab_chart` at the Generate Chart door, already wraps it in
+  `except Exception`, says "Auto patch estimation failed", re-enables the button
+  and drops the shield. Examined and cleared.
+  evidence: test_the_start_path_launches_nothing_without_a_guard,
+  test_every_early_return_in_on_start_is_above_the_marker (which re-derives
+  round 7's marker invariant rather than taking it on trust). Two further
+  mutations proved to land and both caught: the sweep's guard removed (1 red),
+  and an early return moved BELOW the marker (1 red).
+
+---
+
+### B8-221 · "Nothing was changed in your project", said after the profile and every verification had been moved
+- blocks release: no
+- status: FIXED
+- found by: combined adversary round 8, 2026-09-16 — round 7's LEAD 1, forced.
+- detail: `_on_build` → `_confirm_rebuild_over_verifications` →
+  `_archive_superseded_profile` MOVES the run's built profile into
+  `runs/runN/old/<date>/` and EVERY dated verification measurement into
+  `verifications/old/<date>/`, and only THEN is colprof launched. With the
+  ArgyllCMS folder wrong, colprof never starts and
+  `_report_if_the_tool_could_not_start` shows a window ending with the words
+  **"Nothing was changed in your project."**
+- why round 7 could not force it, and it said so rather than guessing: its two
+  probes pointed `argyll_bin_path` at nothing, and `ArgyllRunner._resolve`
+  falls back to a bare `PATH` lookup which found a perfectly good colprof. The
+  PATH has to go too, which is what a real machine looks like.
+- driven on screen (`D-result.json`,
+  `D2-ChromIQ-could-not-start-colprof.png`) on a real project holding a real
+  profile and two real dated verification measurements: after *Build here
+  anyway* the run held **no profile at all** — the `.icc` in
+  `old/2026-09-16_003327/` and both verifications in
+  `verifications/old/2026-09-16_003327/` — under that window, photographed,
+  saying nothing had been changed.
+- fix: ask BEFORE anything is moved.
+  `_refuse_when_the_profiler_is_not_installed` sits above both questions, which
+  is round 7's own fix for the archive's log lines in this very method: move
+  the step above the question instead of undoing it below. Nothing is moved, so
+  the sentence the window already says is TRUE, **no new message text was
+  needed and no translation is missing**. It stands down for the profile engine
+  (which may not need ArgyllCMS at all) and for a multi-ink measurement, which
+  has its own window.
+  `ArgyllRunner.tool_is_installed` asks the configured folder AND `PATH`, in
+  that order, because `_resolve`'s bare-name answer would otherwise call a
+  working `PATH` install missing and refuse a build that would have run.
+- proved after (`G-result.json`): the archive question is never asked, the
+  `.icc` is still in the run, both verifications are still in
+  `verifications/`, there is no `old/` anywhere, and the window is the only
+  thing that happens.
+- evidence: test_the_refusal_is_asked_from_on_build,
+  test_the_refusal_comes_before_the_question_that_archives,
+  test_the_refusal_stops_the_build,
+  test_the_window_still_claims_nothing_was_changed,
+  test_a_path_install_is_not_called_missing,
+  test_a_missing_tool_is_reported_missing,
+  test_a_folder_holding_something_unrunnable_is_not_installed,
+  test_the_question_that_archives_is_never_asked_when_the_builder_is_missing,
+  test_a_build_that_cannot_start_leaves_the_profile_where_it_was,
+  test_the_refusal_stands_down_for_the_profile_engine.
+  Two mutations proved to land and both caught: the refusal moved BELOW the
+  archive question (2 red) and the installed-check forced to always say yes
+  (1 red).
+- a fix to the fix, found by its own test and worth the line: the guard first
+  asked `is_multi_ink`, which READS the measurement — so an unreadable `.ti3`
+  raised, the broad `except` stood the guard down, and the history was archived
+  anyway. The cheap, certain question goes first.
+- and the same trap twice in one round: `MainWindow._check_argyll_binaries(
+  initial=True)` AUTO-DETECTS a working ArgyllCMS and writes the path back, so
+  a bad path set before the window is built is silently corrected. This round's
+  first on-screen drive and its first version of this test both measured a
+  machine that had ArgyllCMS. Set it after.
+
+---
+
+### B8-222 · The project manifest was the one written without the atomic write
+- blocks release: no
+- status: FIXED
+- found by: combined adversary round 8, 2026-09-16 — round 7's LEAD 2, settled.
+- detail: `Project.save_manifest` used a plain `write_text`, while
+  `Run.save_meta` and the calibration's own meta have gone through
+  `write_json_atomically` all along. `project.json` is the one that decides
+  whether a project opens at all: it names `current_run` and every run, and a
+  truncated one is not survived the way `meta.json` is — `Run.load_meta`
+  treats "unreadable" as "absent" on purpose, and nothing does that here.
+- Knut, #130 (2026-08-06), asking for exactly this: *"Write the updated JSON
+  data to a temporary file in the same directory, then rename (replace) the
+  original file with the temporary one. This prevents file corruption if the
+  process crashes mid-write."*
+- **GRADED HONESTLY: not a fault anybody has been shown.** A power loss inside
+  one `write_text` is not something this round could drive, and it is recorded
+  as a consistency fix against a rule already written down rather than as a
+  third finding.
+- the other half of round 7's lead is recorded as EXAMINED, not as a fault:
+  `save_manifest` `mkdir(parents=True)`s a project root that has been deleted
+  behind the app's back, so a folder deleted in Finder while ChromIQ holds it
+  open comes back holding only a manifest. `write_json_atomically` does the
+  same `mkdir`, so this fix does not change it — and refusing to write would
+  lose state the app legitimately holds, silently, instead. Measured, judged,
+  left alone.
+- evidence: test_the_project_manifest_is_written_atomically,
+  test_the_manifest_really_survives_a_write_that_fails.
+  One mutation proved to land and caught by both (the plain `write_text` put
+  back): a write that dies partway left `{"schema_version": 2, "name": "P",
+  "cur` on disk as the whole manifest.
+
+---

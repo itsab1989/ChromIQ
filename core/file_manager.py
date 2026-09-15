@@ -2910,8 +2910,28 @@ class Project:
                 self._migrate_move(legacy_ti2, run.verifications_dir)
 
     def save_manifest(self) -> None:
+        """``project.json``, written so a crash cannot leave it half-written.
+
+        This was the ONE manifest in the project still written with a plain
+        ``write_text``, while ``Run.save_meta`` and ``Calibration``'s own meta
+        have gone through :func:`write_json_atomically` all along. It is also
+        the one that decides whether a project opens at all: a truncated
+        ``project.json`` is not survived the way ``meta.json`` is (see
+        :meth:`Run.load_meta`, which treats "unreadable" as "absent") — it
+        names ``current_run`` and every run the project has.
+
+        Knut, #130 (2026-08-06), asking for exactly this: *"Write the updated
+        JSON data to a temporary file in the same directory, then rename
+        (replace) the original file with the temporary one. This prevents file
+        corruption if the process crashes mid-write."*
+
+        Recorded as a lead by combined round 7 and closed here. Graded
+        honestly: it is a consistency fix against a rule already written down,
+        NOT a fault anybody has been shown — a power loss inside one
+        ``write_text`` is not something this round could drive.
+        """
         self._root.mkdir(parents=True, exist_ok=True)
-        self.manifest_path.write_text(json.dumps(asdict(self._manifest), indent=2), encoding="utf-8")
+        write_json_atomically(self.manifest_path, asdict(self._manifest))
 
     def write_readme(self) -> None:
         """Write a user-facing "Where are my files.txt" at the project root.
