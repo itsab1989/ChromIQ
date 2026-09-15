@@ -65,8 +65,17 @@ def _straight_key():
 
 
 def _notes(tab):
+    """The overlap notices, WITH the sheet's own measurement.
+
+    Knut's ruling of 2026-09-15 (#182): the four patch-area checks read
+    "Measured from Preview" and say nothing without it, so the report is built
+    from the recipe's own geometry, which is where the patch area lands on a
+    rectangular chart that fills its page.
+    """
     from ui.tabs.tab_chart import TabChart
-    return TabChart._engine_text_notes(tab)[1]
+    from tests.margin_reports import report_for
+    return TabChart._engine_text_notes(
+        tab, report_for(tab._current_layout_recipe()))[1]
 
 
 def test_the_stamp_is_on_by_default_and_no_recipe_can_clear_it():
@@ -121,18 +130,27 @@ def test_a_typed_note_still_gets_the_per_lever_wording(tab):
         + joined)
 
 
-def test_the_two_controls_the_warnings_are_about_refresh_the_panel(tab, tmp_path):
-    """Counted, because the fault was silence and silence has no message.
+def test_the_two_controls_leave_the_measured_frame_alone(tab, tmp_path):
+    """…AND SINCE KNUT'S RULING OF 2026-09-15 THEY MUST NOT REFRESH IT.
 
-    Wrapping `MarginInspectorPanel.update_report` during the adversary round:
-    toggling the stamp tick gave **0 refreshes**, six times out of six, and
-    typing a 336-character note gave **0**. So the note-length warning arrived a
-    rebuild late, and clearing the notes left the red message standing.
+    This test used to assert the opposite. The call was added on 2026-09-13
+    because toggling the stamp tick gave **0 refreshes**, six times out of six,
+    and the red message stood until something else repainted. That was right
+    while the notices were PREDICTED from the boxes; the ruling makes them
+    measurements of the sheet in the preview, and neither of these two controls
+    can change that sheet:
 
-    The count here is of `_update_margin_inspector`, not of the panel's own
-    `update_report`: the panel is only handed a report when there is a readable
-    TIFF to measure, and a fixture that builds a real chart to prove a signal
-    connection would be measuring the wrong thing.
+        "the margin warnings need only be updated upon the chart being updated
+         with Generate Chart ... they are only usable after the Measured from
+         Preview margin values have been completed."
+
+    The reader is not left with nothing: `_refresh_unapplied_warning` paints
+    the red "press Generate Chart" sentence, which Knut names as already
+    correct, and `tests/test_a_moved_margin_box_leaves_the_panel_alone.py`
+    pins that half.
+
+    MUTATION: put `self._update_margin_inspector()` back into
+    `_on_chart_settings_touched` and this goes red.
     """
     from ui.tabs.tab_chart import TabChart
 
@@ -152,12 +170,14 @@ def test_the_two_controls_the_warnings_are_about_refresh_the_panel(tab, tmp_path
         n["v"] = 0
         tab._manual_stamp_cmd_check.setChecked(
             not tab._manual_stamp_cmd_check.isChecked())
-        assert n["v"] > 0, "toggling the stamp tick refreshes nothing"
+        assert n["v"] == 0, (
+            "toggling the stamp tick re-measured the 'Measured from Preview' "
+            "frame, which describes a sheet the tick cannot change")
 
         n["v"] = 0
         tab._manual_chart_notes_edit.setText("Canon Pro-1000, no colour "
                                              "management, Highest quality")
-        assert n["v"] > 0, "typing a note refreshes nothing"
+        assert n["v"] == 0, "typing a note re-measured the frame"
     finally:
         TabChart._update_margin_inspector = real
 

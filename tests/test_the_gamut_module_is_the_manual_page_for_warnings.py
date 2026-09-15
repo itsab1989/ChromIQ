@@ -90,7 +90,9 @@ def _colliding() -> LayoutRecipe:
 
 def _bottom(tab) -> list[str]:
     from ui.tabs.tab_chart import TabChart
-    return [w for w in TabChart._engine_text_notes(tab)[1]
+    from tests.margin_reports import report_for
+    return [w for w in TabChart._engine_text_notes(
+                tab, report_for(tab._current_layout_recipe()))[1]
             if "into the patches" in w and "sheet text along the bottom" in w]
 
 

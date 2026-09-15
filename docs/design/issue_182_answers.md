@@ -2096,3 +2096,141 @@ contradicted itself: **measured on a 20-patch chart, *"the chart has 20
 patches; at least 20 are needed"***. The verdict is passed on the within-gamut
 subset, which was 18, and `{n}` was filled from the sheet's own count. The
 sentence now names the population that was actually counted.
+
+## 2x. Knut's ruling of 2026-09-15: every margin warning is MEASURED, and it is recomputed on Generate Chart
+
+His test of v4.3.0-beta.17 (#182, comment 5679470670), with his chart, his log
+and his rendered sheet attached:
+
+> *"The height measurement of the bottom text (either custom text and "Stamp
+> layout summary..." or only one of them), must be calculated if it fits inside
+> the space between bottom margin of parch area and the B (or the helper marker
+> parameters, whichever are biggest, as ruled before).*
+>
+> *When any chart layout parameter changes, a red text says to click Generate
+> Chart to update the preview. This is the correct behaviour, so the margin
+> warnings need only be updated upon the chart being updated with Generate
+> Chart, and the also the calculations should use the Measured from Preview
+> numbers in the calculations if text fit. This simplifies very much the
+> calculation and it does not need to calculate across many page sizes or other
+> searches, and does not need to do this every time a setting is changed.*
+>
+> *It is also a special case for hexagonal patches, or when "Use ChromIQ layout
+> engine..." OFF, that set margins does not always match closely the Measured
+> from Preview margins. That is why, even though margins input boxes are used
+> to change the margins space, the margins used in the assessment of space for
+> text, and if the text overlaps the patch area edges, must be calculated
+> correctly and used in the assessment. Measured from Preview margin values are
+> reliably calculated for all instrument types, all patch types and for all dpi
+> and page sizes) and thus most reliable to use in the calculations of space in
+> margins, and if text falls on the patch area edges or not (on all sides).
+> However, they are only usable after the Measured from Preview margin values
+> have been completed (after a Generate Chart has been performed). Test all
+> margin text parameter combinations for all 4 sides again, using this
+> principle. Make sure all the rules defined are adhered to."*
+
+### Why he is right, in one line of arithmetic, on his own chart
+
+CR30, A4, area-first, **hexagonal** patches, layout engine on, bottom margin
+13.0 mm, "B" 10.0 mm, ruler helper markers top and bottom at 4.0 + 2.0, Size
+auto, a ten-placeholder custom line with "Stamp layout summary along the
+bottom" on, so two lines, at 200 dpi.
+
+| where the patch area's bottom edge is | mm | what the panel then said |
+|---|---|---|
+| `predicted_patch_bottom_mm` (retired) | **18.60** | nothing: 8.60 mm of room for 8.38 mm of text |
+| `margin_inspector.measure_from_engine` | **15.822** | 5.82 mm of room for 8.38 mm, **2.56 mm short** |
+
+15.822 is the 15.8 he read off the frame. **A flat-top honeycomb's last row
+hangs below the grid box `geometry.compute` returns**, so a prediction built out
+of `compute` and `placement` cannot see it. Measured off his own TIFF at 200
+dpi: the bottom helper markers run 4.06 to 6.22 mm, and from 10.16 mm (the "B"
+anchor) upward the ink is unbroken, so there is no clear paper anywhere between
+the text and the patches.
+
+### The rule as built
+
+1. **All four patch-area checks read "Measured from Preview".** The bottom
+   sheet text against `report.bottom_mm`, the strip letters against
+   `report.top_mm`, the chart notes and the settings stamp against
+   `report.right_mm`, and the clip border's band and its text against
+   `report.right_mm` or `report.left_mm` on whichever edge it sits. Nothing on
+   this panel predicts a patch edge any more. That also closes B8-137, the open
+   item saying the other three edges measured the margin and not the patches.
+2. **With no chart generated, they say nothing.** His sentence *"they are only
+   usable after ... a Generate Chart has been performed"* is taken literally: a
+   prediction is not offered in their place, because the prediction is what was
+   wrong.
+3. **They are recomputed on Generate Chart and on nothing else.** The refresh
+   B8-176 put on every layout keystroke hours earlier is removed again. The red
+   *"What is on screen is not in this run's chart yet. Press “Generate Chart” to
+   apply it."* line is what tells the reader the boxes are ahead of the frame,
+   and he names that behaviour as already correct.
+4. **Nothing is searched for.** `margin_rise_that_clears_mm`,
+   `predicted_patch_bottom_mm`, `_larger_paper_note`, `_bottom_clears_with`,
+   `lowering_b_clears` and `markers_off_clears` are deleted. Every one answered
+   *"how much more margin clears it"*, which this rule cannot ask: the answer is
+   a measurement of a sheet that has not been drawn.
+
+### What the messages say now
+
+Four bottom wordings become two, one line and two lines. Each names what is
+short, names the controls that move it, and ends by asking for a Generate
+Chart:
+
+> ⚠ The two lines of sheet text along the bottom run into the patches. They are
+> printed 10.0 mm up from the paper edge and need 8.4 mm of room, and the patch
+> area in "Measured from Preview" comes down to 15.8 mm, leaving 5.8 mm, so they
+> are 2.6 mm short. Raise "Bottom" under "Margins (mm)", set a smaller Size
+> under "Sheet text", or switch one of the two lines off, then press Generate
+> Chart to measure it again.
+
+No rise is named and nothing is claimed about paper: both were answers to the
+question rule 4 retires, and both had already been measured false once. The
+"B" sentence survives, because it is arithmetic on two numbers the panel holds
+rather than a search: with the markers holding the text above "B", winding "B"
+down moves no ink, and that is worth saying whether or not another control
+finishes the job.
+
+### Driven on screen, all four sides, on his own recipe
+
+Read out of the `channels.json` he attached and pushed into the panel through
+`_set_engine_recipe`, which is the door a preset, a loaded chart and the
+restored session all use. Every number below is off the app's own frame.
+
+| state | measured L / R / T / B | what the frame said |
+|---|---|---|
+| his recipe as attached | 11.1 / 26.0 / 14.4 / **15.8** | the bottom warning above, 2.6 mm short |
+| the bottom box moved 13 → 20, **no Generate** | 11.1 / 26.0 / 14.4 / 15.8 | **word for word the same**, and the red "press Generate Chart" line appears |
+| then Generate, at 20 mm | 11.1 / 26.0 / 16.3 / **24.8** | ⚠ Margins: OK |
+| top margin 5.0, "T" 2.0 | 11.1 / 26.0 / **11.9** / 18.2 | bottom, 0.1 mm short |
+| right margin 4.0 | 11.2 / **23.0** / 11.9 / 13.5 | the settings stamp over the patches, and the bottom, 4.8 mm short |
+| a 12 mm clip band on the left, four lines | **18.7** / 26.1 / 15.1 / 16.7 | the clip text past its band and over the row labels, and the bottom, 1.7 mm short |
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.* The rule is Knut's and is quoted above; the
+wordings and the table are ours, driven on screen and photographed
+(`~/Desktop/ChromIQ-beta18-proof/knut-bottom-text/`), and nobody has yet said
+that what the app now does is what it should do.
+
+### And the engine-off half is reported, not built
+
+With "Use the ChromIQ layout engine instead of printtarg" OFF, the layout
+panel's Sheet text box, its Size, the "B" box, the clip-border controls and the
+ruler-marker boxes are all **hidden**: printtarg lays the sheet out and none of
+that furniture exists. `_engine_text_notes` returns before it does anything
+there, so none of the four checks runs.
+
+**One thing on an engine-off sheet is still text, and it is not covered.**
+`ChartCreator._stamp_tiff_metadata` is called on the printtarg path as well as
+the engine path, so "Run 1 Chart Notes" and "Stamp settings down the right
+edge" really are printed down the right edge of an engine-off chart. Measured
+on screen, CR30 / A4 / 300 dpi, a typed note with the stamp on: the patch
+area's measured right edge is **17.53 mm** and the nearest black ink to the
+right paper edge is at **10.41 mm**, so on that sheet there are 7.1 mm of clear
+paper and nothing is wrong. The check simply does not exist there.
+
+Extending it is a change to a surface his ruling does not name, so it is
+reported rather than made. What would be needed is the right-edge overlap
+asked without the engine gate, using the same measured `report.right_mm`.

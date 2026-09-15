@@ -44,6 +44,7 @@ from ui.tabs.tab_chart import TabChart                    # noqa: E402
 from workflow import text_edge_fit as tef                 # noqa: E402
 from workflow.layout_engine import instruments            # noqa: E402
 from workflow.layout_engine.presets import LayoutRecipe   # noqa: E402
+from tests.margin_reports import report_for               # noqa: E402
 
 
 class _Btn:
@@ -168,7 +169,15 @@ def _hits(*, band, **kw):
 
 
 def _over(r, **kw) -> list[str]:
-    return TabChart._engine_text_notes(_Tab(r, **kw))[1]
+    """Every overlap notice this recipe earns, WITH the sheet's own measurement.
+
+    Knut's ruling of 2026-09-15: the four patch-area checks read "Measured from
+    Preview" and say nothing without it. `report_for` gives the margins the
+    geometry resolves, which is where the patch area lands on a rectangular
+    chart that fills its page, so every case in this file keeps the sheet it
+    was written for.
+    """
+    return TabChart._engine_text_notes(_Tab(r, **kw), report_for(r))[1]
 
 
 def _note_line(r, **kw) -> str:

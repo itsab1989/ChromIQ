@@ -33,10 +33,37 @@ Three facts come out of that table and each one is pinned below.
    compared two numbers neither of which was the distance in question, and
    flipped at 11.5 mm on a sheet that does not change.
 
-**AND THE MEASURED REPORT CANNOT ANSWER IT EITHER.** It describes the chart in
-the preview, not the settings being edited: driven across those same seven
-margins, `report.bottom_mm` was **10.29 mm every single time**, which is why
-Knut read 12.8 mm in "Measured from Preview" while his box said 11.0.
+**AND THEN THE PREDICTION WAS WRONG THE OTHER WAY, AND KNUT RULED IT OUT
+ALTOGETHER.** #182, 2026-09-15:
+
+    "the calculations should use the Measured from Preview numbers in the
+     calculations if text fit. This simplifies very much the calculation and it
+     does not need to calculate across many page sizes or other searches ... It
+     is also a special case for hexagonal patches, or when "Use ChromIQ layout
+     engine..." OFF, that set margins does not always match closely the
+     Measured from Preview margins ... they are only usable after the Measured
+     from Preview margin values have been completed (after a Generate Chart has
+     been performed)."
+
+The case that proves him right is his own chart: CR30 / A4 / area_first /
+**hexagonal** patches / bottom margin 13.0 / "B" 10.0 / markers 4.0 + 2.0 /
+Size auto / a ten-placeholder custom line plus the layout summary, at 200 dpi.
+`predicted_patch_bottom_mm` answered **18.60 mm**, so the panel believed
+8.60 mm of room for 8.38 mm of text and said nothing;
+`margin_inspector.measure_from_engine` answers **15.822 mm**, which is the 15.8
+the frame showed him, and against that the two lines are 2.56 mm short. **A
+FLAT-TOP HONEYCOMB'S LAST ROW HANGS BELOW THE GRID BOX `geometry.compute`
+RETURNS**, so a prediction built out of `compute` and `placement` cannot see
+it. Measured off his own TIFF at 200 dpi: the bottom helper markers run 4.06 to
+6.22 mm, and from 10.16 mm (the "B" anchor) upward the ink is unbroken, so
+there is no clear paper anywhere between the text and the patches.
+
+So the prediction is gone, and with it `margin_rise_that_clears_mm`,
+`_larger_paper_note`, `_bottom_clears_with`, `lowering_b_clears` and
+`markers_off_clears`: every one existed to answer *"how much more margin clears
+it"*, which under this rule nothing asks, because the answer is a measurement
+of a sheet that has not been drawn. The message names what is short, names the
+controls, and asks for a Generate Chart.
 """
 from __future__ import annotations
 
@@ -177,110 +204,86 @@ def test_a_typed_size_above_the_reserve_is_what_can_collide(dpi):
     assert line(28) > room
 
 
-def test_the_panel_predicts_the_patch_bottom_rather_than_measuring_it():
-    """The prediction runs `geometry.compute` and `geometry.placement`, the two
-    functions `render_pages` lays the page out with, so it cannot drift from
-    the sheet. Driven against the app's own TIFFs it agreed to within 0.03 mm
-    on all seven margins.
+def test_the_panel_measures_the_patch_bottom_rather_than_predicting_it():
+    """Knut's ruling, in the code: `report.bottom_mm` and nothing else.
 
-    MUTATION: read `report.bottom_mm` again and this goes red.
+    MUTATION: put `predicted_patch_bottom_mm(r, geom)` back and this goes red,
+    on three separate assertions.
     """
     import inspect
     from ui.tabs import tab_chart as tc
-    src = inspect.getsource(tc.predicted_patch_bottom_mm)
-    assert "geometry.compute" in src and "geometry.placement" in src
     notes = inspect.getsource(tc.TabChart._engine_text_notes)
-    assert "predicted_patch_bottom_mm(r, geom)" in notes
-    assert 'getattr(report, "bottom_mm"' not in notes
+    body = "\n".join(l for l in notes.splitlines()
+                      if not l.strip().startswith("#"))
+    assert "_patch_bottom = _meas_b" in body, (
+        "the bottom check no longer reads the measured report")
+    assert '_edge("bottom_mm")' in body, (
+        "the measured bottom edge is not read off the report")
+    assert "predicted_patch_bottom_mm" not in body, (
+        "the retired prediction is back in the notice builder")
+    for gone in ("predicted_patch_bottom_mm", "margin_rise_that_clears_mm",
+                 "_larger_paper_note", "_bottom_clears_with",
+                 "lowering_b_clears", "markers_off_clears"):
+        assert not hasattr(tc, gone), (
+            f"{gone} is back; it can only answer 'how much more margin clears "
+            f"it', which Knut's ruling of 2026-09-15 does not ask")
     # …and it does not reach through `self`, which the blanket except eats.
     assert "self._predicted_patch_bottom_mm" not in notes
-    assert not hasattr(tc.TabChart, "_predicted_patch_bottom_mm"), (
-        "the method is back, and a fake tab without it loses every warning")
-    # …and it asks the tab for NOTHING, because the answer does not depend on
-    # the patch count (see the next test). A counter called from inside this
-    # blanket `except` is a hazard for no gain.
+    assert not hasattr(tc.TabChart, "_predicted_patch_bottom_mm")
+    # …and it asks the tab for NOTHING, because a counter that can raise inside
+    # this blanket `except` loses every warning on the panel.
     # …scoped to the bottom block: the right-edge stamp a hundred lines up
     # legitimately asks `_estimate_patch_total`, because the seed and the
     # patch count are printed in THAT line.
-    start = notes.index("_patch_bottom = predicted_patch_bottom_mm")
-    block = "\n".join(
-        l for l in notes[start:notes.index("AND THE SAME BLOCK HAS A WIDTH",
-                                           start)].splitlines()
-        if not l.strip().startswith("#"))
+    start = body.index("_patch_bottom = _meas_b")
+    block = body[start:body.index("AND THE SAME BLOCK HAS A WIDTH", start)] \
+        if "AND THE SAME BLOCK HAS A WIDTH" in body[start:] \
+        else body[start:start + 4000]
     assert "_onscreen_patch_total" not in block
     assert "_estimate_patch_total" not in block
 
 
-def test_the_prediction_does_not_depend_on_the_patch_count():
-    """`steps_in_pass` is the page's CAPACITY, so the count cannot move it.
+def test_his_own_chart_is_warned_about_now_and_was_not_before():
+    """THE WHOLE BUG, IN ONE SUBTRACTION, ON THE NUMBERS OFF HIS SHEET.
 
-    This is what made the counter plumbing removable, and if a layout change
-    ever makes the count matter, this is the test that says so: it goes red,
-    and the caller has to decide what to feed it again.
+    The recipe, the anchor and the line box are his: CR30 / A4 / area_first /
+    hexagonal / "B" 10.0 with the markers at 4.0 + 2.0 (so the anchor is "B",
+    10.0 mm), two lines of Size-auto type at 200 dpi (4.191 mm a line, 8.382 mm
+    for the block).
+
+    MUTATION: feed it 18.60, which is what `geometry.compute` and
+    `geometry.placement` answered, and the first assertion goes red.
     """
-    from dataclasses import replace
-    from ui.tabs.tab_chart import predicted_patch_bottom_mm
-    from workflow.layout_engine import instruments
-    from workflow.layout_engine.presets import LayoutRecipe
-    for mode in ("area_first", "patch_first"):
-        r = LayoutRecipe()
-        r.instrument, r.paper, r.dpi = "CM", "A4", 150
-        r.layout_mode, r.use_instrument_margins = mode, False
-        r.margin_top, r.margin_bottom = 10.0, 15.0
-        r.margin_left = r.margin_right = 10.0
-        r.chart_text = "x"
-        g = instruments.geom_from_build_kwargs(r.build_kwargs())
-        answers = {predicted_patch_bottom_mm(r, g, n)
-                   for n in (12, 60, 120, 480, 2000, 100_000)}
-        assert len(answers) == 1, f"{mode}: the count now moves it, {answers}"
-        assert predicted_patch_bottom_mm(r, g) in answers
+    assert tef.bottom_text_block_overlap(18.601, 10.0, 2, 4.191) is None, (
+        "the retired prediction is what made this sheet quiet")
+    over = tef.bottom_text_block_overlap(15.822, 10.0, 2, 4.191)
+    assert over is not None, (
+        "the measured patch bottom must warn: 8.38 mm of text into 5.82 mm")
+    assert over.available_mm == pytest.approx(5.822, abs=0.01)
+    assert over.needed_mm == pytest.approx(8.382, abs=0.01)
+    assert over.overlap_mm == pytest.approx(2.560, abs=0.01)
 
 
-@pytest.mark.parametrize("mode", ("area_first", "patch_first"))
-def test_the_prediction_matches_the_renderer_on_a_real_layout(mode, tmp_path):
-    """A REAL SHEET, not the same formula written out twice.
+def test_the_measured_bottom_on_his_own_chart_is_the_number_he_quoted():
+    """`measure_from_engine` off his `channels.json` answers 15.8, not 18.6.
 
-    The first version of this test recomputed the placement longhand and
-    compared the two copies, which catches a typo and nothing else: if the
-    model is wrong, both copies are wrong together. This builds the chart and
-    reads the patch rectangles the renderer recorded.
+    His chart is in the repository's own fixtures so this is not a claim about
+    a file on somebody's Desktop. If the fixture is absent the test skips
+    rather than passing on nothing.
 
-    THE BOUND IS ASYMMETRIC ON PURPOSE. Predicting the patches DEEPER than
-    they are can only warn early; predicting them higher can hide a collision.
-    Measured across three papers and three bottom margins: patch-first agrees
-    to 0.06 mm, area_first runs from 1.42 mm deep to 0.13 mm high, because the
-    prediction is of a FULL page and a 480-patch chart does not fill every row
-    of one.
+    MUTATION: read the grid box instead of the recorded patch rectangles and
+    the answer moves back up to 18.6.
     """
-    from dataclasses import replace
-    from ui.tabs.tab_chart import predicted_patch_bottom_mm
-    from workflow.layout_engine import instruments, papers
-    from workflow.layout_engine.chart import build_from_recipe
-    from workflow.layout_engine.presets import LayoutRecipe
-    ti1 = Path(__file__).resolve().parents[1] / "tests/fixtures/charts/cm_a4_480p_2pages.ti1"
-    r = LayoutRecipe()
-    r.instrument, r.paper, r.dpi = "CM", "A4", 150
-    r.layout_mode, r.use_instrument_margins = mode, False
-    r.margin_top, r.margin_bottom = 10.0, 15.0
-    r.margin_left = r.margin_right = 10.0
-    r.chart_text = "x"
-    res, _used = build_from_recipe(
-        str(ti1), str(tmp_path / "s"),
-        replace(r, randomize=True, seed_fixed=True, seed=123456789))
-    rects = [q for q in (res.strip_rects or []) if int(q.get("page", 0)) == 0]
-    assert rects, "the build recorded no patch rectangles"
-    _w, h = papers.dimensions_mm(r.paper)
-    drawn = h - max(int(q["y"]) + int(q["h"]) for q in rects) * 25.4 / r.dpi
-    geom = instruments.geom_from_build_kwargs(r.build_kwargs())
-    pred = predicted_patch_bottom_mm(r, geom)
-    assert pred is not None
-    assert pred - drawn <= 0.2, (
-        f"{mode}: the prediction puts the patches {pred - drawn:.2f} mm higher "
-        f"than the sheet draws them, which is the direction that hides a "
-        f"collision")
-    assert drawn - pred <= 1.5, (
-        f"{mode}: the prediction is {drawn - pred:.2f} mm deeper than the "
-        f"sheet, which warns early")
+    from workflow.margin_inspector import measure_from_engine
+    ch = (Path(__file__).resolve().parents[1]
+          / "tests/fixtures/charts/knut_cr30_a4_hex_bottom_text.channels.json")
+    if not ch.is_file():
+        pytest.skip("Knut's hexagonal chart fixture is not in the tree")
+    eng = measure_from_engine(ch, 0)
+    assert eng is not None, "the fixture is not readable as an engine chart"
+    report, _ruler = eng
+    assert report.bottom_mm == pytest.approx(15.822, abs=0.01), (
+        f"the measured bottom moved: {report.bottom_mm}")
 
 
 def test_the_notes_survive_a_tab_that_cannot_count_its_patches():
@@ -334,316 +337,9 @@ def test_the_notes_survive_a_tab_that_cannot_count_its_patches():
 
     r = replace(_roomy(), margin_top=6.0, margin_bottom=5.0, margin_right=5.0,
                 chart_text="Hahnemuehle Photo Rag")
-    _warns, over = TabChart._engine_text_notes(_BareTab(r))
+    from tests.margin_reports import report_for
+    _warns, over = TabChart._engine_text_notes(_BareTab(r), report_for(r))
     assert over, (
         "a tab that cannot count its patches lost every notice on the panel, "
         "which is what one blanket except does with one AttributeError")
     assert any("chart notes down the right edge" in w for w in over), over
-
-
-def _collision_recipe(margin_bottom: float = 11.0):
-    """HIS OWN SHEET, from the preset he was testing.
-
-    A hand-built Letter recipe will not do: on a plain area_first layout the
-    patch bottom moves one for one with the margin, so the naive remedy works
-    there and the test would prove nothing. The CR30 Letter 792-patch straight
-    preset is where it does not (7.5 / 9 / 11 / 12 / 13 mm of margin put the
-    patch bottom at 13.87 / 14.62 / 15.62 / 16.12 / 16.62), and it is the sheet
-    Knut reported.
-    """
-    from dataclasses import replace
-    from ui.tabs.tab_chart import KNUT_PRESETS
-    from workflow.layout_engine.presets import LayoutRecipe
-    preset = next(p for p in KNUT_PRESETS if p.slug ==
-                  "cr30_letter_792p_2pages_portrait_w11_0mm_hexagonal_straight")
-    return replace(LayoutRecipe.from_dict(preset.layout_recipe),
-                   margin_bottom=float(margin_bottom), chart_text="x",
-                   chart_text_size_mm=0.0)
-
-
-def _overlap_at(r, rise: float, npat: int, reserve: float, lines: int,
-                line_mm: float):
-    """The overlap on the sheet that `margin_bottom + rise` really produces."""
-    from dataclasses import replace
-    from workflow.layout_engine import instruments
-    from ui.tabs.tab_chart import predicted_patch_bottom_mm
-    cand = replace(r, margin_bottom=float(r.margin_bottom) + float(rise))
-    geom = instruments.geom_from_build_kwargs(cand.build_kwargs())
-    bottom = predicted_patch_bottom_mm(cand, geom, npat)
-    assert bottom is not None
-    return tef.bottom_text_block_overlap(float(bottom), reserve, lines, line_mm)
-
-
-def test_the_rise_the_message_names_really_clears_the_patches():
-    """THE REMEDY IS A PROMISE, AND THE OBVIOUS NUMBER BREAKS IT.
-
-    Raising the bottom margin by the size of the overlap does NOT clear the
-    overlap, because the patch grid is re-fitted as the margin moves and the
-    patch area's bottom edge travels roughly half a millimetre per millimetre
-    asked for. Driven on screen on Knut's own preset at 28 pt and 48 pt: the
-    message said 3.4 mm and 12.0 mm, both were typed into the box, and the
-    warning was still there afterwards.
-
-    MUTATION: hand `short=_o.overlap_mm` back to the message and the first
-    half of this test is what goes red.
-    """
-    from ui.tabs.tab_chart import margin_rise_that_clears_mm
-    reserve, lines, line_mm, npat = 7.0, 1, 12.1, 792
-    r = _collision_recipe()
-    now = _overlap_at(r, 0.0, npat, reserve, lines, line_mm)
-    assert now is not None, "this recipe is meant to be in the warning state"
-    # the number the message used to name, applied
-    assert _overlap_at(r, now.overlap_mm, npat, reserve, lines,
-                       line_mm) is not None, (
-        "the overlap is no longer too small a rise, so this test proves "
-        "nothing; re-measure before deleting it")
-    # …and the one it names now
-    rise = margin_rise_that_clears_mm(r, npat, reserve, lines, line_mm)
-    assert rise is not None and rise > now.overlap_mm
-    assert _overlap_at(r, rise, npat, reserve, lines, line_mm) is None
-    # …and it is the number the SENTENCE carries, not one only a test can see.
-    # The other three edges still name the overlap itself, so the region read
-    # here is the bottom block alone.
-    import inspect
-    from ui.tabs import tab_chart as tc
-    notes = inspect.getsource(tc.TabChart._engine_text_notes)
-    # …from where the rise is worked out, not from the sentence: the call
-    # moved above the message when the "no margin the box holds" case needed
-    # its answer before the string was built.
-    start = notes.index("_patch_bottom = predicted_patch_bottom_mm")
-    block = notes[start:notes.index("AND THE SAME BLOCK HAS A WIDTH", start)]
-    assert "margin_rise_that_clears_mm(" in block
-    assert "short=_o.overlap_mm" not in block
-
-
-def test_the_rise_is_a_number_the_spin_box_can_reach():
-    """WHAT THE ADVICE PROMISES NOW, and each clause was paid for.
-
-    * it CLEARS, always, because every candidate is tested before it is named;
-    * it lands on the 0.5 mm grid the "Margins (mm)" boxes step in, so a reader
-      can click to it instead of typing it to the tenth;
-    * its two grid neighbours above clear too, because the predicate is not
-      monotone and a number that only works exactly is not advice;
-    * and on a smooth layout it stays within one grid step of the overlap, so
-      the answer is the small one, not a safe round-up.
-
-    MUTATION: name the raw bisection answer off the grid and the second
-    assertion goes red.
-    """
-    from ui.tabs.tab_chart import margin_rise_that_clears_mm
-    reserve, lines, line_mm, npat = 7.0, 1, 12.1, 792
-    r = _collision_recipe()
-    now = _overlap_at(r, 0.0, npat, reserve, lines, line_mm)
-    assert now is not None, "this recipe is meant to be in the warning state"
-    rise = margin_rise_that_clears_mm(r, npat, reserve, lines, line_mm,
-                                      hint_mm=now.overlap_mm)
-    assert rise is not None
-    assert _overlap_at(r, rise, npat, reserve, lines, line_mm) is None
-    assert abs(rise / 0.5 - round(rise / 0.5)) < 1e-9, (
-        f"{rise} mm is not on the 0.5 mm grid the margin box steps in")
-    for step in (0.5, 1.0):
-        assert _overlap_at(r, round(rise + step, 1), npat, reserve, lines,
-                           line_mm) is None
-    # …within a click of the overlap, not exactly one: the overlap itself is
-    # rarely on the grid (3.48 mm here), and the grid point above it does not
-    # always clear, so the honest bound is the next one after that.
-    assert rise <= now.overlap_mm + 1.0 + 1e-9, (
-        f"the overlap is {now.overlap_mm:.2f} mm and the advice is {rise} mm, "
-        f"which is more than a click of round-up on a layout with no hole")
-
-
-def test_nothing_is_promised_when_no_margin_can_clear_it():
-    """A block taller than the page cannot be cleared by any margin, and the
-    search says so rather than naming a number that does nothing.
-
-    MUTATION: return `cap_mm` instead of None and this goes red.
-    """
-    from ui.tabs.tab_chart import margin_rise_that_clears_mm
-    r = _collision_recipe()
-    assert margin_rise_that_clears_mm(r, 792, 7.0, 1, 400.0) is None
-
-
-def test_the_search_rebuilds_the_layout_for_every_candidate():
-    """IT CANNOT REPLACE `margin_b` ON A GEOMETRY BUILT ONCE.
-
-    In area_first the patch length is fitted to the margins, so a geometry
-    built at one margin carries the wrong `plen` for another: measured, 8.49 mm
-    against 8.68 mm on a single 5 mm move, and the shortcut answered a 9.8 mm
-    rise where a rebuild answers 15.0. The proof is that the two disagree:
-    """
-    from dataclasses import replace
-    from workflow.layout_engine import instruments
-    from workflow.layout_engine.presets import LayoutRecipe
-    # A PLAIN area_first sheet, not his preset: his pins the patch size, so it
-    # is the one layout where the shortcut would have been harmless.
-    r = LayoutRecipe()
-    r.instrument, r.paper = "i1", "Letter"
-    r.layout_mode, r.use_instrument_margins = "area_first", False
-    r.margin_top = 10.0
-    r.margin_bottom = 11.0
-    r.margin_left = r.margin_right = 10.0
-    r.chart_text = "x"
-    once = instruments.geom_from_build_kwargs(r.build_kwargs())
-    rebuilt = instruments.geom_from_build_kwargs(
-        replace(r, margin_bottom=r.margin_bottom + 5.0).build_kwargs())
-    patched = replace(once, margin_b=rebuilt.margin_b)
-    assert rebuilt.margin_b == patched.margin_b
-    assert rebuilt.plen != patched.plen, (
-        "the shortcut is safe after all; re-measure before using it")
-    import inspect
-    from ui.tabs import tab_chart as tc
-    src = inspect.getsource(tc.margin_rise_that_clears_mm)
-    assert "geom_from_build_kwargs" in src
-
-
-def _plain_recipe(paper="Letter", mode="area_first", margin_bottom=20.0):
-    """A plain i1 sheet. NOT the CR30 preset: that one pins its patch size, and
-    the non-monotone behaviour below cannot happen while it does."""
-    from workflow.layout_engine.presets import LayoutRecipe
-    r = LayoutRecipe()
-    r.instrument, r.paper = "i1", paper
-    r.layout_mode, r.use_instrument_margins = mode, False
-    r.margin_top, r.margin_bottom = 10.0, float(margin_bottom)
-    r.margin_left = r.margin_right = 10.0
-    r.chart_text = "x"
-    return r
-
-
-def _clears(r, rise, reserve, lines, line_mm):
-    from dataclasses import replace
-    from ui.tabs.tab_chart import predicted_patch_bottom_mm
-    from workflow.layout_engine import instruments
-    cand = replace(r, margin_bottom=float(r.margin_bottom) + float(rise))
-    geom = instruments.geom_from_build_kwargs(cand.build_kwargs())
-    bottom = predicted_patch_bottom_mm(cand, geom)
-    return bottom is not None and tef.bottom_text_block_overlap(
-        float(bottom), reserve, lines, line_mm) is None
-
-
-def test_the_rise_survives_a_click_past_it():
-    """THE PREDICATE IS NOT MONOTONE, SO THE SMALLEST ANSWER IS A KNIFE EDGE.
-
-    Brute-forced on a 0.1 mm grid, an adversary round found six states where
-    the margin clears, stops clearing and clears again as it rises, because a
-    whole row of patches drops out and comes back. On one of them the smallest
-    clearing rise was 17.4 mm while 17.5 and 17.6 brought the warning back, and
-    **the margin spin box steps in 0.5 mm**, so the nearest arrow-click to the
-    advice failed. A number that only works if typed to the tenth is not advice.
-
-    Reproduced here on a plain i1 Letter sheet, two lines of 12 mm type over a
-    20 mm bottom margin: 9.7 mm clears, **9.8 does not**, and the message must
-    not name 9.7.
-
-    **AND THIS TEST PINS THE PROPERTY, NOT THE WALK, WHICH IS THE HONEST
-    STATE.** Removing the neighbourhood walk does NOT turn this red: across
-    about 240 states measured here the bisection's own answer already survived
-    its neighbours, and the one case the adversary round reported (17.4 mm
-    clearing, 17.5 and 17.6 not) could not be reproduced. What is pinned is
-    that the hole exists and that whatever the code names has to clear at both
-    spin-box steps above it; if a future change starts naming the smallest
-    answer in a hole, that is what goes red.
-    """
-    from ui.tabs.tab_chart import margin_rise_that_clears_mm
-    r = _plain_recipe()
-    reserve, lines, line_mm = 7.0, 2, 12.0
-    assert not _clears(r, 0.0, reserve, lines, line_mm), (
-        "this recipe is meant to be in the warning state")
-    # the hole is real, and it is what makes the smallest answer wrong
-    assert _clears(r, 9.7, reserve, lines, line_mm)
-    assert not _clears(r, 9.8, reserve, lines, line_mm), (
-        "the layout no longer has a hole here, so this test proves nothing; "
-        "re-measure before deleting it")
-    rise = margin_rise_that_clears_mm(r, None, reserve, lines, line_mm)
-    assert rise is not None and rise > 9.7
-    for step in (0.0, 0.5, 1.0):
-        assert _clears(r, round(rise + step, 1), reserve, lines, line_mm), (
-            f"the advice is {rise} mm and +{step} brings the warning back, "
-            f"which is one click of the spin box")
-
-
-def test_the_rise_still_clears_on_his_own_preset():
-    """The same promise on the sheet Knut reported, where the layout is smooth.
-
-    Swept: no state in this range has a hole at all, so the walk returns the
-    bisection's own answer and the advice is the smallest that works.
-    """
-    from ui.tabs.tab_chart import margin_rise_that_clears_mm
-    for reserve, lines, line_mm in ((7.0, 1, 12.1), (7.0, 2, 12.1),
-                                    (4.0, 1, 20.6)):
-        for mb in (8.0, 11.0, 14.0):
-            r = _collision_recipe(mb)
-            if _overlap_at(r, 0.0, 792, reserve, lines, line_mm) is None:
-                continue
-            rise = margin_rise_that_clears_mm(r, None, reserve, lines, line_mm)
-            if rise is None:
-                continue
-            for step in (0.0, 0.5, 1.0):
-                assert _overlap_at(r, round(rise + step, 1), 792, reserve,
-                                   lines, line_mm) is None, (
-                    f"margin {mb}, {lines} line(s) of {line_mm} mm: +{step} "
-                    f"after the advised {rise} mm brings the warning back")
-
-
-def test_the_hint_is_a_ceiling_and_never_the_answer():
-    """**TAKING THE OVERLAP FOR THE ANSWER MADE THE ADVICE FOUR TIMES TOO BIG.**
-
-    `margin_rise_that_clears_mm` is handed the overlap as *hint_mm* and starts
-    its walk there, which is a large saving and was measured to be right in
-    most states. But the walk only ever goes UP, so on any sheet whose true
-    answer lies BELOW the overlap the bisection was never reached at all.
-
-    Measured over 380 overlapping states, 77 answered larger than the
-    un-hinted bisection. The worst is pinned here: a plain i1 Letter sheet in
-    patch-first, 18 mm bottom margin, two lines of 28 pt type. A 2.5 mm rise
-    drops one whole strip off the page and takes the patch bottom from 21.4 mm
-    to 32.4 mm, which clears it; the overlap is 9.02 mm, and the hint path
-    answered **9.5 mm** -- seven millimetres of bottom margin given away for
-    nothing, on a chart that is already two pages.
-
-    The cure is one probe: the grid point below the hint's answer. If it does
-    not clear, the hint's answer is the smallest; if it does, the hint was
-    loose and becomes the bracket the bisection runs inside.
-
-    MUTATION: return `_hint` without probing `_below` and this goes red.
-    """
-    from ui.tabs.tab_chart import margin_rise_that_clears_mm
-    from workflow.layout_engine import raster
-    from workflow.layout_engine.presets import LayoutRecipe
-    r = LayoutRecipe()
-    r.instrument, r.paper = "i1", "Letter"
-    r.layout_mode, r.use_instrument_margins = "patch_first", False
-    r.margin_top = r.margin_left = r.margin_right = 10.0
-    r.margin_bottom = 18.0
-    r.chart_text, r.stamp_command = "test-chart", True
-    r.chart_text_size_mm = 28.0 * 25.4 / 72.0
-    reserve, lines = 4.0, 2
-    line_mm = raster.sheet_text_line_mm(r.chart_text_size_mm, "", False, False,
-                                        r.dpi)
-    over = _overlap_at(r, 0.0, None, reserve, lines, line_mm)
-    assert over is not None, "this recipe is meant to be in the warning state"
-    # the premise: the answer really is below the overlap on this sheet
-    assert _clears(r, 2.5, reserve, lines, line_mm)
-    assert not _clears(r, 2.0, reserve, lines, line_mm), (
-        "the strip no longer drops out at 2.5 mm here, so this test proves "
-        "nothing; re-measure before changing it")
-    assert over.overlap_mm > 3.0, (
-        f"the overlap is only {over.overlap_mm:.2f} mm, so the hint no longer "
-        f"sits above the answer and this test proves nothing")
-    # …and the hint must not push the advice past it
-    hinted = margin_rise_that_clears_mm(r, None, reserve, lines, line_mm,
-                                        hint_mm=over.overlap_mm)
-    plain = margin_rise_that_clears_mm(r, None, reserve, lines, line_mm)
-    assert plain == 2.5, f"the un-hinted search moved: {plain}"
-    assert hinted == plain, (
-        f"the overlap hint answered {hinted} mm where the search itself "
-        f"answers {plain} mm; the hint is a ceiling, not an answer")
-    # …and the caller really does hand it the overlap, so this path is live
-    import inspect
-    from ui.tabs import tab_chart as tc
-    notes = inspect.getsource(tc.TabChart._engine_text_notes)
-    # …from where the rise is worked out, not from the sentence: the call
-    # moved above the message when the "no margin the box holds" case needed
-    # its answer before the string was built.
-    start = notes.index("_patch_bottom = predicted_patch_bottom_mm")
-    block = notes[start:notes.index("AND THE SAME BLOCK HAS A WIDTH", start)]
-    assert "hint_mm=" in block

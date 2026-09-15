@@ -5132,12 +5132,12 @@ only a triple that DIFFERS from the rule's answer would stop it.
   fitter wrapped during a real build), K1 on both bands with every lever
   exercised, all six straight presets built for real, and the scanner-margin
   fix.
-- evidence: test_an_imported_image_s_caption_is_checked_too,
+- evidence:
+  test_the_two_controls_leave_the_measured_frame_alone, test_an_imported_image_s_caption_is_checked_too,
   test_the_branding_mode_is_left_alone_on_purpose,
   test_an_empty_notes_box_is_never_blamed,
   test_a_typed_note_still_gets_the_per_lever_wording,
   test_the_stamp_is_on_by_default_and_no_recipe_can_clear_it,
-  test_the_two_controls_the_warnings_are_about_refresh_the_panel,
   test_it_does_nothing_at_all_when_there_is_no_chart_to_measure,
   test_every_message_that_prints_the_floor_appends_the_sentence,
   test_the_stamp_settings_tick_box_is_enough_on_its_own.
@@ -6252,10 +6252,11 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   warning should not happen. Measurements are obviously calculated wrong.
   Bottom margin in Measured from Preview shows 12.8mm."*
 - evidence:
+  test_the_panel_measures_the_patch_bottom_rather_than_predicting_it,
+  test_his_own_chart_is_warned_about_now_and_was_not_before,
+  test_the_measured_bottom_on_his_own_chart_is_the_number_he_quoted,
   test_his_case_is_quiet_and_a_real_collision_is_not,
   test_the_old_question_gave_the_wrong_answer_on_his_sheet,
-  test_the_prediction_matches_the_renderer_on_a_real_layout,
-  test_the_panel_predicts_the_patch_bottom_rather_than_measuring_it,
   test_the_notes_survive_a_tab_that_cannot_count_its_patches,
   test_auto_shrinks_on_the_height_as_well_as_the_width.
   Driven on screen with scripts/drive_182_knut_bottom_text_height.py: 6 of 6
@@ -6327,7 +6328,32 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 
 ### B8-137 · The other three edges name a remedy of the same wrong size
 - blocks release: no
-- status: OPEN
+- status: FIXED
+- evidence:
+  test_all_four_sides_can_be_wrong_at_once,
+  test_the_panel_measures_the_patch_bottom_rather_than_predicting_it,
+  test_the_strip_letters_are_judged_with_the_markers_the_engine_draws,
+  test_the_right_edge_warns_when_the_notes_run_over_the_patches,
+  test_a_left_band_that_reaches_the_labels_says_so,
+  test_it_still_warns_when_the_text_really_does_reach_the_patches,
+  test_the_bottom_check_is_silent_before_a_chart_is_generated.
+  The stand-in tabs in every one of those files are handed a real
+  `MarginReport` now (`tests/margin_reports.py`), so a check that goes back to
+  reading `geom.margin_*` stops being exercised at all and the file goes red.
+- CLOSED 2026-09-15 BY KNUT'S RULING, see B8-179. Both halves of this item are
+  answered, and by the same change rather than by three separate predictions:
+
+  **The room they measure is the patch area now, on all four sides.** The
+  bottom reads `report.bottom_mm`, the top `report.top_mm`, the right
+  `report.right_mm` for the notes and for the clip band, and the left
+  `report.left_mm` for the clip band and its text. Nothing on this panel
+  predicts a patch edge any more.
+
+  **And no message names a remedy of any size.** The second half of this item
+  asked for `margin_rise_that_clears_mm` on the other three edges; instead the
+  bottom's own copy was deleted. Under the ruling the panel does not answer
+  "how much more margin clears it" at all: it names what is short, names the
+  controls, and asks for a Generate Chart.
 - found by: this session, 2026-09-14, while fixing B8-135. Raised rather than
   changed: it is pre-existing, it is smaller than the bottom case, and the
   wording it would need has to go through twelve catalogues.
@@ -6419,7 +6445,8 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 
 ### B8-141 · The "lower B" offer promised room it could not buy
 - blocks release: no
-- status: FIXED
+- status: SUPERSEDED
+- superseded by: B8-179
 - found by: the second adversary round, 2026-09-14, on the sentence the FIRST
   round had just caused to be written. Then a second case found here while
   checking that fix.
@@ -6475,7 +6502,8 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 
 ### B8-143 · The rise the message names was a knife edge
 - blocks release: no
-- status: FIXED
+- status: SUPERSEDED
+- superseded by: B8-179
 - found by: the second adversary round, 2026-09-14, brute-forcing the predicate
   on a 0.1 mm grid across 80 overlapping states.
 - evidence: test_the_rise_survives_a_click_past_it.
@@ -6518,7 +6546,8 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 
 ### B8-145 · The remedy search made the panel sluggish while the warning was up
 - blocks release: yes
-- status: FIXED
+- status: SUPERSEDED
+- superseded by: B8-179
 - found by: the second adversary round, in a correction it sent after its own
   report: its first latency probe called the panel fifteen times on an
   UNCHANGED recipe and measured a warm cache. Re-measured by stepping the real
@@ -6556,7 +6585,8 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 
 ### B8-146 · The markers sentence named a route nothing had tried
 - blocks release: no
-- status: FIXED
+- status: SUPERSEDED
+- superseded by: B8-179
 - found by: the third adversary round, 2026-09-14.
 - evidence: scripts/adv17c_the_route_gate_one_names.py, driven on screen on
   Knut's CR30 Letter preset, with the photographs
@@ -6583,7 +6613,8 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 
 ### B8-147 · The overlap hint made the advice nearly four times too big
 - blocks release: no
-- status: FIXED
+- status: SUPERSEDED
+- superseded by: B8-179
 - found by: the third adversary round, 2026-09-14, attacking B8-145's own fix.
 - evidence: test_the_hint_is_a_ceiling_and_never_the_answer; a 380-state sweep
   comparing the hinted answer against the same function called with `hint_mm=0`.
@@ -6630,7 +6661,8 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 
 ### B8-149 · The advised rise could exceed what the margin box will hold
 - blocks release: no
-- status: FIXED
+- status: SUPERSEDED
+- superseded by: B8-179
 - found by: the third adversary round, 2026-09-14, and fixed here rather than
   left open, because a number nobody can type is the same false promise as a
   number that does not work.
@@ -6651,7 +6683,8 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 
 ### B8-150 · "Or print the chart on a larger paper" was false
 - blocks release: yes
-- status: FIXED
+- status: SUPERSEDED
+- superseded by: B8-179
 - found by: the fourth adversary round, 2026-09-14, on a sentence added here an
   hour earlier for B8-149.
 - evidence: test_the_ceiling_sentence_is_really_printed_on_the_panel (now on
@@ -6674,7 +6707,8 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 
 ### B8-151 · "Raise “Bottom” under “Margins (mm)” by about 0.0 mm"
 - blocks release: yes
-- status: FIXED
+- status: SUPERSEDED
+- superseded by: B8-179
 - found by: the fourth adversary round, 2026-09-14. Verbatim from the window,
   and reachable by doing what the app itself had just said: at a 55 mm margin
   it asks for 5.0 mm, you type it, and at 60 it asks for 0.0.
@@ -6728,7 +6762,8 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 
 ### B8-153 · Two geometry rebuilds per keystroke, at most one of them read
 - blocks release: no
-- status: FIXED
+- status: SUPERSEDED
+- superseded by: B8-179
 - found by: the fourth adversary round, 2026-09-14, on screen.
 - evidence: test_a_gate_is_only_asked_where_its_answer_is_read,
   test_the_call_site_hands_the_gates_over_unrun (both mutations proved red);
@@ -6775,7 +6810,8 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 
 ### B8-156 · "A larger paper does not help" was false on a third of the sheets that said it
 - blocks release: yes
-- status: FIXED
+- status: SUPERSEDED
+- superseded by: B8-179
 - found by: the fifth adversary round, 2026-09-14, on a sentence written here
   two hours earlier to replace a DIFFERENT false claim about paper (B8-150).
 - evidence: test_a_larger_paper_is_asked_of_the_sheet_before_it_is_denied;
@@ -6806,7 +6842,8 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 
 ### B8-157 · The rise was measured on a sheet the reader has to leave
 - blocks release: no
-- status: FIXED
+- status: SUPERSEDED
+- superseded by: B8-179
 - residue: one state is not fixable from a recipe and is named in the detail
 - found by: the fifth adversary round, 2026-09-14.
 - evidence: test_the_rise_is_measured_on_the_sheet_the_reader_can_type_in;
@@ -6868,7 +6905,8 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 
 ### B8-160 · The larger-paper loop filtered by area, and the collision is decided by height
 - blocks release: yes
-- status: FIXED
+- status: SUPERSEDED
+- superseded by: B8-179
 - found by: the sixth adversary round, 2026-09-14, on the fix the FIFTH round
   wrote two hours earlier for B8-156.
 - evidence: test_a_larger_paper_is_asked_about_by_size_not_by_area;
@@ -6946,8 +6984,7 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 - evidence:
   test_no_raw_marker_read_survives_anywhere_in_the_panel (the source rule now
   covers both overlay branches, and the mutation that defeated the old guard
-  was proved red here),
-  test_the_gates_answer_with_the_markers_the_engine_draws.
+  was proved red here),.
   **Stated honestly: the overlay itself has no unit test.** The function needs a
   live panel and a .ti2 on disk, so what guards it is the source rule plus the
   on-screen driver below, which counts dashes on the overlay and on the sheet
@@ -6974,7 +7011,7 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 - status: FIXED
 - found by: the seventh adversary round, 2026-09-14, attacking round 6's tests
   rather than round 6's code.
-- evidence: test_the_gates_answer_with_the_markers_the_engine_draws (a
+- evidence: (a
   behavioural guard) and the rewritten
   test_no_raw_marker_read_survives_anywhere_in_the_panel; both mutations proved
   red, including the exact spelling that defeated the old guard.
@@ -7147,7 +7184,8 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 
 ### B8-171 · "No bottom margin will clear it", and 36.5 mm clears it
 - blocks release: no
-- status: FIXED
+- status: SUPERSEDED
+- superseded by: B8-179
 - found by: the tenth adversary round, 2026-09-15, sweeping the warning states
   round 9 had not reached. **Introduced by this change set**: neither
   `margin_rise_that_clears_mm` nor the two "no bottom margin" wordings exist in
@@ -7346,7 +7384,8 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 
 ### B8-176 · Move a margin box and the warning under it does not move (INHERITED)
 - blocks release: no
-- status: FIXED
+- status: SUPERSEDED
+- superseded by: B8-179
 - found by: adversary round 23 (2026-09-15), on screen in the real window,
   `scripts/adv23e_the_notice_after_every_gesture.py`; cost measured before the
   fix by `scripts/adv23f_what_a_panel_refresh_costs.py`
@@ -7451,3 +7490,179 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   and the next run's sweep reports *"removed this run's temp files (1.94 GB)"*.
   Bounded at one run instead of unbounded. Freed on his disk: **61 GB**, from
   562 to 623 GB.
+
+### B8-179 · The bottom text crashed into a hexagon row and the panel said nothing
+- blocks release: no
+- status: FIXED
+- found by: Knut, 2026-09-15, testing v4.3.0-beta.17 (#182, comment
+  5679470670), with his chart, his log and his rendered sheet attached:
+  *"Attached image shows bottom text crashes into bottom margins without
+  message ... Bottom margin is 13,0mmm but measured bottom in Measured from
+  Preview is 15.8."*
+- evidence:
+  test_the_panel_measures_the_patch_bottom_rather_than_predicting_it,
+  test_his_own_chart_is_warned_about_now_and_was_not_before,
+  test_the_measured_bottom_on_his_own_chart_is_the_number_he_quoted,
+  test_the_bottom_message_quotes_the_measured_patch_edge,
+  test_the_bottom_check_is_silent_before_a_chart_is_generated,
+  test_no_bottom_message_names_a_rise_or_a_paper_any_more,
+  test_a_layout_change_does_not_remeasure_the_frame,
+  test_the_notes_box_and_the_stamp_tick_leave_it_alone_too,
+  test_the_red_press_generate_sentence_is_what_moves_instead,
+  test_no_hook_on_a_keystroke_calls_the_margin_inspector.
+  His own `channels.json` is in the tree as
+  `tests/fixtures/charts/knut_cr30_a4_hex_bottom_text.channels.json`, so the
+  15.822 mm is read from his chart and not quoted from a report.
+- detail: WHAT A USER SEES. CR30, A4, area-first, **hexagonal** patches, layout
+  engine on, bottom margin 13.0 mm, "B" 10.0 mm, ruler helper markers top and
+  bottom at 4.0 + 2.0, Size auto, a ten-placeholder custom line with "Stamp
+  layout summary along the bottom" on, so two lines, 200 dpi. The first line
+  is printed straight through the lower apexes of the last hexagon row, and
+  the "Measured from Preview" frame says nothing at all.
+
+  **THE WHOLE FAULT IS ONE SUBTRACTION.** `predicted_patch_bottom_mm` ran
+  `geometry.compute` and `geometry.placement` and answered **18.60 mm**, so the
+  panel believed 8.60 mm of room for 8.38 mm of text.
+  `margin_inspector.measure_from_engine` answers **15.822 mm**, which is the
+  15.8 Knut read off the frame, and against that the block is 2.56 mm short.
+  A flat-top honeycomb's last row hangs below the grid box `compute` returns,
+  so a prediction built out of those two functions cannot see it. Measured off
+  his own TIFF at 200 dpi: the bottom markers run 4.06 to 6.22 mm, and from
+  10.16 mm (the "B" anchor) upward the ink is unbroken, so there is no clear
+  paper anywhere between the text and the patches.
+- Knut's ruling, which is what was built rather than a patch to the
+  prediction: *"the calculations should use the Measured from Preview numbers
+  in the calculations if text fit. This simplifies very much the calculation
+  and it does not need to calculate across many page sizes or other searches,
+  and does not need to do this every time a setting is changed ... Measured
+  from Preview margin values are reliably calculated for all instrument types,
+  all patch types and for all dpi and page sizes) and thus most reliable to use
+  in the calculations of space in margins, and if text falls on the patch area
+  edges or not (on all sides). However, they are only usable after the Measured
+  from Preview margin values have been completed (after a Generate Chart has
+  been performed)."*
+- fix, in three parts:
+
+  **1. ALL FOUR SIDES READ THE REPORT.** `_engine_text_notes` binds
+  `_meas_l / _meas_r / _meas_t / _meas_b` off the frame's own report and every
+  patch-area check measures from them: the bottom sheet text, the strip letters
+  across the top, the chart notes and settings stamp down the right, and the
+  clip border's band and its text on whichever edge it sits. The top and right
+  already preferred the report; the bottom and the two clip checks read
+  `geometry`'s margins, which is B8-137, now closed by this.
+
+  **2. IT IS RECOMPUTED ON GENERATE, NOT ON A KEYSTROKE.** B8-176 put
+  `_update_margin_inspector()` into `_refresh_manual_command_preview` hours
+  earlier, and it comes out again: a frame headed "Measured from Preview"
+  cannot repaint for a sheet nobody has drawn. The red "press Generate Chart"
+  sentence `_refresh_unapplied_warning` paints is what says the boxes are ahead
+  of the frame, and Knut names that behaviour as already correct.
+
+  **3. NOTHING IS SEARCHED FOR ANY MORE.** `margin_rise_that_clears_mm`,
+  `predicted_patch_bottom_mm`, `_larger_paper_note`, `_bottom_clears_with`,
+  `lowering_b_clears` and `markers_off_clears` are deleted, with
+  `_MARGIN_STEP_MM`, `_MARGIN_WALK_STEPS`, `_MIN_TEXT_EDGE_MM` and
+  `_MARGIN_BOX_MAX_MM`. All six answered *"how much more margin clears it"*,
+  which this rule cannot ask. Fourteen register entries are marked SUPERSEDED
+  by this one because the code they guard is gone.
+- the messages: four bottom wordings become two, one line and two lines. They
+  name what is short, name the controls that move it ("Bottom" under "Margins
+  (mm)", Size under "Sheet text", and the second line's own tick), and end by
+  asking for a Generate Chart, which is the only thing that can measure the
+  next state. No rise is named, and nothing is said about paper. Translated
+  into all twelve catalogues, with each language's own name for every control.
+- `_bottom_lever_note` survives, without its two gates: "the ruler helper
+  markers hold the text {anchor} mm from the paper edge, which is further up
+  than “B”" is arithmetic on two numbers the panel already holds, not a search,
+  and it is the sentence that stops a reader winding down a box that moves no
+  ink.
+
+### B8-180 · The cost quoted for the per-keystroke refresh was wrong by 28x
+- blocks release: no
+- status: FIXED
+- found by: this round, 2026-09-15, while carrying out B8-179. INTRODUCED BY
+  B8-176 the same day, and shipped in v4.3.0-beta.17.
+- evidence: test_no_hook_on_a_keystroke_calls_the_margin_inspector,
+  test_a_layout_change_does_not_remeasure_the_frame,
+  test_the_notes_box_and_the_stamp_tick_leave_it_alone_too.
+- detail: B8-176's comment in `_refresh_manual_command_preview` justified
+  calling `_update_margin_inspector()` on every layout keystroke with
+  *"8.5 to 20.3 ms median ... worst single pass 63.7 ms"*, against a sibling
+  call accepted at 17.2 ms. Measured on a real chart, ten consecutive calls,
+  the method is **563 ms median (556 to 594)** on a 1.86 MB chart TIFF. The
+  reason is the measurement source: `measure_from_engine` reads the engine's
+  recorded patch rectangles out of `channels.json` and costs **0.7 ms** warm,
+  while `measure_margins` re-reads and scans the rendered raster and costs
+  **93 ms** on Knut's 0.58 MB sheet and far more on a large one. Only an
+  engine chart has a `channels.json`; a printtarg chart, or one built with the
+  layout engine off, takes the raster path every time.
+
+  The number that was quoted appears to have been measured on
+  `_engine_text_notes` alone, which is the arithmetic, and not on the method
+  that re-measures the sheet around it.
+
+  It is gone with B8-179 rather than fixed in place: the call is removed, so
+  the frame is measured once per Generate, where a chart build already costs
+  seconds. **The raster path itself is not made cheaper here and is reported,
+  not swept**: paging through a multi-page non-engine chart still pays 93 ms or
+  more per page, which is the one place the cost is still visible.
+
+### B8-181 · With the layout engine OFF, the right-edge stamp is checked by nothing
+- blocks release: no
+- status: OPEN
+- found by: this round, 2026-09-15, while carrying out Knut's ruling (B8-179),
+  which names engine-off as one of the two cases the set margins and the
+  measured ones disagree in. Raised rather than changed: it is a surface his
+  ruling does not cover, and CLAUDE.md's rule is that behaviour a specification
+  does not describe is reported and approved before it is built.
+- evidence: measured on screen with
+  `~/Desktop/ChromIQ-beta18-proof/knut-bottom-text/drivers/b18_engine_off_right_edge.py`,
+  CR30 / A4 / 300 dpi, "Run 1 Chart Notes" typed and "Stamp settings down the
+  right edge" on. The patch area's measured right edge is **17.53 mm**, the
+  nearest black ink to the right paper edge is at **10.41 mm**, there are
+  42,772 dark pixels in the rightmost 30 mm of the sheet, and
+  `_engine_text_notes` returns `[]`. Photographed as
+  `shots/D2-engine-off-right-edge.png`.
+- detail: with "Use the ChromIQ layout engine instead of printtarg" off, the
+  layout panel's Sheet text box, its Size, the "B" box, the clip-border
+  controls and the ruler-marker boxes are all hidden, so three of the four
+  checks have nothing to be about: printtarg lays the sheet out and none of
+  that furniture exists.
+
+  **The fourth does.** `ChartCreator._stamp_tiff_metadata` is called on the
+  printtarg path (line 1674) as well as on the engine path (1535), so the chart
+  notes and the settings stamp are printed down the right edge of an engine-off
+  chart exactly as they are on an engine one. `_engine_text_notes` gates its
+  whole body on `use_chromiq_layout_engine`, so nothing asks whether that line
+  lands on the patches.
+
+  **NOTHING IS WRONG ON THE SHEET MEASURED.** 7.1 mm of clear paper lie between
+  the ink and the patch area, so this is a missing check rather than a visible
+  fault, and that is why it is OPEN rather than a bug.
+- what it would take: the right-edge block asked without the engine gate,
+  against the same measured `report.right_mm` the engine path now uses. The
+  reserve is `tiff_metadata._stamp_one`'s own, which is already the one the
+  panel reads.
+
+### B8-182 · One test can fail from another test's monkeypatch, once in three runs
+- blocks release: no
+- status: OPEN
+- found by: this round, 2026-09-15, on the first of three full everyday-tier
+  runs of the finished tree. The next two were green, 15,487 passed each.
+- evidence: `/tmp/b18_full3.txt`, gw1. `test_settling_never_raises_out_of_its_caller`
+  reported `CALL ERROR: Exceptions caught in Qt event loop`, and the traceback
+  is `_auto_regenerate_preview` calling `_layout_signature`, which
+  `tests/test_the_live_preview_only_follows_the_user.py:295` had monkeypatched
+  to raise. The file passes alone, and passed in both later full runs.
+- detail: the test deliberately makes `_layout_signature` throw and proves
+  `_settle_live_preview` swallows it. A **queued auto-preview timer** then fires
+  inside the same patch window and the exception reaches Qt's event loop, where
+  `pytest-qt` turns it into a failure of whatever test is running.
+
+  It is NOT this change set's: the patch, the timer and the pytest-qt hook are
+  all older than today. What this change set did was make
+  `_refresh_manual_command_preview` much cheaper (B8-179 removed a 563 ms call
+  from it), which can move when a pending timer gets its turn. So the shape was
+  always there and the timing is now more likely to expose it.
+- what it would take: stop the auto-preview timer inside that test, or patch
+  `_layout_signature` only for the duration of the one call it is about.

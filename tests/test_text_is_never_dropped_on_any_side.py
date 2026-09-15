@@ -260,9 +260,18 @@ class _Settings:
         return True if key == "use_chromiq_layout_engine" else default
 
 
-class _Report:
-    def __init__(self, right_mm):
-        self.right_mm = right_mm
+def _Report(r, right_mm):
+    """The "Measured from Preview" report these tests are driven with.
+
+    IT USED TO CARRY ONLY ``right_mm``, because the right edge was the one
+    notice that measured the sheet and the other three predicted it from the
+    boxes. Knut's ruling of 2026-09-15 (#182) makes all four measured, so a
+    report with three edges missing silences three notices; this builds the
+    whole thing from the recipe's own geometry and overrides the right edge,
+    which is the number the call sites were choosing.
+    """
+    from tests.margin_reports import report_for
+    return report_for(r, right_mm=float(right_mm))
 
 
 class _Tab:
@@ -290,8 +299,24 @@ class _Tab:
         return self._recipe
 
 
-def _notes(r, *, notes="", stamp=False, report=None):
+#: "nothing was passed", as distinct from "explicitly no report at all".
+_UNSET = object()
+
+
+def _notes(r, *, notes="", stamp=False, report=_UNSET):
+    """Every notice this recipe earns, WITH the sheet's own measurement.
+
+    Knut's ruling of 2026-09-15 (#182): the four patch-area checks read
+    "Measured from Preview" and are silent without it, so a test that does not
+    say what the sheet measures gets the margins the geometry resolved, which
+    is where the patch area lands on a rectangular chart filling its page.
+    Pass ``report=None`` to ask the other question on purpose: what the panel
+    says before anything has been generated.
+    """
     from ui.tabs.tab_chart import TabChart
+    from tests.margin_reports import report_for
+    if report is _UNSET:
+        report = report_for(r)
     return TabChart._engine_text_notes(_Tab(r, notes, stamp), report)
 
 
@@ -309,17 +334,51 @@ def _roomy() -> LayoutRecipe:
     return r
 
 
+def test_the_information_icon_is_handed_the_frames_own_report(qapp):
+    """THE ⓘ AND THE RED FIELD MUST NAME THE SAME SHEET.
+
+    Knut's ruling of 2026-09-15 makes the four patch-area notices measurements
+    of the chart in the preview, so a call with no report says nothing about
+    them. `_engine_text_overflow_warnings` is what fills the ⓘ under "Sheet
+    text", and it takes no report of its own: it reads `self._margin_report`,
+    which `_update_margin_inspector` stores for exactly this.
+
+    MUTATION: drop the `getattr(self, "_margin_report", None)` argument and the
+    ⓘ goes empty on a chart whose red field is full, which is the same silence
+    that made the first version of the height fix look like it worked.
+    """
+    from ui.tabs.tab_chart import TabChart
+
+    r = replace(_roomy(), margin_top=6.0, margin_bottom=5.0, margin_right=5.0,
+                chart_text="Hahnemuehle Photo Rag")
+    tab = _Tab(r, "Canon PRO-1000", False)
+    tab._margin_report = _Report(r, 5.0)
+    icon = TabChart._engine_text_overflow_warnings(tab)
+    _every, over = _notes(r, notes="Canon PRO-1000", report=_Report(r, 5.0))
+    assert over, "the premise failed: this state must earn notices"
+    assert all(w in icon for w in over), (
+        "the ⓘ is missing notices the red message field is showing:\n"
+        f"  field: {over}\n  icon: {icon}")
+
+    # …and with nothing generated it is silent about the four sides rather
+    # than predicting them.
+    tab._margin_report = None
+    assert TabChart._engine_text_overflow_warnings(tab) == [], (
+        "the ⓘ spoke about the patch area with nothing measured")
+
+
 def test_a_chart_with_room_to_spare_says_nothing_at_all(qapp):
     """THE NEGATIVE HALF. A warning that is always on is worse than none."""
-    _all, over = _notes(_roomy(), notes="Canon PRO-1000", stamp=True,
-                        report=_Report(25.0))
+    r = _roomy()
+    _all, over = _notes(r, notes="Canon PRO-1000", stamp=True,
+                        report=_Report(r, 25.0))
     assert over == [], f"a chart with 25 mm on every side warned: {over}"
 
 
 def test_the_right_edge_warns_when_the_notes_run_over_the_patches(qapp):
     r = replace(_roomy(), margin_right=5.0)
     _all, over = _notes(r, notes="Canon PRO-1000 / PhotoRag 308",
-                        report=_Report(5.0))
+                        report=_Report(r, 5.0))
     assert len(over) == 1, f"expected one notice, got {over}"
     assert "chart notes down the right edge" in over[0]
     assert "“Right” under “Margins (mm)”" in over[0], (
@@ -336,9 +395,9 @@ def test_a_chart_that_does_not_fill_its_page_is_judged_on_what_was_measured(qapp
     measures.
     """
     r = replace(_roomy(), margin_right=3.0)
-    assert _notes(r, notes="Canon PRO-1000", report=_Report(3.0))[1], (
+    assert _notes(r, notes="Canon PRO-1000", report=_Report(r, 3.0))[1], (
         "the premise failed: 3 mm typed is meant to be a collision on paper")
-    over = _notes(r, notes="Canon PRO-1000", report=_Report(151.1))[1]
+    over = _notes(r, notes="Canon PRO-1000", report=_Report(r, 151.1))[1]
     assert over == [], (
         f"151 mm of white paper on the right was reported as an overlap: {over}")
 
@@ -346,7 +405,7 @@ def test_a_chart_that_does_not_fill_its_page_is_judged_on_what_was_measured(qapp
 def test_the_right_edge_stays_quiet_when_no_note_is_defined(qapp):
     """Nothing is stamped, so nothing can collide."""
     r = replace(_roomy(), margin_right=5.0)
-    _all, over = _notes(r, notes="", stamp=False, report=_Report(5.0))
+    _all, over = _notes(r, notes="", stamp=False, report=_Report(r, 5.0))
     assert over == [], f"warned about a note that does not exist: {over}"
 
 
@@ -361,14 +420,14 @@ def test_the_stamp_settings_tick_box_is_enough_on_its_own(qapp):
     `tests/test_a_warning_never_names_text_the_user_did_not_type.py`.
     """
     r = replace(_roomy(), margin_right=5.0)
-    _all, over = _notes(r, notes="", stamp=True, report=_Report(5.0))
+    _all, over = _notes(r, notes="", stamp=True, report=_Report(r, 5.0))
     assert len(over) == 1, over
     assert "settings stamp down the right edge" in over[0], over[0]
     assert "chart notes down the right edge" not in over[0], over[0]
 
     # …and with something typed, the wording that names the user's own text.
     _all2, over2 = _notes(r, notes="Canon Pro-1000", stamp=True,
-                          report=_Report(5.0))
+                          report=_Report(r, 5.0))
     assert len(over2) == 1, over2
     assert "chart notes down the right edge" in over2[0], over2[0]
 
@@ -391,7 +450,7 @@ def test_the_top_is_silent_while_the_letters_ink_still_clears_the_patches(qapp):
     Warning there would be the same cry-wolf message in a third costume.
     """
     r = replace(_roomy(), margin_top=9.0)
-    _all, over = _notes(r, report=_Report(25.0))
+    _all, over = _notes(r, report=_Report(r, 25.0))
     assert over == [], (
         "the top edge warned on a sheet where the letters' ink ends 8.83 mm "
         f"down and the patch area starts at 9.0 mm: {over}")
@@ -410,7 +469,7 @@ def test_the_top_says_the_letters_are_printed_over_the_patches(qapp):
     offers the two boxes that move either side of the collision.
     """
     r = replace(_roomy(), margin_top=6.0)
-    _all, over = _notes(r, report=_Report(25.0))
+    _all, over = _notes(r, report=_Report(r, 25.0))
     assert len(over) == 1, f"expected one notice, got {over}"
     assert "strip letters are printed over the patches" in over[0], over[0]
     assert "“T” under “Text distance from edge (mm)”" in over[0], over[0]
@@ -427,7 +486,7 @@ def test_the_top_names_the_helper_markers_when_they_are_what_holds_the_band(qapp
     r = replace(_roomy(), margin_top=6.0, text_edge_top_mm=1.0,
                 helper_markers=True, helper_marker_edge_mm=4.0,
                 helper_marker_len_mm=2.0)
-    _all, over = _notes(r, report=_Report(25.0))
+    _all, over = _notes(r, report=_Report(r, 25.0))
     assert any("ruler helper markers" in o for o in over), over
     assert not any("“T” under “Text distance from edge (mm)”" in o
                    for o in over), (
@@ -442,9 +501,9 @@ def test_the_label_offset_moves_the_letters_and_the_warning_follows(qapp):
     into it, and the warning has to know that.
     """
     r = replace(_roomy(), margin_top=12.0)
-    assert _notes(r, report=_Report(25.0))[1] == [], "the premise failed"
+    assert _notes(r, report=_Report(r, 25.0))[1] == [], "the premise failed"
     r2 = replace(r, strip_label_offset_mm=5.0)
-    over = _notes(r2, report=_Report(25.0))[1]
+    over = _notes(r2, report=_Report(r, 25.0))[1]
     assert len(over) == 1 and "strip letters" in over[0], (
         f"a 5 mm label offset into a 12 mm margin went unreported: {over}")
 
@@ -458,7 +517,7 @@ def test_the_bottom_warns_and_counts_its_lines(qapp, lines, phrase):
     text, stamp = lines
     r = replace(_roomy(), margin_bottom=5.0, chart_text=text,
                 stamp_command=stamp)
-    _all, over = _notes(r, report=_Report(25.0))
+    _all, over = _notes(r, report=_Report(r, 25.0))
     assert len(over) == 1, f"expected one notice, got {over}"
     assert phrase in over[0], over[0]
     assert "(s)" not in over[0]
@@ -476,7 +535,7 @@ def test_the_clip_border_content_is_asked_about_on_its_own_edge(qapp):
     r.clip_border, r.clip_content_mode = True, "notes"
     r.clip_border_width_mm, r.clip_side = 26.0, "left"
     r.margin_left = 6.0
-    _all, over = _notes(r, report=_Report(25.0))
+    _all, over = _notes(r, report=_Report(r, 25.0))
     assert [w for w in over if "clip border content" in w] == [], (
         "the clip band is raising the margin, so nothing may be reported here")
     o = tef.clip_content_overlap("left", 10.0, 26.0, 4.0)
@@ -488,7 +547,7 @@ def test_all_four_sides_can_be_wrong_at_once(qapp):
     """*"They should all behave the same way."* So they stack, they do not race."""
     r = replace(_roomy(), margin_top=6.0, margin_bottom=5.0, margin_right=5.0,
                 chart_text="Hahnemuehle Photo Rag")
-    _all, over = _notes(r, notes="Canon PRO-1000", report=_Report(5.0))
+    _all, over = _notes(r, notes="Canon PRO-1000", report=_Report(r, 5.0))
     joined = " ".join(over)
     assert len(over) == 3, f"expected three notices, got {over}"
     for phrase in ("chart notes down the right edge",
@@ -504,7 +563,7 @@ def test_all_four_sides_can_be_wrong_at_once(qapp):
 def test_the_overlaps_reach_the_information_icon_as_well(qapp):
     """The ⓘ keeps everything; the message field takes the overlaps."""
     r = replace(_roomy(), margin_top=6.0)
-    every, over = _notes(r, report=_Report(25.0))
+    every, over = _notes(r, report=_Report(r, 25.0))
     assert over and all(w in every for w in over)
 
 
@@ -610,7 +669,7 @@ def test_a_clip_border_on_the_notes_edge_says_neither_lever_works(qapp):
     r = replace(_roomy(), clip_border=True, clip_side="right",
                 clip_border_width_mm=19.0, clip_content_mode="notes",
                 margin_right=19.0)
-    _all, over = _notes(r, notes="Canon PRO-1000", report=_Report(19.0))
+    _all, over = _notes(r, notes="Canon PRO-1000", report=_Report(r, 19.0))
     joined = " ".join(over)
     assert "share that edge with the clip border" in joined, joined
     assert "put the clip border on the LEFT" in joined, joined

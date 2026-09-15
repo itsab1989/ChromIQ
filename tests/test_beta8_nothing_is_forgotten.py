@@ -27,7 +27,18 @@ ROOT = Path(__file__).resolve().parent.parent
 REGISTER = ROOT / "docs" / "beta8_open_items.md"
 TESTS = ROOT / "tests"
 
-_STATUSES = {"FIXED", "DEFERRED", "OPEN", "VERIFIED"}
+_STATUSES = {"FIXED", "DEFERRED", "OPEN", "VERIFIED", "SUPERSEDED"}
+#: `SUPERSEDED` is for a fault that was really fixed and whose fix has since
+#: been REMOVED, because the design authority replaced the behaviour it
+#: belonged to. Leaving such an item `FIXED` is a lie in one direction (the
+#: guard it names no longer exists) and `OPEN` is a lie in the other (nobody
+#: has to do anything). It was added on 2026-09-15, when Knut's ruling on the
+#: bottom-text height check (B8-179) retired the whole margin-rise search and
+#: with it fourteen entries' worth of guards in one afternoon.
+#:
+#: The bar it is held to is that it must NAME ITS SUCCESSOR, so the trail from
+#: the original fault to the code that stands today is never broken:
+#: `test_a_superseded_item_names_what_superseded_it` below.
 #: `VERIFIED` exists for the one kind of item a test cannot guard: the release
 #: evidence itself. "A green --runslow and a clean sweep were produced on the
 #: final tree" is an ACT, not a property, and demanding a test name for it would
@@ -108,6 +119,29 @@ def test_every_item_has_a_status_we_understand():
             bad.append(f"{ident} ({title}): status {st!r} not in {sorted(_STATUSES)}")
         if _field(body, "blocks release") not in ("yes", "no"):
             bad.append(f"{ident}: 'blocks release' must be yes or no")
+    assert not bad, "\n  " + "\n  ".join(bad)
+
+
+def test_a_superseded_item_names_what_superseded_it():
+    """A fix that was removed has to say what removed it.
+
+    Otherwise the register records a fault, records that it was fixed, and
+    leads nowhere: the reader cannot tell whether the behaviour is still right,
+    or who decided it should change.
+    """
+    known = {ident for ident, _t, _b in _items()}
+    bad = []
+    for ident, title, body in _items():
+        if _field(body, "status") != "SUPERSEDED":
+            continue
+        by = _field(body, "superseded by")
+        if not by:
+            bad.append(f"{ident} ({title}): SUPERSEDED but names no successor")
+        elif by not in known:
+            bad.append(f"{ident} ({title}): superseded by {by!r}, which is "
+                       f"not an item in this register")
+        elif by == ident:
+            bad.append(f"{ident}: superseded by itself")
     assert not bad, "\n  " + "\n  ".join(bad)
 
 
