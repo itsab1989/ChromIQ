@@ -1,4 +1,4 @@
-"""a tester, v4.3.0-beta.16: "if there is a valid icc profile in the project,
+"""A tester, v4.3.0-beta.16: "if there is a valid icc profile in the project,
 selecting this [From profile gamut] causes it to hang".
 
 It did, and the window really did stop: the reach query asks xicclu for all

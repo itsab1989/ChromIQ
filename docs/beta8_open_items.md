@@ -7832,7 +7832,7 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 - status: FIXED
 - found by: a tester walking profile, then refinement, then physical
   verification, reported to Basti as *"it failed generating the report at the
-  end"*; reproduced and narrowed by the a tester-journey round, 2026-09-15
+  end"*; reproduced and narrowed by the journey round, 2026-09-15
   (`~/Desktop/ChromIQ-beta18-proof/katrina-journey/JOURNEY.md`), and re-measured
   here on screen before anything was changed.
 - detail: WHAT A USER SAW. In a project with more than one profile run, the
@@ -7963,7 +7963,7 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 ### B8-192 · Check and Refine writes a 63 KB quality report and its result window never names it
 - blocks release: no
 - status: OPEN
-- found by: the a tester-journey round, 2026-09-15; re-read in the source here.
+- found by: the journey round, 2026-09-15; re-read in the source here.
 - detail: `ui/tabs/tab_check_refine.py` writes
   `reports/Quality_Check_N_<name>.txt` (62,995 bytes on the journey's run) and
   then shows the Profile Quality Assessment window, which gives the grade, the
@@ -7981,7 +7981,7 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 ### B8-193 · The Measure tab's own "Measurement report" button is built inside the Manual panel
 - blocks release: no
 - status: OPEN
-- found by: the a tester-journey round, 2026-09-15; confirmed in the source here.
+- found by: the journey round, 2026-09-15; confirmed in the source here.
 - detail: `self._m_report_btn` is created at `ui/tabs/tab_measure.py:2931`, inside
   `_make_manual_panel` (2677 onwards), and is referenced nowhere else. The Guided
   panel (2202 to 2677) builds no such button, so a user who measures the guided
