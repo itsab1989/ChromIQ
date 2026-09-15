@@ -130,6 +130,24 @@ def test_use_last_proceeds_with_latest_variant(tab, tmp_path):
     tab.proceed_to_profile.connect(lambda: sig.__setitem__("proceed", True))
 
     tab._apply_completion_action(ti3, current, reads, "use_last", "mean")
-    assert sig.get("finished") == current      # the latest read, not the canonical
+    # THE RUN'S OWN STEM, HOLDING THE LATEST READ (B8-213, combined round 5).
+    #
+    # This used to assert `current` — "the latest read, not the canonical" —
+    # and that left the run holding no measurement at all: the reading lived
+    # only in `reads/readN.ti3`, where the Measurement Report window showed no
+    # row for it, the report the Preferences option saves automatically went to
+    # `reads/reports/` (a folder nothing lists) judged against a DEVICE
+    # reference instead of the chart, and a restart found an unmeasured run.
+    #
+    # It is the design note's own intent rather than a new ruling: edge case 1
+    # of `docs/dev_averaging.md` says the chosen read must still pair with the
+    # run's `.ti2`, and planned a suffix-stripping lookup to make it so. The
+    # per-run layout dissolved that for the AVERAGE ending only, because the
+    # average is written back to the canonical stem. This ending now does the
+    # same, and `reads/` keeps every read exactly as before.
+    assert sig.get("finished") == run_dir / f"{stem}.ti3"
+    assert (run_dir / f"{stem}.ti3").read_bytes() == current.read_bytes()
+    assert sorted(p.name for p in reads_dir.glob("read*.ti3")) == \
+        ["read1.ti3", "read2.ti3"]
     assert sig.get("proceed") is True
     assert tab._averaging_active is False

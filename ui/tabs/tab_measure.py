@@ -10700,13 +10700,39 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             # A COPY THAT FAILS MUST END IN A SENTENCE, not in a traceback out
             # of a Qt slot: a read-only folder, a full disk or a share that has
             # gone away are ordinary things to meet here.
+            # AND THE SENTENCE MUST BE TRUE. Round 4 gave step 4's refusal
+            # the rollback every other refusal on this door has; this one, one
+            # line further along, still said "nothing has been changed" over a
+            # run it had just made. The SIBLING door has always undone the run
+            # at exactly this failure (`ui/measurement_filing.py`, the same
+            # words), so the two doors described the same accident differently.
+            #
+            # Driven on screen with the copy refused once, as a full disk or a
+            # share that has gone away refuses it (combined round 5,
+            # `F-result.json`, `F1-after-the-refused-copy.png`): run 2 was left
+            # on disk and in `project.json`, `current_run` was left pointing at
+            # it and the bar read "Location being edited: runs/run2/", under a
+            # window saying nothing had been changed.
             log.warning("import: could not copy the measurement into %s", dst,
                         exc_info=True)
+            from ui.measurement_filing import _undo_the_run
+            undone = made_here is not None and proj is not None
+            if undone:
+                _undo_the_run(proj, made_here, was_current)
+                try:
+                    ctl.set_profile_run(was_current or "")
+                except Exception:  # noqa: BLE001 — the run is gone either way
+                    log.warning("import: could not put the bar back on %s",
+                                was_current, exc_info=True)
             self._say_on_screen(
                 tr("ChromIQ could not write into that run"),
-                tr("The measurement has not been filed, and nothing has been "
-                   "changed. Your own file is untouched where it is. The "
-                   "reason: {reason}.").format(
+                (tr("The measurement has not been filed, and nothing has been "
+                    "changed. Your own file is untouched where it is. The "
+                    "reason: {reason}.") if not undone else
+                 tr("The measurement has not been filed, and nothing has been "
+                    "changed. The new run ChromIQ had started making has been "
+                    "removed again, and your own file is untouched where it "
+                    "is. The reason: {reason}.")).format(
                        reason=getattr(exc, "strerror", None) or exc))
             return
         self._log.appendPlainText(
@@ -11447,6 +11473,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._log.appendPlainText(
                 "\n" + tr("[INFO] Measurement stopped — no measurement (.ti3) file was created.")
             )
+        # A LIVE AVERAGING SET WHOSE NEXT READ PRODUCED NOTHING must not leave
+        # the run with no measurement — see the method's own docstring. LAST,
+        # so the sentence about what was kept follows the one about what ended.
+        if not ti3_exists:
+            self._restore_a_read_when_the_set_lost_its_measurement(ti3)
         self._auto_proceed = False
         self._log.ensureCursorVisible()
 
@@ -11544,6 +11575,26 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             return
 
         # "continue" / "build" (single read) or "use_last" (last read of a set).
+        #
+        # AND AN ENDING THAT BUILDS FROM ONE READ MUST STILL LEAVE THE RUN
+        # HOLDING IT. `Run.promote_measurement_to_read` MOVES the measurement
+        # into `reads/readN.ti3`; the "average" ending above writes the result
+        # back to `Run.measurement_ti3`, and this one used to hand the run's
+        # file over to Build Profile FROM INSIDE `reads/` and leave the run
+        # itself with no measurement at all.
+        #
+        # §I.7 of `docs/design/unified_measurement_management.md` says why that
+        # matters, in its own words: a measurement filed under any other name
+        # *"falls back to `reference_source: device` without saying so"*,
+        # because the report finds its chart by the run's stem
+        # (`measurement_report._find_reference_ti2`). Driven on screen, combined
+        # round 5: after "Use last read only" on a real 90-patch chart the run
+        # folder held NO `.ti3`, the Measurement Report window opened on it with
+        # zero rows, and the report the Preferences option saved automatically
+        # went to `runs/run1/reads/reports/` — a folder nothing in ChromIQ ever
+        # lists — carrying `"chart": "read2"`, `sheet_kind: "standalone"` and no
+        # verdict set at all, while the log said "Measurement report saved".
+        current = self._keep_the_read_as_the_runs_measurement(ti3, current)
         self.measure_finished.emit(current)
         if action == "close":
             # Knut (#131): keep the measurement, go nowhere. The profile can be
@@ -11555,6 +11606,77 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             return
         self.proceed_to_profile.emit()
 
+
+    def _keep_the_read_as_the_runs_measurement(self, ti3: Path,
+                                               current: Path) -> Path:
+        """Put the read this ending builds from back at `Run.measurement_ti3`.
+
+        Returns the path the run's measurement now lives at — the canonical one
+        when the copy worked, and `current` unchanged when it did not, because
+        an ending must never be lost to a failed copy.
+
+        The per-read snapshots stay in `reads/` exactly as the "average" ending
+        leaves them; what changes is that the run holds the sheet it is about
+        to be judged and built from.
+        """
+        import shutil
+        if current == ti3 or not current.is_file():
+            return current            # a standalone read; nothing was moved
+        try:
+            run = Run.for_dir(ti3.parent)
+            dst = run.measurement_ti3
+        except Exception:      # noqa: BLE001 — a path we cannot name is not a
+            return current      # reason to lose the measurement
+        if current == dst:
+            return current
+        try:
+            shutil.copy2(current, dst)
+        except OSError as exc:
+            log.warning("could not keep %s as the run's measurement: %s",
+                        current.name, exc)
+            return current
+        self._log.appendPlainText("\n" + tr(
+            "[OK] {read} is this run's measurement now. The individual reads "
+            "are kept in the run's reads folder.").format(read=current.name))
+        return dst
+
+    def _restore_a_read_when_the_set_lost_its_measurement(self, ti3) -> None:
+        """A live averaging set whose next read produced no file at all.
+
+        "Measure again to average" MOVES the finished measurement into
+        `reads/read1.ti3` and starts a second read. Stop that read, or let it
+        fail, and the run is left holding no measurement: the reading the
+        person actually took is in `reads/`, where the Measurement Report
+        window, Build Profile and the run's own state cannot see it, and
+        ChromIQ says "no measurement (.ti3) file was created" about a chart
+        that was measured perfectly well a minute earlier.
+
+        A COPY, never a move: the set is still live, so `reads/` must keep
+        every read it has. A retry overwrites this file and promotes the real
+        new read beside the others exactly as before.
+        """
+        if ti3 is None or not self._averaging_active:
+            return
+        try:
+            run = Run.for_dir(Path(ti3).parent)
+            if run.measurement_ti3.is_file():
+                return
+            reads = run.reads()
+        except Exception:      # noqa: BLE001 — never break an ending
+            return
+        if not reads:
+            return
+        import shutil
+        try:
+            shutil.copy2(reads[-1], run.measurement_ti3)
+        except OSError as exc:
+            log.warning("could not put %s back as the run's measurement: %s",
+                        reads[-1].name, exc)
+            return
+        self._log.appendPlainText("\n" + tr(
+            "[INFO] The reading you already took is kept: {read} is this "
+            "run's measurement again. Measure the chart once more whenever "
+            "you want the two averaged.").format(read=reads[-1].name))
 
     def _show_completion_dialog(
         self, current: Path, reads: list[Path]

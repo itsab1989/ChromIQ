@@ -197,6 +197,15 @@ reads exist:
   - *Average all reads & build* → `average_runner` over all `_readN` →
     `<base>_average.ti3`, then proceed with that file.
   - *Use last read only & build* → proceed with `<base>_read{N}.ti3`.
+    **Amended 2026-09-15 (B8-213).** In the per-run layout the reads live in
+    `reads/readN.ti3`, where `measurement_report._find_reference_ti2` cannot
+    see the run's chart, so this ending left the run holding no measurement at
+    all: no row in the Measurement Report window, a dated report filed into
+    `reads/reports/` against a device reference, and an unmeasured run after a
+    restart. The chosen read is now COPIED back to `Run.measurement_ti3` and
+    that is what is proceeded with, exactly as the *Average* ending does with
+    its result; `reads/` still keeps every read. Edge case 1 below is what this
+    realises, by placing the file rather than by stripping a suffix.
   - *Measure again* → accumulate one more (`_read{N+1}`).
   - (Optional) a `mean`/`median` toggle, with median greyed/annotated "needs 3+
     reads".

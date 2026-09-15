@@ -1037,3 +1037,115 @@ def test_answering_the_chart_question_still_files_into_the_new_run(
     assert made.measurement_ti3.is_file(), (
         "the import did not file into the run it made")
     assert ctl.target.profile_run == made.id
+
+
+# ---------------------------------------------------------------------------
+# §I.7 — the copy itself is refused, ONE LINE past the refusal round 4 fixed
+# ---------------------------------------------------------------------------
+
+def _second_import_whose_copy_is_refused(tmp_path, monkeypatch):
+    """Import into a full run, answer "Make a new run", and let the copy that
+    files the measurement fail — a full disk, a read-only folder, a share that
+    has gone away. Returns (fm, ctl, run1, seen)."""
+    import shutil as _sh
+    s, fm, ctl, run = _env(tmp_path)
+    run.measurement_ti3.write_text(_cgats("CTI3", _CHART), encoding="utf-8")
+    tab = _tab(s, fm, ctl)
+    seen = _silence(tab, monkeypatch)
+    real = _sh.copy2
+
+    def _copy2(src, dst, *a, **k):
+        if str(dst).endswith(run.measurement_ti3.name) and "runs" in str(dst):
+            raise OSError(28, "No space left on device")
+        return real(src, dst, *a, **k)
+    monkeypatch.setattr(_sh, "copy2", _copy2)
+    tab._import_path = _measurement(tmp_path, _CHART)
+    tab._switch_mode("import")
+    tab._on_import_measurement()
+    return fm, ctl, run, seen
+
+
+def test_a_refused_copy_undoes_the_run_the_import_made(qapp, tmp_path,
+                                                       monkeypatch):
+    """THE FAULT (combined round 5, B8-214). Round 4 gave step 4's refusal the
+    rollback every other refusal on this door has; the copy at step 5 still
+    said "nothing has been changed" over a run it had just made, while the
+    SIBLING door has always undone the run at exactly this failure.
+
+    Driven on screen with the copy refused once
+    (`~/Desktop/ChromIQ-beta18-proof/combined-round-5/F-result.json`,
+    `F1-after-the-refused-copy.png`): run 2 was on disk and in `project.json`,
+    `current_run` pointed at it, and the bar read "Location being edited:
+    runs/run2/".
+
+    MUTATION: drop the `_undo_the_run` call and this goes red with two runs.
+    """
+    fm, _ctl, _run, _seen = _second_import_whose_copy_is_refused(
+        tmp_path, monkeypatch)
+    ids = [r.id for r in fm.project().all_runs()]
+    assert ids == ["run1"], "a refused copy left %r behind" % (ids,)
+    assert not [d for d in (fm.project().root / "runs").iterdir()
+                if d.is_dir() and d.name != "run1"], (
+        "the run folder is still on disk even though the manifest forgot it")
+
+
+def test_a_refused_copy_puts_the_bar_back(qapp, tmp_path, monkeypatch):
+    """MUTATION: drop the `ctl.set_profile_run(was_current)` line and this goes
+    red with the bar standing on a run that no longer exists."""
+    _fm, ctl, _run, _seen = _second_import_whose_copy_is_refused(
+        tmp_path, monkeypatch)
+    assert ctl.target.profile_run == "run1", (
+        "the bar was left on %r" % (ctl.target.profile_run,))
+
+
+def test_a_refused_copy_says_what_it_actually_did(qapp, tmp_path, monkeypatch):
+    """A MESSAGE IS A PROMISE. "Nothing has been changed" was false while the
+    run stayed; now the run is really gone and the sentence says so.
+
+    MUTATION: put the single unconditional sentence back and this goes red.
+    """
+    _fm, _ctl, _run, seen = _second_import_whose_copy_is_refused(
+        tmp_path, monkeypatch)
+    assert seen["said"], "nothing at all was said"
+    title, body = seen["said"][-1]
+    assert "could not write" in title.lower(), title
+    assert "nothing has been changed" in body.lower(), body
+    assert "removed again" in body.lower(), (
+        "the window does not say the run it made was taken away: %r" % body)
+    assert "no space left on device" in body.lower(), body
+    assert not seen["done"], "the import reported success after failing"
+
+
+def test_the_run_that_was_full_keeps_what_it_had(qapp, tmp_path, monkeypatch):
+    fm, _ctl, run, _seen = _second_import_whose_copy_is_refused(
+        tmp_path, monkeypatch)
+    assert run.measurement_ti3.read_text(encoding="utf-8") == \
+        _cgats("CTI3", _CHART)
+
+
+def test_a_refused_copy_with_no_run_to_undo_still_says_the_plain_sentence(
+        qapp, tmp_path, monkeypatch):
+    """An EMPTY run needs no duplicate, so there is nothing to roll back and
+    the window must not claim a run was removed.
+
+    MUTATION: make the sentence unconditional the other way and this goes red.
+    """
+    import shutil as _sh
+    s, fm, ctl, run = _env(tmp_path)
+    tab = _tab(s, fm, ctl)
+    seen = _silence(tab, monkeypatch)
+    real = _sh.copy2
+
+    def _copy2(src, dst, *a, **k):
+        if str(dst).endswith(run.measurement_ti3.name) and "runs" in str(dst):
+            raise OSError(13, "Permission denied")
+        return real(src, dst, *a, **k)
+    monkeypatch.setattr(_sh, "copy2", _copy2)
+    tab._import_path = _measurement(tmp_path, _CHART)
+    tab._switch_mode("import")
+    tab._on_import_measurement()
+    assert [r.id for r in fm.project().all_runs()] == ["run1"]
+    title, body = seen["said"][-1]
+    assert "nothing has been changed" in body.lower()
+    assert "removed again" not in body.lower(), (
+        "no run was made, so none can have been removed: %r" % body)

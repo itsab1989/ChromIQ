@@ -8918,3 +8918,123 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   puts the bar back turns 1, removing the sentence turns 1, and rolling the run
   back even when the import goes on turns 13 red — which is the behaviour this
   must not eat.
+
+### B8-213 · "Use last read only" left the run holding no measurement at all
+- blocks release: no
+- status: FIXED
+- found by: combined adversary round 5, 2026-09-15, pointed at the averaging
+  path round 4 had only reached at its very end
+  (`drive_averaging_endings.py`, `drive_second_read_stopped.py`, driven in real
+  windows in `~/Desktop/ChromIQ-beta18-proof/combined-round-5/`).
+- detail: WHAT A USER SEES. Switch *Enable measurement averaging* on, measure a
+  chart, press **Measure again to average**, read it a second time, then press
+  **Use last read only**. The run folder is left holding **no `.ti3` at all**:
+  the reading lives only in `reads/read2.ti3`. Measured on screen with two real
+  90-patch reads of one chart (`A-result.json`, `A2-A2-the-report-window.png`):
+  * the Measurement Report window, opened on that run, showed **zero rows**;
+  * the report the *Save a measurement report* option writes automatically went
+    to `runs/run1/reads/reports/` — a folder nothing in ChromIQ ever lists —
+    carrying `"ti3": "read2.ti3"`, `"chart": "read2"`,
+    `"sheet_kind": "standalone"` and no verdict set, judged against a **device**
+    reference at delta-E00 16.346 instead of the chart's own at 16.379, because
+    `_find_reference_ti2` cannot see a chart from inside `reads/`;
+  * and the log said *"[Report] Measurement report saved"* about it.
+  The same ending is what **closing the completion window** does: `use_last` is
+  its default action whenever two or more reads exist.
+- and the second door: **Measure again to average** followed by a second read
+  that produces no file (Stop before the first patch, or any failure) left the
+  run holding nothing while ChromIQ said *"no measurement (.ti3) file was
+  created"* about a chart that had been measured perfectly well a minute
+  earlier. Driven through the app's own `_on_measure_done`
+  (`C-result.json`).
+- cause: `Run.promote_measurement_to_read` MOVES `<stem>.ti3` into
+  `reads/readN.ti3`. The *Average all reads & build* ending writes its result
+  back to `Run.measurement_ti3`; none of the other endings of the same set put
+  anything back.
+- why it matters is the specification's own sentence. §I.7 of
+  `docs/design/unified_measurement_management.md` requires a filed measurement
+  to take the run's canonical stem, *"because the report finds its chart by
+  that stem (`measurement_report._find_reference_ti2`) and a measurement filed
+  under any other name falls back to `reference_source: device` without saying
+  so"*. That clause is written for the IMPORT door; nothing in the
+  specification covers the averaging endings, and the fix applies the clause's
+  own stated reason rather than making a new ruling.
+- fix: `_keep_the_read_as_the_runs_measurement` copies the read an ending
+  builds from back to `Run.measurement_ti3` and hands THAT path on, so the
+  report, the limit set, Build Profile, the window and a restart all see the
+  sheet the run is about to be judged from; the per-read snapshots stay in
+  `reads/` exactly as the averaging ending leaves them. A copy that fails is
+  logged and the ending still happens.
+  `_restore_a_read_when_the_set_lost_its_measurement` puts the most recent read
+  back — a COPY, so the live set keeps every read — when a read produced no
+  file at all, and says what was kept.
+- measured after the fix, on screen (`B-result.json`,
+  `B2-B2-the-report-window.png`): the run holds its own `.ti3`, the report is
+  in `runs/run1/reports/` as `"sheet_kind": "profiling"` with delta-E00 16.379
+  against the chart, and the window shows the row. In German and in the dark
+  appearance as well (`H-result.json`, `H1-messung-abgeschlossen-dunkel.png`,
+  `H3-messbericht-deutsch-dunkel.png`), with the catalogue proved loaded rather
+  than assumed.
+- also measured and NOT changed: a project a beta already left in that state is
+  opened honestly. Four such folders were opened cold in a real window
+  (`I-result.json`): reads with no measurement, one read with no measurement,
+  the averaged run, and a saved report beside a file that is not there. None
+  raised, none claimed a measurement it did not have, and none offered a build.
+  Nothing offers the orphaned readings BACK, which is
+  `docs/dev_averaging.md`'s own deferred Phase 5, not a new fault; after this
+  fix the app can no longer create the state.
+- evidence: test_use_last_read_only_leaves_the_run_holding_that_read,
+  test_use_last_read_only_keeps_every_read_in_the_reads_folder,
+  test_use_last_read_only_hands_build_profile_the_runs_own_file,
+  test_use_last_read_only_files_its_report_where_the_run_can_see_it,
+  test_the_report_is_judged_against_the_runs_own_chart,
+  test_closing_the_completion_window_is_the_same_ending,
+  test_a_stopped_second_read_keeps_the_reading_already_taken,
+  test_the_restore_is_a_copy_so_the_set_keeps_every_read,
+  test_the_restore_says_what_was_kept,
+  test_the_ending_that_produced_a_file_is_left_alone,
+  test_a_standalone_read_is_never_copied_anywhere,
+  test_a_copy_that_fails_still_ends_the_measurement. MUTATIONS PROVED, two,
+  each read back out of the file before the run that judged it: removing the
+  `_keep_the_read_as_the_runs_measurement` call turns 4 red, and making
+  `_restore_a_read_when_the_set_lost_its_measurement` return at once turns 1
+  more.
+
+### B8-214 · A refused copy said "nothing has been changed" over a run it had just made
+- blocks release: no
+- status: FIXED
+- found by: combined adversary round 5, 2026-09-15, attacking round 4's own
+  fix (`drive_import_copy_fails.py`).
+- detail: WHAT A USER SEES. Import a measurement into a profiling run that
+  already holds one, answer **Make a new run**, and let the copy that files the
+  measurement fail — a full disk, a read-only folder, a share that has gone
+  away. ChromIQ says *"The measurement has not been filed, and nothing has been
+  changed."* Driven on screen with the copy refused once
+  (`F-result.json`, `F1-after-the-refused-copy.png`): **run 2 was still on
+  disk**, still in `project.json`, `current_run` still pointed at it and the
+  bar still read *"Location being edited: runs/run2/"*. The sentence was false.
+- cause: round 4 gave step 4's refusal (*Stored chart differs*) the rollback
+  every other refusal on this door has. The copy at step 5, one line further
+  along, was left with a bare `return`. The SIBLING door in
+  `ui/measurement_filing.py` has always called `_undo_the_run` at exactly this
+  failure and with the same words, so the two doors described the same accident
+  differently.
+- fix: the same rollback, and a sentence that is true. When the import made a
+  run, it is undone, the bar is put back on the run the person was standing on,
+  and the window says the new run has been removed again; when no run was made
+  there is nothing to remove and the plain sentence is used.
+- measured after the fix (`G-result.json`, `J-result.json`): the manifest is
+  back to `["run1"]`, `current_run` is `run1`, the bar reads `runs/run1/`, and
+  **nothing anywhere on disk names the run that was rolled back** — not in
+  `project.json`, not in the sandboxed settings, not in the presets folder, and
+  the folder itself is gone. That is the brief's own question about whether the
+  rollback reaches outside the run folder, answered by reading the disk.
+- evidence: test_a_refused_copy_undoes_the_run_the_import_made,
+  test_a_refused_copy_puts_the_bar_back,
+  test_a_refused_copy_says_what_it_actually_did,
+  test_the_run_that_was_full_keeps_what_it_had,
+  test_a_refused_copy_with_no_run_to_undo_still_says_the_plain_sentence.
+  MUTATIONS PROVED, three, each read back out of the file before the run that
+  judged it: dropping the `_undo_the_run` call turns 2 red, making the sentence
+  unconditionally the "removed again" one turns 1, and making it unconditionally
+  the plain one turns 1.
