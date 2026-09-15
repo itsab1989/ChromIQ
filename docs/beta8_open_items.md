@@ -7451,3 +7451,170 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   and the next run's sweep reports *"removed this run's temp files (1.94 GB)"*.
   Bounded at one run instead of unbounded. Freed on his disk: **61 GB**, from
   562 to 623 GB.
+
+### B8-179 · The report window opened on one run showed, and filed, another run's measurement
+- blocks release: yes
+- status: FIXED
+- found by: a tester walking profile, then refinement, then physical
+  verification, reported to Basti as *"it failed generating the report at the
+  end"*; reproduced and narrowed by the a tester-journey round, 2026-09-15
+  (`~/Desktop/ChromIQ-beta18-proof/katrina-journey/JOURNEY.md`), and re-measured
+  here on screen before anything was changed.
+- detail: WHAT A USER SAW. In a project with more than one profile run, the
+  Measurement Report window opened on a run's own measurement stopped being
+  about that run. `_gather_runs` built the window from
+  `list_project_reports(ti3.parent)`, which deliberately globs
+  `runs/*/reports/report_*.json` across EVERY run of the project, and the
+  fall-back that uses the measurement the window was opened on was reached only
+  when the project held **no** saved report at all. So the first report anybody
+  generated in a project became the answer for every other run of it: asked
+  from run 2 the report was written into `runs/run1/reports/`, asked from run 1
+  into `runs/run2/`, and the run the user was standing in went on saying "No
+  report has been generated for this run yet" for ever. No error, no traceback,
+  no log line, which is why it reached the owner as a button that does nothing.
+  Single-run projects were never affected, which is how it survived.
+
+  Measured on screen, 2026-09-15, on a real two-run project built with real
+  Argyll tools (`report-fix/drivers/two_runs_report.py`, three asks, before and
+  after, with the pre-fix file restored from git for the "before"): opened on
+  run 1, the window read **"Report type (run1)"** and **"Judged against (run1)"**
+  over run 2's measurement (avg dE **0.669**, where run 1's own is **4.206**),
+  wrote `runs/run2/reports/report_*.json`, and left the line under the pulldown
+  reading "No report has been generated for this run yet". After the fix the
+  same three asks each show and file their own run: run 1 gives 4.206 into
+  `runs/run1/`, run 2 gives 0.669 into `runs/run2/`, and the line changes to
+  "Already generated for this run: Full colour check (1)".
+- fix: the two ideas that were one are separated, and BOTH are kept. What the
+  window shows as HISTORY still spans the project's runs, because that trend is
+  the feature (#40, Knut, in `list_project_reports`' own docstring); what
+  Generate is about, and where it is filed, is the measurement the window was
+  opened on. `_gather_runs` now always puts that measurement in its own history
+  (`_report_is_about`), exactly as the dated-verification fall-back beside it
+  already did for a date measured with the report switched off; `_subject_of`
+  gives every source its own subject, so `_add_source`, `_on_add_project` and
+  `_on_remove_profile` stop reaching for the history's newest entry; and
+  `_reports_to_generate` keeps the button inside the run the window is on, asked
+  of `ctx.run` rather than matched out of a path string. A side effect worth
+  naming: a loose measurement in a folder that holds a report of a DIFFERENT
+  file is now about the file the user opened, not about that report.
+  Design rules relied on, both in `docs/design/measurement_report_limits.md`
+  and both awaiting confirmation, neither contradicted: section 5 "the set
+  belongs to the profile run" and section 10 "the type belongs to the profile
+  run" / "Generate report writes a dated report of the type now chosen". No new
+  user-facing text, so nothing for the M catalogue.
+- evidence: test_the_window_shows_the_measurement_it_was_opened_on,
+  test_a_report_generated_from_a_run_is_filed_in_that_run,
+  test_the_filed_report_carries_that_runs_own_numbers,
+  test_the_run_stops_saying_it_has_no_report,
+  test_the_history_still_spans_every_run_of_the_project,
+  test_the_run_the_window_is_on_is_in_the_history_even_unsaved,
+  test_generate_never_crosses_a_run_boundary,
+  test_every_date_of_one_run_still_gets_its_own_report,
+  test_a_report_of_another_file_in_the_same_folder_is_not_about_this_one,
+  test_a_measurement_that_cannot_be_read_says_so.
+  Four mutations proved to land (the diff was printed each time) and each turns
+  the file red: the `if not runs:` fall-back restored, the run filter dropped,
+  the dedup dropped, and `list_project_reports` narrowed to `list_reports`.
+
+### B8-180 · One press of Generate doubled the reports the run already had
+- blocks release: yes
+- status: FIXED
+- found by: the same on-screen round, measured rather than reasoned:
+  `report-fix/logs/two-runs-report-BEFORE.log`, ask C.
+- detail: `_on_generate_report` iterated everything the document covered, and
+  every report already saved of a measurement came back as a history entry of
+  that same measurement. So one press wrote one file per entry: press one left
+  one report, press two left two more, press three left four, and the line under
+  the pulldown read "Already generated for this run: Full colour check (4)"
+  after three presses. Photographed on screen going from 2 to 4.
+- fix: `_reports_to_generate` writes one report per MEASUREMENT, deduplicated on
+  `(origin folder, measurement file name)`. A run's several dated verifications
+  are several measurements and still get one report each, which is what the
+  multi-date window has always done.
+- evidence: test_three_presses_leave_three_reports_not_eight,
+  test_every_date_of_one_run_still_gets_its_own_report.
+
+### B8-181 · Generate stayed live over an empty target list when its own row was unticked
+- blocks release: no
+- status: FIXED
+- INTRODUCED BY THE B8-179 FIX, found by the adversary round on it the same
+  hour (`report-fix/drivers/adversary_round2.py`, probe P4).
+- detail: the run-row tick boxes leave a measurement out of the trend, the
+  tables and the PDF. Unticking the row of the run you are standing in left the
+  target list empty while the button stayed enabled, so pressing it wrote
+  nothing and said nothing: `_say_generated` is deliberately quiet on success,
+  and this was neither a success nor a failure. That is the same "a button that
+  does nothing" shape as B8-179, one hour after fixing it.
+- fix: the enable line asks the list it will actually write from
+  (`_reports_to_generate`) instead of everything loaded. A disabled button is
+  visibly refusing; a live one that writes nothing is not. The all-unticked case
+  already disabled it, so this only makes the rule reach the row that matters.
+  Re-measured on screen: unticked gives 0 targets and a disabled button, ticked
+  back gives it again (`report-fix/drivers/adversary_round3.py`, P4b).
+- evidence: test_the_button_refuses_when_its_own_run_is_unticked.
+
+### B8-182 · Two profile runs of one project were ONE row key
+- blocks release: no
+- status: FIXED
+- found by: the adversary pass over the B8-179 fix, reading `_run_key`.
+- detail: `_run_key` was `created|ti3`, and every run of a project names its
+  measurement after the project, so two runs measured in the same second were
+  one key. Unticking one row would hide both, and the one-page summary picks its
+  single sheet by that key. The same collision is already on record for two
+  dated verifications built at load time
+  (`test_the_one_page_summary_is_about_one_sheet.py` documents it in a fixture
+  comment); the B8-179 fix puts two runs of one project in one window routinely,
+  so the class was worth removing rather than the instance.
+- fix: the origin folder is part of the key. Session-only: `_hidden_runs` is the
+  only thing that keeps one.
+- evidence: test_two_runs_measured_in_the_same_second_are_two_rows.
+
+### B8-183 · A source-scanning test anchored on the first MENTION of a method
+- blocks release: no
+- status: FIXED
+- found by: the everyday tier going red on work that had not touched the rule it
+  guards.
+- detail: `test_the_window_really_guards_it_this_way` read
+  `src.index("stamp_report_type(rep, ctx.run)", src.index("_recalculate_run"))`
+  over the whole class source. The anchor was therefore the first place the
+  METHOD NAME appears anywhere, so a comment in another method naming
+  `_recalculate_run` moved the anchor above `_on_generate_report`, and the test
+  inspected that method's stamping instead. It failed on a comment.
+- fix: `inspect.getsource(MeasurementReportDialog._recalculate_run)` — the
+  method's own source cannot drift. Proved still to catch what it guards:
+  deleting the `if not (rep or {}).get("report_type")` line turns it red.
+- evidence: test_the_window_really_guards_it_this_way.
+
+### B8-184 · Check and Refine writes a 63 KB quality report and its result window never names it
+- blocks release: no
+- status: OPEN
+- found by: the a tester-journey round, 2026-09-15; re-read in the source here.
+- detail: `ui/tabs/tab_check_refine.py` writes
+  `reports/Quality_Check_N_<name>.txt` (62,995 bytes on the journey's run) and
+  then shows the Profile Quality Assessment window, which gives the grade, the
+  worst strips and the refinement offer and says nothing about the file. ONE
+  CORRECTION to the report as it reached me: it is not silent everywhere. The
+  line `[OK] Quality report saved: reports/Quality_Check_1_<name>.txt` is
+  appended to the tab's own log pane (tab_check_refine.py:1548). What has no
+  mention of it is the dialog the user is reading at that moment, which is the
+  one place they are looking.
+- owner: not this agent's area. `ui/tabs/tab_check_refine.py` was outside the
+  brief (`ui/dialogs/measurement_report_dialog.py` and
+  `workflow/measurement_report.py`), and the wording of any new sentence would
+  go to M-PROPOSED first.
+
+### B8-185 · The Measure tab's own "Measurement report" button is built inside the Manual panel
+- blocks release: no
+- status: OPEN
+- found by: the a tester-journey round, 2026-09-15; confirmed in the source here.
+- detail: `self._m_report_btn` is created at `ui/tabs/tab_measure.py:2931`, inside
+  `_make_manual_panel` (2677 onwards), and is referenced nowhere else. The Guided
+  panel (2202 to 2677) builds no such button, so a user who measures the guided
+  way never sees the report offered where they are working. They are not cut off
+  from it: Tools then Measurement report opens the same window seeded with the
+  target's own measurement (`tools_dialogs._report_seed`), and two of the tab's
+  own messages point at that route by name. It is a discoverability fault, not a
+  dead end.
+- owner: not this agent's area. `ui/tabs/tab_measure.py` is owned by another
+  agent in another worktree, and moving a button between panels is a layout
+  decision for that file's owner.
