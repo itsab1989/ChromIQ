@@ -10607,6 +10607,15 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
         # 3) Make room (§I.9) — never an overwrite.
         proj = ctl.project_or_none()
+        # What to put back if a later step refuses: the run this import made
+        # (None while it has made none) and the run the person was standing on.
+        made_here = None
+        was_on = ""
+        try:
+            was_on = str(ctl.target.profile_run or "")
+        except Exception:      # noqa: BLE001 — a missing bar is not a reason
+            was_on = ""         # to block an import
+        was_current = was_on
         if run.measurement_ti3.is_file():
             if proj is None:
                 # NOT IN SILENCE. Without a project there is nowhere to put a
@@ -10632,6 +10641,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             except (OSError, ValueError) as exc:
                 self._say_import_failed(exc)
                 return
+            made_here, was_current = run, was_on
             # THE BAR MOVES BEFORE THE SNAPSHOT, not after it.
             # `_snapshot_profiling_chart` reads `target.profile_run` to decide
             # WHICH run to copy a chart into, so a bar still pointing at the
@@ -10646,7 +10656,39 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
         # 4) The chart snapshot (§I.6). For a profiling run this routes to
         #    `_snapshot_profiling_chart` inside the shared method.
+        #
+        # AND A REFUSAL HERE KEPT THE RUN STEP 3 HAD JUST MADE. This said
+        # `return`, full stop. Every other refusal on this door undoes that run
+        # first and says so, and the sibling door has `_undo_the_run` for
+        # exactly this; only the one refusal that can happen AFTER the
+        # duplicate was missing it.
+        #
+        # WHAT A PERSON WAS LEFT WITH, driven on screen with every window
+        # answered by clicking its own button (combined round 4,
+        # `N-result.json`): import a measurement into Run 1, regenerate its
+        # chart so the stored copy no longer matches (or answer "Keep stored
+        # chart" once, which ChromIQ records as `chart_snapshot_stale`), import
+        # a second measurement, answer "Make a new run", then press CANCEL on
+        # "Stored chart differs". Run 2 stayed on disk and in `project.json`
+        # holding no measurement, the bar was left standing on it
+        # ("Location being edited: runs/run2/"), the file was not imported, and
+        # NOTHING WAS SAID — the same silent no-op this door's own comments
+        # record fixing on four other routes.
         if not self._snapshot_verification_chart():
+            from ui.measurement_filing import _undo_the_run
+            if made_here is not None and proj is not None:
+                _undo_the_run(proj, made_here, was_current)
+                try:
+                    ctl.set_profile_run(was_current or "")
+                except Exception:  # noqa: BLE001 — the run is gone either way
+                    log.warning("import: could not put the bar back on %s",
+                                was_current, exc_info=True)
+                self._say_on_screen(
+                    tr("The measurement was not imported"),
+                    tr("You stopped at the stored-chart question, so nothing "
+                       "has been imported and nothing has been changed. The "
+                       "new run ChromIQ had started making has been removed "
+                       "again, and your own file is untouched where it is."))
             return
 
         # 5) File it (§I.7) — the run's canonical stem.

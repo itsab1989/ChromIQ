@@ -480,6 +480,143 @@ def _measured_keyword(ti3_path: Path) -> str:
     return ""
 
 
+#: How far two readings of the LIGHTEST or DARKEST patch may sit apart in L*
+#: and still be the same file. Both sides are the same rounding of the same
+#: arithmetic, so the honest tolerance is the coarsest rounding any report
+#: schema used (one decimal, schema 5). 0.5 is ten times that, and a fifth of
+#: the smallest difference measured between two real reads of one chart.
+_SAME_FILE_DL = 0.5
+
+
+def lightest_and_darkest(lab) -> "tuple[int, int] | None":
+    """``(lightest, darkest)`` reading by measured L*, or None for no readings.
+
+    ONE RULE, because `build_report` needs the lightest patch a SECOND time —
+    the media-relative yardstick divides every reading by the paper white's
+    XYZ — and it used to read a local left over from the paper-white block.
+    Lifting that block into :func:`measurement_facts` took the local away and
+    the suite caught it as a `NameError` in three tests; recomputing it inline
+    would have put the two readings of "which patch is the paper" back to being
+    two.
+    """
+    Ls = [l[0] for l in lab]
+    if not Ls:
+        return None
+    return int(np.argmax(Ls)), int(np.argmin(Ls))
+
+
+def measurement_facts(ti3_path: "str | Path", *, data=None,
+                      lab=None) -> dict:
+    """What a saved report records ABOUT ITS OWN MEASUREMENT. THE ONE RULE.
+
+    ``patches``, ``paper_white`` and ``max_black``: how many readings the sheet
+    holds and the lightest and darkest of them. `build_report` writes them and
+    :func:`facts_disagree` reads them back, so the writer and the reader cannot
+    drift — the failure this project has met three times in one day is two
+    places deciding the same question differently.
+
+    Cheap on purpose: no reference chart, no ArgyllCMS, one `parse_ti3`.
+    """
+    ti3_path = Path(ti3_path)
+    if data is None:
+        data = parse_ti3(ti3_path)
+    if lab is None:
+        lab = [xyz_to_lab((x / 100.0, y / 100.0, z / 100.0))
+               for x, y, z in data.xyz]
+    extremes = lightest_and_darkest(lab)
+    if extremes is None:
+        return {"patches": data.n_patches}
+    wi, bi = extremes
+    return {
+        "patches": data.n_patches,
+        "paper_white": {
+            "loc": data.sample_locs[wi] if data.sample_locs else data.sample_ids[wi],
+            "lab": [round(v, 2) for v in lab[wi]],
+            "hex": _srgb_hex(tuple(data.xyz[wi])),
+        },
+        "max_black": {
+            "loc": data.sample_locs[bi] if data.sample_locs else data.sample_ids[bi],
+            "lab": [round(v, 2) for v in lab[bi]],
+            "hex": _srgb_hex(tuple(data.xyz[bi])),
+        },
+    }
+
+
+def _point_L(point) -> "float | None":
+    """The L* of a report's ``paper_white`` / ``max_black``, whichever shape it
+    is in. Schema 5 wrote ``{"L": .., "a": .., "b": ..}``; 6 and 7 write
+    ``{"loc": .., "lab": [L, a, b], ..}``. Both are on this machine's disk."""
+    if not isinstance(point, dict):
+        return None
+    if isinstance(point.get("lab"), (list, tuple)) and point["lab"]:
+        try:
+            return float(point["lab"][0])
+        except (TypeError, ValueError):
+            return None
+    try:
+        return float(point["L"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def facts_disagree(rep: dict, ti3_path: "str | Path") -> bool:
+    """True when a saved report CANNOT be about the file standing here.
+
+    THE FILE ITSELF IS ASKED, rather than the folder around it. Every
+    measurement of one run carries the same file name, so the name says
+    nothing; the ``created`` stamp says it when it matches, and where the stamp
+    has moved for an innocent reason (a demo package writing the date it wants
+    the history to show, a renamed target) this is what can still tell a
+    replacement from a re-stamp. It is deliberately one-sided: agreement is NOT
+    taken as proof, because the folder tests in
+    `MeasurementReportDialog._measurement_for` still have to run.
+
+    Answers False, not True, for a report that records nothing comparable and
+    for a file that cannot be read — "I cannot tell" must never be read as
+    "it is a different measurement", which is the shape that took the accuracy
+    block off every dated verification once already (B8-206).
+    """
+    want_n = rep.get("patches")
+    try:
+        facts = _facts_cached(Path(ti3_path))
+    except Exception:  # noqa: BLE001 — unreadable is not evidence
+        return False
+    if not facts:
+        return False
+    if isinstance(want_n, int) and isinstance(facts.get("patches"), int) \
+            and want_n != facts["patches"]:
+        return True
+    for key in ("paper_white", "max_black"):
+        a, b = _point_L(rep.get(key)), _point_L(facts.get(key))
+        if a is not None and b is not None and abs(a - b) > _SAME_FILE_DL:
+            return True
+    return False
+
+
+def _facts_cached(ti3_path: Path) -> dict:
+    """:func:`measurement_facts`, remembered per (path, size, mtime).
+
+    The report window asks this once per saved report, and a run on a real disk
+    holds twenty-seven of them naming ONE file. Keyed on the file's own stamp
+    so an edited file is read again.
+    """
+    try:
+        st = ti3_path.stat()
+        key = (str(ti3_path), st.st_size, st.st_mtime_ns)
+    except OSError:
+        return {}
+    hit = _FACTS_CACHE.get(key)
+    if hit is None:
+        hit = measurement_facts(ti3_path)
+        if len(_FACTS_CACHE) > 64:
+            _FACTS_CACHE.clear()
+        _FACTS_CACHE[key] = hit
+    return hit
+
+
+_FACTS_CACHE: dict = {}
+
+
 def created_stamp_for(ti3_path: str | Path, *,
                       keywords: "dict | None" = None) -> str:
     """The ``created`` stamp a report of *ti3_path* carries. THE ONE RULE.
@@ -554,20 +691,11 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
                        else _sheet_kind(ti3_path)),
     }
 
-    # Paper white (lightest) and darkest black by measured L*.
-    Ls = [l[0] for l in lab]
-    wi = int(np.argmax(Ls))
-    bi = int(np.argmin(Ls))
-    report["paper_white"] = {
-        "loc": data.sample_locs[wi] if data.sample_locs else data.sample_ids[wi],
-        "lab": [round(v, 2) for v in lab[wi]],
-        "hex": _srgb_hex(tuple(data.xyz[wi])),
-    }
-    report["max_black"] = {
-        "loc": data.sample_locs[bi] if data.sample_locs else data.sample_ids[bi],
-        "lab": [round(v, 2) for v in lab[bi]],
-        "hex": _srgb_hex(tuple(data.xyz[bi])),
-    }
+    # Paper white (lightest) and darkest black by measured L* — THE ONE RULE,
+    # in `measurement_facts`, because these three numbers are also the only
+    # record a saved report keeps OF WHICH MEASUREMENT IT IS ABOUT, and the
+    # reader of that record must not compute them a second way.
+    report.update(measurement_facts(ti3_path, data=data, lab=lab))
 
     # Device RGB, normalised to Argyll's 0..100 device scale. i1Profiler
     # measurement exports carry 0..255 code values; ChromIQ's own charts are
@@ -676,8 +804,9 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
         white_mapping = (_col == "through-profile"
                          and (_intent not in ("", "absolute")
                               or _route == "external-cm"))
-        if white_mapping:
-            white_xyz = np.asarray(data.xyz[wi], dtype=float)
+        _extremes = lightest_and_darkest(lab)
+        if white_mapping and _extremes is not None:
+            white_xyz = np.asarray(data.xyz[_extremes[0]], dtype=float)
             if float(white_xyz.min()) > 0.0:
                 _d50 = np.array([96.42, 100.0, 82.49])
                 lab = [xyz_to_lab(tuple(

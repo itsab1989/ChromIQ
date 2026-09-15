@@ -8780,3 +8780,141 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   (`_note_margin = _meas_r`, `_side_margin = _meas_r if _clip_on_right else
   _meas_l`, `_patch_top = _meas_t`, `_patch_bottom = _meas_b`), so no sentence
   mixes two pages' numbers into one arithmetic statement.
+
+### B8-211 · "Measure again to average" left the report window describing the sheet before it
+- blocks release: no
+- status: FIXED
+- found by: combined adversary round 4, 2026-09-15, attacking the
+  measurement-identity rule the three rounds before it had re-keyed four times
+  in one day (`drive_the_measurement_identity_from_both_ends.py`,
+  `drive_averaging_replaces_the_measurement.py`).
+- detail: WHAT A USER SEES. Measure a run, press *Generate report*, then press
+  *Measure again to average* in the completion window, read the chart a second
+  time and choose *Average*. The run now holds the AVERAGED sheet, which no
+  saved report describes. Opened on it, the Measurement Report window:
+  * with a report the current builder rebuilds, showed ONE row, dated with the
+    saved report's own date, carrying the averaged sheet's numbers. The saved
+    report holds **delta-E00 average 11.776, paper white A14 L\* 92.72**; the
+    row read **13.513, C5 L\* 91.74** (`C-C-Averaged-Old-Report.png`).
+  * with a report it does not rebuild, there was **no row for the averaged
+    measurement at all**, no point for it on the trend, and *Generate report*
+    would have filed a report about the older sheet
+    (`C-C-Averaged-Today.png`).
+  Both are the faults B8-205 and B8-208 record, reappearing through a door
+  neither of them had.
+- cause: B8-206 made the FOLDER settle the identity wherever the ``created``
+  stamp has moved for an innocent reason, and its two tests are proxies for
+  "this folder has held more than one measurement under that name": an archive
+  in ``old/<when>/``, or a second saved report date. **Averaging leaves
+  neither.** `Run.promote_measurement_to_read` MOVES ``<stem>.ti3`` into
+  ``reads/readN.ti3``, so the next read's `MeasurementSession.begin` finds no
+  file to archive, and `_run_average_and_proceed` then writes the averaged
+  sheet straight over `Run.measurement_ti3`. Built with the app's own moves and
+  ArgyllCMS `average` on two real reads of one chart: no `old/` folder existed
+  at all.
+- fix: the file is asked before the folder.
+  `workflow.measurement_report.measurement_facts` is THE ONE RULE for the three
+  facts a report records about its own measurement (``patches``,
+  ``paper_white``, ``max_black``) — `build_report` now writes them through it
+  and `facts_disagree` reads them back, so the writer and the reader cannot
+  drift. `_measurement_for` refuses a file whose own facts contradict the
+  report's. It is one-sided on purpose: agreement is not proof, so the folder
+  tests still run underneath, and ``reads/`` joins them there.
+- and NOT in a dated verification folder, which is B8-206's own sentence rather
+  than a new exception: such a folder holds exactly one measurement (a replaced
+  verification is archived into ``verifications/old/``, outside it). It matters
+  because **the demo package writes a STUB report into each dated folder** to
+  give the history its date: schema 5, no accuracy block at all,
+  ``"patches": 240`` and a paper white of L\* 95.4 beside a real 64-patch sheet
+  whose white is L\* 99.53. Measured on `Demo-Switching` and
+  `Demo-Prefs-Speed`, both dates. Asking the file there took the accuracy
+  figures off exactly the two rows B8-206 exists to keep, which is how this was
+  caught: the first cut was driven against the demo package and both dated rows
+  came back `avg_all: None` again.
+- also measured and NOT changed: the three callers of the identity were driven
+  rather than read, and they agree. A report written by a ChromIQ old enough to
+  stamp ``created`` with the moment *Generate* was pressed (the rule changed in
+  `05e1e92d`, 2026-07-21; 25 of the 58 saved reports on one real disk predate
+  it) is handled correctly in all four shapes driven: one such report with the
+  archive gone, two of them, one with the archives in place, and one after a
+  rename. The app's own rename renames the ``old/`` archives along with
+  everything else (driven through `FileManager.rename_existing_project` and
+  read back off disk), so the archive test is not blinded by a rename.
+- evidence: test_an_averaged_run_keeps_its_reports_own_numbers,
+  test_the_averaged_measurement_gets_a_row_of_its_own,
+  test_generate_would_file_about_the_averaged_sheet,
+  test_a_reads_folder_says_the_run_has_held_another_measurement,
+  test_the_file_itself_tells_two_sheets_apart,
+  test_a_different_number_of_readings_is_a_different_measurement,
+  test_facts_disagree_reads_a_report_of_every_schema_on_disk,
+  test_measurement_facts_is_the_rule_build_report_writes,
+  test_a_measurement_that_cannot_be_read_is_not_evidence,
+  test_a_dated_verification_is_still_rebuilt_from_the_file_in_its_folder,
+  alongside B8-205's and B8-206's fifteen, which stay green. MUTATIONS PROVED,
+  nine, each read back out of the file before the run that judged it: removing
+  BOTH the facts check and the ``reads/`` test turns 4 red (the three headline
+  ones and the ``reads/`` one); removing only the ``reads/`` test turns 1 red;
+  applying the facts check in a dated verification folder too turns 1 red;
+  making `facts_disagree` compare nothing turns 4; letting it answer True when
+  the file cannot be read turns 1; dropping `_point_L`'s schema-5 branch turns
+  1; having `build_report` compute its own paper white a second way turns 2;
+  dropping the patch-count comparison turns 1. Removing ONLY the facts check
+  turns nothing red, on purpose and recorded in the tests: either guard catches
+  the averaging state on its own, which is why there are two.
+
+### B8-212 · A second import stopped at the stored-chart question kept the run it had just made
+- blocks release: no
+- status: FIXED
+- found by: combined adversary round 4, 2026-09-15, settling the second
+  question round 3 measured and deliberately did not report — import, then
+  import again — by answering every window with a click on its own button
+  (`drive_import_then_import_again.py`, `drive_the_import_that_is_stopped.py`).
+- detail: WHAT A USER SEES. Import a measurement into Run 1. Later the run's
+  stored chart stops matching the chart it holds (regenerate the chart, or
+  answer *Keep stored chart* once, which ChromIQ records as
+  `chart_snapshot_stale`). Import a second measurement, answer *Make a new
+  run*, and then press **Cancel** on *Stored chart differs*. Driven on screen:
+  **Run 2 stayed on disk and in `project.json` holding no measurement**, the
+  bar was left standing on it (*Location being edited: runs/run2/*), the file
+  was not imported, and **nothing at all was said** (`N-result.json`).
+- cause: §I.9 step 3 duplicates the run and points the bar at the copy — that
+  order is deliberate, because `_snapshot_profiling_chart` reads the bar to
+  decide which run to copy a chart into. Step 4 then read
+  `if not self._snapshot_verification_chart(): return`, with no rollback. Every
+  other refusal on this door undoes the run it made and says so, and the
+  sibling door has `_undo_the_run` for exactly this; only the one refusal that
+  can happen AFTER the duplicate was missing it. It is the same shape round 2
+  fixed on the new-project door ("Run 4 created by an import that was then
+  refused") and the same silence this door's own comment records fixing on four
+  other routes.
+- fix: the run is undone through `_undo_the_run` — the sibling door's function,
+  not a second copy of it — the bar is put back on the run the person was
+  standing on, and they are told: *"The measurement was not imported / You
+  stopped at the stored-chart question, so nothing has been imported and
+  nothing has been changed. The new run ChromIQ had started making has been
+  removed again, and your own file is untouched where it is."* German
+  translated; the other eleven catalogues carry the English source, which is
+  this project's beta practice. The wording follows this door's existing
+  refusals; **it is Basti's to change.**
+- and the question that was open is ANSWERED: import, then import again, with
+  every window clicked rather than stubbed, is otherwise clean. Both runs end
+  holding their own measurement, their own chart and their own chart snapshot,
+  `project.json` agrees with the disk, and nothing is written outside the run
+  the file went into (`M-result.json`).
+- also: the first cut of this drive reported two faults that were its own.
+  Renaming the source project's artefacts with `printer-test.*` misses
+  `printer-test_01.tif`, so the duplicated run had a chart snapshot holding a
+  TIFF its live folder did not — and *Stored chart differs* fired on a run that
+  had just been copied from the one beside it. And a run left on "New run" is
+  refused by `_blocked_by_new_run` before an import starts. Both were found by
+  reading the disk rather than believing the window.
+- evidence: test_stopping_at_the_stored_chart_question_undoes_the_run_it_made,
+  test_stopping_there_puts_the_bar_back_on_the_run_the_person_was_on,
+  test_stopping_there_says_so_rather_than_doing_nothing,
+  test_the_measurement_is_not_filed_when_the_question_is_stopped,
+  test_answering_the_chart_question_still_files_into_the_new_run. MUTATIONS
+  PROVED, four, each read back out of the file before the run that judged it:
+  putting step 4 back to a bare `return` turns 3 red, dropping the line that
+  puts the bar back turns 1, removing the sentence turns 1, and rolling the run
+  back even when the import goes on turns 13 red — which is the behaviour this
+  must not eat.

@@ -920,3 +920,120 @@ def test_saying_no_to_that_question_writes_nothing(qapp, tmp_path,
 
     assert not run.measurement_ti3.exists()
     assert not seen["done"]
+
+
+# ---------------------------------------------------------------------------
+# §I.9 step 4: the one refusal that happens AFTER the duplicate was made
+# ---------------------------------------------------------------------------
+
+def _stale_stored_chart(run) -> None:
+    """The state "Stored chart differs" is asked about: a run whose stored copy
+    of its chart is not the chart it holds now.
+
+    Reached in the app by regenerating the chart, or by answering "Keep stored
+    chart" once, which ChromIQ records as ``chart_snapshot_stale``.
+    """
+    from workflow.chart_slot import slot_for
+    from workflow.verify_chart_snapshot import snapshot_slot
+    snapshot_slot(slot_for(run))
+    run.chart_ti2.write_text(
+        run.chart_ti2.read_text(encoding="utf-8")
+        + '\nKEYWORD "CHROMIQ_EDITED"\n', encoding="utf-8")
+
+
+def _second_import_stopped_at_the_chart_question(tmp_path, monkeypatch,
+                                                 *, answer="cancel"):
+    """Import into a full run, answer "Make a new run", then answer the
+    stored-chart question with *answer*. Returns (fm, ctl, run1, seen)."""
+    s, fm, ctl, run = _env(tmp_path)
+    run.measurement_ti3.write_text(_cgats("CTI3", _CHART), encoding="utf-8")
+    _stale_stored_chart(run)
+    tab = _tab(s, fm, ctl)
+    seen = _silence(tab, monkeypatch)
+    # the real `_snapshot_profiling_chart` runs; only the WINDOW is answered
+    monkeypatch.setattr(tab, "_profiling_overwrite_choice",
+                        lambda r: answer)
+    tab._import_path = _measurement(tmp_path, _CHART)
+    tab._switch_mode("import")
+    tab._on_import_measurement()
+    return fm, ctl, run, seen
+
+
+def test_stopping_at_the_stored_chart_question_undoes_the_run_it_made(
+        qapp, tmp_path, monkeypatch):
+    """THE FAULT. Step 3 duplicates the run and points the bar at the copy;
+    step 4 said `return` with no rollback, so a person who pressed Cancel on
+    "Stored chart differs" was left with an empty Run 2 on disk and in
+    `project.json`. Driven on screen with every window answered by clicking its
+    own button (combined round 4, `N-result.json`).
+
+    MUTATION: put step 4 back to a bare `return` and this goes red with two
+    runs, the second holding nothing.
+    """
+    fm, _ctl, run, _seen = _second_import_stopped_at_the_chart_question(
+        tmp_path, monkeypatch)
+    ids = [r.id for r in fm.project().all_runs()]
+    assert ids == ["run1"], (
+        "a stopped import left %r behind" % (ids,))
+    assert not [d for d in (fm.project().root / "runs").iterdir()
+                if d.is_dir() and d.name != "run1"], (
+        "the run folder is still on disk even though the manifest forgot it")
+
+
+def test_stopping_there_puts_the_bar_back_on_the_run_the_person_was_on(
+        qapp, tmp_path, monkeypatch):
+    """The bar is moved to the copy BEFORE the snapshot step, deliberately, so
+    the rollback has to move it back. Leaving it on a run that no longer exists
+    is how "Location being edited" came to name a folder that was not there.
+
+    MUTATION: drop the `ctl.set_profile_run(was_current)` line and this goes
+    red with the bar on run2.
+    """
+    _fm, ctl, _run, _seen = _second_import_stopped_at_the_chart_question(
+        tmp_path, monkeypatch)
+    assert ctl.target.profile_run == "run1", (
+        "the bar was left on %r" % (ctl.target.profile_run,))
+
+
+def test_stopping_there_says_so_rather_than_doing_nothing(
+        qapp, tmp_path, monkeypatch):
+    """A button that does nothing at all reads as a broken app — this door's
+    own comment, written after the same fault on four other routes.
+
+    MUTATION: remove the `_say_on_screen` call and this goes red.
+    """
+    _fm, _ctl, _run, seen = _second_import_stopped_at_the_chart_question(
+        tmp_path, monkeypatch)
+    assert seen["said"], "nothing at all was said"
+    title, body = seen["said"][-1]
+    assert "not imported" in title.lower()
+    assert "nothing has been changed" in body.lower()
+    assert not seen["done"], "the import reported success after being stopped"
+
+
+def test_the_measurement_is_not_filed_when_the_question_is_stopped(
+        qapp, tmp_path, monkeypatch):
+    """…and the run that was full keeps exactly what it had."""
+    kept = None
+    fm, _ctl, run, _seen = _second_import_stopped_at_the_chart_question(
+        tmp_path, monkeypatch)
+    assert run.measurement_ti3.is_file()
+    assert 'CHROMIQ_EDITED' in run.chart_ti2.read_text(encoding="utf-8"), (
+        "run 1's own chart was changed by an import that was stopped")
+
+
+def test_answering_the_chart_question_still_files_into_the_new_run(
+        qapp, tmp_path, monkeypatch):
+    """THE BEHAVIOUR THE ROLLBACK MUST NOT EAT. Answering "Replace the stored
+    chart" goes on, and the copy gets the measurement.
+
+    MUTATION: roll the run back unconditionally and this goes red.
+    """
+    fm, ctl, run, seen = _second_import_stopped_at_the_chart_question(
+        tmp_path, monkeypatch, answer="go")
+    ids = [r.id for r in fm.project().all_runs()]
+    assert len(ids) == 2, ids
+    made = [r for r in fm.project().all_runs() if r.id != "run1"][0]
+    assert made.measurement_ti3.is_file(), (
+        "the import did not file into the run it made")
+    assert ctl.target.profile_run == made.id

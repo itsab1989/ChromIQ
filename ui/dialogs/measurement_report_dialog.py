@@ -1742,13 +1742,40 @@ class MeasurementReportDialog(QDialog):
         measurement and rebuilding from "the file in the folder" is right
         there. That is the shape B8-205 is NOT about.
 
-        So the stamp settles it one way and the FOLDER settles it the other.
-        The file is refused only where something on disk says this folder has
-        held more than one measurement under that name:
+        AND A FOLDER IS A PROXY, WHICH IS WHY THE FILE IS ASKED FIRST NOW.
+        The two folder tests below stand for "this folder has held more than
+        one measurement under that name", and they only see the doors that
+        leave something behind. AVERAGING LEAVES NOTHING:
+        `Run.promote_measurement_to_read` MOVES the measurement into
+        `reads/readN.ti3`, so the next read's `MeasurementSession.begin` finds
+        no file to archive, and `_run_average_and_proceed` then writes the
+        averaged sheet straight over `Run.measurement_ti3`. Driven on screen
+        with the app's own moves and ArgyllCMS `average`
+        (`~/Desktop/ChromIQ-beta18-proof/combined-round-4/`,
+        `C-C-Averaged-Old-Report.png`): a run whose saved report held delta-E00
+        11.776 and paper white A14 L* 92.72 showed ONE row, under the saved
+        report's own date, reading 13.513 and C5 L* 91.74 — the averaged
+        sheet's numbers — and the measurement the window was opened on had no
+        row, no trend point, and Generate report would have filed about the
+        older sheet.
+
+        So `workflow.measurement_report.facts_disagree` asks the FILE: a saved
+        report records how many readings its measurement held and its lightest
+        and darkest patch, and a file that contradicts them is not it. That is
+        one-sided on purpose — agreement is not proof, so the folder tests
+        still run underneath.
+
+        So the stamp settles it one way, the file's own facts settle it the
+        other, and the FOLDER is the last word for a report too old to record
+        anything comparable. The file is refused where something on disk says
+        this folder has held more than one measurement under that name:
 
         * an archived copy of it in ``old/<when>/``, which is what
           `MeasurementSession.begin` leaves behind every time a measurement is
           made over another one; or
+        * a ``reads/readN.ti3`` beside it, which is what
+          `Run.promote_measurement_to_read` leaves behind when the person
+          answers "Measure again to average"; or
         * another saved report in the same folder carrying a different
           ``created``, which cannot happen unless there was another
           measurement to report.
@@ -1788,7 +1815,7 @@ class MeasurementReportDialog(QDialog):
         measurement AND the chart of the day. Nothing available now beats that,
         so where this answers None nothing replaces them.
         """
-        from workflow.measurement_report import created_stamp_for
+        from workflow.measurement_report import created_stamp_for, facts_disagree
         want = str(rep.get("created") or "")
         if not want:
             return None
@@ -1801,11 +1828,37 @@ class MeasurementReportDialog(QDialog):
                 return None
         if created_stamp_for(live) == want:
             return live
-        # The stamp has moved. Only the folder can say whether that is because
-        # a different measurement is standing here now.
+        # The stamp has moved. ASK THE FILE FIRST, wherever the folder is
+        # capable of having held a second measurement under this name. A saved
+        # report keeps three facts about its own measurement — how many
+        # readings it held and its lightest and darkest patch — and a file
+        # whose own facts contradict them is a different sheet whatever the
+        # folder looks like.
+        #
+        # NOT IN A DATED VERIFICATION FOLDER, and that is B8-206's own sentence
+        # rather than a new exception: such a folder holds exactly ONE
+        # measurement (a replaced verification is archived into
+        # `verifications/old/`, outside the dated folder), so the file in it is
+        # the only candidate there has ever been. It matters because the demo
+        # package writes a STUB report into each dated folder to give the
+        # history its date — schema 5, no accuracy block at all, "patches": 240
+        # and a paper white of L* 95.4 beside a real 64-patch sheet whose white
+        # is L* 99.53. Measured on `Demo-Switching` and `Demo-Prefs-Speed`,
+        # both dates, 2026-09-15. Asking the file there would take the accuracy
+        # figures off exactly the rows B8-206 exists to keep, and the folder
+        # tests below still catch a dated verification that really was
+        # measured twice.
+        from core.file_manager import VERIFICATIONS_DIRNAME
+        if run_dir.parent.name != VERIFICATIONS_DIRNAME \
+                and facts_disagree(rep, live):
+            return None
+        # Then the folder, for a report too old to record anything comparable.
         old_root = run_dir / "old"
         if old_root.is_dir() and any((d / live.name).is_file()
                                      for d in old_root.iterdir() if d.is_dir()):
+            return None
+        if (run_dir / "reads").is_dir() and \
+                any((run_dir / "reads").glob("read*.ti3")):
             return None
         if any(c and c != want for c in (dates_here or set())):
             return None
