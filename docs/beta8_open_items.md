@@ -7666,3 +7666,160 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   always there and the timing is now more likely to expose it.
 - what it would take: stop the auto-preview timer inside that test, or patch
   `_layout_signature` only for the duration of the one call it is about.
+
+<!-- Merge note, 2026-09-15: the four entries below were written as
+     B8-179 to B8-182 on a parallel branch, at the same time as the four
+     above. They are renumbered B8-183 to B8-186 here; references inside
+     them were renumbered with them. -->
+---
+
+### B8-183 · FROM PROFILE GAMUT freezes the window for seconds, with nothing on screen
+- blocks release: no
+- status: FIXED
+- found by: a tester, on v4.3.0-beta.16: *"if there is a valid icc profile in the
+  project, selecting this causes it to hang"*
+- detail: it really did stop. The reach query behind the module
+  (`_gamut_coverage` → `select_gamut_targets`) pushes all 5,960 master colours
+  backward and forward through the profile on the GUI thread, and `xicclu` is
+  single-threaded. Measured on screen with a 20 ms heartbeat on the main
+  thread, on the profile the tester's figures match (3,838 of 5,960 in gamut):
+  **the first click stalled the event loop 3.91 s, and a Margin change another
+  3.97 s**. A photograph taken 1.2 s in shows the previous page still up and
+  **no progress indicator of any kind**. The query alone costs 0.51 s to
+  **7.41 s** depending on the profile, over four real ones.
+
+  Two premises in the original report are **wrong** and are corrected here.
+  (1) The tab's cache is not a single key: `_gamut_coverage_cache` is a plain
+  dict that grows, so a combination asked once is free ever after (measured:
+  0.03 s). What cost 3.97 s was a combination never asked before.
+  (2) One click enters `_gamut_coverage` **eleven** times, not seven; ten are
+  cache hits and one query goes out.
+
+  The query itself is untouched. `-fif` stays: it sits 0.052 dE00 from the aim
+  against 0.366 for the baked B2A table, the two disagree about the answer
+  (2,896 in gamut against 3,838), and which one is right is Knut's call.
+- fix: two changes, both outside the UI.
+  * `workflow/xicclu_runner.py` splits a large batch across one xicclu process
+    per core. **The same question, not a cheaper one**: xicclu answers one
+    stdin line per output line and nothing carries between lines. Verified
+    value by value on two real profiles across eight worker/chunk
+    combinations, every one identical to the serial answer. The cost is
+    per-ROW, measured (60 rows 0.10 s, 5,960 rows 3.31 s), which is why it
+    works. An injected runner is never split, so every existing test still
+    sees exactly one call.
+  * `workflow/gamut_target.py` splits the round trip out of
+    `select_gamut_targets` and memoises it. **The margin is a threshold, not a
+    question** and neither is the patch count, so changing either cannot move
+    the round trip. `flags_in_gamut` shares the same function, so the numeric
+    inverse is now asked for in exactly one place.
+
+  Measured in the real window, same project, before and after: first click
+  **3.91 s → 1.66 s**, Margin change **3.97 s → 0.06 s**, Intent change
+  2.92 s → 1.08 s. The query alone: 7.41 → 1.69 s on the slowest profile,
+  3.64 → 1.09 s on the tester's. **Every in-gamut count is unchanged** (5896,
+  1489, 3838, 4113), and the count line reads identically.
+- not fixed here: the work still runs ON the GUI thread and there is still no
+  progress indicator, so a slow profile on a slow machine still stalls the
+  window for about a second. Both live in `ui/tabs/tab_chart.py`, which this
+  round was scoped out of. See B8-184.
+- evidence: test_splitting_the_batch_returns_exactly_the_serial_answer,
+  test_the_split_keeps_the_rows_in_order,
+  test_an_injected_runner_is_never_split,
+  test_a_small_batch_is_not_worth_a_second_process,
+  test_the_worker_count_is_bounded_by_the_rows_and_the_cores,
+  test_changing_only_the_margin_does_not_ask_the_profile_again,
+  test_a_different_intent_is_a_different_question,
+  test_two_different_colour_sets_of_the_same_length_do_not_collide,
+  test_a_rebuilt_profile_is_read_again, test_the_memo_is_bounded,
+  test_an_injected_runner_is_never_remembered,
+  test_the_one_round_trip_asks_for_the_numeric_inverse,
+  test_neither_entry_point_inverts_behind_the_round_trips_back.
+  All ten mutations proved to land and every one caught.
+
+---
+
+### B8-184 · The reach query still runs on the GUI thread, with nothing on screen while it does
+- blocks release: no
+- status: OPEN
+- found by: this round, measuring B8-183
+- detail: B8-183 took the first click from 3.91 s to 1.66 s and a Margin change
+  to nothing, but it did not change WHERE the work runs. `_gamut_coverage` is
+  still called synchronously from `_update_gamut_count_line`, so on a slow
+  profile, a loaded machine, or an efficiency core (measured elsewhere at 5x a
+  performance core) the window still stops, and while it does there is no busy
+  cursor, no progress line and no greyed panel. The honest fix is the work off
+  the thread with the "≈ N sheets" line arriving when it is ready.
+- why it is not fixed here: every line of it is in `ui/tabs/tab_chart.py`,
+  which another agent was editing at the same time and which this round was
+  explicitly scoped out of. Reported rather than taken.
+- owner: unassigned; needs a round that owns `ui/tabs/tab_chart.py`.
+
+---
+
+### B8-185 · ChromIQ has two Install buttons and they disagreed about the name
+- blocks release: no
+- status: FIXED
+- found by: a tester, on the ICC profile's file name; measured on screen in
+  `~/Desktop/ChromIQ-beta18-proof/katrina-icc-name/ASSESSMENT.md`
+- detail: Build ICC profile's Install went through
+  `ProfileBuilder.install_profile` and honoured "Name the installed copy after
+  the description". Check and Refine's "Install Profile Anyway" was its own
+  `shutil.copy2` to a name built from `Run.for_dir(icc.parent).stem`, and never
+  read the setting at all. Same window, same run, same tick, same description
+  `RR ColorJet Canon Pro-1100 v5`: the first installed
+  `RR ColorJet Canon Pro-1100 v5.icc` and the second `Pro-1100-ColorJet3.icc`.
+- fix: one door, `workflow.profile_builder.install_profile_file`, and one name
+  decision, `installed_profile_name`. Check and Refine takes its description
+  from the **profile's own `desc` tag** rather than a field on another tab: it
+  is a fact about the file being installed, it is what colprof was given, and
+  it is the name other applications list the profile under, which was the tester's
+  point. `Run.stem` survives as the FALLBACK, so an unticked install of a
+  role-named `merged.icc` still lands under the project name rather than as
+  "merged".
+
+  The deliberate half of the rule is kept and guarded: **the project's own file
+  always keeps its stem, only the installed COPY is named after the
+  description** (Knut). Forcing the file stem to follow the description is a
+  different and much riskier change and was NOT made.
+
+  Driven on screen against the fixed tree, with the first installed copy
+  deleted before the second button was pressed so that "nothing new appeared"
+  could not be read as agreement: both buttons independently wrote
+  `RR ColorJet Canon Pro-1100 v5.icc` while the project file stayed
+  `Pro-1100-ColorJet3.icc`. The ColorSync folder was restored to its exact
+  42-profile listing afterwards.
+- evidence: test_both_install_buttons_write_the_same_name,
+  test_with_the_tick_off_both_keep_their_own_rule,
+  test_an_empty_description_falls_back_rather_than_installing_nothing,
+  test_the_source_profile_is_never_touched,
+  test_check_and_refine_does_not_install_behind_the_doors_back,
+  test_the_build_tab_really_goes_through_the_shared_sanitiser.
+  All mutations proved to land and every one caught.
+
+---
+
+### B8-186 · The installed name kept `CON`, `nul` and a 240-character file name
+- blocks release: no
+- status: FIXED
+- found by: this round, while fixing B8-185; flagged in the beta-18 assessment
+- detail: `_install_name` sanitised with `re.sub(r'[\\/:*?"<>|]+', "_", ...)`
+  and stripped spaces and dots. That is the character rule only, and it keeps
+  three things Windows refuses outright, on a product that ships on Windows:
+  a **reserved device name** (`CON`, `nul`, `COM1`, `LPT9` — invalid whatever
+  extension follows, so `CON.icc` cannot be created), a name of any **length**,
+  and **control characters**, which are invisible in the field and can arrive
+  by paste.
+- fix: `workflow.profile_builder.sanitise_install_stem`, shared by both Install
+  buttons. A reserved stem is repaired with a trailing underscore rather than
+  thrown away, so the user still sees what they typed; the stem is capped at
+  `MAX_INSTALL_STEM` (100) and re-stripped afterwards because the cut can land
+  on a space or a dot; control characters are dropped. **No valid name changes**
+  — the existing `test_install_name_follows_checkbox_and_description` passes
+  untouched, and only names that were already broken on Windows behave
+  differently.
+- evidence: test_a_windows_device_name_is_repaired_not_kept,
+  test_a_reserved_name_with_more_words_is_left_alone,
+  test_an_endless_description_is_cut_to_something_installable,
+  test_a_control_character_never_reaches_the_file_name,
+  test_the_old_behaviour_is_unchanged,
+  test_the_name_decision_survives_a_settings_store_that_raises

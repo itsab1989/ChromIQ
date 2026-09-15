@@ -34,7 +34,9 @@ generator previews clash with a running chartread/colprof.
 from __future__ import annotations
 
 import math
+import os
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Callable, Sequence
 
@@ -46,12 +48,78 @@ log = get_logger(__name__)
 
 _TIMEOUT_S = 120
 
+#: Rows per xicclu process once a batch is split. A process costs about 0.08 s
+#: to start and load the profile, and a row costs about 0.5-1.0 ms, so a slice
+#: smaller than this spends more time starting than looking anything up.
+#: Measured 2026-09-15 on ArgyllCMS 3.5.0: ``-fif`` over the 5,960-colour
+#: master set cost 0.10 s for 60 rows and 3.31 s for all of them, so the work
+#: is per-ROW and splitting it wins nearly linearly.
+_SPLIT_MIN_ROWS_PER_PROCESS = 250
+
 
 class XiccluError(RuntimeError):
     """xicclu failed or returned unparseable output (user-facing message)."""
 
 
+def _split_workers(n_rows: int) -> int:
+    """How many xicclu processes to spread *n_rows* over. 1 = do not split."""
+    try:
+        cpus = os.cpu_count() or 1
+    except Exception:                    # noqa: BLE001 — a count must not raise
+        cpus = 1
+    return max(1, min(cpus, n_rows // _SPLIT_MIN_ROWS_PER_PROCESS))
+
+
 def _run_xicclu(
+    bin_dir: str | Path,
+    args: list[str],
+    profile: str | Path,
+    input_lines: Sequence[str],
+    runner: Callable[..., subprocess.CompletedProcess],
+) -> list[list[float]]:
+    """The batch, over as many xicclu processes as the rows are worth.
+
+    **THE SAME QUESTION, NOT A CHEAPER ONE.** xicclu answers one stdin line per
+    output line and nothing carries between lines, so N processes over N slices
+    of the rows return exactly what one process over all of them returns, and
+    the flags, the profile and the intent are untouched. Verified value by
+    value on two real profiles and eight worker/chunk combinations
+    (``~/Desktop/ChromIQ-beta18-proof/katrina-hang/fix/tune_the_split.py``):
+    every one identical to the serial answer.
+
+    It matters because xicclu is single-threaded and the reach query behind
+    "From profile gamut" asks it for 5,960 colours on the GUI thread. Measured
+    on this 16-core machine: 2.85 s serial → 0.54 s split, and on the slowest
+    profile to hand 5.55 s → 0.84 s.
+
+    An INJECTED ``runner`` is never split: a test's fake stands in for the
+    process, and calling it N times with N slices would change what that test
+    sees. Those callers keep exactly today's single call.
+    """
+    workers = (_split_workers(len(input_lines))
+               if runner is subprocess.run else 1)
+    if workers < 2:
+        return _run_xicclu_once(bin_dir, args, profile, input_lines, runner)
+
+    size = (len(input_lines) + workers - 1) // workers
+    slices = [input_lines[i:i + size]
+              for i in range(0, len(input_lines), size)]
+    log.debug("xicclu: %d rows over %d processes", len(input_lines), len(slices))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        parts = list(pool.map(
+            lambda s: _run_xicclu_once(bin_dir, args, profile, s, runner),
+            slices))
+    out: list[list[float]] = []
+    for part in parts:
+        out.extend(part)
+    if len(out) != len(input_lines):
+        raise XiccluError(
+            f"xicclu returned {len(out)} results for {len(input_lines)} "
+            "queries across the split batch")
+    return out
+
+
+def _run_xicclu_once(
     bin_dir: str | Path,
     args: list[str],
     profile: str | Path,
