@@ -443,22 +443,29 @@ def test_the_remedy_says_the_margin_box_is_locked_when_it_is():
 
 
 def test_no_bottom_message_names_a_rise_or_a_paper_any_more():
-    """KNUT'S RULING OF 2026-09-15 TOOK BOTH PROMISES OUT.
+    """THE RISE IS NAMED AGAIN, AND THE PAPER CLAIM IS STILL GONE.
 
-    The four wordings this replaces were built around a searched rise ("Raise
-    “Bottom” … by about {short} mm", from `margin_rise_that_clears_mm`) and,
-    where no rise worked, around a claim about paper ("No bottom margin this
-    sheet allows will clear it … A larger paper does not help", from
-    `_larger_paper_note`). Both were answers to *"how much more margin clears
-    it"*, and under the ruling nothing asks it: the numbers come from the sheet
-    in the preview, and the next sheet has not been drawn.
+    **THE 2026-09-15 RULING WAS SUPERSEDED BY THE SAME AUTHORITY.** That one
+    took the searched rise out because the search walked a PREDICTION and ran on
+    every keystroke. Asked what the warning should name instead, he answered:
 
-    So the message states what is short, names the controls, and asks for a
-    Generate Chart. Four states are checked, including the one that used to
-    reach the ceiling wording (72 pt over a 10 mm bottom margin, two lines).
+        *"as long as a search is done after a generate chart and margins have
+        been measured, then option 3 is acceptable for the bottom text
+        warning."*
 
-    MUTATION: put "by about {short:.1f} mm" back into either wording and this
-    goes red.
+    So a rise may be named, on both halves of that condition, which
+    `margin_rise_that_clears_mm` is built to satisfy: it runs only in the branch
+    that has a measured report, and every candidate is measured through
+    `margin_inspector.engine_ink_bounds_px` -- the function that measures a
+    BUILT chart -- rather than read off `geometry.compute`'s grid box.
+
+    What did NOT come back is the claim about paper (`_larger_paper_note`),
+    which was never a measurement of anything, and the message still sends the
+    reader to Generate Chart, because only that can measure the next state.
+
+    MUTATION: make `margin_rise_that_clears_mm` return None unconditionally and
+    the "a rise is named" assertion goes red; put "A larger paper does not
+    help" back into either wording and the paper assertion does.
     """
     from dataclasses import replace as _replace
     states = [
@@ -470,14 +477,14 @@ def test_no_bottom_message_names_a_rise_or_a_paper_any_more():
         _replace(_recipe(72.0, margin_bottom=10.0, stamp=True),
                  use_instrument_margins=False),
     ]
-    seen = 0
+    seen, named = 0, 0
     for r in states:
         said = _bottom_notice(r)
         if not said:
             continue
         seen += 1
-        assert "by about" not in said, (
-            f"a rise is still being named, and nothing measured it:\n  {said}")
+        if "by about" in said:
+            named += 1
         assert "larger paper" not in said, (
             f"a claim about paper survives:\n  {said}")
         assert "No bottom margin this sheet allows" not in said, said
@@ -487,6 +494,10 @@ def test_no_bottom_message_names_a_rise_or_a_paper_any_more():
         assert "Raise “Bottom” under “Margins (mm)”" in said, said
         assert "(s)" not in said
     assert seen >= 3, f"only {seen} of these states warned; re-measure"
+    assert named >= 1, (
+        "not one of these states named a rise, so the restored search is "
+        "either never reached or never finds an answer; re-measure before "
+        "believing the ruling is implemented")
 
 
 def test_the_bottom_message_quotes_the_measured_patch_edge(qapp=None):

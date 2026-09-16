@@ -303,6 +303,94 @@ def effective_indicator_size_mm(geom, dpi: int, font: str, size_mm: float) -> fl
     return max(min(target, INDICATOR_MIN_LEGIBLE_MM), target * avail / widest2)
 
 
+#: How many labels the ink probe below walks. The alphabetic labeller reaches
+#: "Z" at 26, which is the whole single-letter repertoire, and "Q" -- the only
+#: descender in it -- at 17. A numeric one reaches "26", whose glyphs are all
+#: within "0-9". Past 26 the labels only repeat glyphs already measured.
+INDICATOR_PROBE_LABELS = 26
+
+#: How far the probe walks when the chart's patch count is not knowable. "Q" is
+#: the 17th alphabetic label, so stopping at 16 is exactly "no descender", which
+#: is what every caller measured before the Q was noticed at all.
+INDICATOR_PROBE_LABELS_NO_DESCENDER = 16
+
+
+def _provisional_strip_count(geom, kw: dict) -> int:
+    """About how many strips this chart will have, or 0 when it cannot be said.
+
+    **PROVISIONAL IS ENOUGH, BECAUSE IT DECIDES GLYPHS AND NOT DIMENSIONS.**
+    The band this feeds is measured from the geometry that is still being
+    built, and `row_label_band_mm` records why a provisional geometry must not
+    be used to size anything: the patch size is derived from the width the band
+    has just changed. This asks a much coarser question -- *is there a 17th
+    strip, so that a "Q" gets printed?* -- and a strip or two either way does
+    not change the answer except at that one boundary.
+    """
+    try:
+        from . import papers
+        total = int(kw.get("area_target_count") or 0)
+        if total <= 0:
+            return 0
+        w_mm, h_mm = papers.dimensions_mm(kw.get("paper") or "A4")
+        layout = geometry.compute(geom, float(w_mm), float(h_mm), total)
+        steps = int(getattr(layout, "steps_in_pass", 0) or 0)
+        if steps <= 0:
+            return 0
+        return max(1, -(-total // steps))          # ceil
+    except Exception:            # noqa: BLE001 - a probe never blocks a build
+        return 0
+
+
+def _indicator_probe_text(kw: dict, geom=None) -> str:
+    """The glyphs to measure a strip label's ink extent with.
+
+    **NOT a hand-picked pair.** This is the labeller's own output, so the probe
+    measures the letters the sheet will really print: `A...Z` for an alphabetic
+    strip pattern, `1...26` for a numeric one. The pair it replaced was "W8",
+    which has no descender, and **"Q" does** -- see the block in
+    :func:`_furniture_reserves_mm` for the sheets that fault was measured on.
+
+    Falls back to the alphabetic repertoire when *kw* carries no pattern, which
+    is the geometry path: `strip_pattern` reaches the renderer but not the
+    reserve, and the alphabetic pattern is both the default and the deeper of
+    the two, so the fallback is the safe one.
+    """
+    pattern = str(kw.get("strip_pattern") or permutation.DEFAULT_STRIP_PATTERN)
+    # **ONLY THE LABELS THIS CHART WILL REALLY PRINT.** Walking the whole
+    # repertoire is safe in one direction and wrong in the other: a chart with
+    # fewer than seventeen strips never prints a "Q", and predicting its
+    # descender there put a red *"0.8 mm of every letter is on the first row"*
+    # on a rendered sheet whose letters end 8.83 mm down with the patches at
+    # 9.0 -- 0.17 mm of clear paper. A warning that fires while the user is
+    # looking at the thing working is how people learn to ignore warnings.
+    # **AND WHEN THE COUNT IS NOT KNOWN, ASSUME NO "Q".**
+    # Whether a Q is printed depends entirely on the patch count -- 29 steps to
+    # a strip on an i1Pro A4 sheet, so 500 patches reach the 17th strip and 300
+    # do not -- and `LayoutRecipe.build_kwargs()` does not carry a count at all.
+    # Predicting the descender without one put a red *"0.8 mm of every letter
+    # is on the first row"* on a rendered sheet whose letters end 8.83 mm down
+    # with the patches at 9.0 mm: 0.17 mm of clear paper.
+    #
+    # So the two directions are not symmetric and the default is the safe one.
+    # Over-predicting invents a warning on a chart that is working, which this
+    # project has shipped twice and which teaches people to ignore the panel;
+    # under-predicting is the state before this change. The count is known on
+    # every real build (`chart.py` puts `area_target_count` in) and the panel
+    # supplies it too, so the fallback is for callers that build a geometry out
+    # of a recipe alone.
+    upto = INDICATOR_PROBE_LABELS_NO_DESCENDER
+    if geom is not None:
+        strips = _provisional_strip_count(geom, kw)
+        if strips > 0:
+            upto = max(1, min(INDICATOR_PROBE_LABELS, strips))
+    try:
+        label = permutation.make_labeller(pattern)
+        text = "".join(label(n) for n in range(1, upto + 1))
+    except Exception:            # noqa: BLE001 - a probe never blocks a build
+        text = ""
+    return text or "W8"
+
+
 def _furniture_reserves_mm(geom, kw: dict) -> tuple[float, float, float, float, float]:
     """``(label_band_mm, bottom_reserve_mm, label_ink_bottom_mm, label_ink_top_mm,
     label_ink_reach_mm)`` — the vertical space the rendered
@@ -385,13 +473,46 @@ def _furniture_reserves_mm(geom, kw: dict) -> tuple[float, float, float, float, 
         # moves the patch block by, and moving it would move every turned
         # honeycomb sheet. These two are new numbers for the panel to predict
         # with, and nothing lays a chart out from them.
+        #
+        # **AND THE PROBE MUST SEE THE DEEPEST GLYPH THE LABELS CAN PRINT,
+        # WHICH "W8" IS NOT.** Strip labels come from
+        # `permutation.make_labeller`, so an alphabetic pattern prints A-Z (then
+        # AA, AB, ...) and a numeric one prints digits. **"Q" is the only glyph
+        # in either repertoire with a DESCENDER**, and a probe of "W8" cannot
+        # see it: measured here, DejaVuSans inks to 5.165 mm below the anchor at
+        # a 4.911 mm em for "W8" and to 6.011 mm for "Q" -- 0.846 mm deeper, and
+        # 0.678 mm at the 11 pt a tester was working at.
+        #
+        # That is the fault he measured on beta 19 rather than guessed
+        # (`~/Desktop/ChromIQ-beta20-proof/knut-beta19/`): on
+        # `CR30-A4-450p-1page-Portrait-w11.0mm-Hexagonal-Straight`, top margin
+        # 13.0 mm, the letters touch the patch edge at "T" 9.0 mm while the
+        # notice only arrives at 9.5. Measured off his own rendered sheets with
+        # `fault2-tiff-measurement.txt`: at "T" 9.0 the plain letters ink to
+        # 13.08 mm -- which is what the panel predicted, to the hundredth -- and
+        # **the Q inks to 13.72 mm**, 0.72 mm onto the patches, in silence. At
+        # "T" 9.5 it is 13.59 and 14.22. The delta is 0.64 mm on both sheets.
+        # His conclusion was the right one: *"it is not the threshold that is at
+        # fault, but the measurement of the text height that is slightly off"*.
+        #
+        # The probe is therefore the labeller's own first 26 labels, not a
+        # hand-picked pair of glyphs, so a pattern change cannot leave it
+        # measuring letters the sheet does not print.
+        #
+        # **WHAT THIS COSTS, MEASURED AND BOUNDED.** The strip COUNT is not
+        # knowable here -- this reserve feeds the capacity that decides it -- so
+        # a chart with fewer than 17 strips never prints a Q and is predicted up
+        # to 0.64 mm (at 11 pt) pessimistically. That is the safe direction for
+        # an overlap notice, and it is the only direction available without a
+        # second layout pass.
         if rot in (90, 270):
-            _tile = _indicator_tile("WW", f, spc, rot)
+            _tile = _indicator_tile(_indicator_probe_text(kw, geom), f, spc, rot)
             _bb = _tile.getbbox()
             _t_px, _b_px = ((_bb[1], _bb[3]) if _bb else (0, _tile.height))
         else:
-            _probe = Image.new("RGBA", (ind_px * 6, ind_px * 6), (0, 0, 0, 0))
-            ImageDraw.Draw(_probe).text((ind_px * 2, ind_px * 2), "W8", font=f,
+            _probe = Image.new("RGBA", (ind_px * 40, ind_px * 6), (0, 0, 0, 0))
+            ImageDraw.Draw(_probe).text((ind_px * 2, ind_px * 2),
+                                        _indicator_probe_text(kw, geom), font=f,
                                         fill=(0, 0, 0, 255), anchor="la")
             _bb = _probe.getbbox()
             _t_px = (_bb[1] - ind_px * 2) if _bb else 0
@@ -852,6 +973,42 @@ def apply_row_label_geometry(geom, kw: dict):
                 float(_DEFAULT_TEXT_EDGE_CLIP_MM if _edge is None else (_edge or 0.0)),
                 float(kw.get("clip_border_width") or 0.0) if has_border else 0.0,
                 _marker_floor)
+    # **"auto" PICKING A SIZE THAT FIRES ITS OWN WARNING IS B8-250, AND THE
+    # FIX FOR IT IS HELD.** The design authority asked for it on beta 19,
+    # loading `CR30-A4-420p-1page-Portrait-w11.0mm-Hexagonal`: *"Since size is
+    # set to auto, I would expect the label text size to be found where there
+    # is no warning (as long as size does not go below 7pt, as usual)."*
+    #
+    # It was built -- walk the automatic size down in 0.5 pt steps to
+    # `AUTO_SHRINK_FLOOR_PT`, take the first size whose band fits the margin the
+    # user typed, store it on `Geom.row_label_size_mm` so the renderer draws
+    # what was reserved -- and it works: on his own preset "auto" settles at
+    # **16.0 pt**, which is the very size he said would clear the warning, and
+    # `margin_l` stays at the 13.0 mm he asked for. Eight of the twenty-six CR30
+    # presets are in that state.
+    #
+    # **IT IS HELD BECAUSE IT COSTS THREE OF THEM AN EXTRA SHEET.** Measured
+    # one condition per process, because `_widest_upper_px` is `lru_cache`d and
+    # measuring both in one process reported no change at all:
+    #
+    # | preset | pages before | pages after | patch |
+    # |---|---|---|---|
+    # | `A4-420p-1page-w11.0mm-Hexagonal` | 1 | **1** | unchanged |
+    # | `Letter-170p-1page-w16.0mm-Hexagonal` | 1 | **1** | 16.637 -> 16.891 mm |
+    # | `Letter-390p-1page-w11.0mm-Hexagonal` | 1 | **2** | 9.779 -> 9.906 mm tall |
+    # | `Letter-780p-2pages-w11.0mm-Hexagonal` | 2 | **3** | same |
+    #
+    # Releasing the left margin gives area-first a wider box, and area-first
+    # fills a wider box with BIGGER patches for the same count, so the patch
+    # grows in both axes and a chart that just fitted spills onto another sheet.
+    # An extra sheet is paper, ink and measuring time; the notice it would
+    # remove is a true disclosure that the typed margin was overridden. That
+    # trade is the design authority's to make and not ours, and it also narrows
+    # §R1.5 of `docs/design/row_label_geometry.md`, which says the margin is
+    # raised, never lowered.
+    #
+    # So nothing here changes until he rules. B8-250 carries the measurement
+    # and the question.
     needed = floor + measured + 1.0
     margin_l = max(float(getattr(geom, "margin_l", 0.0) or 0.0), needed)
     return replace(geom, rlwi=measured, margin_l=margin_l,

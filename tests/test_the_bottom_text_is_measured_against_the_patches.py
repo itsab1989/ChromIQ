@@ -58,12 +58,28 @@ it. Measured off his own TIFF at 200 dpi: the bottom helper markers run 4.06 to
 6.22 mm, and from 10.16 mm (the "B" anchor) upward the ink is unbroken, so
 there is no clear paper anywhere between the text and the patches.
 
-So the prediction is gone, and with it `margin_rise_that_clears_mm`,
-`_larger_paper_note`, `_bottom_clears_with`, `lowering_b_clears` and
-`markers_off_clears`: every one existed to answer *"how much more margin clears
-it"*, which under this rule nothing asks, because the answer is a measurement
-of a sheet that has not been drawn. The message names what is short, names the
-controls, and asks for a Generate Chart.
+So the prediction is gone, and with it `_larger_paper_note`,
+`_bottom_clears_with`, `lowering_b_clears` and `markers_off_clears`: every one
+answered *"how much more margin clears it"* by guessing, because the answer is a
+measurement of a sheet that has not been drawn.
+
+**AND THEN THE SEARCH WAS LET BACK, BY THE SAME AUTHORITY, ON A CONDITION.**
+Asked what the warning should name now that it may not search, he answered:
+
+    "as long as a search is done after a generate chart and margins have been
+     measured, then option 3 is acceptable for the bottom text warning."
+
+So `margin_rise_that_clears_mm` is back, and it is a different function from the
+one that was deleted. The old one walked `predicted_patch_bottom_mm` -- the grid
+box -- on every keystroke. This one runs only in the branch that has a measured
+report, and each candidate is laid out and then widened by
+`margin_inspector.engine_ink_bounds_px`, **the function that measures a BUILT
+chart**, so the search walks the same sheet the frame shows. It is also anchored
+on that sheet: the model's answer for the current recipe is differenced against
+the measured bottom and every candidate carries the offset.
+
+The message names that rise, names the controls, and still asks for a Generate
+Chart, because only that can measure the next state.
 """
 from __future__ import annotations
 
@@ -221,12 +237,30 @@ def test_the_panel_measures_the_patch_bottom_rather_than_predicting_it():
         "the measured bottom edge is not read off the report")
     assert "predicted_patch_bottom_mm" not in body, (
         "the retired prediction is back in the notice builder")
-    for gone in ("predicted_patch_bottom_mm", "margin_rise_that_clears_mm",
+    # **THE PREDICTION STAYS GONE. THE SEARCH CAME BACK, ON A CONDITION.**
+    # The 2026-09-15 ruling was superseded by the same authority, asked what
+    # the warning should name instead: *"as long as a search is done after a
+    # generate chart and margins have been measured, then option 3 is
+    # acceptable for the bottom text warning."* So
+    # `margin_rise_that_clears_mm` is allowed back, and the things that only
+    # ever guessed are not.
+    for gone in ("predicted_patch_bottom_mm",
                  "_larger_paper_note", "_bottom_clears_with",
                  "lowering_b_clears", "markers_off_clears"):
         assert not hasattr(tc, gone), (
             f"{gone} is back; it can only answer 'how much more margin clears "
-            f"it', which Knut's ruling of 2026-09-15 does not ask")
+            f"it' by guessing, which no ruling has asked for")
+    # …AND THE SEARCH THAT IS ALLOWED BACK MUST WALK THE MEASURED SHEET.
+    # Its whole licence is that it measures candidates the way the panel
+    # measures the built chart. A version that reaches for `geometry.compute`'s
+    # grid box instead is the retired prediction wearing the new name.
+    assert hasattr(tc, "margin_rise_that_clears_mm"), (
+        "the ruling allows a search after Generate; it is not there")
+    _rise_src = inspect.getsource(tc.margin_rise_that_clears_mm)
+    assert "engine_patch_bottom_mm" in _rise_src, (
+        "the restored search does not go through the measured-geometry probe")
+    assert "measured_bottom_mm" in _rise_src, (
+        "the restored search is not anchored on the measured sheet")
     # …and it does not reach through `self`, which the blanket except eats.
     assert "self._predicted_patch_bottom_mm" not in notes
     assert not hasattr(tc.TabChart, "_predicted_patch_bottom_mm")

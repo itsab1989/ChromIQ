@@ -2150,7 +2150,23 @@ class LayoutOptionsPanel(QWidget):
                "automatically, because the dashes have to keep step with the "
                "patches to be useful. Move whichever one is in the way: give "
                "the text more room here, or shift the dashes with their own "
-               "“Distance from page edge”."), self)
+               "“Distance from page edge”.")
+            # **ITS OWN STRING, NOT APPENDED TO THE ONE ABOVE.** The paragraph
+            # below is new (a ruling on beta 19), and folding it into the
+            # existing literal changes that literal's KEY, which turns the
+            # thirteen shipped translations of it stale in one edit -- 23 red
+            # tests, and twelve languages that would have to lose a translated
+            # tooltip or gain an untranslated English tail inside it. As a
+            # separate key the old tooltip keeps every translation it has and
+            # only this paragraph falls back to English until each catalogue
+            # catches up.
+            + "\n\n" + tr(
+               "“Top” does not move the strip labels when the layout is set to "
+               "“Prioritise patch size”. That layout places them "
+               "automatically, the way printtarg does, hanging from the top "
+               "margin; the two controls that move them there are “Top” under "
+               "“Margins (mm)” and “Label offset” under “Strip letters only”."),
+            self)
         stg.addWidget(self._text_edge_tip, 6, 2)
         # WHEN THE NUMBER IN THE BOX IS NOT THE NUMBER THAT APPLIES.
         #

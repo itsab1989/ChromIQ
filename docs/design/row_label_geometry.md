@@ -389,3 +389,65 @@ Open points that a reviewer should rule on:
    nothing at all because their strip is longer than the instrument's ruler.
    The same argument plainly applies, but extending a ruling is not applying
    it, so this waits for Knut.
+
+---
+
+## ⏳ Awaiting confirmation · §R8 · "Size = auto" may lower the size rather than raise the margin
+
+**Confirmed by:** *nobody yet.*
+
+§R2 derives the band from the chosen text size and then raises the left margin
+to hold it (R1.5, *raised, never lowered*). For an **automatic** size the design
+authority has asked for the reverse in the case where the margin is short. Beta
+19, loading `CR30-A4-420p-1page-Portrait-w11.0mm-Hexagonal`:
+
+> *"If the auto-sizing of the strip and row indicators had worked (Size = auto)
+> then the font size should have found a text size where the space left of the
+> left margin would not have needed to be widened from 13.0mm to 14.0mm, as the
+> warning says. ... Since size is set to auto, I would expect the label text
+> size to be found where there is no warning (as long as size does not go below
+> 7pt, as usual)."*
+
+So the derivation in §R2 gains one step, and only for an automatic size:
+
+```
+  IF the size is AUTO and floor + band + 1 mm > margin_l asked for:
+      walk the size down in 0.5 pt steps to AUTO_SHRINK_FLOOR_PT (7 pt)
+      take the FIRST size for which floor + band + 1 mm <= margin_l asked for
+      if none of them fits, change nothing          ← R1.5 then raises, as before
+  band     = width of the widest row label at the size that came out of that
+  ... the rest of §R2 unchanged
+```
+
+Three things about it are deliberate and are what a reviewer should rule on.
+
+1. **A typed size is never touched.** The margin rises for it exactly as §R2
+   says. Capping a number somebody chose would be the app arguing with them,
+   which is already this document's rule for the pitch cap.
+2. **Nothing is committed unless it clears.** On a sheet where no size down to
+   7 pt fits -- a 12 mm clip border puts the floor at 12 mm on its own, so the
+   margin must rise whatever the type does -- the size stays where it was.
+   The first implementation did not do this: measured on a 12 mm band at a
+   12 mm left margin, it walked 19.8 pt down to 7.0 pt while `margin_l` went to
+   16.95 mm either way, so the reader lost legibility and kept the warning.
+3. **It narrows a stated consequence of §R2, in one range.** That section says
+   *"A wider left margin than the labels need is spent between the labels and
+   the patches, not on the labels. They stay where Clip put them."* That is
+   still true of a margin WIDER than the labels need, and it is no longer true
+   in the band where the margin is short and a smaller size clears it: there the
+   label size, and so the label ink's position, depends on the left margin.
+   `tests/test_the_clip_text_meets_the_row_labels.py` pins both halves.
+
+**NONE OF THIS IS IN THE CODE. IT IS BUILT, MEASURED AND HELD.** On his own
+preset "auto" settles at 16.0 pt, the size he said would clear the warning, and
+`margin_l` stays at the 13.0 mm he asked for; eight of the twenty-six CR30
+presets are in that state. But releasing the left margin gives area-first a
+wider box to fill, so the patches grow in both axes, and **three Letter
+hexagonal presets then need one sheet more than their name promises** (390
+patches on two pages instead of one, and the same for 780 and 1170). The A4
+presets, including the one he reported, cost nothing.
+
+An extra sheet is paper, ink and measuring time, and the notice this removes is
+a true disclosure that R1.5 requires. That trade is his to make, so §R8 stays
+here as a proposal and `apply_row_label_geometry` is unchanged. B8-250 carries
+the measurement and the question in the form he can answer.

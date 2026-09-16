@@ -10179,9 +10179,13 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   keeping their names (1 red, and the guard was strengthened after it slipped
   the first version), the search started at the old default (3 red).
 
-### B8-239 · OPEN, for the design authority · Is "T" meant to do nothing to the strip labels in "Prioritise patch size"?
+### B8-239 · ANSWERED · Is "T" meant to do nothing to the strip labels in "Prioritise patch size"?
 - blocks release: no
-- status: OPEN
+- status: SUPERSEDED
+- superseded by: B8-270
+- he ruled **No** on 2026-09-16: the geometry stays, and the help text
+  now says so. What was implemented is B8-255. The measurement below is
+  what the question was asked from and is kept as it was.
 - reported, not implemented. The geometry was NOT changed.
 - the measurement, on screen, i1Pro / A4 / "Prioritise patch size" / margins 12
   all round / Label offset 0, with **"T" under "Text distance from edge (mm)"
@@ -10211,9 +10215,14 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   area’? Or is it correct that only the top margin and ‘Label offset’ move them
   there, in which case ‘T’’s help text should say so?"**
 
-### B8-240 · OPEN, for the design authority · What should the bottom notice name, now that the rise search is retired?
+### B8-240 · ANSWERED · What should the bottom notice name, now that the rise search is retired?
 - blocks release: no
-- status: OPEN
+- status: SUPERSEDED
+- superseded by: B8-271
+- he answered on 2026-09-16, accepting option 3 *"as long as a search is
+  done after a generate chart and margins have been measured"*. What was
+  implemented is B8-256, and B8-254 then narrowed it so no value is named
+  in "Prioritise patch size".
 - reported, not implemented.
 - the ruling this sits under: the search that answered *"how much more margin
   clears it"* was removed at the design authority's instruction, because it
@@ -10317,9 +10326,13 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 
 ---
 
-### B8-242 · OPEN, for the design authority · The new top notice fires on a honeycomb with clear paper under every letter
+### B8-242 · ANSWERED · The new top notice fires on a honeycomb with clear paper under every letter
 - blocks release: no
-- status: OPEN
+- status: SUPERSEDED
+- superseded by: B8-272
+- he ruled on 2026-09-16: *"use the 'Measured from Preview' top margin as
+  an apex, which is the top margin line measured."* The behaviour below is
+  therefore correct; it is now guarded rather than changed. See B8-257.
 - reported, not implemented. Nothing was changed, because the rule it follows is
   the design authority's own ruling of 2026-09-15 (*"the calculations should use
   the Measured from Preview numbers"*) and this is that rule meeting a hexagon.
@@ -11029,5 +11042,362 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   against a COMMENT in the code they check, because the code explains itself by
   quoting the shapes being banned. `_code_only` strips comments first, and is
   itself checked.
+
+<!-- Merge note, 2026-09-16: the entries below were written as B8-240, B8-242, B8-250, B8-251, B8-252, B8-253, B8-254, B8-255, B8-256, B8-257
+     on the chart-panel branch while another branch used those numbers;
+     they are renumbered B8-240, B8-242, B8-265, B8-266, B8-267, B8-268, B8-269, B8-270, B8-271, B8-272 here, references included. -->
+### B8-270 · The ruling on B8-239 · "T" does not move the strip labels in "Prioritise patch size", and the help now says so
+- blocks release: no
+- status: FIXED
+- the design authority ruled on B8-239 on 2026-09-16; this entry is what was
+  implemented.
+- the ruling, verbatim: *"The most logical ruling is that the T parameter works
+  the same way, however, since 'Prioritise patch size' is based on working more
+  closely as the original printtarg, I guess it is a risk to start changing
+  that feature. I rule No, and the help text should mention this."*
+- so **the geometry is unchanged**. `geometry.strip_label_leader_top_mm` still
+  hangs the band on `margin_t + offset_y` when `margins_are_law` is false, and
+  "T" is not consulted there.
+- what changed is the help: the ⓘ on "Text distance from edge" gains a
+  paragraph saying that in that layout the labels are placed automatically, the
+  way printtarg does, and that the two controls which move them are "Top" under
+  "Margins (mm)" and "Label offset" under "Strip letters only".
+- the paragraph is its OWN `tr()` key rather than an edit to the existing
+  tooltip. Folding it in changed that string's key, which turned all thirteen
+  shipped translations of it stale in one edit (23 red tests) and would have
+  forced twelve languages to lose a translated tooltip or carry an English tail
+  inside one.
+- evidence: in the two-layout-rulings file under `tests/`,
+  `test_the_T_help_says_it_does_not_move_them_in_patch_first`,
+  `test_the_geometry_still_ignores_T_in_patch_first`.
+
+---
+
+### B8-271 · The ruling on B8-240 · The bottom-notice rise search is allowed back, on his condition
+- blocks release: no
+- status: FIXED
+- the design authority answered B8-240 on 2026-09-16; this entry is what was
+  implemented.
+- the ruling, verbatim: *"as long as a search is done after a generate chart and
+  margins have been measured, then option 3 is acceptable for the bottom text
+  warning."*
+- `margin_rise_that_clears_mm` is therefore back in `ui/tabs/tab_chart.py`, and
+  it is **not** the function that was deleted. Both halves of his condition are
+  structural:
+  - it is called only inside the branch that has a measured report, which means
+    a chart has been generated and measured;
+  - every candidate margin is laid out and then widened by
+    `margin_inspector.engine_ink_bounds_px`, **the same function that measures a
+    BUILT chart**, instead of being read off `geometry.compute`'s grid box. That
+    box is what answered 18.60 mm on a flat-top honeycomb whose ink ends at
+    15.82, which is why the old search was retired.
+- and it is ANCHORED on the sheet in front of the reader: the model's answer for
+  the current recipe is differenced against the measured bottom margin and every
+  candidate carries that offset. Measured on a tester's own 648-patch chart, the
+  model says 18.710 mm where his built sheet measures 18.964, so an uncalibrated
+  search would have named a rise half a grid step optimistic.
+- `engine_ink_bounds_px` was split out of `measure_from_engine` unchanged, so
+  there is ONE implementation of "where does the ink really reach" and the
+  search cannot walk a different sheet from the one the panel measures. Checked
+  against a tester's own chart: 18.964 mm before and after the split.
+- **AND IT MAY NOT NAME ITS NUMBER IN "Prioritise patch size"** — see B8-269,
+  which arrived forty minutes later and narrows this one.
+- **THE FIRST VERSION OF IT WAS A FREEZE, AND A CHALLENGE ROUND AGAINST MY OWN
+  WORK FOUND IT.** The *when* was fixed by his condition; the *how much* was
+  not. `margin_inspector.engine_patch_bottom_mm` costs **13.2 ms** a call on an
+  i1Pro A4 sheet, two thirds of it `geometry.patch_rects_px` building a rect and
+  a `SAMPLE_LOC` for all 1023 patches, and a plain 0.5 mm walk over the margin
+  box's range took **36 probes (1.7 s)** to find an answer and **101 (3.6 s)**
+  to decide there was none — on the panel, which is the cost that got the
+  previous search deleted in the first place. A coarse 2.5 mm scan that hands
+  over to the 0.5 mm grid inside the one interval that cleared brings it to
+  **13 and 21 probes, about 450 ms**, with the candidates memoised. It names the
+  same rise: compared against the plain walk over **48 states**, zero
+  disagreements.
+- evidence: in the bottom-sheet-text and bottom-text-measured files under
+  `tests/`,
+  `test_no_bottom_message_names_a_rise_or_a_paper_any_more`,
+  `test_the_panel_measures_the_patch_bottom_rather_than_predicting_it`; and for
+  the cost, in the rise-search-is-cheap file,
+  `test_the_fast_scan_gives_the_fine_walks_own_answer`,
+  `test_the_search_stays_inside_a_probe_budget`,
+  `test_a_repeated_candidate_is_not_rebuilt`.
+
+---
+
+### B8-272 · The ruling on B8-242 · The pointy-top honeycomb notice is judged against the apex, and that is correct
+- blocks release: no
+- status: VERIFIED
+- the design authority ruled on B8-242 on 2026-09-16: the behaviour is correct,
+  so nothing changed and a guard was added instead.
+- the ruling, verbatim: *"use the 'Measured from Preview' top margin as an apex,
+  which is the top margin line measured."*
+- so the behaviour reported in this entry is the intended one. `report.top_mm`
+  is measured by `margin_inspector` to the block's TOPMOST ink, and on a
+  pointy-top honeycomb that is an apex; the notice compares against it. A sheet
+  can therefore carry clear paper directly under the lowest letter and still be
+  reported, because the ink beside it reaches higher.
+- nothing was changed. A guard was added instead, because "the warning fires on
+  clear paper" is exactly the shape of report that invites a later round to
+  soften it: the guard fails if a hexagon-shaped exception enters
+  `strip_label_overlap`, or if the apex correction leaves `engine_ink_bounds_px`.
+- evidence: `QT_QPA_PLATFORM=offscreen pytest -n auto` on this branch —
+  **15902 passed, 334 skipped, 4 xfailed**, exit 0. The three guards that hold
+  the ruling are `test_the_top_margin_the_check_uses_is_the_measured_apex`,
+  `test_the_measured_top_is_the_blocks_topmost_ink_apex_included` and
+  `test_a_valley_case_is_still_reported_rather_than_softened`.
+
+---
+
+### B8-265 · OPEN, for the design authority · "Size = auto" chooses a label size that fires its own left-margin warning, and the fix costs three presets a sheet
+- blocks release: no
+- status: OPEN
+- **reproduced, understood, built, measured and then HELD.** The geometry is
+  NOT changed. One question for the design authority, at the end.
+- reported by a tester on beta 19, loading
+  `CR30-A4-420p-1page-Portrait-w11.0mm-Hexagonal`: the panel said the left
+  margin had to be widened from 13.0 mm to 14.0 mm to hold the row indicators,
+  which "auto" had sized at 19 pt, *"but reducing the font size manually to 16pt
+  would remove the warning. Since size is set to auto, I would expect the label
+  text size to be found where there is no warning (as long as size does not go
+  below 7pt, as usual)."*
+- the cause: `raster.effective_indicator_size_mm` sizes the label to the PATCH
+  WIDTH and knows nothing about any warning. Nothing anywhere fed the left
+  margin back into the choice. `preflight.indicator_width_warning` calls the
+  chooser, never the other way round.
+- **the fix was built and it does exactly what he asked.** When the size is AUTO
+  and the band would force `margin_l` above the typed value,
+  `apply_row_label_geometry` walks the size down in 0.5 pt steps to
+  `AUTO_SHRINK_FLOOR_PT` (7 pt) and takes the first that fits; the answer is
+  stored on the geometry so the renderer draws the size the band was reserved
+  for. On his own preset **"auto" settles at 16.0 pt** -- the very size he said
+  would clear it -- and `margin_l` stays at the 13.0 mm he asked for. **Eight of
+  the twenty-six CR30 presets** are in that state, all of them asking 13.0 mm
+  and being raised to 14.08 or 14.38, which is his "13.0 to 14.0" exactly.
+- **and it is held, because on three of those eight it costs an extra sheet.**
+  Measured one condition per process, because `_widest_upper_px` is `lru_cache`d
+  and measuring both conditions in one process reported no change at all -- the
+  first honest reading of this only arrived after that trap was noticed:
+
+  | preset | pages before | pages after | patch |
+  |---|---|---|---|
+  | `A4-420p-1page-w11.0mm-Hexagonal` | 1 | **1** | unchanged |
+  | `A4-153p / 840p / 1260p` | as named | **as named** | unchanged |
+  | `Letter-170p-1page-w16.0mm-Hexagonal` | 1 | **1** | 16.637 → 16.891 mm wide |
+  | `Letter-390p-1page-w11.0mm-Hexagonal` | 1 | **2** | 9.779 → 9.906 mm tall |
+  | `Letter-780p-2pages-w11.0mm-Hexagonal` | 2 | **3** | 9.779 → 9.906 mm tall |
+  | `Letter-1170p-3pages-w11.0mm-Hexagonal` | 3 | **4** | 9.779 → 9.906 mm tall |
+
+  Releasing the left margin gives area-first a wider box, and area-first fills a
+  wider box with BIGGER patches for the same count, so the patch grows in both
+  axes and a chart that just fitted spills onto another sheet.
+- **why it is his call and not ours.** An extra sheet is paper, ink and
+  measuring time. The notice it would remove is TRUE: the typed margin really
+  was overridden, and §R1.5 of `docs/design/row_label_geometry.md` says that
+  raise must be disclosed. So this is a trade between a disclosure he finds
+  noisy and a material cost on three shipped presets, and it also narrows §R1.5
+  itself (*raised, never lowered*). `CLAUDE.md`: a fault that contradicts the
+  specification is reported and approved, not simply fixed.
+- **the question for him**, in what a user sees: *"Loading three of the Letter
+  hexagonal presets would print one sheet more than their name says -- 390
+  patches on two pages instead of one, and the same for 780 and 1170 -- in
+  exchange for the row numbers being set smaller automatically and the
+  left-margin warning not appearing. On the A4 presets, including the one you
+  reported, it costs nothing at all. Do you want it everywhere, only where it is
+  free, or not at all?"*
+- the ⏳ section §R8 of `docs/design/row_label_geometry.md` records the
+  derivation change this would make, marked awaiting confirmation.
+- **his other beta-19 finding on this same warning IS fixed**: see B8-269, where
+  the check now reads the measured margin. That silences the case on his
+  patch-first chart but not this one, because in "Prioritise chart area" the
+  sheet shows exactly the raised margin.
+
+---
+
+### B8-266 · The strip-label ink probe could not see the "Q", so the top notice arrived a millimetre late
+- blocks release: no
+- status: FIXED
+- reported by a tester on beta 19, on his own
+  `CR30-A4-450p-1page-Portrait-w11.0mm-Hexagonal-Straight`, labels at 11 pt, top
+  margin 13.0 mm: *"the strip labels ... hit the patch area edge at T=9,0mm, but
+  warning message came at 9,5mm. ... Thus, it is not the threshold that is at
+  fault, but the measurement of the text height that is slightly off."*
+- **he was right, and his own rendered sheets say by how much.** Measured off
+  the two TIFFs he attached, reading each label column's black ink at 200 dpi
+  (`~/Desktop/ChromIQ-beta20-proof/knut-beta19/fault2-tiff-measurement.txt`):
+
+  | his sheet | a plain letter inks to | the **Q** inks to |
+  |---|---|---|
+  | `test-T9.0mm.tif` | 13.08 mm | **13.72 mm** |
+  | `testT9.5mm.tif` | 13.59 mm | **14.22 mm** |
+
+  The panel predicted 13.1 and 13.6, so it was exact to the hundredth about the
+  letters with no descender and 0.64 mm short about the one with one. The patch
+  area starts at 13.0 mm, so at "T" 9.0 there was 0.72 mm of Q on the first row
+  of patches in silence.
+- the cause: `raster._furniture_reserves_mm` measured the ink with a probe of
+  the string **"W8"**. Neither glyph descends. **"Q" is the only letter in A-Z
+  that does**, and `permutation`'s alphabetic labeller reaches it at the 17th
+  strip; his chart has 18.
+- the fix: the probe is the labeller's own first 26 labels, so it measures the
+  letters the sheet will really print (`A-Z` for an alphabetic pattern, digits
+  for a numeric one) rather than a hand-picked pair.
+- **nothing lays a chart out from this number.** `label_ink_reach_mm` and
+  `label_ink_top_mm` are predictions for the panel; the layout reserve
+  (`label_ink_bottom_mm`, which `geometry._top_reserve_for_a_turned_hex` moves
+  the patch block by) is deliberately untouched, so no sheet moves.
+- what it costs, measured and bounded: the strip COUNT is not knowable where the
+  reserve is computed, because the reserve feeds the capacity that decides it,
+  so a chart with fewer than 17 strips never prints a Q and is predicted up to
+  0.64 mm (at 11 pt) pessimistically. That is the safe direction for an overlap
+  notice and the only one available without a second layout pass.
+- driven on screen with "T" walked over the boundary on GENERATED, measured
+  sheets (`onscreen/case2-T-walk.json`): at **T = 10.0 mm** the letters reach
+  **14.657 mm** while the patches start at **13.97 mm**, the notice fires, and
+  with the retired "W8" probe it would have been **silent** (13.979 mm against a
+  14.17 mm threshold).
+- evidence:
+  `test_the_probe_text_is_the_labellers_own_output`,
+  `test_the_probe_reaches_the_tail_that_a_W8_probe_misses`,
+  `test_the_reach_a_geometry_reports_carries_the_tail`,
+  `test_nothing_lays_a_chart_out_from_the_reach`.
+  Mutation proved to land by reading the file back: probing "W8" again (1 red).
+
+---
+
+### B8-267 · The strip letters could be driven into the top helper markers with no warning at all
+- blocks release: no
+- status: FIXED
+- reported by a tester on beta 19: *"When 'Prioritise patch size...' and helper
+  markers are on (4mm distance and 2mm marker length), and then setting top
+  margin (in Page geometry frame) to 5mm, the strip labels overlap with the
+  'helper marker distance from page'+'marker length'+1.0mm rule. But there is no
+  warning message. Same happens if Label offset is set to -5mm or -5.5mm, while
+  top margin setting is 10.0mm."*
+- the cause: every existing check compared the letters with the patch area
+  BELOW them and **nothing compared them with the furniture ABOVE**. In
+  "Prioritise chart area" that was survivable, because `edge_reserve_mm` places
+  the band at `max("T", edge + len + 1.0)` and clears the dashes by
+  construction. In "Prioritise patch size" the markers are not consulted at all:
+  `geometry.placement` anchors the band on `margin_t + offset_y`.
+- the fix: `text_edge_fit.strip_label_marker_overlap`, called from the panel.
+  The test is on the INK and not on the anchor, because his second case moves
+  the letters without moving the anchor; an anchor-based check would have caught
+  one and missed the other.
+- the wording obeys B8-268: the "Label offset" remedy carries a number, because
+  that control was measured moving the letters one millimetre per millimetre in
+  this layout, and "Top" is named without one.
+- driven on screen, both of his cases, on generated and measured sheets
+  (`onscreen/panel-notices.json`, cases 3a and 3b): top margin 5.0 mm reports
+  **0.6 mm** of letter on the markers, Label offset -5.5 mm reports **1.1 mm**,
+  and the control case at top margin 12.0 mm is silent.
+- evidence:
+  `test_his_first_case_the_top_margin_drives_them_in`,
+  `test_his_second_case_a_negative_label_offset_drives_them_in`,
+  `test_a_sheet_that_clears_them_stays_quiet`,
+  `test_it_says_nothing_when_this_edge_carries_no_markers`,
+  `test_the_panel_asks_the_question_and_offers_the_right_lever`,
+  `test_the_reach_is_the_rule_he_quoted`.
+  Mutation proved to land: returning None unconditionally from
+  `strip_label_marker_overlap` (1 red).
+
+---
+
+### B8-268 · The bottom text's width was predicted at 7 pt while the renderer drew it at up to 16
+- blocks release: no
+- status: FIXED
+- reported by a tester on beta 19: *"if I then enable 'Stamp layout summary...'
+  the measured bottom margin changes from 11.3mm to 19,0mm, and there becomes
+  much more space for the bottom text. However, the bottom text sometime is set
+  to a larger size than there is room for, there the bottom text overlaps with
+  the right side placed clip-border area, but there is no warning message."*
+- his 19.0 mm reproduces exactly: `measure_from_engine` on the `channels.json`
+  he attached answers **18.964 mm**.
+- the cause: `TabChart._sheet_text_width_mm` resolved an auto Size to
+  `AUTO_SHRINK_FLOOR_PT`, 7 pt. **That was right while "auto" could only
+  shrink** -- the panel must not warn about a line the renderer is about to make
+  fit. Since beta 17 `raster.auto_sheet_text_size_mm` starts at a 16 pt CEILING
+  and returns the LARGEST size that fits, so the panel was measuring the
+  narrowest line the renderer might draw while the renderer drew one up to
+  16 pt wide, and the width warning could not fire for an auto-sized block at
+  all.
+- the fix: one resolver, `TabChart._bottom_text_size_mm`, shared by the block
+  width and the per-line widths, which asks `auto_sheet_text_size_mm` against
+  the room the overflow check itself uses -- built from the MEASURED margins, so
+  the two cannot describe different sheets. The 7 pt floor survives as the
+  fallback for callers with no room to offer.
+- **AND THE FIRST FIX FOR IT WAS A FALSE WARNING WAITING TO HAPPEN, WHICH A
+  CHALLENGE ROUND AGAINST MY OWN WORK CAUGHT.** `auto_sheet_text_size_mm` fits
+  the WIDTH only; `render_pages` then walks the size down a second time until
+  the line's box fits the band the engine reserved. Measured at a 200 mm room:
+  the width rule alone says **14.50 pt** and the sheet carries **9.84**. Asking
+  only the width chooser would therefore have swapped a missing warning for an
+  invented one, on a roomy sheet. `_bottom_text_size_mm` applies both loops and
+  now predicts 9.50 pt there, which is the safe side of what is drawn.
+- evidence:
+  `test_auto_is_resolved_by_the_renderers_own_chooser`,
+  `test_a_typed_size_is_still_used_as_typed`,
+  `test_a_wider_line_is_what_overflows_a_clip_border`,
+  `test_the_panel_hands_the_measured_room_to_the_width_helper`.
+
+---
+
+### B8-269 · The left-margin warning read the setting instead of the sheet, and named a value that means nothing in patch-first
+- blocks release: no
+- status: FIXED
+- the check is fixed; the wording half is a ruling, recorded below.
+- reported by a tester on beta 19, on a "Prioritise patch size" chart he
+  attached: *"The warning talks about the widening of the left area to 16.4mm,
+  but the measured margin is already stating 26.0mm, while the left margin
+  setting is 10.0mm. Thus, the check seems to use the left margin setting, and
+  not the measured margin for controlling what is needed, so reporting wrong
+  numbers."*
+- **reproduced from his own `channels.json`** (staged at
+  `~/Desktop/ChromIQ-beta20-proof/knut-beta19/chart-pps/`): typed left margin
+  **10.00 mm**, the raise computes **16.31 mm**, the sheet measures
+  **26.04 mm**.
+- and measured off his rendered `test_01.tif` at 200 dpi
+  (`fault5-tiff-measurement.txt`): the row indicators' ink ends at **14.99 mm**
+  and the first patch ink begins at **26.04 mm**, so there was **11.05 mm of
+  clear paper** where the panel printed a red warning. He saw it too: *"there is
+  plenty of space between the row indicators and the measured left margin"*.
+- the cause: `_raised_l` compared two numbers out of the GEOMETRY -- the margin
+  asked for and the margin the raise computed -- and never looked at where the
+  patches landed. In patch-first they do not land on `margin_l` at all.
+- the fix: the warning is dropped when the sheet already gives the labels their
+  room (`_got_l <= _meas_l + tol`). With no report the geometry's answer stands,
+  because then it is the only fact there is.
+- **the second half is a ruling that reaches the whole panel**: *"Changing left
+  margin setting has no effect until the setting is brought above the measured
+  left margin, so setting left margin to 26.0mm has no effect on the patch area
+  left margin, but setting left margin to 27.0mm makes measured margin jump to
+  35.9mm. ... Stating what to set the left margin, while in 'Prioritise patch
+  size...' is selected, is not reliable. Only when 'Prioritise chart area...'
+  this is reliable. Thus, the warning messages while in 'Prioritise patch
+  size...' should not specifically mention what to set the margin settings to,
+  but rather say which parameters can be altered to attempt removing a warning."*
+- `margin_values_are_reliable(r)` implements it, and gates three places: both
+  left-margin wordings, and B8-240's bottom-text rise, which is not even
+  searched for in patch-first because its answer could not be used.
+- **the narrower reading was implemented deliberately.** His acceptance of the
+  rise search (B8-240) and this ruling arrived forty minutes apart and pull
+  against each other. The rise is named in chart-first, where the margins are
+  law and the number does what it says, and in patch-first the same message
+  names the controls. It is a MARGIN-box rule: "Label offset" is not one, and it
+  was measured moving the strip letters one millimetre per millimetre in
+  patch-first, so its number is still given.
+- driven on screen (`onscreen/panel-notices.json`, case 5): a generated
+  patch-first sheet measuring **33.78 mm** on the left against a computed
+  **33.79 mm** raise, and the panel is silent.
+- evidence:
+  `test_the_raise_is_dropped_when_the_sheet_already_gives_the_room`,
+  `test_the_predicate_in_its_five_states`,
+  `test_his_sheet_really_has_the_room_the_fix_assumes`,
+  `test_a_margin_value_is_named_only_where_it_means_something`,
+  `test_every_margin_remedy_is_gated_on_the_layout`,
+  `test_the_patch_first_wordings_name_controls_and_no_margin_value`,
+  `test_the_label_offset_keeps_its_number_in_patch_first`.
+  Mutation proved to land by reading the file back: deleting the
+  measured-margin guard (1 red).
 
 ---

@@ -2690,6 +2690,178 @@ def _label_is_margin_anchored(geom) -> bool:
         return False
 
 
+#: What the four margin spin boxes will hold, and the grid they step on
+#: (`layout_options_panel`: `small_mm(top=60.0)`, `setSingleStep(0.5)`). A rise
+#: past the first is one the reader can neither type nor click to; a rise off
+#: the second is one they cannot land on exactly.
+_MARGIN_BOX_MAX_MM = 60.0
+_MARGIN_STEP_MM = 0.5
+
+#: How far the coarse pass of the rise search steps before it hands over to the
+#: 0.5 mm grid. Each probe is a whole geometry rebuild (13.2 ms measured), so
+#: the scan's width is what a reader feels on the panel.
+_MARGIN_COARSE_MM = 2.5
+
+
+def margin_rise_that_clears_mm(r, measured_bottom_mm: float, reserve_mm: float,
+                               lines: int, line_mm: float, *,
+                               cap_mm: float = _MARGIN_BOX_MAX_MM,
+                               ) -> "float | None":
+    """How much more “Bottom” really moves the patches clear of the sheet text.
+
+    **THE SEARCH IS BACK, ON THE RULING THAT LET IT BACK.** It was deleted in
+    beta 18 because it walked a PREDICTION: `predicted_patch_bottom_mm` read the
+    grid box `geometry.compute` returns, which on a flat-top honeycomb answered
+    18.60 mm where the sheet measures 15.82, and it ran a dozen geometry
+    rebuilds on every keystroke. The design authority ruled on both counts:
+
+        *"as long as a search is done after a generate chart and margins have
+        been measured, then option 3 is acceptable for the bottom text
+        warning."*
+
+    So this one is bound by both halves of his condition:
+
+    * **after Generate, never on a keystroke.** Its one caller sits inside the
+      branch that only runs when there is a measured report to read
+      (`_patch_bottom = _meas_b`, and the whole block is skipped without it).
+    * **against the measured margins.** Each candidate is laid out and then
+      widened by `margin_inspector.engine_ink_bounds_px` -- the very function
+      that measures a BUILT chart -- rather than read off the grid box.
+
+    **AND IT IS ANCHORED ON THE SHEET IN FRONT OF THE READER.** Asking
+    `engine_patch_bottom_mm` about the CURRENT recipe and differencing that
+    against *measured_bottom_mm* gives the offset between this model and the
+    chart that was really drawn; every candidate carries that offset. Measured
+    on a tester's own 648-patch CR30 chart: the model answers 18.710 mm where
+    the built sheet measures 18.964, so an uncalibrated search would name a
+    rise 0.254 mm -- half a grid step -- optimistic. Calibrated, the current
+    state reproduces his number exactly and the walk starts from truth.
+
+    Returns a rise that was TESTED to clear, rounded onto the box's own 0.5 mm
+    grid, or ``None`` when nothing inside *cap_mm* does -- in which case the
+    caller says what is short and names the controls, which is what the
+    messages did while there was no search at all.
+    """
+    from dataclasses import replace as _replace
+    from workflow import margin_inspector as _mi
+    from workflow import text_edge_fit as _tef
+    try:
+        asked = float(getattr(r, "margin_bottom", 0.0) or 0.0)
+        # **THE SHEET THE READER WILL BE ON, NOT THE ONE THEY ARE LOOKING AT.**
+        # With "Use instrument margins" ticked the four margin boxes are
+        # read-only, so the only way to raise "Bottom" at all is to untick it --
+        # and the tick is part of the GEOMETRY (`margins_are_law`), so a number
+        # measured with it on describes a sheet that stops existing the moment
+        # the reader does what the sentence beside it says.
+        if bool(getattr(r, "use_instrument_margins", False)):
+            r = _replace(r, use_instrument_margins=False)
+        base = _mi.engine_patch_bottom_mm(r)
+        if base is None:
+            return None
+        offset = float(measured_bottom_mm) - float(base)
+        cap = min(float(cap_mm), _MARGIN_BOX_MAX_MM - asked)
+        if cap <= 0:
+            return None
+
+        # **EVERY PROBE IS A GEOMETRY REBUILD, AND THEY ARE NOT CHEAP.**
+        # Measured on an i1Pro A4 sheet: `engine_patch_bottom_mm` is **13.2 ms**
+        # a call, two thirds of it `geometry.patch_rects_px` building a rect and
+        # a `SAMPLE_LOC` for all 1023 patches. A plain 0.5 mm walk over the
+        # margin box's range took **36 probes (1.7 s)** to find an answer and
+        # **101 (3.6 s)** to decide there was none, on the panel, which is the
+        # cost that got the previous search deleted.
+        _seen: dict = {}
+
+        def clears(delta: float) -> bool:
+            key = round(delta, 1)
+            if key in _seen:
+                return _seen[key]
+            cand = _replace(r, margin_bottom=asked + key)
+            bottom = _mi.engine_patch_bottom_mm(cand)
+            ok = bottom is not None and _tef.bottom_text_block_overlap(
+                float(bottom) + offset, reserve_mm, lines, line_mm) is None
+            _seen[key] = ok
+            return ok
+
+        # COARSE FIRST, THEN FINE INSIDE THE ONE BRACKET THAT HIT.
+        # A bisection is not available here: a strip dropping out moves the
+        # patch bottom in jumps, so "clears" is not monotonic in the margin and
+        # halving the range can step over the answer. Scanning at
+        # `_MARGIN_COARSE_MM` and then walking the 0.5 mm grid inside the single
+        # interval that first cleared keeps the smallest answer the fine grid
+        # would have found, at a fraction of the probes: **12 instead of 36** on
+        # the sheet above, and **21 instead of 101** to decide there is none.
+        #
+        # THREE CLEAR POINTS IN A ROW, NOT ONE, for the same jump: a lone grid
+        # point can clear while the two above it do not, and a reader who rounds
+        # up lands back in the warning.
+        def _fine_from(lo: float) -> "float | None":
+            run, first = 0, None
+            probe = max(_MARGIN_STEP_MM, round(lo, 1))
+            end = min(cap, lo + _MARGIN_COARSE_MM + 2 * _MARGIN_STEP_MM)
+            while probe <= end + 1e-9:
+                if clears(probe):
+                    run += 1
+                    if first is None:
+                        first = probe
+                    if run >= 3:
+                        return round(first, 1)
+                else:
+                    run, first = 0, None
+                probe = round(probe + _MARGIN_STEP_MM, 1)
+            # A run that reaches the end of the bracket still counts when the
+            # bracket is the end of the box: there is no room above it to
+            # confirm a third point.
+            return round(first, 1) if (first is not None
+                                       and end >= cap - 1e-9) else None
+
+        coarse = _MARGIN_STEP_MM
+        while coarse <= cap + 1e-9:
+            if clears(coarse):
+                got = _fine_from(max(_MARGIN_STEP_MM,
+                                     coarse - _MARGIN_COARSE_MM
+                                     + _MARGIN_STEP_MM))
+                if got is not None:
+                    return got
+            coarse = round(coarse + _MARGIN_COARSE_MM, 1)
+        return None
+    except Exception:          # noqa: BLE001 - a prediction, never a blocker
+        return None
+
+
+def margin_values_are_reliable(r) -> bool:
+    """Whether a message may name a NUMBER to type into a margin box.
+
+    **IN "Prioritise patch size" IT MAY NOT, AND THAT IS A RULING.** The design
+    authority, on beta 19, after driving the left margin on his own chart:
+
+        *"Changing left margin setting has no effect until the setting is
+        brought above the measured left margin, so setting left margin to
+        26.0mm has no effect on the patch area left margin, but setting left
+        margin to 27.0mm makes measured margin jump to 35.9mm. This is the
+        result of how the original printtarg was designed to place patches.
+        ... Stating what to set the left margin, while in "Prioritise patch
+        size..." is selected, is not reliable. Only when "Prioritise chart
+        area..." this is reliable. Thus, the warning messages while in
+        "Prioritise patch size..." should not specifically mention what to set
+        the margin settings to, but rather say which parameters can be altered
+        to attempt removing a warning."*
+
+    So in patch-first a margin box is a request that the layout may ignore
+    entirely and then overshoot in one jump, and a sentence that names a value
+    for it is telling the reader something untrue. The remedy names the
+    controls instead. In chart-first the margins ARE law
+    (`instruments.geom_from_build_kwargs` sets `margins_are_law` there), the
+    number does what it says, and naming it stays the more useful sentence.
+
+    **THIS IS ABOUT MARGIN BOXES ONLY.** "Label offset" is not a margin, and it
+    was measured moving the strip letters one millimetre per millimetre in
+    patch-first (beta 18, "T" walked 0 to 25 mm against the offset), so a
+    number for THAT control is reliable in both layouts and is still named.
+    """
+    return str(getattr(r, "layout_mode", "") or "") != "patch_first"
+
+
 def _locked_margins_note(r) -> str:
     """The sentence for a reader whose "Margins (mm)" boxes are READ-ONLY.
 
@@ -20213,7 +20385,51 @@ class TabChart(QWidget):
                 pass
         return lines
 
-    def _sheet_text_width_mm(self, r) -> float:
+    @staticmethod
+    def _bottom_text_size_mm(r, lines, room_mm: float = 0.0,
+                             reserve_mm: float = 0.0) -> float:
+        """The size the renderer will draw the bottom block at, in mm.
+
+        One resolver for both width helpers, so they cannot disagree about the
+        size of the very same line. A typed Size stands; "auto" is asked of
+        `raster.auto_sheet_text_size_mm` against *room_mm* when there is a room
+        to ask about, and falls back to the 7 pt floor when there is not.
+
+        **AND THEN THE HEIGHT RULE, WHICH IS THE RENDERER'S SECOND LOOP AND
+        WHICH THE FIRST VERSION OF THIS FORGOT.** `auto_sheet_text_size_mm`
+        fits the WIDTH only. `render_pages` then walks the size down again
+        until the line's box fits the band the engine reserved, so on a roomy
+        sheet the two disagree badly: measured at a 200 mm room, the width rule
+        alone says **14.50 pt** and the renderer draws **9.84 pt**. Predicting
+        the wider one would have put a width warning on a line the sheet never
+        carries, which is the false-notice fault this whole round is about.
+        """
+        from workflow import text_edge_fit as _tef
+        from workflow.layout_engine import raster as _raster
+        typed = float(getattr(r, "chart_text_size_mm", 0.0) or 0.0)
+        if typed:
+            return typed
+        if float(room_mm or 0.0) <= 0.0 or not lines:
+            return _tef.pt_to_mm(_tef.AUTO_SHRINK_FLOOR_PT)
+        font = (str(getattr(r, "chart_text_font", "") or "")
+                or TabChart._DEFAULT_SHEET_TEXT_FONT)
+        bold = bool(getattr(r, "chart_text_bold", False))
+        ital = bool(getattr(r, "chart_text_italic", False))
+        dpi = float(getattr(r, "dpi", 300) or 300)
+        size = _raster.auto_sheet_text_size_mm(
+            list(lines), float(room_mm), font, bold, ital, dpi)
+        # …the same band the renderer holds the type to, and never below the
+        # floor it stops shrinking at.
+        band = max(float(_raster.sheet_text_reserve_mm(dpi)),
+                   float(reserve_mm or 0.0))
+        floor = _tef.pt_to_mm(_tef.AUTO_SHRINK_FLOOR_PT)
+        while size > floor and _raster.sheet_text_line_mm(
+                size, font, bold, ital, dpi) > band + 1e-9:
+            size = max(floor, _tef.pt_to_mm(
+                round((size * 72.0 / 25.4 - _tef.AUTO_SHRINK_STEP_PT) * 2) / 2.0))
+        return size
+
+    def _sheet_text_width_mm(self, r, room_mm: float = 0.0) -> float:
         """How wide the widest bottom-of-sheet line prints, in millimetres.
 
         Measured with the FONT the sheet is drawn in, at the size it will end
@@ -20222,9 +20438,20 @@ class TabChart(QWidget):
         at the same size is several centimetres on a long line.
 
         The size is the one the renderer will settle on: a typed Size is used
-        as typed, and "auto" is allowed to shrink to
-        `text_edge_fit.AUTO_SHRINK_FLOOR_PT` before the warning fires, so the
-        panel never warns about a line the renderer is about to make fit.
+        as typed, and "auto" is resolved against *room_mm* by
+        `raster.auto_sheet_text_size_mm` -- the renderer's own chooser, asked
+        the same question with the same room -- so the panel measures the line
+        the sheet will really carry.
+
+        **WITHOUT *room_mm* THIS FALLS BACK TO THE 7 pt FLOOR, AND THAT USED TO
+        BE THE ONLY BEHAVIOUR.** It was right while "auto" could only shrink:
+        the panel must not warn about a line the renderer is about to make fit.
+        `auto_sheet_text_size_mm` has had a 16 pt CEILING since beta 17 and
+        returns the LARGEST size that fits, so measuring at the floor meant the
+        width warning could never fire for an auto-sized block however wide the
+        renderer drew it. A tester found that on beta 19 with "Stamp layout
+        summary" on. The floor survives as the fallback for callers with no
+        room to offer, where warning only at the floor is the safe answer.
 
         **BOTH BOTTOM LINES**, from `_bottom_sheet_text_lines` — see there for
         why it used to be one, and what that cost. This used to be a
@@ -20252,8 +20479,7 @@ class TabChart(QWidget):
             # default, so the width warning never fired at all.
             from workflow import text_edge_fit as _tef
             from workflow.layout_engine import raster as _raster
-            typed = float(getattr(r, "chart_text_size_mm", 0.0) or 0.0)
-            size_mm = typed or _tef.pt_to_mm(_tef.AUTO_SHRINK_FLOOR_PT)
+            size_mm = TabChart._bottom_text_size_mm(r, lines, room_mm)
             font = (str(getattr(r, "chart_text_font", "") or "")
                     or TabChart._DEFAULT_SHEET_TEXT_FONT)
             return _raster.sheet_text_width_mm(
@@ -20264,13 +20490,16 @@ class TabChart(QWidget):
         except Exception:      # noqa: BLE001 — a prediction is never fatal
             return 0.0
 
-    def _bottom_line_widths_mm(self, r) -> "list[float]":
-        """Each bottom line's own width, in drawing order, the stamp last."""
+    def _bottom_line_widths_mm(self, r, room_mm: float = 0.0) -> "list[float]":
+        """Each bottom line's own width, in drawing order, the stamp last.
+
+        *room_mm* resolves an auto Size the same way :meth:`_sheet_text_width_mm`
+        does, so the per-line figures and the block figure describe one sheet.
+        """
         try:
-            from workflow import text_edge_fit as _tef
             from workflow.layout_engine import raster as _raster
-            typed = float(getattr(r, "chart_text_size_mm", 0.0) or 0.0)
-            size_mm = typed or _tef.pt_to_mm(_tef.AUTO_SHRINK_FLOOR_PT)
+            _lines = self._bottom_sheet_text_lines(r)
+            size_mm = TabChart._bottom_text_size_mm(r, _lines, room_mm)
             font = (str(getattr(r, "chart_text_font", "") or "")
                     or TabChart._DEFAULT_SHEET_TEXT_FONT)
             return [_raster.sheet_text_width_mm(
@@ -20278,7 +20507,7 @@ class TabChart(QWidget):
                 bool(getattr(r, "chart_text_bold", False)),
                 bool(getattr(r, "chart_text_italic", False)),
                 float(getattr(r, "dpi", 300) or 300))
-                for ln in self._bottom_sheet_text_lines(r)]
+                for ln in _lines]
         except Exception:      # noqa: BLE001 — a prediction is never fatal
             return []
 
@@ -20305,7 +20534,10 @@ class TabChart(QWidget):
         """
         if not getattr(r, "stamp_command", False):
             return False
-        widths = self._bottom_line_widths_mm(r)
+        # AT THE SIZE THIS SHEET IS DRAWN, not at the 7 pt floor: the room is
+        # right here, and measuring the two lines at a size the renderer is not
+        # using is how a remedy comes to be offered for a sheet it does not fit.
+        widths = self._bottom_line_widths_mm(r, room_mm=room_mm)
         if not widths:
             return False
         rest = widths[:-1]              # the stamp is appended last
@@ -20460,7 +20692,28 @@ class TabChart(QWidget):
                 return warns, over
             from workflow.layout_engine import instruments
             from workflow import text_edge_fit
-            geom = instruments.geom_from_build_kwargs(r.build_kwargs())
+            # **WITH THE PATCH COUNT, WHEN THIS TAB KNOWS IT.**
+            # `LayoutRecipe.build_kwargs()` carries no count, and one number
+            # depends on it: whether the strip labels reach the 17th strip and
+            # print a **"Q"**, whose descender inks about 0.65 mm below every
+            # other letter at 11 pt (`raster._indicator_probe_text`). Without a
+            # count that probe has to assume the safe answer, no Q, which is
+            # the state in which a tester measured the top notice arriving half
+            # a millimetre late on his 18-strip sheet.
+            #
+            # `_estimate_patch_total` is the same estimate the right-edge stamp
+            # a hundred lines down already prints, and it is asked defensively:
+            # this whole method sits inside a blanket `except`, and a counter
+            # that raises in here takes every warning on the panel with it,
+            # which is a fault this file has already shipped once.
+            _kw_notes = r.build_kwargs()
+            try:
+                _n = int(getattr(self, "_estimate_patch_total", lambda: 0)() or 0)
+                if _n > 0:
+                    _kw_notes = dict(_kw_notes, area_target_count=_n)
+            except Exception:      # noqa: BLE001 — a count, never a blocker
+                pass
+            geom = instruments.geom_from_build_kwargs(_kw_notes)
             # ---- THE FOUR EDGES, MEASURED OFF THE SHEET IN THE PREVIEW -----
             #
             # KNUT'S RULING OF 2026-09-15 (#182, comment 5679470670) IS THAT
@@ -20548,6 +20801,39 @@ class TabChart(QWidget):
             _got_l = float(getattr(geom, "margin_l", 0.0) or 0.0)
             _floor_l = float(getattr(geom, "row_label_floor", 0.0) or 0.0)
             _raised_l = bool(geom.rlwi > 0 and _got_l > _asked_l + 0.05)
+            # **AND THE SHEET GETS THE LAST WORD, WHICH IT DID NOT BEFORE.**
+            # This compared two numbers out of the GEOMETRY -- the margin asked
+            # for and the margin the raise computed -- and never looked at where
+            # the patches actually landed. In "Prioritise patch size" they do
+            # not land on `margin_l` at all: printtarg's placement puts them
+            # wherever the strips fall, which is usually further in.
+            #
+            # A tester's own chart, reproduced from the `channels.json` he
+            # attached (`~/Desktop/ChromIQ-beta20-proof/knut-beta19/chart-pps/`):
+            # typed left margin 10.0 mm, the raise computes **16.31 mm**, and
+            # the sheet measures **26.04 mm**. So the row indicators had 9.7 mm
+            # more room than they need and the panel called it a problem, in
+            # red, naming a "widening" that had already happened twice over. He
+            # is right about the rule as well as the case: *"This makes it very
+            # important that the measured margins are used in the checks for
+            # when warnings happen."* And he noted what the picture shows,
+            # *"plenty of space between the row indicators and the measured left
+            # margin"*.
+            #
+            # With no sheet to measure this keeps the geometry's answer, because
+            # then the raise is the only fact there is.
+            # **STRICTLY MORE ROOM THAN THE LABELS NEED, NOT "as much as".**
+            # In "Prioritise chart area" the margins are law, so the sheet
+            # shows exactly the raised margin and `_meas_l == _got_l`. Reading
+            # that as "there is room, say nothing" would silence the raise
+            # notice on EVERY chart in that layout, and the raise is a true
+            # disclosure that the typed margin was overridden: §R1.5 of
+            # `docs/design/row_label_geometry.md` requires it to be said out
+            # loud. It is patch-first, where the patches are placed wherever
+            # the strips fall, that can leave the labels far more room than the
+            # geometry reserved, and that is the case he reported.
+            if _raised_l and _meas_l is not None and _got_l <= _meas_l - _tol:
+                _raised_l = False
             # …AND THE ADVICE HAS TO BE TRUE OF THIS CHART.
             #
             # This message used to end "…or reduce “Clip”" in every
@@ -20607,7 +20893,14 @@ class TabChart(QWidget):
             # "reduce Clip" is FALSE on a chart whose clip border is wider than
             # Clip, and a remedy the user can measure and find wrong is worse
             # than no remedy.
-            if _raised_l and _clip_is_the_anchor:
+            # **AND WHETHER THE REMEDY MAY NAME A NUMBER.** See
+            # `margin_values_are_reliable`: in "Prioritise patch size" a margin
+            # box is a request the layout may ignore and then overshoot in one
+            # jump, so the ruling is that the sentence names the controls and
+            # not a value to type. In "Prioritise chart area" the margins are
+            # law and the number is the most useful thing the message has.
+            _name_margin_value = margin_values_are_reliable(r)
+            if _raised_l and _clip_is_the_anchor and _name_margin_value:
                 over.append(tr(
                     "⚠ The left margin is below what the row indicators need, "
                     "so it was widened from {asked:.1f} mm to {got:.1f} mm to "
@@ -20624,7 +20917,24 @@ class TabChart(QWidget):
                     "altogether.").format(
                         asked=_asked_l, got=_got_l, floor=_floor_l,
                         band=geom.rlwi, size=text_edge_fit.format_pt(_lbl_pt)))
-            elif _raised_l:
+            elif _raised_l and _clip_is_the_anchor:
+                over.append(tr(
+                    "⚠ The left margin is below what the row indicators need, "
+                    "so it was widened from {asked:.1f} mm to {got:.1f} mm to "
+                    "fit them. The labels start {floor:.1f} mm in from the "
+                    "page edge (the larger of “Clip” under “Text distance from "
+                    "edge” and the width of the clip border) and their text "
+                    "needs {band:.1f} mm at {size} pt. With “Prioritise patch "
+                    "size” the margin boxes are requests the layout may place "
+                    "the patches well inside, so no single value can be named "
+                    "here: try raising “Left” under “Margins (mm)”, a smaller "
+                    "Size under “Row indicators”, or a lower “Clip” under "
+                    "“Text distance from edge (mm)”, and press Generate Chart "
+                    "to measure each attempt. Switching “Show row indicators” "
+                    "off gives the paper back altogether.").format(
+                        asked=_asked_l, got=_got_l, floor=_floor_l,
+                        band=geom.rlwi, size=text_edge_fit.format_pt(_lbl_pt)))
+            elif _raised_l and _name_margin_value:
                 over.append(tr(
                     "⚠ The left margin is below what the row indicators need, "
                     "so it was widened from {asked:.1f} mm to {got:.1f} mm to "
@@ -20638,6 +20948,25 @@ class TabChart(QWidget):
                     "the chart uses, or set a smaller Size under “Row "
                     "indicators”. Switching “Show row indicators” off gives "
                     "the paper back altogether.").format(
+                        asked=_asked_l, got=_got_l, floor=_floor_l,
+                        band=geom.rlwi, clip=_clip_l,
+                        size=text_edge_fit.format_pt(_lbl_pt)))
+            elif _raised_l:
+                over.append(tr(
+                    "⚠ The left margin is below what the row indicators need, "
+                    "so it was widened from {asked:.1f} mm to {got:.1f} mm to "
+                    "fit them. The labels start {floor:.1f} mm in from the "
+                    "page edge and their text needs {band:.1f} mm at "
+                    "{size} pt. “Clip” under “Text distance from edge "
+                    "(mm)” is set to {clip:.1f} mm and is not what is holding "
+                    "them out there, so lowering it moves nothing; the note "
+                    "under that box names what is. With “Prioritise patch "
+                    "size” the margin boxes are requests the layout may place "
+                    "the patches well inside, so no single value can be named "
+                    "here: try raising “Left” under “Margins (mm)” or a "
+                    "smaller Size under “Row indicators”, and press Generate "
+                    "Chart to measure each attempt. Switching “Show row "
+                    "indicators” off gives the paper back altogether.").format(
                         asked=_asked_l, got=_got_l, floor=_floor_l,
                         band=geom.rlwi, clip=_clip_l,
                         size=text_edge_fit.format_pt(_lbl_pt)))
@@ -21836,6 +22165,80 @@ class TabChart(QWidget):
                         "size.").format(
                             reserve=_ov.reserve_mm, reach=_ov.reaches_mm,
                             margin=_ov.margin_mm, over=_ov.overlap_mm))
+                # **AND THE FURNITURE ABOVE THEM, WHICH NOTHING ASKED ABOUT.**
+                # Everything above compares the letters against the patch area
+                # BELOW. A tester drove them the other way on beta 19 and found
+                # the top edge unguarded:
+                #
+                #     *"When "Prioritise patch size..." and helper markers are
+                #     on (4mm distance and 2mm marker length), and then setting
+                #     top margin (in Page geometry frame) to 5mm, the strip
+                #     labels overlap with the "helper marker distance from
+                #     page"+"marker length"+1.0mm rule. But there is no warning
+                #     message. Same happens if Label offset is set to -5mm or
+                #     -5.5mm, while top margin setting is 10.0mm."*
+                #
+                # In "Prioritise chart area" `edge_reserve_mm` already puts the
+                # band at `max("T", edge + len + 1.0)`, so only a NEGATIVE
+                # "Label offset" can reach the dashes there; in "Prioritise
+                # patch size" the band hangs from the top margin and the
+                # markers are not consulted at all, which is his first case.
+                # The test is on the INK rather than the anchor, because his
+                # second case moves the letters without moving the anchor.
+                _mk = text_edge_fit.strip_label_marker_overlap(
+                    _label_anchor_mm(geom) or 0.0,
+                    float(getattr(geom, "label_ink_top_mm", 0.0) or 0.0),
+                    bool(getattr(r, "helper_markers", False)),
+                    *_marker_reserve_args(r),
+                    bool(getattr(r, "helper_markers_top_bottom", True)),
+                    label_offset_mm=_off,
+                    margin_anchored=_label_is_margin_anchored(geom),
+                    tol_mm=_tol)
+                if _mk is not None:
+                    # THE LEVER THAT MOVES THE INK IN THIS LAYOUT. With the
+                    # band anchored on the top margin, "Top" and "Label offset"
+                    # both move the letters and "T" moves nothing; in the other
+                    # layout the band is already held clear of the markers, so
+                    # the only way in is a negative "Label offset" and that is
+                    # the one thing worth naming.
+                    if _mk.margin_anchored:
+                        # THE OFFSET KEEPS ITS NUMBER AND THE MARGIN DOES NOT.
+                        # `margin_values_are_reliable`: in this layout a margin
+                        # box is a request the layout may ignore and then
+                        # overshoot, so no value may be named for "Top".
+                        # "Label offset" is not a margin and was measured
+                        # moving the letters one millimetre per millimetre
+                        # here, so its number is honest and is still given.
+                        over.append(tr(
+                            "⚠ The strip letters are printed over the ruler "
+                            "helper markers. The markers and the 1.0 mm of "
+                            "clear paper they ask for reach {reach:.1f} mm "
+                            "down the page, the letters start at "
+                            "{ink:.1f} mm, so {over:.1f} mm of them is on the "
+                            "markers. With “Prioritise patch size” the letters "
+                            "hang from the top margin. Raise “Label offset” "
+                            "under “Strip letters only” by about "
+                            "{over:.1f} mm, or lower “Distance from page edge” "
+                            "or “Marker length” under “Print helper markers”. "
+                            "Raising “Top” under “Margins (mm)” also moves "
+                            "them, but in this layout that box is a request "
+                            "the patches may be placed well inside, so press "
+                            "Generate Chart to measure what it did.").format(
+                                reach=_mk.reach_mm, ink=_mk.ink_top_mm,
+                                over=_mk.overlap_mm))
+                    else:
+                        over.append(tr(
+                            "⚠ The strip letters are printed over the ruler "
+                            "helper markers. The markers and the 1.0 mm of "
+                            "clear paper they ask for reach {reach:.1f} mm "
+                            "down the page, the letters start at "
+                            "{ink:.1f} mm, so {over:.1f} mm of them is on the "
+                            "markers. Raise “Label offset” under “Strip "
+                            "letters only” by about {over:.1f} mm, or lower "
+                            "“Distance from page edge” or “Marker length” "
+                            "under “Print helper markers”.").format(
+                                reach=_mk.reach_mm, ink=_mk.ink_top_mm,
+                                over=_mk.overlap_mm))
             # …AND THE ROW NUMBERS DOWN THE LEFT, the same rule one edge over.
             # Area-first no longer reserves their 7.5 mm band outside the margin
             # (that was the fault Basti reported: a 1 mm margin put the first
@@ -22032,7 +22435,75 @@ class TabChart(QWidget):
                 # project's user-facing text, and the two cases really do have
                 # different fixes: with both switched on, turning one off is a
                 # remedy the single-line case cannot offer.
+                # **AND NOW IT NAMES A RISE AGAIN, BECAUSE THE SEARCH IS
+                # ALLOWED BACK.** The design authority's ruling:
+                # *"as long as a search is done after a generate chart and
+                # margins have been measured, then option 3 is acceptable for
+                # the bottom text warning."* Both halves hold here: this branch
+                # only runs when `_meas_b` exists, which means a chart has been
+                # generated and measured, and `margin_rise_that_clears_mm`
+                # walks candidates through the same function that measured it.
+                #
+                # THE RISE IS NOT THE OVERLAP, WHICH IS WHY A SEARCH IS NEEDED
+                # AT ALL. The patch grid is re-fitted every time the margin
+                # moves, so the patch bottom travels about HALF a millimetre
+                # per millimetre asked for, and "raise Bottom by about
+                # {short}" was wrong by about half every time.
+                # **AND IT ASKS THE TAB FOR NOTHING.** The first version of
+                # this passed `self._onscreen_patch_total()`, which does not
+                # exist on the stand-ins the suite runs this against: the
+                # AttributeError landed in this block's own blanket `except`
+                # and took the WHOLE notice down with it, turning five shipped
+                # tests red with "no warning at all". The rule against reaching
+                # through `self` here was already written down, in
+                # `test_the_bottom_text_is_measured_against_the_patches.py`,
+                # and it is right.
+                #
+                # Nothing is lost by obeying it: measured on a tester's own
+                # 648-patch chart, the count does not move this answer at all
+                # (0, 50, 200, 648, 1000 and 5000 patches all give 18.710 mm),
+                # because the patch block's bottom is set by a FULL strip and
+                # the total only decides whether the last strip is short.
+                # **AND IT MAY ONLY BE NAMED WHERE A MARGIN VALUE MEANS
+                # ANYTHING.** His acceptance of the search and his ruling on
+                # margin values arrived in the same round, forty minutes apart,
+                # and they meet here. The search is allowed "after a generate
+                # chart and margins have been measured"; the ruling is that in
+                # "Prioritise patch size" a message *"should not specifically
+                # mention what to set the margin settings to, but rather say
+                # which parameters can be altered"*, because a margin box there
+                # is a request the layout may ignore and then overshoot in one
+                # jump (26.0 mm changed nothing on his chart, 27.0 mm moved the
+                # measured margin to 35.9).
+                #
+                # The narrower reading is the one implemented: the rise is
+                # searched and named in chart-first, where the margins are law,
+                # and in patch-first the same message names the controls. The
+                # search is not even run there, because its answer could not be
+                # used and each candidate is a geometry rebuild.
+                _rise = (margin_rise_that_clears_mm(
+                    r, float(_patch_bottom), _b_edge, nlines, _line_mm)
+                    if margin_values_are_reliable(r) else None)
                 over.append(((tr(
+                    "⚠ The sheet text along the bottom runs into the patches. "
+                    "It is printed {edge:.1f} mm up from the paper edge and "
+                    "needs {need:.1f} mm of room, and the patch area in "
+                    "“Measured from Preview” comes down to {bottom:.1f} mm, "
+                    "leaving {avail:.1f} mm, so it is {short:.1f} mm short. "
+                    "Raise “Bottom” under “Margins (mm)” by about "
+                    "{rise:.1f} mm, then press Generate Chart to measure it "
+                    "again.")
+                    if nlines == 1 and _rise is not None else tr(
+                    "⚠ The two lines of sheet text along the bottom run into "
+                    "the patches. They are printed {edge:.1f} mm up from the "
+                    "paper edge and need {need:.1f} mm of room, and the patch "
+                    "area in “Measured from Preview” comes down to "
+                    "{bottom:.1f} mm, leaving {avail:.1f} mm, so they are "
+                    "{short:.1f} mm short. Raise “Bottom” under “Margins "
+                    "(mm)” by about {rise:.1f} mm, or switch one of the two "
+                    "lines off, then press Generate Chart to measure it "
+                    "again.")
+                    if _rise is not None else tr(
                     "⚠ The sheet text along the bottom runs into the patches. "
                     "It is printed {edge:.1f} mm up from the paper edge and "
                     "needs {need:.1f} mm of room, and the patch area in "
@@ -22052,7 +22523,8 @@ class TabChart(QWidget):
                         edge=_b_edge, need=_o.needed_mm,
                         bottom=float(_patch_bottom),
                         avail=max(0.0, _o.available_mm),
-                        short=_o.overlap_mm)
+                        short=_o.overlap_mm,
+                        rise=(_rise if _rise is not None else 0.0))
                     # …AND WHETHER THE BOX IS EVEN OPEN. See
                     # `_locked_margins_note`: with "Use instrument margins"
                     # ticked the four margin boxes are read-only, which is
@@ -22098,7 +22570,6 @@ class TabChart(QWidget):
             # (Knut, 2026-09-13, beta 8, at Size 13 and 14). The height check
             # above counts both lines; this one now measures both.
             if self._bottom_sheet_text_lines(r):
-                _w = self._sheet_text_width_mm(r)
                 # THE PAPER'S OWN WIDTH, NOT THE REPORT'S. `_engine_text_notes`
                 # is called with no report from the ⓘ and from a driver, and
                 # `getattr(None, "page_w_mm", 0.0)` is 0, which made the
@@ -22118,6 +22589,47 @@ class TabChart(QWidget):
                 # what the sheet does.
                 _cb_mm = (float(getattr(r, "clip_border_width_mm", 0.0) or 0.0)
                           if getattr(r, "clip_border", False) else 0.0)
+                # **AND THE WIDTH IS MEASURED AT THE SIZE THE RENDERER WILL
+                # REALLY PICK, WHICH IS NOT THE FLOOR.**
+                #
+                # `_sheet_text_width_mm` resolved "auto" to
+                # `AUTO_SHRINK_FLOOR_PT`, 7 pt, on the reasoning that the panel
+                # must not warn about a line the renderer is about to shrink to
+                # fit. That was true while "auto" could only ever shrink. It
+                # has had a CEILING since beta 17 -- `auto_sheet_text_size_mm`
+                # starts at `AUTO_SIZE_CEILING_PT` (16 pt) and takes the
+                # LARGEST size that fits -- so the panel was measuring the
+                # narrowest line the renderer might draw while the renderer
+                # drew one up to 16 pt wide, and the width warning could not
+                # fire for an auto-sized block at all.
+                #
+                # That is what a tester found on beta 19: switching "Stamp
+                # layout summary" on moved the measured bottom margin from
+                # 11.3 mm to 19.0 mm, "auto" took the extra height as licence
+                # to grow, and the wider line ran into the right-hand clip
+                # border with the panel silent.
+                #
+                # So resolve "auto" the way the renderer resolves it, against
+                # THIS sheet's room, and hand the result to both. The room is
+                # `bottom_text_room_mm` with exactly the arguments the overflow
+                # check below uses, so the two cannot describe different sheets.
+                _margin_l_mm = (_meas_l if _meas_l is not None else
+                                float(getattr(geom, "margin_l", 0.0) or 0.0))
+                _margin_r_mm = (_meas_r if _meas_r is not None else
+                                float(getattr(geom, "margin_r", 0.0) or 0.0))
+                _align = str(getattr(r, "chart_text_align", "")
+                             or text_edge_fit.BOTTOM_TEXT_ALIGN_DEFAULT)
+                _room_mm = text_edge_fit.bottom_text_room_mm(
+                    _pw, _clip_edge,
+                    bool(getattr(r, "helper_markers", False)),
+                    *_marker_reserve_args(r),
+                    bool(getattr(r, "helper_markers_sides", True)),
+                    clip_border_mm=_cb_mm,
+                    clip_side=str(getattr(r, "clip_side", "left") or "left"),
+                    margin_left_mm=_margin_l_mm,
+                    margin_right_mm=_margin_r_mm,
+                    align=_align)
+                _w = self._sheet_text_width_mm(r, room_mm=_room_mm)
                 _wo = text_edge_fit.bottom_text_overflow(
                     _pw, _clip_edge, _w,
                     bool(getattr(r, "helper_markers", False)),
