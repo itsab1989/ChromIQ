@@ -69,6 +69,35 @@ _METRIC_LABELS = {
     "std":       lambda: tr("Spread (std. dev.)"),
 }
 _ACCURACY_ROW_KEYS = ("avg_all", "avg_low95", "avg_high5", "max_all", "max_low95")
+
+#: What a report written BEFORE the five-metric vocabulary calls the same
+#: number. `_de00_block` writes both spellings on every report to this day and
+#: says why: *"aliases kept for the trend series (report_trend reads
+#: mean/max/p95)"* — and `report_trend` does copy them into the point. Nothing
+#: then read them, so a report made by an older ChromIQ contributed no value to
+#: any of the five lines, `_TrendChart.set_data` dropped the point entirely, and
+#: the chart said *"A trend graph needs at least two measurement runs. Add
+#: another measurement — or … tick 'Show all measurement runs' above"* with two
+#: measurements listed, both ticked, and that box already on. Both instructions
+#: were already done; the sentence was simply false.
+#:
+#: Only the two that are the SAME arithmetic, proved from `_de00_block`, where
+#: the new key and the alias are written from one expression:
+#: ``"avg_all": round(float(a.mean()), 3)`` / ``"mean": round(float(a.mean()), 3)``
+#: and the same for ``max_all`` / ``max``. ``max_low95`` is deliberately NOT
+#: mapped from the old ``p95``: today's is the nearest-rank maximum of the best
+#: 95 % and stamps ``p95_rule`` to say so, and a report old enough to lack the
+#: new key is also old enough to have recorded no rule at all. A line that
+#: cannot be trusted is left with no point rather than given a wrong one.
+_ACCURACY_ALIAS = {"avg_all": "mean", "max_all": "max"}
+
+
+def _accuracy_value(pt: dict, key: str):
+    """One accuracy metric of one trend point, in this report's own spelling."""
+    v = pt.get(key)
+    if v is None:
+        v = pt.get(_ACCURACY_ALIAS.get(key, ""))
+    return v
 #: the limit-set row id of each old de00 key (a recorded verdict written
 #: before #182 carries only the key)
 _ROW_ID_OF = {"avg_all": "all_de00_avg", "avg_low95": "best95_de00_avg",
@@ -2247,7 +2276,7 @@ class MeasurementReportDialog(QDialog):
         return [
             (self._trend_de, tr("Colour accuracy (ΔE00)"), [
                 (_METRIC_LABELS[k](), QColor(_METRIC_LINE[k]),
-                 (lambda pt, kk=k: pt.get(kk)))
+                 (lambda pt, kk=k: _accuracy_value(pt, kk)))
                 for k in _ACCURACY_ROW_KEYS
             ], None, 1, False),
             # White (~L*100) and black (~L*10) are too far apart to share an axis

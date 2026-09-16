@@ -5213,11 +5213,54 @@ class TabProfile(QWidget):
         params = self._collect_params()
         if not self._validate_gamut_source(params):
             return
+        # WHICH BUILDER WILL RUN, ASKED ONCE AND ASKED ABOVE THE ARCHIVE.
+        #
+        # This was asked forty lines below, AFTER
+        # `_confirm_rebuild_over_verifications` had already moved this run's
+        # profile and every dated verification measurement into `old/`, and the
+        # refusal above it guessed at the answer instead: it stood aside for the
+        # whole of `profile_engine_beta` on the reasoning that "the build may
+        # not need Argyll at all". `_resolve_engine` says otherwise - with the
+        # beta ticked a standard (<=4-ink) measurement still builds on colprof
+        # when "Bit-exact gamut mapping" is chosen, and whenever
+        # `engine_support` declines.
+        #
+        # Driven on screen, combined round 9 (`D-result.json`): beta ticked,
+        # Bit-exact chosen, ArgyllCMS folder pointing at nothing, Build here
+        # anyway - the profile went into `runs/run1/old/<date>/`, both dated
+        # verifications into `verifications/old/<date>/`, and the window said
+        # "Nothing was changed in your project." That is the sentence combined
+        # round 8 refused above the archive; the refusal simply was not reached.
+        #
+        # Asking here also puts `engine == "blocked"` above the archive, which
+        # had the same shape: a multi-ink measurement without the beta setting
+        # was refused outright AFTER its history had been moved.
+        try:
+            engine = self._resolve_engine(params)
+        except Exception:      # noqa: BLE001 - the cheap, certain answer
+            # THE SAME REASONING `_refuse_when_the_profiler_is_not_installed`
+            # records: `is_multi_ink` READS the measurement, so a half-written
+            # `.ti3` raises. colprof is what an unreadable measurement would
+            # have been built with before the engine existed, so treating it as
+            # the builder keeps the refusal below able to fire.
+            log.warning("could not decide which builder to use for %s; "
+                        "treating colprof as the builder",
+                        getattr(params, "ti3_path", None), exc_info=True)
+            engine = "colprof"
+        if engine == "blocked":
+            self._show_tool_failure_dialog(
+                tr("Multi-ink measurement"),
+                tr("This measurement comes from a multi-ink chart (extra inks "
+                   "beyond CMYK). Argyll colprof cannot build a profile from "
+                   "it.\n\nEnable \"ChromIQ profile engine (beta)\" in "
+                   "Settings and build again — the engine handles multi-ink "
+                   "measurements."))
+            return
         # A BUILD THAT CANNOT START MUST NOT ARCHIVE ANYTHING FIRST.
         # `_confirm_rebuild_over_verifications` below MOVES this run's profile
         # and every dated verification measurement out of the way, and the
         # builder is only launched afterwards. See the method.
-        if self._refuse_when_the_profiler_is_not_installed(params):
+        if self._refuse_when_the_profiler_is_not_installed(engine):
             return
         # The profile is written beside the measurement it is built from, so a
         # measurement belonging to another run quietly builds into that run.
@@ -5232,21 +5275,13 @@ class TabProfile(QWidget):
         # fresh file so Check & Refine keeps working on the physical chart.
         params = self._apply_preconditioning_merge(params)
         self._active_params = params
-        # (the log was cleared before the questions - see above)
-        engine = self._resolve_engine(params)
+        # (the log was cleared before the questions - see above; `engine` was
+        # decided above them too, so that a build which cannot run refuses
+        # before anything is moved.)
         # Which builder's output `_on_log_line` is reading. The colprof
         # progress parsing must never be applied to the ChromIQ engine's
         # output, which has its own vocabulary.
         self._building_with = engine
-        if engine == "blocked":
-            self._show_tool_failure_dialog(
-                tr("Multi-ink measurement"),
-                tr("This measurement comes from a multi-ink chart (extra inks "
-                   "beyond CMYK). Argyll colprof cannot build a profile from "
-                   "it.\n\nEnable \"ChromIQ profile engine (beta)\" in "
-                   "Settings and build again — the engine handles multi-ink "
-                   "measurements."))
-            return
         # THE BUSY HEADLINE, through the same door as the idle one. This was
         # a raw `setText` with the colour already substituted, which is
         # exactly what the comment in `_restore_build_box` warns against a few
@@ -5386,7 +5421,7 @@ class TabProfile(QWidget):
             self.profile_built.emit(self._ti3_path, self._icc_path)
         self._show_build_result_dialog(self._icc_path, [])
 
-    def _refuse_when_the_profiler_is_not_installed(self, params) -> bool:
+    def _refuse_when_the_profiler_is_not_installed(self, engine: str) -> bool:
         """Say "ChromIQ could not start colprof" BEFORE anything is moved.
 
         `_confirm_rebuild_over_verifications` -> `_archive_superseded_profile`
@@ -5412,26 +5447,26 @@ class TabProfile(QWidget):
         instead of undoing it below. Nothing is moved, so the sentence the
         window already says is true, and no new message text is needed.
 
-        Only for a build that really would run colprof, and never a guess:
-        with the profile engine enabled the build may not need Argyll at all,
-        and a multi-ink measurement is answered by its own window below.
+        Only for a build that really would run colprof, and it is now ASKED
+        rather than guessed at. The first version answered the question itself,
+        from ``profile_engine_beta`` and ``is_multi_ink`` - and combined round 9
+        drove straight through it: the beta setting does NOT mean the engine
+        builds. ``_resolve_engine`` returns ``"colprof"`` on a standard
+        (<=4-ink) measurement whenever "Bit-exact gamut mapping" is chosen,
+        which it documents as deliberate, and whenever ``engine_support``
+        declines. With the beta ticked the guard stood aside, the archive ran,
+        and the same window said "Nothing was changed in your project" over a
+        run whose profile and both dated verifications had just been moved
+        (`D-result.json`, `D2-ChromIQ-could-not-start-colprof.png`).
+
+        So the caller decides which builder will run, once, and hands the
+        answer down. There is exactly one question left here, and it is the
+        cheap, certain one: can that builder be launched at all?
         """
-        if bool(self._settings.get("profile_engine_beta", False)):
+        if engine != "colprof":
             return False
-        # THE CHEAP, CERTAIN QUESTION FIRST, and this order is the fix to the
-        # fix: asking `is_multi_ink` first meant an UNREADABLE measurement
-        # (which raises) stood the guard down and archived the run's history
-        # anyway. Caught by this round's own test, which files a one-byte
-        # `.ti3` exactly as a half-written one would look.
         if self._runner.tool_is_installed("colprof"):
             return False
-        try:
-            if is_multi_ink(params.ti3_path):
-                return False   # answered by the multi-ink window below
-        except Exception:      # noqa: BLE001 - unreadable: colprof is still
-            log.warning("could not read %s while checking the builder; "
-                        "treating colprof as the builder",
-                        getattr(params, "ti3_path", None), exc_info=True)
         self._runner.last_failed_to_start = "colprof"
         # No log line of its own: the window below says the whole thing, and
         # "colprof exited with code -1" would be untrue - it never ran.

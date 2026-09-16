@@ -239,15 +239,14 @@ def test_a_build_that_cannot_start_leaves_the_profile_where_it_was(
         w.close()
 
 
-def test_the_refusal_stands_down_for_the_profile_engine(qapp, tmp_path,
-                                                        monkeypatch):
-    """With the engine on, the build may not need ArgyllCMS at all. Refusing
-    there would take a working feature away over a tool it does not run."""
+def test_the_refusal_stands_down_when_the_engine_is_the_builder(qapp, tmp_path,
+                                                               monkeypatch):
+    """A build the ChromIQ engine runs needs no ArgyllCMS. Refusing there would
+    take a working feature away over a tool it does not run."""
     from core.argyll_runner import ArgyllRunner
     from core.settings import AppSettings
 
     s = AppSettings()
-    s.set("profile_engine_beta", True)
     s.set("argyll_bin_path", str(tmp_path / "nowhere"))
     monkeypatch.setenv("PATH", "")
 
@@ -256,10 +255,148 @@ def test_the_refusal_stands_down_for_the_profile_engine(qapp, tmp_path,
         _runner = ArgyllRunner(s)
         _refuse = TabProfile._refuse_when_the_profiler_is_not_installed
 
-    class _P:
-        ti3_path = tmp_path / "nothing.ti3"
+    assert _Tab._refuse(_Tab(), "engine") is False
 
-    assert _Tab._refuse(_Tab(), _P()) is False
+
+# ---- B8-224: the refusal guessed the builder, and guessed wrong ---------
+def test_the_refusal_is_told_which_builder_will_run_rather_than_guessing():
+    """B8-224. The first version answered "will colprof run?" itself, from
+    `profile_engine_beta` and `is_multi_ink` — and combined round 9 drove
+    straight through it (`D-result.json`).
+
+    `_resolve_engine` is the app's own answer, and it says the beta setting
+    does NOT mean the engine builds: on a standard (<=4-ink) measurement it
+    returns "colprof" whenever "Bit-exact gamut mapping" is chosen, and
+    whenever `engine_support` declines. So the guard must be TOLD.
+    """
+    sig = inspect.signature(TabProfile._refuse_when_the_profiler_is_not_installed)
+    assert "engine" in sig.parameters, (
+        "the refusal still decides for itself which builder will run")
+    body = inspect.getsource(
+        TabProfile._refuse_when_the_profiler_is_not_installed)
+    body = body[body.index('"""', body.index('"""') + 3):]   # past the docstring
+    assert "profile_engine_beta" not in body, (
+        "the refusal still stands aside for the whole of the beta setting, "
+        "which is exactly what B8-224 walked through")
+
+
+def test_the_builder_is_decided_before_the_question_that_archives():
+    """The decision moved ABOVE `_confirm_rebuild_over_verifications`, which is
+    what makes the refusal reachable at all."""
+    body = _on_build_without_prose()
+    assert (body.index("_resolve_engine")
+            < body.index("_confirm_rebuild_over_verifications")), (
+        "the builder is chosen after the question that moves the profile and "
+        "every dated verification measurement out of the way")
+
+
+def test_the_multi_ink_refusal_is_also_above_the_archive():
+    """`engine == "blocked"` refuses the build outright. It did so AFTER the
+    archive, so a multi-ink measurement built without the beta setting had its
+    profile and every dated verification moved for a build that was then
+    refused in the next statement."""
+    body = _on_build_without_prose()
+    assert (body.index("'blocked'") < body.index("_confirm_rebuild_over_verifications")), (
+        "a build refused for being multi-ink still archives the run's history "
+        "first")
+
+
+@pytest.mark.parametrize("gammap", ["argyll", "fast"])
+def test_the_beta_engine_does_not_let_the_archive_happen(
+        qapp, tmp_path, monkeypatch, run_with_a_profile_and_a_verification,
+        gammap):
+    """B8-224, as a user meets it: tick the engine beta, point the ArgyllCMS
+    folder at nothing, press Build on an ordinary run.
+
+    Driven on screen first (combined round 9, `D-result.json`): the profile
+    went into `runs/run1/old/<date>/`, both dated verifications into
+    `verifications/old/<date>/`, and the window said "Nothing was changed in
+    your project."
+    """
+    proj, run, rundir = run_with_a_profile_and_a_verification
+    from core.settings import AppSettings
+    from ui.main_window import MainWindow
+
+    s = AppSettings()
+    s.set("custom_output_path", str(tmp_path / "projects"))
+    s.set("session_project", "")
+    s.set("restore_last_session", False)
+    s.set("profile_engine_beta", True)          # THE TICK THAT LET IT THROUGH
+    s.set("gammap_mode", gammap)
+    s.set("argyll_bin_path", str(tmp_path / "a-folder-with-no-argyll"))
+    monkeypatch.setenv("PATH", "")
+
+    w = MainWindow(s)
+    try:
+        s.set("argyll_bin_path", str(tmp_path / "a-folder-with-no-argyll"))
+        assert not w._runner.tool_is_installed("colprof")
+        tab = w._tab_profile
+        # This run's .ti3 is a stub, so `_resolve_engine` must be answered the
+        # way the real one answers a standard measurement in this state.
+        monkeypatch.setattr(type(tab), "_resolve_engine",
+                            lambda self, params: "colprof")
+        asked: list[str] = []
+        monkeypatch.setattr(
+            type(tab), "_confirm_rebuild_over_verifications",
+            lambda self: (asked.append("asked"), True)[1])
+        shown: list[str] = []
+        monkeypatch.setattr(
+            type(tab), "_report_if_the_tool_could_not_start",
+            lambda self: (shown.append(self._runner.last_failed_to_start),
+                          True)[1])
+        tab._ti3_path = rundir / "B8221.ti3"
+        tab._on_build()
+        qapp.processEvents()
+
+        assert shown == ["colprof"], (
+            "the build was not refused, although colprof is what would have "
+            f"run: {shown!r}")
+        assert asked == [], (
+            "the question that MOVES the profile and every dated verification "
+            "measurement was asked for a build that cannot start")
+        assert (rundir / "B8221.icc").is_file()
+        assert not (rundir / "old").exists()
+        assert not (rundir / "verifications" / "old").exists()
+    finally:
+        w.close()
+
+
+def test_a_measurement_that_cannot_be_read_still_reaches_the_refusal(
+        qapp, tmp_path, monkeypatch):
+    """`_resolve_engine` READS the measurement (`is_multi_ink`), so a
+    half-written `.ti3` raises out of it. Round 8 recorded the same hazard one
+    method down: an unreadable measurement must not stand the guard down."""
+    from core.settings import AppSettings
+    from ui.main_window import MainWindow
+
+    s = AppSettings()
+    s.set("session_project", "")
+    s.set("restore_last_session", False)
+    s.set("custom_output_path", str(tmp_path / "projects"))
+    s.set("argyll_bin_path", str(tmp_path / "a-folder-with-no-argyll"))
+    monkeypatch.setenv("PATH", "")
+    w = MainWindow(s)
+    try:
+        s.set("argyll_bin_path", str(tmp_path / "a-folder-with-no-argyll"))
+        tab = w._tab_profile
+        monkeypatch.setattr(
+            type(tab), "_resolve_engine",
+            lambda self, params: (_ for _ in ()).throw(
+                ValueError("half a .ti3")))
+        seen: list[str] = []
+        monkeypatch.setattr(
+            type(tab), "_refuse_when_the_profiler_is_not_installed",
+            lambda self, engine: (seen.append(engine), True)[1])
+        ti3 = tmp_path / "half.ti3"
+        ti3.write_text("C", encoding="utf-8")
+        tab._ti3_path = ti3
+        tab._on_build()
+        qapp.processEvents()
+        assert seen == ["colprof"], (
+            "an unreadable measurement took the build past the refusal: "
+            f"{seen!r}")
+    finally:
+        w.close()
 
 
 # ---- round 7's second lead, settled ------------------------------------

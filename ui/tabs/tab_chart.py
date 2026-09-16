@@ -13029,6 +13029,82 @@ class TabChart(QWidget):
                     else None)
         return None
 
+    def _the_chart_build_could_not_start_quietly(self) -> None:
+        """Put Generate Chart and the per-target shield back. Says nothing.
+
+        The half of :meth:`_the_chart_build_could_not_start` that must run for
+        ANY escaping exception, including one this tab cannot diagnose. Same
+        shape as ``tab_profile._on_build``'s *"THE LOCK MUST COME BACK OFF IF
+        THE BUILD NEVER STARTS"*: unlock, then re-raise, so the fault still
+        reaches the log and nothing is swallowed.
+        """
+        log.warning("the chart build could not be started", exc_info=True)
+        self._generate_btn.setEnabled(True)
+        self._layout_owned_by_build = False
+        # ARMED ONE STATEMENT ABOVE THE RAISE. `_on_generate` starts the
+        # slow-chart watchdog immediately before handing over to the creator,
+        # so a launch that raises leaves it running and the "this chart is
+        # taking a long time" window arrives for a build that never began.
+        try:
+            self._slow_watchdog.stop()
+        except Exception:      # noqa: BLE001 - never fail on the way out
+            log.debug("could not stop the slow-chart watchdog", exc_info=True)
+
+    def _the_chart_build_could_not_start(self, exc: BaseException, *,
+                                        quiet: bool = False) -> None:
+        """Put the tab back when a build stopped by RAISING, and say so.
+
+        A DOOR CAN DECLINE BY RETURNING AND IT CAN STOP BY RAISING, and only
+        the first was covered here. Both build doors disable Generate Chart and
+        raise ``_layout_owned_by_build`` BEFORE everything that touches the
+        filesystem, and `_on_generate`'s own comment says *"Every path out of
+        this build re-enables the button, including the failures"* - which is
+        true of every ``return`` and of no exception at all. ``_on_generate``
+        had a bare ``finally`` that forgets the gate answer and nothing else.
+
+        Driven on screen, combined round 9: with the projects folder on a drive
+        that is not mounted (``/Volumes`` is root-owned, so an ordinary
+        ``mkdir`` under it is refused), pressing **Generate Chart** did
+        nothing at all - no window, not one line in the log - and left the
+        button greyed out for the rest of the session, with no way back but
+        restarting ChromIQ. The same happens for a projects folder that is
+        read-only: ``Project.load`` rewrites "Where are my files.txt" on every
+        load, so merely OPENING the project raises.
+
+        The shield is the quieter half and the worse one:
+        ``_layout_owned_by_build`` tells the per-target loader that the rows on
+        screen belong to the build rather than to the target, and every early
+        return drops it for the reason written beside them - "the next target
+        the user selects never receives its own settings, and the next write
+        files the previous run's values onto it (§4 S8)".
+
+        The sibling door already does exactly this. ``tab_profile._on_build``
+        wraps its launch in *"THE LOCK MUST COME BACK OFF IF THE BUILD NEVER
+        STARTS … leaving the user locked out of their own app with no way back
+        but a restart"*. This is that guard, for the tab a user meets first.
+
+        *quiet* is the live auto-update preview, which may not open a window on
+        every turn of a knob (§4). It is put back and told in the log.
+        """
+        self._the_chart_build_could_not_start_quietly()
+        self._log.appendPlainText(
+            "[ERROR] " + tr("ChromIQ could not write into that project"))
+        self._log.ensureCursorVisible()
+        if quiet:
+            return
+        InfoDialog(
+            tr("ChromIQ could not write into that project"),
+            tr("ChromIQ could not write into your projects folder, so this "
+               "chart was not made.\n\n"
+               "The reason: {reason}.\n\n"
+               "This usually means the folder is read-only, the disk is full, "
+               "or it lives on a drive or share that is no longer connected. "
+               "Check the folder ChromIQ writes to in Preferences, then press "
+               "Generate Chart again."
+               ).format(reason=getattr(exc, "strerror", None) or exc),
+            self, min_width=580,
+        ).exec()
+
     def _generate_from_ti1(self, ti1_path: Path, *, ask: bool = True,
                            preview: bool = False) -> bool:
         """Create the target by running printtarg only on an existing .ti1.
@@ -13050,169 +13126,190 @@ class TabChart(QWidget):
         already moved, so every exit returns True even when the build then
         fails: there is no earlier state left to go back to.
         """
-        if self._runner.is_running:
-            log.warning("A process is already running")
-            return False
-        self._log_chart_build("live preview" if not ask else "user", ti1_path)
-        self._cancel_pending_auto_preview()
-        # `preview` IS THE ONE CALLER THAT MAY NOT OPEN A WINDOW.
-        # The live auto-update preview re-renders on every turn of a knob, so a
-        # modal here would be thrown at somebody repeatedly while they drag a
-        # slider — and it left one standing in headless runs, which the gate
-        # reports as an ERROR rather than a failure and is easy to miss.
-        #
-        # NOT `ask`, which is the obvious-looking flag and the wrong one. Four
-        # auto-run preset routes also pass `ask=False` (they are the reason
-        # `_generate_from_ti1` needs its own name guard at all — Knut's G1
-        # report), and they ARE person-initiated. Keying on `ask` silently
-        # turned his exact route back into "nothing happens and nothing says
-        # why". `preview=True` is passed by exactly one caller.
-        #
-        # AND IT RUNS BEFORE §S4.7, WHICH IS THE WHOLE POINT OF ITS PLACE HERE.
-        # §S4.7 asks about the project this build will touch; asked while the
-        # name box is still empty it has nothing to check, waves the build
-        # through, and the name given afterwards is never compared with anything
-        # — so a name that already belongs to a project overwrote it with no
-        # window of any kind. Driven: 7 files replaced, including the .ti2 a
-        # printed sheet is read against. Typing the same name into the box
-        # itself asked properly. The name must exist BEFORE the gate.
-        _field = self._active_name_field()
-        _typed = _field.text().strip() if _field is not None else ""
-        # Empty, or typed into the box and unusable as a folder — the same door.
-        if self._name_needs_asking(_typed):
-            if preview:
-                log.debug("live preview: nothing rendered — no usable project "
-                          "name yet")
+        # A DOOR CAN STOP BY RAISING. See `_the_chart_build_could_not_start`:
+        # everything below the button disable touches the filesystem, and an
+        # OSError there left Generate Chart greyed out for the rest of the
+        # session with nothing said at all. Driven on screen, combined round 9.
+        try:
+            if self._runner.is_running:
+                log.warning("A process is already running")
                 return False
-            if not self._ask_for_a_project_name():
-                return False      # cancelled — nothing has been touched yet
-            # Answered. Fall through and build: the name is in the field now,
-            # and the code below reads it from there.
+            self._log_chart_build("live preview" if not ask else "user", ti1_path)
+            self._cancel_pending_auto_preview()
+            # `preview` IS THE ONE CALLER THAT MAY NOT OPEN A WINDOW.
+            # The live auto-update preview re-renders on every turn of a knob, so a
+            # modal here would be thrown at somebody repeatedly while they drag a
+            # slider — and it left one standing in headless runs, which the gate
+            # reports as an ERROR rather than a failure and is easy to miss.
+            #
+            # NOT `ask`, which is the obvious-looking flag and the wrong one. Four
+            # auto-run preset routes also pass `ask=False` (they are the reason
+            # `_generate_from_ti1` needs its own name guard at all — Knut's G1
+            # report), and they ARE person-initiated. Keying on `ask` silently
+            # turned his exact route back into "nothing happens and nothing says
+            # why". `preview=True` is passed by exactly one caller.
+            #
+            # AND IT RUNS BEFORE §S4.7, WHICH IS THE WHOLE POINT OF ITS PLACE HERE.
+            # §S4.7 asks about the project this build will touch; asked while the
+            # name box is still empty it has nothing to check, waves the build
+            # through, and the name given afterwards is never compared with anything
+            # — so a name that already belongs to a project overwrote it with no
+            # window of any kind. Driven: 7 files replaced, including the .ti2 a
+            # printed sheet is read against. Typing the same name into the box
+            # itself asked properly. The name must exist BEFORE the gate.
+            _field = self._active_name_field()
+            _typed = _field.text().strip() if _field is not None else ""
+            # Empty, or typed into the box and unusable as a folder — the same door.
+            if self._name_needs_asking(_typed):
+                if preview:
+                    log.debug("live preview: nothing rendered — no usable project "
+                              "name yet")
+                    return False
+                if not self._ask_for_a_project_name():
+                    return False      # cancelled — nothing has been touched yet
+                # Answered. Fall through and build: the name is in the field now,
+                # and the code below reads it from there.
 
-        # §4: every path that lays out a new chart asks first, not just the
-        # Generate Chart button — a preset, an imported chart and a bundled
-        # patch set all replace the chart a measurement describes.
-        if ask:
-            # §S4.7 FIRST, and it may answer §4 as well — see
-            # `_gate_typed_project_name`. Asked before anything is applied, so
-            # Cancel is a plain early return that has changed nothing.
-            _proceed, _s4_done = self._gate_typed_project_name()
-            if not _proceed:
+            # §4: every path that lays out a new chart asks first, not just the
+            # Generate Chart button — a preset, an imported chart and a bundled
+            # patch set all replace the chart a measurement describes.
+            if ask:
+                # §S4.7 FIRST, and it may answer §4 as well — see
+                # `_gate_typed_project_name`. Asked before anything is applied, so
+                # Cancel is a plain early return that has changed nothing.
+                _proceed, _s4_done = self._gate_typed_project_name()
+                if not _proceed:
+                    return False
+                if not _s4_done and not self._confirm_displacing_results():
+                    return False
+            if not ti1_path.is_file():
+                InfoDialog(
+                    "Patch set not found",
+                    f"The .ti1 patch set could not be located:\n\n{ti1_path}",
+                    self, min_width=520,
+                ).exec()
                 return False
-            if not _s4_done and not self._confirm_displacing_results():
-                return False
-        if not ti1_path.is_file():
-            InfoDialog(
-                "Patch set not found",
-                f"The .ti1 patch set could not be located:\n\n{ti1_path}",
-                self, min_width=520,
-            ).exec()
-            return False
-        # A NAME IS REQUIRED — never invent one (Basti, #164 Q15).
-        #
-        # THE GUARD BELONGS HERE, NOT ONLY IN `_on_generate`. Seven of that
-        # method's paths reach this one through an early return ABOVE its own
-        # check — a user preset with an attached .ti1 (the route Knut hit), an
-        # applied editor chart, a prebuilt re-layout, TC9.18, a Spyderprint
-        # preset — and the ▶ "generate on select" branch walks straight in.
-        # Down at `base_name` the mutating `get_target_name()` then makes up
-        # `Printer_Paper_Type_Instr_<timestamp>`, CREATES that project and
-        # builds the whole chart into a folder nobody asked for and nobody
-        # would find again. Driven: selecting a saved user preset from a fresh
-        # start produced exactly that, with no dialog of any kind. Placed
-        # BEFORE the button is disabled below, so an early return needs no undo.
-        #
-        # THIS NOW COVERS THE BUILT-IN PRESETS TOO. Until 2026-08-30 every
-        # built-in route had already called `_ensure_profile_name` with the
-        # preset's own default name, so the field was never empty here and the
-        # guard could not fire — and a preset picked on a freshly started app
-        # created a project named `i1Pro-A4-162p-1page-Portrait-w7.5mm` with no
-        # window at all, because §S4.7 keys off a name the USER typed. Knut
-        # reported that; Basti had wanted it asked all along. `_seed_preset_name`
-        # now leaves the field empty, so a built-in arrives here like any other
-        # preset and is asked for a name.
-        # THE BUILD STARTS HERE, not at the call to the creator further down.
-        # Everything below — naming the target, re-aligning the run, arming the
-        # verification snapshot — can fire the target-switch handler, which loads
-        # the run's stored Create Chart state over the layout this build is about
-        # to use. `_chart_build_in_flight` reads this button, so disabling it any
-        # later leaves exactly that window open, and Basti's log showed the four
-        # loads landing in it (2026-08-16). Every path out of this build
-        # re-enables the button, including the failures.
-        self._generate_btn.setEnabled(False)
-        self._layout_owned_by_build = True
-        # ---- THE POINT OF NO RETURN. Every exit below is True (see docstring).
-        self.target_started.emit()
-        # Remember the loaded project before the name is applied (#130).
-        _ctl = getattr(self, "_target_ctl", None)
-        _proj_before = _ctl.project_or_none() if _ctl is not None else None
-        name = (self._manual_target_name_edit.text().strip()
-                if self._manual_target_name_edit is not None else "")
-        # A LIVE PREVIEW MAY NOT CHANGE PROJECT. This line runs whatever `ask`
-        # is, so the auto-update preview used to read the name box and adopt
-        # whatever was typed there: open project A, type the name of project B
-        # without pressing anything, nudge a layout knob, and ChromIQ made B
-        # current and rebuilt B's chart — with no window, because §4 forbids the
-        # preview from opening one. It renders into the run it just assessed
-        # instead; only a deliberate build may move to another project.
-        if name and preview and self._name_points_elsewhere(name):
-            log.info("live preview: not adopting the typed name %r — it names "
-                     "another project", name)
-            name = ""
-        # A PREVIEW IS NOT A POINT OF NO RETURN, AND MAY NOT ACT ON AN ANSWER.
-        # An armed "Replace it" survived an aborted build — cancel the rename
-        # chooser and nothing is built, but the answer stayed on `self` — and
-        # then ONE live-preview render archived the whole project, with no
-        # window, because §4 forbids the preview from opening one. Driven. The
-        # same leak applied a run choice made for one project to another
-        # project's bar.
-        # THE POINT OF NO RETURN. A "Replace it" the user agreed to is carried
-        # out HERE, not when they clicked it — everything above can still
-        # abort, and a missing .ti1 used to archive the whole project and then
-        # say "Patch set not found", having built nothing.
-        #
-        # AND A PREVIEW IS NOT THAT POINT. It is the one route forbidden to open
-        # a window, so an armed "Replace it" left over from an aborted build was
-        # carried out HERE with nothing said: cancel the rename chooser, nudge a
-        # layout knob, and the whole project was archived. Driven. The same leak
-        # applied a run choice made for one project to another project's bar.
-        if not preview and not self._perform_pending_replace():
-            self._generate_btn.setEnabled(True)
-            self._layout_owned_by_build = False
-            return True     # past the point of no return — see the docstring
-        if name:
-            self._file_mgr.set_target_name(name)
-        if not preview:
-            self._apply_gate_run_choice()
-        # #130 CRITICAL (Knut): a .ti1-based preset (TC9.18, Spyderprint) must
-        # build into the run the Profile-run bar shows — Overwrite run N / New
-        # run — not always the project's current run. Skipped for a build under a
-        # new name (that's a different project).
-        _same_project = self._builds_into_project(_proj_before)
-        if _same_project:
-            self._align_current_run_to_target()
-        # Run type = Verification builds through the run root too — keep the
-        # run's profiling chart (#130, Knut K3).
-        self._arm_verification_snapshot()
-        # The guard above means a name is always set by now, so this getter
-        # can no longer invent one. The old `or TC918_TARGET_NAME` fallback
-        # only ever hid the fault.
-        base_name = self._file_mgr.get_target_name()
-        params = self._collect_params()
-        self._last_params = params  # for _stamp_chart_meta (see _on_generate)
-        params.target_name = base_name
-        # Built from an existing patch set (targen not run) → the stamp names the
-        # chart layout instead of a misleading targen command (#70).
-        params.chart_layout_name = self._active_layout_name()
-        self._last_target_name = base_name
-        self._log.clear()
-        self._preview.clear()
-        self._creator.load_ti1_and_generate_preview(
-            ti1_path, params,
-            on_line=self._on_log_line,
-            on_finish=self._on_generate_finished,
-        )
-        return True
+            # A NAME IS REQUIRED — never invent one (Basti, #164 Q15).
+            #
+            # THE GUARD BELONGS HERE, NOT ONLY IN `_on_generate`. Seven of that
+            # method's paths reach this one through an early return ABOVE its own
+            # check — a user preset with an attached .ti1 (the route Knut hit), an
+            # applied editor chart, a prebuilt re-layout, TC9.18, a Spyderprint
+            # preset — and the ▶ "generate on select" branch walks straight in.
+            # Down at `base_name` the mutating `get_target_name()` then makes up
+            # `Printer_Paper_Type_Instr_<timestamp>`, CREATES that project and
+            # builds the whole chart into a folder nobody asked for and nobody
+            # would find again. Driven: selecting a saved user preset from a fresh
+            # start produced exactly that, with no dialog of any kind. Placed
+            # BEFORE the button is disabled below, so an early return needs no undo.
+            #
+            # THIS NOW COVERS THE BUILT-IN PRESETS TOO. Until 2026-08-30 every
+            # built-in route had already called `_ensure_profile_name` with the
+            # preset's own default name, so the field was never empty here and the
+            # guard could not fire — and a preset picked on a freshly started app
+            # created a project named `i1Pro-A4-162p-1page-Portrait-w7.5mm` with no
+            # window at all, because §S4.7 keys off a name the USER typed. Knut
+            # reported that; Basti had wanted it asked all along. `_seed_preset_name`
+            # now leaves the field empty, so a built-in arrives here like any other
+            # preset and is asked for a name.
+            # THE BUILD STARTS HERE, not at the call to the creator further down.
+            # Everything below — naming the target, re-aligning the run, arming the
+            # verification snapshot — can fire the target-switch handler, which loads
+            # the run's stored Create Chart state over the layout this build is about
+            # to use. `_chart_build_in_flight` reads this button, so disabling it any
+            # later leaves exactly that window open, and Basti's log showed the four
+            # loads landing in it (2026-08-16). Every path out of this build
+            # re-enables the button, including the failures.
+            self._generate_btn.setEnabled(False)
+            self._layout_owned_by_build = True
+            # ---- THE POINT OF NO RETURN. Every exit below is True (see docstring).
+            self.target_started.emit()
+            # Remember the loaded project before the name is applied (#130).
+            _ctl = getattr(self, "_target_ctl", None)
+            _proj_before = _ctl.project_or_none() if _ctl is not None else None
+            name = (self._manual_target_name_edit.text().strip()
+                    if self._manual_target_name_edit is not None else "")
+            # A LIVE PREVIEW MAY NOT CHANGE PROJECT. This line runs whatever `ask`
+            # is, so the auto-update preview used to read the name box and adopt
+            # whatever was typed there: open project A, type the name of project B
+            # without pressing anything, nudge a layout knob, and ChromIQ made B
+            # current and rebuilt B's chart — with no window, because §4 forbids the
+            # preview from opening one. It renders into the run it just assessed
+            # instead; only a deliberate build may move to another project.
+            if name and preview and self._name_points_elsewhere(name):
+                log.info("live preview: not adopting the typed name %r — it names "
+                         "another project", name)
+                name = ""
+            # A PREVIEW IS NOT A POINT OF NO RETURN, AND MAY NOT ACT ON AN ANSWER.
+            # An armed "Replace it" survived an aborted build — cancel the rename
+            # chooser and nothing is built, but the answer stayed on `self` — and
+            # then ONE live-preview render archived the whole project, with no
+            # window, because §4 forbids the preview from opening one. Driven. The
+            # same leak applied a run choice made for one project to another
+            # project's bar.
+            # THE POINT OF NO RETURN. A "Replace it" the user agreed to is carried
+            # out HERE, not when they clicked it — everything above can still
+            # abort, and a missing .ti1 used to archive the whole project and then
+            # say "Patch set not found", having built nothing.
+            #
+            # AND A PREVIEW IS NOT THAT POINT. It is the one route forbidden to open
+            # a window, so an armed "Replace it" left over from an aborted build was
+            # carried out HERE with nothing said: cancel the rename chooser, nudge a
+            # layout knob, and the whole project was archived. Driven. The same leak
+            # applied a run choice made for one project to another project's bar.
+            if not preview and not self._perform_pending_replace():
+                self._generate_btn.setEnabled(True)
+                self._layout_owned_by_build = False
+                return True     # past the point of no return — see the docstring
+            if name:
+                self._file_mgr.set_target_name(name)
+            if not preview:
+                self._apply_gate_run_choice()
+            # #130 CRITICAL (Knut): a .ti1-based preset (TC9.18, Spyderprint) must
+            # build into the run the Profile-run bar shows — Overwrite run N / New
+            # run — not always the project's current run. Skipped for a build under a
+            # new name (that's a different project).
+            _same_project = self._builds_into_project(_proj_before)
+            if _same_project:
+                self._align_current_run_to_target()
+            # Run type = Verification builds through the run root too — keep the
+            # run's profiling chart (#130, Knut K3).
+            self._arm_verification_snapshot()
+            # The guard above means a name is always set by now, so this getter
+            # can no longer invent one. The old `or TC918_TARGET_NAME` fallback
+            # only ever hid the fault.
+            base_name = self._file_mgr.get_target_name()
+            params = self._collect_params()
+            self._last_params = params  # for _stamp_chart_meta (see _on_generate)
+            params.target_name = base_name
+            # Built from an existing patch set (targen not run) → the stamp names the
+            # chart layout instead of a misleading targen command (#70).
+            params.chart_layout_name = self._active_layout_name()
+            self._last_target_name = base_name
+            self._log.clear()
+            self._preview.clear()
+            self._creator.load_ti1_and_generate_preview(
+                ti1_path, params,
+                on_line=self._on_log_line,
+                on_finish=self._on_generate_finished,
+            )
+            return True
+        except OSError as exc:
+            # The ordinary shape: a projects folder that is read-only, full, or
+            # on a drive or share that is not there. Say so and put the tab
+            # back.
+            self._the_chart_build_could_not_start(exc, quiet=preview)
+            # TRUE, AND THE DOCSTRING ABOVE IS WHY: from `target_started.emit()`
+            # onwards the project has already moved, so a caller must not put
+            # the whole tab back over the top of it (#175). The tab's own state
+            # has been restored by the handler.
+            return True
+        except Exception:      # noqa: BLE001 - re-raised after the unlock
+            # Not a write failure, so it gets no sentence about folders: the
+            # same shape `tab_profile._on_build` uses, which unlocks and
+            # re-raises so the fault still reaches the log.
+            self._the_chart_build_could_not_start_quietly()
+            raise
 
     # ------------------------------------------------------------------
     # Patch count display
@@ -14606,11 +14703,25 @@ class TabChart(QWidget):
                 on_finish=self._on_generate_finished,
             )
 
+        # A DOOR CAN STOP BY RAISING, AND THE `finally` BELOW ONLY FORGETS AN
+        # ANSWER. Everything between `self._generate_btn.setEnabled(False)` and
+        # the creator touches the filesystem - naming the target, aligning the
+        # run, arming the verification snapshot, and `project()` itself, which
+        # mkdirs the project root and rewrites "Where are my files.txt". An
+        # OSError in any of them left the button greyed out for the rest of the
+        # session with not one word said. Driven on screen, combined round 9,
+        # with the projects folder on a drive that is not mounted.
+        except OSError as exc:
+            self._the_chart_build_could_not_start(exc)
+        except Exception:      # noqa: BLE001 - re-raised after the unlock
+            self._the_chart_build_could_not_start_quietly()
+            raise
         # ------------------------------------------------------------------
         # Slow-chart watchdog (targen OFPS-cliff escape hatch)
         # ------------------------------------------------------------------
         finally:
             self._forget_gate_answer()
+
     def _on_slow_watchdog(self) -> None:
         """Fired when a chart generate has run past the watchdog threshold.
 

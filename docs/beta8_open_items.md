@@ -9421,7 +9421,7 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   test_a_folder_holding_something_unrunnable_is_not_installed,
   test_the_question_that_archives_is_never_asked_when_the_builder_is_missing,
   test_a_build_that_cannot_start_leaves_the_profile_where_it_was,
-  test_the_refusal_stands_down_for_the_profile_engine.
+  test_the_refusal_stands_down_when_the_engine_is_the_builder.
   Two mutations proved to land and both caught: the refusal moved BELOW the
   archive question (2 red) and the installed-check forced to always say yes
   (1 red).
@@ -9467,5 +9467,194 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   One mutation proved to land and caught by both (the plain `write_text` put
   back): a write that dies partway left `{"schema_version": 2, "name": "P",
   "cur` on disk as the whole manifest.
+
+---
+
+### B8-223 · Generate Chart died in silence and the button never came back
+- blocks release: yes
+- status: FIXED
+- found by: combined adversary round 9, 2026-09-16.
+- what a user does: put the ChromIQ projects folder somewhere ChromIQ cannot
+  write — an external disk that is not plugged in, a network share that
+  dropped, a folder locked in Finder — and press **Generate Chart**.
+- what happened: **nothing at all.** No window. Not one line in the log
+  (`"log tail": ""`). Generate Chart then stayed greyed out for the rest of the
+  session, with Stop live beside it, and the only way back was to restart
+  ChromIQ. Photographed: `A8-what-the-person-is-left-with.png`.
+- driven two independent ways into the same state (`A-result.json`,
+  `B-result.json`): the projects folder on a drive that is not mounted
+  (`/Volumes` is root-owned `drwxr-xr-x`, so an ordinary `mkdir` under it is
+  refused with EACCES), and the projects folder read-only, where
+  `Project.load` raises rewriting "Where are my files.txt" on every load.
+- the shape, which is round 8's lens one door further on: **a door can decline
+  by RETURNING and it can stop by RAISING.** Both chart-build doors disable
+  Generate Chart and raise `_layout_owned_by_build` BEFORE everything that
+  touches the filesystem, and `_on_generate`'s own comment says *"Every path
+  out of this build re-enables the button, including the failures"* — true of
+  every `return` in it and of no exception at all. Its `try` had a `finally`
+  that forgets the §S4.7 gate answer and no handler.
+- the quieter half is worse: `_layout_owned_by_build` stayed True, and the
+  comment beside every early return says what that costs — *"the next target
+  the user selects never receives its own settings, and the next write files
+  the previous run's values onto it (§4 S8)"*.
+- the sibling door already had this guard, in these words:
+  `tab_profile._on_build` wraps its launch in *"THE LOCK MUST COME BACK OFF IF
+  THE BUILD NEVER STARTS … leaving the user locked out of their own app with no
+  way back but a restart"*. This is that guard, for the tab a user meets first.
+- fix: both doors catch. An `OSError` names the folder and says what to do; any
+  other exception unlocks and re-raises, so nothing is swallowed. The
+  slow-chart watchdog — armed one statement above the hand-over — is stopped on
+  the way out, or the "this chart is taking a long time" window arrives for a
+  build that never began.
+- text: the title is the key the import door already uses
+  (`ChromIQ could not write into that project`); the body is new and was
+  translated into all twelve catalogues with it. No em dash.
+- proved after (`E-result.json`,
+  `E1-ChromIQ-could-not-write-into-that-project.png`): the window appears, the
+  button comes back, the shield drops, and the excepthook catches nothing.
+- evidence: test_each_build_door_handles_an_exception_that_escapes,
+  test_each_build_door_puts_the_tab_back_for_anything_else,
+  test_the_restore_puts_back_both_the_button_and_the_shield,
+  test_the_restore_stops_the_slow_chart_watchdog,
+  test_generate_says_so_and_comes_back,
+  test_the_window_names_the_reason_and_ends_with_a_lever,
+  test_the_live_preview_is_put_back_without_a_window,
+  test_the_message_is_one_the_catalogues_carry.
+  Three mutations proved to land and all caught: the `_on_generate` handler
+  removed (4 red), the shield forgotten in the restore (3 red), the watchdog
+  left running (1 red).
+
+---
+
+### B8-224 · The build refusal stood aside for a setting, and archived anyway
+- blocks release: yes
+- status: FIXED
+- found by: combined adversary round 9, 2026-09-16 — attacking round 8's own
+  B8-221 fix, which is what the round was asked to do.
+- what a user does: tick **ChromIQ profile engine (beta)** in Preferences, have
+  the ArgyllCMS folder pointing somewhere wrong, and press **Build** on an
+  ordinary run that holds a profile and dated verification measurements.
+- what happened (`D-result.json`,
+  `D2-ChromIQ-could-not-start-colprof.png`): *Build here anyway* moved the
+  run's `.icc` into `runs/run1/old/<date>/` and BOTH dated verifications into
+  `verifications/old/<date>/`, and the window then said **"Nothing was changed
+  in your project."** That is the exact sentence B8-221 was fixed to make true.
+- why: `_refuse_when_the_profiler_is_not_installed` opened with
+  `if profile_engine_beta: return False`, on the reasoning that "with the
+  profile engine enabled the build may not need Argyll at all". `_resolve_engine`
+  says otherwise, deliberately and in its own comment: with the beta ticked a
+  standard (≤4-ink) measurement still builds on **colprof** when "Bit-exact
+  gamut mapping" is chosen, and whenever `engine_support` declines. The guard
+  was answering a question the app already answers elsewhere, and answering it
+  wrong.
+- the same shape a second time, fixed with it: `engine == "blocked"` refuses a
+  multi-ink measurement built without the beta setting *outright* — and did so
+  AFTER the archive, so the run's history was moved for a build refused in the
+  next statement.
+- fix: `_on_build` resolves the builder ONCE, above the archive, and hands the
+  answer down. The guard has one question left and it is the cheap certain one:
+  can that builder be launched at all? An unreadable `.ti3` raising out of
+  `_resolve_engine` is answered "colprof", which is round 8's own reasoning in
+  the one place it now lives.
+- proved after (`F-result.json`): no `old/` anywhere, the `.icc` still in the
+  run, both dated verifications still in `verifications/`, and the window is
+  the only thing that happens.
+- evidence: test_the_refusal_is_told_which_builder_will_run_rather_than_guessing,
+  test_the_builder_is_decided_before_the_question_that_archives,
+  test_the_multi_ink_refusal_is_also_above_the_archive,
+  test_the_beta_engine_does_not_let_the_archive_happen,
+  test_a_measurement_that_cannot_be_read_still_reaches_the_refusal,
+  test_the_refusal_stands_down_when_the_engine_is_the_builder.
+  Two mutations proved to land and both caught: the beta stand-aside put back
+  (3 red) and the refusal removed from `_on_build` (7 red).
+- and a test that read prose, caught by this round's own gate:
+  `test_rebuild_warning_wiring.py::test_the_question_comes_before_the_build`
+  indexed RAW source for the word "colprof", which the new comment says above
+  the question. Round 7 wrote that hazard down; it now strips comments and
+  looks for the two LAUNCHES instead of a word that is no longer a proxy for
+  one.
+
+---
+
+### B8-225 · The atomic write ate a symlink and dropped the file's permissions
+- blocks release: no
+- status: FIXED
+- found by: combined adversary round 9, 2026-09-16 — the brief asked what
+  `project.json` actually IS on disk after B8-222 routed it through
+  `write_json_atomically`.
+- measured, on a real `project.json`: mode **0600 came back 0644**; a Finder
+  tag on it was **destroyed**; a manifest made **read-only was silently
+  overwritten** and left writable; and pointed at a **symlink** the helper
+  deleted the link, left a regular file in its place, and every other reader of
+  the real file went on seeing the old contents.
+- this is the shape this project was bitten by once already and wrote down
+  (the ICC accented-name fix, 2026-09-02): *"`os.replace` swaps the NAME"*. The
+  helper never got that fix; B8-222 routed one more file through it.
+- **GRADED HONESTLY: not a fault anybody has been shown.** Nothing in ChromIQ
+  sets an xattr on a manifest and no user has been shown one missing. It is
+  recorded as a property fix against a rule already written down, and the brief
+  asked the question.
+- two losses remain and are STATED rather than hidden: a hard link cannot
+  survive a rename, and extended attributes are not carried on macOS, because
+  `shutil.copystat` copies them only where `os.listxattr` exists — which is
+  Linux, and is absent on this platform (measured).
+- evidence: test_the_write_goes_through_a_symlink_rather_than_replacing_it,
+  test_the_file_keeps_the_permissions_it_had,
+  test_a_volume_that_refuses_the_properties_still_gets_the_write,
+  test_the_project_manifest_gets_all_of_this_too.
+  Two mutations proved to land and both caught: the symlink resolution removed
+  (1 red) and `copystat` removed (2 red).
+- and a fix to the fix, caught by this round's own gate: resolving with a bare
+  `Path(...)` picks its flavour from `os.name`, which
+  `test_run_delete.py` legitimately sets to `"nt"` on this host — so it built a
+  `WindowsPath` and raised. It resolves only when there IS a symlink, and
+  through `type(path)`.
+
+---
+
+### B8-226 · The trend told you to do what you had already done
+- blocks release: no
+- status: FIXED
+- found by: combined adversary round 9, 2026-09-16 — the round's ONE HONEST
+  PASS over the merged feature set, which is the item that was there in case
+  nine rounds of narrow attacks had left something obvious unlooked-at.
+- what a user sees (`J1-the-measurement-report.png`): two dated measurements
+  listed, **both ticked**, "Show all measurement runs" already on, the Report
+  Scope saying "No. of Measurements: 2" — and written across the Colour
+  accuracy graph: *"A trend graph needs at least two measurement runs. Add
+  another measurement — or, if the profile you have loaded already holds more
+  than one run, tick 'Show all measurement runs' above."* Both instructions
+  were already carried out. The sentence was false and its advice was inert.
+- why: `_de00_block` writes every accuracy number TWICE, in today's
+  five-metric spelling and in the old `mean`/`max`/`p95` one, and says why:
+  *"aliases kept for the trend series (report_trend reads mean/max/p95)"*.
+  `report_trend` does copy them into the point, with its own comment about
+  *"the mean/max aliases older points used"*. **Nothing read them.** So a
+  report written before the five-metric vocabulary (ChromIQ before 2026-07-20)
+  carried no value for any of the five lines, `_TrendChart.set_data` dropped
+  the whole point through `has_any`, and the chart fell into its empty state.
+  That is dead code wearing a comment that claims a purpose, which is the same
+  shape rounds 6 and 8 each found once.
+- fix: the two metrics that are the SAME arithmetic are read in either
+  spelling, and that is proved from `_de00_block`, where the new key and the
+  alias are written from one expression. `max_low95` is deliberately NOT mapped
+  from the old `p95`: today's is the nearest-rank maximum of the best 95 % and
+  stamps `p95_rule` to say so, and a report old enough to lack the new key
+  recorded no rule at all. A line that cannot be trusted is left with no point
+  rather than given a wrong one. No new message text.
+- proved after (`K1-the-measurement-report.png`): the graph draws, two lines
+  across 2026-05-02 to 2026-08-11, and the empty-state sentence is gone.
+- how common: on this machine all six alias-only reports are in the DEMO
+  projects — which is where it was found, and which is what the demo package is
+  driven through before every beta. A user upgrading from a ChromIQ older than
+  2026-07-20 has the same reports on disk.
+- evidence: test_the_alias_and_the_new_key_are_the_same_expression,
+  test_only_the_two_safe_metrics_are_mapped,
+  test_an_old_point_answers_for_what_it_carries,
+  test_a_new_point_is_unchanged,
+  test_the_chart_keeps_the_old_point_and_draws_a_trend,
+  test_the_dialog_itself_uses_the_alias_reader.
+  Two mutations proved to land and both caught: the alias map emptied (4 red)
+  and the chart pointed back at the raw key (1 red).
 
 ---

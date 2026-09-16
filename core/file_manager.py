@@ -669,7 +669,37 @@ def write_json_atomically(path: Path, payload: dict) -> None:
 
     ``fsync`` before the rename, so a power loss cannot leave the rename
     committed while the contents are still sitting in a buffer.
+
+    AND `os.replace` SWAPS THE NAME, NOT THE FILE, so the two things that costs
+    are paid for here. Measured on this helper, combined round 9, on a real
+    ``project.json``:
+
+    * pointed at a SYMLINK it deleted the link and left a regular file in its
+      place; the real file kept the old contents and every other reader went on
+      seeing them. ``os.path.realpath`` first, so the write goes THROUGH the
+      link the way ``write_text`` did.
+    * the new file is a new inode, so it carries the creating process's mode
+      and no extended attributes: a manifest that was ``0600`` came back
+      ``0644``, a Finder tag on it was destroyed, and a manifest the user had
+      made read-only was silently overwritten and left writable.
+      ``shutil.copystat`` carries mode, times and flags across.
+
+    TWO LOSSES REMAIN AND ARE STATED RATHER THAN HIDDEN. A hard link cannot
+    survive a rename and stops tracking. And extended attributes are NOT
+    carried on macOS: ``shutil.copystat`` copies them only where
+    ``os.listxattr`` exists, which is Linux - measured here, ``os.listxattr``
+    is absent on this platform - so a Finder tag or comment on a manifest is
+    still lost. Carrying them would take ``copyfile(3)`` through ctypes, which
+    is a lot of machinery for a property nothing in ChromIQ sets and no user
+    has been shown missing.
     """
+    if path.is_symlink():
+        # THROUGH the link, the way `write_text` went. Only when there IS one:
+        # `Path(...)` built afresh picks its flavour from `os.name`, which a
+        # test may legitimately have set to "nt" on this host, and a symlink in
+        # a PARENT directory changes nothing for `os.replace` anyway - only the
+        # final component is the name being swapped.
+        path = type(path)(os.path.realpath(path))
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
     try:
@@ -677,6 +707,15 @@ def write_json_atomically(path: Path, payload: dict) -> None:
             json.dump(payload, fh, indent=2)
             fh.flush()
             os.fsync(fh.fileno())
+        if path.exists():
+            # Never fatal: a volume that cannot carry an xattr must not lose
+            # the write. What this protects is a property of a file the user
+            # set, not the file itself.
+            try:
+                shutil.copystat(path, tmp)
+            except OSError:
+                log.debug("could not carry %s's properties across", path,
+                          exc_info=True)
         os.replace(tmp, path)
     except Exception:
         # Never leave the scratch file behind to be mistaken for real data.
