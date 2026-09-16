@@ -1023,6 +1023,77 @@ def strip_label_overlap(margin_top_mm: float, text_edge_top_mm: float,
     return hit if hit.overlap_mm > tol else None
 
 
+@dataclass(frozen=True)
+class MarkerLabelOverlap:
+    """The strip letters have climbed into the top helper markers.
+
+    *reach_mm* is where the markers' ink and their 1 mm of clear paper end,
+    measured from the page's top edge; *ink_top_mm* is where the letters' ink
+    really begins, from the same edge; *offset_mm* is the user's "Label offset"
+    and *margin_anchored* says whether the band hangs from the top margin (which
+    decides which lever the message may offer).
+    """
+
+    reach_mm: float
+    ink_top_mm: float
+    offset_mm: float
+    margin_anchored: bool
+
+    @property
+    def overlap_mm(self) -> float:
+        return max(0.0, self.reach_mm - self.ink_top_mm)
+
+
+def strip_label_marker_overlap(anchor_mm: float, ink_top_mm: float,
+                               markers_on: bool, marker_edge_mm: float,
+                               marker_len_mm: float,
+                               markers_top_bottom: bool = True, *,
+                               label_offset_mm: float = 0.0,
+                               margin_anchored: bool = False,
+                               tol_mm: "float | None" = None,
+                               ) -> "MarkerLabelOverlap | None":
+    """The strip letters against the TOP helper markers, or None if clear.
+
+    **THE ONE EDGE NOTHING ASKED ABOUT.** :func:`strip_label_overlap` compares
+    the letters against the patch area BELOW them and nothing compared them
+    against the furniture ABOVE. In "Prioritise chart area" that could be
+    forgiven, because :func:`edge_reserve_mm` already places the band at
+    ``max("T", edge + len + 1.0)`` so the markers are cleared by construction.
+    In **"Prioritise patch size" they are not consulted at all**:
+    `geometry.placement` anchors the band on ``margin_t + offset_y``, so the
+    top margin alone decides where the letters go and they walk straight
+    through the dashes.
+
+    A tester measured both ways in on beta 19:
+
+        *"When "Prioritise patch size..." and helper markers are on (4mm
+        distance and 2mm marker length), and then setting top margin (in Page
+        geometry frame) to 5mm, the strip labels overlap with the "helper
+        marker distance from page"+"marker length"+1.0mm rule. But there is no
+        warning message. Same happens if Label offset is set to -5mm or -5.5mm,
+        while top margin setting is 10.0mm."*
+
+    Both are this one inequality reached by a different lever, which is why the
+    check is on the INK and not on the anchor: a negative "Label offset" moves
+    the letters without moving the anchor, and an anchor-based test would have
+    caught his first case and missed his second.
+
+    *anchor_mm* is `geometry.strip_label_leader_top_mm`, *ink_top_mm* is
+    `Geom.label_ink_top_mm` -- the renderer's own probe, which already carries
+    the "Label offset". Their sum is where the topmost letter ink lands.
+    """
+    if not markers_on or not markers_top_bottom:
+        return None
+    reach = helper_marker_ink_reach_mm(marker_edge_mm, marker_len_mm)
+    if reach <= 0.0:
+        return None
+    ink = float(anchor_mm or 0.0) + float(ink_top_mm or 0.0)
+    hit = MarkerLabelOverlap(reach, ink, float(label_offset_mm or 0.0),
+                             bool(margin_anchored))
+    tol = EPS_MM if tol_mm is None else max(0.0, float(tol_mm))
+    return hit if hit.overlap_mm > tol else None
+
+
 def strip_label_squeeze(margin_top_mm: float, text_edge_top_mm: float,
                         band_mm: float, label_offset_mm: float = 0.0,
                         ) -> "Squeeze | None":

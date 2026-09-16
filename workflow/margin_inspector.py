@@ -203,46 +203,20 @@ def _tolerance_mm(report: MarginReport) -> float:
     return tol
 
 
-def measure_from_engine(
-    channels_path: "Path | str", page_idx: int = 0,
-) -> "tuple[Optional[MarginReport], Optional[float]] | None":
-    """Build a :class:`MarginReport` from a ChromIQ-engine chart's exact geometry.
+def engine_ink_bounds_px(rects, rec, dpi: float):
+    """``(x0, x1, y0, y1, patch_w_px)`` — where a chart's INK really reaches.
 
-    The engine records every patch's exact pixel rectangle (per page) and the
-    recipe in ``<stem>.channels.json``, so for engine charts we report the TRUE
-    margins / patch size instead of detecting them from the rendered image. This
-    fixes the image-detection artefacts Knut hit (patch width read as the strip
-    *pitch*, and a large Strip gap corrupting the detected margins) (#93).
+    **ONE IMPLEMENTATION, BECAUSE TWO OF THEM IS THE FAULT ITSELF.** These are
+    the patch rectangles widened by everything the renderer draws outside them:
+    the edge spacers, a honeycomb's ring band, and the hexagon apexes that poke
+    past their slot. :func:`measure_from_engine` reads the rects out of a built
+    chart's ``channels.json``; :func:`engine_patch_bottom_mm` builds them for a
+    recipe that has not been generated. Both come here, so a search for a margin
+    that clears cannot walk a different sheet from the one the panel measures.
 
-    Returns ``(report, ruler_mm)`` — ``ruler_mm`` is the instrument's physical
-    strip-length limit (0/None when it has none), so the caller can warn when the
-    strip is longer than the ruler. ``None`` when the chart isn't an engine chart
-    or has no usable geometry (caller then falls back to image measurement).
+    Split out of `measure_from_engine` unchanged; see the comments inside for
+    why each correction is what it is.
     """
-    import json
-
-    try:
-        doc = json.loads(Path(channels_path).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
-    layout = doc.get("layout") if isinstance(doc, dict) else None
-    if not isinstance(layout, dict) or layout.get("engine") != "chromiq":
-        return None
-    all_rects = layout.get("patches") or []
-    if not all_rects:
-        return None
-    rects = [r for r in all_rects if int(r.get("page", 0)) == page_idx]
-    if not rects:
-        rects = [r for r in all_rects if int(r.get("page", 0)) == 0]
-    if not rects:
-        return None
-    pm = layout.get("paper_mm") or []
-    if len(pm) != 2 or not pm[0] or not pm[1]:
-        return None
-    dpi = float(layout.get("dpi") or 300) or 300.0
-    px2mm = _MM_PER_INCH / dpi
-    paper_w_mm, paper_h_mm = float(pm[0]), float(pm[1])
-
     x0 = min(r["x"] for r in rects)
     x1 = max(r["x"] + r["w"] for r in rects)
     y0 = min(r["y"] for r in rects)
@@ -255,7 +229,6 @@ def measure_from_engine(
     # margins under-report and the measured-margin guides land inside the edge
     # spacers, which then look like they overflow the margins (Knut #18). Along
     # the strip axis (vertical in the printtarg frame) only.
-    rec = layout.get("recipe") or {}
     if rec.get("edge_spacers"):
         try:
             from dataclasses import fields as _fields
@@ -348,6 +321,101 @@ def measure_from_engine(
             h_px = max(r["h"] for r in rects)
             y0 -= h_px / 6.0      # upper apex of the top row
             y1 += h_px / 6.0      # lower apex of the bottom row
+    return x0, x1, y0, y1, patch_w_px
+
+
+def engine_patch_bottom_mm(recipe, patches: int = 0) -> "Optional[float]":
+    """Where a recipe's patch INK would end, in mm from the page's top edge.
+
+    **THE MEASURED QUESTION, ASKED OF A SHEET THAT DOES NOT EXIST YET.** It
+    builds the geometry, lays the patches out and widens them by
+    :func:`engine_ink_bounds_px` -- the very function that measures a BUILT
+    chart -- so the answer is the one "Measured from Preview" would show for
+    this recipe, not the grid box `geometry.compute` returns.
+
+    That distinction is the whole point. The prediction it replaces read the
+    grid box and answered 18.60 mm on a flat-top honeycomb whose ink really
+    ends at 15.82, because the last row's apexes hang below the box. A search
+    built on that number names a margin that does not clear.
+
+    Returns ``None`` when the candidate cannot be laid out at all (a margin the
+    paper will not take), which a caller reads as "does not clear".
+    """
+    try:
+        from workflow.layout_engine import geometry, instruments, papers
+        kw = recipe.build_kwargs()
+        geom = instruments.geom_from_build_kwargs(kw)
+        paper_w_mm, paper_h_mm = papers.dimensions_mm(recipe.paper)
+        dpi = float(getattr(recipe, "dpi", 300) or 300)
+        # THE PATCH COUNT THIS RECIPE IS FOR. `area_target_count` is what the
+        # chart builder puts in, and it is what decides how many rows the last
+        # strip has -- which is the row whose bottom edge this whole function
+        # is about.
+        n = int(kw.get("area_target_count") or 0) or int(patches or 0) or 1000
+        layout = geometry.compute(geom, paper_w_mm, paper_h_mm, n)
+        rects = geometry.patch_rects_px(geom, paper_w_mm, paper_h_mm,
+                                        layout, int(dpi))
+        page0 = [r for r in rects if int(r.get("page", 0)) == 0] or rects
+        if not page0:
+            return None
+        # **THE RECIPE'S OWN FIELDS, NOT `build_kwargs()`.**
+        # `engine_ink_bounds_px` rebuilds a `LayoutRecipe` out of what it is
+        # given and keeps only keys that are field names. `build_kwargs()`
+        # renames several of them ("helper_marker_edge" for
+        # "helper_marker_edge_mm", and so on), so handing it those produced a
+        # DEFAULT recipe: the honeycomb ring band went missing and this
+        # answered 19.853 mm where the built chart measures 18.964 -- 0.889 mm,
+        # which is the ring correction to the tenth.
+        from dataclasses import asdict as _asdict
+        _x0, _x1, _y0, y1, _pw = engine_ink_bounds_px(
+            page0, _asdict(recipe), dpi)
+        return float(paper_h_mm) - float(y1) * _MM_PER_INCH / dpi
+    except Exception:          # noqa: BLE001 - a prediction, never a blocker
+        return None
+
+
+def measure_from_engine(
+    channels_path: "Path | str", page_idx: int = 0,
+) -> "tuple[Optional[MarginReport], Optional[float]] | None":
+    """Build a :class:`MarginReport` from a ChromIQ-engine chart's exact geometry.
+
+    The engine records every patch's exact pixel rectangle (per page) and the
+    recipe in ``<stem>.channels.json``, so for engine charts we report the TRUE
+    margins / patch size instead of detecting them from the rendered image. This
+    fixes the image-detection artefacts Knut hit (patch width read as the strip
+    *pitch*, and a large Strip gap corrupting the detected margins) (#93).
+
+    Returns ``(report, ruler_mm)`` — ``ruler_mm`` is the instrument's physical
+    strip-length limit (0/None when it has none), so the caller can warn when the
+    strip is longer than the ruler. ``None`` when the chart isn't an engine chart
+    or has no usable geometry (caller then falls back to image measurement).
+    """
+    import json
+
+    try:
+        doc = json.loads(Path(channels_path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    layout = doc.get("layout") if isinstance(doc, dict) else None
+    if not isinstance(layout, dict) or layout.get("engine") != "chromiq":
+        return None
+    all_rects = layout.get("patches") or []
+    if not all_rects:
+        return None
+    rects = [r for r in all_rects if int(r.get("page", 0)) == page_idx]
+    if not rects:
+        rects = [r for r in all_rects if int(r.get("page", 0)) == 0]
+    if not rects:
+        return None
+    pm = layout.get("paper_mm") or []
+    if len(pm) != 2 or not pm[0] or not pm[1]:
+        return None
+    dpi = float(layout.get("dpi") or 300) or 300.0
+    px2mm = _MM_PER_INCH / dpi
+    paper_w_mm, paper_h_mm = float(pm[0]), float(pm[1])
+
+    rec = layout.get("recipe") or {}
+    x0, x1, y0, y1, patch_w_px = engine_ink_bounds_px(rects, rec, dpi)
 
     report = MarginReport(
         left_mm=max(0.0, x0 * px2mm),
