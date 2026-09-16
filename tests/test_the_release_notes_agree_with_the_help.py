@@ -57,10 +57,19 @@ def test_the_changelog_does_not_contradict_the_help_it_describes():
         "solid rows read N-A. Measured in the window, a ChromIQ set drops "
         "them from the table instead, and the same entry's Fixed section "
         "already says so")
-    # …and it must say what really happens, not merely stop saying the wrong
-    # thing. Both halves, because the answer depends on the set.
-    assert "left out of the table" in entry, entry[-1200:]
-    assert "Custom ISO set shows them as N-A" in entry, entry[-1200:]
+    # …and where an entry DOES describe those rows it must say what really
+    # happens, not merely stop saying the wrong thing. Both halves, because
+    # the answer depends on the set.
+    #
+    # ASKED OF THE ENTRY THAT RAISES THE SUBJECT, NOT OF EVERY FUTURE ONE.
+    # Written for beta 17, whose notes explain those rows, this demanded the
+    # explanation from whatever entry happened to be newest, so beta 18 went
+    # red for not repeating a paragraph that has nothing to do with it. The
+    # ban above still applies to every entry; the positive half applies to an
+    # entry that talks about the rows at all.
+    if "paper and solid rows" in entry or "solid rows" in entry:
+        assert "left out of the table" in entry, entry[-1200:]
+        assert "Custom ISO set shows them as N-A" in entry, entry[-1200:]
 
 
 def test_the_help_says_a_chromiq_set_drops_those_rows_rather_than_n_a():
