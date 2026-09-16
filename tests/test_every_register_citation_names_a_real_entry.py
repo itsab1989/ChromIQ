@@ -140,6 +140,43 @@ def test_the_sweep_is_not_vacuous():
     assert len(_defined()) > 200, "the register was not parsed"
 
 
+def test_the_skip_list_hides_nothing_that_is_IN_the_tree():
+    """A skip is a blind spot, and this one matches a NAME, not a path.
+
+    `_SKIP_DIRS.intersection(p.parts)` is what keeps this sweep out of
+    `.venv/`, `.git/` and the leftover checkouts in `.claude/worktrees/`, and
+    that is right: none of them is this tree. But it matches the name wherever
+    it appears, so a tracked `docs/build/notes.md` or `ui/dist/README.md` would
+    be skipped in silence -- which is the SAME shape of hole the sweep was
+    widened to close (a citation in a folder it did not walk), just written
+    into the fix rather than left out of it.
+
+    So the skip is asked to prove it costs nothing: git says what is in the
+    tree, and nothing in the tree may be skipped. Measured when this was
+    written: 0 tracked files under any skipped name.
+
+    MUTATION: add `"docs"` or `"scripts"` to `_SKIP_DIRS` and this goes red
+    naming the files it would have stopped reading.
+    """
+    import subprocess
+    try:
+        out = subprocess.run(["git", "ls-files", "-z"], cwd=ROOT, timeout=60,
+                             capture_output=True, text=True,
+                             encoding="utf-8", errors="replace")
+    except (OSError, subprocess.SubprocessError):       # pragma: no cover
+        pytest.skip("git is not available, so the tree cannot be enumerated")
+    if out.returncode != 0:                             # pragma: no cover
+        pytest.skip("not a git checkout")
+    tracked = [f for f in out.stdout.split("\0") if f]
+    assert len(tracked) > 500, f"only {len(tracked)} tracked files; git is lying"
+    hidden = sorted(f for f in tracked
+                    if _SKIP_DIRS.intersection(pathlib.PurePosixPath(f).parts))
+    assert not hidden, (
+        "the skip list takes these TRACKED files out of the sweep, so a "
+        "citation in one of them could never be checked:\n"
+        + "\n".join(f"    {f}" for f in hidden[:20]))
+
+
 def test_every_b8_citation_names_an_entry_that_exists():
     """MUTATION: change any `B8-265` below back to `B8-250` and this stays
     green (250 exists) — which is exactly why the next test is also here.

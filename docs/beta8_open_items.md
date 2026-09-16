@@ -11678,3 +11678,111 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   after this round's change set: **16013 passed, 321 skipped, 4 xfailed,
   exit 0**, in 2:19. Round 1 left it at 16007 passed; the six new ones are the
   guards named in B8-274 and B8-275.
+
+### B8-278 · The fix for B8-275 counted files the window cannot read, and reopened the hole it closed
+- blocks release: no
+- status: FIXED
+- found by: the combined adversary round 3, driving the delete path seven ways
+  on screen on a copy of a real project, photographed in
+  `~/Desktop/ChromIQ-beta20-proof/combined-round-3/`.
+- **the rule is still §5** of `docs/design/measurement_report_limits.md`: a
+  dated verification's last saved report stays, because a date whose report is
+  gone has no recorded verdict at all.
+- **the fault.** B8-275 moved the "is there a spare?" question off the
+  window's snapshot and onto the folder, which was right, and asked it with a
+  bare `glob("report_*.json")`. `_gather_runs` reads every such file with
+  `json.loads` and SKIPS the ones that raise, so a file that is not readable
+  JSON is in no row, no selector and no trend, and the glob counted it as a
+  spare all the same. A dated verification holding one good report and one
+  truncated one therefore came up with **Delete… live and no reason beside
+  it**, the confirmation said *"0 saved reports of it are left afterwards"*,
+  and the press left the date with no verdict the window can read. The
+  confirmation was honest and the rule was not: the two were counting
+  different things, and that disagreement is the whole diagnostic.
+  `save_report` writes with `write_text`, which is not atomic, so a process
+  killed mid-write leaves exactly that file, and so does a full disk.
+- **what was changed:** the count uses the same test `_gather_runs` uses, and
+  stops at two, because two is all the question needs to know. The folder is
+  still what is asked; only the files that are not verdicts stop being
+  counted. No new message text, no change to the confirmation, nothing else in
+  the delete path touched.
+- **and the guard that carried B8-275's safety argument was a list.**
+  `test_every_door_opens_the_report_window_modally` named two files in a tuple
+  and asserted the tuple had two entries in it, which pins the two doors that
+  exist and says nothing about a third. A sixth door, modeless, added in
+  `ui/main_window.py`, passed that test; it now fails, because the doors are
+  FOUND by walking the app's own packages rather than listed.
+- **the same shape in B8-274's sweep, closed the same way.** Its skip set
+  matches a directory NAME anywhere in a path, so a tracked `docs/build/…`
+  would have been skipped in silence, which is the hole B8-274 was widened to
+  close, written into the fix instead of left out of it. The skip now has to
+  prove it costs nothing: git says what is in the tree, and nothing in the
+  tree may be skipped. Measured: 0 tracked files under any skipped name.
+- evidence: `test_a_file_the_window_cannot_read_is_not_a_spare` (a truncated
+  report, then a zero-byte one, then a readable spare so the rule cannot be
+  satisfied by refusing everything);
+  `test_the_doors_are_found_and_not_merely_listed`;
+  `test_the_skip_list_hides_nothing_that_is_IN_the_tree`.
+- **mutations, proved to land, one at a time and restored:** the bare glob put
+  back reds the unreadable-file test while every other test in the file stays
+  green; the stale list put back reds the stale-list test; a bare `return` in
+  the refusal branch reds the visibility test; `.exec()` → `.show()` on the
+  Measure tab's fourth door reds the modality test and names the line; a sixth
+  modeless door in `ui/main_window.py` reds two tests, and was PROVED to pass
+  the old guard first; `"docs"` added to the skip set reds the tracked-file
+  test and names the files it would have stopped reading.
+- re-driven after the fix, same seven presses, same window: the truncated file
+  is no longer a spare, Delete greys, the whole sentence shows beside it, and
+  the date keeps its verdict. Everything else is byte-for-byte what it was.
+
+### B8-279 · What combined round 3 drove on the delete path, and what it did NOT find
+- blocks release: no
+- status: VERIFIED
+- **the brief was two fixes and nothing else**, so nothing outside the delete
+  path and the citation sweep was opened. Seven presses, each on its own fresh
+  copy of a real project, each followed by LISTING THE FOLDER ON DISK rather
+  than asking the window what it thought had happened
+  (`scripts/drive_182_combined_round3_delete.py`, `delete-round3.json` and the
+  frames in `before-the-fix/` and `after-the-fix/`):
+  - **A** the last saved report of a dated verification: refused, folder
+    unchanged, no confirmation asked, the reason on the row.
+  - **B** one of several on one date: the spare went and only the spare, and
+    the last one was then refused.
+  - **C** the chosen report's file removed under the app, window open,
+    selector untouched: the press asked nothing, deleted nothing, and the
+    window caught up with the disk. That is B8-275's other half working, and
+    it is the case a person actually reaches without two windows.
+  - **D** the folder made read-only between the confirmation and the press:
+    the file survives and the failure is said out loud. See the note below.
+  - **E** two dates, one holding no report at all: the date that still has one
+    is protected, the empty one is not resurrected.
+  - **F** a delete straight after a Generate with no re-pick: the new report
+    is in the list, the confirmation names the old file and the count is
+    right, and exactly that file goes.
+  - **G** a `report_*.json` the window cannot read beside the only one it can:
+    THE FAULT. B8-278.
+- **notes for the next beta, not changed here, because they are outside the
+  brief and neither is a loss:**
+  - a delete that fails puts the raw OS error in the box, path and errno and
+    all (*"[Errno 13] Permission denied: '/var/folders/…'"*), under the title
+    *"Delete this saved report?"*, which is the question rather than the
+    answer. Nothing is lost and the file survives; it is the wording.
+  - the confirmation's *"N saved reports of it are left afterwards"* is
+    counted from `_all_report_files`, which is the snapshot B8-275 moved the
+    RULE off. On a profiling measurement, where no refusal applies, a file
+    removed under the app leaves that number one too high. The rule itself is
+    safe, because a profiling measurement has no rule.
+  - `screencapture -x -R` refuses intermittently on this machine, so a frame
+    whose window-id route happens to return an unpainted buffer three times is
+    lost outright: one frame of twelve, in both runs, the same one. Measured
+    in `capture-probe/`: four states, `region_route` false in two of them with
+    the window visible, correctly sized and on screen. The fall-back is the
+    unreliable half, not the window-id route, and `capture_window` recovered
+    in every probe. The missing frame is the same state as
+    `capture-probe/probe-03-after-delete-capture.png`, which is kept.
+- evidence: `QT_QPA_PLATFORM=offscreen pytest -n auto`, twice, exit 0 both
+  times: **16016 passed, 321 skipped, 4 xfailed**, 2:13 and 2:14. Every window
+  in this round was real and photographed, `QT_QPA_PLATFORM` unset in every
+  driver, settings and presets sandboxed to `/tmp/chromiq-b20r3*`, and the
+  owner's `custom_output_path` absent from `com.chromiq.ChromIQ` before and
+  after.

@@ -136,8 +136,87 @@ def test_a_refused_delete_re_reads_instead_of_doing_nothing():
         "the refusal branch returns without telling the reader anything")
 
 
-#: Every place in the app that opens the Measurement Report window.
-_DOORS = ("ui/tabs/tab_measure.py", "ui/dialogs/tools_dialogs.py")
+def test_a_file_the_window_cannot_read_is_not_a_spare(dated_verification):
+    """The fix above, driven on screen, had widened the rule it tightened.
+
+    `_gather_runs` reads every `report_*.json` with `json.loads` and skips the
+    ones that raise, so a file that is not readable JSON is in no row, no
+    selector and no trend. A bare `glob` counted it as a spare all the same,
+    and combined round 3 photographed the consequence: on a dated verification
+    holding one good report and one truncated one, Delete came up ENABLED with
+    no reason beside it, the confirmation said *"0 saved reports of it are left
+    afterwards"*, and the press left the date with no verdict the window can
+    read. `save_report` writes with `write_text`, which is not atomic, so a
+    process killed mid-write leaves exactly that file.
+
+    MUTATION, PROVED TO LAND: drop the `json.loads` test from
+    `_saved_delete_refusal` and count `glob("report_*.json")` again -- this
+    goes red with an empty refusal while every other test in this file stays
+    green.
+    """
+    broken = dated_verification / "reports" / "report_2026-06-24_16-40-00_2.json"
+    broken.write_text('{"created": "2026-06-2', encoding="utf-8")   # cut short
+    why = _refusal(_row(dated_verification, 1),
+                   "report_2026-06-24_16-40-00.json")
+    assert why, (
+        "a report_*.json the window cannot read was counted as a spare, and "
+        "the only readable verdict of the date became deletable")
+
+    # …and an empty file, which is what a full disk leaves behind.
+    broken.write_text("", encoding="utf-8")
+    assert _refusal(_row(dated_verification, 1),
+                    "report_2026-06-24_16-40-00.json"), (
+        "a zero-byte report_*.json was counted as a spare")
+
+    # Guard the guard: a READABLE second report is still a spare.
+    broken.write_text(json.dumps({"created": "2026-06-24T16:40:00"}),
+                      encoding="utf-8")
+    assert not _refusal(_row(dated_verification, 2), broken.name), (
+        "the rule now refuses everything; a real spare must stay deletable")
+
+
+#: The app's own packages. A driver may legitimately open two of these windows
+#: at once -- round 2's did -- so `scripts/` and `tests/` are not doors.
+_DOOR_ROOTS = ("ui", "core", "workflow", "main.py")
+
+#: Where the window is DEFINED, which is not a door.
+_THE_WINDOW = pathlib.Path("ui") / "dialogs" / "measurement_report_dialog.py"
+
+
+def _door_files():
+    """Every app file that CONSTRUCTS a `MeasurementReportDialog`.
+
+    **FOUND, NOT LISTED.** The first cut of this test named two files in a
+    tuple and asserted the tuple had two entries in it, which pins the two
+    doors that exist and says nothing whatever about a third. The safety
+    argument of the rule above used to rest entirely on this modality, so the
+    one thing this must catch is a door somebody adds LATER, in a file no
+    tuple here mentions.
+    """
+    out = {}
+    for rel in _DOOR_ROOTS:
+        base = ROOT / rel
+        paths = [base] if base.is_file() else sorted(base.rglob("*.py"))
+        for path in paths:
+            if path.relative_to(ROOT) == _THE_WINDOW:
+                continue
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+            made = [n for n in ast.walk(tree)
+                    if isinstance(n, ast.Call)
+                    and isinstance(n.func, ast.Name)
+                    and n.func.id == "MeasurementReportDialog"]
+            if made:
+                out[path.relative_to(ROOT).as_posix()] = (tree, made)
+    return out
+
+
+def test_the_doors_are_found_and_not_merely_listed():
+    """Guard the guard: a search that finds no door would pass for ever."""
+    doors = _door_files()
+    made = sum(len(v[1]) for v in doors.values())
+    assert made >= 5, f"only {made} constructions found; the search is broken"
+    assert set(doors) == {"ui/tabs/tab_measure.py",
+                          "ui/dialogs/tools_dialogs.py"}, sorted(doors)
 
 
 def test_every_door_opens_the_report_window_modally():
@@ -150,17 +229,12 @@ def test_every_door_opens_the_report_window_modally():
     two of them on screen without anyone connecting it to a delete.
 
     MUTATION: change any `.exec()` on one of these to `.show()` and this goes
-    red naming the file.
+    red naming the file, and a door added in a file nothing here mentions is
+    checked too, because `_door_files` goes and finds them.
     """
     bad = []
-    for rel in _DOORS:
-        path = ROOT / rel
-        tree = ast.parse(path.read_text(encoding="utf-8"))
-        for node in ast.walk(tree):
-            if not (isinstance(node, ast.Call)
-                    and isinstance(node.func, ast.Name)
-                    and node.func.id == "MeasurementReportDialog"):
-                continue
+    for rel, (tree, made) in _door_files().items():
+        for node in made:
             # …either `MeasurementReportDialog(...).exec()`, or bound to a
             # name that is `exec()`ed in the same module.
             chained = any(
@@ -186,4 +260,3 @@ def test_every_door_opens_the_report_window_modally():
     assert not bad, (
         "these open the Measurement Report window without exec(), so two of "
         "them can be on screen at once: " + ", ".join(bad))
-    assert len(_DOORS) == 2

@@ -3309,13 +3309,43 @@ class MeasurementReportDialog(QDialog):
         `_on_delete_report` builds. The session list stays as the fall-back
         for a folder that cannot be read, which is the answer this had before
         and is no worse than it was.
+
+        **AND IT COUNTS THE FILES THE WINDOW CAN READ, NOT THE FILES THAT
+        MATCH THE GLOB.** Combined round 3 drove the fix above and found that
+        it had widened the rule it was tightening. `_gather_runs` reads every
+        `report_*.json` with `json.loads` and SKIPS the ones that raise, so a
+        file that is not readable JSON is in no row, in no selector and in no
+        trend; the bare `glob` counted it as a spare all the same. Driven on
+        screen on a dated verification holding one good report and one
+        truncated one (`save_report` writes with `write_text`, which is not
+        atomic, so a process killed mid-write leaves exactly that): Delete came
+        up ENABLED with no reason beside it, the confirmation said *"0 saved
+        reports of it are left afterwards"*, and the press left the date with
+        no verdict the window can read. Photographed in
+        `~/Desktop/ChromIQ-beta20-proof/combined-round-3/`
+        (`G-one-readable-report-and-one-truncated-file.png`,
+        `G-after-the-press.png`).
+
+        The confirmation was honest there and the rule was not, which is the
+        diagnostic: the two were counting different things. So the count uses
+        the same test `_gather_runs` uses, and stops at two, because that is
+        all this question needs to know.
         """
+        import json
         from core.file_manager import VERIFICATIONS_DIRNAME
         origin = Path(str(r.get("_origin_dir") or ""))
         if origin.parent.name != VERIFICATIONS_DIRNAME:
             return ""
         try:
-            spares = len(list((origin / "reports").glob("report_*.json")))
+            spares = 0
+            for p in sorted((origin / "reports").glob("report_*.json")):
+                try:
+                    json.loads(read_text(p))
+                except Exception:             # noqa: BLE001
+                    continue                  # not a verdict; see below
+                spares += 1
+                if spares > 1:
+                    break                     # two is all this has to know
         except OSError:                       # unreadable: the answer it gave
             spares = len(r.get("_all_report_files") or [])
         if spares > 1:
