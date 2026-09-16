@@ -1815,7 +1815,6 @@
   "Illuminant for XYZ Computation (-i)": "XYZ计算用光源 (-i)",
   "Image": "图像",
   "Image file not found: {p}": "找不到图像文件：{p}",
-  "Image loaded for printing (no colour management). To measure a chart afterwards, load its .ti2 with the grid button — an image alone carries no patch geometry.": "图像已载入以供打印（无色彩管理）。之后要测量色卡的话，请用网格按钮载入它的 .ti2——仅有图像不包含色块的位置信息。",
   "Image-gamut detail": "图像色域细节",
   "Image-gamut detail:": "图像色域细节:",
   "Image:": "图像：",
@@ -2066,7 +2065,6 @@
   "Load failed": "载入失败",
   "Load from file…": "从文件加载…",
   "Load image": "载入图像",
-  "Load image (TIFF).\nOpen any TIFF — for example a chart made by another tool — and print it exactly like a chart: without colour management.\nPrinting only: to MEASURE a chart afterwards, load its .ti2 with the grid button instead, so ChromIQ knows its patches.": "载入图像（TIFF）。\n打开任意 TIFF——例如其他工具制作的色卡——并像色卡一样打印：不做色彩管理。\n仅用于打印：之后要测量色卡，请改用网格按钮载入它的 .ti2，让 ChromIQ 知道它的色块。",
   "Load image…": "载入图像…",
   "Load or create a chart first.": "请先加载或创建色卡。",
   "Load patch set.\nOpen an existing chart layout (its patch set) and lay it\nout — targen is skipped. Accepts an Argyll .ti1, or an\ni1Profiler RGB set (.pxf or CGATS .txt), which are\nconverted to .ti1 automatically.": "加载色块集。\n加载已有色块集并排版（跳过targen）。\n接受Argyll .ti1，或i1Profiler的RGB色块集（.pxf或CGATS .txt）\n— i1Profiler文件会自动转换为 .ti1。",
@@ -5552,5 +5550,11 @@
   "The only saved report of a dated verification is kept: its verdict is this run's record of that date.": "The only saved report of a dated verification is kept: its verdict is this run's record of that date.",
   "This removes one saved report from your project:\n\n{what}\n{file}\n\nThe measurement it describes is not touched, and no other report of that measurement is touched. One saved report of it is left afterwards.\n\nChromIQ cannot undo this.": "This removes one saved report from your project:\n\n{what}\n{file}\n\nThe measurement it describes is not touched, and no other report of that measurement is touched. One saved report of it is left afterwards.\n\nChromIQ cannot undo this.",
   "This removes one saved report from your project:\n\n{what}\n{file}\n\nThe measurement it describes is not touched, and no other report of that measurement is touched. {n} saved reports of it are left afterwards.\n\nChromIQ cannot undo this.": "This removes one saved report from your project:\n\n{what}\n{file}\n\nThe measurement it describes is not touched, and no other report of that measurement is touched. {n} saved reports of it are left afterwards.\n\nChromIQ cannot undo this.",
-  "saved {when}": "saved {when}"
+  "saved {when}": "saved {when}",
+  "Load image (TIFF).\nOpen any TIFF, for example a chart made by another tool, and print it exactly like a chart: without colour management.\nPrinting only: to MEASURE a chart afterwards, open its .ti2 with “Open Chart File (.ti2)” at the top left of the window instead, so ChromIQ knows its patches.": "Load image (TIFF).\nOpen any TIFF, for example a chart made by another tool, and print it exactly like a chart: without colour management.\nPrinting only: to MEASURE a chart afterwards, open its .ti2 with “Open Chart File (.ti2)” at the top left of the window instead, so ChromIQ knows its patches.",
+  "Image loaded for printing (no colour management). To measure a chart afterwards, open its .ti2 with “Open Chart File (.ti2)” at the top left of the window: an image alone carries no patch geometry.": "Image loaded for printing (no colour management). To measure a chart afterwards, open its .ti2 with “Open Chart File (.ti2)” at the top left of the window: an image alone carries no patch geometry.",
+  "If CUPS rejects PostScript (e.g. AirPrint or Driverless drivers), it automatically retries by sending the TIFF directly with colour-space-aware raster options.": "If CUPS rejects PostScript (e.g. AirPrint or Driverless drivers), it automatically retries by sending the TIFF directly with colour-space-aware raster options.",
+  "If CUPS rejects PostScript (most non-PostScript printers), it automatically retries with an exact-size PDF that keeps the chart at 100% scale (edges beyond the printable area are clipped, never shrunk).": "If CUPS rejects PostScript (most non-PostScript printers), it automatically retries with an exact-size PDF that keeps the chart at 100% scale (edges beyond the printable area are clipped, never shrunk).",
+  "⚠  Verify that all print settings above match the media you are printing on.\n\nWrong media type or quality settings will cause incorrect ink laydown and invalid colour measurements. Allow pigment inks to dry fully before measuring (at least 1 h; 24 h for best accuracy).\n\nColour management is disabled automatically. ChromIQ converts the chart to PostScript and sends it via lp, bypassing ColorSync entirely. {fallback}": "⚠  Verify that all print settings above match the media you are printing on.\n\nWrong media type or quality settings will cause incorrect ink laydown and invalid colour measurements. Allow pigment inks to dry fully before measuring (at least 1 h; 24 h for best accuracy).\n\nColour management is disabled automatically. ChromIQ converts the chart to PostScript and sends it via lp, bypassing ColorSync entirely. {fallback}",
+  "<b>The reads could not be averaged.</b><br><br>{detail}<br><br>Your individual reads are still saved, you can continue from the Build Profile tab using one of them.": "<b>The reads could not be averaged.</b><br><br>{detail}<br><br>Your individual reads are still saved, you can continue from the Build Profile tab using one of them."
 }

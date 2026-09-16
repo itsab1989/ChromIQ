@@ -526,7 +526,23 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # under the beta rule and each rises by exactly 3. RE-MEASURED with this file's
 # own `_english_echoes` on the catalogues this change leaves behind, never the
 # old number plus three.
+#
+# 2026-09-16, the text round, each of the eleven +6 and de unmoved: SIX keys,
+# and two of them are a coverage LOSS rather than new text, so they are named
+# here for the pass before GA. The Print Chart tab's "Load image (TIFF)"
+# tooltip and its status line both sent the reader to "the grid button", which
+# that tab has not had since #130 moved it to the masthead; the new wording
+# names "Open Chart File (.ti2)" instead, and because the key changed, eleven
+# languages dropped from a real translation to the English. The other four are
+# text that was never translatable at all: the averaging-failed window's body
+# (title through tr(), body not) and the three sentences of the lp-path print
+# warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
+# the argument. German is written for all six.
 _BUDGET = {
+    # MERGED 2026-09-16: two branches raised this for different reasons, and
+    # these numbers are neither side's and not their sum. They are counted
+    # off the merged catalogues, because a budget adjusted upward admits the
+    # next regression for free.
     # RE-MEASURED 2026-09-16, B8-250: the "Saved reports" row and its delete
     # question. **10 keys in, 0 stale out**; five of the ten are long enough to
     # count here (the tooltip, the refusal, the two delete bodies and the
@@ -536,17 +552,17 @@ _BUDGET = {
     # 5. RE-MEASURED with this file's own `_english_echoes`, never adjusted
     # upward from the old numbers.
     "de": 4,
-    "es": 199,
-    "fr": 200,
-    "it": 199,
-    "ja": 199,
-    "nl": 199,
-    "no": 199,
-    "pl": 199,
-    "pt": 199,
-    "ru": 198,
-    "sv": 199,
-    "zh_CN": 198,
+    "es": 205,
+    "fr": 206,
+    "it": 205,
+    "ja": 205,
+    "nl": 205,
+    "no": 205,
+    "pl": 205,
+    "pt": 205,
+    "ru": 204,
+    "sv": 205,
+    "zh_CN": 204,
 }
 
 

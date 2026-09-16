@@ -12027,11 +12027,25 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         layout = QVBoxLayout(dlg)
         layout.setSpacing(16)
         layout.setContentsMargins(24, 20, 24, 20)
+        # THE TITLE WENT THROUGH tr() AND THE BODY NEVER DID, so eleven of the
+        # twelve languages showed this window in English. It was invisible to
+        # `i18n_extract.unwrapped_literals`, which only inspected a bare literal
+        # argument and skipped this one because `+ detail` makes the whole
+        # argument an expression. `detail` is now a placeholder rather than a
+        # concatenation, so a translator is given the sentence whole and can
+        # put the reason where their language wants it.
+        #
+        # The closing sentence was checked against the code before it was
+        # translated, because it is a promise: `_put_the_last_read_back` copies
+        # the newest read back as the run's measurement and leaves `reads/`
+        # untouched, so every read really is still there and Build Profile
+        # really is armed (B8-213's mechanism, applied to this ending in the
+        # same round). The em dash went for the house rule.
         msg = QLabel(
-            "<b>The reads could not be averaged.</b><br><br>"
-            + detail
-            + "<br><br>Your individual reads are still saved — you can continue "
-            "from the Build Profile tab using one of them.",
+            tr("<b>The reads could not be averaged.</b><br><br>{detail}<br><br>"
+               "Your individual reads are still saved, you can continue "
+               "from the Build Profile tab using one of them.").format(
+                   detail=detail),
             dlg,
         )
         msg.setWordWrap(True)

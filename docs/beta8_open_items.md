@@ -10902,5 +10902,132 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   from `_report_order` (1 red), `_reload_sources` removed from
   `_on_generate_report` (1 red), and the chosen-report override left in place
   (1 red).
+### B8-260 · A tooltip sent people to a button this tab has not had since #130
+- blocks release: no
+- status: FIXED
+
+- reported by: a tester, on #182. *"On button 'Load Image (TIFF)' in Print Chart
+  tab, the tool-tip text refers to a grid to load a ti2. This button does not
+  exist, and is now equivalent to the 'Open Chart File (ti2)' in the upper left
+  corner of the app."*
+- measured: `ui/tabs/tab_print.py` carried the stale name in THREE places, not
+  one. The tooltip on `_load_image_btn`, the status line `_on_load_image` sets
+  after an image is loaded (*"load its .ti2 with the grid button — an image
+  alone carries no patch geometry"*), and the handler's own docstring. The
+  amber grid button left this tab in #130 when the app's whole-app actions
+  moved into the masthead; the comment six lines above the tooltip records that
+  move, and the tooltip under it was never touched.
+- fix: all three name the masthead control, spelled the way the masthead spells
+  it and the way eight other strings in the app already spell it,
+  *"“Open Chart File (.ti2)” at the top left of the window"*. Both user-facing
+  strings lost their em dashes on the way (`--prune` took the two baseline
+  entries with them; the baseline only shrinks).
+- DELIBERATELY NOT DONE, and pinned by a test so it is not "fixed" later: the
+  reporter's second sentence, that a correct profile run should be selected
+  before a chart is opened. It is right, and the app already says it at the
+  moment it matters, in the design authority's own wording. Pressing Print with
+  **Profile run** on "New run" raises
+  `core.measurement_target.new_run_guard_message("print")`, which names the
+  selection to change and every way to make a run. This tooltip is on a button
+  that neither opens nor creates a chart, so repeating a four-paragraph guard
+  on it would add reading and change no outcome.
+- on screen: driven in a real window, both languages, photographed through
+  `scripts/onscreen_capture.py`. `en-1-load-image-tooltip.png`,
+  `de-1-load-image-tooltip.png`, `de-2-print-chart-tab.png` in
+  `~/Desktop/ChromIQ-beta20-proof/text-fixes/`.
+- evidence: test_the_load_image_help_does_not_send_anyone_to_the_grid_button,
+  test_the_load_image_help_names_the_masthead_control,
+  test_the_masthead_really_spells_it_that_way,
+  test_the_tooltip_does_not_repeat_the_run_guard,
+  test_both_load_image_strings_are_still_there.
+  Two mutations proved to land by reading the file back: the tooltip and the
+  status line each put back to "the grid button" (1 red each).
+
+---
+
+### B8-261 · The averaging-failed window was English in eleven of twelve languages
+- blocks release: no
+- status: FIXED
+
+- measured: `TabMeasure._show_average_failed_dialog` put its TITLE through
+  `tr()` and its body not at all, so every language but English showed the body
+  in English. It also carried an em dash, against the house rule.
+- the sentence was CHECKED BEFORE IT WAS TRANSLATED, because it is a promise.
+  *"Your individual reads are still saved, you can continue from the Build
+  Profile tab using one of them"* used to be false: every read had already been
+  moved into `reads/` and `average` writes its output only on success, so this
+  ending handed back a run holding no `.ti3` at all. Round 5 gave the ending a
+  file back (the B8-213 mechanism): `_put_the_last_read_back` COPIES the newest
+  read back as the run's measurement and leaves `reads/` intact, and
+  `measure_finished` arms the tab the sentence names. The promise is kept now,
+  so the wording stays and is translated.
+- fix: the body goes through `tr()`, the runtime reason is a `{detail}`
+  placeholder rather than a `+` concatenation (so a translator is handed the
+  sentence whole and can put the reason where their language wants it), and the
+  em dash is a comma. German written; the eleven carry the English under the
+  beta rule.
+- NOT DONE, registered instead: this window is a MEASUREMENT window whose text
+  is in neither `WINDOW_SOURCES` nor `UNCATALOGUED_MEASUREMENT_WINDOWS` in
+  `tests/test_message_catalogue.py`, so §M governs it in neither direction and
+  it can word itself freely with both lists green. Proposing its text to
+  §M-PROPOSED is a wording decision for the design authority, not a
+  punctuation fix, so it is named here rather than started.
+- on screen: `en-3-averaging-failed.png` and `de-3-averaging-failed.png`. The
+  German window is German in title and body.
+- evidence: test_the_averaging_failed_window_is_one_translatable_sentence,
+  test_the_averaging_failed_window_carries_no_em_dash,
+  test_the_averaging_failed_window_is_german_in_german,
+  test_the_promise_the_window_makes_is_one_the_code_keeps.
+  Four mutations proved to land by reading the file back: the body unwrapped
+  and concatenated again, the em dash put back, the German value replaced by
+  its English key, and the failure branch no longer putting a read back
+  (1 red each).
+
+---
+
+### B8-262 · Three sentences of the Print Chart warning never reached `tr()`, and the sweep could not see them
+- blocks release: no
+- status: FIXED
+
+- found by measuring for the rest of B8-261's shape rather than by a report.
+- the MECHANISM, which is the part worth keeping: `i18n_extract`'s
+  `unwrapped_literals` only ever inspected a bare `ast.Constant` argument. A
+  text sink whose argument is a sum, `QLabel("…" + detail + "…")` or
+  `setText("…" + fallback_sentence)`, is a `BinOp`, so the sweep skipped the
+  argument and every literal inside it. Second rule, compounding it:
+  `is_user_facing_text` rejected anything matching `^\s*<` as "markup", and
+  this app's rich-text windows open with `<b>` as a matter of course.
+- measured across the whole app: those two rules together hid exactly FOUR
+  sentences and no others. `TabPrint._set_native_mode`'s lp-path warning (the
+  body plus its two `fallback_sentence` variants) and B8-261's dialog body.
+  The warning's sibling branch, for the native print dialog, has gone through
+  `tr()` since it was written.
+- reachability, stated honestly: `use_native_print_dialog` defaults to True on
+  macOS and Windows, so this warning is what a Linux user sees and what a macOS
+  user sees after turning the native dialog off in Preferences. It is the
+  branch whose path the Printer tooltip documents.
+- fix: all three wrapped, the fallback sentence a `{fallback}` placeholder
+  rather than a concatenation, German written. And the sweep itself widened:
+  `_literal_leaves` looks through `+`, and `is_user_facing_text` judges the
+  words OUTSIDE the tags (`_prose`) instead of refusing anything that opens
+  with one. The widened sweep finds nothing left; the one string it newly
+  surfaced, `"colprof "` echoed as a command line for copying, joins its
+  already-listed twin in `UNTRANSLATED_ON_PURPOSE` with the reason.
+- on screen: `de-2-print-chart-tab.png` shows the warning in German in the real
+  window, where it was English before.
+- evidence: test_every_sentence_of_the_lp_print_warning_is_translatable,
+  test_every_sentence_of_the_lp_print_warning_is_german_in_german,
+  test_the_fallback_sentence_is_a_placeholder_not_a_concatenation,
+  test_the_sweep_looks_through_concatenation,
+  test_a_sentence_that_opens_with_a_tag_is_still_a_sentence,
+  test_the_widened_sweep_finds_nothing_left,
+  test_the_comment_stripper_actually_strips.
+  Three mutations proved to land by reading the file back: the warning
+  unwrapped, the sweep's call site narrowed back to a bare `Constant`, and
+  `is_user_facing_text` given its `^\s*<` rule back (1 red each).
+- a note on the guard's own guard: two of these tests passed on their first run
+  against a COMMENT in the code they check, because the code explains itself by
+  quoting the shapes being banned. `_code_only` strips comments first, and is
+  itself checked.
 
 ---

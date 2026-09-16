@@ -217,12 +217,27 @@ _DIALOG_CALLS = {
 _DRAW_TEXT = "drawText"
 
 #: An identifier, a key, a file extension, a stylesheet — not a sentence.
+#:
+#: `^\s*<` USED TO BE IN HERE, and it meant that a sentence beginning with a
+#: tag was read as "markup" and waved through. ChromIQ's rich-text windows open
+#: with `<b>` as a matter of course, so the rule was excusing exactly the
+#: strings it should have been reading. Markup is now stripped and the WORDS
+#: are judged (`_prose`), which still rejects a bare `<br>` or a stylesheet
+#: while seeing `<b>The reads could not be averaged.</b>` for what it is.
 _NOT_TEXT = re.compile(r"""
       ^[a-z0-9_.-]+$           # snake_case key, extension, css class
     | %[sdrf]                  # a logging/printf format
-    | ^\s*<                    # markup
     | ://                      # a URL
 """, re.X)
+
+#: A tag, and a CSS declaration block, so `_prose` can take them out.
+_TAG = re.compile(r"<[^>]*>")
+_CSS = re.compile(r"[#.\w-]*\s*\{[^}]*\}")
+
+
+def _prose(s: str) -> str:
+    """*s* with its markup and its stylesheet rules removed."""
+    return _TAG.sub(" ", _CSS.sub(" ", s))
 
 #: Strings that ARE handed to a text sink and are deliberately not translated.
 #: Every entry needs the reason, because an allow-list with no reasons becomes
@@ -234,8 +249,11 @@ UNTRANSLATED_ON_PURPOSE = {
     " patches",
     # The name of a file format, as its own vendor spells it.
     "Excel (XLSX)",
-    # A tool's own command line, echoed so the user can copy it.
+    # A tool's own command line, echoed so the user can copy it. The second is
+    # the same preview with the real arguments joined onto it; it only became
+    # visible when the sweep learned to look through `+` concatenation.
     "colprof …",
+    "colprof ",
     # The product word-mark, drawn as artwork in the masthead and the splash.
     # `ChromIQ` is not translated anywhere, and these two are set in the logo's
     # own letterforms; a longer word in another language does not fit the mark.
@@ -287,7 +305,25 @@ def is_user_facing_text(s: str) -> bool:
         return False
     if _NOT_TEXT.search(s):
         return False
+    # A string that is ALL markup carries nothing to translate; one that opens
+    # with a tag and then says something does.
+    words = _prose(s).strip()
+    if len(words) < 2 or not any(c.isalpha() for c in words):
+        return False
     return True
+
+
+def _literal_leaves(node):
+    """Every ``str`` constant in *node*, looking through ``+`` concatenation.
+
+    A `tr(...)` call, a variable or an f-string yields nothing, which is the
+    point: those are either already translated or not a literal at all.
+    """
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        yield node
+    elif isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        yield from _literal_leaves(node.left)
+        yield from _literal_leaves(node.right)
 
 
 def unwrapped_literals():
@@ -307,18 +343,21 @@ def unwrapped_literals():
             for i in _sink_positions(node):
                 if not 0 <= i < len(node.args):
                     continue
-                a = node.args[i]
-                if not (isinstance(a, ast.Constant)
-                        and isinstance(a.value, str)):
-                    continue                   # tr(…), a variable, an f-string
-                if a.value in UNTRANSLATED_ON_PURPOSE:
-                    continue
-                if not is_user_facing_text(a.value):
-                    continue
-                name = (node.func.id if isinstance(node.func, ast.Name)
-                        else node.func.attr)
-                out.append((f.relative_to(ROOT).as_posix(), a.lineno,
-                            name, i, a.value))
+                # EVERY LITERAL IN THE ARGUMENT, not just a bare one.
+                # `QLabel("<b>…</b>" + detail + "…")` is a BinOp, so the old
+                # `isinstance(a, ast.Constant)` skipped the whole argument and
+                # with it two sentences that then shipped in English to eleven
+                # languages. Adjacent literals are folded by the parser already;
+                # it is the `+` that hid them.
+                for a in _literal_leaves(node.args[i]):
+                    if a.value in UNTRANSLATED_ON_PURPOSE:
+                        continue
+                    if not is_user_facing_text(a.value):
+                        continue
+                    name = (node.func.id if isinstance(node.func, ast.Name)
+                            else node.func.attr)
+                    out.append((f.relative_to(ROOT).as_posix(), a.lineno,
+                                name, i, a.value))
     return sorted(out)
 
 

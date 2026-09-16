@@ -896,18 +896,34 @@ _IDENTICAL_TO_KEY = {
     # **10 keys in, 0 stale out**, counted with `set(after) - set(before)`.
     # German is translated, so **de does not move (124)**; the eleven others
     # carry the English under the beta rule and each rises by exactly 10.
+    # 2026-09-16, the text round: SIX more, and two of them are the price of a
+    # rewording rather than of a new sentence. The Print Chart tab's "Load
+    # image (TIFF)" tooltip and its status line both sent the reader to "the
+    # grid button", which that tab has not had since #130 moved it to the
+    # masthead; the new wording names "Open Chart File (.ti2)" instead, and the
+    # eleven lose the translation the OLD sentence had until the pass before
+    # GA. The other four are the averaging-failed window's body (title
+    # translated, body never) and the three sentences of the lp-path print
+    # warning, all four of which were hidden from `unwrapped_literals` by a `+`
+    # in the argument. de does not move (124); the eleven rise by exactly six,
+    # and every number is this tree's measured count.
+    #
+    # MERGED 2026-09-16: both branches above raised this budget for
+    # different reasons, and the numbers here are NEITHER side's and not
+    # their sum. They are counted off the merged catalogues, because a
+    # budget adjusted upward admits the next regression for free.
     "de": 124,
-    "es": 366,
-    "fr": 388,
-    "it": 377,
-    "ja": 352,
-    "nl": 393,
-    "no": 378,
-    "pl": 370,
-    "pt": 368,
-    "ru": 341,
-    "sv": 379,
-    "zh_CN": 346,
+    "es": 372,
+    "fr": 394,
+    "it": 383,
+    "ja": 358,
+    "nl": 399,
+    "no": 384,
+    "pl": 376,
+    "pt": 374,
+    "ru": 347,
+    "sv": 385,
+    "zh_CN": 352,
 }
 
 
