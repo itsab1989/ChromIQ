@@ -876,18 +876,30 @@ _IDENTICAL_TO_KEY = {
     # others carry the English under the beta rule and each rises by exactly
     # 13. Every number below is this tree's actual count, taken with the same
     # expression the test below uses, never the old number plus thirteen.
+    #
+    # 2026-09-16, the text round: SIX more, and two of them are the price of a
+    # rewording rather than of a new sentence. The Print Chart tab's "Load
+    # image (TIFF)" tooltip and its status line both sent the reader to "the
+    # grid button", which that tab has not had since #130 moved it to the
+    # masthead; the new wording names "Open Chart File (.ti2)" instead, and the
+    # eleven lose the translation the OLD sentence had until the pass before
+    # GA. The other four are the averaging-failed window's body (title
+    # translated, body never) and the three sentences of the lp-path print
+    # warning, all four of which were hidden from `unwrapped_literals` by a `+`
+    # in the argument. de does not move (124); the eleven rise by exactly six,
+    # and every number is this tree's measured count.
     "de": 124,
-    "es": 353,
-    "fr": 375,
-    "it": 364,
-    "ja": 339,
-    "nl": 380,
-    "no": 365,
-    "pl": 357,
-    "pt": 355,
-    "ru": 328,
-    "sv": 366,
-    "zh_CN": 333,
+    "es": 359,
+    "fr": 381,
+    "it": 370,
+    "ja": 345,
+    "nl": 386,
+    "no": 371,
+    "pl": 363,
+    "pt": 361,
+    "ru": 334,
+    "sv": 372,
+    "zh_CN": 339,
 }
 
 

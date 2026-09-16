@@ -465,11 +465,12 @@ class TabPrint(QWidget):
         self._load_image_btn = ImageFileButton(SPEC_AMBER, left)
         self._load_image_btn.setToolTip(
             tr("Load image (TIFF).\n"
-               "Open any TIFF — for example a chart made by another tool — "
+               "Open any TIFF, for example a chart made by another tool, "
                "and print it exactly like a chart: without colour "
                "management.\n"
-               "Printing only: to MEASURE a chart afterwards, load its .ti2 "
-               "with the grid button instead, so ChromIQ knows its patches."))
+               "Printing only: to MEASURE a chart afterwards, open its .ti2 "
+               "with “Open Chart File (.ti2)” at the top left of the "
+               "window instead, so ChromIQ knows its patches."))
         self._load_image_btn.clicked.connect(self._on_load_image)
         _trailing = QWidget(left)
         _tl = QHBoxLayout(_trailing)
@@ -1542,7 +1543,8 @@ class TabPrint(QWidget):
 
     def _on_load_image(self) -> None:
         """#117 (Knut): print any TIFF raw. Deliberately print-only — the
-        measuring workflow needs the chart's own .ti2 (grid button), and a
+        measuring workflow needs the chart's own .ti2 (the masthead's "Open
+        Chart File (.ti2)", #130 — this tab's grid button is long gone), and a
         bare image can't provide patch geometry."""
         from ui.widgets import open_files_dialog
         paths = open_files_dialog(
@@ -1562,8 +1564,9 @@ class TabPrint(QWidget):
         self.load_tiffs([Path(p) for p in paths])
         self._set_status(tr(
             "Image loaded for printing (no colour management). To measure a "
-            "chart afterwards, load its .ti2 with the grid button — an image "
-            "alone carries no patch geometry."))
+            "chart afterwards, open its .ti2 with “Open Chart File "
+            "(.ti2)” at the top left of the window: an image alone "
+            "carries no patch geometry."))
 
     def _blocked_by_new_run(self) -> bool:
         """True — and the explaining pop-up has been shown — when the bar's
@@ -2072,27 +2075,33 @@ class TabPrint(QWidget):
                 )
         else:
             if is_macos() and bool(self._settings.get("pdf_print_fallback", False)):
-                fallback_sentence = (
+                fallback_sentence = tr(
                     "If CUPS rejects PostScript (most non-PostScript printers), it "
                     "automatically retries with an exact-size PDF that keeps the chart "
                     "at 100% scale (edges beyond the printable area are clipped, "
                     "never shrunk)."
                 )
             else:
-                fallback_sentence = (
+                fallback_sentence = tr(
                     "If CUPS rejects PostScript (e.g. AirPrint or Driverless drivers), "
                     "it automatically retries by sending the TIFF directly with "
                     "colour-space-aware raster options."
                 )
-            self._warn_lbl.setText(
+            # The sibling branch above has gone through tr() since it was
+            # written; this one never did, because the trailing
+            # `+ fallback_sentence` makes the whole argument an expression and
+            # `i18n_extract.unwrapped_literals` only ever looked at a bare
+            # literal. Measured 2026-09-16: these were the only three sentences
+            # in the app hidden that way. The concatenation is now a
+            # placeholder, so the sentence a translator sees is the whole one.
+            self._warn_lbl.setText(tr(
                 "⚠  Verify that all print settings above match the media you are printing on.\n\n"
                 "Wrong media type or quality settings will cause incorrect ink laydown and "
                 "invalid colour measurements. Allow pigment inks to dry fully before measuring "
                 "(at least 1 h; 24 h for best accuracy).\n\n"
                 "Colour management is disabled automatically. ChromIQ converts the chart to "
-                "PostScript and sends it via lp, bypassing ColorSync entirely. "
-                + fallback_sentence
-            )
+                "PostScript and sends it via lp, bypassing ColorSync entirely. {fallback}"
+            ).format(fallback=fallback_sentence))
 
     def _print_native(self, pages: list[tuple[Path, int]]) -> None:
         import sys as _sys

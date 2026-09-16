@@ -516,19 +516,31 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # the English source under the beta rule and each rises by exactly 13.
 # RE-MEASURED with this file's own `_english_echoes` on the catalogues this
 # change leaves behind, never the old number plus thirteen.
+#
+# 2026-09-16, the text round, each of the eleven +6 and de unmoved: SIX keys,
+# and two of them are a coverage LOSS rather than new text, so they are named
+# here for the pass before GA. The Print Chart tab's "Load image (TIFF)"
+# tooltip and its status line both sent the reader to "the grid button", which
+# that tab has not had since #130 moved it to the masthead; the new wording
+# names "Open Chart File (.ti2)" instead, and because the key changed, eleven
+# languages dropped from a real translation to the English. The other four are
+# text that was never translatable at all: the averaging-failed window's body
+# (title through tr(), body not) and the three sentences of the lp-path print
+# warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
+# the argument. German is written for all six.
 _BUDGET = {
     "de": 4,
-    "es": 191,
-    "fr": 192,
-    "it": 191,
-    "ja": 191,
-    "nl": 191,
-    "no": 191,
-    "pl": 191,
-    "pt": 191,
-    "ru": 190,
-    "sv": 191,
-    "zh_CN": 190,
+    "es": 197,
+    "fr": 198,
+    "it": 197,
+    "ja": 197,
+    "nl": 197,
+    "no": 197,
+    "pl": 197,
+    "pt": 197,
+    "ru": 196,
+    "sv": 197,
+    "zh_CN": 196,
 }
 
 
