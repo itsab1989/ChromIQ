@@ -166,12 +166,21 @@ def test_the_limit_set_is_named_at_the_top(tmp_path, qapp):
         dlg.close()
 
 
-def test_two_runs_bound_to_different_sets_name_none_at_the_top(tmp_path, qapp):
-    """One name at the head of a document covering two runs would be a claim
-    about a column it does not describe. The per-column row below already
-    answers that case.
+def test_two_runs_bound_to_different_sets_leave_one_in_the_document(tmp_path,
+                                                                    qapp):
+    """A DOCUMENT IS WRITTEN AGAINST ONE LIMIT SET (B8-246).
 
-    MUTATION: name `_sets.pop()` whatever the count and this goes red.
+    This test used to pin the opposite half of the same situation: the head
+    named no set, because the table under it held two. The design authority
+    ruled on 2026-09-16 that the table may not hold two at all, so the state
+    that made the head silent is now unreachable and the head names the one
+    set the document IS written against. The `len(_sets) == 1` guard is left
+    where it is as a backstop, and deliberately not tested: nothing can reach
+    it any more, and a test that stages an unreachable state would pin the
+    staging rather than the window.
+
+    MUTATION: drop the `_one_limit_set` call from `_report_body_html` and this
+    goes red on the head line and on the left-out note together.
     """
     from tests.test_import_measurement_module import _cgats, _PATCHES
     dlg, run, fm = _dialog(tmp_path, qapp)
@@ -186,9 +195,14 @@ def test_two_runs_bound_to_different_sets_name_none_at_the_top(tmp_path, qapp):
         bind_run(run2, "chromiq_tight", None)
         dlg._add_source(v2.measurement_ti3)
         qapp.processEvents()
-        head = _plain(dlg).split("Report Scope")[0]
-        assert "Judged against:" not in head, (
-            "two runs with two different sets, and the head names one of them")
+        body = _plain(dlg)
+        head = body.split("Report Scope")[0]
+        assert "Judged against:" in head, (
+            "the document holds one limit set and the head names none of them")
+        assert "ChromIQ tight" in head, head[-200:]
+        assert "judged against a different limit set" in body, (
+            "the other run's measurement is neither in the report nor named "
+            "as left out of it")
     finally:
         dlg.close()
 

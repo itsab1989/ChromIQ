@@ -876,18 +876,31 @@ _IDENTICAL_TO_KEY = {
     # others carry the English under the beta rule and each rises by exactly
     # 13. Every number below is this tree's actual count, taken with the same
     # expression the test below uses, never the old number plus thirteen.
+    #
+    # RE-MEASURED 2026-09-16, B8-246: a report is written against ONE limit
+    # set, so the red line that told a reader the table they were reading was
+    # not comparable is replaced by three keys that say which measurements are
+    # left out and why. **3 keys in, 0 stale out**, counted with
+    # `set(after) - set(before)` on each catalogue. The old warning's two keys
+    # are still used, as the backstop for a state nothing can reach any more,
+    # and both are translated everywhere, so they were never in these counts.
+    #
+    # German is translated, so **de does not move (124)**; the eleven others
+    # carry the English under the beta rule and each rises by exactly 3. Every
+    # number below is this tree's own count, taken from the test's own
+    # expression.
     "de": 124,
-    "es": 353,
-    "fr": 375,
-    "it": 364,
-    "ja": 339,
-    "nl": 380,
-    "no": 365,
-    "pl": 357,
-    "pt": 355,
-    "ru": 328,
-    "sv": 366,
-    "zh_CN": 333,
+    "es": 356,
+    "fr": 378,
+    "it": 367,
+    "ja": 342,
+    "nl": 383,
+    "no": 368,
+    "pl": 360,
+    "pt": 358,
+    "ru": 331,
+    "sv": 369,
+    "zh_CN": 336,
 }
 
 

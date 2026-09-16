@@ -6012,7 +6012,7 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   test_every_built_type_names_itself,
   test_the_head_can_never_name_a_type_this_build_cannot_make,
   test_the_limit_set_is_named_at_the_top,
-  test_two_runs_bound_to_different_sets_name_none_at_the_top,
+  test_two_runs_bound_to_different_sets_leave_one_in_the_document,
   test_the_run_description_is_labelled_as_one,
   test_and_keeps_room_for_a_description_of_ordinary_length.
   Measured on his own two files with pypdf before anything was changed.
@@ -10534,5 +10534,212 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   Two mutations proved to land by reading the file back: the old
   `typed >= CLIP_WIDTH_MIN_MM` gate (3 red), and one call site dropping
   `_o.needed_mm` (1 red).
+
+---
+
+### B8-246 · A report mixed measurements judged against three different limit sets, said so in red, and printed the table anyway
+- blocks release: yes
+- status: FIXED
+- it is the fault the project's design authority reported on 2026-09-16, ahead
+  of the non-beta he asked for.
+- found by: a tester, 2026-09-16, on two projects of his own; reproduced here
+  by driving the real window on both of them
+  (`~/Desktop/ChromIQ-beta20-proof/report-sets/`).
+- what a user sees: Tools ▸ Measurement report, on a project whose profile runs
+  were judged against different limit sets. The Report Scope carries this, in
+  red, above the results:
+
+  > **Warning: these reports were not all judged against the same limit set.**
+  > The words in one column are not comparable with the words in another where
+  > the limit set differs:
+  > * Report-Limits-Report-Types @ 2026-10-26T10:00:00: judged against ChromIQ default (recommended)
+  > * Report-Limits-Report-Types @ 2026-10-27T10:00:00: judged against ChromIQ tight
+  > * Report-Limits-Report-Types @ 2026-10-28T10:00:00: judged against Quick check
+  > * … four more
+
+  and then prints the seven columns side by side anyway, in one Report Results
+  table, with one "Judged against" row naming the three sets under each other.
+  Photographed before the fix:
+  `report-sets/round0-profiling/A-opened.png`; the rendered document is
+  `round0-profiling/document.txt`.
+- **the exact act**: open the window on a run's own profiling measurement
+  (which is what Tools ▸ Measurement report does for a Profile selection, and
+  what `_report_seed` picks), in a project whose runs do not share a limit set.
+  `list_project_reports` gathers every run of the project, which is the
+  cross-run history #40 exists for, and nothing asked what each of them had
+  been judged against. Seven runs, three set names, five distinct copies.
+- **and the INFO beside it is a SECOND cause, not a consequence.** Every row of
+  that screen read INFO because a profiling sheet is not graded (§4 of
+  `docs/design/measurement_report_limits.md`, Knut's 12b, the one clause of
+  that document he has confirmed: *"For now, leave it as is."*). Mixing limit
+  sets does not make a verdict collapse; a graded column keeps the PASS or FAIL
+  it was saved with whatever else is in the table. The two appear together
+  because the same screen is a profiling sheet's report. Measured after the
+  fix: the same window still reads INFO, correctly, with one column.
+- the rule, in the reporter's words: *"only report data using the same judged
+  against threshold sets as the judge against setting set in the report should
+  be used when writing the report text. Not mix them together in the report
+  output."*
+- why: the red line was the whole of the mitigation. `report_scope` raised a
+  `compliance` warning when two set NAMES appeared, and `_report_results_html`
+  went on rendering every column. Telling a reader that the table they are
+  reading cannot be read is not a report.
+- **and the warning could not see a third of the mix.** It keyed on the set's
+  LABEL. A run carries a COPY of the numbers it was bound to, so two runs can
+  both say "ChromIQ default (recommended)" and be judged against different
+  numbers; the window derives its own "(edited)" marker from exactly that
+  difference and was showing it on one of the seven columns. The warning listed
+  that column under the same name as the one it disagreed with.
+- fix: `workflow.measurement_report.yardstick_key` makes a comparable key out
+  of the set id **and its numbers**, and
+  `MeasurementReportDialog._one_limit_set` splits the loaded history into the
+  measurements judged against the report's own set and the rest. The document
+  gets the first list, in `_report_body_html` and in `_runs_for_document`, so
+  the page and the Generate button agree about which sheets the report is
+  about. The Report Scope names every measurement left out and why.
+- **the history is kept and the sets are separated, which is not deleting
+  either.** Every measurement stays gathered, stays in the run list, stays
+  tickable and stays a point on the trend over time, which plots measured
+  values and carries no verdict. What narrows is the document.
+- **the anchor is the sheet the window is on, never the pulldown.** A run's own
+  profiling report is deliberately not recalculated when its limit set changes
+  (`_recalculate_run` walks `run.verifications()`, which is what §5 of the
+  design record specifies), so a run bound to one set can hold a report judged
+  against another. Anchoring on the pulldown would throw the window's own
+  subject out of its own report, and on the pack that reproduced this it would
+  have emptied the document.
+- after the fix, on the same window (`round1-after/`): the head line reads
+  *"Report type: Full colour check · Judged against: ChromIQ default
+  (recommended)"* where it had named nothing, one column is described, and the
+  Scope reads *"6 measurements loaded in this window were judged against a
+  different limit set, so they are not in the results below."* with all six
+  named, the edited copy among them. The trend still draws its seven points.
+- driven on the ordinary shape as well, to prove nothing narrowed that should
+  not: `Report-Limits-Threshold-Series/run1`, eleven dated verifications all
+  judged against one copy of ChromIQ tight, 11 columns in and 11 columns out,
+  59 PASS and 40 FAIL unchanged (`round1-ts-run1-verif/`).
+- string change: three keys, added to all thirteen catalogues with a new German
+  translation; the two keys of the old warning are left in place as a backstop
+  for a state nothing can now reach.
+- evidence: test_two_copies_of_one_set_with_different_numbers_are_two_yardsticks,
+  test_the_same_numbers_in_a_different_order_are_one_yardstick,
+  test_a_recommendation_and_a_requirement_of_the_same_value_differ,
+  test_a_report_with_no_record_of_what_judged_it_has_no_key,
+  test_the_document_never_holds_two_limit_sets,
+  test_the_left_out_measurement_is_named_in_the_report_scope,
+  test_the_old_red_warning_can_no_longer_fire_on_a_rendered_document,
+  test_two_copies_of_ONE_set_are_still_separated_in_the_window,
+  test_one_limit_set_everywhere_keeps_the_history_loaded,
+  test_the_button_files_a_report_only_for_what_the_page_describes,
+  test_a_single_measurement_is_never_filtered_out_of_its_own_report,
+  test_the_anchor_is_the_sheet_the_window_is_on,
+  test_two_runs_bound_to_different_sets_leave_one_in_the_document.
+  Four mutations proved to land by reading the file back: the filter removed
+  from `_report_body_html` (3 red), `yardstick_key` reduced to the set id
+  (3 red), `_other_limit_sets_html` silenced (2 red), and
+  `_runs_for_document` left unfiltered (1 red).
+
+---
+
+### B8-247 · A report about one run offered to save its PDF into the whole project's reports folder
+- blocks release: no
+- status: FIXED
+- found by: the challenge round against B8-246, 2026-09-16, in the first minute
+  and inside B8-246's own fix
+  (`~/Desktop/ChromIQ-beta20-proof/report-sets/round2-challenge/`).
+- what a user sees: a seven-run project, the window opened on run1, the
+  document now written against one limit set and describing run1's measurement
+  alone. **Save report as PDF** opens with
+  `Report-Limits-Report-Types/reports` as the folder, the whole project's, and
+  not `runs/run1/reports`, the run the page is about. Measured both ways on
+  screen by putting the one line back and driving it again: `C1 pdf folder:
+  Report-Limits-Report-Types/reports` before, `…/runs/run1/reports` after.
+- why: `_report_dir` takes the common ancestor of the folders the report
+  covers, and the common ancestor of seven runs is the `runs` container, which
+  it reads as "the whole profile". It asked `_runs_for_report`, "what is
+  loaded". That was the same list as the document until B8-246 made the
+  document narrower. Its own docstring already said *"The covered set is
+  exactly what the report shows"*; the list it asked had stopped being it.
+- fix: it asks `_runs_for_document`, the list the body and the Generate button
+  already ask. Three callers, one answer.
+- evidence: test_the_pdf_is_offered_in_the_folder_of_the_run_it_describes.
+  Mutation proved to land by reading the file back: `_runs_for_report` put back
+  in `_report_dir` (1 red).
+
+---
+
+### B8-248 · OPEN · Re-ticking a measurement puts it back in the list and not on the trend chart
+- blocks release: no
+- status: OPEN
+- measured, not fixed. It predates B8-246 and is unchanged by it: the same
+  three numbers come out of a checkout with that fix stashed.
+- found by: the challenge round against B8-246, 2026-09-16, probing whether the
+  filter had cost the trend a point. It had not; this had.
+- what a user sees, driven on `Report-Limits-Report-Types/runs/run1` with seven
+  measurements loaded and "Show all measurement runs" ticked:
+
+  | act | measurements ticked | points on the trend |
+  |---|---|---|
+  | opened | 7 | 7 |
+  | the window's own measurement unticked | 6 | 6 |
+  | **ticked again** | **7** | **6** |
+
+- why: `_settings_touched` defers the repaint while **Generate report** can be
+  pressed, which is the ruling of 2026-09-14, and repaints at once when it
+  cannot, which is the adversary-round fix beside it. Unticking the window's
+  own run's only measurement leaves `_reports_to_generate` empty, so the button
+  goes dead and that second branch repaints the trend without the point.
+  Ticking it again brings the button back, so the repaint waits for it, and the
+  chart stays one point short until it is pressed. Both branches are behaving
+  as written; the asymmetry is between them.
+- the red "the document waits" line IS on screen throughout, so the reader is
+  told the page is out of date. What it does not say is that the CHART above it
+  is, and the chart is not the document that ruling was about.
+- **not fixed here, and deliberately.** Either answer changes what the 2026-09-14
+  deferral covers: repainting the trend in both branches makes the chart
+  disagree with the table under it, and deferring it in both leaves a dead
+  button as the only way to bring a chart up to date. That is a ruling.
+- **for the design authority:** when a measurement is ticked or unticked, should
+  the trend chart follow at once, or wait for **Generate report** with the rest
+  of the document?
+
+---
+
+### B8-249 · The ninth report of one second counted as the newest, and the sixteenth did not
+- blocks release: no
+- status: FIXED
+- found by: the challenge round against B8-246, 2026-09-16, reading the pack a
+  tester sent in rather than the code.
+- what a user sees: nothing, on the data measured, and that is the whole
+  report. One folder of that pack holds sixteen reports stamped
+  `2026-09-15_13-35-33`, and the row the window draws for that measurement
+  carried `_9`, not `_16`. All sixteen happen to carry the same report type and
+  the same limit set there, so no figure and no word on screen was wrong. The
+  promise was broken all the same, and the next Generate that changed either
+  would have been the one to show it: press **Generate report** ten times with
+  a different limit set on the tenth, and the window goes on describing the
+  ninth.
+- why: `_one_row_per_measurement` picked the greater FILE NAME as a string.
+  `save_report` numbers a second report of the same second `_2`, `_3`, …, and
+  `"report_…_9.json" > "report_…_16.json"`, so the comparison stops meaning
+  "newer" at ten. Its own docstring said *"The newest report of a measurement
+  wins, so the row carries the type and the limits the user most recently asked
+  for."*
+- fix: `_report_file_order` reads the name as what it is, the stamp as text
+  (`%Y-%m-%d_%H-%M-%S` sorts correctly that way) and the suffix as a number. A
+  name in no known shape sorts before every readable one rather than by
+  alphabet, so a file called `odd.json` cannot take a row off a stamped report.
+- **what is NOT claimed:** this does not make a report the pack seeded with a
+  file name stamped in the future lose to one saved today. That is the other
+  half of what a tester saw on this pack and it is a question about what
+  "newest" means when a file's name is not its save time, not a defect with an
+  obvious answer.
+- evidence: test_the_tenth_report_of_one_second_is_newer_than_the_ninth,
+  test_the_first_report_of_a_second_is_the_oldest_of_it,
+  test_a_later_second_wins_whatever_the_suffixes_are,
+  test_a_name_in_no_known_shape_never_jumps_the_queue,
+  test_the_merge_keeps_the_sixteenth_report_not_the_ninth.
+  Mutation proved to land by reading the file back: the string comparison put
+  back in `_one_row_per_measurement` (1 red).
 
 ---

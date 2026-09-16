@@ -516,19 +516,29 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # the English source under the beta rule and each rises by exactly 13.
 # RE-MEASURED with this file's own `_english_echoes` on the catalogues this
 # change leaves behind, never the old number plus thirteen.
+# RE-MEASURED 2026-09-16, B8-246: a report is written against ONE limit set,
+# so the red line that told a reader the table in front of them was not
+# comparable is replaced by three keys naming the measurements left out and
+# why. **3 keys in, 0 stale out**; all three are long enough to count here and
+# the old warning's two keys are still used as an unreachable backstop and were
+# translated everywhere, so they were never in these counts. German is
+# translated and does not move (4); the eleven others carry the English source
+# under the beta rule and each rises by exactly 3. RE-MEASURED with this file's
+# own `_english_echoes` on the catalogues this change leaves behind, never the
+# old number plus three.
 _BUDGET = {
     "de": 4,
-    "es": 191,
-    "fr": 192,
-    "it": 191,
-    "ja": 191,
-    "nl": 191,
-    "no": 191,
-    "pl": 191,
-    "pt": 191,
-    "ru": 190,
-    "sv": 191,
-    "zh_CN": 190,
+    "es": 194,
+    "fr": 195,
+    "it": 194,
+    "ja": 194,
+    "nl": 194,
+    "no": 194,
+    "pl": 194,
+    "pt": 194,
+    "ru": 193,
+    "sv": 194,
+    "zh_CN": 193,
 }
 
 

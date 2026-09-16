@@ -2134,6 +2134,45 @@ def limits_from_pair(avg_thr: float, max_thr: float) -> "dict":
     return limits
 
 
+def _comparable(value):
+    """*value* as something two limit copies can be compared by.
+
+    A stored threshold is JSON, so it is a number, a string ("x", "?"), None,
+    or a two-item list (the value and "should") for a recommendation. Lists
+    become tuples and dicts become sorted tuples of pairs, so the whole copy
+    can go into a set.
+    """
+    if isinstance(value, dict):
+        return tuple(sorted((str(k), _comparable(v)) for k, v in value.items()))
+    if isinstance(value, (list, tuple)):
+        return tuple(_comparable(v) for v in value)
+    return value
+
+
+def yardstick_key(compliance: "dict | None") -> "tuple | None":
+    """The limit set a report was judged against, as one comparable key.
+
+    **THE NUMBERS, NOT THE NAME.** Two runs can both say "ChromIQ default
+    (recommended)" and be judged against different numbers: a run carries a
+    COPY of the set it was bound to (§5 of
+    ``docs/design/measurement_report_limits.md``), and Preferences overrides,
+    an edit and a later factory change all move one copy without moving the
+    other. The window derives "(edited)" from exactly that difference and shows
+    it beside the name. So a key made of the name alone calls two different
+    yardsticks one yardstick, which is the mix this function exists to stop.
+
+    None when the report carries no record of what it was judged against; that
+    is not a set, and a caller must decide what such a column is judged with
+    rather than pretend it matches something.
+    """
+    if not isinstance(compliance, dict):
+        return None
+    thr = compliance.get("thresholds")
+    if not isinstance(thr, dict):
+        return None
+    return (str(compliance.get("set_id") or ""), _comparable(thr))
+
+
 def recorded_compliance(report: dict) -> "dict | None":
     """The limit-set block a report was SAVED with, or None (an older
     ChromIQ, or a damaged block). None never means "it failed"."""

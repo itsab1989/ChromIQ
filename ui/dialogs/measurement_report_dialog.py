@@ -351,6 +351,28 @@ def _small_sample_sentence(r: "dict | None") -> str:
               "the worst 5 %").format(n=_count if _count is not None else "?")
 
 
+def _report_file_order(name) -> tuple:
+    """Where one `report_<stamp>[_N].json` sits in the order they were written.
+
+    `save_report` stamps the file with the second it was saved and, for a
+    second report of the same second, appends `_2`, `_3`, …  Compared as
+    strings those stop sorting at ten: `"report_…_9.json"` is greater than
+    `"report_…_16.json"`, so "the newest report wins" quietly meant "the ninth
+    of that second wins". The stamp is read as text, which sorts correctly
+    because it is `%Y-%m-%d_%H-%M-%S`, and the suffix as the number it is.
+
+    A name in any other shape sorts BEFORE every readable one, whatever its
+    letters: it carries no evidence of when it was written, and a file called
+    `odd.json` must not win a row off a stamped report by alphabet.
+    """
+    import re as _re
+    text = str(name or "")
+    m = _re.fullmatch(r"report_(.+?)(?:_(\d+))?\.json", text)
+    if m is None:
+        return (0, text, 0)
+    return (1, m.group(1), int(m.group(2) or 1))
+
+
 def _is_raw_drift(r: dict) -> bool:
     """A recorded-raw verification sheet judged against the design: its job is
     drift, not accuracy — Pass/Fail against the profile thresholds would fail
@@ -1699,6 +1721,18 @@ class MeasurementReportDialog(QDialog):
         and the limits the user most recently asked for. Nothing is deleted:
         every file stays on disk and the types line still counts them all.
 
+        AND "NEWEST" IS NOT THE GREATEST FILE NAME AS A STRING.
+        `save_report` numbers a second report of the same second `_2`, `_3`, …,
+        so past nine the suffixes stop sorting: `"…_9.json" > "…_16.json"`, and
+        the row carried the NINTH report of that second instead of the
+        sixteenth. Measured on the pack a tester sent in, one folder holds
+        sixteen reports stamped `2026-09-15_13-35-33` and the string maximum of
+        them is `_9`. Nothing visible came of it there, because all sixteen
+        carry the same type and the same limit set; the promise in the
+        paragraph above was broken all the same, and the next Generate that
+        changes either would have been the one to show it.
+        `_report_file_order` reads the stamp and the suffix as what they are.
+
         AND THE KEY IS `_run_key`, WHICH INCLUDES THE DATE. This first shipped
         keyed on the folder and the file name alone, and that is not a
         measurement: measuring a run AGAIN archives the previous `.ti3` into
@@ -1732,8 +1766,8 @@ class MeasurementReportDialog(QDialog):
             if at is None:
                 seen[key] = len(out)
                 out.append(r)
-            elif (str(r.get("_report_file") or "")
-                    >= str(out[at].get("_report_file") or "")):
+            elif (_report_file_order(r.get("_report_file"))
+                    >= _report_file_order(out[at].get("_report_file"))):
                 out[at] = r
         return out
 
@@ -2394,10 +2428,21 @@ class MeasurementReportDialog(QDialog):
         window and the PDF, runs the user unticked excluded — so the location
         follows the SELECTED data, not what happens to be loaded. For a browsed
         measurement outside any ChromIQ project the report goes in a ``reports``
-        folder next to the file itself."""
+        folder next to the file itself.
+
+        AND "WHAT THE REPORT SHOWS" IS NOW NARROWER THAN "WHAT IS LOADED" IN A
+        SECOND WAY (B8-246): a document is written against one limit set, so
+        this asks `_runs_for_document`, the same list the body and the Generate
+        button ask. It asked `_runs_for_report`, and the first minute of the
+        challenge round after that fix found what that cost: a report
+        describing ONE run of a seven-run project offered to save itself into
+        the whole project's `reports/` folder, because the common ancestor of
+        seven runs is the `runs` container. The sentence above already said
+        this must follow the report; the list it asked had stopped being it.
+        """
         from core.file_manager import reports_subdir
         dirs = [Path(r["_origin_dir"])
-                for r in self._runs_for_report() if r.get("_origin_dir")]
+                for r in self._runs_for_document() if r.get("_origin_dir")]
         lca = self._lca_dir(dirs) if dirs else self._anchor_dir()
         # The common ancestor being the ``runs`` container itself means the
         # report spans multiple runs → it belongs to the whole profile.
@@ -3772,6 +3817,84 @@ class MeasurementReportDialog(QDialog):
                            graded=graded and not _by_type,
                            ungraded_reason=(SUMMARY_REASONS["record_type"]
                                             if _by_type and graded else ""))
+
+    def _yardstick_of(self, r: dict):
+        """The limit set a column is judged with, as a comparable key.
+
+        The RECORD first: a saved report carries the copy of the numbers it was
+        judged against, and that copy is the yardstick whatever the run is
+        bound to today. A column with no record is worked out live, so its
+        yardstick is the live one, which is what `_verdict_rows` uses for it.
+        """
+        from workflow.measurement_report import (recorded_compliance,
+                                                 yardstick_key)
+        comp = recorded_compliance(r)
+        if comp is not None:
+            return yardstick_key(comp)
+        from workflow.compliance_sets import limits_to_json
+        lim = self._limits_for(r)
+        return yardstick_key({"set_id": lim.set_id,
+                              "thresholds": limits_to_json(lim.limits)})
+
+    def _one_limit_set(self, runs: list) -> "tuple[list, list]":
+        """``(in the report, left out of it)``: ONE limit set per document.
+
+        **A REPORT IS WRITTEN AGAINST ONE "JUDGED AGAINST" SET, AND ONLY
+        MEASUREMENTS JUDGED AGAINST THAT SET MAY BE IN IT.** The project's
+        design authority, 2026-09-16, on a report of his own:
+
+            "the report sometimes lists in red text that several reports use
+            different Judged against threshold set […] only report data using
+            the same judged against threshold sets as the judge against
+            setting set in the report should be used when writing the report
+            text. Not mix them together in the report output."
+
+        Until now the document put every gathered measurement in one results
+        table whatever it had been judged against, printed a "Judged against"
+        row naming three different sets side by side, and mitigated it with a
+        red line saying the words were not comparable. Telling a reader that
+        the table they are reading cannot be read is not a report.
+
+        **THE HISTORY IS KEPT AND THE SETS ARE SEPARATED, which is not the same
+        as dropping either.** Every measurement is still gathered, still in the
+        run list, still tickable and still a point on the trend over time,
+        which plots measured values and carries no verdict. What narrows is the
+        DOCUMENT: the results, the metric tables and the comparison, the parts
+        that carry words.
+
+        **THE ANCHOR IS THE SHEET THE WINDOW IS ON**, never the pulldown. A
+        run's own profiling report is deliberately not recalculated when its
+        limit set changes (`_recalculate_run` walks `run.verifications()`,
+        which is what §5 of the design record specifies), so a run bound to one
+        set can hold a report judged against another, and anchoring on the
+        pulldown would throw the window's own subject out of its own report.
+        Where the subject is not in the list (the user unticked it), the newest
+        measurement in the list is the anchor, so the document is never empty.
+
+        A raw drift check is never judged at all and never leaves: it has no
+        verdict to be incomparable with.
+        """
+        if len(runs) <= 1:
+            return list(runs), []
+        judged = [r for r in runs if not _is_raw_drift(r)]
+        if not judged:
+            return list(runs), []
+        want = None
+        key = self._run_key(self._report) if self._report else None
+        if key is not None:
+            for r in judged:
+                if self._run_key(r) == key:
+                    want = self._yardstick_of(r)
+                    break
+        if want is None:
+            want = self._yardstick_of(judged[-1])
+        keep, out = [], []
+        for r in runs:
+            if _is_raw_drift(r) or self._yardstick_of(r) == want:
+                keep.append(r)
+            else:
+                out.append(r)
+        return keep, out
 
     def _judged_label_for(self, r: dict, *, mark_unsaved: bool = True) -> str:
         """What a column was judged against, for the grid and the provenance."""
@@ -5420,10 +5543,17 @@ class MeasurementReportDialog(QDialog):
             out.append(self._metric_table(dates, rows))
         return "".join(out)
 
-    def _scope_html(self, runs: list) -> str:
+    def _scope_html(self, runs: list, dropped: "list | None" = None) -> str:
         """Report Scope (Knut): which profiles + instruments are included, the run
         count and date range, and red warnings for mixed instruments or missing
-        cube colours."""
+        cube colours.
+
+        *dropped* is what `_one_limit_set` left out of this document. A
+        measurement that is loaded and not in the report has to be named here,
+        or the window quietly describes fewer sheets than the list beside it
+        shows, which is the honesty rule the "hidden by you" note below already
+        follows.
+        """
         from workflow.measurement_report import report_scope
         sc = report_scope(runs)
         verification = self._report_kind(runs) == "verification"
@@ -5516,7 +5646,42 @@ class MeasurementReportDialog(QDialog):
                     .format(n=hidden))
             out += (f"<div style='color:{_C['fail']};margin-top:6px'>"
                     + html.escape(note) + "</div>")
+        out += self._other_limit_sets_html(runs, dropped or [])
         return out + self._scope_warnings_html(sc["warnings"])
+
+    def _other_limit_sets_html(self, runs: list, dropped: list) -> str:
+        """Name every measurement `_one_limit_set` left out, and say why.
+
+        It replaces the red line this fault was reported on, which named the
+        same measurements and then left them in the table anyway.
+        """
+        if not dropped:
+            return ""
+        kept = [r for r in runs if not _is_raw_drift(r)]
+        mine = (self._judged_label_for(kept[-1], mark_unsaved=False)
+                if kept else "")
+        lead = (tr("One measurement loaded in this window was judged against "
+                   "a different limit set, so it is not in the results below.")
+                if len(dropped) == 1 else
+                tr("{n} measurements loaded in this window were judged against "
+                   "a different limit set, so they are not in the results "
+                   "below.").format(n=len(dropped)))
+        why = tr(
+            "This report is written against {set}. A verdict given on other "
+            "numbers cannot be read beside these ones, so it is left out "
+            "rather than mixed in. Nothing is deleted: every measurement is "
+            "still in the list and still on the trend over time, which plots "
+            "measured values and no verdicts."
+        ).format(set=mine)
+        from workflow.measurement_report import _run_label
+        lis = "".join(
+            "<li>" + html.escape(_run_label(r)) + ": "
+            + html.escape(tr("judged against {set}").format(
+                set=self._judged_label_for(r, mark_unsaved=False)))
+            + "</li>" for r in dropped)
+        return (f"<div style='color:{_C['fail']};margin-top:10px'>"
+                + "<div><b>" + html.escape(lead) + "</b> "
+                + html.escape(why) + "</div><ul>" + lis + "</ul></div>")
 
     def _run_description(self) -> str:
         """What the user wrote about this run, or "".
@@ -6263,6 +6428,11 @@ class MeasurementReportDialog(QDialog):
         _one_page = _tid == REPORT_TYPE_SUMMARY and report_type_is_built(_tid)
         if _one_page:
             runs = self._one_measurement(runs)
+        # ONE LIMIT SET PER DOCUMENT. Before the title, the head line, the PDF
+        # file name and every table, for the same reason the one-page summary
+        # narrows here: each of them is a claim about the sheets in the report,
+        # and a sheet that is not in it may not be counted in any of them.
+        runs, _other_sets = self._one_limit_set(runs)
         # **NAME THE TYPE THE DOCUMENT ACTUALLY IS, ALWAYS.** Knut,
         # 2026-09-14, with two PDFs of the same run attached: *"The top of the
         # Report scope also does not show the report type generated."* The
@@ -6317,8 +6487,9 @@ class MeasurementReportDialog(QDialog):
             family = QApplication.font().family().replace("'", "")
             return (f"<div style=\"font-family:'{family}';color:{_C['text']};"
                     f"font-size:12px\">"
-                    + head + self._one_page_html(runs) + "</div>")
-        parts = [head, self._scope_html(runs), self._how_to_read_html(),
+                    + head + self._one_page_html(runs, _other_sets) + "</div>")
+        parts = [head, self._scope_html(runs, _other_sets),
+                 self._how_to_read_html(),
                  self._report_results_html(runs)]
         if for_pdf and charts_html:
             parts.append(
@@ -6358,8 +6529,12 @@ class MeasurementReportDialog(QDialog):
         runs = self._runs_for_report()
         tid = self._report_type_now()
         if tid == REPORT_TYPE_SUMMARY and report_type_is_built(tid):
-            return self._one_measurement(runs)
-        return runs
+            runs = self._one_measurement(runs)
+        # …AND ONE LIMIT SET, exactly as `_report_body_html` narrows it. The
+        # two must agree: the button files a report for every measurement this
+        # answers, and a measurement the document does not describe must not
+        # get a file claiming it does.
+        return self._one_limit_set(runs)[0]
 
     def _one_measurement(self, runs: list) -> list:
         """The ONE measurement a one-page summary is about.
@@ -6390,7 +6565,7 @@ class MeasurementReportDialog(QDialog):
         # last one, never the first.
         return runs[-1:]
 
-    def _one_page_html(self, runs: list) -> str:
+    def _one_page_html(self, runs: list, dropped: "list | None" = None) -> str:
         """T1, "Colour summary (one page)": the page that goes with the job.
 
         **Knut** described it as the report handed to a customer with the print
@@ -6405,7 +6580,7 @@ class MeasurementReportDialog(QDialog):
         from workflow.compliance_sets import summary_text, word_label
         from workflow.measurement_report import SUMMARY_PATCH_COUNT
         r = runs[0]
-        out = [self._scope_html(runs)]
+        out = [self._scope_html(runs, dropped)]
 
         # -- the one line of numbers a reader acts on
         de = r.get("de00") or {}
