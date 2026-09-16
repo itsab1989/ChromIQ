@@ -10729,11 +10729,13 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   (`%Y-%m-%d_%H-%M-%S` sorts correctly that way) and the suffix as a number. A
   name in no known shape sorts before every readable one rather than by
   alphabet, so a file called `odd.json` cannot take a row off a stamped report.
-- **what is NOT claimed:** this does not make a report the pack seeded with a
-  file name stamped in the future lose to one saved today. That is the other
-  half of what a tester saw on this pack and it is a question about what
-  "newest" means when a file's name is not its save time, not a defect with an
-  obvious answer.
+- **the other half of it is B8-252**, registered below: a report the pack
+  seeded with a file name stamped in the future still beat one saved today.
+  This entry said that was "a question, not a defect with an obvious answer",
+  and the challenge round after it found the answer by driving the
+  consequence: **Generate report** wrote a file and the page went on
+  describing the seeded one. The order is the file's own time now, with the
+  name as the tie-break.
 - evidence: test_the_tenth_report_of_one_second_is_newer_than_the_ninth,
   test_the_first_report_of_a_second_is_the_oldest_of_it,
   test_a_later_second_wins_whatever_the_suffixes_are,
@@ -10851,5 +10853,54 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   test_no_label_in_this_window_is_styled_with_palette_mid.
   Mutation proved to land by reading the file back: `palette(mid)` returned for
   every mode (5 red).
+
+---
+
+### B8-252 · Generate report wrote a file and the page went on describing another one
+- blocks release: yes
+- status: FIXED
+- found by: the challenge round against B8-250, 2026-09-16, driving the real
+  window on the pack a tester supplied
+  (`~/Desktop/ChromIQ-beta20-proof/report-sets/round6-challenge/`).
+- what a user sees: a dated verification holding three saved reports, one of
+  them chosen in the new "Saved reports" pulldown, and **Generate report**
+  pressed. Measured: one new file on disk
+  (`report_2026-09-16_22-04-02.json`), the pulldown still at four entries, and
+  the page still describing `report_2026-11-02_10-00-00.json`. Nothing on
+  screen said a thing.
+- **two causes, and the second is the one B8-249 declined to answer.**
+  * `_on_generate_report` ended in `_refresh`, which redraws from
+    `self._sources` — the list `_gather_runs` filled when the measurement was
+    loaded. A report written a second ago is in neither, so it could not be in
+    the pulldown and could not be what the merge keeps. It now drops the
+    chosen-report override for each measurement it wrote for, because the user
+    has just asked for a NEW document of it, and re-reads the sources.
+  * and even then the merge kept the older file, because "the newest report of
+    a measurement" was decided by the file NAME. `save_report` stamps the name
+    with the second it saved, so on a disk where ChromIQ wrote everything the
+    two agree; they part company on a project made elsewhere. The demo packs
+    seed each report with the name they want its DATE to read, so every report
+    this tester generated on 15 September sorted below one named
+    `report_2026-11-02_10-00-00.json`.
+- **the file times say plainly what the names do not.** Measured on that pack:
+  the seeded `report_2026-11-02_10-00-00.json` files carry an mtime of
+  2026-09-15 13:36:00 and the reports he generated carry 2026-09-15 13:36:11.
+  `_report_order` is the file's own time, then `_report_file_order` as the
+  tie-break, so a copy that loses the times gives every file the same one and
+  the name decides exactly as it did before.
+- **and it explains the rest of what he reported.** With the order fixed, his
+  own run1 profiling window draws all seven runs against ONE limit set, Custom
+  ISO 12647-7, which is the set he last chose: the mixture B8-246 is about was
+  seven stale rows, each the pack's seeded report beating the one he had just
+  made. B8-246's rule still stands and still fires where two runs genuinely
+  disagree (`Report-Limits-Threshold-Series`, three runs, three sets, two left
+  out and named), and it is now the second line of defence rather than the
+  first.
+- evidence: test_the_file_written_last_wins_even_when_its_name_is_older,
+  test_generate_shows_the_report_it_just_wrote.
+  Three mutations proved to land by reading the file back: the mtime dropped
+  from `_report_order` (1 red), `_reload_sources` removed from
+  `_on_generate_report` (1 red), and the chosen-report override left in place
+  (1 red).
 
 ---

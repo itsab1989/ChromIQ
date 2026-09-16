@@ -391,6 +391,8 @@ def _report_file_order(name) -> tuple:
     A name in any other shape sorts BEFORE every readable one, whatever its
     letters: it carries no evidence of when it was written, and a file called
     `odd.json` must not win a row off a stamped report by alphabet.
+
+    THE NAME IS THE TIE-BREAK AND NOT THE ANSWER: see `_report_order`.
     """
     import re as _re
     text = str(name or "")
@@ -398,6 +400,37 @@ def _report_file_order(name) -> tuple:
     if m is None:
         return (0, text, 0)
     return (1, m.group(1), int(m.group(2) or 1))
+
+
+def _report_order(origin, name) -> tuple:
+    """When one saved report was written, for "the newest of them wins".
+
+    **THE FILE'S OWN TIME FIRST, THE NAME SECOND.** `save_report` stamps the
+    name with the second it saved, so on a disk where every report was written
+    by ChromIQ the two agree and this changes nothing. They part company on a
+    project that came from somewhere else: the demo packs a tester works from
+    seed each report with the name they want its DATE to read, so a report he
+    generated on 15 September sorted below one the pack had named
+    `report_2026-11-02_10-00-00.json`.
+
+    What that cost, driven in a real window: with an older report chosen in the
+    pulldown, **Generate report** wrote a file and the page went on describing
+    the one it was pointed at, because the merge still thought the pack's file
+    was the newest of the three. A button that writes a file and changes
+    nothing on screen is the complaint this window has already been through
+    twice.
+
+    Measured on that pack: the seeded `report_2026-11-02_10-00-00.json` files
+    carry an mtime of 2026-09-15 13:36:00 and the reports the tester generated
+    carry 2026-09-15 13:36:11, so the file times say plainly what the names do
+    not. A copy that loses the times (`cp` without `-p`) gives every file the
+    same one and the name decides, exactly as it did before.
+    """
+    try:
+        ns = (Path(origin) / "reports" / str(name)).stat().st_mtime_ns
+    except OSError:
+        ns = 0
+    return (ns, _report_file_order(name))
 
 
 def _is_raw_drift(r: dict) -> bool:
@@ -1865,8 +1898,10 @@ class MeasurementReportDialog(QDialog):
             if pick is None:
                 pick = group[0]
                 for r in group[1:]:
-                    if (_report_file_order(r.get("_report_file"))
-                            >= _report_file_order(pick.get("_report_file"))):
+                    if (_report_order(r.get("_origin_dir"),
+                                      r.get("_report_file"))
+                            >= _report_order(pick.get("_origin_dir"),
+                                             pick.get("_report_file"))):
                         pick = r
             # EVERY report file of this measurement, so the selector can offer
             # them without reading the folder again.
@@ -2667,7 +2702,26 @@ class MeasurementReportDialog(QDialog):
                 failed.append(str(origin))
         self._say_generated(saved, failed)
         self._forget_limits()
-        self._refresh()
+        # THE FILE IT JUST WROTE IS WHAT THE PAGE SHOWS, AND IT IS IN THE LIST.
+        # `_refresh` redraws from `self._sources`, which `_gather_runs` filled
+        # when the measurement was loaded, so a report written a second ago was
+        # in neither: the "Saved reports" pulldown went on naming the same four
+        # files and the page went on describing the one it was pointed at.
+        # Driven in a real window (B8-252): an older report of the date chosen
+        # in the pulldown, Generate pressed, one new file on disk, the selector
+        # still at four entries, and the document unchanged. A button that
+        # writes a file and changes nothing on screen is the exact complaint
+        # this window has already been through twice.
+        #
+        # So the choice this measurement carried is dropped, because the user
+        # has just asked for a NEW document of it, and the sources are read
+        # again so the file is in the list and is the one the merge keeps.
+        for r in reports:
+            self._chosen_reports.pop(self._run_key(r), None)
+        if saved:
+            self._reload_sources()
+        else:
+            self._refresh()
 
     def _say_generated(self, saved: list, failed: list) -> None:
         """SUCCESS IS QUIET; A FAILURE IS NOT.
@@ -3149,7 +3203,8 @@ class MeasurementReportDialog(QDialog):
         # the top, and `_report_file_order` is the window's one answer to
         # "which of these was written last".
         out.sort(key=lambda t: (str(t[0].get("created") or ""),
-                                _report_file_order(t[1])), reverse=True)
+                                _report_order(t[0].get("_origin_dir"), t[1])),
+                 reverse=True)
         return out
 
     def _saved_report_label(self, r: dict, name: str) -> str:

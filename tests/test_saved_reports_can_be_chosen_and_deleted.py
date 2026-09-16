@@ -496,3 +496,69 @@ def test_the_window_still_fits_the_screen_with_the_row_on_it(tmp_path, qapp):
         assert _fits(dlg)
     finally:
         dlg.close()
+
+
+# --------------------------------------------------------------------------
+# B8-252: the newest report is the one written last
+# --------------------------------------------------------------------------
+def test_the_file_written_last_wins_even_when_its_name_is_older(tmp_path, qapp):
+    """A project made elsewhere can carry a report whose NAME is a date in the
+    future: the demo packs seed each report with the date they want it to read.
+    A report generated today then sorted below it, and the window went on
+    describing the seeded one.
+
+    MUTATION: drop the mtime from `_report_order` and this goes red.
+    """
+    import os as _os
+    s, _fm, _run, vs = _env(tmp_path, dates=1, per_date=1)
+    d = vs[0].dir / "reports"
+    old_name = d / "report_2099-01-01_00-00-00.json"
+    (next(d.glob("report_*.json"))).rename(old_name)
+    from workflow.measurement_report import build_report, save_report
+    fresh = save_report(build_report(vs[0].measurement_ti3), vs[0].dir)
+    # the seeded file's NAME is later and its TIME is earlier, which is the
+    # shape measured on the pack
+    _os.utime(old_name, (1, 1))
+    assert old_name.name > fresh.name, "this test needs the name order reversed"
+    dlg = _dialog(s, vs[0].measurement_ti3, qapp)
+    try:
+        assert str(dlg._report.get("_report_file")) == fresh.name, (
+            f"the window shows {dlg._report.get('_report_file')}, which is not "
+            f"the file written last")
+    finally:
+        dlg.close()
+
+
+def test_generate_shows_the_report_it_just_wrote(tmp_path, qapp):
+    """A button that writes a file and changes nothing on screen.
+
+    Driven in a real window: an older report of the date chosen in the
+    pulldown, Generate pressed, one new file on disk, the selector still at
+    four entries and the document unchanged.
+
+    MUTATION: drop the `_chosen_reports.pop` loop, or the `_reload_sources`
+    call, from `_on_generate_report` and this goes red.
+    """
+    s, _fm, _run, vs = _env(tmp_path, dates=1, per_date=3)
+    dlg = _dialog(s, vs[0].measurement_ti3, qapp)
+    try:
+        # point the window at the OLDEST of the three
+        oldest = sorted(_reports(vs[0]))[0]
+        i = next(n for n in range(dlg._saved_combo.count())
+                 if dlg._saved_combo.itemData(n)[1] == oldest)
+        dlg._saved_combo.setCurrentIndex(i)
+        qapp.processEvents()
+        assert str(dlg._report.get("_report_file")) == oldest
+        before = set(_reports(vs[0]))
+        dlg._on_generate_report()
+        qapp.processEvents()
+        after = set(_reports(vs[0]))
+        written = sorted(after - before)
+        assert len(written) == 1, written
+        assert dlg._saved_combo.count() == len(after), (
+            "the report it just wrote is not in the list")
+        assert str(dlg._report.get("_report_file")) == written[0], (
+            f"Generate wrote {written[0]} and the page still describes "
+            f"{dlg._report.get('_report_file')}")
+    finally:
+        dlg.close()
