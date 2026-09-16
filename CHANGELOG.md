@@ -1,5 +1,86 @@
 # Changelog
 
+## v4.3.0-beta.19
+
+**Beta 18's warnings were rebuilt to describe the sheet you are looking at.
+Three testers then drove them on screen and found that the method was right and
+much of what stood on it was not: a chart could be judged on the one it
+replaced, a warning could fire on a tenth of a millimetre, and several remedies
+named a control that did not move the thing they blamed.**
+
+### Fixed
+
+- **A chart generated on top of another was judged on the one it replaced.**
+  The measurements of each page were remembered under the page files' names,
+  and generating again into the same run writes the same names, so the previous
+  chart went on judging every chart after it. A sheet with 40 mm of clear paper
+  was told the margin left 1.7 mm, and no amount of raising it changed a digit.
+  Pressing Generate again did not help; only a change in the number of pages, a
+  new project or a restart did.
+
+- **A warning could describe a sheet that was never drawn.** Turning a page,
+  ticking a guide box, or visiting Preferences recomputed the notice from the
+  boxes on screen while measuring the chart on disk, so a sheet built at 36 pt
+  could be judged as if it carried 6 pt text. Setting the boxes back made the
+  reminder to press Generate disappear while the false warning stayed.
+
+- **A warning could fire on a tenth of a millimetre**, on the stock i1Pro 3 and
+  ColorMunki presets, where nothing was wrong on the page. The check compared an
+  exact width against a measurement that necessarily lands on a whole pixel. It
+  now allows for one pixel, or 0.2 mm, whichever is larger, which is what the
+  smallest visible error costs at every resolution the app offers.
+
+- **And a second cause of false warnings, which the first fix would not have
+  touched:** the height of the bottom text was over-stated by about 0.9 mm at
+  10 pt and 2.2 mm at 28 pt, so "0.2 mm short" was printed over sheets with half
+  a millimetre of clear paper. The text's real ink is measured now.
+
+- **Four remedies named a control that could not help.** Narrowing the clip
+  border cannot work while the border is what holds the margin open; moving the
+  border to the other side swapped one red message for another with the ink
+  still on the patches; making the sheet text smaller does nothing below about
+  9 pt, where the line height has already reached its floor. Each is offered
+  now only where it moves the ink, and where nothing will, the message says so.
+
+- **The strip letters could be printed across the patches with nothing said.**
+  In "Prioritise patch size" the top-edge check could never fire at all: letters
+  were driven into the middle of the second row of patches in twenty-four
+  states and the panel reported the margins were fine. It speaks now, names
+  which control is holding the letters, and says plainly that "T" is not one of
+  them in that layout.
+
+- **And where it did speak, it spoke one step late**, because the letters' ink
+  starts about 1.3 mm below the line the check was measuring from, so its
+  remedy left a millimetre of every letter still on the patches.
+
+- **The sheet text was aligned on the margin you typed rather than the margin
+  the sheet has.** With a clip border or a honeycomb those are not the same
+  number, so the text did not sit where the alignment promised.
+
+- **"Size auto" kept the bottom text small when there was room for more.** It
+  now grows to fit the space it has, up to a sensible ceiling, so an empty sheet
+  does not get a shouting caption.
+
+- **The clip border's Notes box showed a locked 12 pt where it sizes itself.**
+  The box reads "auto" now, and the presets that carried the fixed value were
+  corrected.
+
+### Known issues
+
+- A remedy on the strip-letter warning in one layout could be followed to the
+  bottom of its box without clearing the collision; it names the lever that does
+  clear it now, but the family it belongs to has had three corrections in two
+  days and one more checking round is owed.
+- With "Prioritise patch size", "T" under "Text distance from edge (mm)" does
+  not move the strip labels; the top margin and the label offset do. Whether
+  that is the intended geometry or a gap in what "T" claims is being decided.
+- The bottom text's warning names the size of the overlap, and on a sheet whose
+  patch grid is re-fitted when the margin moves, raising the margin by exactly
+  that amount does not always clear it.
+- On a pointy-top honeycomb the strip-letter warning can fire where the letters
+  sit in the valleys between the apexes and no ink is on a patch. No preset
+  supplied with ChromIQ produces this.
+
 ## v4.3.0-beta.18
 
 **Four things a tester asked for, and what ten rounds of checking found behind
