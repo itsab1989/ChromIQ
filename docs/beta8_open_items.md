@@ -11154,6 +11154,7 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 - status: OPEN
 - **reproduced, understood, built, measured and then HELD.** The geometry is
   NOT changed. One question for the design authority, at the end.
+- **who decided what, for the record:** the checking round built this, measured its cost and HELD it on its own judgement; the maintainer agreed and confirmed the hold. **The ruling itself is the design authority's and is still outstanding**, asked on the issue with the measurement. A commit message first recorded the hold as the maintainer's decision, which overstated his part and risked reading as a closed question; that message has been corrected.
 - reported by a tester on beta 19, loading
   `CR30-A4-420p-1page-Portrait-w11.0mm-Hexagonal`: the panel said the left
   margin had to be widened from 13.0 mm to 14.0 mm to hold the row indicators,
