@@ -1,5 +1,125 @@
 # Changelog
 
+## v4.3.0-beta.18
+
+**Four things a tester asked for, and what ten rounds of checking found behind
+them: a report that was about the wrong run, a window that froze for four
+seconds, an import door that was not where anyone looked for it, and a handful
+of endings that left a run holding no measurement at all.**
+
+### New
+
+- **A profiling run can import an i1Profiler measurement on the Measurement
+  tab.** It sits beside GUIDED and MANUAL, where a tester went looking for it
+  after finding it on the Measurement tab for a verification and on the Build
+  ICC profile tab for a profile. The Build ICC profile tab keeps its own
+  import; this is a second door, not a move. The file is checked patch for
+  patch against that run's own chart, so a measurement of a different chart
+  with the same number of patches is refused rather than quietly profiled, and
+  the Build ICC profile tab picks the result up ready to build.
+
+### Changed
+
+- **The bottom-text warning now measures the sheet instead of predicting it.**
+  It reads the same numbers the "Measured from Preview" frame shows, on all
+  four sides, and it is worked out when the chart is generated rather than on
+  every keystroke, because the red line telling you to press Generate Chart
+  already covers the moment in between. On a chart with hexagonal patches this
+  is the difference between right and wrong: a honeycomb's last row hangs below
+  the grid the old prediction asked about, so a sheet whose text ran straight
+  through the patches was reported as having eight millimetres of clear paper.
+
+### Fixed
+
+- **A report generated on one profile run was another run's, and was saved
+  there.** In any project with more than one profile run, the Measurement
+  Report window opened on a run's own measurement showed, and filed, a
+  different run's, while the run you were standing in went on saying no report
+  had been generated for it. No error, no dialog, nothing in the log, which is
+  why it reached us as "it failed generating the report". Single-run projects
+  were never affected.
+
+- **And once that was fixed, the same window was still reading its own history
+  wrongly, three times over.** A run measured seventeen times listed seventeen
+  dates with every row carrying the same sheet's numbers; a run measured
+  eleven times listed one; and a single measurement with two saved reports of
+  it was listed as two measurement runs whose trend drew flat lines from the
+  measurement to itself. Of 54 saved reports on one real disk, four described
+  the measurement still sitting in their run folder. Saved reports on disk were
+  never harmed: it was the window reading them.
+
+- **Pressing FROM PROFILE GAMUT froze the window for about four seconds**, and
+  changing Margin froze it again, with nothing on screen to say work was
+  happening. It is about 1.4 seconds now, and a margin change about a
+  twentieth of a second. The answer it produces is unchanged, patch for patch:
+  the accuracy of that query decides what gets printed, so it was made faster
+  rather than cheaper.
+
+- **The two Install buttons disagreed about the name.** Build ICC profile
+  honoured "Name the installed copy after the description" and Check and Refine
+  used the run's own name and ignored the setting. Both take the name from the
+  profile's own description now. The profile inside your project still keeps
+  its own file name, which is deliberate. A description of `CON`, `nul` or 240
+  characters no longer produces a file name Windows refuses.
+
+- **Several endings left a run holding no measurement at all.** "Use last read
+  only", an average that refused, and pressing Cancel after "Measure again to
+  average" each moved the reading into the run's `reads` folder and then put
+  nothing back, so the run folder held no measurement, the Build Profile tab
+  named a file that no longer existed, and in one case nothing was said at all.
+  The reading is put back in every one of them now.
+
+- **A measurement that could not be started said nothing and left the tab
+  stuck.** With the ArgyllCMS folder set wrongly, the Measure tab showed
+  "Progress: 0.0%", a Stop button and "Keep calm, scan each strip with a slow,
+  steady motion" while nothing was running, and arrow keys stopped working
+  everywhere in ChromIQ until a restart.
+
+- **Generate Chart died in silence when the projects folder could not be
+  written**, an external disk unplugged or a share dropped, with no window and
+  no log line, and the button stayed greyed for the rest of the session.
+
+- **"Nothing was changed in your project" was said twice over things that had
+  been changed**: after a profile and every dated verification had been moved
+  into `old/`, and after a refused import had already created a run and moved
+  the project onto it.
+
+- **Switching on Calibration options removed the IMPORT door from every run
+  type**, because the preference hid the whole row it had joined.
+
+- **Paging to the last sheet of a chart made a red overlap warning disappear**,
+  since the paper beside a part-full page is the width of its empty half.
+
+- **"Location being edited" was drawn black on a near-black rail**, contrast
+  1.04 to 1, invisible in the default appearance on every screen.
+
+- **The trend told you to do the thing you had already done**, offering to show
+  all measurement runs with that box already ticked.
+
+- **The live preview and the printed sheet disagreed about the helper markers**
+  wherever both marker boxes were typed 0, because a box reading 0 draws 2 mm.
+
+- **Smaller ones in the same family:** an import asked whether to refine the
+  measurement it had just filed; a run's own chart could be imported as its own
+  measurement in silence; one press of Generate wrote a report for every report
+  the run already had; Generate stayed live over an empty list; Check and
+  Refine wrote a 63 KB quality report and its window never said so; and the
+  project manifest was the one file written without an atomic write, which then
+  had to be taught not to eat a symlink or drop the file's permissions.
+
+### Known issues
+
+- Two options on the Measurement tab share a row and clip mid-word in seven
+  languages. The pane has been a fixed width since April, so this is not new;
+  both remedies are a decision rather than a repair.
+- A measurement of a chart printed on a very dark substrate, with no spectral
+  columns to arbitrate, can be marked as being on the wrong colour scale. The
+  test is a lightest patch under about L* 12.5. This predates the work here and
+  is noted rather than changed, because the conversion side acts on the same
+  verdict and both want deciding together.
+- The gamut reach query still runs on the interface thread, so a slow profile
+  still costs about a second with nothing on screen to say so.
+
 ## v4.3.0-beta.17
 
 **A warning about the bottom text that was measuring the wrong two numbers, and
