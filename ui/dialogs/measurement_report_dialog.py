@@ -3284,12 +3284,41 @@ class MeasurementReportDialog(QDialog):
         against today's numbers, which is the one thing the lock is there to
         prevent. Nothing in the model governs deletion, so this rule waits for
         approval with M-REPORT-DELETE.
+
+        **AND IT IS ASKED OF THE FOLDER, NOT OF THE WINDOW'S OWN MEMORY.**
+        `_all_report_files` is filled when the window gathers its sources and
+        is refreshed only by `_reload_sources`, so the "is there a spare?"
+        half of this rule used to be answered from a snapshot. Combined round
+        2 drove two of these windows on one dated verification that really did
+        hold two reports, deleted the spare in the second window, and then
+        pressed Delete in the first WITHOUT touching its selector, which is
+        the one action that would have re-read the folder. The first window
+        still believed there was a spare, the refusal did not fire, and the
+        date's `reports/` folder was left EMPTY: the verdict this rule exists
+        to keep was gone, under a confirmation that said "One saved report of
+        it is left afterwards".
+
+        Nothing ships that way today, because every door that opens this
+        window opens it with `exec()` and a person cannot have two of them at
+        once. That is the only reason the snapshot was safe, and it was
+        written down nowhere, so
+        `tests/test_the_saved_report_delete_rule_is_decided_on_the_folder.py`
+        pins it. A rule a design document calls binding should not rest on a
+        modality by coincidence either, so the count is taken from the
+        directory the delete is about to write in: the same path
+        `_on_delete_report` builds. The session list stays as the fall-back
+        for a folder that cannot be read, which is the answer this had before
+        and is no worse than it was.
         """
         from core.file_manager import VERIFICATIONS_DIRNAME
         origin = Path(str(r.get("_origin_dir") or ""))
         if origin.parent.name != VERIFICATIONS_DIRNAME:
             return ""
-        if len(r.get("_all_report_files") or []) > 1:
+        try:
+            spares = len(list((origin / "reports").glob("report_*.json")))
+        except OSError:                       # unreadable: the answer it gave
+            spares = len(r.get("_all_report_files") or [])
+        if spares > 1:
             return ""
         return tr("The only saved report of a dated verification is kept: its "
                   "verdict is this run's record of that date.")
@@ -3433,7 +3462,20 @@ class MeasurementReportDialog(QDialog):
         ctx = self._run_ctx
         choices = self._saved_report_choices(ctx.run if ctx else None)
         r, name = self._chosen_pair(choices)
-        if r is None or self._saved_delete_refusal(r, name):
+        if r is None:
+            return
+        if self._saved_delete_refusal(r, name):
+            # A REFUSAL A READER CANNOT SEE IS A BUTTON THAT DOES NOTHING.
+            # This used to `return` here in silence, which was harmless while
+            # the only way to reach it was a state the row already showed. Now
+            # that the refusal asks the FOLDER, it can fire on a row whose
+            # button is still live because the window has not re-read the
+            # folder since -- and then the reader presses Delete and nothing
+            # whatever happens. So the window catches up with the disk and
+            # re-draws the row, which greys the button and puts the reason
+            # beside it in the words the row already uses. No new sentence:
+            # `_saved_delete_refusal` owns the only one there is.
+            self._reload_sources()
             return
         path = Path(str(r.get("_origin_dir") or "")) / "reports" / name
         left = max(0, len(r.get("_all_report_files") or []) - 1)

@@ -11479,3 +11479,202 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   200/300/600/1200 dpi, thirteen geometry rebuilds each, with no freeze. Driven
   on screen in real windows, photographed, in
   `~/Desktop/ChromIQ-beta20-proof/combined-round-1/`.
+
+### B8-274 · The sweep that checks every register citation could not see three of them
+- blocks release: no
+- status: FIXED
+- found by: the combined adversary round 2 over the merged tree, 2026-09-17,
+  pointed at round 1's own fix first, on the briefing's grounds that on this
+  feature three rounds running have each found a fault in the round before.
+- **round 1's fix itself holds, and that was checked before anything else.**
+  Every `B8-NNN` written outside the register in the collision range
+  (`B8-250` … `B8-272`) was read against the heading of the entry it names:
+  seventeen citations, in `ui/dialogs/measurement_report_dialog.py`,
+  `workflow/layout_engine/raster.py`, `docs/design/row_label_geometry.md`,
+  four test files and four drivers. Every one names the entry it is about.
+  The nine numbers in that range that have no entry at all are, correctly,
+  cited nowhere; they are not spelt out here, because this entry is swept like
+  any other and a record of a renumber that writes the dead numbers down is
+  exactly the exemption that lets a real one hide.
+- **what the guard could not have said.** Its sweep walked six named
+  directories and two file extensions, so three citations in the tree were
+  outside it, in two different shapes:
+  - a folder the list does not name: `.progress/hex-build/06-fourth.md` and
+    `07-fifth.md`, two tracked build notes, both citing `B8-80`;
+  - a file type the list does not read: `scripts/scanner_sweep/run-sweep.sh`
+    cites `B8-22` in its header comment, INSIDE a directory the list DID name,
+    and was skipped for its extension alone.
+  All three name entries that exist, so nothing was wrong. The point is that a
+  renumber moves numbers wherever they are written, and both of the records
+  this project keeps of what a renumber costs are prose files nobody thinks of
+  as code.
+- **what was changed:** the sweep starts at the repository root and skips only
+  what is not the tree (VCS, virtualenv, caches, build output, and
+  `.claude/worktrees/`, which held six leftover CHECKOUTS of this repository,
+  one still carrying the register from BEFORE the merge, with the eight
+  numbers the merge retired alive in it, so a sweep that walked them would
+  fail on another branch's history). File types are `.py`, `.md` and `.sh`, which is what
+  carries a citation today: measured over the whole tree, 1287, 1666 and 7.
+- **the other three ways the guard was probed, all sound:** a reworded
+  "Size = auto" heading fails loudly with a count, two matching headings fail
+  loudly with both ids, and an id inside a code string or a test name is caught
+  like any other, because the sweep reads text and not comments.
+- evidence:
+  `test_the_sweep_is_not_vacuous` now also requires the sweep to be reading
+  `.progress/` and `.sh` at all, by shape rather than by file name, so either
+  coverage cannot be lost quietly;
+  `test_every_b8_citation_names_an_entry_that_exists` is the sweep itself.
+- **mutation, proved to land, one at a time and restored:** an id in the 900s,
+  which the register does not define, appended to
+  `scripts/scanner_sweep/run-sweep.sh`, reds the sweep and names that file; a
+  second one appended to `.progress/hex-build/06-fourth.md` reds it and names
+  that one. Both were checked against the OLD sweep in the same run: it would
+  have read neither file. (The ids themselves are not written here for the
+  reason given above.)
+
+### B8-275 · The "only report of a dated verification is kept" rule was decided on a snapshot, and one window out of date could break it
+- blocks release: no
+- status: FIXED
+- found by: the combined adversary round 2, driving the seams round 1 did not
+  reach, on screen, photographed in
+  `~/Desktop/ChromIQ-beta20-proof/combined-round-2/`.
+- **the rule.** §5 of `docs/design/measurement_report_limits.md`: a dated
+  verification's last saved report stays, because every date of a run is judged
+  the same way and a date whose report is gone has no recorded verdict at all.
+- **the fault.** `_saved_delete_refusal` asked `_all_report_files`, a list
+  filled when the window GATHERED its sources and refreshed only by
+  `_reload_sources`. Two `MeasurementReportDialog` windows were opened on one
+  dated verification that really did hold two saved reports of one measurement.
+  The second window deleted the spare. The first was then asked to delete the
+  other WITHOUT touching its selector, because a re-pick is the one action that
+  re-reads the folder and a person who has already chosen their report does not
+  make it. The first window still believed there was a spare: Delete stayed
+  live, the refusal never fired, and the date's `reports/` folder was left
+  EMPTY, under a confirmation that said *"One saved report of it is left
+  afterwards"*. Photographed in `before-the-fix/` of the round-2 proof folder
+  (`W3-A-on-the-last-report.png`, `W4-after-A-tried.png`); `after-the-fix/`
+  holds the same four frames of the same run against the fixed code, where the
+  record survives, the button greys and the reason appears.
+- **NOTHING SHIPPED THAT WAY, and the reason was written down nowhere.** All
+  five doors that open this window open it with `exec()`, so a person cannot
+  have two of them on screen. That modality is the only thing that made the
+  snapshot safe. The one-window routes were checked and none of them shortens
+  the list: `Verification.archive_reports` COPIES rather than moves, and the
+  live file is rewritten under its own name, so a recalculate leaves every name
+  in `_all_report_files` valid.
+- **what was changed:** the count is taken from the directory the delete is
+  about to write in, which is the same path `_on_delete_report` builds, with
+  the session list kept as the fall-back for a folder that cannot be read. And
+  because the refusal can now fire on a row whose Delete is still live, the
+  refused branch re-reads instead of returning in silence, so the button greys
+  and the row shows the reason in the words it already had. No new message
+  text: `_saved_delete_refusal` owns the only sentence there is.
+- evidence:
+  `test_the_rule_is_decided_on_the_folder_and_not_on_a_stale_list` gives the
+  row a list one delete out of date and requires the record to survive;
+  `test_the_last_report_of_a_dated_verification_is_kept` and
+  `test_a_spare_on_disk_still_lets_a_report_go` hold the two ends, so the rule
+  cannot be satisfied by refusing everything;
+  `test_a_refused_delete_re_reads_instead_of_doing_nothing` keeps the refusal
+  visible; and `test_every_door_opens_the_report_window_modally` pins the
+  assumption that used to carry the whole thing.
+- **mutation, proved to land, one at a time and restored:** the stale count put
+  back reds the stale-list test while the other two stay green, which is why
+  they are not enough alone; a bare `return` in the refusal branch reds the
+  visibility test; `dlg.exec()` → `dlg.show()` in `ui/dialogs/tools_dialogs.py`
+  reds the modality test and names the line.
+- re-driven after the fix on the same two windows: the record survives, the
+  button greys, the reason appears.
+
+### B8-276 · OPEN, for the design authority · Deleting the only saved report of a PROFILING measurement removes that measurement from the window and the trend, and the confirmation does not say so
+- blocks release: no
+- status: OPEN
+- **nothing is changed. This is a question, asked with what it cost.** Round 1
+  raised it; round 2 measured it end to end and is not fixing it, because the
+  protection it would extend is §5 of a specification that is still a DRAFT,
+  `M-REPORT-DELETE` is still unapproved, and CLAUDE.md is explicit that a fault
+  which contradicts a specification is reported and reviewed, not corrected on
+  our own judgement.
+- **what was measured**, on screen in a real window, on a copy of a two-run
+  project (`delete-findings.json`, `01`–`06` in the round-2 proof folder):
+  the window opened on a profiling run listed TWO measurements, 2026-05-02 and
+  2026-08-11, the older of them present only because of its one saved report.
+  Delete was offered on it with no note, because `_saved_delete_refusal` covers
+  a dated verification and nothing else. After the delete: the report was gone
+  from disk, the run list fell from "2 runs" to "1 run", the 2026-05-02 row was
+  gone, and the colour-accuracy trend fell from 2 points to 1. Reopening the
+  window on the same measurement gave the same one row, so the date does not
+  come back.
+- **and the measurement really can be the only record.** The deleted report
+  described a sheet named `Demo-Full-RGB.ti3`, which is in no folder of that
+  project: both `.ti3` files on disk are the 2026-08-11 measurement. A run that
+  has been measured again keeps its older sheet under `old/<stamp>/` when the
+  re-measure went through ChromIQ, and does not when the report came from an
+  import or another chart. Either way the row, the verdict it was saved with
+  and its point on every trend go, and the window offers no route back to them.
+- **what the user is told**, verbatim, in a box that also says "ChromIQ cannot
+  undo this": *"The measurement it describes is not touched, and no other
+  report of that measurement is touched. 0 saved reports of it are left
+  afterwards."* The first sentence is true of the FILE and says nothing about
+  the row, the verdict or the trend point; the second is the only hint, and it
+  is a count rather than a consequence.
+- **the same act on a dated verification behaves differently**, and correctly:
+  Delete greys out and the row says *"The only saved report of a dated
+  verification is kept: its verdict is this run's record of that date."*
+  (`03-verification-report-selected.png`.)
+- **the question, for a tester rather than for a reader of this file:** *"In
+  the Measurement Report window, Saved reports, you can delete a report. For a
+  dated verification check, ChromIQ refuses to delete the last one and says
+  why. For a profile run's own measurement it does not refuse: when you delete
+  the last report of one, that measurement's date disappears from the list of
+  runs and from the trend charts, and it does not come back. Should ChromIQ
+  keep the last report of a profile run's measurement too, the way it keeps a
+  check's? Or should it let you delete it, and warn you first that the date
+  will leave the list and the charts?"*
+- until that is answered the behaviour stays exactly as it is.
+
+### B8-277 · What combined round 2 drove and did NOT find
+- blocks release: no
+- status: VERIFIED
+- **an honest empty round on everything but the two entries above**, recorded
+  so the next round does not pay for it again. All of it driven on screen in
+  real windows and photographed; proof in
+  `~/Desktop/ChromIQ-beta20-proof/combined-round-2/`.
+- **the 5.9-second repaint round 1 could not reproduce is REPRODUCED and
+  explained.** Round 1 recorded it as not reproduced, which was right, and also
+  called it "an early repaint", which its data could not say: the driver sorts
+  the times before writing them. Kept in order and repeated, it is the FIRST
+  margin repaint after the first 1200 dpi Generate in a process that has
+  already built 200, 300 and 600 dpi: 6085.4 ms and 6056.5 ms on two separate
+  runs, with the next eleven at 182 to 233 ms. It does not return on the second
+  or third pass over the same four resolutions, and a fresh process taken
+  straight to 1200 dpi never shows it (max 184.7 ms). The cause is the
+  process's own memory and not the layout code: that one sample took **22,287
+  minor page faults against about 5,100 for every other sample in the run**,
+  zero major faults, no Python collection, while resident memory went from
+  2.40 GB to 4.65 GB across the Generate. A user can meet it — build charts at
+  a few resolutions, end at 1200 dpi, then touch a margin box — and it costs
+  about six seconds, once per session, with nothing lost.
+- **the "Saved reports" pulldown on a measurement with only ONE report**, which
+  is the commonest shape. The row is shown, the pulldown offers one entry, and
+  choosing it re-reads every source off disk and changes nothing: not the
+  document, not the run list, not the trend. It costs **56.4 ms**, not the
+  2.57 s a first cut of this round reported, which was its own `pump` and was
+  re-measured. The row still earns its place, because Delete lives on it and
+  works. Not a fault: the degenerate case of a control that is right in general.
+- **two projects in one session**: adding a second project's measurement to an
+  open window gave 2 sources, 4 measurements, 4 trend points and both named in
+  the list by their chart. Correct.
+- **a project reopened from disk after a delete** agrees with the window that
+  did the deleting.
+- **a report file landing in a run's `reports/` while the window sits open** is
+  not noticed until the window re-reads — a re-pick in the pulldown, or
+  reopening. No rule is broken by it and nothing is lost; it is recorded here
+  because it is what led to B8-275.
+- **the register's own trail**, re-checked past round 1: every citation in the
+  collision range names the entry it is about (B8-274), and B8-273's own
+  `evidence:` line names tests that exist.
+- evidence: `QT_QPA_PLATFORM=offscreen pytest -n auto`, the everyday tier,
+  after this round's change set: **16013 passed, 321 skipped, 4 xfailed,
+  exit 0**, in 2:19. Round 1 left it at 16007 passed; the six new ones are the
+  guards named in B8-274 and B8-275.

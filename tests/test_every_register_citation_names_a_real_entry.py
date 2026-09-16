@@ -55,7 +55,37 @@ def _register_text() -> str:
 #: `B8-1xx` and friends: a deliberate wildcard, not a citation.
 _CITATION = re.compile(r"\bB8-(\d+)\b")
 
-_SEARCHED = ("ui", "workflow", "core", "tests", "scripts", "docs")
+#: **THE WHOLE TREE, NOT SIX FOLDERS OF IT.** The first cut of this sweep
+#: walked a list of six directories and two extensions, and combined round 2
+#: went looking for a citation it would miss. It found three, in two shapes,
+#: and the shapes are what matter rather than the three files:
+#:
+#: * a citation in a folder the list does not name -- `.progress/hex-build/`
+#:   holds two build notes that cite `B8-80`;
+#: * a citation in a file type the list does not read -- the sweep took `.py`
+#:   and `.md` only, and `scripts/scanner_sweep/run-sweep.sh` names `B8-22` in
+#:   its header comment, INSIDE a directory the list did name.
+#:
+#: All three name entries that exist, so nothing was wrong; the point is that
+#: the guard could not have said so. A renumber moves numbers wherever they
+#: are written, and the two records this project keeps of what a renumber cost
+#: are both in prose files nobody thinks of as code.
+#:
+#: So the walk starts at the repository root and skips only what is not the
+#: tree: the VCS and virtualenv directories, build and cache output, and
+#: `.claude/worktrees/`, which holds whole leftover CHECKOUTS of this same
+#: repository from parallel agent runs. That last one is not academic -- at
+#: the time this was written six of them were on disk, one still carrying the
+#: register from before the merge, with `B8-253` … `B8-257` alive in it. A
+#: sweep that walked them would fail on another branch's history.
+_SKIP_DIRS = frozenset((
+    ".git", ".venv", "venv", ".claude", "node_modules", "__pycache__",
+    ".mypy_cache", ".pytest_cache", ".ruff_cache", ".tox", "build", "dist",
+))
+
+#: Only these carry citations today (`.py` 1287, `.md` 1666, `.sh` 7, measured
+#: over the whole tree), and they are the three a person writes prose in.
+_SUFFIXES = frozenset((".py", ".md", ".sh"))
 
 
 def _defined() -> set:
@@ -71,10 +101,11 @@ _SELF = pathlib.Path(__file__).resolve()
 
 
 def _files():
-    for d in _SEARCHED:
-        for p in sorted((ROOT / d).rglob("*")):
-            if p.suffix in (".py", ".md") and p.is_file() and p != _SELF:
-                yield p
+    for p in sorted(ROOT.rglob("*")):
+        if _SKIP_DIRS.intersection(p.parts):
+            continue
+        if p.suffix in _SUFFIXES and p.is_file() and p != _SELF:
+            yield p
 
 
 def _citations():
@@ -96,6 +127,16 @@ def test_the_sweep_is_not_vacuous():
     """Guard the guard: a sweep that finds nothing would pass for ever."""
     cites = _citations()
     assert len(cites) > 200, f"only {len(cites)} citations found; the sweep is broken"
+    # THE THREE THE NARROW SWEEP COULD NOT SEE, by shape rather than by name:
+    # one outside the six directories it walked, one in a file type it did not
+    # read. If either shape stops being covered this says so before a renumber
+    # does.
+    seen = {p.relative_to(ROOT).as_posix() for p, _ in cites}
+    assert any(f.startswith(".progress/") for f in seen), (
+        "the sweep no longer walks .progress/, where two build notes cite B8 ids")
+    assert any(f.endswith(".sh") for f in seen), (
+        "the sweep no longer reads .sh, where scripts/scanner_sweep/run-sweep.sh "
+        "cites B8-22 in its header")
     assert len(_defined()) > 200, "the register was not parsed"
 
 
