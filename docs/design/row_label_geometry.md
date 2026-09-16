@@ -449,5 +449,5 @@ presets, including the one he reported, cost nothing.
 
 An extra sheet is paper, ink and measuring time, and the notice this removes is
 a true disclosure that R1.5 requires. That trade is his to make, so §R8 stays
-here as a proposal and `apply_row_label_geometry` is unchanged. B8-250 carries
+here as a proposal and `apply_row_label_geometry` is unchanged. B8-265 carries
 the measurement and the question in the form he can answer.

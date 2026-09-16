@@ -10184,7 +10184,7 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 - status: SUPERSEDED
 - superseded by: B8-270
 - he ruled **No** on 2026-09-16: the geometry stays, and the help text
-  now says so. What was implemented is B8-255. The measurement below is
+  now says so. What was implemented is B8-270. The measurement below is
   what the question was asked from and is kept as it was.
 - reported, not implemented. The geometry was NOT changed.
 - the measurement, on screen, i1Pro / A4 / "Prioritise patch size" / margins 12
@@ -10221,7 +10221,7 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 - superseded by: B8-271
 - he answered on 2026-09-16, accepting option 3 *"as long as a search is
   done after a generate chart and margins have been measured"*. What was
-  implemented is B8-256, and B8-254 then narrowed it so no value is named
+  implemented is B8-271, and B8-269 then narrowed it so no value is named
   in "Prioritise patch size".
 - reported, not implemented.
 - the ruling this sits under: the search that answered *"how much more margin
@@ -10332,7 +10332,7 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 - superseded by: B8-272
 - he ruled on 2026-09-16: *"use the 'Measured from Preview' top margin as
   an apex, which is the top margin line measured."* The behaviour below is
-  therefore correct; it is now guarded rather than changed. See B8-257.
+  therefore correct; it is now guarded rather than changed. See B8-272.
 - reported, not implemented. Nothing was changed, because the rule it follows is
   the design authority's own ruling of 2026-09-15 (*"the calculations should use
   the Measured from Preview numbers"*) and this is that rule meeting a hexagon.
@@ -11401,3 +11401,80 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   measured-margin guard (1 red).
 
 ---
+
+### B8-273 · The merge renumbered ten entries and six pointers did not move, two of them onto the wrong entry
+- blocks release: no
+- status: FIXED
+- found by: the combined adversary round over the merged tree, 2026-09-17,
+  checking the briefing's own instruction that "nothing still points at a
+  number that moved".
+- **the merge is where this comes from, and neither branch could have seen
+  it.** Three features were built in parallel and merged by hand. Two of them
+  had numbered their register entries out of the same free block, so ten of the
+  layout branch's entries were renumbered on the merge: `B8-250` … `B8-257`
+  became `B8-265` … `B8-272`. The merge note in this file says the references
+  moved with them. Six did not, and they are two different faults:
+  - **Four point at nothing at all.** `B8-239` said *"what was implemented is
+    B8-255"*, `B8-240` said *"implemented is B8-256, and B8-254 then narrowed
+    it"*, and `B8-242` said *"See B8-257"*. None of `B8-253` … `B8-257` exists
+    in the merged register, so the trail from each ANSWERED question to the
+    entry that settled it simply stopped. All three of those entries have a
+    correct `superseded by:` line, which is exactly why nobody noticed: the
+    forward pointer was right and the sentence underneath it was not.
+  - **Two point at the WRONG entry, which is worse, because they read as
+    correct.** `workflow/layout_engine/raster.py` (twice) and §R8 of
+    `docs/design/row_label_geometry.md` all said the held "Size = auto"
+    decision is carried by `B8-250`. In the merged register `B8-250` is the
+    Measurement Report's "Saved reports" row, and the auto-size decision is
+    `B8-265` — the one entry the owner has deliberately left unshipped,
+    because shipping it costs three Letter hexagonal presets an extra sheet.
+    A pointer that leads somewhere else is how a held decision gets lost, and
+    one of the two is in a **binding design document**, which a reader is
+    obliged to consult before changing that area.
+- **what was changed:** the six citations, and nothing else. `B8-265` is not
+  shipped, not undone, and not touched; this entry only makes the three places
+  that talk about it say its number.
+  - `docs/beta8_open_items.md` — B8-255 → B8-270, B8-256 → B8-271,
+    B8-254 → B8-269, B8-257 → B8-272, each checked against the heading of the
+    entry it now names.
+  - `workflow/layout_engine/raster.py` lines 976 and 1010 — B8-250 → B8-265.
+  - `docs/design/row_label_geometry.md` §R8 — B8-250 → B8-265.
+- the guard lives in
+  `tests/`, in the file named for this rule (`..._every_register_citation_...`).
+- evidence:
+  `test_every_b8_citation_names_an_entry_that_exists` sweeps every `B8-NNN`
+  written in `ui/`, `workflow/`, `core/`, `tests/`, `scripts/` and `docs/` and
+  fails on one the register does not define;
+  `test_the_held_auto_size_decision_points_at_its_own_entry` asks the register
+  for the id of the entry whose HEADING says "Size = auto" and requires the two
+  files that discuss it to cite that id, so the next renumber moves the
+  expected answer instead of breaking the test;
+  `test_a_superseded_entry_points_forward_to_a_real_settlement` requires every
+  `superseded by:` to name a defined, later entry; and
+  `test_the_sweep_is_not_vacuous` fails if the sweep stops finding citations at
+  all. The register's own merge note, and this test file's own prose, are the
+  two places allowed to write a retired number, and both exemptions are
+  explicit.
+- **mutation, proved to land, one at a time:** `B8-265` → `B8-250` in
+  `raster.py` reds `test_the_held_auto_size_decision_points_at_its_own_entry`
+  and names the entry it landed on; the same in `row_label_geometry.md` reds
+  the same test; `B8-270` → `B8-255` in this file reds
+  `test_every_b8_citation_names_an_entry_that_exists`. All three restored and
+  green.
+- **and what this round did NOT find**, measured rather than assumed, so the
+  next round does not pay for it again: the twelve catalogues hold one
+  identical key set with 0 missing and 0 stale against what the code asks for,
+  and both untranslated budgets are the tree's own count with ZERO slack in all
+  twelve languages; no hunk of either parent branch was lost in either merge;
+  every `evidence:` line on B8-246 … B8-272 names test functions that exist;
+  the bottom-text notice's named rise is a promise that keeps (16.5 mm named,
+  applied, the notice cleared, the measured patch bottom moved 4.98 → 21.58 mm);
+  the "only saved report of a dated verification" rule holds on every entry of
+  the selector after a generate and a delete; Generate report shows what it
+  wrote; the "Saved reports" pulldown really does re-anchor the document
+  (1 row → 12 when the yardstick changes) and the Report Scope names all eleven
+  measurements it leaves out and why; 1200 dpi has a preview and no error; and
+  the restored rise search costs the panel 50/60/75/173 ms per frame repaint at
+  200/300/600/1200 dpi, thirteen geometry rebuilds each, with no freeze. Driven
+  on screen in real windows, photographed, in
+  `~/Desktop/ChromIQ-beta20-proof/combined-round-1/`.

@@ -973,7 +973,7 @@ def apply_row_label_geometry(geom, kw: dict):
                 float(_DEFAULT_TEXT_EDGE_CLIP_MM if _edge is None else (_edge or 0.0)),
                 float(kw.get("clip_border_width") or 0.0) if has_border else 0.0,
                 _marker_floor)
-    # **"auto" PICKING A SIZE THAT FIRES ITS OWN WARNING IS B8-250, AND THE
+    # **"auto" PICKING A SIZE THAT FIRES ITS OWN WARNING IS B8-265, AND THE
     # FIX FOR IT IS HELD.** The design authority asked for it on beta 19,
     # loading `CR30-A4-420p-1page-Portrait-w11.0mm-Hexagonal`: *"Since size is
     # set to auto, I would expect the label text size to be found where there
@@ -1007,7 +1007,7 @@ def apply_row_label_geometry(geom, kw: dict):
     # §R1.5 of `docs/design/row_label_geometry.md`, which says the margin is
     # raised, never lowered.
     #
-    # So nothing here changes until he rules. B8-250 carries the measurement
+    # So nothing here changes until he rules. B8-265 carries the measurement
     # and the question.
     needed = floor + measured + 1.0
     margin_l = max(float(getattr(geom, "margin_l", 0.0) or 0.0), needed)
