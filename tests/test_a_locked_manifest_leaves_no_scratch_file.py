@@ -139,3 +139,44 @@ def test_an_ordinary_write_keeps_the_flags_it_was_given(tmp_path):
         assert json.loads(p.read_text(encoding="utf-8"))["name"] == "new"
     finally:
         _unlock_everything(tmp_path)
+
+
+def test_the_unlock_never_reaches_through_the_scratch_name(tmp_path):
+    """The other half of the promise: only the SCRATCH file, never the user's.
+
+    `_unlock_scratch_file`'s own docstring says "the user's own file is never
+    touched", and `stat`/`chflags` FOLLOW a symlink - so with the scratch NAME
+    standing as a link to the manifest, the unlock reached through it and took
+    the Finder Lock off the user's file. Measured on screen, combined round 11
+    (`A-result.json`, shape 20): a `project.json` locked in the Finder came out
+    of a failed write with its flags at 0.
+
+    MUTATION: put `tmp.stat()` and the following `chflags` back and this reds.
+    """
+    p = _locked_manifest(tmp_path)
+    (tmp_path / "project.json.tmp").symlink_to(p.name)
+    try:
+        with pytest.raises(PermissionError):
+            write_json_atomically(p, {"schema_version": 2, "name": "new"})
+        assert p.stat().st_flags & _UF_IMMUTABLE, (
+            "the unlock reached through the scratch NAME and took the Lock "
+            "off the user's own manifest")
+        assert json.loads(p.read_text(encoding="utf-8")) == {"old": True}
+    finally:
+        _unlock_everything(tmp_path)
+
+
+def test_the_scratch_file_is_still_unlocked_when_it_is_a_real_file(tmp_path):
+    """And the no-follow call must not have made the unlock itself inert.
+
+    The control for the test above: on the shape B8-227 exists for - a locked
+    manifest, an ordinary scratch file - the lock bits still come off, which is
+    what lets the cleanup delete it.
+    """
+    p = _locked_manifest(tmp_path)
+    try:
+        with pytest.raises(PermissionError):
+            write_json_atomically(p, {"schema_version": 2, "name": "new"})
+        assert sorted(q.name for q in tmp_path.iterdir()) == ["project.json"]
+    finally:
+        _unlock_everything(tmp_path)

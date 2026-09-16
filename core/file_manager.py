@@ -672,12 +672,22 @@ def _unlock_scratch_file(tmp: Path) -> None:
     platform without ``os.chflags`` (Windows) has nothing to do here, and a
     failure is never fatal - this exists so a cleanup cannot be blocked, and
     refusing to write because the cleanup might be untidy would be worse.
+
+    AND "NEVER TOUCHED" HAS TO MEAN THE LINK TOO. ``stat`` and ``chflags``
+    FOLLOW a symlink, so with the scratch NAME standing as a link to the
+    user's own manifest this reached through it and cleared the Lock on the
+    user's file - the one thing the paragraph above promises it does not do.
+    Measured, combined round 11 (`A-result.json`, shape 20): a
+    ``project.json`` locked in the Finder came out of a failed write unlocked.
+    ``lstat``/``lchflags`` ask about the name in hand, so a scratch name that
+    is a link carries no lock bits of its own and this leaves everything
+    alone, which is right: a link is not a file this helper created.
     """
-    chflags = getattr(os, "chflags", None)
+    chflags = getattr(os, "lchflags", None) or getattr(os, "chflags", None)
     if chflags is None:
         return
     try:
-        st = tmp.stat()
+        st = os.lstat(tmp)
     except OSError:
         return
     flags = getattr(st, "st_flags", 0)

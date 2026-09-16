@@ -9780,10 +9780,110 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   test_the_note_is_silent_on_nothing_at_all,
   test_the_tag_is_the_mark_that_goes_after_the_name,
   test_the_door_asks_about_the_colour_scale (parametrised over all three
-  doors), test_all_three_doors_are_still_listed,
+  doors), test_all_four_doors_are_still_listed,
   test_the_sentence_lives_in_exactly_one_module,
   test_the_sentence_is_not_new_text.
   Two mutations proved to land and both caught: one door's call removed (1
   red), and the shared reading made to accuse nothing (1 red).
+
+---
+
+### B8-229 · The scratch-file unlock reached through a link to the user's own manifest
+- blocks release: no
+- status: FIXED
+- found by: combined adversary round 11, 2026-09-16 — the round asked to
+  CONFIRM B8-227 and B8-228 before a tag, and this is a fault inside B8-227's
+  own fix. Third round running to find one in the round before it.
+- what a user sees: nothing, unless a `project.json.tmp` in a project folder is
+  a symlink to `project.json` — which nothing in ChromIQ creates. Then a
+  manifest the user has **Locked in the Finder** comes out of a failed write
+  **unlocked**, and the lock they set is gone with no word said.
+- why: B8-227 added `_unlock_scratch_file`, whose docstring promises *"Only
+  ever the SCRATCH file: the user's own file is never touched."* It used
+  `tmp.stat()` and `os.chflags`, and both FOLLOW a symlink, so with the scratch
+  NAME standing as a link the unlock landed on the link's TARGET, which is the
+  user's own file.
+- measured on screen in a live session, combined round 11 (`A-result.json`,
+  shape 20, one of 24 shapes driven): a `project.json` with `st_flags 0o2` came
+  out of the failed write with `st_flags 0o0`, its content correctly untouched.
+- fix: `os.lstat` and `os.lchflags` — ask about the NAME in hand. A scratch
+  name that is a link carries no lock bits of its own, so nothing is touched at
+  all, which is right: a link is not a file this helper created. One line each,
+  no behaviour change on the shape B8-227 exists for.
+- proved after: the same 24 shapes re-driven with the fix (`A-result.json`) —
+  shape 20 now keeps `st_flags 0o2`, and every other shape is unchanged: 12
+  writable shapes carry mode and non-blocking flags across and change the
+  content, 8 locked or append-only shapes refuse and leave the manifest exactly
+  as it was, and no shape leaves a scratch file the helper created. Driven
+  through a REAL ACTION as well (`H-result.json`, `H-*.png`): laying a chart
+  into run 2 of a project whose scratch name was a link to a Locked manifest
+  was refused by B8-223's own window and left the Lock on.
+- and the attempt the fix exists for: an undeletable scratch file could not be
+  made by any route reachable from the app. Tried, all on screen: a locked
+  manifest, a locked project FOLDER, both at once, a stale locked
+  `project.json.tmp`, a read-only folder with a locked scratch file in it, a
+  scratch name that is a directory, a scratch name that is a link, two separate
+  volumes (HFS+ and FAT32) with and without the lock. The system-immutable bits
+  cannot reach a scratch file at all: this user cannot set `SF_IMMUTABLE`
+  (`A3-system-immutable.json`), so `copystat` can never copy one.
+- NOT fixed, and stated rather than hidden: in a READ-ONLY folder that already
+  holds a `project.json.tmp`, that file is written into and then cannot be
+  removed, because the process may not delete anything in that folder. It is
+  removable the moment the folder is writable, it is not the undeletable file
+  B8-227 exists for, and no code inside the helper can fix it.
+- evidence: test_the_unlock_never_reaches_through_the_scratch_name,
+  test_the_scratch_file_is_still_unlocked_when_it_is_a_real_file.
+  One mutation proved to land and caught: `tmp.stat()` and the following
+  `chflags` put back (1 red, 7 green; restored, 8 green) — `mutations.txt`.
+
+---
+
+### B8-230 · A fourth door saved a dated report from a measurement on the wrong colour scale
+- blocks release: no
+- status: FIXED
+- found by: combined adversary round 11, 2026-09-16, hunting for the fourth way
+  in that B8-228's own brief asked about.
+- graded INHERITED, NOT INTRODUCED, exactly like B8-228: Tools ▸ *"Measurement
+  report"* has taken any `.ti3` since long before this batch.
+- what a user sees: a `.ti3` whose XYZ is on the 0-to-1 scale opens in the
+  Measurement Report window — either because the loaded project's run holds one
+  (the window seeds itself from it) or through **Add Profile's Measurements…**,
+  which the Tools ▸ *"Convert i1Profiler → TI3"* help text points people at by
+  name. Every figure in the document is computed from it, and **Generate
+  report** files a dated report whose own `paper_white` reads `L* 8.89`. The
+  window said nothing.
+- driven on screen before the fix (`D-result.json`, `D1`–`D3`): every word the
+  live window showed was collected — buttons, help text, notices, list rows —
+  and not one of them mentions the scale; `report_2026-09-16_03-44-13.json` was
+  filed with `paper_white.lab [8.89, -3.28, 15.18]`.
+- why: `_as_ti3` hands a `.ti3` straight through — no conversion, so
+  `repair_converted_cie` never runs on it — and B8-228's shared reading was
+  wired to three doors, not this one. This is the door where the harm B8-228
+  named actually happens: it is the thing that writes the dated document.
+- fix: the same shared check, asked once where a measurement joins the window
+  (`_append_source`), with the answer kept on the source. The list row carries
+  the same mark after the same name the other three doors put it after, and the
+  sentence goes on its own hidden row under the buttons, the way the
+  settings-changed notice already does.
+- NO NEW MESSAGE TEXT. The two strings are B8-228's, already in all twelve
+  catalogues, referenced and not copied — the test that refuses a second copy
+  still passes.
+- said, not mended and not forbidden: nothing is refused, nothing is rewritten,
+  the report is still generated. The window simply stops being silent.
+- proved after (`E-result.json`, `E1`–`E3`, `G1-the-report-window-with-the-
+  sentence.png`): the row reads *"Demo-Switching · 2 runs · colour values on
+  the wrong scale"* and the sentence is on screen in the window's warning
+  colour, measured at 1406×32 px. The control matters as much (`F-result.json`,
+  the same drive on the SAME project with the measurement left exactly as
+  measured): the window says nothing, the row is clean, and the report is filed
+  as before.
+- evidence: test_the_report_window_says_it_on_a_measurement_on_the_wrong_scale,
+  test_the_report_window_is_silent_on_an_ordinary_measurement,
+  test_the_door_asks_about_the_colour_scale (now parametrised over four doors),
+  test_all_four_doors_are_still_listed,
+  test_the_sentence_lives_in_exactly_one_module.
+  Three mutations proved to land and all caught: the refresh call removed (1
+  red), the row's mark removed (1 red), and the reading made to answer nothing
+  (1 red) — `mutations.txt`.
 
 ---

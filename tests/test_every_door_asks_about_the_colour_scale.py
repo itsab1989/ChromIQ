@@ -1,4 +1,4 @@
-"""Three doors take a `.ti3` in, and only one of them asked about its scale.
+"""Four doors take a `.ti3` in, and only one of them asked about its scale.
 
 `repair_converted_cie` puts i1Profiler's 0-to-1 XYZ right on every path that
 CONVERTS an export. A `.ti3` that was converted before that repair existed is
@@ -19,8 +19,18 @@ counts and device values all still match the run's own chart):
 INHERITED, NOT INTRODUCED: the verification door has shipped this way since the
 reading was written on 2026-09-11, and the profiling door was built the same
 way. The lesson of B8-199 is that a fourth door will be written one day against
-whichever base is current then, so this fails when ANY of the three stops
+whichever base is current then, so this fails when ANY of the doors stops
 asking, and when the sentence grows a second copy.
+
+AND THE FOURTH DOOR WAS ALREADY THERE (B8-230, combined round 11). Tools >
+"Measurement report" takes any `.ti3` - `_as_ti3` hands one straight through,
+so no conversion runs and no repair with it - and it is the window that SAVES
+A DATED DOCUMENT from the numbers. Driven on screen on a project whose run
+held such a measurement: the window opened on it, listed it, showed every
+figure computed from it, and Generate report filed
+`report_2026-09-16_03-38-25.json` whose own `paper_white` reads `L* 8.89`,
+with nothing said anywhere (`round-11/D-result.json`). It asks now, in the
+same two strings.
 """
 from __future__ import annotations
 
@@ -40,6 +50,8 @@ THE_DOORS = [
     ("ui.tabs.tab_profile", "TabProfile", "set_ti3_path"),
     ("ui.tabs.tab_measure", "TabMeasure", "_update_import_panel"),
     ("ui.tabs.tab_measure", "TabMeasure", "_convert_import_file"),
+    ("ui.dialogs.measurement_report_dialog", "MeasurementReportDialog",
+     "_append_source"),
 ]
 
 
@@ -111,9 +123,9 @@ def test_the_door_asks_about_the_colour_scale(module, cls, method):
         f"its colour values are on the scale ArgyllCMS means")
 
 
-def test_all_three_doors_are_still_listed():
+def test_all_four_doors_are_still_listed():
     """The list must not shrink either: deleting a row is not a fix."""
-    assert len(THE_DOORS) == 3
+    assert len(THE_DOORS) == 4
 
 
 # ---- one sentence, one copy ----------------------------------------------
@@ -145,3 +157,55 @@ def test_the_sentence_is_not_new_text():
     key = next(k for k in de if k.startswith(
         "The XYZ columns in this measurement are on the 0 to 1 scale"))
     assert de[key], "the sentence is in the catalogue but untranslated"
+
+
+# ---- and the fourth door, driven rather than read -------------------------
+#
+# The `inspect.getsource` check above proves the CALL is there. It cannot
+# prove the window shows anything, and this is the window that files a dated
+# document, so the words are asked for on the widgets themselves.
+def _report_window(tmp_path, qapp, *, scale: float):
+    from tests.test_import_measurement_module import _verify_env
+    s, _fm, _ctl, run = _verify_env(tmp_path)
+    v = run.new_verification()
+    v.ensure_dir()
+    src = _ti3(tmp_path, scale=scale, name="picked.ti3")
+    import shutil
+    shutil.copy2(src, v.measurement_ti3)
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    dlg = MeasurementReportDialog(s, None, initial_ti3=v.measurement_ti3)
+    dlg.show()
+    qapp.processEvents()
+    return dlg
+
+
+def _rows(dlg):
+    lw = dlg._profile_list
+    return [lw.item(i).text() for i in range(lw.count())]
+
+
+def test_the_report_window_says_it_on_a_measurement_on_the_wrong_scale(
+        tmp_path, qapp):
+    """MUTATION: drop the `_show_the_colour_scale_note()` call and this reds."""
+    dlg = _report_window(tmp_path, qapp, scale=0.01)
+    try:
+        assert dlg._scale_label.isVisibleTo(dlg), (
+            "Tools > Measurement report took a measurement on the 0-to-1 "
+            "scale and said nothing about it")
+        assert dlg._scale_label.text() == the_colour_scale_note(
+            dlg._sources[0]["ti3"]), "the window wrote its own words"
+        assert any(the_colour_scale_tag() in r for r in _rows(dlg)), (
+            "no row names WHICH measurement the sentence is about")
+    finally:
+        dlg.close()
+
+
+def test_the_report_window_is_silent_on_an_ordinary_measurement(tmp_path, qapp):
+    """The half that matters most: a guard that cries wolf is worse than none."""
+    dlg = _report_window(tmp_path, qapp, scale=1.0)
+    try:
+        assert not dlg._scale_label.isVisibleTo(dlg)
+        assert dlg._scale_label.text() == ""
+        assert not any(the_colour_scale_tag() in r for r in _rows(dlg))
+    finally:
+        dlg.close()

@@ -1116,6 +1116,24 @@ class MeasurementReportDialog(QDialog):
         self._stale_label.setWordWrap(True)
         self._stale_label.setVisible(False)
         top_v.addWidget(self._stale_label)
+        #: THE FOURTH DOOR ON THE COLOUR SCALE, and the loudest one, because
+        #: this is the window that SAVES A DATED DOCUMENT from the numbers.
+        #: Combined round 10 put one shared reading behind the Build ICC
+        #: profile tab and both import doors; combined round 11 drove the same
+        #: measurement in here, and a report whose `paper_white` reads
+        #: `L* 8.89` was generated and filed with nothing said
+        #: (`~/Desktop/ChromIQ-beta18-proof/round-11/D-result.json`). A `.ti3`
+        #: is handed straight through by `_as_ti3` - no conversion, so
+        #: `repair_converted_cie` never runs on it - and only a READING can
+        #: catch it. Same words, same hidden-row pattern as the notice above:
+        #: nothing is refused and nothing is rewritten, the window simply
+        #: stops being silent. See `measurement_filing.the_colour_scale_note`.
+        self._scale_label = QLabel("", self)
+        self._scale_label.setStyleSheet(
+            f"color: {_C['fail']}; font-weight: bold")
+        self._scale_label.setWordWrap(True)
+        self._scale_label.setVisible(False)
+        top_v.addWidget(self._scale_label)
 
         # #182 (Knut D8, D20): the two Pass-threshold spin boxes are gone. A
         # report is judged against the LIMIT SET bound to its profile run; the
@@ -1614,8 +1632,14 @@ class MeasurementReportDialog(QDialog):
         name, runs = self._gather_runs(ti3)
         if not runs:
             return False
+        # ASKED ONCE, HERE, because this is the one place a measurement joins
+        # this window. The reading opens the file, so it is not something to
+        # repeat on every repaint. See `_scale_label`.
+        from ui.measurement_filing import the_colour_scale_note
         self._sources.append({"key": key, "name": name, "dir": ti3.parent,
-                              "ti3": ti3, "origin": Path(origin or ti3), "runs": runs})
+                              "ti3": ti3, "origin": Path(origin or ti3),
+                              "runs": runs,
+                              "scale_note": the_colour_scale_note(ti3)})
         if self._ti3 is None:
             self._ti3 = ti3
         return True
@@ -1982,11 +2006,16 @@ class MeasurementReportDialog(QDialog):
         try:
             self._profile_list.clear()
             self._list_rows = []
+            # THE SAME MARK AFTER THE SAME NAME the other three doors put it
+            # after, so a row says WHICH measurement the sentence below the
+            # buttons is about. See `_scale_label`.
+            from ui.measurement_filing import the_colour_scale_tag
             for si, s in enumerate(self._sources):
                 n = len(s["runs"])
                 self._profile_list.addItem(
                     f'{s["name"]}  ·  {n} '
-                    + (tr("run") if n == 1 else tr("runs")))
+                    + (tr("run") if n == 1 else tr("runs"))
+                    + (the_colour_scale_tag() if s.get("scale_note") else ""))
                 self._list_rows.append(("source", si, None))
                 # One checkable row per dated run: unticking leaves it out of
                 # the trend, tables and PDF — nothing on disk is touched
@@ -2004,12 +2033,36 @@ class MeasurementReportDialog(QDialog):
         finally:
             self._building_list = False
         self._size_profile_list()
+        self._show_the_colour_scale_note()
         has = bool(self._sources)
         self._pdf_btn.setEnabled(has)
         self._reveal_btn.setEnabled(has)
         self._clear_btn.setEnabled(has)
         self._update_source_buttons()
         self._refresh()
+
+    def _show_the_colour_scale_note(self) -> None:
+        """Say, once, that a measurement in this window is on the 0-to-1 scale.
+
+        THE WORDS ARE NOT THIS WINDOW'S. They are the two strings the Build ICC
+        profile tab has shown since 2026-09-11 and both import doors have shown
+        since combined round 10, held in
+        :func:`ui.measurement_filing.the_colour_scale_note` and
+        :func:`~ui.measurement_filing.the_colour_scale_tag` so that four doors
+        cannot drift apart and no new message text enters §M. The tag names
+        which row it is about; this says what it means.
+
+        A hidden label claims no space in a Qt layout, so the row costs nothing
+        until there is something to say - the same reason `_stale_label` sits
+        on a row of its own rather than in the button row.
+        """
+        lbl = getattr(self, "_scale_label", None)
+        if lbl is None:
+            return
+        note = next((s.get("scale_note") for s in self._sources
+                     if s.get("scale_note")), "")
+        lbl.setText(note)
+        lbl.setVisible(bool(note))
 
     #: Five visible rows, then a scrollbar — Sebastian's number (2026-08-10).
     #: The MINIMUM stays at two rows so the window's own overlap-free floor
