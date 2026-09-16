@@ -10054,7 +10054,24 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 "file (.mxf or .cxf), its CGATS text export (.txt), or a "
                 "ready .ti3."))
         else:
-            self._import_file_lbl.setText(str(path))
+            # THE SAME MARK THE BUILD ICC PROFILE TAB PUTS ON THE SAME FAULT,
+            # on the label rather than in a tooltip nobody hovers over. One
+            # place fills this label for BOTH run types, so both import doors
+            # are covered by asking here once. See
+            # `measurement_filing.the_colour_scale_note` for what was measured.
+            from ui.measurement_filing import (the_colour_scale_note,
+                                               the_colour_scale_tag)
+            _scale = the_colour_scale_note(path)
+            self._import_file_lbl.setText(
+                str(path) + (the_colour_scale_tag() if _scale else ""))
+            # THE SENTENCE GOES IN THE INFO BOX, NOT IN THIS LABEL'S TOOLTIP.
+            # `ElidingLabel` owns its own tooltip (it puts the full text there
+            # when the name is too long to fit), so setting one here showed the
+            # sentence on one door and the elided path on the other - measured,
+            # combined round 10. The box below is the loud surface anyway, and
+            # it is the same box that already explains what the import will do.
+            if _scale:
+                parts.append(_scale)
             ext = Path(path).suffix.lower()
             if ext in (".mxf", ".cxf"):
                 parts.append(tr(
@@ -10349,6 +10366,24 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._log.appendPlainText("\n" + tr(
                 "[OK] Converted {name} to Argyll's .ti3 format.").format(
                     name=Path(path).name))
+        # AND WHETHER ITS COLOUR NUMBERS ARE ON THE SCALE ARGYLLCMS MEANS.
+        #
+        # Both doors converge here, so the question is asked once for both -
+        # the same reason the conversion itself is in this method. A `.ti3`
+        # that was converted before `repair_converted_cie` existed passes
+        # through untouched, so only a READING can catch it, and until
+        # combined round 10 the only reader in the app was the Build ICC
+        # profile tab: each door filed such a file in silence, and the
+        # profiling one saved a dated measurement report from it.
+        #
+        # Said, not mended and not forbidden - `tab_profile`'s own rule for the
+        # same fact. It goes in the log as well as on the panel's label,
+        # because the log is what stays behind after the window is closed.
+        from ui.measurement_filing import the_colour_scale_note
+        note = the_colour_scale_note(converted)
+        if note:
+            self._log.appendPlainText("\n[WARNING] " + note)
+            self._log.ensureCursorVisible()
         return Path(converted)
 
     def _on_import_measurement(self) -> None:

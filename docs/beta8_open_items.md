@@ -9658,3 +9658,132 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   and the chart pointed back at the raw key (1 red).
 
 ---
+
+### B8-227 · The atomic write left a scratch file nobody could delete
+- blocks release: no
+- status: FIXED
+- found by: combined adversary round 10, 2026-09-16 — the round asked to
+  CONFIRM round 9's three fixes before a tag, and this is a fault in one of
+  them. It is the second round running to find one in the round before it.
+- what a user sees: lock `project.json` in the Finder's Get Info panel (which
+  sets `UF_IMMUTABLE`, and is a thing a person may reasonably do to a file they
+  do not want changed), then use ChromIQ. Any manifest write fails — it always
+  did, and the manifest is correctly left alone — but from combined round 9
+  onwards it leaves a **`project.json.tmp` in the project folder that cannot be
+  deleted**: not by the Finder, not by `unlink`, not by `rm -f`. The only way
+  out is `chflags nouchg` or unticking Locked.
+- why: round 9 added `shutil.copystat(path, tmp)` so a manifest's MODE survived
+  the rename (B8-225), and on macOS `copystat` carries `st_flags` too. The
+  scratch file therefore became immutable as well, so when `os.replace` failed
+  on the locked target, the cleanup below it — under a comment reading *"Never
+  leave the scratch file behind to be mistaken for real data"* — could no
+  longer delete the file it had just made. `tmp.unlink()` raised
+  `PermissionError`, the bare `except OSError: pass` swallowed it, and the file
+  stayed.
+- measured A/B, on the helper as it stood at `a60a5cde` and on this tree
+  (`E2-locked-manifest.json`): **before** — raises, manifest untouched, no
+  scratch file; **after** — raises, manifest untouched, `project.json.tmp`
+  left, `st_flags 0o2`, a plain delete refused and `rm -f` refused.
+- fix: the immutable and append-only bits are taken off the SCRATCH file (never
+  off the user's own), once before the rename and again on the way into the
+  cleanup. On a locked target they can only make the write fail in a worse way;
+  on an unlocked one there is nothing to drop. A flag that does not block a
+  rename still crosses, so what `copystat` is there for is untouched. No new
+  message text.
+- proved after: the same A/B, both sides now leaving nothing behind, and the
+  other seven manifest shapes re-measured unchanged (`E-manifest-shapes.json`):
+  fresh, mode 0600 kept, read-only 0444 kept, a live symlink written THROUGH,
+  a dangling symlink, a Finder tag (the stated loss), and a separate exFAT
+  volume. Driven on screen as well (`F-result.json`): a real chart build into a
+  project whose manifest is a symlink at 0600 left it a symlink at 0600 with
+  the new `current_run` in the real file, and the same build into a project
+  whose manifest was Locked was refused by B8-223's own window, *"ChromIQ could
+  not write into that project… The reason: Operation not permitted"*, with no
+  scratch file and no uncaught exception.
+- how common: rare — it needs a manifest the user has locked. It is recorded
+  and fixed because the helper's own comment promises it cannot happen, and
+  because a file a person cannot delete is a worse thing to leave behind than
+  the failed write itself.
+- NOT fixed, and stated rather than hidden: a manifest at mode 0444 is still
+  silently overwritten (the mode is kept; the protection is not honoured), a
+  hard link still cannot survive a rename, and extended attributes are still
+  not carried on macOS. The first two are unchanged from before round 9; the
+  third is round 9's own stated loss.
+- evidence: test_a_locked_manifest_leaves_no_scratch_file,
+  test_a_scratch_file_left_behind_would_be_undeletable,
+  test_the_locked_manifest_itself_is_never_overwritten,
+  test_the_mode_is_still_carried_across,
+  test_a_symlinked_manifest_is_still_written_through,
+  test_an_ordinary_write_keeps_the_flags_it_was_given.
+  Two mutations proved to land and both caught: the unlock switched off (1
+  red), and the unlock widened to clear every flag (1 red).
+
+---
+
+### B8-228 · Two import doors filed a measurement on the wrong colour scale in silence
+- blocks release: no
+- status: FIXED
+- found by: combined adversary round 10, 2026-09-16, from a question the owner
+  asked directly: do the i1Profiler import fixes made for a tester on the Build
+  ICC profile tab also hold for the import door on the Measurement tab?
+- graded INHERITED, NOT INTRODUCED. The verification import door has behaved
+  this way since the reading was written on 2026-09-11; the profiling door was
+  built the same week, the same way, and inherited the gap. Nothing about it is
+  new in this batch.
+- what a user sees: a `.ti3` that an older ChromIQ converted from an i1Profiler
+  export carries XYZ on the 0-to-1 scale ArgyllCMS never uses, so its paper
+  white reads about L* 8 instead of L* 95. Import it on the **Measurement**
+  tab, either run type, and it is filed, the window says *"The measurement was
+  imported"*, and on a profiling run **a dated measurement report is saved from
+  it** — with nothing anywhere about the scale. The same file on the **Build
+  ICC profile** tab is marked *"colour values on the wrong scale"* and
+  explained on the button.
+- driven on screen (`H-result.json`, `H1`–`H6`) with a real 240-patch
+  measurement whose XYZ columns were divided by 100 — the exact shape the fault
+  produces, so names, counts and device values all still match the run's own
+  chart, and the verification twin built the same way from a real 64-patch
+  verification measurement. Door 1 said it; doors 2 and 3 said nothing; the
+  filed copy was still unscaled; `report_2026-09-16_02-55-55.json` was written
+  from it.
+- why: `repair_converted_cie` guards every path that CONVERTS an export, and a
+  `.ti3` passes through `convert_i1profiler_measurement` untouched, so only a
+  READING can catch one that was converted before the repair existed. That
+  reading, `reference_convert.cie_columns_are_unscaled`, was referenced in
+  exactly ONE place in the whole app: `tab_profile.set_ti3_path`.
+- the honest half: the Build ICC profile tab DOES flag it afterwards, because
+  the profiling import emits `measure_finished` and that reaches
+  `set_ti3_path`. So a person who goes to that tab is told — after the file is
+  filed and after the dated report has been written from it. The verification
+  door has no such second chance.
+- fix: ONE shared check, `measurement_filing.the_colour_scale_note`, holding
+  the reading and the sentence; all three doors call it.
+  `tab_profile.set_ti3_path` keeps exactly what it showed; the import panel's
+  own label carries the same mark after the file name and the import info box
+  carries the sentence, for both run types, filled by the one method that
+  serves both; and `_convert_import_file` — the one call both import doors make
+  — writes the sentence into the tab's log as a `[WARNING]`, because the log is
+  what stays behind after the window is closed.
+- NO NEW MESSAGE TEXT, deliberately. The sentence and the mark are the two
+  strings the Build ICC profile tab has shown since 2026-09-11, already in all
+  twelve catalogues; they were MOVED into the shared function and referenced,
+  never copied. New text in this area goes to §M-PROPOSED first, and none was
+  needed.
+- said, not mended and not forbidden — `tab_profile`'s own rule for the same
+  fact. Rewriting a measurement the user did not ask us to touch is a write,
+  and refusing a file ArgyllCMS will read is not our decision.
+- proved after (`H2.log`, `I-result.json`, `I` photographs): all three doors
+  say it; both import panels carry the mark on the label and the sentence in
+  the info box; an ordinary measurement is marked on neither door, so there is
+  no false positive.
+- evidence: test_the_note_fires_on_a_measurement_on_the_wrong_scale,
+  test_the_note_is_silent_on_an_ordinary_measurement,
+  test_the_note_is_silent_on_nothing_at_all,
+  test_the_tag_is_the_mark_that_goes_after_the_name,
+  test_the_door_asks_about_the_colour_scale (parametrised over all three
+  doors), test_all_three_doors_are_still_listed,
+  test_the_sentence_lives_in_exactly_one_module,
+  test_the_sentence_is_not_new_text.
+  Two mutations proved to land and both caught: one door's call removed (1
+  red), and the shared reading made to accuse nothing (1 red).
+
+---

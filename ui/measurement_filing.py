@@ -496,6 +496,70 @@ def only_you_can_confirm_the_chart(parent, verdict, chart: "Path | None") -> boo
     return box.clickedButton() is go
 
 
+def the_colour_scale_tag() -> str:
+    """The short mark a door puts after a measurement's own name.
+
+    The separator is part of the key on purpose: both labels print
+    ``<the file>  ·  <the tag>``, and one key keeps the two doors looking the
+    same in all twelve languages.
+    """
+    return tr("  \u00b7  colour values on the wrong scale")
+
+
+def the_colour_scale_note(ti3) -> str:
+    """The ONE sentence every door says about a ``.ti3`` whose XYZ is 0..1.
+
+    ``""`` when there is nothing to say, so a caller can use the answer as
+    both the question and the words.
+
+    THE READING AND THE SENTENCE, IN ONE PLACE, BECAUSE THREE DOORS ASK.
+    ``repair_converted_cie`` puts the hundredfold CIE scale right on every path
+    that CONVERTS an i1Profiler export; a ``.ti3`` that was converted before
+    that repair existed is never converted again, so only a READING can catch
+    it. That reading, :func:`reference_convert.cie_columns_are_unscaled`, was
+    referenced in exactly one place in the app - ``tab_profile.set_ti3_path`` -
+    and the two import doors on the Measurement tab asked nothing.
+
+    Measured on screen, combined round 10 (`H-result.json`), with a real
+    240-patch measurement whose XYZ columns were divided by 100 - the exact
+    shape the fault produces, so names, counts and device values all still
+    match the run's own chart:
+
+    * **Build ICC profile** marked the file *"colour values on the wrong
+      scale"* and explained it on the button.
+    * **the profiling import door** filed it, said "The measurement was
+      imported", and SAVED A DATED MEASUREMENT REPORT from it, with nothing
+      anywhere about the scale.
+    * **the verification import door** filed it into a new dated verification
+      folder, said "The measurement was imported", and said nothing either.
+
+    Graded INHERITED, NOT INTRODUCED: the verification door has been shipping
+    this way since the reading was written on 2026-09-11, and the profiling
+    door was built the same way and inherited the gap.
+
+    SAID, NOT MENDED AND NOT FORBIDDEN - the rule ``tab_profile`` already
+    records. Rewriting a measurement the user did not ask us to touch is a
+    write, and refusing a file ArgyllCMS will happily read is not our decision.
+    What this owes them is that no door is silent.
+
+    NO NEW WORDS. The sentence and the tag are the two strings the Build ICC
+    profile tab has shown since 2026-09-11, already translated into all twelve
+    catalogues - they are moved here and referenced, never copied. New message
+    text in this area goes to §M-PROPOSED first, and none is needed.
+    """
+    from workflow.reference_convert import cie_columns_are_unscaled
+    if ti3 is None or not cie_columns_are_unscaled(ti3):
+        return ""
+    return tr(
+        "The XYZ columns in this measurement are on the 0 to 1 scale, "
+        "not the 0 to 100 one ArgyllCMS uses, so every colour in it "
+        "reads far too dark: its paper white is almost black. That "
+        "happens when an i1Profiler export is converted by a version of "
+        "ChromIQ that did not put the scale right. Import the "
+        "measurement again to get a usable one. A profile built from "
+        "this file will record its paper white as almost black.")
+
+
 def chart_the_copy_will_be_judged_against(filed: Path) -> "Path | None":
     """The chart in the run *filed* has just landed in, or None.
 

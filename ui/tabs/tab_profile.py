@@ -4175,19 +4175,18 @@ class TabProfile(QWidget):
         # did not ask us to touch is a write; refusing to build from a file
         # ArgyllCMS will happily read is a decision that is not ours. What this
         # owes the user is that it is not silent.
-        from workflow.reference_convert import cie_columns_are_unscaled
-        if cie_columns_are_unscaled(path):
-            self._file_lbl.setText(
-                self._file_lbl.text()
-                + tr("  ·  colour values on the wrong scale"))
-            scale = tr(
-                "The XYZ columns in this measurement are on the 0 to 1 scale, "
-                "not the 0 to 100 one ArgyllCMS uses, so every colour in it "
-                "reads far too dark: its paper white is almost black. That "
-                "happens when an i1Profiler export is converted by a version of "
-                "ChromIQ that did not put the scale right. Import the "
-                "measurement again to get a usable one. A profile built from "
-                "this file will record its paper white as almost black.")
+        # ONE READING AND ONE SENTENCE, SHARED WITH THE OTHER DOORS THAT ASK.
+        # This was the only place in the app that asked, and combined round 10
+        # drove a `.ti3` with 0-to-1 XYZ through both of the Measurement tab's
+        # import doors: each one filed it and said nothing, and the profiling
+        # one saved a dated measurement report from it. See
+        # `measurement_filing.the_colour_scale_note`, which is where the words
+        # live now. Neither word changed; nothing new was written.
+        from ui.measurement_filing import (the_colour_scale_note,
+                                           the_colour_scale_tag)
+        scale = the_colour_scale_note(path)
+        if scale:
+            self._file_lbl.setText(self._file_lbl.text() + the_colour_scale_tag())
             old = self._build_btn.toolTip()
             self._build_btn.setToolTip(f"{old}\n\n{scale}" if old else scale)
         # #130 §4: **only while the field is still a ChromIQ default.** These

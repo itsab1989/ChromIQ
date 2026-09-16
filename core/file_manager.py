@@ -42,6 +42,7 @@ import json
 import os
 import re
 import shutil
+import stat as _stat_module
 import unicodedata
 from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime
@@ -653,6 +654,41 @@ def ensure_subdir(path: Path) -> Path:
         return path.parent
 
 
+#: The flag bits that stop a file being renamed over or deleted. Named rather
+#: than spelled 0o2 in two places, because "immutable" and "append only" are
+#: what they mean and the numbers say nothing. ``stat`` has them on every
+#: platform that has ``chflags``; the getattr fallbacks keep this importable on
+#: one that does not.
+_LOCK_BITS = (getattr(_stat_module, "UF_IMMUTABLE", 0x00000002)
+              | getattr(_stat_module, "UF_APPEND", 0x00000004)
+              | getattr(_stat_module, "SF_IMMUTABLE", 0x00020000)
+              | getattr(_stat_module, "SF_APPEND", 0x00040000))
+
+
+def _unlock_scratch_file(tmp: Path) -> None:
+    """Take the lock bits off the scratch file, so the cleanup can delete it.
+
+    Only ever the SCRATCH file: the user's own file is never touched. A
+    platform without ``os.chflags`` (Windows) has nothing to do here, and a
+    failure is never fatal - this exists so a cleanup cannot be blocked, and
+    refusing to write because the cleanup might be untidy would be worse.
+    """
+    chflags = getattr(os, "chflags", None)
+    if chflags is None:
+        return
+    try:
+        st = tmp.stat()
+    except OSError:
+        return
+    flags = getattr(st, "st_flags", 0)
+    if not flags & _LOCK_BITS:
+        return
+    try:
+        chflags(tmp, flags & ~_LOCK_BITS)
+    except OSError:
+        log.debug("could not unlock the scratch file %s", tmp, exc_info=True)
+
+
 def write_json_atomically(path: Path, payload: dict) -> None:
     """Write *payload* to *path* so a crash can never leave it half-written.
 
@@ -692,6 +728,20 @@ def write_json_atomically(path: Path, payload: dict) -> None:
     still lost. Carrying them would take ``copyfile(3)`` through ctypes, which
     is a lot of machinery for a property nothing in ChromIQ sets and no user
     has been shown missing.
+
+    AND ``copystat`` CARRIES THE LOCK TOO, WHICH IS THE ONE PROPERTY THAT MUST
+    NOT REACH THE SCRATCH FILE. ``shutil.copystat`` copies ``st_flags`` on
+    macOS, so a ``project.json`` the user had LOCKED in the Finder (Get Info,
+    Locked - ``UF_IMMUTABLE``) made the scratch file immutable as well. The
+    rename over a locked file fails either way and always did - what changed is
+    that the cleanup below could no longer delete what it had just made, and a
+    ``project.json.tmp`` was left in the project folder that neither the Finder,
+    nor ``unlink``, nor ``rm -f`` would remove. Measured A/B against the helper
+    as it stood before that change (combined round 10, `E2-locked-manifest.json`):
+    no scratch file before, an undeletable one after. The immutable and
+    append-only bits are dropped from the scratch file for that reason - on a
+    locked target they can only make this write fail in a worse way, and on an
+    unlocked one there is nothing to drop.
     """
     if path.is_symlink():
         # THROUGH the link, the way `write_text` went. Only when there IS one:
@@ -716,9 +766,13 @@ def write_json_atomically(path: Path, payload: dict) -> None:
             except OSError:
                 log.debug("could not carry %s's properties across", path,
                           exc_info=True)
+            _unlock_scratch_file(tmp)
         os.replace(tmp, path)
     except Exception:
         # Never leave the scratch file behind to be mistaken for real data.
+        # THE UNLOCK COMES FIRST, because the failure this cleans up after may
+        # be the very lock that would stop the delete. See the docstring.
+        _unlock_scratch_file(tmp)
         try:
             tmp.unlink()
         except OSError:
