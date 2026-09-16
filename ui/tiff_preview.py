@@ -3972,13 +3972,47 @@ class TiffPreview(QWidget):
 
     @staticmethod
     def _pil_to_pixmap(img: Image.Image) -> QPixmap:
-        import io
-        buf = io.BytesIO()
-        img.save(buf, format="PNG")
-        buf.seek(0)
-        px = QPixmap()
-        if not px.loadFromData(buf.read()):
+        """The rendered page as a pixmap, at its own resolution.
+
+        **IT USED TO GO ROUND THROUGH A PNG, AND AT 1200 dpi QT REFUSED TO
+        DECODE IT (B8-245's neighbour, B8-244).** `QPixmap.loadFromData` reads
+        through `QImageIOHandler`, which rejects anything that would allocate
+        more than `QImageReader`'s limit -- 256 MB by default -- and an A4 page
+        at 1200 dpi is 9921 x 14031, which is 417 MB. Driven on screen
+        (`~/Desktop/ChromIQ-beta18-proof/beta19-round-2/window/Q8-dpi1200.png`):
+        the chart built, every "Measured from Preview" number was right, and
+        the whole preview panel read
+
+            Preview error:
+            QPixmap.loadFromData failed for (9921, 14031) RGB image
+
+        which is an internal sentence with nothing in it a reader can act on.
+        The dpi box accepts 1200 and A4 is the default paper, so it takes two
+        ordinary controls to reach.
+
+        A `QImage` built over the buffer the renderer already has is not read
+        through a handler at all, so no limit applies; `QPixmap.fromImage`
+        copies it, which is why *raw* only has to outlive that call. It is also
+        strictly less work than the old route, which encoded and then decoded a
+        PNG of the same picture on every single preview render.
+
+        **THE RESOLUTION IS NOT REDUCED, AND MUST NOT BE.**
+        `_refresh_image` hands this pixmap straight to `_measure_own_margin`,
+        which is where the "Measured from Preview" numbers come from and what
+        the design authority's 2026-09-15 ruling makes every notice measure
+        against. Scaling here to dodge the limit would quietly coarsen all of
+        them.
+        """
+        if img.mode not in ("RGB", "RGBA"):
+            img = img.convert("RGB")
+        w, h = img.size
+        depth = 4 if img.mode == "RGBA" else 3
+        fmt = (QImage.Format.Format_RGBA8888 if img.mode == "RGBA"
+               else QImage.Format.Format_RGB888)
+        raw = img.tobytes()
+        px = QPixmap.fromImage(QImage(raw, w, h, w * depth, fmt))
+        if px.isNull():
             raise RuntimeError(
-                f"QPixmap.loadFromData failed for {img.size} {img.mode} image"
+                f"QPixmap.fromImage failed for {img.size} {img.mode} image"
             )
         return px

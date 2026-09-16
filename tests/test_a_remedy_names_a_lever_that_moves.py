@@ -142,3 +142,73 @@ def test_the_markers_branch_still_wins_over_both():
     branch."""
     note = tc._bottom_lever_note(4.0, 7.0, 4.0, patch_first=True)
     assert "ruler helper markers hold the text" in note, note
+
+
+# ------------------- the clip border width, against what the text actually needs
+#
+# **AND "AT LEAST THE MINIMUM" WAS STILL THE WRONG TEST (B8-245).** The gate was
+# `typed >= CLIP_WIDTH_MIN_MM`, so at a typed margin of 12 mm the clause was
+# offered while the function's OWN measured table says the lever cannot help
+# below about 13. Reached from the app and driven on screen, i1Pro / A4 / clip
+# border on the right / Run 1 Chart Notes filled in, the notes needing 2.7 mm at
+# 7 pt (`~/Desktop/ChromIQ-beta18-proof/beta19-round-2/q9.json`):
+#
+# | band | "Right" | offered | after narrowing to 10.0 |
+# |---|---|---|---|
+# | 12 | 12 | *"also makes room, down to 10 mm"* | **still red**: 2.7 mm wanted, 1.6 mm there |
+# | 24 | 12 | *"also makes room"* | **still red**, the same line |
+# | 24 | 20 | *"also makes room"* | cleared |
+#
+# Narrowing frees `typed - CLIP_WIDTH_MIN_MM`, and the text still has to fit in
+# it, so that is the comparison.
+def test_the_width_lever_is_withheld_when_the_room_it_frees_is_too_small():
+    """The driven state: "Right" 12 mm, notes needing 2.7 mm.
+
+    MUTATION: gate on `typed >= CLIP_WIDTH_MIN_MM` again and this goes red.
+    """
+    note = tc._clip_width_lever_note(12.0, "right", 2.7)
+    assert "will not help here" in note, note
+    assert "2.7 mm" in note, note
+    assert "also makes room" not in note, note
+
+
+def test_the_width_lever_is_still_offered_where_the_room_is_enough():
+    """"Right" 20 mm and the same notes: narrowing to 10 cleared it on screen."""
+    note = tc._clip_width_lever_note(20.0, "right", 2.7)
+    assert "also makes room" in note, note
+
+
+@pytest.mark.parametrize("side", ("right", "left"))
+def test_the_reason_it_gives_is_true_on_both_sides_of_the_old_line(side):
+    """The sentence this replaced said the border "would still be what decides
+    where the patches start", which is false at a typed 12 against a 10 mm
+    floor: there the MARGIN decides. One reason now covers both.
+
+    MUTATION: put the old wording back and this goes red for the 12 mm case.
+    """
+    for typed in (6.0, 12.0):
+        note = tc._clip_width_lever_note(typed, side, 2.7)
+        assert "will not help here" in note, (typed, note)
+        assert "what decides where the patches start" not in note, (typed, note)
+        assert "the text needs" in note, (typed, note)
+
+
+def test_every_call_site_hands_over_the_room_the_text_needs():
+    """A call that forgets the third argument silently gets the old gate back.
+
+    MUTATION: drop `_o.needed_mm` from any of the three call sites and this
+    goes red.
+    """
+    import ast
+    import inspect
+    import textwrap
+    src = textwrap.dedent(inspect.getsource(tc.TabChart._engine_text_notes))
+    calls = [n for n in ast.walk(ast.parse(src))
+             if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+             and n.func.id == "_clip_width_lever_note"]
+    assert len(calls) == 3, f"{len(calls)} call sites, this assumed three"
+    for c in calls:
+        assert len(c.args) + len(c.keywords) >= 3, (
+            "a `_clip_width_lever_note` call no longer says how much room the "
+            "text needs, so it is back to offering the lever on the margin "
+            "alone: " + ast.unparse(c))

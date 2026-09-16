@@ -2830,7 +2830,8 @@ def _bottom_lever_note(effective_b_mm: float, anchor_mm: float,
 CLIP_WIDTH_MIN_MM = 10.0
 
 
-def _clip_width_lever_note(typed_margin_mm: float, side: str) -> str:
+def _clip_width_lever_note(typed_margin_mm: float, side: str,
+                           needs_mm: float = 0.0) -> str:
     """The "set a narrower Clip border width" clause, where it can work.
 
     **IT IS INERT IN THE VERY BRANCH THAT PRINTED IT.** The band displaces the
@@ -2864,22 +2865,49 @@ def _clip_width_lever_note(typed_margin_mm: float, side: str) -> str:
     immediately printed a different red one with the ink still on the patches,
     because the bare margin on the far side is too small to hold the text on
     its own. A reader who follows that advice sees a red line either way.
+
+    **AND "AT LEAST THE MINIMUM" WAS THE WRONG TEST, WHICH IS THE ROW OF THAT
+    TABLE THE GATE ITSELF CONTRADICTED (B8-245).** Narrowing the band frees
+    exactly ``typed - CLIP_WIDTH_MIN_MM`` millimetres, and the text still has
+    to fit inside them, so the honest question is whether that is as much as
+    the text NEEDS. *needs_mm* is the caller's own ``needed_mm``; left at 0 the
+    test is the old one, so a call site with no figure to give behaves as it
+    did.
+
+    Reached from the app and driven on screen, i1Pro / A4 / clip border on the
+    right / Run 1 Chart Notes filled in, the notes needing 2.7 mm at 7 pt
+    (`~/Desktop/ChromIQ-beta18-proof/beta19-round-2/q9.json`):
+
+    | band | "Right" | what was offered | after narrowing to 10.0 |
+    |---|---|---|---|
+    | 12 | 12 | *"also makes room, down to 10 mm"* | **still red**: 2.7 mm wanted, 1.6 mm there |
+    | 24 | 12 | *"also makes room"* | **still red**, the same line |
+    | 24 | 20 | *"also makes room"* | cleared |
+    | 24 | 6 | *"will not help here"* | (not offered) |
+
+    12 - 10 = 2 mm against the 2.7 mm the notes want, so both states offered
+    the lever at a typed 12 could not take it. The other branch's reason would
+    have been false there as well: at a width of 10 the border is no longer
+    what decides where the patches start, the margin is. One sentence now says
+    the thing that is true on both sides of that line, which is that what
+    narrowing frees is less than what the text needs.
     """
     try:
         typed = float(typed_margin_mm or 0.0)
-        if typed + 0.05 >= CLIP_WIDTH_MIN_MM:
+        needs = max(0.0, float(needs_mm or 0.0))
+        if typed + 0.05 >= CLIP_WIDTH_MIN_MM + needs:
             return " " + tr(
                 "Setting a narrower “Clip border width” also makes room, down "
                 "to {min:.0f} mm.").format(min=CLIP_WIDTH_MIN_MM)
         return " " + (tr(
             "A narrower “Clip border width” will not help here: the box stops "
-            "at {min:.0f} mm and “Right” is set to {typed:.1f} mm, so the "
-            "border would still be what decides where the patches start.")
+            "at {min:.0f} mm and “Right” is set to {typed:.1f} mm, so "
+            "narrowing it frees less than the {need:.1f} mm the text needs.")
             if side == "right" else tr(
             "A narrower “Clip border width” will not help here: the box stops "
-            "at {min:.0f} mm and “Left” is set to {typed:.1f} mm, so the "
-            "border would still be what decides where the patches start.")
-        ).format(min=CLIP_WIDTH_MIN_MM, typed=typed)
+            "at {min:.0f} mm and “Left” is set to {typed:.1f} mm, so "
+            "narrowing it frees less than the {need:.1f} mm the text needs.")
+        ).format(min=CLIP_WIDTH_MIN_MM, typed=typed, need=needs)
     except Exception:          # noqa: BLE001 - a sentence, never a blocker
         return ""
 
@@ -20862,7 +20890,7 @@ class TabChart(QWidget):
                             # the patches, so it is gone.
                             + _clip_width_lever_note(
                                 float(getattr(r, "margin_right", 0.0) or 0.0),
-                                "right")
+                                "right", _o.needed_mm)
                             + _auto_floor_note(_note_size_pt, _note_floor_pt))
                     elif _clip_on_right:
                         # "PRINTED {Clip} mm IN FROM THE PAPER EDGE" WAS FALSE
@@ -20895,7 +20923,7 @@ class TabChart(QWidget):
                                 short=_o.overlap_mm)
                             + _clip_width_lever_note(
                                 float(getattr(r, "margin_right", 0.0) or 0.0),
-                                "right")
+                                "right", _o.needed_mm)
                             + _auto_floor_note(_note_size_pt, _note_floor_pt))
                     else:
                         # THE DISTANCE IT NAMES IS THE ONE THE SHEET USES, and
@@ -21169,7 +21197,7 @@ class TabChart(QWidget):
                             float(getattr(r, "margin_right", 0.0) or 0.0)
                             if _side == "right" else
                             float(getattr(r, "margin_left", 0.0) or 0.0),
-                            _side))
+                            _side, _o.needed_mm))
                 # AND THE TEXT INSIDE THE BAND, which is a different question
                 # from whether the band fits the margin. Knut, 2026-09-11:
                 # *"If I reduce the clip-border width to f.ex. 16mm … then the
@@ -21729,6 +21757,40 @@ class TabChart(QWidget):
                     # the letters at 13.377 to 17.780 mm every single time,
                     # identical to the thousandth, while Label offset moved them
                     # one millimetre per millimetre.
+                    #
+                    # **AND THE LABEL SIZE MOVES NOTHING EITHER, WHICH THIS
+                    # SENTENCE OFFERED AS AN EQUAL ALTERNATIVE (B8-243).** This
+                    # is the one layout where the PATCH BLOCK's own top reserve
+                    # contains the label band (`geometry.placement`:
+                    # `mints = margin_t + txhi + lcar`), so shrinking the type
+                    # lifts the patch area by very nearly as much as it lifts
+                    # the ink, and what is left over is the "Label offset",
+                    # which the band does not contain.
+                    #
+                    # Driven on screen, i1Pro / A4 / "Prioritise patch size"
+                    # with "Use instrument margins" off, top margin 10, Label
+                    # offset walked, and the SIZE box walked from 20 pt to 1 pt
+                    # -- the smallest it accepts before "auto"
+                    # (`~/Desktop/ChromIQ-beta18-proof/beta19-round-2/q6.json`,
+                    # `q7.json`):
+                    #
+                    # | Label offset | 20 pt | 1 pt | cleared? |
+                    # |---|---|---|---|
+                    # | 11 (the smallest that warns at all) | 1.9 mm | 0.3 mm | **no** |
+                    # | 12 | 2.9 | 1.3 | **no** |
+                    # | 16 | 6.9 | 5.3 | **no** |
+                    # | 24 | 14.9 | 13.3 | **no** |
+                    #
+                    # The whole travel of the box is worth 1.6 mm at every
+                    # offset and the warning stays red at the bottom of it, so
+                    # a reader who took the offer made their strip letters
+                    # illegible and still had letter ink on the first row. The
+                    # one lever that is named now is exact: lowering "Label
+                    # offset" by the stated amount left 0.169 mm of clear paper
+                    # (`q6.json`, `Q6-offset-9.1`). In "Prioritise chart area"
+                    # the same offer IS real -- 8 pt clears a 4.3 mm collision
+                    # there (`q5.json`) -- which is why only this wording
+                    # changes.
                     over.append(tr(
                         "⚠ The strip letters are printed over the patches. "
                         "With “Prioritise patch size” they are held "
@@ -21738,9 +21800,11 @@ class TabChart(QWidget):
                         "so {over:.1f} mm of every letter is on the first row "
                         "of patches. Those patches carry letter ink and will "
                         "not measure correctly. Lower “Label offset” under "
-                        "“Strip letters only” by about {over:.1f} mm, or use a "
-                        "smaller label size. “T” under “Text distance from "
-                        "edge (mm)” does not move them in this layout.").format(
+                        "“Strip letters only” by about {over:.1f} mm. In this "
+                        "layout “T” under “Text distance from edge (mm)” does "
+                        "not move them, and a smaller label size lifts the "
+                        "patch area with the letters, so neither one clears "
+                        "this.").format(
                             reserve=_ov.reserve_mm, reach=_ov.reaches_mm,
                             margin=_ov.margin_mm, over=_ov.overlap_mm))
                 elif _ov is not None and _ov.from_markers:

@@ -10379,3 +10379,160 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   where each letter sits across the page?"**
 
 ---
+
+### B8-243 · The "Prioritise patch size" top notice offered a remedy that cannot clear it at any typed size
+- blocks release: no
+- status: FIXED
+- found by: the SECOND adversary round against beta 19, 2026-09-16, driving the
+  real window and measuring every figure off the rendered TIFF
+  (`~/Desktop/ChromIQ-beta18-proof/beta19-round-2/`).
+- this is inside round 1's own fix. B8-241 made this sentence fire in the layout
+  it describes; nobody had driven its second half there, and the second half was
+  *"Lower “Label offset” under “Strip letters only” by about {over} mm, **or use
+  a smaller label size**."*
+- what a user sees: "Use instrument margins" off, "Prioritise patch size", top
+  margin 10 mm, Label offset 12 mm, strip letters at 20 pt. The panel says
+  2.9 mm of every letter is on the first row of patches and offers the two
+  remedies above. The reader takes the second one and walks the Size box down:
+
+  | strip-letter Size | what the panel says | measured on the sheet |
+  |---|---|---|
+  | 20 pt | 2.9 mm on the patches | 2.709 mm |
+  | 14 pt | 2.4 | 2.202 |
+  | 10 pt | 2.0 | 1.947 |
+  | 8 pt | 1.8 | 1.693 |
+  | 6 pt | 1.7 | 1.609 |
+  | **1 pt**, the smallest the box takes before "auto" | **1.3** | still on the patches |
+
+  The warning is red at every step. The reader has made the strip letters
+  illegible and still has letter ink on the first row. Photographed:
+  `window/Q10-1-size-floor-still-red.png`.
+- and it is not one offset. The whole travel of the box is worth 1.6 mm wherever
+  the notice can fire at all (`q7.json`):
+
+  | Label offset | at 20 pt | at 1 pt | cleared? |
+  |---|---|---|---|
+  | 11, the smallest that warns at all | 1.9 mm | 0.3 mm | **no** |
+  | 12 | 2.9 | 1.3 | **no** |
+  | 16 | 6.9 | 5.3 | **no** |
+  | 24 | 14.9 | 13.3 | **no** |
+- why: this is the one layout where the PATCH BLOCK's own top reserve contains
+  the label band (`geometry.placement`: `mints = margin_t + txhi + lcar`), so
+  shrinking the type lifts the patch area by very nearly as much as it lifts the
+  ink. What is left over is the "Label offset", which the band does not contain.
+  In "Prioritise chart area" the margin is the law, the patch block does not
+  move with the band at all, and the same offer is real: 8 pt clears a 4.3 mm
+  collision there (`q5.json`). Only the one wording was wrong.
+- fix: the sentence names the one lever that was measured to clear it, and says
+  what the other two do instead. Driven after the change
+  (`q10.json`, `window/Q10-1-patchfirst-offset12.png`): *"Lower “Label offset”
+  under “Strip letters only” by about 2.9 mm. In this layout “T” under “Text
+  distance from edge (mm)” does not move them, and a smaller label size lifts
+  the patch area with the letters, so neither one clears this."* Applying that
+  one lever exactly (Label offset 12 → 9.1) left **0.169 mm of clear paper**
+  under the lowest letter and the panel reading "Margins: OK"
+  (`window/Q10-1-remedy-applied.png`). The two area-first wordings keep the
+  offer (`window/Q10-1-areafirst-keeps-the-offer.png`).
+- string change: one key, renamed in all thirteen catalogues, with a new German
+  translation; the twelve untranslated catalogues carry the new English.
+- evidence: test_a_smaller_label_lifts_the_patch_area_with_the_letters,
+  test_prioritise_chart_area_really_does_give_the_size_box_its_travel,
+  test_the_patch_first_sentence_does_not_offer_the_size_box,
+  test_it_still_says_which_two_controls_do_nothing_there,
+  test_the_area_first_sentences_keep_the_offer.
+  Two mutations proved to land by reading the file back: the dead offer put back
+  into that one sentence (1 red), and `txhi` removed from `placement`'s
+  patch-first `mints` so the patch block stops following the band (2 red).
+
+---
+
+### B8-244 · At 1200 dpi the chart has no preview at all, and the panel prints an internal error in its place
+- blocks release: no
+- status: FIXED
+- found by: the second adversary round against beta 19, 2026-09-16. Round 1 saw
+  it and recorded it without registering it; this round established that an
+  ordinary route reaches it and that nothing tells the reader anything useful.
+- what a user sees: A4 (the default paper), the dpi box set to 1200 (its own
+  maximum), Generate Chart. The chart builds, "Measured from Preview" reports
+  all four margins and "Chart layout information" reports 667 patches, and where
+  the chart should be there is this, and no picture:
+
+  > Preview error:
+  > QPixmap.loadFromData failed for (9921, 14031) RGB image
+
+  Photographed before the fix: `window/Q8-dpi1200.png`. 300 and 600 dpi were
+  fine in the same run (`q8.json`).
+- how ordinary the route is: two controls, both on the Create Chart page, both
+  at values the app itself offers. Nothing warns beforehand and the sentence
+  afterwards names no control.
+- why: `TiffPreview._pil_to_pixmap` encoded the page as a PNG and handed the
+  bytes to `QPixmap.loadFromData`, which reads through `QImageIOHandler` and
+  refuses anything over `QImageReader`'s allocation limit. That limit is 256 MB
+  and an A4 page at 1200 dpi is 9921 x 14031, which is 417 MB. Qt logs
+  *"QImageIOHandler: Rejecting image as it exceeds the current allocation limit
+  of 256 megabytes"* to the console, which no user sees.
+- fix: a `QImage` built over the buffer the renderer already holds, then
+  `QPixmap.fromImage`. Nothing is read through a handler, so no limit applies,
+  and it is strictly less work than encoding and decoding a PNG of the whole
+  page on every preview render.
+- **the resolution is NOT reduced**, which was the other candidate fix and would
+  have been wrong: `_refresh_image` hands this pixmap straight to
+  `_measure_own_margin`, so scaling it would quietly coarsen every "Measured
+  from Preview" number and every notice the 2026-09-15 ruling measures against
+  them.
+- driven after the fix (`q10.json`, `window/Q10-2-dpi1200.png`): the chart is
+  drawn, the pixmap is 9921 x 14031, the error label is empty, and the frame
+  reads Top 13.0 mm at 300, 600 and 1200 dpi alike.
+- evidence: test_every_page_the_dpi_box_can_produce_becomes_a_pixmap,
+  test_the_pixels_are_the_renderer_s_own,
+  test_a_paletted_or_grey_page_still_converts,
+  test_the_png_round_trip_is_gone.
+  Mutation proved to land by reading the file back: the PNG round trip restored,
+  and the 1200 dpi case raises the same `RuntimeError` the panel printed (2 red).
+
+---
+
+### B8-245 · "A narrower Clip border width also makes room" was offered where narrowing frees less room than the text needs
+- blocks release: no
+- status: FIXED
+- found by: the second adversary round against beta 19, 2026-09-16, reaching the
+  message from the app, which round 1 could not (`q9.json`).
+- what a user sees: i1Pro, A4, clip border on the right, Run 1 Chart Notes
+  filled in, the notes needing 2.7 mm at 7 pt. With a 12 mm border and "Right"
+  at 12 mm the panel offers *"Setting a narrower “Clip border width” also makes
+  room, down to 10 mm."* Narrowing it to 10.0, exactly as told, leaves the panel
+  red with a different line: *"they are printed 10.0 mm in from the paper edge,
+  need 2.7 mm at 7 pt and have 1.6 mm."*
+
+  | border | "Right" | what was offered | after narrowing to 10.0 |
+  |---|---|---|---|
+  | 12 | 12 | *"also makes room, down to 10 mm"* | **still red** |
+  | 24 | 12 | *"also makes room"* | **still red** |
+  | 24 | 20 | *"also makes room"* | cleared |
+  | 24 | 6 | *"will not help here"* | (not offered) |
+- why: the gate was `typed margin >= CLIP_WIDTH_MIN_MM`, while narrowing frees
+  exactly `typed - CLIP_WIDTH_MIN_MM` and the text still has to fit inside it.
+  At a typed 12 that is 2 mm against the 2.7 mm the notes want. The function's
+  own docstring already said the lever cannot help below about 13 mm, and its
+  own measured table has the *"band 12, right margin 12 … still red"* row in it;
+  the gate contradicted both.
+- and the reason sentence for the other branch would have been wrong there too:
+  it said the border *"would still be what decides where the patches start"*,
+  which is false at a typed 12 against a 10 mm floor, where the MARGIN decides.
+  One sentence now says the thing that is true on both sides of that line.
+- fix: `_clip_width_lever_note` takes the caller's own `needed_mm` and offers
+  the clause only when `typed >= CLIP_WIDTH_MIN_MM + needed`. All three call
+  sites hand it over. Driven after the change (`q10.json`): band 12 / right 12
+  says *"narrowing it frees less than the 2.7 mm the text needs"*, band 24 /
+  right 20 still offers it, and narrowing there clears the panel.
+- string change: two keys (the right and left variants), renamed in all thirteen
+  catalogues, with new German translations.
+- evidence: test_the_width_lever_is_withheld_when_the_room_it_frees_is_too_small,
+  test_the_width_lever_is_still_offered_where_the_room_is_enough,
+  test_the_reason_it_gives_is_true_on_both_sides_of_the_old_line,
+  test_every_call_site_hands_over_the_room_the_text_needs.
+  Two mutations proved to land by reading the file back: the old
+  `typed >= CLIP_WIDTH_MIN_MM` gate (3 red), and one call site dropping
+  `_o.needed_mm` (1 red).
+
+---
