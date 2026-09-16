@@ -132,6 +132,12 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # D24); the wording waits for Knut (K-g).
                                  "M-REPORT-CHART-MISMATCH",
                                  "M-THRESHOLDS-NOT-CERTIFICATION",
+                                 # #182, 2026-09-16: the design authority asked
+                                 # for a way to select and delete saved reports
+                                 # before a non-beta. Nothing in the model
+                                 # governs removing a report, so the window and
+                                 # its one refusal wait here.
+                                 "M-REPORT-DELETE",
                                  "M-CM-NO-CCTIFF", "M-CM-CONVERT-FAILED",
                                  "M-CM-PROFCHECK-CONVERTED",
                                  # Feature B — wording agreed verbatim with

@@ -351,6 +351,33 @@ def _small_sample_sentence(r: "dict | None") -> str:
               "the worst 5 %").format(n=_count if _count is not None else "?")
 
 
+def _faint_label_css(mode: str) -> str:
+    """The style for a window's secondary one-line label, per appearance.
+
+    **`color: palette(mid)` IS INVISIBLE IN THE DARK THEME**, and it was the
+    style on both of this window's faint labels. Measured 2026-09-16 while
+    photographing a greyed-out Delete with no reason beside it: the label's
+    resolved foreground is `#161616` on a ground of about `#141414`, a contrast
+    ratio of essentially 1. In the light theme the same role resolves to
+    `#d8d4ce`, which is barely better the other way round. Qt's Mid role is a
+    3-D frame shade, not a text colour, and ChromIQ's palettes never set it for
+    reading.
+
+    So the colour is chosen the way the strip under this row already chooses
+    its own: per mode, explicitly. The neutral theme has a named text colour
+    for exactly this (`NM_TEXT_DIM`, 12.13:1 on its panel).
+
+    This cost the "Already generated for this run:" line too, which is the line
+    Knut asked for on 2026-09-11 and reported as truncated on 2026-09-13. It
+    was not being read short; in the dark theme it was not being read at all.
+    """
+    if mode == "dark":
+        return "color: #9a9a9a; padding-left: 4px"
+    if mode == "neutral":
+        return f"color: {neutral_styles.NM_TEXT_DIM}; padding-left: 4px"
+    return "color: #5b5b5b; padding-left: 4px"
+
+
 def _report_file_order(name) -> tuple:
     """Where one `report_<stamp>[_N].json` sits in the order they were written.
 
@@ -1176,6 +1203,11 @@ class MeasurementReportDialog(QDialog):
         #: A type chosen for a measurement that is in NO run (CH-14): kept for
         #: the session, written nowhere, exactly as the limit set is.
         self._session_type = ""
+        #: B8-250. `_run_key` → the `report_*.json` name the user picked in
+        #: "Saved reports". Session-only and written nowhere: it chooses which
+        #: of a measurement's saved reports the window shows, and a run that
+        #: holds one report never has an entry here.
+        self._chosen_reports: "dict[str, str]" = {}
         self._syncing_limits = False
         # #182 (D28, question 19): the KIND of document, chosen before the
         # numbers it is judged with. Two controls, one rule: D9 governs both,
@@ -1211,7 +1243,8 @@ class MeasurementReportDialog(QDialog):
         #: been given its width.
         self._type_blurb = QLabel(self)
         self._type_blurb.setWordWrap(False)
-        self._type_blurb.setStyleSheet("color: palette(mid); padding-left: 4px")
+        self._type_blurb.setStyleSheet(_faint_label_css(
+            resolve_mode(settings.get("appearance", "auto"))))
         # …AND WHEN IT DOES NOT FIT, A WAY TO READ IT. Knut, 2026-09-13: *"the
         # end of the text is cut off with a '...' at the end. All generated
         # reports should be listed clearly and visible, even if it is a list of
@@ -1271,6 +1304,52 @@ class MeasurementReportDialog(QDialog):
             self, min_width=460, color=SPEC_GREEN))
         judged_row.addStretch(1)
         top_v.addLayout(judged_row)
+
+        # B8-250. The design authority, 2026-09-16: *"the selection and
+        # deletion of reports with a selector input box is needed and should be
+        # made first"*. A run may hold several reports of one measurement
+        # (Knut, 2026-09-11) and until now only the newest of them could ever
+        # be seen: the line above counts them and nothing could open one.
+        saved_row = QHBoxLayout()
+        self._saved_label = QLabel(tr("Saved reports:"), self)
+        saved_row.addWidget(self._saved_label)
+        self._saved_combo = NoScrollComboBox(self)
+        self._saved_combo.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToContents)
+        self._saved_combo.setMinimumWidth(320)
+        self._saved_combo.currentIndexChanged.connect(self._on_saved_chosen)
+        saved_row.addWidget(self._saved_combo)
+        self._delete_report_btn = QPushButton(tr("Delete…"), self)
+        self._delete_report_btn.setStyleSheet(_compact_btn)
+        self._delete_report_btn.clicked.connect(self._on_delete_report)
+        saved_row.addWidget(self._delete_report_btn)
+        #: Why Delete is refused, when it is. Same one-line, elided treatment
+        #: as `_type_blurb`, for the same reason: a word-wrapped label of its
+        #: own is what pushed this window's bottom off an 800 px screen twice.
+        self._saved_note = QLabel(self)
+        self._saved_note.setWordWrap(False)
+        self._saved_note.setStyleSheet(_faint_label_css(
+            resolve_mode(settings.get("appearance", "auto"))))
+        self._saved_note_full = ""
+        saved_row.addWidget(self._saved_note, 1)
+        self._saved_help = TooltipButton(
+            tr("Saved reports"),
+            tr("Every report this run has saved, newest first. Choosing one "
+               "shows that report instead of the newest of its "
+               "measurement.\n\n"
+               "A measurement can have several: “Generate report” writes a new "
+               "one each time, and a run may hold different report types of "
+               "the same sheet on purpose.\n\n"
+               "Delete… removes the one report you have chosen. The "
+               "measurement itself is never touched, and neither is any other "
+               "report of it. The only saved report of a dated verification "
+               "cannot be deleted: its verdict is this run's record of that "
+               "date, and the dates are kept comparable."),
+            self, min_width=460, color=SPEC_GREEN)
+        saved_row.addWidget(self._saved_help)
+        saved_row.addStretch(1)
+        self._saved_row = saved_row
+        top_v.addLayout(saved_row)
         # The strip (Knut D25): shown only when the chart cannot supply a row
         # the set limits; hidden, not blank, when there is nothing to say.
         self._mismatch = QLabel(self)
@@ -1684,8 +1763,7 @@ class MeasurementReportDialog(QDialog):
             self._report = self._subject_of(self._sources[-1])
             self._rebuild_from_sources()
 
-    @staticmethod
-    def _one_row_per_measurement(runs: list) -> list:
+    def _one_row_per_measurement(self, runs: list) -> list:
         """The gathered history, with the SAME MEASUREMENT listed once.
 
         A row in this window is a MEASUREMENT: it is labelled with the
@@ -1754,21 +1832,46 @@ class MeasurementReportDialog(QDialog):
         ONE MEASUREMENT still merge, because `build_report` stamps `created`
         from the measurement, so they share it; two MEASUREMENTS never do.
         """
-        seen: "dict[str, int]" = {}
-        out: list = []
+        groups: "dict[str, list]" = {}
+        order: list = []
         for r in runs:
             origin = str(r.get("_origin_dir") or "")
             if not origin:
-                out.append(r)     # nothing to key on: never merged with another
+                order.append(r)   # nothing to key on: never merged with another
                 continue
-            key = MeasurementReportDialog._run_key(r)
-            at = seen.get(key)
-            if at is None:
-                seen[key] = len(out)
-                out.append(r)
-            elif (_report_file_order(r.get("_report_file"))
-                    >= _report_file_order(out[at].get("_report_file"))):
-                out[at] = r
+            key = self._run_key(r)
+            if key not in groups:
+                groups[key] = []
+                order.append(key)
+            groups[key].append(r)
+        out: list = []
+        for item in order:
+            if not isinstance(item, str):
+                out.append(item)
+                continue
+            group = groups[item]
+            files = [str(r.get("_report_file") or "") for r in group]
+            # THE ONE THE USER PICKED IN "Saved reports", IF THEY PICKED ONE.
+            # A run may hold several reports of one measurement (Knut,
+            # 2026-09-11) and until B8-250 only the newest could ever be seen.
+            # A choice that no longer names a file on disk falls back to the
+            # newest rather than emptying the row.
+            want = self._chosen_reports.get(item)
+            pick = None
+            for r in group:
+                if want and str(r.get("_report_file") or "") == want:
+                    pick = r
+                    break
+            if pick is None:
+                pick = group[0]
+                for r in group[1:]:
+                    if (_report_file_order(r.get("_report_file"))
+                            >= _report_file_order(pick.get("_report_file"))):
+                        pick = r
+            # EVERY report file of this measurement, so the selector can offer
+            # them without reading the folder again.
+            pick["_all_report_files"] = files
+            out.append(pick)
         return out
 
     def _is_this_measurement(self, r: dict, ti3: Path,
@@ -3006,9 +3109,294 @@ class MeasurementReportDialog(QDialog):
             for w in (self._set_combo, self._unlock_check, self._limits_btn):
                 w.setToolTip(tip)
             self._sync_type_combo(run, several)
+            self._sync_saved_reports(run)
             self._set_strip(self._mismatch_text())
         finally:
             self._syncing_limits = False
+
+    # ------------------------------------------------------------------
+    # Saved reports: choose one, or delete one (B8-250)
+    # ------------------------------------------------------------------
+    def _saved_report_choices(self, run) -> list:
+        """``[(row, file name, label)]`` for every saved report of *run*.
+
+        Taken from the history the window already holds, not from a fresh walk
+        of the folder: `_one_row_per_measurement` records every report file of
+        a measurement on the row it keeps, so the list here and the row on
+        screen cannot disagree about what exists.
+
+        ONLY THIS RUN'S. Everything else this window WRITES is this run's, for
+        the reason `_recalculate_run` gives at length: `…/runs/run10` starts
+        with `…/runs/run1`, so the folders are asked of the run rather than
+        matched out of a string. A window opened on one run gathers the whole
+        project's history to draw the trend (#40), and offering to delete
+        another run's files out of that list would be the widest reach in the
+        window by far.
+        """
+        if run is None:
+            return []
+        try:
+            mine = {str(run.dir)} | {str(v.dir) for v in run.verifications()}
+        except Exception:                            # noqa: BLE001
+            mine = {str(run.dir)}
+        out: list = []
+        for r in self._history:
+            if str(r.get("_origin_dir") or "") not in mine:
+                continue
+            for name in (r.get("_all_report_files") or []):
+                out.append((r, name, self._saved_report_label(r, name)))
+        # Newest first: the one a reader is most likely to want is the one at
+        # the top, and `_report_file_order` is the window's one answer to
+        # "which of these was written last".
+        out.sort(key=lambda t: (str(t[0].get("created") or ""),
+                                _report_file_order(t[1])), reverse=True)
+        return out
+
+    def _saved_report_label(self, r: dict, name: str) -> str:
+        """How one saved report is named in the selector.
+
+        The measurement's date, then what the FILE says it is: its own report
+        type and its own limit set, read off that file rather than off the run,
+        because the whole point of the list is that a run may hold several
+        reports of one measurement and they may differ (Knut, 2026-09-11).
+
+        **AND WHEN IT WAS SAVED, WHICH IS THE ONLY THING THAT TELLS TWO OF THEM
+        APART.** Driven on screen before it was added: the run in a tester's
+        pack holds fifty reports of one measurement and forty-eight of them
+        drew the identical line, *"2026-10-26 10:00 · Full colour check ·
+        Custom ISO 12647-7"*. A list where a reader cannot tell which entry
+        they are about to delete is not a selector. The stamp is the file's
+        own, and where several share a second the number `save_report` gave
+        them is on the end, because that is exactly the case it exists for.
+
+        READ ONCE PER FILE, keyed by path and mtime. This is asked for every
+        saved report of the run on every repaint, and a run can hold fifty
+        reports of 19 kB each; re-reading a megabyte to redraw a pulldown that
+        has not changed is the kind of cost that only shows up on somebody
+        else's disk.
+        """
+        import json as _json
+        from workflow.measurement_report import (recorded_compliance,
+                                                 report_type, report_type_name)
+        when = str(r.get("created") or "").replace("T", " ")[:16] or "?"
+        path = Path(str(r.get("_origin_dir") or "")) / "reports" / name
+        cache = getattr(self, "_label_cache", None)
+        if cache is None:
+            cache = self._label_cache = {}
+        try:
+            stamp = path.stat().st_mtime_ns
+        except OSError:
+            stamp = 0
+        hit = cache.get(str(path))
+        if hit is not None and hit[0] == stamp:
+            return hit[1]
+        rep = r
+        if str(r.get("_report_file") or "") != name:
+            try:
+                rep = _json.loads(read_text(path))
+            except Exception:                        # noqa: BLE001
+                rep = {}
+        bits = [when]
+        try:
+            bits.append(tr(report_type_name(report_type(rep))))
+        except Exception:                            # noqa: BLE001
+            pass
+        comp = recorded_compliance(rep)
+        if comp:
+            from workflow.compliance_sets import set_label
+            bits.append(set_label(str(comp.get("set_id", "")),
+                                  str(comp.get("set_label", ""))))
+        _rank, _when_saved, _n = _report_file_order(name)
+        if _rank:
+            # the stamp is `%Y-%m-%d_%H-%M-%S`; a person reads the date with
+            # hyphens and the clock with colons
+            day, _, clock = str(_when_saved).partition("_")
+            saved = tr("saved {when}").format(
+                when=f"{day} {clock.replace('-', ':')}")
+            bits.append(saved if _n <= 1 else f"{saved} ({_n})")
+        label = " · ".join(bits)
+        cache[str(path)] = (stamp, label)
+        return label
+
+    def _saved_delete_refusal(self, r: dict, name: str) -> str:
+        """Why this report may not be deleted, or "".
+
+        **THE ONLY SAVED REPORT OF A DATED VERIFICATION STAYS.** §5 of
+        `docs/design/measurement_report_limits.md` exists so that every dated
+        verification of a run is judged the same way and the dates stay
+        comparable; that comparability IS the recorded verdict, and a date
+        whose last report is gone has none. The window would then grade it live
+        against today's numbers, which is the one thing the lock is there to
+        prevent. Nothing in the model governs deletion, so this rule waits for
+        approval with M-REPORT-DELETE.
+        """
+        from core.file_manager import VERIFICATIONS_DIRNAME
+        origin = Path(str(r.get("_origin_dir") or ""))
+        if origin.parent.name != VERIFICATIONS_DIRNAME:
+            return ""
+        if len(r.get("_all_report_files") or []) > 1:
+            return ""
+        return tr("The only saved report of a dated verification is kept: its "
+                  "verdict is this run's record of that date.")
+
+    def _sync_saved_reports(self, run) -> None:
+        """Fill the selector, and say whether Delete may be pressed."""
+        combo = getattr(self, "_saved_combo", None)
+        if combo is None:
+            return
+        choices = self._saved_report_choices(run)
+        want = combo.currentData()
+        combo.blockSignals(True)
+        try:
+            combo.clear()
+            for r, name, label in choices:
+                combo.addItem(label, (self._run_key(r), name))
+            # NOT `combo.findData(want)`. Driven on screen: the item is there,
+            # `itemData(i) == want` is True in Python, and `findData` answers
+            # -1 all the same — Qt is matching QVariants, and a PyQt-wrapped
+            # tuple is not something it can compare. The selector then snapped
+            # back to the first entry on every pick, so choosing any report but
+            # the top one was impossible. The scan below is this window's own
+            # comparison, and it is the same one `_chosen_pair` makes.
+            i = next((n for n, (r, name, _l) in enumerate(choices)
+                      if want and (self._run_key(r), name) == tuple(want)), -1)
+            if i < 0 and choices:
+                # the row the window is ON, which is the report it is showing
+                showing = next(
+                    (n for n, (r, nm, _l) in enumerate(choices)
+                     if self._report is not None
+                     and self._run_key(r) == self._run_key(self._report)
+                     and nm == str(self._report.get("_report_file") or "")), 0)
+                i = showing
+            combo.setCurrentIndex(max(0, i))
+        finally:
+            combo.blockSignals(False)
+        # EVERY WIDGET IN THE ROW, THE HELP BUTTON INCLUDED. A hidden widget
+        # claims no space in a Qt layout, so a row with nothing to say costs
+        # nothing — and one widget left visible keeps the whole row's height.
+        # This window's minimum already sits within about 11 px of an 800 px
+        # screen (`test_report_list_shows_at_least_five_rows_and_fits_the_
+        # screen`), and the first cut of this row left the help button behind
+        # and pushed the window's bottom off the screen on a measurement with
+        # no saved report at all.
+        for w in (self._saved_label, self._saved_combo,
+                  self._delete_report_btn, self._saved_note,
+                  self._saved_help):
+            w.setVisible(bool(choices))
+        if not choices:
+            self._saved_note.setText("")
+            self._delete_report_btn.setEnabled(False)
+            return
+        self._saved_label.setText(
+            tr("Saved reports ({run}):").format(run=run.dir.name)
+            if run is not None else tr("Saved reports:"))
+        r, name = self._chosen_pair(choices)
+        why = self._saved_delete_refusal(r, name) if r is not None else ""
+        # NOTHING SELECTED IS NOT "NOTHING IN THE WAY". Driven on screen: the
+        # last report of a profiling measurement deleted, the pulldown empty,
+        # and Delete still live over a list with nothing in it.
+        self._delete_report_btn.setEnabled(bool(r is not None and not why))
+        self._set_saved_note(why)
+
+    def _set_saved_note(self, full: str) -> None:
+        """Why Delete is refused, on one line, with the whole of it as tooltip.
+
+        Same treatment `_type_blurb` gets, and for the reason given there: a
+        word-wrapped label of its own is what pushed this window's bottom off
+        an 800 px screen, twice.
+
+        **THE ROOM IS THE WINDOW'S, NOT THE LABEL'S.** The first cut measured
+        `self._saved_note.width()`, which is nothing at all before the layout
+        has run, so the sentence elided to a floor of 120 px and a driver
+        photographed a greyed-out Delete with no reason beside it at all: the
+        exact shape of the faults this project has spent a beta fixing, a
+        refusal a reader cannot act on. `_set_type_blurb` measures the window
+        and the label's x, and `resizeEvent` asks both of them again.
+        """
+        self._saved_note_full = full or ""
+        if not full:
+            self._saved_note.setText("")
+            self._saved_note.setToolTip("")
+            return
+        from PyQt6.QtGui import QFontMetrics
+        fm = QFontMetrics(self._saved_note.font())
+        room = max(120, self.width() - self._saved_note.x() - 40)
+        self._saved_note.setText(
+            fm.elidedText(full, Qt.TextElideMode.ElideRight, room))
+        self._saved_note.setToolTip(full)
+
+    def _chosen_pair(self, choices: list) -> tuple:
+        """The (row, file name) the selector is on, or (None, "")."""
+        data = self._saved_combo.currentData()
+        if not data:
+            return (None, "")
+        key, name = data
+        for r, nm, _label in choices:
+            if nm == name and self._run_key(r) == key:
+                return (r, nm)
+        return (None, "")
+
+    def _on_saved_chosen(self, _i: int) -> None:
+        """A saved report was picked: show THAT one, in place of the newest."""
+        if self._syncing_limits:
+            return
+        data = self._saved_combo.currentData()
+        if not data:
+            return
+        key, name = data
+        if self._chosen_reports.get(key) == name:
+            return
+        self._chosen_reports[key] = name
+        self._reload_sources()
+
+    def _reload_sources(self) -> None:
+        """Read every loaded measurement's reports off disk again.
+
+        The one way back from a change to what is ON DISK, which is what a
+        delete is. `_rebuild_from_sources` only re-reads what `_gather_runs`
+        already put in `self._sources`, so on its own it would redraw the
+        window from the file that has just been removed.
+        """
+        subject = self._run_key(self._report) if self._report else None
+        for src in self._sources:
+            try:
+                name, runs = self._gather_runs(Path(src["ti3"]))
+            except Exception as exc:                 # noqa: BLE001
+                log.warning("could not re-read %s: %s", src.get("ti3"), exc)
+                continue
+            src["name"], src["runs"] = name, runs
+        rows = [r for s in self._sources for r in s["runs"]]
+        self._report = next(
+            (r for r in rows if subject and self._run_key(r) == subject),
+            rows[-1] if rows else self._report)
+        self._rebuild_from_sources()
+
+    def _on_delete_report(self) -> None:
+        """Remove one saved report, after saying exactly what goes."""
+        from ui.warning_sign import warn
+        from workflow import measurement_messages as M
+        ctx = self._run_ctx
+        choices = self._saved_report_choices(ctx.run if ctx else None)
+        r, name = self._chosen_pair(choices)
+        if r is None or self._saved_delete_refusal(r, name):
+            return
+        path = Path(str(r.get("_origin_dir") or "")) / "reports" / name
+        left = max(0, len(r.get("_all_report_files") or []) - 1)
+        title, body = M.CATALOGUE["M-REPORT-DELETE"].render(
+            what=self._saved_report_label(r, name), file=name, n=left)
+        if not self._confirm(title, body):
+            return
+        try:
+            path.unlink()
+        except OSError as exc:
+            log.warning("could not delete %s: %s", path, exc)
+            warn(self, title, str(exc))
+            return
+        log.info("saved report deleted: %s", path)
+        key = self._run_key(r)
+        if self._chosen_reports.get(key) == name:
+            self._chosen_reports.pop(key, None)
+        self._reload_sources()
 
     # ------------------------------------------------------------------
     # The report TYPE (#182 D28)
@@ -3445,6 +3833,8 @@ class MeasurementReportDialog(QDialog):
             self._set_strip(self._mismatch_full)
         if getattr(self, "_type_blurb_full", ""):
             self._set_type_blurb(self._type_blurb_full)
+        if getattr(self, "_saved_note_full", ""):
+            self._set_saved_note(self._saved_note_full)
 
     # -- reasons a row was not computed, as sentences --------------------------
     def _reason_sentence(self, code: "str | None", r: "dict | None" = None) -> str:

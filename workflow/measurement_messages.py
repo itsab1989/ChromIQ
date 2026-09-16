@@ -2391,6 +2391,30 @@ M_REPORT_CHART_MISMATCH = _m(
     "measure it again.",
     approved=False)
 
+# --- PROPOSED (#182, 2026-09-16): deleting one saved report ------------------
+#
+# The design authority asked for this before a non-beta: *"the selection and
+# deletion of reports with a selector input box is needed and should be made
+# first"*. Nothing in this model governs deleting a report, and §5 of
+# `measurement_report_limits.md` governs only the archive-then-recalculate
+# rule, which is about rewriting a report rather than removing one. So the
+# window says exactly what goes and what stays, and the WORDING waits here.
+M_REPORT_DELETE = _m(
+    "M-REPORT-DELETE",
+    "Delete this saved report?",
+    "This removes one saved report from your project:\n\n{what}\n{file}\n\n"
+    "The measurement it describes is not touched, and no other report of that "
+    "measurement is touched. {n} saved reports of it are left afterwards.\n\n"
+    "ChromIQ cannot undo this.",
+    body_one=(
+        "This removes one saved report from your project:\n\n{what}\n{file}\n\n"
+        "The measurement it describes is not touched, and no other report of "
+        "that measurement is touched. One saved report of it is left "
+        "afterwards.\n\n"
+        "ChromIQ cannot undo this."),
+    count_key="n",
+    approved=False)
+
 # --- PROPOSED (#182, Knut D11/D24): the note at the foot of the Report limits
 # window ----------------------------------------------------------------------
 M_THRESHOLDS_NOT_CERTIFICATION = _m(
@@ -2418,7 +2442,7 @@ M_THRESHOLDS_NOT_CERTIFICATION = _m(
     approved=False)
 
 CATALOGUE = {m.id: m for m in (
-    M_REPORT_CHART_MISMATCH, M_THRESHOLDS_NOT_CERTIFICATION,
+    M_REPORT_CHART_MISMATCH, M_THRESHOLDS_NOT_CERTIFICATION, M_REPORT_DELETE,
     M_REPLACE_PARTIAL, M_REPLACE_COMPLETE, M_TI3_MISMATCH,
     M_REPLACE_UNCOUNTABLE,
     M_IMPORT_REPLACE_CONFIRM, M_IMPORT_REPLACE_PROJECT_CONFIRM,

@@ -527,18 +527,26 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # own `_english_echoes` on the catalogues this change leaves behind, never the
 # old number plus three.
 _BUDGET = {
+    # RE-MEASURED 2026-09-16, B8-250: the "Saved reports" row and its delete
+    # question. **10 keys in, 0 stale out**; five of the ten are long enough to
+    # count here (the tooltip, the refusal, the two delete bodies and the
+    # delete title falls under the 25-character floor, so: the tooltip, the
+    # refusal and the two bodies, plus "Saved reports ({run}):"). German is
+    # translated and does not move (4); the eleven others each rise by exactly
+    # 5. RE-MEASURED with this file's own `_english_echoes`, never adjusted
+    # upward from the old numbers.
     "de": 4,
-    "es": 194,
-    "fr": 195,
-    "it": 194,
-    "ja": 194,
-    "nl": 194,
-    "no": 194,
-    "pl": 194,
-    "pt": 194,
-    "ru": 193,
-    "sv": 194,
-    "zh_CN": 193,
+    "es": 199,
+    "fr": 200,
+    "it": 199,
+    "ja": 199,
+    "nl": 199,
+    "no": 199,
+    "pl": 199,
+    "pt": 199,
+    "ru": 198,
+    "sv": 199,
+    "zh_CN": 198,
 }
 
 

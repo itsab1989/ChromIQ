@@ -365,17 +365,63 @@ def test_a_name_in_no_known_shape_never_jumps_the_queue():
     assert order("odd.json") < order("report_2026-09-15_13-35-33.json")
 
 
+def _merge(rows, chosen=None):
+    """`_one_row_per_measurement` on a bare instance, with no window built.
+
+    It reads exactly one attribute of `self` besides its own statics, and a
+    test that stood a whole dialog up to exercise a list merge would be a
+    slower test of something else.
+    """
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    shell = MeasurementReportDialog.__new__(MeasurementReportDialog)
+    shell._chosen_reports = dict(chosen or {})
+    return MeasurementReportDialog._one_row_per_measurement(shell, rows)
+
+
+def _sixteen():
+    return [{"_origin_dir": "/p/runs/run1", "created": "2026-09-15T13:00:00",
+             "ti3": "p.ti3",
+             "_report_file": f"report_2026-09-15_13-35-33_{n}.json",
+             "compliance": {"set_id": f"set{n}", "thresholds": {"a": n}}}
+            for n in range(2, 17)]
+
+
 def test_the_merge_keeps_the_sixteenth_report_not_the_ninth():
     """The promise `_one_row_per_measurement` makes, on the shape that broke it.
 
     MUTATION: put the `str(...) >= str(...)` comparison back and this goes red.
     """
-    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
-    rows = [{"_origin_dir": "/p/runs/run1", "created": "2026-09-15T13:00:00",
-             "ti3": "p.ti3", "_report_file": f"report_2026-09-15_13-35-33_{n}.json",
-             "compliance": {"set_id": f"set{n}", "thresholds": {"a": n}}}
-            for n in range(2, 17)]
-    out = MeasurementReportDialog._one_row_per_measurement(rows)
+    out = _merge(_sixteen())
     assert len(out) == 1
     assert out[0]["_report_file"] == "report_2026-09-15_13-35-33_16.json", (
         f"the row carries {out[0]['_report_file']}")
+
+
+def test_the_merge_records_every_report_file_of_a_measurement():
+    """B8-250: the selector offers them, so the merge has to keep the list.
+
+    MUTATION: stop setting `_all_report_files` and this goes red.
+    """
+    out = _merge(_sixteen())
+    assert len(out[0]["_all_report_files"]) == 15
+
+
+def test_a_chosen_report_wins_over_the_newest(tmp_path):
+    """The selector's whole job: show the one that was picked, not the newest.
+
+    MUTATION: drop the `_chosen_reports` lookup and this goes red.
+    """
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    rows = _sixteen()
+    key = MeasurementReportDialog._run_key(rows[0])
+    out = _merge(rows, {key: "report_2026-09-15_13-35-33_4.json"})
+    assert out[0]["_report_file"] == "report_2026-09-15_13-35-33_4.json"
+
+
+def test_a_choice_that_names_no_file_falls_back_to_the_newest():
+    """A report the user picked and then deleted must not empty its row."""
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    rows = _sixteen()
+    key = MeasurementReportDialog._run_key(rows[0])
+    out = _merge(rows, {key: "report_that_is_gone.json"})
+    assert out[0]["_report_file"] == "report_2026-09-15_13-35-33_16.json"

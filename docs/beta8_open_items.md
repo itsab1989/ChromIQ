@@ -10743,3 +10743,113 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   back in `_one_row_per_measurement` (1 red).
 
 ---
+
+### B8-250 · There was no way to see, or to remove, any saved report but the newest
+- blocks release: yes
+- status: FIXED
+- it is the second half of what the project's design authority asked for on
+  2026-09-16, before the non-beta he proposed: *"the selection and deletion of
+  reports with a selector input box is needed and should be made first"*.
+- what a user sees now that they did not: a **Saved reports (run1)** row under
+  "Judged against", listing every report this run has saved, newest first, as
+  *2026-11-02 10:00 · Printing record (not graded) · Custom ISO 12647-7 ·
+  saved 2026-11-02 10:00:00 (3)*. Choosing one shows that report. **Delete…**
+  removes the one chosen, after a window (M-REPORT-DELETE) naming it, its file
+  and how many are left. Photographed in
+  `~/Desktop/ChromIQ-beta20-proof/report-sets/round5-final-verification/` and
+  `round5-german/`.
+- what it replaces: nothing. A run may hold several reports of one measurement
+  on purpose (Knut, 2026-09-11), the line above the table counts them, and
+  `_one_row_per_measurement` keeps the newest, so the rest could not be opened
+  and could not be removed except in Finder. On the pack a tester sent in, one
+  run holds **fifty** reports of one measurement and the window could show one
+  of them.
+- **the one refusal, and it is a decision, not a fact.** The only saved report
+  of a DATED VERIFICATION is kept: §5 of
+  `docs/design/measurement_report_limits.md` exists so that every dated
+  verification of a run is judged the same way and the dates stay comparable,
+  and that comparability IS the recorded verdict; a date whose last report is
+  gone has none, and the window would then grade it live against today's
+  numbers, which is what the lock exists to prevent. The button greys and a
+  line beside it says so. A profiling measurement's last report has no such
+  record behind it and may go. **Nothing in the model governs deleting a
+  report, so this rule waits for approval with the wording.**
+- three faults found while driving it, all inside this work and all fixed:
+  * **the list could not be read.** Forty-eight of the fifty entries drew the
+    identical line, because the label carried the MEASUREMENT's date and not
+    the file's own. It now carries when the report was saved and, where several
+    share a second, the number `save_report` gave it.
+  * **choosing anything but the top entry was impossible.** `combo.findData`
+    answers -1 for a PyQt-wrapped tuple that `itemData(i) == want` says is
+    there, so every pick snapped back to the first entry. The scan that
+    replaced it is the window's own comparison. It reproduces only when the
+    pick moves the window's ROW, which is why a test on the easy shape passed
+    with `findData` restored.
+  * **the row pushed the window's bottom off an 800 px screen.** A hidden
+    widget claims no space and one left visible keeps the row: the help button
+    was not in the visibility loop, so a measurement with no saved report at
+    all paid 41 px for a row with nothing in it.
+- string change: ten keys, added to all thirteen catalogues with new German
+  translations. One of them is M-REPORT-DELETE, written into §M-PROPOSED of
+  `unified_measurement_management.md` and listed in `AWAITING_APPROVAL`.
+- evidence: test_every_saved_report_of_the_run_is_offered,
+  test_the_selector_never_offers_another_run_s_reports,
+  test_two_reports_of_one_second_are_told_apart_in_the_list,
+  test_choosing_an_entry_that_is_not_the_first_one_sticks,
+  test_the_document_follows_the_report_that_was_chosen,
+  test_delete_removes_exactly_the_chosen_file, test_saying_no_removes_nothing,
+  test_the_only_report_of_a_dated_verification_cannot_be_deleted,
+  test_the_second_to_last_report_of_a_date_may_go,
+  test_delete_is_dead_when_the_selector_is_empty,
+  test_the_window_survives_losing_the_report_it_was_showing,
+  test_the_row_costs_nothing_when_there_is_nothing_to_choose,
+  test_the_window_still_fits_the_screen_with_the_row_on_it,
+  test_the_merge_records_every_report_file_of_a_measurement,
+  test_a_chosen_report_wins_over_the_newest,
+  test_a_choice_that_names_no_file_falls_back_to_the_newest.
+  Six mutations proved to land by reading the file back: the refusal made inert
+  (2 red), `findData` restored (1 red), the `mine` filter removed (1 red), the
+  "saved {when}" clause dropped (1 red), `_all_report_files` truncated (5 red),
+  and the help button left out of the visibility loop (3 red, two of them the
+  screen-fit tests that were already there).
+
+---
+
+### B8-251 · Two of this window's labels were drawn in a colour with no contrast at all
+- blocks release: no
+- status: FIXED
+- found by: the challenge round against B8-250, 2026-09-16, photographing the
+  new row and finding a greyed-out Delete with no reason beside it. The reason
+  was in the label; the label was invisible.
+- what a user sees, measured rather than judged by eye:
+
+  | appearance | label colour | the ground it is on | contrast |
+  |---|---|---|---|
+  | dark | `#161616` | `#181818` | **1.02** |
+  | light | `#d8d4ce` | `#eeece8` | **1.25** |
+  | neutral | `#d4d4d4` | `#e2e2e2` | **1.14** |
+
+- **and it was not only the new label.** The same style was on `_type_blurb`,
+  which carries *"Already generated for this run: Colour summary (one page)
+  (5), Full colour check (48), Printing record (not graded) (1)"*. That is the
+  line Knut asked for on 2026-09-11 and reported as truncated on 2026-09-13.
+  It was not being read short; in the dark theme it was not being read at all.
+  Photographed before and after:
+  `report-sets/round3b-saved-reports/S1-selector.png` against
+  `report-sets/round4-readable/S1-selector.png`.
+- why: `color: palette(mid)`. Qt's Mid role is a 3-D frame shade, not a text
+  colour, and ChromIQ's palettes never set it for reading.
+- fix: `_faint_label_css` chooses per appearance, the way the strip on the row
+  above already chooses its own: `#9a9a9a` on dark, `#5b5b5b` on light, and the
+  neutral theme's own named `NM_TEXT_DIM` (12.13:1 on its panel).
+- **the test does not re-style the application.** `apply_appearance` calls
+  `qapp.setStyleSheet`, which CLAUDE.md forbids in a test; a first cut of this
+  one did, and left the next two files in the run with a taller window and two
+  red screen-fit assertions. The function is pure, so it is asked directly.
+- evidence: test_a_faint_label_is_a_colour_and_not_an_absence,
+  test_the_faint_labels_carry_that_colour_and_not_the_palette,
+  test_no_label_in_this_window_is_styled_with_palette_mid.
+  Mutation proved to land by reading the file back: `palette(mid)` returned for
+  every mode (5 red).
+
+---

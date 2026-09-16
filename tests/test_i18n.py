@@ -889,18 +889,25 @@ _IDENTICAL_TO_KEY = {
     # carry the English under the beta rule and each rises by exactly 3. Every
     # number below is this tree's own count, taken from the test's own
     # expression.
+    #
+    # RE-MEASURED 2026-09-16, B8-250: the Measurement Report gained a "Saved
+    # reports" row, so a run's several reports of one measurement can be shown
+    # and one of them deleted, with M-REPORT-DELETE's question in front of it.
+    # **10 keys in, 0 stale out**, counted with `set(after) - set(before)`.
+    # German is translated, so **de does not move (124)**; the eleven others
+    # carry the English under the beta rule and each rises by exactly 10.
     "de": 124,
-    "es": 356,
-    "fr": 378,
-    "it": 367,
-    "ja": 342,
-    "nl": 383,
-    "no": 368,
-    "pl": 360,
-    "pt": 358,
-    "ru": 331,
-    "sv": 369,
-    "zh_CN": 336,
+    "es": 366,
+    "fr": 388,
+    "it": 377,
+    "ja": 352,
+    "nl": 393,
+    "no": 378,
+    "pl": 370,
+    "pt": 368,
+    "ru": 341,
+    "sv": 379,
+    "zh_CN": 346,
 }
 
 
