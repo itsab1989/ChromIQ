@@ -9887,3 +9887,370 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   (1 red) — `mutations.txt`.
 
 ---
+
+### B8-231 · A chart built on top of another was judged on the one it replaced
+- blocks release: no
+- status: FIXED
+- found by: two testers driving beta 18 on screen, independently and from
+  opposite directions, 2026-09-16.
+- what a user sees, route one: a two-page chart built with Right = 6 mm warns
+  *"the right margin leaves 1.7 mm … Raising “Right” … by about 2.8 mm"*. Set
+  Right = 40 and press Generate Chart, and the frame reads **40.2 mm**, the
+  engine 40.159 and the app's own raster 40.13 — while the red paragraph beside
+  it repeats *"leaves 1.7 mm"* word for word. The reader did exactly what the
+  message asked and got the identical message back.
+  (`~/Desktop/ChromIQ-beta18-proof/knut-sweep-preview-truth/R12-B-right-40mm.png`)
+- what a user sees, route two: two preset picks in one session. On page 1 of 3
+  the frame reads `Right 23.9` and under it *"the right margin leaves 0.0 mm …
+  Raising “Right” … by about 16.9 mm"* plus *"the right margin leaves 6.1 mm"*.
+  Three numbers for one edge on screen at once, all three about a chart that no
+  longer exists.
+- and the same fault from the clip border's side: the frame read 34.994 while
+  the judgement used 10.017, which is a tester's *"very different values that
+  do not make sense"*; **raising the margin to 51 mm did not change one digit,
+  and pressing Generate again did not clear it** — only a page-count change, a
+  new project or a restart did.
+- why: `TabChart._worst_page_key` was *(the page TIFF paths, the .ti2 path)*.
+  A rebuild into the same run writes `<name>_01.tif … _NN.tif` again, so the
+  key never moved and `_ensure_worst_page_cache` returned early. **The
+  function's own docstring claimed the opposite** — *"A new chart is a new key,
+  so the pages of the previous one can never judge this one's text"* — which is
+  the third guard this week found asserting what it does not do.
+- fix: the key is each file's SIZE plus `st_mtime_ns`, the `.channels.json`
+  sidecar included. **Not mtime alone**: `shutil.copy2` preserves it, and this
+  project lost a day to exactly that shape on another cache the week before.
+- proved on screen, in the tester's own three-page sequence (`b19_f1m.json`,
+  `P1`/`P2`/`P3`): band left with Right 10 (frame 10.017, silent), then band
+  right with Right 35 in the SAME run (frame **34.994**, and the two false red
+  notices are gone), then Generate pressed again with nothing changed (frame
+  34.994, still silent). And on the plainest route (`b19_f1.json`): Right 6
+  warns *"leaves 1.7 mm"*, Right 40 and Generate leaves the frame at 40.159
+  with no notice at all (`window/F1-A-right-6.png`, `window/F1-B-right-40.png`).
+- evidence: test_the_key_moves_when_the_same_filenames_are_rewritten,
+  test_the_key_moves_even_when_the_mtime_is_preserved,
+  test_the_sidecar_is_in_the_key_too,
+  test_a_chart_that_did_not_change_keeps_its_measurement,
+  test_the_docstring_describes_what_the_function_does.
+  Mutation proved to land (the key back to the file names): 3 red.
+
+### B8-232 · Four routes recomputed the notices from the live boxes against the old sheet
+- blocks release: no
+- status: FIXED
+- found by: a tester driving beta 18 on screen, 2026-09-16.
+- what a user sees: build a chart with the bottom line at 36 pt, type 6 pt into
+  the Size box (correct: the red *"press Generate Chart"* line arms and the
+  notice does not move), then tick a guide box **on the frame itself**. The
+  notice is recomputed at 6 pt against the 36 pt sheet. Type 36 pt back and the
+  red line correctly goes while the false notice stays. In that last state the
+  boxes match the chart, the chart matches the disk, nothing on screen says
+  anything is pending, and the red notice describes a sheet that was never
+  generated. The TIFF's SHA-256 is identical at every step.
+  (`~/Desktop/ChromIQ-beta18-proof/knut-sweep-preview-truth/R11-3-HEADLINE-size-36pt-no-red-line-notice-says-6pt.png`)
+- the four routes: `_preview.page_changed`, `_on_margin_guides_toggled`,
+  `_on_margin_measured_guides_toggled` and `refresh_margin_inspector_settings`
+  (the Preferences round trip). `_refresh_manual_command_preview` was already
+  excluded by the 2026-09-15 ruling; these four were not brought under it.
+- why: `_engine_text_notes` re-read `_current_layout_recipe()` — the widgets —
+  while `_update_margin_inspector` re-measured the OLD TIFFs.
+- fix: `_notice_layout_recipe` takes the recipe from the chart's own
+  `channels.json`, which every build writes and which `_restore_chart_settings`
+  already trusts for exactly this reason. A printtarg chart, or no chart at
+  all, still judges the live panel, so nothing goes silent.
+- proved on screen (`b19_f2.json`, `window/F2-0…F2-3`): the four steps produce
+  the IDENTICAL message field, and it is the 36 pt one throughout.
+- evidence: test_the_notice_recipe_comes_from_the_chart_and_not_from_the_boxes,
+  test_typing_a_box_and_typing_it_back_changes_nothing,
+  test_the_recipe_is_re_read_when_the_chart_is_rebuilt,
+  test_a_chart_with_no_sidecar_still_judges_the_boxes,
+  test_the_notices_themselves_follow_the_built_recipe.
+  Mutation proved to land (the live recipe back): 1 red.
+
+### B8-233 · A tenth of a millimetre warned, and the residue is a pixel
+- blocks release: no
+- status: FIXED
+- found by: a tester, testing beta 18 on the SHIPPED presets, untouched.
+- what a user sees: load `i1Pro 3 Plus · A4-462p-3pages` or any A4 ColorMunki
+  preset and the panel says *"The band is 24.0 mm wide and the left margin
+  leaves 23.9 mm"*. Nothing is on the paper: twin sheets subtracted pixel by
+  pixel put **3.3 mm of white paper** between the band's content and the first
+  patch. He asked for a 0.2 mm threshold on all four sides.
+- why, measured rather than guessed: the clip zone is an exact 28.000 mm and
+  the MEASURED margin lands on a whole pixel. The same chart at five
+  resolutions — 72: residue 0.131, 150 and 200: 0.060, 300: −0.025, 600: 0.018
+  — against an `EPS_MM` of 0.05.
+- **a flat 0.2 mm is not enough.** The dpi box accepts 72 to 1200 and the worst
+  case at 72 is a whole pixel, 0.353 mm. The rule is `max(0.2 mm, one pixel at
+  this chart's dpi)`.
+- and it masks nothing that reaches paper: twin sheets again, the claimed
+  shortfall exceeds the real ink overlap by a constant ~1.3 mm reserve, so at a
+  claimed 0.2 mm there is **1.10 mm of clear paper and zero text pixels on the
+  patches**.
+- proved on screen (`b19_k2b.json`, `window/K2b-left-28.png`): the tester's own
+  state at 200 dpi, band 28 mm on the left, frame reading **27.94** against a
+  typed 28.0 — and the panel is silent. A real collision still warns
+  (`b19_f1.json` F1-A, and `b19_bot2.json` B4 at 2.4 mm short).
+- evidence: test_the_tolerance_is_the_larger_of_two_tenths_and_one_pixel,
+  test_the_tenth_of_a_millimetre_on_the_shipped_preset_is_silent,
+  test_a_collision_that_reaches_paper_still_warns,
+  test_the_floor_reaches_all_four_of_the_patch_area_checks,
+  test_the_default_is_still_float_noise_and_not_the_threshold.
+  Mutation proved to land (the tolerance back to a constant): 1 red.
+
+### B8-234 · The bottom block was budgeted by its box, and the box is not its ink
+- blocks release: no
+- status: FIXED
+- found by: a tester driving 220 rendered sheets, 2026-09-16.
+- **this is the SECOND cause of false warnings and B8-233's threshold does not
+  touch it**, which is why both had to go in one pass: otherwise the threshold
+  is blamed for the other's failures.
+- what a user sees, measured off the sheet: bottom-left alignment, "B" 18,
+  10 pt — the panel says *"0.2 mm short"* where the text's ink ends at 21.505
+  and the patch block starts at 22.098, **0.593 mm of clear paper**. Top-left,
+  "B" 4, 28 pt — *"1.3 mm short"* on **0.762 mm of clear paper**. A true
+  collision at 28 pt was over-stated by 2.2 mm.
+- why: `render_pages` draws each line with PIL's "la" anchor, so the ASCENDER
+  lands on the top of the line box and the ink begins below it. The panel
+  budgeted the box. The over-read is about 0.9 mm at 10 pt, rising to 2.2 mm at
+  28.
+- fix: `raster.sheet_text_ink_top_mm` measures the trim off the string that is
+  really drawn, and `bottom_text_block_overlap` takes it off the need.
+- proved on screen (`b19_bot.json`): B1, the 10 pt state, now silent with
+  **4.064 mm** of clear paper on the sheet; B3, the 28 pt state, silent with
+  **0.762 mm**; and B4 (`b19_bot2.json`), a collision that really reaches the
+  patches, still reported at 2.4 mm short.
+- evidence: test_the_trim_is_measured_off_the_string_that_is_drawn,
+  test_the_false_warning_on_clear_paper_is_gone,
+  test_a_real_collision_is_still_reported_and_is_not_over_stated,
+  test_the_trim_can_never_make_the_need_negative.
+  Mutation proved to land (the trim returning 0.0): 3 red.
+
+### B8-235 · Six remedies named a control that does not move what the sentence says
+- blocks release: no
+- status: FIXED
+- four of the six. The other two are reported, not implemented, in B8-239
+  and B8-240: they are the design authority's to decide.
+- found by: two testers, driving beta 18 and applying each named lever one at a
+  time with the chart regenerated between them.
+- this is the fault class the project's design authority has ruled against more
+  than once: a remedy that changes nothing teaches the reader to stop reading.
+- measured, one row per lever:
+  - *"set a narrower Clip border width"* — **inert in the very branch that
+    prints it.** The band displaces the patches, so the measured margin follows
+    the band down; narrowing frees nothing until the band drops below the TYPED
+    margin, and the box stops at 10 mm. Two of the three states that printed
+    the message were in that branch.
+  - *"put the clip border on the LEFT"* — removed the named message and
+    immediately printed a different red one, *"the right margin leaves
+    1.7 mm"*, with the note's ink still inside the patch rows.
+  - *"set a smaller Size under Sheet text"* — 8, 7, 6 and 5 pt all produced the
+    identical *"needs 4.2 mm of room … 0.5 mm short"*, because
+    `raster.sheet_text_line_mm` floors at the 4.2 mm pitch. The message went on
+    naming the lever at 5 pt.
+  - *"Lowering “B” … buys the same room"* — **false in "Prioritise patch
+    size"**, where the patch block follows "B" down the page: a 10 mm drop
+    moved the text 10 mm, the block 10.2 mm and the overlap by 0.22 mm.
+- fix: `_clip_width_lever_note` and `_size_lever_note` offer their clause where
+  it works and say plainly why it will not help where it does not;
+  `_bottom_lever_note` gains the patch-first case; the side swap is gone from
+  both messages that carried it.
+- evidence: test_the_width_lever_is_offered_where_the_typed_margin_survives_it,
+  test_the_width_lever_is_withheld_where_it_cannot_work,
+  test_no_message_in_the_panel_offers_the_other_side_of_the_sheet,
+  test_the_size_lever_is_offered_while_the_type_is_above_the_floor,
+  test_the_size_lever_is_withheld_below_the_prediction_floor,
+  test_the_floor_really_is_where_the_prediction_stops,
+  test_lowering_b_is_promised_only_where_the_block_stays_put,
+  test_lowering_b_is_not_promised_in_patch_first,
+  test_the_markers_branch_still_wins_over_both.
+  Mutation proved to land (all three gates forced open): 4 red.
+
+### B8-236 · In "Prioritise patch size" the top-edge notice could not fire at all
+- blocks release: no
+- status: FIXED
+- found by: a tester, 24 states across four geometries, 2026-09-16.
+- what a user sees: A B C D E printed in the middle of the second row of
+  hexagons on a CR30 honeycomb, under a panel reading **"Margins: OK"** in
+  green. Not one notice in 24 states, with the letters driven onto the patches
+  by every lever that works. The same levers in "Prioritise chart area"
+  produced a notice in 14 of 24.
+  (`~/Desktop/ChromIQ-beta18-proof/knut-sweep-geometry/phase5/crops/ZOOM-CR30hexP-pf-off20.png`)
+- why, two causes stacked: the whole check sat inside
+  `_labels_can_overflow = r.layout_mode == "area_first"`, AND the arithmetic
+  worked the letters' reserve out of "T" — which in that layout the renderer
+  does not consult at all. `geometry.placement` anchors the band on the TOP
+  MARGIN there, so lifting the gate alone would have produced a notice built on
+  a number that describes nothing on the sheet.
+- and a third, on both layouts: the reach was the em BOX while PIL anchors the
+  letters by their ASCENDER. The ink begins about 1.33 mm below the anchor and
+  ends below the box, so the warning arrived a millimetre late — at "T" 8 there
+  was 0.93 mm of letter ink on the first row of patches and the panel said
+  nothing, and at "T" 12 the message's own remedy left **1.1 mm of every letter
+  still on the patches** while going silent.
+- fix: `geometry.strip_label_leader_top_mm` mirrors the two lines of
+  `placement` that set `leader_top`, and a test keeps the mirror honest;
+  `raster._furniture_reserves_mm` measures the letters' real ink box off a
+  probe into two new geom fields, and the LAYOUT reserve is deliberately
+  untouched so no sheet moves; the message names the control that binds, with a
+  third wording for the layout in which "T" moves nothing.
+- proved on screen (`b19_top.json`, `window/T1-offset-8/14/20.png`): silent at
+  Label offset 0, and at 8, 14 and 20 mm the panel says *"With “Prioritise
+  patch size” they are held 12.0 mm from the paper edge by the top margin
+  itself … 6.9 / 12.9 / 18.9 mm of every letter is on the first row of
+  patches … “T” … does not move them in this layout."*
+- evidence: test_the_helper_is_the_same_answer_as_placement,
+  test_in_patch_first_the_anchor_is_the_top_margin_and_not_t,
+  test_patch_first_can_report_a_top_overlap_at_all,
+  test_the_message_does_not_offer_t_where_t_moves_nothing,
+  test_the_two_older_bindings_are_untouched,
+  test_the_geometry_carries_the_ink_box_and_it_is_not_the_em_box,
+  test_the_reach_is_used_and_the_box_is_not,
+  test_the_ink_offset_is_what_the_sheet_really_draws.
+  Two mutations proved to land: the layout-mode branch dropped from the helper
+  (3 red), the ink reach back to the em box (1 red).
+
+### B8-237 · The Notes box showed a locked 12 pt, and the presets are where it came from
+- blocks release: no
+- status: FIXED
+- found by: a tester, beta 18: *"the Size input box locked with 12 pt inside
+  the input box. Is it locked because it has its own shrinking feature? If so,
+  should it not show auto? if this comes from the json files of the presets and
+  this is wrong, then correct this on all the preset files."*
+- why: `_P3_BASE` carried `clip_text_size_mm: 4.23`, which is 12.0 pt, on all
+  24 i1Pro 3 charts, and two more preset bases carried 3.53 mm beside "Notes
+  box". The Size box is correctly disabled for that content mode, and a greyed
+  number is a promise the sheet does not keep.
+- fix: both halves. Every preset that pairs "Notes box" with a size now says
+  auto, and `_sync_clip_content_enabled` shows the box's own `auto` special
+  value whenever the content sizes itself, stashing the typed size so switching
+  back to free text gives it straight back.
+- proved on screen (`b19_k2.json`): loading the shipped
+  `★ i1Pro 3 Plus · A4-462p-3pages` preset leaves the box reading `auto`,
+  disabled, value 0.0.
+- evidence: test_no_preset_pairs_a_notes_box_with_a_typed_size,
+  test_the_shipped_i1pro3_family_really_carries_auto,
+  test_the_size_box_reads_auto_whenever_its_content_sizes_itself.
+  Mutation proved to land (4.23 back on `_P3_BASE`): 2 red.
+
+### B8-238 · The sheet text was aligned on the margin box, and "Size auto" was 9 pt for ever
+- blocks release: no
+- status: FIXED
+- found by: a tester, beta 18, in two separate paragraphs of one report.
+- **the alignment.** *"when Alignment is left, any of the two bottom texts
+  placed are aligned against the left margin setting, and not the left margin
+  under Measured from Preview. This also applies for … "Centre between left and
+  right margin" and "Centre of available space"."* The patch block is centred
+  in the slack, moved by "Patch area alignment", and pushed in by a honeycomb's
+  apex reserve and the row-label band, so it does not begin at `margin_l`.
+  Fixed in `render_pages` (all three alignments) and predicted the same way by
+  the panel's width check.
+- proved on screen (`b19_bot2.json` B5): a CR30 honeycomb with the block pushed
+  right, margin box **12.0**, `geom.margin_l` raised to **14.4**, the frame's
+  measured left margin **23.961** — and the bottom line's ink measured off the
+  TIFF starts at **24.215 mm**, one glyph bearing from the block it sits under.
+- **and the ceiling.** *"When Size=auto for the sheet text, the bottom text is
+  still not automatically sized … Set a reasonable upper limit … (such as 15 or
+  16pt?) … This should apply to all the Size=Auto settings, except the Strip
+  and Row labels."* The loop started at `SHEET_TEXT_DEFAULT_MM` (9.07 pt) and
+  only ever decremented, so it could not grow however much paper was free.
+  `AUTO_SIZE_CEILING_PT` is 16.0 and the search now steps in POINTS, which is
+  the same answer at every resolution.
+- the reserve had to follow it, and the first cut did not: the block was
+  positioned for a 4.2 mm line and drawn at 16 pt, so the ink crossed the "B"
+  reserve on its way to the paper edge. Caught by
+  `test_the_bottom_sheet_text_keeps_its_reserve.py` and
+  `test_the_top_and_bottom_edges_keep_off_the_helper_markers.py` on the first
+  full run after the ceiling went in. A TYPED size still reserves the pitch and
+  is still never shrunk, so no chart with one moves.
+- proved on screen (`b19_bot.json` B1 against B2, same recipe): at a typed
+  10 pt the line's ink ends 21.505 mm up the sheet; at Size auto it ends
+  23.622 mm, so "auto" is visibly larger than the old default and still leaves
+  1.947 mm of clear paper under the patches.
+- evidence: test_the_block_bounds_are_the_block_and_not_the_margin_boxes,
+  test_the_alignment_follows_the_block_across_the_nine_positions,
+  test_the_renderer_asks_for_the_block_and_not_for_the_margins,
+  test_the_ceiling_is_where_the_tester_asked_for_it,
+  test_a_short_line_with_room_reaches_the_ceiling,
+  test_a_long_line_still_shrinks_and_stops_at_the_floor,
+  test_the_engine_reserves_the_band_the_resolved_size_needs,
+  test_a_typed_size_still_reserves_the_pitch_and_is_never_shrunk,
+  test_the_resolved_auto_size_is_the_same_at_every_resolution,
+  test_a_line_that_fits_takes_the_room_it_has.
+  Two mutations proved to land: the bounds filled from the margin boxes while
+  keeping their names (1 red, and the guard was strengthened after it slipped
+  the first version), the search started at the old default (3 red).
+
+### B8-239 · OPEN, for the design authority · Is "T" meant to do nothing to the strip labels in "Prioritise patch size"?
+- blocks release: no
+- status: OPEN
+- reported, not implemented. The geometry was NOT changed.
+- the measurement, on screen, i1Pro / A4 / "Prioritise patch size" / margins 12
+  all round / Label offset 0, with **"T" under "Text distance from edge (mm)"
+  swept 0, 2, 4, 8, 16 and 25 mm**, six builds, six sheets:
+
+  | "T" (mm) | where the strip letters print, from the paper's top edge |
+  |---|---|
+  | 0 | 13.377 … 17.780 |
+  | 2 | 13.377 … 17.780 |
+  | 4 | 13.377 … 17.780 |
+  | 8 | 13.377 … 17.780 |
+  | 16 | 13.377 … 17.780 |
+  | 25 | 13.377 … 17.780 |
+
+  Identical to the thousandth. In the same window, "Prioritise chart area"
+  moves them one millimetre per millimetre: "T" 4 puts them at 5.334, "T" 9 at
+  10.329, "T" 12 at 13.334. What DOES move them in patch-first is the **top
+  margin** (letters at top + 1.33 mm, exactly, at every value) and **Label
+  offset** (−6 → 7.366, 0 → 13.377, +6 → 19.389, +12 → on the patches).
+- what beta 19 did, and what it deliberately did not: the panel now describes
+  where the letters really are and names the controls that move them (B8-236).
+  The LAYOUT is untouched, because which of the two is right is not ours to
+  decide.
+- the question, as a tester can answer it: **"On a chart set to ‘Prioritise
+  patch size’, should the ‘T’ box under ‘Text distance from edge’ move the
+  strip letters up and down the page, the way it does on ‘Prioritise chart
+  area’? Or is it correct that only the top margin and ‘Label offset’ move them
+  there, in which case ‘T’’s help text should say so?"**
+
+### B8-240 · OPEN, for the design authority · What should the bottom notice name, now that the rise search is retired?
+- blocks release: no
+- status: OPEN
+- reported, not implemented.
+- the ruling this sits under: the search that answered *"how much more margin
+  clears it"* was removed at the design authority's instruction, because it
+  rebuilt a dozen geometries per keystroke and because the answer is a
+  measurement of a sheet nobody has drawn. What the message names now is the
+  OVERLAP, and the overlap undershoots by design.
+- measured on screen: the notice said **8.3 mm short**. Raising "Bottom" by
+  exactly 8.3 mm (6.0 → 14.3) left it red and now saying 0.5 mm short, because
+  the patch grid re-fits and the measured bottom margin rose only 7.79 mm. It
+  takes **15.0** to clear it, a raise of 9.0. And the walk is not monotonic,
+  which a reader stepping the box will meet:
+
+  | "Bottom" box | measured bottom | the notice |
+  |---|---|---|
+  | 14.3 | 15.568 | 0.5 mm short |
+  | 14.5 | 15.568 | 0.5 mm short |
+  | 14.6 | 15.907 | 0.2 mm short |
+  | 14.7 | 16.499 | gone |
+  | 14.8 | 16.499 | gone |
+  | 14.9 | 16.161 | gone |
+  | 15.0 | 16.161 | gone |
+
+- a second measurement on the same lever: raising "Bottom" does nothing at all
+  until the typed value passes the margin already realised. On a CR30 honeycomb
+  in patch-first the frame read 23.654 mm at a typed 12, 14, 17 and 20, and the
+  first change came at 24. A reader who is told "6.5 mm short" and raises
+  Bottom from 12 to 18.5 changes not one pixel of the sheet.
+- the honest options, none of them ours to pick: name no number; name the
+  overlap and say in the sentence that it is a minimum; or bring back a search
+  that was asked to be removed.
+- the question, as a tester can answer it: **"When the sheet text runs into the
+  patches, the message tells you how many millimetres short it is. Raising
+  ‘Bottom’ by that many millimetres is not always enough, because the patches
+  are re-laid out and take some of the room back. Would you rather the message
+  (a) named no number at all and just said to raise ‘Bottom’ and press Generate
+  Chart again, (b) kept the number but said it is the least it can be, or (c)
+  went back to working out the exact figure, which makes the panel slower every
+  time you type?"**
+
+---

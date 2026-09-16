@@ -2765,8 +2765,33 @@ class LayoutOptionsPanel(QWidget):
         self.clip_text_font.setEnabled(font_modes)
         # Manual size applies to the free-text clip content; the notes design
         # lays itself out, so the size box is inert there (#125).
+        #
+        # **AND AN INERT BOX MUST NOT SHOW A NUMBER.** A tester, beta 18:
+        # *"under the Clip-border content frame with selected Notes box has the
+        # Size input box locked with 12 pt inside the input box. Is it locked
+        # because it has its own shrinking feature? If so, should it not show
+        # auto?"* It is locked for exactly that reason, and a greyed "12 pt" is
+        # a promise the sheet does not keep: the notes box sizes itself and
+        # nothing on the chart is 12 pt. The box carries `auto` as its special
+        # value at 0, so the honest display is 0.
+        #
+        # The typed size is STASHED rather than lost, so switching Notes → Text
+        # brings it back, and the write is made with signals blocked so that
+        # merely selecting Notes does not re-render the live preview. The
+        # recipe then records 0 for a size nothing uses, which is what it means.
         if hasattr(self, "clip_text_size"):
             self.clip_text_size.setEnabled(custom_text)
+            _blocked = self.clip_text_size.blockSignals(True)
+            try:
+                if not custom_text:
+                    if self.clip_text_size.value() > 0:
+                        self._clip_text_size_stash = self.clip_text_size.value()
+                    self.clip_text_size.setValue(0.0)
+                elif (self.clip_text_size.value() <= 0
+                      and getattr(self, "_clip_text_size_stash", 0.0) > 0):
+                    self.clip_text_size.setValue(self._clip_text_size_stash)
+            finally:
+                self.clip_text_size.blockSignals(_blocked)
         # The image PATH row only makes sense for an imported image, so it is
         # hidden entirely unless "Imported image" is the content type (Knut),
         # rather than just greyed out.

@@ -1210,7 +1210,12 @@ _P3_BASE: dict = {
     # the way it is printed), carrying the automatic notes box rather than text.
     "clip_border": True, "clip_border_width_mm": 28.0, "clip_side": "left",
     "clip_content_mode": "notes", "clip_text": "", "clip_text_font": "Inter",
-    "clip_text_size_mm": 4.23, "clip_image_path": "",
+    # AUTO, NOT 12 pt. The notes box lays itself out and the Size box is inert
+    # beside it, and this carried 4.23 mm (12.0 pt) on all 24 charts of this
+    # family: a tester read the greyed "12 pt" off the panel on beta 18 and
+    # asked whether it should not say auto. It should, and the data is where it
+    # came from. Corrected on every preset that pairs "Notes box" with a size.
+    "clip_text_size_mm": 0.0, "clip_image_path": "",
     "clip_image_rotation": 0, "clip_image_scale": 100.0,
     "clip_image_offset_x_mm": 0.0, "clip_image_offset_y_mm": 0.0,
     "clip_flip_180": False,
@@ -1310,7 +1315,8 @@ _CR30_BASE: dict = {
     # when the sheet is turned, carrying the automatic notes box AND the note.
     "clip_border": True, "clip_border_width_mm": 26.0, "clip_side": "right",
     "clip_content_mode": "notes", "clip_text": _CR30_CLIP_TEXT,
-    "clip_text_font": "Inter", "clip_text_size_mm": 3.53,
+    # AUTO: see the note on `_P3_BASE`. The notes box sizes itself.
+    "clip_text_font": "Inter", "clip_text_size_mm": 0.0,
     "clip_image_path": "", "clip_image_rotation": 0, "clip_image_scale": 100.0,
     "clip_image_offset_x_mm": 0.0, "clip_image_offset_y_mm": 0.0,
     "clip_flip_180": True,
@@ -1621,7 +1627,8 @@ _I1_BASE: dict = {
     # clip border
     "clip_border": True, "clip_border_width_mm": 26.0, "clip_side": "left",
     "clip_content_mode": "notes", "clip_text": "", "clip_text_font": "Inter",
-    "clip_text_size_mm": 3.53, "clip_image_path": "",
+    # AUTO: see the note on `_P3_BASE`. The notes box sizes itself.
+    "clip_text_size_mm": 0.0, "clip_image_path": "",
     "clip_image_rotation": 0, "clip_image_scale": 100.0,
     "clip_image_offset_x_mm": 0.0, "clip_image_offset_y_mm": 0.0,
     "clip_flip_180": False,
@@ -2611,6 +2618,47 @@ def _marker_reserve_args(r) -> "tuple[float, float]":
             float(getattr(r, "helper_marker_len_mm", 0.0) or 0.0) or 2.0)
 
 
+def _file_stamp(path):
+    """``(path, size, mtime_ns)`` for *path*, or ``(path, None, None)``.
+
+    The identity of a FILE'S CONTENT, not of its name, and MODULE LEVEL rather
+    than a method for the same reason `_marker_reserve_args` is: the methods
+    that use it are called unbound against stand-in objects by the test files,
+    and `self._file_stamp` would look the delegate up on the stand-in and not
+    find it. Never raises: a cache key that blows up takes the whole panel
+    with it.
+    """
+    p = str(path) if path is not None else ""
+    try:
+        st = Path(p).stat()
+        return (p, int(st.st_size), int(st.st_mtime_ns))
+    except (OSError, ValueError, TypeError):
+        return (p, None, None)
+
+
+def _label_anchor_mm(geom):
+    """Where the renderer really anchors the strip-label band, or None.
+
+    One line, and it is here rather than inline so the thing the panel predicts
+    with is the engine's own function and not a second copy of it:
+    `geometry.strip_label_leader_top_mm` mirrors the two lines of
+    `geometry.placement` that set ``Placement.leader_top``, and
+    `tests/test_the_strip_letters_are_judged_where_they_are_drawn.py` keeps the
+    mirror honest.
+
+    None when there is no geometry to ask, which sends
+    `text_edge_fit.strip_label_overlap` back to working the reserve out of "T"
+    exactly as it did before.
+    """
+    if geom is None:
+        return None
+    try:
+        from workflow.layout_engine.geometry import strip_label_leader_top_mm
+        return float(strip_label_leader_top_mm(geom))
+    except Exception:      # noqa: BLE001 — a prediction is never fatal
+        return None
+
+
 def _locked_margins_note(r) -> str:
     """The sentence for a reader whose "Margins (mm)" boxes are READ-ONLY.
 
@@ -2653,7 +2701,8 @@ def _locked_margins_note(r) -> str:
 
 
 def _bottom_lever_note(effective_b_mm: float, anchor_mm: float,
-                       typed_b_mm: "float | None" = None) -> str:
+                       typed_b_mm: "float | None" = None,
+                       patch_first: bool = False) -> str:
     """The sentence about "B", which is not always a lever at all.
 
     The bottom text is anchored at the LARGER of "B" under "Text distance from
@@ -2715,9 +2764,123 @@ def _bottom_lever_note(effective_b_mm: float, anchor_mm: float,
         _typed = effective_b_mm if typed_b_mm is None else typed_b_mm
         if float(_typed or 0.0) <= 0.0:
             return ""
+        # 3. …AND IN "PRIORITISE PATCH SIZE" IT BUYS ALMOST NOTHING, BECAUSE
+        #    THE PATCH BLOCK FOLLOWS "B" DOWN.
+        #
+        #    Measured on beta 18
+        #    (`~/Desktop/ChromIQ-beta18-proof/knut-sweep-geometry/`, 2.5), CR30
+        #    honeycomb, patch-first, "Bottom" held at 12, "B" lowered
+        #    18 → 12 → 8 → 4 → 1: the text moved down 10 mm and the block moved
+        #    down 10.2 mm, so a 10 mm drop changed the overlap by **0.22 mm**.
+        #    In "Prioritise chart area" the same box does not move the block at
+        #    all (19.759 mm at "B" 4 and at "B" 14), and there the sentence is
+        #    true.
+        #
+        #    A lever that does not move what it names is the exact fault class
+        #    this project's design authority ruled against, so where it does not
+        #    work it is not offered: it is said plainly instead.
+        if patch_first:
+            return " " + tr(
+                "Lowering “B” under “Text distance from edge (mm)” buys almost "
+                "nothing in this layout: with “Prioritise patch size” the patch "
+                "area follows “B” down the page, so the text and the patches "
+                "move together.")
         return " " + tr(
             "Lowering “B” under “Text distance from edge (mm)” moves the text "
             "down towards the paper edge instead, which buys the same room.")
+    except Exception:          # noqa: BLE001 - a sentence, never a blocker
+        return ""
+
+
+#: The smallest "Clip border width" the box accepts
+#: (`ui/dialogs/layout_options_panel.py`: ``self.clip_width.setMinimum(10.0)``).
+#: Named here because a remedy that says "set a narrower width" is only honest
+#: while there is a narrower width to set.
+CLIP_WIDTH_MIN_MM = 10.0
+
+
+def _clip_width_lever_note(typed_margin_mm: float, side: str) -> str:
+    """The "set a narrower Clip border width" clause, where it can work.
+
+    **IT IS INERT IN THE VERY BRANCH THAT PRINTED IT.** The band displaces the
+    patches, so the measured margin follows the band down: narrowing the band
+    frees nothing until the band drops BELOW the margin the user typed, and
+    then only if that typed margin is big enough on its own. The width box
+    stops at :data:`CLIP_WIDTH_MIN_MM`, so with a typed margin under about
+    13 mm the lever cannot help at any setting, and that is exactly the state
+    the message is written for: *"the border is what decides where the patches
+    start"*.
+
+    Measured on beta 18
+    (`~/Desktop/ChromIQ-beta18-proof/knut-sweep-clipborder/`, 6.1), each lever
+    applied on its own and the chart regenerated:
+
+    | state | lever, exactly as named | result |
+    |---|---|---|
+    | band 24, right margin 6 | raise "Right" to the number named | **cleared** |
+    | band 24, right margin 6 | narrower "Clip border width" (10.0, the minimum) | **still red** |
+    | band 24, right margin 6 | put the border on the LEFT | named message gone, **a new red one in its place, the ink still on the patches** |
+    | band 12, right margin 12 | narrower band (10.0) | **still red** |
+    | band 24, right margin 20 | narrower band (10.0) | **cleared** |
+
+    Two of the three states that printed the message were in the branch where
+    it cannot work. So the clause is offered where the typed margin would
+    survive the narrowing, and where it would not, the reason is said instead
+    of a lever being named.
+
+    "Put the clip border on the other side" is NOT offered at all any more, on
+    either branch: in the state above it removed the named message and
+    immediately printed a different red one with the ink still on the patches,
+    because the bare margin on the far side is too small to hold the text on
+    its own. A reader who follows that advice sees a red line either way.
+    """
+    try:
+        typed = float(typed_margin_mm or 0.0)
+        if typed + 0.05 >= CLIP_WIDTH_MIN_MM:
+            return " " + tr(
+                "Setting a narrower “Clip border width” also makes room, down "
+                "to {min:.0f} mm.").format(min=CLIP_WIDTH_MIN_MM)
+        return " " + (tr(
+            "A narrower “Clip border width” will not help here: the box stops "
+            "at {min:.0f} mm and “Right” is set to {typed:.1f} mm, so the "
+            "border would still be what decides where the patches start.")
+            if side == "right" else tr(
+            "A narrower “Clip border width” will not help here: the box stops "
+            "at {min:.0f} mm and “Left” is set to {typed:.1f} mm, so the "
+            "border would still be what decides where the patches start.")
+        ).format(min=CLIP_WIDTH_MIN_MM, typed=typed)
+    except Exception:          # noqa: BLE001 - a sentence, never a blocker
+        return ""
+
+
+def _size_lever_note(line_mm: float, dpi: float) -> str:
+    """The "set a smaller Size" clause, offered only where it moves ink.
+
+    **IT WAS OFFERED EVERYWHERE, AND BELOW ABOUT 8.5 pt IT MOVES NOTHING.**
+    `raster.sheet_text_line_mm` is the larger of the renderer's own pitch floor
+    (:data:`text_edge_fit.SHEET_TEXT_LINE_MM`, as a whole number of pixels at
+    this dpi) and the face's ascent plus descent, so once the type is small
+    enough for the floor to win, a smaller Size changes the prediction by
+    nothing at all.
+
+    Measured on beta 18
+    (`~/Desktop/ChromIQ-beta18-proof/knut-sweep-clipborder/`, 6.3): walking the
+    Size box down through 8.0, 7.0, 6.0 and 5.0 pt left the identical sentence
+    each time, *"needs 4.2 mm of room ... 0.5 mm short"*, with the message
+    still naming the lever at 5 pt. A lever that does not move what it names is
+    the fault class this project's design authority ruled against, so the
+    clause is offered where it works and withheld where it does not.
+    """
+    try:
+        from workflow.layout_engine.raster import sheet_text_reserve_mm
+        floor = float(sheet_text_reserve_mm(dpi))
+        if float(line_mm or 0.0) > floor + 1e-9:
+            return " " + tr(
+                "Setting a smaller Size under “Sheet text” also makes room.")
+        return " " + tr(
+            "A smaller Size under “Sheet text” will not help here: each line "
+            "already takes the smallest room the sheet gives one, "
+            "{floor:.1f} mm.").format(floor=floor)
     except Exception:          # noqa: BLE001 - a sentence, never a blocker
         return ""
 
@@ -19695,11 +19858,54 @@ class TabChart(QWidget):
             return shown       # judges its own page rather than nothing
 
     def _worst_page_key(self):
-        """What the cached measurement is OF. A new chart is a new key, so the
-        pages of the previous one can never judge this one's text."""
-        return (tuple(str(t) for t in (getattr(self, "_margin_tiffs", None)
-                                       or [])),
-                str(getattr(self, "_margin_ti2", None)))
+        """What the cached measurement is OF: every page's CONTENT, not its name.
+
+        **IT USED TO BE THE FILE NAMES, AND THIS DOCSTRING USED TO CLAIM THE
+        OPPOSITE OF WHAT THE FUNCTION DID** — *"A new chart is a new key, so
+        the pages of the previous one can never judge this one's text."* A
+        rebuild into the same run writes `<name>_01.tif … _NN.tif` again, so
+        the names do not move, `_ensure_worst_page_cache` returned early, and
+        every text notice on every chart after the first was judged on the
+        chart it replaced. It cleared only when the page COUNT changed or the
+        run/target changed the paths.
+
+        Two testers found it independently from opposite directions on beta 18,
+        and the photographs are in `~/Desktop/ChromIQ-beta18-proof/`:
+
+        * `knut-sweep-preview-truth/R12-B-right-40mm.png`: a two-page chart
+          built with Right = 6 mm, then Right = 40 and Generate pressed. The
+          frame reads **40.2 mm**, the engine 40.159 and the TIFF 40.13 — and
+          the red paragraph beside it still says *"the right margin leaves
+          1.7 mm … Raising “Right” … by about 2.8 mm"*. The user did exactly
+          what the message asked and got the identical message back.
+        * `knut-sweep-clipborder/`, group `P`: a three-page chart, the band
+          moved from left to right and the right margin from 10 to 35 mm. The
+          frame read **34.994**, the judgement used **10.017**, and raising the
+          margin to 51 mm did not change one digit. That is the *"very
+          different values … and increasing margin or clip-border width does
+          not remove the warning"* of a tester's own beta 18 report.
+
+        **SIZE PLUS `st_mtime_ns`, AND NOT MTIME ALONE.** `shutil.copy2`
+        preserves the mtime, so a key built on the timestamp by itself serves a
+        stale answer to a file that was copied rather than written — this
+        project lost a day to exactly that shape the week before. The size
+        moves with any real re-render and the nanosecond stamp moves with any
+        rewrite, and a chart that somehow matched on both would have to be the
+        same bytes.
+
+        The `.channels.json` sidecar is in the key too: it is what
+        `_measure_every_page` measures an engine chart from, so a rebuild that
+        rewrote only the geometry would otherwise be invisible here.
+        """
+        tiffs = tuple(_file_stamp(t) for t in
+                      (getattr(self, "_margin_tiffs", None) or []))
+        ti2 = getattr(self, "_margin_ti2", None)
+        try:
+            ch = _file_stamp(Path(ti2).with_suffix(".channels.json")) \
+                if ti2 is not None else ("", None, None)
+        except (OSError, ValueError, TypeError):
+            ch = ("", None, None)
+        return (tiffs, _file_stamp(ti2), ch)
 
     def _ensure_worst_page_cache(self, dpi: float) -> None:
         """Measure every page of the chart, once per chart.
@@ -20046,6 +20252,84 @@ class TabChart(QWidget):
         rest = widths[:-1]              # the stamp is appended last
         return (max(rest) if rest else 0.0) <= float(room_mm)
 
+    def _notice_layout_recipe(self):
+        """The recipe the chart in the preview WAS BUILT WITH, or the live one.
+
+        **THE NOTICES USED TO BE RECOMPUTED FROM THE BOXES AGAINST A SHEET THAT
+        NOBODY HAD REBUILT**, and four routes reached that state with no
+        Generate in between: a page turn, either of the two guide tick boxes on
+        the frame itself, and the Preferences round trip. Each of them calls
+        `_update_margin_inspector`, which re-measures the OLD TIFFs and then
+        asked `_current_layout_recipe()` — the widgets — for everything else.
+
+        Driven on screen on beta 18
+        (`~/Desktop/ChromIQ-beta18-proof/knut-sweep-preview-truth/`,
+        `R11-3-HEADLINE-size-36pt-no-red-line-notice-says-6pt.png`). One page,
+        one sheet, the TIFF's SHA-256 identical at every step:
+
+        | step | Size box | the red "press Generate Chart" line | the notice |
+        |---|---|---|---|
+        | after the build | 36 pt | absent | true of the sheet |
+        | type 6 pt | 6 pt | shown | unchanged, correct |
+        | tick a guide box | 6 pt | shown | **recomputed at 6 pt against a 36 pt sheet** |
+        | type 36 pt back | 36 pt | **gone** | **still the 6 pt notice** |
+
+        The last row is the state that cannot be read: the boxes match the
+        chart, the chart matches the disk, the red line is correctly absent,
+        and the red notice describes a sheet that was never generated.
+
+        A tester's own rule says the same thing from the other side: a warning
+        must describe the sheet on screen and on disk. So the recipe comes from
+        the chart's own `channels.json`, which
+        `ChartCreator._embed_layout_geometry` writes with every build and which
+        `_restore_chart_settings` already trusts for exactly this reason.
+
+        Returns the live recipe when there is no engine sidecar to read — a
+        printtarg chart, or the unbound stand-in the ⓘ and three test files
+        call this class's methods with. Returns ``None`` only when there is no
+        layout panel at all.
+
+        The Preferences label-style overlay is applied here as
+        `_current_layout_recipe` applies it, so a recipe that carries no style
+        of its own still follows Preferences and renders as it always did.
+        """
+        panel = getattr(self, "_manual_layout_panel", None)
+        live = None
+        if panel is not None:
+            try:
+                live = self._current_layout_recipe()
+            except Exception:      # noqa: BLE001 — a notice never raises
+                live = None
+        ti2 = getattr(self, "_margin_ti2", None)
+        if ti2 is None:
+            return live
+        try:
+            ch = Path(ti2).with_suffix(".channels.json")
+            stamp = _file_stamp(ch)
+            cached = getattr(self, "_notice_recipe_cache", None)
+            if cached is not None and cached[0] == stamp:
+                built = cached[1]
+            else:
+                built = None
+                if stamp[1] is not None:
+                    import json as _json
+                    doc = _json.loads(read_text(ch))
+                    rec = (doc.get("layout") or {}).get("recipe") or {}
+                    if rec:
+                        from workflow.layout_engine.presets import LayoutRecipe
+                        built = LayoutRecipe.from_dict(rec)
+                self._notice_recipe_cache = (stamp, built)
+            if built is None:
+                return live
+            try:
+                return self._settings.apply_indicator_style(built)
+            except Exception:      # noqa: BLE001 — no settings on a stand-in
+                return built
+        except Exception:      # noqa: BLE001 — a bad sidecar judges the boxes
+            log.debug("could not read the chart's own layout recipe",
+                      exc_info=True)
+            return live
+
     def _engine_text_notes(self, report=None) -> "tuple[list[str], list[str]]":
         """``(every notice, the overlap notices)`` for the chart on screen.
 
@@ -20100,7 +20384,21 @@ class TabChart(QWidget):
             if not (manual and getattr(self, "_manual_layout_panel", None) is not None
                     and bool(self._settings.get("use_chromiq_layout_engine", False))):
                 return warns, over
-            r = self._current_layout_recipe()
+            # THE RECIPE THE SHEET WAS BUILT WITH, NOT THE ONE IN THE BOXES.
+            # See `_notice_layout_recipe` for the four routes that recomputed
+            # these notices from live widgets against a chart on disk that none
+            # of them had changed.
+            # UNBOUND, LIKE THE METHOD IT IS IN. `_engine_text_notes` is
+            # called as `TabChart._engine_text_notes(stand_in, report)` by
+            # three test files and by `scripts/drive_50_beta3_gate.py`, and
+            # `self._notice_layout_recipe` looks the delegate up on the
+            # stand-in, does not find it, and the blanket `except` below then
+            # loses EVERY notice on the panel rather than one. That is the trap
+            # `test_the_notes_survive_a_tab_that_cannot_count_its_patches`
+            # exists for, and it caught this within the minute.
+            r = TabChart._notice_layout_recipe(self)
+            if r is None:
+                return warns, over
             from workflow.layout_engine import instruments
             from workflow import text_edge_fit
             geom = instruments.geom_from_build_kwargs(r.build_kwargs())
@@ -20160,6 +20458,21 @@ class TabChart(QWidget):
                     return None
             _meas_l, _meas_r = _edge("left_mm"), _edge("right_mm")
             _meas_t, _meas_b = _edge("top_mm"), _edge("bottom_mm")
+            # THE SLOP EVERY PATCH-AREA CHECK ALLOWS, AND IT IS NOT A CONSTANT.
+            # A tester asked for 0.2 mm on all four sides after beta 18 warned
+            # him about 0.1 mm on stock presets; the residue is a PIXEL, so the
+            # rule is `max(0.2 mm, one pixel at this chart's dpi)`. See
+            # `text_edge_fit.edge_tolerance_mm` for the five-resolution sweep
+            # and for the twin-sheet measurement that says it masks nothing
+            # that reaches paper.
+            _dpi_for_tol = 0.0
+            try:
+                _dpi_for_tol = float(getattr(report, "dpi", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                _dpi_for_tol = 0.0
+            if _dpi_for_tol <= 0:
+                _dpi_for_tol = float(getattr(r, "dpi", 0) or 0)
+            _tol = text_edge_fit.edge_tolerance_mm(_dpi_for_tol)
             # THE MARGIN WE MOVED, SAID OUT LOUD — and it is said in BOTH
             # layout modes, because the raise happens in both.
             #
@@ -20417,7 +20730,8 @@ class TabChart(QWidget):
                     _note_side, _note_margin, _eff_edge,
                     float(getattr(r, "dpi", 300) or 300),
                     _note_keep_out,
-                    _note_size_pt) if _note_margin is not None else None)
+                    _note_size_pt,
+                    tol_mm=_tol) if _note_margin is not None else None)
                 if _o is not None and not _notes_text and _stamp_on:
                     # NOBODY TYPED ANY NOTES, SO THE MESSAGE MUST NOT SAY THEY
                     # DID. The app ships with "Stamp settings down the right
@@ -20501,12 +20815,23 @@ class TabChart(QWidget):
                             "patches start. The notes are printed anyway so you "
                             "can see this. Raise “Right” under “Margins (mm)” "
                             "to about {need_margin:.1f} mm, which is past the "
-                            "clip border, or set a narrower “Clip border "
-                            "width”, or put the clip border on the LEFT. They "
+                            "clip border. They "
                             "need {need:.1f} mm at {size} pt.").format(
                                 band=_clip_zone, margin=_note_margin,
                                 need_margin=_need_margin, need=_o.needed_mm,
                                 size=text_edge_fit.format_pt(_note_floor_pt))
+                            # TWO OF THE THREE LEVERS THIS USED TO NAME DO NOT
+                            # WORK IN THIS BRANCH, MEASURED. "Set a narrower
+                            # Clip border width" is inert while the typed
+                            # margin is under the band, which is the branch's
+                            # own condition, so it is offered conditionally by
+                            # `_clip_width_lever_note`; "put the clip border on
+                            # the LEFT" removed this message and immediately
+                            # printed a different red one with the ink still on
+                            # the patches, so it is gone.
+                            + _clip_width_lever_note(
+                                float(getattr(r, "margin_right", 0.0) or 0.0),
+                                "right")
                             + _auto_floor_note(_note_size_pt, _note_floor_pt))
                     elif _clip_on_right:
                         # "PRINTED {Clip} mm IN FROM THE PAPER EDGE" WAS FALSE
@@ -20530,13 +20855,16 @@ class TabChart(QWidget):
                             "{need:.1f} mm at {size} pt and have "
                             "{avail:.1f} mm. They are "
                             "printed anyway so you can see this. Raise “Right” "
-                            "under “Margins (mm)” by about {short:.1f} mm, or "
-                            "set a narrower “Clip border width”.").format(
+                            "under “Margins (mm)” by about {short:.1f} "
+                            "mm.").format(
                                 band=_clip_zone,
                                 need=_o.needed_mm,
                             size=text_edge_fit.format_pt(_note_floor_pt),
                                 avail=max(0.0, _o.available_mm),
                                 short=_o.overlap_mm)
+                            + _clip_width_lever_note(
+                                float(getattr(r, "margin_right", 0.0) or 0.0),
+                                "right")
                             + _auto_floor_note(_note_size_pt, _note_floor_pt))
                     else:
                         # THE DISTANCE IT NAMES IS THE ONE THE SHEET USES, and
@@ -20787,7 +21115,7 @@ class TabChart(QWidget):
                 _side_margin = _meas_r if _clip_on_right else _meas_l
                 _o = (text_edge_fit.clip_content_overlap(
                     _side, _side_margin,
-                    _clip_zone, r.text_edge_clip_mm)
+                    _clip_zone, r.text_edge_clip_mm, tol_mm=_tol)
                     if _side_margin is not None else None)
                 if _o is not None:
                     over.append((tr(
@@ -20795,16 +21123,22 @@ class TabChart(QWidget):
                         "right. The band is {need:.1f} mm wide and the right "
                         "margin leaves {avail:.1f} mm. It is printed anyway so "
                         "you can see this. Raise “Right” under “Margins (mm)” "
-                        "by about {short:.1f} mm, or set a narrower “Clip "
-                        "border width”.") if _side == "right" else tr(
+                        "by about {short:.1f} mm.") if _side == "right" else tr(
                         "⚠ The clip border content runs over the patches on the "
                         "left. The band is {need:.1f} mm wide and the left "
                         "margin leaves {avail:.1f} mm. It is printed anyway so "
                         "you can see this. Raise “Left” under “Margins (mm)” "
-                        "by about {short:.1f} mm, or set a narrower “Clip "
-                        "border width”.")).format(
+                        "by about {short:.1f} mm.")).format(
                             need=_o.needed_mm, avail=max(0.0, _o.available_mm),
-                            short=_o.overlap_mm))
+                            short=_o.overlap_mm)
+                        # …AND "A NARROWER CLIP BORDER WIDTH" ONLY WHERE IT
+                        # CAN WORK, which is not the state this message is
+                        # usually read in. See `_clip_width_lever_note`.
+                        + _clip_width_lever_note(
+                            float(getattr(r, "margin_right", 0.0) or 0.0)
+                            if _side == "right" else
+                            float(getattr(r, "margin_left", 0.0) or 0.0),
+                            _side))
                 # AND THE TEXT INSIDE THE BAND, which is a different question
                 # from whether the band fits the margin. Knut, 2026-09-11:
                 # *"If I reduce the clip-border width to f.ex. 16mm … then the
@@ -21215,7 +21549,26 @@ class TabChart(QWidget):
             # without the key, so this was not a corner.
             _labels_can_overflow = r.layout_mode == "area_first"
             lab = geom.label_band_mm if geom.label_band_mm >= 0 else geom.txhisl
-            if _labels_can_overflow and r.show_strip_indicators and lab > 0:
+            # **AND THE STRIP LETTERS ARE NOT MODE-SPECIFIC EITHER.** This
+            # check was inside `_labels_can_overflow` too, so in "Prioritise
+            # patch size" the top-edge notice did not exist. Measured on beta
+            # 18 (`~/Desktop/ChromIQ-beta18-proof/knut-sweep-geometry/`,
+            # phase 5): 24 states across four geometries, the letters driven
+            # onto the patches by every lever that works, and **not one
+            # notice** — photographed with A B C D E printed in the middle of
+            # the second row of hexagons on a CR30 honeycomb while the panel
+            # read "Margins: OK". The same levers in area-first produced a
+            # notice in 14 of 24.
+            #
+            # It could not simply be lifted before, because the check worked
+            # the letters' reserve out of "T" and in this mode the renderer
+            # does not consult "T" at all: it anchors the band on the top
+            # margin (`geometry.strip_label_leader_top_mm`). With the anchor
+            # taken from the engine the arithmetic is true in both modes, so
+            # the gate goes. `_labels_can_overflow` stays for the ROW
+            # indicators below, which is a different question about the left
+            # margin's band.
+            if r.show_strip_indicators and lab > 0:
                 # THE LETTERS NOW HOLD THEIR DISTANCE AND OVERLAP THE PATCHES,
                 # so this reports an overlap again, and this time it is true.
                 # Knut, #182, comment 5649810914: *"the strip labels do not
@@ -21300,9 +21653,60 @@ class TabChart(QWidget):
                     # the patches and this check said nothing.
                     *_marker_reserve_args(r),
                     bool(getattr(r, "helper_markers_top_bottom", True)),
-                    gap_mm=float(getattr(geom, "strip_indicator_gap", 0.0) or 0.0))
+                    gap_mm=float(getattr(geom, "strip_indicator_gap", 0.0) or 0.0),
+                    # WHERE THE BAND IS REALLY ANCHORED, AND WHERE THE INK
+                    # REALLY ENDS. Both are the renderer's own answers:
+                    # `geometry.strip_label_leader_top_mm` mirrors the two
+                    # lines in `placement` that set `Placement.leader_top`, and
+                    # `geom.label_ink_reach_mm` is measured off a probe in
+                    # `raster._furniture_reserves_mm`.
+                    #
+                    # Before this the reserve was worked out from "T" in BOTH
+                    # layout modes, and in "Prioritise patch size" the renderer
+                    # does not consult "T" at all: it anchors the band on the
+                    # top margin. So the notice was computed from a number that
+                    # describes nothing on the sheet, and in that mode it could
+                    # not fire however far the letters were driven onto the
+                    # patches (beta 18, 24 states, four geometries, not one
+                    # notice; `knut-sweep-geometry/phase5/`).
+                    #
+                    # And the reach was the em BOX, while PIL anchors the
+                    # letters by their ASCENDER: the ink begins about 1.33 mm
+                    # below the anchor and ends below the box, so the warning
+                    # arrived a millimetre late and its own remedy left 1.1 mm
+                    # of every letter on the patches while going silent
+                    # (`knut-sweep-geometry/` section 2.2).
+                    anchor_mm=_label_anchor_mm(geom),
+                    ink_reach_mm=float(
+                        getattr(geom, "label_ink_reach_mm", 0.0) or 0.0),
+                    tol_mm=_tol)
                     if _patch_top is not None else None)
-                if _ov is not None and _ov.from_markers:
+                if _ov is not None and _ov.binding == \
+                        text_edge_fit.LABEL_HELD_BY_TOP_MARGIN:
+                    # **"T" MOVES NOTHING HERE, SO THE MESSAGE DOES NOT OFFER
+                    # IT.** With "Prioritise patch size" the band is anchored on
+                    # the top margin itself, so raising "Top" moves the letters
+                    # and the patches together and the only levers that change
+                    # the collision are "Label offset" and the label size.
+                    # Measured on beta 18: "T" at 0, 2, 4, 8, 16 and 25 mm put
+                    # the letters at 13.377 to 17.780 mm every single time,
+                    # identical to the thousandth, while Label offset moved them
+                    # one millimetre per millimetre.
+                    over.append(tr(
+                        "⚠ The strip letters are printed over the patches. "
+                        "With “Prioritise patch size” they are held "
+                        "{reserve:.1f} mm from the paper edge by the top "
+                        "margin itself, they reach {reach:.1f} mm down the "
+                        "page, and the patch area starts at {margin:.1f} mm, "
+                        "so {over:.1f} mm of every letter is on the first row "
+                        "of patches. Those patches carry letter ink and will "
+                        "not measure correctly. Lower “Label offset” under "
+                        "“Strip letters only” by about {over:.1f} mm, or use a "
+                        "smaller label size. “T” under “Text distance from "
+                        "edge (mm)” does not move them in this layout.").format(
+                            reserve=_ov.reserve_mm, reach=_ov.reaches_mm,
+                            margin=_ov.margin_mm, over=_ov.overlap_mm))
+                elif _ov is not None and _ov.from_markers:
                     over.append(tr(
                         "⚠ The strip letters are printed over the patches. "
                         "They are held {reserve:.1f} mm from the paper edge by "
@@ -21425,6 +21829,26 @@ class TabChart(QWidget):
                     float(getattr(r, "dpi", 300) or 300))
             except Exception:      # noqa: BLE001 — a number, never a blocker
                 _line_mm = text_edge_fit.SHEET_TEXT_LINE_MM
+            # …AND "auto" IS NO LONGER 9 pt. `sheet_text_line_mm` is asked with
+            # the Size box, and a box reading "auto" is 0, which that function
+            # reads as `SHEET_TEXT_DEFAULT_MM`. Since the ceiling
+            # (`text_edge_fit.AUTO_SIZE_CEILING_PT`) "auto" resolves to the
+            # largest size that fits, and the engine reserves one line box at
+            # that size, so the band the renderer really holds back is the
+            # honest prediction. It comes straight back out of
+            # `geom.bottom_reserve_mm`, which `_furniture_reserves_mm` built as
+            # `anchor + hold x lines`.
+            if nlines and not float(getattr(r, "chart_text_size_mm", 0.0) or 0.0):
+                try:
+                    _res = float(getattr(geom, "bottom_reserve_mm", 0.0) or 0.0)
+                    _anch = text_edge_fit.sheet_text_bottom_mm(
+                        _bot_edge, bool(getattr(r, "helper_markers", False)),
+                        *_marker_reserve_args(r),
+                        bool(getattr(r, "helper_markers_top_bottom", True)))
+                    if _res > 0:
+                        _line_mm = max(_line_mm, (_res - _anch) / nlines)
+                except Exception:  # noqa: BLE001 — a number, never a blocker
+                    pass
             # THE RESERVE, NOT "B" ALONE. With the ruler helper markers on for
             # top and bottom, the block is anchored at the larger of "B" and
             # the markers' own distance (#182), so asking about "B" understated
@@ -21473,8 +21897,34 @@ class TabChart(QWidget):
             # measured wrong by about half, and the search that replaced it was
             # a dozen geometry rebuilds per keystroke.
             _patch_bottom = _meas_b
+            # …AND THE BLOCK'S BOX IS NOT ITS INK. `render_pages` anchors each
+            # line by its ASCENDER, so the topmost line's ink begins below the
+            # top of its box and the block reaches less far up the page than
+            # `lines x line_h`. Budgeting the box produced warnings on sheets
+            # with clear paper under the patches: "0.2 mm short" on 0.593 mm of
+            # white, "1.3 mm short" on 0.762 mm, measured on beta 18. The
+            # over-read is about 0.9 mm at 10 pt and 2.2 mm at 28, so it is a
+            # SECOND cause of false warnings and the 0.2 mm tolerance above
+            # does not answer it. `raster.sheet_text_ink_top_mm` measures it
+            # off the string that is really drawn.
+            _ink_trim = 0.0
+            try:
+                _lines_txt = self._bottom_sheet_text_lines(r)
+                if _lines_txt:
+                    from workflow.layout_engine.raster import \
+                        sheet_text_ink_top_mm
+                    _ink_trim = sheet_text_ink_top_mm(
+                        _lines_txt[0],
+                        float(getattr(r, "chart_text_size_mm", 0.0) or 0.0),
+                        str(getattr(r, "chart_text_font", "") or ""),
+                        bool(getattr(r, "chart_text_bold", False)),
+                        bool(getattr(r, "chart_text_italic", False)),
+                        float(getattr(r, "dpi", 300) or 300))
+            except Exception:      # noqa: BLE001 — a trim, never a blocker
+                _ink_trim = 0.0
             _o = (text_edge_fit.bottom_text_block_overlap(
-                      float(_patch_bottom), _b_edge, nlines, _line_mm)
+                      float(_patch_bottom), _b_edge, nlines, _line_mm,
+                      _ink_trim, _tol)
                   if _patch_bottom is not None else None)
             if _o is not None:
                 # ONE LINE OR TWO, SAID AS ONE OR TWO. "(s)" is banned in this
@@ -21487,9 +21937,8 @@ class TabChart(QWidget):
                     "needs {need:.1f} mm of room, and the patch area in "
                     "“Measured from Preview” comes down to {bottom:.1f} mm, "
                     "leaving {avail:.1f} mm, so it is {short:.1f} mm short. "
-                    "Raise “Bottom” under “Margins (mm)”, or set a smaller "
-                    "Size under “Sheet text”, then press Generate Chart to "
-                    "measure it again.")
+                    "Raise “Bottom” under “Margins (mm)”, then press Generate "
+                    "Chart to measure it again.")
                     if nlines == 1 else tr(
                     "⚠ The two lines of sheet text along the bottom run into "
                     "the patches. They are printed {edge:.1f} mm up from the "
@@ -21497,9 +21946,8 @@ class TabChart(QWidget):
                     "area in “Measured from Preview” comes down to "
                     "{bottom:.1f} mm, leaving {avail:.1f} mm, so they are "
                     "{short:.1f} mm short. Raise “Bottom” under “Margins "
-                    "(mm)”, set a smaller Size under “Sheet text”, or switch "
-                    "one of the two lines off, then press Generate Chart to "
-                    "measure it again."))).format(
+                    "(mm)”, or switch one of the two lines off, then press "
+                    "Generate Chart to measure it again."))).format(
                         edge=_b_edge, need=_o.needed_mm,
                         bottom=float(_patch_bottom),
                         avail=max(0.0, _o.available_mm),
@@ -21516,13 +21964,23 @@ class TabChart(QWidget):
                     # "B" down moves no ink at all. That is arithmetic on two
                     # numbers this panel already has, not a search, so it
                     # survives the ruling: see `_bottom_lever_note`.
+                    # …AND "SET A SMALLER SIZE" ONLY WHERE A SMALLER SIZE
+                    # MOVES ANYTHING. `raster.sheet_text_line_mm` floors at the
+                    # 4.2 mm pitch as the raster can express it, so below about
+                    # 8.5 pt the prediction stops shrinking. Measured on beta
+                    # 18: Size 8, 7, 6 and 5 pt all produced the identical
+                    # *"needs 4.2 mm of room ... 0.5 mm short"*, and the
+                    # message went on naming the lever at 5 pt.
+                    + _size_lever_note(_line_mm, float(getattr(r, "dpi", 300)
+                                                       or 300))
                     + _bottom_lever_note(
                         _bot_edge, _b_edge,
                         # THE TYPED VALUE, NOT THE EFFECTIVE ONE. `_bot_edge`
                         # is already `text_edge_mm or 4.0`, so a box reading 0
                         # arrives here as 4.0 and the "lower it" sentence was
                         # being offered to somebody whose box is already at 0.
-                        float(getattr(r, "text_edge_mm", 0.0) or 0.0)))
+                        float(getattr(r, "text_edge_mm", 0.0) or 0.0),
+                        not bool(getattr(geom, "margins_are_law", False))))
             # …AND THE SAME BLOCK HAS A WIDTH, WHICH NOTHING ASKED ABOUT.
             # Knut, #182, "Bottom page edge": *"The width of the defined text
             # … should also be checked against the available space, taking
@@ -21577,8 +22035,18 @@ class TabChart(QWidget):
                     # (7.0, 186.0) from the border alone, a right margin whose
                     # text column starts at 178.5, and 4.45 mm of the bottom
                     # line printed inside it.
-                    margin_left_mm=float(getattr(geom, "margin_l", 0.0) or 0.0),
-                    margin_right_mm=float(getattr(geom, "margin_r", 0.0) or 0.0),
+                    # …AND THE MEASURED ONES WHEN THERE IS A SHEET TO MEASURE.
+                    # `raster.render_pages` now anchors and centres the line on
+                    # the patch BLOCK's own edges rather than on the margins
+                    # that were asked for, which is what a tester asked for on
+                    # beta 18; the panel has to predict the same bounds or its
+                    # width warning describes a line that is not there.
+                    # `geom.margin_l` / `margin_r` stay as the fallback for a
+                    # chart nobody has generated yet.
+                    margin_left_mm=(_meas_l if _meas_l is not None else
+                                    float(getattr(geom, "margin_l", 0.0) or 0.0)),
+                    margin_right_mm=(_meas_r if _meas_r is not None else
+                                     float(getattr(geom, "margin_r", 0.0) or 0.0)),
                     # …AND THE ALIGNMENT, because where a line STARTS decides
                     # how much of the paper it can use. Knut, 2026-09-14:
                     # *"Leave side-limit detection as it is designed.
@@ -21641,7 +22109,14 @@ class TabChart(QWidget):
                             * 72.0 / 25.4,
                             text_edge_fit.AUTO_SHRINK_FLOOR_PT))
         except Exception:  # noqa: BLE001 — never block the inspector on this
-            pass
+            # …BUT IT IS NOT SWALLOWED IN SILENCE. This one clause has twice
+            # eaten every notice on the panel over a single AttributeError in a
+            # new line, and both times the silence read as the change working.
+            # `tests/test_the_bottom_text_is_measured_against_the_patches.py::
+            # test_the_notes_survive_a_tab_that_cannot_count_its_patches` is the
+            # guard; the log line is how the next one is found in a minute
+            # rather than in an afternoon.
+            log.debug("a text notice could not be computed", exc_info=True)
         # THE ⓘ GETS EVERYTHING, THE MESSAGE FIELD ONLY THE OVERLAPS. The rest
         # of these are advice about a margin the engine moved for the user; the
         # overlaps are the four sides Knut's ruling puts on screen in red.

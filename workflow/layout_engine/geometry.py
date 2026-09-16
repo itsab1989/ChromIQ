@@ -81,6 +81,42 @@ def strip_label_reserve_mm(g) -> float:
         bool(getattr(g, "helper_markers_top_bottom", True)))
 
 
+def strip_label_leader_top_mm(g) -> float:
+    """Where the strip-label band's ANCHOR really sits, from the paper's top.
+
+    A MIRROR OF THE TWO LINES IN :func:`placement` THAT SET
+    ``Placement.leader_top``, and there is a test that keeps the mirror honest
+    (`tests/test_the_strip_letters_are_judged_where_they_are_drawn.py`). It
+    exists because the "Measured from Preview" panel has to say where the
+    letters are and only has the :class:`Geom`; building a second rule there is
+    how the two came apart in the first place.
+
+    **THE TWO LAYOUT MODES PUT THE BAND IN DIFFERENT PLACES, AND ONE OF THEM
+    DOES NOT CONSULT "T" AT ALL.** With "Prioritise chart area"
+    (``margins_are_law``) the anchor is the larger of "T" and the ruler helper
+    markers' own reach, plus the layout's indicator gap. With "Prioritise patch
+    size" it is the TOP MARGIN, and "T" moves nothing.
+
+    Driven on beta 18 (`~/Desktop/ChromIQ-beta18-proof/knut-sweep-geometry/`,
+    section 2.1), i1Pro / A4 / patch-first / margins 12 / Label offset 0, with
+    "T" swept 0, 2, 4, 8, 16 and 25 mm: the strip letters landed at **13.377 to
+    17.780 mm every time, identical to the thousandth**. In the same window,
+    area-first moved them one millimetre per millimetre. Whether that is the
+    intended design is not this function's question; what it fixes is that the
+    panel used to predict the letters from "T" in both modes, so in patch-first
+    the top-edge notice could not fire however far the letters were driven onto
+    the patches — 24 states, four geometries, not one notice, photographed with
+    A B C D E printed in the middle of the second row of hexagons under a panel
+    reading "Margins: OK".
+    """
+    if getattr(g, "margins_are_law", False):
+        return (max(0.0, strip_label_reserve_mm(g)
+                    + float(getattr(g, "strip_indicator_gap", 0.0) or 0.0))
+                + float(getattr(g, "offset_y", 0.0) or 0.0))
+    return (float(getattr(g, "margin_t", 0.0) or 0.0)
+            + float(getattr(g, "offset_y", 0.0) or 0.0))
+
+
 def _top_reserve_for_a_turned_hex(g, mints: float, txhi: float,
                                   *, margins_are_law: bool) -> float:
     """`mints`, raised if the strip letters would otherwise be drawn on the ink.

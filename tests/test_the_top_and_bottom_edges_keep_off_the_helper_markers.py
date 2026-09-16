@@ -451,8 +451,25 @@ def test_the_shrink_stops_at_seven_point_and_then_the_panel_must_speak():
         margin_left_mm=12.0, margin_right_mm=12.0) is not None
 
 
-def test_a_line_that_fits_is_left_at_its_full_size():
-    """Nothing shrinks for the sake of shrinking."""
+def test_a_line_that_fits_takes_the_room_it_has():
+    """Nothing shrinks for the sake of shrinking, and "auto" is not 9 pt.
+
+    **THIS TEST USED TO ASSERT THE OPPOSITE HALF OF ITS OWN NAME.** It compared
+    the "auto" line against a typed 3.2 mm one and required them to be the same
+    width, which pins "auto" to `SHEET_TEXT_DEFAULT_MM` — 9.07 pt — however much
+    paper is free. A tester read that off a real sheet on beta 18: *"When
+    Size=auto for the sheet text, the bottom text is still not automatically
+    sized. The size of text is kept quite small even when there is a lot of
+    space in both available width and height. Set a reasonable upper limit ...
+    (such as 15 or 16pt?)"*.
+
+    So the property is the one the name always claimed: a line with room is
+    drawn LARGER than the old default and no larger than the ceiling, and it is
+    not shrunk below what it needs.
+
+    MUTATION: start the search at `SHEET_TEXT_DEFAULT_MM` again and the first
+    assertion goes red.
+    """
     fits = ("Canon PRO-300 on Hahnemuehle Photo Rag 308 gsm, "
             "no colour management")
     r = _recipe(chart_text=fits, chart_text_size_mm=0.0)
@@ -460,9 +477,20 @@ def test_a_line_that_fits_is_left_at_its_full_size():
     fixed = _moved(_render(r, chart_text_size_mm=3.2)[0],
                    _render(r, chart_text="")[0])
     assert auto is not None and fixed is not None
-    assert auto[3] == pytest.approx(fixed[3], abs=0.1), (
-        f"a line that fits was shrunk anyway: {auto[3]:.2f} against "
-        f"{fixed[3]:.2f}")
+    auto_w, fixed_w = auto[3] - auto[2], fixed[3] - fixed[2]
+    assert auto_w > fixed_w + 1.0, (
+        f"the auto line is {auto_w:.2f} mm wide against the old 3.2 mm "
+        f"default's {fixed_w:.2f} mm, so it is still not using the room it has")
+    ceiling = _moved(_render(r, chart_text_size_mm=tef.pt_to_mm(
+        tef.AUTO_SIZE_CEILING_PT))[0], _render(r, chart_text="")[0])
+    assert ceiling is not None
+    assert auto_w <= (ceiling[3] - ceiling[2]) + 0.5, (
+        f"the auto line is {auto_w:.2f} mm wide, past the "
+        f"{tef.AUTO_SIZE_CEILING_PT:.0f} pt ceiling's "
+        f"{ceiling[3] - ceiling[2]:.2f} mm")
+    # …and it still keeps inside the bounds, which is the half that was right.
+    assert auto[3] <= 210.0 - 4.0 + 0.5, (
+        f"the auto line runs to {auto[3]:.2f} mm on a 210 mm sheet")
 
 
 def test_a_typed_bottom_size_is_not_shrunk_and_the_panel_must_say_so():

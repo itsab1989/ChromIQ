@@ -256,8 +256,17 @@ def test_the_panel_and_the_renderer_read_one_function():
     """The prediction is only worth something while it is the same number."""
     import inspect
     src = inspect.getsource(raster.render_pages)
-    assert "sheet_text_line_mm(chart_text_size_mm" in src, (
+    # THE SIZE BEING DRAWN, NOT THE SIZE IN THE BOX. This used to require the
+    # literal `sheet_text_line_mm(chart_text_size_mm`, which is 0 for "auto",
+    # and while "auto" could never exceed `SHEET_TEXT_DEFAULT_MM` the two
+    # agreed by accident. `text_edge_fit.AUTO_SIZE_CEILING_PT` lets "auto" grow,
+    # and the moment it did, the block was positioned for a 4.2 mm line and
+    # drawn at 16 pt: the ink crossed the "B" reserve on its way to the paper
+    # edge. `_drawn_size_mm` is `chart_text_size_mm or the resolved auto size`.
+    assert "sheet_text_line_mm(_drawn_size_mm" in src, (
         "the renderer has gone back to a line height of its own")
+    assert "_drawn_size_mm = chart_text_size_mm or" in src, (
+        "the renderer's line height no longer follows the size it draws at")
     panel = inspect.getsource(TabChart._engine_text_notes)
     assert "sheet_text_line_mm" in panel, (
         "the panel is predicting the bottom line with a number of its own")
@@ -816,6 +825,18 @@ def test_every_language_names_the_margin_box_as_that_language_shows_it(code):
     for key in _bottom_message_keys(cat):
         body = cat.get(key)
         assert body, f"{code} has no translation of {key[:50]!r}"
+        if body == key:
+            # AN UNTRANSLATED PLACEHOLDER IS THE ENGLISH SOURCE ITSELF, and the
+            # English source quotes the English control by construction. The
+            # fault this test was written for is a TRANSLATION that names a word
+            # the reader's own window does not show; a placeholder is not a
+            # translation, and the project's beta rule keeps new strings English
+            # until the pre-release pass. `test_a_quoted_control_names_the_
+            # control_the_reader_has.py` has carried the same exemption, in the
+            # same words, since 2026-09-08. Without it a new sentence could only
+            # be added by translating it into twelve languages in the same
+            # commit, which is the rule this project has explicitly declined.
+            continue
         for english in sorted(set(_re.findall(r"“([^”]+)”", key))):
             label_key = _QUOTED_CONTROLS.get(english)
             if label_key is None:

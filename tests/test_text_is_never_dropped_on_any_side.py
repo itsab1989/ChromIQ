@@ -672,6 +672,24 @@ def test_a_clip_border_on_the_notes_edge_says_neither_lever_works(qapp):
     _all, over = _notes(r, notes="Canon PRO-1000", report=_Report(r, 19.0))
     joined = " ".join(over)
     assert "share that edge with the clip border" in joined, joined
-    assert "put the clip border on the LEFT" in joined, joined
+    # …AND "PUT THE CLIP BORDER ON THE LEFT" IS GONE, MEASURED.
+    #
+    # This line used to assert the sentence was PRESENT. A tester drove it on
+    # beta 18 (`~/Desktop/ChromIQ-beta18-proof/knut-sweep-clipborder/`, 6.1):
+    # from band 24 with a right margin of 6 mm, moving the border to the left
+    # removed the named message and immediately printed a different red one,
+    # *"The chart notes down the right edge run over the patches ... the right
+    # margin leaves 1.7 mm"*, with the note's ink still inside the patch rows,
+    # because the bare 6 mm margin cannot hold the text on its own. A reader
+    # who follows that advice sees a red line either way, which is the fault
+    # class the design authority's whole ruling is aimed at.
+    assert "on the LEFT" not in joined, (
+        "the message offers a side swap that was measured to replace one red "
+        "line with another: " + joined)
     assert "narrower with" not in joined, (
         "the message still offers a remedy that cannot be reached")
+    # …AND THE WIDTH LEVER IS NOW CONDITIONAL, not absent. At a typed margin of
+    # 19.0 mm the box's 10.0 mm floor is reachable and narrowing really does
+    # free paper, so the clause is offered here; `test_the_width_lever_is_
+    # withheld_where_it_cannot_work` is the other half.
+    assert "narrower “Clip border width”" in joined, joined

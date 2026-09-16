@@ -124,9 +124,50 @@ def test_the_auto_line_is_the_same_size_as_at_200_dpi(dpi):
     """
     h_ref, w_ref = _auto_text_ink_mm(200)
     h, w = _auto_text_ink_mm(dpi)
-    assert h == pytest.approx(h_ref, abs=0.2), (
+    # **THE TOLERANCES ARE THE RASTER'S OWN STEP AT THIS SIZE, MEASURED, NOT
+    # SLACK.** They were 0.2 mm and 0.4 mm when "auto" resolved to about 9 pt.
+    # `text_edge_fit.AUTO_SIZE_CEILING_PT` makes it 16 pt on a sheet with room,
+    # and an em rounded to whole pixels is 5.588 mm at 150 and 200 dpi, 5.609 at
+    # 240, 5.673 at 300, 5.644 at 360 and 5.630 at 600 — a 0.8 % spread that
+    # the hinting turns into a larger one in the ink. Measured on the face this
+    # test draws with, "ChromIQ" at 16 pt:
+    #
+    # | dpi | 150 | 200 | 240 | 300 | 360 | 600 |
+    # |---|---|---|---|---|---|---|
+    # | ink height mm | 4.403 | 4.445 | 4.551 | 4.657 | 4.586 | 4.572 |
+    # | ink width mm | 23.368 | 23.368 | 23.495 | 23.791 | 23.636 | 23.580 |
+    #
+    # Worst against the 200 dpi reference: 0.212 mm of height and 0.423 mm of
+    # width, both at 300. The numbers below are those plus one raster pixel at
+    # 600 dpi, which is what this test can distinguish. The PROPERTY is
+    # unchanged and is still the one that matters: the resolved SIZE is now
+    # stepped in points by `raster.auto_sheet_text_size_mm` and is the same
+    # 16.0 pt at every one of those six resolutions, which it was not before.
+    assert h == pytest.approx(h_ref, abs=0.26), (
         f"the auto bottom line is {h:.3f} mm tall at {dpi} dpi and "
         f"{h_ref:.3f} mm at 200 dpi, on the same recipe")
-    assert w == pytest.approx(w_ref, abs=0.4), (
+    assert w == pytest.approx(w_ref, abs=0.47), (
         f"the auto bottom line is {w:.3f} mm wide at {dpi} dpi and "
         f"{w_ref:.3f} mm at 200 dpi, on the same recipe")
+
+
+@pytest.mark.parametrize("dpi", DPIS)
+def test_the_resolved_auto_size_is_the_same_at_every_resolution(dpi):
+    """The size itself, which is the thing that must not follow the raster.
+
+    The ink measured off a sheet carries the glyph raster's own rounding; the
+    SIZE does not, and it is what `auto_sheet_text_size_mm` decides.
+
+    MUTATION: step the search in pixels again (``p -= 1`` over
+    ``round(size_mm * dpi / 25.4)``) and this goes red at every dpi but one.
+    """
+    room = 150.0
+    got = raster.auto_sheet_text_size_mm(["ChromIQ"], room, "Inter", False,
+                                         False, dpi)
+    want = raster.auto_sheet_text_size_mm(["ChromIQ"], room, "Inter", False,
+                                          False, 200)
+    assert got == pytest.approx(want, abs=1e-9), (
+        f"the resolved auto size is {got:.4f} mm at {dpi} dpi and "
+        f"{want:.4f} mm at 200")
+    assert got == pytest.approx(tef.pt_to_mm(tef.AUTO_SIZE_CEILING_PT), abs=1e-9), (
+        "a short line with 150 mm of room did not reach the ceiling")

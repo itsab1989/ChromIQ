@@ -303,8 +303,9 @@ def effective_indicator_size_mm(geom, dpi: int, font: str, size_mm: float) -> fl
     return max(min(target, INDICATOR_MIN_LEGIBLE_MM), target * avail / widest2)
 
 
-def _furniture_reserves_mm(geom, kw: dict) -> tuple[float, float, float]:
-    """``(label_band_mm, bottom_reserve_mm, label_ink_bottom_mm)`` — the vertical space the rendered
+def _furniture_reserves_mm(geom, kw: dict) -> tuple[float, float, float, float, float]:
+    """``(label_band_mm, bottom_reserve_mm, label_ink_bottom_mm, label_ink_top_mm,
+    label_ink_reach_mm)`` — the vertical space the rendered
     strip-label band (indicator + underline) and the bottom sheet-text/stamp
     block actually consume, so :func:`geometry.compute` can reserve them.
 
@@ -317,6 +318,8 @@ def _furniture_reserves_mm(geom, kw: dict) -> tuple[float, float, float]:
     mm2px = dpi / 25.4
     label_band = 0.0   # indicators off ⇒ reclaim the whole label band
     ink_bottom = 0.0   # …and no ink under the labels either
+    ink_top = 0.0      # …and nothing above it
+    ink_reach = 0.0
     if kw.get("draw_indicators", True):
         fam = kw.get("indicator_font", DEFAULT_INDICATOR_FONT)
         raw_size = float(kw.get("indicator_size_mm") or 0.0)   # 0 = auto
@@ -356,7 +359,45 @@ def _furniture_reserves_mm(geom, kw: dict) -> tuple[float, float, float]:
         # use the same tile height as the reserve, so they agree there.
         _drawn = (_indicator_tile("WW", f, spc, rot).height if rot in (90, 270)
                   else ind_px) / mm2px
-        ink_bottom = float(kw.get("strip_label_offset_mm") or 0.0) + _drawn + _rule
+        _off = float(kw.get("strip_label_offset_mm") or 0.0)
+        ink_bottom = _off + _drawn + _rule
+        # …AND WHERE THE INK ITSELF BEGINS AND ENDS, WHICH IS NEITHER OF THOSE.
+        #
+        # `_drawn` is the font's FULL pixel size, and `render_pages` draws the
+        # letters with PIL's "ma"/"la" anchor, so the ASCENDER line lands on
+        # `leader_top + offset` and the ink is inset from the top of that box
+        # by the difference between the ascender and the cap height. Measured
+        # here with the probe rather than derived: DejaVuSans at a 4.911 mm em
+        # inks from **1.355 mm to 5.165 mm** below the anchor, so a check that
+        # assumed the ink starts at the anchor and stops at the em box was
+        # wrong at both ends.
+        #
+        # That is the fault a tester measured on beta 18
+        # (`~/Desktop/ChromIQ-beta18-proof/knut-sweep-geometry/`, section 2.2):
+        # the panel predicted the letters "reach" T + 4.9 mm while they really
+        # reached T + 5.99, so the top warning arrived one whole millimetre
+        # late — at "T" 8 there was 0.93 mm of letter ink on the first row of
+        # patches and the panel said nothing — and the remedy it offered left
+        # 1.1 mm of every letter still on the patches while going silent.
+        #
+        # **THE LAYOUT RESERVE IS DELIBERATELY NOT CHANGED.**
+        # `label_ink_bottom_mm` is what `geometry._top_reserve_for_a_turned_hex`
+        # moves the patch block by, and moving it would move every turned
+        # honeycomb sheet. These two are new numbers for the panel to predict
+        # with, and nothing lays a chart out from them.
+        if rot in (90, 270):
+            _tile = _indicator_tile("WW", f, spc, rot)
+            _bb = _tile.getbbox()
+            _t_px, _b_px = ((_bb[1], _bb[3]) if _bb else (0, _tile.height))
+        else:
+            _probe = Image.new("RGBA", (ind_px * 6, ind_px * 6), (0, 0, 0, 0))
+            ImageDraw.Draw(_probe).text((ind_px * 2, ind_px * 2), "W8", font=f,
+                                        fill=(0, 0, 0, 255), anchor="la")
+            _bb = _probe.getbbox()
+            _t_px = (_bb[1] - ind_px * 2) if _bb else 0
+            _b_px = (_bb[3] - ind_px * 2) if _bb else ind_px
+        ink_top = _off + _t_px / mm2px
+        ink_reach = _off + _b_px / mm2px + _rule
     # Bottom-of-sheet block: one line each for custom sheet text and the stamp,
     # drawn at line_h = px(4.2) above the printer-safe bottom inset (see
     # render_pages); the inset keeps the text clear of a printer's unprintable
@@ -377,18 +418,61 @@ def _furniture_reserves_mm(geom, kw: dict) -> tuple[float, float, float]:
     # literal 4.2 while `text_edge_fit.SHEET_TEXT_LINE_MM` was the same value
     # in three other places; a line box that grows past it is exactly the case
     # the bottom-text warning is about, so the two must not drift.
-    bottom = (_edge + _tef.SHEET_TEXT_LINE_MM * nlines) if nlines else 0.0
-    return label_band, bottom, ink_bottom
+    # ONE LINE'S BAND, AND "auto" IS ALLOWED TO ASK FOR MORE THAN 4.2 mm.
+    # A typed Size still reserves the 4.2 mm pitch and the warning takes the
+    # place of the shrink, which is the rule for a typed size everywhere else;
+    # "auto" is a size the app chooses, so the band it needs is the band it
+    # gets, up to `AUTO_SIZE_CEILING_PT`. Without this the ceiling could not
+    # exist: the engine held back 4.2 mm a line whatever "auto" resolved to, so
+    # anything above about 10 pt would have been drawn into the patches.
+    #
+    # Resolved from the text this function can SEE, which is the custom line;
+    # the layout stamp's wording is composed later and is not knowable here.
+    # `render_pages` therefore takes the SMALLER of its own resolution and the
+    # band held back here, so the block can never exceed the reserve.
+    _hold = _tef.SHEET_TEXT_LINE_MM
+    if nlines and not float(kw.get("chart_text_size_mm") or 0.0):
+        try:
+            from . import papers as _papers
+            _pw_mm = float(_papers.dimensions_mm(str(kw.get("paper") or ""))[0])
+            _cb = (float(kw.get("clip_border_width") or 0.0)
+                   if float(kw.get("clip_border_width") or 0.0) > 0 else 0.0)
+            _room = _tef.bottom_text_room_mm(
+                _pw_mm, float(kw.get("text_edge_clip") or 0.0),
+                bool(kw.get("helper_markers")),
+                float(kw.get("helper_marker_edge") or 0.0),
+                float(kw.get("helper_marker_len") or 0.0),
+                bool(kw.get("helper_markers_sides", True)),
+                clip_border_mm=_cb,
+                clip_side=str(kw.get("clip_side") or "left"),
+                margin_left_mm=float(getattr(geom, "margin_l", 0.0) or 0.0),
+                margin_right_mm=float(getattr(geom, "margin_r", 0.0) or 0.0),
+                align=str(kw.get("chart_text_align")
+                          or _tef.BOTTOM_TEXT_ALIGN_DEFAULT))
+            _auto_mm = auto_sheet_text_size_mm(
+                [str(kw.get("chart_text") or "")], _room,
+                str(kw.get("chart_text_font") or ""),
+                bool(kw.get("chart_text_bold")),
+                bool(kw.get("chart_text_italic")), dpi)
+            _hold = max(_hold, sheet_text_line_mm(
+                _auto_mm, str(kw.get("chart_text_font") or ""),
+                bool(kw.get("chart_text_bold")),
+                bool(kw.get("chart_text_italic")), dpi))
+        except Exception:            # noqa: BLE001 — fall back to the pitch
+            _hold = _tef.SHEET_TEXT_LINE_MM
+    bottom = (_edge + _hold * nlines) if nlines else 0.0
+    return label_band, bottom, ink_bottom, ink_top, ink_reach
 
 
 def apply_furniture_reserves(geom, kw: dict):
     """Return *geom* with label_band_mm / bottom_reserve_mm filled from the
     rendered furniture (single source of truth shared by the renderer and every
     capacity estimate, so they can't disagree — #93)."""
-    lb, br, ib = _furniture_reserves_mm(geom, kw)
+    lb, br, ib, it, ir = _furniture_reserves_mm(geom, kw)
     return apply_row_label_geometry(
         replace(geom, label_band_mm=lb, bottom_reserve_mm=br,
-                label_ink_bottom_mm=ib), kw)
+                label_ink_bottom_mm=ib, label_ink_top_mm=it,
+                label_ink_reach_mm=ir), kw)
 
 
 #: What `LayoutRecipe.text_edge_clip_mm` defaults to. Kept here as well because
@@ -487,6 +571,143 @@ def sheet_text_line_mm(size_mm: float, font_family: str = "",
     except Exception:                # noqa: BLE001 — a prediction is never fatal
         ink_px = max(1, int(round(size * d / 25.4)))
     return max(floor_px, ink_px) * 25.4 / d
+
+
+def _block_bounds_mm(place, steps: int, patches_per_page: int,
+                     paper_w_mm: float, hex_overhang_mm: float = 0.0
+                     ) -> "tuple[float, float]":
+    """``(left_mm, right_mm)`` of the PATCH BLOCK on a full page, as margins.
+
+    The same two numbers "Measured from Preview" reports, derived from the same
+    `Placement` the patches are drawn from: the first pass's left edge, and the
+    paper left over to the right of the last pass. `geom.margin_l` and
+    `geom.margin_r` are what the LAYOUT WAS ASKED FOR, and the block does not
+    begin there: it is centred in the slack, moved by "Patch area alignment",
+    and pushed in by a honeycomb's apex reserve and by the row-label band.
+
+    A FULL page, deliberately. A part-full last page has fewer passes and so a
+    much wider right margin, and a bottom line that moved from sheet to sheet
+    of one chart would be worse than one anchored a millimetre out.
+    """
+    try:
+        n = max(1, (int(patches_per_page) + int(steps) - 1) // int(steps))
+        # A HONEYCOMB'S APEX REACHES `hxew` PAST ITS SLOT, and the frame
+        # reports the apex. `Placement.x0` already carries `+ g.hxew`, so the
+        # slot origin is that much INSIDE the leftmost ink: measured on a CR30
+        # honeycomb, `place.x_of(0)` is 27.000 mm while the chart's own
+        # recorded rectangles, and therefore "Measured from Preview", say
+        # 23.961 -- exactly `g.hxew` of 3.0 mm apart. Anchoring the bottom line
+        # on the slot would put it 3 mm inside the patch column above it, which
+        # is the very disagreement this change set is closing. Zero for square
+        # patches, so nothing else moves.
+        over = max(0.0, float(hex_overhang_mm or 0.0))
+        left = float(place.x_of(0)) - over
+        right = (float(paper_w_mm)
+                 - float(place.x_of(n - 1) + place.pwid) - over)
+        return max(0.0, left), max(0.0, right)
+    except Exception:                # noqa: BLE001 — never block a render
+        return 0.0, 0.0
+
+
+def sheet_text_ink_top_mm(text: str, size_mm: float, font_family: str = "",
+                          bold: bool = False, italic: bool = False,
+                          dpi: float = 300.0) -> float:
+    """How far below a bottom-text line's own BOX its ink actually starts, in mm.
+
+    `render_pages` draws each line with PIL's default "la" anchor, so the
+    ASCENDER lands on the line box's top and the ink begins wherever the
+    tallest glyph in the string does. The block's box therefore reaches
+    ``reserve + lines x line_h`` above the paper edge, and its INK reaches this
+    much less than that.
+
+    **THE PANEL BUDGETED THE BOX AND WARNED ABOUT THE INK.** Measured on beta
+    18 (`~/Desktop/ChromIQ-beta18-proof/knut-sweep-geometry/`, section 2.3), on
+    the same string on a CR30 honeycomb chart:
+
+    | state | the notice | the text's real ink | the block's real edge | verdict |
+    |---|---|---|---|---|
+    | bottom-left, "B" 18, 10 pt | *"0.2 mm short"* | 18.288 ... 21.505 | 22.098 | **0.593 mm of clear paper. FALSE** |
+    | top-left, "B" 4, 28 pt | *"1.3 mm short"* | 4.318 ... 13.885 | 14.647 | **0.762 mm of clear paper. FALSE** |
+    | centre, "B" 18, 28 pt | *"6.5 mm short"* | reaches 27.94 | 23.654 | true, over-stated by 2.2 mm |
+
+    The over-read grows with the type, about 0.9 mm at 10 pt and about 2.2 mm
+    at 28, so it is not something a flat threshold can answer: it is the second
+    of the two independent causes of false warnings that beta 18 shipped, and
+    the 0.2 mm one (`text_edge_fit.edge_tolerance_mm`) does not touch it.
+
+    Measured off a probe rather than derived, because a face's ascender and its
+    cap height are its own business. Returns 0.0 for an empty string and
+    whenever the face cannot be asked.
+    """
+    if not text:
+        return 0.0
+    try:
+        d = float(dpi)
+        if d <= 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        d = 300.0
+    from workflow import text_edge_fit as _tef
+    size = float(size_mm or 0.0) or _tef.SHEET_TEXT_DEFAULT_MM
+    try:
+        f = _font(max(1, int(round(size * d / 25.4))), font_family, bold, italic)
+        bb = ImageDraw.Draw(Image.new("L", (4, 4))).textbbox(
+            (0, 0), str(text), font=f)
+        return max(0.0, float(bb[1]) * 25.4 / d)
+    except Exception:                # noqa: BLE001 — a prediction is never fatal
+        return 0.0
+
+
+def auto_sheet_text_size_mm(lines, room_mm: float, font_family: str = "",
+                            bold: bool = False, italic: bool = False,
+                            dpi: float = 300.0) -> float:
+    """What the Sheet text frame's "auto" resolves to, in millimetres.
+
+    The largest size that fits *room_mm* across the sheet, starting at
+    :data:`text_edge_fit.AUTO_SIZE_CEILING_PT` and stepping down a pixel at a
+    time to :data:`text_edge_fit.AUTO_SHRINK_FLOOR_PT`.
+
+    **"auto" USED TO MEAN 9 pt AND NOTHING ELSE.** `render_page` started the
+    shrink loop at :data:`text_edge_fit.SHEET_TEXT_DEFAULT_MM`, 3.2 mm, and the
+    loop only ever decremented, so the box could not grow however much paper
+    was free. A tester on beta 18: *"the bottom text is still not automatically
+    sized. The size of text is kept quite small even when there is a lot of
+    space in both available width and height. Set a reasonable upper limit ...
+    (such as 15 or 16pt?)"*.
+
+    The height is NOT a term here. It is applied by the caller against the band
+    the engine actually reserved, because that band is computed from this
+    function and the two must not be able to disagree: `_furniture_reserves_mm`
+    holds back one line box at this size, and `render_pages` then refuses to
+    draw larger than the band it was given.
+    """
+    from workflow import text_edge_fit as _tef
+    try:
+        d = float(dpi)
+        if d <= 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        d = 300.0
+    # **STEPPED IN POINTS, NOT IN PIXELS.** A pixel is 0.169 mm at 150 dpi and
+    # 0.042 mm at 600, so a search that walked the raster landed on a different
+    # size at every resolution and the same recipe printed a different sheet.
+    # `tests/test_the_auto_sheet_text_does_not_shrink_with_the_dpi.py` is the
+    # guard for exactly that, and it caught this within one run.
+    # `AUTO_SHRINK_STEP_PT` is the half point the other two auto boxes step by.
+    ceiling = max(float(_tef.AUTO_SIZE_CEILING_PT),
+                  float(_tef.AUTO_SHRINK_FLOOR_PT))
+    floor = float(_tef.AUTO_SHRINK_FLOOR_PT)
+    texts = [t for t in (lines or ()) if t]
+    if not texts:
+        return _tef.pt_to_mm(ceiling)
+    room = float(room_mm or 0.0)
+    pt = ceiling
+    while pt > floor:
+        if sheet_text_width_mm(texts, _tef.pt_to_mm(pt), font_family, bold,
+                               italic, d) <= room:
+            return _tef.pt_to_mm(pt)
+        pt = max(floor, round((pt - _tef.AUTO_SHRINK_STEP_PT) * 2) / 2.0)
+    return _tef.pt_to_mm(floor)
 
 
 def sheet_text_width_mm(lines, size_mm: float, font_family: str = "",
@@ -2131,6 +2352,26 @@ def render_pages(
             # on a 210 mm sheet and was cut by the paper edge, with nothing
             # said anywhere.
             _clip_w_mm = float(geom.lbord + geom.border) if geom.lbord > 0 else 0.0
+            # **THE MARGINS THE SHEET HAS, NOT THE MARGINS THAT WERE ASKED
+            # FOR.** A tester, beta 18: *"Under Sheet text frame, when Alignment
+            # is left, any of the two bottom texts placed are aligned against
+            # the left margin setting, and not the left margin under Measured
+            # from Preview. This also applies for option "Centre between left
+            # and right margin" and "Centre of available space". Use the
+            # measured margins in the calculations and alignment."*
+            #
+            # It is the same correction his 2026-09-15 ruling made to the text
+            # FIT checks, one door along: the patch block does not begin at
+            # `margin_l`. It is centred in the slack, moved by "Patch area
+            # alignment", pushed in by a hexagon's own apex reserve and by the
+            # row-label band, so a line anchored on the typed margin does not
+            # line up with the column of patches above it. `_blk_*_mm` is the
+            # block's own edge, taken from the same `Placement` the patches are
+            # drawn from, and it is taken for a FULL page so that every sheet of
+            # a chart carries the line in the same place.
+            _blk_l_mm, _blk_r_mm = _block_bounds_mm(
+                place, steps, pppage, paper_w_mm,
+                float(getattr(geom, "hxew", 0.0) or 0.0) if ss_hex else 0.0)
             _l_mm, _r_mm = _tef.bottom_text_bounds_mm(
                 paper_w_mm,
                 float(getattr(geom, "text_edge_clip_mm", 0.0) or 0.0),
@@ -2144,12 +2385,11 @@ def render_pages(
                 # the right-edge notes print in. `geom` carries the margins the
                 # sheet was actually laid out with, raised ones included, so
                 # the line is bounded by what is really there.
-                margin_left_mm=float(getattr(geom, "margin_l", 0.0) or 0.0),
-                margin_right_mm=float(getattr(geom, "margin_r", 0.0) or 0.0))
+                margin_left_mm=_blk_l_mm,
+                margin_right_mm=_blk_r_mm)
             _align = str(chart_text_align or _tef.BOTTOM_TEXT_ALIGN_DEFAULT)
             _centre_mm = _tef.bottom_text_centre_mm(
-                paper_w_mm, float(getattr(geom, "margin_l", 0.0) or 0.0),
-                float(getattr(geom, "margin_r", 0.0) or 0.0))
+                paper_w_mm, _blk_l_mm, _blk_r_mm)
             _anchor_mm = _tef.bottom_text_anchor_mm(
                 paper_w_mm,
                 float(getattr(geom, "text_edge_clip_mm", 0.0) or 0.0),
@@ -2157,9 +2397,25 @@ def render_pages(
                 helper_markers_sides,
                 clip_border_mm=_clip_w_mm,
                 clip_side=str(getattr(geom, "clip_side", "left") or "left"),
-                margin_left_mm=float(getattr(geom, "margin_l", 0.0) or 0.0),
-                margin_right_mm=float(getattr(geom, "margin_r", 0.0) or 0.0))
+                margin_left_mm=_blk_l_mm,
+                margin_right_mm=_blk_r_mm)
             _sfont_px = px(chart_text_size_mm or _tef.SHEET_TEXT_DEFAULT_MM)
+            # THE BAND THE ENGINE REALLY HELD BACK FOR ONE LINE, which is what
+            # "auto" may grow into and no further. `_furniture_reserves_mm`
+            # built `bottom_reserve_mm` as `anchor + hold x lines`, so the hold
+            # comes straight back out of it; a geometry that predates the
+            # ceiling reports the 4.2 mm pitch and nothing changes for it.
+            _hold_mm = _tef.SHEET_TEXT_LINE_MM
+            try:
+                _res_mm = float(getattr(geom, "bottom_reserve_mm", 0.0) or 0.0)
+                if _res_mm > 0 and _btxt:
+                    _anchor = _tef.sheet_text_bottom_mm(
+                        text_edge_mm, helper_markers, helper_marker_edge_mm,
+                        helper_marker_len_mm, helper_markers_top_bottom)
+                    _hold_mm = max(_tef.SHEET_TEXT_LINE_MM,
+                                   (_res_mm - _anchor) / max(1, len(_btxt)))
+            except Exception:        # noqa: BLE001 — a size, never a blocker
+                _hold_mm = _tef.SHEET_TEXT_LINE_MM
             # SIZE "auto" SHRINKS, AND STOPS AT 7 pt. Knut, same section:
             # *"Size=auto allows the text to be shrunk down to 7pt, and then
             # stops shrinking. Manually defined size value does not shrink."*
@@ -2167,6 +2423,11 @@ def render_pages(
             # the place of the shrink, which is the rule the other two shrinking
             # boxes already follow (`text_edge_fit.text_floor_pt`).
             if not (chart_text_size_mm or 0.0):
+                # **"auto" STARTS AT THE CEILING AND COMES DOWN.** It used to
+                # start at `SHEET_TEXT_DEFAULT_MM` (9.07 pt) and only ever
+                # shrink, so it printed 9 pt on a sheet with room for 16. The
+                # loop below is unchanged and does the fitting; all that moves
+                # is where it starts.
                 _floor_px = max(1, px(_tef.pt_to_mm(_tef.AUTO_SHRINK_FLOOR_PT)))
                 # THE ROOM IS FROM WHERE THE LINE STARTS TO THE RIGHT BOUND,
                 # which is the same figure the panel's width warning uses
@@ -2188,6 +2449,17 @@ def render_pages(
                     margin_left_mm=float(getattr(geom, "margin_l", 0.0) or 0.0),
                     margin_right_mm=float(getattr(geom, "margin_r", 0.0) or 0.0),
                     align=_align)
+                # **"auto" IS THE LARGEST SIZE THAT FITS THE WIDTH, CEILING
+                # FIRST.** It used to start at `SHEET_TEXT_DEFAULT_MM` (9.07 pt)
+                # and only ever shrink, so it printed 9 pt on a sheet with room
+                # for 16. `auto_sheet_text_size_mm` steps in POINTS, which is
+                # the same answer at every resolution, and the pixel loop below
+                # then only ever takes it DOWN — against the width again (a
+                # rounding may cost a pixel) and against the band the engine
+                # really reserved.
+                _sfont_px = max(_floor_px, px(auto_sheet_text_size_mm(
+                    _btxt, _room_mm, chart_text_font, chart_text_bold,
+                    chart_text_italic, dpi)))
                 # …AND THE HEIGHT, WHICH NOTHING ASKED ABOUT. Knut,
                 # 2026-09-14: *"the size = auto setting should shrink size when
                 # the height or width comes close to its limits."* The loop
@@ -2221,7 +2493,12 @@ def render_pages(
                     # at 200 dpi in both trees, is **2.540 x 13.1 mm**. The
                     # rule is "the face's ink fits the band the engine
                     # reserves", and the band is a whole number of pixels.
-                    _reserve_mm = sheet_text_reserve_mm(dpi)
+                    # …AGAINST THE BAND THE ENGINE HELD BACK FOR THIS CHART,
+                    # not against a flat 4.2 mm. With "auto" allowed a ceiling
+                    # the band is whatever `_furniture_reserves_mm` reserved
+                    # for the resolved size, and holding the loop to 4.2 mm
+                    # would undo the ceiling in the same breath as granting it.
+                    _reserve_mm = max(sheet_text_reserve_mm(dpi), _hold_mm)
                     _fits_h = sheet_text_line_mm(
                         _sfont_px * 25.4 / dpi, chart_text_font,
                         chart_text_bold, chart_text_italic,
@@ -2243,7 +2520,18 @@ def render_pages(
             # A4 it was cut off by that edge, and the settings stamp was printed
             # on top of the sheet text. The panel reads the same function, so
             # what it warns about is what is drawn.
-            line_h = px(sheet_text_line_mm(chart_text_size_mm, chart_text_font,
+            # **AT THE SIZE THAT IS BEING DRAWN, NOT AT THE SIZE IN THE BOX.**
+            # `chart_text_size_mm` is 0 for "auto", which `sheet_text_line_mm`
+            # reads as `SHEET_TEXT_DEFAULT_MM` (3.2 mm): while "auto" could
+            # never be larger than that the two agreed by accident, and the
+            # moment the ceiling let it grow the block was POSITIONED for a
+            # 4.2 mm line and DRAWN at 16 pt, so the ink crossed the "B"
+            # reserve and ran toward the paper edge. Caught by
+            # `tests/test_the_bottom_sheet_text_keeps_its_reserve.py` and
+            # `tests/test_the_top_and_bottom_edges_keep_off_the_helper_markers.py`
+            # on the first full run after the ceiling went in.
+            _drawn_size_mm = chart_text_size_mm or (_sfont_px * 25.4 / dpi)
+            line_h = px(sheet_text_line_mm(_drawn_size_mm, chart_text_font,
                                            chart_text_bold, chart_text_italic,
                                            dpi))
             # THE BOTTOM RESERVE IS THE LARGER OF "B" AND THE MARKERS' OWN, the

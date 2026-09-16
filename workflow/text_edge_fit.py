@@ -52,6 +52,57 @@ from dataclasses import dataclass
 #: warning that fires on that is a warning nobody reads.
 EPS_MM = 0.05
 
+#: **THE FLOOR UNDER A PATCH-AREA WARNING, IN MILLIMETRES.** A tester, beta 18:
+#: *"since a small value of 0,1mm cannot be seen, I suggest that there should be
+#: a threshold of 0,2mm on the judgement of text overlapping the patch area
+#: edges (measured margins) on any of the 4 sides, so that there must be an
+#: error more than or equal to 0,2mm before a warning is given."*
+#:
+#: He reported it on the stock `i1Pro 3 Plus - A4-462p-3pages` and the A4
+#: ColorMunki presets, untouched: *"The band is 24.0 mm wide and the left margin
+#: leaves 23.9 mm"*, on a sheet with no visible collision at all.
+MIN_EDGE_TOLERANCE_MM = 0.2
+
+
+def edge_tolerance_mm(dpi: float = 0.0) -> float:
+    """The slop a patch-area check allows before it calls a touch an overlap.
+
+    **A FIXED 0.2 mm IS NOT ENOUGH, BECAUSE THE FALSE POSITIVE IS A PIXEL AND A
+    PIXEL IS NOT A CONSTANT.** Measured on beta 18
+    (`~/Desktop/ChromIQ-beta18-proof/knut-sweep-clipborder/`, group `D`): the
+    clip zone is an exact 28.000 mm and the measured margin lands on a whole
+    pixel, so the residue is whatever the raster can express. The same chart,
+    everything else identical:
+
+    | dpi | one pixel | measured left | asked | residue | warned on 0.05 |
+    |---|---|---|---|---|---|
+    | 72 | 0.353 mm | 27.869 | 28.0 | 0.131 | yes |
+    | 150 | 0.169 mm | 27.940 | 28.0 | 0.060 | yes |
+    | 200 | 0.127 mm | 27.940 | 28.0 | 0.060 | yes |
+    | 300 | 0.085 mm | 28.025 | 28.0 | -0.025 | no |
+    | 600 | 0.042 mm | 27.982 | 28.0 | 0.018 | no |
+
+    The dpi box accepts 72 to 1200, and at 72 the worst case is a whole pixel,
+    **0.353 mm**, which 0.2 would not cover. So the rule is the LARGER of the
+    two.
+
+    **AND IT MASKS NOTHING THAT REACHES PAPER.** Twin sheets built identically
+    except for the accused text, subtracted pixel by pixel (same folder,
+    `twin_difference.txt`): the claimed shortfall exceeds the real ink overlap
+    by a constant reserve of about 1.3 mm. At a claimed 0.2 mm there is
+    **1.10 mm of clear paper** and zero text pixels on the patches; ink first
+    touches at a claimed shortfall of about 1.3 mm.
+
+    *dpi* of 0 or nonsense means "no raster to ask", and the answer is then the
+    flat minimum.
+    """
+    try:
+        d = float(dpi)
+    except (TypeError, ValueError):
+        d = 0.0
+    px = (25.4 / d) if d > 0 else 0.0
+    return max(MIN_EDGE_TOLERANCE_MM, px)
+
 #: The patch-side guard the note keeps between its ink and the patch block, as a
 #: distance on paper. Mirrors ``tiff_metadata._PATCH_SAFETY_PAD_MM``; it is
 #: repeated as a number rather than imported because importing `tiff_metadata`
@@ -103,6 +154,22 @@ NOTE_PATCH_GAP_MM = round(NOTE_PATCH_GAP_PX * 25.4 / 200.0, 3)   # 0.254 mm
 #: of the text."* A size the user typed is used exactly as typed, 6 pt
 #: included, and the warning takes the place of the shrink.
 AUTO_SHRINK_FLOOR_PT = 7.0
+
+#: **AND SHRINKING HAS A CEILING, BECAUSE "auto" IS A SIZE AND NOT A FLOOR.** A
+#: tester, beta 18: *"When Size=auto for the sheet text, the bottom text is
+#: still not automatically sized. The size of text is kept quite small even
+#: when there is a lot of space in both available width and height. Set a
+#: reasonable upper limit to automatically set text to, without the text
+#: getting too big (such as 15 or 16pt?), so that if there is a lot of space
+#: the text does not become screaming large. This should apply to all the
+#: Size=Auto settings, except the Strip and Row labels, which have their own
+#: auto behaviour."*
+#:
+#: "auto" started at :data:`SHEET_TEXT_DEFAULT_MM`, 3.2 mm or 9.07 pt, and only
+#: ever went DOWN from there, so on a roomy sheet it printed 9 pt and nothing
+#: could make it larger. It now starts here and shrinks to fit, floored at
+#: :data:`AUTO_SHRINK_FLOOR_PT`.
+AUTO_SIZE_CEILING_PT = 16.0
 
 
 def pt_to_mm(size_pt: float) -> float:
@@ -751,10 +818,18 @@ class Overlap:
         return self.needed_mm - self.available_mm
 
 
-def _overlap(side: str, available_mm: float, needed_mm: float) -> "Overlap | None":
+def _overlap(side: str, available_mm: float, needed_mm: float,
+             tol_mm: "float | None" = None) -> "Overlap | None":
+    """*needed* against *available*, with *tol_mm* of slop.
+
+    *tol_mm* defaults to :data:`EPS_MM`, which is float noise and nothing more.
+    Every check that compares text against a MEASURED patch-area edge passes
+    :func:`edge_tolerance_mm` instead, for the reason that function records.
+    """
+    tol = EPS_MM if tol_mm is None else max(0.0, float(tol_mm))
     if needed_mm <= 0.0:
         return None
-    if available_mm + EPS_MM >= needed_mm:
+    if available_mm + tol >= needed_mm:
         return None
     return Overlap(side, float(available_mm), float(needed_mm))
 
@@ -789,15 +864,30 @@ class Squeeze:
         return self.band_mm > self.margin_mm + EPS_MM
 
 
+#: What holds the strip letters where they are, so a message can name the
+#: control that would actually move them. "markers" is the ruler helper
+#: markers' own reach, "text_edge" is "T" under "Text distance from edge", and
+#: "top_margin" is the layout mode in which neither of those is consulted: with
+#: "Prioritise patch size" the band is anchored on the TOP MARGIN and "T" moves
+#: nothing at all (`geometry.strip_label_leader_top_mm`).
+LABEL_HELD_BY_MARKERS = "markers"
+LABEL_HELD_BY_TEXT_EDGE = "text_edge"
+LABEL_HELD_BY_TOP_MARGIN = "top_margin"
+
+
 @dataclass(frozen=True)
 class LabelOverlap:
     """The strip letters and the patch area want the same paper at the top.
 
     *reserve_mm* is the distance from the page's top edge the letters' band
-    starts at, *from_markers* says which of the two candidates won it (so the
-    message can name the control that is actually binding), *offset_mm* is the
-    user's "Label offset", *band_mm* how tall the band is and *margin_mm* the
-    top margin.
+    starts at, *held_by* says which control put it there (so the message can
+    name the one that is actually binding), *offset_mm* is the user's "Label
+    offset", *band_mm* how tall the band is and *margin_mm* the top margin.
+
+    *reach_mm* is where the letters' INK really ends, measured from the band's
+    anchor with the offset already in it. When it is 0 the reach falls back to
+    ``gap + offset + band``, which is the em BOX and is what every call before
+    #182's beta 19 handed over; see :func:`strip_label_overlap`.
     """
 
     reserve_mm: float
@@ -806,10 +896,22 @@ class LabelOverlap:
     band_mm: float
     margin_mm: float
     gap_mm: float = 0.0
+    held_by: str = ""
+    reach_mm: float = 0.0
+
+    @property
+    def binding(self) -> str:
+        """:data:`LABEL_HELD_BY_MARKERS` / ``_TEXT_EDGE`` / ``_TOP_MARGIN``."""
+        if self.held_by:
+            return self.held_by
+        return (LABEL_HELD_BY_MARKERS if self.from_markers
+                else LABEL_HELD_BY_TEXT_EDGE)
 
     @property
     def reaches_mm(self) -> float:
-        """How far down the page the letters' band ends."""
+        """How far down the page the letters' ink ends."""
+        if self.reach_mm > 0.0:
+            return self.reserve_mm + self.reach_mm
         return self.reserve_mm + self.gap_mm + self.offset_mm + self.band_mm
 
     @property
@@ -823,6 +925,9 @@ def strip_label_overlap(margin_top_mm: float, text_edge_top_mm: float,
                         marker_len_mm: float = 0.0,
                         markers_top_bottom: bool = True, *,
                         gap_mm: float = 0.0,
+                        anchor_mm: "float | None" = None,
+                        ink_reach_mm: float = 0.0,
+                        tol_mm: "float | None" = None,
                         ) -> "LabelOverlap | None":
     """The strip letters against the patch area's top edge, or None if clear.
 
@@ -872,12 +977,29 @@ def strip_label_overlap(margin_top_mm: float, text_edge_top_mm: float,
     marker_reserve = helper_marker_reserve_mm(markers_on, marker_edge_mm,
                                               marker_len_mm,
                                               markers_top_bottom)
-    hit = LabelOverlap(reserve,
-                       marker_reserve > float(text_edge_top_mm or 0.0),
+    from_markers = marker_reserve > float(text_edge_top_mm or 0.0)
+    held = (LABEL_HELD_BY_MARKERS if from_markers else LABEL_HELD_BY_TEXT_EDGE)
+    # **WHERE THE RENDERER REALLY ANCHORS THE BAND, WHEN THE CALLER KNOWS.**
+    # `geometry.strip_label_leader_top_mm` answers it for both layout modes,
+    # and in "Prioritise patch size" the answer is the TOP MARGIN: "T" and the
+    # markers are not consulted there, so a check built out of them could not
+    # fire. Driven on beta 18: 24 states, four geometries, the letters driven
+    # onto the patches by every lever that works, and not one notice.
+    # Photographed with A B C D E in the middle of the second row of hexagons
+    # under a panel reading "Margins: OK".
+    if anchor_mm is not None:
+        a = float(anchor_mm)
+        if abs(a - reserve) > EPS_MM:
+            held = LABEL_HELD_BY_TOP_MARGIN
+            from_markers = False
+        reserve = a
+    hit = LabelOverlap(reserve, from_markers,
                        float(label_offset_mm or 0.0), band,
                        float(margin_top_mm or 0.0),
-                       max(0.0, float(gap_mm or 0.0)))
-    return hit if hit.overlap_mm > EPS_MM else None
+                       max(0.0, float(gap_mm or 0.0)),
+                       held, max(0.0, float(ink_reach_mm or 0.0)))
+    tol = EPS_MM if tol_mm is None else max(0.0, float(tol_mm))
+    return hit if hit.overlap_mm > tol else None
 
 
 def strip_label_squeeze(margin_top_mm: float, text_edge_top_mm: float,
@@ -918,7 +1040,9 @@ def strip_label_squeeze(margin_top_mm: float, text_edge_top_mm: float,
 
 def sheet_text_overlap(margin_bottom_mm: float, text_edge_mm: float,
                        lines: int,
-                       line_mm: float = SHEET_TEXT_LINE_MM) -> "Overlap | None":
+                       line_mm: float = SHEET_TEXT_LINE_MM,
+                       ink_top_trim_mm: float = 0.0,
+                       tol_mm: "float | None" = None) -> "Overlap | None":
     """The sheet text along the bottom against the bottom margin.
 
     *lines* counts the custom sheet text and the settings stamp separately,
@@ -955,12 +1079,14 @@ def sheet_text_overlap(margin_bottom_mm: float, text_edge_mm: float,
     instead. See that function for why.
     """
     return bottom_text_block_overlap(margin_bottom_mm, text_edge_mm,
-                                     lines, line_mm)
+                                     lines, line_mm, ink_top_trim_mm, tol_mm)
 
 
 def bottom_text_block_overlap(patch_bottom_mm: float, reserve_mm: float,
                               lines: int,
-                              line_mm: float = SHEET_TEXT_LINE_MM
+                              line_mm: float = SHEET_TEXT_LINE_MM,
+                              ink_top_trim_mm: float = 0.0,
+                              tol_mm: "float | None" = None
                               ) -> "Overlap | None":
     """The bottom text block against the paper below the patch area.
 
@@ -999,14 +1125,16 @@ def bottom_text_block_overlap(patch_bottom_mm: float, reserve_mm: float,
     """
     n = max(0, int(lines or 0))
     line = max(0.0, float(line_mm or 0.0)) or SHEET_TEXT_LINE_MM
+    trim = min(max(0.0, float(ink_top_trim_mm or 0.0)), n * line) if n else 0.0
     return _overlap("bottom",
                     float(patch_bottom_mm or 0.0) - float(reserve_mm or 0.0),
-                    n * line)
+                    n * line - trim, tol_mm)
 
 
 def chart_note_overlap(side: str, margin_mm: float, text_edge_clip_mm: float,
                        dpi: float, clip_band_mm: float = 0.0,
-                       size_pt: float = 0.0) -> "Overlap | None":
+                       size_pt: float = 0.0,
+                       tol_mm: "float | None" = None) -> "Overlap | None":
     """The run chart notes / stamped settings down the side margin.
 
     The note is stamped onto a finished raster, so it can move nothing: it is
@@ -1047,7 +1175,7 @@ def chart_note_overlap(side: str, margin_mm: float, text_edge_clip_mm: float,
     avail = (float(margin_mm or 0.0)
              - max(float(text_edge_clip_mm or 0.0), float(clip_band_mm or 0.0))
              - SAFETY_PAD_MM)
-    return _overlap(side, avail, note_min_width_mm(dpi, size_pt))
+    return _overlap(side, avail, note_min_width_mm(dpi, size_pt), tol_mm)
 
 
 #: Clear paper between a ruler helper marker's inner tip and any text on that
@@ -1473,7 +1601,8 @@ def clip_text_squeeze(band_mm: float, text_edge_clip_mm: float, lines: int,
 
 
 def clip_content_overlap(side: str, margin_mm: float, clip_zone_mm: float,
-                         text_edge_clip_mm: float = 0.0) -> "Overlap | None":
+                         text_edge_clip_mm: float = 0.0,
+                         tol_mm: "float | None" = None) -> "Overlap | None":
     """The clip border's content against the margin on its own edge.
 
     The band runs from *text_edge_clip_mm* in from the page edge out to
@@ -1485,4 +1614,4 @@ def clip_content_overlap(side: str, margin_mm: float, clip_zone_mm: float,
     """
     inset = max(0.0, float(text_edge_clip_mm or 0.0))
     return _overlap(side, float(margin_mm or 0.0) - inset,
-                    max(0.0, float(clip_zone_mm or 0.0) - inset))
+                    max(0.0, float(clip_zone_mm or 0.0) - inset), tol_mm)

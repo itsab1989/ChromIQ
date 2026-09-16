@@ -145,6 +145,17 @@ class Geom:
     # slack -- see `geometry._turned_hex` -- so the guard there needs the drawn
     # figure, and only the renderer can supply it. 0 = not computed.
     label_ink_bottom_mm: float = 0.0
+    # WHERE THE LETTERS' OWN INK BEGINS AND ENDS, from the band's anchor
+    # (`Placement.leader_top`), the user's `strip_label_offset_mm` included and
+    # the underline counted at the bottom. `label_ink_bottom_mm` above is the
+    # em BOX, which is what the turned-hex reserve is built on and must stay;
+    # these two are what the "Measured from Preview" panel predicts the ink
+    # with, and they are measured off a probe in
+    # `raster._furniture_reserves_mm` rather than derived. Measured: DejaVuSans
+    # at a 4.911 mm em inks 1.355 mm to 5.165 mm below the anchor, so a check
+    # built on the box was wrong at both ends. 0 = not computed.
+    label_ink_top_mm: float = 0.0
+    label_ink_reach_mm: float = 0.0
     # Bracket each strip with a leading + trailing spacer (printtarg parity).
     # When OFF the two end gaps are reclaimed for patches (denser than printtarg).
     edge_spacers: bool = False

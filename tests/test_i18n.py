@@ -855,18 +855,39 @@ _IDENTICAL_TO_KEY = {
     # one new reason sentence. **1 key in, 0 stale out**, counted the same way.
     # German is translated, so **de does not move (124)**; the eleven others
     # carry the English under the beta rule and each rises by exactly 1.
+    #
+    # RE-MEASURED 2026-09-16, the beta 19 text-placement round. Three testers
+    # drove beta 18 on screen and found six remedies that name a control which
+    # does not move what the sentence says it moves; every one of them is now
+    # offered where it works and withheld, with the reason, where it does not.
+    # **13 keys in, 6 stale out**, counted with `set(after) - set(before)` and
+    # `set(before) - set(after)` on each catalogue rather than from memory. The
+    # thirteen: the two conditional "Clip border width" clauses and their
+    # positive counterpart, the two "smaller Size under Sheet text" clauses,
+    # the "lowering B buys almost nothing in Prioritise patch size" sentence,
+    # the four clip-border and chart-note messages with their inert levers
+    # taken out, the two bottom-text messages with theirs taken out, and the
+    # new strip-letter message for the layout mode in which "T" moves nothing.
+    # The six that went stale are the earlier wordings of those same messages,
+    # and all six were translated in every one of the twelve, so they were
+    # never in these counts.
+    #
+    # German is translated, so **de does not move at all (124)**; the eleven
+    # others carry the English under the beta rule and each rises by exactly
+    # 13. Every number below is this tree's actual count, taken with the same
+    # expression the test below uses, never the old number plus thirteen.
     "de": 124,
-    "es": 340,
-    "fr": 362,
-    "it": 351,
-    "ja": 326,
-    "nl": 367,
-    "no": 352,
-    "pl": 344,
-    "pt": 342,
-    "ru": 315,
-    "sv": 353,
-    "zh_CN": 320,
+    "es": 353,
+    "fr": 375,
+    "it": 364,
+    "ja": 339,
+    "nl": 380,
+    "no": 365,
+    "pl": 357,
+    "pt": 355,
+    "ru": 328,
+    "sv": 366,
+    "zh_CN": 333,
 }
 
 

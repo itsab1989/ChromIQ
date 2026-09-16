@@ -506,19 +506,29 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # to count here. German is translated and does not move; the eleven others each
 # rise by exactly 1. RE-MEASURED with this file's own `_english_echoes` on the
 # catalogues this change leaves behind, never adjusted upward.
+# RE-MEASURED 2026-09-16, the beta 19 text-placement round. Six remedies that
+# named a control which does not move what the sentence says it moves are now
+# offered only where they work, and say so plainly where they do not; the
+# strip-letter notice gained a wording for the layout mode in which "T" is inert.
+# **13 keys in, 6 stale out**; all thirteen are long enough to count here and
+# all six that went were translated everywhere, so they were never in these
+# counts. German is translated and does not move (4); the eleven others carry
+# the English source under the beta rule and each rises by exactly 13.
+# RE-MEASURED with this file's own `_english_echoes` on the catalogues this
+# change leaves behind, never the old number plus thirteen.
 _BUDGET = {
     "de": 4,
-    "es": 178,
-    "fr": 179,
-    "it": 178,
-    "ja": 178,
-    "nl": 178,
-    "no": 178,
-    "pl": 178,
-    "pt": 178,
-    "ru": 177,
-    "sv": 178,
-    "zh_CN": 177,
+    "es": 191,
+    "fr": 192,
+    "it": 191,
+    "ja": 191,
+    "nl": 191,
+    "no": 191,
+    "pl": 191,
+    "pt": 191,
+    "ru": 190,
+    "sv": 191,
+    "zh_CN": 190,
 }
 
 
