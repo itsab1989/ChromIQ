@@ -926,6 +926,7 @@ def strip_label_overlap(margin_top_mm: float, text_edge_top_mm: float,
                         markers_top_bottom: bool = True, *,
                         gap_mm: float = 0.0,
                         anchor_mm: "float | None" = None,
+                        margin_anchored: "bool | None" = None,
                         ink_reach_mm: float = 0.0,
                         tol_mm: "float | None" = None,
                         ) -> "LabelOverlap | None":
@@ -968,6 +969,13 @@ def strip_label_overlap(margin_top_mm: float, text_edge_top_mm: float,
     that sets one, this said the letters clear the patches by exactly the gap
     when they do not. *gap_mm* is keyword-only so the calls written against the
     parked signature still mean what they meant.
+
+    *margin_anchored* is the LAYOUT's own answer to "does the renderer hang this
+    band from the top margin?" (`geometry.strip_label_band_is_margin_anchored`).
+    It is the only thing that selects :data:`LABEL_HELD_BY_TOP_MARGIN`, because
+    a message that works out which control binds by comparing two numbers gets
+    it wrong the moment a third term joins the anchor -- which is what the
+    strip-indicator gap and the chart offset Y do.
     """
     band = float(band_mm or 0.0)
     if band <= 0.0:
@@ -987,16 +995,29 @@ def strip_label_overlap(margin_top_mm: float, text_edge_top_mm: float,
     # onto the patches by every lever that works, and not one notice.
     # Photographed with A B C D E in the middle of the second row of hexagons
     # under a panel reading "Margins: OK".
+    #
+    # **AND WHICH CONTROL BINDS IS ASKED OF THE LAYOUT, NOT GUESSED FROM TWO
+    # NUMBERS.** Beta 19 read *any* difference between the anchor and the
+    # reserve as "the top margin holds them", and in "Prioritise chart area"
+    # the anchor is `reserve + the strip-indicator gap + the chart offset Y`,
+    # so a non-zero value in either box made this print the patch-first
+    # message. Driven on screen at a 3 mm Strip-indicator gap with "T" walked
+    # 8 → 6 → 4 → 2: the message's own numbers moved with "T" every time
+    # (11.0, 9.0, 7.0 mm) while the sentence said *"“T” … does not move them
+    # in this layout"*, and lowering "T" is what cleared it.
+    # `geometry.strip_label_band_is_margin_anchored` answers it where
+    # `placement` asks it.
+    _gap = max(0.0, float(gap_mm or 0.0))
     if anchor_mm is not None:
-        a = float(anchor_mm)
-        if abs(a - reserve) > EPS_MM:
-            held = LABEL_HELD_BY_TOP_MARGIN
-            from_markers = False
-        reserve = a
+        reserve = float(anchor_mm)
+        _gap = 0.0          # the anchor already carries it; see `reaches_mm`
+    if margin_anchored:
+        held = LABEL_HELD_BY_TOP_MARGIN
+        from_markers = False
     hit = LabelOverlap(reserve, from_markers,
                        float(label_offset_mm or 0.0), band,
                        float(margin_top_mm or 0.0),
-                       max(0.0, float(gap_mm or 0.0)),
+                       _gap,
                        held, max(0.0, float(ink_reach_mm or 0.0)))
     tol = EPS_MM if tol_mm is None else max(0.0, float(tol_mm))
     return hit if hit.overlap_mm > tol else None

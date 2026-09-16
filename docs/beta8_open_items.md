@@ -10254,3 +10254,128 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   time you type?"**
 
 ---
+
+### B8-241 · The new top notice named a layout mode the reader is not in, and denied the only control that worked
+- blocks release: no
+- status: FIXED
+- found by: the first adversary round against beta 19's own fixes, 2026-09-16,
+  by driving the real window (`~/Desktop/ChromIQ-beta18-proof/beta19-round-1/`).
+- what a user sees: on "Prioritise chart area" with a **Strip-indicator gap** of
+  3 mm, or a **chart offset Y** of 3 mm, the strip-letter notice reads
+
+  > *"⚠ The strip letters are printed over the patches. With “Prioritise patch
+  > size” they are held 11.0 mm from the paper edge by the top margin itself …
+  > Lower “Label offset” … “T” under “Text distance from edge (mm)” does not
+  > move them in this layout."*
+
+  The chart is not on "Prioritise patch size", the top margin is 10.0 mm and not
+  11.0, and "T" is exactly what holds the letters there. Photographed:
+  `window/P2-T8.png`.
+- and its own numbers said so. The same state with "T" walked down, four builds
+  (`p2.json`, `window/P2-T2.png`):
+
+  | "T" (mm) | what the panel printed |
+  |---|---|
+  | 8 | held **11.0** mm, 5.2 mm of every letter on the patches, *"“T” … does not move them in this layout"* |
+  | 6 | held **9.0** mm, 3.2 mm on the patches, the same sentence |
+  | 4 | held **7.0** mm, 1.2 mm on the patches, the same sentence |
+  | 2 | **no notice at all** |
+
+  The sentence denied that "T" does anything while its own figures followed "T"
+  three times running, and lowering "T" is what cleared it.
+- why: B8-236 taught the notice to fire in "Prioritise patch size", and it chose
+  between its three wordings by ARITHMETIC — `strip_label_overlap` compared the
+  renderer's anchor with the reserve it works out of "T" and the ruler markers,
+  and read any difference at all as "the top margin holds them". In "Prioritise
+  chart area" the anchor is *reserve + the layout's strip-indicator gap + the
+  chart offset Y*, so a non-zero value in either of two ordinary boxes is a
+  difference. The same guess also forced `from_markers` False, so a
+  marker-bound collision was sent to the "lower “T”" wording.
+- fix: the question is asked of the LAYOUT, once, beside the `if` in
+  `geometry.placement` that decides it —
+  `geometry.strip_label_band_is_margin_anchored` — and passed to
+  `text_edge_fit.strip_label_overlap` as `margin_anchored`. The numeric
+  inference is gone. The anchor also carries the strip-indicator gap, so the gap
+  is no longer added a second time in `LabelOverlap.reaches_mm`.
+- re-driven on screen after the fix (`p1-AFTER-the-fix.json`,
+  `window/P1-B-gap3-areafirst-AFTER.png`): the same two states now read *"They
+  are held 11.0 mm from the paper edge by “T” under “Text distance from edge
+  (mm)” … Raise “Top” … by about 5.2 mm, lower “T”, or use a smaller label
+  size."* Patch-first (B8-236's own state) is unchanged and still names the top
+  margin.
+- no new user-facing string: the fix changes WHICH of three existing messages is
+  chosen, so no catalogue moved.
+- evidence: test_area_first_is_never_called_prioritise_patch_size,
+  test_patch_first_still_names_the_top_margin,
+  test_the_helper_mirrors_the_branch_placement_takes,
+  test_the_markers_keep_their_own_wording_behind_an_anchor,
+  test_an_anchor_does_not_count_the_gap_twice,
+  test_the_panel_asks_the_layout_and_not_the_numbers.
+  Four mutations proved to land by reading the file back: the arithmetic guess
+  restored (5 red), the helper inverted (6 red), the gap passed through behind
+  an anchor (1 red), `margin_anchored` dropped at the call site (1 red).
+
+---
+
+### B8-242 · OPEN, for the design authority · The new top notice fires on a honeycomb with clear paper under every letter
+- blocks release: no
+- status: OPEN
+- reported, not implemented. Nothing was changed, because the rule it follows is
+  the design authority's own ruling of 2026-09-15 (*"the calculations should use
+  the Measured from Preview numbers"*) and this is that rule meeting a hexagon.
+- found by: the first adversary round against beta 19, 2026-09-16, driving the
+  real window and measuring the rendered TIFF
+  (`~/Desktop/ChromIQ-beta18-proof/beta19-round-1/p10.json`, `p13.json`).
+- what a user sees: CR30 pointy-top honeycomb, A4, "Prioritise patch size",
+  margins 12 all round, **Label offset 0**, helper markers off. The panel prints
+
+  > *"⚠ The strip letters are printed over the patches. With “Prioritise patch
+  > size” they are held 12.0 mm from the paper edge by the top margin itself,
+  > they reach 19.3 mm down the page, and the patch area starts at 19.0 mm, so
+  > **0.3 mm of every letter is on the first row of patches**. Those patches
+  > carry letter ink and will not measure correctly."*
+
+  Measured off that sheet, column by column: **not one letter pixel is on a
+  patch**, and the smallest clear paper under any letter is **0.762 mm**. The
+  photograph is `window/P13-pointy-clear-paper.png` and the sheet at 4x is
+  `crops/P13-ZOOM.png`, where B C D E F sit in the valleys between the apexes
+  with white paper under every one.
+- and it is not a one-off. The same measurement across the matrix:
+
+  | state | the panel claims | measured clear paper under the lowest letter pixel | columns touching |
+  |---|---|---|---|
+  | pointy-top, patch-first, offset 0 | 0.3 mm on the patches | **+0.762 mm** | 0 |
+  | pointy-top, area-first, offset 0 | 1.3 mm on the patches | **+0.085 mm** | 0 |
+  | flat-top, area-first, offset 0 | 0.6 mm on the patches | −0.508 mm | 18 |
+
+  The flat-top row is a true report, understated. Both pointy-top rows are
+  false, over-stated by about 1.0 to 1.4 mm.
+- why: "Measured from Preview" reports the topmost INK of the whole block, which
+  on a pointy-top honeycomb is an APEX — a point at the top of each column. The
+  strip letters are drawn beside the apex, over the valley, where the patch ink
+  starts about a hexagon's apex overhang lower. The check compares one number
+  against one number, so it cannot see that the two are not above each other.
+- how far it reaches: **no shipped preset produces it.** Twelve of them were
+  loaded and generated in this round, the two hexagonal CR30 ones included, and
+  every one came back with an empty message field (`p12.json`). It takes a
+  hand-typed margin on a hexagonal chart.
+- what is new and what is not: in "Prioritise patch size" the notice could not
+  fire at all before beta 19 (B8-236), so **that false warning is new**. In
+  "Prioritise chart area" the same comparison shipped in beta 18; beta 19's
+  ink-box correction made the letters' reach about 0.25 mm longer, which moves
+  borderline states into it but did not create it.
+- what a fix would cost, so the choice is informed: the honest comparison is the
+  patch ink in the COLUMNS THE LETTERS OCCUPY, not the block's global top, and
+  where a letter sits relative to its column's apex depends on the label
+  alignment and the glyph. Widening the tolerance by the apex overhang instead
+  would mask a real 1 mm collision on the same chart, so it is not the answer.
+- the question, as a tester can answer it: **"On a hexagonal chart the very top
+  of the patch area is the point of a hexagon, and the strip letters are printed
+  beside those points, over the gaps between them. ChromIQ currently warns as
+  soon as a letter reaches below the height of the points, even when the letter
+  is over a gap and there is clear paper under it. Would you rather it (a) kept
+  warning like that, so it never misses a real overlap, or (b) only warned when
+  a letter really has ink on a patch, accepting that it then has to look at
+  where each letter sits across the page?"**
+
+---

@@ -96,12 +96,20 @@ def test_patch_first_can_report_a_top_overlap_at_all():
     patches with "Label offset", in "Prioritise patch size".
 
     MUTATION: pass `anchor_mm=None` at the call site and this goes red.
+
+    `margin_anchored` is the layout's own answer to "does the renderer hang the
+    band from the top margin?", and it is what selects this wording. It used to
+    be inferred from the anchor being a different NUMBER from the reserve, which
+    is a guess the strip-indicator gap and the chart offset Y both break; see
+    `tests/test_a_top_notice_names_the_layout_the_user_is_in.py`, B8-241.
     """
     g, _r = _geom(layout_mode="patch_first", strip_label_offset_mm=14.0)
     anchor = geometry.strip_label_leader_top_mm(g)
     hit = tef.strip_label_overlap(
         12.0, 4.0, max(0.0, float(g.label_ink_bottom_mm) - 14.0), 14.0,
-        anchor_mm=anchor, ink_reach_mm=float(g.label_ink_reach_mm),
+        anchor_mm=anchor,
+        margin_anchored=geometry.strip_label_band_is_margin_anchored(g),
+        ink_reach_mm=float(g.label_ink_reach_mm),
         tol_mm=tef.edge_tolerance_mm(300))
     assert hit is not None, (
         "the letters are 14 mm below an anchor that is the 12 mm top margin "
@@ -111,9 +119,12 @@ def test_patch_first_can_report_a_top_overlap_at_all():
 
 
 def test_the_message_does_not_offer_t_where_t_moves_nothing():
-    """The remedy has to name a control that moves the ink."""
+    """The remedy has to name a control that moves the ink.
+
+    The wording follows `margin_anchored`, never a comparison of two numbers.
+    """
     hit = tef.strip_label_overlap(12.0, 4.0, 5.0, 14.0, anchor_mm=12.0,
-                                  ink_reach_mm=19.0)
+                                  margin_anchored=True, ink_reach_mm=19.0)
     assert hit is not None and hit.binding == tef.LABEL_HELD_BY_TOP_MARGIN
 
 

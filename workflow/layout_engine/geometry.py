@@ -117,6 +117,42 @@ def strip_label_leader_top_mm(g) -> float:
             + float(getattr(g, "offset_y", 0.0) or 0.0))
 
 
+def strip_label_band_is_margin_anchored(g) -> bool:
+    """Whether the renderer hangs the strip-label band from the TOP MARGIN.
+
+    The other half of :func:`strip_label_leader_top_mm`, and it exists because
+    the panel's message has to name a control and **a message must not work out
+    which control binds by comparing two numbers**.
+
+    `text_edge_fit.strip_label_overlap` used to decide it that way: it took the
+    renderer's anchor, compared it with the reserve it works out of "T" and the
+    ruler markers, and read any difference at all as "Prioritise patch size".
+    In "Prioritise chart area" the anchor is *reserve + the layout's
+    strip-indicator gap + the chart offset Y*, so a non-zero value in either of
+    those two boxes is a difference, and the panel then told the reader:
+
+        *"With “Prioritise patch size” they are held 11.0 mm from the paper
+        edge by the top margin itself … “T” under “Text distance from edge
+        (mm)” does not move them in this layout."*
+
+    Driven on beta 19, i1Pro / A4 / "Prioritise chart area" / top margin 10 /
+    Strip-indicator gap 3 mm, with "T" walked down
+    (`~/Desktop/ChromIQ-beta18-proof/beta19-round-1/p2.json`):
+
+    | "T" | what the panel said |
+    |---|---|
+    | 8 | held 11.0 mm, 5.2 mm on the patches, *"“T” … does not move them"* |
+    | 6 | held **9.0** mm, 3.2 mm on the patches, the same sentence |
+    | 4 | held **7.0** mm, 1.2 mm on the patches, the same sentence |
+    | 2 | **no notice at all** |
+
+    Its own numbers moved with "T" three times running while it denied that
+    "T" does anything, and lowering "T" is what cleared it. So the question is
+    asked of the LAYOUT, once, here, where `placement` asks it.
+    """
+    return not bool(getattr(g, "margins_are_law", False))
+
+
 def _top_reserve_for_a_turned_hex(g, mints: float, txhi: float,
                                   *, margins_are_law: bool) -> float:
     """`mints`, raised if the strip letters would otherwise be drawn on the ink.

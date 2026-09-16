@@ -2659,6 +2659,37 @@ def _label_anchor_mm(geom):
         return None
 
 
+def _label_is_margin_anchored(geom) -> bool:
+    """Does the renderer hang the strip-label band from the TOP MARGIN?
+
+    The companion to `_label_anchor_mm`, and the reason it is a separate
+    question is that beta 19 answered it by ARITHMETIC: `strip_label_overlap`
+    compared the anchor with the reserve it works out of "T" and read any
+    difference as "Prioritise patch size". In "Prioritise chart area" the
+    anchor is *reserve + the strip-indicator gap + the chart offset Y*, so a
+    non-zero value in either of those two ordinary boxes made the panel print
+
+        *"With “Prioritise patch size” they are held 11.0 mm from the paper
+        edge by the top margin itself … “T” … does not move them in this
+        layout"*
+
+    in the one layout where "T" is exactly what holds them. Driven with "T"
+    walked 8 → 6 → 4 → 2 mm: the sentence's own numbers moved with "T" every
+    time and lowering "T" is what cleared it (B8-241).
+
+    False when there is no geometry to ask, which is the older of the two
+    behaviours and the one the ⓘ and the drivers get.
+    """
+    if geom is None:
+        return False
+    try:
+        from workflow.layout_engine.geometry import \
+            strip_label_band_is_margin_anchored
+        return bool(strip_label_band_is_margin_anchored(geom))
+    except Exception:      # noqa: BLE001 — a prediction is never fatal
+        return False
+
+
 def _locked_margins_note(r) -> str:
     """The sentence for a reader whose "Margins (mm)" boxes are READ-ONLY.
 
@@ -21677,6 +21708,12 @@ class TabChart(QWidget):
                     # of every letter on the patches while going silent
                     # (`knut-sweep-geometry/` section 2.2).
                     anchor_mm=_label_anchor_mm(geom),
+                    # …AND WHICH CONTROL BINDS, ASKED OF THE LAYOUT. See
+                    # `_label_is_margin_anchored`: beta 19 inferred it from the
+                    # anchor being a different NUMBER from the reserve, and a
+                    # strip-indicator gap or a chart offset Y is a different
+                    # number in "Prioritise chart area" too.
+                    margin_anchored=_label_is_margin_anchored(geom),
                     ink_reach_mm=float(
                         getattr(geom, "label_ink_reach_mm", 0.0) or 0.0),
                     tol_mm=_tol)
