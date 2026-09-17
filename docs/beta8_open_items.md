@@ -13689,8 +13689,15 @@ written for it in the suite passed its own mutation.
 ### B8-321 · FIXED · "Show only measured patches" left a honeycomb's outer ink showing
 - blocks release: no
 - status: FIXED
-- evidence: `test_a_blanked_honeycomb_hides_the_ink_past_its_cells`,
+- evidence: `test_a_blanked_honeycomb_hides_every_printed_pixel`,
   `test_a_blanked_honeycomb_does_not_reach_into_a_read_neighbour`
+- **AND THE 8,827 IN THIS ENTRY WAS NOT INK.** Round 9 re-measured this exact
+  case and got 8,830 in the same rectangle BOTH before and after the fix: the
+  count included the row-number labels standing inside it. The patch ink was
+  already 0. What `ccb713eb` really bought was the printed spacer RING, 12,192
+  device pixels down to 294, and it bought that at the cost of B8-326. The
+  guard named above was renamed and rewritten with it, because its fixture had
+  made the same mistake as the code it was guarding.
 - fix: the blank fills the hexagon at the INK's extent, not the cell's, and
   then SUBTRACTS the ink hexagons of any READ patch close enough to touch it.
   Both halves are needed and the second is what the first attempt got wrong.
@@ -13851,9 +13858,9 @@ written for it in the suite passed its own mutation.
   fill: **776 ms, then 0.2 ms**, where every repeat had cost 776 ms.
 - evidence: `test_the_add_window_keys_and_reuses_its_program_cache`.
 
-### B8-326 · OPEN · `ccb713eb` leaves a saw-tooth of unread chart ink beside every read column
+### B8-326 · FIXED · `ccb713eb` leaves a saw-tooth of unread chart ink beside every read column
 - blocks release: yes
-- status: OPEN
+- status: FIXED
 - found by: round 9, and it is a REGRESSION introduced by the B8-321 fix.
 - measured, same chart, same window, same reads, one commit apart:
 
@@ -13874,6 +13881,33 @@ written for it in the suite passed its own mutation.
 - nothing guards it: with the subtraction deliberately 50 % oversized both
   guard files stay at 79 passed.
 - proof: `~/Desktop/ChromIQ-beta21-proof/round-09-the-blank-that-eats-and-leaks/`
+- **AND BASTI SAW THE OTHER HALF OF IT UNAIDED**, while it was being measured:
+  *"hexes with pointy top are bleeding through on the top when only show
+  measured patches is active. but only some of them do ... only the outer ones
+  it seems"*. The outer boundary of the field had a single fill to cover it,
+  where inside the field neighbouring fills overlap and hide the same error.
+- **fix, three parts.** `hexagon.vertices` ALREADY puts the two apexes a sixth
+  of the slot beyond the recorded box, so the path for a box is already the
+  printed hexagon; growing the box to 4/3 first drew it 4/3 again. The blank is
+  a `QRegion` now, because `QPainterPath.subtracted` returned an EMPTY path
+  when applied eight times to one hexagon and left three whole unread patches
+  unpainted in the guard's own fixture. And the smooth-scaling fringe is a
+  DEVICE pixel wide however small the page is drawn, so the fill's margin is
+  converted through the fit scale rather than being a fixed image-pixel number.
+- measured on screen, same charts, same window, same reads: 62,184 / 126,577 /
+  32,123 / 4,404 all to **0**, and the printed ring with nothing read 12,192
+  (before B8-321) to 294 (at `ccb713eb`) to **0**.
+- **the guard's fixture had the same bug as the code**, so it agreed with it:
+  it grew the box to 4/3 and then called `vertices`. It now paints what the
+  renderer paints and lays the honeycomb out the way geometry records one (an
+  upright chart staggers every PATCH sideways, a turned chart every STRIP
+  vertically, the strip rect one patch wide on the strip's axis). Three
+  mutations, all proven to land.
+- evidence: `test_a_read_column_does_not_let_its_unread_neighbours_leak`,
+  `test_a_blanked_honeycomb_hides_every_printed_pixel`,
+  `test_a_blanked_honeycomb_does_not_reach_into_a_read_neighbour` (now at a
+  95 % bar, which is what makes the subtraction's mutation land)
+- fix proof: `~/Desktop/ChromIQ-beta21-proof/b8-326-the-saw-tooth-fix/`
 
 ### B8-327 · OPEN · "Show only measured patches" makes a big honeycomb's repaint 3.1x slower
 - blocks release: no
