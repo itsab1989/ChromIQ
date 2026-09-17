@@ -2984,9 +2984,33 @@ class TiffPreview(QWidget):
                 # to hide). The rectangle stays for rectangular charts, where
                 # the gap is real and hiding it is the point.
                 if self._hex_zigzag:
+                    # GROWN BY HALF THE SPACER RING, so a blanked column really
+                    # is blank. A honeycomb built with spacers has a ring of
+                    # paper between its hexagons, and filling the hexagons alone
+                    # leaves that ring showing the chart underneath -- which is
+                    # the opposite of Knut's reason for this mode ("use the
+                    # paper colour, so there are NO fine gaps and NO contrast
+                    # edges to alias"). Half the ring is the same midpoint rule
+                    # the rectangular branch uses against its neighbours, so a
+                    # READ hexagon keeps its own half and nothing reaches into
+                    # it. On a chart whose hexagons tessellate the ring is 0 and
+                    # this is exactly the plain hexagon.
+                    _ring = 0.0
+                    _bs = sorted(cp, key=lambda b: b.y())
+                    for _k in range(len(_bs) - 1):
+                        _g = _bs[_k + 1].y() - (_bs[_k].y() + _bs[_k].height())
+                        if _g > 0:
+                            _ring = float(_g)
+                            break
+                    _d = _ring / 2.0
                     for b in cp:
+                        _grown = (b if _d <= 0 else
+                                  QRect(int(round(b.x() - _d)),
+                                        int(round(b.y() - _d)),
+                                        int(round(b.width() + 2 * _d)),
+                                        int(round(b.height() + 2 * _d))))
                         painter.fillPath(
-                            self._patch_hexagon(b, s, ox, oy,
+                            self._patch_hexagon(_grown, s, ox, oy,
                                                 self._hex_flat_top, sy),
                             white)
                 else:

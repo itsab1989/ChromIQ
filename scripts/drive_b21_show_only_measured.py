@@ -68,10 +68,18 @@ OUT = Path.home() / "Desktop" / "ChromIQ-beta21-proof" / "show-only-measured"
 PATCH = (255, 0, 255)
 CASES = [
     ("i1-default", dict(instrument="i1")),
+    ("i1-spacers", dict(instrument="i1", spacer_on=True, spacer_width=1.5)),
     ("cm-stagger", dict(instrument="CM", cm_stagger=True)),
     ("ss-honeycomb", dict(instrument="SS", hflag=True)),
+    ("ss-honeycomb-spacers",
+     dict(instrument="SS", hflag=True, spacer_on=True, spacer_width=1.5)),
+    ("cr30-honeycomb-rotated",
+     dict(instrument="CR30", hflag=True, hex_flat_top=True)),
+    ("cr30-honeycomb-rotated-spacers",
+     dict(instrument="CR30", hflag=True, hex_flat_top=True,
+          spacer_on=True, spacer_width=1.5)),
 ]
-SIZES = ["900x1000", "1200x980", "620x900"]
+SIZES = ["900x1000", "1200x980"]
 
 
 def say(*a):
