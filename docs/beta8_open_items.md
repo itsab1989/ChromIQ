@@ -12772,7 +12772,8 @@ drove them and the deadline came first. No source file changed in this round.
   has looked at the proof and says to merge it** (his instruction, 2026-09-17:
   *"this fix will not be part of a release until i have looked at the proof
   you leave for me and i tell you to implement it"*).
-- evidence: `test_no_chart_pixel_survives_under_the_split`,
+- evidence: `test_the_same_patches_read_in_any_order_paint_the_same_pixels`,
+  `test_no_chart_pixel_survives_under_the_split`,
   `test_the_split_never_paints_over_the_spacers`,
   `test_every_box_is_the_size_of_the_patch_it_covers`,
   `test_both_paint_paths_hand_the_overlay_the_pages_own_vertical_scale`,
@@ -12812,10 +12813,35 @@ drove them and the deadline came first. No source file changed in this round.
    1120x2056, and the offending row exists only in the second.
 
 **The fix.** Both paint paths hand `_draw_cq_overlay` the page's own vertical
-scale. A patch edge that has another patch beyond it is snapped, so the two
-boxes tile and neither depends on the order the strips were read in; a FREE
-edge, with a spacer band or paper beyond it, takes in the whole screen pixel
-the edge falls in, which is where the smooth scaling put the patch's colour.
+scale, and so does the cursor-to-image mapping, which the first version left
+behind on the old grid. A box takes in the whole screen pixel its edge falls
+in, which is where the smooth scaling put the patch's colour, but only where
+there is room: the overlay measures the smallest gap the page's own geometry
+has in each direction and grows only when that gap is at least two screen
+pixels, because each edge moves by less than one. The grid's outermost edge
+always grows, since nothing lies beyond it but paper. Below that threshold both
+edges are snapped, which is monotone, so the boxes tile and draw order cannot
+matter.
+
+**THE FIRST VERSION OF THIS FIX WAS WRONG AND AN ADVERSARY ROUND PROVED IT.**
+It decided "is this edge shared" by matching integer coordinates exactly, so a
+gap of ONE image pixel read as free on both sides and the two boxes grew into
+the same screen pixel. `Spacer size = 0.1 mm` is a real control in Create
+Chart, and at 200 dpi ChromIQ's own layout engine then records 136 of 176
+vertical neighbours exactly one image pixel apart, which is 0.50 screen pixels.
+Driven on the real Measure tab at 1000x880: reading the same strips in a
+different order changed **2,024 pixels** of the window, where the build before
+the fix changed none. Re-driven with the gap rule on the same chart and window:
+**0**. The round also caught two comments and a commit message claiming the
+spacer bands were untouched, when every free edge costs one screen pixel, and
+the hit-test drift above (66 of 924 probes landing on a different patch, or
+none).
+
+That case is now `test_the_same_patches_read_in_any_order_paint_the_same_pixels`,
+which DRAWS the page twice and compares it, over five gap widths and three
+window sizes. Asserting order-independence by reading the source, which is what
+the first version did, cannot catch a box that grew a pixel into its
+neighbour: put the old rule back and 16 cases go red.
 
 **What was tried and rejected.** Snapping the position and rounding the SIZE
 up gives every patch of a size exactly one size on screen, so every diagonal
@@ -12842,9 +12868,17 @@ one this round started with):
 | before | 151,383 | 37,305 |
 | after | **0** | **0** |
 
-and the spacer bands are the same widths the chart itself draws (3 to 6 device
-pixels, uneven before the fix as well, because the chart's pitch is
-fractional).
+and the residue after the gap rule is 0 pixels carrying half the patch's colour
+or more (a faint tint of 6,954 pixels remained along the grid's outer edge
+until the outermost edge was allowed to grow as well; 0 after that).
+
+**The spacer band pays one screen pixel for it, and that is stated rather than
+buried.** Over the same six sizes the bands measure 4, 5, 6 and 7 device pixels
+before and 3, 4, 5 and 6 after, the same spread shifted down by one, mean 5.93
+to 4.97. The adversary round measured the same thing independently on the real
+Measure tab (6.47 to 5.38 at 1200x980) and found that the SPREAD does not get
+worse, which is the half of Basti's objection to the rejected variant that
+mattered most.
 
 **Harness.** `scripts/drive_b21_split_overlay_gap.py` drives the real widget in
 a real window and photographs it; `scripts/analyse_b21_mono_leak.py` counts.
@@ -12857,3 +12891,24 @@ straight after `set_patch_overlay` can land before the widget has repainted,
 and `capture_window` correctly refuses the empty buffer as one flat colour.
 The driver now waits and asks again, up to five times, and reports a refusal
 that survives all five.
+
+### B8-300 · A failed strip points a user at the cable, and the log is four steps away
+- blocks release: no
+- status: OPEN
+- found by: checking a claim I had already made twice in public. On issue #197
+  I told the reporter to open his log with *"Help menu, Open log folder"*.
+  **There is no such item.** The log is reached through Preferences, the Paths
+  tab, the "For reference" box, first row, behind a Reveal button; or by hand
+  at `%LOCALAPPDATA%\ChromIQ\Logs\chromiq.log`,
+  `~/Library/Logs/ChromIQ/chromiq.log`,
+  `~/.local/state/ChromIQ/logs/chromiq.log`. Corrected on the issue
+  (comment 5709770293).
+- detail: this is the other half of B8-298. That entry says the "Strip Read
+  Failed" dialog should stop naming the cable as the cause and should point at
+  the log, because the log line is what tells a dropped link from a read that
+  never finished. But a person who has just lost a strip cannot reasonably be
+  sent on a four-step route through Preferences to find it, and nothing in the
+  failure window mentions it at all.
+- what to change: the dialog carries the button itself. Every window that ends
+  a measurement badly should. The draft wording for B8-298 already leaves a
+  place for it.

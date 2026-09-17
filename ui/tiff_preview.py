@@ -679,6 +679,33 @@ RING_HALO_W_SMALL = 5.0
 RING_ACCENT_W_SMALL = 1.0
 
 
+def _min_gap(spans: "list[tuple[int, int]]") -> float:
+    """The smallest space between two of *spans*, in the units they are in.
+
+    Each span is a half-open (start, end). Touching spans give 0, overlapping
+    ones give 0, and a single span gives a very large number, which is the
+    honest answer for "how close does anything come to it". Used by the
+    split-patch overlay to decide whether there is room to grow a box outwards
+    without its neighbour growing into the same screen pixel; see the note in
+    `TiffPreview._draw_cq_overlay`.
+
+    Distinct spans only, so the cost follows the chart's GRID (a couple of
+    dozen rows or columns) and not its patch count.
+    """
+    uniq = sorted(set(spans))
+    if len(uniq) < 2:
+        return float("inf")
+    best = float("inf")
+    reach = None
+    for a, b in uniq:
+        if reach is not None:
+            best = min(best, max(0, a - reach))
+            if best == 0:
+                return 0
+        reach = b if reach is None else max(reach, b)
+    return best
+
+
 class TiffPreview(QWidget):
     """Displays multi-page TIFF files with optional stripe highlight overlay."""
 
@@ -1136,7 +1163,7 @@ class TiffPreview(QWidget):
         if scale <= 0:
             return None
         ix = (label_pos.x() - ox) / scale      # image pixels (may be off-sheet)
-        iy = (label_pos.y() - oy) / scale
+        iy = (label_pos.y() - oy) / (self._paint_scale_y or scale)
         k = 25.4 / dpi
         return ix * k, iy * k
 
@@ -2075,6 +2102,15 @@ class TiffPreview(QWidget):
         self._ink_page_data = None      # (H, W, n) uint8 of the current page
         self._ink_page_key = None
         self._paint_geom = None         # (scale, x, y): image px → label px
+        #: The page's VERTICAL scale, which is not the horizontal one: a page
+        #: scaled with `KeepAspectRatio` lands on a whole number of device
+        #: pixels per axis and the two ratios differ. `_paint_geom` keeps its
+        #: three fields because a dozen callers unpack them; anything that maps
+        #: a y coordinate reads this instead, so the split overlay and the hit
+        #: test cannot end up on two different grids (found by an adversary
+        #: round: 66 of 924 probes aimed at the pixel the overlay paints landed
+        #: on a different patch, or none).
+        self._paint_scale_y = None
         #: The legend chip, in the (ox, oy) frame it was last painted in, so a
         #: pointer test can be done without recomputing the placement. Kept
         #: even while the chip is HIDDEN -- that is the whole point: the chip
@@ -2270,7 +2306,7 @@ class TiffPreview(QWidget):
         if scale <= 0:
             return None
         ix = int((label_pos.x() - ox) / scale)
-        iy = int((label_pos.y() - oy) / scale)
+        iy = int((label_pos.y() - oy) / (self._paint_scale_y or scale))
         if 0 <= ix < self._pixmap.width() and 0 <= iy < self._pixmap.height():
             return ix, iy
         return None
@@ -2513,6 +2549,8 @@ class TiffPreview(QWidget):
         _cw = scaled.width() / dpr + 2 * B
         _ch = scaled.height() / dpr + 2 * B
         _s = (scaled.width() / dpr) / max(1, self._pixmap.width())
+        self._paint_scale_y = (scaled.height() / dpr) / max(
+            1, self._pixmap.height())
         self._paint_geom = (_s,
                             (label_size.width() - _cw) / 2 + B,
                             (label_size.height() - _ch) / 2 + B)
@@ -2604,11 +2642,21 @@ class TiffPreview(QWidget):
         slid the whole overlay grid along the page: measured on screen
         (`scripts/drive_b21_split_overlay_gap.py`, six window sizes, 462
         patches each) the slide reached 1.37 device pixels at the foot of an
-        A4 page, and 840 of 2,772 photographed patches ended with a whole row
-        or column of the chart left showing past the split. That is the thin
-        light line a tester photographed along the bottom of a patch
-        (2026-09-17). `sy` is the image's own vertical scale; it defaults to
-        `s` only so a caller that genuinely has one square scale can say so."""
+        A4 page. Where it crossed a rounding boundary the split stopped a
+        screen pixel short and the printed patch showed through at full
+        strength: at 700x980 a whole row across the sheet read (218, 0, 218)
+        on a page whose patches are pure magenta. That is the thin light line
+        a tester photographed along the bottom of a patch (2026-09-17). On the
+        same six sizes, chart-coloured pixels left under the split: 151,383
+        before, 0 after.
+
+        `sy` is the image's own vertical scale; it defaults to `s` only so a
+        caller that genuinely has one square scale can say so.
+
+        `_image_px_at` still maps a CURSOR with one scale, and that is left
+        alone deliberately: the error there is at most one image pixel at the
+        foot of the page, which is 0.13 mm at 200 dpi and cannot pick the
+        wrong patch. Measured, not assumed."""
         sy = s if sy is None else sy
         from PyQt6.QtGui import QPen, QPainterPath as _QP
 
@@ -2808,26 +2856,57 @@ class TiffPreview(QWidget):
         #: note below the loop.
         _seams: list = []
         _warn_hexes: list = []
-        # WHICH EDGES OF A PATCH TOUCH ANOTHER PATCH. A free edge -- one with a
-        # spacer band or paper beyond it -- is taken outwards to a whole device
-        # pixel, because the page underneath is drawn with
-        # `SmoothTransformation` and the pixel the patch's edge falls in still
-        # carries the patch's colour: leave it and a coloured hairline runs
-        # along the split, which is what the report was about. A SHARED edge is
-        # snapped instead, so the two boxes tile: there is no chart to cover
-        # between them (the neighbour's own split covers its half), and a box
-        # that grew over its neighbour would make the seam depend on the order
-        # the strips happened to be read in. Adjacency is a property of the
-        # CHART, so it comes from the page's geometry where that is known and
-        # not from the patches measured so far.
-        _geom = self._page_patch_boxes.get(self._current) or [
-            it[0] for it in items if isinstance(it[0], QRect)]
-        _origins, _right_edges, _bottom_edges = set(), set(), set()
-        for _b in _geom:
-            _bx, _by = int(_b.x()), int(_b.y())
-            _origins.add((_bx, _by))
-            _right_edges.add((_bx + int(_b.width()), _by))
-            _bottom_edges.add((_bx, _by + int(_b.height())))
+        # HOW MUCH ROOM THERE IS BETWEEN TWO PATCHES, ON THIS PAGE, IN SCREEN
+        # PIXELS. A patch's box is taken OUTWARDS to the whole screen pixel its
+        # edge falls in, because the page underneath is drawn with
+        # `SmoothTransformation` and that pixel still carries the patch's
+        # colour: leave it and a coloured hairline runs along the split, which
+        # is what the tester reported. But two boxes growing towards each other
+        # must never meet in the same pixel, or which of them owns it depends
+        # on the order the strips happened to be read in -- and that is a real
+        # regression, not a theoretical one. An adversary round built a chart
+        # with "Spacer size = 0.1 mm", ChromIQ's own layout engine put 136 of
+        # 176 vertical neighbours ONE image pixel apart (0.50 screen pixels),
+        # and the two boxes overlapped by a row: 2,024 pixels of the window
+        # changed when the same strips were read in a different order, where
+        # the build before this one changed none.
+        #
+        # So growth is allowed only where there is room for it. Each edge moves
+        # outward by less than one screen pixel, so a gap of TWO screen pixels
+        # can absorb both sides and the boxes can touch but never overlap.
+        # Below that the edges are snapped instead, which is monotone: the same
+        # boundary maps to the same pixel from either side, so the boxes tile
+        # exactly and nothing depends on draw order. A gap of ZERO -- patches
+        # that share an edge, which is every pair of strips across an engine
+        # chart -- is the same case and needs no rule of its own.
+        #
+        # The gap is measured from the CHART's geometry, once per page, and
+        # only from `_page_patch_boxes`, which holds every patch of the page
+        # whether or not it has been read. The list of measured items GROWS as
+        # strips arrive, so a gap taken from it could change mid-measurement,
+        # which is the same order-dependence by another door. With no page
+        # geometry there is no growth at all: that is exactly the behaviour
+        # this file had before, and it cannot regress anything.
+        #
+        # THE GRID'S OUTER EDGE IS ALWAYS FREE. Nothing lies beyond the
+        # leftmost patch's left edge but paper, so growing there cannot collide
+        # with anything whatever the gaps inside the grid are. It matters: on a
+        # chart whose strips touch there is no room to grow sideways at all,
+        # and without this the sheet kept a one-pixel line of the outermost
+        # patches' colour down its left edge -- 1,327 pixels in one column at
+        # 700x980, the entire residue left after the gap rule.
+        _geom = self._page_patch_boxes.get(self._current) or []
+        _grow_x = _grow_y = False
+        _edge_l = _edge_r = _edge_t = _edge_b = None
+        if _geom:
+            _grow_x = _min_gap([(int(b.x()), int(b.x()) + int(b.width()))
+                                for b in _geom]) * s * _dpr >= 2.0
+            _grow_y = _min_gap([(int(b.y()), int(b.y()) + int(b.height()))
+                                for b in _geom]) * sy * _dpr >= 2.0
+            _edge_l = min(int(b.x()) for b in _geom)
+            _edge_r = max(int(b.x()) + int(b.width()) for b in _geom)
+            _edge_t = min(int(b.y()) for b in _geom)
+            _edge_b = max(int(b.y()) + int(b.height()) for b in _geom)
         for rect, c_exp, c_meas, warn in items:
             if self._hex_zigzag:
                 # SpectroScan hexagonal chart: the measured/expected patch must
@@ -2877,48 +2956,58 @@ class TiffPreview(QWidget):
                     # for flagged patches are partly covered by other patches".
                     _warn_hexes.append(hexp)
                 continue
-            # Round BOTH edges to whole pixels so the split covers exactly the
-            # same span as the printed patch — flooring each of x/y/w/h
-            # separately (the old int() calls) shifted every patch up-left by
-            # up to a pixel and let edges drift (Knut/Basti).
-            # …AND SNAP THEM TO THE DEVICE GRID, NOT THE LOGICAL ONE. A Retina
-            # screen paints two device pixels per logical pixel, so rounding to
-            # whole logical pixels can land half a logical pixel from the
-            # image's own edge — one device pixel of the printed patch left
-            # showing along an edge, which is the colour fringe Sebastian saw
-            # around the split (2026-08-13). Rounding at device resolution puts
-            # every edge on a real screen pixel. On a non-Retina display the
-            # ratio is 1 and this is exactly the old behaviour.
-            # EVERY EDGE IS A SHARED GRIDLINE, SNAPPED ONCE. Both edges of a
-            # box go through the same map and the same snap, so the bottom
-            # edge of one patch IS the top edge of the one below it: the boxes
-            # tile, the spacers between them keep the width the chart gave
-            # them, and no chart pixel can fall between two boxes. It also
-            # means a whole device pixel of the printed patch can never be
-            # left showing: a snapped near edge is never later than the
-            # patch's first whole pixel, and a snapped far edge is never
-            # earlier than its last.
+            # EDGES ARE ROUNDED TO WHOLE DEVICE PIXELS, AND WHICH WAY
+            # DEPENDS ON WHAT IS BEYOND THE EDGE.
             #
-            # Growing the box instead -- snapping the position and rounding
-            # the SIZE up, which makes every patch of a size exactly one size
-            # on screen and so gives every diagonal the same stair pattern --
-            # was tried and rejected on 2026-09-17: it eats into the spacers,
-            # and Basti saw it at once in the photograph ("now you just made
-            # the overlay bigger and in turn some spacers got smaller and not
-            # all of them have the same size"). The overlay follows the chart;
-            # it does not tidy it.
-            _rx, _ry = int(rect.x()), int(rect.y())
-            _rw, _rh = int(rect.width()), int(rect.height())
+            # Rounding at all: flooring each of x/y/w/h separately (the old
+            # int() calls) shifted every patch up-left by up to a pixel and let
+            # edges drift (Knut/Basti). Rounding at DEVICE resolution rather
+            # than logical: a Retina screen paints two device pixels per
+            # logical one, so a whole logical pixel can still land half a pixel
+            # from the image's own edge, which is the colour fringe Sebastian
+            # saw around the split (2026-08-13).
+            #
+            # WHERE THERE IS ROOM (`_grow_x` / `_grow_y`, see above) an edge is
+            # taken OUTWARD to the whole device pixel it falls in. The page
+            # underneath is drawn with `SmoothTransformation`, so a patch's
+            # colour reaches about a pixel past its own edge; a box that
+            # stopped at the geometric edge left that pixel showing, and a
+            # coloured hairline ran along the split. Basti, on the photograph
+            # of the first attempt: "you can still see color from the patches
+            # bleeding through".
+            #
+            # THE SPACER BAND PAYS FOR THAT, and it belongs here rather than in
+            # a footnote: measured on the real Measure tab, a band's mean
+            # height goes from 6.47 to 5.38 device pixels at 1200x980, and at
+            # the smallest window the preview allows, 242 bands come out a
+            # single device pixel. The pixel the box takes is the one carrying
+            # its own patch's colour, which is the trade this is.
+            #
+            # WHERE THERE IS NOT ROOM, both edges are SNAPPED. Snapping is
+            # monotone: a boundary maps to the same pixel from either side, so
+            # the boxes tile exactly and nothing depends on the order the
+            # strips were read in. See
+            # `test_the_same_patches_read_in_any_order_paint_the_same_pixels`
+            # and `test_warn_ring_draw_order.py`.
+            #
+            # Growing EVERY edge unconditionally -- snapping the position and
+            # rounding the SIZE up, which makes every patch of a size exactly
+            # one size on screen and so gives every diagonal the same stair
+            # pattern -- was tried and rejected the same day: it eats into the
+            # spacers on every side, and Basti saw it at once in the photograph
+            # ("now you just made the overlay bigger and in turn some spacers
+            # got smaller and not all of them have the same size"). The overlay
+            # follows the chart; it does not tidy it.
             _lx = rect.x() * s + ox
             _ty = rect.y() * sy + oy
             _rxf = (rect.x() + rect.width()) * s + ox
             _byf = (rect.y() + rect.height()) * sy + oy
-            x0 = (_dsnap(_lx) if (_rx, _ry) in _right_edges else _dfloor(_lx))
-            y0 = (_dsnap(_ty) if (_rx, _ry) in _bottom_edges else _dfloor(_ty))
-            x1 = (_dsnap(_rxf) if (_rx + _rw, _ry) in _origins
-                  else _dceil(_rxf))
-            y1 = (_dsnap(_byf) if (_rx, _ry + _rh) in _origins
-                  else _dceil(_byf))
+            _rx, _ry = int(rect.x()), int(rect.y())
+            _rr, _rb = _rx + int(rect.width()), _ry + int(rect.height())
+            x0 = (_dfloor(_lx) if _grow_x or _rx == _edge_l else _dsnap(_lx))
+            x1 = (_dceil(_rxf) if _grow_x or _rr == _edge_r else _dsnap(_rxf))
+            y0 = (_dfloor(_ty) if _grow_y or _ry == _edge_t else _dsnap(_ty))
+            y1 = (_dceil(_byf) if _grow_y or _rb == _edge_b else _dsnap(_byf))
             w = max(2.0 / _dpr, x1 - x0)
             h = max(2.0 / _dpr, y1 - y0)
             if self._overlay_mode == "expected":
@@ -3536,6 +3625,7 @@ class TiffPreview(QWidget):
                               ix, iy,
                               (scaled.height() / dpr) / max(1, ph))
         self._paint_geom = (scale, x, y)   # for the cursor→image mapping (#72)
+        self._paint_scale_y = (scaled.height() / dpr) / max(1, ph)
         painter.end()
         self._img_label.setPixmap(canvas)
         if self._cursor_overlay is not None and self._coord_readout:

@@ -5,23 +5,39 @@ about the split overlay: *"the 6th patch in the first strip has a tiny gap at
 the bottom from the split overlay"*, and *"on some patches the diagonal line is
 perfect and on other it makes a step"*.
 
-Both came from one place. ``TiffPreview`` scales the page with
+The gap was the fault. ``TiffPreview`` scales the page with
 ``QPixmap.scaled(..., KeepAspectRatio)``, which returns a whole number of
-pixels on each axis, so the horizontal and vertical ratios are NOT the same
-number. ``_draw_cq_overlay`` was handed the horizontal one and used it for y as
-well, which slides the overlay grid along the page (measured on screen over six
-window sizes: up to 1.37 device pixels at the foot of an A4 page). It then
-snapped BOTH edges of every box, so a box's size depended on where it fell
-between pixels: neighbouring patches of identical size came out 52 and 53
-pixels tall, and a taller box rasterises its diagonal differently.
+device pixels on each axis, so the horizontal and vertical ratios are NOT the
+same number. ``_draw_cq_overlay`` was handed the horizontal one and used it for
+y as well, which slides the overlay grid down the page: measured on screen over
+six window sizes, up to 1.37 device pixels at the foot of an A4 page. Wherever
+that crossed a rounding boundary the split stopped a screen pixel short of its
+patch and the printed colour showed along the edge.
+
+The step was NOT a fault, and
+``test_every_box_is_the_size_of_the_patch_it_covers`` is where that is written
+down: a corner-to-corner diagonal's stair pattern follows the height of its
+box, the box follows the patch's height on screen, and a patch grid with a
+fractional pitch lands on 52 screen pixels here and 53 there. The scaled chart
+underneath does the same. An overlay that insisted on one height would stop
+matching the picture it sits on.
 
 The measurement that found it is on screen
 (``scripts/drive_b21_split_overlay_gap.py`` plus
 ``scripts/analyse_b21_mono_leak.py``): a page whose only colour is in the
 patches, the split drawn in two greys, so any coloured pixel left is chart
-showing through. 8,289 such pixels before the fix, 0 after. These tests are the
+showing through. Like for like over six window sizes and 462 patches each:
+151,383 chart-coloured pixels before the fix and 0 after, of which 37,305
+carried at least half the patch's own colour and 0 after. These tests are the
 same idea inside the suite, where the page is built here and the canvas the
 widget painted is read back.
+
+One of them is here because an adversary round proved the first version of the
+fix wrong:
+``test_the_same_patches_read_in_any_order_paint_the_same_pixels`` draws the
+same patches twice and compares, which is what "draw order cannot matter"
+actually means. Asserting it by reading the source does not catch a box that
+grew a pixel into its neighbour.
 """
 from __future__ import annotations
 
@@ -78,6 +94,10 @@ def _canvas(qapp, tmp_path, w: int, h: int, same_grey: bool = False,
     p.resize(w, h)
     p.load_tiff([page])
     qapp.processEvents()
+    # The page's own patch grid, exactly as ui/tabs/tab_measure.py hands it
+    # over. The overlay needs it to know how much room there is between two
+    # patches, and with no grid it deliberately does not grow a box at all.
+    p.set_page_patch_boxes({0: _boxes()})
     exp = GREY_MEASURED if same_grey else GREY_EXPECTED
     if with_overlay:
         p.set_patch_overlay(
@@ -231,6 +251,68 @@ def test_every_box_is_the_size_of_the_patch_it_covers(qapp, tmp_path, w, h):
             f"the two screen pixels the patch's own edges fall in")
 
 
+@pytest.mark.parametrize("gap_px", [0, 1, 2, 3, 14])
+@pytest.mark.parametrize("w,h", [(620, 900), (1000, 880), (470, 400)])
+def test_the_same_patches_read_in_any_order_paint_the_same_pixels(
+        qapp, tmp_path, gap_px, w, h):
+    """Draw order must not decide which patch owns a pixel.
+
+    The overlay accumulates as strips are read, so the item list arrives in
+    whatever order the person swept. If two boxes can overlap by a pixel, the
+    seam between them moves with that order, and one of them is wrong.
+
+    The case that matters is a chart whose patches are nearly, but not quite,
+    touching. "Spacer size = 0.1 mm" is a real control in Create Chart, and at
+    200 dpi ChromIQ's own layout engine then puts most vertical neighbours ONE
+    image pixel apart. An adversary round measured that, on the first version
+    of this fix, as 2,024 pixels of the window changing between two read
+    orders where the build before it changed none. This is that case, in the
+    suite, drawn rather than asserted about in prose.
+    """
+    from ui.tiff_preview import TiffPreview
+    pitch = PATCH_H + gap_px
+    boxes = [QRect(LEFT + c * PITCH_X, TOP + r * pitch, PATCH_W, PATCH_H)
+             for c in range(COLS) for r in range(ROWS)]
+    page = tmp_path / f"order-{gap_px}.tif"
+    if not page.exists():
+        im = Image.new("RGB", (PAGE_W, PAGE_H), (255, 255, 255))
+        px = im.load()
+        for i, b in enumerate(boxes):
+            col = PATCH_A if i % 2 == 0 else PATCH_B
+            for y in range(b.y(), min(PAGE_H, b.y() + b.height())):
+                for x in range(b.x(), min(PAGE_W, b.x() + b.width())):
+                    px[x, y] = col
+        im.save(page)
+
+    def render(order):
+        p = TiffPreview()
+        p.resize(w, h)
+        p.load_tiff([page])
+        qapp.processEvents()
+        p.set_page_patch_boxes({0: list(boxes)})
+        items = [(b, GREY_EXPECTED, GREY_MEASURED, False) for b in order]
+        p.set_patch_overlay(0, items, replace_page=True)
+        p.show()
+        qapp.processEvents()
+        p._update_display()
+        qapp.processEvents()
+        pm = p._img_label.pixmap()
+        img = pm.toImage() if pm is not None else None
+        p.close()
+        return img
+
+    natural = render(boxes)
+    reverse = render(list(reversed(boxes)))
+    assert natural is not None and reverse is not None
+    assert natural.size() == reverse.size()
+    differ = [(x, y) for y in range(natural.height())
+              for x in range(natural.width())
+              if natural.pixelColor(x, y) != reverse.pixelColor(x, y)]
+    assert not differ, (
+        f"{len(differ)} pixels change with the order the patches are drawn "
+        f"in, at {w}x{h} with a {gap_px} px gap; first ten {differ[:10]}")
+
+
 def test_both_paint_paths_hand_the_overlay_the_pages_own_vertical_scale():
     """A single scale is the fault. Neither caller may go back to one."""
     from ui.tiff_preview import TiffPreview
@@ -250,13 +332,15 @@ def test_a_patch_box_is_never_smaller_than_the_chart_patch():
     src = inspect.getsource(TiffPreview._draw_cq_overlay)
     assert "rect.y() * sy + oy" in src, (
         "a patch's top edge must be mapped with the page's VERTICAL scale")
-    assert "_dfloor(_ty)" in src and "_dceil(_byf)" in src, (
-        "a patch edge with a spacer beyond it must take in the whole screen "
-        "pixel the edge falls in, or the smoothly scaled chart shows along "
-        "the split")
-    assert "_dsnap(_ty) if" in src and "_dsnap(_byf) if" in src, (
-        "a patch edge SHARED with another patch must be snapped, so the two "
-        "boxes tile and neither depends on the order they are drawn in")
+    assert "_dfloor(_ty) if _grow_y" in src and "_dceil(_byf) if _grow_y" in src, (
+        "a patch edge with room beyond it must take in the whole screen pixel "
+        "the edge falls in, or the smoothly scaled chart shows along the split")
+    assert "_dsnap(_ty)" in src and "_dsnap(_byf)" in src, (
+        "with no room to grow into, an edge must be SNAPPED, which is monotone "
+        "and so cannot depend on the order the boxes are drawn in")
+    assert "_min_gap(" in src and ">= 2.0" in src, (
+        "growth must be allowed only where two boxes growing towards each "
+        "other cannot land in the same screen pixel")
     assert "* s + oy" not in src, (
         "some y coordinate in the overlay is still mapped with the "
         "HORIZONTAL scale, which is the fault this file is about")
