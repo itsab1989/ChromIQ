@@ -13928,23 +13928,105 @@ written for it in the suite passed its own mutation.
   A timing assertion would be flaky on a loaded gate.
 - measurement: `~/Desktop/ChromIQ-beta21-proof/b8-326-the-saw-tooth-fix/cost-after.json`
 
-### B8-328 · OPEN · The area-first help text promises a margin the app does not give
+### B8-328 · FIXED · The area-first help text promises a margin the app does not give
 - blocks release: no
-- status: OPEN
+- status: FIXED
 - found by: round 9, against `28e1b994` (the layout-mode help Knut asked for).
 - the text says *"your margins are the law, the patch area lands exactly where
   you defined it"*. Ask for 5 mm and the i1Pro 3+ sheet gets **36.15 mm** on
   the left (+31.15), the i1 14.39, the SpectroScan 12.02, and top/bottom are a
   constant +1.00 mm. Confirmed by the app's own `measure_from_engine`, with the
   panel's message field empty. The patch-first half of the text is correct.
-- a help text is a promise: either the sentence changes or the margin does.
+- a help text is a promise: either the sentence changes or the margin does. The
+  sentence changed, because the behaviour is deliberate as far as anyone can
+  tell and changing it is Knut's call, not this round's.
+- **RE-MEASURED, AND ROUND 9'S ATTRIBUTION IS NOT CONFIRMED.** It named
+  `geometry.py:551` (`fh_eff`, the clip-side right-anchor). Forcing that to 0.5
+  changes NOTHING on an area-first sheet: same left, same right, to the
+  hundredth of a millimetre. The mechanism is elsewhere and is still unlocated.
+- what the sheets really do, measured on three instruments at four margins
+  (`test_the_area_first_help_text_is_true.py`, a 120-patch A4 chart):
 
-### B8-329 · OPEN · Knut's new built-in presets, and the landing page's preset count
+  | asked | i1Pro 3+ left / right | i1 | SpectroScan |
+  |---|---|---|---|
+  | 5 mm | 25.99 / 5.02 | 25.99 / 5.02 | 30.48 / 8.58 |
+  | 20 mm | 25.99 / 20.01 | 25.99 / 20.01 | 30.14 / 23.90 |
+  | 34 mm | 34.04 / 33.98 | 34.04 / 33.98 | 34.04 / 33.98 |
+  | 40 mm | 39.96 / 39.99 | 39.96 / 39.99 | 39.96 / 39.99 |
+
+  The RIGHT margin is exactly what was asked; the LEFT takes the whole
+  leftover until the asked number is the larger of the two. Top and bottom are
+  equal to each other and a little larger than asked (the vertical leftover IS
+  shared). The floor is the chart's, not the instrument's: round 9 saw ~35 mm
+  on a 300-patch sheet and this is 26 on a 120-patch one.
+- evidence: `test_the_text_does_not_promise_an_exact_margin` and
+  `test_the_sheet_behaves_the_way_the_text_now_says`, which pin the sentence
+  and the sheet to each other (putting the old promise back makes the first
+  one red).
+- **OPEN QUESTION FOR KNUT:** down the page the leftover is shared between top
+  and bottom; across the page it all lands on the left. Should the horizontal
+  leftover be shared too, so a 5 mm request gives 15 mm on each side instead of
+  26 and 5? That is a layout ruling, so nothing was changed.
+
+### B8-329 · FIXED · Knut's new built-in presets, and the landing page's preset count
 - blocks release: no
-- status: OPEN
+- status: FIXED
+- **what is left, and it is a QUESTION not a task:** the thirteen new charts
+  and the landing-page count are done and shipped; one of the two charts the
+  zip re-sends has a different patch set from the one that ships under the same
+  name, and only Knut can say which he wants. See the two bullets marked OPEN
+  below. Nothing is waiting on code.
 - reported by: Knut, #182, 2026-09-17T22:17:49Z: *"I also created a few more
   presets to be added as built-in as the other built-in presets"* (i1Pro
   130x180 and 100x150, attached as a zip), and *"Update the web page / landing
   page for the project on github with corrected numbers of presets that come
   ready-made."*
 - `docs/dev_builtin_presets.md` is the recipe; read it before adding another.
+- **DONE.** The (edited) attachment holds 15 export pairs. Thirteen are new and
+  are shipped as built-ins through the existing `i1photo` family: the i1Pro
+  photo-card line-up goes from 2 charts to 15, and the whole registry from
+  **160 to 173**. `docs/index.html` now says 173, which
+  `tests/test_the_site_offers_the_current_beta.py` holds against the registry.
+- **A SECOND CUT, AND IT IS NAMED.** Seven of the thirteen are
+  "Maximised - No Clip-border": the clip band off and both side margins at
+  5 mm, which buys two columns on the 10 x 15 card and four on the 13 x 18.
+  `_I1_PHOTO_MAXIMISED` in `ui/tabs/tab_chart.py` is what `maximised=True`
+  stands for, and it stands for those two fields only — the wider side margins
+  stay on the row, because they are two of the five sheet-scaled numbers this
+  family already spells out per chart. `scripts/import_knut_presets.py` grew
+  `Overlay.when` for it: the cut is picked out by `clip_border` being FALSE,
+  which the truthy test the CR30 family uses cannot ask about.
+- **PROVED ON SCREEN**, in a real window, `scripts/drive_i1pro_photocard_presets.py`:
+  all 15 listed in the Presets dropdown and the ★ overlay, each one picked the
+  way a user picks it, and all 15 built the patch count, page count, sheet and
+  patch width their names promise (0 mismatches). Photographs and the JSON are
+  in `~/Desktop/ChromIQ-beta21-proof/knut-new-presets/`.
+- **OPEN, FOR KNUT: the 648-patch 13 x 18 chart in the zip is NOT the one that
+  ships.** Same name, same 648 patches, but a different colour set (his new
+  file is a 7-level-per-channel grid, the shipped one 6-level). The shipped
+  chart was left exactly as it is rather than overwritten. Which of the two he
+  wants is his call. (The 600-patch 10 x 15 export is byte-identical to the
+  shipped one apart from its `CREATED` stamp, so nothing was touched there.)
+- **ALSO FOR KNUT, and NOT introduced by this change: eleven of the fifteen
+  cards warn** that "the settings stamp down the right edge runs over the
+  patches". It fires wherever the right margin is 5 mm, which is every 10 x 15
+  card of his and every maximised one — **including the 600-patch chart that
+  has shipped since 2026-09-09**, photographed here as the control. The lever
+  is either his 5 mm right margin or the app's default-on "Stamp settings down
+  the right edge".
+- evidence: in the photo-card file (124 passed),
+  `test_every_chart_registered`,
+  `test_no_chart_of_this_family_can_be_deleted`,
+  `test_every_chart_still_has_its_bundled_files_and_nothing_else_is_there`,
+  `test_the_cut_is_taken_by_exactly_the_charts_whose_name_says_so`,
+  `test_the_maximised_cut_moves_exactly_two_fields`,
+  `test_chart_builds_with_the_sheet_pages_and_patches_its_name_promises` (all
+  15 built) and
+  `test_a_maximised_chart_is_not_promised_a_band_it_does_not_print`; the count
+  is held against the registry by
+  `test_the_site_says_how_many_presets_there_really_are`, and by
+  `test_registry_shape` and
+  `test_the_marker_counts_are_what_the_registry_holds`, which are exact so a
+  preset cannot go missing quietly. Mutation-proved: deleting a row, removing a
+  bundled `.ti1`, and dropping one key out of `BUILTIN_PRESET_KEYS` each turned
+  the file red and each went green again on restore.
