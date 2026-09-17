@@ -392,14 +392,26 @@ Open points that a reviewer should rule on:
 
 ---
 
-## ⏳ Awaiting confirmation · §R8 · "Size = auto" may lower the size rather than raise the margin
+## ⏳ Awaiting confirmation · §R8 · "Size = auto" lowers the size rather than raising the margin
 
 **Confirmed by:** *nobody yet.*
 
+**RULED AND BUILT.** This section was a proposal until 2026-09-16, with the
+code deliberately unchanged; B8-265 carries the measurement that held it.
+Knut ruled on "Size = auto" that day:
+
+> *"It is more important that the feature is correct, so make the fix for the
+> 'Size = auto' choosing a label size that fits with the margins used."*
+
+So the automatic size is chosen against the margin now, in
+`raster.apply_row_label_geometry`, and B8-265 is FIXED. What is still awaiting
+confirmation is not the rule, which is his, but that the built behaviour is
+what he meant: he has not yet seen a beta carrying it.
+
 §R2 derives the band from the chosen text size and then raises the left margin
-to hold it (R1.5, *raised, never lowered*). For an **automatic** size the design
-authority has asked for the reverse in the case where the margin is short. Beta
-19, loading `CR30-A4-420p-1page-Portrait-w11.0mm-Hexagonal`:
+to hold it (R1.5, *raised, never lowered*). For an **automatic** size that is
+now reversed where the margin is short. Beta 19, loading
+`CR30-A4-420p-1page-Portrait-w11.0mm-Hexagonal`:
 
 > *"If the auto-sizing of the strip and row indicators had worked (Size = auto)
 > then the font size should have found a text size where the space left of the
@@ -414,23 +426,35 @@ So the derivation in §R2 gains one step, and only for an automatic size:
   IF the size is AUTO and floor + band + 1 mm > margin_l asked for:
       walk the size down in 0.5 pt steps to AUTO_SHRINK_FLOOR_PT (7 pt)
       take the FIRST size for which floor + band + 1 mm <= margin_l asked for
-      if none of them fits, change nothing          ← R1.5 then raises, as before
+      if none of them fits, change nothing          <- R1.5 then raises, as before
   band     = width of the widest row label at the size that came out of that
   ... the rest of §R2 unchanged
 ```
 
-Three things about it are deliberate and are what a reviewer should rule on.
+The size it settles on is recorded on `Geom.row_label_size_mm` and read back by
+`raster.effective_row_label_size_mm`, which is the one function every reader of
+the size comes through. That is what keeps the renderer, the band reservation
+and the panel's ⓘ from describing different sheets.
+
+Four things about it are deliberate.
 
 1. **A typed size is never touched.** The margin rises for it exactly as §R2
    says. Capping a number somebody chose would be the app arguing with them,
    which is already this document's rule for the pitch cap.
 2. **Nothing is committed unless it clears.** On a sheet where no size down to
-   7 pt fits -- a 12 mm clip border puts the floor at 12 mm on its own, so the
-   margin must rise whatever the type does -- the size stays where it was.
+   7 pt fits, a 12 mm clip border puts the floor at 12 mm on its own, so the
+   margin must rise whatever the type does, and the size stays where it was.
    The first implementation did not do this: measured on a 12 mm band at a
    12 mm left margin, it walked 19.8 pt down to 7.0 pt while `margin_l` went to
    16.95 mm either way, so the reader lost legibility and kept the warning.
-3. **It narrows a stated consequence of §R2, in one range.** That section says
+3. **The starting size is re-derived, never read back.** Any size settled on
+   earlier is dropped from the geometry before anything is measured. Leaving it
+   on made a second application measure the band at the SETTLED size, find that
+   it already fitted, walk nothing, and return a geometry with the band still
+   reserved for 16 pt and the size back at "auto", so the renderer would have
+   drawn 19 pt into a 16 pt band. Caught by
+   `tests/test_size_auto_fits_the_margin_it_was_given.py`, not by a driver.
+4. **It narrows a stated consequence of §R2, in one range.** That section says
    *"A wider left margin than the labels need is spent between the labels and
    the patches, not on the labels. They stay where Clip put them."* That is
    still true of a margin WIDER than the labels need, and it is no longer true
@@ -438,16 +462,20 @@ Three things about it are deliberate and are what a reviewer should rule on.
    label size, and so the label ink's position, depends on the left margin.
    `tests/test_the_clip_text_meets_the_row_labels.py` pins both halves.
 
-**NONE OF THIS IS IN THE CODE. IT IS BUILT, MEASURED AND HELD.** On his own
-preset "auto" settles at 16.0 pt, the size he said would clear the warning, and
-`margin_l` stays at the 13.0 mm he asked for; eight of the twenty-six CR30
-presets are in that state. But releasing the left margin gives area-first a
-wider box to fill, so the patches grow in both axes, and **three Letter
-hexagonal presets then need one sheet more than their name promises** (390
-patches on two pages instead of one, and the same for 780 and 1170). The A4
-presets, including the one he reported, cost nothing.
+**WHAT IT DOES ON HIS OWN CHART.** On
+`CR30-A4-420p-1page-Portrait-w11.0mm-Hexagonal` at the 13.0 mm left margin the
+preset asked for, "auto" settles at **16.0 pt**, the very size he said would
+clear the warning, and `margin_l` stays at 13.0. Driven on screen and measured
+off the rendered sheet: the patch block's left edge moves from 13.97 mm to
+13.08 mm and the left-margin notice goes.
 
-An extra sheet is paper, ink and measuring time, and the notice this removes is
-a true disclosure that R1.5 requires. That trade is his to make, so §R8 stays
-here as a proposal and `apply_row_label_geometry` is unchanged. B8-265 carries
-the measurement and the question in the form he can answer.
+**AND THE COST IT USED TO CARRY IS GONE, BY HIS OWN INSTRUCTION.** Releasing
+the left margin gives area-first a wider box to fill, so the patches grow in
+both axes, and three Letter hexagonal presets then needed one sheet more than
+their name promises (390 patches on two pages, 780 on three, 1170 on four;
+measured, and reproduced again before this was written). That is why the fix
+was held for eleven days. In the same comment that ruled on it he specified the
+preset changes that remove the cost rather than accepting it, and with those in
+place every one of the eight upright hexagonal CR30 charts prints the patch
+count and page count its own name states. See `docs/beta8_open_items.md`
+B8-265 for the ruling and B8-280 for the presets.

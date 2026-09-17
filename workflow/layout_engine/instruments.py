@@ -125,6 +125,14 @@ class Geom:
     # clamp used to be the page edge, which is what let a three-digit label
     # print 1.4 mm from the paper's edge against a 4 mm limit. 0 = not set.
     row_label_floor: float = 0.0
+    # §R8: the size "auto" SETTLED ON for the row labels, after being walked
+    # down to fit the left margin the user typed. 0 = nothing was settled, so
+    # the automatic size stands as `effective_row_label_size_mm` derives it.
+    # Written by `raster.apply_row_label_geometry` and read back by that same
+    # function, so the renderer, the band and the panel all draw and measure
+    # the one size the margin was reserved for; a size the user TYPED never
+    # reaches this field, because §R8 does not touch a typed size.
+    row_label_size_mm: float = 0.0
     strip_indicator_gap: float = 0.0   # gap (mm) between strip label and strip
     offset_x: float = 0.0              # whole-chart offset (mm)
     offset_y: float = 0.0

@@ -1287,9 +1287,18 @@ class LayoutOptionsPanel(QWidget):
         # font has an italic face, so it draws nothing on either side and must
         # not be claimed by either sub-frame's title.
         _si_v = QVBoxLayout(si)
-        si_both = QGroupBox(tr("Strip letters and row numbers"), si)
+        # **THE TWO TITLES ARE KNUT'S OWN WORDS, 2026-09-16.** They used to
+        # name the GLYPHS -- "Strip letters and row numbers", "Strip letters
+        # only" -- and that is a claim the panel cannot keep, because the
+        # patterns below decide which set gets letters and which gets digits:
+        # *"a user may change the strip and patch pattern to be letters for
+        # rows and numbers for strip. Thus, a better name for the frame would
+        # be 'Strip and row indicators' and, the frame 'Strip letters only'
+        # could be named 'Strip indicators only'."* So they name the two
+        # POSITIONS instead, which no setting can swap.
+        si_both = QGroupBox(tr("Strip and row indicators"), si)
         sig2 = QGridLayout(si_both)
-        si_only = QGroupBox(tr("Strip letters only"), si)
+        si_only = QGroupBox(tr("Strip indicators only"), si)
         sig3 = QGridLayout(si_only)
         # THE NESTING IS PAID FOR OUT OF THE MARGINS IT REPLACES, NOT ADDED TO
         # THEM. A sub-frame costs 1 px of border plus its own layout margins on
@@ -1369,7 +1378,39 @@ class LayoutOptionsPanel(QWidget):
                                    "very small patches the labels stop "
                                    "following the patches down. Type a size to "
                                    "decide it yourself: a typed size is used "
-                                   "exactly as typed."), self))
+                                   "exactly as typed.")
+                                # **AND THE THIRD LIMIT, WHICH THE PARAGRAPH
+                                # ABOVE USED TO CONTRADICT.** It promises that
+                                # "the row numbers follow the same size", and
+                                # since §R8 they need not: where the left
+                                # margin is too narrow for the band, "auto"
+                                # walks the ROW numbers down until they fit
+                                # rather than widening the margin. Measured on
+                                # `CR30-A4-420p…-Hexagonal` at 13.0 mm: strip
+                                # letters 19.0 pt, row numbers 16.0 pt. A help
+                                # text that promises one size while the sheet
+                                # prints two is a false sentence, so it is said
+                                # here.
+                                #
+                                # ITS OWN `tr()` KEY: folding it into the
+                                # paragraph above would change that key and
+                                # turn thirteen shipped translations of a long
+                                # string stale, which is B8-270's lesson.
+                                + "\n\n" + tr(
+                                   "The row numbers can also come out SMALLER "
+                                   "than the strip letters. When Size is "
+                                   "“auto” and the left margin is too narrow "
+                                   "for the row numbers at the size the strip "
+                                   "letters use, they are stepped down half a "
+                                   "point at a time until they fit the margin "
+                                   "you asked for. That step stops at 7 pt, "
+                                   "which is higher than the 4 pt floor above: "
+                                   "a number you have to find by eye among "
+                                   "hundreds is worth more than the paper it "
+                                   "would save. If even 7 pt will not fit, the "
+                                   "margin is widened instead and the message "
+                                   "under the measured margins says so."),
+                                self))
         self.underline_mode = ElidingComboBox(self)
         for k, lbl in (("off", tr("Off")),
                        ("segments", tr("Coloured (5 segments)")),
@@ -1861,7 +1902,32 @@ class LayoutOptionsPanel(QWidget):
                "they will land. If \u201cAuto-update preview when a layout setting "
                "changes\u201d is ticked, the sheet is rebuilt for you and there is "
                "nothing more to do.\n\n"
-               "Default: off."), self), 0, 2)
+               "Default: off.")
+            # WHY THE TWO EDGE BOXES GO GREY, IN THE HELP AND NOT ONLY IN A
+            # TOOLTIP ON THE DEAD CONTROL. Knut, 2026-09-16: *"It is not clear
+            # why they are unavailable and help text does not say the
+            # conditions where they are not available."* What he saw was a
+            # ticked "Print helper markers" with both sub-options grey and no
+            # dashes on the preview, and nothing anywhere saying why: the
+            # reason lived on a control he could not hover usefully, because
+            # the one axis those presets asked for was the greyed one.
+            #
+            # ITS OWN `tr()` KEY, not an edit to the paragraph above. Folding
+            # it in changes that string's key and turns all thirteen shipped
+            # translations of it stale in one edit, which is the trap B8-270
+            # records paying for. Separate, the tooltip keeps every translation
+            # it has and only this paragraph falls back to English until each
+            # catalogue catches up.
+            + "\n\n" + tr(
+               "On a chart with hexagonal patches only one of the two pairs "
+               "of edges can carry dashes, and which pair depends on the way "
+               "the honeycomb sits. Every second row, or every second column, "
+               "is shifted half a patch, so dashes along the edges it is "
+               "shifted against would point at the seam between two patches "
+               "instead of at a patch. The pair that cannot be used is "
+               "greyed out and the other one stays available. If you then "
+               "untick the pair that is left, this box can be ticked and "
+               "still print nothing."), self), 0, 2)
         self._hm_rows = []
         self._hm_rows.append(add_row(hmg, 1, tr("Distance from page edge (mm):"),
                 cell(self.helper_marker_edge), align_left=True,
@@ -2165,7 +2231,7 @@ class LayoutOptionsPanel(QWidget):
                "“Prioritise patch size”. That layout places them "
                "automatically, the way printtarg does, hanging from the top "
                "margin; the two controls that move them there are “Top” under "
-               "“Margins (mm)” and “Label offset” under “Strip letters only”."),
+               "“Margins (mm)” and “Label offset” under “Strip indicators only”."),
             self)
         stg.addWidget(self._text_edge_tip, 6, 2)
         # WHEN THE NUMBER IN THE BOX IS NOT THE NUMBER THAT APPLIES.

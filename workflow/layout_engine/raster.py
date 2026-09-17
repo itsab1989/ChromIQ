@@ -877,10 +877,21 @@ def effective_row_label_size_mm(geom, dpi: int, font: str,
 
     A size the user TYPED is returned untouched: capping a number somebody
     chose would be the app arguing with them.
+
+    **AND AN AUTOMATIC SIZE THAT WAS ALREADY SETTLED IS RETURNED UNTOUCHED
+    TOO** — §R8. When the band would have forced the left margin above the
+    typed one, `apply_row_label_geometry` walks the automatic size down until
+    it fits and records the answer on `Geom.row_label_size_mm`. Every reader of
+    the size comes through here, so recording it in one place is what keeps the
+    renderer, the band reservation and the panel's ⓘ from disagreeing: the
+    alternative is three call sites that each have to remember to ask.
     """
     size = effective_indicator_size_mm(geom, dpi, font, size_mm)
     if size_mm:
         return size                      # explicit: their choice stands
+    settled = float(getattr(geom, "row_label_size_mm", 0.0) or 0.0)
+    if settled > 0:
+        return settled                   # §R8: auto, already walked down to fit
     pitch = (float(getattr(geom, "plen", 0.0) or 0.0)
              + float(getattr(geom, "pspa", 0.0) or 0.0))
     if pitch <= 0:
@@ -911,6 +922,18 @@ def apply_row_label_geometry(geom, kw: dict):
     band = float(getattr(geom, "rlwi", 0.0) or 0.0)
     if band <= 0:
         return geom
+    # **ANY SIZE §R8 SETTLED ON EARLIER IS DROPPED BEFORE ANYTHING IS
+    # MEASURED**, so this function always derives from the chart's own
+    # automatic size rather than from its own previous answer.
+    #
+    # It is not hypothetical tidiness. Leaving it on made a second application
+    # measure the band at the SETTLED size, find that it already fitted, take
+    # the branch that walks nothing, and return a geometry with the band still
+    # reserved for 16 pt and `row_label_size_mm` back at 0 -- so
+    # `effective_row_label_size_mm` would have told the renderer to draw the
+    # 19 pt automatic size into a 16 pt band. Caught by
+    # `tests/test_size_auto_fits_the_margin_it_was_given.py`.
+    geom = replace(geom, row_label_size_mm=0.0)
     measured = row_label_band_mm(
         geom, dpi=int(kw.get("dpi") or 300),
         indicator_font=kw.get("indicator_font") or DEFAULT_INDICATOR_FONT,
@@ -973,46 +996,78 @@ def apply_row_label_geometry(geom, kw: dict):
                 float(_DEFAULT_TEXT_EDGE_CLIP_MM if _edge is None else (_edge or 0.0)),
                 float(kw.get("clip_border_width") or 0.0) if has_border else 0.0,
                 _marker_floor)
-    # **"auto" PICKING A SIZE THAT FIRES ITS OWN WARNING IS B8-265, AND THE
-    # FIX FOR IT IS HELD.** The design authority asked for it on beta 19,
-    # loading `CR30-A4-420p-1page-Portrait-w11.0mm-Hexagonal`: *"Since size is
-    # set to auto, I would expect the label text size to be found where there
-    # is no warning (as long as size does not go below 7pt, as usual)."*
+    # **"Size = auto" LOWERS THE SIZE RATHER THAN RAISING THE MARGIN** -- B8-265,
+    # and §R8 of `docs/design/row_label_geometry.md`. It is the design
+    # authority's ruling of 2026-09-16: *"It is more important that the feature
+    # is correct, so make the fix for the 'Size = auto' choosing a label size
+    # that fits with the margins used."*
     #
-    # It was built -- walk the automatic size down in 0.5 pt steps to
-    # `AUTO_SHRINK_FLOOR_PT`, take the first size whose band fits the margin the
-    # user typed, store it on `Geom.row_label_size_mm` so the renderer draws
-    # what was reserved -- and it works: on his own preset "auto" settles at
-    # **16.0 pt**, which is the very size he said would clear the warning, and
-    # `margin_l` stays at the 13.0 mm he asked for. Eight of the twenty-six CR30
-    # presets are in that state.
+    # B8-265 carries the measurement, the eleven-day hold and what ended it.
     #
-    # **IT IS HELD BECAUSE IT COSTS THREE OF THEM AN EXTRA SHEET.** Measured
-    # one condition per process, because `_widest_upper_px` is `lru_cache`d and
-    # measuring both in one process reported no change at all:
+    # He reported it on beta 19, loading
+    # `CR30-A4-420p-1page-Portrait-w11.0mm-Hexagonal`: *"Since size is set to
+    # auto, I would expect the label text size to be found where there is no
+    # warning (as long as size does not go below 7pt, as usual)."* On that
+    # preset "auto" now settles at 16.0 pt, the very size he said would clear
+    # it, and `margin_l` stays at the value the recipe asks for.
     #
-    # | preset | pages before | pages after | patch |
-    # |---|---|---|---|
-    # | `A4-420p-1page-w11.0mm-Hexagonal` | 1 | **1** | unchanged |
-    # | `Letter-170p-1page-w16.0mm-Hexagonal` | 1 | **1** | 16.637 -> 16.891 mm |
-    # | `Letter-390p-1page-w11.0mm-Hexagonal` | 1 | **2** | 9.779 -> 9.906 mm tall |
-    # | `Letter-780p-2pages-w11.0mm-Hexagonal` | 2 | **3** | same |
+    # Three properties of the walk are deliberate:
     #
-    # Releasing the left margin gives area-first a wider box, and area-first
-    # fills a wider box with BIGGER patches for the same count, so the patch
-    # grows in both axes and a chart that just fitted spills onto another sheet.
-    # An extra sheet is paper, ink and measuring time; the notice it would
-    # remove is a true disclosure that the typed margin was overridden. That
-    # trade is the design authority's to make and not ours, and it also narrows
-    # §R1.5 of `docs/design/row_label_geometry.md`, which says the margin is
-    # raised, never lowered.
+    #   * **A TYPED SIZE IS NEVER TOUCHED.** §R1.5 raises the margin for it
+    #     exactly as before; capping a number somebody chose would be the app
+    #     arguing with them, which is already this document's rule for the
+    #     pitch cap. That is the `indicator_size_mm` guard below.
+    #   * **NOTHING IS COMMITTED UNLESS IT CLEARS.** On a sheet where no size
+    #     down to the floor fits -- a 12 mm clip border puts `floor` at 12 mm
+    #     on its own, so the margin must rise whatever the type does -- the
+    #     size stays where it was and R1.5 raises the margin as it always did.
+    #     The first implementation of this did not do that: measured on a 12 mm
+    #     band at a 12 mm left margin it walked 19.8 pt down to 7.0 pt while
+    #     `margin_l` went to 16.95 mm either way, so the reader lost legibility
+    #     AND kept the warning.
+    #   * **THE STARTING SIZE IS RE-DERIVED, NOT READ BACK.** The settled size
+    #     is stripped off the geometry first, so applying this function twice
+    #     to the same geometry cannot ratchet the labels down step by step.
+    #     `apply_furniture_reserves` is the only caller, but a geometry that
+    #     has been through it once is an ordinary `Geom` and nothing stops a
+    #     second pass.
     #
-    # So nothing here changes until he rules. B8-265 carries the measurement
-    # and the question.
+    # The ladder is `text_edge_fit.next_size_down_pt`, which is the same
+    # half-point grid the Size boxes step by and the same one every other
+    # automatic shrink in the app walks -- so what this settles on is a value
+    # the user could have typed.
+    typed_size = float(kw.get("indicator_size_mm") or 0.0)
+    settled = 0.0
+    asked_l = float(getattr(geom, "margin_l", 0.0) or 0.0)
+    if not typed_size and floor + measured + 1.0 > asked_l:
+        # The automatic size this chart would otherwise use, in points, taken
+        # RAW. `next_size_down_pt` snaps to the half-point grid on its first
+        # call and is strictly decreasing thereafter, so rounding it here would
+        # only throw away the one thing that decides whether the first rung is
+        # 19.5 or 19.0.
+        size_pt = effective_row_label_size_mm(
+            geom, int(kw.get("dpi") or 300),
+            kw.get("indicator_font") or DEFAULT_INDICATOR_FONT,
+            0.0) * 72.0 / 25.4
+        while True:
+            size_pt = _tef.next_size_down_pt(size_pt)
+            if size_pt < _tef.AUTO_SHRINK_FLOOR_PT:
+                break
+            cand_mm = _tef.pt_to_mm(size_pt)
+            band = row_label_band_mm(
+                geom, dpi=int(kw.get("dpi") or 300),
+                indicator_font=kw.get("indicator_font") or DEFAULT_INDICATOR_FONT,
+                indicator_size_mm=cand_mm,
+                indicator_bold=bool(kw.get("indicator_bold")),
+                indicator_italic=bool(kw.get("indicator_italic")),
+                patch_pattern=kw.get("patch_pattern") or "")
+            if band > 0 and floor + band + 1.0 <= asked_l:
+                settled, measured = cand_mm, band
+                break
     needed = floor + measured + 1.0
-    margin_l = max(float(getattr(geom, "margin_l", 0.0) or 0.0), needed)
+    margin_l = max(asked_l, needed)
     return replace(geom, rlwi=measured, margin_l=margin_l,
-                   row_label_floor=floor)
+                   row_label_floor=floor, row_label_size_mm=settled)
 
 
 def _rows_that_fit(geom, kw: dict) -> int:

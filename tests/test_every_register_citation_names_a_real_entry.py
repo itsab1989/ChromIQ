@@ -162,9 +162,14 @@ def _entry_id_whose_heading_contains(needle: str) -> str:
     return hits[0]
 
 
-#: Where the held "Size = auto" decision is written down outside the register:
-#: the code that implements the un-changed behaviour, and §R8 of the design
-#: document that records the proposal. Both are prose ABOUT that decision.
+#: Where the "Size = auto" decision is written down outside the register: the
+#: code that implements it, and §R8 of the design document that states the
+#: rule. Both are prose ABOUT that decision.
+#:
+#: IT IS NO LONGER HELD. The design authority ruled on 2026-09-16 and it
+#: shipped (B8-265, B8-280). The FUNCTION below keeps its name because an
+#: existing register entry cites it by name and an evidence line that names a
+#: test which no longer exists is worth less than a slightly stale name.
 _AUTO_SIZE_FILES = (
     pathlib.Path("workflow") / "layout_engine" / "raster.py",
     pathlib.Path("docs") / "design" / "row_label_geometry.md",
@@ -179,7 +184,7 @@ _ABOUT_THE_HELD_DECISION = re.compile(
 
 
 def test_the_held_auto_size_decision_points_at_its_own_entry():
-    """The number beside the held decision must be the entry ABOUT it.
+    """The number beside that decision must be the entry ABOUT it.
 
     Asked by the entry's HEADING, so a future renumber moves the expected
     answer with it instead of breaking this test.

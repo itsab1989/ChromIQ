@@ -77,7 +77,14 @@ CR30 = [p for p in KNUT_PRESETS if p.slug.startswith("cr30_")]
 #: Fields a single chart of this family may set for itself. The sheet and the
 #: grid always; the three below only where a row spells them out.
 OWN_FIELDS = {"paper", "area_cols", "area_rows",
-              "margin_top", "margin_bottom", "area_min_patch_mm"}
+              "margin_top", "margin_bottom", "area_min_patch_mm",
+              # The two low-patch hexagonal charts carry a label of their own
+              # (Knut, 2026-09-16: *"with exception of the two low patch
+              # presets with 153 and 170 patches"*), and
+              # `test_the_two_low_patch_hex_charts_carry_the_larger_label`
+              # below is what stops this entry from becoming a licence for any
+              # chart to set any size it likes.
+              "indicator_size_mm"}
 
 #: Keys a recipe may carry that the base does not. Only the turned cut adds
 #: one: ``hex_flat_top`` is the 30-degree turn itself, and no upright chart
@@ -131,7 +138,14 @@ PROMISED = {
 #: pinned at what they measure so a change to either end is caught.
 WIDTH_EXCEPTIONS = {
     "Letter-150p-1page-Portrait-w17.0mm": 17.53,
-    "Letter-170p-1page-Portrait-w16.0mm-Hexagonal": 16.64,
+    # 16.76 SINCE 2026-09-16, and the 0.12 mm is the left margin no longer
+    # being raised behind the recipe's back. It used to ask for 13.0 and be
+    # given 14.382 by the row-label band; it now asks for 14.0 and is given
+    # 14.0, so the patch area is 0.38 mm wider and each of its ten columns
+    # gains a thirty-eighth of that. The name was already 0.64 mm out and is
+    # now 0.76 mm out; both are Knut's numbers and neither is a rounding this
+    # test may absorb quietly. Still flagged for him.
+    "Letter-170p-1page-Portrait-w16.0mm-Hexagonal": 16.76,
 }
 
 
@@ -238,11 +252,23 @@ def test_the_hexagonal_cut_is_exactly_these_four_fields_and_no_others():
     rects = [p for p in CR30 if "Hexagonal" not in p.name]
     assert (len(hexes), len(rects)) == (8, 12)
     assert set(_CR30_HEX) == {"hflag", "margin_left", "margin_top",
-                              "margin_bottom", "text_edge_top_mm"}
+                              "margin_bottom", "text_edge_top_mm",
+                              "indicator_size_mm", "helper_markers"}
     for p in hexes:
         assert p.layout_recipe["hflag"] is True
-        assert p.layout_recipe["margin_left"] == 13.0
+        # 14.0, NOT 13.0. Knut, 2026-09-16, having measured it himself:
+        # *"increase the left margin from setting from 13.0 to 14.0mm"*. At
+        # 13.0 with the 11 pt label below, area-first is handed a wider box
+        # and fills it with bigger patches, and the three Letter charts spill
+        # onto a sheet their names do not promise.
+        assert p.layout_recipe["margin_left"] == 14.0
         assert p.layout_recipe["text_edge_top_mm"] == 4.0
+        # MARKERS OFF ON ALL EIGHT. A honeycomb carries dashes on one axis
+        # only; this cut is pointy-top, so the live axis is "Sides", and
+        # `_CR30_BASE` asks for top/bottom and not sides. The box was ticked
+        # and the sheet printed no dashes at all.
+        assert p.layout_recipe["helper_markers"] is False, (
+            "a chart that cannot print dashes must not advertise them")
         assert p.layout_recipe.get("hex_flat_top") is None, (
             "an upright chart must not carry the turn at all")
     for p in rects:
@@ -265,7 +291,8 @@ def test_the_straight_cut_is_the_hexagonal_one_turned_and_six_numbers():
     assert len(straight) == 6
     assert set(_CR30_STRAIGHT) == {"hflag", "hex_flat_top", "margin_left",
                                    "margin_top", "margin_bottom",
-                                   "text_edge_top_mm", "indicator_size_mm"}
+                                   "text_edge_top_mm", "indicator_size_mm",
+                                   "helper_markers"}
     for p in straight:
         r = p.layout_recipe
         assert "Hexagonal" in p.name, "the turn is a cut of the hexagonal one"
@@ -274,8 +301,52 @@ def test_the_straight_cut_is_the_hexagonal_one_turned_and_six_numbers():
             11.0, 11.0, 6.0)
         assert r["text_edge_top_mm"] == 7.0
         assert r["indicator_size_mm"] == 3.88
+        # **THE TURNED SIX KEEP THEIR DASHES**, and this line is what stops
+        # them being taken away by a change to the cut they are built on:
+        # `_CR30_HEX` now switches the markers OFF, `_cr30_preset` applies it
+        # first, and dropping the `helper_markers: True` from `_CR30_STRAIGHT`
+        # would silently disarm all six. Knut: *"The presets that end with
+        # 'Hexagonal-Straight' keep their 'Print helper markers' ON with
+        # 'Top/bottom' ON."*
+        assert r["helper_markers"] is True
+        assert r["helper_markers_top_bottom"] is True
         # Every one of the six is the same 18-column grid on both sheets.
         assert (r["area_cols"], r["area_rows"]) == (18, 28)
+
+
+def test_the_two_low_patch_hex_charts_carry_the_larger_label():
+    """Exactly two charts set a label size of their own, and it is 18 pt.
+
+    `indicator_size_mm` is in OWN_FIELDS so those two may move it, and without
+    this test that entry would let ANY row of the family set ANY size and stay
+    green. Knut named the two and the size, 2026-09-16: 11.0 everywhere *"with
+    exception of the two low patch presets with 153 and 170 patches"*, which
+    get 18.0.
+
+    The numbers are POINTS converted at the recipe boundary, because the Size
+    box in "Strip and row indicators" is a point box: 11.0 pt is 3.88 mm and
+    18.0 pt is 6.35 mm. He wrote "11.0mm" and "18.0mm" in the instruction and
+    "11.0pt" a paragraph earlier about the same control, and the unit is
+    settled by the shipped `_CR30_STRAIGHT`, which has carried 3.88 since
+    2026-09-12 for the chart he pointed at as already correct.
+    """
+    from workflow import text_edge_fit as tef
+    assert round(tef.pt_to_mm(11.0), 2) == 3.88
+    assert round(tef.pt_to_mm(18.0), 2) == 6.35
+    bigger = sorted(p.name for p in CR30
+                    if p.layout_recipe["indicator_size_mm"] == 6.35)
+    assert bigger == [
+        "A4-153p-1page-Portrait-w18.0mm-Hexagonal",
+        "Letter-170p-1page-Portrait-w16.0mm-Hexagonal",
+    ]
+    # NOBODY ELSE MOVES IT. Every other chart in the family is on 3.88 if it
+    # is a honeycomb and on the base's "auto" if it is not, so a size typed
+    # onto a row that should not have one is caught here rather than shipped.
+    for q in CR30:
+        if q.name in bigger:
+            continue
+        want = 3.88 if "Hexagonal" in q.name else 0.0
+        assert q.layout_recipe["indicator_size_mm"] == want, q.name
 
 
 def test_only_the_three_letter_hex_charts_move_a_margin_of_their_own():
