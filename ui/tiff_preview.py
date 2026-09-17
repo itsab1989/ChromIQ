@@ -2942,35 +2942,74 @@ class TiffPreview(QWidget):
                 vpad = max(pad, apex)
                 min_py = min(b.y() for b in cp)
                 top = min_py - vpad
-                # Never rise into the strip-label band. When this strip's rect
-                # extends ABOVE its patches its top sits at the rendered label-band
-                # bottom (grown there in engine_strip_rects_from_sidecar), so clamp
-                # the fill to it — otherwise the hex apex padding above reached up
-                # and wiped the column labels (A, B, C…) on a SpectroScan hex chart
-                # (Knut). With labels off the rect top == the patch top, so this is
-                # a no-op and the apex stays covered.
-                band_top = float(rects[i].top())
-                if band_top < min_py:
-                    top = max(top, band_top)
+                # NEVER RISE ABOVE THE STRIP'S OWN TOP, and that clamp is not
+                # conditional. It used to fire only `if band_top < min_py`,
+                # which reads as "only when the rect was grown up to a label
+                # band" -- and an adversary round measured that every chart
+                # today's layout engine builds records `label_band_bottom_px`
+                # BELOW the first patch top (SS 65 against a patch top of 55,
+                # CR30 86 against 61), so `engine_strip_rects_from_sidecar`
+                # never grows the rect, `band_top == min_py`, the guard is
+                # inert, and the pad above walked straight into the letters.
+                # Photographed: the column labels A to K gone entirely on a
+                # SpectroScan honeycomb, and sliced through the middle on an
+                # i1 chart. 687 to 1,415 device pixels of label ink turned
+                # white, on six of the layouts tried. Inherited, and Knut's own
+                # older CR30 charts escape it only because their band really is
+                # above the patches.
+                #
+                # Clamping unconditionally keeps the fix it was written for and
+                # costs nothing: where the rect WAS grown, its top is the band
+                # bottom; where it was not, its top is the patch top, which is
+                # exactly as far up as a blank may go.
+                top = max(top, float(rects[i].top()))
                 bot = max(b.y() + b.height() for b in cp) + vpad
-                # Horizontally cover the column's own patches (min-left / max-right
-                # already include the ±¼-patch hex stagger overhang) AND reach the
-                # gap midpoint to each neighbour so the inter-column gap is hidden —
-                # whichever is further. At the row's OUTER edge there is no
-                # neighbour, so we stop a hairline past the last patch: that keeps
-                # the fill from bleeding into the right-margin caption on a
-                # ragged/partial last page (Knut). Adjacent unread columns overlap
-                # in white ⇒ seamless, nothing to alias (Sebastian).
-                left = min(b.left() for b in cp) - 2.0
-                if i > 0:
-                    left = min(left, (rects[i - 1].right() + rects[i].left()) / 2.0)
-                right = max(b.right() + 1 for b in cp) + 2.0
-                if i < n - 1:
-                    right = max(right, (rects[i].right() + rects[i + 1].left()) / 2.0)
-                painter.fillRect(
-                    QRectF(left * s + ox, top * sy + oy,
-                           (right - left) * s, (bot - top) * sy),
-                    white)
+                # A HONEYCOMB IS BLANKED BY ITS HEXAGONS, NOT BY A RECTANGLE.
+                # Hexagonal columns INTERLOCK: a strip's patch bounds already
+                # include the ±¼-patch zigzag overhang, so a rectangle spanning
+                # them reaches into the neighbouring column and paints white
+                # over a READ neighbour's lobes. Measured on screen on a real
+                # SpectroScan honeycomb at 900x1000: with the blanking off a
+                # read strip is drawn 68 to 90 device pixels wide down the
+                # column, with it on the same strip is 20 to 43 -- less than
+                # half, and it reads as a straight band instead of a staggered
+                # honeycomb. Basti saw it at once: *"the colorful patches go
+                # down in a straight line although they are staggered"*.
+                # Inherited, not from the split-overlay work: these lines are
+                # untouched by it.
+                #
+                # Filling the hexagons themselves cannot reach a neighbour,
+                # needs no apex padding (the shape IS the apex) and needs no
+                # midpoint reach (there is no inter-column gap on a honeycomb
+                # to hide). The rectangle stays for rectangular charts, where
+                # the gap is real and hiding it is the point.
+                if self._hex_zigzag:
+                    for b in cp:
+                        painter.fillPath(
+                            self._patch_hexagon(b, s, ox, oy,
+                                                self._hex_flat_top, sy),
+                            white)
+                else:
+                    # Horizontally cover the column's own patches AND reach the
+                    # gap midpoint to each neighbour so the inter-column gap is
+                    # hidden — whichever is further. At the row's OUTER edge
+                    # there is no neighbour, so we stop a hairline past the last
+                    # patch: that keeps the fill from bleeding into the
+                    # right-margin caption on a ragged/partial last page (Knut).
+                    # Adjacent unread columns overlap in white ⇒ seamless,
+                    # nothing to alias (Sebastian).
+                    left = min(b.left() for b in cp) - 2.0
+                    if i > 0:
+                        left = min(left,
+                                   (rects[i - 1].right() + rects[i].left()) / 2.0)
+                    right = max(b.right() + 1 for b in cp) + 2.0
+                    if i < n - 1:
+                        right = max(right,
+                                    (rects[i].right() + rects[i + 1].left()) / 2.0)
+                    painter.fillRect(
+                        QRectF(left * s + ox, top * sy + oy,
+                               (right - left) * s, (bot - top) * sy),
+                        white)
 
             # On the clean white background, draw a thin cell grid so each unread
             # patch reads as its own empty cell (Knut). Each patch gets its
