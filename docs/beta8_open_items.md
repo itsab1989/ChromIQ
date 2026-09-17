@@ -12694,3 +12694,38 @@ refused, which here means the folder is left exactly as it was found.
   number; the one-page colour summary filters a missing corner out entirely,
   which is **pre-existing** and not part of the round-4 change, whose hunks are
   at lines 56, 6848 and 7728 and none of them is that filter.
+
+### B8-297 — combined round 6: round 5's two migration fixes CONFIRMED
+
+The first round in this release to re-attack a previous round's fix. Both hold.
+
+**Fix 1, driven on screen** (`scripts/adv_b20r6_drive_the_colliding_names.py`,
+real window, `capture_window`, four photographs in
+`~/Desktop/ChromIQ-beta20-proof/combined-round-6/shots/`): a pre-`runs/` project
+in a folder named `project`, `project_1`, `Where are my files` and `runs`, each
+copied, opened, listed, and then **opened a second time** because that is when
+the symptom appeared. All four: no manifest and no README inside a run, no file
+lost, the disk after open #2 byte-for-byte the disk after open #1, and the app
+holding chart, measurement and profile in `runs/run1`.
+
+**Fix 2, attacked directly** (`scripts/adv_b20r6_attack_the_shared_name_rule.py`,
+22 values for `current_run`, each against a freshly built seven-file project,
+listed before and after): `..`, `.`, `../..`, `...`, `C:`, `D:`, `D:\x`, a UNC
+prefix in both spellings, `/etc`, a leading and a trailing blank, an embedded
+NUL and the empty string are all refused with the disk untouched; 300 characters
+is refused by the filesystem and rolled back by the `mkdir` guard; nothing
+escaped the project folder in any of the 22. `run1` moved all seven.
+
+**Two things the rule allows, both recorded as safe, neither a defect.** A
+trailing dot (`run1.`) and an embedded newline are accepted, and both land
+INSIDE `runs/`; the reader derives the same folder from the same string, so
+reader and mover still agree and no file leaves the project. They are names a
+manifest should not hold, not a traversal.
+
+**And a case-insensitive filesystem makes `Project` and `project` one folder**,
+so that pair cannot be tested apart on macOS: asked for `PROJECT` the chain
+came back empty, because the stem regex is case-sensitive while the disk is
+not. The mover then does nothing, which is the safe direction.
+
+Task 3 (a second pass over the three reported projects) was NOT done: round 5
+drove them and the deadline came first. No source file changed in this round.
