@@ -188,7 +188,15 @@ def _grab_window_id(wid: int, path: Path) -> bool:
             Quartz.kCGWindowListOptionIncludingWindow,
             wid,
             Quartz.kCGWindowImageBoundsIgnoreFraming
-            | Quartz.kCGWindowImageNominalResolution)
+            # BEST, NOT NOMINAL. `kCGWindowImageNominalResolution` hands back a
+            # 1x picture of a 2x window, so every device pixel in the window is
+            # averaged with its neighbour before anyone can look at it. A
+            # tester found a one-device-pixel gap along the bottom of a split
+            # patch (2026-09-17) that this helper physically could not show:
+            # measured on the same window, nominal 560x1028, best 1120x2056,
+            # and the offending row is only in the second. Proof of a pixel
+            # must be taken at the resolution the pixel exists at.
+            | Quartz.kCGWindowImageBestResolution)
         if img is None or Quartz.CGImageGetWidth(img) < 1:
             return False
         url = CFURLCreateWithFileSystemPath(None, str(path),

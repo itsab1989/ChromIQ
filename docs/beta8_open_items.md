@@ -12729,3 +12729,131 @@ not. The mover then does nothing, which is the safe direction.
 
 Task 3 (a second pass over the three reported projects) was NOT done: round 5
 drove them and the deadline came first. No source file changed in this round.
+
+### B8-298 · "The instrument lost communication" sent a user to the hardware shop
+- blocks release: no
+- status: OPEN
+- found by: a reporter on issue #197, v4.2.7, Windows 11, i1Pro 2, and by reading
+  his own two screenshots. **Not a fault in the detection, a fault in the
+  advice.**
+- detail: a strip read fails intermittently, every two or three strips, and the
+  same strip usually reads fine on the next attempt. ChromIQ shows "Strip Read
+  Failed", headed *"The instrument lost communication with the computer"*, and
+  advises checking the cable, trying another USB port, and making sure no other
+  application holds the device.
+
+  Acting on that, the reporter tried **five USB ports, two cables, another PC
+  and a powered hub**, and then wrote that he would have to replace the
+  instrument. None of it helped, because none of it was the cause.
+
+  **His own screenshots contain the evidence, in our own panel.** A strip that
+  worked reads **4.0 s** in the strip-time panel; the failed one reads
+  **32.8 s**. A dropped USB link does not take half a minute, and it has its
+  own path here anyway: `_USB_ERROR_RE` on "ReadPipeAsync failed" raises
+  `instrument_disconnected`. What he is hitting is `_STRIP_COMS_FAIL_RE`,
+  chartread's "Strip read failed due to communication problem", which covers a
+  read that never completes as well as a link that dies.
+
+  So the wording names one cause of a message that has several, in the most
+  expensive direction a wrong guess can point: at buying hardware. The chart is
+  also worth noting, 1200 patches over ten 10 by 15 cm cards, about 120 per
+  card, so the strips are short and the patches small.
+
+  **What to change:** the headline should not assert the cause. Say the strip
+  did not complete, offer the cable check as one possibility among others, and
+  name the two that cost nothing: a slower or steadier sweep, and a chart with
+  larger patches. The log line is what distinguishes them, so the message
+  should also point at the log rather than at the cable.
+
+### B8-299 · The expected/measured split showed the chart along a patch edge, and a screen capture could not have shown it
+- blocks release: no
+- status: FIXED
+- held: **on branch `fix/split-overlay-gap`, out of every release until Basti
+  has looked at the proof and says to merge it** (his instruction, 2026-09-17:
+  *"this fix will not be part of a release until i have looked at the proof
+  you leave for me and i tell you to implement it"*).
+- evidence: `test_no_chart_pixel_survives_under_the_split`,
+  `test_the_split_never_paints_over_the_spacers`,
+  `test_every_box_is_the_size_of_the_patch_it_covers`,
+  `test_both_paint_paths_hand_the_overlay_the_pages_own_vertical_scale`,
+  `test_a_patch_box_is_never_smaller_than_the_chart_patch` (all five live in
+  the split-overlay file added by this round)
+- proof: `~/Desktop/ChromIQ-beta21-proof/split-overlay-gap/`
+- found by: a tester's screenshot of the Measure tab, forwarded by Basti:
+  *"the 6th patch in the first strip has a tiny gap at the bottom from the
+  split overlay (measured vs expected)"*, and then *"on some patches the
+  diagonal line is perfect and on other it makes a step (patch 8 and 10 in the
+  first strip)"*.
+
+**Three findings, in the order they mattered.**
+
+1. **The overlay was mapped with the page's HORIZONTAL scale on both axes.**
+   `TiffPreview` scales the page with `QPixmap.scaled(..., KeepAspectRatio)`,
+   which returns a whole number of device pixels on each axis, so the two
+   ratios are not the same number. `_repaint_label` computed the scale from the
+   width and `_draw_cq_overlay` applied it to y as well, sliding the overlay
+   grid along the page. Measured on screen over six window sizes: the slide
+   reaches **1.37 device pixels** at the foot of an A4 page. Where it crossed a
+   rounding boundary the split stopped one screen pixel short and the printed
+   patch showed through, full strength: a photograph of the fixed-page test at
+   700x980 has row 1175 reading `(218, 0, 218)` right across the sheet.
+
+2. **The page is drawn with `SmoothTransformation`, so a patch's colour
+   reaches about a pixel past its own edge.** A box that covers the patch
+   exactly still leaves a coloured hairline. Basti, on the photograph of the
+   first fix: *"you can still see color from the patches bleeding through"*.
+
+3. **`scripts/onscreen_capture.py` photographed a 2x window at 1x.**
+   `kCGWindowImageNominalResolution` averages every device pixel with its
+   neighbour before anyone can look at it, so this helper physically could not
+   show a one-device-pixel fault, and every pixel-level proof taken with it
+   since it was written was looking at a halved picture. Now
+   `kCGWindowImageBestResolution`: same window, nominal 560x1028, best
+   1120x2056, and the offending row exists only in the second.
+
+**The fix.** Both paint paths hand `_draw_cq_overlay` the page's own vertical
+scale. A patch edge that has another patch beyond it is snapped, so the two
+boxes tile and neither depends on the order the strips were read in; a FREE
+edge, with a spacer band or paper beyond it, takes in the whole screen pixel
+the edge falls in, which is where the smooth scaling put the patch's colour.
+
+**What was tried and rejected.** Snapping the position and rounding the SIZE
+up gives every patch of a size exactly one size on screen, so every diagonal
+gets the same stair pattern, which would have answered the second half of the
+report as well. It also grows every box by up to a pixel on every side. Basti
+saw it immediately in the photograph: *"now you just made the overlay bigger
+and in turn some spacers got smaller and not all of them have the same size"*.
+Rejected. The overlay follows the chart; it does not tidy it.
+
+**The "step" is the chart's own grid, not a fault.** A corner-to-corner
+diagonal's stair pattern follows the box's height, the box's height follows
+the patch's height on screen, and a patch grid with a fractional pitch lands
+on 52 screen pixels here and 53 there. The scaled chart does exactly the same.
+An overlay that insisted on one height would stop matching the picture it sits
+on, which is what the rejected variant did.
+
+**Measured, on screen, six window sizes, 462 patches each.** A page whose only
+colour is in the patches, the split drawn in two greys, so any coloured pixel
+left is chart showing through (Basti's idea, and a better detector than the
+one this round started with):
+
+| | chart-coloured pixels left under the split | of which full strength |
+|---|---|---|
+| before | 151,383 | 37,305 |
+| after | **0** | **0** |
+
+and the spacer bands are the same widths the chart itself draws (3 to 6 device
+pixels, uneven before the fix as well, because the chart's pitch is
+fractional).
+
+**Harness.** `scripts/drive_b21_split_overlay_gap.py` drives the real widget in
+a real window and photographs it; `scripts/analyse_b21_mono_leak.py` counts.
+The driver stamps a marker block into each corner of the page it loads, so
+where the drawn page begins and ends is measured rather than derived through
+three separate half-pixel roundings.
+
+**One thing the round found in the harness, not the product:** a capture taken
+straight after `set_patch_overlay` can land before the widget has repainted,
+and `capture_window` correctly refuses the empty buffer as one flat colour.
+The driver now waits and asks again, up to five times, and reports a refusal
+that survives all five.
