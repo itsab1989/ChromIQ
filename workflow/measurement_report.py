@@ -1188,8 +1188,18 @@ def report_trend(reports: "list[dict]") -> "list[dict]":
             pt["black_L"] = float(b["lab"][0])
         # Per-corner ΔE00-from-design, so the cube-corner chart can plot how
         # each ink drifts over time (Knut).
+        #
+        # **A CORNER THE CHART DOES NOT HAVE IS NOT PLOTTED** -- B8-290. Each
+        # corner entry is built from the NEAREST patch in device RGB, and
+        # `present` False says that patch is not at the corner at all; its
+        # DeltaE00 then describes a different colour. Plotted under this ink's
+        # name it became a drift line for an ink the sheet never carried, and
+        # on the reported project Red and Blue would have drawn the SAME line,
+        # because both resolved to one neutral patch. Filtered here rather than
+        # in the builder so every report already on disk is read correctly too.
         corners = {c["name"]: float(c["de"])
-                   for c in (r.get("corners") or []) if c.get("de") is not None}
+                   for c in (r.get("corners") or [])
+                   if c.get("de") is not None and c.get("present", True)}
         if corners:
             pt["corners"] = corners
         # #130 feature A: how the sheet was printed, so a trend can mark the

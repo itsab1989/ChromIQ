@@ -56,6 +56,43 @@ _CORNER_LINE = {
     "B": "#3b6fe2", "C": "#1fb0b0", "M": "#c93bc9", "Y": "#c2a41f",
 }
 
+
+def _corner_ideal_hex(code: str) -> str:
+    """The IDEAL colour of one cube corner, for a chart that has no patch at it.
+
+    **A CORNER THE REPORT HAS JUST CALLED MISSING STILL HAD A COLOUR, A
+    LOCATION AND A DeltaE00, AND ALL THREE BELONGED TO SOMETHING ELSE**
+    (B8-290, reported by the design authority on a demo project).
+    `build_report` finds each corner by taking the NEAREST patch in device RGB
+    and then asks whether that patch is actually at the corner
+    (`CORNER_PRESENT_TOL`, 12 device units). When it is not, `present` is False
+    and the row is marked "(missing)" -- but every other field on it still
+    described the stand-in. On his sheet Red and Blue both landed on patch 14,
+    a neutral grey, so the table printed a grey swatch and 2.46 twice under two
+    different ink names, and Cyan printed a green one.
+
+    His remedy, and it is the one implemented: *"When the colors are missing,
+    the expected should still show the ideal cube colour, the measured and the
+    DeltaE columns could show only a dash to indicate it is not present or
+    measured."*
+
+    So the Expected swatch comes from here instead of from the stand-in's
+    reference. It is the corner's own device value read as sRGB, derived from
+    `CUBE_CORNERS` rather than written out again, so a change to that table
+    cannot leave this one behind. Device 0..100 is not sRGB in any colorimetric
+    sense, and it does not have to be: this swatch names WHICH corner the row
+    is about, exactly as `_CORNER_LINE` does for the trend, and the honest
+    colorimetric answer for a patch that was never printed is the dash beside
+    it.
+    """
+    from workflow.measurement_report import CUBE_CORNERS
+    for name, rgb in CUBE_CORNERS:
+        if name == code:
+            return "#" + "".join(
+                f"{max(0, min(255, int(round(v * 255.0 / 100.0)))):02x}"
+                for v in rgb)
+    return ""
+
 # The colour-accuracy metrics (Knut's revised set), keyed by report ``de00``
 # field. Labels are lazy so tr() runs under the active language. ``_METRIC_LABELS``
 # covers all six (Spread included); ``_ACCURACY_ROW_KEYS`` are the five that carry
@@ -6811,9 +6848,14 @@ class MeasurementReportDialog(QDialog):
             return lambda r: f"<td align='right'>{_fmt(getter(r), dec)}</td>"
 
         def corner_de(r, code):
+            # **ONLY A CORNER THE CHART ACTUALLY HAS** -- B8-290. Without the
+            # `present` test this column carried the DeltaE00 of whatever patch
+            # happened to be nearest, and this table has no "(missing)" mark to
+            # warn with: the number simply stood in the Red row. A dash is what
+            # `_fmt(None)` draws for every other absent figure here.
             for cc in (r.get("corners") or []):
                 if cc.get("name") == code:
-                    return cc.get("de")
+                    return cc.get("de") if cc.get("present", True) else None
             return None
 
         row_getters = []
@@ -7686,17 +7728,36 @@ class MeasurementReportDialog(QDialog):
             crows = [head]
             for i, c in enumerate(corners):
                 lbl = _CORNER_LABELS.get(c["name"], (lambda: c["name"]))()
-                exp = _swatch(c.get("expected_hex", ""))
-                de_c = f"<b>{_fmt(c.get('de'))}</b>" if c.get("de") is not None else "—"
-                miss = "" if c.get("present", True) else (
+                # **A MISSING CORNER OWNS NOTHING BUT ITS NAME** -- B8-290 and
+                # `_corner_ideal_hex`. `present` False means the nearest patch
+                # in device RGB is NOT at this corner, so its location, its
+                # measured colour, its reference colour and its DeltaE00 all
+                # describe a different patch. Printing them under this ink's
+                # name is what let one grey patch answer for both Red and Blue.
+                present = bool(c.get("present", True))
+                miss = "" if present else (
                     f" <span style='color:{_C['fail']}'>(" + html.escape(tr("missing"))
                     + ")</span>")
+                if present:
+                    exp = _swatch(c.get("expected_hex", ""))
+                    meas = _swatch(c["hex"])
+                    de_c = (f"<b>{_fmt(c.get('de'))}</b>"
+                            if c.get("de") is not None else _fmt(None))
+                    # THE PATCH NUMBER GOES WITH THE PATCH. Two corners of his
+                    # sheet both read "(14)", which is a claim about the chart
+                    # and not only about a colour, so it goes when the rest of
+                    # the stand-in does.
+                    loc = (f" <span style='color:{_C['faint']}'>"
+                           f"({html.escape(str(c['loc']))})</span>")
+                else:
+                    exp = _swatch(_corner_ideal_hex(c["name"]))
+                    meas = de_c = _fmt(None)
+                    loc = ""
                 bg = f" style='background:{self._ZEBRA_BG}'" if i % 2 == 1 else ""
                 crows.append(
-                    f"<tr{bg}><td>{html.escape(lbl)}{miss} "
-                    f"<span style='color:{_C['faint']}'>({html.escape(str(c['loc']))})</span></td>"
+                    f"<tr{bg}><td>{html.escape(lbl)}{miss}{loc}</td>"
                     f"<td align='center'>{exp}</td>"
-                    f"<td align='center'>{_swatch(c['hex'])}</td>"
+                    f"<td align='center'>{meas}</td>"
                     f"<td align='right'>{de_c}</td></tr>")
             parts.append("<table cellpadding='5' cellspacing='0' "
                          "style='border-collapse:collapse;font-size:11px'>"

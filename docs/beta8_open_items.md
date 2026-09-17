@@ -12124,3 +12124,273 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   `test_the_rule_is_keyed_on_a_list_that_never_reaches_the_surface`. They pin
   the FAULT, not a design: when he rules, that file is rewritten rather than
   deleted.
+
+### B8-290 · FIXED · A cube corner the report calls missing borrowed a patch's colour, its number and its ΔE00
+
+- blocks release: no
+- status: FIXED
+- fixed in this round, with a guard and seven proved mutations.
+- reported by the design authority on a demo project, 2026-09-17, and
+  reproduced from that project's own saved report before anything was changed.
+  His words: *"The missing cube colors are marked as missing, but a color patch
+  and a measurement deltaE is still provided. ... The red and blue marked with
+  (missing) have gray color. the Cyan missing is green."*
+- **WHAT THE READER SAW.** The Report Scope said, correctly, that both dated
+  verifications are *missing Red, Blue, Cyan*. The Cube corners table in the
+  same document then printed, for those three, a colour swatch under Expected,
+  a colour swatch under Measured, a patch number and a ΔE00:
+
+  | corner | patch it named | measured swatch | ΔE00 |
+  |---|---|---|---|
+  | Red **(missing)** | 14 | `#4f5b69`, a neutral grey | **2.46** |
+  | Blue **(missing)** | **14, the same patch** | `#4f5b69`, the same grey | **2.46** |
+  | Cyan **(missing)** | 20 | `#2ce387`, a green | 1.10 |
+
+- **THE MECHANISM.** `measurement_report.build_report` finds each corner by
+  taking the NEAREST patch in device RGB and then asks whether that patch is
+  really at the corner (`CORNER_PRESENT_TOL`, 12 device units). When it is not,
+  `present` is False and the Report Scope warns -- but `loc`, `rgb`, `lab`,
+  `hex`, `expected_lab`, `expected_hex` and `de` on that entry all still
+  describe the stand-in, and they are written into the saved report. Red's
+  target is device (100, 0, 0) and Blue's (0, 0, 100); on a 20-patch
+  verification chart the nearest patch to both is the same 33.3 % grey, which
+  is why one patch answered for two inks with one number.
+- **THREE SURFACES PRINTED IT, NOT ONE**, and only the first was reported:
+  1. the per-run **Cube corners** table (`_run_detail_html`), his;
+  2. the side-by-side **comparison** table (`_comparison_table_html`'s
+     `corner_de`), which carries the same ΔE00 and has no "(missing)" mark
+     anywhere to warn with, so the borrowed number is completely unmarked;
+  3. the **trend** chart (`measurement_report.report_trend`), which plotted it
+     as that ink's drift over time. On this project Red and Blue would have
+     drawn the SAME line from the SAME patch.
+- **WHAT WAS NEVER AFFECTED, AND IT DECIDED THE SIZE OF THE FIX.**
+  `measurement_report.row_values` already gates every corner on `present`, so
+  `substrate_de00_max`, `solids_de00_max` and `cmy_solids_dhab_max` never took
+  a number from a stand-in, and no verdict word was ever wrong. Measured, not
+  assumed: `test_no_judged_row_ever_took_a_number_from_a_stand_in`. That is
+  what makes this a reporting fault fixable in the report window rather than a
+  judging fault.
+- **THE REMEDY IS HIS OWN**: *"When the colors are missing, the expected should
+  still show the ideal cube colour, the measured and the DeltaE columns could
+  show only a dash '-' to indicate it is not present or measured. The
+  '(missing)' in first column is good as indication."* So a missing row now
+  shows the corner's IDEAL ink under Expected (`_corner_ideal_hex`, derived
+  from `CUBE_CORNERS` so the two tables cannot drift apart), and `_fmt(None)`'s
+  dash for Measured and for ΔE00.
+- **ONE STEP PAST HIS WORDS, AND IT IS SAID HERE SO HE CAN OVERRULE IT.** The
+  patch NUMBER goes too. "Red (missing) (14)" is a claim about the chart, not
+  only about a colour, and it is the claim that made one patch visibly answer
+  for two corners. Leaving it would have left the row still naming a patch it
+  does not have.
+- **FIXED AT THE READING END, DELIBERATELY.** The stand-in's fields are already
+  written into every report JSON on disk. Filtering in the builder would repair
+  only reports written from now on; filtering in the three readers repairs
+  every report a user already has. An entry with no `present` key at all is an
+  older ChromIQ's and is still drawn in full, so nothing a user has goes blank.
+- **NOT changed, and recorded as a separate observation:** the Customer report
+  type's own corner block (`_swatch_table_html`, reached from `_one_page_html`)
+  already filtered to `present` corners, so it silently OMITS the missing three
+  rather than naming them. That is a different report for a different reader
+  and the Report Scope warning still covers it, but whether a customer-facing
+  page should say "three of the eight corners are not on this chart" is a
+  wording decision and his, not ours.
+- measured on screen: `scripts/adv_b20r4_cube_corners_on_screen.py`, driving
+  his project (copied, never opened in place) through the real Measurement
+  Report window with "Judged against" on Custom ISO 12647-7 and "Show detailed
+  data for each run" ticked. Photograph and the rendered document in
+  `~/Desktop/ChromIQ-beta20-proof/combined-round-4/cube-corners-after/`.
+- **and the driver's own first answer was wrong twice, which is worth more than
+  the fix.** Run 1 read a document that had no Cube corners table at all,
+  because the table lives in the OPT-IN "Show detailed data for each run"
+  section; run 2 read the right document with a parser written against the
+  string the dialog builds rather than the markup `QTextBrowser.toHtml`
+  returns, and `<td>` with no attributes matches nothing there. Both times the
+  driver printed an empty table and every "still carries a number" check came
+  back clean. **A probe that finds nothing looks exactly like a fault that is
+  fixed**, so the parser now asserts it found eight rows by printing them.
+- evidence: in the missing-cube-corner file under `tests/`,
+  `test_a_missing_corner_shows_the_ideal_colour_and_no_measurement`,
+  `test_a_missing_corner_names_no_patch_number`,
+  `test_a_present_corner_keeps_its_swatches_and_its_delta_e`,
+  `test_the_ideal_swatch_follows_the_cube_corner_table`,
+  `test_the_comparison_table_dashes_a_missing_corner`,
+  `test_the_comparison_table_keeps_a_present_corner`,
+  `test_the_trend_never_plots_a_corner_the_chart_has_no_patch_at`,
+  `test_the_trend_keeps_a_report_whose_corners_are_all_present`,
+  `test_an_older_report_without_the_present_flag_is_not_silently_dropped`,
+  `test_an_older_report_without_the_present_flag_still_draws_its_swatches`,
+  `test_no_judged_row_ever_took_a_number_from_a_stand_in`.
+
+### B8-291 · The automatic row-label size walk attacked across 11,088 geometries and twelve on-screen builds · nothing found
+
+- blocks release: no
+- status: VERIFIED
+- nothing to fix. Recorded because an empty result is only worth anything if it
+  says what was attacked and how big it was.
+- the subject is B8-265's §R8 walk, shipped in this beta: when Size is "auto"
+  and the row-label band would force the left margin above the typed one, the
+  size is walked down the half-point grid to 7 pt and the first size that fits
+  is recorded on `Geom.row_label_size_mm`. It changes a size the user did not
+  type, inside a loop, and its own author found a stateful fault in it that
+  only a guard could see, so it was attacked first and hardest.
+- **THE INVARIANT SWEEP, 11,088 CASES.** Every combination of 7 paper/grid
+  pairs x {square, pointy-top hexagon, flat-top hexagon} x 11 left margins from
+  6.0 to 22.0 mm x {auto, 11.0 pt, 18.0 pt} x 4 patch-area alignments x
+  {markers on, markers off} x {row indicators forced on, left untouched}, built
+  through the real `_CR30_BASE` recipe. The walk fired in **1,592** of them.
+  Six invariants on every case, all clean:
+  - the band reserved (`rlwi`) equals the band the size actually drawn needs;
+  - `floor + rlwi + 1.0` fits inside `margin_l`;
+  - the margin is never LOWERED below the typed one;
+  - the drawn size never exceeds the row-pitch cap `ROW_LABEL_PITCH_FRAC`;
+  - applying the geometry a SECOND and a THIRD time changes neither the margin,
+    the band nor the settled size;
+  - no case raised.
+- **THE SECOND BUILD, IN THE APP, TWELVE TIMES.** The guard proves
+  `apply_row_label_geometry` is idempotent; it cannot prove the app is. So
+  `scripts/adv_b20r4_autosize_on_screen.py` loads a preset in a real window,
+  types a margin and a size, presses **Generate**, measures the rendered TIFF,
+  presses **Generate again** and measures the second one. **All twelve cases
+  produced a byte-identical sheet** (SHA-256 of the whole raster), across both
+  hexagon cuts, square patches, one/two/three page charts, A4 and Letter.
+- **WHAT THE WALK DOES, MEASURED OFF THE PAPER** rather than off the panel, on
+  `CR30-A4-420p-1page-Portrait-w11.0mm-Hexagonal`:
+
+  | Size box | left margin asked | margin realised | size drawn | row-label glyph ink |
+  |---|---|---|---|---|
+  | auto | 13.0 mm | **13.0 mm** | 16.0 pt | 4.191 mm |
+  | auto | 11.0 mm | **11.0 mm** | 11.5 pt | 2.921 mm |
+  | auto | 26.0 mm | 26.0 mm | 17.54 pt, no walk | 4.699 mm |
+  | **19.0 typed** | 13.0 mm | **14.08 mm, raised** | 18.99 pt | 4.953 mm |
+  | 7.0 typed | 13.0 mm | 13.0 mm | 7.00 pt | 1.778 mm |
+
+  The typed row is §R1.5 behaving exactly as before, with its honest notice
+  *"The left margin is below what the row indicators need, so it was widened
+  from 13.0 mm to 14.1 mm to fit them"*. A typed size is never touched.
+- **THE FLOOR HOLDS.** At a 9.0 mm left margin on two different charts the walk
+  stops at 7.0 pt, which is `AUTO_SHRINK_FLOOR_PT`, and the margin stays where
+  it was asked for.
+- **AND NO BUILT-IN PRESET TAKES THE NEW BEHAVIOUR AT ALL.** All 149 built-ins
+  were built twice, once with the walk live and once with its ladder stubbed to
+  the pre-fix behaviour: **0 of 147 measurable presets differ**, because the
+  eight the walk was reported on were given a typed size in the same change and
+  a typed size does not walk. The walk's cost is bounded too: measured over all
+  147, the worst extra time is **+22 ms** on the 10,290-patch scanner chart,
+  the one previously reported as slow to load.
+- **"OF 147 BUILT-IN PRESETS EXACTLY THESE EIGHT CHANGED GEOMETRY" IS TRUE**,
+  and was tested rather than believed. Every preset's whole `LayoutRecipe` was
+  dumped from this tree and from the tree before the change and compared field
+  by field: **exactly 8 differ**, all of them the upright `-Hexagonal` ones,
+  each by the same three fields (`margin_left` 13.0 to 14.0,
+  `indicator_size_mm` 0.0 to 3.88 or 6.35, `helper_markers` True to False). The
+  six `-Hexagonal-Straight` presets did not move, and neither did the other
+  133. (The only other differences were `clip_image_path`, which is an absolute
+  path and therefore names the checkout, not the recipe.)
+- **ALL FOURTEEN HEXAGONAL PRESETS STILL DESCRIBE THEIR SHEET**, loaded through
+  the real dropdown and generated in a real window: every one of the fourteen
+  produced exactly the patch count and the page count its name promises
+  (153/1, 420/1, 450/1, 840/2, 900/2, 1260/3, 1350/3, 170/1, 390/1, 396/1,
+  780/2, 792/2, 1170/3, 1188/3), the eight at a realised left margin of 14.0 mm
+  and the six straight ones unmoved at 11.0 mm. Zero crashes through the app's
+  own `sys.excepthook`, fourteen photographs.
+- proof: `~/Desktop/ChromIQ-beta20-proof/combined-round-4/` --
+  `autosize-on-screen/`, `presets-asshipped/`.
+- **the commands, so this can be re-run.** On screen, with
+  `CHROMIQ_SETTINGS_FILE` and `CHROMIQ_PRESETS_DIR` both sandboxed and
+  `QT_QPA_PLATFORM` unset:
+  `python scripts/adv_b20r4_autosize_on_screen.py <out>` (12 cases, 24 builds,
+  12 photographs, 0 crashes) and
+  `python scripts/drive_182_autosize_and_hex_presets.py <out>` (14 presets, 14
+  photographs, 0 crashes). Offscreen, as the suite:
+  `QT_QPA_PLATFORM=offscreen pytest -n auto`, which came back **16062 passed**,
+  321 skipped, 4 xfailed, exit 0, twice.
+- evidence: the existing size-auto and CR30-built-in-preset files under
+  `tests/` already pin what this round re-measured; nothing new was needed,
+  which is the finding. `QT_QPA_PLATFORM=offscreen pytest -n auto` came back
+  **16062 passed**, 321 skipped, 4 xfailed, exit 0, twice, with the two
+  on-screen drivers named above contributing 0 crashes over 38 builds.
+
+### B8-292 · OPEN, not swept · A translated help string can quote a control by a word that language does not use for it
+
+- blocks release: no
+- status: OPEN
+- measured and left alone on purpose, twice over: it is not a beta-20
+  regression, and this project's rule is that translation work happens before a
+  final and not during a beta.
+- **THE GUARD THAT EXISTS CHECKS ONE DIRECTION ONLY.**
+  `tests/test_a_quoted_control_names_the_control_the_reader_has` catches a
+  translation that kept the ENGLISH name of a control the language renames.
+  It cannot see the other half: a translation that invents its OWN word for the
+  control, different from the word on the control itself. The quotation is not
+  English, so it passes.
+- **AN EXAMPLE A USER COULD ACT ON.** The clip-border notice tells a Russian
+  reader to turn off «Стороны» under «Вспомогательных метках линейки». The
+  checkbox on screen reads **«Бока (вертикаль)»** and the frame
+  «Вспомогательные метки линейки». German's limit-set help says
+  „Grenzwerte dieses **Durchgangs** entsperren“ where the checkbox reads
+  „Grenzwerte dieses **Durchlaufs** entsperren“. Italian's help quotes „Pinza“
+  for the control that reads „Fermaglio“, Swedish „Klämma“ for „Klämkant“.
+- **THE SIZE, SO NOBODY RE-MEASURES IT.** A sweep of every curly-quoted,
+  capitalised phrase in an English catalogue key that resolves to a real
+  control, checked in all twelve catalogues against that language's own label,
+  raises **184** candidates: de 32, ru 29, nl 21, sv 19, pl 20, fr 17, it 14,
+  pt 12, no 10, es 9, zh_CN 1, ja 0. A large share of those are false alarms of
+  the detector rather than of the app -- a grammatical inflection (Polish
+  „Zacisku“ for „Zacisk“ is correct), a string that quotes several controls
+  where only one had to match, a quotation in the language's own marks that the
+  curly-quote regex does not see (ja and zh_CN use 「」). **The real count is
+  not 184 and is not known**; establishing it needs a reader of each language,
+  which is exactly what the pre-final translation pass is for.
+- what to do with it: fold it into the pre-release translation pass as a
+  worklist, and at the same time widen
+  `test_a_quoted_control_names_the_control_the_reader_has` to the second
+  direction so the next rename cannot open it again.
+- the beta-20 rename itself is clean. "Strip letters and row numbers" and
+  "Strip letters only" became "Strip and row indicators" and "Strip indicators
+  only"; all twelve catalogues carry **0** keys with the old phrase and 6 with
+  the new one, no catalogue mentions the old names in a key or a value, the two
+  frame titles are translated in all twelve, and the one affected string that
+  falls back to English in eleven languages fell back in the same eleven
+  BEFORE the rename, so nothing was lost. The only surviving mentions of the
+  old words in the tree are source comments and a stale test docstring.
+
+### B8-293 · The saved-report selector and the delete rule, re-driven on a project from outside this repo · nothing found
+
+- blocks release: no
+- status: VERIFIED
+- the delete rule has been repaired three times in two rounds, so it was driven
+  again, this time on a demo project that arrived as a zip rather than from a
+  fixture: one run, two dated verifications, **two readable reports on each**,
+  and an `old/` archive beside both. That last part is the shape the glob and
+  the window's own snapshot each have to agree about.
+- **THE SELECTOR.** Four entries for four saved reports, and each of the four
+  picks stayed picked and landed on its own report: rows 0 and 1 on the
+  2026-12-15 date's two files, rows 2 and 3 on the 2026-12-01 date's two. Four
+  distinct answers, no snap back to the top, which is the QVariant-compare
+  fault staying fixed.
+- **THE RULE.** With two readable reports on the subject date, Delete was live
+  and no reason was shown; it removed one, and the confirmation's *"One saved
+  report of it is left afterwards"* matched what the folder then held. With one
+  left, Delete went grey with the sentence beside it, and pressing the handler
+  anyway removed nothing.
+- **THE ARCHIVE DOES NOT COUNT AS A SPARE.** Both dates keep a copy under
+  `reports/old/<timestamp>/`, and neither was read as the second report that
+  would have let the last live one go. Both archives were untouched by every
+  press.
+- **and this driver was wrong twice before it was right**, which is the part
+  worth keeping. It first watched ONE date's folder while the window's selector
+  was on the OTHER, and reported `removed []` after a delete that had really
+  taken a file out. It then read `self._report["_report_file"]`, a BARE
+  FILENAME, and both dates hold a `report_2026-09-17_03-18-40.json` because
+  both were regenerated in the same second: two different picks printed one
+  name and looked like a selector that ignores the reader. The identity is the
+  date folder AND the file, which is what `_run_key` uses, and a pick lands in
+  `_chosen_reports` keyed by run, not on `self._report`, which stays the
+  measurement the window was opened on.
+- evidence: `scripts/adv_b20r4_saved_reports_and_delete.py`, photographs and
+  `result.json` in
+  `~/Desktop/ChromIQ-beta20-proof/combined-round-4/saved-reports-delete/`.
+  The behaviour is pinned by the existing saved-report and delete-rule files
+  under `tests/`; `QT_QPA_PLATFORM=offscreen pytest -n auto` came back
+  **16062 passed**, 321 skipped, 4 xfailed, exit 0, and this driver added 0
+  crashes through the app's own `sys.excepthook`.
