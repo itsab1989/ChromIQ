@@ -582,8 +582,49 @@ themselves "A3"), so `check()` holds the name and the layout to each other.
 
 `tests/test_i1pro_photocard_builtin_presets.py` pins the base against
 `_I1_BASE` **and** `_I1_75_BASE` in each of the ten fields, so this family
-cannot have been folded into either, and builds both charts against the sheet,
+cannot have been folded into either, and builds every chart against the sheet,
 patch count, page count and patch width their names promise.
+
+#### Thirteen more, and the family's second CUT (Knut, 2026-09-17, #182)
+
+He sent the whole photo-card line-up again, grown from two charts to **fifteen**:
+eleven new patch counts on the same two cards (720 … 1512), and with them a
+second shape. Seven are named **"Maximised - No Clip-border"** and are exactly
+that: the clip band off and both side margins pulled in to 5 mm, which buys two
+more columns on the 10 x 15 card (10 → 12) and four on the 13 x 18 (12 → 16) at
+the same patch width. The family base did not move: these are the same ten
+shared fields, the same per-card margins, bigger colour sets.
+
+`_I1_PHOTO_MAXIMISED` is what `maximised=True` stands for, and it stands for
+**two fields only** — `clip_border` False and `clip_content_mode` "off". The
+wider side margins those cards gain are NOT in it, deliberately: they are two of
+the five sheet-scaled numbers every row of this family already spells out, and
+folding them into a family flag is the thing `_I1_PHOTO_PER_SHEET` exists to
+prevent.
+
+**The importer learned to pick a cut out by a field being FALSE.** `Overlay`
+selects a cut by the truth of a `discriminator`, which is right for a cut named
+by a flag (`hflag`) and useless for one named by a band being switched OFF. So
+`Overlay` grew `when`: state the value the discriminator must have, and a cut
+can be `clip_border is False`. Leave `when` unset and the original truthy test
+is what runs, so every other family behaves exactly as before. The emitter also
+diffs against the **shipped** base now rather than the batch's first file — this
+batch's first file alphabetically is a maximised one, and without that change
+every ordinary chart would have spelled out fields it actually inherits.
+
+Staged the same way:
+
+```bash
+python scripts/import_knut_presets.py i1photo <folder-of-exports> --write
+```
+
+Two of the fifteen exports are re-sends of charts that already ship. One is
+byte-identical apart from its `CREATED` stamp. The other,
+`130x180mm-648p-3pages-w8.0mm`, carries a **different colour set** under the
+same name (7 levels per channel against the shipped 6), and was NOT overwritten:
+which of the two ships is Knut's call. `scripts/drive_i1pro_photocard_presets.py`
+drives the real window over all fifteen and photographs both the listing and the
+panel each one fills in.
 
 ### Rename or re-file an existing preset
 

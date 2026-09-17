@@ -1,12 +1,23 @@
-"""Knut's i1Pro PHOTO-CARD built-in presets (2026-09-09).
+"""Knut's i1Pro PHOTO-CARD built-in presets (2026-09-09, grown 2026-09-17).
 
-Two charts, on the two sheets a photo lab prints: 10 x 15 cm and 13 x 18 cm.
-His words, sending them:
+FIFTEEN charts, on the two sheets a photo lab prints: 10 x 15 cm and
+13 x 18 cm. His words, sending the first two:
 
     *"Here are both the preset for the 10x15cm and 13x18cm charts. I had to
     adjust the margins a bit to assure space for starting and ending a strip
     reading. Thus the measurements are very slightly different from the
     original pharmacist presets."*
+
+THIRTEEN MORE ARRIVED ON 2026-09-17 (issue #182): *"I also created a few more
+presets to be added as built-in as the other built-in presets."* Eleven new
+patch counts on the same two cards, from 720 up to 1512, and with them the
+family's FIRST second cut — seven charts named "Maximised - No Clip-border",
+which are this same design with the clip band switched off and both side
+margins pulled in to 5 mm. That buys two more columns on the small card and
+four on the large one at the same patch width. `_I1_PHOTO_MAXIMISED` is what
+`maximised=True` stands for, and the tests below pin that it stands for those
+two fields and nothing else: a cut that quietly carried a margin as well would
+re-cut charts nobody looked at.
 
 They stand BESIDE the two "by Pharmacist" photo cards under the same i1Pro
 heading and replace neither: those are prebuilt files copied into the run, these
@@ -14,14 +25,18 @@ are laid out by the ChromIQ engine with his wider margins.
 
 WHAT THESE TESTS ARE FOR. A shared base recipe changes every chart that hangs
 off it at once and silently, and this change added a THIRD i1Pro base beside two
-that carry nineteen shipping charts each. So three things are pinned here:
+that carry nineteen shipping charts each. So these things are pinned here:
 
  1. ``_I1_PHOTO_BASE`` differs from ``_I1_BASE`` in exactly ten fields and holds
-    no margin at all (the two cards share no sheet-scaled number, so there is
+    no margin at all (no two cards share a sheet-scaled number, so there is
     nothing honest to inherit and ``_i1_photo_preset`` requires all five);
  2. ``_I1_BASE`` and ``_I1_75_BASE`` still say what they said, in each of those
     ten fields, so this family cannot have been folded into either;
- 3. both charts are actually BUILT and counted against the name each carries.
+ 3. ``_I1_PHOTO_MAXIMISED`` moves exactly two fields, and only the seven charts
+    whose NAME says so take it;
+ 4. every chart is registered, non-deletable, still has its bundled ``.ti1``
+    and its ``recipe.json`` sidecar on disk, and is actually BUILT and counted
+    against the name it carries.
 
 ONE NAME IS SHORT OF A TOKEN, AND IT IS KNUT'S. Every other chart in the app
 spells its orientation out; ``130x180mm-648p-3pages-w8.0mm`` does not. The sheet
@@ -46,17 +61,34 @@ from core.resource_path import resource_path  # noqa: E402
 from data.patch_db import INSTRUMENT_LABELS  # noqa: E402
 from ui.tabs.tab_chart import (  # noqa: E402
     _I1_75_BASE, _I1_BASE, _I1_PHOTO_BASE, _I1_PHOTO_CLIP_TEXT,
-    _I1_PHOTO_PER_SHEET, BUILTIN_PRESET_GROUPS, BUILTIN_PRESET_KEYS,
-    BUILTIN_PRESET_LABELS, KNUT_PRESETS, TabChart, builtin_preset_recipe,
+    _I1_PHOTO_MAXIMISED, _I1_PHOTO_PER_SHEET, BUILTIN_PRESET_GROUPS,
+    BUILTIN_PRESET_KEYS, BUILTIN_PRESET_LABELS, KNUT_PRESETS, TabChart,
+    builtin_preset_recipe,
 )
 
 PHOTO = [p for p in KNUT_PRESETS if p.slug.startswith("i1_photo_")]
 
+#: The tail his "Maximised" charts carry, verbatim. The NAME is the authority
+#: on which cut a chart takes: a row that took the cut without saying so in its
+#: name, or said so without taking it, is the fault these tests exist to catch.
+MAXIMISED_TAIL = "-Maximised-No Clip-border"
+
 #: Exactly the fields one chart of this family may set for itself: the sheet,
 #: the grid, and the five numbers that scale with the sheet. A photo card is a
 #: quarter of an A4 and the two cards are not even the same shape, so not one
-#: margin is shared between them.
+#: margin is shared between them. The two fields the "Maximised" cut moves are
+#: NOT here — they are a named cut, not a per-chart choice, which is what
+#: ``effective_base`` below expresses.
 OWN_FIELDS = {"paper", "area_cols", "area_rows", *_I1_PHOTO_PER_SHEET}
+
+
+def effective_base(preset) -> dict:
+    """The recipe this chart's row should have started from: the family base,
+    plus the "Maximised" cut where the chart's NAME says it takes it."""
+    base = dict(_I1_PHOTO_BASE)
+    if preset.name.endswith(MAXIMISED_TAIL):
+        base.update(_I1_PHOTO_MAXIMISED)
+    return base
 
 #: What the base moves away from ``_I1_BASE``, and all it moves. Ten fields,
 #: identical on both cards — a design, which is why it is a base and not a pair
@@ -77,25 +109,89 @@ BASE_DELTA = {
 
 _NAME_RE = re.compile(
     r"^(?P<sheet>\d+x\d+)mm-(?P<patches>\d+)p-(?P<pages>\d+)pages?-"
-    r"(?:(?P<orientation>Portrait|Landscape)-)?w(?P<width>[\d.]+)mm$")
+    r"(?:(?P<orientation>Portrait|Landscape)-)?w(?P<width>[\d.]+)mm"
+    r"(?P<maximised>-Maximised-No Clip-border)?$")
 
-#: What each name promises, transcribed from the two filenames Knut sent:
+#: What each name promises, transcribed from the fifteen filenames Knut sent:
 #: (paper code, patches, pages, patch width mm, orientation token or None).
 PROMISED = {
-    "100x150mm-600p-4pages-Portrait-w7.5mm": ("100x150", 600, 4, 7.5, "Portrait"),
-    "130x180mm-648p-3pages-w8.0mm":          ("130x180", 648, 3, 8.0, None),
+    "100x150mm-600p-4pages-Portrait-w7.5mm":
+        ("100x150", 600, 4, 7.5, "Portrait"),
+    "100x150mm-720p-4pages-Portrait-w7.5mm-Maximised-No Clip-border":
+        ("100x150", 720, 4, 7.5, "Portrait"),
+    "100x150mm-900p-6pages-Portrait-w7.5mm":
+        ("100x150", 900, 6, 7.5, "Portrait"),
+    "100x150mm-1080p-6pages-Portrait-w7.5mm-Maximised-No Clip-border":
+        ("100x150", 1080, 6, 7.5, "Portrait"),
+    "100x150mm-1200p-8pages-Portrait-w7.5mm":
+        ("100x150", 1200, 8, 7.5, "Portrait"),
+    "100x150mm-1260p-7pages-Portrait-w7.5mm-Maximised-No Clip-border":
+        ("100x150", 1260, 7, 7.5, "Portrait"),
+    "100x150mm-1440p-8pages-Portrait-w7.5mm-Maximised-No Clip-border":
+        ("100x150", 1440, 8, 7.5, "Portrait"),
+    "100x150mm-1500p-10pages-Portrait-w7.5mm":
+        ("100x150", 1500, 10, 7.5, "Portrait"),
+    "130x180mm-648p-3pages-w8.0mm":
+        ("130x180", 648, 3, 8.0, None),
+    "130x180mm-864p-3pages-Portrait-w7.5mm-Maximised-No Clip-border":
+        ("130x180", 864, 3, 7.5, "Portrait"),
+    "130x180mm-1080p-5pages-Portrait-w8.0mm":
+        ("130x180", 1080, 5, 8.0, "Portrait"),
+    "130x180mm-1152p-4pages-Portrait-w7.5mm-Maximised-No Clip-border":
+        ("130x180", 1152, 4, 7.5, "Portrait"),
+    "130x180mm-1296p-6pages-Portrait-w8.0mm":
+        ("130x180", 1296, 6, 8.0, "Portrait"),
+    "130x180mm-1440p-5pages-Portrait-w7.5mm-Maximised-No Clip-border":
+        ("130x180", 1440, 5, 7.5, "Portrait"),
+    "130x180mm-1512p-7pages-Portrait-w8.0mm":
+        ("130x180", 1512, 7, 8.0, "Portrait"),
 }
 
-#: The five sheet-scaled numbers, per card, exactly as his exports carry them.
+#: The five sheet-scaled numbers, per chart, exactly as his exports carry them.
 #: Spelled out here rather than read off the rows, so a row that drifts from
 #: what he sent cannot drift past this table too.
+#:
+#: Read down a column and the cut shows itself: every "Maximised" chart carries
+#: 5 mm on BOTH sides where a standard one carries the clip band's width on the
+#: left (19 or 26) and 5 or 7 on the right, and it still carries the band's
+#: width, because the band is off and the number is unused.
+_SMALL = dict(margin_top=17.0, margin_bottom=13.0, clip_border_width_mm=19.0)
+_LARGE = dict(margin_top=19.5, margin_bottom=13.5, clip_border_width_mm=26.0)
+_SMALL_SIDES = dict(margin_left=19.0, margin_right=5.0)
+_LARGE_SIDES = dict(margin_left=26.0, margin_right=7.0)
+_MAX_SIDES = dict(margin_left=5.0, margin_right=5.0)
+
 MARGINS = {
-    "100x150mm-600p-4pages-Portrait-w7.5mm": dict(
-        margin_top=17.0, margin_right=5.0, margin_bottom=13.0,
-        margin_left=19.0, clip_border_width_mm=19.0),
-    "130x180mm-648p-3pages-w8.0mm": dict(
-        margin_top=19.5, margin_right=7.0, margin_bottom=13.5,
-        margin_left=26.0, clip_border_width_mm=26.0),
+    "100x150mm-600p-4pages-Portrait-w7.5mm": {**_SMALL, **_SMALL_SIDES},
+    "100x150mm-720p-4pages-Portrait-w7.5mm-Maximised-No Clip-border":
+        {**_SMALL, **_MAX_SIDES},
+    "100x150mm-900p-6pages-Portrait-w7.5mm": {**_SMALL, **_SMALL_SIDES},
+    "100x150mm-1080p-6pages-Portrait-w7.5mm-Maximised-No Clip-border":
+        {**_SMALL, **_MAX_SIDES},
+    "100x150mm-1200p-8pages-Portrait-w7.5mm": {**_SMALL, **_SMALL_SIDES},
+    "100x150mm-1260p-7pages-Portrait-w7.5mm-Maximised-No Clip-border":
+        {**_SMALL, **_MAX_SIDES},
+    "100x150mm-1440p-8pages-Portrait-w7.5mm-Maximised-No Clip-border":
+        {**_SMALL, **_MAX_SIDES},
+    "100x150mm-1500p-10pages-Portrait-w7.5mm": {**_SMALL, **_SMALL_SIDES},
+    "130x180mm-648p-3pages-w8.0mm": {**_LARGE, **_LARGE_SIDES},
+    "130x180mm-864p-3pages-Portrait-w7.5mm-Maximised-No Clip-border":
+        {**_LARGE, **_MAX_SIDES},
+    "130x180mm-1080p-5pages-Portrait-w8.0mm": {**_LARGE, **_LARGE_SIDES},
+    "130x180mm-1152p-4pages-Portrait-w7.5mm-Maximised-No Clip-border":
+        {**_LARGE, **_MAX_SIDES},
+    "130x180mm-1296p-6pages-Portrait-w8.0mm": {**_LARGE, **_LARGE_SIDES},
+    "130x180mm-1440p-5pages-Portrait-w7.5mm-Maximised-No Clip-border":
+        {**_LARGE, **_MAX_SIDES},
+    "130x180mm-1512p-7pages-Portrait-w8.0mm": {**_LARGE, **_LARGE_SIDES},
+}
+
+#: The grid each chart lays its patches out on, transcribed from his exports.
+#: This is where the "Maximised" cut is worth the paper: the same card, the
+#: same patch width, two more columns on the small one and four on the large.
+GRID = {
+    "100x150": {False: (10, 15), True: (12, 15)},
+    "130x180": {False: (12, 18), True: (16, 18)},
 }
 
 
@@ -103,12 +199,43 @@ MARGINS = {
 # Registered, and filed with the other i1Pro charts
 # ---------------------------------------------------------------------------
 
-def test_both_charts_registered():
-    assert len(PHOTO) == 2
-    assert len({p.slug for p in PHOTO}) == 2         # slugs are the identity
+def test_every_chart_registered():
+    """EXACT, deliberately. A preset that goes missing — a row deleted, a slug
+    renamed, an asset folder lost — is invisible in a dropdown of 173 entries
+    and would reach a user as "the chart I had is gone". The count and the
+    names are both pinned so it cannot happen quietly."""
+    assert len(PHOTO) == 15
+    assert len({p.slug for p in PHOTO}) == 15        # slugs are the identity
     assert {p.name for p in PHOTO} == set(PROMISED)
     assert all(p.key in BUILTIN_PRESET_KEYS for p in PHOTO)
     assert all(p.combo_label in BUILTIN_PRESET_LABELS for p in PHOTO)
+
+
+def test_the_cut_is_taken_by_exactly_the_charts_whose_name_says_so():
+    """Seven of the fifteen are "Maximised - No Clip-border", and the name is
+    the promise: the band is off on exactly those, and on on the other eight."""
+    named = {p.name for p in PHOTO if p.name.endswith(MAXIMISED_TAIL)}
+    assert len(named) == 7
+    for p in PHOTO:
+        off = p.layout_recipe["clip_border"] is False
+        assert off == (p.name in named), (
+            f"{p.name}: the name and the clip band disagree")
+
+
+def test_no_chart_of_this_family_can_be_deleted(tab):
+    """A built-in is protected by its KEY being in ``BUILTIN_PRESET_KEYS``, and
+    the Delete button reads exactly that. Driven through the real combo rather
+    than asserted on the set, so a preset that reached the dropdown by some
+    other door would still be caught."""
+    combo = tab._preset_combo
+    keys = {p.key for p in PHOTO}
+    seen = set()
+    for i in range(combo.count()):
+        data = combo.itemData(i)
+        if data in keys:
+            seen.add(data)
+            assert tab._is_deletable_preset(i) is False, combo.itemText(i)
+    assert seen == keys, f"not in the dropdown: {sorted(keys - seen)}"
 
 
 def test_keys_are_stable_sentinels():
@@ -136,10 +263,10 @@ def test_they_sit_beside_the_pharmacist_photo_cards():
     Pharmacist ones, which stay exactly as they are.
 
     All SEVEN Pharmacist rows are hard-coded at the head of the group and the
-    Knut rows are appended after them in ``_paper_sort_key`` order, so the two
+    Knut rows are appended after them in ``_paper_sort_key`` order, so the
     photo cards land at the head of the Knut block — before every A4 chart he
     ever exported. Both halves are pinned: the two prebuilt photo cards still
-    open the group, and the two new ones open the Knut block.
+    open the group, and all fifteen of his open the Knut block, unbroken.
     """
     entries = dict(BUILTIN_PRESET_GROUPS)[INSTRUMENT_LABELS["i1"]]
     overlays = [o for (_c, o, _k) in entries]
@@ -149,13 +276,18 @@ def test_they_sit_beside_the_pharmacist_photo_cards():
                             "13x18cm-648p-3pages by Pharmacist"]
     knut = {p.key for p in KNUT_PRESETS}
     first_knut = next(i for i, k in enumerate(keys) if k in knut)
-    assert overlays[first_knut:first_knut + 2] == [
-        "100x150mm-600p-4pages-Portrait-w7.5mm",
-        "130x180mm-648p-3pages-w8.0mm",
-    ]
+    photo = {p.key for p in PHOTO}
+    block = keys[first_knut:first_knut + len(PHOTO)]
+    assert set(block) == photo, "the photo cards no longer open the Knut block"
+    # The small card comes before the large one (the sort is area-based), and
+    # the very first of his is still the 600-patch chart he sent in September.
+    assert overlays[first_knut] == "100x150mm-600p-4pages-Portrait-w7.5mm"
+    assert [o[:7] for o in overlays[first_knut:first_knut + len(PHOTO)]] == (
+        ["100x150"] * 8 + ["130x180"] * 7)
     # …and every Knut chart after them is on a named sheet (A4 / Letter / A3),
     # so nothing of his is left stranded between the cards and the A4 block.
-    assert all(not o[0].isdigit() for o in overlays[first_knut + 2:])
+    assert all(not o[0].isdigit()
+               for o in overlays[first_knut + len(PHOTO):])
 
 
 def test_each_row_carries_the_full_layout_setup_marker():
@@ -230,14 +362,39 @@ def test_the_clip_note_is_shared_with_the_cr30_family_verbatim():
     assert "Top margin: 34 mm" in _I1_PHOTO_CLIP_TEXT
 
 
+def test_the_maximised_cut_moves_exactly_two_fields():
+    """What ``maximised=True`` stands for, stated once. The cut is the clip
+    band off and NOTHING else — the wider side margins those cards gain are two
+    of the five sheet-scaled numbers every row of this family already spells
+    out, so folding them in here would hide a per-card number inside a family
+    flag. That is precisely what ``_I1_PHOTO_PER_SHEET`` exists to prevent."""
+    assert _I1_PHOTO_MAXIMISED == {"clip_border": False,
+                                   "clip_content_mode": "off"}
+    # The base it is applied over says the opposite, so the cut really cuts.
+    assert _I1_PHOTO_BASE["clip_border"] is True
+    assert _I1_PHOTO_BASE["clip_content_mode"] == "notes"
+    assert not set(_I1_PHOTO_MAXIMISED) & set(_I1_PHOTO_PER_SHEET)
+
+
 @pytest.mark.parametrize("preset", PHOTO, ids=lambda p: p.slug)
 def test_recipe_differs_from_the_base_only_where_allowed(preset):
     rec = preset.layout_recipe
     assert rec is not None, "the family is engine-built, not printtarg"
+    base = effective_base(preset)
     assert set(rec) == set(_I1_PHOTO_BASE) | OWN_FIELDS
-    for field in set(_I1_PHOTO_BASE) - OWN_FIELDS:
-        assert rec[field] == _I1_PHOTO_BASE[field], (
+    for field in set(base) - OWN_FIELDS:
+        assert rec[field] == base[field], (
             f"{preset.slug} changes {field}, which the family shares")
+
+
+@pytest.mark.parametrize("preset", PHOTO, ids=lambda p: p.slug)
+def test_each_chart_lays_out_on_the_grid_his_export_carries(preset):
+    """The grid is where the cut pays: same card, same patch width, two more
+    columns on the small card and four on the large one."""
+    cols, rows = GRID[preset.layout_recipe["paper"]][
+        preset.name.endswith(MAXIMISED_TAIL)]
+    assert (preset.layout_recipe["area_cols"],
+            preset.layout_recipe["area_rows"]) == (cols, rows)
 
 
 @pytest.mark.parametrize("preset", PHOTO, ids=lambda p: p.slug)
@@ -248,10 +405,14 @@ def test_each_card_carries_the_margins_knut_sent(preset):
 
 def test_the_two_cards_share_no_sheet_scaled_number():
     """Stated as a fact about the family, not just implied by the table above:
-    every one of the five really does differ, which is what makes ``always`` in
-    the importer the honest emitter for this batch."""
-    a, b = (MARGINS[p.name] for p in
-            sorted(PHOTO, key=lambda q: q.slug))
+    every one of the five really does differ between the two cards, which is
+    what makes ``always`` in the importer the honest emitter for this batch.
+
+    Compared on the STANDARD cut of each card, because that is the design the
+    base was measured against; the maximised cut deliberately puts 5 mm on both
+    sides of both cards, so two of the five agree there by construction."""
+    a = MARGINS["100x150mm-600p-4pages-Portrait-w7.5mm"]
+    b = MARGINS["130x180mm-648p-3pages-w8.0mm"]
     for field in _I1_PHOTO_PER_SHEET:
         assert a[field] != b[field], f"{field} agrees; it belongs in the base"
 
@@ -273,6 +434,7 @@ def test_name_matches_the_bundled_patch_set_and_the_grid(preset):
     assert int(m.group("pages")) == pages == preset.pages
     assert float(m.group("width")) == width == preset.patch_width_mm
     assert m.group("orientation") == orientation
+    assert bool(m.group("maximised")) == preset.name.endswith(MAXIMISED_TAIL)
 
     ti1 = resource_path(preset.ti1_asset)
     assert ti1.is_file(), f"missing {preset.ti1_asset}"
@@ -301,6 +463,29 @@ def test_the_13x18_name_carries_no_orientation_token_and_that_is_his():
     # …and the other one does spell it out, so this is one name, not a policy.
     other = next(q for q in PHOTO if q is not p)
     assert "Portrait" in other.name
+
+
+def test_every_chart_still_has_its_bundled_files_and_nothing_else_is_there():
+    """A preset whose ``.ti1`` is gone is a preset that builds nothing, and the
+    failure arrives at Generate time rather than at import time. Both halves are
+    pinned: every row has its two files under its own slug, and the asset folder
+    holds no leaf that no row points at (a rename that staged a second copy
+    would otherwise sit there unnoticed, shipped in the bundle)."""
+    leaves = set()
+    for p in PHOTO:
+        ti1 = resource_path(p.ti1_asset)
+        assert ti1.is_file(), f"{p.slug}: missing {p.ti1_asset}"
+        assert ti1.stat().st_size > 0, f"{p.slug}: empty .ti1"
+        sidecar = ti1.parent / "recipe.json"
+        assert sidecar.is_file(), f"{p.slug}: missing recipe.json"
+        assert ti1.parent.name == p.slug, (
+            f"{p.slug}: the asset folder is named {ti1.parent.name!r}")
+        leaves.add(ti1.parent)
+    root = next(iter(leaves)).parent
+    on_disk = {d for d in root.iterdir() if d.is_dir()}
+    assert on_disk == leaves, (
+        f"asset folders no row points at: "
+        f"{sorted(d.name for d in on_disk - leaves)}")
 
 
 @pytest.mark.parametrize("preset", PHOTO, ids=lambda p: p.slug)
@@ -339,6 +524,22 @@ def test_tooltip_describes_an_engine_chart_on_the_card_it_is_cut_for():
     assert "helper marks" in tip
     # It IS a strip reader, so the run-up wording is the right one here.
     assert "run-up" in tip
+
+
+def test_a_maximised_chart_is_not_promised_a_band_it_does_not_print():
+    """The shared engine tooltip describes the wide band as "the run-up your
+    instrument needs before the first patch". A "Maximised - No Clip-border"
+    chart prints no band at all, so that sentence would be a promise the sheet
+    does not keep. It is already gated on the band being on; pinned here,
+    because this family is the first to ship a chart with it off."""
+    off = next(p for p in PHOTO if p.name.endswith(MAXIMISED_TAIL))
+    tip = TabChart._knut_tooltip(off.key)
+    assert "run-up" not in tip
+    assert "band" not in tip
+    # …and it still says the things that ARE true of it.
+    assert "cannot be deleted" in tip
+    assert f"{off.patches}-patch" in tip and "i1Pro" in tip
+    assert off.layout_recipe["paper"] in tip
 
 
 @pytest.fixture(scope="module")

@@ -79,6 +79,16 @@ class Overlay:
     keyword: str             # the helper's boolean keyword argument
     discriminator: str       # recipe field whose truth selects this cut
     delta: dict              # what the cut sets on top of the family base
+    #: What the discriminator has to SAY for the cut to apply. ``None`` is the
+    #: original rule: any truthy value takes it, which is what a cut named by a
+    #: flag (``hflag``) wants.
+    #:
+    #: A cut is not always an extra flag, though. The i1Pro photo cards'
+    #: "Maximised - No Clip-border" charts are the family's standard cut with
+    #: the clip band switched OFF, so what picks them out is ``clip_border``
+    #: being **False** — and False is exactly what the truthy rule cannot ask
+    #: about. Naming the value here asks the question directly.
+    when: object = None
 
 
 @dataclass(frozen=True)
@@ -188,15 +198,31 @@ FAMILIES: dict[str, Family] = {
     # width (19 mm on the 10 x 15, 26 on the 13 x 18). None of them is shared,
     # so `always` makes both rows state all five rather than letting whichever
     # file sorts first define a "base" nobody authored.
+    #
+    # THIRTEEN MORE CARDS, AND A SECOND CUT (Knut, 2026-09-17, issue #182).
+    # He sent the whole photo-card line-up again: the two above plus eleven
+    # new counts on the same two sheets, from 720 patches up to 1512. Half of
+    # them are named "Maximised - No Clip-border" and are exactly that — the
+    # same design with the clip band switched off and both side margins pulled
+    # in to 5 mm, which buys two more columns per sheet. So the family grew an
+    # `overlay` the way the CR30 one did, with one difference: the cut is
+    # picked out by `clip_border` being FALSE, which the truthy test cannot
+    # ask about. See `Overlay.when`.
     "i1photo": Family(
         key="i1photo", label="i1Pro (photo card)", prefix="i1Pro-",
         slug_prefix="i1_photo_", instrument="i1", dest=ASSETS / "i1prophoto",
         varying=frozenset({"paper", "area_cols", "area_rows",
                            "margin_top", "margin_bottom", "margin_left",
-                           "margin_right", "clip_border_width_mm"}),
+                           "margin_right", "clip_border_width_mm",
+                           "clip_border", "clip_content_mode"}),
         always=frozenset({"margin_top", "margin_bottom", "margin_left",
                           "margin_right", "clip_border_width_mm"}),
         helper="_i1_photo_preset",
+        overlays=(
+            Overlay("maximised", "clip_border", {
+                "clip_border": False, "clip_content_mode": "off",
+            }, when=False),
+        ),
     ),
     # The CR30 line-up (2026-09-06). Knut's charts for the ChnSpec CR30, cut
     # down by Basti to the twenty worth shipping: ten on A4, ten on US Letter,
@@ -475,6 +501,16 @@ def normalise_recipe(editor: dict, layout: dict, fam: Family,
     return out, notes
 
 
+def _takes(recipe: dict, ov: Overlay) -> bool:
+    """Does *recipe* belong to the cut *ov* names?
+
+    ``when is None`` keeps the original truthy test; a stated ``when`` is
+    compared for equality, so a cut can be picked out by a field being False.
+    """
+    got = recipe.get(ov.discriminator)
+    return got == ov.when if ov.when is not None else bool(got)
+
+
 def emit_rows(rows: list[dict], fam: Family, base: dict) -> str:
     """The ``_Ti1Preset`` rows, ready to paste into tab_chart.py.
 
@@ -495,13 +531,14 @@ def emit_rows(rows: list[dict], fam: Family, base: dict) -> str:
         # against what the cut already implies. Where two cuts both answer,
         # each one's fields are applied in turn and only the LAST is named --
         # the later cut refines the earlier and its keyword implies it.
-        taken = [ov for ov in fam.overlays if recipe.get(ov.discriminator)]
+        taken = [ov for ov in fam.overlays if _takes(recipe, ov)]
         for ov in taken:
             effective.update(ov.delta)
         if taken:
             extra += f", {taken[-1].keyword}=True"
         for field in ("margin_left", "margin_top", "margin_right",
                       "margin_bottom", "clip_border_width_mm",
+                      "clip_border", "clip_content_mode",
                       "text_edge_top_mm", "area_min_patch_mm", "hflag",
                       "hex_flat_top", "indicator_size_mm"):
             if field not in fam.varying or field in positional:
@@ -616,7 +653,16 @@ def main() -> int:
         print("  (dry run — pass --write to copy the assets into place)")
 
     print("\n--- rows for KNUT_PRESETS ---\n")
-    print(emit_rows(rows, fam, base))
+    # EMITTED AGAINST THE SHIPPED BASE, not this batch's first file. The rows
+    # are pasted into `tab_chart.py`, where the base is the one that family
+    # already ships — so "say a field only where it differs" has to mean
+    # different from THAT. A batch whose first file happens to be an unusual
+    # cut (the photo cards' first file alphabetically is a "Maximised - No
+    # Clip-border" one) would otherwise make every ordinary chart spell out
+    # fields it actually inherits, and the odd ones spell out nothing.
+    # A brand-new family has no shipped base and falls back to the batch's,
+    # exactly as before.
+    print(emit_rows(rows, fam, shipped or base))
     return 0
 
 

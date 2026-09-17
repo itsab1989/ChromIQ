@@ -30,10 +30,13 @@ def test_the_marker_counts_are_what_the_registry_holds():
     # margins), each shipping a recipe.json sidecar, so the marked count moves.
     # 2026-09-12: +6 CR30 straight-strip charts, the honeycomb turned 30
     # degrees; each ships a recipe.json sidecar, so again only marked moves.
-    assert len(tc.BUILTIN_PRESET_KEYS) == 160
+    # 2026-09-17 (issue #182): +13 engine-built photo cards by Knut, eleven new
+    # patch counts on the same two cards plus the "Maximised - No Clip-border"
+    # cut; each ships a recipe.json sidecar, so only the marked count moves.
+    assert len(tc.BUILTIN_PRESET_KEYS) == 173
     assert len(tc.PREBUILT_PRESETS) == 11       # the "by Pharmacist" rows
-    assert (len(marked), len(unmarked)) == (143, 6)
-    assert len(marked) + len(unmarked) + len(tc.PREBUILT_PRESETS) == 160
+    assert (len(marked), len(unmarked)) == (156, 6)
+    assert len(marked) + len(unmarked) + len(tc.PREBUILT_PRESETS) == 173
 
 
 def test_no_red_river_row_carries_the_marker():

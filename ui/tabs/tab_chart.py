@@ -1824,18 +1824,60 @@ _I1_PHOTO_BASE: dict = {
 }
 
 
+#: The "Maximised - No Clip-border" CUT of the photo-card family (Knut,
+#: 2026-09-17, issue #182). Seven of his thirteen new cards carry it, and every
+#: one of them moves the same two fields together, so the shape has a name and a
+#: row says `maximised=True` instead of spelling them out. It is the same
+#: mechanism `_CR30_HEX` is, and it is named after what HIS chart names call it.
+#:
+#: WHAT IT BUYS, AND WHAT IT COSTS. The clip band down the left is the run-up an
+#: i1Pro needs before it reaches the first patch, and it carries the automatic
+#: notes box. Switching it off hands that width back to the patch area: on the
+#: 10 x 15 cm card the grid goes from 10 columns to 12, on the 13 x 18 from 12
+#: to 16, at the same patch width. So a "Maximised" chart fits half again as
+#: many patches on the same card — and asks the person reading it to start each
+#: strip off the paper rather than on a printed run-up.
+#:
+#: THE TWO SIDE MARGINS MOVE WITH IT, and they are NOT in here: they are two of
+#: the five sheet-scaled numbers every row of this family already spells out
+#: (5 mm each side on a maximised card, against 19/5 and 26/7 on the standard
+#: ones). Folding them in would hide a per-card number inside a family flag,
+#: which is the thing `_I1_PHOTO_PER_SHEET` exists to prevent.
+#:
+#: `clip_border_width_mm` is left at the card's own value rather than zeroed:
+#: the band is off, so the number is unused, and carrying it keeps every row of
+#: a card saying the same five numbers. It is what his exports carry too.
+_I1_PHOTO_MAXIMISED: dict = {
+    "clip_border": False, "clip_content_mode": "off",
+}
+
+
 def _i1_photo_preset(slug: str, name: str, paper: str, cols: int, rows: int,
                      patches: int, pages: int, white: int, black: int, *,
                      margin_top: float, margin_right: float,
                      margin_bottom: float, margin_left: float,
-                     clip_border_width_mm: float) -> "_Ti1Preset":
+                     clip_border_width_mm: float,
+                     maximised: bool = False) -> "_Ti1Preset":
     """One chart of Knut's i1Pro photo-card family (see :data:`_I1_PHOTO_BASE`).
 
     Shaped like :func:`_i1_preset`, with one difference that is the point of
     the family: the five sheet-scaled numbers are REQUIRED, not optional. The
     base holds no margin at all, so there is nothing to fall back to and a row
     cannot quietly inherit an A4 jig's margins onto a 10 x 15 cm card.
+
+    ``maximised`` picks the cut of the family named in :data:`_I1_PHOTO_MAXIMISED`
+    — the clip band off and nothing else — which is what his
+    "Maximised - No Clip-border" charts are. The wider side margins those cards
+    gain are still stated on the row, like every other sheet-scaled number.
     """
+    recipe = dict(_I1_PHOTO_BASE, paper=paper, area_cols=cols,
+                  area_rows=rows, margin_top=margin_top,
+                  margin_right=margin_right,
+                  margin_bottom=margin_bottom,
+                  margin_left=margin_left,
+                  clip_border_width_mm=clip_border_width_mm)
+    if maximised:
+        recipe.update(_I1_PHOTO_MAXIMISED)
     return _Ti1Preset(
         slug, name, _KNUT_I1, paper,
         1.0,        # printtarg -a: unused, the engine lays this family out
@@ -1844,12 +1886,7 @@ def _i1_photo_preset(slug: str, name: str, paper: str, cols: int, rows: int,
         ti1_asset=f"{_I1_PHOTO_DIR}/{slug}/chart.ti1",
         patches=patches, white=white, black=black,
         tiff_16bit=False, suffix="",
-        layout_recipe=dict(_I1_PHOTO_BASE, paper=paper, area_cols=cols,
-                           area_rows=rows, margin_top=margin_top,
-                           margin_right=margin_right,
-                           margin_bottom=margin_bottom,
-                           margin_left=margin_left,
-                           clip_border_width_mm=clip_border_width_mm),
+        layout_recipe=recipe,
     )
 
 
@@ -2343,6 +2380,87 @@ KNUT_PRESETS: list[_Ti1Preset] = [
     _i1_photo_preset("i1_photo_130x180mm_648p_3pages_w8_0mm",
                      "130x180mm-648p-3pages-w8.0mm",
                      "130x180", 12, 18, 648, 3, 1, 1,
+                     margin_left=26.0, margin_top=19.5, margin_right=7.0,
+                     margin_bottom=13.5, clip_border_width_mm=26.0),
+
+    # ELEVEN MORE COUNTS AND A SECOND CUT (Knut, 2026-09-17, issue #182).
+    # He sent the photo-card line-up again, grown from two charts to fifteen:
+    # the same two cards at patch counts from 720 to 1512, so a photo lab's own
+    # paper can carry a small chart or a serious one. Nothing in the family's
+    # design moved; these are the same base, the same margins per card, and the
+    # same colour sets re-cut to a bigger count.
+    #
+    # Seven of them are "Maximised - No Clip-border": the clip band off and both
+    # side margins at 5 mm, which buys two columns on the 10 x 15 card and four
+    # on the 13 x 18. See _I1_PHOTO_MAXIMISED for what `maximised=True` stands
+    # for — and note the side margins are NOT in it, because they are two of the
+    # five sheet-scaled numbers every row of this family spells out anyway.
+    #
+    # Rows generated by
+    #   python scripts/import_knut_presets.py i1photo <folder> --write
+    _i1_photo_preset("i1_photo_100x150mm_720p_4pages_portrait_w7_5mm_maximised_no_clip_border",
+                     "100x150mm-720p-4pages-Portrait-w7.5mm-Maximised-No Clip-border",
+                     "100x150", 12, 15, 720, 4, 1, 1, maximised=True,
+                     margin_left=5.0, margin_top=17.0, margin_right=5.0,
+                     margin_bottom=13.0, clip_border_width_mm=19.0),
+    _i1_photo_preset("i1_photo_100x150mm_900p_6pages_portrait_w7_5mm",
+                     "100x150mm-900p-6pages-Portrait-w7.5mm",
+                     "100x150", 10, 15, 900, 6, 2, 2,
+                     margin_left=19.0, margin_top=17.0, margin_right=5.0,
+                     margin_bottom=13.0, clip_border_width_mm=19.0),
+    _i1_photo_preset("i1_photo_100x150mm_1080p_6pages_portrait_w7_5mm_maximised_no_clip_border",
+                     "100x150mm-1080p-6pages-Portrait-w7.5mm-Maximised-No Clip-border",
+                     "100x150", 12, 15, 1080, 6, 2, 2, maximised=True,
+                     margin_left=5.0, margin_top=17.0, margin_right=5.0,
+                     margin_bottom=13.0, clip_border_width_mm=19.0),
+    _i1_photo_preset("i1_photo_100x150mm_1200p_8pages_portrait_w7_5mm",
+                     "100x150mm-1200p-8pages-Portrait-w7.5mm",
+                     "100x150", 10, 15, 1200, 8, 2, 2,
+                     margin_left=19.0, margin_top=17.0, margin_right=5.0,
+                     margin_bottom=13.0, clip_border_width_mm=19.0),
+    _i1_photo_preset("i1_photo_100x150mm_1260p_7pages_portrait_w7_5mm_maximised_no_clip_border",
+                     "100x150mm-1260p-7pages-Portrait-w7.5mm-Maximised-No Clip-border",
+                     "100x150", 12, 15, 1260, 7, 1, 1, maximised=True,
+                     margin_left=5.0, margin_top=17.0, margin_right=5.0,
+                     margin_bottom=13.0, clip_border_width_mm=19.0),
+    _i1_photo_preset("i1_photo_100x150mm_1440p_8pages_portrait_w7_5mm_maximised_no_clip_border",
+                     "100x150mm-1440p-8pages-Portrait-w7.5mm-Maximised-No Clip-border",
+                     "100x150", 12, 15, 1440, 8, 2, 2, maximised=True,
+                     margin_left=5.0, margin_top=17.0, margin_right=5.0,
+                     margin_bottom=13.0, clip_border_width_mm=19.0),
+    _i1_photo_preset("i1_photo_100x150mm_1500p_10pages_portrait_w7_5mm",
+                     "100x150mm-1500p-10pages-Portrait-w7.5mm",
+                     "100x150", 10, 15, 1500, 10, 2, 2,
+                     margin_left=19.0, margin_top=17.0, margin_right=5.0,
+                     margin_bottom=13.0, clip_border_width_mm=19.0),
+    _i1_photo_preset("i1_photo_130x180mm_864p_3pages_portrait_w7_5mm_maximised_no_clip_border",
+                     "130x180mm-864p-3pages-Portrait-w7.5mm-Maximised-No Clip-border",
+                     "130x180", 16, 18, 864, 3, 1, 1, maximised=True,
+                     margin_left=5.0, margin_top=19.5, margin_right=5.0,
+                     margin_bottom=13.5, clip_border_width_mm=26.0),
+    _i1_photo_preset("i1_photo_130x180mm_1080p_5pages_portrait_w8_0mm",
+                     "130x180mm-1080p-5pages-Portrait-w8.0mm",
+                     "130x180", 12, 18, 1080, 5, 2, 2,
+                     margin_left=26.0, margin_top=19.5, margin_right=7.0,
+                     margin_bottom=13.5, clip_border_width_mm=26.0),
+    _i1_photo_preset("i1_photo_130x180mm_1152p_4pages_portrait_w7_5mm_maximised_no_clip_border",
+                     "130x180mm-1152p-4pages-Portrait-w7.5mm-Maximised-No Clip-border",
+                     "130x180", 16, 18, 1152, 4, 2, 2, maximised=True,
+                     margin_left=5.0, margin_top=19.5, margin_right=5.0,
+                     margin_bottom=13.5, clip_border_width_mm=26.0),
+    _i1_photo_preset("i1_photo_130x180mm_1296p_6pages_portrait_w8_0mm",
+                     "130x180mm-1296p-6pages-Portrait-w8.0mm",
+                     "130x180", 12, 18, 1296, 6, 1, 1,
+                     margin_left=26.0, margin_top=19.5, margin_right=7.0,
+                     margin_bottom=13.5, clip_border_width_mm=26.0),
+    _i1_photo_preset("i1_photo_130x180mm_1440p_5pages_portrait_w7_5mm_maximised_no_clip_border",
+                     "130x180mm-1440p-5pages-Portrait-w7.5mm-Maximised-No Clip-border",
+                     "130x180", 16, 18, 1440, 5, 2, 2, maximised=True,
+                     margin_left=5.0, margin_top=19.5, margin_right=5.0,
+                     margin_bottom=13.5, clip_border_width_mm=26.0),
+    _i1_photo_preset("i1_photo_130x180mm_1512p_7pages_portrait_w8_0mm",
+                     "130x180mm-1512p-7pages-Portrait-w8.0mm",
+                     "130x180", 12, 18, 1512, 7, 2, 2,
                      margin_left=26.0, margin_top=19.5, margin_right=7.0,
                      margin_bottom=13.5, clip_border_width_mm=26.0),
 
