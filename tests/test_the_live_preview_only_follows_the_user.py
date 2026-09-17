@@ -91,13 +91,23 @@ def _renders(tab, monkeypatch) -> list:
     import workflow.chart_integrity as ci
 
     calls: list = []
-    monkeypatch.setattr(type(tab), "_generate_from_ti1",
-                        lambda self, ti1, ask=True, preview=False: calls.append(ti1))
-    monkeypatch.setattr(type(tab), "_current_mode", lambda self: "manual")
-    monkeypatch.setattr(type(tab), "_chart_build_in_flight", lambda self: False)
+    # THIS INSTANCE, NOT THE CLASS. A class patch reaches every TabChart alive
+    # in the process, and other test files leave one with its 450 ms
+    # auto-preview timer armed. That timer firing here would append a render
+    # nobody asked for and break the counts below, or raise into the Qt event
+    # loop from a stub meant for this tab alone. Twice in `--runslow` gates on
+    # 2026-09-17 that is exactly what happened, in the two tests further down
+    # whose stubs throw.
+    monkeypatch.setattr(tab, "_generate_from_ti1",
+                        lambda ti1, ask=True, preview=False: calls.append(ti1),
+                        raising=False)
+    monkeypatch.setattr(tab, "_current_mode", lambda: "manual", raising=False)
+    monkeypatch.setattr(tab, "_chart_build_in_flight", lambda: False,
+                        raising=False)
     monkeypatch.setattr(tc, "_is_named", lambda _fm: True)
-    monkeypatch.setattr(type(tab), "_target_run", lambda self: None)
-    monkeypatch.setattr(type(tab), "_is_verification_target", lambda self: False)
+    monkeypatch.setattr(tab, "_target_run", lambda: None, raising=False)
+    monkeypatch.setattr(tab, "_is_verification_target", lambda: False,
+                        raising=False)
     monkeypatch.setattr(ci, "assess_profiling_chart",
                         lambda _run: type("A", (), {"warn": False})())
     return calls
@@ -161,10 +171,11 @@ def test_the_transfer_really_does_arm_the_timer(tab, monkeypatch):
     Neutralise the two lines of the fix — the cancel, and a re-baseline that can
     ever match — and the timer must be running.
     """
-    monkeypatch.setattr(type(tab), "_cancel_pending_auto_preview", lambda self: None)
+    monkeypatch.setattr(tab, "_cancel_pending_auto_preview", lambda: None,
+                        raising=False)
     counter = iter(range(1_000_000))
-    monkeypatch.setattr(type(tab), "_layout_signature",
-                        lambda self: f"unique-{next(counter)}")
+    monkeypatch.setattr(tab, "_layout_signature",
+                        lambda: f"unique-{next(counter)}", raising=False)
     tab._switch_mode("guided")
     tab._guided_transfer_pending = True
     tab._last_auto_sig = None
@@ -304,16 +315,28 @@ def test_the_settle_helper_disarms_and_rebaselines(tab):
 def test_settling_never_raises_out_of_its_caller(tab, monkeypatch):
     """It runs in a `finally` on paths the user is mid-way through. A failure
     here must not take down a preset load or a target switch."""
-    monkeypatch.setattr(type(tab), "_layout_signature",
-                        lambda self: (_ for _ in ()).throw(RuntimeError("boom")))
+    # THIS INSTANCE, NOT THE CLASS. Patching `type(tab)` replaces the method on
+    # every TabChart alive in the process, and other test files leave one with
+    # its 450 ms auto-preview timer armed. That timer then fires inside THIS
+    # test, `_auto_regenerate_preview` calls `_layout_signature`, and the
+    # RuntimeError below lands in the Qt event loop, where pytest-qt correctly
+    # fails whichever test is running. Seen twice in `--runslow` gates
+    # (2026-09-17), each time with the traceback naming the timer slot and not
+    # the call under test. Disarming this file's own fixture was not enough,
+    # because the leaked tab belongs to another file.
+    monkeypatch.setattr(tab, "_layout_signature",
+                        lambda: (_ for _ in ()).throw(RuntimeError("boom")),
+                        raising=False)
     tab._settle_live_preview()          # must not raise
 
 
 def test_resetting_manual_to_its_preset_arms_nothing(tab, monkeypatch):
     """Manual's "Reset" writes the whole panel from the stored preset. That is
     the app filling the widgets, not the user."""
-    monkeypatch.setattr(type(tab), "_current_layout_recipe",
-                        lambda self: (_ for _ in ()).throw(RuntimeError("no store")))
+    # This instance only, for the reason spelled out above.
+    monkeypatch.setattr(tab, "_current_layout_recipe",
+                        lambda: (_ for _ in ()).throw(RuntimeError("no store")),
+                        raising=False)
     _arm(tab)
     tab._reset_manual_to_preset()       # bails early — must NOT settle
     assert tab._auto_preview_timer.isActive(), (

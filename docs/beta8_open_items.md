@@ -12948,3 +12948,31 @@ that survives all five.
   whether or not it was ever the cause.
 - the same shape as the QApplication leak this project has already paid for:
   a fixture that leaves live Qt state behind fails a different test each run.
+
+### B8-303 · FIXED · A test patched a method on the CLASS, and another file's leaked timer walked into it
+- blocks release: no
+- status: FIXED
+- evidence: `test_settling_never_raises_out_of_its_caller`,
+  `test_resetting_manual_to_its_preset_arms_nothing`
+- found by: two red `--runslow` gates on 2026-09-17, hours apart, on trees that
+  were otherwise green three times each. Both said `CALL ERROR: Exceptions
+  caught in Qt event loop` with `RuntimeError("boom")`, and both tracebacks
+  named `tab_chart._auto_regenerate_preview`, a TIMER slot, not the call under
+  test.
+- **the mechanism, and the first fix was not enough.**
+  `_auto_regenerate_preview` calls `self._layout_signature()` as its FIRST
+  statement, with no gate in front of it, so any TabChart anywhere in the
+  process whose 450 ms auto-preview timer fires reaches that method
+  immediately. `tests/test_the_live_preview_only_follows_the_user.py` patched
+  it ON THE CLASS to raise, which turns a leaked timer on ANY tab into a
+  failure of whatever test is running. Disarming this file's own fixture
+  (B8-302) was right and did not fix it, because the leaked tab belongs to
+  another file.
+- **the fix:** patch the INSTANCE. A class patch can be reached by every
+  instance; an instance patch cannot be reached by any other. The same change
+  is applied to `_renders`, whose class-level stubs would otherwise have
+  recorded a render the test never asked for.
+- **honest limit:** not reproduced on demand, twice attempted. The argument is
+  structural rather than empirical, and it is the kind that does not need a
+  reproduction: after the change there is no path from another tab's timer to
+  this test's stub.
