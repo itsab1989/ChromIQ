@@ -1323,14 +1323,55 @@ _CR30_BASE: dict = {
 }
 
 # What the HEXAGONAL cut of this family changes, and all it changes. Eight of
-# the twenty charts take it, and every one of them moves these four fields
-# together — so the row says `hexagonal=True` once instead of spelling four
-# keyword arguments out, and a reviewer can read here what the flag buys.
+# the twenty charts take it, and every one of them moves these fields
+# together — so the row says `hexagonal=True` once instead of spelling them
+# out, and a reviewer can read here what the flag buys.
 # A hex chart that moves anything else (three of them pull the top and bottom
-# margins in further) still spells that out on its own row.
+# margins in further, two carry a larger label) still spells that out on its
+# own row.
+#
+# THREE OF THESE ARE KNUT'S, 2026-09-16, AND THEY GO TOGETHER. He asked for
+# them in one instruction, and each one is load-bearing for the next:
+#
+#   * **`indicator_size_mm` 3.88 = 11.0 pt, not "auto".** The Size box in
+#     "Strip and row indicators" is in POINTS (`layout_options_panel`'s
+#     `small_pt`, converted at the recipe boundary), so his "Set Size ... to
+#     value 11.0mm" is the 11.0 pt he names a paragraph earlier when he points
+#     at `CR30-Letter-396p…-Hexagonal-Straight` as the chart that already
+#     looks right — and that chart's recipe carries exactly this 3.88.
+#     Reproduced on screen before this was written: typing 11.0 into the box
+#     on `Letter-780p…-Hexagonal` takes the MEASURED left margin from
+#     14.224 mm to 13.081 mm, which is his "goes down from 14.1mm to 13.1mm".
+#   * **`margin_left` 13.0 → 14.0**, which is the second half of the same
+#     measurement. Releasing the margin gives area-first a wider box, and
+#     area-first fills a wider box with BIGGER patches for the same count, so
+#     at 13.0 the three Letter charts spill onto another sheet: measured,
+#     780p went to 3 pages at 375 per page. At 14.0 they are back to the
+#     patch count and page count their names promise.
+#   * **`helper_markers` OFF, because on these eight it was ticked and drew
+#     NOTHING.** A honeycomb can carry dashes on ONE axis only, and which one
+#     depends on the turn: a pointy-top comb (this cut) staggers every second
+#     ROW sideways, so top and bottom dashes would point at a seam and are
+#     greyed, leaving SIDES; the turned cut below staggers every second COLUMN
+#     and keeps top/bottom instead. `_CR30_BASE` asks for
+#     `helper_markers_top_bottom` and NOT `helper_markers_sides` -- so on these
+#     eight the one axis that was asked for is the one that is greyed out, and
+#     the only axis that could print was switched off. A ticked checkbox, two
+#     dead sub-options, no dashes on the sheet. His words: *"for the presets
+#     that only end with 'Hexagonal' in its name should have the 'Print helper
+#     markers' checkbox turned OFF"*.
+#     It is not cosmetic either: with the markers on, the strip letters are
+#     held 7.0 mm from the paper edge by the markers' own reserve rather than
+#     by the 4.0 mm "T" below, and that is what fired a strip-letter overlap
+#     notice on five of these eight. Measured before and after.
+#
+# The STRAIGHT cut below turns the markers back ON and keeps its own margin,
+# because a flat-top honeycomb CAN carry top and bottom markers and does.
 _CR30_HEX: dict = {
-    "hflag": True, "margin_left": 13.0, "margin_top": 13.0,
+    "hflag": True, "margin_left": 14.0, "margin_top": 13.0,
     "margin_bottom": 13.0, "text_edge_top_mm": 4.0,
+    "indicator_size_mm": 3.88,           # 11.0 pt
+    "helper_markers": False,
 }
 
 # The STRAIGHT-STRIPS cut of the same family: the honeycomb turned 30 degrees,
@@ -1343,10 +1384,18 @@ _CR30_HEX: dict = {
 # control already says so: `layout_options_panel.py` labels the checkbox
 # "Straight strips (turn the honeycomb 30°)". The preset names follow the
 # control rather than the file names, and he was told rather than asked.
+#
+# `helper_markers` IS SPELLED OUT HERE, and it has to be. The straight cut
+# applies `_CR30_HEX` first and then itself, so the False that cut now carries
+# would reach these six as well — and these six are the ones whose markers a
+# tester can SEE on the preview and asked to keep. Turning it back on is not a
+# redundant line; dropping it takes the markers off `Hexagonal-Straight`, which
+# is the exact opposite of what was asked.
 _CR30_STRAIGHT: dict = {
     "hflag": True, "hex_flat_top": True,
     "margin_left": 11.0, "margin_top": 11.0, "margin_bottom": 6.0,
-    "text_edge_top_mm": 7.0, "indicator_size_mm": 3.88,
+    "text_edge_top_mm": 7.0, "indicator_size_mm": 3.88,   # 11.0 pt
+    "helper_markers": True,
 }
 
 
@@ -1837,14 +1886,22 @@ def _cr30_preset(slug: str, name: str, paper: str, cols: int, rows: int,
                  straight: bool = False,
                  margin_top: float | None = None,
                  margin_bottom: float | None = None,
+                 indicator_size_pt: float | None = None,
                  area_min_patch_mm: float = 0.0) -> "_Ti1Preset":
     """One chart of Knut's CR30 family (see _CR30_BASE above).
 
     The sheet and the grid are always this chart's own. ``hexagonal`` picks the
-    hex CUT of the family, which is the four fields in ``_CR30_HEX`` and nothing
-    else; ``margin_top`` / ``margin_bottom`` / ``area_min_patch_mm`` are the
-    only fields a single chart may then still move for itself, and each one is
-    written out on the row that moves it. Everything else comes from the shared
+    hex CUT of the family, which is the fields in ``_CR30_HEX`` and nothing
+    else; ``margin_top`` / ``margin_bottom`` / ``indicator_size_pt`` /
+    ``area_min_patch_mm`` are the only fields a single chart may then still
+    move for itself, and each one is written out on the row that moves it.
+
+    ``indicator_size_pt`` IS IN POINTS, like the Size box it feeds, and the
+    recipe stores millimetres. It exists because the two low-patch hexagonal
+    charts carry a bigger label than their six siblings (Knut, 2026-09-16:
+    *"with exception of the two low patch presets with 153 and 170 patches"*),
+    and writing 6.35 on those rows would leave a reader with no way to tell
+    which unit the number is in. Everything else comes from the shared
     base, so two charts of this family differ in what their rows say and in
     nothing more.
 
@@ -1869,6 +1926,13 @@ def _cr30_preset(slug: str, name: str, paper: str, cols: int, rows: int,
         recipe["margin_top"] = margin_top
     if margin_bottom is not None:
         recipe["margin_bottom"] = margin_bottom
+    if indicator_size_pt is not None:
+        # IMPORTED HERE, not at module scope: `text_edge_fit` is reached that
+        # way everywhere else in this file (see `_engine_text_notes`), and
+        # these rows are built at import time.
+        from workflow import text_edge_fit as _tef
+        recipe["indicator_size_mm"] = round(
+            _tef.pt_to_mm(indicator_size_pt), 2)
     return _Ti1Preset(
         slug, name, "CR30", paper,
         1.0,        # printtarg -a: unused, the engine lays this family out
@@ -2293,7 +2357,8 @@ KNUT_PRESETS: list[_Ti1Preset] = [
                  "A4", 7, 11, 77, 1, 1, 1),
     _cr30_preset("cr30_a4_153p_1page_portrait_w18_0mm_hexagonal",
                  "A4-153p-1page-Portrait-w18.0mm-Hexagonal",
-                 "A4", 9, 17, 153, 1, 1, 1, hexagonal=True, area_min_patch_mm=17.5),
+                 "A4", 9, 17, 153, 1, 1, 1, hexagonal=True,
+                 indicator_size_pt=18.0, area_min_patch_mm=17.5),
     _cr30_preset("cr30_a4_160p_1page_portrait_w17_0mm",
                  "A4-160p-1page-Portrait-w17.0mm",
                  "A4", 10, 16, 160, 1, 1, 1),
@@ -2335,7 +2400,12 @@ KNUT_PRESETS: list[_Ti1Preset] = [
                  "Letter", 10, 15, 150, 1, 1, 1),
     _cr30_preset("cr30_letter_170p_1page_portrait_w16_0mm_hexagonal",
                  "Letter-170p-1page-Portrait-w16.0mm-Hexagonal",
-                 "Letter", 10, 17, 170, 1, 1, 1, hexagonal=True, area_min_patch_mm=16.5),
+                 # 18.0 pt, NOT 16.0: the "w16.0mm" in the name is the PATCH
+                 # width, and Knut named 18.0 for this chart and the 153p one
+                 # together. Taking the label size from the name instead would
+                 # be inventing a rule he did not state.
+                 "Letter", 10, 17, 170, 1, 1, 1, hexagonal=True,
+                 indicator_size_pt=18.0, area_min_patch_mm=16.5),
     _cr30_preset("cr30_letter_184p_1page_portrait_w11_0mm",
                  "Letter-184p-1page-Portrait-w11.0mm",
                  "Letter", 16, 23, 184, 1, 1, 1),
@@ -22129,7 +22199,7 @@ class TabChart(QWidget):
                         "so {over:.1f} mm of every letter is on the first row "
                         "of patches. Those patches carry letter ink and will "
                         "not measure correctly. Lower “Label offset” under "
-                        "“Strip letters only” by about {over:.1f} mm. In this "
+                        "“Strip indicators only” by about {over:.1f} mm. In this "
                         "layout “T” under “Text distance from edge (mm)” does "
                         "not move them, and a smaller label size lifts the "
                         "patch area with the letters, so neither one clears "
@@ -22217,7 +22287,7 @@ class TabChart(QWidget):
                             "{ink:.1f} mm, so {over:.1f} mm of them is on the "
                             "markers. With “Prioritise patch size” the letters "
                             "hang from the top margin. Raise “Label offset” "
-                            "under “Strip letters only” by about "
+                            "under “Strip indicators only” by about "
                             "{over:.1f} mm, or lower “Distance from page edge” "
                             "or “Marker length” under “Print helper markers”. "
                             "Raising “Top” under “Margins (mm)” also moves "
@@ -22234,7 +22304,7 @@ class TabChart(QWidget):
                             "down the page, the letters start at "
                             "{ink:.1f} mm, so {over:.1f} mm of them is on the "
                             "markers. Raise “Label offset” under “Strip "
-                            "letters only” by about {over:.1f} mm, or lower "
+                            "indicators only” by about {over:.1f} mm, or lower "
                             "“Distance from page edge” or “Marker length” "
                             "under “Print helper markers”.").format(
                                 reach=_mk.reach_mm, ink=_mk.ink_top_mm,

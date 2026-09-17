@@ -11149,12 +11149,19 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 
 ---
 
-### B8-265 · OPEN, for the design authority · "Size = auto" chooses a label size that fires its own left-margin warning, and the fix costs three presets a sheet
+### B8-265 · "Size = auto" chose a label size that fired its own left-margin warning · RULED AND SHIPPED
 - blocks release: no
-- status: OPEN
-- **reproduced, understood, built, measured and then HELD.** The geometry is
-  NOT changed. One question for the design authority, at the end.
-- **who decided what, for the record:** the checking round built this, measured its cost and HELD it on its own judgement; the maintainer agreed and confirmed the hold. **The ruling itself is the design authority's and is still outstanding**, asked on the issue with the measurement. A commit message first recorded the hold as the maintainer's decision, which overstated his part and risked reading as a closed question; that message has been corrected.
+- status: FIXED
+- **held for eleven days, then ruled on.** The design authority, 2026-09-16:
+  *"It is more important that the feature is correct, so make the fix for the
+  'Size = auto' choosing a label size that fits with the margins used."* So it
+  ships, and the reason it was held is gone: the cost was three Letter presets
+  needing a sheet more than their name promises, and **he removed that himself**
+  by specifying the preset changes in B8-280 rather than accepting it.
+- **who decided what, for the record:** the checking round built this, measured
+  its cost and HELD it on its own judgement; the maintainer agreed and confirmed
+  the hold; the ruling is the design authority's and is quoted above. Nothing
+  here was decided by the round that implemented it.
 - reported by a tester on beta 19, loading
   `CR30-A4-420p-1page-Portrait-w11.0mm-Hexagonal`: the panel said the left
   margin had to be widened from 13.0 mm to 14.0 mm to hold the row indicators,
@@ -11166,52 +11173,68 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   WIDTH and knows nothing about any warning. Nothing anywhere fed the left
   margin back into the choice. `preflight.indicator_width_warning` calls the
   chooser, never the other way round.
-- **the fix was built and it does exactly what he asked.** When the size is AUTO
-  and the band would force `margin_l` above the typed value,
-  `apply_row_label_geometry` walks the size down in 0.5 pt steps to
-  `AUTO_SHRINK_FLOOR_PT` (7 pt) and takes the first that fits; the answer is
-  stored on the geometry so the renderer draws the size the band was reserved
-  for. On his own preset **"auto" settles at 16.0 pt** -- the very size he said
-  would clear it -- and `margin_l` stays at the 13.0 mm he asked for. **Eight of
-  the twenty-six CR30 presets** are in that state, all of them asking 13.0 mm
-  and being raised to 14.08 or 14.38, which is his "13.0 to 14.0" exactly.
-- **and it is held, because on three of those eight it costs an extra sheet.**
-  Measured one condition per process, because `_widest_upper_px` is `lru_cache`d
-  and measuring both conditions in one process reported no change at all -- the
-  first honest reading of this only arrived after that trap was noticed:
-
-  | preset | pages before | pages after | patch |
-  |---|---|---|---|
-  | `A4-420p-1page-w11.0mm-Hexagonal` | 1 | **1** | unchanged |
-  | `A4-153p / 840p / 1260p` | as named | **as named** | unchanged |
-  | `Letter-170p-1page-w16.0mm-Hexagonal` | 1 | **1** | 16.637 → 16.891 mm wide |
-  | `Letter-390p-1page-w11.0mm-Hexagonal` | 1 | **2** | 9.779 → 9.906 mm tall |
-  | `Letter-780p-2pages-w11.0mm-Hexagonal` | 2 | **3** | 9.779 → 9.906 mm tall |
-  | `Letter-1170p-3pages-w11.0mm-Hexagonal` | 3 | **4** | 9.779 → 9.906 mm tall |
-
-  Releasing the left margin gives area-first a wider box, and area-first fills a
-  wider box with BIGGER patches for the same count, so the patch grows in both
-  axes and a chart that just fitted spills onto another sheet.
-- **why it is his call and not ours.** An extra sheet is paper, ink and
-  measuring time. The notice it would remove is TRUE: the typed margin really
-  was overridden, and §R1.5 of `docs/design/row_label_geometry.md` says that
-  raise must be disclosed. So this is a trade between a disclosure he finds
-  noisy and a material cost on three shipped presets, and it also narrows §R1.5
-  itself (*raised, never lowered*). `CLAUDE.md`: a fault that contradicts the
-  specification is reported and approved, not simply fixed.
-- **the question for him**, in what a user sees: *"Loading three of the Letter
-  hexagonal presets would print one sheet more than their name says -- 390
-  patches on two pages instead of one, and the same for 780 and 1170 -- in
-  exchange for the row numbers being set smaller automatically and the
-  left-margin warning not appearing. On the A4 presets, including the one you
-  reported, it costs nothing at all. Do you want it everywhere, only where it is
-  free, or not at all?"*
-- the ⏳ section §R8 of `docs/design/row_label_geometry.md` records the
-  derivation change this would make, marked awaiting confirmation.
+- **the fix.** When the size is AUTO and the band would force `margin_l` above
+  the typed value, `apply_row_label_geometry` walks the size down the
+  half-point grid (`text_edge_fit.next_size_down_pt`, the grid the Size boxes
+  themselves step by) to `AUTO_SHRINK_FLOOR_PT` (7 pt) and takes the first that
+  fits. The answer is stored on `Geom.row_label_size_mm` and read back by
+  `raster.effective_row_label_size_mm`, which is the single function every
+  reader of the size comes through, so the renderer draws the size the band was
+  reserved for.
+- **driven on screen, on his own preset**, with the left margin and the size as
+  he had them: "auto" settles at **16.0 pt**, the very size he named;
+  `margin_l` stays at the 13.0 mm the recipe asks for; the measured patch-block
+  edge moves 13.970 → 13.081 mm and the left-margin notice goes. All eight
+  upright hexagonal CR30 presets were in that state and all eight clear.
+  Proof in `~/Desktop/ChromIQ-beta20-proof/autosize-and-presets/`.
+- **one fault of my own, found by the guard and not by the driver.** The first
+  build left the settled size on the geometry, so a second application measured
+  the band at that size, found it already fitted, walked nothing, and returned
+  a geometry with the band reserved for 16 pt and the size back at "auto" --
+  the renderer would then have drawn 19 pt into a 16 pt band. The settled size
+  is now dropped before anything is measured. No on-screen run would have shown
+  this, because the app applies the function once.
+- **the cost that held it, and that it no longer has.** Releasing the left
+  margin gives area-first a wider box, and area-first fills a wider box with
+  BIGGER patches for the same count, so a chart that just fitted spills.
+  Measured again on this branch with the fix in and the presets NOT yet
+  changed: `Letter-390p` went to 2 pages, `Letter-780p` to 3, `Letter-1170p`
+  to 4, every A4 chart unchanged. With B8-280's preset changes in the same
+  batch, all eight print exactly the count and the page total their names
+  state, measured off the rendered TIFFs.
+- §R8 of `docs/design/row_label_geometry.md` is rewritten from a proposal to
+  the built rule, and stays in ⏳ Awaiting confirmation: the RULE is his, but he
+  has not yet seen a beta carrying the behaviour.
 - **his other beta-19 finding on this same warning IS fixed**: see B8-269, where
-  the check now reads the measured margin. That silences the case on his
-  patch-first chart but not this one, because in "Prioritise chart area" the
-  sheet shows exactly the raised margin.
+  the check now reads the measured margin.
+- **a false sentence this created, found by challenging my own work and not by
+  anyone reading the app.** The "Indicator font" ⓘ promises *"Size 'auto' fits
+  the strip letters to the strip width, and the row numbers follow the same
+  size"*. Since this change they need not: measured on the reported chart, the
+  strip letters print at **19.0 pt** and the row numbers at **16.0**. The
+  sentence is still true of most charts, so it stays and a paragraph is added
+  that says when it is not, naming the half-point step and the 7 pt floor so a
+  reader can predict what they will get. Its own `tr()` key, translated into
+  all thirteen catalogues.
+- evidence: in the size-auto-fits-the-margin file under `tests/`,
+  `test_auto_settles_at_sixteen_points_on_his_own_preset`,
+  `test_the_two_label_sets_really_can_differ_in_size`,
+  `test_the_font_help_no_longer_promises_one_size_for_both`,
+  `test_the_left_margin_he_asked_for_is_the_one_he_gets`,
+  `test_the_renderer_is_told_the_size_the_band_was_reserved_for`,
+  `test_a_typed_size_is_left_exactly_where_it_was_typed`,
+  `test_nothing_is_committed_when_no_size_down_to_the_floor_fits`,
+  `test_applying_the_geometry_twice_does_not_ratchet_the_label_down`,
+  `test_the_band_reserved_and_the_size_drawn_always_describe_one_chart`,
+  `test_the_walk_never_goes_below_the_floor_he_named`,
+  `test_every_size_it_settles_on_is_one_the_size_box_can_hold`,
+  `test_a_shorter_margin_never_settles_on_a_larger_label`,
+  `test_the_eight_hexagonal_presets_still_print_what_their_names_promise`; and
+  in the clip-text-meets-the-row-labels file,
+  `test_a_margin_that_a_smaller_label_would_clear_DOES_move_the_ink`,
+  `test_a_typed_size_is_never_walked_down`,
+  `test_a_wider_left_margin_does_not_move_the_label_ink`.
+
 
 ---
 
@@ -11786,3 +11809,318 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   driver, settings and presets sandboxed to `/tmp/chromiq-b20r3*`, and the
   owner's `custom_output_path` absent from `com.chromiq.ChromIQ` before and
   after.
+---
+
+### B8-280 · The eight CR30 upright hexagonal presets: 14.0 mm left margin, a typed label size, and no helper markers
+- blocks release: no
+- status: FIXED
+- **the design authority's own instruction, in the comment that ruled on
+  B8-265**, and it is what makes that ruling free: with these three changes the
+  eight upright hexagonal charts keep the patch count and page count their
+  names promise.
+- **THE UNIT WAS THE TRAP, AND IT IS POINTS.** He writes *"Set Size in 'Strip
+  letters and row numbers' frame to value 11.0mm"* and, a paragraph earlier
+  about the same control, *"which has 11.0pt font size"*. The control is a
+  POINT box (`layout_options_panel.small_pt`, converted at the recipe boundary
+  by `pt_to_mm`), the recipe stores millimetres, and the shipped
+  `_CR30_STRAIGHT` has carried `indicator_size_mm: 3.88` since 2026-09-12 for
+  the very chart he points at as already correct
+  (`CR30-Letter-396p-1page-Portrait-w11.0mm-Hexagonal-Straight`).
+  `pt_to_mm(11.0) = 3.88` and `pt_to_mm(18.0) = 6.35`.
+- **and his own measurement was reproduced before any file was edited.**
+  Driving `CR30-Letter-780p-2pages-Portrait-w11.0mm-Hexagonal` on screen and
+  typing 11.0 into that box: the MEASURED left margin goes **14.224 to 13.081
+  mm**, which is his *"goes down from 14.1mm to 13.1mm"*, and the left-margin
+  warning disappears. His 14.0 mm then follows: at 13.0 with the smaller label
+  the chart spilled to 3 pages at 375 patches per page, and at 14.0 it is back
+  to 2 pages at 390.
+- what changed, all of it in `_CR30_HEX` except the two exceptions:
+  `margin_left` 13.0 to **14.0**, `indicator_size_mm` auto to **3.88** (11.0 pt),
+  `helper_markers` True to **False**. `_CR30_STRAIGHT` now spells
+  `helper_markers: True` out, because the straight cut is applied ON TOP of the
+  hexagonal one and would otherwise have lost its dashes; he asked explicitly
+  that the six `-Straight` charts keep them.
+  `A4-153p` and `Letter-170p` take `indicator_size_pt=18.0` on their own rows.
+- **why the markers go off, which is worth keeping.** A honeycomb carries a
+  comb of dashes on ONE axis only, and which one follows the turn: an upright
+  comb staggers every second ROW sideways so top and bottom would point at a
+  seam, leaving Sides; a turned comb staggers every second COLUMN and keeps
+  top/bottom. `_CR30_BASE` asks for `helper_markers_top_bottom` and NOT
+  `helper_markers_sides`, so on these eight the only axis asked for was the
+  greyed one and the only axis that could print was switched off. A ticked box,
+  two dead sub-options, and no dashes on the sheet, which is exactly what he
+  described. It was not cosmetic either: with the markers on, the strip letters
+  are held 7.0 mm from the paper edge by the markers' own reserve rather than
+  by the 4.0 mm "T", and that fired a strip-letter overlap notice on five of
+  the eight. Both notices are gone.
+- **every one of the fourteen was LOADED, GENERATED and MEASURED** through the
+  real Manual presets dropdown, before and after, with the patch and page
+  counts taken off the build and the margins off the rendered TIFF rather than
+  off the panel's text (`scripts/drive_182_autosize_and_hex_presets.py`; proof
+  in `~/Desktop/ChromIQ-beta20-proof/autosize-and-presets/`). The six
+  `-Hexagonal-Straight` charts are the control group and did not move by a
+  hundredth on any measure.
+
+  | preset | measured left, before to after | pages | patches/page | warnings |
+  |---|---|---|---|---|
+  | `A4-153p-1page-w18.0mm-Hexagonal` | 14.478 to 14.097 | 1 | 153 | 2 to 1 |
+  | `A4-420p-1page-w11.0mm-Hexagonal` | 13.970 to 14.097 | 1 | 420 | 2 to 1 |
+  | `A4-840p-2pages-w11.0mm-Hexagonal` | 13.970 to 14.097 | 2 | 420 | 3 to 1 |
+  | `A4-1260p-3pages-w11.0mm-Hexagonal` | 13.970 to 14.097 | 3 | 420 | 3 to 1 |
+  | `Letter-170p-1page-w16.0mm-Hexagonal` | 14.478 to 13.970 | 1 | 170 | 2 to 1 |
+  | `Letter-390p-1page-w11.0mm-Hexagonal` | 14.224 to 14.097 | 1 | 390 | 3 to 1 |
+  | `Letter-780p-2pages-w11.0mm-Hexagonal` | 14.224 to 14.097 | 2 | 390 | 3 to 1 |
+  | `Letter-1170p-3pages-w11.0mm-Hexagonal` | 14.224 to 14.097 | 3 | 390 | 3 to 1 |
+
+  The one warning left on every row is *"The settings stamp down the right edge
+  runs over the patches"*, which fires on all twenty-six charts of this family
+  including the six that were not touched. It is pre-existing, it is not part
+  of this batch, and it is not caused by anything here.
+- **one printed patch moved, and it is pinned rather than absorbed.**
+  `Letter-170p-1page-Portrait-w16.0mm-Hexagonal` prints 16.76 mm patches where
+  it printed 16.64. That chart used to ask for 13.0 mm and be given 14.382 by
+  the row-label band; it now asks for 14.0 and is given 14.0, so the patch area
+  is 0.38 mm wider and each of its ten columns takes a tenth of it. Its name
+  was already 0.64 mm out and is now 0.76 mm out. Both figures are the design
+  authority's own; flagged for him, not corrected here.
+- evidence: in the CR30-built-in-presets file under `tests/`,
+  `test_the_hexagonal_cut_is_exactly_these_four_fields_and_no_others`,
+  `test_the_straight_cut_is_the_hexagonal_one_turned_and_six_numbers`,
+  `test_the_two_low_patch_hex_charts_carry_the_larger_label`,
+  `test_recipe_differs_from_the_base_only_where_allowed`,
+  `test_chart_builds_with_the_pages_and_patches_its_name_promises`; and in the
+  size-auto-fits-the-margin file,
+  `test_the_eight_hexagonal_presets_still_print_what_their_names_promise`.
+
+---
+
+### B8-281 · A ticked "Print helper markers" that prints nothing now says why, in the help and not only on the dead control
+- blocks release: no
+- status: FIXED
+- reported by a tester, 2026-09-16, on the CR30 hexagonal presets: *"I notice
+  that the helper markers are enabled, but the 'Show markers for' 'top/bottom'
+  is greyed out and not selectable, but they should have been ON and showing on
+  the preview (but are not showing on the preview). ... It is not clear why they
+  are unavailable and help text does not say the conditions where they are not
+  available."*
+- the reason DID exist, on the tooltip of the greyed control, and that is the
+  one place a reader in his position will not look: a control he cannot click
+  is a control he has stopped asking about. He asks for it *"also in the help
+  text"*, which is the ⓘ on "Print helper markers" itself.
+- the ⓘ gains a paragraph saying that on hexagonal patches only one of the two
+  pairs of edges can carry dashes, that **which pair depends on the way the
+  honeycomb sits**, that every second row or column is shifted half a patch so
+  dashes along the edges it is shifted against would point at a seam rather
+  than a patch, that the unusable pair is greyed out, and that unticking the
+  pair that is left leaves the box ticked and printing nothing.
+- **it must not name one pair as the unavailable one.** Which pair survives
+  follows the turn, and the panel itself got that wrong for nine rounds,
+  greying the comb that prints and offering the one that does nothing. A help
+  text that named a fixed pair would be false on half the honeycombs in the app.
+- **its own `tr()` key, not an edit to the paragraph above it.** Folding it in
+  changes that string's key and turns all thirteen shipped translations of it
+  stale in one edit, which is the trap B8-270 records paying for.
+- evidence: in the help-says-why-the-marker-edges-grey-out file under `tests/`,
+  `test_the_help_on_the_master_box_explains_the_greying`,
+  `test_the_help_says_which_pair_survives_rather_than_naming_one`,
+  `test_the_help_warns_that_a_ticked_box_can_print_nothing`,
+  `test_the_greyed_control_still_carries_its_own_reason`,
+  `test_the_explanation_is_its_own_translatable_string`.
+
+---
+
+### B8-282 · The two label frames are renamed to the positions they cover, because the glyphs are a setting
+- blocks release: no
+- status: FIXED
+- the design authority, 2026-09-16, and repeated in the comment of the same
+  evening as *"which should be renamed, as stated in earlier posts"*: *"the
+  'Strip letters and row numbers' Frame is named inaccurately, because a user
+  may change the strip and patch pattern to be letters for rows and numbers for
+  strip. Thus, a better name for the frame would be 'Strip and row indicators'
+  and, the frame 'Strip letters only' could be named 'Strip indicators only'.
+  Any reference to these frames in help text should also be renamed."*
+- he is right and it is a correctness fault rather than a preference: the strip
+  and patch patterns sit in the same panel, so a chart set to numbers across the
+  top was described by a frame titled "Strip letters". The two POSITIONS cannot
+  be swapped by any setting.
+- **"any reference in help text" was four strings, and a grep found three.**
+  The fourth is built by concatenation and splits the phrase mid-way across two
+  source lines (`"“Strip "` then `"letters only” by about …"`), so it is
+  invisible to a literal search and was caught only by running the AST
+  extractor (`scripts/i18n_extract.py`) and asking which live keys still
+  carried the old name. A rename of a user-facing phrase should be checked that
+  way and not with grep.
+- **seven keys moved in all thirteen catalogues**: the two titles, the new
+  helper-marker paragraph from B8-281, and four messages whose text quotes a
+  frame name. The four are RENAMES, so each language's shipped translation was
+  carried across with the frame name swapped rather than retranslated, and the
+  six retired keys were deleted. Every catalogue's identical-to-key count lands
+  back exactly on its recorded budget in `tests/test_i18n.py` (de 124, es 372,
+  fr 394, it 383, ja 358, nl 399, no 384, pl 376, pt 374, ru 347, sv 385,
+  zh_CN 352). **No budget was raised**; a catalogue that shipped one of these
+  four in English keeps it in English under the new key, which is the same
+  state it was in.
+- evidence: in the label-frame-says-which-control-reaches-which-label file
+  under `tests/`, `test_the_titles_say_the_reach_in_the_readers_words`; and in
+  the i18n file, `test_catalog_is_complete`, `test_catalog_has_no_stale_keys`,
+  `test_untranslated_values_do_not_creep_in_unseen`,
+  `test_short_labels_stay_compact`.
+
+---
+
+### B8-283 · Every built-in preset regenerated and measured · no preset warns about anything of its own
+- blocks release: no
+- status: VERIFIED
+- asked for by the design authority, 2026-09-16: *"all Presets should be
+  individually regenerated, (except those saying 'by Pharmacist'), so that
+  changes made in features are incorporated. However, if any preset have
+  warnings, these must be listed in a bullet-list with their exact names, so
+  that I can report back what settings to modify to get rid of the warning
+  messages in the presets."*
+- **149 presets**, every built-in except the 11 whose names say "by
+  Pharmacist", each selected from the real Presets dropdown and then
+  GENERATED, with the panel read back afterwards
+  (`scripts/drive_182_survey_every_builtin_preset.py`). **All 149 generated,
+  none failed, no crashes.** Taken AFTER B8-265 and B8-280, so the numbers are
+  the ones a beta-20 build shows.
+- **THE ANSWER IS THAT NO PRESET NEEDS CHANGING.** With "Stamp settings down
+  the right edge" off, **all 149 come up clean**: zero warnings, and a green
+  "Margins: OK" on every one except the fifteen in B8-284.
+- **With that box as the app ships it, 96 of the 149 warn, and it is the same
+  sentence every time** -- *"The settings stamp down the right edge runs over
+  the patches"*. There is no second warning anywhere in the set.
+- the box is **not a preset field**. It is `chart_stamp_commands`, an
+  application setting with no stored default, so `tab_chart` ticks it on a
+  fresh install and no layout recipe can clear it: the recipe's own
+  `stamp_command` is a different control, the summary along the BOTTOM. This
+  was already known in the narrow (the note at `tab_chart.py`'s chart-note
+  branch records the same fact, found by the adversary round of 2026-09-13, and
+  records that two "6 GREEN" claims that morning held only because the owner's
+  own preferences carry `chart_stamp_commands = 0`); what is new is the
+  **scale**, which nobody had measured: it is 96 of 149, and it is the only
+  warning the whole built-in set produces.
+- **the warning is TRUE**, which is why this is a question about a default and
+  not about a message: the line really is printed and it really does land on
+  the patches.
+- so what he can act on is **one decision about one default**, not 96 preset
+  edits. The bullet list he asked for, in his format and with the exact names,
+  is `~/Desktop/ChromIQ-beta20-proof/autosize-and-presets/survey/WARNINGS-BULLET-LIST.md`,
+  with both passes and the per-preset JSON beside it.
+- evidence: **what was run, and what came back.** Twice, once per stamp state:
+
+  ```
+  CHROMIQ_SETTINGS_FILE=… CHROMIQ_PRESETS_DIR=… python \
+      scripts/drive_182_survey_every_builtin_preset.py <out>            # stamp ON
+  CHROMIQ_SETTINGS_FILE=… CHROMIQ_PRESETS_DIR=… python \
+      scripts/drive_182_survey_every_builtin_preset.py <out> --no-stamp # stamp OFF
+  ```
+
+  | | stamp ON (as shipped) | stamp OFF |
+  |---|---|---|
+  | generated | **149 PASS** / 149 | **149 PASS** / 149 |
+  | showed a warning | 96 | 0 |
+  | showed "Margins: OK" | 38 | 134 |
+  | showed nothing at all | 15 | 15 |
+  | crashes | 0 | 0 |
+
+  and the suite after this round's change set:
+  `QT_QPA_PLATFORM=offscreen pytest -n auto` -> **16032 passed**, 334 skipped,
+  4 xfailed, in 2:34, with the one red being
+  `test_the_sweep_is_not_vacuous`, an artefact of running inside
+  `.claude/worktrees/` (its `_SKIP_DIRS` contains `.claude`, so the sweep skips
+  the whole tree; with that one entry removed it finds 964 citations, all
+  naming real entries).
+  The survey itself is a driver, so its result is a measurement rather than an
+  invariant; the invariant it rests on -- that a preset's warnings come from
+  its own recipe and not from the app's defaults -- is pinned in the CR30 file
+  by
+  `test_chart_builds_with_the_pages_and_patches_its_name_promises` and in the
+  says-nothing file by
+  `test_an_overlap_warning_is_shown_and_explains_its_own_silence`.
+
+---
+
+### B8-284 · OPEN, for the design authority · Fifteen presets show no message at all, and the reason is a warning nobody can see
+- blocks release: no
+- status: OPEN
+- **the behaviour is diagnosed and measured; what to do about it is a ruling,
+  so nothing has been changed.** One question for the design authority, at the
+  end.
+- he asked, 2026-09-16: *"I mentioned before that some presets when loaded are
+  missing the 'Margins: OK' message, and instead have no message at all. Why is
+  that, for what kind of circumstances does this happen, and is that a bug? Can
+  it be fixed, so that all presets loaded end up showing the 'Margins: OK'
+  message?"*
+- **WHICH FIFTEEN.** Driving all 149 built-in presets found exactly 15 in that
+  state, in both survey passes, and they are not scattered: they are the **A4
+  and A3 i1Pro 3 Plus** charts. Their nine **Letter** siblings, same author,
+  same recipe shape, margins within a tenth of a millimetre, show the green
+  line.
+- **WHY.** `MarginInspectorPanel._update_status` blanks AND HIDES its status
+  label whenever `text_warnings` is non-empty. `text_warnings` is the list that
+  goes to the panel's ⓘ. So the three states are:
+
+  | what is live | what the surface shows |
+  |---|---|
+  | a margin violation, or an overlap warning | a red paragraph naming it |
+  | only an ⓘ note | **nothing whatever** |
+  | neither | a green "Margins: OK" |
+
+- **WHAT PUTS THESE FIFTEEN IN THE MIDDLE ROW**, measured on one silent chart
+  and one talking one (`scripts/drive_182_why_some_presets_say_nothing.py`):
+
+  | | `A4-84p-1page-Portrait-w25.0mm` | `Letter-84p-1page-Portrait-w25.0mm` |
+  |---|---|---|
+  | strip length | **236.98 mm** | 219.20 mm |
+  | i1Pro 3 Plus ruler | 220 mm | 220 mm |
+  | `_ruler_over_mm` | **220.0** | None |
+  | text notes | 1 | 0 |
+  | overlap warnings | 0 | 0 |
+  | status line | **"" , hidden** | "Margins: OK" |
+
+  The A4 sheet is 17.6 mm taller than Letter, so its strip runs past the ruler
+  by 17 mm; Letter's clears it by 0.8. That single note is the whole difference.
+- **AND THIS IS WORSE THAN A MISSING GREEN LINE.** The note that causes the
+  silence says *"Strip length 237 mm exceeds the 220 mm instrument ruler, the
+  strip may not fit your jig"* -- which is the most useful thing the panel
+  could tell the owner of that chart, and it is reachable only by hovering an
+  ⓘ that carries no mark of any kind (`TooltipButton.set_live_note` refreshes
+  the hover tip and nothing else). Photographed: the frame lists all four
+  margins and a strip length of 237.0 mm, and then there is no verdict at all.
+- **IT IS A BUG, AND THE REASON IS IN ITS OWN COMMENT.** The suppression
+  justifies itself with *"a green headline over a red notice reads as approval
+  of the thing the notice is about"*. That describes an OVERLAP warning, which
+  is red and on the surface, and overlap warnings are already handled by the
+  branch above. It is keyed on `text_warnings`, which never reach the surface,
+  so the rule is guarding against a contradiction that cannot occur and is
+  paying for it with total silence. A reader cannot tell "checked and fine"
+  from "not checked".
+- **why it is still not simply fixed.** Restoring the green line alone would
+  be true of the margins and would actively reassure the owner of a chart that
+  does not fit his jig. That trade is a wording decision, and this file's rule
+  is that a fault which contradicts an agreed behaviour is reported and
+  approved, not corrected on our own judgement. There is also a THIRD, separate
+  and deliberate route to silence: Preferences' "warn me about margin
+  violations", off, hides the label before anything else is looked at. That one
+  is the user asking for silence and is not part of this.
+- **the question for him**, in what a user sees: *"On fifteen of the built-in
+  charts the box under the preview lists the margins and then says nothing at
+  all, where other charts say 'Margins: OK' in green. The margins on those
+  fifteen are fine. The reason the line is missing is that the chart has a
+  different problem, which is that its strip of patches is longer than your
+  instrument's ruler and may not fit the jig, and that sentence is only visible
+  if you hover the ⓘ. Would you rather (a) the green 'Margins: OK' appeared
+  anyway, since the margins really are fine, (b) the strip-length sentence was
+  printed in the box instead, where the red warnings go, or (c) both, with the
+  green line and the sentence under it?"*
+- our recommendation is **(c)**: the margins verdict is true and belongs on
+  the surface, and a warning that changes whether the chart can be measured at
+  all should not depend on a hover.
+- evidence: in the preset-that-says-nothing file under `tests/`,
+  `test_with_nothing_live_the_panel_says_margins_are_ok`,
+  `test_an_i_note_alone_blanks_the_verdict_and_shows_nothing`,
+  `test_an_overlap_warning_is_shown_and_explains_its_own_silence`,
+  `test_turning_the_margin_notice_off_is_a_SECOND_way_to_get_silence`,
+  `test_the_rule_is_keyed_on_a_list_that_never_reaches_the_surface`. They pin
+  the FAULT, not a design: when he rules, that file is rewritten rather than
+  deleted.

@@ -147,14 +147,75 @@ def test_a_smaller_row_indicator_moves_the_labels_TOWARD_the_clip_band(size_pt):
             f"{big[0]:.2f}; a smaller label must sit closer to the band")
 
 
-@pytest.mark.parametrize("margin", [12.0, 20.0, 30.0, 45.0])
+@pytest.mark.parametrize("margin", [12.0, 30.0, 45.0])
 def test_a_wider_left_margin_does_not_move_the_label_ink(margin):
+    """A margin WIDER than the labels need is spent between them and the
+    patches, and a margin so short that nothing clears it changes nothing
+    either. Both ends of the range still put the ink at 17.22 mm.
+
+    §R8 narrowed this in ONE band and not at the ends, so the ends are pinned
+    here and the band is pinned in the test below. This chart needs
+    22.43 mm (a 12 mm clip border, plus a 9.43 mm band, plus 1 mm): 30 and 45
+    are past that, and 12 is so far short that even 7 pt does not fit, so the
+    size is left alone and R1.5 raises the margin as it always did.
+    """
     r = _recipe(12.0)
     r.margin_left = margin
     area = _area(r)
     assert area is not None
     assert area[0] == pytest.approx(17.22, abs=0.05), (
         f"a {margin:.0f} mm left margin puts the ink at {area[0]:.2f} mm")
+
+
+def test_a_margin_that_a_smaller_label_would_clear_DOES_move_the_ink():
+    """The one band where the rule above stops holding, and §R8 says so.
+
+    The design authority, 2026-09-16: *"It is more important that the feature
+    is correct, so make the fix for the 'Size = auto' choosing a label size
+    that fits with the margins used."* So where the margin is short and a
+    smaller automatic size clears it, the size comes down instead of the
+    margin going up -- and the labels are right-aligned against the band's
+    inner edge, so a smaller label sits FURTHER from the page edge than the
+    reservation it replaced would have been, and nearer the clip text.
+
+    20 mm is inside that band on this chart: 22.43 mm is wanted, 14.0 pt fits.
+    """
+    r = _recipe(12.0)
+    r.margin_left = 20.0
+    g = _geom(r)
+    settled_pt = float(getattr(g, "row_label_size_mm", 0.0) or 0.0) * 72.0 / 25.4
+    assert settled_pt == pytest.approx(14.0, abs=0.01), (
+        f"auto settled at {settled_pt:.2f} pt, not the 14.0 that fits")
+    # The margin is the one the recipe ASKED for, which is the whole point.
+    assert float(g.margin_l) == pytest.approx(20.0, abs=0.001)
+    area = _area(r)
+    assert area is not None
+    assert area[0] == pytest.approx(15.95, abs=0.05), (
+        f"the ink is at {area[0]:.2f} mm")
+    # AND IT REALLY IS A MOVE. Without the walk this chart would have had its
+    # margin raised to 22.43 mm and its ink left at 17.22, so a mutation that
+    # disables the walk changes this number by more than a millimetre.
+    wide = _recipe(12.0)
+    wide.margin_left = 45.0
+    assert abs(area[0] - _area(wide)[0]) > 1.0
+
+
+def test_a_typed_size_is_never_walked_down():
+    """§R8's first deliberate property: it touches an AUTOMATIC size only.
+
+    Capping a number somebody typed would be the app arguing with them, which
+    is already this document's rule for the pitch cap. Same 20 mm margin as
+    the test above, where an automatic size is walked from 19.8 pt to 14.0.
+    """
+    r = _recipe(12.0)
+    r.margin_left = 20.0
+    r.indicator_size_mm = 19.5 * 25.4 / 72.0
+    g = _geom(r)
+    assert float(getattr(g, "row_label_size_mm", 0.0) or 0.0) == 0.0, (
+        "a typed size was recorded as a settled automatic one")
+    assert float(g.margin_l) > 20.5, (
+        f"the margin stayed at {g.margin_l:.2f} mm, so the typed size was "
+        "quietly shrunk instead of the margin being raised")
 
 
 @pytest.mark.parametrize("band", [12.0, 16.0, 20.0, 26.0])
