@@ -1,5 +1,110 @@
 # Changelog
 
+## v4.3.0-beta.20
+
+**A report is written against one set of limits again, the chart panel's
+warnings were taken apart and rebuilt around what the sheet actually measures,
+and a handful of sentences that had never reached anyone outside English now
+do.**
+
+### New
+
+- **Saved reports can be chosen and deleted.** A run's reports are listed with
+  their date, type and limit set; any of them can be shown, and one can be
+  deleted after a window that names the report, its file and what is left.
+
+### Fixed
+
+- **A report could be written against three sets of limits at once**, and then
+  print a red line telling you the table you were reading was not comparable.
+  A document is written against one "Judged against" set now. Measurements
+  judged against another set stay loaded, stay tickable and stay on the trend,
+  and the Report Scope names each one and why it is not in the table.
+
+- **And the cause underneath it was that the newest report of a measurement was
+  decided by its file name.** A report named for the date it should display
+  could beat a report that was generated later, so a window could show, and
+  add to, the wrong one. Reports are ordered by the time the file was written.
+
+- **Generate report wrote a file and showed you nothing.** It shows what it
+  wrote.
+
+- **Two lines in the report window could not be read at all**, drawn in a grey
+  a shade away from the background in the dark theme. One of them was the line
+  that says which reports the run has already generated.
+
+- **A warning about the left margin could stand over eleven millimetres of
+  clear paper.** The check read the margin you typed where the sheet measures
+  something else entirely, which in "Prioritise patch size" it usually does.
+  Every check now reads the measured sheet, and a message only names a value
+  to type where typing it is reliable; in that layout it names the controls to
+  try instead.
+
+- **A strip letter with a tail was measured as though it had none.** The
+  ordinary letters ink to 13.08 mm on one of the reported sheets and the Q
+  reaches 13.72, so a warning arrived half a millimetre of margin too late.
+
+- **The strip labels could sit on the helper markers with nothing said**, and
+  the bottom text could be sized past the room it had against the clip border,
+  also with nothing said. Both warn now.
+
+- **The bottom text warning names an amount that clears again**, and the amount
+  is measured on a built sheet rather than predicted: on one reported chart the
+  prediction reads 18.710 mm where the sheet measures 18.964.
+
+- **A tooltip, a status line and the code's own description sent readers to a
+  button that left that tab several releases ago.** All three name the control
+  that is there now.
+
+- **The window shown when averaging fails was English in eleven of the twelve
+  languages**, because its title went through the translation system and its
+  body did not. Three sentences of the printing warning had never been
+  translatable at all. The tool that finds untranslated text could not see
+  either of them, and can now.
+
+- **Projects made before the folder redesign were not converted.** Opening one
+  said it would be reorganised and then did nothing, and opening it again said
+  nothing at all: the conversion looked inside run folders, and a project of
+  that age has none, so it found nothing to do and marked the project as
+  current. Those projects are converted properly now, including ones the older
+  version already marked as done, and the conversion either completes or leaves
+  the folder exactly as it found it.
+
+- **And a folder holding a chart, a measurement and a profile could read as
+  empty**, so the warning that a project of that name already exists did not
+  appear and a new build could have been written over it.
+
+- **A cube corner the report had just called missing still showed another
+  patch's colour and its own delta E.** Two different corners could borrow the
+  same patch, so they printed the same number, and the colour shown was not the
+  corner's at all. A missing corner now shows the ideal colour it should have
+  had and dashes for what was not measured, in the table, in the comparison and
+  on the trend. Reports already saved are read correctly too.
+
+- **The 3D gamut plot stayed on screen after switching to another project.**
+
+- **Check and Refine did not load the measurement and profile its own run
+  already held**, though the two tabs beside it did.
+
+- **"Size = auto" could choose a label size that made its own margin warning
+  appear.** It now fits the size to the margins it is measured against. Eight
+  of the hexagonal presets were adjusted with it so each still prints the
+  number of patches per page that its name promises.
+
+- **The strip and row indicator frame is renamed** to the words it was asked to
+  carry, in every language.
+
+### Known issues
+
+- With "Prioritise patch size", "T" under "Text distance from edge (mm)" does
+  not move the strip labels. This is intended, and the help text now says so.
+- Fifteen of the i1Pro 3 Plus charts show no "Margins: OK" line, because the
+  panel hides its status whenever it has any note to give, and on those charts
+  the note is that the strip is longer than the 220 mm ruler. The note is true
+  and reachable from the information icon; only the reassurance is missing.
+- A message can name a control by a word that language's own window does not
+  use. This is being swept before the final release rather than during a beta.
+
 ## v4.3.0-beta.19
 
 **Beta 18's warnings were rebuilt to describe the sheet you are looking at.
