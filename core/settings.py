@@ -555,7 +555,12 @@ def _seed_rows(instr, desc, side, top, combos, bottom=None):
 _I1_PRIMARY = {"L": 26, "R": 9, "T": 38, "B": 9, "desc": _I1_DESC}
 # i1Pro 3+ (#82): the larger body needs a touch more on the clip + label edges
 # (28 / 40 instead of 26 / 38); provisional until confirmed.
-_I1P3_DESC = "i1Pro 3+ ruler / jig"
+#: Knut, 2026-09-17: *"change the description for the paper and instrument
+#: combinations mentioned to 'i1Pro 3+ XL scanning ruler / jig'"*. The old
+#: string is kept below so a stored blob that still holds it can be upgraded
+#: without touching a description the user typed themselves.
+_I1P3_DESC = "i1Pro 3+ XL scanning ruler / jig"
+_I1P3_DESC_BEFORE_SCHEMA24 = "i1Pro 3+ ruler / jig"
 _I1P3_PRIMARY = {"L": 28, "R": 9, "T": 40, "B": 9, "desc": _I1P3_DESC}
 # A4 / Letter are also on the primary (jig) list in LANDSCAPE: the i1Pro jig
 # can read those sheets landscape too, and Knut wants the same clip/label
@@ -599,6 +604,38 @@ _MARGIN_SEED: dict[str, dict[str, Any]] = {
     # stays at 10 mm and the sides at 6 mm (#131).
     **_seed_rows("ColorMunki", _CM_DESC, 6, 33, _ALL_COMBOS, bottom=10),
 }
+
+
+def upgrade_i1pro3_ruler_description(
+    table: dict[str, dict[str, Any]]
+) -> tuple[dict[str, dict[str, Any]], bool]:
+    """Give every i1Pro 3+ row the XL scanning ruler's name (schema 24).
+
+    Knut, 2026-09-17, with the strip-length limit going from 220 mm to 515 mm:
+    *"At the same time, change the description for the paper and instrument
+    combinations mentioned to 'i1Pro 3+ XL scanning ruler / jig'."*
+
+    Only rows still holding the shipped default are touched, so a description
+    the user typed is left exactly as it is. `_same_margin` cannot be reused
+    here: it compares the four numbers and deliberately ignores `desc`, which
+    is the only field this changes.
+
+    Pure, so the rule is unit-tested directly.
+
+    **The strip-length limit itself needs no migration**, and that was
+    measured rather than assumed: `_commit_margin_combo` stores a `ruler` key
+    only when the value differs from the instrument's built-in, so an untouched
+    box stores nothing and keeps tracking `default_ruler_mm`. A row that DOES
+    carry `ruler` is a value the user chose and is left alone.
+    """
+    changed = False
+    for key, row in table.items():
+        if not key.startswith("i1Pro 3+|"):
+            continue
+        if str(row.get("desc", "")) == _I1P3_DESC_BEFORE_SCHEMA24:
+            row["desc"] = _I1P3_DESC
+            changed = True
+    return table, changed
 
 
 def _same_margin(a: dict[str, Any], b: dict[str, Any]) -> bool:
@@ -853,7 +890,7 @@ def thresholds_for_combo(
 # Bump when a shipped default changes in a way that must reach users who have
 # the OLD default persisted. Settings → Save writes every key, so a stored
 # value otherwise pins a user to the old behaviour for good.
-SETTINGS_SCHEMA = 23
+SETTINGS_SCHEMA = 24
 
 # key → the old default(s) it must no longer be stuck on. Only a stored value
 # EQUAL to one of the old defaults is dropped (so it falls through to the new
@@ -983,6 +1020,8 @@ class AppSettings:
             dropped.append("margin_thresholds[ColorMunki top→30mm, bottom→10mm]")
         if self._migrate_colormunki_top_margin_33():
             dropped.append("margin_thresholds[ColorMunki top→33mm]")
+        if self._migrate_i1pro3_ruler_description():
+            dropped.append("margin_thresholds[i1Pro 3+ → XL scanning ruler]")
         for _k in self._migrate_sound_defaults():
             dropped.append(_k)
         for _k in self._migrate_helper_marker_sizes():
@@ -1224,6 +1263,26 @@ class AppSettings:
         except Exception:  # noqa: BLE001
             return False
         table, changed = upgrade_colormunki_top_margin_33(table)
+        if changed:
+            self._qs.setValue("margin_thresholds",
+                              serialize_margin_thresholds(table))
+        return changed
+
+    def _migrate_i1pro3_ruler_description(self) -> bool:
+        """schema 24 (Knut 2026-09-17): the i1Pro 3+ rows name the XL ruler.
+
+        Upgrades a stored `margin_thresholds` blob in place, and only rows
+        still holding the shipped default. Fresh installs need nothing, the
+        seed carries the new name already.
+        """
+        raw = self._qs.value("margin_thresholds", None)
+        if not raw:
+            return False
+        try:
+            table = parse_margin_thresholds(str(raw))
+        except Exception:  # noqa: BLE001
+            return False
+        table, changed = upgrade_i1pro3_ruler_description(table)
         if changed:
             self._qs.setValue("margin_thresholds",
                               serialize_margin_thresholds(table))

@@ -313,6 +313,11 @@ def hex_capable_instruments() -> "list[str]":
     return [k for k in supported() if hex_capable(k)]
 
 
+#: The i1Pro 3+'s XL scanning ruler (Knut, 2026-09-17). The standard ruler the
+#: `260 - lcar - tspa` expression describes would give it 220 mm.
+P3_XL_RULER_MM = 515.0
+
+
 def supported() -> list[str]:
     return ["i1", "p3", "CM", "41", "51", "SS", "CR30"]
 
@@ -702,7 +707,24 @@ def _build_base(
             mxpprow=MAXPPROW, mxrowl=mxrowl, rpstrip=999, nextrap=0,
             dorspace=False, dopglabel=False,   # page-label column reclaimed (#93)
             padlrow=True, target_name=name,
-            has_clip_border=True, ruler_mm=(260.0 - lcar - tspa),
+            has_clip_border=True,
+            # THE i1Pro 3+ IS PAIRED WITH THE XL SCANNING RULER, 515 mm.
+            #
+            # `260 - lcar - tspa` is the standard ruler and gives the i1Pro its
+            # 240 mm; for the i1Pro 3+ the same expression gives 220, and Knut
+            # asked for 515 for every paper size (2026-09-17): *"The i1Pro 3
+            # Plus is paired with an XL scanning ruler, which supports a
+            # maximum scan length of 515 mm ... Change the 'Strip length limit'
+            # to 515 mm for all combinations of any paper size and the i1Pro3+
+            # instrument."*
+            #
+            # **THIS NUMBER DRIVES THE WARNING AND NOTHING ELSE**, measured
+            # before it was changed: charts already build strips of 280 mm on
+            # A4 and 403 mm on A2 against the old 220, so raising it lays no
+            # chart out differently. `mxrowl` above is the one that binds the
+            # layout, it is a TEXTUALLY IDENTICAL expression, and it is
+            # deliberately not touched.
+            ruler_mm=(P3_XL_RULER_MM if key == "p3" else 260.0 - lcar - tspa),
         )
 
     # Optional notes band for instruments without a native clip border (CM/SS):

@@ -13557,3 +13557,33 @@ on a face whose italic is a real second face, and both are asserted.
 - **NOT the same fault as B8-313**, which was measured first and fixed first
   and moved this ratio not at all: the hexagonal branch `continue`s before the
   sliver is ever reached.
+
+### B8-318 · OPEN · On a honeycomb whose boxes TILE, the split's hexagon is the whole cell and covers the ring
+- blocks release: yes
+- **HOLDS THE SPLIT-OVERLAY BRANCH.**
+- status: OPEN
+- found by: Basti, on the real Measure tab, with two photographs of a rotated
+  CR30 honeycomb with spacers and edge spacers: *"honeycombs with spacers.
+  spacers get covered by split overlay"*. With half the strips read the unread
+  half shows white rings between its hexagons and the read half does not.
+- **NOT the same fault as B8-317, and B8-317's fix does not reach it.**
+  `_hex_has_ring()` decides from the page's own patch grid, looking for the
+  first positive VERTICAL gap down a column. Measured on the chart in his
+  photograph (`14-cr30-honeycomb-rotated-spacers-edge`, 345 patches):
+  **every vertical gap is 0 and every horizontal gap is 0**. The recorded
+  boxes TILE. So `_hex_has_ring()` answers False, the seam is stroked, and,
+  far more importantly, the box is the hexagon's whole CELL including its
+  share of the ring while the PRINTED hexagon inside it is smaller by the
+  spacer. `_patch_hexagon` inscribes its hexagon in the box, so the split is
+  drawn at cell size and the ring disappears under it.
+- what to change: the ring cannot be measured from the boxes on such a chart
+  and has to come from the chart's own recipe, the way the edge spacer already
+  does (`edge_spacer_px_from_sidecar` in `ui/tabs/tab_measure.py`). The engine
+  knows it: `Geom` carries `hex_ring_mm`. The preview would take a
+  `set_hex_ring_px()` and inset the drawn hexagon by half of it, for the split
+  and for the unread outline alike.
+- inherited or introduced: **inherited.** `_patch_hexagon` has always
+  inscribed the hexagon in the recorded box; this change set did not move it.
+  B8-317 made the seam conditional, which helps the charts whose boxes do NOT
+  tile (a SpectroScan honeycomb with spacers measured 0.815 to 0.898) and does
+  nothing for the ones that do.

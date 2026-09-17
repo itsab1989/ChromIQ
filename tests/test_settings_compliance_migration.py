@@ -60,7 +60,12 @@ def test_unset_keys_write_nothing_and_the_schema_is_stamped(tmp_path):
     dropped = s.migrate()
     assert not any("report_pass_threshold" in d for d in dropped)
     assert s.get_compliance_overrides() == {}
-    assert int(s._qs.value("settings_schema")) == 23
+    # The schema number is not this test's subject: it is whatever the app
+    # currently stamps, and pinning a literal here means every later migration
+    # has to come back and edit a compliance test. Schema 24 added the i1Pro 3+
+    # XL ruler description.
+    from core.settings import SETTINGS_SCHEMA
+    assert int(s._qs.value("settings_schema")) == SETTINGS_SCHEMA
 
 
 def test_the_migration_runs_once(tmp_path):
