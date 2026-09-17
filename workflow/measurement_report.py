@@ -25,6 +25,7 @@ from pathlib import Path
 
 import numpy as np
 
+from core.file_manager import write_json_atomically
 from core.logger import get_logger
 from core.text_io import read_text
 from workflow.ti3_analysis import (
@@ -1084,7 +1085,19 @@ def save_report(report: dict, run_dir: str | Path) -> Path:
         while (reports / f"report_{ts}_{n}.json").exists():
             n += 1
         path = reports / f"report_{ts}_{n}.json"
-    path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    # ATOMICALLY, BECAUSE A HALF-WRITTEN REPORT HAS A REAL REPORT'S NAME.
+    # `Path.write_text` leaves exactly that when the process is killed
+    # mid-write, and combined round 3 drove what the window then does with it:
+    # on a dated verification holding one good report and one truncated file,
+    # Delete came up enabled with no reason beside it, the confirmation said
+    # "0 saved reports of it are left afterwards", and the press left the date
+    # with no verdict the window could read. The dialog was hardened to count
+    # only the files it can actually parse; this stops the file existing.
+    # `write_json_atomically` already pays for every trap `os.replace` has cost
+    # this project: it resolves a symlink first, fsyncs before the rename,
+    # carries mode, times and flags across, and drops the immutable bits from
+    # the scratch file so a locked target cannot leave an undeletable .tmp.
+    write_json_atomically(path, report)
     log.info("measurement report saved: %s", path)
     return path
 
@@ -2201,5 +2214,5 @@ def rewrite_report(path: "str | Path", report: dict) -> Path:
     archive_reports``); this only rewrites.
     """
     path = Path(path)
-    path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    write_json_atomically(path, report)      # see the note in `save_report`
     return path

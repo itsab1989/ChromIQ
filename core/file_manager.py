@@ -38,6 +38,7 @@ String-concatenating paths anywhere else is a code smell.
 from __future__ import annotations
 
 import fnmatch
+import errno
 import json
 import os
 import re
@@ -760,8 +761,29 @@ def write_json_atomically(path: Path, payload: dict) -> None:
         # a PARENT directory changes nothing for `os.replace` anyway - only the
         # final component is the name being swapped.
         path = type(path)(os.path.realpath(path))
+    # A READ-ONLY FILE MUST STILL REFUSE THE WRITE, AND ATOMICITY QUIETLY TOOK
+    # THAT AWAY. `write_text` on a file the user had made read-only raised
+    # PermissionError and the caller told them so. `os.replace` does not need
+    # write permission on the TARGET, only on the directory, so the rename
+    # succeeds and the content is replaced without a word -- `copystat` even
+    # carries the 0444 back, so the file still looks protected afterwards.
+    # Caught by `test_a_set_change_asks_before_it_rewrites_history.py`, which
+    # marks one saved report read-only and expects the window to report that it
+    # could not be written. The check is here rather than in one caller because
+    # this helper also writes `project.json` and `meta.json`, where the same
+    # silent overwrite was already possible.
+    if path.exists() and not os.access(path, os.W_OK):
+        raise PermissionError(
+            errno.EACCES, "the file is read-only", str(path))
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
+    # `finally` AND A FLAG, NOT `except Exception`. The cleanup below used to
+    # hang off `except Exception`, which does not catch `KeyboardInterrupt` or
+    # `SystemExit` -- and a write interrupted by Ctrl-C is exactly the case
+    # this helper exists for. Found while writing the guard for the measurement
+    # report: a KeyboardInterrupt during the dump left `report_….json.tmp`
+    # sitting in the reports folder.
+    done = False
     try:
         with open(tmp, "w", encoding="utf-8") as fh:
             json.dump(payload, fh, indent=2)
@@ -778,16 +800,18 @@ def write_json_atomically(path: Path, payload: dict) -> None:
                           exc_info=True)
             _unlock_scratch_file(tmp)
         os.replace(tmp, path)
-    except Exception:
-        # Never leave the scratch file behind to be mistaken for real data.
-        # THE UNLOCK COMES FIRST, because the failure this cleans up after may
-        # be the very lock that would stop the delete. See the docstring.
-        _unlock_scratch_file(tmp)
-        try:
-            tmp.unlink()
-        except OSError:
-            pass
-        raise
+        done = True
+    finally:
+        if not done:
+            # Never leave the scratch file behind to be mistaken for real data.
+            # THE UNLOCK COMES FIRST, because the failure this cleans up after
+            # may be the very lock that would stop the delete. See the
+            # docstring.
+            _unlock_scratch_file(tmp)
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
 
 
 # ---------------------------------------------------------------------------

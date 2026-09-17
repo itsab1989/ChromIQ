@@ -12767,17 +12767,15 @@ drove them and the deadline came first. No source file changed in this round.
 
 ### B8-299 · The expected/measured split showed the chart along a patch edge, and a screen capture could not have shown it
 - blocks release: no
-- status: FIXED
-- held: **on branch `fix/split-overlay-gap`, out of every release until Basti
-  has looked at the proof and says to merge it** (his instruction, 2026-09-17:
-  *"this fix will not be part of a release until i have looked at the proof
-  you leave for me and i tell you to implement it"*).
-- evidence: `test_no_chart_pixel_survives_under_the_split`,
-  `test_the_split_never_paints_over_the_spacers`,
-  `test_every_box_is_the_size_of_the_patch_it_covers`,
-  `test_both_paint_paths_hand_the_overlay_the_pages_own_vertical_scale`,
-  `test_a_patch_box_is_never_smaller_than_the_chart_patch` (all five live in
-  the split-overlay file added by this round)
+- status: OPEN
+- **OPEN HERE ON PURPOSE. The fix exists and is finished; it is on branch
+  `fix/split-overlay-gap` and is not on this line**, because Basti ruled on
+  2026-09-17: *"this fix will not be part of a release until i have looked at
+  the proof you leave for me and i tell you to implement it"*. This entry
+  flips to FIXED, with the guards it names, on the commit that merges that
+  branch. Anything below describing the fix describes the branch.
+- the branch carries the guards, in a file of its own that does not exist on
+  this line yet, and three green `--runslow` gates
 - proof: `~/Desktop/ChromIQ-beta21-proof/split-overlay-gap/`
 - found by: a tester's screenshot of the Measure tab, forwarded by Basti:
   *"the 6th patch in the first strip has a tiny gap at the bottom from the
@@ -12857,3 +12855,66 @@ straight after `set_patch_overlay` can land before the widget has repainted,
 and `capture_window` correctly refuses the empty buffer as one flat colour.
 The driver now waits and asks again, up to five times, and reports a refusal
 that survives all five.
+
+### B8-300 · A failed strip points a user at the cable, and the log is four steps away
+- blocks release: no
+- status: OPEN
+- found by: checking a claim I had already made twice in public. On issue #197
+  I told the reporter to open his log with *"Help menu, Open log folder"*.
+  **There is no such item.** The log is reached through Preferences, the Paths
+  tab, the "For reference" box, first row, behind a Reveal button; or by hand
+  at `%LOCALAPPDATA%\ChromIQ\Logs\chromiq.log`,
+  `~/Library/Logs/ChromIQ/chromiq.log`,
+  `~/.local/state/ChromIQ/logs/chromiq.log`. Corrected on the issue
+  (comment 5709770293).
+- detail: this is the other half of B8-298. That entry says the "Strip Read
+  Failed" dialog should stop naming the cable as the cause and should point at
+  the log, because the log line is what tells a dropped link from a read that
+  never finished. But a person who has just lost a strip cannot reasonably be
+  sent on a four-step route through Preferences to find it, and nothing in the
+  failure window mentions it at all.
+- what to change: the dialog carries the button itself. Every window that ends
+  a measurement badly should. The draft wording for B8-298 already leaves a
+  place for it.
+
+### B8-301 · FIXED · A saved measurement report could be left half written, and the atomic helper leaked a scratch file on Ctrl-C
+- blocks release: no
+- status: FIXED
+- evidence: `test_both_report_writers_go_through_the_atomic_helper`,
+  `test_a_failed_save_leaves_the_previous_report_untouched`,
+  `test_a_write_that_dies_mid_payload_leaves_nothing_readable_behind`,
+  `test_every_saved_report_parses`
+- found by: closing the cause B8-278 left open. That entry hardened the delete
+  rule so it counts only the report files the window can actually parse,
+  after combined round 3 drove a dated verification holding one good report
+  and one TRUNCATED file: Delete came up enabled with no reason beside it, the
+  confirmation said *"0 saved reports of it are left afterwards"*, and the
+  press left the date with no verdict the window could read. The truncated
+  file is what `Path.write_text` leaves when the process is killed mid-write,
+  and `save_report` and `rewrite_report` both used it.
+- **the fix.** Both go through `core.file_manager.write_json_atomically`,
+  which already pays for every trap `os.replace` has cost this project: it
+  resolves a symlink first (the rename swaps the NAME, and pointed at a link
+  it would delete the link and leave the real file stale), fsyncs before the
+  rename, carries mode, times and flags across, and drops the immutable bits
+  from the scratch file so a locked target cannot leave an undeletable `.tmp`.
+  Nothing new had to be written.
+- **AND WRITING THE GUARD FOUND A HOLE IN THAT HELPER.** Its cleanup hung off
+  `except Exception`, which does not catch `KeyboardInterrupt` or
+  `SystemExit`. A write interrupted by Ctrl-C is exactly the case the helper
+  exists for, and it left `report_….json.tmp` in the reports folder. It is a
+  `try/finally` with a flag now, so every exit path cleans up. The same helper
+  writes `project.json` and `meta.json`, so this was not only about reports.
+- **AND IT QUIETLY TOOK AWAY A REFUSAL, WHICH THE SUITE CAUGHT.**
+  `write_text` on a file the user had made read-only raised, and the window
+  told them so. `os.replace` needs write permission on the DIRECTORY, not on
+  the target, so the rename succeeds and the content is replaced without a
+  word, with `copystat` carrying the 0444 back so the file still looks
+  protected afterwards. `test_a_set_change_asks_before_it_rewrites_history.py`
+  marks one saved report read-only and expects the recalculation to report
+  that it could not be written; both its cases went red the moment the write
+  became atomic. `write_json_atomically` now refuses a target it cannot write,
+  which closes the same hole for `project.json` and `meta.json`, where it was
+  already open and nothing had noticed.
+- mutation proof: put `write_text` back and two of the five go red.
+- evidence (cont.): `test_a_read_only_report_still_refuses_the_write`
