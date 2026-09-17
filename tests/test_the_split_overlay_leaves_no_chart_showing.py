@@ -734,3 +734,75 @@ def test_the_hexagonal_split_always_strokes_its_seam():
         f"the seam is stroked conditionally again: {inner}. It closes the "
         f"sub-pixel gaps on every hexagonal chart, and the predicate tried "
         f"before answered the honeycomb's orientation rather than its ring")
+
+
+def _hex_split_extent(qapp, tmp_path, ring_px):
+    """How wide the drawn split is on a honeycomb, at a given ring."""
+    from ui.tiff_preview import TiffPreview
+    from workflow.layout_engine import hexagon
+    boxes = [QRect(int(LEFT + c * 60 + hexagon.stagger_dx(60, r)),
+                   TOP + r * 50, 60, 64)
+             for c in range(4) for r in range(6)]
+    path = tmp_path / f"hex-ring-extent-{ring_px}.tif"
+    im = Image.new("RGB", (PAGE_W, PAGE_H), (255, 255, 255))
+    im.save(path)
+    p = TiffPreview()
+    try:
+        p.resize(700, 900)
+        p.load_tiff([path])
+        qapp.processEvents()
+        p.set_hex_zigzag(True)
+        p.set_hex_ring_px(ring_px)
+        p.set_page_patch_boxes({0: list(boxes)})
+        p.set_patch_overlay(
+            0, [(b, GREY_EXPECTED, GREY_MEASURED, False) for b in boxes],
+            replace_page=True)
+        p.show()
+        qapp.processEvents()
+        p._update_display()
+        qapp.processEvents()
+        pm = p._img_label.pixmap()
+        img = pm.toImage()
+    finally:
+        p.close()
+    grey = {GREY_EXPECTED.rgb() & 0xFFFFFF, GREY_MEASURED.rgb() & 0xFFFFFF}
+    return sum(1 for y in range(img.height()) for x in range(img.width())
+               if (img.pixelColor(x, y).rgb() & 0xFFFFFF) in grey)
+
+
+def test_a_honeycombs_split_is_inset_by_its_ring(qapp, tmp_path):
+    """The split follows the PRINTED hexagon, not the cell it sits in.
+
+    A honeycomb built with a spacer takes the ring out of the patch's own area,
+    so the RECORDED box does not change: measured, the boxes are byte-identical
+    between `spacer_on=False` and `spacer_width=1.5`, 150 of them, in both
+    orientations. Only the ink gets smaller. CR30 A4 at 300 dpi, one box at its
+    centre row: 142 px at every spacer width, against ink of 142 / 137 / 125 /
+    109 px at 0 / 0.5 / 1.5 / 3.0 mm.
+
+    `_patch_hexagon` inscribes in the box, so without the inset the split is
+    drawn at CELL size and the ring disappears under it. Basti, with two
+    photographs of a rotated CR30 honeycomb with spacers: *"honeycombs with
+    spacers. spacers get covered by split overlay"*.
+
+    MUTATION: drop the `inset_px` argument, or ignore it, and this goes red.
+    """
+    none = _hex_split_extent(qapp, tmp_path, 0.0)
+    ringed = _hex_split_extent(qapp, tmp_path, 18.0)
+    assert none > 0, "the fixture painted no split at all"
+    assert ringed < none * 0.92, (
+        f"the split covers the same area with an 18 px ring as without one "
+        f"({ringed} against {none}), so it is still drawn at cell size and "
+        f"the printed ring is underneath it")
+
+
+def test_a_tessellating_honeycomb_is_not_inset(qapp, tmp_path):
+    """A chart with no spacer has no ring, and must not shrink.
+
+    `hex_ring_px_from_sidecar` answers 0 for it, and 0 must mean "draw the
+    hexagon the box describes", or every honeycomb without a spacer loses a
+    ring it never had.
+    """
+    a = _hex_split_extent(qapp, tmp_path, 0.0)
+    b = _hex_split_extent(qapp, tmp_path, 0.0)
+    assert a == b

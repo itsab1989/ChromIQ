@@ -525,6 +525,44 @@ def edge_spacer_px_from_sidecar(ti2_path: "Path | None") -> int:
         return 0
 
 
+def hex_ring_px_from_sidecar(ti2_path: "Path | None") -> float:
+    """The paper ring between a honeycomb's hexagons (image px), or 0 (B8-318).
+
+    **The recorded patch boxes cannot answer this.** A honeycomb built with a
+    spacer takes the ring out of the patch's own area, so the boxes do not
+    move: measured, they are byte-identical between `spacer_on=False` and
+    `spacer_width=1.5`, 150 of them, in both orientations. Only the INK gets
+    smaller. CR30 A4 at 300 dpi, one box at its centre row: 142 px at every
+    spacer width, against ink of 142 / 137 / 125 / 109 px at 0 / 0.5 / 1.5 /
+    3.0 mm.
+
+    So it is read from the chart's own recipe, the way the edge spacer is, and
+    the preview insets the hexagon it draws by half of it. Without that the
+    split is drawn at CELL size and swallows the ring, which is what Basti
+    photographed on a rotated CR30 honeycomb: *"honeycombs with spacers.
+    spacers get covered by split overlay"*.
+    """
+    if ti2_path is None:
+        return 0.0
+    import json
+    channels = Path(ti2_path).with_suffix(".channels.json")
+    if not channels.is_file():
+        return 0.0
+    try:
+        layout = json.loads(read_text(channels)).get("layout") or {}
+        recipe = layout.get("recipe") or {}
+        if not recipe:
+            return 0.0
+        from workflow.hex_support import ring_mm_of
+        ring_mm = float(ring_mm_of(recipe) or 0.0)
+        if ring_mm <= 0:
+            return 0.0
+        dpi = float(layout.get("dpi") or 300) or 300.0
+        return max(0.0, ring_mm * dpi / 25.4)
+    except Exception:  # noqa: BLE001 — a preview nicety must never break loading
+        return 0.0
+
+
 def _apply_hex_stagger(ti2_path: Path, pages: "list[dict[str, QRect]]") -> None:
     """Nothing to do — the recorded boxes already hold the drawn position.
 
@@ -4790,6 +4828,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # Grow the strip-hover frame over the edge spacers, when the chart's own
         # geometry says it has them (#43).
         self._preview.set_edge_spacer_px(edge_spacer_px_from_sidecar(self._ti1_path))
+        # And the ring between a honeycomb's hexagons, which the boxes do not
+        # carry: the split would otherwise be drawn at CELL size (B8-318).
+        self._preview.set_hex_ring_px(hex_ring_px_from_sidecar(self._ti1_path))
         # SpectroScan hexagonal charts: the strip highlight follows the column's
         # zigzag (staggered hexagons) instead of a straight rect that would spill
         # into the neighbouring column, and the swipe arrow is hidden — an XY

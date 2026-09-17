@@ -13573,10 +13573,22 @@ guard is structural on purpose, and says why: the behaviour it protects is only
 visible on a real engine chart at a real fit scale, and a synthetic lattice
 written for it in the suite passed its own mutation.
 
-### B8-318 · OPEN · On a honeycomb whose boxes TILE, the split's hexagon is the whole cell and covers the ring
-- blocks release: yes
-- **HOLDS THE SPLIT-OVERLAY BRANCH.**
-- status: OPEN
+### B8-318 · FIXED · On a honeycomb with spacers the split was drawn at CELL size and covered the ring
+- blocks release: no
+- status: FIXED
+- evidence: `test_a_honeycombs_split_is_inset_by_its_ring`,
+  `test_a_tessellating_honeycomb_is_not_inset`
+- fix: the ring is read from the chart's own recipe
+  (`hex_ring_px_from_sidecar`, mirroring `edge_spacer_px_from_sidecar`) and
+  handed to the preview with `set_hex_ring_px`; `_patch_hexagon` insets the
+  hexagon it draws by HALF of it, which is the measured relationship (one ring
+  across the cell, so half a ring per side). The split and the unread outline
+  both follow the printed hexagon now; the BLANKING deliberately keeps inset 0,
+  because "Show only measured patches" is meant to cover the whole cell, ring
+  included.
+- checked end to end on the real charts: the rotated CR30 honeycomb with a
+  1.5 mm spacer at 300 dpi resolves to **17.72 px**, which matches the 17 px
+  the ink measurement showed; a CR30 honeycomb with no spacer resolves to 0.
 - found by: Basti, on the real Measure tab, with two photographs of a rotated
   CR30 honeycomb with spacers and edge spacers: *"honeycombs with spacers.
   spacers get covered by split overlay"*. With half the strips read the unread
@@ -13616,3 +13628,23 @@ written for it in the suite passed its own mutation.
   orientations, **but it is 0.0 for SpectroScan at every spacer width**, which
   is a second question: either a SpectroScan honeycomb genuinely has no ring,
   or the engine does not record one for it.
+
+### B8-319 · OPEN · A SpectroScan honeycomb reports no ring however wide its spacer is set
+- blocks release: no
+- status: OPEN
+- found by: round 7, checking where the ring for B8-318 should come from.
+- detail: `hex_ring_mm` is populated and equals the requested width (clamped)
+  for a CR30 honeycomb in both orientations, and `hex_support.ring_mm_of`
+  resolves it. **It is 0.0 for SpectroScan at every spacer width**, so
+  `hex_ring_px_from_sidecar` answers 0 for an SS honeycomb built with
+  `spacer_width_mm = 1.5` and the B8-318 inset does nothing there.
+- two possibilities and they need separating: either a SpectroScan honeycomb
+  genuinely prints no ring, in which case nothing is wrong and the register
+  should say so; or the engine does not record one for that instrument, in
+  which case the chart and the overlay disagree about what is on the paper.
+- the way to tell is the ink: build an SS honeycomb at several spacer widths
+  and measure one hexagon's printed extent against its recorded box, the way
+  it was measured for the CR30 (142 px box against 142 / 137 / 125 / 109 px of
+  ink at 0 / 0.5 / 1.5 / 3.0 mm). An attempt to do that scanned a whole row
+  because touching hexagons share an edge and the scan ran across all of them;
+  it has to look for a colour CHANGE, not for paper.

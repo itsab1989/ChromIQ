@@ -794,6 +794,8 @@ class TiffPreview(QWidget):
         # first patch and one below the last, which the recorded patch geometry
         # omits — so the hover frame adds it back (#43). 0 ⇒ no edge spacers.
         self._edge_spacer_px: int = 0
+        #: The ring between a honeycomb's hexagons, in image px (B8-318).
+        self._hex_ring_px: float = 0.0
         # Split-patch display: "both" (diagonal split), "expected" or
         # "measured" (whole patch one side). Switchable any time (#126, Knut).
         self._overlay_mode: str = "both"
@@ -1705,6 +1707,22 @@ class TiffPreview(QWidget):
         self._exposed_cache.clear()     # a new grid, a new answer
         self._schedule_refresh()
 
+    def set_hex_ring_px(self, px: float) -> None:
+        """The paper ring between this chart's hexagons, in IMAGE pixels.
+
+        Read from the chart's own recipe by
+        `ui.tabs.tab_measure.hex_ring_px_from_sidecar`, because the recorded
+        patch boxes carry no trace of it: a honeycomb takes the ring out of the
+        patch's own area, so the boxes are identical with the spacer on and
+        off. 0 means a tessellating honeycomb, which is what every chart
+        without a spacer is.
+        """
+        try:
+            self._hex_ring_px = max(0.0, float(px or 0.0))
+        except (TypeError, ValueError):
+            self._hex_ring_px = 0.0
+        self._update_display()
+
     def set_edge_spacer_px(self, px: int) -> None:
         """Height of a leader/trailer edge spacer in image px, or 0 when the
         chart has none — used to grow the strip-hover frame over the spacers that
@@ -1849,7 +1867,8 @@ class TiffPreview(QWidget):
     @staticmethod
     def _patch_hexagon(b: QRect, s: float, ox: float, oy: float,
                        flat_top: bool = False,
-                       sy: "float | None" = None) -> "QPainterPath":
+                       sy: "float | None" = None,
+                       inset_px: float = 0.0) -> "QPainterPath":
         """A closed hexagon outline for a single SpectroScan patch box, drawn from
         `hexagon.vertices`, so it IS the strip zigzag's geometry rather than a
         second copy promising to match it. Used to
@@ -1858,6 +1877,24 @@ class TiffPreview(QWidget):
         sy = s if sy is None else sy
         pts = hexagon.vertices(b.left(), b.y(), b.right() + 1 - b.left(),
                                b.height(), flat_top=flat_top)
+        # THE BOX IS THE CELL; THE PRINTED HEXAGON IS SMALLER BY THE RING.
+        #
+        # A honeycomb built with a spacer takes the ring out of the patch's own
+        # area, so the RECORDED box does not change at all: measured, the boxes
+        # are byte-identical between `spacer_on=False` and `spacer_width=1.5`,
+        # 150 of them, in both orientations. What changes is the ink. CR30 A4
+        # at 300 dpi, one box at its centre row: the box is 142 px at every
+        # spacer width while the ink is 142 / 137 / 125 / 109 px at 0 / 0.5 /
+        # 1.5 / 3.0 mm, and the rotated chart gives 164 / 159 / 145 / 125. The
+        # difference is one ring across, so half a ring per side.
+        #
+        # Inscribing in the box therefore drew the split at CELL size and the
+        # ring vanished under it. Basti, with two photographs of a rotated CR30
+        # honeycomb: *"honeycombs with spacers. spacers get covered by split
+        # overlay"*. The ring cannot be recovered from the boxes, so it is
+        # carried in from the chart's own recipe (`set_hex_ring_px`).
+        if inset_px > 0:
+            pts = hexagon.inset(pts, inset_px / 2.0)
         path = QPainterPath()
         for i, (vx, vy) in enumerate(pts):
             xy = (vx * s + ox, vy * sy + oy)
@@ -3054,7 +3091,9 @@ class TiffPreview(QWidget):
                     # honeycomb; no dedup needed the way rectangles need it.
                     painter.setBrush(Qt.BrushStyle.NoBrush)
                     for b in pats:
-                        painter.drawPath(self._patch_hexagon(b, s, ox, oy, self._hex_flat_top, sy))
+                        painter.drawPath(self._patch_hexagon(
+                            b, s, ox, oy, self._hex_flat_top, sy,
+                            self._hex_ring_px))
                     continue
                 left_is_border = (i == 0) or read_map.get(i - 1, False)
                 # The left edge is normally deduped against the unread column to
@@ -3118,7 +3157,8 @@ class TiffPreview(QWidget):
                 b = (rect if isinstance(rect, QRect)
                      else QRect(int(rect.x()), int(rect.y()),
                                 int(rect.width()), int(rect.height())))
-                hexp = self._patch_hexagon(b, s, ox, oy, self._hex_flat_top, sy)
+                hexp = self._patch_hexagon(b, s, ox, oy, self._hex_flat_top,
+                                           sy, self._hex_ring_px)
                 # Fill by PATH intersection, never a clip: a clip path is hard-
                 # edged and left a faint seam around every patch (Knut, zoomed in).
                 # A hairline stroke in the fill colour closes the sub-pixel gaps
