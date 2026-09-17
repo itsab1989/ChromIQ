@@ -13320,3 +13320,114 @@ tried. The band is the ink height of "W8" and a bold face is no taller, so
 there is nothing to assert there and the guard says so rather than inventing a
 weaker claim. It is observable in the ink probe at 40 px, and in the row label
 on a face whose italic is a real second face, and both are asserted.
+
+### B8-308 · OPEN · Generate report writes the new report and the selector keeps naming the old one
+- blocks release: no
+- status: OPEN
+- found by: Knut, beta 20: *"Now there are two reports in the 'Saved reports'
+  pulldown, but the selected option did not change to the new report I
+  generated last."*
+- proof: `~/.claude/jobs/c4ec4e71/tmp/knut-report/proof/C-after-generate-report.png`
+- detail: worse than reported. The PAGE does follow the new file, so the
+  selector and the document disagree: the header reads *"Judged against:
+  ChromIQ default (recommended)"* while the pulldown reads *"… · Quick check ·
+  saved 2026-06-01 09:00:00"*. `_sync_saved_reports`
+  (`ui/dialogs/measurement_report_dialog.py:3399`) takes `want =
+  combo.currentData()` as its primary source of truth, so the combo's own stale
+  selection wins over `self._report`, which `_on_generate_report` has just
+  moved to the file it wrote.
+- what to change: compute the index from `self._report` first and use `want`
+  only as the fallback for rows that are not the window's subject.
+  `tests/test_saved_reports_can_be_chosen_and_deleted.py::test_generate_shows_the_report_it_just_wrote`
+  asserts the document moved and never asserts the selector did; that missing
+  line is why this shipped.
+
+### B8-309 · OPEN · The report text is written to a reader who is sitting in front of the window
+- blocks release: no
+- status: OPEN
+- found by: Knut, beta 20: *"the text must be written as if it is a separate
+  document printed for a customer, and that customer knows nothing of the
+  Measurement Report windows, buttons, selections that can be made or changed
+  ... shall only contain data and results relating to that one reports
+  settings, and not show information that other reports exist with other
+  'judged against' threshold sets."*
+- proof: `~/.claude/jobs/c4ec4e71/tmp/knut-report/proof/D-report-scope-names-other-reports.png`
+- detail: `_other_limit_sets_html` (`:6206`, called unconditionally from
+  `_scope_html:6203`) prints a red paragraph naming every measurement left out
+  and the set each was judged against, twelve of them on the demo project.
+  Fourteen further strings speak about the window or its controls: *"loaded in
+  this window"*, *"in the list above"*, *"(unticked)"*, *"chosen in this
+  window"*, *"ticked in Preferences → Reports"*, *"when you point at the cell"*
+  (a printed PDF has no hover), *"use Check & Refine ▸ Analyse Profile
+  Quality"*. Every one is listed with its line number in the investigation
+  notes.
+- **NOT in the §M catalogue.** `tests/test_message_catalogue.py`'s
+  `WINDOW_SOURCES` does not list `measurement_report_dialog`, so removing them
+  needs no approval; any NEW sentence written for the window does.
+  `docs/design/measurement_report_limits.md` §11 must be revised in the same
+  commit.
+- detail: a second, near-identical block still exists at `:6302-6316`
+  (`_scope_warnings_html`, `kind == "compliance"`). It is unreachable today
+  only because `_one_limit_set` narrows the runs first, and it comes back the
+  moment that narrowing changes.
+
+### B8-310 · OPEN · Changing "Judged against" recalculates every saved report, and the SPEC says it must
+- blocks release: no
+- status: OPEN
+- **IT CONTRADICTS A CONFIRMED SPECIFICATION**, see below
+- found by: Knut, beta 20: *"This is wrong functionality. If a report has been
+  generated, those reports shall not be recalculated if I want to create a new
+  report with a different Judged Against threshold set."*
+- proof: `~/.claude/jobs/c4ec4e71/tmp/knut-report/proof/B-recalculate-popup.png`
+- **THIS IS A SPEC CONFLICT AND MAY NOT SIMPLY BE FIXED.**
+  `docs/design/measurement_report_limits.md` §5 says, twice, that choosing a
+  set *"recalculates that date's saved reports, archiving them first, exactly
+  as the unlock path does"*, and attributes the archive-then-recalculate rule
+  to **Knut D23**. His beta-20 ruling overturns his own D23. Per CLAUDE.md the
+  specification must be revised, quoted and dated, in the same commit, and it
+  needs more than one sentence: §5's whole "locked once a second dated
+  verification exists" apparatus exists to keep dates comparable by binding one
+  set to a run, and under B8-311 comparability becomes a property of the
+  DOCUMENT instead.
+- measured, so it need not be re-derived: `_recalculate_run` (`:5830`) copies
+  every live `reports/report_*.json` into `reports/old/<stamp>/`
+  (content-hash deduped, nothing deleted), re-stamps each with the run's new
+  limits and rewrites it in place. On run3 the archived copy kept
+  `chromiq_quick` / PASS and the live file became `chromiq_default` / FAIL.
+  Nothing on disk goes inconsistent if it stops: `_yardstick_of` (`:4375`)
+  already prefers a report's OWN recorded set over the run's, because the run's
+  profiling report is deliberately never recalculated.
+- open question for Knut: the unlock door (`_on_unlock_toggled:4940`) and the
+  limits-window door (`:5745`) also recalculate. He named neither.
+
+### B8-311 · OPEN · A saved report does not remember the settings it was made with
+- blocks release: no
+- status: OPEN
+- found by: Knut, beta 20: *"All reports created must also [be] saved according
+  to the selected measurements at the time of creation."*
+- detail: a saved report already carries its report type (`report_type`) and
+  its limit set (`compliance`). It carries neither checkbox and, crucially, not
+  the list of measurements it covered. `_hidden_runs` is session-only by
+  design (`:1127`, `:2182`) and the two ticks are read live at `:2439`.
+- **AND THE STRUCTURAL PROBLEM CAME FIRST.** A "saved report" today is a
+  per-measurement verdict record, not a document. Measured on screen: run1
+  with "Show all measurement runs" ticked, ONE press of Generate report wrote
+  **11 files**, one per dated verification, and took the pulldown from 11
+  entries to 22. Knut's "Current Report Showing" is one entry per DOCUMENT, so
+  a document-level record has to exist before the rest of his rework can be
+  built. The fields are known (type, set id and label, the thresholds copy, the
+  two ticks, and `included` keyed by the three parts of `_run_key`), and the
+  block is additive, so `REPORT_SCHEMA` stays 7.
+
+### B8-312 · OPEN · A recalculated report's label is stale for the rest of the session, because the file's mtime never moves
+- blocks release: no
+- status: OPEN
+- found by: the same investigation, not reported by anyone
+- detail: `write_json_atomically` calls `shutil.copystat(path, tmp)` when the
+  target exists (`core/file_manager.py:797`), which carries `st_mtime` across,
+  so a rewrite keeps the file's old timestamp. `_saved_report_label` caches by
+  `path.stat().st_mtime_ns` (`:3279`) and therefore never invalidates after a
+  recalculation: the entry goes on reading "Quick check" over a file that holds
+  `chromiq_default`. A freshly opened window is correct, so it is invisible to
+  any test that reopens the dialog. **This is a fault in a fix of my own**:
+  the atomic-write helper is B8-301, from this same round.
