@@ -928,18 +928,30 @@ _IDENTICAL_TO_KEY = {
     # work that gets thrown away. Every number below is counted off this tree,
     # not the old number plus two, because a budget adjusted upward admits the
     # next regression for free.
-    "de": 126,
-    "es": 374,
-    "fr": 396,
-    "it": 385,
-    "ja": 360,
-    "nl": 401,
-    "no": 386,
-    "pl": 378,
-    "pt": 376,
-    "ru": 349,
-    "sv": 387,
-    "zh_CN": 354,
+    # 2026-09-18: every language rises by exactly EIGHT, and by the same eight.
+    # Knut's Patch Set editor batch (#182): the Add window's count beside
+    # "Pure white & black" disagreed with the total it fed, and "Fill remaining
+    # gaps" showed 0 without saying that its target counts the patches already
+    # on the chart. Fixing both changed five strings (the shared generator
+    # essay, the Add window's intro, the white/black, fill and unique tooltips)
+    # and added three ("fill chart to:", "patches in total", "target already
+    # met"). The translations the OLD wording had do not carry over to strings
+    # that now say something different.
+    #
+    # They stay English until the pass before GA, which is the standing rule
+    # for a beta. Every number below is counted off this tree.
+    "de": 134,
+    "es": 382,
+    "fr": 404,
+    "it": 393,
+    "ja": 368,
+    "nl": 409,
+    "no": 394,
+    "pl": 386,
+    "pt": 384,
+    "ru": 357,
+    "sv": 395,
+    "zh_CN": 362,
 }
 
 

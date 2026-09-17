@@ -13763,3 +13763,143 @@ written for it in the suite passed its own mutation.
   this file had before could not have seen the fault at all, which is why two
   earlier rounds did not: put the cell-sized fill back and the new guard fails
   at 25 pixels while the old ones stay green.
+
+### B8-322 · FIXED · The Add window stacked two widgets in one grid cell, and "Ensure unique colours" could not be clicked
+- blocks release: no
+- status: FIXED
+- reported by: Knut, #182 comment 5721719196, with a screenshot: *"the bottom
+  last checkboxes overlap each other, above the total patches count. I think
+  this error was on the NEW PATCH SET window before but fixed. I cannot click
+  on the 'Ensure unique colours..' checkbox."*
+- cause: `_gen_after_total` ("Chart after adding: N patches") was added at grid
+  **row 21**, which is `_gen_unique`'s own row. A `QGridLayout` lays two
+  widgets in one cell on top of each other and the later one takes the mouse.
+  It is only VISIBLE when the chart already has patches, which is the Add
+  window and not the New patch set window, so only the Add window showed it.
+- fix: row 23, with the reason written beside it.
+- evidence: `test_the_add_window_does_not_stack_two_widgets_in_one_cell` walks
+  every cell of the panel's grid and refuses any that is claimed twice;
+  `test_the_unique_checkbox_is_the_widget_under_its_own_centre` is the
+  geometric half. On screen: the two rectangles are (0, 432, 812, 18) and
+  (0, 474, 812, 16), they do not intersect, and a real `QTest.mouseClick`
+  inside the style's `SE_CheckBoxClickRect` toggles the checkbox.
+- proof: `~/Desktop/ChromIQ-beta21-proof/knut-patchset-editor-batch/`
+
+### B8-323 · FIXED · "Pure white & black" showed 2 while the chart grew by 4
+- blocks release: no
+- status: FIXED
+- reported by: Knut, same comment: *"Clicking on Pure white & black, with
+  each=2, shows a count of 2 on the right side, but the total number jumps from
+  567 to 571, which is also a bug in counting."*
+- reproduced exactly, on his own settings (615 existing patches, cube 7,
+  gamut corners 2, skin 3/2, greys 20, near-neutral greys 20/1/6): row "2
+  patches", Total 567 to 571.
+- cause: **an estimate and a build answering different questions.** The row's
+  estimate asks which ticked sets own a white and a black tip and subtracts
+  them, `(2 - 1) + (2 - 1) = 2`. The builder counts the pure white and pure
+  black the program still holds after "Ensure unique colours" has run, and that
+  pass seeds itself with the chart's EXISTING patches, so on a chart that
+  already holds white and black the sets' own tips are nudged clear of them and
+  are no longer pure. Nothing is left to subtract and it appends 2 + 2 = 4.
+  Only a build can know that.
+- fix: `_build_generated_program_uncached` records what its last two rows
+  really appended, the program cache carries that record alongside the program
+  and the gamut note (the third thing a build produces), and
+  `_do_push_live_preview` puts it on the two labels. An UNTICKED row's greyed
+  number is re-derived from the same program, because the number Knut read was
+  off a greyed row.
+- evidence: `test_the_white_black_row_counts_what_the_build_adds`,
+  `test_the_row_numbers_survive_a_cache_hit`.
+
+### B8-324 · FIXED · "Fill remaining gaps" showed 0 and never said what its target measures
+- blocks release: no
+- status: FIXED
+- reported by: Knut, same comment: *"I can click the 'Fill remaining gaps'
+  checkbox, but the total count does not update, as the count for the 'Fill
+  remaining gaps' is 0, even though the fill to value is larger than the
+  total."*
+- **the count was right.** 'Fill to' is the size of the FINISHED chart, not the
+  number of patches to add, and `_sync_chart_recipe_from_build` seeds the box
+  with the chart's own realised patch count (615 on his chart), so 615 existing
+  + 567 from the ticked sets is already past the target. The row never said
+  which number it was measured against, and the "Total" line beside it counts
+  only the additions.
+- fix: in the Add window the row reads **"fill chart to: N patches in total"**,
+  and a target that is already reached reads **"target already met"** instead
+  of "0 patches". Raise it above the "Chart after adding" figure and it is a
+  count again. The tooltip and the shared generator help say the same thing.
+- evidence: `test_the_fill_row_says_the_target_is_already_met`,
+  `test_the_fill_row_names_the_chart_in_the_add_window`,
+  `test_the_new_window_keeps_the_plain_fill_label`.
+
+### B8-325 · FIXED · The Add window's program cache was inert, so every keystroke rebuilt the whole program
+- blocks release: no
+- status: FIXED
+- found by: proving B8-323. The cache-hit guard passed its own mutation,
+  which is never good news: the Add window never reached the cache at all.
+- cause: `_generator_cache_key` keyed on `_collect_gen_state()`, which reads
+  the New chart window's source-mode radios, instrument combo, paper and layout
+  knobs. The Add window has none of those, the call raised `AttributeError`,
+  the catch-all answered `None`, and a `None` key means never cache. The same
+  call is NOT inside a try in `_push_lab_cloud`, so a multi-ink chart's Lab
+  preview would have raised there.
+- fix: `_generator_build_state()` is the half both windows share (the source
+  mode, the device block, the colour sets) and is what the cache and the Lab
+  cloud key on. `_collect_gen_state` spreads it first, so the state-1 identity
+  of the persisted dict is unchanged (`test_gen_state1_identity.py`).
+- measured on Knut's selection over 615 existing patches with a 2,000-patch
+  fill: **776 ms, then 0.2 ms**, where every repeat had cost 776 ms.
+- evidence: `test_the_add_window_keys_and_reuses_its_program_cache`.
+
+### B8-326 · OPEN · `ccb713eb` leaves a saw-tooth of unread chart ink beside every read column
+- blocks release: yes
+- status: OPEN
+- found by: round 9, and it is a REGRESSION introduced by the B8-321 fix.
+- measured, same chart, same window, same reads, one commit apart:
+
+  | reads | before `ccb713eb` | at `ccb713eb` |
+  |---|---|---|
+  | nothing read | 0 | 0 |
+  | alternate strips | 0 | 62,184 px (17.4 %) |
+  | first half read | n/a | 4,404 px |
+  | CR30 rotated, alternate | n/a | 126,577 px (35.8 %) |
+  | SpectroScan, alternate | n/a | 32,123 px (23.1 %) |
+
+- cause: `_ink_box` (`ui/tiff_preview.py`) is 17 to 44 px bigger than the
+  printed ink on every chart with a spacer ring (pointy 142x189 vs ink
+  125x145; rotated 189x142 vs 145x125; SpectroScan 83x111 vs 83x94). The
+  read-neighbour subtraction uses that same oversized hexagon, so it punches a
+  hole bigger than the read patch and the unread neighbour's ink shows through
+  it. Round 8's question is answered yes only while nothing is read.
+- nothing guards it: with the subtraction deliberately 50 % oversized both
+  guard files stay at 79 passed.
+- proof: `~/Desktop/ChromIQ-beta21-proof/round-09-the-blank-that-eats-and-leaks/`
+
+### B8-327 · OPEN · "Show only measured patches" makes a big honeycomb's repaint 3.1x slower
+- blocks release: no
+- status: OPEN
+- found by: round 9. A 3,312-patch honeycomb repaints in 227 ms with the option
+  off and **698 ms** with it on; a resize goes 1,036 to 1,512 ms. A normal
+  338-patch chart is unaffected (61 to 72 ms).
+- the per-patch path builds a `QPainterPath` per neighbour and subtracts it.
+
+### B8-328 · OPEN · The area-first help text promises a margin the app does not give
+- blocks release: no
+- status: OPEN
+- found by: round 9, against `28e1b994` (the layout-mode help Knut asked for).
+- the text says *"your margins are the law, the patch area lands exactly where
+  you defined it"*. Ask for 5 mm and the i1Pro 3+ sheet gets **36.15 mm** on
+  the left (+31.15), the i1 14.39, the SpectroScan 12.02, and top/bottom are a
+  constant +1.00 mm. Confirmed by the app's own `measure_from_engine`, with the
+  panel's message field empty. The patch-first half of the text is correct.
+- a help text is a promise: either the sentence changes or the margin does.
+
+### B8-329 · OPEN · Knut's new built-in presets, and the landing page's preset count
+- blocks release: no
+- status: OPEN
+- reported by: Knut, #182, 2026-09-17T22:17:49Z: *"I also created a few more
+  presets to be added as built-in as the other built-in presets"* (i1Pro
+  130x180 and 100x150, attached as a zip), and *"Update the web page / landing
+  page for the project on github with corrected numbers of presets that come
+  ready-made."*
+- `docs/dev_builtin_presets.md` is the recipe; read it before adding another.

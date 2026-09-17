@@ -110,167 +110,183 @@ def _toggle_locked_prefix(edit: "PrefixLockedLineEdit", on: bool, prefix: str) -
 # string passed to tr() is a module constant, which i18n_extract resolves like a
 # literal — so this is a single catalog key reused in both places.
 _GEN_SETS_HELP = (
-    "About “Generate colour sets”:\n\n"
+    "About \u201cGenerate colour sets\u201d:\n\n"
     "Tick any combination of these sets and ChromIQ lays them down "
     "one after another. Each set shows how many patches it adds, and a "
     "running total appears underneath, so you always know how big the "
     "chart will get before you create it. Which sets can be used depends "
-    "on the device the chart is for — the sets for RGB charts come first, "
+    "on the device the chart is for. The sets for RGB charts come first, "
     "then the extra sets for multi-ink (CMYK and CMYK + extra inks) "
     "charts, then an overview of what is available when:\n\n"
-    "• 3D RGB cube — an even grid of colours across the whole range. You "
+    "\u2022 3D RGB cube: an even grid of colours across the whole range. You "
     "pick how many steps each of red, green and blue is split into, and "
     "the chart then holds every combination (for example 6 steps makes "
-    "6×6×6 = 216 patches). A solid, neutral foundation for almost any "
+    "6\u00d76\u00d76 = 216 patches). A solid, neutral foundation for almost any "
     "profile.\n\n"
-    "• Saturated edges — the most vivid colours the printer can manage. "
-    "'Per edge' traces the twelve edges of the colour cube — the gamut "
+    "\u2022 Saturated edges: the most vivid colours the printer can manage. "
+    "'Per edge' traces the twelve edges of the colour cube, the gamut "
     "wireframe (black up to each pure colour and on to white, plus the "
     "colourful edges between); 'per face' goes further and also fills the "
-    "six cube faces — the full gamut surface — with that many patches per "
+    "six cube faces, the full gamut surface, with that many patches per "
     "side, or leave it at 0 for edges only. This outer boundary is exactly "
     "where profiles tend to go wrong, so it pays to sample it well.\n\n"
-    "• Gamut-corner emphasis — a few extra patches right on the gamut "
+    "\u2022 Gamut-corner emphasis: a few extra patches right on the gamut "
     "edge lines next to each of the eight corners of the colour cube, "
     "where the deepest colours live and profiles err most. 'Edge' is how "
     "many to add per edge near each corner; they slot into the gaps so "
     "they never repeat what the 3D cube or Saturated edges already "
     "placed.\n\n"
-    "• Skin tones (Fitzpatrick) — lifelike skin colours running light to "
+    "\u2022 Skin tones (Fitzpatrick): lifelike skin colours running light to "
     "dark through each of the six Fitzpatrick skin types, now reaching "
     "from porcelain-pale highlights down to very deep, faintly cool "
     "shadows. 'Per type' sets how many shades each type gets from light "
     "to dark; 'Ranges' adds that many parallel ramps, each nudged a "
     "little in hue, so a single skin type is covered by a small spread of "
-    "tones rather than one straight line — handy because real faces vary. "
-    "Worth adding whenever faces and portraits matter most.\n\n"
-    "• Oceans (blues) — extra colours packed into the green-turquoise "
+    "tones rather than one straight line. That is handy, because real "
+    "faces vary. Worth adding whenever faces and portraits matter "
+    "most.\n\n"
+    "\u2022 Oceans (blues): extra colours packed into the green-turquoise "
     "to deep-blue part of the range, where wide-gamut papers and inks "
     "reach furthest (it now dips into the greenish turquoise too). "
     "'Per layer' is how many patches each sheet holds and 'Layers' is how "
-    "many sheets, so the two multiply (24 per layer × 3 layers = 72). The "
+    "many sheets, so the two multiply (24 per layer \u00d7 3 layers = 72). The "
     "sheets are gently angled rather than one flat blanket, so the whole "
     "turquoise corner is filled in depth. Helpful for skies, water and "
     "deep blues.\n\n"
-    "• Foliage (greens) — a spread of forest, jungle and leaf greens, for "
+    "\u2022 Foliage (greens): a spread of forest, jungle and leaf greens, for "
     "landscapes and nature shots where the greens carry the picture. As "
-    "with the blues, 'Per layer' × 'Layers' patches are spread across "
+    "with the blues, 'Per layer' \u00d7 'Layers' patches are spread across "
     "angled sheets so the green part of the range is covered with more "
     "depth.\n\n"
-    "• Sunrises (warm) — golden yellows, oranges, reds and pinks: the "
+    "\u2022 Sunrises (warm): golden yellows, oranges, reds and pinks, the "
     "warm 'sunrise' side of the colour range that the blues and greens "
     "sets leave out, for skies, flowers and skin highlights. As with "
-    "those sets, 'per layer' × 'layers' patches are spread across gently "
+    "those sets, 'per layer' \u00d7 'layers' patches are spread across gently "
     "angled sheets.\n\n"
-    "• Flamingos (pinks) — pinks, magentas and indigos: the band between "
+    "\u2022 Flamingos (pinks): pinks, magentas and indigos, the band between "
     "where Oceans (blues) ends and Sunrises begins, the big gap the other "
     "colour-band sets leave in the middle. Great for flowers, fabrics, "
-    "sunsets and skin. Again 'per layer' × 'layers' patches on angled "
+    "sunsets and skin. Again 'per layer' \u00d7 'layers' patches on angled "
     "sheets.\n\n"
-    "• Neutral grey ramp — a plain ramp of pure greys from black to white, "
+    "\u2022 Neutral grey ramp: a plain ramp of pure greys from black to white, "
     "with no tints at all (a black-and-white wedge). This is the most "
     "important region for a clean profile. 'Steps' is how many greys span "
     "black to white. It is independent of Near-neutral greys below, so you "
     "can choose the number of pure neutrals separately from the tinted "
-    "ones — more pure greys than tinted, or either on its own.\n\n"
-    "• Near-neutral greys — rings of gentle tints just off the neutral axis "
+    "ones: more pure greys than tinted, or either on its own.\n\n"
+    "\u2022 Near-neutral greys: rings of gentle tints just off the neutral axis "
     "at each grey level, which is what helps greys print cleanly without an "
     "unwanted colour cast. This adds only the tints; the pure grey centres "
     "come from Neutral grey ramp above. 'Steps' is how many levels get "
     "rings, 'rings' is how many rings circle each grey (one ring is six "
-    "tints, each extra ring a wider, denser one — 12, then 18), and "
+    "tints, each extra ring a wider, denser one: 12, then 18), and "
     "'offset' is how far the tints stray from neutral.\n\n"
-    "• Colour extremes — extra detail just inside the six most saturated "
+    "\u2022 Colour extremes: extra detail just inside the six most saturated "
     "colour corners of the printer's range: red, green, blue, cyan, "
     "magenta and yellow at their most vivid, which are the trickiest "
     "colours to reproduce. It works like Highlights & shadows, but "
     "spiralling in from each colour corner. 'Per end' is how many patches "
     "at each corner; 'reach' how far in they spiral.\n\n"
-    "• Highlights & shadows — extra detail at the two ends where printers "
-    "struggle most: pale tints just below paper white, and deep tones just "
+    "\u2022 Highlights & shadows: extra detail at the two ends where printers "
+    "struggle most, pale tints just below paper white and deep tones just "
     "above black, spread across every hue. These ends often band or block "
     "up, and the cube alone samples them thinly. 'Per end' is how many "
     "patches go at each end (so the set adds twice that many), and 'depth' "
     "is how far in from white and black the tones reach.\n\n"
-    "• Pastels — soft, muted colours all around the hue wheel: dusty blues, "
+    "\u2022 Pastels: soft, muted colours all around the hue wheel: dusty blues, "
     "sages, soft pinks, taupes. This is where a great deal of real "
-    "photography actually lives — the gentle region between the clean greys "
-    "and the vivid sets. Each of the 'layers' is a chroma shell — from "
-    "barely-tinted near-greys out to fuller pastels — of 'per layer' "
+    "photography actually lives, the gentle region between the clean greys "
+    "and the vivid sets. Each of the 'layers' is a chroma shell, from "
+    "barely-tinted near-greys out to fuller pastels, of 'per layer' "
     "patches, so the two multiply.\n\n"
-    "• From image — load one of your own photos and ChromIQ finds its most "
+    "\u2022 From image: load one of your own photos and ChromIQ finds its most "
     "representative colours and adds them to the chart, so the profile is "
-    "tuned to the kind of pictures you really print. Click 'Load image…', "
+    "tuned to the kind of pictures you really print. Click 'Load image\u2026', "
     "pick a file, and set how many 'Colours' to pull out. Lovely combined "
     "with a cube for all-round coverage plus your image's own palette on "
     "top.\n\n"
-    "• Pure white & black — extra copies of pure paper white and the "
+    "\u2022 Pure white & black: extra copies of pure paper white and the "
     "deepest black, the two anchor colours of every profile. 'Each' is "
-    "how many of each the finished chart should hold — and any white or "
+    "how many of each the finished chart should hold, and any white or "
     "black the other ticked sets already contribute counts toward that "
     "number. A 3D cube, Saturated edges or Gamut-corner emphasis includes "
     "one of each, and so does a Neutral grey ramp with 2 or more steps. "
     "So with one of those ticked, 'each: 1' adds 0 extra patches and "
-    "'each: 3' adds 4 (2 more whites and 2 more blacks) — that's "
+    "'each: 3' adds 4 (2 more whites and 2 more blacks). That is "
     "deliberate: the chart ends up with exactly the number you asked "
-    "for, never more. The copies are kept identical on purpose (they're "
+    "for, never more. The copies are kept identical on purpose (they are "
     "exempt from 'Ensure unique colours'), so several readings of the "
     "same white and black can be averaged.\n\n"
-    "• Fill remaining gaps — a tidy-up that comes last. After the sets you "
+    "   When you add to a chart that already holds white and black, expect "
+    "the full count twice over, once for white and once for black. "
+    "'Ensure unique colours' moves the new sets' own white and black clear "
+    "of the copies already on the chart, so those tips are no longer pure "
+    "and no longer count toward 'each', and the anchors are added in full. "
+    "The number beside the row is refreshed from the patches ChromIQ "
+    "really built a moment after you change a setting, so it always "
+    "matches the total underneath.\n\n"
+    "\u2022 Fill remaining gaps: a tidy-up that comes last. After the sets you "
     "picked are laid down, it scatters extra patches into the empty parts "
-    "of colour space — evenly and without repeating — until the chart "
-    "reaches the size you ask for. 'Fill to' is that target total, so the "
-    "whole chart lands on a round number with nothing left clumped or "
-    "bare.\n\n"
-    "Mix them freely — say a 3D cube for overall coverage plus "
+    "of colour space, evenly and without repeating, until the chart "
+    "reaches the size you ask for. 'Fill to' is the size of the finished "
+    "chart, not the number of patches to add: it counts the patches "
+    "already on the chart as well as everything the ticked sets "
+    "contribute. In the New patch set window the chart starts empty, so "
+    "the two are the same number; in the Add window they are not, which "
+    "is why the row reads 'fill chart to'. If the chart has already "
+    "reached the target, the row says 'target already met' and adds "
+    "nothing: raise the target above the 'Chart after adding' figure "
+    "underneath and it fills again.\n\n"
+    "Mix them freely: say a 3D cube for overall coverage plus "
     "a neutral grey ramp for clean neutrals, or skin tones plus greens for "
     "portraits out in nature.\n\n"
-    "• Ensure unique colours — when this is ticked and your sets happen to "
+    "\u2022 Ensure unique colours: when this is ticked and your sets happen to "
     "share a colour (for example a 3D cube and a grey ramp both include "
     "black and white), ChromIQ keeps one and nudges the duplicates apart "
-    "by a tiny amount, so no colour is printed and measured twice. The "
-    "patch total stays the same. Leave it on unless you have a reason not "
-    "to.\n\n"
+    "by a tiny amount, so no colour is printed and measured twice. When "
+    "you are adding to a chart that already has patches, it keeps the new "
+    "ones clear of those as well. The patch total stays the same. Leave "
+    "it on unless you have a reason not to.\n\n"
     "Multi-ink devices (Device set to CMYK or CMYK + extra inks):\n\n"
     "A multi-ink chart is designed ink by ink, so the panel gains five "
     "ink-based sets:\n\n"
-    "• Even coverage (targen) — patches spread evenly across every ink "
+    "\u2022 Even coverage (targen): patches spread evenly across every ink "
     "combination your printer can mix, always inside the ink limit. This "
     "is the backbone of a multi-ink chart and the replacement for the 3D "
     "cube family: a cube of every ink combination would explode (a 9-step "
     "cube in 7 inks is nearly 5 million patches), so Argyll's targen "
     "picks a smart, even selection instead.\n\n"
-    "• Per-ink ramps — a tone ramp of every ink on its own, from a light "
+    "\u2022 Per-ink ramps: a tone ramp of every ink on its own, from a light "
     "tint to full coverage, so the profile learns each ink's own "
     "character: how fast it darkens, where it saturates, its pure colour "
     "on your paper.\n\n"
-    "• Ink-pair overprints — two inks printed on top of each other, "
-    "stepped up together, for every pair of your inks — how ink pairs "
-    "really combine on paper. Each ink in a pair stays at or below half "
-    "the ink limit, so no patch can exceed it.\n\n"
-    "• Ink-triple overprints — three inks on top of each other for every "
+    "\u2022 Ink-pair overprints: two inks printed on top of each other, "
+    "stepped up together, for every pair of your inks, which is how ink "
+    "pairs really combine on paper. Each ink in a pair stays at or below "
+    "half the ink limit, so no patch can exceed it.\n\n"
+    "\u2022 Ink-triple overprints: three inks on top of each other for every "
     "trio: the home of the deep, rich composite colours profiles get "
     "their dark shadows from. Each ink stays at or below a third of the "
     "ink limit.\n\n"
-    "• Rich-black ramp — dark neutral greys built from colour ink plus "
+    "\u2022 Rich-black ramp: dark neutral greys built from colour ink plus "
     "increasing amounts of black: real measurements for the profile's "
     "black generation instead of guesswork. Needs a black ink.\n\n"
     "Which of the sets above still work on a multi-ink chart: Neutral "
     "grey ramp, Near-neutral greys, Pure white & black and Fill remaining "
-    "gaps always do — they are built natively for any ink set. The "
+    "gaps always do, because they are built natively for any ink set. The "
     "cube-shaped sets (3D RGB cube, Saturated edges, Gamut-corner "
     "emphasis, Colour extremes) never apply: they trace the corners and "
     "edges of the RGB colour cube, which a multi-ink device simply "
-    "doesn't have — Even coverage is their replacement, so they stay "
+    "does not have. Even coverage is their replacement, so they stay "
     "greyed out as a reminder rather than disappearing. The look-based "
     "sets (Skin tones, Oceans, Foliage, Sunrises, Flamingos, Highlights "
     "& shadows, Pastels, From image) describe how colours look, not "
-    "which inks to use — they unlock as soon as you set a preconditioning "
+    "which inks to use: they unlock as soon as you set a preconditioning "
     "profile that matches the chart's ink set, because only a profile can "
     "tell ChromIQ which ink mix produces each look. The same profile "
     "also re-centres the Near-neutral grey rings on your printer's true "
     "neutral, and brings the 3D preview back (as a view of the patches' "
-    "real colours) — without a profile there is no honest colour model "
+    "real colours). Without a profile there is no honest colour model "
     "for a multi-ink chart, so the preview stays hidden rather than "
     "showing a guess.\n\n"
     "Why the finished chart can hold a few more patches than the total "
@@ -278,7 +294,7 @@ _GEN_SETS_HELP = (
     "page layout is built, a partial last strip is topped up with "
     "paper-white filler patches (Argyll's printtarg does exactly the "
     "same). If you design 896 patches and each strip holds 13, the "
-    "printed chart becomes 910 — the 14 extras are plain paper white, "
+    "printed chart becomes 910. The 14 extras are plain paper white, "
     "are measured like everything else, and simply give the profile a "
     "few more readings of the paper. Nothing is lost or changed."
 )
@@ -326,14 +342,22 @@ _NEW_CHART_TIP_CLOSING = (
 # Short intro for the Add-patches dialog's ⓘ, ahead of the shared generator help.
 _ADD_TIP_INTRO = (
     "Add more patches to the chart you're editing. Two ways:\n\n"
-    "• Add a single colour — dial in one colour and append it as a single "
+    "\u2022 Add a single colour: dial in one colour and append it as a single "
     "patch.\n\n"
-    "• Generate colour sets — lay down one or more of the ready-made colour "
-    "spreads described below; a running total shows how many patches you'll "
-    "add, and “Fill remaining gaps” tops the whole chart up to a target size "
-    "rather than adding that many.\n\n"
-    "The new patches are appended after the chart's existing ones — rearrange "
-    "them however you like back in the editor."
+    "\u2022 Generate colour sets: lay down one or more of the ready-made colour "
+    "spreads described below. A running total shows how many patches you "
+    "will add, and underneath it the size the chart reaches once they are "
+    "added.\n\n"
+    "Three of the options work differently here than in the New patch set "
+    "window, because this chart already holds patches. \u201cEnsure unique "
+    "colours\u201d keeps the new patches clear of the ones already on the chart "
+    "as well as of each other. \u201cPure white & black\u201d adds its anchors on "
+    "top of whatever white and black the chart already holds. \u201cFill "
+    "remaining gaps\u201d tops the whole chart up to a target size rather than "
+    "adding that many patches, so its target counts the patches already "
+    "there.\n\n"
+    "The new patches are appended after the chart's existing ones, and you "
+    "can rearrange them however you like back in the editor."
 )
 
 
@@ -452,6 +476,16 @@ log = get_logger(__name__)
 def _patches_label(n: int) -> str:
     """Count-bearing patch label with explicit singular / plural (no "(s)")."""
     return (tr("{n} patch") if n == 1 else tr("{n} patches")).format(n=n)
+
+
+def _fill_count_label(n: int) -> str:
+    """The "Fill remaining gaps" row's count.
+
+    "0 patches" answers how many and not why, and on a chart that is already
+    at or past the target the why is the whole story (Knut, #182). Every other
+    row can only ever be short of its target, so only this one needs it.
+    """
+    return _patches_label(n) if n > 0 else tr("target already met")
 
 
 _SWATCH = 46  # grid swatch px
@@ -1984,13 +2018,44 @@ class _NewChartDialog(QDialog):
         if pages_w is not None and patches_w is not None:
             patches_w.setChecked(not pages_w.isChecked())
 
-    def _collect_gen_state(self) -> dict:
-        mode = ("generate" if self._mode_generate.isChecked() else
-                "paste" if self._mode_paste.isChecked() else "seed")
-        # Multi-ink device settings (#72) ride along ONLY when a non-RGB
-        # device type is chosen — the RGB state dict stays byte-identical to
-        # pre-#72 (state-1 identity: old versions + old presets keep
-        # round-tripping; see tests/test_gen_state1_identity.py).
+    def _source_mode_key(self) -> str:
+        """Which source mode this window is in, as one word.
+
+        **THE ADD WINDOW HAS DIFFERENT RADIOS, AND READING THE MISSING ONES
+        KILLED ITS PROGRAM CACHE.** `_collect_gen_state` reached straight for
+        `self._mode_generate`, which only the New chart window builds, so in
+        the Add window it raised `AttributeError`; `_generator_cache_key`
+        catches everything and answers None, and a None key means *never
+        cache*. The Add window therefore rebuilt its whole program on every
+        spin-box tick, which is the 48-second fault the cache exists to
+        prevent, only worse: here the program is spaced and filled against the
+        chart's existing patches, so it is the expensive build. Measured after
+        this fix on Knut's state (615 existing patches, cube 7, corners, skin,
+        two grey sets, fill): 2.6 s for the first build and 0.3 ms for the
+        repeats, where every one of them had cost 2.6 s.
+
+        It also kept `_push_lab_cloud` from ever running in the Add window on
+        a multi-ink chart, where the same call is NOT inside a try.
+        """
+        if getattr(self, "_mode_generate", None) is not None:
+            return ("generate" if self._mode_generate.isChecked() else
+                    "paste" if self._mode_paste.isChecked() else "seed")
+        if getattr(self, "_add_mode_gen", None) is not None:
+            return ("generate" if self._add_mode_gen.isChecked() else
+                    "file" if self._add_mode_file.isChecked() else "single")
+        return "generate"
+
+    def _generator_build_state(self) -> dict:
+        """Everything the generated PROGRAM depends on, and nothing else.
+
+        The New chart window's state dict also carries the chart's identity and
+        its layout (instrument, paper, margins, dpi), which no generator reads,
+        and which the Add window does not have at all: it has no identity or
+        layout frame. Keying the program cache on the whole dict therefore
+        raised `AttributeError` in the Add window and, through
+        `_generator_cache_key`'s catch-all, turned the cache off there entirely
+        (see :meth:`_source_mode_key`). This is the half both windows share.
+        """
         device = {}
         if self._nch_device_type() != "2":
             device = {"device": {
@@ -2017,9 +2082,20 @@ class _NewChartDialog(QDialog):
                 },
             }}
         return {
-            "mode": mode,
+            "mode": self._source_mode_key(),
             **device,
             **self._collect_gen_sets(),
+        }
+
+    def _collect_gen_state(self) -> dict:
+        # Multi-ink device settings (#72) ride along ONLY when a non-RGB
+        # device type is chosen — the RGB state dict stays byte-identical to
+        # pre-#72 (state-1 identity: old versions + old presets keep
+        # round-tripping; see tests/test_gen_state1_identity.py). The order of
+        # the keys below is part of that identity, so the shared half goes in
+        # first, exactly where it used to be written out inline.
+        return {
+            **self._generator_build_state(),
             "instr": self._instr.currentData(),
             "paper": self._paper.currentData(),
             "paper_w": self._paper_w.value(),
@@ -2539,10 +2615,10 @@ class _NewChartDialog(QDialog):
         self._gen_whiteblack = QCheckBox(
             tr("Pure white & black").replace("&", "&&"), self._gen_panel)
         self._gen_whiteblack.setToolTip(tr("Adds pure paper white and the "
-                                        "deepest black the printer can lay — two "
+                                        "deepest black the printer can lay, two "
                                         "anchors that matter for a good profile. "
                                         "'Each' is how many of white and of black "
-                                        "the finished chart should hold — and any "
+                                        "the finished chart should hold, and any "
                                         "white or black the other ticked sets "
                                         "already contribute counts toward that "
                                         "number. A 3D cube, Saturated edges or "
@@ -2551,12 +2627,17 @@ class _NewChartDialog(QDialog):
                                         "with 2 or more steps. So with one of "
                                         "those ticked, 'each: 1' adds 0 extra "
                                         "patches and 'each: 3' adds 4 (2 more "
-                                        "whites and 2 more blacks) — deliberate, "
+                                        "whites and 2 more blacks): deliberate, "
                                         "so the chart ends up with exactly the "
-                                        "number you asked for, never more. The "
-                                        "copies are kept identical even when "
-                                        "'Ensure unique colours' is on, which is "
-                                        "handy for averaging repeats."))
+                                        "number you asked for, never more. When "
+                                        "you add to a chart that already holds "
+                                        "white and black, 'Ensure unique colours' "
+                                        "moves the sets' own tips clear of them, "
+                                        "so they stop counting and the full "
+                                        "number is added. The copies are kept "
+                                        "identical even when 'Ensure unique "
+                                        "colours' is on, which is handy for "
+                                        "averaging repeats."))
         self._gen_whiteblack_n = _spin(1, 50, 1)
         self._gen_whiteblack_count = _count_label()
         gg.addWidget(self._gen_whiteblack, 19, 0)
@@ -2567,11 +2648,23 @@ class _NewChartDialog(QDialog):
         # Fill remaining gaps — blue-noise top-up of whatever's left sparse.
         # Special: its count depends on the combined total of the sets above.
         self._gen_fill = QCheckBox(tr("Fill remaining gaps"), self._gen_panel)
+        # THE TARGET IS THE FINISHED CHART, NOT THE ADDITIONS, and in the Add
+        # window that difference is the whole row. Knut, #182, on a 615-patch
+        # chart whose recipe had put 615 in the box: *"I can click the 'Fill
+        # remaining gaps' checkbox, but the total count does not update, as the
+        # count for the 'Fill remaining gaps' is 0, even though the fill to
+        # value is larger than the total."* The count was right (615 already on
+        # the chart, 567 more from the ticked sets, so nothing left to top up)
+        # and the row never said which number it was measuring against. It does
+        # now, in its label, its tooltip and its count.
         self._gen_fill.setToolTip(tr("After the sets above, scatter extra patches "
                                   "into the empty parts of colour space until the "
                                   "chart reaches the size you set, evenly and "
-                                  "without repeating. 'Fill to' is the target "
-                                  "total patch count."))
+                                  "without repeating. 'Fill to' is the size of the "
+                                  "finished chart, so it counts the patches already "
+                                  "on it as well as the ones the ticked sets add: "
+                                  "set it below that and there is nothing left "
+                                  "to fill."))
         # Fill target: to a patch count OR (with the engine) to a page count —
         # two mutually exclusive toggles, each with its OWN spinbox, because a
         # patch target is a much bigger number than a page target (#93, user).
@@ -2607,12 +2700,19 @@ class _NewChartDialog(QDialog):
         _fill_row = QHBoxLayout(); _fill_row.setContentsMargins(0, 0, 0, 0)
         _fill_row.setSpacing(6)
         _fill_row.addWidget(self._gen_fill_to)
-        _fill_row.addWidget(QLabel(tr("patches"), self._gen_panel))
+        _fill_row.addWidget(QLabel(
+            tr("patches in total") if self._existing_patches
+            else tr("patches"), self._gen_panel))
         _fill_row.addStretch()
         _fill_w = QWidget(self._gen_panel); _fill_w.setLayout(_fill_row)
         self._gen_fill_count = _count_label()
         gg.addWidget(self._gen_fill, 20, 0)
-        gg.addWidget(QLabel(tr("fill to:")), 20, 1)
+        # In the Add window the target includes the chart you are adding to, so
+        # the label says "chart" there (Knut, #182).
+        self._gen_fill_prefix = QLabel(
+            tr("fill chart to:") if self._existing_patches else tr("fill to:"),
+            self._gen_panel)
+        gg.addWidget(self._gen_fill_prefix, 20, 1)
         gg.addWidget(_fill_w, 20, 2, 1, 5)
         gg.addWidget(self._gen_fill_count, 20, 7)
 
@@ -2660,7 +2760,10 @@ class _NewChartDialog(QDialog):
         self._gen_unique.setChecked(True)
         self._gen_unique.setToolTip(tr("When sets are combined, nudge any "
                                     "repeated colours apart by a small offset "
-                                    "so no patch is printed twice."))
+                                    "so no patch is printed twice. When you are "
+                                    "adding to a chart that already has patches, "
+                                    "the new colours are kept clear of those "
+                                    "as well."))
         self._gen_unique.toggled.connect(self._update_gen_counts)
         gg.addWidget(self._gen_unique, 21, 0, 1, 8)
 
@@ -2675,7 +2778,15 @@ class _NewChartDialog(QDialog):
         self._gen_after_total = QLabel("", self._gen_panel)
         self._gen_after_total.setStyleSheet("color: #909090;")
         self._gen_after_total.setVisible(bool(self._existing_patches))
-        gg.addWidget(self._gen_after_total, 21, 0, 1, 8)
+        # ROW 23, NOT 21. It was on 21, which is "Ensure unique colours" own
+        # row, so the two were laid on top of each other: a grid puts both in
+        # the same cell and the later one wins the mouse. It is only VISIBLE
+        # when the chart already has patches, which is the Add dialog and not
+        # the New one, so only Add showed it and only Add could not tick that
+        # box. Knut, 2026-09-17: *"the bottom last checkboxes overlap each
+        # other, above the total patches count ... I cannot click on the
+        # 'Ensure unique colours..' checkbox."*
+        gg.addWidget(self._gen_after_total, 23, 0, 1, 8)
 
         for cb in (self._gen_cube, self._gen_corners, self._gen_spirals,
                    self._gen_skin, self._gen_blues, self._gen_greens,
@@ -3245,7 +3356,7 @@ class _NewChartDialog(QDialog):
         self._sync_fill_unit()
         fill_n = G.fill_gaps_count(total + len(self._existing_patches),
                                    self._effective_fill_target())
-        self._gen_fill_count.setText(_patches_label(fill_n))
+        self._gen_fill_count.setText(_fill_count_label(fill_n))
         _hint_count_inactive(self._gen_fill_count, self._gen_fill.isChecked())
         if self._gen_fill.isChecked():
             total += fill_n
@@ -3363,14 +3474,18 @@ class _NewChartDialog(QDialog):
         if self._gen_whiteblack.isChecked():
             have_w, have_b = NDG.count_white_black_device(
                 program, n, k_index=k_ix, ink_limit=limit)
-            program.extend(NDG.white_black_device(
+            anchors = NDG.white_black_device(
                 self._gen_whiteblack_n.value(), n, k_index=k_ix,
-                have_white=have_w, have_black=have_b, ink_limit=limit))
+                have_white=have_w, have_black=have_b, ink_limit=limit)
+            self._built_row_counts["whiteblack"] = len(anchors)
+            program.extend(anchors)
         if self._gen_fill.isChecked():
             seed = list(self._existing_patches) + program
-            program.extend(NDG.fill_gaps_nd(
+            topup = NDG.fill_gaps_nd(
                 seed, self._effective_fill_target(), n_channels=n,
-                ink_limit=limit))
+                ink_limit=limit)
+            self._built_row_counts["fill"] = len(topup)
+            program.extend(topup)
         return program
 
     def _generator_cache_key(self) -> "tuple | None":
@@ -3410,7 +3525,7 @@ class _NewChartDialog(QDialog):
           same settings against a different Argyll are a different program.
         """
         try:
-            state = json.dumps(self._collect_gen_state(), sort_keys=True,
+            state = json.dumps(self._generator_build_state(), sort_keys=True,
                                default=str)
             existing = tuple((float(p[0]), float(p[1]), float(p[2]))
                              for p in (self._existing_patches or []))
@@ -3468,13 +3583,20 @@ class _NewChartDialog(QDialog):
             hit = _PROGRAM_CACHE.get(key)
             if hit is not None:
                 _PROGRAM_CACHE.move_to_end(key)
-                program, note = hit
+                program, note, rows = hit
                 self.nch_moved_note = note
+                # ... and the same trap again, for the third thing a build
+                # produces: the white/black and fill rows show what the builder
+                # actually appended, so a cache hit that dropped them would put
+                # the estimate back on screen for exactly the states the user
+                # returns to most often.
+                self._built_row_counts = dict(rows)
                 return list(program)
         program = self._build_generated_program_uncached()
         if key is not None:
             _PROGRAM_CACHE[key] = (list(program),
-                                   getattr(self, "nch_moved_note", ""))
+                                   getattr(self, "nch_moved_note", ""),
+                                   dict(getattr(self, "_built_row_counts", {})))
             _PROGRAM_CACHE.move_to_end(key)
             while len(_PROGRAM_CACHE) > _PROGRAM_CACHE_MAX:
                 _PROGRAM_CACHE.popitem(last=False)
@@ -3483,6 +3605,13 @@ class _NewChartDialog(QDialog):
     def _build_generated_program_uncached(self) -> list[tuple]:
         """Concatenate every ticked generator's patches, in panel order,
         de-duplicating across sets when 'Ensure unique colours' is on."""
+        # WHAT THE LAST TWO ROWS REALLY ADDED, recorded as it happens. Their
+        # per-row estimates cannot see what the de-duplication pass did to the
+        # program, so `_do_push_live_preview` replaces the two numbers with
+        # these (Knut, #182: "shows a count of 2 ... but the total number jumps
+        # from 567 to 571"). Rows the user has not ticked are absent, and keep
+        # the estimate that shows what ticking them would add.
+        self._built_row_counts: dict[str, int] = {}
         state = self._nch_state()
         if state != 1:
             return self._build_generated_program_nch(state)
@@ -3517,14 +3646,18 @@ class _NewChartDialog(QDialog):
         # sets contribute in *this* batch count toward N (#76, Knut).
         if self._gen_whiteblack.isChecked():
             have_w, have_b = G.count_white_black(program)
-            program.extend(G.white_black(
-                self._gen_whiteblack_n.value(), have_w, have_b))
+            anchors = G.white_black(
+                self._gen_whiteblack_n.value(), have_w, have_b)
+            self._built_row_counts["whiteblack"] = len(anchors)
+            program.extend(anchors)
         # Fill runs last so it tops the *whole* chart (patches already on it, the
         # chosen sets and the white/black anchors) up to the target, placed where
         # it's sparse and avoiding everything already chosen (#51).
         if self._gen_fill.isChecked():
             seed = self._existing_patches + program
-            program.extend(G.fill_gaps(seed, self._effective_fill_target()))
+            topup = G.fill_gaps(seed, self._effective_fill_target())
+            self._built_row_counts["fill"] = len(topup)
+            program.extend(topup)
         return program
 
     # -- live 3D-cube preview (embedded panel) ----------------------------
@@ -3704,6 +3837,7 @@ class _NewChartDialog(QDialog):
         # white/black de-dup against existing patches the estimate can't see (the
         # original 921-vs-924 drift in #60).
         additions = self._build_generated_program()
+        self._apply_built_row_counts(additions)
         # Total = the additions only (not the existing chart), shown always (#60).
         self._gen_total.setText(tr("Total: {label}").format(
             label=_patches_label(len(additions))))
@@ -3717,6 +3851,52 @@ class _NewChartDialog(QDialog):
         program = self._live_preview_program(additions)
         if getattr(self, "_cube_panel", None) is not None and self._cube_shown:
             self._cube_panel.set_program(program, self._existing_patches)
+
+    def _apply_built_row_counts(self, additions: list) -> None:
+        """Put the numbers the BUILDER produced on the "Pure white & black" and
+        "Fill remaining gaps" rows, replacing the estimates.
+
+        THESE TWO ROWS CANNOT BE ESTIMATED, AND THE WINDOW SAID SO OUT LOUD.
+        Knut, #182, on a chart of 615 patches with the cube, corners, skin,
+        greys and near-neutral greys ticked: *"Clicking on Pure white & black,
+        with each=2, shows a count of 2 on the right side, but the total number
+        jumps from 567 to 571, which is also a bug in counting."* Both numbers
+        were honest and they disagreed because they answer different questions.
+        The estimate asks which ticked sets OWN a white and a black tip and
+        subtracts them; the builder counts the pure white and pure black the
+        program still holds after "Ensure unique colours" has run, and that pass
+        seeds itself with the chart's existing patches, so the tips it nudged
+        clear of the chart's own white and black are no longer pure. Nothing
+        short of building can know that, so the build is what the row shows.
+
+        An UNTICKED row's greyed number is a promise of what ticking it would
+        add, so it is re-derived from the same program rather than left on the
+        estimate: Knut read "2 patches" from exactly such a greyed row and got
+        four. Both rows sit at the END of the build, so the program in hand is
+        the one they would have seen.
+
+        ``additions`` is the built program for the current selection (RGB
+        state only, which is the only state that reaches here).
+        """
+        rows = getattr(self, "_built_row_counts", {})
+        wb, wb_lbl = self._gen_whiteblack, self._gen_whiteblack_count
+        if wb.isChecked():
+            if "whiteblack" in rows:
+                wb_lbl.setText(_patches_label(int(rows["whiteblack"])))
+        else:
+            have_w, have_b = G.count_white_black(additions)
+            wb_lbl.setText(_patches_label(G.white_black_count(
+                self._gen_whiteblack_n.value(), have_w, have_b)))
+        fill, fill_lbl = self._gen_fill, self._gen_fill_count
+        if fill.isChecked():
+            if "fill" in rows:
+                fill_lbl.setText(_fill_count_label(int(rows["fill"])))
+        else:
+            # What it would add: the target less the chart it tops up, which is
+            # the existing chart plus everything the ticked sets just built.
+            fill_lbl.setText(_fill_count_label(G.fill_gaps_count(
+                len(self._existing_patches) + len(additions),
+                self._effective_fill_target())))
 
     def _push_lab_cloud(self) -> None:
         """State-3 3D preview (#72): the generated ink patches as a Lab-space
@@ -3733,7 +3913,7 @@ class _NewChartDialog(QDialog):
         if not self._gen_sets_active():
             return
         import json as _json
-        key = _json.dumps(self._collect_gen_state(), sort_keys=True,
+        key = _json.dumps(self._generator_build_state(), sort_keys=True,
                           default=str)
         cached = getattr(self, "_lab_cloud_cache", None)
         if cached is not None and cached[0] == key:
