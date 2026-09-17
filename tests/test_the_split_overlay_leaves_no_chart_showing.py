@@ -659,103 +659,78 @@ def test_the_sliver_rounds_the_way_dsnap_does(qapp, tmp_path, w, h):
         f"half; worst {sorted(left, key=lambda t: -t[3])[:6]}")
 
 
-#: A honeycomb WITH a printed ring: the hexagons do not tessellate, so there is
-#: paper between them and nothing for a seam stroke to close.
-HEX_W, HEX_H = 48, 56
-HEX_PITCH_X, HEX_PITCH_Y = 36, 64      # three quarters across, a ring down
-HEX_COLS, HEX_ROWS = 6, 7
+def test_the_hexagonal_split_always_strokes_its_seam():
+    """The seam must be stroked, and stroked UNCONDITIONALLY.
 
+    A hexagonal split is filled as a path and stroked with a cosmetic 1 px pen
+    centred ON that path, so half the width lies outside the hexagon. That half
+    is the point: it closes the sub-pixel gaps where two antialiased neighbours
+    meet, and Knut reported the "separate blobs" look when it was missing.
 
-def _hex_ring_boxes() -> "list[QRect]":
-    out = []
-    for c in range(HEX_COLS):
-        off = HEX_PITCH_Y // 2 if c % 2 else 0
-        for r in range(HEX_ROWS):
-            out.append(QRect(LEFT + c * HEX_PITCH_X,
-                             TOP + off + r * HEX_PITCH_Y, HEX_W, HEX_H))
-    return out
+    **THIS IS A STRUCTURAL TEST, DELIBERATELY, AND HERE IS WHY.** Round 7
+    deleted the seam outright and left 667 tests green across eight files, so
+    something has to guard it. But the difference it makes is only visible on a
+    REAL engine chart at a real fit scale: measured there, deleting it changed
+    15,708 device pixels on a tessellating honeycomb and left 139 more paper
+    pixels inside a read one. A synthetic lattice in this file cannot reproduce
+    it -- one was written, and it passed its own mutation, which is worse than
+    having no test at all. So this asserts the shape instead, and the number
+    above is where the behaviour is recorded.
 
+    It also pins the UNCONDITIONAL part. Round 6 put a `_hex_has_ring()` in
+    front of this append, meaning to spare the paper ring on a honeycomb that
+    has one. Round 7 measured what that predicate actually answers: **the
+    honeycomb's ORIENTATION, never its ring.** On a pointy-top chart
+    `hexagon.stagger_dx` moves every patch by +/- w/4 by its index, so two
+    boxes sharing an exact x are a full pitch apart and the vertical gap is
+    always positive; on a flat-top chart the stagger is on y and every vertical
+    gap is 0. A CR30 pointy honeycomb with NO spacer answered True and a CR30
+    rotated honeycomb with a 1.5 mm ring answered False, so the rule was inert
+    where it was meant to help and removed the seam where it is needed.
 
-def _hex_ring_canvas(qapp, tmp_path, w, h, with_overlay):
-    """A spaced honeycomb whose RING is green and whose patches are magenta."""
-    from ui.tiff_preview import TiffPreview
-    boxes = _hex_ring_boxes()
-    path = tmp_path / f"hex-ring-{w}x{h}.tif"
-    im = Image.new("RGB", (PAGE_W, PAGE_H), (255, 255, 255))
-    px = im.load()
-    xs = [b.x() for b in boxes]; ys = [b.y() for b in boxes]
-    x0, x1 = min(xs), max(b.x() + b.width() for b in boxes)
-    y0, y1 = min(ys), max(b.y() + b.height() for b in boxes)
-    for y in range(y0, y1):
-        for x in range(x0, x1):
-            px[x, y] = (0, 220, 0)                    # the ring
-    for b in boxes:
-        for y in range(b.y(), b.y() + b.height()):
-            for x in range(b.x(), b.x() + b.width()):
-                px[x, y] = PATCH_A
-    im.save(path)
-    p = TiffPreview()
-    try:
-        p.resize(w, h)
-        p.load_tiff([path])
-        qapp.processEvents()
-        p.set_hex_zigzag(True)
-        p.set_page_patch_boxes({0: list(boxes)})
-        if with_overlay:
-            p.set_patch_overlay(
-                0, [(b, GREY_EXPECTED, GREY_MEASURED, False) for b in boxes],
-                replace_page=True)
-        p.show()
-        qapp.processEvents()
-        p._update_display()
-        qapp.processEvents()
-        pm = p._img_label.pixmap()
-        return pm.toImage() if pm is not None else None
-    finally:
-        p.close()
+    The ring really is covered by the split, and the cause is B8-318: the
+    recorded box is the hexagon's CELL and the printed hexagon inside it is
+    smaller by the ring (CR30 A4 at 300 dpi, one box 142 px at every spacer
+    width while the ink is 142 / 137 / 125 / 109 px at 0 / 0.5 / 1.5 / 3.0 mm).
+    The boxes carry no trace of the ring -- they are byte-identical with the
+    spacer on and off -- so a fix has to read it from the chart's recipe.
 
-
-def _green(img):
-    n = 0
-    for y in range(img.height()):
-        for x in range(img.width()):
-            c = img.pixelColor(x, y)
-            if c.green() > 140 and c.red() < 110 and c.blue() < 110:
-                n += 1
-    return n
-
-
-@pytest.mark.parametrize("w,h", [(640, 820), (760, 940)])
-def test_a_spaced_honeycombs_ring_survives_the_split(qapp, tmp_path, w, h):
-    """The split must not eat the paper ring between hexagons.
-
-    Basti, 2026-09-17: *"for hexes the split overlay covers the spacers when
-    they are active"*. The cause was the seam: a cosmetic 1 px stroke centred
-    ON the hexagon's path, so half of it lies outside the hexagon. Where the
-    hexagons tessellate that is the point, and it is what stops the honeycomb
-    reading as separate blobs; where the chart has a printed ring there is no
-    gap to close and the half pixel lands on the ring.
-
-    Measured on screen on a real SpectroScan honeycomb with 1.5 mm spacers,
-    half the strips read: the ring under the read half was 3,097 device pixels
-    against 3,802 under the unread half, **0.815**. With the seam skipped on a
-    ringed chart, 3,414 against 3,802, **0.898**; the rest is the hexagon's own
-    antialiased edge, which the printed chart has too.
-
-    MUTATION: stroke the seam unconditionally again and this goes red.
+    MUTATION: wrap the append in any condition, or delete it, and this fails.
     """
-    off = _hex_ring_canvas(qapp, tmp_path, w, h, with_overlay=False)
-    on = _hex_ring_canvas(qapp, tmp_path, w, h, with_overlay=True)
-    assert off is not None and on is not None
-    a, b = _green(off), _green(on)
-    assert a > 200, f"the fixture drew almost no ring ({a} px), so it proves nothing"
-    # 0.52 SEPARATES THE TWO STATES OF THIS FIXTURE, and the absolute figure is
-    # the fixture's, not a chart's: its hexagons overlap across the columns, so
-    # most of what is painted "ring" here is covered by hexagon whatever the
-    # seam does. Measured both ways at both sizes: seam skipped 0.553 and
-    # 0.554, seam stroked 0.492 and 0.488. The REAL chart, photographed on
-    # screen, goes 0.815 to 0.898.
-    assert b >= 0.52 * a, (
-        f"the split overlay ate the honeycomb's ring at {w}x{h}: {a} ring "
-        f"pixels with the overlay off, {b} with it on ({b / a:.3f}); the seam "
-        f"is being stroked on a chart that has a printed ring")
+    import ast
+    import textwrap
+
+    from ui.tiff_preview import TiffPreview
+
+    src = textwrap.dedent(inspect.getsource(TiffPreview._draw_cq_overlay))
+    tree = ast.parse(src)
+    appends = [n for n in ast.walk(tree)
+               if isinstance(n, ast.Call)
+               and isinstance(n.func, ast.Attribute)
+               and n.func.attr == "append"
+               and isinstance(n.func.value, ast.Name)
+               and n.func.value.id == "_seams"]
+    assert appends, "the hexagonal split no longer strokes a seam at all"
+
+    # …and none of them sits under a test of its own. The `if self._hex_zigzag`
+    # branch above is not one: it is what selects the hexagonal path.
+    def _guards(node, target):
+        out = []
+        for n in ast.walk(node):
+            if isinstance(n, ast.If):
+                for sub in ast.walk(n.test):
+                    pass
+                if any(t is target for t in ast.walk(n)):
+                    out.append(n)
+        return out
+
+    hex_branch_tests = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.If) and any(a is appends[0] for a in ast.walk(node)):
+            hex_branch_tests.append(ast.dump(node.test))
+    inner = [d for d in hex_branch_tests if "_hex_zigzag" not in d
+             and "overlay_mode" not in d]
+    assert not inner, (
+        f"the seam is stroked conditionally again: {inner}. It closes the "
+        f"sub-pixel gaps on every hexagonal chart, and the predicate tried "
+        f"before answered the honeycomb's orientation rather than its ring")

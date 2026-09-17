@@ -13532,31 +13532,46 @@ on a face whose italic is a real second face, and both are asserted.
   never runs.
 
 
-### B8-317 · FIXED · On a honeycomb WITH spacers the split's seam was stroked over the ring
+### B8-317 · SUPERSEDED · A conditional seam, on a predicate that answered the wrong question
 - blocks release: no
-- status: FIXED
-- evidence: `test_a_spaced_honeycombs_ring_survives_the_split`
-- found by: Basti, looking at the app: *"for hexes the split overlay covers
-  the spacers when they are active"*.
-- detail: a hexagonal patch's split is stroked with a cosmetic 1 px seam
-  centred ON its path, so half the width lies outside the hexagon. Where the
-  hexagons TESSELLATE that is the point of it: it closes the sub-pixel gaps
-  where two antialiased neighbours meet, and without it the honeycomb reads as
-  a grid of separate blobs. Where the chart has a printed ring there is no gap
-  to close, and the half pixel lands on the ring.
-- measured on screen, a real SpectroScan honeycomb with 1.5 mm spacers, half
-  the strips read: the ring under the READ half was **3,097 device pixels
-  against 3,802** under the unread half, a ratio of **0.815**. With the seam
-  skipped on a ringed chart, 3,414 against 3,802, **0.898**. The remaining
-  10 % is the antialiasing of the hexagon's own edge, which the printed chart
-  has too, and it is not claimed as covered.
-- `_hex_has_ring()` decides it from the page's own grid, the same way the
-  blanking branch does: the first positive vertical gap between two stacked
-  boxes of one column. A honeycomb built with `Spacer size = 0` tessellates and
-  keeps its seam.
-- **NOT the same fault as B8-313**, which was measured first and fixed first
-  and moved this ratio not at all: the hexagonal branch `continue`s before the
-  sliver is ever reached.
+- status: SUPERSEDED
+- superseded by: B8-318
+- evidence: `test_the_hexagonal_split_always_strokes_its_seam`
+- **THE FIX WAS REVERTED, AND SO WAS THE MEASUREMENT THAT JUSTIFIED IT.**
+
+Round 6 read Basti's *"for hexes the split overlay covers the spacers when they
+are active"* as the seam: a cosmetic 1 px pen centred ON the hexagon's path, so
+half its width lies outside. It added `_hex_has_ring()` to skip the seam on a
+chart that has a printed ring, and reported the ring under a read half going
+from 0.815 to 0.898 of the unread half on a SpectroScan honeycomb.
+
+**Round 7 measured what that predicate actually answers: the honeycomb's
+ORIENTATION, never its ring.** It looked for the first positive VERTICAL gap
+between two boxes sharing an exact `x`. On a pointy-top chart
+`hexagon.stagger_dx` moves every patch by ±w/4 by its index in the strip, so a
+same-`x` group is every OTHER patch, one full pitch apart, and the gap is
+always positive; on a flat-top chart the stagger is on y and every vertical gap
+is 0. Measured on real engine charts: a CR30 pointy honeycomb with **no
+spacer** answered True, and a CR30 rotated honeycomb with a **1.5 mm ring and
+edge spacers** answered False.
+
+So the rule was **inert exactly where it was meant to help** (0 device pixels
+different on the rotated ringed chart) and it **removed the seam where the seam
+is needed**: 15,708 device pixels different on a tessellating chart, with 139
+more paper pixels inside a read honeycomb, which is the "separate blobs" look
+Knut reported when the seam was first missing.
+
+**And the 0.815 to 0.898 was not measuring a ring.** `hex_ring_mm` is **0.0 for
+SpectroScan at every spacer width**, so that chart has no ring to protect. The
+number was real but it was not the quantity it was reported as.
+
+Reverted in full, helper and cache removed. The seam is stroked unconditionally
+again, and `test_the_hexagonal_split_always_strokes_its_seam` now pins both
+that it exists and that it is unconditional: round 7 deleted it outright and
+left **667 tests green across eight files**, so nothing guarded it at all. That
+guard is structural on purpose, and says why: the behaviour it protects is only
+visible on a real engine chart at a real fit scale, and a synthetic lattice
+written for it in the suite passed its own mutation.
 
 ### B8-318 · OPEN · On a honeycomb whose boxes TILE, the split's hexagon is the whole cell and covers the ring
 - blocks release: yes
@@ -13587,3 +13602,17 @@ on a face whose italic is a real second face, and both are asserted.
   B8-317 made the seam conditional, which helps the charts whose boxes do NOT
   tile (a SpectroScan honeycomb with spacers measured 0.815 to 0.898) and does
   nothing for the ones that do.
+
+- **CONFIRMED by round 7, independently and with more detail.** The recorded
+  box is the hexagon's CELL and the printed hexagon inside it is smaller by the
+  ring: CR30 A4 at 300 dpi, one box at its centre row measures **142 px at
+  every spacer width** while the ink measures **142 / 137 / 125 / 109 px at
+  0 / 0.5 / 1.5 / 3.0 mm**; the rotated chart gives 164 / 159 / 145 / 125.
+- **The boxes cannot carry the signal at all**: they are byte-identical between
+  `spacer_on=False` and `spacer_width=1.5` in both orientations, 150 boxes
+  each, because the ring is taken out of the patch's own area. Any fix must
+  read the ring from the chart's recipe. `hex_support.ring_mm_of(recipe)`
+  already resolves it and `hex_ring_mm` is populated for CR30 in both
+  orientations, **but it is 0.0 for SpectroScan at every spacer width**, which
+  is a second question: either a SpectroScan honeycomb genuinely has no ring,
+  or the engine does not record one for it.

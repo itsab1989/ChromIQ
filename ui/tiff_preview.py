@@ -1703,7 +1703,6 @@ class TiffPreview(QWidget):
         clear (the hover then falls back to the full strip rectangle)."""
         self._page_patch_boxes = dict(mapping or {})
         self._exposed_cache.clear()     # a new grid, a new answer
-        self._hex_ring_cache.clear()
         self._schedule_refresh()
 
     def set_edge_spacer_px(self, px: int) -> None:
@@ -2040,7 +2039,6 @@ class TiffPreview(QWidget):
         self._stripe_arrow_mode = "base"
         self._page_patch_boxes = {}
         self._exposed_cache.clear()
-        self._hex_ring_cache.clear()
         self._patch_info = {}
         # AND THE SPLIT PATCHES. `_patch_info` (the hover numbers) was cleared
         # and `_patch_overlay` (the colours actually painted) was not, so after
@@ -2173,8 +2171,6 @@ class TiffPreview(QWidget):
         self._paint_scale_y = None
         #: Cache for `_exposed_for_page`, keyed by page and patch count.
         self._exposed_cache: dict = {}
-        #: Cache for `_hex_has_ring`, keyed the same way.
-        self._hex_ring_cache: dict = {}
         #: The page as a QImage, built on demand so a split sliver can read the
         #: colour of the spacer it is about to sit next to. Dropped whenever the
         #: page changes.
@@ -2695,40 +2691,6 @@ class TiffPreview(QWidget):
         if self._cursor_overlay is not None and self._coord_readout:
             self._sync_cursor_overlay_geometry()
 
-    def _hex_has_ring(self) -> bool:
-        """Whether this page's hexagons have a printed ring between them.
-
-        Measured from the page's own patch grid, the same way the blanking
-        branch measures it: the first positive vertical gap between two
-        stacked boxes of one column. A honeycomb built with `Spacer size = 0`
-        tessellates and the answer is False; one built with a spacer has a ring
-        of paper and the answer is True.
-
-        Cached against the page and the grid's size, because it is asked once
-        per patch on every repaint.
-        """
-        geom = self._page_patch_boxes.get(self._current) or []
-        key = (self._current, len(geom))
-        hit = self._hex_ring_cache.get(key)
-        if hit is None:
-            cols: dict = {}
-            for b in geom:
-                cols.setdefault(b.x(), []).append(b)
-            hit = False
-            for bs in cols.values():
-                bs = sorted(bs, key=lambda q: q.y())
-                for a, b2 in zip(bs, bs[1:]):
-                    g = b2.y() - (a.y() + a.height())
-                    if g > 0:
-                        hit = True
-                        break
-                if hit:
-                    break
-            if len(self._hex_ring_cache) > 8:
-                self._hex_ring_cache.clear()
-            self._hex_ring_cache[key] = hit
-        return hit
-
     def _page_colour_at(self, ix: int, iy: int):
         """The page's own colour at image pixel (*ix*, *iy*), or None.
 
@@ -3177,33 +3139,48 @@ class TiffPreview(QWidget):
                     tri.closeSubpath()
                     painter.fillPath(hexp.intersected(tri), c_exp)   # expected ◤
                     _edge = c_meas
-                # THE SEAM CLOSES A GAP THAT A SPACED HONEYCOMB DOES NOT
-                # HAVE, AND ON ONE IT EATS THE RING INSTEAD.
+                # THE SEAM IS ALWAYS STROKED, AND AN ATTEMPT TO MAKE IT
+                # CONDITIONAL WAS REVERTED. It is a cosmetic 1 px pen centred
+                # ON the path, so half its width lies outside the hexagon,
+                # which is what closes the sub-pixel gaps where two antialiased
+                # neighbours meet; without it a tessellating honeycomb reads as
+                # a grid of separate blobs (Knut, zoomed in).
                 #
-                # A cosmetic 1 px stroke is centred ON the path, so half its
-                # width lies outside the hexagon. Where the hexagons tessellate
-                # that is the point: it closes the sub-pixel gaps where two
-                # antialiased neighbours meet, and without it the honeycomb
-                # reads as a grid of separate blobs (Knut, zoomed in). Where
-                # the chart HAS a printed ring between its hexagons there is no
-                # such gap, and the half pixel lands on the ring.
+                # Basti reported that the split covers the ring on a honeycomb
+                # with spacers, and it does, but the seam is not why and
+                # skipping it does not help. Round 6 added a `_hex_has_ring()`
+                # that looked for the first positive VERTICAL gap between two
+                # boxes sharing an exact x. Round 7 measured what that actually
+                # answers: **the honeycomb's ORIENTATION, never its ring.** On a
+                # pointy-top chart `hexagon.stagger_dx` moves every patch by
+                # +/- w/4 by its index, so a same-x group is every OTHER patch,
+                # one full pitch apart, and the gap is always positive; on a
+                # flat-top chart the stagger is on y and every vertical gap is
+                # 0. Measured on real engine charts: a CR30 pointy honeycomb
+                # with NO spacer answered True, and a CR30 rotated honeycomb
+                # with a 1.5 mm ring answered False. So the rule was inert
+                # exactly where it was meant to help (0 device pixels different
+                # on the rotated ringed chart) and it REMOVED the seam where it
+                # is needed (15,708 device pixels different on the tessellating
+                # chart, 139 more paper pixels inside a read honeycomb).
                 #
-                # Basti, 2026-09-17: *"for hexes the split overlay covers the
-                # spacers when they are active"*. Measured on screen, a real
-                # SpectroScan honeycomb with 1.5 mm spacers, half the strips
-                # read: the ring under the read half was **3,097 device pixels
-                # against 3,802** under the unread half, a ratio of 0.815. With
-                # the seam skipped on a ringed chart it is 3,414 against 3,815,
-                # **0.895**; the rest is the antialiasing of the hexagon's own
-                # edge, which the printed chart has too.
-                if not self._hex_has_ring():
-                    _seam = QPen(_edge)
-                    _seam.setCosmetic(True)
-                    _seam.setWidthF(1.0)
-                    # The seam is stroked on the shared edge too, so it is
-                    # deferred for the same reason as the ring: a neighbour's
-                    # fill drawn later would erase half of it.
-                    _seams.append((hexp, QPen(_seam)))
+                # The real cause is B8-318 and it is inherited: the recorded
+                # box is the hexagon's CELL and the printed hexagon inside it
+                # is smaller by the ring. Measured, CR30 A4 at 300 dpi, one box
+                # at its centre row: the box is 142 px at every spacer width
+                # while the ink is 142 / 137 / 125 / 109 px at 0 / 0.5 / 1.5 /
+                # 3.0 mm. `_patch_hexagon` inscribes in the box, so the split
+                # is drawn at cell size whatever this seam does. The ring has
+                # to come from the chart's recipe (`hex_support.ring_mm_of`),
+                # not from the boxes, which carry no trace of it: they are
+                # byte-identical with the spacer on and off.
+                _seam = QPen(_edge)
+                _seam.setCosmetic(True)
+                _seam.setWidthF(1.0)
+                # The seam is stroked on the shared edge too, so it is
+                # deferred for the same reason as the ring: a neighbour's
+                # fill drawn later would erase half of it.
+                _seams.append((hexp, QPen(_seam)))
                 if warn:
                     # DEFERRED TO A SECOND PASS. On a hexagonal chart the ring
                     # is stroked ON the shared edge, so half its width lies in
