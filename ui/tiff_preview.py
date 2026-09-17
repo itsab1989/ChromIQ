@@ -1764,17 +1764,19 @@ class TiffPreview(QWidget):
 
     @staticmethod
     def _patch_hexagon(b: QRect, s: float, ox: float, oy: float,
-                       flat_top: bool = False) -> "QPainterPath":
+                       flat_top: bool = False,
+                       sy: "float | None" = None) -> "QPainterPath":
         """A closed hexagon outline for a single SpectroScan patch box, drawn from
         `hexagon.vertices`, so it IS the strip zigzag's geometry rather than a
         second copy promising to match it. Used to
         draw unread hex patches as their true shape in "Show only measured
         patches" (Knut) — a rectangle grid there is wrong for a hex chart."""
+        sy = s if sy is None else sy
         pts = hexagon.vertices(b.left(), b.y(), b.right() + 1 - b.left(),
                                b.height(), flat_top=flat_top)
         path = QPainterPath()
         for i, (vx, vy) in enumerate(pts):
-            xy = (vx * s + ox, vy * s + oy)
+            xy = (vx * s + ox, vy * sy + oy)
             (path.moveTo if i == 0 else path.lineTo)(*xy)
         path.closeSubpath()
         return path
@@ -2571,10 +2573,13 @@ class TiffPreview(QWidget):
                 painter, B, scaled.width() / dpr,
                 B + scaled.height() / dpr, cap_h)
 
-        # #126 engine overlays (split patches, hover outline, legend)
+        # #126 engine overlays (split patches, hover outline, legend). BOTH
+        # scales, because `scaled` is a whole number of device pixels on each
+        # axis and `KeepAspectRatio` cannot make the two ratios equal.
         self._draw_cq_overlay(painter,
                               (scaled.width() / dpr) / max(1, self._pixmap.width()),
-                              B, B)
+                              B, B,
+                              (scaled.height() / dpr) / max(1, self._pixmap.height()))
 
         painter.end()
         self._img_label.setPixmap(canvas)
@@ -2584,11 +2589,27 @@ class TiffPreview(QWidget):
             self._sync_cursor_overlay_geometry()
 
     def _draw_cq_overlay(self, painter: QPainter,
-                         s: float, ox: float, oy: float) -> None:
+                         s: float, ox: float, oy: float,
+                         sy: "float | None" = None) -> None:
         """#126 chart-reading engine overlays, drawn in canvas coordinates
-        (image px × `s` + offset). Three layers: the split-patch results for
+        (image px × scale + offset). Three layers: the split-patch results for
         the current page, a hover outline for click-to-jump, and a small
-        expected/measured legend once any patches are shown."""
+        expected/measured legend once any patches are shown.
+
+        **THE PAGE IS NOT SCALED BY THE SAME FACTOR ON BOTH AXES, AND THIS
+        OVERLAY USED ONE.** `QPixmap.scaled(..., KeepAspectRatio)` returns a
+        whole number of device pixels on each axis, so one axis is exact and
+        the other is rounded, and the two ratios differ. The caller computed
+        `s` from the WIDTH and this function applied it to y as well, which
+        slid the whole overlay grid along the page: measured on screen
+        (`scripts/drive_b21_split_overlay_gap.py`, six window sizes, 462
+        patches each) the slide reached 1.37 device pixels at the foot of an
+        A4 page, and 840 of 2,772 photographed patches ended with a whole row
+        or column of the chart left showing past the split. That is the thin
+        light line a tester photographed along the bottom of a patch
+        (2026-09-17). `sy` is the image's own vertical scale; it defaults to
+        `s` only so a caller that genuinely has one square scale can say so."""
+        sy = s if sy is None else sy
         from PyQt6.QtGui import QPen, QPainterPath as _QP
 
         # Device-pixel snapping: see the split-patch block below. Read once —
@@ -2599,9 +2620,26 @@ class TiffPreview(QWidget):
         except Exception:      # noqa: BLE001 — never fail a repaint over this
             _dpr = 1.0
 
+        def _dfloor(v: float) -> float:
+            """*v* (logical px) taken DOWN to a whole device pixel."""
+            import math as _m
+            return _m.floor(v * _dpr + 1e-9) / _dpr
+
+        def _dceil(v: float) -> float:
+            """*v* (logical px) taken UP to a whole device pixel."""
+            import math as _m
+            return _m.ceil(v * _dpr - 1e-9) / _dpr
+
         def _dsnap(v: float) -> float:
-            """*v* (logical px) moved to the nearest real device pixel."""
-            return round(v * _dpr) / _dpr
+            """*v* (logical px) moved to the nearest real device pixel.
+
+            `math.floor(v + 0.5)`, not `round`: Python rounds a half to the
+            even side, so a patch grid whose edges land on exact halves (which
+            a 2x display produces constantly) would snap alternate patches in
+            opposite directions and give neighbouring boxes different sizes.
+            """
+            import math as _m
+            return _m.floor(v * _dpr + 0.5) / _dpr
 
         items = self._patch_overlay.get(self._current, [])
         # "Show only measured patches" (Knut): blank every patch on the page to
@@ -2698,8 +2736,8 @@ class TiffPreview(QWidget):
                 if i < n - 1:
                     right = max(right, (rects[i].right() + rects[i + 1].left()) / 2.0)
                 painter.fillRect(
-                    QRectF(left * s + ox, top * s + oy,
-                           (right - left) * s, (bot - top) * s),
+                    QRectF(left * s + ox, top * sy + oy,
+                           (right - left) * s, (bot - top) * sy),
                     white)
 
             # On the clean white background, draw a thin cell grid so each unread
@@ -2736,7 +2774,7 @@ class TiffPreview(QWidget):
                     # honeycomb; no dedup needed the way rectangles need it.
                     painter.setBrush(Qt.BrushStyle.NoBrush)
                     for b in pats:
-                        painter.drawPath(self._patch_hexagon(b, s, ox, oy, self._hex_flat_top))
+                        painter.drawPath(self._patch_hexagon(b, s, ox, oy, self._hex_flat_top, sy))
                     continue
                 left_is_border = (i == 0) or read_map.get(i - 1, False)
                 # The left edge is normally deduped against the unread column to
@@ -2754,9 +2792,9 @@ class TiffPreview(QWidget):
                                  if lrect.left() <= b.x() + b.width() / 2 <= lrect.right()]
                 for idx, b in enumerate(pats):
                     x0 = b.x() * s + ox
-                    y0 = b.y() * s + oy
+                    y0 = b.y() * sy + oy
                     x1 = (b.x() + b.width()) * s + ox
-                    y1 = (b.y() + b.height()) * s + oy
+                    y1 = (b.y() + b.height()) * sy + oy
                     painter.drawLine(QPointF(x1, y0), QPointF(x1, y1))   # right
                     painter.drawLine(QPointF(x0, y1), QPointF(x1, y1))   # bottom
                     if idx == 0:
@@ -2770,6 +2808,26 @@ class TiffPreview(QWidget):
         #: note below the loop.
         _seams: list = []
         _warn_hexes: list = []
+        # WHICH EDGES OF A PATCH TOUCH ANOTHER PATCH. A free edge -- one with a
+        # spacer band or paper beyond it -- is taken outwards to a whole device
+        # pixel, because the page underneath is drawn with
+        # `SmoothTransformation` and the pixel the patch's edge falls in still
+        # carries the patch's colour: leave it and a coloured hairline runs
+        # along the split, which is what the report was about. A SHARED edge is
+        # snapped instead, so the two boxes tile: there is no chart to cover
+        # between them (the neighbour's own split covers its half), and a box
+        # that grew over its neighbour would make the seam depend on the order
+        # the strips happened to be read in. Adjacency is a property of the
+        # CHART, so it comes from the page's geometry where that is known and
+        # not from the patches measured so far.
+        _geom = self._page_patch_boxes.get(self._current) or [
+            it[0] for it in items if isinstance(it[0], QRect)]
+        _origins, _right_edges, _bottom_edges = set(), set(), set()
+        for _b in _geom:
+            _bx, _by = int(_b.x()), int(_b.y())
+            _origins.add((_bx, _by))
+            _right_edges.add((_bx + int(_b.width()), _by))
+            _bottom_edges.add((_bx, _by + int(_b.height())))
         for rect, c_exp, c_meas, warn in items:
             if self._hex_zigzag:
                 # SpectroScan hexagonal chart: the measured/expected patch must
@@ -2779,7 +2837,7 @@ class TiffPreview(QWidget):
                 b = (rect if isinstance(rect, QRect)
                      else QRect(int(rect.x()), int(rect.y()),
                                 int(rect.width()), int(rect.height())))
-                hexp = self._patch_hexagon(b, s, ox, oy, self._hex_flat_top)
+                hexp = self._patch_hexagon(b, s, ox, oy, self._hex_flat_top, sy)
                 # Fill by PATH intersection, never a clip: a clip path is hard-
                 # edged and left a faint seam around every patch (Knut, zoomed in).
                 # A hairline stroke in the fill colour closes the sub-pixel gaps
@@ -2831,10 +2889,36 @@ class TiffPreview(QWidget):
             # around the split (2026-08-13). Rounding at device resolution puts
             # every edge on a real screen pixel. On a non-Retina display the
             # ratio is 1 and this is exactly the old behaviour.
-            x0 = _dsnap(rect.x() * s + ox)
-            y0 = _dsnap(rect.y() * s + oy)
-            x1 = _dsnap((rect.x() + rect.width()) * s + ox)
-            y1 = _dsnap((rect.y() + rect.height()) * s + oy)
+            # EVERY EDGE IS A SHARED GRIDLINE, SNAPPED ONCE. Both edges of a
+            # box go through the same map and the same snap, so the bottom
+            # edge of one patch IS the top edge of the one below it: the boxes
+            # tile, the spacers between them keep the width the chart gave
+            # them, and no chart pixel can fall between two boxes. It also
+            # means a whole device pixel of the printed patch can never be
+            # left showing: a snapped near edge is never later than the
+            # patch's first whole pixel, and a snapped far edge is never
+            # earlier than its last.
+            #
+            # Growing the box instead -- snapping the position and rounding
+            # the SIZE up, which makes every patch of a size exactly one size
+            # on screen and so gives every diagonal the same stair pattern --
+            # was tried and rejected on 2026-09-17: it eats into the spacers,
+            # and Basti saw it at once in the photograph ("now you just made
+            # the overlay bigger and in turn some spacers got smaller and not
+            # all of them have the same size"). The overlay follows the chart;
+            # it does not tidy it.
+            _rx, _ry = int(rect.x()), int(rect.y())
+            _rw, _rh = int(rect.width()), int(rect.height())
+            _lx = rect.x() * s + ox
+            _ty = rect.y() * sy + oy
+            _rxf = (rect.x() + rect.width()) * s + ox
+            _byf = (rect.y() + rect.height()) * sy + oy
+            x0 = (_dsnap(_lx) if (_rx, _ry) in _right_edges else _dfloor(_lx))
+            y0 = (_dsnap(_ty) if (_rx, _ry) in _bottom_edges else _dfloor(_ty))
+            x1 = (_dsnap(_rxf) if (_rx + _rw, _ry) in _origins
+                  else _dceil(_rxf))
+            y1 = (_dsnap(_byf) if (_rx, _ry + _rh) in _origins
+                  else _dceil(_byf))
             w = max(2.0 / _dpr, x1 - x0)
             h = max(2.0 / _dpr, y1 - y0)
             if self._overlay_mode == "expected":
@@ -2934,7 +3018,7 @@ class TiffPreview(QWidget):
                 and self._active_patch_page == self._current):
             ar = self._active_patch_box
             cx = (ar.x() + ar.width() / 2.0) * s + ox
-            cy = (ar.y() + ar.height() / 2.0) * s + oy
+            cy = (ar.y() + ar.height() / 2.0) * sy + oy
             painter.setBrush(Qt.BrushStyle.NoBrush)
             painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
 
@@ -2982,9 +3066,9 @@ class TiffPreview(QWidget):
         if self._active_patch_box is not None and self._active_patch_page == self._current:
             r = self._active_patch_box
             x0 = round(r.x() * s + ox)
-            y0 = round(r.y() * s + oy)
+            y0 = round(r.y() * sy + oy)
             x1 = round((r.x() + r.width()) * s + ox)
-            y1 = round((r.y() + r.height()) * s + oy)
+            y1 = round((r.y() + r.height()) * sy + oy)
             painter.setBrush(Qt.BrushStyle.NoBrush)
             # A HEXAGONAL chart gets a hexagonal ring. The slot box's corners
             # fall OUTSIDE the hexagon, so a rectangle here covers slivers of
@@ -2994,7 +3078,7 @@ class TiffPreview(QWidget):
             # already draws the true shape (Knut); this is the same rule for the
             # patch being read next. (Sebastian, on screen: "i saw a square
             # overlay over the hex patch".)
-            _hex = self._patch_hexagon(r, s, ox, oy, self._hex_flat_top) if self._hex_zigzag else None
+            _hex = self._patch_hexagon(r, s, ox, oy, self._hex_flat_top, sy) if self._hex_zigzag else None
             # A WHOLE NUMBER OF DEVICE PIXELS EACH SIDE.
             #
             # The white is (halo - ring)/2 wide on each side. At 5.0 over 2.5
@@ -3012,7 +3096,7 @@ class TiffPreview(QWidget):
             painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
             # A 6 px halo is a third of a 7 mm patch on screen. Below ~24 logical
             # px of patch, thin both strokes rather than smother the colour.
-            _small = min(r.width(), r.height()) * s < RING_SMALL_PATCH_PX
+            _small = min(r.width() * s, r.height() * sy) < RING_SMALL_PATCH_PX
             halo = QPen(QColor(255, 255, 255, 235))
             halo.setWidthF(RING_HALO_W_SMALL if _small else RING_HALO_W)
             halo.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
@@ -3047,7 +3131,7 @@ class TiffPreview(QWidget):
             ar = self._active_patch_box
             if self._aim_aperture_px >= min(ar.width(), ar.height()):
                 cx = (ar.x() + ar.width() / 2.0) * s + ox
-                cy = (ar.y() + ar.height() / 2.0) * s + oy
+                cy = (ar.y() + ar.height() / 2.0) * sy + oy
                 rad = self._aim_aperture_px * s / 2.0
                 if rad >= 1.5:
                     painter.setBrush(Qt.BrushStyle.NoBrush)
@@ -3068,9 +3152,9 @@ class TiffPreview(QWidget):
             hr = _boxes.get(self._hover_patch_loc)
             if hr is not None:
                 x0 = round(hr.x() * s + ox)
-                y0 = round(hr.y() * s + oy)
+                y0 = round(hr.y() * sy + oy)
                 x1 = round((hr.x() + hr.width()) * s + ox)
-                y1 = round((hr.y() + hr.height()) * s + oy)
+                y1 = round((hr.y() + hr.height()) * sy + oy)
                 pen = QPen(self._overlay_accent(self._OVERLAY_ARROW))
                 pen.setWidthF(2.5)
                 pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
@@ -3079,7 +3163,7 @@ class TiffPreview(QWidget):
                 # …and the same for the hover outline, which says "click here
                 # to read this one".
                 if self._hex_zigzag:
-                    painter.drawPath(self._patch_hexagon(hr, s, ox, oy, self._hex_flat_top))
+                    painter.drawPath(self._patch_hexagon(hr, s, ox, oy, self._hex_flat_top, sy))
                 else:
                     painter.drawRect(x0, y0, x1 - x0, y1 - y0)
 
@@ -3101,9 +3185,9 @@ class TiffPreview(QWidget):
             else:
                 r = self._hover_patch_bounds(strip_rect) or strip_rect
                 x0 = round(r.x() * s + ox)
-                y0 = round(r.y() * s + oy)
+                y0 = round(r.y() * sy + oy)
                 x1 = round((r.x() + r.width()) * s + ox)
-                y1 = round((r.y() + r.height()) * s + oy)
+                y1 = round((r.y() + r.height()) * sy + oy)
                 painter.drawRect(x0, y0, x1 - x0, y1 - y0)
 
         if not (items and self._pixmap is not None):
@@ -3125,7 +3209,7 @@ class TiffPreview(QWidget):
             th = fm.height() + 8
             img_l = ox
             img_r = ox + self._pixmap.width() * s
-            img_b = oy + self._pixmap.height() * s
+            img_b = oy + self._pixmap.height() * sy
             # Sit in the bottom paper margin, below the lowest patch, so it
             # never covers patches even on charts that reach near the edge
             # (Knut). Fall back to just above the paper edge if the margin is
@@ -3154,7 +3238,7 @@ class TiffPreview(QWidget):
             # legend looked as if it were touching (2026-08-13). The strip
             # HOVER frame already grows over these; this makes the legend
             # agree with it instead of holding a second opinion.
-            patch_bottom += self._edge_spacer_px * s
+            patch_bottom += self._edge_spacer_px * sy
             cx = int((img_l + img_r) / 2 - tw / 2)
             # Keep the whole chip within the paper width so it never clips.
             cx = max(int(img_l), min(cx, int(img_r - tw)))
@@ -3440,9 +3524,17 @@ class TiffPreview(QWidget):
         y = (H - disp_h) / 2 + self._pan.y()
         painter.fillRect(int(x - B), int(y - B), int(disp_w + 2 * B),
                          int(disp_h + 2 * B), self._frame_color)   # thin tinted frame
-        painter.drawPixmap(int(x), int(y), scaled)
+        # WHERE THE IMAGE IS ACTUALLY DRAWN, not where it was asked for. The
+        # pixmap goes down at whole logical pixels and is a whole number of
+        # device pixels in each direction, so the overlay has to be mapped
+        # through those numbers or it sits beside the picture it annotates.
+        ix, iy = int(x), int(y)
+        painter.drawPixmap(ix, iy, scaled)
         # #126 engine overlays (split patches, hover outline, legend)
-        self._draw_cq_overlay(painter, scale, x, y)
+        self._draw_cq_overlay(painter,
+                              (scaled.width() / dpr) / max(1, pw),
+                              ix, iy,
+                              (scaled.height() / dpr) / max(1, ph))
         self._paint_geom = (scale, x, y)   # for the cursor→image mapping (#72)
         painter.end()
         self._img_label.setPixmap(canvas)
