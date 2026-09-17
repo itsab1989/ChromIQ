@@ -13431,3 +13431,81 @@ on a face whose italic is a real second face, and both are asserted.
   `chromiq_default`. A freshly opened window is correct, so it is invisible to
   any test that reopens the dialog. **This is a fault in a fix of my own**:
   the atomic-write helper is B8-301, from this same round.
+
+### B8-313 · OPEN · The split's boundary sliver reads its "spacer" colour from inside the neighbouring patch
+- blocks release: yes
+- **HOLDS THE SPLIT-OVERLAY BRANCH.**
+- status: OPEN
+- found by: an adversary round on the change set, and independently by Basti
+  looking at the app: *"for hexes the split overlay covers the spacers when
+  they are active"*, *"when only show measured patches is activated it seems
+  the spacers still sometimes show a hairline"*.
+- detail: `_sliver` repaints the boundary pixel as `c * split + (1 - c) *
+  spacer`, and reads the spacer's colour from the rendered page at
+  `rect.y() - 2` / `rect.y() + h + 1`. On a chart whose patches sit ONE image
+  pixel apart those probes land inside the NEIGHBOURING PATCH. Measured on the
+  layout engine's own A4 at the default 300 dpi, patch_first 8x10 mm,
+  `spacer_width_mm = 0.1` (a real control): 161 patches, **119 of 154 column
+  boundaries one image pixel apart, and 119 of 154 top probes and 119 of 154
+  bottom probes land inside a printed patch**, returning that patch's centre
+  colour exactly.
+  On screen at 900x1000: **2,506 device pixels on 7 full-width rows** carry a
+  split-plus-ink mix. At (394, 403) the overlay OFF reads (208, 137, 184), 54 %
+  of the white spacer showing; ON it reads (0, 71, 184), which is
+  0.28 x split + 0.72 x the neighbour's blue, with red driven from 208 to 0.
+  The 1.5 mm control (gaps of 17 to 18 px, probe lands in the spacer) leaves
+  5 pale antialiasing pixels.
+- independently: a honeycomb with 1.5 mm spacers, half the strips read,
+  photographed on screen: the ring under the READ half measures 3,097 device
+  pixels against 3,804 under the unread half, a ratio of **0.814**. The split
+  is eating about a fifth of the ring where it is drawn.
+- **INTRODUCED by this change set** (`cd7f0c4d`).
+
+### B8-314 · OPEN · The sliver decides with banker's rounding, which `_dsnap` documents as wrong
+- blocks release: yes
+- **HOLDS THE SPLIT-OVERLAY BRANCH.**
+- status: OPEN
+- detail: `_dsnap` is `math.floor(v * dpr + 0.5)` and its docstring says *"not
+  `round`: Python rounds a half to the even side"*. `_sliver` then uses
+  `short = dev_edge - round(dev_edge)` and `pos = round(dev_edge) / dpr`. The
+  two disagree at every even integer plus a half.
+- measured: sweeping **1,100 window widths from 300 to 1399** at height 1000 on
+  a real 1.5 mm engine chart, ONE width (620) puts 152 of 640 patch edges
+  exactly there, because the fit scale is exactly 0.25 with a zero border.
+  Photographed at 620x1000: **1,143 device pixels on 9 rows carry printed ink
+  at up to half strength**; row 222 at x=200 reads (255, 127, 127), a pure red
+  patch at 50 %. On the change set's parent the same pixel is (0, 255, 0) and
+  the count is 0. Changing only the rounding drops it to 9 pixels at quarter
+  strength and makes row 222 the intended mix.
+- **This contradicts `cd7f0c4d`'s own headline claim** of "29 chart-coloured
+  pixels and 0 at half strength or more". That measurement was taken over six
+  window sizes, none of which lands on the phase.
+- **INTRODUCED by this change set.**
+
+### B8-315 · OPEN · The guard written for the sliver cannot see the sliver
+- blocks release: no
+- **AND IT IS WHY B8-313 AND B8-314 SHIPPED GREEN.**
+- status: OPEN
+- detail: setting `_seg = None`, which deletes the ENTIRE sliver mechanism the
+  headline commit adds, leaves `tests/test_the_split_overlay_leaves_no_chart_showing.py`
+  green (48 passed) and five other overlay test files green (138 more).
+  `test_no_chart_pixel_survives_under_the_split` scans only
+  `range(ceil(y*sy+bd), floor((y+h)*sy+bd))`, whole pixels the snapped box
+  already covers, so its own `ceil`/`floor` exclude the boundary pixel the
+  sliver exists for. The helper that would catch it, `_chart_pixels()`, whose
+  docstring IS this property ("still carrying the patches' colour, in any
+  amount"), **is never called**.
+- and the same file cannot see the fault it was written for either: making
+  `_draw_cq_overlay` ignore the vertical scale (`sy = s`) leaves both guard
+  files green, because over its six window sizes the slide at the lowest patch
+  row reaches only 0.99 device pixels. Only a source-text test covers it, and a
+  source test cannot see a function that ignores an argument it is given.
+
+### B8-316 · OPEN · Dead code introduced with the sliver
+- blocks release: no
+- status: OPEN
+- detail: `_sliver_reach` (`ui/tiff_preview.py:756`) and the `"_ix"` entry
+  `_exposed_edges` writes into every patch's dict are added by `cd7f0c4d` and
+  never called or read. `_sliver_reach`'s docstring asserts "Proved over 400
+  random layouts ... no sliver enters another patch's box" about code that
+  never runs.
