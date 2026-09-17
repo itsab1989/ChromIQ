@@ -2774,17 +2774,33 @@ class Project:
                 "Project %s has schema_version %s (this build knows %s) — "
                 "opening without migration; update ChromIQ.",
                 root, proj._manifest.schema_version, SCHEMA_VERSION)
-        elif proj._manifest.schema_version < SCHEMA_VERSION:
-            # Cumulative, idempotent migrations. Capture the ORIGINAL version
-            # first — _migrate_v1_to_v2 bumps schema_version to SCHEMA_VERSION,
-            # which would otherwise make the v2→v3 check skip itself.
-            orig = proj._manifest.schema_version
-            if orig < 2:
-                proj._migrate_v1_to_v2()
-            if orig < 3:
-                proj._migrate_v2_to_v3()
-            proj._manifest.schema_version = SCHEMA_VERSION
-            proj.save_manifest()
+        else:
+            # THE SCHEMA NUMBER CANNOT BE THE GATE, BECAUSE THE NUMBER ALREADY
+            # LIED. A pre-redesign project has its chart, measurement and
+            # profile loose in the project folder, and the migration below only
+            # ever looked INSIDE `runs/runN` — so it moved nothing, stamped the
+            # manifest with the current schema and reported success. The next
+            # load then read that stamp, decided there was nothing to do, and
+            # said nothing at all. A tester saw both halves and described them
+            # exactly: a first load that announced a conversion that did not
+            # happen, and later loads that announced nothing.
+            #
+            # So this asks the DISK, every time, and is therefore also the
+            # repair for every project already stamped by the broken version.
+            # It is free on a project that is already laid out properly.
+            proj._adopt_flat_layout()
+            if proj._manifest.schema_version < SCHEMA_VERSION:
+                # Cumulative, idempotent migrations. Capture the ORIGINAL
+                # version first — _migrate_v1_to_v2 bumps schema_version to
+                # SCHEMA_VERSION, which would otherwise make the v2→v3 check
+                # skip itself.
+                orig = proj._manifest.schema_version
+                if orig < 2:
+                    proj._migrate_v1_to_v2()
+                if orig < 3:
+                    proj._migrate_v2_to_v3()
+                proj._manifest.schema_version = SCHEMA_VERSION
+                proj.save_manifest()
         # Backfill the README for projects created before it shipped — and
         # rewrite a 0-byte file, which is exactly the artefact a pre-fix Windows
         # build left behind: write_readme crashed mid-write (UnicodeEncodeError
@@ -2878,7 +2894,18 @@ class Project:
             log.info("opened the EXISTING project at %s (%s run(s) on disk)",
                      root, runs if runs >= 0 else "?")
             return proj
-        log.info("created a NEW project '%s' at %s", target_name, root)
+        # A FOLDER FULL OF SOMEBODY'S WORK IS NOT A NEW PROJECT. Without this,
+        # a pre-redesign project (no manifest, chart + measurement + profile
+        # loose in the folder) got a fresh manifest and an EMPTY `runs/run1`
+        # built around it, and `peek_project` then read the whole thing as
+        # holding nothing — so the "this project already exists" guard never
+        # fired and a build could land on top of it in silence.
+        moved = migrate_flat_project(root, "run1")
+        if moved:
+            log.info("adopted a pre-runs project at %s (%d file(s) into runs/run1)",
+                     root, moved)
+        else:
+            log.info("created a NEW project '%s' at %s", target_name, root)
         return cls.create(root, target_name)
 
     # ---- v1 → v2 migration (#127)
@@ -2921,6 +2948,35 @@ class Project:
             log.info("migration: %s -> %s/", src.name, dst_dir.name)
         except OSError as exc:
             log.warning("migration: could not move %s: %s", src, exc)
+
+    def _adopt_flat_layout(self) -> int:
+        """Bring a pre-``runs/`` project into ``runs/<current_run>/``.
+
+        The step that was missing entirely. Returns how many files moved; 0
+        leaves the project bit-for-bit as it was found. Only after a real move
+        is the manifest touched, so a refusal cannot leave a folder claiming a
+        layout it does not have — which is the exact state this fixes.
+        """
+        run_id = self._manifest.current_run or "run1"
+        moved = migrate_flat_project(self._root, run_id)
+        if not moved:
+            return 0
+        if run_id not in self._manifest.runs:
+            self._manifest.runs.append(run_id)
+        self._manifest.current_run = run_id
+        self.save_manifest()
+        # The other door into this (`create_or_load` on a folder with no
+        # manifest) goes on to `create`, which writes a run meta. Write one
+        # here too, or the same project ends up shaped differently depending
+        # on which door it came through.
+        run = self.run(run_id)
+        if not run.meta_path.exists():
+            run.save_meta(RunMeta.fresh(run_id))
+        # The guide describes the layout the user now actually has.
+        self.write_readme()
+        log.info("Adopted the pre-runs layout at %s into runs/%s (%d file(s))",
+                 self._root, run_id, moved)
+        return moved
 
     def _migrate_v1_to_v2(self) -> None:
         """Tidy a flat (schema 1) project into the v2 sub-folder layout."""
@@ -4026,6 +4082,134 @@ def is_a_project(folder: "Path | None") -> bool:
         return False
 
 
+#: The chart chain's own spelling: ``<stem>.<ext>`` and ``<stem>_NN.<ext>``.
+#: The same predicate `_migrate_v1_to_v2._protected` uses to decide what must
+#: never be swept into `cache/` — there it names the files that must STAY, here
+#: the files that must MOVE, and it is one rule either way: these are the files
+#: Argyll couples by stem, so they travel together or not at all.
+def _chain_re(stem: str) -> "re.Pattern":
+    return re.compile(rf"{re.escape(nfc(stem))}(_\d+)?\.[\w.]+\Z")
+
+
+def flat_legacy_chain(root: "Path | None") -> "list[Path]":
+    """Every run-owned file sitting loose in the project folder *root*.
+
+    THE LAYOUT THIS FINDS IS OLDER THAN THE ONE THE MIGRATION KNEW ABOUT, and
+    that gap is the whole fault. `tests/golden/project_v1` — the fixture the
+    v1→v2 matrix is tested against — already has `runs/`, so every test passed
+    while `_migrate_v1_to_v2` iterated `runs/runN` and found nothing to do. But
+    ChromIQ shipped a flatter layout before the folder redesign (`c1fe7a0b`,
+    2026-05-27): the chart, the measurement and the profile sat directly in the
+    project folder, with no `runs/` anywhere. A tester's three projects from
+    2026-02 are exactly that, and loading them moved nothing while announcing
+    that it had.
+
+    Empty for a project already laid out in `runs/` — a v2 project keeps
+    nothing matching the chain at its root, so asking is free and never
+    misfires. Read-only: this never creates, moves or migrates anything.
+    """
+    if root is None:
+        return []
+    root = Path(root)
+    rx = _chain_re(root.name)
+    try:
+        return sorted(f for f in root.iterdir()
+                      if f.is_file() and rx.fullmatch(nfc(f.name)))
+    except OSError:
+        return []
+
+
+def migrate_flat_project(root: "Path", run_id: str = "run1") -> int:
+    """Move a pre-``runs/`` project's loose chain into ``runs/<run_id>/``.
+
+    Returns how many files moved. **0 means the folder is exactly as it was
+    found** — either there was nothing loose, or the move was refused. There is
+    no third outcome: this never leaves a project half moved, which is the one
+    failure a migration of somebody's measurements is not allowed to have.
+
+    HOW IT REFUSES. If the run folder already holds a chain of its own, the
+    loose files are not the same work and merging them would silently pick a
+    winner per filename; if any single destination already exists, likewise.
+    Both cases log and change nothing.
+
+    HOW IT CANNOT HALF-FINISH. ``runs/`` is inside *root*, so every move is a
+    same-volume ``os.replace`` — atomic per file, so no file is ever truncated
+    or duplicated. Should one still fail (a permission change mid-run, a file
+    locked by another program), the moves already made are put back before
+    returning 0.
+    """
+    loose = flat_legacy_chain(root)
+    if not loose:
+        return 0
+    root = Path(root)
+
+    # A MANIFEST IS A FILE PEOPLE CAN EDIT, AND PROJECTS GET MAILED AROUND.
+    # `run_id` reaches here from `project.json`'s `current_run`, and
+    # `ProjectManifest.from_dict` does not sanitise it - only `peek_project`
+    # does, in its own `_safe_id`, for exactly this reason. Everything else
+    # that builds a path from it only READS; this MOVES somebody's
+    # measurements, so a `current_run` of "../.." would carry them out of the
+    # project altogether. Anything that is not a plain folder name is refused,
+    # which here means the folder is left exactly as it was found.
+    if (not run_id or run_id in (".", "..")
+            or "/" in run_id or "\\" in run_id or "\0" in run_id):
+        log.warning("flat migration: %r is not a usable run folder name - "
+                    "leaving %s alone", run_id, root)
+        return 0
+
+    run_dir = root / "runs" / run_id
+    rx = _chain_re(root.name)
+
+    if run_dir.is_dir():
+        try:
+            held = [f for f in run_dir.iterdir()
+                    if f.is_file() and rx.fullmatch(nfc(f.name))]
+        except OSError as exc:
+            log.warning("flat migration: cannot read %s (%s) — leaving %s alone",
+                        run_dir, exc, root)
+            return 0
+        if held:
+            log.warning(
+                "flat migration: %s already holds %d chart file(s) of its own — "
+                "leaving the %d loose file(s) in %s untouched",
+                run_dir, len(held), len(loose), root)
+            return 0
+
+    plan = [(f, run_dir / f.name) for f in loose]
+    clash = [d.name for _, d in plan if d.exists()]
+    if clash:
+        log.warning("flat migration: %s already exists in %s — leaving %s alone",
+                    ", ".join(sorted(clash)[:3]), run_dir, root)
+        return 0
+
+    try:
+        run_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        log.warning("flat migration: cannot create %s (%s) — leaving %s alone",
+                    run_dir, exc, root)
+        return 0
+
+    done: "list[tuple[Path, Path]]" = []
+    for srcf, dstf in plan:
+        try:
+            os.replace(srcf, dstf)
+        except OSError as exc:
+            log.error("flat migration: %s failed (%s) — putting %d file(s) back",
+                      srcf.name, exc, len(done))
+            for back_src, back_dst in reversed(done):
+                try:
+                    os.replace(back_dst, back_src)
+                except OSError as undo_exc:      # pragma: no cover - disk gone
+                    log.error("flat migration: could NOT put %s back: %s",
+                              back_dst, undo_exc)
+            return 0
+        done.append((srcf, dstf))
+
+    log.info("flat migration: moved %d file(s) from %s into runs/%s",
+             len(done), root, run_id)
+    return len(done)
+
+
 def dir_holds(folder: "Path | None", path: "Path | None") -> bool:
     """True when *folder* is *path* or contains it, at any depth.
 
@@ -4152,14 +4336,49 @@ class ProjectPeek:
         return self.run_id or "1"
 
 
+def _loose_run_peek(loose: "list[Path]", rid: str = "run1") -> "RunPeek":
+    """What a pre-redesign project's loose chain amounts to, as one run."""
+    sfx = {f.suffix.lower() for f in loose}
+    return RunPeek(rid,
+                   chart=bool(sfx & {".ti1", ".ti2"}),
+                   measurement=".ti3" in sfx,
+                   profile=bool(sfx & {".icc", ".icm"}))
+
+
 def peek_project(root: "Path | None") -> ProjectPeek:
     """Read-only: what is in the project at *root*? Never creates or migrates."""
     if root is None:
         return ProjectPeek(Path(""), exists=False)
     root = Path(root)
     manifest = root / Project.MANIFEST
+    # A PRE-REDESIGN PROJECT IS STILL SOMEBODY'S WORK. It has no manifest and
+    # no `runs/` - the chart, the measurement and the profile lie loose in the
+    # folder - and answering "nothing of that name" for it is how a build came
+    # to land on top of one in silence. `Project.create_or_load` now adopts
+    # such a folder into `runs/run1` rather than building an empty project
+    # around it, so "it exists and it holds work" is also the true answer.
+    # Still read-only: asking never moves anything.
+    #
+    # LOOKED UP LAZILY, because this function is asked ON EVERY KEYSTROKE while
+    # somebody types a project name (see `tab_chart`'s name field). An
+    # unconditional `iterdir` here would put a directory read on every
+    # character typed, in a folder that can hold hundreds of page bitmaps.
+    # Both call sites below are cold paths.
+    _loose: "list[Path] | None" = None
+
+    def loose_chain() -> "list[Path]":
+        nonlocal _loose
+        if _loose is None:
+            _loose = flat_legacy_chain(root)
+        return _loose
+
     try:
         if not manifest.is_file():
+            if loose_chain():
+                lr = _loose_run_peek(loose_chain())
+                return ProjectPeek(root, exists=True, run_id="run1",
+                                   chart=lr.chart, measurement=lr.measurement,
+                                   profile=lr.profile, runs=(lr,))
             return ProjectPeek(root, exists=False)
         data = json.loads(manifest.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
@@ -4259,6 +4478,16 @@ def peek_project(root: "Path | None") -> ProjectPeek:
         )
 
     peeked = tuple(r for r in (_peek_run(i) for i in ids) if r is not None)
+    # ...and the same for a project the broken migration already stamped: a
+    # manifest saying schema 3, `runs: ["run1"]`, and every file still loose in
+    # the project folder. Only counted when the run itself holds nothing, so a
+    # properly laid-out project is unaffected.
+    if not any(r.holds_anything for r in peeked) and loose_chain():
+        lr = _loose_run_peek(loose_chain(), rid=run_id)
+        return ProjectPeek(root, exists=True, run_id=run_id,
+                           chart=lr.chart, measurement=lr.measurement,
+                           profile=lr.profile, calibration=calibration,
+                           runs=(lr,))
     current = next((r for r in peeked if r.id == run_id), None)
     if current is None:
         return ProjectPeek(root, exists=True, run_id=run_id,

@@ -12394,3 +12394,170 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   under `tests/`; `QT_QPA_PLATFORM=offscreen pytest -n auto` came back
   **16062 passed**, 321 skipped, 4 xfailed, exit 0, and this driver added 0
   crashes through the app's own `sys.excepthook`.
+### B8-285 · A project from before the folder redesign is really migrated · and Check & Refine shows the run it is on
+- blocks release: yes
+- status: VERIFIED
+- the migration is what blocks; the other three items in here are smaller and
+  would not have held a release on their own.
+- reported by a tester, 2026-09-17, on three of his own projects from
+  February 2026: *"Loading any of the two older projects does not convert them
+  into new project folder structure, and files are not moved to correct place.
+  I did try several times. First time I tried, I got the message that the
+  project loaded was made with an older ChromIQ and that it would be converted
+  to new folder structure. That did not happen. No folders were created. The
+  second and third time I tried, then I no longer got a message ... and nothing
+  was moved or reorganised."*
+
+**THE SECOND HALF OF THAT SENTENCE IS THE DIAGNOSIS, AND IT IS ONE FAULT, NOT
+TWO.** `_migrate_v1_to_v2` walks `runs/runN` and tidies what is inside each run
+folder. A pre-redesign project has no `runs/` at all, so the loop found nothing
+to do, stamped `schema_version` to current, rewrote the folder guide and logged
+"Migration to v2 complete". The next load read that stamp, concluded correctly
+that there was nothing to do, and said nothing. **The announcement and the
+silence are the same bug seen twice.**
+
+- **it passed every test because the fixture is not the layout.**
+  `tests/golden/project_v1`, which the whole v1→v2 matrix runs against,
+  ALREADY HAS `runs/` - a comment in `peek_project` even asserts that "v1 HAD
+  `runs/`" and cites `test_legacy_migration.py` for it. That is true of the
+  fixture and false of the app's own history: `runs/` arrived with the folder
+  redesign (`c1fe7a0b`, 2026-05-27) and his projects are from February. **No
+  test in the suite held an example of the layout that actually shipped.**
+- **measured on his own files**, copied out of the zips, never opened in place:
+  all three are flat, and one (the 900-patch project) carries a `project.json`
+  written 2026-07-19 saying `schema_version: 2`, `runs: ["run1"]`, **with no
+  `runs/` folder anywhere**. That is the state the broken migration leaves, and
+  it is why gating the repair on the schema number could never have fixed it.
+- **worse than reported, and nobody had seen it.** `peek_project` answered
+  `holds_anything = False` for all three: a project holding a chart, a
+  measurement and a profile read as EMPTY, so the "this project already exists"
+  guard never fired and a build could have landed on top of them in silence.
+- **the fix asks the DISK, never the manifest.** `migrate_flat_project` moves
+  the chain (`<stem>` / `<stem>_NN`, the same predicate the old migration uses
+  to decide what must never move) into `runs/<current_run>`, and runs on every
+  load regardless of schema, so it also repairs projects the broken version has
+  already stamped. Same-volume `os.replace`, so no file is ever half written;
+  it refuses outright when the run holds a chart of its own or any destination
+  exists, and rolls back what it moved if a move fails. **It returns 0 or it
+  finishes: there is no third outcome, and 0 means the folder is exactly as it
+  was found.** Files that are not the chain, including the user's own, are not
+  touched; `<root>/reports/` is left where it is because a project-level
+  reports folder is correct in v2 (`ui/file_guide.py` says so).
+- **driven on screen**, real window, photographed with `capture_window`:
+  `scripts/drive_pre_runs_migration.py`, proof in
+  `~/Desktop/ChromIQ-beta20-proof/migration/`. Before: 14 files loose, no
+  `runs/`. After: `runs/run1/` holding the `.ti1 .ti2 .ti3 .icc` and all five
+  page TIFFs, and Check & Refine arriving with both fields already filled.
+- evidence: the command, and what came back:
+  `QT_QPA_PLATFORM=offscreen pytest -n auto` gave
+  **16071 passed**, 334 skipped, 4 xfailed, against a baseline at `4b94058d`
+  of 16036 passed. The single failure in BOTH is
+  `test_every_register_citation_names_a_real_entry::test_the_sweep_is_not_vacuous`,
+  which skips `.claude` and so counts zero citations from inside a worktree
+  under `.claude/worktrees/`: environmental, identical before and after. Logs
+  in `~/Desktop/ChromIQ-beta20-proof/migration/` as `suite-after.txt` and
+  `suite-baseline-4b94058d.txt`. The migration's own guards are
+  `test_a_pre_runs_project_moves_its_chain_into_run1`,
+  `test_the_migration_keeps_every_byte`,
+  `test_files_that_are_not_the_chain_are_left_alone`,
+  `test_a_project_already_stamped_as_current_is_still_repaired`,
+  `test_a_schema_1_project_is_migrated_through_load`,
+  `test_a_refused_migration_changes_nothing_at_all`,
+  `test_a_measurement_is_never_merged_into_a_run_with_a_DIFFERENT_chart`,
+  `test_a_refusal_does_not_stamp_the_manifest`,
+  `test_opening_twice_moves_nothing_the_second_time`,
+  `test_a_laid_out_project_has_nothing_loose_to_find`,
+  `test_a_pre_runs_project_does_not_read_as_empty`,
+  `test_peeking_never_moves_anything`.
+
+**THE STALE 3D PLOT.** *"the Check & Refine tab was showing the Gamut 3D plot
+made on a previously loaded project."* `_reset_results` set all eight result
+fields to None and never touched the web view, so the panel believed it held
+nothing while displaying the last project's shape. It now returns the view to
+its own placeholder, and a clear also drops the comparison profile B, which
+belongs to the project A came from.
+- evidence: `test_clearing_the_gamut_panel_blanks_the_shape_on_screen`,
+  `test_clearing_the_panel_also_drops_the_comparison_profile`,
+  `test_showing_a_profile_keeps_the_comparison_the_user_chose`.
+
+**CHECK & REFINE NOW FOLLOWS THE BAR.** *"even though the profile run is set to
+run1 and its folder has all files ... The ti3 and the icc file is not
+automatically loaded."* The tab took the shared controller and deliberately did
+not subscribe to it; the note said a `changed` connection "would be a new
+behaviour nobody has asked for", resting on a challenge round that injected a
+controller and saw zero `changed` signals. That was a fact about the harness.
+It now mirrors `TabProfile._on_target_changed`: it only OFFERS what is on disk
+for the selected run, never broadcasts (that is what can raise an import
+window), and never pops the "Profile Not Found" modal at somebody who merely
+opened a project.
+- **a challenge round on this change found one more**: `resolve_run` answers
+  with the RUN's profiling measurement for a Calibration or Verification target
+  too, whose measurements live in `cal/` and in a dated folder. Build Profile's
+  own follow guards only the second; this one guards both, because offering the
+  wrong file is worse than offering none.
+- evidence: `test_check_and_refine_loads_the_run_it_is_pointed_at`,
+  `test_it_does_not_empty_itself_on_a_run_with_no_measurement`,
+  `test_following_the_bar_never_asks_about_a_missing_profile`,
+  `test_following_the_bar_tells_no_other_tab`,
+  `test_it_offers_nothing_for_a_calibration_or_verification_target`.
+
+**THE TOOLTIP, WRITTEN FROM THE APP THIS TIME.** The design authority's edited
+specification makes three claims; two are about behaviour and were MEASURED
+across all five tabs with `scripts/drive_the_bar_on_every_tab.py` before a word
+was changed, because writing this sentence from another sentence is exactly how
+it went wrong:
+
+| tab | Profile run | Run type | Verification |
+|---|---|---|---|
+| 1. Create Chart | enabled | enabled | selectable |
+| 2. Print Chart | enabled | enabled | selectable |
+| 3. Measure | enabled | enabled | selectable |
+| **4. Build Profile** | **enabled** | enabled | **NOT selectable** |
+| 5. Check & Refine | GREYED | GREYED | selectable |
+
+**Both of his behaviour claims hold, so there is no second fault**: the profile
+run really is still changeable on Build Profile, and Build Profile really is
+the only tab that narrows the run type to Profiling
+(`set_verification_selectable(index != 3)`). The tooltip now says both, and no
+longer claims the selection is unused on a tab whose bar is live. The old
+wording also carried an em dash, cleaned per the rule; twelve translations
+updated.
+- **one observation, not changed, for whoever takes the next pass**: the
+  DISABLED Verification entry's own tooltip reads *"Not while standing on Build
+  Profile / Calibration and Profiling tab"*, which names a tab ("Calibration and
+  Profiling") that no longer exists in the tab bar. It is a different string
+  from the one he asked about, and correcting it means another twelve
+  translations, so it is left as a note rather than swept in unasked.
+- evidence: `test_the_locked_bar_tooltip_does_not_claim_build_profile_is_locked`,
+  `test_the_tooltip_says_build_profile_is_where_you_can_change_it`,
+  `test_the_tooltip_says_build_profile_is_profiling_only`,
+  `test_build_profile_is_the_one_tab_that_forbids_a_verification_run`,
+  `test_only_check_and_refine_locks_the_bar`.
+
+**A THIRD CHALLENGE ROUND FOUND A TRAVERSAL IN THE FIX ITSELF.** `run_id`
+reaches `migrate_flat_project` from `project.json`'s `current_run`, and
+`ProjectManifest.from_dict` does not sanitise it: only `peek_project` does, in
+its own `_safe_id`, and its comment says exactly why ("a manifest is a file
+people can edit, and projects get mailed around"). Everything else that builds
+a path from that field only READS. This MOVES somebody's measurements, so a
+mailed project whose manifest said `"current_run": "../.."` would have had its
+chart, measurement and profile carried out of the project folder entirely. Now
+refused, which here means the folder is left exactly as it was found.
+- evidence: `test_a_hand_edited_current_run_cannot_carry_the_files_out`
+  (six ids), `test_the_manifest_route_refuses_the_same_way`.
+
+- **rounds.** Round 1 found the fault and its cause. Round 2, against my own
+  change, found two: a Calibration or Verification target was being offered the
+  RUN's profiling measurement, and `peek_project` had grown an unconditional
+  `iterdir` on a function called on every keystroke (now lazy). Round 3 found
+  the traversal above. Round 4 found nothing a user could see.
+- **every guard was mutation-checked**: twelve mutations, each proved to land by
+  reading the file back, each turning its test red, each reverted and the revert
+  verified. One (the refusal) was STILL GREEN on the first attempt because a
+  second check covered the same case, which is what produced
+  `test_a_measurement_is_never_merged_into_a_run_with_a_DIFFERENT_chart`.
+- **not fixed, and deliberately**: a pre-redesign project that also had a
+  CALIBRATION keeps its `<stem>-cal.*` files loose at the project root, because
+  they do not match the chart chain and `cal/` is a different destination with
+  its own rules. None of the tester's three projects has any, so this is
+  untested against a real example and is left rather than guessed at.

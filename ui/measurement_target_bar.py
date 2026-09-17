@@ -1161,11 +1161,14 @@ class MeasurementTargetBar(QWidget):
         """Grey the whole selection out, keeping it readable (Knut, #130
         2026-07-26).
 
-        Build Profile and Check & Refine work on the measurement file you load
-        into them, not on this selection — so leaving these boxes live there
-        invites a change that appears to do nothing. Locked, they still say
-        which run and run type you are on, and their tooltips say where to
-        change it.
+        Check & Refine works on the measurement file you load into it, not on
+        this selection, so leaving these boxes live there invites a change that
+        appears to do nothing. Locked, they still say which run and run type
+        you are on, and their tooltips say where to change it.
+
+        ONLY Check & Refine. Build Profile was locked alongside it until
+        beta.157 and is not any more; the one caller is
+        `MainWindow._on_tab_changed`, which passes `index == 4`.
         """
         if locked == getattr(self, "_locked", False):
             return
@@ -1228,11 +1231,37 @@ class MeasurementTargetBar(QWidget):
 
     def _lock_note(self) -> str:
         if self._LOCK_NOTE is None:
+            # EVERY CLAIM IN HERE WAS READ OFF THE RUNNING WINDOW, because
+            # the sentence this replaces was written from another sentence and
+            # was wrong about a sibling tab for it. It said "the Build Profile
+            # and Check & Refine tabs" while a tester was looking at a live,
+            # editable bar on Build Profile: the bar was unlocked there at
+            # Knut's request (beta.157, see `MainWindow._on_tab_changed`) and
+            # the text never followed.
+            #
+            # Measured across all five tabs with
+            # `scripts/drive_the_bar_on_every_tab.py`:
+            #
+            #   tab               Profile run   Run type   Verification
+            #   1. Create Chart   enabled       enabled    selectable
+            #   2. Print Chart    enabled       enabled    selectable
+            #   3. Measure        enabled       enabled    selectable
+            #   4. Build Profile  enabled       enabled    NOT selectable
+            #   5. Check & Refine GREYED        GREYED     selectable
+            #
+            # So Build Profile belongs in the list of tabs the run CAN be
+            # changed on, and it is also the one tab that narrows the run type
+            # to Profiling (`set_verification_selectable(index != 3)`). Both
+            # are the design authority's specification of 2026-09-17 and both
+            # were confirmed against the app before being written down.
             type(self)._LOCK_NOTE = tr(
-                "This selection is not used on the Build Profile and Check & "
-                "Refine tabs — both work on the measurement file you load into "
-                "them. It is shown here so you can see where you are, and can "
-                "be changed on the Create Chart, Print Chart and Measure tabs.")
+                "This selection is not used on the Check & Refine tab, which "
+                "works on the measurement file you load into it. It is shown "
+                "here so you can see where you are, and can be changed on the "
+                "Create Chart, Print Chart, Measure and Build Profile tabs. "
+                "On Build Profile the profile run can still be changed, but "
+                "the run type is Profiling only: a verification run cannot be "
+                "selected there.")
         return self._LOCK_NOTE
 
     @staticmethod
