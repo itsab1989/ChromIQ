@@ -109,16 +109,42 @@ def shoot(app, win, path: Path, tries: int = 5) -> "tuple[bool, str]":
     rather than to accept a blank picture. A refusal that survives every try
     is reported by the caller, never papered over.
     """
+    # AND IT MUST SETTLE, NOT MERELY SUCCEED. `capture_window` can tell an
+    # EMPTY buffer from a real one, and refuses the empty one, but it cannot
+    # tell the PREVIOUS frame from the current one: a stale full frame passes
+    # every check it makes. An adversary round found that directly, with a
+    # draw-order run reporting 78,116 changed pixels between a photograph and
+    # itself. So keep photographing until two in a row are identical; only
+    # then is the window done painting.
+    prev = path.with_name(path.stem + "__prev.png")
     why = ""
+    last = None
     for i in range(tries):
         pump(app, 400 + 300 * i)
         ok, why = capture_window(win, path, settle=0.4 + 0.2 * i)
-        if ok:
-            if i:
-                say(f"    (the window had not painted yet; capture {i + 1} "
-                    f"of {tries} succeeded)")
+        if not ok:
+            continue
+        # PIXELS, not bytes: the PNG encoder is not deterministic here, and two
+        # photographs of the same frame can differ byte for byte while no pixel
+        # does (measured: bbox None, bytes unequal).
+        shot = path.read_bytes()
+        same = False
+        if last is not None:
+            from PIL import Image, ImageChops
+            a = Image.open(prev).convert("RGB")
+            b = Image.open(path).convert("RGB")
+            same = (a.size == b.size
+                    and ImageChops.difference(a, b).getbbox() is None)
+        if same:
+            prev.unlink(missing_ok=True)
+            if i > 1:
+                say(f"    (the window settled on capture {i + 1} of {tries})")
             return True, ""
-    return False, why
+        last = shot
+        path.replace(prev)
+    prev.unlink(missing_ok=True)
+    return False, why or ("the window never painted the same thing twice in "
+                          f"{tries} captures, so no frame can be trusted")
 
 
 def boxes_for_page(page: int) -> "dict[str, QRect]":

@@ -12773,6 +12773,8 @@ drove them and the deadline came first. No source file changed in this round.
   *"this fix will not be part of a release until i have looked at the proof
   you leave for me and i tell you to implement it"*).
 - evidence: `test_the_same_patches_read_in_any_order_paint_the_same_pixels`,
+  `test_a_staggered_chart_still_knows_it_has_room_to_grow`,
+  `test_the_gap_is_measured_between_boxes_that_could_actually_meet`,
   `test_no_chart_pixel_survives_under_the_split`,
   `test_the_split_never_paints_over_the_spacers`,
   `test_every_box_is_the_size_of_the_patch_it_covers`,
@@ -12842,6 +12844,41 @@ which DRAWS the page twice and compares it, over five gap widths and three
 window sizes. Asserting order-independence by reading the source, which is what
 the first version did, cannot catch a box that grew a pixel into its
 neighbour: put the old rule back and 16 cases go red.
+
+**AND ROUND 2 BROKE THE SECOND VERSION, ON A LAYOUT WE SHIP.** The gap was
+measured as one minimum over every patch on the page. A ColorMunki "Offset
+every second strip" chart shifts the odd columns by half a patch, so column
+N's y-spans OVERLAP column N+1's, that minimum reads 0, and the overlay
+concluded it had no room to grow anywhere on the sheet. Every column has its
+full 7 or 8 image pixel band. Measured on the real Measure tab at 1200x980:
+**8,686 chart-coloured pixels** left showing with the stagger on, **0** with it
+off, same chart, same patches, one checkbox apart.
+
+`_axis_gaps` now measures the vertical gap down each COLUMN and the horizontal
+one along each ROW, grouping lanes by OVERLAP rather than by equality, which is
+the condition that actually lets two boxes meet. On a staggered chart that also
+keeps the horizontal answer right: the columns touch across and their y-spans
+do overlap, so they share a row group, the horizontal gap reads 0, and sideways
+growth is correctly refused. Re-driven on the same chart and window: **8,686 to
+440**, and the unstaggered control stays at 0.
+
+**The remaining 440 are honest and will not go away by tuning.** They sit in
+four short vertical lines, at the SIDE edges of the patches that the stagger
+leaves facing a neighbouring column's gap rather than its patch. A per-edge
+rule would not reach them either: the exposure is on part of an edge, and the
+box is one rectangle. Covering them needs a clipped fill, which is a different
+change and not worth it for a 95 per cent case.
+
+Threshold: `_MIN_GAP_TO_GROW_DEVICE_PX` is 2.0 and the reason in the old
+comment was wrong. Round 2 showed the overlap condition is `frac + g < 1`, so
+anything at 1.0 or above is provably safe (brute-forced over 200,001 phases per
+gap and 21,840 real chart geometries). The second pixel buys something else: at
+1.0 both sides can take the whole gap and the band closes to nothing on screen,
+which is what Basti rejected. The cost is a window band where the fault is
+present and need not be: 700x402 (gap 1.999 device px) leaks 4,402 pixels where
+700x403 (gap 2.005) leaks none. **That is Basti's call**, written up in the
+proof folder's README. The test pins the provable floor (>= 1.0), not the
+shipped number.
 
 **What was tried and rejected.** Snapping the position and rounding the SIZE
 up gives every patch of a size exactly one size on screen, so every diagonal

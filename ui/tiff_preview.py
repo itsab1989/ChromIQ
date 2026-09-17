@@ -679,6 +679,83 @@ RING_HALO_W_SMALL = 5.0
 RING_ACCENT_W_SMALL = 1.0
 
 
+#: How much room, in DEVICE pixels, a patch's edge needs beyond it before the
+#: overlay will grow into the screen pixel that edge falls in.
+#:
+#: **One would be enough to prevent an overlap, and this is two on purpose.**
+#: The near edge takes `floor` and the far edge `ceil` of the SAME fractional
+#: phase, so two boxes across a gap `g` overlap only when `frac(near) + g < 1`:
+#: any `g >= 1.0` is already safe. An adversary round brute-forced that over
+#: 200,001 phases per gap and then over 21,840 real chart geometries at
+#: threshold 1.0, and found no overlapping pair. The second pixel buys
+#: something else: at `g = 1.0` both sides can take the whole gap and the
+#: spacer band closes to NOTHING on screen, and a band that disappears is
+#: exactly what Basti rejected when the first version of this fix ate into
+#: them. At 2.0 a band is always left at least one device pixel wide.
+#:
+#: The cost is a window band where the bug is present and need not be: the same
+#: round walked a real window one pixel of height at a time and found 700x402
+#: (gap 1.999) leaking 4,402 chart pixels where 700x403 (gap 2.005) leaks none.
+#: That is Basti's call to make, not this file's, and it is written up in
+#: `~/Desktop/ChromIQ-beta21-proof/split-overlay-gap/README.md`.
+_MIN_GAP_TO_GROW_DEVICE_PX = 2.0
+
+
+def _axis_gaps(boxes) -> "tuple[float, float]":
+    """(horizontal, vertical) smallest gap between two patch boxes, image px.
+
+    **NOT the smallest gap over all boxes on the page.** Two boxes can only
+    collide vertically if their x-spans overlap, so the vertical gap has to be
+    measured down each COLUMN, and the horizontal gap along each ROW. Taking
+    one minimum over every box gets the wrong answer on a chart whose columns
+    are staggered: a ColorMunki "offset every second strip" layout shifts the
+    odd columns by half a patch, so column N's y-spans overlap column N+1's,
+    a flat minimum reads 0, and the overlay concludes it has no room to grow
+    anywhere on the sheet. It has 7 or 8 image pixels in every column. An
+    adversary round measured the consequence on the real Measure tab: 8,686
+    chart-coloured pixels left showing at 1200x980 with the stagger on, 0 with
+    it off, same chart, same 180 patches, one checkbox apart.
+
+    Grouping is by OVERLAP, not by equality, because that is the condition
+    that actually makes two boxes able to meet. On a staggered chart that is
+    what stops the horizontal answer being wrong in the other direction:
+    column N and column N+1 touch across, and their y-spans DO overlap, so
+    they share a row group, the horizontal gap reads 0, and sideways growth is
+    correctly refused.
+    """
+    # ONE PASS over the boxes, then the work is on DISTINCT spans, of which a
+    # chart has a couple of dozen per axis however many patches it carries.
+    # The obvious version rescans every box for every lane and costs milliseconds
+    # on a 700-patch page, inside a repaint that also runs on hover.
+    by_x: "dict[tuple[int, int], set]" = {}
+    by_y: "dict[tuple[int, int], set]" = {}
+    for b in boxes:
+        sx = (int(b.x()), int(b.x()) + int(b.width()))
+        sy_ = (int(b.y()), int(b.y()) + int(b.height()))
+        by_x.setdefault(sx, set()).add(sy_)
+        by_y.setdefault(sy_, set()).add(sx)
+
+    def _gap(groups) -> float:
+        lanes = list(groups)
+        best = float("inf")
+        for lane in lanes:
+            members = set(groups[lane])
+            for other in lanes:
+                if other != lane and _overlaps(other, lane):
+                    members |= groups[other]
+            best = min(best, _min_gap(list(members)))
+            if best == 0:
+                return 0.0
+        return best
+
+    return _gap(by_y), _gap(by_x)
+
+
+def _overlaps(a: "tuple[int, int]", b: "tuple[int, int]") -> bool:
+    """Do two half-open spans share any extent at all?"""
+    return a[0] < b[1] and b[0] < a[1]
+
+
 def _min_gap(spans: "list[tuple[int, int]]") -> float:
     """The smallest space between two of *spans*, in the units they are in.
 
@@ -2653,10 +2730,16 @@ class TiffPreview(QWidget):
         `sy` is the image's own vertical scale; it defaults to `s` only so a
         caller that genuinely has one square scale can say so.
 
-        `_image_px_at` still maps a CURSOR with one scale, and that is left
-        alone deliberately: the error there is at most one image pixel at the
-        foot of the page, which is 0.13 mm at 200 dpi and cannot pick the
-        wrong patch. Measured, not assumed."""
+        `_image_px_at` and `_coord_mm_at` map a CURSOR, and they read
+        `_paint_scale_y` for the same reason. Leaving them on the horizontal
+        scale, which the first version of this fix did, put the split and the
+        thing that decides which patch you clicked on two different grids: an
+        adversary round measured 0.7 device pixels of drift at the foot of the
+        page and 66 of 924 probes landing on a different patch, or none. Before
+        any of this both used the same number and the mismatch was exactly
+        zero, so that one was introduced by the fix and is not a pre-existing
+        rounding. Re-measured after: every one of 1,539,163 logical pixels
+        inside a patch and under its own overlay box named the right patch."""
         sy = s if sy is None else sy
         from PyQt6.QtGui import QPen, QPainterPath as _QP
 
@@ -2899,10 +2982,9 @@ class TiffPreview(QWidget):
         _grow_x = _grow_y = False
         _edge_l = _edge_r = _edge_t = _edge_b = None
         if _geom:
-            _grow_x = _min_gap([(int(b.x()), int(b.x()) + int(b.width()))
-                                for b in _geom]) * s * _dpr >= 2.0
-            _grow_y = _min_gap([(int(b.y()), int(b.y()) + int(b.height()))
-                                for b in _geom]) * sy * _dpr >= 2.0
+            _gap_x, _gap_y = _axis_gaps(_geom)
+            _grow_x = _gap_x * s * _dpr >= _MIN_GAP_TO_GROW_DEVICE_PX
+            _grow_y = _gap_y * sy * _dpr >= _MIN_GAP_TO_GROW_DEVICE_PX
             _edge_l = min(int(b.x()) for b in _geom)
             _edge_r = max(int(b.x()) + int(b.width()) for b in _geom)
             _edge_t = min(int(b.y()) for b in _geom)

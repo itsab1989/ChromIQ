@@ -313,6 +313,50 @@ def test_the_same_patches_read_in_any_order_paint_the_same_pixels(
         f"in, at {w}x{h} with a {gap_px} px gap; first ten {differ[:10]}")
 
 
+def test_a_staggered_chart_still_knows_it_has_room_to_grow():
+    """The gap is measured down each column, not over the whole page.
+
+    A ColorMunki "offset every second strip" chart shifts the odd columns by
+    half a patch. Column N's y-spans then overlap column N+1's, so a single
+    minimum over every box on the page reads 0 and the overlay concludes it
+    has no room anywhere, when in fact every column has its full band. An
+    adversary round measured the consequence on the real Measure tab: 8,686
+    chart-coloured pixels left showing at 1200x980 with the stagger on and 0
+    with it off, same chart, one checkbox apart.
+
+    And the horizontal answer must NOT improve the same way: the columns touch
+    across, their y-spans do overlap, so they share a row group and sideways
+    growth is correctly refused. Getting that half wrong would put one patch's
+    colour inside its neighbour's box.
+    """
+    from ui.tiff_preview import _axis_gaps
+    plain = [QRect(100 + 63 * c, 100 + 86 * r, 63, 79)
+             for c in range(6) for r in range(8)]
+    stagger = [QRect(100 + 63 * c, 100 + 86 * r + (43 if c % 2 else 0), 63, 79)
+               for c in range(6) for r in range(8)]
+    assert _axis_gaps(plain) == (0.0, 7), _axis_gaps(plain)
+    assert _axis_gaps(stagger) == (0.0, 7), (
+        f"a staggered chart reports {_axis_gaps(stagger)}; the vertical gap is "
+        f"7 image pixels in every column and the horizontal one is 0")
+
+
+def test_the_gap_is_measured_between_boxes_that_could_actually_meet():
+    from ui.tiff_preview import _axis_gaps
+    # one lone patch has nothing to collide with, either way
+    assert _axis_gaps([QRect(0, 0, 10, 10)]) == (float("inf"), float("inf"))
+    # a single column: no horizontal neighbour at all, 20 px down
+    col = [QRect(0, 100 * r, 10, 80) for r in range(4)]
+    assert _axis_gaps(col) == (float("inf"), 20)
+    # room on both axes
+    grid = [QRect(100 + 70 * c, 100 + 90 * r, 63, 79)
+            for c in range(4) for r in range(5)]
+    assert _axis_gaps(grid) == (7, 11)
+    # a ragged last row must not invent room that is not there
+    ragged = [QRect(100 + 63 * c, 100 + 86 * r, 63, 79)
+              for r in range(4) for c in range(4 if r < 3 else 2)]
+    assert _axis_gaps(ragged) == (0.0, 7)
+
+
 def test_both_paint_paths_hand_the_overlay_the_pages_own_vertical_scale():
     """A single scale is the fault. Neither caller may go back to one."""
     from ui.tiff_preview import TiffPreview
@@ -338,9 +382,18 @@ def test_a_patch_box_is_never_smaller_than_the_chart_patch():
     assert "_dsnap(_ty)" in src and "_dsnap(_byf)" in src, (
         "with no room to grow into, an edge must be SNAPPED, which is monotone "
         "and so cannot depend on the order the boxes are drawn in")
-    assert "_min_gap(" in src and ">= 2.0" in src, (
+    assert "_MIN_GAP_TO_GROW_DEVICE_PX" in src, (
         "growth must be allowed only where two boxes growing towards each "
         "other cannot land in the same screen pixel")
+    from ui.tiff_preview import _MIN_GAP_TO_GROW_DEVICE_PX as _T
+    # The FLOOR is what is provable: the near edge floors and the far edge
+    # ceils the same fractional phase, so two boxes across a gap g overlap
+    # only when frac + g < 1, and any g >= 1 is safe. The shipped value is
+    # higher on purpose (a band is then never left at zero pixels), which is
+    # a design call and may change; below 1.0 is a bug and may not.
+    assert _T >= 1.0, (
+        f"a threshold of {_T} device pixels lets two boxes grow into the same "
+        f"pixel, which makes the seam between them depend on draw order")
     assert "* s + oy" not in src, (
         "some y coordinate in the overlay is still mapped with the "
         "HORIZONTAL scale, which is the fault this file is about")
