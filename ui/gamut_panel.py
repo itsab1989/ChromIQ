@@ -268,6 +268,14 @@ class GamutPanel(QWidget):
         self._icc_path = path
         self._primary_edit.setText(str(path) if path else "")
         self._run_btn.setEnabled(path is not None)
+        # B BELONGS TO THE PROJECT A CAME FROM. Clearing the panel left the
+        # comparison profile loaded, so a new project opened with the previous
+        # project's profile still named in the B field and in the header. Only
+        # on a CLEAR: while a profile is being shown, B is the user's own
+        # deliberate choice and is theirs to keep.
+        if path is None:
+            self._compare_path = None
+            self._compare_edit.clear()
         self._reset_results()
         self._update_profile_header()
 
@@ -817,6 +825,14 @@ class GamutPanel(QWidget):
         self._viewgam_result  = None
         self._view_toggle_row.setVisible(False)
         self._update_volume_labels()
+        # THE SHAPE ON SCREEN IS A RESULT TOO, and this forgot the only one the
+        # user can actually see. Every field above went to None while the web
+        # view kept displaying the scene it had already loaded, so a tester who
+        # ran a gamut analysis, then made a NEW project from a .ti2, was still
+        # shown the previous project's 3D plot: the panel believed it held
+        # nothing and looked like it held the old profile. Blank it back to the
+        # placeholder, which is the same state the panel starts in.
+        self._show_placeholder()
 
     def _set_toggle_checked(self, active: QPushButton) -> None:
         for btn in (self._view_primary_btn, self._view_combined_btn, self._view_compare_btn):

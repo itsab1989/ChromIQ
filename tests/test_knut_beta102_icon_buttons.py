@@ -152,8 +152,13 @@ TABLE = [
     dict(id="bar locked on a tab that does not use the selection",
          world=dict(profiling_snapshot=True), show_verif=True, locked=True,
          measuring=False, run_type=RUN_TYPE_PROFILING, run="run1", date="",
-         restore=(True, False, "not used on the Build Profile"),
-         delete=(True, False, "not used on the Build Profile")),
+         # THE SUBSTRING WAS THE WRONG HALF OF THE SENTENCE. It pinned
+         # "not used on the Build Profile", which is the claim a tester
+         # disproved by looking at a live bar on that tab. What this row is
+         # really about is that the LOCK note is the one being shown, so it
+         # now matches the tab that actually locks the bar.
+         restore=(True, False, "not used on the Check & Refine tab"),
+         delete=(True, False, "not used on the Check & Refine tab")),
 
     # --- Run type = Profiling --------------------------------------------
     dict(id="profiling, New run selected",

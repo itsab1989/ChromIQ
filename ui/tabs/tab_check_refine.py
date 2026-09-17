@@ -1233,22 +1233,74 @@ class TabCheckRefine(QWidget):
     def set_target_controller(self, controller) -> None:
         """Receive the shared Profile-run / Run-type controller (#130).
 
-        STORES THE REFERENCE AND NOTHING ELSE. This tab was the only one left
-        out of the registration loop, and the comment that used to sit in
-        `_on_browse_ti3` blamed the absence for the bar not moving after an
-        import — but it also said a `getattr` guard once sat there "looking
-        like a fix and doing nothing", which is exactly what it was: the bar
-        did not move because `resolve_ti3` creates a project and never OPENS
-        it, not because the controller was missing.
+        This tab was the only one left out of the registration loop, and the
+        comment that used to sit in `_on_browse_ti3` blamed the absence for the
+        bar not moving after an import — but it also said a `getattr` guard
+        once sat there "looking like a fix and doing nothing", which is
+        exactly what it was: the bar did not move because `resolve_ti3`
+        creates a project and never OPENS it, not because the controller was
+        missing.
 
-        Deliberately no `controller.changed` connection. A challenge round
-        injected a controller onto the real tab and drove its whole surface:
-        zero `changed` signals, no behaviour change anywhere. Connecting one
-        would be a new behaviour nobody has asked for; what this tab needs the
-        controller for is to point the bar at a run AFTER an import, which is
-        an act, not a subscription.
+        AND IT FOLLOWS THE BAR, which it used not to. The note here said a
+        `changed` connection "would be a new behaviour nobody has asked for",
+        on the strength of a challenge round that injected a controller and saw
+        zero `changed` signals — a fact about that harness, not about the app.
+        A tester asked for it in as many words: *"even though the profile run is
+        set to run1 and its folder has all files, ti1, ti2, ti3 and icc ... The
+        ti3 and the icc file is not automatically loaded as default when
+        entering Check & Refine tab. Measure and Build Profile tabs both loads
+        the ti3 file for the run, if it exists, as default."* Those two tabs are
+        the model and this mirrors `TabProfile._on_target_changed`.
         """
         self._target_ctl = controller
+        controller.changed.connect(self._follow_the_bar)
+        self._follow_the_bar()
+
+    def _follow_the_bar(self) -> None:
+        """Show the selected run's own measurement and profile.
+
+        Only ever OFFERS what is on disk for the selected run: a run with no
+        measurement of its own leaves whatever is loaded alone, so moving the
+        bar never empties the tab.
+
+        Nothing is broadcast. `_adopt_ti3` tells Measure and Build Profile
+        about a file the person chose, and that is also what can raise an
+        import window; the bar moving is not a choice about files and must
+        stay silent, exactly as Build Profile's own follow does with
+        ``propagate=False``.
+        """
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None:
+            return
+        try:
+            from core.measurement_target import resolve_run
+            proj = ctl.project_or_none()
+            # PROFILING RUNS ONLY. A verification's measurement lives in a
+            # dated folder and a CALIBRATION's lives in `cal/`, so for either
+            # of those `resolve_run(...).measurement_ti3` is the run's
+            # profiling measurement: a real file, belonging to something the
+            # bar is not pointing at. Build Profile's own follow guards only
+            # the first of the two; offering the wrong file is worse than
+            # offering none, so this guards both.
+            if (proj is None or ctl.target.is_verification()
+                    or ctl.target.is_calibration()):
+                return
+            ti3 = resolve_run(proj, ctl.target).measurement_ti3
+            if not ti3.is_file() or ti3 == self._ti3_path:
+                return
+            # A measurement inside a run is filed by definition, so the
+            # in-place flag cannot survive the move (or the next report would
+            # be written beside the PREVIOUS file).
+            self._checking_in_place = False
+            self._ti3_path = ti3
+            self._ti3_edit.setText(str(ti3))
+            self._auto_fill_icc(ti3, quiet=True)
+            self._update_run_btn()
+            self._detect_instrument(ti3)
+            log.info("Check & Refine: measurement follows the bar -> %s", ti3)
+        except Exception:      # noqa: BLE001 - never break a selection change
+            log.warning("Could not follow the bar in Check & Refine",
+                        exc_info=True)
 
     def _on_browse_ti3(self) -> None:
         path = open_file_dialog(
@@ -1375,11 +1427,16 @@ class TabCheckRefine(QWidget):
             self._update_run_btn()
             self._gamut_panel.set_icc_path(self._icc_path)
 
-    def _auto_fill_icc(self, ti3: Path) -> None:
+    def _auto_fill_icc(self, ti3: Path, *, quiet: bool = False) -> None:
         """Try to find a matching ICC/ICM in the same folder.
 
         Prefers the run's refinement-merged profile (merged.icc) when one was
         built, falling back to the same-stem profile (chart.icc / chart.icm).
+
+        ``quiet`` suppresses the "Profile Not Found" window. A person who
+        browsed to a measurement asked a question and is owed an answer; the
+        tab filling itself from the selected run asked nothing, and a modal
+        thrown at somebody who merely opened a project is not an answer.
         """
         candidates: list[Path] = []
         run = Run.for_dir(ti3.parent)
@@ -1398,6 +1455,8 @@ class TabCheckRefine(QWidget):
         self._icc_edit.clear()
         self._update_run_btn()
         self._gamut_panel.set_icc_path(None)
+        if quiet:
+            return
         from PyQt6.QtWidgets import QMessageBox
         warn(
             self,
