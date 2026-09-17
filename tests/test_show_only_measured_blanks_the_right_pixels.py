@@ -47,25 +47,65 @@ def _rect_boxes():
             for c in range(COLS) for r in range(ROWS)]
 
 
-#: A real honeycomb's columns INTERLOCK: the pitch across is three quarters of
-#: a patch, not a patch plus a gap, so column c's x-span overlaps column c+1's.
-#: That overlap is the whole reason a rectangle spanning one column's patch
-#: bounds can paint over its neighbour, and a fixture without it cannot see the
-#: fault (this one could not, until an adversary round mutated the code and
-#: watched the test stay green).
-HEX_PITCH_X = 40
-HEX_PITCH_Y = 60
+#: A REAL honeycomb ZIGZAGS, and a fixture that only offsets whole columns is
+#: not one. `hexagon.stagger_dx` steps every patch +/- a quarter of the patch
+#: width by its index in the strip, so consecutive patches in a strip sit half
+#: a patch apart sideways and the strip walks down the page in a zigzag; the
+#: column pitch is then a full patch width and the row pitch is three quarters
+#: of the hexagon's height, which is what makes the hexagons TILE.
+#:
+#: THE FIXTURE THAT WAS HERE DID NOT TILE. It gave every patch in a strip the
+#: same x and dropped alternate strips by half a row, so consecutive patches in
+#: a strip overlapped each other by a third of their height: ink on top of ink,
+#: which no chart has, and a blank that is right on a real chart still left
+#: some of it showing. Round 8 had already been caught once by a hex fixture
+#: with no interlock; this is the same lesson one layer down.
+HEX_PITCH_X = PATCH_W        # column pitch = the patch width (upright hex)
+HEX_PITCH_Y = PATCH_H        # row pitch = the recorded box height
 
 
-def _hex_boxes():
-    """A honeycomb: columns three quarters of a patch apart, every other one
-    dropped by half a row."""
+def _hex_boxes(flat_top: bool = False):
+    """A honeycomb laid out the way `geometry.patch_rects_px` records one.
+
+    THE STAGGER MOVES TO THE OTHER AXIS AND THE OTHER INDEX WHEN THE SHEET IS
+    TURNED, and both halves matter (`hexagon.stagger_dy`). Read off two real
+    charts' sidecars, both CR30 A4 at 300 dpi:
+
+    * upright: strips `x=475 w=142` a patch apart, patches at x=439 and 510
+      alternating down the strip (+/- a quarter patch), row pitch 123 = the
+      recorded box height;
+    * turned: strips `x=450 w=123`, every patch in a strip at the SAME x and
+      the row pitch 142 = the box height, with consecutive STRIPS offset in y.
+    """
+    from workflow.layout_engine import hexagon
     out = []
     for c in range(COLS):
-        off = HEX_PITCH_Y // 2 if c % 2 else 0
+        dy = hexagon.stagger_dy(PATCH_H, c) if flat_top else 0
         for r in range(ROWS):
-            out.append(QRect(LEFT + c * HEX_PITCH_X, TOP + off + r * HEX_PITCH_Y,
+            dx = 0 if flat_top else hexagon.stagger_dx(PATCH_W, r)
+            out.append(QRect(int(LEFT + c * HEX_PITCH_X + dx),
+                             int(TOP + r * HEX_PITCH_Y + dy),
                              PATCH_W, PATCH_H))
+    return out
+
+
+def _hex_strip_rects(boxes):
+    """One rect per strip, ON THE STRIP'S AXIS AND ONE PATCH WIDE.
+
+    Read off a real chart's sidecar (CR30 honeycomb, A4, 300 dpi): the strips
+    are `x=475 w=142`, `x=616 w=142`, ... one patch wide and a patch apart,
+    while the patches themselves sit at x=439 and x=510, sticking out by a
+    quarter of a patch either side. The rect is the axis, not the span of the
+    zigzag: a rect spanning the zigzag is nearly half again as wide and picks
+    up the NEIGHBOURING strip's patches, which is how a fixture can make a
+    correct blank look broken.
+    """
+    out = []
+    for c in range(COLS):
+        cb = boxes[c * ROWS:(c + 1) * ROWS]
+        y0 = min(b.y() for b in cb)
+        y1 = max(b.bottom() for b in cb)
+        out.append(QRect(LEFT + c * HEX_PITCH_X, y0, PATCH_W, y1 - y0 + 1))
     return out
 
 
@@ -173,33 +213,47 @@ def _ink(r, g, b):
     return max(r, g, b) < 140                  # the label bar
 
 
-def test_a_blanked_honeycomb_does_not_reach_into_a_read_neighbour(qapp, tmp_path):
-    """One column read, every other one blanked. The read column's hexagons
-    must come through whole.
+@pytest.mark.parametrize("flat_top", [False, True])
+@pytest.mark.parametrize("ring", [0, 9])
+def test_a_blanked_honeycomb_does_not_reach_into_a_read_neighbour(qapp, tmp_path,
+                                                                  flat_top, ring):
+    """One strip read, every other one blanked. The read strip's hexagons must
+    come through whole.
 
     Measured on a real SpectroScan honeycomb before the fix: a read strip drawn
     68 to 90 device pixels wide became 20 to 43, because its unread neighbours
     were blanked with rectangles that span their own patch bounds and those
-    bounds overlap a neighbouring column.
+    bounds overlap a neighbouring column. Basti: *"the colorful patches go down
+    in a straight line although they are staggered"*.
+
+    THE RING=0 CASE IS THE ONE THAT BITES. With a ring the blank stops half a
+    ring short of the neighbour's ink and could not reach it whatever it did;
+    on a honeycomb with no spacer the two inks TOUCH, and the fill deliberately
+    overshoots by a pixel to swallow the smooth-scaling fringe, so only the
+    subtraction keeps that pixel off the read patch.
+
+    MUTATION: drop the read-neighbour subtraction and the ring=0 case goes red.
     """
-    boxes = _hex_boxes()
-    read = {i: (i == 2) for i in range(COLS)}
+    boxes = _hex_boxes(flat_top)
+    read_ix = {i for i in range(len(boxes)) if i // ROWS == 2}
+    page = _ink_hex_page(tmp_path, boxes, flat_top,
+                         f"neighbour-{flat_top}-{ring}.tif", ring=ring,
+                         read=read_ix)
     alone = {i: (i == 2) for i in range(COLS)}
-    off = _canvas(qapp, tmp_path, boxes, "hex.tif", hexagonal=True,
-                  blanking=False, read_map=alone)
-    on = _canvas(qapp, tmp_path, boxes, "hex.tif", hexagonal=True,
-                 blanking=True, read_map=read)
+    off = _hex_canvas(qapp, tmp_path, boxes, page, flat_top, alone, ring=ring,
+                      blanking=False)
+    on = _hex_canvas(qapp, tmp_path, boxes, page, flat_top, alone, ring=ring,
+                     blanking=True)
     assert off is not None and on is not None
-    # The colour that survives the blanking is column 2's, and only column 2's.
-    kept = _count(on, _coloured)
-    # What column 2 is worth on its own: the whole page's colour divided by the
-    # columns that carry it.
-    whole = _count(off, _coloured)
-    share = whole / COLS
+    whole, kept = _count(off, _read_ink), _count(on, _read_ink)
     assert kept > 0, "the read column was wiped out entirely"
-    assert kept >= 0.80 * share, (
-        f"the blanking ate the read column: {kept} coloured pixels left of "
-        f"about {share:.0f}")
+    # Measured here, all four cases: 98.3 to 99.0 per cent kept with the
+    # read-neighbour subtraction in place, 87.6 to 92.1 with it removed. The
+    # rectangle this test was first written against left 20 to 43 pixels of a
+    # 68-to-90-pixel strip, so the old 80 per cent bar could not see the
+    # subtraction at all.
+    assert kept >= 0.95 * whole, (
+        f"the blanking ate the read column: {kept} of its {whole} pixels left")
 
 
 def test_the_blank_never_rises_into_the_strip_labels(qapp, tmp_path):
@@ -252,79 +306,149 @@ def test_an_unread_column_hides_its_edge_spacers(qapp, tmp_path, w, h):
         f"column at {w}x{h}, of {_count(off, _edge)}")
 
 
-def _ink_hex_page(tmp_path, boxes, flat_top, name):
+RING_COLOUR = (0, 220, 220)      # the printed spacer ring, so it counts apart
+READ_COLOUR = (0, 0, 255)        # a read patch's ink, so a leak cannot hide in it
+
+
+def _ring_ink(r, g, b):
+    return g > r + 40 and b > r + 40 and abs(g - b) < 40      # cyan
+
+
+def _read_ink(r, g, b):
+    """STRONG blue only.
+
+    A loose test counts the antialiased blend at every hexagon's outline, all
+    over the page, and then reports a read column as eaten when what actually
+    changed was one pixel of edge mixing on 54 unread patches somewhere else.
+    """
+    return b > 180 and r < 90 and g < 90
+
+
+def _ink_hex_page(tmp_path, boxes, flat_top, name, ring=0, read=()):
     """A honeycomb page drawn the way the ENGINE draws one.
 
-    The recorded box is the hexagon's CELL and the ink is not the same shape:
-    measured by flood-filling one hexagon on CR30 charts at three patch sizes,
-    the short axis is inset by 9 px at every size and the ink's own aspect is
-    4/3 (`HEX_HEIGHT_FACTOR`), so the ink reaches PAST the cell on its long
-    axis. A fixture that paints ink inside the boxes cannot see the fault this
-    file exists for; this one paints it where the engine does.
+    **`hexagon.vertices` ALREADY REACHES PAST THE SLOT.** It puts the two
+    apexes a sixth of the slot beyond it on each side, which is the whole of
+    `HEX_HEIGHT_FACTOR`: the printed hexagon for a recorded box IS
+    `vertices(box)`, and with a spacer it is that shape inset by half the ring
+    (`raster._hexagon_points`, then `hexagon.inset(pts, ring / 2)`, which is
+    exactly what the renderer does).
+
+    THE FIXTURE THIS REPLACED GREW THE BOX TO 4/3 AND THEN HANDED IT TO
+    `vertices`, WHICH GREW IT AGAIN: 16/9 of the slot, ink painted where no
+    chart has any. It agreed with the code it was written beside because both
+    made the same mistake, and it therefore demanded a blank up to 44 px too
+    big, which is the hole that leaked a saw-tooth of the neighbour's ink down
+    every read column (B8-326). A fixture that re-implements the code cannot
+    check the code.
+
+    With *ring* the cell is painted in the ring colour first and the ink inside
+    it second, so the blank can be asked about both. Patches whose index is in
+    *read* are painted in the read colour instead.
     """
     from PIL import ImageDraw
-    from workflow.hex_support import HEX_HEIGHT_FACTOR
     from workflow.layout_engine import hexagon
     path = tmp_path / name
     im = Image.new("RGB", (PAGE_W, PAGE_H), (255, 255, 255))
     dr = ImageDraw.Draw(im)
-    for b in boxes:
-        w = b.width() - 9
-        h = w * HEX_HEIGHT_FACTOR
-        if flat_top:
-            w, h = h, b.height() - 9
-        cx = b.x() + b.width() / 2.0
-        cy = b.y() + b.height() / 2.0
-        pts = hexagon.vertices(cx - w / 2.0, cy - h / 2.0, w, h,
+    for i, b in enumerate(boxes):
+        pts = hexagon.vertices(b.x(), b.y(), b.width(), b.height(),
                                flat_top=flat_top)
-        dr.polygon([(float(x), float(y)) for x, y in pts], fill=PATCH)
+        if ring:
+            dr.polygon([(float(x), float(y)) for x, y in pts],
+                       fill=RING_COLOUR)
+            pts = hexagon.inset(pts, ring / 2.0)
+        dr.polygon([(float(x), float(y)) for x, y in pts],
+                   fill=READ_COLOUR if i in read else PATCH)
     im.save(path)
     return path
 
 
-@pytest.mark.parametrize("flat_top", [False, True])
-def test_a_blanked_honeycomb_hides_the_ink_past_its_cells(qapp, tmp_path,
-                                                          flat_top):
-    """No printed ink may survive the blank, apexes included.
-
-    Round 8 measured **8,827 device pixels** of chart ink surviving inside the
-    unread columns of a full CR30 honeycomb page, against an all-white control
-    of 0, and 5,910 on its ragged second page. It is not about raggedness: it
-    is worse on a full page, and a rectangular ragged page is clean. Rounds 6
-    and 7 missed it because they tested only rectangular charts.
-
-    The blank covered the cell and the ink reaches past it, so the apexes
-    showed. Basti reported the symptom twice: *"when only show measured patches
-    is activated it seems the spacers still sometimes show a hairline"*.
-
-    MUTATION: fill the plain cell-sized hexagon again and this goes red.
-    """
-    boxes = _hex_boxes()
-    page = _ink_hex_page(tmp_path, boxes, flat_top, f"ink-hex-{flat_top}.tif")
+def _hex_canvas(qapp, tmp_path, boxes, page, flat_top, read_map, ring=0,
+                blanking=True, w=820, h=980):
     from ui.tiff_preview import TiffPreview
     p = TiffPreview()
     try:
-        p.resize(820, 980)
+        p.resize(w, h)
         p.load_tiff([page])
         qapp.processEvents()
         p.set_hex_zigzag(True, flat_top=flat_top)
+        p.set_hex_ring_px(float(ring))
         p.set_page_patch_boxes({0: list(boxes)})
-        p.set_stripe_rects(_strip_rects(boxes))
-        # EVERY strip unread, so the whole page must go blank and any ink left
-        # is a leak, with no read column to argue about.
-        p.set_stripe_read_map({i: False for i in range(len(_col_x(boxes)) + 2)})
-        p.set_show_only_measured(True)
+        p.set_stripe_rects(_hex_strip_rects(boxes))
+        p.set_stripe_read_map(read_map)
+        p.set_show_only_measured(blanking)
         p.show()
         qapp.processEvents()
         p._update_display()
         qapp.processEvents()
         pm = p._img_label.pixmap()
-        img = pm.toImage() if pm is not None else None
+        return pm.toImage() if pm is not None else None
     finally:
         p.close()
+
+
+@pytest.mark.parametrize("flat_top", [False, True])
+@pytest.mark.parametrize("ring", [0, 9])
+def test_a_blanked_honeycomb_hides_every_printed_pixel(qapp, tmp_path,
+                                                       flat_top, ring):
+    """Every strip unread, so the whole page must go blank: no patch ink and no
+    printed spacer ring may survive.
+
+    The RING is the half of this a plain hexagon really does miss, and the only
+    half that was ever real. Round 9 re-measured round 8's own case on the real
+    app and found the patch ink already at 0 before its fix; what the fix
+    bought was the ring, 12,192 device pixels down to 294.
+
+    MUTATION: drop the outward ring growth (fill at `inset_px=0`) and the ring
+    case goes red.
+    """
+    boxes = _hex_boxes(flat_top)
+    page = _ink_hex_page(tmp_path, boxes, flat_top,
+                         f"ink-hex-{flat_top}-{ring}.tif", ring=ring)
+    img = _hex_canvas(qapp, tmp_path, boxes, page, flat_top,
+                      {i: False for i in range(COLS)}, ring=ring)
     assert img is not None
     left = _count(img, _coloured)
     assert left == 0, (
         f"{left} pixels of printed ink survived the blank on a "
         f"{'flat-top' if flat_top else 'pointy'} honeycomb, so a column the "
         f"user is told is hidden still shows the chart")
+    if ring:
+        band = _count(img, _ring_ink)
+        assert band == 0, (
+            f"{band} pixels of the printed spacer ring survived the blank, "
+            f"which is the fine gap this mode exists to remove")
+
+
+@pytest.mark.parametrize("flat_top", [False, True])
+def test_a_read_column_does_not_let_its_unread_neighbours_leak(qapp, tmp_path,
+                                                               flat_top):
+    """B8-326, the saw-tooth. Alternate columns read; not one pixel of an
+    UNREAD patch's ink may survive beside them.
+
+    The hole the blank cuts for a read neighbour has to be that neighbour's
+    printed ink and nothing more. Cut it bigger and the interlocking unread
+    neighbour's ink inside the hole is never painted over: measured on the real
+    app, 62,184 device pixels down one page and 126,577 on a turned chart, a
+    ribbon Basti saw unaided (*"the green is bleeding into the patches that
+    should be transparent but only on the right"*).
+
+    The read patches are painted a DIFFERENT colour from the unread ones, so a
+    surviving pixel cannot be argued about: magenta here is always a leak.
+
+    MUTATION: grow the subtracted hexagon by 20 px and this goes red.
+    """
+    boxes = _hex_boxes(flat_top)
+    read_ix = {i for i in range(len(boxes)) if (i // ROWS) % 2 == 0}
+    page = _ink_hex_page(tmp_path, boxes, flat_top,
+                         f"leak-hex-{flat_top}.tif", ring=9, read=read_ix)
+    read_map = {i: (i % 2 == 0) for i in range(COLS)}
+    img = _hex_canvas(qapp, tmp_path, boxes, page, flat_top, read_map, ring=9)
+    assert img is not None
+    leak = _count(img, _coloured)
+    kept = _count(img, _read_ink)
+    assert kept > 0, "the read columns were wiped out entirely"
+    assert leak == 0, (
+        f"{leak} pixels of an UNREAD patch's ink survived beside the read "
+        f"columns on a {'flat-top' if flat_top else 'pointy'} honeycomb")

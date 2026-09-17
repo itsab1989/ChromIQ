@@ -11,7 +11,7 @@ from PIL import Image
 from PyQt6 import sip
 from PyQt6.QtCore import QPoint, QPointF, QRect, QRectF, QSize, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import (QColor, QFont, QFontMetricsF, QImage, QPainter,
-                         QPainterPath, QPixmap, qGray)
+                         QPainterPath, QPixmap, QRegion, qGray)
 from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -1868,15 +1868,32 @@ class TiffPreview(QWidget):
     def _patch_hexagon(b: QRect, s: float, ox: float, oy: float,
                        flat_top: bool = False,
                        sy: "float | None" = None,
-                       inset_px: float = 0.0) -> "QPainterPath":
+                       inset_px: float = 0.0,
+                       slot: "float | None" = None) -> "QPainterPath":
         """A closed hexagon outline for a single SpectroScan patch box, drawn from
         `hexagon.vertices`, so it IS the strip zigzag's geometry rather than a
         second copy promising to match it. Used to
         draw unread hex patches as their true shape in "Show only measured
         patches" (Knut) — a rectangle grid there is wrong for a hex chart."""
         sy = s if sy is None else sy
-        pts = hexagon.vertices(b.left(), b.y(), b.right() + 1 - b.left(),
-                               b.height(), flat_top=flat_top)
+        _w = float(b.right() + 1 - b.left())
+        _h = float(b.height())
+        _x0, _y0 = float(b.left()), float(b.y())
+        if slot is not None and slot > 0:
+            # THE RECORDED BOX IS AN INTEGER RECT AND THE PITCH IS NOT, and
+            # the difference is multiplied by 4/3 along the point axis. A
+            # SpectroScan honeycomb records 83x72 boxes and prints 83x94 of
+            # ink, where 72 alone predicts 96: the slot is really 70.5 and the
+            # renderer lays the hexagon out from the unrounded number. Given
+            # the true slot length the shape is exact, and a blank that has to
+            # match printed ink to the pixel needs it.
+            if flat_top:
+                _x0 += (_w - slot) / 2.0
+                _w = float(slot)
+            else:
+                _y0 += (_h - slot) / 2.0
+                _h = float(slot)
+        pts = hexagon.vertices(_x0, _y0, _w, _h, flat_top=flat_top)
         # THE BOX IS THE CELL; THE PRINTED HEXAGON IS SMALLER BY THE RING.
         #
         # A honeycomb built with a spacer takes the ring out of the patch's own
@@ -1893,7 +1910,10 @@ class TiffPreview(QWidget):
         # honeycomb: *"honeycombs with spacers. spacers get covered by split
         # overlay"*. The ring cannot be recovered from the boxes, so it is
         # carried in from the chart's own recipe (`set_hex_ring_px`).
-        if inset_px > 0:
+        # A NEGATIVE INSET GROWS IT, which is how the blank covers
+        # its half of the spacer ring; the renderer uses the same
+        # idiom for the ring's outer edge.
+        if inset_px:
             pts = hexagon.inset(pts, inset_px / 2.0)
         path = QPainterPath()
         for i, (vx, vy) in enumerate(pts):
@@ -3001,80 +3021,161 @@ class TiffPreview(QWidget):
                 # to hide). The rectangle stays for rectangular charts, where
                 # the gap is real and hiding it is the point.
                 if self._hex_zigzag:
-                    # GROWN BY HALF THE SPACER RING, so a blanked column really
-                    # is blank. A honeycomb built with spacers has a ring of
-                    # paper between its hexagons, and filling the hexagons alone
-                    # leaves that ring showing the chart underneath -- which is
-                    # the opposite of Knut's reason for this mode ("use the
-                    # paper colour, so there are NO fine gaps and NO contrast
-                    # edges to alias"). Half the ring is the same midpoint rule
-                    # the rectangular branch uses against its neighbours, so a
-                    # READ hexagon keeps its own half and nothing reaches into
-                    # it. On a chart whose hexagons tessellate the ring is 0 and
-                    # this is exactly the plain hexagon.
-                    _ring = 0.0
-                    _bs = sorted(cp, key=lambda b: b.y())
-                    for _k in range(len(_bs) - 1):
-                        _g = _bs[_k + 1].y() - (_bs[_k].y() + _bs[_k].height())
-                        if _g > 0:
-                            _ring = float(_g)
-                            break
-                    _d = _ring / 2.0
+                    # GROWN BY HALF THE SPACER RING, so a blanked column
+                    # really is blank. A honeycomb built with spacers has a
+                    # ring of paper between its hexagons, and filling the
+                    # hexagons alone leaves that ring showing the chart
+                    # underneath -- the opposite of Knut's reason for this mode
+                    # ("use the paper colour, so there are NO fine gaps and NO
+                    # contrast edges to alias"). Half the ring is the same
+                    # midpoint rule the rectangular branch uses against its
+                    # neighbours, so a READ hexagon keeps its own half. On a
+                    # chart whose hexagons tessellate the ring is 0 and this is
+                    # exactly the plain hexagon.
+                    #
+                    # THE RING COMES FROM THE CHART'S OWN RECIPE. The scan
+                    # underneath (the first positive vertical gap between a
+                    # column's boxes) answers 0 on every chart the engine
+                    # builds, because a honeycomb's recorded boxes TILE: round
+                    # 9 measured it on 80 real charts and got 0.0 on all 80.
+                    # `set_hex_ring_px` carries the real number in from the
+                    # sidecar, the same way the split does; the scan stays as
+                    # the fallback for a preview that was never told.
+                    _ring = float(self._hex_ring_px)
+                    if _ring <= 0.0:
+                        _bs = sorted(cp, key=lambda b: b.y())
+                        for _k in range(len(_bs) - 1):
+                            _g = _bs[_k + 1].y() - (_bs[_k].y()
+                                                    + _bs[_k].height())
+                            if _g > 0:
+                                _ring = float(_g)
+                                break
 
-                    def _ink_box(bb, _d=_d):
-                        """The box the printed hexagon's INK really occupies.
+                    # **THE BOX IS THE SLOT AND `_patch_hexagon` ALREADY DRAWS
+                    # THE OVERHANG.** `hexagon.vertices` puts the two apexes a
+                    # sixth of the slot BEYOND it on each side, so the path it
+                    # returns for a recorded box is already the printed
+                    # hexagon, 4/3 of the box on its long axis. B8-321 grew the
+                    # box to 4/3 first and then handed it to the same function,
+                    # which drew it 4/3 AGAIN: 16/9 of the slot, 17 to 44 px
+                    # past the ink on every chart round 9 measured. The blank
+                    # then cut that same oversized shape out for each READ
+                    # neighbour, and the interlocking UNREAD neighbour's ink
+                    # inside the too-big hole was never painted over. That is
+                    # the saw-tooth ribbon down every read column's edge:
+                    # 62,184 device pixels on one page, 126,577 on a turned
+                    # chart, and what Basti saw unaided (*"the green is
+                    # bleeding into the patches that should be transparent but
+                    # only on the right"*).
+                    #
+                    # So: the FILL is the hexagon grown outward by half the
+                    # ring (a negative inset, the same idiom the renderer uses
+                    # for the ring's outer edge), and the HOLE cut for a read
+                    # neighbour is that neighbour's PRINTED INK, the hexagon
+                    # inset by the ring -- which is exactly what the renderer
+                    # painted. Nothing else can be right: bigger and the unread
+                    # neighbour leaks through, smaller and the blank eats the
+                    # read patch (B8-306).
+                    # ONE IMAGE PIXEL SMALLER THAN THE INK, DELIBERATELY.
+                    # The recorded box is an INTEGER rect while the renderer
+                    # lays the hexagon out from the unrounded slot, so the two
+                    # can differ by a pixel or two: measured on a SpectroScan
+                    # honeycomb, cell 83x72 against a printed ink of 83x94
+                    # where the box alone predicts 96. A hole a hair too big
+                    # leaks the interlocking neighbour's ink and a user sees a
+                    # coloured hairline; a hole a hair too small costs nothing
+                    # at all, because the measured split for that patch is
+                    # painted OVER this blank a few lines further down.
+                    # ...and the FILL reaches a DEVICE pixel and a half past
+                    # the ink, which is not the same thing as an image pixel.
+                    # The page is drawn with `SmoothTransformation`, so a
+                    # patch's colour bleeds about a device pixel past its own
+                    # outline, and a fill that stops on the outline leaves that
+                    # row showing. `inset_px` is in IMAGE pixels, and an A4
+                    # sheet is drawn at about 0.41 of its size, so one device
+                    # pixel is nearly two and a half image pixels: a fixed
+                    # image-pixel margin covered less than half the fringe.
+                    #
+                    # INSIDE the field nothing showed, because neighbouring
+                    # fills overlap and hide it; only the OUTER boundary of the
+                    # honeycomb had a single fill to cover it, which is exactly
+                    # what Basti reported while this was being measured:
+                    # *"hexes with pointy top are bleeding through on the top
+                    # when only show measured patches is active. but only some
+                    # of them do ... only the outer ones it seems"*.
+                    # AND THE HOLE IS GIVEN THE SAME SLACK, which is what
+                    # makes the pair safe. The fill overshoots the midpoint by
+                    # half the slack, so the hole has to come half the slack
+                    # inside the read patch's ink to cancel it exactly; give
+                    # the fill more than the hole and the difference is painted
+                    # over the read neighbour (measured: 93.6 per cent of a
+                    # read column left instead of 100).
+                    _dev = max(1e-6, min(float(s), float(sy if sy else s)))
+                    _FILL_SLACK = 3.0 / _dev
+                    _HOLE_SLACK = 0.0
 
-                        The recorded box is the hexagon's CELL. Measured by
-                        flood-filling one hexagon's own ink on CR30 honeycombs
-                        at three patch sizes, both orientations:
-
-                            8 mm   box  63x63   ink  54x73
-                           12 mm   box  94x94   ink  85x115
-                           16 mm   box 126x126  ink 117x157
-
-                        The short axis is inset by 9 px at every size and the
-                        ink's aspect is 4/3, which is `HEX_HEIGHT_FACTOR`: the
-                        hexagon's own shape, not a fitted number. So the ink
-                        reaches PAST the cell on its long axis, and a
-                        cell-sized fill misses those apexes. That is chart the
-                        user was told is hidden: 8,827 device pixels of it
-                        surviving the blank on one honeycomb page (B8-321).
-                        """
-                        from workflow.hex_support import HEX_HEIGHT_FACTOR as _HF
-                        _w = bb.width() + 2 * _d
-                        _h = bb.height() + 2 * _d
-                        if self._hex_flat_top:
-                            _w = max(_w, _h * _HF)
-                        else:
-                            _h = max(_h, _w * _HF)
-                        _cx = bb.x() + bb.width() / 2.0
-                        _cy = bb.y() + bb.height() / 2.0
-                        return QRect(int(round(_cx - _w / 2.0)),
-                                     int(round(_cy - _h / 2.0)),
-                                     int(round(_w)), int(round(_h)))
-
+                    # **A REGION, NOT A CHAIN OF PATH SUBTRACTIONS.**
+                    # `QPainterPath.subtracted` is floating-point boolean
+                    # algebra and it does not survive being applied eight times
+                    # to the same small hexagon: measured in the guard's own
+                    # fixture, a flat-top patch with eight read neighbours came
+                    # back EMPTY (`isEmpty()`, 0 elements) and another came back
+                    # with 7 elements instead of its 6 corners, so three whole
+                    # unread patches were never painted over at all. A QRegion
+                    # is integer scanlines, so the same operations cannot
+                    # collapse, and it is also the cheaper shape: the read
+                    # neighbours are subtracted ONCE for the whole strip
+                    # instead of once per patch.
+                    # THE TRUE SLOT LENGTH, AVERAGED OVER THE WHOLE PAGE.
+                    # Every recorded box is rounded to whole pixels, but the
+                    # distance from the first to the last is not: dividing it
+                    # by the number of steps recovers the unrounded pitch the
+                    # renderer drew from (SpectroScan: 70.5, not the 72 its
+                    # boxes report). On a turned honeycomb the point axis is
+                    # the COLUMN pitch instead, so that is what is measured.
+                    _slot = None
+                    if self._hex_flat_top:
+                        _xs = sorted({b.x() for b in allb})
+                        if len(_xs) > 1:
+                            _slot = (_xs[-1] - _xs[0]) / float(len(_xs) - 1)
+                    else:
+                        _ys = sorted({b.y() for b in allb})
+                        if len(_ys) > 1:
+                            _slot = (_ys[-1] - _ys[0]) / float(len(_ys) - 1)
+                    _pts = (lambda _b, _in: self._patch_hexagon(
+                        _b, s, ox, oy, self._hex_flat_top, sy, _in, _slot)
+                        .toFillPolygon().toPolygon())
+                    _reg = QRegion()
                     for b in cp:
-                        _path = self._patch_hexagon(
-                            _ink_box(b), s, ox, oy, self._hex_flat_top, sy)
-                        # MINUS ANY READ NEIGHBOUR, and that is not optional.
-                        # Reaching the apex without this ate the read column:
-                        # `test_a_blanked_honeycomb_does_not_reach_into_a_read_
-                        # neighbour` failed at 17,352 coloured pixels left of
-                        # about 24,753, which is the fault B8-306 exists for and
-                        # the one Basti rejected on sight (*"the colorful
-                        # patches go down in a straight line although they are
-                        # staggered"*). Only the patches that could actually
-                        # touch this one are subtracted, so the cost is at most
-                        # a handful of paths and never the whole page.
-                        _reach = max(b.width(), b.height()) * 1.5
-                        for _rb in _read_boxes:
-                            if (abs(_rb.x() - b.x()) > _reach
-                                    or abs(_rb.y() - b.y()) > _reach):
-                                continue
-                            _path = _path.subtracted(
-                                self._patch_hexagon(_ink_box(_rb), s, ox, oy,
-                                                    self._hex_flat_top, sy))
-                        painter.fillPath(_path, white)
+                        # HALF THE RING OUTWARD FROM THE CELL, so the outer
+                        # boundary of the whole field is covered too. The cells
+                        # themselves TILE, so inside the field their union
+                        # already covers every printed ring; what it does not
+                        # cover is the OUTER half-ring around the outermost
+                        # patches, and that is the one Basti could see:
+                        # measured on a real CR30 honeycomb, 2,607 device
+                        # pixels of printed ring around the edge of the field
+                        # against 316 with this growth in place.
+                        _reg = _reg.united(
+                            QRegion(_pts(b, -(_ring + _FILL_SLACK))))
+                    # MINUS ANY READ NEIGHBOUR, and that is not optional.
+                    # Reaching the apex without this ate the read column
+                    # (B8-306), the fault Basti rejected on sight (*"the
+                    # colorful patches go down in a straight line although they
+                    # are staggered"*). Only the read patches that actually
+                    # touch this strip are subtracted.
+                    _rb_bounds = _reg.boundingRect()
+                    for _rb in _read_boxes:
+                        _grow = max(_rb.width(), _rb.height())
+                        if not _rb_bounds.intersects(
+                                _rb.adjusted(-_grow, -_grow, _grow, _grow)):
+                            continue
+                        _reg = _reg.subtracted(
+                            QRegion(_pts(_rb, _ring + _HOLE_SLACK)))
+                    painter.save()
+                    painter.setClipRegion(_reg)
+                    painter.fillRect(_reg.boundingRect(), white)
+                    painter.restore()
                 else:
                     # Horizontally cover the column's own patches AND reach the
                     # gap midpoint to each neighbour so the inter-column gap is
