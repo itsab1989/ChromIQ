@@ -27,7 +27,7 @@ def build_flat(root: Path, stem: str):
     made = {}
     for ext, body in ((".ti1","TI1\n"), (".ti2","TI2\n"), (".ti3","TI3 DATA\n"),
                       (".icc","ICCPROFILE"), (".cht","CHT\n"), (".ps","PS\n")):
-        (root / f"{stem}{ext}").write_text(body*3)
+        (root / f"{stem}{ext}").write_text(body * 3, encoding="utf-8")
     (root / f"{stem}_01.tif").write_bytes(b"TIFFDATA"*4)
     return made
 
