@@ -3159,10 +3159,9 @@ class TiffPreview(QWidget):
                                 int(rect.width()), int(rect.height())))
                 hexp = self._patch_hexagon(b, s, ox, oy, self._hex_flat_top,
                                            sy, self._hex_ring_px)
-                # Fill by PATH intersection, never a clip: a clip path is hard-
-                # edged and left a faint seam around every patch (Knut, zoomed in).
-                # A hairline stroke in the fill colour closes the sub-pixel gaps
-                # where antialiased neighbours meet, so the honeycomb reads solid.
+                # The WHOLE hexagon is still filled by path, which is what the
+                # note below is about. Only the expected HALF is clipped, and
+                # that is a correction: see the block at the split branch.
                 if self._overlay_mode == "expected":
                     painter.fillPath(hexp, c_exp)
                     _edge = c_exp
@@ -3177,7 +3176,48 @@ class TiffPreview(QWidget):
                     tri.lineTo(br.right(), br.top())
                     tri.lineTo(br.left(), br.bottom())
                     tri.closeSubpath()
-                    painter.fillPath(hexp.intersected(tri), c_exp)   # expected ◤
+                    # THE EXPECTED HALF IS CLIPPED, NOT INTERSECTED, AND
+                    # THAT IS NOT A STYLE CHOICE.
+                    #
+                    # `QPainterPath.intersected` is boolean algebra on two
+                    # paths, and it is not conditioned to guarantee that the
+                    # result lies inside either operand. On a honeycomb whose
+                    # hexagon has been inset for its spacer ring, `s` and `sy`
+                    # differ (the page's two scales are not the same number,
+                    # which is the fault this whole file exists for), so the
+                    # inset hexagon is irregular, and on the patches whose box
+                    # rounded a pixel SHORT the top apex lands on the knife
+                    # edge of the bounding rect's own top. There the
+                    # intersection rasterises PAST the hexagon and a wedge of
+                    # the expected colour is painted on the printed spacer
+                    # ring.
+                    #
+                    # Basti saw it on screen before any of this was measured:
+                    # *"patch i 16 look strange i think ... there is a cut in
+                    # the spacer"*. Measured by an adversary round on that
+                    # chart: I16 lost **140 ring pixels, 5.81 %**, against a
+                    # 240-patch mean of 1.23 % and a next-worst of 2.7 %, and
+                    # deleting this one fill put it back to 1.95 % while every
+                    # neighbour stayed byte-identical.
+                    #
+                    # A clip contains by construction. Measured over all 240
+                    # patches of that chart at the window's real scales:
+                    # `hexp.intersected(tri)` paints outside the hexagon on
+                    # **3** of them, `tri.intersected(hexp)` on 2 (the order
+                    # only moves it), an inflated triangle on 4, and the clip
+                    # on **0**. Of the 1,891 pixels the clip changes across all
+                    # 240, **1,850 are I16 itself** being corrected; no other
+                    # patch moves by more than 2.
+                    #
+                    # The note above still stands for the hexagon's own fill,
+                    # which is why only this half is clipped: antialiasing is
+                    # OFF at this point in the function, so the clip's hard
+                    # edge falls on the same pixels the fill would have, and
+                    # the seam stroke below covers that boundary anyway.
+                    painter.save()
+                    painter.setClipPath(hexp)
+                    painter.fillPath(tri, c_exp)             # expected ◤
+                    painter.restore()
                     _edge = c_meas
                 # THE SEAM IS ALWAYS STROKED, AND AN ATTEMPT TO MAKE IT
                 # CONDITIONAL WAS REVERTED. It is a cosmetic 1 px pen centred

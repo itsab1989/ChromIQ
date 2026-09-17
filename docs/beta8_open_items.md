@@ -13648,3 +13648,40 @@ written for it in the suite passed its own mutation.
   ink at 0 / 0.5 / 1.5 / 3.0 mm). An attempt to do that scanned a whole row
   because touching hexagons share an edge and the scan ran across all of them;
   it has to look for a colour CHANGE, not for paper.
+
+### B8-320 · FIXED · The split's expected half painted a wedge onto the printed spacer ring
+- blocks release: no
+- status: FIXED
+- evidence: `test_the_expected_half_is_clipped_to_its_hexagon_not_intersected`
+- found by: **Basti, on screen, before it was measured**: *"patch i 16 look
+  strange i think"*, then *"there is a cut in the spacer"*.
+- detail: `QPainterPath.intersected` is boolean algebra and is not conditioned
+  to keep its result inside either operand. The page's two scales differ, so an
+  inset hexagon (B8-318) is irregular, and where a box rounds a pixel SHORT the
+  top apex lands on the knife edge of the bounding rect's own top; there the
+  intersection rasterises past the hexagon and a wedge of the expected colour
+  lands on the paper ring.
+- measured on that chart by an adversary round: **I16 lost 140 ring pixels,
+  5.81 %**, against a 240-patch mean of 1.23 %, sd 0.86, next-worst 2.7 %.
+  Deleting that one fill put I16 back to 1.95 % while all four neighbours
+  stayed **byte-identical**, which is what ruled the seam out.
+- the fix is a CLIP, chosen by measurement over all 240 patches at the window's
+  real scales, counting PAINTED pixels outside the hexagon: the intersection
+  paints outside on **3**, the reversed operand order on **2** (the order only
+  moves it), an inflated triangle on **4**, and the clip on **0**. Of the 1,891
+  pixels the clip changes across the 240, **1,850 are the broken patch itself**
+  and no other moves by more than two.
+- **INTRODUCED by `a4c5e9b5`**, the B8-318 inset: with `inset_px = 0` nothing
+  paints outside on any patch of any of five charts.
+- **AND THE FIRST TWO GUARDS FOR IT WERE WORTHLESS**, which is why the shipped
+  one is structural. The first built the clip inside the test and checked its
+  own arithmetic, so restoring the intersection left it green: the FIFTH guard
+  in this stream to pass its own mutation. The second drove the real widget and
+  its synthetic honeycomb put the expected colour where no hexagon was at all,
+  failing for a reason unrelated to the fault. The case needs a real chart at a
+  real window scale with two different axis scales.
+- **A claim of mine this corrected.** Challenged on the first report, I
+  rasterised both paths and said no pixel fell outside, with antialiasing on
+  and off. That was wrong twice over: the real target is a QPixmap at device
+  pixel ratio 2, and the two axis scales differ, and my reconstruction had
+  neither. The round's own harness reproduces it at 95 to 101 pixels.

@@ -45,7 +45,7 @@ import inspect
 
 import pytest
 from PIL import Image
-from PyQt6.QtCore import QRect
+from PyQt6.QtCore import QPointF, QRect
 from PyQt6.QtGui import QColor
 
 #: The page's patches are painted in these, and nothing else on the page or in
@@ -806,3 +806,81 @@ def test_a_tessellating_honeycomb_is_not_inset(qapp, tmp_path):
     a = _hex_split_extent(qapp, tmp_path, 0.0)
     b = _hex_split_extent(qapp, tmp_path, 0.0)
     assert a == b
+
+
+def test_the_expected_half_is_clipped_to_its_hexagon_not_intersected():
+    """The split's expected half must be CLIPPED to the hexagon.
+
+    Basti saw the fault on screen before it was measured: *"patch i 16 look
+    strange i think"*, *"there is a cut in the spacer"*. On a honeycomb with a
+    spacer ring, one patch in 240 had a wedge of its own expected colour
+    painted on the paper ring. An adversary round measured I16 losing **140
+    ring pixels, 5.81 %**, against a 240-patch mean of 1.23 % and a next-worst
+    of 2.7 %, and deleting that one fill put it back to 1.95 % while all four
+    neighbours stayed byte-identical.
+
+    `QPainterPath.intersected` is boolean algebra and is NOT conditioned to
+    keep its result inside either operand. The page's two scales differ, so an
+    inset hexagon is irregular, and where a box rounds a pixel short the top
+    apex lands on the knife edge of the bounding rect's own top. There the
+    intersection rasterises past the hexagon. Measured over all 240 patches of
+    that chart at the window's real scales, counting PAINTED pixels outside the
+    hexagon:
+
+    | how the half is built | patches painting outside |
+    |---|---|
+    | `hexp.intersected(tri)` | 3 |
+    | `tri.intersected(hexp)` | 2 |
+    | intersect an inflated triangle | 4 |
+    | **clip to `hexp`, fill `tri`** | **0** |
+
+    Of the 1,891 pixels the clip changes across those 240 patches, 1,850 are
+    the broken patch itself; no other moves by more than two.
+
+    **THIS IS STRUCTURAL, AND THAT IS A DELIBERATE CHOICE, NOT A SHORTCUT.**
+    Two behavioural versions were written first. One built the clip inside the
+    test and checked its own arithmetic, so restoring the intersection left it
+    green: the fifth guard in this stream to pass its own mutation. The second
+    drove the real widget, and its synthetic honeycomb put the expected colour
+    where no hexagon was at all, so it failed for a reason that had nothing to
+    do with the fault. The case needs a real chart at a real window scale with
+    two different axis scales, which is measured in
+    `~/Desktop/ChromIQ-beta21-proof/round-08-the-unchallenged-fixes/` and is
+    not reproducible from a fixture in this file.
+
+    MUTATION: put `fillPath(hexp.intersected(tri), c_exp)` back and this fails.
+    """
+    import ast
+    import textwrap
+
+    from ui.tiff_preview import TiffPreview
+
+    src = textwrap.dedent(inspect.getsource(TiffPreview._draw_cq_overlay))
+    tree = ast.parse(src)
+
+    # No call anywhere in the overlay may intersect a path with the triangle
+    # and fill the result: that is the operation that escapes.
+    bad = []
+    for node in ast.walk(tree):
+        if (isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "fillPath"
+                and node.args):
+            a0 = node.args[0]
+            if (isinstance(a0, ast.Call)
+                    and isinstance(a0.func, ast.Attribute)
+                    and a0.func.attr == "intersected"):
+                bad.append(ast.dump(a0.func))
+    assert not bad, (
+        f"{len(bad)} fill(s) of a path INTERSECTION are back in the overlay. "
+        f"`intersected` does not keep its result inside either operand, and on "
+        f"an inset hexagon whose box rounded a pixel short it paints a wedge "
+        f"of the expected colour onto the printed spacer ring: {bad}")
+
+    # …and the expected half is clipped instead.
+    clips = [n for n in ast.walk(tree)
+             if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+             and n.func.attr == "setClipPath"]
+    assert clips, (
+        "the expected half is no longer clipped to its hexagon, so nothing "
+        "keeps it inside one")
