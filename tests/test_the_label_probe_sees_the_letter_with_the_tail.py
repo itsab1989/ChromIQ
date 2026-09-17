@@ -197,12 +197,41 @@ def test_nothing_lays_a_chart_out_from_the_reach():
     shifts the patch block by; `label_ink_reach_mm` and `label_ink_top_mm` are
     predictions for the panel. Making the probe deeper must not move a chart.
 
-    MUTATION: feed the new probe into `label_band` or `ink_bottom` and this
-    goes red.
+    **ASKED OF THE NUMBERS, NOT OF THE SOURCE.** This used to slice the
+    function's text at a literal and check that the deep probe was not named
+    above it, and the literal went away when the two glyph probes were
+    extracted and cached. The replacement written next was worse than useless:
+    an AST walk that asked whether the probe text reached the INK call, which a
+    mutation feeding the ink result straight into the band satisfies happily.
+    It passed the mutation it existed for.
+
+    So it is asked of the answers. A chart with twenty strips prints a Q and a
+    chart with eight does not, so the deep probe differs between them; the band
+    and the reserve must NOT.
+
+    MUTATION: measure `band_px` from the deep probe and this goes red.
     """
-    import inspect
-    src = inspect.getsource(raster._furniture_reserves_mm)
-    head = src[:src.index("if rot in (90, 270):\n            _tile = ")]
-    assert "_indicator_probe_text" not in head, (
-        "the label BAND or the em box is now measured from the deep probe, "
-        "which moves every turned-honeycomb sheet")
+    def reserves(strips: int):
+        n = _patches_for_strips(strips)
+        geo = {"paper": "A4", "area_target_count": n}
+        kw = {"dpi": 200, "draw_indicators": True,
+              "indicator_size_mm": 11.0 * 25.4 / 72.0,
+              "indicator_font": raster.DEFAULT_INDICATOR_FONT,
+              "indicator_rotation": 0, "strip_label_offset_mm": 0.0, **geo}
+        return raster._furniture_reserves_mm(_geom_for(geo), kw)
+
+    with_q = reserves(20)
+    without = reserves(8)
+    assert "Q" in _probe(20) and "Q" not in _probe(8), (
+        "the fixture no longer contrasts a sheet that prints a Q with one "
+        "that does not, so it can prove nothing")
+    assert with_q[0] == pytest.approx(without[0], abs=1e-9), (
+        f"the label BAND moved when a Q appeared ({without[0]:.4f} to "
+        f"{with_q[0]:.4f} mm), so every turned-honeycomb sheet moves with it")
+    assert with_q[2] == pytest.approx(without[2], abs=1e-9), (
+        f"`label_ink_bottom_mm` moved when a Q appeared ({without[2]:.4f} to "
+        f"{with_q[2]:.4f} mm), and that is what shifts the patch block")
+    # …while the PREDICTION does see it, or the contrast above proves nothing.
+    assert with_q[4] > without[4] + 0.3, (
+        f"the reach did not deepen for the Q at all: {without[4]:.4f} to "
+        f"{with_q[4]:.4f} mm")
