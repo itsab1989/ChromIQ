@@ -11858,3 +11858,162 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   the i18n file, `test_catalog_is_complete`, `test_catalog_has_no_stale_keys`,
   `test_untranslated_values_do_not_creep_in_unseen`,
   `test_short_labels_stay_compact`.
+
+---
+
+### B8-283 · Every built-in preset regenerated and measured · no preset warns about anything of its own
+- blocks release: no
+- status: VERIFIED
+- asked for by the design authority, 2026-09-16: *"all Presets should be
+  individually regenerated, (except those saying 'by Pharmacist'), so that
+  changes made in features are incorporated. However, if any preset have
+  warnings, these must be listed in a bullet-list with their exact names, so
+  that I can report back what settings to modify to get rid of the warning
+  messages in the presets."*
+- **149 presets**, every built-in except the 11 whose names say "by
+  Pharmacist", each selected from the real Presets dropdown and then
+  GENERATED, with the panel read back afterwards
+  (`scripts/drive_182_survey_every_builtin_preset.py`). **All 149 generated,
+  none failed, no crashes.** Taken AFTER B8-265 and B8-280, so the numbers are
+  the ones a beta-20 build shows.
+- **THE ANSWER IS THAT NO PRESET NEEDS CHANGING.** With "Stamp settings down
+  the right edge" off, **all 149 come up clean**: zero warnings, and a green
+  "Margins: OK" on every one except the fifteen in B8-284.
+- **With that box as the app ships it, 96 of the 149 warn, and it is the same
+  sentence every time** -- *"The settings stamp down the right edge runs over
+  the patches"*. There is no second warning anywhere in the set.
+- the box is **not a preset field**. It is `chart_stamp_commands`, an
+  application setting with no stored default, so `tab_chart` ticks it on a
+  fresh install and no layout recipe can clear it: the recipe's own
+  `stamp_command` is a different control, the summary along the BOTTOM. This
+  was already known in the narrow (the note at `tab_chart.py`'s chart-note
+  branch records the same fact, found by the adversary round of 2026-09-13, and
+  records that two "6 GREEN" claims that morning held only because the owner's
+  own preferences carry `chart_stamp_commands = 0`); what is new is the
+  **scale**, which nobody had measured: it is 96 of 149, and it is the only
+  warning the whole built-in set produces.
+- **the warning is TRUE**, which is why this is a question about a default and
+  not about a message: the line really is printed and it really does land on
+  the patches.
+- so what he can act on is **one decision about one default**, not 96 preset
+  edits. The bullet list he asked for, in his format and with the exact names,
+  is `~/Desktop/ChromIQ-beta20-proof/autosize-and-presets/survey/WARNINGS-BULLET-LIST.md`,
+  with both passes and the per-preset JSON beside it.
+- evidence: **what was run, and what came back.** Twice, once per stamp state:
+
+  ```
+  CHROMIQ_SETTINGS_FILE=… CHROMIQ_PRESETS_DIR=… python \
+      scripts/drive_182_survey_every_builtin_preset.py <out>            # stamp ON
+  CHROMIQ_SETTINGS_FILE=… CHROMIQ_PRESETS_DIR=… python \
+      scripts/drive_182_survey_every_builtin_preset.py <out> --no-stamp # stamp OFF
+  ```
+
+  | | stamp ON (as shipped) | stamp OFF |
+  |---|---|---|
+  | generated | **149 PASS** / 149 | **149 PASS** / 149 |
+  | showed a warning | 96 | 0 |
+  | showed "Margins: OK" | 38 | 134 |
+  | showed nothing at all | 15 | 15 |
+  | crashes | 0 | 0 |
+
+  and the suite after this round's change set:
+  `QT_QPA_PLATFORM=offscreen pytest -n auto` -> **16032 passed**, 334 skipped,
+  4 xfailed, in 2:34, with the one red being
+  `test_the_sweep_is_not_vacuous`, an artefact of running inside
+  `.claude/worktrees/` (its `_SKIP_DIRS` contains `.claude`, so the sweep skips
+  the whole tree; with that one entry removed it finds 964 citations, all
+  naming real entries).
+  The survey itself is a driver, so its result is a measurement rather than an
+  invariant; the invariant it rests on -- that a preset's warnings come from
+  its own recipe and not from the app's defaults -- is pinned in the CR30 file
+  by
+  `test_chart_builds_with_the_pages_and_patches_its_name_promises` and in the
+  says-nothing file by
+  `test_an_overlap_warning_is_shown_and_explains_its_own_silence`.
+
+---
+
+### B8-284 · OPEN, for the design authority · Fifteen presets show no message at all, and the reason is a warning nobody can see
+- blocks release: no
+- status: OPEN
+- **the behaviour is diagnosed and measured; what to do about it is a ruling,
+  so nothing has been changed.** One question for the design authority, at the
+  end.
+- he asked, 2026-09-16: *"I mentioned before that some presets when loaded are
+  missing the 'Margins: OK' message, and instead have no message at all. Why is
+  that, for what kind of circumstances does this happen, and is that a bug? Can
+  it be fixed, so that all presets loaded end up showing the 'Margins: OK'
+  message?"*
+- **WHICH FIFTEEN.** Driving all 149 built-in presets found exactly 15 in that
+  state, in both survey passes, and they are not scattered: they are the **A4
+  and A3 i1Pro 3 Plus** charts. Their nine **Letter** siblings, same author,
+  same recipe shape, margins within a tenth of a millimetre, show the green
+  line.
+- **WHY.** `MarginInspectorPanel._update_status` blanks AND HIDES its status
+  label whenever `text_warnings` is non-empty. `text_warnings` is the list that
+  goes to the panel's ⓘ. So the three states are:
+
+  | what is live | what the surface shows |
+  |---|---|
+  | a margin violation, or an overlap warning | a red paragraph naming it |
+  | only an ⓘ note | **nothing whatever** |
+  | neither | a green "Margins: OK" |
+
+- **WHAT PUTS THESE FIFTEEN IN THE MIDDLE ROW**, measured on one silent chart
+  and one talking one (`scripts/drive_182_why_some_presets_say_nothing.py`):
+
+  | | `A4-84p-1page-Portrait-w25.0mm` | `Letter-84p-1page-Portrait-w25.0mm` |
+  |---|---|---|
+  | strip length | **236.98 mm** | 219.20 mm |
+  | i1Pro 3 Plus ruler | 220 mm | 220 mm |
+  | `_ruler_over_mm` | **220.0** | None |
+  | text notes | 1 | 0 |
+  | overlap warnings | 0 | 0 |
+  | status line | **"" , hidden** | "Margins: OK" |
+
+  The A4 sheet is 17.6 mm taller than Letter, so its strip runs past the ruler
+  by 17 mm; Letter's clears it by 0.8. That single note is the whole difference.
+- **AND THIS IS WORSE THAN A MISSING GREEN LINE.** The note that causes the
+  silence says *"Strip length 237 mm exceeds the 220 mm instrument ruler, the
+  strip may not fit your jig"* -- which is the most useful thing the panel
+  could tell the owner of that chart, and it is reachable only by hovering an
+  ⓘ that carries no mark of any kind (`TooltipButton.set_live_note` refreshes
+  the hover tip and nothing else). Photographed: the frame lists all four
+  margins and a strip length of 237.0 mm, and then there is no verdict at all.
+- **IT IS A BUG, AND THE REASON IS IN ITS OWN COMMENT.** The suppression
+  justifies itself with *"a green headline over a red notice reads as approval
+  of the thing the notice is about"*. That describes an OVERLAP warning, which
+  is red and on the surface, and overlap warnings are already handled by the
+  branch above. It is keyed on `text_warnings`, which never reach the surface,
+  so the rule is guarding against a contradiction that cannot occur and is
+  paying for it with total silence. A reader cannot tell "checked and fine"
+  from "not checked".
+- **why it is still not simply fixed.** Restoring the green line alone would
+  be true of the margins and would actively reassure the owner of a chart that
+  does not fit his jig. That trade is a wording decision, and this file's rule
+  is that a fault which contradicts an agreed behaviour is reported and
+  approved, not corrected on our own judgement. There is also a THIRD, separate
+  and deliberate route to silence: Preferences' "warn me about margin
+  violations", off, hides the label before anything else is looked at. That one
+  is the user asking for silence and is not part of this.
+- **the question for him**, in what a user sees: *"On fifteen of the built-in
+  charts the box under the preview lists the margins and then says nothing at
+  all, where other charts say 'Margins: OK' in green. The margins on those
+  fifteen are fine. The reason the line is missing is that the chart has a
+  different problem, which is that its strip of patches is longer than your
+  instrument's ruler and may not fit the jig, and that sentence is only visible
+  if you hover the ⓘ. Would you rather (a) the green 'Margins: OK' appeared
+  anyway, since the margins really are fine, (b) the strip-length sentence was
+  printed in the box instead, where the red warnings go, or (c) both, with the
+  green line and the sentence under it?"*
+- our recommendation is **(c)**: the margins verdict is true and belongs on
+  the surface, and a warning that changes whether the chart can be measured at
+  all should not depend on a hover.
+- evidence: in the preset-that-says-nothing file under `tests/`,
+  `test_with_nothing_live_the_panel_says_margins_are_ok`,
+  `test_an_i_note_alone_blanks_the_verdict_and_shows_nothing`,
+  `test_an_overlap_warning_is_shown_and_explains_its_own_silence`,
+  `test_turning_the_margin_notice_off_is_a_SECOND_way_to_get_silence`,
+  `test_the_rule_is_keyed_on_a_list_that_never_reaches_the_surface`. They pin
+  the FAULT, not a design: when he rules, that file is rewritten rather than
+  deleted.
