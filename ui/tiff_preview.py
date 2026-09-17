@@ -748,32 +748,8 @@ def _exposed_edges(boxes) -> dict:
             "r": _free((y, y + h), by_left.get(x + w, [])),
             "t": _free((x, x + w), by_bottom.get(y, [])),
             "b": _free((x, x + w), by_top.get(y + h, [])),
-            "_ix": (by_right, by_left, by_bottom, by_top),
         }
     return out
-
-
-def _sliver_reach(edge: int, seg: "tuple[int, int]", index: dict,
-                  want: float, forward: bool) -> float:
-    """How far a sliver may leave *edge* before it would enter another box.
-
-    Image pixels. *index* maps the coordinate of the facing edges to their
-    spans on the other axis. A sliver stops at HALF the distance to the nearest
-    box it could meet, so two facing slivers can never overlap. Proved over 400
-    random layouts with varied patch sizes, gaps and staggers: no sliver enters
-    another patch's box.
-    """
-    best = want
-    for k in sorted(index, reverse=not forward):
-        gap = (k - edge) if forward else (edge - k)
-        if gap <= 0:
-            continue
-        if gap >= best:
-            break
-        if any(a < seg[1] and seg[0] < b for a, b in index[k]):
-            best = gap / 2.0
-            break
-    return best
 
 
 class TiffPreview(QWidget):
@@ -1727,6 +1703,7 @@ class TiffPreview(QWidget):
         clear (the hover then falls back to the full strip rectangle)."""
         self._page_patch_boxes = dict(mapping or {})
         self._exposed_cache.clear()     # a new grid, a new answer
+        self._hex_ring_cache.clear()
         self._schedule_refresh()
 
     def set_edge_spacer_px(self, px: int) -> None:
@@ -2063,6 +2040,7 @@ class TiffPreview(QWidget):
         self._stripe_arrow_mode = "base"
         self._page_patch_boxes = {}
         self._exposed_cache.clear()
+        self._hex_ring_cache.clear()
         self._patch_info = {}
         # AND THE SPLIT PATCHES. `_patch_info` (the hover numbers) was cleared
         # and `_patch_overlay` (the colours actually painted) was not, so after
@@ -2195,6 +2173,8 @@ class TiffPreview(QWidget):
         self._paint_scale_y = None
         #: Cache for `_exposed_for_page`, keyed by page and patch count.
         self._exposed_cache: dict = {}
+        #: Cache for `_hex_has_ring`, keyed the same way.
+        self._hex_ring_cache: dict = {}
         #: The page as a QImage, built on demand so a split sliver can read the
         #: colour of the spacer it is about to sit next to. Dropped whenever the
         #: page changes.
@@ -2715,6 +2695,40 @@ class TiffPreview(QWidget):
         if self._cursor_overlay is not None and self._coord_readout:
             self._sync_cursor_overlay_geometry()
 
+    def _hex_has_ring(self) -> bool:
+        """Whether this page's hexagons have a printed ring between them.
+
+        Measured from the page's own patch grid, the same way the blanking
+        branch measures it: the first positive vertical gap between two
+        stacked boxes of one column. A honeycomb built with `Spacer size = 0`
+        tessellates and the answer is False; one built with a spacer has a ring
+        of paper and the answer is True.
+
+        Cached against the page and the grid's size, because it is asked once
+        per patch on every repaint.
+        """
+        geom = self._page_patch_boxes.get(self._current) or []
+        key = (self._current, len(geom))
+        hit = self._hex_ring_cache.get(key)
+        if hit is None:
+            cols: dict = {}
+            for b in geom:
+                cols.setdefault(b.x(), []).append(b)
+            hit = False
+            for bs in cols.values():
+                bs = sorted(bs, key=lambda q: q.y())
+                for a, b2 in zip(bs, bs[1:]):
+                    g = b2.y() - (a.y() + a.height())
+                    if g > 0:
+                        hit = True
+                        break
+                if hit:
+                    break
+            if len(self._hex_ring_cache) > 8:
+                self._hex_ring_cache.clear()
+            self._hex_ring_cache[key] = hit
+        return hit
+
     def _page_colour_at(self, ix: int, iy: int):
         """The page's own colour at image pixel (*ix*, *iy*), or None.
 
@@ -2802,6 +2816,12 @@ class TiffPreview(QWidget):
         except Exception:      # noqa: BLE001 — never fail a repaint over this
             _dpr = 1.0
 
+        # HOISTED, so that everything in this function rounds the SAME way.
+        # `_sliver` below decides which side of a boundary it is on, and the
+        # first version of it reached for the builtin `round` instead, two
+        # hundred lines under the docstring that says why that is wrong here.
+        import math as _m
+
         def _dsnap(v: float) -> float:
             """*v* (logical px) moved to the nearest real device pixel.
 
@@ -2810,7 +2830,6 @@ class TiffPreview(QWidget):
             a 2x display produces constantly) would snap alternate patches in
             opposite directions and give neighbouring boxes different sizes.
             """
-            import math as _m
             return _m.floor(v * _dpr + 0.5) / _dpr
 
         # IN A FIXED ORDER, NOT THE ORDER THE STRIPS WERE READ IN. The items
@@ -3158,13 +3177,33 @@ class TiffPreview(QWidget):
                     tri.closeSubpath()
                     painter.fillPath(hexp.intersected(tri), c_exp)   # expected ◤
                     _edge = c_meas
-                _seam = QPen(_edge)
-                _seam.setCosmetic(True)
-                _seam.setWidthF(1.0)
-                # The seam is stroked on the shared edge too, so it is deferred
-                # for the same reason as the ring: a neighbour's fill drawn
-                # later would erase half of it.
-                _seams.append((hexp, QPen(_seam)))
+                # THE SEAM CLOSES A GAP THAT A SPACED HONEYCOMB DOES NOT
+                # HAVE, AND ON ONE IT EATS THE RING INSTEAD.
+                #
+                # A cosmetic 1 px stroke is centred ON the path, so half its
+                # width lies outside the hexagon. Where the hexagons tessellate
+                # that is the point: it closes the sub-pixel gaps where two
+                # antialiased neighbours meet, and without it the honeycomb
+                # reads as a grid of separate blobs (Knut, zoomed in). Where
+                # the chart HAS a printed ring between its hexagons there is no
+                # such gap, and the half pixel lands on the ring.
+                #
+                # Basti, 2026-09-17: *"for hexes the split overlay covers the
+                # spacers when they are active"*. Measured on screen, a real
+                # SpectroScan honeycomb with 1.5 mm spacers, half the strips
+                # read: the ring under the read half was **3,097 device pixels
+                # against 3,802** under the unread half, a ratio of 0.815. With
+                # the seam skipped on a ringed chart it is 3,414 against 3,815,
+                # **0.895**; the rest is the antialiasing of the hexagon's own
+                # edge, which the printed chart has too.
+                if not self._hex_has_ring():
+                    _seam = QPen(_edge)
+                    _seam.setCosmetic(True)
+                    _seam.setWidthF(1.0)
+                    # The seam is stroked on the shared edge too, so it is
+                    # deferred for the same reason as the ring: a neighbour's
+                    # fill drawn later would erase half of it.
+                    _seams.append((hexp, QPen(_seam)))
                 if warn:
                     # DEFERRED TO A SECOND PASS. On a hexagonal chart the ring
                     # is stroked ON the shared edge, so half its width lies in
@@ -3288,18 +3327,30 @@ class TiffPreview(QWidget):
                     patch's share and leaves the spacer's, so the band keeps its
                     width and no printed colour is left showing. `c` is the
                     patch's own coverage of that pixel; the spacer's colour is
-                    read from the page just beyond the edge.
+                    read from the page at the FIRST pixel beyond the edge.
+
+                    **THE ROUNDING IS `_dsnap`'s, NOT `round()`'s.** The first
+                    version of this used `round()`, two hundred lines below the
+                    docstring that says why that is wrong here: Python rounds a
+                    half to the even side, so the two disagreed at every even
+                    integer plus a half. An adversary round swept 1,100 window
+                    widths and found the one that lands there (620, where the
+                    fit scale is exactly 0.25 with a zero border): 152 of 640
+                    patch edges on the phase, and **1,143 device pixels
+                    carrying printed ink at up to half strength** -- the very
+                    hairline this mechanism exists to remove.
                     """
-                    short = dev_edge - round(dev_edge)
+                    _r = _m.floor(dev_edge + 0.5)
+                    short = dev_edge - _r
                     if outward:              # a right or bottom edge
                         if short <= 0:
                             return           # the snap already covers it
-                        pos = round(dev_edge) / _dpr
+                        pos = _r / _dpr
                     else:                    # a left or top edge
                         if short >= 0:
                             return
                         short = -short
-                        pos = (round(dev_edge) - 1) / _dpr
+                        pos = (_r - 1) / _dpr
                     c = max(0.0, min(1.0, short))
                     spacer = self._page_colour_at(*probe)
                     if spacer is None:
@@ -3320,18 +3371,41 @@ class TiffPreview(QWidget):
                 _rx, _ry = int(rect.x()), int(rect.y())
                 _rr = _rx + int(rect.width())
                 _rb = _ry + int(rect.height())
+                # THE FIRST PIXEL BEYOND THE EDGE, NOT THE SECOND.
+                #
+                # The box spans image columns `_rx .. _rr - 1` and rows
+                # `_ry .. _rb - 1`, so the first pixel outside it is `_rx - 1`,
+                # `_rr`, `_ry - 1` and `_rb`. This probed one pixel too far on
+                # every side, and an edge is only given a sliver when
+                # `_exposed_edges` says it faces NO patch -- which a ONE image
+                # pixel gap satisfies. So on a chart built with `Spacer size =
+                # 0.1 mm`, a real control in Create Chart, every probe landed
+                # inside the NEIGHBOURING PATCH and the boundary pixel was
+                # repainted with that patch's ink instead of the spacer's.
+                #
+                # Measured by an adversary round on the layout engine's own A4
+                # at the default 300 dpi, patch_first 8x10 mm, spacer 0.1 mm:
+                # 119 of 154 column boundaries one image pixel apart, and **119
+                # of 154 top probes and 119 of 154 bottom probes inside a
+                # printed patch**, returning its centre colour exactly. On
+                # screen, 2,506 device pixels repainted as `c * split +
+                # (1 - c) * neighbour`; one went from (208, 137, 184) with the
+                # overlay off to (0, 71, 184) with it on, red driven to zero.
+                # Basti reported it from the other end, twice, without seeing
+                # the code: *"for hexes the split overlay covers the spacers
+                # when they are active"*.
                 for _a, _b2 in _seg["l"]:
                     _sliver(_lx * _dpr, _a, _b2, _ec["l"], True, False,
-                            (_rx - 2, (_a + _b2) // 2))
+                            (_rx - 1, (_a + _b2) // 2))
                 for _a, _b2 in _seg["r"]:
                     _sliver(_rxf * _dpr, _a, _b2, _ec["r"], True, True,
-                            (_rr + 1, (_a + _b2) // 2))
+                            (_rr, (_a + _b2) // 2))
                 for _a, _b2 in _seg["t"]:
                     _sliver(_ty * _dpr, _a, _b2, _ec["t"], False, False,
-                            ((_a + _b2) // 2, _ry - 2))
+                            ((_a + _b2) // 2, _ry - 1))
                 for _a, _b2 in _seg["b"]:
                     _sliver(_byf * _dpr, _a, _b2, _ec["b"], False, True,
-                            ((_a + _b2) // 2, _rb + 1))
+                            ((_a + _b2) // 2, _rb))
             if warn:
                 # A bright red outline over a white halo (the same trick the
                 # margin guides use) so a likely misread is unmistakable on ANY

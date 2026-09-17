@@ -466,3 +466,296 @@ def test_a_patch_box_is_never_smaller_than_the_chart_patch():
                     a = math.floor(bot * dpr + 0.5)
                     b = math.floor((origin + size) * scale * dpr + 0.5)
                     assert a == b, (dpr, scale, origin, size)
+
+
+# ---------------------------------------------------------------------------
+# THE GUARDS ABOVE COULD NOT SEE THE MECHANISM THEY WERE WRITTEN FOR.
+#
+# An adversary round set `_seg = None`, which deletes the ENTIRE sliver the
+# fix adds, and this file stayed green: 48 passed. The reason is arithmetic.
+# `test_no_chart_pixel_survives_under_the_split` scans
+# `range(ceil(top), floor(bottom))`, which is the whole pixels the snapped box
+# already covers, so its own ceil and floor exclude the one boundary pixel the
+# sliver exists for. `_chart_pixels()`, whose docstring IS this property
+# ("still carrying the patches' colour, IN ANY AMOUNT ... a box that covers the
+# patch exactly still leaves a coloured hairline"), was never called by
+# anything.
+#
+# The three below are the missing half. Each is proved against the mutation it
+# is named for.
+# ---------------------------------------------------------------------------
+
+#: A patch is magenta or cyan and everything else on the page is black, white
+#: or grey, so the chroma of a pixel IS how much printed ink is in it. A
+#: boundary pixel painted by the sliver keeps at most `c * (1 - c)` of the
+#: patch, which peaks at a quarter; anything above 40 % is the hairline the
+#: tester photographed.
+_INK_BUDGET = 102          # 0.4 * 255
+
+
+def _boundary_ink(img, boxes, border, cw, ch, dpr, page_w, page_h):
+    """The worst ink left in the boundary pixels of every box.
+
+    The FULL span, `floor(top)` to `ceil(bottom)`, which is what the older
+    guards exclude.
+    """
+    import math
+    bd = border * dpr
+    sx = (cw - 2 * bd) / page_w
+    sy = (ch - 2 * bd) / page_h
+    worst = []
+    for b in boxes:
+        y0, y1 = math.floor(b.y() * sy + bd), math.ceil((b.y() + b.height()) * sy + bd)
+        x0, x1 = math.floor(b.x() * sx + bd), math.ceil((b.x() + b.width()) * sx + bd)
+        for yy in range(y0, y1 + 1):
+            for xx in range(x0, x1 + 1):
+                if not (0 <= xx < img.width() and 0 <= yy < img.height()):
+                    continue
+                inner = (math.ceil(b.y() * sy + bd) <= yy
+                         < math.floor((b.y() + b.height()) * sy + bd)
+                         and math.ceil(b.x() * sx + bd) <= xx
+                         < math.floor((b.x() + b.width()) * sx + bd))
+                if inner:
+                    continue                 # the older guards own these
+                c = img.pixelColor(xx, yy)
+                r, g, bl = c.red(), c.green(), c.blue()
+                chroma = max(r, g, bl) - min(r, g, bl)
+                if chroma > _INK_BUDGET:
+                    worst.append((xx, yy, (r, g, bl), chroma))
+    return worst
+
+
+@pytest.mark.parametrize("w,h", [(520, 700), (560, 820), (620, 900),
+                                 (700, 760), (900, 980), (480, 640),
+                                 (742, 886), (812, 996)])
+def test_the_boundary_pixel_of_every_patch_is_covered_too(qapp, tmp_path, w, h):
+    """MUTATION: `_seg = None` (delete the sliver) and this goes red.
+
+    That mutation left every other test in this file green.
+    """
+    img, (border, cw, ch, dpr) = _canvas(qapp, tmp_path, w, h)
+    assert img is not None and img.width() > 0
+    left = _boundary_ink(img, _boxes(), border, cw, ch, dpr, PAGE_W, PAGE_H)
+    assert not left, (
+        f"{len(left)} boundary pixels still carry more than "
+        f"{_INK_BUDGET / 255:.0%} of the printed patch at {w}x{h}; "
+        f"worst {sorted(left, key=lambda t: -t[3])[:6]}")
+
+
+#: Patches ONE image pixel apart, which `Spacer size = 0.1 mm` really produces:
+#: at 200 dpi that spacer is 0.79 px and the engine records neighbours a single
+#: pixel apart. `_exposed_edges` calls such an edge exposed, because it faces no
+#: patch, so the sliver is drawn and its probe has one pixel of room.
+TIGHT_GAP = 1
+
+
+def _tight_boxes() -> "list[QRect]":
+    return [QRect(LEFT + c * (PATCH_W + TIGHT_GAP),
+                  TOP + r * (PATCH_H + TIGHT_GAP), PATCH_W, PATCH_H)
+            for c in range(4) for r in range(6)]
+
+
+def test_the_sliver_never_reads_its_spacer_colour_out_of_a_patch(qapp, tmp_path):
+    """Where the sliver looks for the spacer, measured, not argued.
+
+    The sliver repaints the boundary pixel as `c * split + (1 - c) * spacer`
+    and reads the spacer from the rendered page just outside the patch. The
+    first version looked ONE PIXEL TOO FAR on every side, and on a chart whose
+    patches sit one image pixel apart every one of those probes landed inside
+    the NEIGHBOURING PATCH: the boundary pixel was then repainted with that
+    patch's ink, so the spacer vanished under saturated chart colour. An
+    adversary round measured 119 of 154 top probes and 119 of 154 bottom probes
+    inside a printed patch on the layout engine's own A4 at 300 dpi, and Basti
+    reported the same thing from the app twice: *"for hexes the split overlay
+    covers the spacers when they are active"*.
+
+    So this records every coordinate the probe asks for and checks it against
+    the patch grid. A probe inside a patch is the fault, whatever colour comes
+    back.
+
+    MUTATION: put any of the four probes back to `_rx - 2`, `_rr + 1`,
+    `_ry - 2` or `_rb + 1` and this goes red.
+    """
+    from ui.tiff_preview import TiffPreview
+    boxes = _tight_boxes()
+    page = tmp_path / "tight-gap-page.tif"
+    im = Image.new("RGB", (PAGE_W, PAGE_H), (255, 255, 255))
+    px = im.load()
+    for i, b in enumerate(boxes):
+        col = PATCH_A if i % 2 == 0 else PATCH_B
+        for y in range(b.y(), b.y() + b.height()):
+            for x in range(b.x(), b.x() + b.width()):
+                px[x, y] = col
+    im.save(page)
+
+    asked: "list[tuple[int, int]]" = []
+    real = TiffPreview._page_colour_at
+
+    def spy(self, ix, iy):
+        asked.append((int(ix), int(iy)))
+        return real(self, ix, iy)
+
+    p = TiffPreview()
+    try:
+        p._page_colour_at = spy.__get__(p, TiffPreview)
+        p.resize(700, 900)
+        p.load_tiff([page])
+        qapp.processEvents()
+        p.set_page_patch_boxes({0: list(boxes)})
+        p.set_patch_overlay(
+            0, [(b, GREY_EXPECTED, GREY_MEASURED, False) for b in boxes],
+            replace_page=True)
+        p.show()
+        qapp.processEvents()
+        p._update_display()
+        qapp.processEvents()
+    finally:
+        p.close()
+
+    assert asked, (
+        "the sliver never asked the page for a spacer colour, so this test "
+        "cannot see the fault it was written for")
+    inside = [(x, y) for (x, y) in asked
+              for b in boxes
+              if b.x() <= x < b.x() + b.width()
+              and b.y() <= y < b.y() + b.height()]
+    assert not inside, (
+        f"{len(inside)} of {len(asked)} spacer probes landed INSIDE a printed "
+        f"patch, so the split repaints the boundary with a neighbour's ink "
+        f"instead of the spacer's colour; first six {inside[:6]}")
+
+
+#: Window widths where a patch edge lands on an EVEN integer plus a half, which
+#: is the only place `round()` and `math.floor(v + 0.5)` disagree. Found by
+#: sweeping 400 to 1200 against this fixture's own geometry: 444 puts 48 of the
+#: 352 edges there, 486 and 494 put 16, and 410, 418 and 472 put 8.
+#:
+#: They are pinned because the fault is otherwise almost unreachable. An
+#: adversary round swept 1,100 window widths against a real engine chart and
+#: found exactly ONE that lands on the phase, and at that one width 1,143
+#: device pixels carried printed ink at up to HALF strength. Six sizes chosen
+#: for any other reason will not find it, which is how it shipped.
+_PHASE_SIZES = [(444, 900), (486, 900), (494, 900), (410, 900),
+                (418, 900), (472, 900)]
+
+
+@pytest.mark.parametrize("w,h", _PHASE_SIZES)
+def test_the_sliver_rounds_the_way_dsnap_does(qapp, tmp_path, w, h):
+    """The boundary pixel must still be covered where the two roundings differ.
+
+    `_dsnap` is `math.floor(v * dpr + 0.5)` and its docstring says why: Python
+    rounds a half to the even side, so alternate patches would snap in opposite
+    directions. The first version of `_sliver` then used the builtin `round()`
+    for the same decision, two hundred lines below that docstring.
+
+    MUTATION: put `round(dev_edge)` back in `_sliver` and this goes red.
+    """
+    img, (border, cw, ch, dpr) = _canvas(qapp, tmp_path, w, h)
+    assert img is not None and img.width() > 0
+    left = _boundary_ink(img, _boxes(), border, cw, ch, dpr, PAGE_W, PAGE_H)
+    assert not left, (
+        f"{len(left)} boundary pixels carry more than {_INK_BUDGET / 255:.0%} "
+        f"of the printed patch at {w}x{h}, where an edge lands on an even "
+        f"half; worst {sorted(left, key=lambda t: -t[3])[:6]}")
+
+
+#: A honeycomb WITH a printed ring: the hexagons do not tessellate, so there is
+#: paper between them and nothing for a seam stroke to close.
+HEX_W, HEX_H = 48, 56
+HEX_PITCH_X, HEX_PITCH_Y = 36, 64      # three quarters across, a ring down
+HEX_COLS, HEX_ROWS = 6, 7
+
+
+def _hex_ring_boxes() -> "list[QRect]":
+    out = []
+    for c in range(HEX_COLS):
+        off = HEX_PITCH_Y // 2 if c % 2 else 0
+        for r in range(HEX_ROWS):
+            out.append(QRect(LEFT + c * HEX_PITCH_X,
+                             TOP + off + r * HEX_PITCH_Y, HEX_W, HEX_H))
+    return out
+
+
+def _hex_ring_canvas(qapp, tmp_path, w, h, with_overlay):
+    """A spaced honeycomb whose RING is green and whose patches are magenta."""
+    from ui.tiff_preview import TiffPreview
+    boxes = _hex_ring_boxes()
+    path = tmp_path / f"hex-ring-{w}x{h}.tif"
+    im = Image.new("RGB", (PAGE_W, PAGE_H), (255, 255, 255))
+    px = im.load()
+    xs = [b.x() for b in boxes]; ys = [b.y() for b in boxes]
+    x0, x1 = min(xs), max(b.x() + b.width() for b in boxes)
+    y0, y1 = min(ys), max(b.y() + b.height() for b in boxes)
+    for y in range(y0, y1):
+        for x in range(x0, x1):
+            px[x, y] = (0, 220, 0)                    # the ring
+    for b in boxes:
+        for y in range(b.y(), b.y() + b.height()):
+            for x in range(b.x(), b.x() + b.width()):
+                px[x, y] = PATCH_A
+    im.save(path)
+    p = TiffPreview()
+    try:
+        p.resize(w, h)
+        p.load_tiff([path])
+        qapp.processEvents()
+        p.set_hex_zigzag(True)
+        p.set_page_patch_boxes({0: list(boxes)})
+        if with_overlay:
+            p.set_patch_overlay(
+                0, [(b, GREY_EXPECTED, GREY_MEASURED, False) for b in boxes],
+                replace_page=True)
+        p.show()
+        qapp.processEvents()
+        p._update_display()
+        qapp.processEvents()
+        pm = p._img_label.pixmap()
+        return pm.toImage() if pm is not None else None
+    finally:
+        p.close()
+
+
+def _green(img):
+    n = 0
+    for y in range(img.height()):
+        for x in range(img.width()):
+            c = img.pixelColor(x, y)
+            if c.green() > 140 and c.red() < 110 and c.blue() < 110:
+                n += 1
+    return n
+
+
+@pytest.mark.parametrize("w,h", [(640, 820), (760, 940)])
+def test_a_spaced_honeycombs_ring_survives_the_split(qapp, tmp_path, w, h):
+    """The split must not eat the paper ring between hexagons.
+
+    Basti, 2026-09-17: *"for hexes the split overlay covers the spacers when
+    they are active"*. The cause was the seam: a cosmetic 1 px stroke centred
+    ON the hexagon's path, so half of it lies outside the hexagon. Where the
+    hexagons tessellate that is the point, and it is what stops the honeycomb
+    reading as separate blobs; where the chart has a printed ring there is no
+    gap to close and the half pixel lands on the ring.
+
+    Measured on screen on a real SpectroScan honeycomb with 1.5 mm spacers,
+    half the strips read: the ring under the read half was 3,097 device pixels
+    against 3,802 under the unread half, **0.815**. With the seam skipped on a
+    ringed chart, 3,414 against 3,802, **0.898**; the rest is the hexagon's own
+    antialiased edge, which the printed chart has too.
+
+    MUTATION: stroke the seam unconditionally again and this goes red.
+    """
+    off = _hex_ring_canvas(qapp, tmp_path, w, h, with_overlay=False)
+    on = _hex_ring_canvas(qapp, tmp_path, w, h, with_overlay=True)
+    assert off is not None and on is not None
+    a, b = _green(off), _green(on)
+    assert a > 200, f"the fixture drew almost no ring ({a} px), so it proves nothing"
+    # 0.52 SEPARATES THE TWO STATES OF THIS FIXTURE, and the absolute figure is
+    # the fixture's, not a chart's: its hexagons overlap across the columns, so
+    # most of what is painted "ring" here is covered by hexagon whatever the
+    # seam does. Measured both ways at both sizes: seam skipped 0.553 and
+    # 0.554, seam stroked 0.492 and 0.488. The REAL chart, photographed on
+    # screen, goes 0.815 to 0.898.
+    assert b >= 0.52 * a, (
+        f"the split overlay ate the honeycomb's ring at {w}x{h}: {a} ring "
+        f"pixels with the overlay off, {b} with it on ({b / a:.3f}); the seam "
+        f"is being stroked on a chart that has a printed ring")

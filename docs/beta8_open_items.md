@@ -13433,9 +13433,14 @@ on a face whose italic is a real second face, and both are asserted.
   the atomic-write helper is B8-301, from this same round.
 
 ### B8-313 · OPEN · The split's boundary sliver reads its "spacer" colour from inside the neighbouring patch
-- blocks release: yes
-- **HOLDS THE SPLIT-OVERLAY BRANCH.**
-- status: OPEN
+- blocks release: no
+- status: FIXED
+- evidence: `test_the_sliver_never_reads_its_spacer_colour_out_of_a_patch`
+- fix: the probe now reads the FIRST pixel beyond the edge (`_rx - 1`, `_rr`,
+  `_ry - 1`, `_rb`) instead of one pixel further, which is the spacer whenever
+  `_exposed_edges` calls the edge exposed. The guard records every coordinate
+  the probe asks for and fails if one lands in a patch; all four off-by-ones
+  fail it.
 - found by: an adversary round on the change set, and independently by Basti
   looking at the app: *"for hexes the split overlay covers the spacers when
   they are active"*, *"when only show measured patches is activated it seems
@@ -13462,9 +13467,15 @@ on a face whose italic is a real second face, and both are asserted.
 - **INTRODUCED by this change set** (`cd7f0c4d`).
 
 ### B8-314 · OPEN · The sliver decides with banker's rounding, which `_dsnap` documents as wrong
-- blocks release: yes
-- **HOLDS THE SPLIT-OVERLAY BRANCH.**
-- status: OPEN
+- blocks release: no
+- status: FIXED
+- evidence: `test_the_sliver_rounds_the_way_dsnap_does`
+- fix: `math` is hoisted to the top of `_draw_cq_overlay` and `_sliver` uses
+  `_m.floor(dev_edge + 0.5)`, the same rounding as `_dsnap`. The guard is
+  pinned to six window widths found by sweeping this fixture's own geometry
+  (444 puts 48 of its 352 edges on an even half, 486 and 494 put 16, and 410,
+  418 and 472 put 8); banker's rounding fails all six while the other 57 tests
+  in the file stay green, which is exactly how it shipped.
 - detail: `_dsnap` is `math.floor(v * dpr + 0.5)` and its docstring says *"not
   `round`: Python rounds a half to the even side"*. `_sliver` then uses
   `short = dev_edge - round(dev_edge)` and `pos = round(dev_edge) / dpr`. The
@@ -13485,7 +13496,14 @@ on a face whose italic is a real second face, and both are asserted.
 ### B8-315 · OPEN · The guard written for the sliver cannot see the sliver
 - blocks release: no
 - **AND IT IS WHY B8-313 AND B8-314 SHIPPED GREEN.**
-- status: OPEN
+- status: FIXED
+- evidence: `test_the_boundary_pixel_of_every_patch_is_covered_too`
+- fix: a guard that scans the FULL span, `floor(top)` to `ceil(bottom)`, and
+  skips the interior the older guards own, so it sees only the boundary pixels
+  they exclude. It fails on both mutations the round used: deleting the sliver
+  (`_seg = None`) leaves 341 boundary pixels carrying more than 40 % of the
+  printed patch, and ignoring the vertical scale (`sy = s`) leaves 762. All 48
+  older tests stay green on both.
 - detail: setting `_seg = None`, which deletes the ENTIRE sliver mechanism the
   headline commit adds, leaves `tests/test_the_split_overlay_leaves_no_chart_showing.py`
   green (48 passed) and five other overlay test files green (138 more).
@@ -13501,11 +13519,41 @@ on a face whose italic is a real second face, and both are asserted.
   row reaches only 0.99 device pixels. Only a source-text test covers it, and a
   source test cannot see a function that ignores an argument it is given.
 
-### B8-316 · OPEN · Dead code introduced with the sliver
+### B8-316 · FIXED · Dead code introduced with the sliver
 - blocks release: no
-- status: OPEN
+- status: FIXED
+- evidence: `test_the_sliver_never_reads_its_spacer_colour_out_of_a_patch`
+  (the file it lived in is exercised throughout; the symbols are gone and
+  nothing references them)
 - detail: `_sliver_reach` (`ui/tiff_preview.py:756`) and the `"_ix"` entry
   `_exposed_edges` writes into every patch's dict are added by `cd7f0c4d` and
   never called or read. `_sliver_reach`'s docstring asserts "Proved over 400
   random layouts ... no sliver enters another patch's box" about code that
   never runs.
+
+
+### B8-317 · FIXED · On a honeycomb WITH spacers the split's seam was stroked over the ring
+- blocks release: no
+- status: FIXED
+- evidence: `test_a_spaced_honeycombs_ring_survives_the_split`
+- found by: Basti, looking at the app: *"for hexes the split overlay covers
+  the spacers when they are active"*.
+- detail: a hexagonal patch's split is stroked with a cosmetic 1 px seam
+  centred ON its path, so half the width lies outside the hexagon. Where the
+  hexagons TESSELLATE that is the point of it: it closes the sub-pixel gaps
+  where two antialiased neighbours meet, and without it the honeycomb reads as
+  a grid of separate blobs. Where the chart has a printed ring there is no gap
+  to close, and the half pixel lands on the ring.
+- measured on screen, a real SpectroScan honeycomb with 1.5 mm spacers, half
+  the strips read: the ring under the READ half was **3,097 device pixels
+  against 3,802** under the unread half, a ratio of **0.815**. With the seam
+  skipped on a ringed chart, 3,414 against 3,802, **0.898**. The remaining
+  10 % is the antialiasing of the hexagon's own edge, which the printed chart
+  has too, and it is not claimed as covered.
+- `_hex_has_ring()` decides it from the page's own grid, the same way the
+  blanking branch does: the first positive vertical gap between two stacked
+  boxes of one column. A honeycomb built with `Spacer size = 0` tessellates and
+  keeps its seam.
+- **NOT the same fault as B8-313**, which was measured first and fixed first
+  and moved this ratio not at all: the hexagonal branch `continue`s before the
+  sliver is ever reached.
