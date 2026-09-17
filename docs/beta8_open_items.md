@@ -13321,9 +13321,9 @@ there is nothing to assert there and the guard says so rather than inventing a
 weaker claim. It is observable in the ink probe at 40 px, and in the row label
 on a face whose italic is a real second face, and both are asserted.
 
-### B8-308 · OPEN · Generate report writes the new report and the selector keeps naming the old one
+### B8-308 · FIXED · Generate report writes the new report and the selector keeps naming the old one
 - blocks release: no
-- status: OPEN
+- status: FIXED
 - found by: Knut, beta 20: *"Now there are two reports in the 'Saved reports'
   pulldown, but the selected option did not change to the new report I
   generated last."*
@@ -13336,11 +13336,17 @@ on a face whose italic is a real second face, and both are asserted.
   combo.currentData()` as its primary source of truth, so the combo's own stale
   selection wins over `self._report`, which `_on_generate_report` has just
   moved to the file it wrote.
-- what to change: compute the index from `self._report` first and use `want`
-  only as the fallback for rows that are not the window's subject.
-  `tests/test_saved_reports_can_be_chosen_and_deleted.py::test_generate_shows_the_report_it_just_wrote`
-  asserts the document moved and never asserts the selector did; that missing
-  line is why this shipped.
+- fix: the index is computed from `self._report` first, and the selector's own
+  memory is consulted only when the row it names belongs to a DIFFERENT
+  measurement, which is the user browsing rather than the window moving. That
+  distinction is load-bearing: a flat "the document always wins" turned
+  `test_choosing_an_entry_that_is_not_the_first_one_sticks` red, because
+  picking another measurement's report must stay picked.
+- evidence: `test_generate_shows_the_report_it_just_wrote`, which asserted the
+  document moved and never asked the selector; that missing line is why this
+  shipped, and it is there now. Putting the old order back reproduces Knut's
+  exact symptom.
+- proof of the fix on screen: `~/Desktop/ChromIQ-beta21-proof/b8-308-the-selector-follows-the-report/`
 
 ### B8-309 · OPEN · The report text is written to a reader who is sitting in front of the window
 - blocks release: no

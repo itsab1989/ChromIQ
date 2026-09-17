@@ -560,5 +560,14 @@ def test_generate_shows_the_report_it_just_wrote(tmp_path, qapp):
         assert str(dlg._report.get("_report_file")) == written[0], (
             f"Generate wrote {written[0]} and the page still describes "
             f"{dlg._report.get('_report_file')}")
+        # AND THE SELECTOR, WHICH THIS TEST NEVER ASKED. B8-308, Knut, beta 20:
+        # *"Now there are two reports in the 'Saved reports' pulldown, but the
+        # selected option did not change to the new report I generated last."*
+        # The page moved and the pulldown did not, so the window's header named
+        # one report and its selector named another, in front of him. The
+        # missing line below is why that shipped.
+        assert dlg._saved_combo.currentData()[1] == written[0], (
+            f"Generate wrote {written[0]} and the selector still names "
+            f"{dlg._saved_combo.currentData()[1]}")
     finally:
         dlg.close()

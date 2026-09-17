@@ -3409,16 +3409,42 @@ class MeasurementReportDialog(QDialog):
             # back to the first entry on every pick, so choosing any report but
             # the top one was impossible. The scan below is this window's own
             # comparison, and it is the same one `_chosen_pair` makes.
-            i = next((n for n, (r, name, _l) in enumerate(choices)
-                      if want and (self._run_key(r), name) == tuple(want)), -1)
+            # THE DOCUMENT DECIDES, NOT THE SELECTOR'S LAST STATE. This asked
+            # the combo what it was showing FIRST, and the combo's answer is
+            # whatever was picked before, so after "Generate report" the page
+            # moved to the new file and the pulldown went on naming the old
+            # one. Knut, beta 20: *"Now there are two reports in the 'Saved
+            # reports' pulldown, but the selected option did not change to the
+            # new report I generated last."* It was worse than he reported: the
+            # header read "Judged against: ChromIQ default" while the selector
+            # underneath read the other report's name and date, so the two
+            # halves of the same window disagreed in front of him.
+            #
+            # `want` is still consulted, as the FALLBACK for a window that is
+            # not showing any row of this list (no report loaded yet), which is
+            # the only case where the selector's own memory is the better
+            # answer.
+            mine = next(
+                (n for n, (r, nm, _l) in enumerate(choices)
+                 if self._report is not None
+                 and self._run_key(r) == self._run_key(self._report)
+                 and nm == str(self._report.get("_report_file") or "")), -1)
+            chosen = next((n for n, (r, name, _l) in enumerate(choices)
+                           if want and (self._run_key(r), name) == tuple(want)),
+                          -1)
+            # A PICK ON ANOTHER MEASUREMENT IS THE USER BROWSING; A NEW FILE OF
+            # THE SAME ONE IS THE WINDOW MOVING. Only the second may overrule
+            # the selector, which is the whole of this fix: after "Generate
+            # report" the new file belongs to the measurement the window is on,
+            # so the selector follows it, while a row the user picked from
+            # another measurement stays picked.
+            same_subject = (
+                chosen >= 0 and self._report is not None
+                and self._run_key(choices[chosen][0])
+                == self._run_key(self._report))
+            i = mine if (mine >= 0 and (chosen < 0 or same_subject)) else chosen
             if i < 0 and choices:
-                # the row the window is ON, which is the report it is showing
-                showing = next(
-                    (n for n, (r, nm, _l) in enumerate(choices)
-                     if self._report is not None
-                     and self._run_key(r) == self._run_key(self._report)
-                     and nm == str(self._report.get("_report_file") or "")), 0)
-                i = showing
+                i = 0
             combo.setCurrentIndex(max(0, i))
         finally:
             combo.blockSignals(False)
