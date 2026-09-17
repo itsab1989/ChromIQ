@@ -259,6 +259,51 @@ no verdict cannot tell whether something is wrong.
 
 ## 5. Where the set lives, and when it may change
 
+> ### ⏳ SUPERSEDED 2026-09-17, AWAITING IMPLEMENTATION: a set change may no longer recalculate a saved report
+>
+> **Confirmed by:** *nobody yet.* Knut ruled it; nothing is built.
+>
+> This section says, twice below, that choosing a set in the report window
+> *"re-binds the run and recalculates that date's saved reports, archiving them
+> first"*, and credits the archive-then-recalculate rule to **D23**. Knut's
+> beta-20 test overturns his own D23:
+>
+> > *"When changing Judged Against, while several reports have been saved and
+> > exist, a pop message appears: 'This run (run3) has 2 saved reports. Changing
+> > the limit set recalculates every one of them with the new numbers…'. This is
+> > wrong functionality. If a report has been generated, those reports shall not
+> > be recalculated if I want to create a new report with a different Judged
+> > Against threshold set."*
+>
+> **Why it is more than one sentence.** The lock apparatus in this section
+> exists to keep the DATES comparable by binding one set to a RUN. Knut's new
+> model makes comparability a property of the DOCUMENT instead: a saved report
+> is to carry the settings it was made with, including which measurements were
+> included, and selecting it is to restore them (his beta-20 text, registered as
+> B8-311). Once a report carries its own set and its own list of dates, the run
+> no longer has to hold the yardstick for it, and the question this section is
+> built around changes shape.
+>
+> **What the code does today**, measured rather than read
+> (`MeasurementReportDialog._recalculate_run`): every live
+> `reports/report_*.json` of the run is copied into `reports/old/<stamp>/`,
+> content-hash deduped, then re-stamped with the run's new limits and rewritten
+> in place. On the demo project's run3 the archived copy kept `chromiq_quick` /
+> PASS and the live file became `chromiq_default` / FAIL. Nothing on disk goes
+> inconsistent if it stops: `_yardstick_of` already prefers a report's OWN
+> recorded set over the run's, because the run's profiling report is
+> deliberately never recalculated.
+>
+> **Two doors he did not name, and they are open questions for him.** The same
+> recalculation runs from *"Unlock this run's limits"* and from the Report
+> limits window's own Save. His ruling is about the "Judged against" pulldown.
+> His B8-311 model implies none of the three may rewrite a saved report, but
+> that is an inference and is not being treated as his answer.
+>
+> Registered as **B8-310**. Until it is built and he has confirmed it, the
+> paragraphs below remain the specification and the code follows them.
+
+
 > **REVISED 2026-09-10 on Knut's report, and it moved for two reasons.** This
 > section said the run's limits lock once a verification has been measured.
 >
