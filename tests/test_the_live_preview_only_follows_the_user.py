@@ -56,7 +56,20 @@ def tab(qapp, tmp_path):
     ti1 = tmp_path / "chart.ti1"
     ti1.write_text("TI1\n", encoding="utf-8")
     t._current_ti1_path = ti1
-    return t
+    yield t
+    # DISARM ON THE WAY OUT. Several tests here END with the 450 ms timer
+    # deliberately running -- that is the assertion. The tab is not collected
+    # the moment the test returns, so that timer can still fire during a LATER
+    # test, and `_auto_regenerate_preview` then calls `_layout_signature` on
+    # the class. Two tests in this file patch that method to raise, so the
+    # stray timer threw `RuntimeError("boom")` into the Qt event loop and
+    # pytest-qt failed whichever test was running. Seen once in a `--runslow`
+    # gate (2026-09-17) and not in the five before it, which is what a leak
+    # across tests looks like.
+    try:
+        t._auto_preview_timer.stop()
+    except Exception:      # noqa: BLE001 — teardown must not fail a green test
+        pass
 
 
 def _renders(tab, monkeypatch) -> list:
