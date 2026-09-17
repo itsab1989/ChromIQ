@@ -4091,6 +4091,41 @@ def _chain_re(stem: str) -> "re.Pattern":
     return re.compile(rf"{re.escape(nfc(stem))}(_\d+)?\.[\w.]+\Z")
 
 
+#: Characters that stop a string being the name of a CHILD of the folder it is
+#: joined to. The three separators are obvious; ``:`` is the one that is not.
+#: Windows resolves a bare drive spec against that drive's own current
+#: directory, so ``Path(root) / "runs" / "D:"`` is ``D:`` — the other drive,
+#: outside the project altogether — and ``"C:"`` collapses to the ``runs``
+#: folder itself rather than a run inside it. The Windows spellings are refused
+#: on every platform on purpose: a manifest travels with the project, so the
+#: value being judged here may have been written on a different one.
+_NOT_IN_A_FOLDER_NAME = ("/", "\\", "\0", ":")
+
+
+def is_a_plain_folder_name(value: object) -> bool:
+    """True when *value* can only ever name a child of the folder it joins.
+
+    A MANIFEST IS A FILE PEOPLE CAN EDIT, AND PROJECTS GET MAILED AROUND.
+    ``current_run`` reaches both the reader (`peek_project`) and the mover
+    (`migrate_flat_project`) straight out of ``project.json``, and neither
+    ``ProjectManifest.from_dict`` nor anything on the load path sanitises it.
+    ONE rule in ONE place, because the two had their own and only one of them
+    was strict enough: the mover's own check listed the three separators and
+    missed the drive letter, which is the spelling that carries files out of a
+    project on the platform where it matters.
+
+    Leading or trailing blanks are refused as well. A run folder is named by
+    ChromIQ (``run1``, ``run2``, …), never by a person, so a value that is not
+    already clean is a value that has been tampered with or corrupted, and the
+    honest response from something that MOVES somebody's measurements is to do
+    nothing at all.
+    """
+    v = str(value or "")
+    if not v or v != v.strip() or v.strip(".") == "":
+        return False
+    return not any(c in v for c in _NOT_IN_A_FOLDER_NAME)
+
+
 def flat_legacy_chain(root: "Path | None") -> "list[Path]":
     """Every run-owned file sitting loose in the project folder *root*.
 
@@ -4107,14 +4142,29 @@ def flat_legacy_chain(root: "Path | None") -> "list[Path]":
     Empty for a project already laid out in `runs/` — a v2 project keeps
     nothing matching the chain at its root, so asking is free and never
     misfires. Read-only: this never creates, moves or migrates anything.
+
+    THE PROJECT'S OWN BOOKKEEPING IS NOT A RUN'S CHART, whatever it is called.
+    The stem this matches on is the FOLDER's name, so a project a person names
+    ``project`` makes ``project.json`` — its own manifest — match the chain
+    exactly, and the mover then carried the manifest into ``runs/run1``. The
+    manifest was written back at the root a moment later by `save_manifest`, so
+    nothing was lost; what was left was a stray copy of it inside the run
+    folder and, from the next open onwards, a warning on every single load
+    saying the run "already holds 1 chart file(s) of its own". ``Where are my
+    files.txt`` is the same trap for a folder hand-named ``Where are my files``.
+    `_migrate_v1_to_v2` already protects these two names from being swept into
+    `cache/` from INSIDE a run; they must equally never be picked UP from the
+    project folder, and it is the same list either way.
     """
     if root is None:
         return []
     root = Path(root)
     rx = _chain_re(root.name)
+    own = {nfc(Project.MANIFEST), nfc(Project.README)}
     try:
         return sorted(f for f in root.iterdir()
-                      if f.is_file() and rx.fullmatch(nfc(f.name)))
+                      if f.is_file() and nfc(f.name) not in own
+                      and rx.fullmatch(nfc(f.name)))
     except OSError:
         return []
 
@@ -4146,13 +4196,19 @@ def migrate_flat_project(root: "Path", run_id: str = "run1") -> int:
     # A MANIFEST IS A FILE PEOPLE CAN EDIT, AND PROJECTS GET MAILED AROUND.
     # `run_id` reaches here from `project.json`'s `current_run`, and
     # `ProjectManifest.from_dict` does not sanitise it - only `peek_project`
-    # does, in its own `_safe_id`, for exactly this reason. Everything else
-    # that builds a path from it only READS; this MOVES somebody's
-    # measurements, so a `current_run` of "../.." would carry them out of the
-    # project altogether. Anything that is not a plain folder name is refused,
-    # which here means the folder is left exactly as it was found.
-    if (not run_id or run_id in (".", "..")
-            or "/" in run_id or "\\" in run_id or "\0" in run_id):
+    # does, for exactly this reason. Everything else that builds a path from it
+    # only READS; this MOVES somebody's measurements, so a `current_run` of
+    # "../.." would carry them out of the project altogether. Anything that is
+    # not a plain folder name is refused, which here means the folder is left
+    # exactly as it was found.
+    #
+    # THE CHECK USED TO BE WRITTEN OUT HERE AND IT WAS NOT THE SAME CHECK the
+    # reader used. It listed the three separators and missed `:`, so a
+    # `current_run` of "D:" was accepted and, on Windows, named the OTHER DRIVE
+    # rather than a folder in this project - the one spelling that defeats a
+    # traversal guard on the platform ChromIQ also ships to. `peek_project`
+    # shares the rule now, so there is one of it.
+    if not is_a_plain_folder_name(run_id):
         log.warning("flat migration: %r is not a usable run folder name - "
                     "leaving %s alone", run_id, root)
         return 0
@@ -4404,10 +4460,12 @@ def peek_project(root: "Path | None") -> ProjectPeek:
     # These ids become path components below, so a `current_run` of "../.." or
     # "/etc" would walk this read straight out of the project — the same shape
     # as the journal traversal fixed in 4.1.3-beta.18. Anything that is not a
-    # plain folder name is dropped.
+    # plain folder name is dropped, by the SAME rule the mover applies: this
+    # one only reads, so it also tolerates the blanks a hand-edited value picks
+    # up, and judges what is left.
     def _safe_id(value) -> str:
         v = str(value or "").strip()
-        return v if v and v not in (".", "..") and "/" not in v and "\\" not in v else ""
+        return v if is_a_plain_folder_name(v) else ""
 
     run_id = _safe_id(data.get("current_run"))
     runs = [r for r in (_safe_id(x) for x in (data.get("runs") or [])) if r]

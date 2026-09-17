@@ -12561,3 +12561,136 @@ refused, which here means the folder is left exactly as it was found.
   they do not match the chart chain and `cal/` is a different destination with
   its own rules. None of the tester's three projects has any, so this is
   untested against a real example and is left rather than guessed at.
+
+---
+
+### B8-294 · FIXED · The pre-runs mover picked up the project's own manifest, and its traversal guard did not know about drive letters
+
+- blocks release: no
+- status: FIXED
+- combined round 5 over the merged beta 20 tree, pointed at the migration
+  stream because it is the only work in this release that MOVES a user's own
+  measurements. Two rules in `migrate_flat_project` / `flat_legacy_chain` were
+  a shade too loose. Both are defects of this release: neither function existed
+  before it.
+- **`project.json` IS NOT A CHART FILE.** The chain is matched on the project
+  FOLDER's name, so a project a person names `project` makes its own manifest
+  spell `project(_NN)?.<ext>` exactly. Measured on disk: `flat_legacy_chain`
+  returned `['project.json']`, and opening such a project moved the manifest
+  into `runs/run1`. `save_manifest` wrote it back at the root a moment later,
+  so nothing was lost; what was left was a stray copy of the manifest inside
+  the run folder and, from the next open onward, a warning on **every single
+  load** saying the run "already holds 1 chart file(s) of its own" and refusing
+  to do anything.
+- the whole collision surface is exactly two names and both are now excluded:
+  `project.json` and `Where are my files.txt`. `_migrate_v1_to_v2` already
+  protects that same pair from being swept into `cache/` from INSIDE a run; the
+  same list now stops them being picked UP from the project folder. `Project`
+  and `PROJECT` never collided, because the match is case sensitive and the
+  manifest is written lowercase.
+- **`:` IS A PATH SEPARATOR ON WINDOWS, and the guard round 3 added did not say
+  so.** It listed `/`, `\` and NUL. `Path(root) / "runs" / "D:"` is `D:`,
+  another drive, outside the project altogether, and `"C:"` collapses to the
+  `runs` folder rather than a run inside it, so the files land one level above
+  where the app looks and the project reads as empty. Measured here: `"C:"` was
+  accepted and moved all seven files.
+- that is the same threat model round 3 wrote the guard for (`current_run` is
+  unsanitised on the load path and a project travels as a zip), on the platform
+  ChromIQ also ships to. The reader and the mover now share one rule,
+  `is_a_plain_folder_name`, instead of keeping a copy each of which only one
+  was strict enough; leading and trailing blanks are refused too, because a run
+  folder is named by ChromIQ and never by a person.
+- evidence: `test_a_project_named_project_keeps_its_manifest_at_the_root`,
+  `test_a_project_named_project_does_not_warn_on_every_open`,
+  `test_the_readme_is_not_a_run_file_either`,
+  `test_a_real_chart_chain_is_still_moved_whole`,
+  `test_a_run_id_that_is_not_a_plain_folder_name_moves_nothing` (17 ids),
+  `test_a_drive_letter_cannot_name_a_child_folder`,
+  `test_the_reader_and_the_mover_share_one_rule`,
+  `test_a_manifest_naming_a_drive_leaves_the_project_where_it_is`.
+- four mutations, each proved to land by reading the file back, each turning
+  its own guard red, each reverted and the revert verified against a copy of
+  the good file. The first attempt at the drive-letter mutation did NOT land
+  (shell escaping ate the backslashes) and was redone in Python only rather
+  than counted.
+
+### B8-295 · The migration attacked as data and on screen, and a project cannot be left half moved · nothing further found
+
+- blocks release: no
+- status: VERIFIED
+- evidence: `QT_QPA_PLATFORM=offscreen pytest -n auto` came back
+  **16123 passed**, 321 skipped, 4 xfailed, exit 0, twice. The round's own
+  drivers are
+  `python ~/Desktop/ChromIQ-beta20-proof/combined-round-5/scripts/attack_migration.py`
+  (15 folder states, 15 of 15 behaved) and
+  `python ~/Desktop/ChromIQ-beta20-proof/combined-round-5/scripts/drive_round5.py`
+  (4 of 4 projects converted whole in a real window, 4 photographs captured,
+  0 refused).
+- the promise under test is `migrate_flat_project`'s own: **it moves nothing,
+  or it finishes**. Every act listed the whole folder before and after and
+  compared the two, file by file, with sizes.
+- **the three reported projects plus a fourth**, unpacked fresh from the zips
+  into a sandboxed working folder and opened in a REAL window, photographed
+  with `capture_window`: a folder with no manifest and a legacy `reports/`; one
+  already stamped `schema_version: 2` by the broken version with every file
+  still loose; one with ten pages; and the bare four-file chain. All four came
+  out `schema_version: 3` with the chart, measurement and profile in
+  `runs/run1`, and the "this name is already a project" guard answered True for
+  all four both before and after.
+- **fifteen adversarial folder states**, built by hand: a destination holding
+  its own chart, a single colliding destination file, a read-only project
+  folder, an immutable file halfway through the plan, `runs` existing as a
+  file, a chain-shaped directory, a symlink in the chain, a run holding only
+  role-named work, and a project already stamped by the broken version. Every
+  refusal left the disk byte-for-byte identical; the immutable-file case rolled
+  all five completed moves back and returned 0.
+- **concurrency, 65 trials**: 40 with four staggered processes, then 25 with
+  five processes released together by a spin barrier over 604 files and three
+  different `current_run` values. **0 scattered, 0 lost.** The reason is worth
+  recording: the plan is `sorted()`, so every racer starts at the same file and
+  the atomicity of that first `os.replace` serialises them; the loser fails on
+  file one, has nothing to roll back and returns 0. ChromIQ is not
+  single-instance, so this is reachable, and it holds.
+- **the one way a folder CAN be left half moved is a kill, not a fault.**
+  Simulated by moving three of ten files and reopening: the run then holds a
+  chart of its own, the "already holds" guard fires, and the project stays half
+  moved for good, with the remaining files loose at the root. No test can be
+  written against SIGKILL and the rollback cannot cover it; it is recorded
+  because the recovery is refused by a guard that is otherwise right, and
+  because the window is the microseconds of a metadata-only `os.replace` loop.
+  Not swept: making it recoverable means teaching the guard to tell its own
+  half-finished work from a second job, which is a design question.
+- **`peek_project`'s cost on a keystroke**, the thing round 2 made lazy:
+  0.093 ms and **one** `is_file()` on a healthy project whose run holds work,
+  0.114 ms and three when the run is empty, 13.3 ms and 2003 on a project root
+  carrying 2000 loose files. The laziness works. The comment justifying it does
+  not: it says the function is "asked ON EVERY KEYSTROKE while somebody types a
+  project name", and driving the real window shows **ten characters typed into
+  the name box call `peek_project` zero times** (the box uses
+  `_name_is_a_project_on_disk`, one `is_file()`). The code is right and the
+  reason written next to it is wrong. Left as a note.
+- **observation, not a regression**: a pre-redesign project's legacy `reports/`
+  folder at the project root stays there while the run's reports live in
+  `runs/run1/reports/`, so an old measurement report is not listed after the
+  conversion. It was not listed before it either, because the run did not
+  exist, so nothing a user could see has changed. Same for
+  `<stem>_sanity_check.txt` and `Argyll_*.log`, which are not part of the
+  chain.
+
+### B8-296 · The rest of beta 20, re-checked briefly after rounds 1 to 4 · nothing found
+
+- blocks release: no
+- status: VERIFIED
+- evidence: `QT_QPA_PLATFORM=offscreen pytest -n auto` came back
+  **16123 passed**, 321 skipped, 4 xfailed, exit 0, twice.
+  `python scripts/em_dash_check.py --report` reports 5847 English strings, 1168
+  carrying an em dash, 1161 grandfathered, **0 not grandfathered** and 0 stale
+  baseline entries. `python scripts/i18n_extract.py --missing de` reports 0
+  missing of 5566. The change in this round adds no user-facing text at all,
+  only log lines.
+- both surfaces that print a cube corner were read again. The detailed per-run
+  table marks a missing corner "(missing)", shows the ideal colour under
+  Expected and a dash for Measured and for the delta E00, and drops the patch
+  number; the one-page colour summary filters a missing corner out entirely,
+  which is **pre-existing** and not part of the round-4 change, whose hunks are
+  at lines 56, 6848 and 7728 and none of them is that filter.
