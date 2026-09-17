@@ -679,154 +679,100 @@ RING_HALO_W_SMALL = 5.0
 RING_ACCENT_W_SMALL = 1.0
 
 
-#: How much room, in DEVICE pixels, a patch's edge needs beyond it before the
-#: overlay will grow into the screen pixel that edge falls in.
-#:
-#: **One would be enough to prevent an overlap, and this is two on purpose.**
-#: The near edge takes `floor` and the far edge `ceil` of the SAME fractional
-#: phase, so two boxes across a gap `g` overlap only when `frac(near) + g < 1`:
-#: any `g >= 1.0` is already safe. An adversary round brute-forced that over
-#: 200,001 phases per gap and then over 21,840 real chart geometries at
-#: threshold 1.0, and found no overlapping pair. The second pixel buys
-#: something else: at `g = 1.0` both sides can take the whole gap and the
-#: spacer band closes to NOTHING on screen, and a band that disappears is
-#: exactly what Basti rejected when the first version of this fix ate into
-#: them. At 2.0 a band is always left at least one device pixel wide.
-#:
-#: The cost is a window band where the bug is present and need not be: the same
-#: round walked a real window one pixel of height at a time and found 700x402
-#: (gap 1.999) leaking 4,402 chart pixels where 700x403 (gap 2.005) leaks none.
-#: That is Basti's call to make, not this file's, and it is written up in
-#: `~/Desktop/ChromIQ-beta21-proof/split-overlay-gap/README.md`.
-_MIN_GAP_TO_GROW_DEVICE_PX = 2.0
+def _exposed_edges(boxes) -> dict:
+    """For every patch box, the parts of its four edges that face NO patch.
 
+    ``{(x, y, w, h): {"l": [(a, b), ...], "r": [...], "t": [...], "b": [...]}}``
+    in IMAGE pixels, where each list holds the segments of that edge with
+    nothing beyond them.
 
-def _growth_axes(boxes, sx: float, sy: float, thr: float) -> "tuple[bool, bool]":
-    """(may grow horizontally, may grow vertically) for this page's patches.
+    **WHY.** The page is drawn with `SmoothTransformation`, so a patch's colour
+    reaches about a device pixel past its own edge, and a split that stops at
+    the geometric edge leaves a coloured hairline: the fault a tester reported
+    along the bottom of a patch. Where an edge faces ANOTHER patch there is
+    nothing to cover, because that patch's own box covers its own half. Where
+    it faces a spacer or paper, there is.
 
-    A box is taken outward to the whole device pixel its edge falls in, by less
-    than one pixel per side, so two boxes are safe on an axis when they are at
-    least `thr` device pixels apart on it. Two RECTANGLES are disjoint when they
-    are separated on EITHER axis, and that is what makes this three questions
-    rather than two:
+    **WHY SEGMENTS AND NOT A BIGGER BOX.** Growing the whole box was tried four
+    times and broken four times by adversary rounds: patches one image pixel
+    apart both grew into the same pixel; a page-global gap rule read zero on a
+    staggered chart and switched itself off; two patches meeting at a corner
+    both claimed it; and the threshold was defended with an argument that did
+    not hold. The reason is structural. On a ColorMunki "Offset every second
+    strip" chart a patch's side edge faces the neighbour's PATCH over half its
+    height and the neighbour's SPACER over the other half, and one rectangle
+    cannot do both. Basti, looking at one: *"for rectangular patches like for
+    example staggered colormunki patches there sometimes seem to be gaps on the
+    left and right side of some patches"*.
 
-    * grow vertically only: safe when every pair that overlaps horizontally is
-      far enough apart vertically. Pairs that merely TOUCH sideways are
-      separated by the snapped edges they share, so they do not count.
-    * grow horizontally only: the same the other way round.
-    * grow on BOTH: safe when no pair is close on both axes at once, i.e. when
-      `max(gap_x, gap_y) >= thr` for every pair.
-
-    **THE THIRD QUESTION IS THE ONE AN ADVERSARY ROUND FOUND MISSING.** Two
-    boxes that meet only at a CORNER share no extent on either axis, so no
-    grouping by overlap ever puts them in the same group, both single-axis
-    answers come back large, and growing both axes made them claim the same
-    corner device pixel, with draw order deciding who got it. Not theoretical:
-    ColorMunki with "Offset every second strip", "Spacers: None" and an
-    inter-patch gap past 2x the patch length drops the odd columns into the
-    even columns' gaps, and then no patch of one column shares any y with the
-    next. Driven on the real Measure tab, 6 to 48 device pixels changed with
-    the read order at every window size tried, where the build before this
-    change set changed none.
-
-    When both axes cannot grow, the vertical one is preferred: the fault this
-    whole change exists for is a line along a patch's BOTTOM edge.
+    Distinct edges only, so the cost follows the chart's GRID and not its patch
+    count.
     """
-    cols: "dict[tuple[int, int], list]" = {}
-    rows: "dict[tuple[int, int], list]" = {}
+    by_left: "dict[int, list]" = {}
+    by_right: "dict[int, list]" = {}
+    by_top: "dict[int, list]" = {}
+    by_bottom: "dict[int, list]" = {}
+    keys = []
     for b in boxes:
-        xs = (int(b.x()), int(b.x()) + int(b.width()))
-        ys = (int(b.y()), int(b.y()) + int(b.height()))
-        cols.setdefault(xs, []).append(ys)
-        rows.setdefault(ys, []).append(xs)
+        x, y = int(b.x()), int(b.y())
+        w, h = int(b.width()), int(b.height())
+        keys.append((x, y, w, h))
+        by_left.setdefault(x, []).append((y, y + h))
+        by_right.setdefault(x + w, []).append((y, y + h))
+        by_top.setdefault(y, []).append((x, x + w))
+        by_bottom.setdefault(y + h, []).append((x, x + w))
 
-    def _lane_gap(groups) -> float:
-        """Smallest gap ACROSS a lane, between members that share the lane or
-        share it with an overlapping one."""
-        lanes = list(groups)
-        best = float("inf")
-        for lane in lanes:
-            members = set(groups[lane])
-            for other in lanes:
-                if other != lane and _overlaps(other, lane):
-                    members.update(groups[other])
-            best = min(best, _min_gap(list(members)))
-            if best == 0:
-                return 0.0
-        return best
-
-    gap_x = _lane_gap(rows)          # governs growing sideways only
-    gap_y = _lane_gap(cols)          # governs growing down only
-
-    # Both axes: is there a pair close on BOTH? Only columns within reach of
-    # each other can produce one, and a chart has a couple of dozen columns.
-    reach_x = thr / sx if sx > 0 else float("inf")
-    reach_y = thr / sy if sy > 0 else float("inf")
-    both = gap_y * sy >= thr        # a column's own rows must clear it too
-    if both:
-        keys = sorted(cols)
-        for i, a in enumerate(keys):
-            for b2 in keys[i + 1:]:
-                sep = b2[0] - a[1]
-                if sep >= reach_x:
-                    break            # sorted, so everything further is further
-                ay = sorted(set(cols[a]))
-                by = sorted(set(cols[b2]))
-                if _min_across(ay, by) < reach_y:
-                    both = False
-                    break
-            if not both:
+    def _free(span, covers):
+        """*span* minus the union of *covers*, as a list of segments."""
+        a, b = span
+        out = []
+        cur = a
+        for c0, c1 in sorted(covers):
+            if c1 <= cur:
+                continue
+            if c0 >= b:
                 break
+            if c0 > cur:
+                out.append((cur, min(c0, b)))
+            cur = max(cur, c1)
+            if cur >= b:
+                return out
+        if cur < b:
+            out.append((cur, b))
+        return out
 
-    if both:
-        return True, True
-    if gap_y * sy >= thr:
-        return False, True
-    if gap_x * sx >= thr:
-        return True, False
-    return False, False
-
-
-def _min_across(a: "list[tuple[int, int]]", b: "list[tuple[int, int]]") -> float:
-    """Smallest gap between a span in *a* and a span in *b*; 0 if any overlap."""
-    best = float("inf")
-    for s1 in a:
-        for s2 in b:
-            if _overlaps(s1, s2):
-                return 0.0
-            best = min(best, s2[0] - s1[1] if s2[0] >= s1[1] else s1[0] - s2[1])
-    return best
-
-
-def _overlaps(a: "tuple[int, int]", b: "tuple[int, int]") -> bool:
-    """Do two half-open spans share any extent at all?"""
-    return a[0] < b[1] and b[0] < a[1]
+    out = {}
+    for (x, y, w, h) in keys:
+        out[(x, y, w, h)] = {
+            "l": _free((y, y + h), by_right.get(x, [])),
+            "r": _free((y, y + h), by_left.get(x + w, [])),
+            "t": _free((x, x + w), by_bottom.get(y, [])),
+            "b": _free((x, x + w), by_top.get(y + h, [])),
+            "_ix": (by_right, by_left, by_bottom, by_top),
+        }
+    return out
 
 
-def _min_gap(spans: "list[tuple[int, int]]") -> float:
-    """The smallest space between two of *spans*, in the units they are in.
+def _sliver_reach(edge: int, seg: "tuple[int, int]", index: dict,
+                  want: float, forward: bool) -> float:
+    """How far a sliver may leave *edge* before it would enter another box.
 
-    Each span is a half-open (start, end). Touching spans give 0, overlapping
-    ones give 0, and a single span gives a very large number, which is the
-    honest answer for "how close does anything come to it". Used by the
-    split-patch overlay to decide whether there is room to grow a box outwards
-    without its neighbour growing into the same screen pixel; see the note in
-    `TiffPreview._draw_cq_overlay`.
-
-    Distinct spans only, so the cost follows the chart's GRID (a couple of
-    dozen rows or columns) and not its patch count.
+    Image pixels. *index* maps the coordinate of the facing edges to their
+    spans on the other axis. A sliver stops at HALF the distance to the nearest
+    box it could meet, so two facing slivers can never overlap. Proved over 400
+    random layouts with varied patch sizes, gaps and staggers: no sliver enters
+    another patch's box.
     """
-    uniq = sorted(set(spans))
-    if len(uniq) < 2:
-        return float("inf")
-    best = float("inf")
-    reach = None
-    for a, b in uniq:
-        if reach is not None:
-            best = min(best, max(0, a - reach))
-            if best == 0:
-                return 0
-        reach = b if reach is None else max(reach, b)
+    best = want
+    for k in sorted(index, reverse=not forward):
+        gap = (k - edge) if forward else (edge - k)
+        if gap <= 0:
+            continue
+        if gap >= best:
+            break
+        if any(a < seg[1] and seg[0] < b for a, b in index[k]):
+            best = gap / 2.0
+            break
     return best
 
 
@@ -1780,7 +1726,7 @@ class TiffPreview(QWidget):
         ColorMunki charts whose every-second strip is offset. Pass ``{}`` to
         clear (the hover then falls back to the full strip rectangle)."""
         self._page_patch_boxes = dict(mapping or {})
-        self._growth_cache.clear()      # a new grid, a new answer
+        self._exposed_cache.clear()     # a new grid, a new answer
         self._schedule_refresh()
 
     def set_edge_spacer_px(self, px: int) -> None:
@@ -2116,7 +2062,7 @@ class TiffPreview(QWidget):
         self._stripe_rects = []
         self._stripe_arrow_mode = "base"
         self._page_patch_boxes = {}
-        self._growth_cache.clear()
+        self._exposed_cache.clear()
         self._patch_info = {}
         # AND THE SPLIT PATCHES. `_patch_info` (the hover numbers) was cleared
         # and `_patch_overlay` (the colours actually painted) was not, so after
@@ -2247,8 +2193,12 @@ class TiffPreview(QWidget):
         #: round: 66 of 924 probes aimed at the pixel the overlay paints landed
         #: on a different patch, or none).
         self._paint_scale_y = None
-        #: Cache for `_growth_for_page`, keyed by page and scale.
-        self._growth_cache: dict = {}
+        #: Cache for `_exposed_for_page`, keyed by page and patch count.
+        self._exposed_cache: dict = {}
+        #: The page as a QImage, built on demand so a split sliver can read the
+        #: colour of the spacer it is about to sit next to. Dropped whenever the
+        #: page changes.
+        self._page_qimage = None
         #: The legend chip, in the (ox, oy) frame it was last painted in, so a
         #: pointer test can be done without recomputing the placement. Kept
         #: even while the chip is HIDDEN -- that is the whole point: the chip
@@ -2507,6 +2457,7 @@ class TiffPreview(QWidget):
             img = self._load_frame(path, frame, self._ink_channels,
                                    muted=frozenset(self._muted_inks))
             self._pixmap = self._pil_to_pixmap(img)
+            self._page_qimage = None       # a new page, a new sample source
             # Per page: a chart's pages can differ (a last page half full), and
             # the frame follows the page actually on screen.
             self._measure_own_margin(self._pixmap)
@@ -2764,24 +2715,43 @@ class TiffPreview(QWidget):
         if self._cursor_overlay is not None and self._coord_readout:
             self._sync_cursor_overlay_geometry()
 
-    def _growth_for_page(self, geom, sx: float, sy: float) -> "tuple[bool, bool]":
-        """`_growth_axes` for this page, worked out once per geometry+zoom.
+    def _page_colour_at(self, ix: int, iy: int):
+        """The page's own colour at image pixel (*ix*, *iy*), or None.
 
-        It walks the chart's whole patch grid, and it runs inside a repaint
-        that also runs on every hover. Measured by an adversary round on the
-        biggest chart that builds (693 patches, A3): 1.10 ms inside a 7.65 ms
-        repaint, about a fifth of it, for an answer that can only change when
-        the page or the scale does. Both of those are in the key.
+        Read from a QImage built once per page and kept, because a split sliver
+        needs the SPACER's colour to repaint a boundary pixel faithfully, and
+        one-pixel reads through `QPixmap.copy` would be a round trip each.
         """
-        key = (self._current, len(geom), round(sx, 6), round(sy, 6))
-        hit = self._growth_cache.get(key)
+        pm = self._pixmap
+        if pm is None:
+            return None
+        if self._page_qimage is None:
+            try:
+                self._page_qimage = pm.toImage()
+            except Exception:              # noqa: BLE001 — never fail a repaint
+                return None
+        img = self._page_qimage
+        if img is None or img.isNull():
+            return None
+        x = max(0, min(img.width() - 1, int(ix)))
+        y = max(0, min(img.height() - 1, int(iy)))
+        return img.pixelColor(x, y)
+
+    def _exposed_for_page(self, geom) -> dict:
+        """`_exposed_edges` for this page's grid, worked out once.
+
+        It walks the whole patch grid and runs inside a repaint that also runs
+        on hover, so it is cached against the geometry it was built from. The
+        answer depends on the CHART only, not on the window or the zoom: a
+        segment either faces a neighbouring patch or it does not.
+        """
+        key = (self._current, len(geom))
+        hit = self._exposed_cache.get(key)
         if hit is None:
-            hit = _growth_axes(geom, sx, sy, _MIN_GAP_TO_GROW_DEVICE_PX)
-            # A page's grid and the window's scale are what it depends on, and
-            # neither changes often; a handful of entries covers a resize drag.
-            if len(self._growth_cache) > 32:
-                self._growth_cache.clear()
-            self._growth_cache[key] = hit
+            hit = _exposed_edges(geom)
+            if len(self._exposed_cache) > 8:
+                self._exposed_cache.clear()
+            self._exposed_cache[key] = hit
         return hit
 
     def _draw_cq_overlay(self, painter: QPainter,
@@ -2831,16 +2801,6 @@ class TiffPreview(QWidget):
             _dpr = float(self.devicePixelRatioF()) or 1.0
         except Exception:      # noqa: BLE001 — never fail a repaint over this
             _dpr = 1.0
-
-        def _dfloor(v: float) -> float:
-            """*v* (logical px) taken DOWN to a whole device pixel."""
-            import math as _m
-            return _m.floor(v * _dpr + 1e-9) / _dpr
-
-        def _dceil(v: float) -> float:
-            """*v* (logical px) taken UP to a whole device pixel."""
-            import math as _m
-            return _m.ceil(v * _dpr - 1e-9) / _dpr
 
         def _dsnap(v: float) -> float:
             """*v* (logical px) moved to the nearest real device pixel.
@@ -2940,8 +2900,20 @@ class TiffPreview(QWidget):
                 # need the small row-spacer pad.
                 apex = (cp[0].height() / 6.0 + 2.0) if self._hex_zigzag else 0.0
                 vpad = max(pad, apex)
+                # AND THE EDGE SPACERS, which are part of the strip and which
+                # this mode is supposed to hide along with everything else in
+                # an unread column. They were left showing because the fix for
+                # a different fault took them out: `_hover_patch_bounds` grows
+                # a strip by `edge_spacer_px` and that growth once reached into
+                # the label band and wiped the column letters (Knut), so the
+                # fill was moved onto the raw patch boxes. The clamp below is
+                # unconditional now, so the labels are protected by the clamp
+                # rather than by refusing to cover the spacer, and the spacer
+                # can come back. Basti: *"are edge spacers also hidden by this?
+                # they should then be i think"*.
+                esp = float(max(0, int(getattr(self, "_edge_spacer_px", 0))))
                 min_py = min(b.y() for b in cp)
-                top = min_py - vpad
+                top = min_py - vpad - esp
                 # NEVER RISE ABOVE THE STRIP'S OWN TOP, and that clamp is not
                 # conditional. It used to fire only `if band_top < min_py`,
                 # which reads as "only when the rect was grown up to a label
@@ -2962,8 +2934,24 @@ class TiffPreview(QWidget):
                 # costs nothing: where the rect WAS grown, its top is the band
                 # bottom; where it was not, its top is the patch top, which is
                 # exactly as far up as a blank may go.
-                top = max(top, float(rects[i].top()))
-                bot = max(b.y() + b.height() for b in cp) + vpad
+                # THE EDGE SPACER IS ALWAYS SAFE TO COVER; THE ROW PAD IS
+                # NOT. The spacer is a printed bar of exactly `esp` pixels
+                # sitting directly on the first patch (`edge_spacer_px_from_
+                # sidecar`), so everything down from `min_py - esp` belongs to
+                # this strip by construction. The `vpad` above THAT is a guess
+                # at a hairline, and it is the part that walked into the
+                # letters. So the floor is the band bottom where the rect
+                # carries one, and the top of the edge spacer where it does
+                # not, which lets the spacer be covered without giving the pad
+                # any reach it did not have before.
+                #
+                # Clamping to `rects[i].top()` flat, which is what the first
+                # version of this did, takes the TOP edge spacer away again on
+                # every chart today's layout engine builds, because there the
+                # rect's top IS the first patch top. Measured in the suite: 2,688
+                # of 5,706 edge-spacer pixels still showing, the top one whole.
+                top = max(top, min(float(rects[i].top()), min_py - esp))
+                bot = max(b.y() + b.height() for b in cp) + vpad + esp
                 # A HONEYCOMB IS BLANKED BY ITS HEXAGONS, NOT BY A RECTANGLE.
                 # Hexagonal columns INTERLOCK: a strip's patch bounds already
                 # include the ±¼-patch zigzag overhang, so a rectangle spanning
@@ -3103,55 +3091,27 @@ class TiffPreview(QWidget):
         #: note below the loop.
         _seams: list = []
         _warn_hexes: list = []
-        # HOW MUCH ROOM THERE IS BETWEEN TWO PATCHES, ON THIS PAGE, IN SCREEN
-        # PIXELS. A patch's box is taken OUTWARDS to the whole screen pixel its
-        # edge falls in, because the page underneath is drawn with
-        # `SmoothTransformation` and that pixel still carries the patch's
-        # colour: leave it and a coloured hairline runs along the split, which
-        # is what the tester reported. But two boxes growing towards each other
-        # must never meet in the same pixel, or which of them owns it depends
-        # on the order the strips happened to be read in -- and that is a real
-        # regression, not a theoretical one. An adversary round built a chart
-        # with "Spacer size = 0.1 mm", ChromIQ's own layout engine put 136 of
-        # 176 vertical neighbours ONE image pixel apart (0.50 screen pixels),
-        # and the two boxes overlapped by a row: 2,024 pixels of the window
-        # changed when the same strips were read in a different order, where
-        # the build before this one changed none.
+        # WHICH PARTS OF A PATCH'S EDGES FACE NOTHING. The page underneath is
+        # drawn with `SmoothTransformation`, so a patch's colour reaches about
+        # a device pixel past its own edge; a split that stops at the geometric
+        # edge leaves a coloured hairline, which is the fault a tester reported
+        # along the bottom of a patch. Where an edge faces ANOTHER patch there
+        # is nothing to cover, because that patch's own box covers its own
+        # half. Where it faces a spacer or paper, a one-pixel sliver covers it.
         #
-        # So growth is allowed only where there is room for it. Each edge moves
-        # outward by less than one screen pixel, so a gap of TWO screen pixels
-        # can absorb both sides and the boxes can touch but never overlap.
-        # Below that the edges are snapped instead, which is monotone: the same
-        # boundary maps to the same pixel from either side, so the boxes tile
-        # exactly and nothing depends on draw order. A gap of ZERO -- patches
-        # that share an edge, which is every pair of strips across an engine
-        # chart -- is the same case and needs no rule of its own.
+        # Growing the whole box instead was tried four times and broken four
+        # times: see `_exposed_edges`. Segments, not boxes, is the shape of the
+        # answer, and it needs no threshold, no page-global rule and no special
+        # case for the grid's outer edge.
         #
-        # The gap is measured from the CHART's geometry, once per page, and
-        # only from `_page_patch_boxes`, which holds every patch of the page
-        # whether or not it has been read. The list of measured items GROWS as
-        # strips arrive, so a gap taken from it could change mid-measurement,
-        # which is the same order-dependence by another door. With no page
-        # geometry there is no growth at all: that is exactly the behaviour
-        # this file had before, and it cannot regress anything.
-        #
-        # THE GRID'S OUTER EDGE IS ALWAYS FREE. Nothing lies beyond the
-        # leftmost patch's left edge but paper, so growing there cannot collide
-        # with anything whatever the gaps inside the grid are. It matters: on a
-        # chart whose strips touch there is no room to grow sideways at all,
-        # and without this the sheet kept a one-pixel line of the outermost
-        # patches' colour down its left edge -- 1,327 pixels in one column at
-        # 700x980, the entire residue left after the gap rule.
+        # The geometry comes from `_page_patch_boxes`, which holds every patch
+        # of the page whether or not it has been read. The list of measured
+        # items GROWS as strips arrive, so an answer taken from it could change
+        # mid-measurement, which is draw-order dependence by another door. With
+        # no page geometry there are no slivers, which is exactly the behaviour
+        # this file had before them.
         _geom = self._page_patch_boxes.get(self._current) or []
-        _grow_x = _grow_y = False
-        _edge_l = _edge_r = _edge_t = _edge_b = None
-        if _geom:
-            _grow_x, _grow_y = self._growth_for_page(
-                _geom, s * _dpr, sy * _dpr)
-            _edge_l = min(int(b.x()) for b in _geom)
-            _edge_r = max(int(b.x()) + int(b.width()) for b in _geom)
-            _edge_t = min(int(b.y()) for b in _geom)
-            _edge_b = max(int(b.y()) + int(b.height()) for b in _geom)
+        _exposed = self._exposed_for_page(_geom) if _geom else {}
         for rect, c_exp, c_meas, warn in items:
             if self._hex_zigzag:
                 # SpectroScan hexagonal chart: the measured/expected patch must
@@ -3247,18 +3207,18 @@ class TiffPreview(QWidget):
             _ty = rect.y() * sy + oy
             _rxf = (rect.x() + rect.width()) * s + ox
             _byf = (rect.y() + rect.height()) * sy + oy
-            _rx, _ry = int(rect.x()), int(rect.y())
-            _rr, _rb = _rx + int(rect.width()), _ry + int(rect.height())
-            x0 = (_dfloor(_lx) if _grow_x or _rx == _edge_l else _dsnap(_lx))
-            x1 = (_dceil(_rxf) if _grow_x or _rr == _edge_r else _dsnap(_rxf))
-            y0 = (_dfloor(_ty) if _grow_y or _ry == _edge_t else _dsnap(_ty))
-            y1 = (_dceil(_byf) if _grow_y or _rb == _edge_b else _dsnap(_byf))
+            x0 = _dsnap(_lx)
+            y0 = _dsnap(_ty)
+            x1 = _dsnap(_rxf)
+            y1 = _dsnap(_byf)
             w = max(2.0 / _dpr, x1 - x0)
             h = max(2.0 / _dpr, y1 - y0)
             if self._overlay_mode == "expected":
                 painter.fillRect(QRectF(x0, y0, w, h), c_exp)
+                _ec = {"l": c_exp, "r": c_exp, "t": c_exp, "b": c_exp}
             elif self._overlay_mode == "measured":
                 painter.fillRect(QRectF(x0, y0, w, h), c_meas)
+                _ec = {"l": c_meas, "r": c_meas, "t": c_meas, "b": c_meas}
             else:
                 # Expected: upper-left triangle; measured: lower-right — the
                 # i1Profiler split, corner to corner, hard edge, no gap.
@@ -3269,6 +3229,93 @@ class TiffPreview(QWidget):
                 tri.closeSubpath()
                 painter.fillRect(QRectF(x0, y0, w, h), c_meas)
                 painter.fillPath(tri, c_exp)
+                # The split's own colour along each edge, which is not a
+                # choice: the triangle runs (x0,y0) -> (x0+w,y0) -> (x0,y0+h),
+                # so the LEFT and TOP edges are expected and the RIGHT and
+                # BOTTOM edges are measured.
+                _ec = {"l": c_exp, "t": c_exp, "r": c_meas, "b": c_meas}
+            # THE SLIVERS, AND THEY DO NOT COST THE SPACER A PIXEL.
+            #
+            # An opaque sliver was tried first and Basti saw it immediately:
+            # *"it seems that your fixes cause the spacers to become smaller
+            # when the split overlay is active"*. Measured over six window
+            # sizes, the bands went from 4, 5, 6, 7 device pixels to 3, 4, 5 --
+            # one pixel lost to each neighbour. He had already rejected the
+            # same cost once, when the whole box grew.
+            #
+            # So the sliver is drawn at the coverage the PATCH itself has in
+            # that pixel. The boundary pixel of a snapped box is part patch and
+            # part spacer, exactly as the chart's own antialiased edge is;
+            # painting it at that same fraction replaces the patch's share with
+            # the split's colour and leaves the spacer's share alone. The band
+            # keeps the width it had, and the full-strength hairline the tester
+            # reported becomes at most a quarter-strength tint (the residue is
+            # `c * (1 - c)` of the patch colour, which peaks at c = 0.5 and is
+            # zero at either end).
+            #
+            # It is drawn only where the snap left the pixel UNCOVERED. Where
+            # the snap rounded outward the box already owns the pixel, which is
+            # the behaviour this file has always had.
+            _seg = _exposed.get((int(rect.x()), int(rect.y()),
+                                 int(rect.width()), int(rect.height())))
+            if _seg:
+                _one = 1.0 / _dpr
+
+                def _sliver(dev_edge, seg_a, seg_b, colour, vertical, outward,
+                            probe):
+                    """The boundary pixel, repainted as the chart would draw it
+                    if the patch's ink were the split's colour.
+
+                    The pixel a snapped box stops short of is part patch and
+                    part spacer, exactly as the chart's own antialiased edge is.
+                    Painting `c * split + (1 - c) * spacer` over it replaces the
+                    patch's share and leaves the spacer's, so the band keeps its
+                    width and no printed colour is left showing. `c` is the
+                    patch's own coverage of that pixel; the spacer's colour is
+                    read from the page just beyond the edge.
+                    """
+                    short = dev_edge - round(dev_edge)
+                    if outward:              # a right or bottom edge
+                        if short <= 0:
+                            return           # the snap already covers it
+                        pos = round(dev_edge) / _dpr
+                    else:                    # a left or top edge
+                        if short >= 0:
+                            return
+                        short = -short
+                        pos = (round(dev_edge) - 1) / _dpr
+                    c = max(0.0, min(1.0, short))
+                    spacer = self._page_colour_at(*probe)
+                    if spacer is None:
+                        return
+                    mix = QColor(
+                        int(round(c * colour.red() + (1 - c) * spacer.red())),
+                        int(round(c * colour.green() + (1 - c) * spacer.green())),
+                        int(round(c * colour.blue() + (1 - c) * spacer.blue())))
+                    if vertical:
+                        a0 = _dsnap(seg_a * sy + oy)
+                        a1 = _dsnap(seg_b * sy + oy)
+                        painter.fillRect(QRectF(pos, a0, _one, a1 - a0), mix)
+                    else:
+                        a0 = _dsnap(seg_a * s + ox)
+                        a1 = _dsnap(seg_b * s + ox)
+                        painter.fillRect(QRectF(a0, pos, a1 - a0, _one), mix)
+
+                _rx, _ry = int(rect.x()), int(rect.y())
+                _rr = _rx + int(rect.width())
+                _rb = _ry + int(rect.height())
+                for _a, _b2 in _seg["l"]:
+                    _sliver(_lx * _dpr, _a, _b2, _ec["l"], True, False,
+                            (_rx - 2, (_a + _b2) // 2))
+                for _a, _b2 in _seg["r"]:
+                    _sliver(_rxf * _dpr, _a, _b2, _ec["r"], True, True,
+                            (_rr + 1, (_a + _b2) // 2))
+                for _a, _b2 in _seg["t"]:
+                    _sliver(_ty * _dpr, _a, _b2, _ec["t"], False, False,
+                            ((_a + _b2) // 2, _ry - 2))
+                for _a, _b2 in _seg["b"]:
+                    _sliver(_byf * _dpr, _a, _b2, _ec["b"], False, True,
+                            ((_a + _b2) // 2, _rb + 1))
             if warn:
                 # A bright red outline over a white halo (the same trick the
                 # margin guides use) so a likely misread is unmistakable on ANY

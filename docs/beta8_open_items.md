@@ -12772,15 +12772,13 @@ drove them and the deadline came first. No source file changed in this round.
   has looked at the proof and says to merge it** (his instruction, 2026-09-17:
   *"this fix will not be part of a release until i have looked at the proof
   you leave for me and i tell you to implement it"*).
-- evidence: `test_the_same_patches_read_in_any_order_paint_the_same_pixels`,
-  `test_two_patches_meeting_at_a_CORNER_stop_both_axes_growing`,
-  `test_a_staggered_chart_still_knows_it_has_room_to_grow`,
-  `test_the_gap_is_measured_between_boxes_that_could_actually_meet`,
-  `test_no_chart_pixel_survives_under_the_split`,
+- evidence: `test_no_chart_pixel_survives_under_the_split`,
   `test_the_split_never_paints_over_the_spacers`,
   `test_every_box_is_the_size_of_the_patch_it_covers`,
+  `test_the_same_patches_read_in_any_order_paint_the_same_pixels`,
+  `test_a_honeycomb_reads_the_same_whatever_order_its_patches_arrive_in`,
   `test_both_paint_paths_hand_the_overlay_the_pages_own_vertical_scale`,
-  `test_a_patch_box_is_never_smaller_than_the_chart_patch` (all five live in
+  `test_a_patch_box_is_never_smaller_than_the_chart_patch` (all seven live in
   the split-overlay file added by this round)
 - proof: `~/Desktop/ChromIQ-beta21-proof/split-overlay-gap/`
 - found by: a tester's screenshot of the Measure tab, forwarded by Basti:
@@ -12817,14 +12815,11 @@ drove them and the deadline came first. No source file changed in this round.
 
 **The fix.** Both paint paths hand `_draw_cq_overlay` the page's own vertical
 scale, and so does the cursor-to-image mapping, which the first version left
-behind on the old grid. A box takes in the whole screen pixel its edge falls
-in, which is where the smooth scaling put the patch's colour, but only where
-there is room: the overlay measures the smallest gap the page's own geometry
-has in each direction and grows only when that gap is at least two screen
-pixels, because each edge moves by less than one. The grid's outermost edge
-always grows, since nothing lies beyond it but paper. Below that threshold both
-edges are snapped, which is monotone, so the boxes tile and draw order cannot
-matter.
+behind on the old grid. Each box is then snapped to the patch it covers and
+nothing more, and the boundary pixel the snap leaves uncovered is repainted at
+the patch's own coverage of it (see "the fourth version" below). Items are
+drawn in a canonical order, sorted by y then x, so a page cannot depend on the
+order its patches were read in.
 
 **THE FIRST VERSION OF THIS FIX WAS WRONG AND AN ADVERSARY ROUND PROVED IT.**
 It decided "is this edge shared" by matching integer coordinates exactly, so a
@@ -12883,8 +12878,8 @@ tab: **6 to 48 device pixels changed with the read order** at every window
 size tried, and at 28.2 mm **187 of 187 window sizes** scanned fire it, where
 the build before this change set fired none.
 
-`_growth_axes` asks the third question too: grow both axes only when no pair
-is close on BOTH, which is the condition for two rectangles to stay disjoint.
+`_growth_axes` asked the third question too: grow both axes only when no pair
+was close on BOTH, which is the condition for two rectangles to stay disjoint.
 When they cannot both grow, the vertical one wins, because a line along a
 patch's bottom edge is the fault this all started from. Re-driven on round 3's
 own two charts, four window sizes each, settled photographs: **0 differing
@@ -12899,19 +12894,29 @@ patches at the bottom of the sheet. Fixed, and `_strip_zigzag_path` now takes
 the vertical scale.
 
 And it measured the cost of the rule: **1.10 ms inside a 7.65 ms repaint** on
-a 693-patch A3 page, on every hover. `_growth_for_page` caches the answer
-against the page and the scale, which are the only things it depends on.
+a 693-patch A3 page, on every hover. `_growth_for_page` cached the answer
+against the page and the scale. The fourth version removed the cost entirely.
 
-Threshold: `_MIN_GAP_TO_GROW_DEVICE_PX` is 2.0 and the reason in the old
-comment was wrong. Round 2 showed the overlap condition is `frac + g < 1`, so
-anything at 1.0 or above is provably safe (brute-forced over 200,001 phases per
-gap and 21,840 real chart geometries). The second pixel buys something else: at
-1.0 both sides can take the whole gap and the band closes to nothing on screen,
-which is what Basti rejected. The cost is a window band where the fault is
-present and need not be: 700x402 (gap 1.999 device px) leaks 4,402 pixels where
-700x403 (gap 2.005) leaks none. **That is Basti's call**, written up in the
-proof folder's README. The test pins the provable floor (>= 1.0), not the
-shipped number.
+**THE FOURTH VERSION THREW THE GROWTH MACHINERY AWAY.** Every rule above
+decided whether a box could take a whole screen pixel it did not own, and each
+round found another layout where the answer was wrong. The requirement Basti
+wrote makes that question unnecessary: the box is snapped to the patch, full
+stop, and the one pixel the snap leaves uncovered is repainted at the coverage
+the PATCH has in it, not opaquely. That pixel is part patch and part spacer,
+exactly as the chart's own antialiased edge is; painting
+`c * split + (1 - c) * spacer` over it replaces the patch's share and leaves
+the spacer's. `c` comes from the edge's own fractional position and the spacer
+colour is read from the rendered page just past the edge, so nothing is
+assumed about what lies there.
+
+`_MIN_GAP_TO_GROW_DEVICE_PX`, `_growth_axes`, `_growth_for_page`, `_min_gap`,
+`_overlaps`, `_dfloor` and `_dceil` are gone with it, and so is the whole class
+of draw-order faults: no box ever writes outside its own snapped rectangle, so
+two boxes cannot contend for a pixel whatever order they arrive in. The sliver
+is drawn only on the SEGMENTS of an edge that face no patch (`_exposed_edges`),
+so an edge shared with a neighbour is never touched. The residue left on a
+boundary pixel is `c * (1 - c)` of the patch colour, which peaks at a quarter
+strength at c = 0.5 and is zero at either end.
 
 **What was tried and rejected.** Snapping the position and rounding the SIZE
 up gives every patch of a size exactly one size on screen, so every diagonal
@@ -12942,13 +12947,16 @@ and the residue after the gap rule is 0 pixels carrying half the patch's colour
 or more (a faint tint of 6,954 pixels remained along the grid's outer edge
 until the outermost edge was allowed to grow as well; 0 after that).
 
-**The spacer band pays one screen pixel for it, and that is stated rather than
-buried.** Over the same six sizes the bands measure 4, 5, 6 and 7 device pixels
-before and 3, 4, 5 and 6 after, the same spread shifted down by one, mean 5.93
-to 4.97. The adversary round measured the same thing independently on the real
-Measure tab (6.47 to 5.38 at 1200x980) and found that the SPREAD does not get
-worse, which is the half of Basti's objection to the rejected variant that
-mattered most.
+**AND THE SPACER BAND KEEPS ITS WIDTH.** The version before this one covered
+the boundary pixel opaquely, which cost each band one screen pixel on each
+side: over six window sizes the bands went from 4, 5, 6, 7 device pixels to
+3, 4, 5. Basti saw it in the photograph, for the second time in this entry:
+*"it seems that your fixes cause the spacers to become smaller when the split
+overlay is active"*, and then set the requirement in one sentence: *"the split
+overlay should only perfectly cover the patches and not the spacers but also
+leave no gaps"*. With the coverage-weighted sliver the same six sizes measure
+5, 6, 7 (mean 5.94) against 4, 5, 6, 7 (mean 5.93) before, which is the same
+band, not a narrower one.
 
 **Harness.** `scripts/drive_b21_split_overlay_gap.py` drives the real widget in
 a real window and photographs it; `scripts/analyse_b21_mono_leak.py` counts.
@@ -13151,3 +13159,57 @@ that survives all five.
   inside a method the guard never read. It is an AST walk now, over every
   `something * s` added to `oy`: 3 hits on the build that had them, 0 on this
   one.
+
+### B8-306 · FIXED · "Show only measured patches" blanked a honeycomb with a rectangle, wiped the strip labels, and left the edge spacers showing
+- blocks release: no
+- status: FIXED
+- held: **on branch `fix/split-overlay-gap` with B8-299**, out of every release
+  until Basti has looked at the proof and says to merge it.
+- evidence: `test_a_blanked_honeycomb_does_not_reach_into_a_read_neighbour`,
+  `test_the_blank_never_rises_into_the_strip_labels`,
+  `test_an_unread_column_hides_its_edge_spacers` (all three in the
+  show-only-measured file added by this round)
+- proof: `~/.claude/jobs/c4ec4e71/tmp/b21-som/`, photographed on screen
+- found by: an adversary round on the split-overlay work, then Basti on the
+  photographs, then a mutation run on the guards written for the fix.
+
+**All three faults were INHERITED.** None of them came from the split-overlay
+change set; the round found them because it was driving the same widget.
+
+1. **A honeycomb was blanked with a RECTANGLE spanning the unread strip's
+   patch bounds.** Hexagonal columns interlock, so that rectangle reaches into
+   the neighbouring column and paints white over a READ neighbour's lobes.
+   Measured on screen on a real SpectroScan honeycomb at 900x1000: with the
+   blanking off a read strip is drawn 68 to 90 device pixels wide down the
+   column; with it on the same strip was 20 to 43, and it read as a straight
+   band instead of a staggered honeycomb. Basti: *"the colorful patches go down
+   in a straight line although they are staggered"*. A honeycomb is now blanked
+   by filling its hexagons, grown by half the spacer ring so a blanked column
+   really is blank and a read neighbour keeps its own half.
+2. **The blank walked up into the strip labels.** Its clamp fired only
+   `if band_top < min_py`, and every chart today's layout engine builds records
+   the label band BELOW the first patch top, so the clamp was inert: 687 to
+   1,415 device pixels of label ink turned white on six of the layouts tried.
+   The clamp is unconditional now.
+3. **The edge spacers were left showing**, which Basti asked about directly:
+   *"are edge spacers also hidden by this? they should then be i think"*.
+
+**AND THE FIRST FIX FOR (3) ONLY WORKED ON THE BOTTOM ONE.** Clamping the
+blank's top flat to `rects[i].top()` takes the TOP edge spacer straight back
+off, because on every chart today's engine builds that rect's top IS the first
+patch top. Caught by a guard written for the fix, which measured **2,688 of
+5,706 edge-spacer pixels still showing**, the top band whole. The rule now
+separates the two things the old clamp confused: the edge spacer is a printed
+bar of exactly `esp` pixels sitting directly on the first patch, so everything
+from `min_py - esp` down belongs to the strip by construction and is always
+safe to cover; the `vpad` above THAT is a guess at a hairline and is the part
+that walked into the letters. The floor is the band bottom where the rect
+carries one and the top of the edge spacer where it does not.
+
+**AND THE FIRST GUARD FOR (1) WAS WORTHLESS, WHICH A MUTATION RUN PROVED.**
+Its fixture pitched the honeycomb's columns a patch plus a gap apart, so the
+columns did not interlock and no rectangle could ever reach a neighbour:
+forcing the rectangular branch back on left the test GREEN. Rebuilt with the
+three-quarter-patch pitch a honeycomb actually has, the same mutation fails it,
+**13,593 coloured pixels left of about 24,753**, which is the same 45 per cent
+loss the photographs showed.

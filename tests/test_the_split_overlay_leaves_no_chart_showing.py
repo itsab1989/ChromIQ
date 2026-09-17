@@ -245,10 +245,11 @@ def test_every_box_is_the_size_of_the_patch_it_covers(qapp, tmp_path, w, h):
         f"expected {ROWS} patch boxes down the first strip, saw "
         f"{len(tall)} runs of {[r[1] for r in tall]}")
     for start_y, length in tall:
-        assert want <= length < want + 2.0 + 1e-9, (
+        assert want - 1.0 <= length < want + 1.0 + 1e-9, (
             f"a box is {length} px tall where its patch is {want:.2f} px "
-            f"at {w}x{h}: it must cover the patch and reach no further than "
-            f"the two screen pixels the patch's own edges fall in")
+            f"at {w}x{h}: a snapped box is the patch's own size to within a "
+            f"screen pixel, and the boundary pixel beyond it is repainted at "
+            f"the patch's own coverage rather than filled")
 
 
 @pytest.mark.parametrize("stagger", [0, 1],
@@ -320,83 +321,6 @@ def test_the_same_patches_read_in_any_order_paint_the_same_pixels(
     assert not differ, (
         f"{len(differ)} pixels change with the order the patches are drawn "
         f"in, at {w}x{h} with a {gap_px} px gap; first ten {differ[:10]}")
-
-
-def test_a_staggered_chart_still_knows_it_has_room_to_grow():
-    """The gap is measured down each column, not over the whole page.
-
-    A ColorMunki "offset every second strip" chart shifts the odd columns by
-    half a patch. Column N's y-spans then overlap column N+1's, so a single
-    minimum over every box on the page reads 0 and the overlay concludes it
-    has no room anywhere, when in fact every column has its full band. An
-    adversary round measured the consequence on the real Measure tab: 8,686
-    chart-coloured pixels left showing at 1200x980 with the stagger on and 0
-    with it off, same chart, one checkbox apart.
-
-    And the horizontal answer must NOT improve the same way: the columns touch
-    across, their y-spans do overlap, so they share a row group and sideways
-    growth is correctly refused. Getting that half wrong would put one patch's
-    colour inside its neighbour's box.
-    """
-    from ui.tiff_preview import _growth_axes
-    plain = [QRect(100 + 63 * c, 100 + 86 * r, 63, 79)
-             for c in range(6) for r in range(8)]
-    stagger = [QRect(100 + 63 * c, 100 + 86 * r + (43 if c % 2 else 0), 63, 79)
-               for c in range(6) for r in range(8)]
-    sx = sy = 0.81                      # device pixels per image pixel
-    assert _growth_axes(plain, sx, sy, 2.0) == (False, True)
-    assert _growth_axes(stagger, sx, sy, 2.0) == (False, True), (
-        "a staggered chart must still know it has its full band down every "
-        "column, and must still refuse to grow sideways into the column it "
-        "touches")
-
-
-def test_the_gap_is_measured_between_boxes_that_could_actually_meet():
-    from ui.tiff_preview import _growth_axes
-    sx = sy = 0.81
-    # one lone patch has nothing to collide with, either way
-    assert _growth_axes([QRect(0, 0, 10, 10)], sx, sy, 2.0) == (True, True)
-    # a single column: no horizontal neighbour at all, 20 px down
-    col = [QRect(0, 100 * r, 10, 80) for r in range(4)]
-    assert _growth_axes(col, sx, sy, 2.0) == (True, True)
-    # room on both axes
-    grid = [QRect(100 + 70 * c, 100 + 90 * r, 63, 79)
-            for c in range(4) for r in range(5)]
-    assert _growth_axes(grid, sx, sy, 2.0) == (True, True)
-    # a ragged last row must not invent room that is not there
-    ragged = [QRect(100 + 63 * c, 100 + 86 * r, 63, 79)
-              for r in range(4) for c in range(4 if r < 3 else 2)]
-    assert _growth_axes(ragged, sx, sy, 2.0) == (False, True)
-    # patches a single image pixel apart: nothing may grow at this scale
-    tight = [QRect(100 + 63 * c, 100 + 80 * r, 63, 79)
-             for c in range(4) for r in range(5)]
-    assert _growth_axes(tight, sx, sy, 2.0) == (False, False)
-
-
-def test_two_patches_meeting_at_a_CORNER_stop_both_axes_growing():
-    """The hole an adversary round found in the first version of this rule.
-
-    Two boxes that meet only at a corner share no extent on either axis, so no
-    grouping by overlap ever pairs them, both single-axis answers come back
-    large, and growing both axes made them claim the same corner device pixel
-    with draw order deciding the winner. The layout is real: ColorMunki with
-    "Offset every second strip", "Spacers: None" and an inter-patch gap past
-    twice the patch length drops the odd columns into the even columns' gaps,
-    so no patch of one column shares any y with the next.
-    """
-    from ui.tiff_preview import _growth_axes
-    sx = sy = 0.81
-    corner = []
-    for c in range(4):
-        for r in range(4):
-            y = 299 + r * 339 + (112 if c % 2 else 0)
-            corner.append(QRect(47 + 221 * c, y, 221, 110))
-    grew = _growth_axes(corner, sx, sy, 2.0)
-    assert grew != (True, True), (
-        "both axes grew on a chart whose columns touch and whose rows "
-        "interleave, so two diagonal neighbours can claim the same corner "
-        "pixel and the draw order decides which")
-    assert grew == (False, True), grew
 
 
 @pytest.mark.parametrize("flat_top", [False, True],
@@ -513,24 +437,17 @@ def test_a_patch_box_is_never_smaller_than_the_chart_patch():
     src = inspect.getsource(TiffPreview._draw_cq_overlay)
     assert "rect.y() * sy + oy" in src, (
         "a patch's top edge must be mapped with the page's VERTICAL scale")
-    assert "_dfloor(_ty) if _grow_y" in src and "_dceil(_byf) if _grow_y" in src, (
-        "a patch edge with room beyond it must take in the whole screen pixel "
-        "the edge falls in, or the smoothly scaled chart shows along the split")
+    assert "_dfloor(" not in src and "_dceil(" not in src, (
+        "a box edge must be SNAPPED, never grown. Growing it was broken four "
+        "times by adversary rounds, the last way being two patches that meet "
+        "only at a corner")
     assert "_dsnap(_ty)" in src and "_dsnap(_byf)" in src, (
-        "with no room to grow into, an edge must be SNAPPED, which is monotone "
-        "and so cannot depend on the order the boxes are drawn in")
-    assert "_growth_for_page(" in src, (
-        "growth must be allowed only where two boxes growing towards each "
-        "other cannot land in the same screen pixel")
-    from ui.tiff_preview import _MIN_GAP_TO_GROW_DEVICE_PX as _T
-    # The FLOOR is what is provable: the near edge floors and the far edge
-    # ceils the same fractional phase, so two boxes across a gap g overlap
-    # only when frac + g < 1, and any g >= 1 is safe. The shipped value is
-    # higher on purpose (a band is then never left at zero pixels), which is
-    # a design call and may change; below 1.0 is a bug and may not.
-    assert _T >= 1.0, (
-        f"a threshold of {_T} device pixels lets two boxes grow into the same "
-        f"pixel, which makes the seam between them depend on draw order")
+        "both edges are snapped, which is monotone: the boxes tile and nothing "
+        "depends on the order they are drawn in")
+    assert "_exposed_for_page(" in src and "_sliver(" in src, (
+        "the page's own bleed past a patch edge is covered by repainting the "
+        "boundary pixel on the segments that face nothing, not by growing the "
+        "box, which was broken four times and cost the spacer a pixel")
     _no_y_maps_with_the_horizontal_scale(src)
     # and the property the snapping is there for
     for dpr in (1.0, 2.0):
