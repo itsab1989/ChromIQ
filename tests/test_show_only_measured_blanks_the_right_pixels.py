@@ -250,3 +250,81 @@ def test_an_unread_column_hides_its_edge_spacers(qapp, tmp_path, w, h):
     assert left == 0, (
         f"{left} pixels of the edge spacers are still showing in an unread "
         f"column at {w}x{h}, of {_count(off, _edge)}")
+
+
+def _ink_hex_page(tmp_path, boxes, flat_top, name):
+    """A honeycomb page drawn the way the ENGINE draws one.
+
+    The recorded box is the hexagon's CELL and the ink is not the same shape:
+    measured by flood-filling one hexagon on CR30 charts at three patch sizes,
+    the short axis is inset by 9 px at every size and the ink's own aspect is
+    4/3 (`HEX_HEIGHT_FACTOR`), so the ink reaches PAST the cell on its long
+    axis. A fixture that paints ink inside the boxes cannot see the fault this
+    file exists for; this one paints it where the engine does.
+    """
+    from PIL import ImageDraw
+    from workflow.hex_support import HEX_HEIGHT_FACTOR
+    from workflow.layout_engine import hexagon
+    path = tmp_path / name
+    im = Image.new("RGB", (PAGE_W, PAGE_H), (255, 255, 255))
+    dr = ImageDraw.Draw(im)
+    for b in boxes:
+        w = b.width() - 9
+        h = w * HEX_HEIGHT_FACTOR
+        if flat_top:
+            w, h = h, b.height() - 9
+        cx = b.x() + b.width() / 2.0
+        cy = b.y() + b.height() / 2.0
+        pts = hexagon.vertices(cx - w / 2.0, cy - h / 2.0, w, h,
+                               flat_top=flat_top)
+        dr.polygon([(float(x), float(y)) for x, y in pts], fill=PATCH)
+    im.save(path)
+    return path
+
+
+@pytest.mark.parametrize("flat_top", [False, True])
+def test_a_blanked_honeycomb_hides_the_ink_past_its_cells(qapp, tmp_path,
+                                                          flat_top):
+    """No printed ink may survive the blank, apexes included.
+
+    Round 8 measured **8,827 device pixels** of chart ink surviving inside the
+    unread columns of a full CR30 honeycomb page, against an all-white control
+    of 0, and 5,910 on its ragged second page. It is not about raggedness: it
+    is worse on a full page, and a rectangular ragged page is clean. Rounds 6
+    and 7 missed it because they tested only rectangular charts.
+
+    The blank covered the cell and the ink reaches past it, so the apexes
+    showed. Basti reported the symptom twice: *"when only show measured patches
+    is activated it seems the spacers still sometimes show a hairline"*.
+
+    MUTATION: fill the plain cell-sized hexagon again and this goes red.
+    """
+    boxes = _hex_boxes()
+    page = _ink_hex_page(tmp_path, boxes, flat_top, f"ink-hex-{flat_top}.tif")
+    from ui.tiff_preview import TiffPreview
+    p = TiffPreview()
+    try:
+        p.resize(820, 980)
+        p.load_tiff([page])
+        qapp.processEvents()
+        p.set_hex_zigzag(True, flat_top=flat_top)
+        p.set_page_patch_boxes({0: list(boxes)})
+        p.set_stripe_rects(_strip_rects(boxes))
+        # EVERY strip unread, so the whole page must go blank and any ink left
+        # is a leak, with no read column to argue about.
+        p.set_stripe_read_map({i: False for i in range(len(_col_x(boxes)) + 2)})
+        p.set_show_only_measured(True)
+        p.show()
+        qapp.processEvents()
+        p._update_display()
+        qapp.processEvents()
+        pm = p._img_label.pixmap()
+        img = pm.toImage() if pm is not None else None
+    finally:
+        p.close()
+    assert img is not None
+    left = _count(img, _coloured)
+    assert left == 0, (
+        f"{left} pixels of printed ink survived the blank on a "
+        f"{'flat-top' if flat_top else 'pointy'} honeycomb, so a column the "
+        f"user is told is hidden still shows the chart")

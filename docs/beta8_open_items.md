@@ -13686,10 +13686,14 @@ written for it in the suite passed its own mutation.
   pixel ratio 2, and the two axis scales differ, and my reconstruction had
   neither. The round's own harness reproduces it at 95 to 101 pixels.
 
-### B8-321 · OPEN · "Show only measured patches" leaves a honeycomb's outer ink showing
-- blocks release: yes
-- **HOLDS THE SPLIT-OVERLAY BRANCH.**
-- status: OPEN
+### B8-321 · FIXED · "Show only measured patches" left a honeycomb's outer ink showing
+- blocks release: no
+- status: FIXED
+- evidence: `test_a_blanked_honeycomb_hides_the_ink_past_its_cells`,
+  `test_a_blanked_honeycomb_does_not_reach_into_a_read_neighbour`
+- fix: the blank fills the hexagon at the INK's extent, not the cell's, and
+  then SUBTRACTS the ink hexagons of any READ patch close enough to touch it.
+  Both halves are needed and the second is what the first attempt got wrong.
 - found by: round 8. **Very likely the hairline Basti reported twice** (*"when
   only show measured patches is activated it seems the spacers still sometimes
   show a hairline"*), which earlier rounds could not find because they tested
@@ -13745,3 +13749,17 @@ written for it in the suite passed its own mutation.
   hexagons from the grown fill. That is a real piece of work and is deliberately
   not being rushed at the end of a long session; the measurements above are
   recorded so none of it has to be re-derived.
+
+- **the fix, and why it is two things rather than one.** Filling at the ink's
+  extent alone covers the apexes and eats the read neighbour, because a
+  honeycomb's hexagons interlock: the guard failed at 17,352 coloured pixels
+  left of about 24,753 the moment it was tried. Subtracting the read patches'
+  own ink hexagons keeps the apex cover where the neighbour is unread and
+  stops dead where it is read. Only the patches within one and a half patch
+  widths are subtracted, so the cost is a handful of paths per patch and never
+  the page.
+- the guard paints its page the way the ENGINE paints one, hexagons at the 4/3
+  aspect centred on the cells rather than ink inside the boxes. The fixture
+  this file had before could not have seen the fault at all, which is why two
+  earlier rounds did not: put the cell-sized fill back and the new guard fails
+  at 25 pixels while the old ones stay green.

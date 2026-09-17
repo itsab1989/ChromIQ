@@ -2901,6 +2901,20 @@ class TiffPreview(QWidget):
             # padded its outer edge by a whole row-gap, which on a ragged/partial
             # LAST page wiped the right-margin caption sitting just past the short
             # columns (Knut). Per-column bounds never leave the actual patch grid.
+            # THE PATCHES THAT MUST NOT BE COVERED, gathered once. A
+            # honeycomb's hexagons INTERLOCK, so the apex a blanked patch has
+            # to cover reaches into the area a READ neighbour's own ink
+            # occupies. The blank is therefore subtracted against these, and
+            # only these: see the hexagonal branch below (B8-321).
+            _read_boxes: list = []
+            if self._hex_zigzag:
+                for _j in range(n):
+                    if not read_map.get(_j, False):
+                        continue
+                    _read_boxes.extend(
+                        b for b in allb
+                        if rects[_j].left() <= b.x() + b.width() / 2
+                        <= rects[_j].right())
             for i in range(n):
                 if read_map.get(i, False):
                     continue
@@ -3006,16 +3020,61 @@ class TiffPreview(QWidget):
                             _ring = float(_g)
                             break
                     _d = _ring / 2.0
+
+                    def _ink_box(bb, _d=_d):
+                        """The box the printed hexagon's INK really occupies.
+
+                        The recorded box is the hexagon's CELL. Measured by
+                        flood-filling one hexagon's own ink on CR30 honeycombs
+                        at three patch sizes, both orientations:
+
+                            8 mm   box  63x63   ink  54x73
+                           12 mm   box  94x94   ink  85x115
+                           16 mm   box 126x126  ink 117x157
+
+                        The short axis is inset by 9 px at every size and the
+                        ink's aspect is 4/3, which is `HEX_HEIGHT_FACTOR`: the
+                        hexagon's own shape, not a fitted number. So the ink
+                        reaches PAST the cell on its long axis, and a
+                        cell-sized fill misses those apexes. That is chart the
+                        user was told is hidden: 8,827 device pixels of it
+                        surviving the blank on one honeycomb page (B8-321).
+                        """
+                        from workflow.hex_support import HEX_HEIGHT_FACTOR as _HF
+                        _w = bb.width() + 2 * _d
+                        _h = bb.height() + 2 * _d
+                        if self._hex_flat_top:
+                            _w = max(_w, _h * _HF)
+                        else:
+                            _h = max(_h, _w * _HF)
+                        _cx = bb.x() + bb.width() / 2.0
+                        _cy = bb.y() + bb.height() / 2.0
+                        return QRect(int(round(_cx - _w / 2.0)),
+                                     int(round(_cy - _h / 2.0)),
+                                     int(round(_w)), int(round(_h)))
+
                     for b in cp:
-                        _grown = (b if _d <= 0 else
-                                  QRect(int(round(b.x() - _d)),
-                                        int(round(b.y() - _d)),
-                                        int(round(b.width() + 2 * _d)),
-                                        int(round(b.height() + 2 * _d))))
-                        painter.fillPath(
-                            self._patch_hexagon(_grown, s, ox, oy,
-                                                self._hex_flat_top, sy),
-                            white)
+                        _path = self._patch_hexagon(
+                            _ink_box(b), s, ox, oy, self._hex_flat_top, sy)
+                        # MINUS ANY READ NEIGHBOUR, and that is not optional.
+                        # Reaching the apex without this ate the read column:
+                        # `test_a_blanked_honeycomb_does_not_reach_into_a_read_
+                        # neighbour` failed at 17,352 coloured pixels left of
+                        # about 24,753, which is the fault B8-306 exists for and
+                        # the one Basti rejected on sight (*"the colorful
+                        # patches go down in a straight line although they are
+                        # staggered"*). Only the patches that could actually
+                        # touch this one are subtracted, so the cost is at most
+                        # a handful of paths and never the whole page.
+                        _reach = max(b.width(), b.height()) * 1.5
+                        for _rb in _read_boxes:
+                            if (abs(_rb.x() - b.x()) > _reach
+                                    or abs(_rb.y() - b.y()) > _reach):
+                                continue
+                            _path = _path.subtracted(
+                                self._patch_hexagon(_ink_box(_rb), s, ox, oy,
+                                                    self._hex_flat_top, sy))
+                        painter.fillPath(_path, white)
                 else:
                     # Horizontally cover the column's own patches AND reach the
                     # gap midpoint to each neighbour so the inter-column gap is
