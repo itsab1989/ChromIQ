@@ -13685,3 +13685,34 @@ written for it in the suite passed its own mutation.
   and off. That was wrong twice over: the real target is a QPixmap at device
   pixel ratio 2, and the two axis scales differ, and my reconstruction had
   neither. The round's own harness reproduces it at 95 to 101 pixels.
+
+### B8-321 · OPEN · "Show only measured patches" leaves a honeycomb's outer ink showing
+- blocks release: yes
+- **HOLDS THE SPLIT-OVERLAY BRANCH.**
+- status: OPEN
+- found by: round 8. **Very likely the hairline Basti reported twice** (*"when
+  only show measured patches is activated it seems the spacers still sometimes
+  show a hairline"*), which earlier rounds could not find because they tested
+  only rectangular charts.
+- measured on screen, the real checkbox clicked, with the page rewritten so
+  every non-white pixel is magenta and an all-white twin as the control,
+  counted strictly inside the unread columns:
+
+  | page | unread strips | magenta | white control | net chart ink surviving |
+  |---|---|---|---|---|
+  | CR30 honeycomb, page 1 of 2, FULL | 7 | 8,827 | 0 | **8,827** |
+  | CR30 honeycomb, page 2 of 2, RAGGED | 3 | 6,034 | 124 | **5,910** |
+
+- **It is not about the ragged page**, it is worse on a full one, and a
+  RECTANGULAR ragged last page is clean (430-patch i1Pro 3+ with spacers and
+  edge spacers, page 4 of 4: within its control).
+- cause: the blank covers the VERTICAL apex overhang (`apex = cp[0].height() / 6
+  + 2`) but nothing sideways, and a honeycomb's outer boundary zig-zags by the
+  HORIZONTAL apex overhang, a quarter of the patch width pointy-top and a sixth
+  flat-top, which lies outside what the blank covers.
+- **inherited**, not from this change set. Rounds 6 and 7 missed it because
+  they tested i1Pro, i1Pro 3+ and ColorMunki charts, which are rectangular, and
+  only page 0.
+- related and already measured: `project_honeycomb_apex_overhang` records that
+  a flat-top honeycomb's ink is 1 + 1/(3N) wider than its grid, so the overhang
+  is a known quantity and need not be re-derived.
