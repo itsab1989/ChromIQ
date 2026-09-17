@@ -452,3 +452,64 @@ def test_a_read_column_does_not_let_its_unread_neighbours_leak(qapp, tmp_path,
     assert leak == 0, (
         f"{leak} pixels of an UNREAD patch's ink survived beside the read "
         f"columns on a {'flat-top' if flat_top else 'pointy'} honeycomb")
+
+
+@pytest.mark.parametrize("flat_top", [False, True])
+def test_the_blank_asks_for_each_hexagon_once_per_strip(qapp, tmp_path,
+                                                        flat_top, monkeypatch):
+    """B8-327, the cost, measured as SHAPE rather than as wall time.
+
+    The blank used to build a path for every unread patch and then subtract a
+    path for every read patch WITHIN REACH OF THAT PATCH, so the work was the
+    product of the two: on a 3,312-patch honeycomb the repaint went from 227 ms
+    to 698 ms and a resize from 1,036 to 1,512 ms (round 9, on screen). Doing
+    the subtraction once for the whole strip makes it the SUM instead, and
+    measured on the same chart and window the repaint came back to 282 ms.
+
+    A stopwatch in the suite would be flaky on a loaded gate; the number of
+    hexagons the blank asks for is the same fact and is exact.
+    """
+    from ui import tiff_preview as tp
+    boxes = _hex_boxes(flat_top)
+    read_ix = {i for i in range(len(boxes)) if (i // ROWS) % 2 == 0}
+    page = _ink_hex_page(tmp_path, boxes, flat_top,
+                         f"cost-{flat_top}.tif", ring=9, read=read_ix)
+    calls = {"n": 0}
+    real = tp.TiffPreview._patch_hexagon
+
+    def counting(*a, **k):
+        calls["n"] += 1
+        return real(*a, **k)
+
+    p = tp.TiffPreview()
+    try:
+        p.resize(820, 980)
+        p.load_tiff([page])
+        qapp.processEvents()
+        p.set_hex_zigzag(True, flat_top=flat_top)
+        p.set_hex_ring_px(9.0)
+        p.set_page_patch_boxes({0: list(boxes)})
+        p.set_stripe_rects(_hex_strip_rects(boxes))
+        p.set_stripe_read_map({i: (i % 2 == 0) for i in range(COLS)})
+        p.set_show_only_measured(True)
+        p.show()
+        qapp.processEvents()
+        p._update_display()
+        qapp.processEvents()
+        # COUNT ONE REPAINT, NOT THE SETUP. Showing the widget repaints it
+        # several times over, so counting across all of that measures Qt's
+        # scheduling rather than this code's shape.
+        monkeypatch.setattr(tp.TiffPreview, "_patch_hexagon",
+                            staticmethod(counting))
+        p._update_display()
+        qapp.processEvents()
+    finally:
+        p.close()
+    unread = len(boxes) - len(read_ix)
+    # One per unread patch, plus the read patches subtracted once per unread
+    # STRIP. The product form would be `unread * read_in_reach`, which is an
+    # order of magnitude more on this fixture and two on a real A3 honeycomb.
+    ceiling = unread + len(read_ix) * (COLS // 2 + 1)
+    assert calls["n"] <= ceiling, (
+        f"the blank asked for {calls['n']} hexagons; one pass per strip is at "
+        f"most {ceiling}, so it is doing the product again")

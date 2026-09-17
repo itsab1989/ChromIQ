@@ -13909,13 +13909,24 @@ written for it in the suite passed its own mutation.
   95 % bar, which is what makes the subtraction's mutation land)
 - fix proof: `~/Desktop/ChromIQ-beta21-proof/b8-326-the-saw-tooth-fix/`
 
-### B8-327 · OPEN · "Show only measured patches" makes a big honeycomb's repaint 3.1x slower
+### B8-327 · FIXED · "Show only measured patches" makes a big honeycomb's repaint 3.1x slower
 - blocks release: no
-- status: OPEN
+- status: FIXED
 - found by: round 9. A 3,312-patch honeycomb repaints in 227 ms with the option
   off and **698 ms** with it on; a resize goes 1,036 to 1,512 ms. A normal
   338-patch chart is unaffected (61 to 72 ms).
 - the per-patch path builds a `QPainterPath` per neighbour and subtracts it.
+- fixed with B8-326, and by the same change: the blank is one `QRegion` per
+  strip, with the read neighbours subtracted ONCE for the strip instead of once
+  for every patch in it. Re-measured on the same chart, the same window and the
+  same reads: **698.5 ms to 282.1 ms**, against 227.0 ms before B8-321 existed.
+  The 55 ms that remain are the read-neighbour subtraction itself, which is
+  what stops the blank eating a read column.
+- evidence: `test_the_blank_asks_for_each_hexagon_once_per_strip` counts the
+  hexagons ONE repaint asks for, which is the same fact as the stopwatch and is
+  exact: 105 against a ceiling of 135, and 828 with the product form put back.
+  A timing assertion would be flaky on a loaded gate.
+- measurement: `~/Desktop/ChromIQ-beta21-proof/b8-326-the-saw-tooth-fix/cost-after.json`
 
 ### B8-328 · OPEN · The area-first help text promises a margin the app does not give
 - blocks release: no
