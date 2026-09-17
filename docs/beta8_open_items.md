@@ -12912,3 +12912,45 @@ that survives all five.
 - what to change: the dialog carries the button itself. Every window that ends
   a measurement badly should. The draft wording for B8-298 already leaves a
   place for it.
+
+### B8-301 · FIXED · A saved measurement report could be left half written, and the atomic helper leaked a scratch file on Ctrl-C
+- blocks release: no
+- status: FIXED
+- evidence: `test_both_report_writers_go_through_the_atomic_helper`,
+  `test_a_failed_save_leaves_the_previous_report_untouched`,
+  `test_a_write_that_dies_mid_payload_leaves_nothing_readable_behind`,
+  `test_every_saved_report_parses`
+- found by: closing the cause B8-278 left open. That entry hardened the delete
+  rule so it counts only the report files the window can actually parse,
+  after combined round 3 drove a dated verification holding one good report
+  and one TRUNCATED file: Delete came up enabled with no reason beside it, the
+  confirmation said *"0 saved reports of it are left afterwards"*, and the
+  press left the date with no verdict the window could read. The truncated
+  file is what `Path.write_text` leaves when the process is killed mid-write,
+  and `save_report` and `rewrite_report` both used it.
+- **the fix.** Both go through `core.file_manager.write_json_atomically`,
+  which already pays for every trap `os.replace` has cost this project: it
+  resolves a symlink first (the rename swaps the NAME, and pointed at a link
+  it would delete the link and leave the real file stale), fsyncs before the
+  rename, carries mode, times and flags across, and drops the immutable bits
+  from the scratch file so a locked target cannot leave an undeletable `.tmp`.
+  Nothing new had to be written.
+- **AND WRITING THE GUARD FOUND A HOLE IN THAT HELPER.** Its cleanup hung off
+  `except Exception`, which does not catch `KeyboardInterrupt` or
+  `SystemExit`. A write interrupted by Ctrl-C is exactly the case the helper
+  exists for, and it left `report_….json.tmp` in the reports folder. It is a
+  `try/finally` with a flag now, so every exit path cleans up. The same helper
+  writes `project.json` and `meta.json`, so this was not only about reports.
+- **AND IT QUIETLY TOOK AWAY A REFUSAL, WHICH THE SUITE CAUGHT.**
+  `write_text` on a file the user had made read-only raised, and the window
+  told them so. `os.replace` needs write permission on the DIRECTORY, not on
+  the target, so the rename succeeds and the content is replaced without a
+  word, with `copystat` carrying the 0444 back so the file still looks
+  protected afterwards. `test_a_set_change_asks_before_it_rewrites_history.py`
+  marks one saved report read-only and expects the recalculation to report
+  that it could not be written; both its cases went red the moment the write
+  became atomic. `write_json_atomically` now refuses a target it cannot write,
+  which closes the same hole for `project.json` and `meta.json`, where it was
+  already open and nothing had noticed.
+- mutation proof: put `write_text` back and two of the five go red.
+- evidence (cont.): `test_a_read_only_report_still_refuses_the_write`
