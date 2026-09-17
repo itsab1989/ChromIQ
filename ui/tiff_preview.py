@@ -701,54 +701,101 @@ RING_ACCENT_W_SMALL = 1.0
 _MIN_GAP_TO_GROW_DEVICE_PX = 2.0
 
 
-def _axis_gaps(boxes) -> "tuple[float, float]":
-    """(horizontal, vertical) smallest gap between two patch boxes, image px.
+def _growth_axes(boxes, sx: float, sy: float, thr: float) -> "tuple[bool, bool]":
+    """(may grow horizontally, may grow vertically) for this page's patches.
 
-    **NOT the smallest gap over all boxes on the page.** Two boxes can only
-    collide vertically if their x-spans overlap, so the vertical gap has to be
-    measured down each COLUMN, and the horizontal gap along each ROW. Taking
-    one minimum over every box gets the wrong answer on a chart whose columns
-    are staggered: a ColorMunki "offset every second strip" layout shifts the
-    odd columns by half a patch, so column N's y-spans overlap column N+1's,
-    a flat minimum reads 0, and the overlay concludes it has no room to grow
-    anywhere on the sheet. It has 7 or 8 image pixels in every column. An
-    adversary round measured the consequence on the real Measure tab: 8,686
-    chart-coloured pixels left showing at 1200x980 with the stagger on, 0 with
-    it off, same chart, same 180 patches, one checkbox apart.
+    A box is taken outward to the whole device pixel its edge falls in, by less
+    than one pixel per side, so two boxes are safe on an axis when they are at
+    least `thr` device pixels apart on it. Two RECTANGLES are disjoint when they
+    are separated on EITHER axis, and that is what makes this three questions
+    rather than two:
 
-    Grouping is by OVERLAP, not by equality, because that is the condition
-    that actually makes two boxes able to meet. On a staggered chart that is
-    what stops the horizontal answer being wrong in the other direction:
-    column N and column N+1 touch across, and their y-spans DO overlap, so
-    they share a row group, the horizontal gap reads 0, and sideways growth is
-    correctly refused.
+    * grow vertically only: safe when every pair that overlaps horizontally is
+      far enough apart vertically. Pairs that merely TOUCH sideways are
+      separated by the snapped edges they share, so they do not count.
+    * grow horizontally only: the same the other way round.
+    * grow on BOTH: safe when no pair is close on both axes at once, i.e. when
+      `max(gap_x, gap_y) >= thr` for every pair.
+
+    **THE THIRD QUESTION IS THE ONE AN ADVERSARY ROUND FOUND MISSING.** Two
+    boxes that meet only at a CORNER share no extent on either axis, so no
+    grouping by overlap ever puts them in the same group, both single-axis
+    answers come back large, and growing both axes made them claim the same
+    corner device pixel, with draw order deciding who got it. Not theoretical:
+    ColorMunki with "Offset every second strip", "Spacers: None" and an
+    inter-patch gap past 2x the patch length drops the odd columns into the
+    even columns' gaps, and then no patch of one column shares any y with the
+    next. Driven on the real Measure tab, 6 to 48 device pixels changed with
+    the read order at every window size tried, where the build before this
+    change set changed none.
+
+    When both axes cannot grow, the vertical one is preferred: the fault this
+    whole change exists for is a line along a patch's BOTTOM edge.
     """
-    # ONE PASS over the boxes, then the work is on DISTINCT spans, of which a
-    # chart has a couple of dozen per axis however many patches it carries.
-    # The obvious version rescans every box for every lane and costs milliseconds
-    # on a 700-patch page, inside a repaint that also runs on hover.
-    by_x: "dict[tuple[int, int], set]" = {}
-    by_y: "dict[tuple[int, int], set]" = {}
+    cols: "dict[tuple[int, int], list]" = {}
+    rows: "dict[tuple[int, int], list]" = {}
     for b in boxes:
-        sx = (int(b.x()), int(b.x()) + int(b.width()))
-        sy_ = (int(b.y()), int(b.y()) + int(b.height()))
-        by_x.setdefault(sx, set()).add(sy_)
-        by_y.setdefault(sy_, set()).add(sx)
+        xs = (int(b.x()), int(b.x()) + int(b.width()))
+        ys = (int(b.y()), int(b.y()) + int(b.height()))
+        cols.setdefault(xs, []).append(ys)
+        rows.setdefault(ys, []).append(xs)
 
-    def _gap(groups) -> float:
+    def _lane_gap(groups) -> float:
+        """Smallest gap ACROSS a lane, between members that share the lane or
+        share it with an overlapping one."""
         lanes = list(groups)
         best = float("inf")
         for lane in lanes:
             members = set(groups[lane])
             for other in lanes:
                 if other != lane and _overlaps(other, lane):
-                    members |= groups[other]
+                    members.update(groups[other])
             best = min(best, _min_gap(list(members)))
             if best == 0:
                 return 0.0
         return best
 
-    return _gap(by_y), _gap(by_x)
+    gap_x = _lane_gap(rows)          # governs growing sideways only
+    gap_y = _lane_gap(cols)          # governs growing down only
+
+    # Both axes: is there a pair close on BOTH? Only columns within reach of
+    # each other can produce one, and a chart has a couple of dozen columns.
+    reach_x = thr / sx if sx > 0 else float("inf")
+    reach_y = thr / sy if sy > 0 else float("inf")
+    both = gap_y * sy >= thr        # a column's own rows must clear it too
+    if both:
+        keys = sorted(cols)
+        for i, a in enumerate(keys):
+            for b2 in keys[i + 1:]:
+                sep = b2[0] - a[1]
+                if sep >= reach_x:
+                    break            # sorted, so everything further is further
+                ay = sorted(set(cols[a]))
+                by = sorted(set(cols[b2]))
+                if _min_across(ay, by) < reach_y:
+                    both = False
+                    break
+            if not both:
+                break
+
+    if both:
+        return True, True
+    if gap_y * sy >= thr:
+        return False, True
+    if gap_x * sx >= thr:
+        return True, False
+    return False, False
+
+
+def _min_across(a: "list[tuple[int, int]]", b: "list[tuple[int, int]]") -> float:
+    """Smallest gap between a span in *a* and a span in *b*; 0 if any overlap."""
+    best = float("inf")
+    for s1 in a:
+        for s2 in b:
+            if _overlaps(s1, s2):
+                return 0.0
+            best = min(best, s2[0] - s1[1] if s2[0] >= s1[1] else s1[0] - s2[1])
+    return best
 
 
 def _overlaps(a: "tuple[int, int]", b: "tuple[int, int]") -> bool:
@@ -1733,6 +1780,7 @@ class TiffPreview(QWidget):
         ColorMunki charts whose every-second strip is offset. Pass ``{}`` to
         clear (the hover then falls back to the full strip rectangle)."""
         self._page_patch_boxes = dict(mapping or {})
+        self._growth_cache.clear()      # a new grid, a new answer
         self._schedule_refresh()
 
     def set_edge_spacer_px(self, px: int) -> None:
@@ -1800,7 +1848,8 @@ class TiffPreview(QWidget):
         return col
 
     def _strip_zigzag_path(self, strip_rect: QRect, s: float,
-                           ox: float, oy: float) -> "QPainterPath | None":
+                           ox: float, oy: float,
+                           sy: "float | None" = None) -> "QPainterPath | None":
         """A single closed outline following the actual hexagonal patches of a
         strip and their ±¼-patch zigzag — one frame for the whole column, not a
         straight rect that spills into the neighbour (nor a frame per patch).
@@ -1808,6 +1857,15 @@ class TiffPreview(QWidget):
         col = self._strip_patches(strip_rect)
         if not col:
             return None
+        # The page is not scaled by the same factor on both axes: see
+        # `_draw_cq_overlay`. This outline sits ON the patches, so it has to use
+        # the page's own vertical scale or it drifts away from them down the
+        # sheet. Measured by an adversary round against a copy of this function
+        # reading `_paint_scale_y`: 99 device pixels of the hovered strip's
+        # outline differ at 900x1000, and the drift at the lowest patch row is
+        # 1.012 device pixels. `sy` defaults to `s` only so a caller with one
+        # square scale can say so.
+        sy = s if sy is None else sy
         # The hexagons tessellate edge-to-edge (zero overlap area), so a boolean
         # union can't merge them — it leaves each as its own closed loop, drawing
         # little frames around patch pairs (Basti). Trace the column's OUTER
@@ -1849,7 +1907,7 @@ class TiffPreview(QWidget):
             return v * s + ox
 
         def Y(v: float) -> float:
-            return v * s + oy
+            return v * sy + oy
 
         path = QPainterPath()
         first, last = verts(col[0]), verts(col[-1])
@@ -2058,6 +2116,7 @@ class TiffPreview(QWidget):
         self._stripe_rects = []
         self._stripe_arrow_mode = "base"
         self._page_patch_boxes = {}
+        self._growth_cache.clear()
         self._patch_info = {}
         # AND THE SPLIT PATCHES. `_patch_info` (the hover numbers) was cleared
         # and `_patch_overlay` (the colours actually painted) was not, so after
@@ -2188,6 +2247,8 @@ class TiffPreview(QWidget):
         #: round: 66 of 924 probes aimed at the pixel the overlay paints landed
         #: on a different patch, or none).
         self._paint_scale_y = None
+        #: Cache for `_growth_for_page`, keyed by page and scale.
+        self._growth_cache: dict = {}
         #: The legend chip, in the (ox, oy) frame it was last painted in, so a
         #: pointer test can be done without recomputing the placement. Kept
         #: even while the chip is HIDDEN -- that is the whole point: the chip
@@ -2703,6 +2764,26 @@ class TiffPreview(QWidget):
         if self._cursor_overlay is not None and self._coord_readout:
             self._sync_cursor_overlay_geometry()
 
+    def _growth_for_page(self, geom, sx: float, sy: float) -> "tuple[bool, bool]":
+        """`_growth_axes` for this page, worked out once per geometry+zoom.
+
+        It walks the chart's whole patch grid, and it runs inside a repaint
+        that also runs on every hover. Measured by an adversary round on the
+        biggest chart that builds (693 patches, A3): 1.10 ms inside a 7.65 ms
+        repaint, about a fifth of it, for an answer that can only change when
+        the page or the scale does. Both of those are in the key.
+        """
+        key = (self._current, len(geom), round(sx, 6), round(sy, 6))
+        hit = self._growth_cache.get(key)
+        if hit is None:
+            hit = _growth_axes(geom, sx, sy, _MIN_GAP_TO_GROW_DEVICE_PX)
+            # A page's grid and the window's scale are what it depends on, and
+            # neither changes often; a handful of entries covers a resize drag.
+            if len(self._growth_cache) > 32:
+                self._growth_cache.clear()
+            self._growth_cache[key] = hit
+        return hit
+
     def _draw_cq_overlay(self, painter: QPainter,
                          s: float, ox: float, oy: float,
                          sy: "float | None" = None) -> None:
@@ -2982,9 +3063,8 @@ class TiffPreview(QWidget):
         _grow_x = _grow_y = False
         _edge_l = _edge_r = _edge_t = _edge_b = None
         if _geom:
-            _gap_x, _gap_y = _axis_gaps(_geom)
-            _grow_x = _gap_x * s * _dpr >= _MIN_GAP_TO_GROW_DEVICE_PX
-            _grow_y = _gap_y * sy * _dpr >= _MIN_GAP_TO_GROW_DEVICE_PX
+            _grow_x, _grow_y = self._growth_for_page(
+                _geom, s * _dpr, sy * _dpr)
             _edge_l = min(int(b.x()) for b in _geom)
             _edge_r = max(int(b.x()) + int(b.width()) for b in _geom)
             _edge_t = min(int(b.y()) for b in _geom)
@@ -3349,7 +3429,7 @@ class TiffPreview(QWidget):
             pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
             painter.setPen(pen)
             painter.setBrush(Qt.BrushStyle.NoBrush)
-            zig = (self._strip_zigzag_path(strip_rect, s, ox, oy)
+            zig = (self._strip_zigzag_path(strip_rect, s, ox, oy, sy)
                    if self._hex_zigzag else None)
             if zig is not None:
                 painter.drawPath(zig)             # follow the hex column's zigzag
@@ -3387,7 +3467,7 @@ class TiffPreview(QWidget):
             # tight.
             patch_bottom = oy
             for r in self._stripe_rects:
-                patch_bottom = max(patch_bottom, oy + (r.y() + r.height()) * s)
+                patch_bottom = max(patch_bottom, oy + (r.y() + r.height()) * sy)
             # THE OVERLAY ITEMS COUNT TOO. `_stripe_rects` is the strip
             # geometry, and it can be empty while patches are plainly on screen
             # -- an imported chart, a sidecar whose page count does not match
@@ -3399,7 +3479,7 @@ class TiffPreview(QWidget):
             # in its worst form, every time rather than sometimes.
             for rect, _e, _m, _w in items:
                 patch_bottom = max(
-                    patch_bottom, oy + (rect.y() + rect.height()) * s)
+                    patch_bottom, oy + (rect.y() + rect.height()) * sy)
             # THE STRIP DOES NOT END AT ITS LAST PATCH. A chart with edge
             # spacers draws one more band below it — the recorded geometry
             # stops at the patch (see edge_spacer_px_from_sidecar: they

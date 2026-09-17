@@ -251,10 +251,12 @@ def test_every_box_is_the_size_of_the_patch_it_covers(qapp, tmp_path, w, h):
             f"the two screen pixels the patch's own edges fall in")
 
 
+@pytest.mark.parametrize("stagger", [0, 1],
+                         ids=["aligned", "columns-interleaved"])
 @pytest.mark.parametrize("gap_px", [0, 1, 2, 3, 14])
 @pytest.mark.parametrize("w,h", [(620, 900), (1000, 880), (470, 400)])
 def test_the_same_patches_read_in_any_order_paint_the_same_pixels(
-        qapp, tmp_path, gap_px, w, h):
+        qapp, tmp_path, gap_px, w, h, stagger):
     """Draw order must not decide which patch owns a pixel.
 
     The overlay accumulates as strips are read, so the item list arrives in
@@ -271,9 +273,16 @@ def test_the_same_patches_read_in_any_order_paint_the_same_pixels(
     """
     from ui.tiff_preview import TiffPreview
     pitch = PATCH_H + gap_px
-    boxes = [QRect(LEFT + c * PITCH_X, TOP + r * pitch, PATCH_W, PATCH_H)
+    # `stagger` drops the odd columns by a whole pitch, so that a patch of one
+    # column meets a patch of the next at a CORNER and shares no extent with it
+    # on either axis. That is the shape an adversary round found the rule blind
+    # to, and a regular grid can never make it.
+    drop = pitch if stagger else 0
+    boxes = [QRect(LEFT + c * PITCH_X,
+                   TOP + r * pitch + (drop if c % 2 else 0),
+                   PATCH_W, PATCH_H)
              for c in range(COLS) for r in range(ROWS)]
-    page = tmp_path / f"order-{gap_px}.tif"
+    page = tmp_path / f"order-{gap_px}-{stagger}.tif"
     if not page.exists():
         im = Image.new("RGB", (PAGE_W, PAGE_H), (255, 255, 255))
         px = im.load()
@@ -329,32 +338,65 @@ def test_a_staggered_chart_still_knows_it_has_room_to_grow():
     growth is correctly refused. Getting that half wrong would put one patch's
     colour inside its neighbour's box.
     """
-    from ui.tiff_preview import _axis_gaps
+    from ui.tiff_preview import _growth_axes
     plain = [QRect(100 + 63 * c, 100 + 86 * r, 63, 79)
              for c in range(6) for r in range(8)]
     stagger = [QRect(100 + 63 * c, 100 + 86 * r + (43 if c % 2 else 0), 63, 79)
                for c in range(6) for r in range(8)]
-    assert _axis_gaps(plain) == (0.0, 7), _axis_gaps(plain)
-    assert _axis_gaps(stagger) == (0.0, 7), (
-        f"a staggered chart reports {_axis_gaps(stagger)}; the vertical gap is "
-        f"7 image pixels in every column and the horizontal one is 0")
+    sx = sy = 0.81                      # device pixels per image pixel
+    assert _growth_axes(plain, sx, sy, 2.0) == (False, True)
+    assert _growth_axes(stagger, sx, sy, 2.0) == (False, True), (
+        "a staggered chart must still know it has its full band down every "
+        "column, and must still refuse to grow sideways into the column it "
+        "touches")
 
 
 def test_the_gap_is_measured_between_boxes_that_could_actually_meet():
-    from ui.tiff_preview import _axis_gaps
+    from ui.tiff_preview import _growth_axes
+    sx = sy = 0.81
     # one lone patch has nothing to collide with, either way
-    assert _axis_gaps([QRect(0, 0, 10, 10)]) == (float("inf"), float("inf"))
+    assert _growth_axes([QRect(0, 0, 10, 10)], sx, sy, 2.0) == (True, True)
     # a single column: no horizontal neighbour at all, 20 px down
     col = [QRect(0, 100 * r, 10, 80) for r in range(4)]
-    assert _axis_gaps(col) == (float("inf"), 20)
+    assert _growth_axes(col, sx, sy, 2.0) == (True, True)
     # room on both axes
     grid = [QRect(100 + 70 * c, 100 + 90 * r, 63, 79)
             for c in range(4) for r in range(5)]
-    assert _axis_gaps(grid) == (7, 11)
+    assert _growth_axes(grid, sx, sy, 2.0) == (True, True)
     # a ragged last row must not invent room that is not there
     ragged = [QRect(100 + 63 * c, 100 + 86 * r, 63, 79)
               for r in range(4) for c in range(4 if r < 3 else 2)]
-    assert _axis_gaps(ragged) == (0.0, 7)
+    assert _growth_axes(ragged, sx, sy, 2.0) == (False, True)
+    # patches a single image pixel apart: nothing may grow at this scale
+    tight = [QRect(100 + 63 * c, 100 + 80 * r, 63, 79)
+             for c in range(4) for r in range(5)]
+    assert _growth_axes(tight, sx, sy, 2.0) == (False, False)
+
+
+def test_two_patches_meeting_at_a_CORNER_stop_both_axes_growing():
+    """The hole an adversary round found in the first version of this rule.
+
+    Two boxes that meet only at a corner share no extent on either axis, so no
+    grouping by overlap ever pairs them, both single-axis answers come back
+    large, and growing both axes made them claim the same corner device pixel
+    with draw order deciding the winner. The layout is real: ColorMunki with
+    "Offset every second strip", "Spacers: None" and an inter-patch gap past
+    twice the patch length drops the odd columns into the even columns' gaps,
+    so no patch of one column shares any y with the next.
+    """
+    from ui.tiff_preview import _growth_axes
+    sx = sy = 0.81
+    corner = []
+    for c in range(4):
+        for r in range(4):
+            y = 299 + r * 339 + (112 if c % 2 else 0)
+            corner.append(QRect(47 + 221 * c, y, 221, 110))
+    grew = _growth_axes(corner, sx, sy, 2.0)
+    assert grew != (True, True), (
+        "both axes grew on a chart whose columns touch and whose rows "
+        "interleave, so two diagonal neighbours can claim the same corner "
+        "pixel and the draw order decides which")
+    assert grew == (False, True), grew
 
 
 def test_both_paint_paths_hand_the_overlay_the_pages_own_vertical_scale():
@@ -382,7 +424,7 @@ def test_a_patch_box_is_never_smaller_than_the_chart_patch():
     assert "_dsnap(_ty)" in src and "_dsnap(_byf)" in src, (
         "with no room to grow into, an edge must be SNAPPED, which is monotone "
         "and so cannot depend on the order the boxes are drawn in")
-    assert "_MIN_GAP_TO_GROW_DEVICE_PX" in src, (
+    assert "_growth_for_page(" in src, (
         "growth must be allowed only where two boxes growing towards each "
         "other cannot land in the same screen pixel")
     from ui.tiff_preview import _MIN_GAP_TO_GROW_DEVICE_PX as _T

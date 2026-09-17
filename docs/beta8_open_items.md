@@ -12773,6 +12773,7 @@ drove them and the deadline came first. No source file changed in this round.
   *"this fix will not be part of a release until i have looked at the proof
   you leave for me and i tell you to implement it"*).
 - evidence: `test_the_same_patches_read_in_any_order_paint_the_same_pixels`,
+  `test_two_patches_meeting_at_a_CORNER_stop_both_axes_growing`,
   `test_a_staggered_chart_still_knows_it_has_room_to_grow`,
   `test_the_gap_is_measured_between_boxes_that_could_actually_meet`,
   `test_no_chart_pixel_survives_under_the_split`,
@@ -12868,6 +12869,38 @@ leaves facing a neighbouring column's gap rather than its patch. A per-edge
 rule would not reach them either: the exposure is on part of an edge, and the
 box is one rectangle. Covering them needs a clipped fill, which is a different
 change and not worth it for a 95 per cent case.
+
+**AND ROUND 3 BROKE THE THIRD VERSION, AT A CORNER.** Grouping lanes by
+overlap answers two questions, and there are three. Two boxes that meet only
+at a CORNER share no extent on either axis, so no grouping ever pairs them,
+both single-axis answers come back large, both axes grew, and the corner
+device pixel was painted twice with draw order deciding the winner. The layout
+is real and reachable from three Create Chart controls: ColorMunki with
+"Offset every second strip", "Spacers: None" and an inter-patch gap past twice
+the patch length drops the odd columns into the even columns' gaps, so no
+patch of one column shares any y with the next. Driven on the real Measure
+tab: **6 to 48 device pixels changed with the read order** at every window
+size tried, and at 28.2 mm **187 of 187 window sizes** scanned fire it, where
+the build before this change set fired none.
+
+`_growth_axes` asks the third question too: grow both axes only when no pair
+is close on BOTH, which is the condition for two rectangles to stay disjoint.
+When they cannot both grow, the vertical one wins, because a line along a
+patch's bottom edge is the fault this all started from. Re-driven on round 3's
+own two charts, four window sizes each, settled photographs: **0 differing
+pixels between draw orders, and 0 overlapping pairs predicted**, with the
+ordinary sweep still at 0 and the staggered chart still at 440.
+
+Round 3 also found **three y coordinates still mapped with the HORIZONTAL
+scale** inside the same function, after the rest had been fixed and the
+docstring claimed they all were: the legend chip's anchor (twice) and the
+hexagonal strip-hover outline, which drifts 1.012 device pixels from its
+patches at the bottom of the sheet. Fixed, and `_strip_zigzag_path` now takes
+the vertical scale.
+
+And it measured the cost of the rule: **1.10 ms inside a 7.65 ms repaint** on
+a 693-patch A3 page, on every hover. `_growth_for_page` caches the answer
+against the page and the scale, which are the only things it depends on.
 
 Threshold: `_MIN_GAP_TO_GROW_DEVICE_PX` is 2.0 and the reason in the old
 comment was wrong. Round 2 showed the overlap condition is `frac + g < 1`, so
@@ -13021,3 +13054,31 @@ that survives all five.
   whether or not it was ever the cause.
 - the same shape as the QApplication leak this project has already paid for:
   a fixture that leaves live Qt state behind fails a different test each run.
+
+### B8-303 · FIXED · A test patched a method on the CLASS, and another file's leaked timer walked into it
+- blocks release: no
+- status: FIXED
+- evidence: `test_settling_never_raises_out_of_its_caller`,
+  `test_resetting_manual_to_its_preset_arms_nothing`
+- found by: two red `--runslow` gates on 2026-09-17, hours apart, on trees
+  that were otherwise green three times each. Both said `CALL ERROR:
+  Exceptions caught in Qt event loop` with `RuntimeError("boom")`, and both
+  tracebacks named `tab_chart._auto_regenerate_preview`, a TIMER slot, not the
+  call under test.
+- **the mechanism, and the first fix was not enough.**
+  `_auto_regenerate_preview` calls `self._layout_signature()` as its FIRST
+  statement, with no gate in front of it. So any TabChart anywhere in the
+  process whose 450 ms auto-preview timer fires reaches that method
+  immediately. `tests/test_the_live_preview_only_follows_the_user.py` patches
+  it ON THE CLASS to raise, which means a leaked timer on ANY tab turns into a
+  failure of whatever test is running. Disarming this file's own fixture
+  (B8-302) was right and did not fix it, because the leaked tab belongs to
+  another file.
+- **the fix:** patch the INSTANCE. A class patch can be reached by every
+  instance; an instance patch cannot be reached by any other. The same change
+  is applied to `_renders`, whose class-level stubs would have recorded a
+  render the test never asked for.
+- **honest limit:** not reproduced on demand, twice attempted. The argument is
+  structural rather than empirical, and it is the kind that does not need a
+  reproduction: after the change there is no path from another tab's timer to
+  this test's stub.
