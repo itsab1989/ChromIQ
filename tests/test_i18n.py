@@ -912,18 +912,34 @@ _IDENTICAL_TO_KEY = {
     # different reasons, and the numbers here are NEITHER side's and not
     # their sum. They are counted off the merged catalogues, because a
     # budget adjusted upward admits the next regression for free.
-    "de": 124,
-    "es": 372,
-    "fr": 394,
-    "it": 383,
-    "ja": 358,
-    "nl": 399,
-    "no": 384,
-    "pl": 376,
-    "pt": 374,
-    "ru": 347,
-    "sv": 385,
-    "zh_CN": 352,
+    # 2026-09-17: EVERY language rises by exactly TWO, and by the same two.
+    # Knut asked for the difference between the two chart layout methods to be
+    # explained properly: *"The help text for the chart layout options does not
+    # clear enough detail the differences between them and the advantages the
+    # 'Prioritise chart area...' method has over the old printtarg-based
+    # method... it is also not mentioned that 'Prioritise patch size...' is
+    # based on the ArgyllCMS printtarg, thus have many of its limitations."*
+    # So the "Create layout" tooltip and the Create Chart step help were both
+    # rewritten, and the twelve translations the OLD wording had do not carry
+    # over to a string that now says something different.
+    #
+    # They stay English until the pass before GA, which is the standing rule
+    # for a beta: strings churn, and translating each change as it lands is
+    # work that gets thrown away. Every number below is counted off this tree,
+    # not the old number plus two, because a budget adjusted upward admits the
+    # next regression for free.
+    "de": 126,
+    "es": 374,
+    "fr": 396,
+    "it": 385,
+    "ja": 360,
+    "nl": 401,
+    "no": 386,
+    "pl": 378,
+    "pt": 376,
+    "ru": 349,
+    "sv": 387,
+    "zh_CN": 354,
 }
 
 

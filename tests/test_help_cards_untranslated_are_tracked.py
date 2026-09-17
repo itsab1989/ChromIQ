@@ -551,18 +551,27 @@ _BUDGET = {
     # translated and does not move (4); the eleven others each rise by exactly
     # 5. RE-MEASURED with this file's own `_english_echoes`, never adjusted
     # upward from the old numbers.
-    "de": 4,
-    "es": 205,
-    "fr": 206,
-    "it": 205,
-    "ja": 205,
-    "nl": 205,
-    "no": 205,
-    "pl": 205,
-    "pt": 205,
-    "ru": 204,
-    "sv": 205,
-    "zh_CN": 204,
+    # RE-MEASURED 2026-09-17: the two chart-layout help texts. Knut asked for
+    # the difference between the two layout methods to be explained properly,
+    # including that "Prioritise patch size" comes from ArgyllCMS's printtarg
+    # and inherits its limitations. The "Create layout" tooltip and the Create
+    # Chart step help were both rewritten, so the translations the OLD wording
+    # had do not carry over, and both are long enough to count here. Every
+    # language rises by exactly two, GERMAN INCLUDED this time, because these
+    # two were translated in German where the last batch's five were not.
+    # Counted with this file's own `_english_echoes`, never adjusted upward.
+    "de": 6,
+    "es": 207,
+    "fr": 208,
+    "it": 207,
+    "ja": 207,
+    "nl": 207,
+    "no": 207,
+    "pl": 207,
+    "pt": 207,
+    "ru": 206,
+    "sv": 207,
+    "zh_CN": 206,
 }
 
 
