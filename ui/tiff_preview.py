@@ -2853,7 +2853,27 @@ class TiffPreview(QWidget):
             import math as _m
             return _m.floor(v * _dpr + 0.5) / _dpr
 
-        items = self._patch_overlay.get(self._current, [])
+        # IN A FIXED ORDER, NOT THE ORDER THE STRIPS WERE READ IN. The items
+        # accumulate as a measurement runs, so the list arrives in whatever
+        # order the person swept, and wherever two patches share a pixel the
+        # last one drawn owns it. On a rectangular chart the boxes tile and
+        # nothing shares anything; on a HONEYCOMB they interlock by design, the
+        # fill is antialiased and the seam is stroked ON the shared edge, so
+        # the lozenge where three apexes meet belongs to whoever came last. An
+        # adversary round measured that on the real Measure tab with a real
+        # SpectroScan chart: 9,356 device pixels at 1200x980 and 4,859 at
+        # 900x1000 changed when the same strips were read in a different order,
+        # across 545 separate regions, the largest 145 pixels. It is not new
+        # (the same measurement against the build before this change set gives
+        # the same numbers) and it is not the gap rule: with the honeycomb
+        # switched off the same chart gives 0.
+        #
+        # Sorting by position costs nothing, changes no pixel of a rectangular
+        # chart, and makes the answer the same picture whatever order the
+        # patches arrive in, which is the property the rest of this function
+        # already promises.
+        items = sorted(self._patch_overlay.get(self._current, []),
+                       key=lambda it: (int(it[0].y()), int(it[0].x())))
         # "Show only measured patches" (Knut): blank every patch on the page to
         # white with a thin outline first, so unread patches read as empty; the
         # measured split-patch items then draw on top, leaving only the read

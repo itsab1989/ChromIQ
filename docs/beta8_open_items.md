@@ -13082,3 +13082,72 @@ that survives all five.
   structural rather than empirical, and it is the kind that does not need a
   reproduction: after the change there is no path from another tab's timer to
   this test's stub.
+
+### B8-304 · FIXED · On a honeycomb the split overlay was decided by the order the strips were read in
+- blocks release: no
+- status: FIXED
+- evidence: `test_a_honeycomb_reads_the_same_whatever_order_its_patches_arrive_in`
+- proof: `~/Desktop/ChromIQ-beta21-proof/hex-overlay-shape/`
+- found by: adversary round 4, and independently by Basti's eye: *"is it
+  working for hexagonal patches as well (normal and rotated honeycomb)? …
+  it seemed that there was something still wrong with hexagonal patches"*.
+- **NOT introduced by the split-overlay change set.** The same measurement
+  against `f7f1784e` gives the same numbers. It is an inherited fault that
+  three adversary rounds had "cleared", and the clearances were worthless:
+  every one of their draw-order drivers photographed a hexagonal chart with
+  `set_hex_zigzag` OFF, so all three drew the RECTANGULAR branch on a
+  honeycomb and reported it clean. The one path that depends on read order is
+  the one path nobody had ever drawn.
+- **the fault.** Hexagons interlock by design. The fill is antialiased and the
+  seam is stroked ON the shared edge, so the lozenge where three apexes meet
+  belongs to whichever patch was drawn last, and the patches arrive in the
+  order the person swept. On the real Measure tab with a real SpectroScan
+  honeycomb: **9,356 device pixels at 1200x980 and 4,859 at 900x1000** changed
+  between two read orders, across 545 separate regions, the largest 145 pixels.
+  Self-comparisons 0. With the honeycomb switched off, the same chart gives 0,
+  and the growth rule granted no growth at all, so it is the hexagon branch and
+  not the gap rule.
+- **the fix.** `_draw_cq_overlay` sorts its items by position before drawing.
+  It costs nothing, changes no pixel of a rectangular chart, and makes the
+  picture the same whatever order the patches arrive in, which is what the rest
+  of the function already promised. Re-driven on the real Measure tab:
+  **0 and 0**. Mutation: take the sort out and four honeycomb cases go red,
+  14,507 to 19,525 pixels each.
+- **and the SHAPE question is answered, on screen, in all four cases.**
+  `scripts/drive_b21_hex_overlay_shape.py` paints a page whose only colour lies
+  INSIDE each patch's hexagon, with the slot corners a hexagon never reaches in
+  a second colour, and draws the split in two greys. A pixel of the hexagon
+  colour left showing means the split missed its own patch; a grey pixel on a
+  corner means it drew a rectangle over a hexagon. SpectroScan honeycomb, CR30
+  honeycomb, CR30 ROTATED honeycomb and CR30 square, three window sizes each:
+  **0 hexagon pixels left**, and the only grey outside a hexagon is the
+  one-pixel seam stroke the honeycomb is drawn with on purpose. The square CR30
+  chart correctly gets rectangles.
+- **the driver had the same blind spot first, and it is worth writing down.**
+  `build_chart` does not write `channels.json`, and `chart_is_hexagonal` reads
+  the RECIPE from that sidecar rather than the geometry, so a real honeycomb
+  answers "not hexagonal" and every driver built on top quietly photographs the
+  rectangular branch. Also: `hex_flat_top` is resolved the way `_build_base`
+  resolves it, inside `key == "CR30" and hflag`, so **a SpectroScan honeycomb
+  is always pointy-top** and asking for a rotated one there silently builds a
+  pointy one. A rotated honeycomb is a CR30.
+
+### B8-305 · FIXED · Two guards in the split-overlay file could not catch what they were written for
+- blocks release: no
+- status: FIXED
+- evidence: `test_the_same_patches_read_in_any_order_paint_the_same_pixels`,
+  `test_both_paint_paths_hand_the_overlay_the_pages_own_vertical_scale`
+- found by: adversary round 4, reading the guards rather than the product.
+- **the corner case did not build a corner.** The draw-order test's staggered
+  variant dropped the odd columns by a whole pitch, which puts column c+1's row
+  r exactly where column c's row r+1 is: the columns then share their whole
+  height, which is an ordinary grid with an offset label, not a corner contact.
+  Instrumented across all 30 drawn cases, the rule never once answered "grow
+  sideways". The drop is half a gap plus the patch height now, which puts one
+  column's patch bottom exactly at the next column's patch top.
+- **the y-scale guard matched one spelling.** `assert "* s + oy" not in src`
+  would have caught NONE of the three real cases that reached the shipped
+  build: two were written `oy + (...) * s` and the third was `v * s + oy`
+  inside a method the guard never read. It is an AST walk now, over every
+  `something * s` added to `oy`: 3 hits on the build that had them, 0 on this
+  one.

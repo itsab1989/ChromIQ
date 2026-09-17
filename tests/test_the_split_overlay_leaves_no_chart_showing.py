@@ -399,6 +399,101 @@ def test_two_patches_meeting_at_a_CORNER_stop_both_axes_growing():
     assert grew == (False, True), grew
 
 
+@pytest.mark.parametrize("flat_top", [False, True],
+                         ids=["pointy", "rotated"])
+@pytest.mark.parametrize("w,h", [(620, 900), (900, 1000)])
+def test_a_honeycomb_reads_the_same_whatever_order_its_patches_arrive_in(
+        qapp, tmp_path, flat_top, w, h):
+    """The one path that was never drawn, and the one that depends on order.
+
+    Hexagons INTERLOCK. The fill is antialiased and the seam is stroked ON the
+    shared edge, so the lozenge where three apexes meet belongs to whichever
+    patch was drawn last, and the patches arrive in the order the person swept.
+    An adversary round measured it on the real Measure tab with a real
+    SpectroScan chart: 9,356 device pixels at 1200x980 and 4,859 at 900x1000
+    changed between two read orders, over 545 separate regions.
+
+    Three earlier rounds had cleared hexagonal charts for draw order. None of
+    them had switched the honeycomb on, so all three photographed the
+    rectangular branch on a hexagonal chart.
+    """
+    from ui.tiff_preview import TiffPreview
+    boxes = [QRect(LEFT + c * PATCH_W, TOP + r * PATCH_H, PATCH_W, PATCH_H)
+             for c in range(COLS) for r in range(ROWS)]
+    page = tmp_path / f"hex-{int(flat_top)}.tif"
+    if not page.exists():
+        im = Image.new("RGB", (PAGE_W, PAGE_H), (255, 255, 255))
+        px = im.load()
+        for i, b in enumerate(boxes):
+            col = PATCH_A if i % 2 == 0 else PATCH_B
+            for y in range(b.y(), min(PAGE_H, b.y() + b.height())):
+                for x in range(b.x(), min(PAGE_W, b.x() + b.width())):
+                    px[x, y] = col
+        im.save(page)
+
+    def render(order):
+        p = TiffPreview()
+        p.resize(w, h)
+        p.load_tiff([page])
+        qapp.processEvents()
+        p.set_hex_zigzag(True, flat_top=flat_top)
+        p.set_page_patch_boxes({0: list(boxes)})
+        p.set_patch_overlay(
+            0, [(b, GREY_EXPECTED, GREY_MEASURED, False) for b in order],
+            replace_page=True)
+        p.show()
+        qapp.processEvents()
+        p._update_display()
+        qapp.processEvents()
+        pm = p._img_label.pixmap()
+        img = pm.toImage() if pm is not None else None
+        p.close()
+        return img
+
+    a = render(boxes)
+    b = render(list(reversed(boxes)))
+    assert a is not None and b is not None and a.size() == b.size()
+    differ = [(x, y) for y in range(a.height()) for x in range(a.width())
+              if a.pixelColor(x, y) != b.pixelColor(x, y)]
+    assert not differ, (
+        f"{len(differ)} pixels of a honeycomb change with the order its "
+        f"patches are drawn in, at {w}x{h}; first ten {differ[:10]}")
+
+
+def _no_y_maps_with_the_horizontal_scale(src: str) -> None:
+    """Every `<something> * s` added to `oy` is a y mapped with the x scale.
+
+    Read as a TREE, not as a string. The string version of this check looked
+    for one spelling, `"* s + oy"`, and an adversary round showed it would have
+    caught none of the three real cases that reached the shipped build: two
+    were written `oy + (...) * s` and the third was `v * s + oy` inside a
+    method this check never read. Nineteen hits on the build before those were
+    fixed, none on this one.
+    """
+    import ast
+    import textwrap
+
+    tree = ast.parse(textwrap.dedent(src))
+    bad = []
+
+    def _mult_by_s(node) -> bool:
+        return (isinstance(node, ast.BinOp) and isinstance(node.op, ast.Mult)
+                and any(isinstance(side, ast.Name) and side.id == "s"
+                        for side in (node.left, node.right)))
+
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add)):
+            continue
+        sides = (node.left, node.right)
+        if not any(isinstance(x, ast.Name) and x.id == "oy" for x in sides):
+            continue
+        if any(_mult_by_s(x) for x in sides):
+            bad.append(ast.unparse(node))
+    assert not bad, (
+        "a y coordinate is mapped with the page's HORIZONTAL scale:\n  "
+        + "\n  ".join(bad))
+
+
 def test_both_paint_paths_hand_the_overlay_the_pages_own_vertical_scale():
     """A single scale is the fault. Neither caller may go back to one."""
     from ui.tiff_preview import TiffPreview
@@ -436,9 +531,7 @@ def test_a_patch_box_is_never_smaller_than_the_chart_patch():
     assert _T >= 1.0, (
         f"a threshold of {_T} device pixels lets two boxes grow into the same "
         f"pixel, which makes the seam between them depend on draw order")
-    assert "* s + oy" not in src, (
-        "some y coordinate in the overlay is still mapped with the "
-        "HORIZONTAL scale, which is the fault this file is about")
+    _no_y_maps_with_the_horizontal_scale(src)
     # and the property the snapping is there for
     for dpr in (1.0, 2.0):
         for scale in (0.281741233, 0.332527207, 0.402660218, 0.6650544):
