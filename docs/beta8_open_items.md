@@ -12954,3 +12954,33 @@ that survives all five.
   already open and nothing had noticed.
 - mutation proof: put `write_text` back and two of the five go red.
 - evidence (cont.): `test_a_read_only_report_still_refuses_the_write`
+
+### B8-302 · FIXED · A test's 450 ms timer fired into a LATER test and turned a gate red
+- blocks release: no
+- status: FIXED
+- evidence: `test_settling_never_raises_out_of_its_caller`,
+  `test_resetting_manual_to_its_preset_arms_nothing`
+- found by: one red `--runslow` gate on 2026-09-17, after five green ones on
+  almost the same tree. `CALL ERROR: Exceptions caught in Qt event loop` with
+  `RuntimeError("boom")`, and the traceback naming
+  `tab_chart._auto_regenerate_preview` -- a TIMER slot, not the function the
+  failing test calls.
+- **the mechanism.** The `tab` fixture in
+  `tests/test_the_live_preview_only_follows_the_user.py` builds a real
+  `TabChart` and never disarmed its auto-preview timer. Several tests in the
+  file END with that 450 ms timer deliberately running, because "the render the
+  user queued is still queued" is the assertion. The tab is not collected when
+  the test returns, so the timer can still fire during a LATER test -- and two
+  tests in the same file patch `_layout_signature` ON THE CLASS to raise. The
+  stray timer then threw into the Qt event loop and pytest-qt failed whichever
+  test happened to be running.
+- **the fix** is in the fixture: stop the timer at teardown. The product is
+  unchanged; the leak was the test's.
+- **honest limit:** the mechanism is read off the traceback and the fixture,
+  not reproduced on demand. It needs 450 ms of event loop between the arming
+  test and the patching one, which a loaded parallel gate provides and a
+  two-test run does not. Three green `--runslow` gates since (16,302 passed,
+  exit 0, three times) are the verification, and the leak itself is gone
+  whether or not it was ever the cause.
+- the same shape as the QApplication leak this project has already paid for:
+  a fixture that leaves live Qt state behind fails a different test each run.
