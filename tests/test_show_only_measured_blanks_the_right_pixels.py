@@ -159,7 +159,14 @@ def _coloured(r, g, b):
 
 
 def _edge(r, g, b):
-    return g > r + 40 and g > b + 40           # the edge-spacer band
+    """ANY green, not just a bright one.
+
+    The first version of this wanted `g > r + 40`, and the row the blank
+    actually leaves showing is mostly DARK, because the smooth-scaled page
+    mixes the spacer with whatever lies beyond it. It read 0 while the leak was
+    plainly visible in the photograph.
+    """
+    return g > r + 18 and g > b + 18            # the edge-spacer band
 
 
 def _ink(r, g, b):
@@ -209,25 +216,37 @@ def test_the_blank_never_rises_into_the_strip_labels(qapp, tmp_path):
         f"{after} after")
 
 
-def test_an_unread_column_hides_its_edge_spacers(qapp, tmp_path):
-    """Both of them. The clamp that protects the strip labels must not take
-    the top edge spacer away with it.
+@pytest.mark.parametrize("w,h", [(700, 820), (714, 842), (728, 864),
+                                 (742, 886), (756, 908), (770, 930),
+                                 (784, 952), (798, 974)])
+def test_an_unread_column_hides_its_edge_spacers(qapp, tmp_path, w, h):
+    """Both of them, at every window size.
 
     Basti asked for this directly once the rest of the column was being
     covered: *"are edge spacers also hidden by this? they should then be i
-    think"*. The band is inked here in its own colour, so what survives can be
-    counted apart from the patches.
+    think"*, and then, on the photographs of the first fix: *"still something
+    at the top here. sometimes it seemed at the bottom as well"*.
+
+    THE SIZES ARE THE TEST. The page is drawn with `SmoothTransformation`, so
+    the spacer's colour reaches about a device pixel past its own edge, and a
+    blank that stops on a fraction leaves that row showing. Whether it does is
+    decided by the rounding phase, which is decided by the window: measured on
+    screen over eight sizes, four leaked 290 to 317 pixels and four leaked
+    none, from the same chart and the same code. One size proves nothing here.
+
+    The band is inked in its own colour, so what survives can be counted apart
+    from the patches.
     """
     boxes = _rect_boxes()
     read = {i: False for i in range(COLS)}
     off = _canvas(qapp, tmp_path, boxes, "rect-edge.tif", hexagonal=False,
-                  blanking=False, read_map=read, edge_ink=True)
+                  blanking=False, read_map=read, edge_ink=True, w=w, h=h)
     on = _canvas(qapp, tmp_path, boxes, "rect-edge.tif", hexagonal=False,
-                 blanking=True, read_map=read, edge_ink=True)
+                 blanking=True, read_map=read, edge_ink=True, w=w, h=h)
     assert off is not None and on is not None
     assert _count(off, _edge) > 0, "the fixture drew no edge-spacer ink"
     assert _count(on, _coloured) == 0, "an unread column still shows a patch"
     left = _count(on, _edge)
     assert left == 0, (
         f"{left} pixels of the edge spacers are still showing in an unread "
-        f"column, of {_count(off, _edge)}")
+        f"column at {w}x{h}, of {_count(off, _edge)}")

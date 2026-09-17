@@ -2917,23 +2917,20 @@ class TiffPreview(QWidget):
                 # NEVER RISE ABOVE THE STRIP'S OWN TOP, and that clamp is not
                 # conditional. It used to fire only `if band_top < min_py`,
                 # which reads as "only when the rect was grown up to a label
-                # band" -- and an adversary round measured that every chart
-                # today's layout engine builds records `label_band_bottom_px`
-                # BELOW the first patch top (SS 65 against a patch top of 55,
-                # CR30 86 against 61), so `engine_strip_rects_from_sidecar`
-                # never grows the rect, `band_top == min_py`, the guard is
-                # inert, and the pad above walked straight into the letters.
-                # Photographed: the column labels A to K gone entirely on a
-                # SpectroScan honeycomb, and sliced through the middle on an
-                # i1 chart. 687 to 1,415 device pixels of label ink turned
-                # white, on six of the layouts tried. Inherited, and Knut's own
-                # older CR30 charts escape it only because their band really is
-                # above the patches.
+                # band".
                 #
-                # Clamping unconditionally keeps the fix it was written for and
-                # costs nothing: where the rect WAS grown, its top is the band
-                # bottom; where it was not, its top is the patch top, which is
-                # exactly as far up as a blank may go.
+                # AN EARLIER ROUND SAID THAT GUARD WAS INERT ON EVERY CHART THE
+                # LAYOUT ENGINE BUILDS, AND THAT IS NOT TRUE. Measured here on
+                # six chart types, `label_band_bottom_px` is ABOVE the first
+                # patch top on all of them (i1 85 against a first patch at 315,
+                # SpectroScan 81 against 123, ColorMunki 102 against 319,
+                # rotated CR30 97 against 134), so the rect IS grown and the
+                # old guard did fire; it simply never bound, the band being
+                # hundreds of pixels clear of the pad. What really puts the
+                # strip rect ON the first patch is a chart with NO STRIP
+                # INDICATORS: it records no label band at all, and that is the
+                # one class where this clamp binds -- and where there are no
+                # letters above it to protect.
                 # THE EDGE SPACER IS ALWAYS SAFE TO COVER; THE ROW PAD IS
                 # NOT. The spacer is a printed bar of exactly `esp` pixels
                 # sitting directly on the first patch (`edge_spacer_px_from_
@@ -3018,9 +3015,28 @@ class TiffPreview(QWidget):
                     if i < n - 1:
                         right = max(right,
                                     (rects[i].right() + rects[i + 1].left()) / 2.0)
+                    # TAKE IN THE WHOLE DEVICE ROW EACH EDGE FALLS IN. The
+                    # page is drawn with `SmoothTransformation`, so the edge
+                    # spacer's colour reaches about a device pixel past its own
+                    # edge, and a blank that stops on a fraction leaves that row
+                    # showing: photographed on a label-free i1 chart, 367 pixels
+                    # of edge spacer left in one unbroken row at 760x900 and
+                    # none at 900x1000 or 1200x980, which is the rounding phase
+                    # and nothing else. Basti saw it: *"still something at the
+                    # top here. sometimes it seemed at the bottom as well"*.
+                    #
+                    # Only the vertical edges. Sideways the fill already reaches
+                    # the gap MIDPOINT to each neighbour, and a neighbour may be
+                    # READ, so growing there could eat a measurement; above and
+                    # below an unread column there is only paper, and the clamp
+                    # that protects the strip labels is hundreds of image pixels
+                    # away.
+                    import math as _m2
+                    _yt = _m2.floor((top * sy + oy) * _dpr) / _dpr
+                    _yb = _m2.ceil((bot * sy + oy) * _dpr) / _dpr
                     painter.fillRect(
-                        QRectF(left * s + ox, top * sy + oy,
-                               (right - left) * s, (bot - top) * sy),
+                        QRectF(left * s + ox, _yt,
+                               (right - left) * s, _yb - _yt),
                         white)
 
             # On the clean white background, draw a thin cell grid so each unread

@@ -13213,3 +13213,52 @@ forcing the rectangular branch back on left the test GREEN. Rebuilt with the
 three-quarter-patch pitch a honeycomb actually has, the same mutation fails it,
 **13,593 coloured pixels left of about 24,753**, which is the same 45 per cent
 loss the photographs showed.
+
+**AND THE BLANK STOPPED ON A FRACTION.** Covering the edge spacer is not
+enough on its own: the page is drawn with `SmoothTransformation`, so the
+spacer's colour reaches about a device pixel past its own edge, and a fill that
+stops mid-pixel leaves that row showing. Whether it does is decided by the
+rounding phase, which is decided by the window. Basti, on the photographs:
+*"still something at the top here. sometimes it seemed at the bottom as well"*.
+Driven on a real label-free i1 chart, 8 strips, 160 patches, eight window
+sizes, settled photographs:
+
+| window | spacer pixels on the plain page | before any of this | with the spacer covered | with the fill snapped outward |
+|---|---|---|---|---|
+| 700x820 | 4,638 | 2,334 | 290 | **0** |
+| 714x842 | 5,025 | 2,662 | 300 | **0** |
+| 728x864 | 5,146 | 2,726 | 307 | **0** |
+| 742x886 | 5,318 | 2,861 | 317 | **0** |
+| 756x908 | 5,418 | 2,916 | 0 | **0** |
+| 770x930 | 5,589 | 3,015 | 0 | **0** |
+| 784x952 | 5,994 | 3,366 | 0 | **0** |
+| 798x974 | 6,167 | 3,458 | 0 | **0** |
+
+Only the VERTICAL edges are snapped. Sideways the fill already reaches the gap
+midpoint to each neighbour and a neighbour may be READ, so growing there could
+eat a measurement; above and below an unread column there is only paper. The
+guard is parametrised over those eight sizes, because four of them cannot see
+the fault: put the fraction back and it fails at 714x842 and 742x886 by 287 and
+301 pixels, and passes everywhere else.
+
+**TWO CLAIMS THIS ROUND INHERITED AND HAD TO CORRECT.**
+
+* Round 5 wrote, in the code and in this register, that *"every chart today's
+  layout engine builds records `label_band_bottom_px` BELOW the first patch
+  top"*. Measured on six chart types built here, it is ABOVE on all of them:
+  i1 85 against a first patch at 315, SpectroScan 81 against 123, ColorMunki
+  102 against 319, rotated CR30 97 against 134. The clamp that claim called
+  inert was firing the whole time and simply never binding. What DOES put the
+  strip rect on the first patch is a chart with **no strip indicators**, which
+  records no label band at all, and that is the class where the clamp binds and
+  where there are no letters above to protect.
+* The driver that measured all this wrote its sidecar recipe with
+  `build_chart`'s keyword names. `LayoutRecipe(**recipe)` drops anything that
+  is not one of its fields, so `spacer_width` (the kwarg) never became
+  `spacer_width_mm` (the field), `edge_spacer_px_from_sidecar` answered with
+  the instrument's default of 8 px where the chart had drawn 12, and the four
+  rows in between showed as a black line in the photograph. **The app was
+  right and the harness was wrong**, and it was one measurement away from being
+  filed as a fault in `edge_spacer_px_from_sidecar`. The driver builds a real
+  `LayoutRecipe` now and checks the drawn band against the reported number
+  before it measures anything.
