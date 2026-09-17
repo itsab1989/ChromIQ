@@ -13716,3 +13716,32 @@ written for it in the suite passed its own mutation.
 - related and already measured: `project_honeycomb_apex_overhang` records that
   a flat-top honeycomb's ink is 1 + 1/(3N) wider than its grid, so the overhang
   is a known quantity and need not be re-derived.
+
+- **THE MECHANISM IS NOW PINNED, AND THE OBVIOUS FIX IS PROVED WRONG.**
+  Measured by flood-filling one hexagon's own ink on CR30 honeycombs at three
+  patch sizes, both orientations:
+
+  | patch | box | ink (pointy) | ink (flat-top) |
+  |---|---|---|---|
+  | 8 mm | 63 x 63 | 54 x 73 | 73 x 54 |
+  | 12 mm | 94 x 94 | 85 x 115 | 115 x 86 |
+  | 16 mm | 126 x 126 | 117 x 157 | 157 x 117 |
+
+  Two things hold at every size: the SHORT axis is inset by 9 px, and the ink's
+  own aspect is **4/3**, which is `hex_support.HEX_HEIGHT_FACTOR` and is the
+  hexagon's shape rather than a fitted number. The recorded box is the CELL, so
+  the ink is inset on one axis and reaches PAST the cell on the other, and the
+  blanking fills a cell-sized hexagon that misses those apexes.
+- **A hexagon grown to 4/3 covers the ink and is NOT the fix.** Tried and
+  reverted: it eats the read neighbour, which is the very fault B8-306 exists
+  for, and `test_a_blanked_honeycomb_does_not_reach_into_a_read_neighbour`
+  failed immediately at **17,352 coloured pixels left of about 24,753**. On a
+  honeycomb the hexagons INTERLOCK, so the apex a blanked patch needs to cover
+  is inside the area a read neighbour's own ink occupies. Basti rejected the
+  visible form of that once already: *"the colorful patches go down in a
+  straight line although they are staggered"*.
+- so the fix has to be neighbour-aware: cover the overhang only where the
+  adjacent patch is ALSO unread, e.g. by subtracting the read patches' own
+  hexagons from the grown fill. That is a real piece of work and is deliberately
+  not being rushed at the end of a long session; the measurements above are
+  recorded so none of it has to be re-derived.
