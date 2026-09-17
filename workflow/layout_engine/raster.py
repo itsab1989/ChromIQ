@@ -8,6 +8,8 @@ printtarg, so the existing `page_geometry` / print pipeline read the DPI right.
 """
 from __future__ import annotations
 
+import functools
+
 from functools import lru_cache
 
 from dataclasses import dataclass, replace
@@ -391,6 +393,58 @@ def _indicator_probe_text(kw: dict, geom=None) -> str:
     return text or "W8"
 
 
+
+# THESE TWO ARE MEASURED ONCE PER DISTINCT QUESTION, NOT PER CANDIDATE LAYOUT.
+#
+# `_furniture_reserves_mm` renders glyphs twice: the band probe and the ink
+# probe. The area fit calls it once per candidate patch size, per column count,
+# per pass, so one preset load called it 3,845 times and rendered 7,706 glyph
+# images. Measured in the real window, loading a Create Chart preset straight
+# after a Scanner preset: 17.2 s, of which 8.0 s was PIL measuring text and
+# 1.9 s rendering it. Knut, beta 20: *"Loading any of the 6 Scanner presets
+# takes 5 to 10 seconds to load. Why?"*
+#
+# Nothing about either answer depends on anything but these arguments. The font
+# is built INSIDE each call rather than cached on its own, so no
+# `FreeTypeFont` is ever shared between the engine's worker threads; only the
+# numbers cross.
+
+
+@functools.lru_cache(maxsize=512)
+def _indicator_band_px(ind_px: int, fam: str, bold: bool, italic: bool,
+                       rot: int, spc: int) -> int:
+    """The strip-label band's height in pixels."""
+    f = _font(ind_px, fam, bold, italic)
+    if rot in (90, 270):
+        # Side-rotated: the band runs along the strip, so its height is the
+        # label's drawn length. Reserve for up to two letters (<=702 strips).
+        return int(_indicator_tile("WW", f, spc, rot).height)
+    # Upright: the visible ink height of representative cap/digit glyphs.
+    probe = Image.new("RGBA", (ind_px * 4, ind_px * 4), (0, 0, 0, 0))
+    ImageDraw.Draw(probe).text((ind_px, ind_px), "W8", font=f,
+                               fill=(0, 0, 0, 255))
+    bb = probe.getbbox()
+    return int(bb[3] - bb[1]) if bb else int(ind_px)
+
+
+@functools.lru_cache(maxsize=512)
+def _indicator_ink_px(probe_text: str, ind_px: int, fam: str, bold: bool,
+                      italic: bool, rot: int, spc: int) -> "tuple[int, int]":
+    """``(top, bottom)`` of the labels' ink, in pixels from the anchor."""
+    f = _font(ind_px, fam, bold, italic)
+    if rot in (90, 270):
+        tile = _indicator_tile(probe_text, f, spc, rot)
+        bb = tile.getbbox()
+        return (int(bb[1]), int(bb[3])) if bb else (0, int(tile.height))
+    probe = Image.new("RGBA", (ind_px * 40, ind_px * 6), (0, 0, 0, 0))
+    ImageDraw.Draw(probe).text((ind_px * 2, ind_px * 2), probe_text, font=f,
+                               fill=(0, 0, 0, 255), anchor="la")
+    bb = probe.getbbox()
+    if not bb:
+        return (0, int(ind_px))
+    return (int(bb[1] - ind_px * 2), int(bb[3] - ind_px * 2))
+
+
 def _furniture_reserves_mm(geom, kw: dict) -> tuple[float, float, float, float, float]:
     """``(label_band_mm, bottom_reserve_mm, label_ink_bottom_mm, label_ink_top_mm,
     label_ink_reach_mm)`` — the vertical space the rendered
@@ -413,21 +467,11 @@ def _furniture_reserves_mm(geom, kw: dict) -> tuple[float, float, float, float, 
         raw_size = float(kw.get("indicator_size_mm") or 0.0)   # 0 = auto
         size_mm = effective_indicator_size_mm(geom, dpi, fam, raw_size)
         ind_px = max(6, round(size_mm * mm2px))
-        f = _font(ind_px, fam, bool(kw.get("indicator_bold")),
-                  bool(kw.get("indicator_italic")))
+        _bold = bool(kw.get("indicator_bold"))
+        _ital = bool(kw.get("indicator_italic"))
         rot = int(kw.get("indicator_rotation") or 0) % 360
         spc = max(1, round(ind_px * INDICATOR_LETTER_SPACING))
-        if rot in (90, 270):
-            # Side-rotated: the band runs along the strip, so its height is the
-            # label's drawn length. Reserve for up to two letters (≤702 strips).
-            band_px = _indicator_tile("WW", f, spc, rot).height
-        else:
-            # Upright: the visible ink height of representative cap/digit glyphs.
-            probe = Image.new("RGBA", (ind_px * 4, ind_px * 4), (0, 0, 0, 0))
-            ImageDraw.Draw(probe).text((ind_px, ind_px), "W8", font=f,
-                                       fill=(0, 0, 0, 255))
-            bb = probe.getbbox()
-            band_px = (bb[3] - bb[1]) if bb else ind_px
+        band_px = _indicator_band_px(ind_px, fam, _bold, _ital, rot, spc)
         band = band_px / mm2px
         _rule = 0.0
         if kw.get("underline_mode", "off") in ("segments", "cycle", "black", "colored"):
@@ -445,8 +489,10 @@ def _furniture_reserves_mm(geom, kw: dict) -> tuple[float, float, float, float, 
         # At an explicit 6 mm the two differ by 1.44 mm, which is exactly what
         # was printed over the first row of a turned honeycomb. Rotated labels
         # use the same tile height as the reserve, so they agree there.
-        _drawn = (_indicator_tile("WW", f, spc, rot).height if rot in (90, 270)
-                  else ind_px) / mm2px
+        # `band_px` IS that tile height when the label is turned, which is
+        # what this line used to build a second time from the font itself. The
+        # comment above already says they agree; now they cannot disagree.
+        _drawn = (band_px if rot in (90, 270) else ind_px) / mm2px
         _off = float(kw.get("strip_label_offset_mm") or 0.0)
         ink_bottom = _off + _drawn + _rule
         # …AND WHERE THE INK ITSELF BEGINS AND ENDS, WHICH IS NEITHER OF THOSE.
@@ -505,18 +551,8 @@ def _furniture_reserves_mm(geom, kw: dict) -> tuple[float, float, float, float, 
         # to 0.64 mm (at 11 pt) pessimistically. That is the safe direction for
         # an overlap notice, and it is the only direction available without a
         # second layout pass.
-        if rot in (90, 270):
-            _tile = _indicator_tile(_indicator_probe_text(kw, geom), f, spc, rot)
-            _bb = _tile.getbbox()
-            _t_px, _b_px = ((_bb[1], _bb[3]) if _bb else (0, _tile.height))
-        else:
-            _probe = Image.new("RGBA", (ind_px * 40, ind_px * 6), (0, 0, 0, 0))
-            ImageDraw.Draw(_probe).text((ind_px * 2, ind_px * 2),
-                                        _indicator_probe_text(kw, geom), font=f,
-                                        fill=(0, 0, 0, 255), anchor="la")
-            _bb = _probe.getbbox()
-            _t_px = (_bb[1] - ind_px * 2) if _bb else 0
-            _b_px = (_bb[3] - ind_px * 2) if _bb else ind_px
+        _t_px, _b_px = _indicator_ink_px(
+            _indicator_probe_text(kw, geom), ind_px, fam, _bold, _ital, rot, spc)
         ink_top = _off + _t_px / mm2px
         ink_reach = _off + _b_px / mm2px + _rule
     # Bottom-of-sheet block: one line each for custom sheet text and the stamp,
@@ -3123,14 +3159,38 @@ def row_label_band_mm(geom, *, dpi: int, rows: int = 0,
     mm2px = dpi / 25.4
     ind_px = max(6, round(effective_row_label_size_mm(
         geom, dpi, indicator_font, indicator_size_mm) * mm2px))
-    font = _font(ind_px, indicator_font, indicator_bold, indicator_italic)
+    widest = _widest_row_label_px(ind_px, indicator_font, indicator_bold,
+                                  indicator_italic, patch_pattern, rows)
+    return widest / mm2px + max(0.0, gap_mm)
+
+
+@functools.lru_cache(maxsize=1024)
+def _widest_row_label_px(ind_px: int, family: str, bold: bool, italic: bool,
+                         patch_pattern: str, rows: int) -> float:
+    """The widest row label in pixels, measured once per distinct question.
+
+    MEASURED, in the real window: loading a Create Chart preset straight after
+    a Scanner preset took **17.2 s**, and **8.0 s of it was PIL measuring
+    text** -- 135,685 `Font.getlength` calls and 49,079 font loads, from 45,227
+    calls to `row_label_band_mm`. The area fit asks for the band once per
+    candidate patch size, per column count, per pass, and every one of those
+    asked the font the same handful of questions again. Knut, beta 20:
+    *"Loading any of the 6 Scanner presets takes 5 to 10 seconds to load.
+    Why?"*
+
+    Nothing about the answer depends on anything but these six values: the
+    resolved label size in pixels, the face, and which labels get printed. The
+    font is built INSIDE this call rather than cached on its own, so no
+    `FreeTypeFont` is ever shared between the engine's worker threads; only the
+    float crosses.
+    """
+    font = _font(ind_px, family, bold, italic)
     label = permutation.make_labeller(
         patch_pattern or permutation.DEFAULT_PATCH_PATTERN)
-    img = Image.new("L", (1, 1))
-    draw = ImageDraw.Draw(img)
+    draw = ImageDraw.Draw(Image.new("L", (1, 1)))
     # The widest of the labels that will really be printed, not an assumption
     # about digits: a letter pattern makes "AA" wider than "10".
     widest = 0.0
     for r in (1, 9, 99) if rows <= 0 else range(1, rows + 1):
         widest = max(widest, float(draw.textlength(label(r), font=font)))
-    return widest / mm2px + max(0.0, gap_mm)
+    return widest

@@ -13262,3 +13262,61 @@ the fault: put the fraction back and it fails at 714x842 and 742x886 by 287 and
   filed as a fault in `edge_spacer_px_from_sidecar`. The driver builds a real
   `LayoutRecipe` now and checks the drawn band against the reported number
   before it measures anything.
+
+### B8-307 · FIXED · Loading a Create Chart preset measured the same text tens of thousands of times
+- blocks release: no
+- status: FIXED
+- evidence: `test_the_three_label_probes_are_cached_at_all`,
+  `test_the_engine_loads_a_font_once_however_often_it_asks`,
+  `test_the_row_label_band_is_measured_once_per_question`,
+  `test_a_cached_label_measurement_never_answers_a_different_question`,
+  `test_every_argument_of_a_label_probe_really_changes_its_answer` (all five in
+  the label-probe file added by this round)
+- found by: Knut, beta 20: *"Loading any of the 6 Scanner presets takes 5 to 10
+  seconds to load. Why? Patch sets are simple numbers for colors, so it should
+  not take a lot of processing power. Can the loading be made more efficient?
+  Also, the first preset I load after having loaded a scanner preset will also
+  take a long time to load. It seems the time it takes to load a preset is
+  dependent upon which profile I loaded last."*
+
+**Both halves of that reproduce, in the real window on the real dropdown**, and
+the second half is the more interesting one: the cost depends on the SIZE of
+the chart the previous preset left in the panel, because the area fit searches
+over candidate patch sizes and every candidate asked the font the same handful
+of questions again.
+
+`_furniture_reserves_mm` renders two glyph probes and `row_label_band_mm`
+measures a row of labels. One preset load called them **3,845** and **45,227**
+times, which came to **135,685 `Font.getlength` calls, 49,079 font loads and
+7,706 rendered glyph images**. Profiled: 8.0 s of a 17.2 s load was PIL
+measuring text and 1.9 s was rendering it.
+
+All three are pure functions of their arguments, and all three are memoised
+now. The font is built INSIDE each cached call rather than cached on its own,
+so no `FreeTypeFont` is shared between the engine's worker threads; only
+numbers cross.
+
+| loaded | before | after |
+|---|---|---|
+| a ColorMunki preset, first | 1.25 s | **0.83 s** |
+| a Scanner preset, 3,430 patches | 10.21 s | **1.66 s** |
+| the ColorMunki one straight after it | 17.90 s | **1.29 s** |
+| a Scanner preset, 6,860 patches | 10.15 s | **1.86 s** |
+| the ColorMunki one straight after that | 5.09 s | **0.93 s** |
+
+**AND IT ANSWERS THE SAME, BYTE FOR BYTE.** Twelve chart configurations built
+on both trees (default, numeric labels, rotated labels, bold+italic, an
+explicit 6 mm size, underlined, indicators off, ColorMunki, SpectroScan
+honeycomb, rotated CR30 honeycomb, patch-first, A3): **46 files each,
+identical**, once the `.ti2`'s CREATED timestamp and its random CHART_ID are
+normalised. That check is what caught the one real fault the refactor
+introduced: the rotated-label branch still used the font variable the extraction
+had removed, and every `indicator_rotation=90` chart raised `NameError`. It
+takes the band height the probe already returned now, which the comment beside
+it always said was the same number.
+
+**One claim NOT made:** the style does not change the BAND probe, at any size
+tried. The band is the ink height of "W8" and a bold face is no taller, so
+there is nothing to assert there and the guard says so rather than inventing a
+weaker claim. It is observable in the ink probe at 40 px, and in the row label
+on a face whose italic is a real second face, and both are asserted.

@@ -69,7 +69,7 @@ def ti1(n, path):
         L.append(f"{i+1} {(i*7)%101} {(i*13)%101} {(i*29)%101} 40 45 50")
     L += ["END_DATA", ""]
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("\n".join(L)); return path
+    path.write_text("\n".join(L), encoding="utf-8"); return path
 
 
 def recipe_for(name):
@@ -111,14 +111,16 @@ def build(name, n=150):
             kw.pop(k, None)
         le.build_chart(ti1(n, work / "probe.ti1"), stem, paper="A4", dpi=200,
                        randomize=False, **kw)
-    strips = json.loads(stem.with_suffix(".strips.json").read_text())
+    strips = json.loads(
+        stem.with_suffix(".strips.json").read_text(encoding="utf-8"))
     (stem.parent / f"{stem.name}.channels.json").write_text(json.dumps({
         "ink_channels": ["r", "g", "b"],
         "layout": {"engine": "chromiq", "engine_version": 1, "dpi": 200,
                    "paper_mm": [210.0, 297.0], "patches": strips["patches"],
                    "strips": strips.get("strips") or [],
                    "label_band_bottom_px": strips.get("label_band_bottom_px"),
-                   "recipe": dict(rc.__dict__)}}, indent=1))
+                   "recipe": dict(rc.__dict__)}}, indent=1),
+        encoding="utf-8")
     return stem
 
 
@@ -135,7 +137,8 @@ def main():
 
     name = os.environ.get("EDGE_CHART", "nolabels")
     stem = build(name)
-    strips = json.loads(stem.with_suffix(".strips.json").read_text())
+    strips = json.loads(
+        stem.with_suffix(".strips.json").read_text(encoding="utf-8"))
     boxes = [QRect(int(p["x"]), int(p["y"]), int(p["w"]), int(p["h"]))
              for p in strips["patches"] if int(p["page"]) == 0]
     side = stem.parent / f"{stem.name}.channels.json"
@@ -220,7 +223,7 @@ def main():
               f"{results[spec]['blanked']} with the blanking on", flush=True)
     (OUT / TAG / "facts.json").write_text(json.dumps(
         {"tag": TAG, "edge_spacer_px": esp, "drawn": sorted(drawn),
-         "results": results}, indent=1))
+         "results": results}, indent=1), encoding="utf-8")
     win.close(); pump(app, 200)
     return 0
 
