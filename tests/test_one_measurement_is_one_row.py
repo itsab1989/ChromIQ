@@ -118,9 +118,34 @@ def test_hiding_one_row_never_hides_another(tmp_path, qapp, monkeypatch):
     MUTATION: delete the `_one_row_per_measurement` call from `_gather_runs`
     and this goes red - hiding one of the two rows leaves none.
     """
-    s, _proj, run = _two_saved_reports(tmp_path, qapp, monkeypatch)
+    s, proj, run = _two_saved_reports(tmp_path, qapp, monkeypatch)
+    # **A SECOND MEASUREMENT, BECAUSE OF B8-392.** A window whose list holds
+    # ONE measurement turns "Show all measurement runs" off and greys it (Knut,
+    # 2026-09-18), and the row ticks only decide anything while it is on. This
+    # test is about `_run_key`, so it is put where the ticks speak. The
+    # MUTATION still lands: without `_one_row_per_measurement` the doubled
+    # measurement is two rows sharing one key, and hiding that key takes two
+    # rows off instead of one.
+    from tests.test_import_measurement_module import _cgats, _PATCHES
+    run2 = proj.new_run()
+    run2.ensure_dir()
+    run2.measurement_ti3.write_text(
+        _cgats("CTI3", [(min(100.0, r + 3.0), g, b) for r, g, b in _PATCHES]),
+        encoding="utf-8")
+    # …with a report of its own, because that is what puts another run's
+    # measurement into this window's history at all.
+    dlg2 = _window_on(s, run2.measurement_ti3, qapp)
+    try:
+        _generate(dlg2, monkeypatch, qapp)
+    finally:
+        dlg2.close()
     dlg = _window_on(s, run.measurement_ti3, qapp)
     try:
+        dlg._all_runs_check.setChecked(True)
+        qapp.processEvents()
+        assert dlg._all_runs_check.isChecked(), (
+            "the window still holds one measurement, so the ticks decide "
+            "nothing and this test would prove nothing")
         rows = dlg._runs_for_document()
         keys = [dlg._run_key(r) for r in rows]
         assert len(set(keys)) == len(keys), (
@@ -204,6 +229,14 @@ def test_several_runs_still_each_get_their_own_row(tmp_path, qapp, monkeypatch):
 
     dlg = _window_on(s, run1.measurement_ti3, qapp)
     try:
+        # The window opens on the latest report of run1 (B8-388), and that
+        # document was generated while only run1 was loaded, so it records
+        # "Show all measurement runs" OFF (B8-392's rule 4 was in force when it
+        # was made). Loading a report with the settings it was made with is
+        # exactly what Knut asked for; this test is about the ROWS, so it opens
+        # the window's history up again first.
+        dlg._all_runs_check.setChecked(True)
+        qapp.processEvents()
         rows = dlg._runs_for_document()
         origins = {str(r.get("_origin_dir") or "") for r in rows}
         assert origins == {str(run1.dir), str(run2.dir)}, (

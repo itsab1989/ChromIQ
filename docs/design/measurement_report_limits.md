@@ -398,6 +398,47 @@ no verdict cannot tell whether something is wrong.
 > three doors recalculating; it is left as the record of what was agreed, with
 > this block saying which of it is still true of the code.
 
+> ### ⏳ BUILT 2026-09-18 FOR A SECOND DOOR: unlocking a run recalculates nothing
+>
+> **Ruled by:** Knut, 2026-09-18, on issue #182.
+> **Confirmed by:** *nobody yet.* This records what the code now does.
+>
+> He read the window that appears when *"Unlock this run's limits"* is ticked,
+> quoted it back in full, and ruled:
+>
+> > *"The description is wrong. All dated reports shall NOT be recalculated,
+> > only the selected report will be recalculated and report text recreated
+> > according to new values."*
+> >
+> > *"A selected 'Report shown' can have all the settings unlocked, as
+> > previously mentioned, and a change of the settings will update the selected
+> > report only. If a new report is to be created, then the user must select
+> > 'New report...' option in 'Report shown'."*
+>
+> **What was built, and why it is "nothing" rather than "one report".**
+> Unlocking changes no number: it only lets the user change one. Under N.2 and
+> N.3 a change then belongs to the ONE report named in "Report shown", marks it
+> stale and is applied by pressing Generate report. So the unlock door now
+> calls no recalculation at all, rewrites no file and archives none. Re-stamping
+> files with numbers nobody has changed yet would be a rewrite that says
+> nothing, and for a generated document it would break the rule the block above
+> is built on: a document records the settings it was made with and is never
+> recalculated under its reader.
+>
+> **The question in front of it lost the clause that was false**, and gained
+> nothing: the replacement sentence is new user-facing text and waits in
+> §M-PROPOSED of `unified_measurement_management.md`, unapproved.
+>
+> **ONE DOOR STILL RECALCULATES: the Report limits window's Save.** It asks its
+> own question at the moment the rewrite happens, which is the right moment for
+> it, so no warning was lost with the unlock door's. Whether N.3 reaches that
+> door too is **still an open question for Knut** and is deliberately not
+> assumed: his words cover it (*"saving a change in the Edit limits window must
+> result in the same behaviour"*), and re-aiming another round's guards on an
+> inference is how this window has been broken before. It stays **B8-310**.
+>
+> Registered as **B8-391**.
+
 
 
 > **REVISED 2026-09-10 on Knut's report, and it moved for two reasons.** This
@@ -1037,4 +1078,70 @@ itself carry a document block, so that those two are a fact on disk rather than
 an inference at load time, is **not built and is a question for Knut**: it would
 also take every such record out of reach of §5's unlock recalculation, which is
 B8-310 ground.
+
+### 13.6 The defaults, specified (Knut, 2026-09-18)
+
+**⏳ AWAITING CONFIRMATION.** **Ruled by:** Knut, 2026-09-18, on issue #182,
+answering §13.5 above. **Confirmed by:** *nobody yet.* Built for beta 22 on his
+instruction (*"Please add all of this in beta 22, not in beta 23"*); what the
+app now does with his words is not confirmed by anyone.
+
+| # | Rule |
+|---|---|
+| P.1 | **Preferences ▸ Reports** holds the Measurement Report DEFAULTS. The frame is named **"Measurement Report Defaults"**. |
+| P.2 | Under the **Report limits…** button, a **"Report type, default"** pulldown. It is used when the report window opens on a run that has generated nothing, when **"New report…"** is chosen, and for the report written automatically after a measurement. |
+| P.3 | Two tick boxes give the defaults for **"Show all measurement runs"** and **"Show detailed data for each run"**. **Both default ON.** |
+| P.4 | **No "Judged against" selector** in that frame: *"The Report Limits button contain the Judged Against default chosen, so no separate selection box is needed."* It is `compliance_default_set`. |
+| P.5 | The report written automatically during a measurement carries **both tick boxes OFF**, always, *"that is natural because it is one measurement only"*, and ignores P.3. |
+| P.6 | The **type still belongs to the RUN** (D9). P.2 is what a run that never chose gets: *"The type belongs to the run, yes, but the default should be the 'Full colour check'."* |
+| P.7 | **"Save measurement report after each measurement"** in Preferences is **default ON**, and the Measure tab shows a **"Save measurement report"** control that starts from it. With the preference OFF the control starts OFF and the user may still turn it on. It is **remembered per run**, like every other Measure setting. |
+| P.8 | The automatic record carries a **document block of its own**, so both tick boxes are a fact on disk rather than an inference at load time. |
+| P.9 | **"New report…"** is the **first** entry of "Report shown". Choosing it loads every default from Preferences, which the user may then change; nothing is written until Generate report is pressed. |
+| P.10 | Opening the window selects **the latest report created**, with the settings it was made with — not "New report…". |
+
+**What P.7 measured, and it corrects §13.5's table.** *"whether a report is
+written at all"* is listed there as *"Preferences ▸ Reports ▸ 'Save measurement
+report', **off** as shipped"*. That is **wrong**: `save_measurement_report` has
+been `True` in `core/settings.py` since schema 10, and `_migrate_save_report_
+default` exists to drop a stored echo of the old `False`. The row was read off
+`self._settings.get("save_measurement_report", False)` in `tab_measure.py`,
+whose second argument never applies because `AppSettings.get` falls back to
+`DEFAULTS`. So the shipped default did not change; what is new is the control on
+the Measure tab and its per-run memory.
+
+### 13.7 The flags a generated report's name carries (Knut, 2026-09-18)
+
+**⏳ AWAITING CONFIRMATION.** **Ruled by:** Knut, 2026-09-18.
+**Confirmed by:** *nobody yet.*
+
+> *"The report names created should include flags that indicate the settings,
+> just as Report type and Judged against"*
+
+| # | Rule |
+|---|---|
+| F.1 | "Show all measurement runs" ON and every date included → **"All dates"**. |
+| F.2 | OFF, more than one date in the list, exactly one included → **"One date"**. |
+| F.3 | OFF, more than one in the list, more than one included but not all → **"Multiple dates"**. |
+| F.4 | The list holds ONE measurement → **"Show all measurement runs" is set OFF automatically**, and the name carries **"One date"**, *"including all the automatically created reports during measurement"*. |
+| F.5 | "Show detailed data for each run" ON → **"Detailed"**. |
+
+**F.4 is a behaviour rule, not a naming one**, and it beats P.3: a window whose
+list holds one measurement turns that box off and greys it, whatever
+Preferences says. It is given back when the list grows, so opening a window on
+one sheet and then adding a project widens the report exactly as before.
+
+**The flag is decided from what the document COVERS, not from the tick box
+alone**, so it cannot disagree with the page: one measurement is "One date"
+whatever the box says. It is stored in the document block as an **id**
+(`all_dates` / `one_date` / `multiple_dates`) and translated when the name is
+DISPLAYED, exactly as the type id and the set id beside its English label
+already are. Nothing of a report's name is written to disk, so a report named
+on a German machine reads in English on an English one.
+
+**F.3's state cannot be reached from the window as it is built**, and that is
+reported rather than built around: with "Show all measurement runs" OFF,
+`_runs_for_report` returns the ONE measurement the window is on and the row
+ticks are not consulted, so "OFF with several ticked" produces no document of
+several. The flag is computed from the member list, so the day that changes
+this says the right word without being touched.
 

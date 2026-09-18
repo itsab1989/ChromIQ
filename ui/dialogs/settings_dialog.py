@@ -11,6 +11,7 @@ from PyQt6.QtGui import QDesktopServices, QFontMetrics
 from PyQt6.QtWidgets import (
     QApplication,
     QCheckBox,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QFrame,
@@ -4078,7 +4079,7 @@ class SettingsDialog(QDialog):
         # #182 (Knut K1/K-c): the limits live in their own window; this frame
         # keeps only the button that opens it and the one checkbox that gates
         # editing a run's limits after its first verification measurement.
-        defaults_grp = QGroupBox(tr("Measurement Report limits"), self)
+        defaults_grp = QGroupBox(tr("Measurement Report Defaults"), self)
         gl = QVBoxLayout(defaults_grp)
         gl.setSpacing(8)
         _lim_row = QHBoxLayout()
@@ -4115,13 +4116,109 @@ class SettingsDialog(QDialog):
                "run is judged with the same numbers, so the history stays "
                "comparable. That is the normal, safe state.\n\n"
                "With this on, the Measurement Report window offers “Unlock this "
-               "run's limits” for a run that already has measurements. Unlocking "
-               "recalculates every dated report of that run with the numbers you "
-               "then set; the previous reports are kept in a reports/old folder "
-               "first, nothing is deleted.\n\n"
+               "run's limits” for a run that already has measurements. "
+               "Unlocking changes nothing by itself: it lets you set new "
+               "numbers, and the report you have open is rebuilt when you "
+               "press Generate report. Reports already saved are left as they "
+               "are.\n\n"
+               "Changing the numbers in the Report limits window and saving "
+               "them does recalculate this run's dated reports, and asks you "
+               "first; the reports they replace are kept in a reports/old "
+               "folder, and nothing is deleted.\n\n"
                "Default: off"),
             self))
         gl.addLayout(_allow_row)
+        # #182 (Knut, 2026-09-18, B8-388): the three DEFAULTS a report is made
+        # with when nothing else decides. *"Below the Report Limits button ...
+        # add a pulldown selector to select 'Report type, default', where the
+        # selected option is used as default when opening measurement report
+        # (when no report is showing) or when an automatic measurement report
+        # is written after a completed measurement. It can also be the default
+        # used when 'Report shown' is set to 'New report....'"*
+        #
+        # NOTHING HERE IS A "JUDGED AGAINST" SELECTOR, on his own rule: *"The
+        # Report Limits button contain the Judged Against default chosen, so no
+        # separate selection box is needed in the Preferences -> Reports tab."*
+        from workflow.measurement_report import (REPORT_TYPE_MENU,
+                                                 REPORT_TYPE_MENU_HEADING,
+                                                 REPORT_TYPE_MENU_SPLIT)
+        _type_row = QHBoxLayout()
+        _type_row.addWidget(QLabel(tr("Report type, default:"), self))
+        self._report_type_default_combo = QComboBox(self)
+        for tid, name, _blurb, built in REPORT_TYPE_MENU:
+            if tid == REPORT_TYPE_MENU_SPLIT:
+                self._report_type_default_combo.addItem(
+                    tr(REPORT_TYPE_MENU_HEADING), "")
+                _row = self._report_type_default_combo.count() - 1
+                _m = self._report_type_default_combo.model()
+                _it = _m.item(_row) if hasattr(_m, "item") else None
+                if _it is not None:
+                    _it.setEnabled(False)
+            self._report_type_default_combo.addItem(tr(name), tid)
+            if not built:
+                # SHOWN AND REFUSED, exactly as the report window shows them:
+                # the two ISO types cannot be produced, and hiding them would
+                # say nothing at all about why.
+                _row = self._report_type_default_combo.count() - 1
+                _m = self._report_type_default_combo.model()
+                _it = _m.item(_row) if hasattr(_m, "item") else None
+                if _it is not None:
+                    _it.setEnabled(False)
+        _type_row.addWidget(self._report_type_default_combo, 1)
+        _type_row.addWidget(TooltipButton(
+            tr("Report type, default"),
+            tr("Which kind of measurement report ChromIQ makes when nothing "
+               "else has decided: the Measurement Report window opening on a "
+               "run that has never generated one, “New report…” chosen in "
+               "“Report shown”, and the report ChromIQ writes by itself after "
+               "a measurement.\n\n"
+               "A profile run that HAS a report type of its own keeps it. The "
+               "type belongs to the run, so this is the starting point for a "
+               "run that has not chosen, not an override of one that has.\n\n"
+               "The two ISO entries are shown and cannot be chosen: the "
+               "figures they judge against are behind a paywall and ChromIQ "
+               "has no permission to ship them.\n\n"
+               "Default: Full colour check"),
+            self))
+        gl.addLayout(_type_row)
+        _all_row = QHBoxLayout()
+        self._report_all_runs_default_check = QCheckBox(
+            tr("Show all measurement runs, by default"), self)
+        _all_row.addWidget(self._report_all_runs_default_check)
+        _all_row.addStretch()
+        _all_row.addWidget(TooltipButton(
+            tr("Show all measurement runs, by default"),
+            tr("How the Measurement Report window starts a NEW report: with "
+               "every dated measurement of the run in it, or with only the "
+               "one it was opened on.\n\n"
+               "It is a starting point and nothing more. A report you load "
+               "from “Report shown” comes back with the setting it was made "
+               "with, and you can change it in the window whenever you "
+               "like.\n\n"
+               "The report ChromIQ writes by itself after a measurement is "
+               "always about that one measurement, so it ignores this.\n\n"
+               "Default: on"),
+            self))
+        gl.addLayout(_all_row)
+        _det_row = QHBoxLayout()
+        self._report_details_default_check = QCheckBox(
+            tr("Show detailed data for each run, by default"), self)
+        _det_row.addWidget(self._report_details_default_check)
+        _det_row.addStretch()
+        _det_row.addWidget(TooltipButton(
+            tr("Show detailed data for each run, by default"),
+            tr("Whether a new report starts with the full breakdown for every "
+               "run in it: the colour-accuracy table with its verdict words, "
+               "paper white and darkest black, the eight cube corners and the "
+               "worst patches.\n\n"
+               "It makes the report, and its PDF, considerably longer. A "
+               "report you load from “Report shown” comes back with the "
+               "setting it was made with.\n\n"
+               "The report ChromIQ writes by itself after a measurement never "
+               "carries it.\n\n"
+               "Default: on"),
+            self))
+        gl.addLayout(_det_row)
         v.addWidget(defaults_grp)
 
         # Report title/filename prefixes (#130, Knut). The report picks the
@@ -4911,6 +5008,21 @@ class SettingsDialog(QDialog):
         }
         self._compliance_allow_edit_check.setChecked(
             bool(s.get("compliance_allow_edit_after_measurement", False)))
+        # #182 (Knut, B8-388): the three Measurement Report defaults.
+        _rt = str(s.get("report_default_type", "t2_full_colour_check")
+                  or "t2_full_colour_check")
+        _i = self._report_type_default_combo.findData(_rt)
+        if _i < 0:
+            # A stored id this build cannot produce (a later ChromIQ's, or an
+            # ISO type) falls back to the one type that is always there rather
+            # than leaving the pulldown on a heading.
+            _i = max(0, self._report_type_default_combo.findData(
+                "t2_full_colour_check"))
+        self._report_type_default_combo.setCurrentIndex(_i)
+        self._report_all_runs_default_check.setChecked(
+            bool(s.get("report_default_show_all_runs", True)))
+        self._report_details_default_check.setChecked(
+            bool(s.get("report_default_show_details", True)))
         self._report_title_prof_edit.setText(
             str(s.get("report_title_profiling",
                       "Measurement Report - Profiling of Printer")))
@@ -6017,6 +6129,16 @@ class SettingsDialog(QDialog):
             s.set("compliance_columns_shown", str(buf.get("columns") or ""))
         s.set("compliance_allow_edit_after_measurement",
               bool(self._compliance_allow_edit_check.isChecked()))
+        # #182 (Knut, B8-388). An empty currentData is the pulldown's heading
+        # row, which is disabled and cannot be the current one; guarded anyway,
+        # because a stored empty id would read back as "no type at all".
+        _tid = str(self._report_type_default_combo.currentData() or "")
+        if _tid:
+            s.set("report_default_type", _tid)
+        s.set("report_default_show_all_runs",
+              bool(self._report_all_runs_default_check.isChecked()))
+        s.set("report_default_show_details",
+              bool(self._report_details_default_check.isChecked()))
         s.set("report_title_profiling",
               self._report_title_prof_edit.text().strip()
               or "Measurement Report - Profiling of Printer")

@@ -16458,7 +16458,7 @@ would reach.
   test_another_runs_reports_are_not_touched_either,
   test_every_saved_report_still_opens_afterwards,
   test_the_run_is_still_bound_to_the_set_that_was_chosen,
-  test_the_unlock_door_still_recalculates
+  test_the_unlock_door_recalculates_nothing_either
   (the new guard file named above); test_changing_the_set_neither_asks_nor_rewrites and
   test_the_set_change_still_binds_the_run (the B8-310 file); and
   test_a_generated_document_is_never_recalculated, which now drives the UNLOCK
@@ -16468,6 +16468,14 @@ would reach.
   `self._recalculate_run()` back at the end of `_on_set_chosen` (**5 failed**),
   putting the `_recalculating_would_rewrite_history` question back
   (**4 failed**); restored, green each time.
+- **ONE OF ITS GUARDS WAS RENAMED THE SAME EVENING, AND IT IS THE SAME KIND OF
+  EVENT.** `test_the_unlock_door_still_recalculates` existed to show that this
+  change was aimed at the "Judged against" pulldown and nowhere else. Knut then
+  ruled on the unlock door too (B8-391), so that door stopped recalculating and
+  the test became `test_the_unlock_door_recalculates_nothing_either`, which
+  asserts the opposite of its old name and the SAME thing about this entry:
+  that a saved report is not rewritten. Every property B8-384 is the record of
+  is still guarded; the evidence line above names the test that guards it now.
 - **FOUR TESTS THAT ENCODED THE OVERTURNED BEHAVIOUR WERE REWRITTEN, NOT
   DELETED.** `test_changing_the_set_asks_first` is now
   `test_changing_the_set_neither_asks_nor_rewrites`, and says in its own
@@ -16641,9 +16649,9 @@ would reach.
   now uses an instrument the build does not force, and the i1 case asserts the
   opposite of what it used to.
 
-### B8-388 · OPEN · Knut's Preferences, Reports defaults, specified 2026-09-18 and not built
+### B8-388 · FIXED · Knut's Preferences, Reports defaults, specified 2026-09-18
 - blocks release: no
-- status: OPEN
+- status: FIXED
 - Arrived after beta 22's work was already under way, in answer to the
   measurement in §13.5. **Nothing of it is built.** Recorded verbatim so that
   the next session starts from his words and not from a summary:
@@ -16692,16 +16700,105 @@ would reach.
   said out loud in the release notes rather than discovered.
 - **It also introduces a "New report...." entry** in the "Report shown"
   pulldown, which the document record built in B8-383 has no notion of yet.
-- evidence: none; nothing built.
-- what to do first: decide whether any of it belongs in beta 22 at all. It
-  arrived after the change set was closed and none of it is a fault: it is a
-  specification for work that has not started. The honest answer is probably
-  beta 23, and telling him so.
+- **BUILT 2026-09-18**, all of it, on his instruction. What is on screen:
+  * Preferences ▸ Reports: the frame is **"Measurement Report Defaults"**, with
+    a **"Report type, default"** pulldown under the Report limits button (the
+    two ISO types shown and refused, as the report window shows them) and two
+    tick boxes, **"Show all measurement runs, by default"** and **"Show
+    detailed data for each run, by default"**, both **default ON**. No
+    judged-against selector, on his own rule.
+  * three settings keys, `report_default_type` (`t2_full_colour_check`),
+    `report_default_show_all_runs` and `report_default_show_details` (both
+    True).
+  * the automatic measurement-time record carries a **document block of its
+    own**: `TabMeasure._stamp_the_automatic_document`, both tick boxes OFF,
+    scope `one_date`, and the type from the run with the Preferences default
+    behind it (`run_compliance.report_type_default_for`, which is D9
+    untouched). Additive; `REPORT_SCHEMA` stays **7**; nothing already on disk
+    is read, rewritten, renamed or deleted.
+  * **"Save measurement report"** on the Measure tab, on the row it shares with
+    the sounds switch so the buttons stay level with every other tab's. It
+    starts from the preference, the user may change it either way, and it is
+    remembered per run through `MEASURE_CONTROLS`, the store every other
+    Measure setting uses.
+  * **"New report…"** as the FIRST entry of "Report shown"; choosing it loads
+    the Preferences defaults into a document-shaped record in memory and writes
+    nothing. Opening the window selects **the latest report created**, with the
+    settings it was made with.
+- **AND THE ONE PREMISE IN IT THAT WAS WRONG IS CORRECTED RATHER THAN BUILT.**
+  *"Save measurement report after each measurement" becomes default ON, where
+  it ships OFF today* is not true and has not been since schema 10:
+  `core/settings.py` carries `"save_measurement_report": True`, and
+  `_migrate_save_report_default` exists to drop a stored echo of the old
+  `False`. §13.5 of the design document said "off as shipped" because it was
+  read off `self._settings.get("save_measurement_report", False)`, whose second
+  argument never applies (`AppSettings.get` falls back to `DEFAULTS`). **So no
+  shipped default changed here**, and the release-note line about ChromIQ
+  starting to write a report for everyone is NOT owed. §13.6 records the
+  correction.
+- **TWO DECISIONS INSIDE IT NEED A WORD FROM BASTI OR KNUT**, and both are
+  named in the report rather than buried:
+  * the two tick boxes used to come back as last set (Sebastian, 2026-08-10:
+    *"so I don't have to select it every time again"*). A window showing no
+    report now opens on the Preferences defaults instead, which is what P.9
+    asks for. The last-used values are still written to settings, so restoring
+    that is one line if they want it.
+  * with the window opening on the latest report created, a project whose
+    newest report is an automatic one-date record opens showing ONE
+    measurement where it used to open showing the whole history. That is his
+    sentence exactly (*"'Show all measurement runs' OFF (since it is only one
+    date)"*), and it is a visible change of what the window does at open.
+- status: FIXED
+- evidence: test_the_frame_is_named_measurement_report_defaults,
+  test_the_three_defaults_are_on_screen_and_default_on,
+  test_there_is_no_second_judged_against_selector,
+  test_the_defaults_are_written_and_read_back,
+  test_the_automatic_record_carries_a_document_of_its_own,
+  test_the_automatic_records_type_follows_the_run_then_preferences,
+  test_the_block_is_additive_and_the_schema_does_not_move,
+  test_the_measure_tab_shows_the_save_switch_and_it_starts_from_preferences,
+  test_the_switch_and_not_the_preference_decides,
+  test_the_switch_is_remembered_for_the_run,
+  test_a_run_with_nothing_stored_opens_on_the_preference,
+  test_new_report_is_the_first_entry_in_the_pulldown,
+  test_the_window_opens_on_the_latest_report_created,
+  test_choosing_new_report_loads_the_preferences_defaults,
+  test_new_report_writes_nothing_and_reads_nothing_off_the_run,
+  test_the_defaults_do_not_override_a_run_that_chose_its_type,
+  test_the_detailed_section_survives_a_report_of_another_shape.
+  They are the new guard file named in the bullet below.
+  Mutations proved to land, `__pycache__` cleared around each: the
+  `_stamp_the_automatic_document` call dropped (**3 failed**),
+  the Measure tab's key removed from `MEASURE_CONTROLS` (**1 failed**),
+  the call that opens the window on the newest document deleted from
+  `_rebuild_from_sources` (**1 failed**), the tick-box
+  restore removed from `_start_new_report` (**1 failed**); restored, green each
+  time. **The latest-report guard was rewritten because its first version
+  passed under its own mutation**: the window already followed the file the
+  page was drawn from, which on an ordinary project is also the latest
+  document, so the fixture now makes the two differ.
+- guard file: `tests/test_the_measurement_report_defaults_are_knuts.py` (new),
+  which also carries B8-392's four.
+- **HE OVERRULED THE DEFERRAL, 2026-09-18:** *"Please add all of this in beta
+  22, not in beta 23... Including the descriptions given above."* I had proposed
+  beta 23 on the grounds that beta 22 is already carrying a lot; he has heard
+  that and decided. It is his call and it is being built.
+- **And he answered the three questions the deferral note asked:**
+  * *"Save measurement report after each measurement"* default ON: **yes**.
+  * the two view tick boxes default ON, always OFF during automatic saving:
+    **yes**.
+  * *"The default when loading the Measurement Report window is the latest
+    report created. 'New report...' should be at the top of the list in the
+    pulldown."*
+- what to do first: build it, and say in the release notes that a report is now
+  written after every measurement by default, because that is a shipped default
+  changing under people who never open the report window.
 
-### B8-389 · OPEN · Three measurement-window fixes are in the tree with no guard and no mutation
+### B8-389 · FIXED · Three measurement-window fixes were in the tree with no guard and no mutation
 - blocks release: yes
-- status: OPEN
-- **This is a debt, not a fault**, and it is release-blocking because of where
+- status: FIXED
+- fixed: 2026-09-18 — the guards are written and every mutation was SEEN red
+- **This was a debt, not a fault**, and it was release-blocking because of where
   it sits: the path that can lose a measurement.
 - Committed in `e83e1f29`, driven and photographed, **not proven**:
   * **R23-F2**, no key pressed at a ChromIQ window reaches the instrument.
@@ -16718,15 +16815,76 @@ would reach.
     takes the option that changes nothing"*.
   * **R23-F6, half**: M-END no longer plays an unlisted sound on every ending,
     which also stopped "Patches still unread" playing twice.
-- **What is missing**: a harness with a real `os.openpty()` pair driving
+- **What was missing**: a harness with a real `os.openpty()` pair driving
   `ArgyllRunner._pty_master` AND a real live child, because without a live
   child `is_running` is False, `_send_failure_choice` early-returns, and the
-  R23-F4 mutation cannot land. That harness was designed and not written.
-- evidence: **none**. That is the point of this entry.
-- what to do first: write those three guards and run each mutation until it is
-  SEEN red. Three guards in this change set have already passed under their own
-  mutation, so assume the fourth will until proved otherwise. Until then these
-  three fixes are unverified, and the beta should not be tagged.
+  R23-F4 mutation cannot land. That harness was designed and not written. **It
+  is now `tests/helpers/live_reader.py`**, and it is all three of those things:
+  the master wired into the real runner, a real child process holding the
+  slave so `is_running` is genuinely True, and the slave in **raw mode**.
+- **THE RAW-MODE HALF IS LOAD-BEARING AND WAS MEASURED BOTH WAYS** before a
+  line of it was written. With the default line discipline an Escape written to
+  the master is still invisible at the far end 200 ms later (`b''` — ICANON
+  holds it until a newline completes the line); in raw mode it arrives at once
+  (`b'\x1b'`). That is enough to prove a FAULT, because a byte that arrives
+  late still arrived, and it is **not** enough to prove a FIX, because a run in
+  which nothing is seen might be a run in which a byte is merely waiting.
+  `test_the_far_end_is_in_raw_mode` asserts ICANON and ECHO are both off so it
+  cannot quietly come back.
+- **THE F2 MUTATION HANGS RATHER THAN FAILS, AND THE GUARD HAD TO ALLOW FOR
+  IT.** Under the fault the key is eaten, so the window never closes and
+  `exec()` never returns. `WindowDriver` rescues a window still up 1.2 s after
+  the gesture and records that it had to (`stuck`), which is what turns a
+  timeout into a red line naming the fault.
+- guards: `tests/test_no_key_at_our_own_window_reaches_the_instrument.py`
+  (R23-F2, 9 tests), `tests/test_a_dismissal_takes_the_option_that_changes_nothing.py`
+  (R23-F4, 4), `tests/test_the_ending_window_plays_nothing.py` (R23-F6, 4), on
+  the harness in `tests/helpers/live_reader.py`. Each runs the app's own
+  sequence: the real Stop button, the real windows raised through the real
+  manager signals, real key events through the real application so the real
+  app-wide filter is first in line, and the byte read at the far end of the
+  real pty.
+- evidence:
+  * R23-F2 — `test_escape_at_the_ending_window_sends_nothing_to_the_instrument`,
+    `test_escape_at_the_ending_window_closes_it`,
+    `test_escape_at_the_ending_window_means_keep_measuring`,
+    `test_return_at_the_ending_window_sends_the_save_chain_not_the_key`,
+    `test_with_no_window_up_the_keys_still_reach_the_instrument` (the gate must
+    not switch the filter off),
+    `test_the_gate_asks_about_a_modal_window_not_about_a_flag`, and the three
+    that hold the harness honest:
+    `test_the_harness_starts_the_session_the_way_the_app_does`,
+    `test_the_reader_at_the_far_end_is_real`,
+    `test_the_far_end_is_in_raw_mode`.
+    MUTATION, `eventFilter`'s `activeModalWidget()` gate removed: **5 failed,
+    4 passed** — `assert b'\x1b' == b''` and `assert b'\r' == b'd'`.
+  * R23-F4 — `test_dismissing_wrong_strip_read_retries_rather_than_filing_it`,
+    `test_dismissing_unexpected_colour_response_retries_too`,
+    `test_dismissing_strip_read_interrupted_still_resumes` (**the control**),
+    `test_a_dismissal_never_ends_the_session`.
+    MUTATION, both `chosen = [" "]` defaults back to `"\r"`: **2 failed, 2
+    passed**, `assert b'\r' == b' '` twice — and the control stayed green,
+    which is what shows the guard is not simply refusing `\r` everywhere.
+  * R23-F6 — `test_the_ending_window_cues_nothing`,
+    `test_patches_still_unread_sounds_once_not_twice`,
+    `test_an_empty_ending_cues_nothing_either`,
+    `test_the_sounds_table_has_no_row_for_the_ending_window`.
+    MUTATION, `_cue_window("STRIP_FAIL")` back at the top of
+    `_confirm_end_of_session`: **2 failed, 2 passed** — one cue where none is
+    expected, two where one is. M-END-EMPTY stayed green, which places the
+    mutation where it was meant to be and not somewhere broader.
+- **On screen, in a real window, against the LIVE tree**, because round 23
+  measured a copy of `60b83a7f` staged in `/tmp` and another agent has been
+  editing `ui/tabs/tab_measure.py` ever since. Real **Start** button, raw-mode
+  stand-in reader at the far end of the real PTY, `capture_window` not
+  `widget.grab()`, no window refused and none rescued. Every byte the reader
+  recorded, in order: `b' '  b' '  b'\r'  b'n'  b'd'` — Escape at the ending
+  window sent **nothing** and cued **nothing**, the two suspect-reading windows
+  sent Retry, the control sent Resume, "Patches still unread" cued `strip_fail`
+  **once**, and Return pressed "Save and stop" and sent the save chain.
+  `~/Desktop/ChromIQ-beta22-proof/b389-the-guards/` (README, `red/` with each
+  mutation's output, `photos/` with six photographs and `B389.json`).
+- **No guard found a fix wrong and no shipped code was changed.**
 
 ### B8-390 · OPEN · The CR30 read-failed window still opens in silence
 - blocks release: no
@@ -16744,3 +16902,257 @@ would reach.
 - evidence: none; withdrawn before it landed.
 - what to do first: ask him which sound, then re-apply the patch, translate the
   one string into German, and re-measure the ledgers rather than nudging them.
+
+### B8-391 · FIXED · The unlock warning describes a recalculation that is not what he wants
+- blocks release: no
+- status: FIXED
+- Knut, 2026-09-18, reading the window that appears when "Unlock this run's
+  limits" is unchecked:
+
+  > *"This run (run3) has 2 dated verifications. Unlocking lets you change the
+  > run's limit set and its numbers. Every dated report of this run will then be
+  > recalculated with the numbers you set, and the previous reports are kept
+  > first, in a reports/old folder beside each date. Nothing is deleted.
+  > Continue?"*
+  >
+  > *"The description is wrong. All dated reports shall NOT be recalculated,
+  > only the selected report will be recalculated and report text recreated
+  > according to new values."*
+
+- **So this is a BEHAVIOUR ruling with a message on top of it, and the message
+  is the smaller half.** His rule: *"A selected 'Report shown' can have all the
+  settings unlocked ... and a change of the settings will update the selected
+  report only. If a new report is to be created, then the user must select
+  'New report...' option in 'Report shown'."*
+- That is the same shape as B8-384, which was fixed this evening for the
+  "Judged against" door: a change touches the report in front of the reader and
+  nothing else. This is the remaining `_recalculate_run` door, the unlock tick
+  box, which B8-310 has been holding open.
+- **The message must not be corrected before the behaviour is**, or it becomes
+  a second false sentence pointing the other way. The text change is §M work
+  and goes to §M-PROPOSED first.
+- **FIXED 2026-09-18, AND "ONLY THE REPORT SHOWN" CAME OUT AS "NOTHING YET".**
+  Unlocking changes no number: it only lets the user change one. Under N.2 and
+  N.3 a change then belongs to the ONE report named in "Report shown", marks it
+  stale and is applied by pressing Generate report. So `_on_unlock_toggled`
+  calls no recalculation at all: no file is rewritten and none is archived.
+  Re-stamping files with numbers nobody has changed yet would be a rewrite that
+  says nothing, and for a generated document it would break the rule B8-384 is
+  built on.
+- **THE SENTENCE LOST THE CLAUSE THAT WAS FALSE AND GAINED NOTHING.** The
+  question now reads *"This run (run3) has 2 dated verifications. Unlocking
+  lets you change the run's limit set and its numbers. Nothing is deleted.
+  Continue?"* — every word of which was already on screen. The replacement
+  wording, which says what the door now does, is in §M-PROPOSED of
+  `unified_measurement_management.md` and is unapproved.
+- **ONE `_recalculate_run` DOOR IS LEFT, AND IT IS NOT THE LAST ONE THE BRIEF
+  EXPECTED**: the Report limits window's Save. It asks its OWN question at the
+  moment the rewrite happens, so no warning was lost with the unlock door's.
+  N.3 covers it in Knut's own words (*"saving a change in the Edit limits
+  window must result in the same behaviour"*), but it was NOT changed here: the
+  round was asked for the unlock door, and re-aiming another round's guards on
+  an inference is how this window has been broken before. **It stays B8-310 and
+  is a question for him.**
+- status: FIXED
+- evidence: test_the_unlock_door_recalculates_nothing_either,
+  test_preferences_allows_the_unlock_and_unlocking_recalculates_nothing,
+  test_a_report_stamped_after_the_unlock_is_archived_before_its_first_rewrite,
+  test_a_generated_document_is_never_recalculated.
+  Mutation proved to land, `__pycache__` cleared: `self._recalculate_run()` put
+  back at the foot of `_on_unlock_toggled` (**3 failed**); restored, green.
+- guard files: `a_saved_report_is_not_rewritten_by_a_set_change`,
+  `report_window_limit_controls` and `a_generated_report_is_one_document`, all
+  three under `tests/`.
+- **THREE TESTS THAT ENCODED THE OVERTURNED BEHAVIOUR WERE REWRITTEN, NOT
+  DELETED**, each saying in its own docstring that Knut overturned it and what
+  it guards now. The first of them was named `…_unlock_door_still_recalculates`
+  and is cited under B8-384, whose evidence line was updated with it.
+
+### B8-392 · FIXED · The generated report NAME must carry the settings as flags
+- blocks release: no
+- status: FIXED
+- Knut, 2026-09-18, and he asked for it in beta 22 as well. His rules, whole:
+
+  > *"The report names created should include flags that indicate the settings,
+  > just as Report type and Judged against:*
+  > * *If "Show all measurement runs" is ON and all measurement dates are marked
+  >   to be included, then the name should include the flag "All dates".*
+  > * *If "Show all measurement runs" is OFF, and if there are more than one
+  >   measurement dates in the included-list and only one is marked to be
+  >   included, then only the selected measurement date that is marked to be
+  >   included is used to create the report. In this case the name should
+  >   include the flag "One date".*
+  > * *If "Show all measurement runs" is OFF, and if there are more than one
+  >   measurement dates in the included-list and more than one are marked to be
+  >   included (but is not all of the measurement dates in the included list),
+  >   then only the selected measurement dates that are marked to be included is
+  >   used to create the report. In this case the name should include the flag
+  >   "Multiple dates".*
+  > * *If the list of measurement dates to be included only holds one
+  >   measurement, then the "Show all measurement runs" is automatically set to
+  >   OFF, and the report name should include the flag "One date". This should
+  >   include all the automatically created reports during measurement.*
+  > * *If "Show detailed data for each run" in ON, the name should include the
+  >   flag "Detailed"."*
+
+- **The fourth rule is not a naming rule.** *"the 'Show all measurement runs' is
+  automatically set to OFF"* is behaviour: a list holding one measurement forces
+  that tick box off. That interacts with B8-388's new default, which is ON, so
+  the two must be built together or the default will fight the rule.
+- The names are already generated with the type, the set and the date and time
+  (B8-380). These five flags are additions to that same builder, which is where
+  to put them rather than in a second place.
+- **Five flag words are new user-facing text** and they appear in a name that is
+  written to disk, so they need `tr()`, German, and the ledgers re-measured.
+  Whether a name written into a file should be translated at all is worth a
+  moment's thought: a name saved in German and read on an English machine will
+  not match anything the English build looks for. Report that rather than
+  deciding it alone.
+- **BUILT 2026-09-18, both halves.** The name is composed in the one builder
+  that already composes it (`_document_label`), and the flag is decided from
+  what the document COVERS rather than from the tick box alone, so it cannot
+  disagree with the page.
+- **THE FLAGS ARE STORED AS IDS AND TRANSLATED WHEN THE NAME IS DISPLAYED**,
+  and that was measured rather than decided: **nothing of a report's name is
+  written to disk at all**. The document block keeps the type id, the set id
+  beside its ENGLISH label and now a scope id (`all_dates` / `one_date` /
+  `multiple_dates`), and `_document_label` is the only place that turns any of
+  them into words. So a report named on a German machine reads in English on an
+  English one, and the existing builder was already right about this.
+- **THE FOURTH RULE IS BEHAVIOUR AND IT BEATS B8-388's DEFAULT**: a window whose
+  list holds one measurement turns "Show all measurement runs" OFF and greys it,
+  whatever Preferences says. It is given back when the list grows, so opening a
+  window on one sheet and then adding a project widens the report exactly as
+  before; without that, a one-measurement window would switch the setting off
+  for the rest of the session.
+- **HIS THIRD CASE CANNOT BE REACHED FROM THE WINDOW AS IT IS BUILT**, and it is
+  reported rather than built around: with "Show all measurement runs" OFF,
+  `_runs_for_report` returns the ONE measurement the window is on and the row
+  ticks are not consulted, so "OFF with several ticked" produces no document of
+  several. The flag is computed from the member list, so the day that changes,
+  the right word appears without this code being touched. **Worth putting to
+  him**: he describes the row ticks as choosing what a report covers even with
+  that box off.
+- **AND ONE FAULT IN B8-383's RECORD CAME OUT WITH IT.** A document recorded the
+  measurements it wrote FILES for (never across a run boundary) rather than the
+  measurements it COVERS (which may span runs, because the trend across a
+  printer's builds is the feature). Loading such a document then hid every row
+  of the other run. Invisible until the window began opening on the latest
+  document; now `measurements` is `_runs_for_document()`, which is what §13.4
+  asks for.
+- status: FIXED
+- evidence: test_the_name_carries_knuts_flags,
+  test_the_flag_words_are_translated_at_display_and_not_stored,
+  test_one_measurement_turns_show_all_off_and_greys_it,
+  test_the_automatic_record_is_named_one_date,
+  test_every_entry_carries_its_own_settings_in_its_name.
+  Mutations proved to land, `__pycache__` cleared around each: the scope clause
+  dropped from `_document_label` (**1 failed**), the `alone` branch removed from
+  `_sync_limit_controls` (**1 failed**), `scope=SCOPE_ONE_DATE` dropped from the
+  automatic record (**1 failed, and this one was found by the mutation itself:
+  the first version of the guard asked the DERIVED scope, which answers "One
+  date" for a file carrying nothing**); restored, green each time.
+
+### B8-393 · OPEN · The demo package must be rebuilt for the new report model and released with beta 22
+- blocks release: yes
+- status: OPEN
+- Knut, 2026-09-18, and it is a release condition rather than a fault:
+
+  > *"After you are ready with the implementation and have thoroughly tested it
+  > with several independent agents, then you have to update and create a new
+  > version of the ChromIQ-Report-Limit-Demos, updated to work with the new
+  > functionality. The agents must use the demo package on-screen on the new
+  > app-release to verify that every ChromIQ-Report-Limit-Demos project work and
+  > all reports load and output correct results, and that all functionality
+  > works using the demo data. the demo-data must also include testing and
+  > triggering of all thresholds for all report types and all judged against
+  > limit sets. This package must then be released together with beta 22."*
+
+- **AND HE TIGHTENED THE THIRD, 2026-09-18:** *"those eleven can also be
+  defined for all the Judge Against limit sets, so the demo data must verify
+  that all thresholds can trigger correctly for every judged against limit set,
+  not just test all the thresholds on one of the sets. Also, some tests require
+  a test chart with From Profile Gamut, which must also be included."* So the
+  matrix is every judgeable row against every limit set, not eleven rows once,
+  and the profile-gamut chart is a required part of the package rather than a
+  suggestion of mine.
+- **Three separate obligations, and the third is the largest:**
+  1. rebuild `ChromIQ-Report-Limit-Demos` so its projects work with the
+     document record, the new naming and the new defaults;
+  2. drive every project of it ON SCREEN on the built beta and confirm every
+     report loads and reads correctly;
+  3. **the demo data must TRIGGER every threshold, for every report type, and
+     every judged-against set.** That is a data-design job before it is a
+     testing job: measurements have to be constructed that fail each limit on
+     purpose, and `project_182_metric_detection_map` already records that of
+     the 30 limit rows, 11 are judgeable, 3 are dead on every chart and 5 have
+     no detection at all. Those numbers have to be re-measured against the
+     current build before anybody promises "all thresholds", and where a row
+     genuinely cannot be triggered that has to be said rather than faked.
+- The existing package is `ChromIQ-Report-Limit-Demos.zip`, attached to the
+  beta.20 and beta.21 releases and carried forward unchanged.
+- evidence: none; nothing started.
+- what to do first: re-measure which limit rows can be triggered at all on the
+  current build, because that decides whether obligation 3 is a week of work or
+  an afternoon, and tell Knut the answer before building the data.
+
+
+### B8-395 · FIXED · The PDF export was not the document on screen, for the two settings that are not widgets (R23-F1)
+- blocks release: no
+- status: FIXED
+- found by: round 23's own adversary pass, on a fix from the same change set.
+  `_export_pdf` wraps its build in `_as_the_document_was_built()`, which
+  restores the five deferred settings **as WIDGETS** and puts them back in a
+  `finally`. Two of the five are never read from a widget: `_on_set_chosen` and
+  `_on_type_chosen` write the chosen set and type onto the RUN the moment they
+  move, and the body reads them back through `_report_type_now()` and
+  `_limits_for()`. Measured with the red line up: the screen said *Judged
+  against: ChromIQ default (recommended)* and the exported PDF said **ChromIQ
+  tight**. Same for Report type.
+- **AND ITS GUARD PASSED UNDER ITS OWN MUTATION**, which is the part worth
+  keeping: `test_the_pdf_door_stays_open_and_the_pdf_is_what_is_on_screen` moved
+  only `_detail_check`, the one setting the wrapper really covers.
+- fix: `_render` now records what the body actually READ — the type, and the two
+  limit caches with the window's own RunLimits — in `_doc_built_state`, and the
+  context manager installs that snapshot for the length of the build and drops
+  it in the same `finally`. **Nothing is written to the run to achieve it**: an
+  export must not touch the disk, and a build that fails half way must not leave
+  a run carrying a set the user never chose.
+- evidence: test_the_pdf_door_stays_open_and_the_pdf_is_what_is_on_screen,
+  rewritten to move the TYPE through the app's own pulldown, to prove the run really took it
+  before asking about the export, and to check the run is unchanged afterwards.
+  Its docstring says that its first version watched the helper instead of the
+  door and its second moved the only setting the helper covered.
+  Mutation proved to land, `__pycache__` cleared: the `_doc_built_state` half of
+  `_as_the_document_was_built` removed (**1 failed**, *"the PDF is not the
+  document on screen"*); restored, green.
+
+### B8-396 · FIXED · The detailed section takes the window down on a report of another shape
+- blocks release: no
+- status: FIXED
+- **FOUND BY DRIVING B8-388'S NEW DEFAULT ON SCREEN**, on the first real window
+  of the round, and it is the reason that rule is in CLAUDE.md. Nothing in the
+  suite had it.
+- "Show detailed data for each run" now starts ON (B8-388, P.3), so the
+  detailed section is drawn for every reader the moment the window opens. It
+  read `paper_white['hex']`, `['loc']` and `['lab'][0]`, and all four keys of
+  every worst-patch entry, straight out of the record. **ChromIQ's own demo
+  projects hold neither shape**: `~/ChromIQ/Demo-Switching` keeps paper white as
+  `{"L":…, "a":…, "b":…}` and worst patches as `{"id":…, "de00":…}`. The window
+  came down with `KeyError: 'hex'`, and with that fixed, `KeyError: 'loc'`.
+- **It was reachable before this round and nobody could get to it**, because
+  the tick box started OFF; the new default is what turned an unreachable
+  fragility into a window a user cannot open.
+- fix: every cell prints what the file carries. A swatch is drawn where there
+  is a colour, the location is named when it is recorded, L* comes from
+  whichever of the two shapes the file uses, and the patch is named by `loc` or
+  by `id`. **Nothing is invented**: a record that carries nothing prints
+  nothing for that cell.
+- evidence: test_the_detailed_section_survives_a_report_of_another_shape, whose
+  fixture is the shape that broke it rather than a tidied version of it.
+  Mutation proved to land, `__pycache__` cleared: `p['loc']` put back
+  (**1 failed**, `KeyError: 'loc'`); restored, green.
+- **The two demo-project shapes are worth a separate look** and are NOT chased
+  here: whether `scripts/make_demo_projects.py` should write the shape
+  `build_report` writes is B8-393's ground, and a report on a user's disk may
+  hold either way round.

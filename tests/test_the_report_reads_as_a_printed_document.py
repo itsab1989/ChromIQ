@@ -1317,10 +1317,28 @@ def test_the_pdf_door_stays_open_and_the_pdf_is_what_is_on_screen(tmp_path, qapp
     hand somebody the document in front of them while they think about a
     setting they have moved.
 
+    **ITS FIRST VERSION WATCHED THE HELPER AND NOT THE DOOR, AND ITS SECOND
+    MOVED THE ONE SETTING THE HELPER REALLY COVERED (R23-F1).** It opened the
+    context manager itself and compared two live compositions, so the mutation
+    that removes the wrapper from `_export_pdf` left it green; that was fixed,
+    and it then moved only "Show detailed data for each run". The detail box is
+    a WIDGET, and `_as_the_document_was_built` restores widgets. The report TYPE
+    and the limit SET are not: `_on_type_chosen` and `_on_set_chosen` write them
+    onto the RUN the moment they move, and the body reads them back from the
+    run. So with the red line up the screen said one thing and the exported PDF
+    said another, and this test could not see it.
+
+    It now moves the TYPE, through the app's own pulldown, and checks the run
+    really took it — so the state the fault needs is proved to exist before the
+    export is asked about.
+
     MUTATION, proven to land: drop the `_as_the_document_was_built()` wrapper
-    from `_export_pdf`.
+    from `_export_pdf`, or the `_doc_built_state` half of it.
     """
     from tests.test_a_report_says_what_it_is_and_what_judged_it import _dialog
+    from workflow.measurement_report import (REPORT_TYPE_MENU,
+                                             report_type_is_built)
+    from workflow.run_compliance import run_report_type
 
     dlg, _run, _fm = _dialog(tmp_path, qapp)
     try:
@@ -1332,7 +1350,16 @@ def test_the_pdf_door_stays_open_and_the_pdf_is_what_is_on_screen(tmp_path, qapp
         assert dlg._pdf_btn.isEnabled(), "a loaded report must be exportable"
         built = tuple(dlg._doc_built_with)
         on_screen = dlg._report_body_html(dlg._runs_for_report(), for_pdf=True)
+        was_type = dlg._report_type_now()
 
+        # THE TYPE, THROUGH THE PULLDOWN, which stores it on the run at once.
+        other = next(t for t, _n, _b, _built in REPORT_TYPE_MENU
+                     if t != was_type and report_type_is_built(t))
+        dlg._type_combo.setCurrentIndex(dlg._type_combo.findData(other))
+        qapp.processEvents()
+        assert run_report_type(_run) == other, (
+            "the type never reached the run, so the state this test is about "
+            "does not exist here")
         dlg._detail_check.setChecked(not dlg._detail_check.isChecked())
         qapp.processEvents()
         assert dlg._stale_label.isVisible(), "the red line did not come up"
@@ -1369,6 +1396,9 @@ def test_the_pdf_door_stays_open_and_the_pdf_is_what_is_on_screen(tmp_path, qapp
             QDesktopServices.openUrl = real_open
             dlg._pdf_html = real_html
         assert "html" in seen, "the export never built a document"
+        assert run_report_type(_run) == other, (
+            "the export wrote the type back onto the run; an export must not "
+            "touch the disk")
         assert seen["html"] == on_screen, (
             "the PDF is not the document on screen: the settings moved and the "
             "export followed them")

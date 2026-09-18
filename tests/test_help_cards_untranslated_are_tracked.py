@@ -590,18 +590,32 @@ _BUDGET = {
     # M-REPORT-DELETE). German is translated in the same commit and does not
     # move; the eleven others each rise by exactly 3 under the beta rule.
     # Counted with this file's own `_english_echoes`, never adjusted upward.
+    # RE-MEASURED 2026-09-18, B8-388/B8-391/B8-392: the Measurement Report
+    # defaults. Seventeen keys in, six stale out; EIGHT of the seventeen are
+    # long enough to count here (the three Preferences help texts, the "New
+    # report…" tooltip, the Measure tab's "Save measurement report" help, the
+    # one-measurement sentence beside "Show all measurement runs", the unlock
+    # question with its false clause removed, and the two Preferences tick-box
+    # labels). German is translated in the same commit and does not move; the
+    # eleven others each rise by exactly 8 under the beta rule.
+    # Counted with this file's own `_english_echoes`, never adjusted upward.
+    # RE-MEASURED again the same evening, one LOWER: the on-screen run of the
+    # new defaults photographed two sentences that had become false with
+    # B8-391 (the unlock tick box's own label, and the two tooltips that
+    # promised a recalculation the door no longer does). Rewriting them
+    # retired one long English placeholder in the eleven languages.
     "de": 20,
-    "es": 217,
-    "fr": 218,
-    "it": 217,
-    "ja": 217,
-    "nl": 217,
-    "no": 217,
-    "pl": 217,
-    "pt": 217,
-    "ru": 216,
-    "sv": 217,
-    "zh_CN": 216,
+    "es": 224,
+    "fr": 225,
+    "it": 224,
+    "ja": 224,
+    "nl": 224,
+    "no": 224,
+    "pl": 224,
+    "pt": 224,
+    "ru": 223,
+    "sv": 224,
+    "zh_CN": 223,
 }
 
 

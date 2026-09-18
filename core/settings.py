@@ -242,6 +242,26 @@ DEFAULTS: dict[str, Any] = {
     # Preferences (JSON list of set ids; "" = all). Per RUN when opened from
     # the report window (Knut K-b), stored in the run's meta.json instead.
     "compliance_columns_shown":  "",
+    # Measurement Report DEFAULTS (Knut, 2026-09-18, B8-388). The three values
+    # a report is made with when nothing else decides: the window opening on a
+    # run that has generated no report, "New report…" chosen in "Report shown",
+    # and the report ChromIQ writes by itself after a measurement.
+    #
+    # The TYPE belongs to the run (D9) and this is the fallback for a run that
+    # never chose one: *"The type belongs to the run, yes, but the default
+    # should be the 'Full colour check'."*
+    #
+    # The two view tick boxes are default ON: *"These shall be default ON.
+    # however, during automatic saving of a report during measurement, these
+    # are always OFF (that is natural because it is one measurement only)"* —
+    # so the automatic record does NOT read these two, by his rule.
+    #
+    # There is deliberately no "judged against" default beside them: *"The
+    # Report Limits button contain the Judged Against default chosen, so no
+    # separate selection box is needed"* — it is `compliance_default_set`.
+    "report_default_type":       "t2_full_colour_check",
+    "report_default_show_all_runs": True,
+    "report_default_show_details":  True,
     # Measurement Report title/filename prefixes (#130, Knut). The report picks
     # the profiling or verification prefix from whether its measurements carry
     # the CHROMIQ_VERIFICATION marker; the full title/filename is

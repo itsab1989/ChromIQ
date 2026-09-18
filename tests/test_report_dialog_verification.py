@@ -116,13 +116,21 @@ def test_report_dir_places_by_least_common_ancestor(tmp_path):
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
     vti3 = _verification_project(tmp_path)
     dlg = MeasurementReportDialog(_Settings(), initial_ti3=vti3)
-    assert dlg._all_runs_check.isChecked()               # trend view on by default
+    # **B8-392: this window holds ONE measurement, so "Show all measurement
+    # runs" is off and greyed** (Knut, 2026-09-18: *"If the list of measurement
+    # dates to be included only holds one measurement, then the 'Show all
+    # measurement runs' is automatically set to OFF"*). It used to open ticked,
+    # and the folder this test is about is the same either way, which is the
+    # point of the second half below.
+    assert not dlg._all_runs_check.isChecked()
+    assert not dlg._all_runs_check.isEnabled()
     # One dated verification is all the report covers → its own reports/.
     rd = dlg._report_dir()
     assert rd == vti3.parent / "reports"
     assert "verifications" in rd.parts
-    # Untick 'all runs' → same single dataset → same tier.
-    dlg._all_runs_check.setChecked(False)
+    # …and with the box ticked, however it got there: same single dataset,
+    # same tier.
+    dlg._all_runs_check.setChecked(True)
     assert dlg._report_dir() == vti3.parent / "reports"
     dlg.deleteLater()
 

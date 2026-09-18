@@ -245,8 +245,19 @@ def test_a_report_that_saves_says_only_that(tab, tmp_path, monkeypatch):
 
 
 def test_the_option_being_off_is_still_silent(tab, tmp_path, monkeypatch):
-    """A user who switched the report off is not told about a report."""
+    """A user who switched the report off is not told about a report.
+
+    **THE SWITCH IS THE ONE ON THE TAB NOW (B8-388).** Knut, 2026-09-18:
+    *"'Save measurement report' should be ON, visible in the settings
+    on-screen (measurement tab?) when 'Preferences -> reports' 'Save
+    measurement report after each measurement' is set … When … is OFF, then
+    'Save measurement report' is default OFF, but a user may still change it
+    to ON."* So the preference decides what the control STARTS as, and the
+    control decides what happens; both are set here, which is the state a user
+    who switched it off is really in.
+    """
     tab._settings.set("save_measurement_report", False)
+    tab._save_report_cb.setChecked(False)
     import workflow.measurement_report as mr
     monkeypatch.setattr(
         mr, "build_report",

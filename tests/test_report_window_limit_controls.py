@@ -126,8 +126,26 @@ def test_a_measured_run_is_locked_and_the_pulldown_is_disabled(qapp, tmp_path):
         dlg.deleteLater()
 
 
-def test_preferences_allows_the_unlock_and_unlocking_archives_and_recalculates(
+def test_preferences_allows_the_unlock_and_unlocking_recalculates_nothing(
         qapp, tmp_path, monkeypatch):
+    """**KNUT OVERTURNED THE SECOND HALF OF THIS TEST, 2026-09-18 (B8-391).**
+
+    It was `…_and_unlocking_archives_and_recalculates`, and it asserted that
+    ticking "Unlock this run's limits" archived and rewrote every dated report
+    of the run. Reading that very window he wrote: *"All dated reports shall
+    NOT be recalculated, only the selected report will be recalculated and
+    report text recreated according to new values."*
+
+    So the unlock is now what it says it is and no more: it lets the user
+    change the run's limit set and its numbers. The archive-then-recalculate
+    rule (D23) is untouched and still governs the door that does rewrite files,
+    the Report limits window's Save, which asks its own question at the moment
+    the rewrite happens (`test_a_report_stamped_after_the_unlock_is_archived_
+    before_its_first_rewrite`).
+
+    MUTATION: put `self._recalculate_run()` back at the foot of
+    `_on_unlock_toggled` and this goes red.
+    """
     proj, run, ti3s = _verified_run(tmp_path)
     s = _settings(tmp_path, compliance_allow_edit_after_measurement=True)
     dlg = _dialog(s, ti3s[-1])
@@ -138,15 +156,28 @@ def test_preferences_allows_the_unlock_and_unlocking_archives_and_recalculates(
         dlg._unlock_check.setChecked(True)
         assert not dlg._unlock_check.isChecked()
         assert not run.load_meta().compliance_unlocked
-        # the user says OK: archive once, recalculate once
+        # the user says OK: the run is unlocked and NOTHING on disk moves
         monkeypatch.setattr(dlg, "_confirm", lambda *a, **k: True)
         before = {p: p.read_text(encoding="utf-8") for v in run.verifications() for p in mr.list_reports(v.dir)}
         dlg._unlock_check.setChecked(True)
         assert run.load_meta().compliance_unlocked
         for v in run.verifications():
             old = sorted((v.reports_dir / "old").glob("*/report_*.json"))
-            assert len(old) == 1, "each date's report is archived exactly once"
-            assert old[0].read_text(encoding="utf-8") == before[v.reports_dir / old[0].name]
+            assert not old, f"unlocking archived {old}"
+            for p in mr.list_reports(v.dir):
+                assert p.read_text(encoding="utf-8") == before[p], (
+                    f"unlocking rewrote {p.name}")
+        # …AND THE QUESTION NO LONGER PROMISES ONE. The clause about every
+        # dated report being recalculated went with the behaviour (B8-391);
+        # the replacement sentence is §M-PROPOSED and unapproved, so what is
+        # left is the words that were already there and are still true.
+        _asked: list = []
+        monkeypatch.setattr(dlg, "_confirm",
+                            lambda t, b: (_asked.append(b), True)[1])
+        dlg._unlock_check.setChecked(False)
+        dlg._unlock_check.setChecked(True)
+        assert _asked, "the unlock stopped asking altogether"
+        assert "recalculated" not in _asked[-1], _asked[-1]
         # THE PULLDOWN IS NOW LIVE, AND CHOOSING A SET RE-STAMPS NOTHING
         # (B8-384). Knut: *"Agreed. D23 stands."* — the archive-then-
         # recalculate rule is about HOW a recalculation is done, and his
@@ -410,7 +441,9 @@ def test_a_report_stamped_after_the_unlock_is_archived_before_its_first_rewrite(
         dlg._unlock_check.setChecked(True)
         v = run.verifications()[0]
         old = lambda: sorted((v.reports_dir / "old").glob("*/report_*.json"))  # noqa: E731
-        assert len(old()) == 1
+        # NOTHING YET: the unlock itself recalculates nothing and so archives
+        # nothing (B8-391). What follows is the door that does both.
+        assert not old()
         # a new measurement stamped while unlocked
         from tests.test_report_judging import _colours, _ramp, _write_ti3
         rep = mr.build_report(ti3s[-1])
@@ -426,10 +459,11 @@ def test_a_report_stamped_after_the_unlock_is_archived_before_its_first_rewrite(
         copies = old()
         assert any(c.read_text(encoding="utf-8") == content2 for c in copies), \
             "the report stamped after the unlock was rewritten without a copy"
-        n = len(copies)
+        n_copies = len(copies)
+        assert n_copies, "the Save door archived nothing"
         # changing again copies only what changed since
         _edit_the_runs_numbers(dlg, monkeypatch, value=0.3)
-        assert len(old()) == n + 2          # both live files changed once more
+        assert len(old()) == n_copies + 2   # both live files changed once more
     finally:
         dlg.deleteLater()
 

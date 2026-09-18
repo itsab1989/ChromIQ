@@ -89,8 +89,14 @@ def test_a_fresh_window_says_nothing(tmp_path, qapp):
 @pytest.mark.parametrize("setting", ["all_runs", "detail"])
 def test_the_two_tick_boxes_wait_and_say_so(tmp_path, qapp, setting):
     """MUTATION: connect either box back to `_refresh` and this goes red on
-    the first assertion, because the document rebuilds itself."""
-    dlg, _run, _fm = _dialog(tmp_path, qapp)
+    the first assertion, because the document rebuilds itself.
+
+    TWO DATES, because of B8-392: a window whose list holds ONE measurement
+    turns "Show all measurement runs" off and greys it (Knut, 2026-09-18), so
+    on a one-date project that box could not be moved at all and this test
+    would be measuring nothing for half its parameters.
+    """
+    dlg, _run, _fm = _dialog(tmp_path, qapp, dates=2)
     try:
         box = (dlg._all_runs_check if setting == "all_runs"
                else dlg._detail_check)
@@ -222,8 +228,11 @@ def test_the_banner_is_a_comparison_and_not_a_flag(tmp_path, qapp):
     an undo, and a boolean set on change cannot.
 
     MUTATION: return a constant from `_doc_settings` and this goes red.
+
+    TWO DATES (B8-392): the box it moves is greyed and off on a window holding
+    one measurement.
     """
-    dlg, _run, _fm = _dialog(tmp_path, qapp)
+    dlg, _run, _fm = _dialog(tmp_path, qapp, dates=2)
     try:
         first = dlg._doc_settings()
         assert dlg._doc_built_with == first
@@ -331,14 +340,22 @@ def test_nothing_waits_for_a_button_that_cannot_be_pressed(tmp_path, qapp):
 
 def test_the_last_measurement_unticked_leaves_nothing_to_generate(tmp_path, qapp):
     """The third state the button dies in, and the one a reader reaches by
-    accident: untick every measurement and there is no report to build."""
+    accident: untick every measurement and there is no report to build.
+
+    TWO DATES (B8-392). The row ticks only decide what the document covers
+    while "Show all measurement runs" is ON, and a window holding ONE
+    measurement now turns that box off and greys it, so a single-date project
+    cannot reach this state at all any more.
+    """
     from PyQt6.QtCore import Qt
-    dlg, _run, _fm = _dialog(tmp_path, qapp)
+    dlg, _run, _fm = _dialog(tmp_path, qapp, dates=2)
     try:
         rows = [i for i, (kind, _si, key) in enumerate(dlg._list_rows)
                 if kind == "run" and key]
-        assert len(rows) == 1
-        dlg._profile_list.item(rows[0]).setCheckState(Qt.CheckState.Unchecked)
+        assert len(rows) == 2, rows
+        assert dlg._all_runs_check.isChecked()
+        for i in rows:
+            dlg._profile_list.item(i).setCheckState(Qt.CheckState.Unchecked)
         qapp.processEvents()
         assert not dlg._generate_btn.isEnabled()
         assert not dlg._stale_label.isVisible(), (

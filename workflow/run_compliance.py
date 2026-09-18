@@ -246,6 +246,42 @@ def run_report_type(run: "Run | None") -> str:
         return REPORT_TYPE_DEFAULT
 
 
+def report_type_default_for(run: "Run | None", preferred: str) -> str:
+    """The type a NEW document of *run* is made as: D9 first, Preferences second.
+
+    Knut, 2026-09-18 (B8-388): *"Regarding 'the report type': The type belongs
+    to the run, yes, but the default should be the 'Full colour check'."* and,
+    of the Preferences pulldown, *"the selected option is used as default when
+    opening measurement report (when no report is showing) or when an automatic
+    measurement report is written after a completed measurement."*
+
+    So the run still owns the type — a run that has chosen one is answered with
+    it, which is D9 untouched — and the Preferences value is what a run that
+    never chose gets, instead of the hard-coded T2 that
+    :func:`run_report_type` answers with.
+
+    An id this build cannot PRODUCE is refused from either source, for the
+    reason :func:`workflow.measurement_report.report_type` gives: what this
+    build renders is what it must say it rendered.
+    """
+    from workflow.measurement_report import (REPORT_TYPE_DEFAULT, REPORT_TYPES,
+                                             report_type_is_built)
+
+    def _usable(tid: str) -> bool:
+        return tid in REPORT_TYPES and report_type_is_built(tid)
+
+    stored = ""
+    if run is not None:
+        try:
+            stored = str(run.load_meta().report_type or "")
+        except (OSError, ValueError) as exc:
+            log.warning("could not read the report type of %s: %s", run.dir, exc)
+    if _usable(stored):
+        return stored
+    pref = str(preferred or "")
+    return pref if _usable(pref) else REPORT_TYPE_DEFAULT
+
+
 def set_run_report_type(run: Run, type_id: str) -> None:
     """Record the chosen type on the run.
 

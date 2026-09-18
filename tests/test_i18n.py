@@ -978,18 +978,29 @@ _IDENTICAL_TO_KEY = {
     # GA, which is the standing rule for a beta, so each rises by six. Six and
     # not fourteen: eight of the fourteen were already in those catalogues from
     # elsewhere, and `i18n_sync` also retired eight stale keys.
+    # 2026-09-18, B8-388/B8-391/B8-392: seventeen new strings (the renamed
+    # Preferences frame, the "Report type, default" pulldown and its two tick
+    # boxes with their help, the "New report…" entry and its tooltip, the
+    # Measure tab's "Save measurement report" help, the sentence a window
+    # holding one measurement shows, the three date flags and "Detailed" in a
+    # generated report's name, and the unlock question with its false clause
+    # removed). German is translated in the same commit, so `de` does not move;
+    # the other twelve rise by eleven each, which is the seventeen less the six
+    # that were already in those catalogues from elsewhere. **Counted off this
+    # tree, not adjusted**: `python - <<'PY'` over data/i18n/*.json, values
+    # identical to their key.
     "de": 143,
-    "es": 390,
-    "fr": 412,
-    "it": 401,
-    "ja": 376,
-    "nl": 417,
-    "no": 402,
-    "pl": 394,
-    "pt": 392,
-    "ru": 365,
-    "sv": 403,
-    "zh_CN": 370,
+    "es": 401,
+    "fr": 423,
+    "it": 412,
+    "ja": 387,
+    "nl": 428,
+    "no": 413,
+    "pl": 405,
+    "pt": 403,
+    "ru": 376,
+    "sv": 414,
+    "zh_CN": 381,
 }
 
 

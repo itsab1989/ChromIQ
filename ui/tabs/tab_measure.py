@@ -2339,6 +2339,40 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._sound_cb.setChecked(bool(self._settings.get("sound_enabled", False)))
         self._sound_cb.toggled.connect(self._on_sound_toggled)
         sound_row.addWidget(self._sound_cb)
+        # #182 (Knut, 2026-09-18, B8-388): *"The 'Save measurement report'
+        # should be ON, visible in the settings on-screen (measurement tab?)
+        # when 'Preferences -> reports' 'Save measurement report after each
+        # measurement' is set (should be default ON). When ... is OFF, then
+        # 'Save measurement report' is default OFF, but a user may still change
+        # it to ON. 'Save measurement report' parameter is also remembered as
+        # all other settings are remembered for a run."*
+        #
+        # ONE CONTROL, ON THE SHARED ROW. Guided, Manual and Import all end in
+        # `measure_finished`, which is what writes the report, so a copy per
+        # module would be three widgets answering one question. It rides the
+        # sound row rather than a row of its own because this tab's buttons are
+        # levelled against every other tab's and a new row moves them (Basti,
+        # 2026-08-07).
+        sound_row.addSpacing(18)
+        self._save_report_cb = QCheckBox(tr("Save measurement report"), btn_outer)
+        self._save_report_cb.setChecked(
+            bool(self._settings.get("save_measurement_report", True)))
+        sound_row.addWidget(self._save_report_cb)
+        self._save_report_tip = TooltipButton(
+            tr("Save measurement report"),
+            tr("Writes a small dated report beside this chart when the "
+               "measurement finishes, in the run's “reports” folder: how close "
+               "the measurement came to the chart's design colours, the worst "
+               "patches, the cube corners, paper white and black.\n\n"
+               "It starts from Preferences → Reports → “Save a measurement "
+               "report after each measurement”, and you can change it here for "
+               "this run. Like every other setting on this tab, the run "
+               "remembers what you chose.\n\n"
+               "Nothing is overwritten: each measurement gets its own dated "
+               "report, and the Measurement Report window can rebuild any of "
+               "them from the measurement itself at any time."),
+            btn_outer, min_width=460)
+        sound_row.addWidget(self._save_report_tip)
         # Tooltip icon sits at the far right of the panel (Basti), not hugging
         # the checkbox label.
         sound_row.addStretch()
@@ -14517,7 +14551,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             log.warning("limit set for %s not resolved: %s", ti3, exc)
             from workflow.run_compliance import run_limits
             limits = run_limits(None, None)
-        if not bool(self._settings.get("save_measurement_report", False)):
+        if not self._save_report_wanted():
             return
         try:
             from workflow.measurement_report import (build_report, save_report,
@@ -14548,6 +14582,27 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             from workflow.run_compliance import run_context_for
             _ctx = run_context_for(ti3)
             stamp_report_type(report, _ctx.run if _ctx is not None else None)
+            # **AND A DOCUMENT BLOCK OF ITS OWN (Knut, 2026-09-18, B8-388).**
+            # *"I suggest that the automatic record should itself carry a
+            # document block, so that 'Show all measurement runs' and 'Show
+            # detailed data for each run' are a fact on disk rather than an
+            # inference when it is loaded. Bot set to OFF as default."*
+            #
+            # Until this, the report window worked those two out from his own
+            # sentence at LOAD time (`_settings_of_one_saved_report`) and wrote
+            # nothing; a record that carries them says so itself, and says it
+            # to any later ChromIQ as well.
+            #
+            # BOTH OFF, ALWAYS, and they do not read the Preferences defaults:
+            # *"during automatic saving of a report during measurement, these
+            # are always OFF (that is natural because it is one measurement
+            # only)"*. The TYPE does follow the run, with the Preferences
+            # default behind it: *"The type belongs to the run, yes, but the
+            # default should be the 'Full colour check'."*
+            #
+            # The block is ADDITIVE and `REPORT_SCHEMA` stays 7, so a ChromIQ
+            # that has never heard of it reads this file exactly as before.
+            self._stamp_the_automatic_document(report, ti3, _ctx)
             path = save_report(report, ti3.parent)
             self._log.appendPlainText(
                 tr("[Report] Measurement report saved: {name}").format(
@@ -14555,6 +14610,71 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         except Exception as exc:  # noqa: BLE001
             log.warning("measurement report failed: %s", exc)
             self._say_report_not_saved(exc)
+
+    def _save_report_wanted(self) -> bool:
+        """Whether a report is written for THIS run's measurement (B8-388).
+
+        Knut, 2026-09-18: the tick box on this tab is the answer, and it starts
+        from Preferences → Reports. *"When ['Save measurement report after each
+        measurement'] is OFF, then 'Save measurement report' is default OFF,
+        but a user may still change it to ON."* So the run's own control
+        decides, and the preference decides what that control starts as
+        (`_restore_defaults`, and the tab's constructor).
+
+        The preference is still the answer when there is no control to ask,
+        which is every caller that builds this tab's logic without its widgets.
+        """
+        cb = getattr(self, "_save_report_cb", None)
+        if cb is None:
+            return bool(self._settings.get("save_measurement_report", True))
+        return bool(cb.isChecked())
+
+    def _stamp_the_automatic_document(self, report, ti3, ctx) -> None:
+        """Give the measurement-time record a document block of its own.
+
+        ONE MEASUREMENT, ONE DOCUMENT, and the two tick boxes OFF on disk
+        rather than worked out when it is read (Knut, B8-388). Never raises:
+        a report that could not be stamped is still a report, exactly as
+        `stamp_report_type` beside it.
+        """
+        from datetime import datetime as _dt
+        try:
+            from workflow.measurement_report import (SCOPE_ONE_DATE,
+                                                     document_measurement_key,
+                                                     new_document_id,
+                                                     report_type,
+                                                     set_report_type,
+                                                     stamp_document)
+            from workflow.run_compliance import report_type_default_for
+            run = ctx.run if ctx is not None else None
+            tid = report_type_default_for(
+                run, str(self._settings.get("report_default_type", "") or ""))
+            if tid and tid != report_type(report):
+                set_report_type(report, tid)
+            when = _dt.now()
+            created = str(report.get("created") or "")
+            stamp_document(
+                report, doc_id=new_document_id(when),
+                created=when.isoformat(timespec="seconds"),
+                type_id=report_type(report),
+                compliance=report.get("compliance"),
+                all_runs=False, detail=False,
+                # **"One date", ALWAYS** (B8-392, Knut 2026-09-18): *"If the
+                # list of measurement dates to be included only holds one
+                # measurement … the report name should include the flag 'One
+                # date'. This should include all the automatically created
+                # reports during measurement."* It is one measurement by
+                # construction, so the flag is a fact here and not a guess.
+                scope=SCOPE_ONE_DATE,
+                measurements=[{
+                    "dir": str(ti3.parent),
+                    "created": created,
+                    "ti3": str(ti3.name),
+                    "key": document_measurement_key(ti3.parent, created,
+                                                    str(ti3.name)),
+                }])
+        except Exception as exc:                     # noqa: BLE001
+            log.warning("could not record the report's document block: %s", exc)
 
     def _say_report_not_saved(self, exc: Exception) -> None:
         """Tell the user, on screen, that the report they asked for is not there.
@@ -14853,6 +14973,14 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # help without having to know the option exists.
         self._g_aim_help.setChecked(bool(s.get("measure_aim_help", True)))
         self._g_patch_tile.setChecked(bool(s.get("measure_patch_tile", False)))
+        # #182 (Knut, B8-388): a run with nothing stored opens on the
+        # PREFERENCES value, which is what "default ON, and default OFF when
+        # the preference is off, but a user may still change it" means. It is
+        # deliberately NOT written by "Save as Defaults": the default for this
+        # one lives in Preferences → Reports and nowhere else.
+        if getattr(self, "_save_report_cb", None) is not None:
+            self._save_report_cb.setChecked(
+                bool(s.get("save_measurement_report", True)))
         for opt in self._chartread_opts:
             if opt.checkbox:
                 enabled = bool(s.get(f"measure_{opt.key}_enabled", False))

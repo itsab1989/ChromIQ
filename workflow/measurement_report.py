@@ -1133,9 +1133,42 @@ def new_document_id(when: "datetime | None" = None) -> str:
     return f"doc_{stamp}_{secrets.token_hex(3)}"
 
 
+#: The three date-scope flags a generated report's NAME carries (B8-392, Knut
+#: 2026-09-18). Stored as an ID and translated when the name is DISPLAYED: a
+#: name built on a German machine has to mean the same thing on an English one,
+#: and every other part of this block is stored in its stable form too (the set
+#: id beside its English label, the type id).
+SCOPE_ALL_DATES = "all_dates"
+SCOPE_ONE_DATE = "one_date"
+SCOPE_MULTIPLE_DATES = "multiple_dates"
+DOCUMENT_SCOPES = (SCOPE_ALL_DATES, SCOPE_ONE_DATE, SCOPE_MULTIPLE_DATES)
+
+
+def document_scope_of(doc: "dict | None") -> str:
+    """The date-scope flag of a document block, derived when it records none.
+
+    Knut's four cases (B8-392) reduce to what the document already knows: a
+    document covering one measurement is *"One date"*, one covering every
+    measurement with none left out is *"All dates"*, and one covering several
+    but not all is *"Multiple dates"*. A block written before this carried the
+    flag records the measurements it covers and both tick boxes, so the first
+    and the third are still exact; only "all of them" needs the tick box, which
+    is what `all_runs` is.
+    """
+    if not doc:
+        return SCOPE_ONE_DATE
+    recorded = str(doc.get("scope") or "")
+    if recorded in DOCUMENT_SCOPES:
+        return recorded
+    n = len(doc.get("measurements") or [])
+    if n <= 1:
+        return SCOPE_ONE_DATE
+    return SCOPE_ALL_DATES if doc.get("all_runs") else SCOPE_MULTIPLE_DATES
+
+
 def stamp_document(report: dict, *, doc_id: str, created: str, type_id: str,
                    compliance: "dict | None", all_runs: bool, detail: bool,
-                   measurements: "list[dict]") -> dict:
+                   measurements: "list[dict]", scope: str = "") -> dict:
     """Record, on one file, which DOCUMENT it belongs to and how that document
     was made. Returns *report*, stamped in place.
 
@@ -1155,6 +1188,11 @@ def stamp_document(report: dict, *, doc_id: str, created: str, type_id: str,
         "detail": bool(detail),
         "measurements": [dict(m) for m in (measurements or [])],
     }
+    # THE DATE-SCOPE FLAG, as an id (B8-392). An empty or unknown value is left
+    # out rather than stored, so `document_scope_of` derives it exactly as it
+    # does for a block written before this field existed.
+    if scope in DOCUMENT_SCOPES:
+        report[DOCUMENT_BLOCK]["scope"] = scope
     return report
 
 

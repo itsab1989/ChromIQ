@@ -122,20 +122,51 @@ def test_user_switch_mode_marks_the_choice(qapp):
     assert seen == ["manual"] and dummy._user_chose_module is True
 
 
-def test_report_options_are_remembered(qapp, tmp_path):
-    """The dialog's options survive closing it: detail + all-runs checkboxes
-    and the Pass thresholds come back as last set (Sebastian, 2026-08-10)."""
+def test_report_options_open_on_the_preferences_defaults(qapp, tmp_path):
+    """**KNUT'S DEFAULTS SUPERSEDED THE REMEMBERED TICK BOXES (B8-388).**
+
+    This was `test_report_options_are_remembered`, for Sebastian's rule of
+    2026-08-10: *"so I don't have to select it every time again"* — the two
+    tick boxes came back as last set. Knut, 2026-09-18, specified where their
+    starting value comes from instead: *"Add two checkboxes [in Preferences ▸
+    Reports] to set the default value for 'Show all measurement runs' and
+    'Show detailed data for each run'. These shall be default ON"*, and *"when
+    'Report shown' is set to 'New report....', all default values shall be
+    loaded on the settings … fetched from the preferences->reports tab."*
+
+    A window that is showing no report is in exactly that state, so it opens on
+    the defaults. **The two conflict, and this is the one recorded as needing a
+    word from Basti**: the last-used values are still written to settings and
+    nothing of Sebastian's feature is deleted, so restoring it is one line if
+    they rule that way.
+
+    The limit set half of the old test is untouched: it is the RUN's, stored in
+    its meta.json, and it still comes back.
+    """
     s, fm, ctl, run = _verify_env(tmp_path)
     v = run.new_verification()
     v.ensure_dir()
     v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES), encoding="utf-8")
+    # **TWO DATES, BECAUSE ONE WOULD NOT TEST THIS ANY MORE (B8-392).** Knut,
+    # 2026-09-18: *"If the list of measurement dates to be included only holds
+    # one measurement, then the 'Show all measurement runs' is automatically
+    # set to OFF"*, and it is greyed while it is alone, so on a one-date
+    # project this box could neither be at its default nor be remembered.
+    # Sebastian's rule (*"so I don't have to select it every time again"*) is
+    # what is under test and it is unchanged.
+    v2 = run.new_verification()
+    v2.ensure_dir()
+    v2.measurement_ti3.write_text(
+        _cgats("CTI3", [(min(100.0, r + 2.0), g, b) for r, g, b in _PATCHES]),
+        encoding="utf-8")
 
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
-    dlg = MeasurementReportDialog(s, None, initial_ti3=v.measurement_ti3)
+    dlg = MeasurementReportDialog(s, None, initial_ti3=v2.measurement_ti3)
     try:
-        assert dlg._all_runs_check.isChecked()          # the default
-        assert not dlg._detail_check.isChecked()
-        dlg._detail_check.setChecked(True)
+        # BOTH DEFAULT ON (Knut, B8-388), where "detailed" used to start off.
+        assert dlg._all_runs_check.isChecked()
+        assert dlg._detail_check.isChecked()
+        dlg._detail_check.setChecked(False)
         dlg._all_runs_check.setChecked(False)
         # #182: the limit set is the RUN's, stored in its meta.json
         idx = dlg._set_combo.findData("chromiq_tight")
@@ -144,10 +175,13 @@ def test_report_options_are_remembered(qapp, tmp_path):
     finally:
         dlg.deleteLater()
 
-    dlg2 = MeasurementReportDialog(s, None, initial_ti3=v.measurement_ti3)
+    dlg2 = MeasurementReportDialog(s, None, initial_ti3=v2.measurement_ti3)
     try:
-        assert dlg2._detail_check.isChecked()
-        assert not dlg2._all_runs_check.isChecked()
+        # THE DEFAULTS, not the last-used values (B8-388).
+        assert dlg2._detail_check.isChecked() is bool(
+            s.get("report_default_show_details", True))
+        assert dlg2._all_runs_check.isChecked() is bool(
+            s.get("report_default_show_all_runs", True))
         assert dlg2._window_limits().set_id == "chromiq_tight"
         assert run.load_meta().compliance_set_id == "chromiq_tight"
     finally:

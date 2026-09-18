@@ -101,16 +101,24 @@ def _files(run):
                   for p in (v.dir / "reports").glob("report_*.json"))
 
 
+# **THE FIRST ROW OF THE PULLDOWN IS "New report…", NOT A REPORT** (B8-388,
+# Knut: *"'New report...' should be at the top of the list in the pulldown"*).
+# These helpers count and address the REPORTS, so every test below goes on
+# meaning what it meant before that row existed.
 def _count(dlg):
-    return dlg._saved_combo.count()
+    return dlg._saved_combo.count() - 1
 
 
 def _key(dlg, i):
-    return str(dlg._saved_combo.itemData(i) or "")
+    return str(dlg._saved_combo.itemData(i + 1) or "")
+
+
+def _label(dlg, i):
+    return dlg._saved_combo.itemText(i + 1)
 
 
 def _pick(dlg, i, qapp):
-    dlg._saved_combo.setCurrentIndex(i)
+    dlg._saved_combo.setCurrentIndex(i + 1)
     qapp.processEvents()
 
 
@@ -221,7 +229,7 @@ def test_a_report_with_no_document_block_is_still_listed_and_named(tmp_path,
         assert _count(dlg) == 4
         keys = [_key(dlg, i) for i in range(4)]
         assert all(k.startswith("file:") for k in keys), keys
-        labels = [dlg._saved_combo.itemText(i) for i in range(4)]
+        labels = [_label(dlg, i) for i in range(4)]
         assert len(set(labels)) == 4, labels
     finally:
         dlg.close()
@@ -438,15 +446,21 @@ def test_every_entry_carries_its_own_settings_in_its_name(tmp_path, qapp):
         qapp.processEvents()
         dlg._on_generate_report()
         qapp.processEvents()
-        first = dlg._saved_combo.itemText(0)
+        first = _label(dlg, 0)
         dlg._all_runs_check.setChecked(False)
         dlg._detail_check.setChecked(False)
         qapp.processEvents()
         dlg._on_generate_report()
         qapp.processEvents()
-        second = dlg._saved_combo.itemText(0)
-        assert "all runs" in first and "with details" in first, first
-        assert "only run" in second and "without details" in second, second
+        second = _label(dlg, 0)
+        # KNUT'S FLAG WORDS (B8-392, 2026-09-18): *"If 'Show all measurement
+        # runs' is ON and all measurement dates are marked to be included, then
+        # the name should include the flag 'All dates'. … 'One date'. …
+        # 'Multiple dates'. … If 'Show detailed data for each run' in ON, the
+        # name should include the flag 'Detailed'."*
+        assert "All dates" in first and "Detailed" in first, first
+        assert "One date" in second, second
+        assert "Detailed" not in second, second
         assert first != second
         # …and the date and time it was made, which is all that tells two
         # presses of the same settings apart (L.4).
@@ -613,6 +627,11 @@ def test_a_report_that_records_no_document_still_restores_what_it_records(
         rows = {d["key"]: n for n, d in enumerate(
             dlg._saved_documents(dlg._run_ctx.run))}
         assert key in rows, sorted(rows)
+        # THE WINDOW OPENS ON THE NEWEST DOCUMENT (B8-388), which may be this
+        # one, and a pulldown emits nothing when the index does not change. So
+        # move off it first: what is being tested is the LOADING, not the
+        # state the window happened to open in.
+        _pick(dlg, (rows[key] + 1) % len(rows), qapp)
         _pick(dlg, rows[key], qapp)
         assert dlg._report_type_now() == REPORT_TYPE_GREY
         assert dlg._all_runs_check.isChecked() is False, (
@@ -626,7 +645,7 @@ def test_a_report_that_records_no_document_still_restores_what_it_records(
         dlg.close()
 
 
-def test_a_generated_document_is_never_recalculated(tmp_path, qapp):
+def test_a_generated_document_is_never_recalculated(tmp_path, qapp, monkeypatch):
     """Knut, 2026-09-18: *"Agreed. D23 stands."* and *"It is better that
     existing reports are not overwritten."*
 
@@ -635,13 +654,13 @@ def test_a_generated_document_is_never_recalculated(tmp_path, qapp):
     record false and its own name a lie. That is the photograph in B8-384: an
     entry reading "ChromIQ tight" over a page still reading "ChromIQ default".
 
-    **THROUGH THE UNLOCK DOOR, WHICH IS WHERE A RECALCULATION STILL HAPPENS.**
-    When this was written the "Judged against" pulldown recalculated too, and
-    this test drove it there; that half of B8-384 is finished and the pulldown
-    now rewrites nothing at all, which
-    `tests/test_a_saved_report_is_not_rewritten_by_a_set_change.py` is the
-    guard for. Two doors still recalculate (B8-310) and this is the guard that
-    a document survives them.
+    **THROUGH THE REPORT LIMITS WINDOW'S SAVE, WHICH IS WHERE A RECALCULATION
+    STILL HAPPENS.** This test has now been re-aimed twice, and each time
+    because Knut closed the door it was driving. It drove the "Judged against"
+    pulldown until B8-384, then the unlock tick box until B8-391 (*"All dated
+    reports shall NOT be recalculated"*). One door is left, the Save in the
+    Report limits window, and it is B8-310: whether Knut's N.3 reaches it too
+    is still an open question for him and nothing here assumes an answer.
 
     The second half is what stops it passing by accident: the legacy report,
     which carries no document block, IS rewritten on this door, so the run
@@ -663,9 +682,14 @@ def test_a_generated_document_is_never_recalculated(tmp_path, qapp):
         was = Path(written[0]).read_bytes()
         legacy = sorted(before)
         legacy_was = {p: Path(p).read_bytes() for p in legacy}
-        # the app's own door: tick "Unlock this run's limits", which
-        # recalculates the run exactly as §5 says it does
+        # the app's own door: unlock the run (which recalculates nothing,
+        # B8-391), then edit one of its numbers in the Report limits window and
+        # close it, which is the recalculation §5 and D23 describe.
         dlg._unlock_check.setChecked(True)
+        qapp.processEvents()
+        from tests.test_report_window_limit_controls import \
+            _edit_the_runs_numbers
+        _edit_the_runs_numbers(dlg, monkeypatch, value=0.2)
         qapp.processEvents()
         assert Path(written[0]).read_bytes() == was, (
             "the generated document was recalculated")

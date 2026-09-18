@@ -72,6 +72,11 @@ MEASURE_CONTROLS: "dict[str, str]" = {
     # Sebastian's are-you-certain audit (2026-08-11): the GUIDED module's
     # toggles are their own widgets, not mirrors of Manual's — the same
     # independent-widget trap the Build Profile tab had.
+    # #182 (Knut, 2026-09-18, B8-388): *"'Save measurement report' parameter is
+    # also remembered as all other settings are remembered for a run."* One
+    # widget, shared by Guided, Manual and Import, because one report is
+    # written whichever of the three finished the measurement.
+    "save_measurement_report":    "_save_report_cb",
     "suppress_warnings_guided":   "_suppress_cb",
     "disable_initial_cal_guided": "_nocal_cb",
     "patch_by_patch_guided":      "_pbp_cb",

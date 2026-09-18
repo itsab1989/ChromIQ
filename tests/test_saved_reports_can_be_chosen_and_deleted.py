@@ -78,16 +78,20 @@ def _reports(v):
 # document. That is deliberate: these tests are the record that such a file is
 # still listed, still named as it was and still opens.
 # --------------------------------------------------------------------------
+# **THE FIRST ROW OF THE PULLDOWN IS "New report…", NOT A REPORT** (B8-388,
+# Knut: *"'New report...' should be at the top of the list in the pulldown"*).
+# These helpers count and address the REPORTS, so every test below goes on
+# meaning what it meant before that row existed.
 def _count(dlg) -> int:
-    return dlg._saved_combo.count()
+    return dlg._saved_combo.count() - 1
 
 
 def _key(dlg, i: int) -> str:
-    return str(dlg._saved_combo.itemData(i) or "")
+    return str(dlg._saved_combo.itemData(i + 1) or "")
 
 
 def _text(dlg, i: int) -> str:
-    return dlg._saved_combo.itemText(i)
+    return dlg._saved_combo.itemText(i + 1)
 
 
 def _file_of(key: str) -> str:
@@ -100,7 +104,7 @@ def _current_file(dlg) -> str:
 
 
 def _pick(dlg, i: int, qapp) -> None:
-    dlg._saved_combo.setCurrentIndex(i)
+    dlg._saved_combo.setCurrentIndex(i + 1)
     qapp.processEvents()
 
 
@@ -259,7 +263,9 @@ def test_delete_moves_exactly_the_chosen_report_and_destroys_nothing(tmp_path,
     try:
         before = _reports(vs[0])
         target = _current_file(dlg)
-        label = _text(dlg, dlg._saved_combo.currentIndex())
+        # the RAW row, because `_text` counts reports and this is the widget's
+        # own index (row 0 is "New report…").
+        label = dlg._saved_combo.itemText(dlg._saved_combo.currentIndex())
         dlg._on_delete_report()
         qapp.processEvents()
         after = _reports(vs[0])
@@ -616,7 +622,8 @@ def test_generate_shows_the_report_it_just_wrote(tmp_path, qapp):
         # The page moved and the pulldown did not, so the window's header named
         # one report and its selector named another, in front of him. The
         # missing line below is why that shipped.
-        row = dlg._saved_combo.currentIndex()
+        # -1 for the "New report…" row at the top (B8-388).
+        row = dlg._saved_combo.currentIndex() - 1
         names = [m[1] for m in dlg._saved_documents(
             dlg._run_ctx.run if dlg._run_ctx else None)[row]["members"]]
         assert names == [written[0]], (

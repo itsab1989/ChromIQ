@@ -162,11 +162,18 @@ def _entries(dlg) -> list:
 def _choose_another_set(dlg, qapp) -> str:
     """The app's own door: pick a different set in the "Judged against"
     pulldown, exactly as a user does."""
+    # NOT THE RUN'S OWN SET EITHER. Since B8-388 the window opens on the
+    # latest report created, so the pulldown starts on the set THAT REPORT was
+    # judged against, which here is "Quick check" while the run carries none.
+    # Choosing the run's own value is a real state and does nothing on disk by
+    # design (`_on_set_chosen`), so picking it would prove nothing about the
+    # bind these tests are about.
     now = dlg._set_combo.currentData()
+    runs_own = dlg._window_limits().set_id
     other = next(dlg._set_combo.itemData(i)
                  for i in range(dlg._set_combo.count())
                  if dlg._set_combo.itemData(i)
-                 and dlg._set_combo.itemData(i) != now)
+                 and dlg._set_combo.itemData(i) not in (now, runs_own))
     dlg._set_combo.setCurrentIndex(dlg._set_combo.findData(other))
     qapp.processEvents()
     return other
@@ -363,17 +370,29 @@ def test_the_run_is_still_bound_to_the_set_that_was_chosen(qapp, tmp_path,
         dlg.close()
 
 
-def test_the_unlock_door_still_recalculates(qapp, tmp_path, monkeypatch):
-    """**THE TWO OTHER DOORS ARE UNCHANGED**, and this is the one that proves
-    the change was aimed at the pulldown and nowhere else.
+def test_the_unlock_door_recalculates_nothing_either(qapp, tmp_path,
+                                                     monkeypatch):
+    """**KNUT OVERTURNED THIS TEST TOO, 2026-09-18 (B8-391).**
 
-    §5 and D23 still govern them, and whether Knut's N.3 (*"Unlocking a run's
-    limits and saving a change in the Edit limits window must result in the
-    same behaviour"*) reaches them is an open question for him, registered as
-    B8-310. Nothing here assumes an answer.
+    It was `test_the_unlock_door_still_recalculates`, and it existed to show
+    that B8-384's change was aimed at the "Judged against" pulldown and nowhere
+    else. Reading the unlock window the same evening he wrote: *"The
+    description is wrong. All dated reports shall NOT be recalculated, only the
+    selected report will be recalculated and report text recreated according to
+    new values."*
 
-    MUTATION: remove `self._recalculate_run()` from `_on_unlock_toggled` too
-    and this goes red.
+    So the unlock door goes the way the pulldown went: it lets the user change
+    the run's limits and touches not one file. The report shown is rebuilt when
+    the user presses Generate report, which is N.2 and N.3 of §5.
+
+    ONE DOOR STILL RECALCULATES, the Report limits window's Save, and it is
+    unchanged here: it asks its own question at the moment the rewrite happens.
+    Whether N.3 reaches it as well is B8-310, still open for Knut, and nothing
+    here assumes an answer — `test_report_window_limit_controls.py` is where
+    that door's archive-then-recalculate rule is guarded.
+
+    MUTATION: put `self._recalculate_run()` back at the foot of
+    `_on_unlock_toggled` and this goes red.
     """
     proj, run, other, ti3 = _messy_project(tmp_path)
     s = _settings(tmp_path)
@@ -385,10 +404,15 @@ def test_the_unlock_door_still_recalculates(qapp, tmp_path, monkeypatch):
         before = _inventory(run)
         dlg._unlock_check.setChecked(True)
         qapp.processEvents()
+        assert run.load_meta().compliance_unlocked, (
+            "the unlock did not happen, so this proves nothing about what it "
+            "leaves alone")
         after = _inventory(run)
-        assert any(after[p][1] != before[p][1] for p in before), (
-            "the unlock door stopped recalculating the run's saved reports")
+        assert set(after) == set(before), (
+            f"a file appeared or vanished: {sorted(set(after) ^ set(before))}")
+        rewritten = [p for p in before if after[p][1] != before[p][1]]
+        assert not rewritten, f"unlocking rewrote these: {rewritten}"
         copies = sorted(str(p) for p in run.dir.glob("**/old/**/report_*.json"))
-        assert copies, "it recalculated without keeping the previous reports"
+        assert not copies, f"unlocking archived {copies}"
     finally:
         dlg.close()

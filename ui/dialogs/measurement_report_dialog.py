@@ -41,6 +41,19 @@ from ui.widgets import open_files_dialog
 
 log = get_logger(__name__)
 
+#: The entry at the TOP of "Report shown" that is not a report yet (B8-388).
+#: Knut, 2026-09-18: *"In the 'Measurement Report' window, when 'Report shown'
+#: is set to 'New report....', all default values shall be loaded on the
+#: settings, which then can be changed by a user. The default values are
+#: fetched from the preferences->reports tab."* and, on where it sits and what
+#: opens selected: *"The default when loading the Measurement Report window is
+#: the latest report created. 'New report...' should be at the top of the list
+#: in the pulldown."*
+#:
+#: It is deliberately NOT a `document_key`: no file can ever answer to it, so
+#: `_saved_documents`, Delete and the label rules are untouched by it.
+NEW_REPORT_KEY = "new:"
+
 
 # Cube-corner codes → human labels (lazy so tr() runs under the active language).
 _CORNER_LABELS = {
@@ -1466,6 +1479,11 @@ class MeasurementReportDialog(QDialog):
         #: are no longer what is on screen. The document itself stays selected
         #: and stays on the page, which is what the red line is about.
         self._doc_settings_moved = False
+        #: Whether this window has already opened on the latest report created
+        #: (B8-388). Once per window: after that, what is loaded is whatever
+        #: the user last clicked, and re-deciding it on every rebuild would
+        #: take the page back off them.
+        self._opened_on_a_report = False
         self._syncing_limits = False
         # #182 (D28, question 19): the KIND of document, chosen before the
         # numbers it is judged with. Two controls, one rule: D9 governs both,
@@ -1533,8 +1551,14 @@ class MeasurementReportDialog(QDialog):
         self._limits_btn.clicked.connect(self._on_open_limits)
         judged_row.addWidget(self._limits_btn)
         judged_row.addSpacing(10)
-        self._unlock_check = QCheckBox(
-            tr("Unlock this run's limits (recalculates its dated reports)"), self)
+        # **THE CLAUSE IN BRACKETS WAS FALSE FROM THE MOMENT THE DOOR CHANGED
+        # (B8-391).** It read *"(recalculates its dated reports)"*, which is
+        # exactly what Knut ruled must not happen: *"All dated reports shall
+        # NOT be recalculated."* It is removed rather than rewritten, like the
+        # clause in the question behind it; the sentence that says what the
+        # door now does is §M-PROPOSED and unapproved. Found in a photograph of
+        # the real window, after the question had already been fixed.
+        self._unlock_check = QCheckBox(tr("Unlock this run's limits"), self)
         self._unlock_check.toggled.connect(self._on_unlock_toggled)
         judged_row.addWidget(self._unlock_check)
         judged_row.addWidget(TooltipButton(
@@ -1550,11 +1574,12 @@ class MeasurementReportDialog(QDialog):
                "in its first column.\n\n"
                "Unlock this run's limits: once a verification has been "
                "measured the run's numbers are fixed, on purpose. Ticking "
-               "this is a deliberate decision to change them: every dated "
-               "report of this run is then recalculated with the numbers you "
-               "set, and the previous reports are kept in a reports/old folder "
-               "first. It can be ticked only when Preferences → Reports allows "
-               "editing after the first measurement.\n\n"
+               "this is a deliberate decision to change them, and it "
+               "recalculates nothing by itself: the report you have open is "
+               "rebuilt when you press Generate report, and every report "
+               "already saved stays exactly as it is. It can be ticked only "
+               "when Preferences → Reports allows editing after the first "
+               "measurement.\n\n"
                "A measurement that is not in a ChromIQ project (an imported "
                "file) is judged with the default set for this session only; "
                "nothing is stored for it.")
@@ -2592,6 +2617,10 @@ class MeasurementReportDialog(QDialog):
         self._reveal_btn.setEnabled(has)
         self._clear_btn.setEnabled(has)
         self._update_source_buttons()
+        # THE LATEST REPORT, WITH ITS OWN SETTINGS, ONCE PER WINDOW (B8-388).
+        # Before `_refresh`, so the page is drawn with those settings already
+        # on it rather than drawn twice.
+        self._open_on_the_latest_report()
         self._refresh()
 
     def _show_the_colour_scale_note(self) -> None:
@@ -2883,9 +2912,41 @@ class MeasurementReportDialog(QDialog):
         self._show_stale_banner()
         if not self._sources:
             self._view.setHtml(self._empty_html())
+            self._remember_how_it_was_built()
             return
         self._view.setHtml(
             self._report_body_html(self._runs_for_report(), for_pdf=False))
+        self._remember_how_it_was_built()
+
+    def _remember_how_it_was_built(self) -> None:
+        """The TYPE and the LIMITS the page was just drawn with (R23-F1).
+
+        `_doc_built_with` remembers the five deferred settings as WIDGET
+        values, and `_as_the_document_was_built` puts those widgets back for
+        the length of a PDF build. Two of the five are not read from widgets at
+        all: `_on_set_chosen` and `_on_type_chosen` write the chosen set and
+        type onto the RUN the moment they are moved, and the body reads them
+        back through `_report_type_now` and `_limits_for`. So with the red line
+        up, an export took the run's NEW answers while the screen still showed
+        the old ones: measured in round 23, the screen said *Judged against:
+        ChromIQ default (recommended)* and the exported PDF said *ChromIQ
+        tight*.
+
+        This is the other half of the wrapper: what the body actually read,
+        kept in memory, so the export can be given the same answers.
+        **Nothing is written to the run to achieve it** — an export must not
+        touch the disk, and a build that fails half way must not leave a run
+        carrying a set the user never chose.
+
+        Taken AFTER the body is composed, because composing it is what fills
+        the two limit caches.
+        """
+        self._doc_built_state = (
+            self._report_type_now(),
+            dict(getattr(self, "_limits_cache", None) or {}),
+            dict(getattr(self, "_limits_by_origin", None) or {}),
+            self._limits,
+        )
 
     def _refresh_trend(self) -> None:
         """Repaint the trend charts from the report's current run set."""
@@ -3076,6 +3137,40 @@ class MeasurementReportDialog(QDialog):
                 out[at] = r
         return out
 
+    def _document_scope(self, members: list) -> str:
+        """Which of Knut's three date flags this press earns (B8-392).
+
+        > *"If 'Show all measurement runs' is ON and all measurement dates are
+        > marked to be included, then the name should include the flag 'All
+        > dates'. … only one is marked to be included … 'One date'. … more
+        > than one are marked to be included (but is not all …) … 'Multiple
+        > dates'. If the list of measurement dates to be included only holds
+        > one measurement … the report name should include the flag 'One
+        > date'."*
+
+        Decided from what the document really covers, not from the tick box
+        alone, so the flag cannot disagree with the page: one measurement is
+        "One date" whatever the box says, everything with nothing left out is
+        "All dates", and anything between them is "Multiple dates".
+
+        **HIS THIRD CASE IS NOT REACHABLE FROM THIS WINDOW TODAY**, and it is
+        reported rather than built around: with "Show all measurement runs"
+        OFF, `_runs_for_report` returns the ONE measurement the window is on
+        and the row ticks are not consulted, so "OFF with several ticked"
+        cannot produce a document of several. The flag is computed from the
+        member list, so if that behaviour ever changes this says the right
+        word without being touched.
+        """
+        from workflow.measurement_report import (SCOPE_ALL_DATES,
+                                                 SCOPE_MULTIPLE_DATES,
+                                                 SCOPE_ONE_DATE)
+        if len(members) <= 1:
+            return SCOPE_ONE_DATE
+        all_runs, _detail = self._tick_state()
+        if all_runs and not self._hidden_runs:
+            return SCOPE_ALL_DATES
+        return SCOPE_MULTIPLE_DATES
+
     def _on_generate_report(self) -> None:
         """Save a report of the type now chosen, for the run now shown.
 
@@ -3124,14 +3219,28 @@ class MeasurementReportDialog(QDialog):
         when = _dt.now()
         doc_id = new_document_id(when)
         doc_created = when.isoformat(timespec="seconds")
+        # **WHAT THE DOCUMENT COVERS, NOT WHAT IT WRITES FILES FOR**, which
+        # are two different lists and §13.4 asks for the first: *"the list of
+        # measurements included"*. `_reports_to_generate` never crosses a run
+        # boundary, on purpose (a file must not be filed into another run's
+        # folder under this run's yardstick); the PAGE may, because the trend
+        # across a printer's builds is the feature (#40).
+        #
+        # Recording the narrower list made the document claim to cover one run
+        # when the reader was looking at two, and `_apply_document` believes
+        # that claim: loading such a document hid every row of the other run.
+        # Measured on a project with two runs, two reports each, since the
+        # window began opening on the latest document (B8-388): two rows became
+        # one.
         members = [{"dir": str(r.get("_origin_dir") or ""),
                     "created": str(r.get("created") or ""),
                     "ti3": str(r.get("ti3") or ""),
                     "key": document_measurement_key(
                         r.get("_origin_dir") or "", str(r.get("created") or ""),
                         str(r.get("ti3") or ""))}
-                   for r in reports if r.get("_origin_dir")]
+                   for r in self._runs_for_document() if r.get("_origin_dir")]
         all_runs, detail = self._tick_state()
+        scope = self._document_scope(members)
         saved, failed = [], []
         for r in reports:
             origin = r.get("_origin_dir")
@@ -3157,7 +3266,7 @@ class MeasurementReportDialog(QDialog):
                                type_id=report_type(rep),
                                compliance=rep.get("compliance"),
                                all_runs=all_runs, detail=detail,
-                               measurements=members)
+                               measurements=members, scope=scope)
                 saved.append(save_report(rep, Path(origin)))
             except Exception as exc:             # noqa: BLE001
                 log.warning("could not generate a report in %s: %s", origin, exc)
@@ -3276,10 +3385,27 @@ class MeasurementReportDialog(QDialog):
                 w_det.setChecked(bool(det))
             self._hidden_runs = set(hidden)
 
+        # **AND THE TWO THAT ARE NOT WIDGETS AT ALL (R23-F1).** The type and
+        # the limit set are read back off the RUN, which `_on_type_chosen` and
+        # `_on_set_chosen` have already written to, so putting the pulldowns
+        # back was never going to move them. `_remember_how_it_was_built`
+        # keeps what the body really read; this hands it back for the build and
+        # drops it afterwards. The run is neither read for this nor written to.
+        state = getattr(self, "_doc_built_state", None)
+        held = (getattr(self, "_type_as_built", ""),
+                getattr(self, "_limits_cache", None),
+                getattr(self, "_limits_by_origin", None),
+                self._limits)
         try:
             _put(tuple(built))
+            if state:
+                (self._type_as_built, self._limits_cache,
+                 self._limits_by_origin, self._limits) = (
+                     state[0], dict(state[1]), dict(state[2]), state[3])
             yield
         finally:
+            (self._type_as_built, self._limits_cache,
+             self._limits_by_origin, self._limits) = held
             _put(before)
             for w, was in blocked:
                 w.blockSignals(was)
@@ -3796,6 +3922,11 @@ class MeasurementReportDialog(QDialog):
         """
         if getattr(self, "_doc_settings_moved", False):
             return
+        # "New report…" is not a document and no file may claim its place: the
+        # defaults on screen are the user's starting point until they press
+        # Generate report (B8-388).
+        if self._loaded_doc_id == NEW_REPORT_KEY:
+            return
         here = self._loaded_doc_id or self._document_key_of_report()
         if not here:
             return
@@ -3935,15 +4066,26 @@ class MeasurementReportDialog(QDialog):
         if comp.get("set_id"):
             bits.append(set_label(str(comp.get("set_id", "")),
                                   str(comp.get("set_label", ""))))
-        ms = doc.get("measurements") or []
-        if doc.get("all_runs"):
-            bits.append(tr("all runs"))
-        else:
-            when = str((ms[0] if ms else {}).get("created") or "")
-            bits.append(tr("only run {date}").format(
-                date=when.replace("T", " ")[:16] or "?"))
-        bits.append(tr("with details") if doc.get("detail")
-                    else tr("without details"))
+        # **THE FLAGS KNUT SPECIFIED (B8-392, 2026-09-18).** *"The report names
+        # created should include flags that indicate the settings, just as
+        # Report type and Judged against"*: "All dates", "One date",
+        # "Multiple dates", and "Detailed" when the detail box is on.
+        #
+        # TRANSLATED HERE, BECAUSE NOTHING OF THE NAME IS STORED. The document
+        # block keeps ids and English labels (the type id, the set id beside
+        # its English label, and now a scope id); this builder is the one place
+        # that turns them into words, so a report named on a German machine
+        # reads in English on an English one and matches what this build looks
+        # for. The words are what changed; where they come from did not.
+        from workflow.measurement_report import (SCOPE_ALL_DATES,
+                                                 SCOPE_MULTIPLE_DATES,
+                                                 document_scope_of)
+        scope = document_scope_of(doc)
+        bits.append(tr("All dates") if scope == SCOPE_ALL_DATES
+                    else tr("Multiple dates") if scope == SCOPE_MULTIPLE_DATES
+                    else tr("One date"))
+        if doc.get("detail"):
+            bits.append(tr("Detailed"))
         made = str(doc.get("created") or "").replace("T", " ")[:19]
         if made:
             bits.append(tr("saved {when}").format(when=made))
@@ -4230,6 +4372,18 @@ class MeasurementReportDialog(QDialog):
         combo.blockSignals(True)
         try:
             combo.clear()
+            # **"NEW REPORT…" IS THE FIRST ROW AND IS NEVER THE SELECTED ONE
+            # BY DEFAULT (B8-388).** Knut: *"'New report...' should be at the
+            # top of the list in the pulldown"*, and, in the same breath, *"The
+            # default when loading the Measurement Report window is the latest
+            # report created."* So it sits where he put it and
+            # `_open_on_the_latest_report` decides what is on screen.
+            combo.addItem(tr("New report…"), NEW_REPORT_KEY)
+            combo.setItemData(
+                0, tr("Start a new report from the defaults in Preferences ▸ "
+                      "Reports. Nothing is written until you press Generate "
+                      "report."),
+                Qt.ItemDataRole.ToolTipRole)
             for d in docs:
                 combo.addItem(d["label"], d["key"])
                 combo.setItemData(combo.count() - 1, d["label"],
@@ -4240,14 +4394,14 @@ class MeasurementReportDialog(QDialog):
             # selector left on the old one puts two halves of one window in
             # disagreement in front of the reader (Knut, beta 20).
             i = next((n for n, d in enumerate(docs) if d["key"] == want), -1)
-            if i < 0:
+            if i < 0 and want != NEW_REPORT_KEY:
                 # No document is loaded: follow the file the page is drawn
                 # from, so the list names what the reader is looking at.
                 here = self._document_key_of_report()
                 i = next((n for n, d in enumerate(docs) if d["key"] == here), -1)
-            if i < 0 and docs:
-                i = 0
-            combo.setCurrentIndex(max(0, i))
+            # +1 for the "New report…" row above them; -1 (nothing matched)
+            # and the new-report state both land on it.
+            combo.setCurrentIndex(i + 1 if i >= 0 else 0)
         finally:
             combo.blockSignals(False)
         # **THE ROW STAYS ON SCREEN WITH NOTHING IN IT (L.9).** The pulldown
@@ -4257,7 +4411,10 @@ class MeasurementReportDialog(QDialog):
         # should select a report in the list to show/load a previously
         # generated report. IF the list is empty, then the user could also be
         # informed to Click Generate Report to create the first report."*
-        self._saved_combo.setEnabled(bool(docs))
+        # ALWAYS LIVE, because "New report…" is in it even when no report has
+        # been generated: a disabled pulldown would put the defaults out of
+        # reach of the one run that most needs them.
+        self._saved_combo.setEnabled(True)
         if not docs:
             self._saved_label.setText(tr("Report shown:"))
             self._set_saved_hint(tr("No report has been generated yet. Click "
@@ -4407,7 +4564,140 @@ class MeasurementReportDialog(QDialog):
         key = str((combo.currentData() if combo is not None else "") or "")
         if not key or key == self._loaded_doc_id:
             return
+        if key == NEW_REPORT_KEY:
+            self._start_new_report()
+            return
         self._load_document(key)
+
+    def _defaults_document(self) -> dict:
+        """The settings a NEW report starts from, in a document's own shape.
+
+        Knut, 2026-09-18 (B8-388): *"when 'Report shown' is set to 'New
+        report....', all default values shall be loaded on the settings, which
+        then can be changed by a user. The default values are fetched from the
+        preferences->reports tab."*
+
+        IT IS A DOCUMENT-SHAPED RECORD AND NOT A SECOND CODE PATH. The window
+        already has one answer to "what settings is the page drawn with": the
+        loaded document (`_document_settings`), read by `_report_type_now`, by
+        `_document_limits` and by `_sync_limit_controls`. Writing the defaults
+        into the type and set PULLDOWNS instead would be two answers to one
+        question, and `_on_type_chosen` would store the default on the RUN,
+        which is a write to a user's disk that nobody asked for.
+
+        **`compliance` IS DELIBERATELY None**, which is what makes "Judged
+        against" fall through to the run's own set (`_document_limits` returns
+        None, `_sync_limit_controls` shows `lim`). That IS the default: §5 says
+        the set belongs to the run, a run that is not bound takes the
+        Preferences default set, and Knut asked for no second selector because
+        *"The Report Limits button contain the Judged Against default
+        chosen"*.
+        """
+        ctx = self._run_ctx
+        s = self._settings
+        return {
+            "id": "new",
+            "created": "",
+            # **NO TYPE IS PINNED HERE, and that is deliberate.** D9 puts the
+            # type on the RUN, and a document that recorded one would freeze
+            # it: a run whose type changes under an open window would go on
+            # being drawn as the type this dict was built with.
+            # `_report_type_now` asks the run and falls back to the
+            # Preferences default, which is the same rule one step later and
+            # the only one that stays true.
+            "type": "",
+            "compliance": None,
+            "all_runs": bool(s.get("report_default_show_all_runs", True)),
+            "detail": bool(s.get("report_default_show_details", True)),
+            "measurements": [],
+        }
+
+    def _start_new_report(self) -> None:
+        """"New report…" was chosen: load the Preferences defaults (B8-388).
+
+        Nothing on disk is read, written, deleted or renamed by this: it is the
+        state the window is in before a document exists, made reachable again
+        from the list. The user may then change anything, and Generate report
+        writes a NEW document, which is Knut's K.1 (*"It is better that
+        existing reports are not overwritten"*) unchanged.
+        """
+        doc = self._defaults_document()
+        self._loaded_doc_id = NEW_REPORT_KEY
+        self._loaded_doc = doc
+        self._doc_settings_moved = False
+        # A NEW REPORT IS ABOUT THE NEWEST FILE OF EACH MEASUREMENT, so the
+        # document a click left behind stops choosing which file is drawn.
+        self._chosen_reports.clear()
+        self._hidden_runs = set()
+        for chk, val in ((getattr(self, "_all_runs_check", None),
+                          bool(doc.get("all_runs"))),
+                         (getattr(self, "_detail_check", None),
+                          bool(doc.get("detail")))):
+            if chk is None:
+                continue
+            chk.blockSignals(True)
+            chk.setChecked(val)
+            chk.blockSignals(False)
+        self._refresh()
+
+    def _open_on_the_latest_report(self) -> None:
+        """The window opens on the latest report created (B8-388), once.
+
+        Knut, asked whether "New report…" is selected when a run has none:
+        *"I have specified this earlier. The default when loading the
+        Measurement Report window is the latest report created. 'New report...'
+        should be at the top of the list in the pulldown."*
+
+        So the top entry is not the selected one: the newest DOCUMENT is, with
+        the settings it was made with, which is the same sentence he wrote
+        about the automatic record (*"when the Measurement window appears, the
+        latest report shall load automatically with its settings"*). A run that
+        has generated nothing has no report to open on, and then the defaults
+        are what a new report starts from.
+
+        NO REPAINT OF ITS OWN: `_rebuild_from_sources` calls this and then
+        repaints, so the page is drawn once, with these settings already on it.
+        """
+        if getattr(self, "_opened_on_a_report", False):
+            return
+        ctx = self._context_run()
+        docs = self._saved_documents(ctx.run if ctx is not None else None)
+        if not self._history:
+            # Nothing is loaded yet (the window was built empty and is about to
+            # be given a measurement). Ask again when there is something to ask
+            # about, rather than deciding on an empty list.
+            return
+        self._opened_on_a_report = True
+        # **ONLY A REPORT THAT RECORDS WHAT IT IS.** "The latest report
+        # created" is a DOCUMENT: it carries the settings it was made with, so
+        # loading it with them is reading a fact off the file. A report written
+        # before the document record existed carries none of that, and
+        # `_settings_of_one_saved_report` works its settings out from Knut's
+        # own sentence about it — which is the right answer when a user CLICKS
+        # such an entry (K.5, B8-382) and the wrong one to impose on a window
+        # that has only been opened: it would silently narrow every project
+        # made before this beta to its newest sheet, with settings nobody
+        # chose. Such a window opens as it always has, and clicking the entry
+        # still brings its settings back.
+        first = next((d for d in docs if d.get("doc")), None)
+        if first is not None:
+            self._apply_document(first)
+            return
+        if docs:
+            return
+        doc = self._defaults_document()
+        self._loaded_doc_id = NEW_REPORT_KEY
+        self._loaded_doc = doc
+        self._doc_settings_moved = False
+        for chk, val in ((getattr(self, "_all_runs_check", None),
+                          bool(doc.get("all_runs"))),
+                         (getattr(self, "_detail_check", None),
+                          bool(doc.get("detail")))):
+            if chk is None:
+                continue
+            chk.blockSignals(True)
+            chk.setChecked(val)
+            chk.blockSignals(False)
 
     def _load_document(self, key: str) -> None:
         """Show the document *key* names, with the settings it was made with.
@@ -4423,6 +4713,18 @@ class MeasurementReportDialog(QDialog):
         entry = next((d for d in docs if d["key"] == key), None)
         if entry is None:
             return
+        self._apply_document(entry)
+        self._reload_sources()
+
+    def _apply_document(self, entry: dict) -> None:
+        """Put *entry*'s settings on screen, WITHOUT repainting.
+
+        Split out of `_load_document` so that the window OPENING on the latest
+        report (B8-388) can use the one code path a click uses and still draw
+        the page once: `_open_on_the_latest_report` runs inside
+        `_rebuild_from_sources`, which repaints immediately afterwards.
+        """
+        key = entry["key"]
         self._loaded_doc_id = key
         doc = entry["doc"] or self._settings_of_one_saved_report(entry)
         self._loaded_doc = doc
@@ -4460,9 +4762,8 @@ class MeasurementReportDialog(QDialog):
                 self._hidden_runs = set()
         # The type and the limit set follow from `_loaded_doc`: they are read
         # back by `_report_type_now` and `_sync_limit_controls`, which the
-        # repaint below runs. Setting the two combos here as well would be two
-        # answers to one question, and this window has paid for that before.
-        self._reload_sources()
+        # repaint the caller runs. Setting the two combos here as well would be
+        # two answers to one question, and this window has paid for that before.
 
     def _reload_sources(self) -> None:
         """Read every loaded measurement's reports off disk again.
@@ -4581,6 +4882,13 @@ class MeasurementReportDialog(QDialog):
         from workflow.measurement_report import (REPORT_TYPE_DEFAULT,
                                                  REPORT_TYPES, report_type)
         from workflow.run_compliance import run_report_type
+        # **WHAT THE PAGE ON SCREEN WAS BUILT WITH, while a PDF of that page is
+        # being built (R23-F1).** Set only inside `_as_the_document_was_built`
+        # and always cleared in its `finally`; empty at every other moment, so
+        # nothing else in the window can see it.
+        forced = getattr(self, "_type_as_built", "")
+        if forced in REPORT_TYPES:
+            return forced
         # **A LOADED DOCUMENT ANSWERS FOR ITSELF (B8-382, L.2).** Its own files
         # say what kind of document they are, and that is what the page is
         # drawing, so the pulldown must say it too. The RUN is not asked and the
@@ -4596,7 +4904,16 @@ class MeasurementReportDialog(QDialog):
             return REPORT_TYPE_DEFAULT
         ctx = self._run_ctx
         if ctx is not None:
-            return run_report_type(ctx.run)
+            # **THE RUN FIRST, THE PREFERENCES DEFAULT BEHIND IT (B8-388).**
+            # Knut: *"The type belongs to the run, yes, but the default should
+            # be the 'Full colour check'."* `run_report_type` answers a run
+            # that never chose with a hard-coded T2; this answers it with
+            # whatever Preferences ▸ Reports says, and a run that HAS chosen is
+            # untouched, which is D9.
+            from workflow.run_compliance import report_type_default_for
+            return report_type_default_for(
+                ctx.run,
+                str(self._settings.get("report_default_type", "") or ""))
         if self._session_type:
             return self._session_type
         reports = self._runs_for_report()
@@ -4756,11 +5073,46 @@ class MeasurementReportDialog(QDialog):
         from workflow.measurement_report import REPORT_TYPE_SUMMARY
         if getattr(self, "_all_runs_check", None) is not None:
             one_page = current == REPORT_TYPE_SUMMARY
-            self._all_runs_check.setEnabled(not one_page)
+            # **ONE MEASUREMENT IN THE LIST TURNS IT OFF, AND THAT BEATS THE
+            # PREFERENCES DEFAULT (B8-392).** Knut, 2026-09-18: *"If the list
+            # of measurement dates to be included only holds one measurement,
+            # then the 'Show all measurement runs' is automatically set to OFF,
+            # and the report name should include the flag 'One date'."*
+            #
+            # It is a rule about the list, not about the user, so it is applied
+            # wherever the list is drawn rather than only where the default is
+            # read: B8-388 makes that box default ON, and without this the
+            # default would tick it on a window that has one measurement to
+            # show. It changes nothing a reader can see either way — with one
+            # measurement loaded, "all of them" and "this one" are the same
+            # page — so turning it off is the honest state rather than a
+            # setting that claims to do something.
+            # **AND IT IS GIVEN BACK WHEN THE LIST GROWS.** The rule is about
+            # a list holding one measurement, not about the user: opening a
+            # window on one sheet and then adding a project must widen the
+            # report exactly as it did before, or a one-measurement window
+            # would quietly switch the setting off for the rest of the session.
+            # The box is DISABLED while it is alone, so nothing a user does can
+            # be mistaken for this.
+            alone = len(getattr(self, "_history", []) or []) <= 1
+            if alone and self._all_runs_check.isChecked():
+                self._all_runs_forced_off = True
+                self._all_runs_check.blockSignals(True)
+                self._all_runs_check.setChecked(False)
+                self._all_runs_check.blockSignals(False)
+            elif not alone and getattr(self, "_all_runs_forced_off", False):
+                self._all_runs_forced_off = False
+                self._all_runs_check.blockSignals(True)
+                self._all_runs_check.setChecked(True)
+                self._all_runs_check.blockSignals(False)
+            self._all_runs_check.setEnabled(not one_page and not alone)
             self._all_runs_check.setToolTip(tr(
                 "The one-page colour summary is about the single measurement "
                 "you are looking at, so it does not widen to the whole "
-                "history.") if one_page else "")
+                "history.") if one_page else tr(
+                "There is one measurement in the list, so there is no history "
+                "to widen to. Add another measurement, or open the report on a "
+                "run with more dated verifications.") if alone else "")
 
     def _generated_types_line(self, run) -> str:
         """Which report types this run has already produced, or "".
@@ -5583,7 +5935,28 @@ class MeasurementReportDialog(QDialog):
             return
         set_id = self._set_combo.itemData(index)
         lim = self._window_limits()
-        if not set_id or set_id == lim.set_id:
+        # **"NOTHING CHANGED" IS ASKED OF WHAT THE PULLDOWN WAS SHOWING, NOT OF
+        # THE RUN (N.1).** The box shows the LOADED DOCUMENT's set when one is
+        # loaded (`_sync_limit_controls`), and that need not be the run's: a
+        # report judged against Quick check on a run bound to ChromIQ default
+        # is an ordinary state, and since B8-388 the window OPENS in it,
+        # because it opens on the latest report created.
+        #
+        # Comparing with the run's set made choosing the run's own value a
+        # no-op in every sense: no bind (there was nothing to bind), no red
+        # line, and a document left claiming the set it was made with under a
+        # pulldown now naming another. That is Knut's fifth defect exactly, in
+        # the one window this round is about.
+        shown = self._document_limits() or lim
+        if not set_id or set_id == shown.set_id:
+            return
+        if set_id == lim.set_id:
+            # The RUN already carries it, so there is nothing to bind, nothing
+            # to ask and nothing to write. What did change is the page: the
+            # document on screen was made with another set and stops speaking
+            # for the controls, and the red line says to press Generate report
+            # (N.2). Nothing on disk is touched on this path at all.
+            self._settings_touched()
             return
         ctx = self._run_ctx
         if ctx is None:
@@ -5936,12 +6309,26 @@ class MeasurementReportDialog(QDialog):
         # ONE IS NOT "1 dated verifications". CLAUDE.md asks for explicit
         # singular and plural rather than "(s)", and this sentence read wrong in
         # exactly the state Knut was testing in.
+        # **THE CLAUSE THAT WAS FALSE IS GONE, AND NO NEW WORDS ARE IN ITS
+        # PLACE (B8-391).** Knut, 2026-09-18, reading this very window:
+        # *"The description is wrong. All dated reports shall NOT be
+        # recalculated, only the selected report will be recalculated and
+        # report text recreated according to new values."*
+        #
+        # The behaviour went first (see the foot of this method): unlocking
+        # recalculates nothing at all now, so the promise about "every dated
+        # report of this run" describes something that cannot happen. Every
+        # word left here was already on screen and is still true.
+        #
+        # THE REPLACEMENT SENTENCE IS NOT WRITTEN HERE. It says what the door
+        # does now, which is new user-facing text, so it is in §M-PROPOSED of
+        # `unified_measurement_management.md` (M-UNLOCK-LIMITS) and waits for
+        # approval. This is the same course B8-384 took at the "Judged against"
+        # door an hour earlier: a false promise is removed the moment it
+        # becomes false, and nothing is invented to replace it.
         _tail = tr(
-            "Unlocking lets you change the run's limit set and its numbers. "
-            "Every dated report of this run will then be recalculated with the "
-            "numbers you set, and the previous reports are kept first, in a "
-            "reports/old folder beside each date.\n\nNothing is deleted. "
-            "Continue?")
+            "Unlocking lets you change the run's limit set and its "
+            "numbers.\n\nNothing is deleted. Continue?")
         _head = (tr("This run ({run}) has one dated verification.")
                  if n_dates == 1 else
                  tr("This run ({run}) has {n} dated verifications."))
@@ -6000,7 +6387,32 @@ class MeasurementReportDialog(QDialog):
                 self._syncing_limits = False
             return
         self._forget_limits()
-        self._recalculate_run()
+        # **AND NOT ONE SAVED REPORT IS RECALCULATED (B8-391).**
+        # `self._recalculate_run()` stood here and rewrote EVERY dated report
+        # of the run, archiving each first. Knut, 2026-09-18: *"All dated
+        # reports shall NOT be recalculated, only the selected report will be
+        # recalculated and report text recreated according to new values."*
+        #
+        # **AND AT THIS MOMENT THERE IS NOTHING TO RECALCULATE.** Unlocking
+        # changes no number: it only lets the user change one. What his rule
+        # asks for is what the window already does for the other doors since
+        # B8-384 and what N.2/N.3 of §5 state: the change belongs to the ONE
+        # report named in "Report shown", it marks that report stale, the red
+        # line says so, and pressing Generate report rebuilds it. Re-stamping
+        # files here with numbers nobody has changed yet would be a rewrite
+        # that says nothing, and for a generated document it would break the
+        # rule B8-384 was built on: a document records the settings it was
+        # made with and is never recalculated under the reader.
+        #
+        # **THE WARNING IS NOT LOST WITH IT.** The Report limits window's Save
+        # is the door that still recalculates, and it asks its own question
+        # (`_confirm_recalculate`) at the moment the rewrite would happen,
+        # which is the right moment for it. That door is B8-310, where N.3
+        # (*"Unlocking a run's limits and saving a change in the Edit limits
+        # window must result in the same behaviour"*) reaches it too; it is
+        # reported rather than changed here, because this round was asked for
+        # the unlock door and re-aiming another round's guards without a review
+        # is how this window has been broken before.
         self._refresh()
 
     def _prefs_state_now(self) -> tuple:
@@ -8986,12 +9398,37 @@ class MeasurementReportDialog(QDialog):
 
         w, b = r.get("paper_white"), r.get("max_black")
         if w and b:
+            # **WHAT THE FILE CARRIES, AND NO KeyError WHEN IT CARRIES LESS.**
+            # This read `w['hex']`, `w['loc']` and `w['lab'][0]` straight out of
+            # the record, and a report holding paper white as a bare
+            # `{"L": …, "a": …, "b": …}` — which is what the demo projects on
+            # this machine hold — took the whole window down with
+            # `KeyError: 'hex'`. It was unreachable while "Show detailed data
+            # for each run" started OFF; B8-388 makes that box default ON, so
+            # the first on-screen run of the new default met it immediately.
+            # Nothing is invented here: a swatch is drawn when there is a
+            # colour to draw, the location is named when it is recorded, and
+            # L* is printed from whichever of the two shapes the file uses.
+            def _lightness(pt: dict):
+                lab = pt.get("lab")
+                if isinstance(lab, (list, tuple)) and lab:
+                    return lab[0]
+                return pt.get("L")
+
+            def _line(pt: dict, label: str) -> str:
+                bits = []
+                if pt.get("hex"):
+                    bits.append(_swatch(str(pt["hex"])))
+                bits.append(html.escape(label))
+                if pt.get("loc"):
+                    bits.append(f"({html.escape(str(pt['loc']))})")
+                lv = _lightness(pt)
+                if isinstance(lv, (int, float)):
+                    bits.append(f"- L* {float(lv):.1f}")
+                return "<div>" + " ".join(bits) + "</div>"
+
             parts.append(_h3(tr("Paper white & darkest black")))
-            parts.append(
-                f"<div>{_swatch(w['hex'])} " + html.escape(tr("White"))
-                + f" ({html.escape(str(w['loc']))}) — L* {w['lab'][0]:.1f}</div>"
-                f"<div>{_swatch(b['hex'])} " + html.escape(tr("Black"))
-                + f" ({html.escape(str(b['loc']))}) — L* {b['lab'][0]:.1f}</div>")
+            parts.append(_line(w, tr("White")) + _line(b, tr("Black")))
 
         corners = r.get("corners") or []
         if corners:
@@ -9014,15 +9451,18 @@ class MeasurementReportDialog(QDialog):
                     + ")</span>")
                 if present:
                     exp = _swatch(c.get("expected_hex", ""))
-                    meas = _swatch(c["hex"])
+                    meas = _swatch(c.get("hex", ""))
                     de_c = (f"<b>{_fmt(c.get('de'))}</b>"
                             if c.get("de") is not None else _fmt(None))
                     # THE PATCH NUMBER GOES WITH THE PATCH. Two corners of his
                     # sheet both read "(14)", which is a claim about the chart
                     # and not only about a colour, so it goes when the rest of
-                    # the stand-in does.
-                    loc = (f" <span style='color:{_C['faint']}'>"
-                           f"({html.escape(str(c['loc']))})</span>")
+                    # the stand-in does. `.get`, because a record that does not
+                    # carry it must not take the window down: see the paper
+                    # white block above, where a file of another shape did.
+                    loc = ((f" <span style='color:{_C['faint']}'>"
+                            f"({html.escape(str(c['loc']))})</span>")
+                           if c.get("loc") else "")
                 else:
                     exp = _swatch(_corner_ideal_hex(c["name"]))
                     meas = de_c = _fmt(None)
@@ -9048,10 +9488,24 @@ class MeasurementReportDialog(QDialog):
                     return "<td></td><td></td><td></td><td></td>"
                 # Patch · Expected · Measured · ΔE00 — the same column order as the
                 # Cube-corners table, so the two read the same (Knut).
-                return (f"<td>{html.escape(str(p['loc']))}</td>"
-                        f"<td align='center'>{_swatch(p['expected_hex'])}</td>"
-                        f"<td align='center'>{_swatch(p['measured_hex'])}</td>"
-                        f"<td align='right'><b>{_fmt(p['de'])}</b></td>")
+                #
+                # **EVERY CELL IS WHAT THE FILE CARRIES.** This indexed all four
+                # keys directly and a report whose worst-patch entries are
+                # `{"id": …, "de00": …}` took the window down with
+                # `KeyError: 'loc'`. Unreachable while "Show detailed data for
+                # each run" started OFF; B8-388 makes it default ON. The patch
+                # is named by whichever key the file uses, a swatch is drawn
+                # only where there is a colour, and ΔE00 likewise.
+                loc = p.get("loc")
+                if loc is None:
+                    loc = p.get("id")
+                de = p.get("de")
+                if de is None:
+                    de = p.get("de00")
+                return (f"<td>{html.escape('' if loc is None else str(loc))}</td>"
+                        f"<td align='center'>{_swatch(p.get('expected_hex', ''))}</td>"
+                        f"<td align='center'>{_swatch(p.get('measured_hex', ''))}</td>"
+                        f"<td align='right'><b>{_fmt(de)}</b></td>")
 
             hdr = ("<th align='left'>" + html.escape(tr("Patch")) + "</th><th>"
                    + html.escape(tr("Expected")) + "</th><th>"

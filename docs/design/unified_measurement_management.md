@@ -1310,6 +1310,55 @@ that way so the choice is visible rather than drifted into.
 *Raised by the round-3 review, 2026-08-30.*
 
 
+### ⏳ Awaiting confirmation — the unlock question, after the door changed (B8-391)
+
+**Confirmed by:** *nobody yet.* This is a proposed replacement sentence, not a
+message in force. Nothing below is on screen.
+
+Knut, 2026-09-18, reading the window that appears when **"Unlock this run's
+limits"** is ticked:
+
+> *"This run (run3) has 2 dated verifications. Unlocking lets you change the
+> run's limit set and its numbers. Every dated report of this run will then be
+> recalculated with the numbers you set, and the previous reports are kept
+> first, in a reports/old folder beside each date. Nothing is deleted.
+> Continue?"*
+>
+> *"The description is wrong. All dated reports shall NOT be recalculated, only
+> the selected report will be recalculated and report text recreated according
+> to new values."*
+
+**The behaviour changed first, and the sentence follows it.** Unlocking now
+recalculates nothing at all: it lets the user change the run's limit set and
+its numbers, and what a change then does belongs to the ONE report named in
+"Report shown" (N.2/N.3 of §5 of `measurement_report_limits.md`). So the clause
+that promised a recalculation of *"every dated report of this run"* described
+something that cannot happen and **was removed the moment it became false** —
+the same course B8-384 took at the "Judged against" door an hour earlier. What
+is on screen today is the words that were already there:
+
+> **Unlock this run's limits?**
+>
+> This run (run3) has 2 dated verifications. Unlocking lets you change the
+> run's limit set and its numbers.
+>
+> Nothing is deleted. Continue?
+
+**Proposed replacement, for Knut to accept, reject or reword.** It says what
+the door now does rather than only dropping what it no longer does:
+
+> **Unlock this run's limits?**
+>
+> This run (run3) has 2 dated verifications. Unlocking lets you change the
+> run's limit set and its numbers.
+>
+> Nothing already saved is recalculated. The report you have open is rebuilt
+> when you press Generate report, and every other report of this run stays
+> exactly as it is. Continue?
+
+*Raised by the B8-391 round, 2026-09-18.*
+
+
 *The two below are **revisions**, not new messages. Both were approved by Knut
 on 2026-08-04, but one step in each instructed "(with colour management on)" —
 a setting ChromIQ deliberately locks off on every print path
