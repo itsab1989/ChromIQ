@@ -1780,9 +1780,16 @@ class MeasurementReportDialog(QDialog):
         in the same folder each add instead of collapsing to one (Knut)."""
         from core.file_manager import VERIFICATIONS_DIRNAME
         from workflow.measurement_report import list_project_reports
-        # A dated verification is ONE source per RUN — every date of the run's
-        # verifications/ is gathered together, so adding a second date must
-        # dedup against the first.
+        # RESOLVED, SO TWO SPELLINGS OF ONE FILE ARE ONE SOURCE. `/tmp` and
+        # `/private/tmp`, a symlink, a firmlink and a different capitalisation
+        # on a case-insensitive volume all name the same measurement, and each
+        # of them slipped past this dedup and was added a second time: the same
+        # sheet then appeared twice in the document and was counted twice in
+        # "covers N of the M". Found while fixing R17-F2.
+        try:
+            ti3 = ti3.resolve()
+        except OSError:
+            pass
         if ti3.parent.parent.name == VERIFICATIONS_DIRNAME:
             return ("dir", str(ti3.parent.parent))
         if list_project_reports(ti3.parent):
@@ -6321,9 +6328,18 @@ class MeasurementReportDialog(QDialog):
         # in Settings while a `.ti3` added through the file dialog carries the
         # volume's.
         #
-        # A directory's device and inode are the one thing every spelling of it
-        # agrees on. A folder that has gone has neither, and then the resolved
-        # path is the best identity there is.
+        # A directory's device and inode agree across every spelling of it
+        # that names the same mounted file: `/tmp` and `/private/tmp`, a
+        # symlink, a firmlink (`/Users/...` and `/System/Volumes/Data/Users/...`
+        # are one directory and `resolve()` does not collapse them), and a
+        # different capitalisation on a case-insensitive volume. It is NOT
+        # universal: two MOUNTS of one filesystem give different `st_dev` for
+        # the same directory, so a share mounted twice would still split one
+        # project in two. That case is a mechanism, not something anybody has
+        # driven here, and it is recorded rather than guessed at.
+        #
+        # A folder that has gone has neither number, and then the resolved path
+        # is the best identity there is.
         def _ident(_p: str) -> str:
             try:
                 _st = os.stat(_p)
@@ -6346,9 +6362,30 @@ class MeasurementReportDialog(QDialog):
         # (R14-F5). Where the folder cannot be read, the rows this window holds
         # for that project are the best count there is, which is what this
         # counted before it counted the disk at all.
+        # ...AND WHAT THE FOLDER SAID WHILE IT WAS STILL THERE. Counting the
+        # window's own rows as the fall-back is not enough on its own: when the
+        # window holds only this report's rows, that count can never exceed
+        # what the report covers, so `max(total, covered)` makes the two equal
+        # and the sentence disappears anyway. Driven after a rename: "covers 2
+        # of the 4 measurements recorded for this project" became no sentence
+        # at all, which is a filtered report passing as complete (R17-F2).
+        # A count read from the disk earlier in this window's life is the true
+        # one, so it is kept.
+        _seen = getattr(self, "_recorded_counts", None)
+        if _seen is None:
+            _seen = self._recorded_counts = {}
         total_known = 0
         for _k, _p in _mine.items():
+            # REMEMBERED AGAINST THE PATH, NOT THE IDENTITY. The identity is
+            # the folder's device and inode, and a folder that has been renamed
+            # has neither any more, so a memo kept under it could never be
+            # found again by the very rows that need it. The path the rows
+            # carry does not change when the folder does.
             _n = self._measurements_recorded_in(_p)
+            if _n > 0:
+                _seen[_p] = _n
+            else:
+                _n = _seen.get(_p, 0)
             if _n <= 0:
                 _n = len([r for r in self._history
                           if _ident(_project_of(r)) == _k])

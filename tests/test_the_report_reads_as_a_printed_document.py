@@ -426,6 +426,15 @@ def test_a_renamed_project_is_still_ONE_project(tmp_path, qapp):
                 _cgats("CTI3", [(r * scale, g, b) for (r, g, b) in _PATCHES]),
                 encoding="utf-8")
             made.append(v.measurement_ti3)
+        # ...and one more on the disk that nobody opens, so the document really
+        # is covering less than the project records and the sentence has a
+        # reason to exist at all. Without it both spellings of everything are
+        # loaded, the report covers the lot, and silence is the right answer.
+        _un = proj.new_run().new_verification()
+        _un.ensure_dir()
+        _un.measurement_ti3.write_text(
+            _cgats("CTI3", [(r * 0.1, g, b) for (r, g, b) in _PATCHES]),
+            encoding="utf-8")
         # the same two files reached by a second spelling of the same folder
         alias = tmp_path / "another-way-in"
         try:
@@ -439,9 +448,22 @@ def test_a_renamed_project_is_still_ONE_project(tmp_path, qapp):
             if through.is_file():
                 dlg._add_source(through)
                 qapp.processEvents()
+        # BOTH SPELLINGS OF ONE MEASUREMENT, or nothing is really left out:
+        # hiding one of a pair leaves its twin in the document and the report
+        # still covers everything the project records, where silence is the
+        # right answer and this test would prove nothing.
         rows = list(dlg._history)
-        dlg._hidden_runs = {dlg._run_key(rows[0])}
+        # by the RUN, because every verification here was made in the same
+        # second and they share a timestamp folder name.
+        _run_name = made[-1].parent.parent.parent.name
+        hide = {dlg._run_key(r) for r in rows
+                if Path(str(r.get("_origin_dir") or r.get("ti3") or "")
+                        ).parent.parent.name == _run_name}
+        assert hide and len(hide) < len(rows), (len(hide), len(rows))
+        dlg._hidden_runs = hide
         qapp.processEvents()
+        before = _plain(dlg._report_body_html(dlg._runs_for_report(),
+                                              for_pdf=False))
         renamed = root.with_name(root.name + "-renamed")
         root.rename(renamed)
         try:
@@ -449,12 +471,30 @@ def test_a_renamed_project_is_still_ONE_project(tmp_path, qapp):
                                                 for_pdf=False))
         finally:
             renamed.rename(root)
-        m = re.search(r"covers (\d+) of the (\d+) measurements recorded for "
-                      r"(this project|the projects it is drawn from)", body)
-        assert m, body[-400:]
-        assert m.group(3) == "this project", (
-            f'one renamed project, reached two ways, and the document says '
-            f'"{m.group(0)}"')
+        # THE WORDING IS WHAT THIS TEST IS FOR. Whether a sentence appears at
+        # all depends on how much of the project the document covers, and with
+        # both spellings loaded that can legitimately be all of it; what may
+        # never happen is one project being called several.
+        from ui.dialogs.measurement_report_dialog import (
+            MeasurementReportDialog as _MD)
+        on_disk = _MD._measurements_recorded_in(str(root))
+        seen = 0
+        for where, text in (("before the rename", before), ("after it", body)):
+            m = re.search(r"covers (\d+) of the (\d+) measurements recorded "
+                          r"for (this project|the projects it is drawn from)",
+                          text)
+            if m is None:
+                continue
+            seen += 1
+            assert m.group(3) == "this project", (
+                f'one project reached two ways, and {where} the document says '
+                f'"{m.group(0)}"')
+            assert int(m.group(2)) == on_disk, (
+                f'{where} the document says "{m.group(0)}" where the project '
+                f'records {on_disk}')
+        assert seen, (
+            "neither state produced the sentence at all, so this test proves "
+            "nothing about its wording")
     finally:
         dlg.close()
 
@@ -564,5 +604,110 @@ def test_two_cases_of_one_name_are_one_project(tmp_path, qapp):
         assert int(m.group(2)) == on_disk, (
             f'the document says "{m.group(0)}" where the project records '
             f'{on_disk}')
+    finally:
+        dlg.close()
+
+
+def test_a_rename_cannot_silence_the_note_on_a_four_measurement_project(
+        tmp_path, qapp):
+    """R17-F2: the rename fall-back still lost the sentence in the shape the
+    round drove. Counting the window's own rows is not enough on its own: when
+    the window holds only this report's rows, that count can never exceed what
+    the report covers, `max(total, covered)` makes the two equal, and the
+    sentence disappears. On screen: "covers 2 of the 4 measurements recorded
+    for this project" became NO SENTENCE AT ALL, and `covered` moved from 2 to
+    3 in the same step because a folder had gone.
+
+    A count read off the disk earlier in this window's life is the true one, so
+    it is kept and used when the folder cannot answer.
+
+    MUTATION, proven to land: drop the remembered count.
+    """
+    from tests.test_a_report_says_what_it_is_and_what_judged_it import _dialog
+    from tests.test_import_measurement_module import _cgats, _PATCHES
+    dlg, _run, fm = _dialog(tmp_path, qapp)
+    try:
+        proj = fm.project()
+        root = Path(str(proj.root))
+        # THREE LOADED AND ONE LEFT ON THE DISK. That is the shape round 17
+        # drove, and it is the one the history-row fall-back cannot cover: when
+        # the window holds only the report's own rows, counting them can never
+        # exceed what the report covers.
+        for scale, load in ((0.9, True), (0.7, True), (0.5, True),
+                            (0.3, False)):
+            run = proj.new_run()
+            v = run.new_verification()
+            v.ensure_dir()
+            v.measurement_ti3.write_text(
+                _cgats("CTI3", [(r * scale, g, b) for (r, g, b) in _PATCHES]),
+                encoding="utf-8")
+            if load:
+                dlg._add_source(v.measurement_ti3)
+                qapp.processEvents()
+        rows = list(dlg._history)
+        assert len(rows) >= 3, len(rows)
+        dlg._hidden_runs = {dlg._run_key(rows[0])}
+        qapp.processEvents()
+        before = _plain(dlg._report_body_html(dlg._runs_for_report(),
+                                              for_pdf=False))
+        m0 = re.search(r"covers (\d+) of the (\d+) measurements", before)
+        assert m0, ("the fixture is not filtering anything, so the check below "
+                    "would prove nothing")
+        total_before = int(m0.group(2))
+        renamed = root.with_name(root.name + "-renamed")
+        root.rename(renamed)
+        try:
+            after = _plain(dlg._report_body_html(dlg._runs_for_report(),
+                                                 for_pdf=False))
+        finally:
+            renamed.rename(root)
+        m1 = re.search(r"covers (\d+) of the (\d+) measurements", after)
+        assert m1, (
+            "renaming the project's folder silenced the sentence, so a report "
+            "with a measurement left out passes as complete\n" + after[-400:])
+        assert int(m1.group(2)) == total_before, (
+            f"the project records {total_before} and after the rename the "
+            f"document says {m1.group(2)}")
+    finally:
+        dlg.close()
+
+
+def test_one_measurement_opened_twice_is_one_source(tmp_path, qapp):
+    """Found while fixing R17-F2, and it is the root of the family R14-F4,
+    R15-F2 and R16-F1 all belong to: `_source_key` deduplicated on the path as
+    typed, so `/tmp` and `/private/tmp`, a symlink, a firmlink and a different
+    capitalisation each added the SAME measurement a second time. The sheet
+    then appeared twice in the document and was counted twice in "covers N of
+    the M".
+
+    MUTATION, proven to land: drop the `resolve()` from `_source_key`.
+    """
+    from tests.test_a_report_says_what_it_is_and_what_judged_it import _dialog
+    from tests.test_import_measurement_module import _cgats, _PATCHES
+    dlg, _run, fm = _dialog(tmp_path, qapp)
+    try:
+        proj = fm.project()
+        root = Path(str(proj.root))
+        run = proj.new_run()
+        v = run.new_verification()
+        v.ensure_dir()
+        v.measurement_ti3.write_text(
+            _cgats("CTI3", [(r * 0.5, g, b) for (r, g, b) in _PATCHES]),
+            encoding="utf-8")
+        dlg._add_source(v.measurement_ti3)
+        qapp.processEvents()
+        n_rows = len(dlg._history)
+        alias = tmp_path / "second-spelling"
+        try:
+            alias.symlink_to(root.parent, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            pytest.skip("this filesystem will not make a symlink")
+        through = alias / root.name / v.measurement_ti3.relative_to(root)
+        assert through.is_file(), through
+        dlg._add_source(through)
+        qapp.processEvents()
+        assert len(dlg._history) == n_rows, (
+            f"the same measurement opened by a second spelling of its own "
+            f"path added {len(dlg._history) - n_rows} more rows")
     finally:
         dlg.close()

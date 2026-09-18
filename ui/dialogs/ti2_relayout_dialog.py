@@ -4134,11 +4134,25 @@ class _NewChartDialog(QDialog):
             return
         if not self._gen_sets_active():
             return
-        import json as _json
-        key = _json.dumps(self._generator_build_state(), sort_keys=True,
-                          default=str)
+        # **THE SAME KEY AS THE PROGRAM CACHE, OR THIS ONE IS A TRAP.** It used
+        # to be `_generator_build_state()` alone, which is SIX components short
+        # of `_generator_cache_key()`: the preconditioning ICC's own digest,
+        # the Argyll path, the loaded photo, the existing chart. Every one of
+        # those can move while that key stands still, and then a hit here met a
+        # MISS one level down and the "free" call below was a full rebuild.
+        # Measured in a real state-3 window with a real CMYK profile and a fill
+        # target of 4,000: 0.511 s when the two keys agree, **22.8 s** with the
+        # precond profile overwritten in place, 19.4 s with the program entry
+        # evicted by a second patch-set window (R17-F1). `_precond_key()`
+        # exists precisely because colprof overwrites that file in place.
+        #
+        # The same gap made the CLOUD wrong as well as slow: it was drawn from
+        # the previous program while the rows beside it came from the current
+        # one, and `_set_total_labels(len(labs))` then took the Total from the
+        # stale cloud. One key answers both.
+        key = self._generator_cache_key()
         cached = getattr(self, "_lab_cloud_cache", None)
-        if cached is not None and cached[0] == key:
+        if key is not None and cached is not None and cached[0] == key:
             # ...AND THE ROW COUNTS COME BACK WITH IT. This cache sits on top
             # of `_PROGRAM_CACHE`, and a hit here skips the build AND the
             # `_apply_built_row_counts` call below it, which is the exact trap
@@ -4148,12 +4162,10 @@ class _NewChartDialog(QDialog):
             # across two pushes and the fill row read "≈ 32 patches" against
             # "Total: 40 patches" (R16-F3).
             labs, colors = cached[1], cached[2]
-            # The program itself is cached one level down and a hit there is
-            # free, so ask for it rather than keep a second copy of the two
-            # numbers here: `_build_generated_program` restores
-            # `_built_row_counts` from `_PROGRAM_CACHE` on its own hit, and the
-            # expensive part this cache exists for, the `xicclu` call, is still
-            # skipped.
+            # The program is cached under the SAME key, so this is a hit by
+            # construction: it restores `_built_row_counts` from
+            # `_PROGRAM_CACHE` and costs a dictionary lookup, while the
+            # `xicclu` call this cache exists to skip is still skipped.
             self._apply_built_row_counts(self._build_generated_program())
         else:
             try:
@@ -4174,7 +4186,8 @@ class _NewChartDialog(QDialog):
                     r, g, b = _display100(dev, rep)
                     colors.append((round(r * 2.55), round(g * 2.55),
                                    round(b * 2.55)))
-                self._lab_cloud_cache = (key, labs, colors)
+                if key is not None:
+                    self._lab_cloud_cache = (key, labs, colors)
             except Exception as exc:  # noqa: BLE001 — preview is best-effort
                 log.warning("Lab cloud preview failed: %s", exc)
                 return

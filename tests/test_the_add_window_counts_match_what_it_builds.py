@@ -667,3 +667,76 @@ def test_the_lab_cloud_cache_does_not_put_the_estimate_back(qapp, monkeypatch):
         "the cached push skipped the row counts, so the fill row keeps the "
         "estimate while the Total is exact")
     dlg.deleteLater()
+
+
+def test_a_cached_lab_cloud_never_pays_for_a_rebuild(qapp, monkeypatch):
+    """R17-F1: the Lab-cloud cache was keyed on `_generator_build_state()`
+    alone, which is six components short of the program cache's key: the
+    preconditioning profile's own digest, the Argyll path, the loaded photo and
+    the existing chart can all move while that key stands still. A hit here
+    then met a MISS one level down, and the call the comment called free was a
+    full rebuild. Measured in a real state-3 window with a real CMYK profile
+    and a fill target of 4,000: 0.511 s when the keys agree, **22.8 s** with
+    the profile overwritten in place, 19.4 s with the program entry evicted by
+    a second patch-set window. The same gap made the CLOUD stale as well as
+    slow, because it was drawn from the previous program while the rows beside
+    it came from the current one.
+
+    The invariant is one line, and it is what makes the call free: **the cloud
+    caches under the program's own key**, so a cloud hit is a program hit by
+    construction. Asserting it directly rather than by timing keeps the test
+    honest on a loaded machine and does not need a multi-ink fixture the Add
+    window cannot have.
+
+    MUTATION, proven to land: key the Lab cache on `_generator_build_state()`
+    again.
+    """
+    class _Settings(_FakeSettings):
+        def __init__(self):
+            self._argyll = "/one/place"
+
+        def get(self, key, *a, **k):
+            return self._argyll if key == "argyll_path" else None
+
+    st = _Settings()
+    dlg = _AddPatchesDialog(st, existing_patches=_chart_with_white_and_black())
+    dlg._add_mode_gen.setChecked(True)
+    _sets_off(dlg)
+    dlg._gen_cube.setChecked(True)
+    dlg._gen_cube_n.setValue(4)
+    dlg._cube_shown = True
+    dlg._nch_cube_hidden = False
+    dlg._extra_inks = []
+    dlg._precond_path = ""
+    dlg._bin_dir = ""
+
+    class _Panel:
+        def set_lab_cloud(self, *a):
+            pass
+
+        def set_program(self, *a, **k):
+            pass
+
+    dlg._cube_panel = _Panel()
+    monkeypatch.setattr(
+        "workflow.xicclu_runner.forward_lab",
+        lambda program, precond, bin_dir: [(50.0, 0.0, 0.0)] * len(program))
+
+    expected = dlg._generator_cache_key()
+    assert expected is not None, "the fixture cannot be keyed at all"
+    dlg._push_lab_cloud()
+    cached = getattr(dlg, "_lab_cloud_cache", None)
+    assert cached is not None, "the cloud did not run"
+    assert cached[0] == expected, (
+        "the cloud is cached under a key of its own, so it can be served while "
+        "the program underneath it is rebuilt")
+
+    # ...and the key really does move with the things the program depends on,
+    # which is what makes the assertion above worth making.
+    st._argyll = "/another/place"
+    assert dlg._generator_cache_key() != expected, (
+        "the program's own key does not move with the Argyll path, so this "
+        "test proves nothing about the six components it is here for")
+    dlg._push_lab_cloud()
+    assert dlg._lab_cloud_cache[0] == dlg._generator_cache_key()
+    dlg.deleteLater()

@@ -15151,4 +15151,93 @@ is not remembered at all.
   0 over 48 indicator-off charts); the dotted names over ten spellings; the
   state-3 Total pair; a calibration measurement, which leaves the sentence
   singular and right.
-- what to do next: round 17, and then the three gates.
+- what to do next: round 17 found three; they are B8-355.
+
+### B8-355 · FIXED · Round 17's findings, including a 22-second regression of mine
+- blocks release: yes
+- status: FIXED
+- evidence: `test_a_cached_lab_cloud_never_pays_for_a_rebuild`,
+  `test_a_rename_cannot_silence_the_note_on_a_four_measurement_project`,
+  `test_one_measurement_opened_twice_is_one_source`.
+
+**F1 · round 16's fix put a 22-second rebuild on the path its own comment
+called free.** The Lab-cloud cache was keyed on `_generator_build_state()`
+alone, which is six components short of `_generator_cache_key()`: the
+preconditioning ICC's own digest, the Argyll path, the loaded photo and the
+existing chart can each move while that key stands still. A hit here then met a
+MISS one level down and `_build_generated_program()` was a full uncached build.
+Measured in a real state-3 window with a real CMYK profile and a fill target of
+4,000:
+
+| pass | wall | inside the builder |
+|---|---|---|
+| cloud miss | 0.513 s | 0.000 s |
+| cloud hit, keys agree | 0.511 s | 0.001 s |
+| cloud hit, precond profile overwritten in place | **22.827 s** | 22.322 s |
+| cloud hit, program entry evicted by a second window | **19.431 s** | 18.919 s |
+
+`_precond_key()` exists precisely because colprof overwrites that file in
+place, and the eviction case needs nothing external at all: a second patch-set
+window does it. The same gap made the cloud STALE as well as slow, because it
+was drawn from the previous program while the rows beside it came from the
+current one and `_set_total_labels(len(labs))` took the Total from the stale
+cloud. The cloud now caches under the program's own key, so a cloud hit is a
+program hit by construction.
+
+**F2 · the rename fall-back still lost the sentence** in the shape round 17
+drove: four measurements, three of them loaded, one row hidden. Counting the
+window's own rows cannot cover it, because when the window holds only this
+report's rows that count can never exceed what the report covers, `max(total,
+covered)` makes the two equal and the sentence disappears. A count read off the
+disk earlier in this window's life is the true one and is now kept, against the
+PATH rather than the identity: a renamed folder has no device and inode any
+more, so a memo under those could never be found by the rows that need it.
+
+**F3 · B8-343's fourth door**, measured for the first time because round 12's
+driver deleted the real `is_running` property and every step after it raised.
+Doors 1 to 3 hold. Door 4: accept a photo card, put the dropdown back to
+"none", and the chart note AND `stamp=False` both stay. **Whether leaving the
+dropdown should undo an ACCEPTED preset is a design question**, so it is
+B8-356 and not a fix made blind.
+
+**Found while fixing F2, and it is the root of the whole family** (R14-F4,
+R15-F2, R16-F1): `_source_key` deduplicated on the path as typed, so a second
+spelling of one measurement added it a SECOND TIME. The sheet then appeared
+twice in the document and was counted twice in "covers N of the M", which is
+why the guards kept needing a row hidden to see anything. It resolves now.
+
+- Mutations, each proven to land, 2026-09-18: V1 the Lab cache keyed on
+  `_generator_build_state()` again (1 red), V2 the remembered count dropped
+  (2 red), V3 `_source_key` not resolved (1 red), and U1 from B8-354 still
+  lands.
+- **A correction to B8-354.** It said a directory's device and inode are "the
+  one thing every spelling of it agrees on". Too strong: round 17 mounted one
+  disk image twice and got DIFFERENT `st_dev` for the same directory, so a
+  share mounted twice would still split one project. It could not drive the
+  end-to-end case, so that is a mechanism and not a measured fault; the comment
+  in the code now says so. What it did prove: `st_dev` separates two different
+  images that both gave inode 16, so it is load-bearing, and a firmlink
+  (`/Users/...` against `/System/Volumes/Data/Users/...`) is a second real
+  macOS spelling the fix handles.
+- **Not reached, still**: dpr 1 (Qt6 on cocoa ignored every scaling variable
+  offered and reported 2.0 throughout; it needs a 1x display or another host),
+  a SpectroScan honeycomb in a window, the eight report types one by one, and
+  a stray `.ti3` produced through an app path, which round 17 looked for in the
+  writers and could not find.
+- what to do next: round 18, and then the three gates.
+
+### B8-356 · OPEN · Should leaving the preset dropdown undo an ACCEPTED preset?
+- blocks release: no
+- status: OPEN
+- Measured by round 17, on screen, through B8-343's fourth door: accept a photo
+  card preset, then put the dropdown back to "none", and the chart note and the
+  `stamp=False` the preset brought with it both STAY. B8-343 covers the three
+  doors where a preset is refused or replaced; this is the one where it was
+  accepted and then walked away from.
+- That is B8-343's own reported symptom through a door its fix does not cover,
+  and it is a design question rather than a bug: a preset that has been accepted
+  is arguably the user's own setting now, and putting the dropdown back to
+  "none" may mean "I am not using a preset any more" rather than "undo what it
+  did".
+- evidence: none yet, deliberately. Nothing has been changed.
+- what to do first: ask Basti, since the preset dropdown and its undo were his.
