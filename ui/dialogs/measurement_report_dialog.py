@@ -1486,6 +1486,15 @@ class MeasurementReportDialog(QDialog):
         self._saved_note_full = ""
         head.addWidget(self._saved_note, 1)
         head.addStretch(1)
+        # **AND IT SITS WITH THE PULLDOWN, NOT ABOVE IT.** With a stretch only
+        # BELOW it, this row was pinned to the top of its column while the
+        # pulldown beside it is centred between the two stacked buttons, so the
+        # help button floated visibly higher than the control it explains.
+        # Basti saw it in a photograph: *"on the right the tooltip icon is up
+        # high a bit"*. A stretch on each side centres it on the same line the
+        # pulldown is on, and costs no height: the column's minimum is the
+        # row's either way.
+        side_col.addStretch(1)
         side_col.addLayout(head)
         side_col.addStretch(1)
         docs_row.addLayout(side_col, 2)
