@@ -383,7 +383,7 @@ def test_the_promise_holds_when_another_tip_owner_is_already_on(qapp, first,
     dlg.deleteLater()
 
 
-def test_a_multi_ink_total_says_it_is_an_estimate(qapp):
+def test_a_multi_ink_total_says_it_is_an_estimate(qapp, tmp_path):
     """On an RGB chart the Total is replaced by the real built number a moment
     later. On a multi-ink one it cannot be: state 2 would shell targen on every
     keystroke and state 3 xicclu, so the line stays an estimate. Round 11 read
@@ -394,9 +394,7 @@ def test_a_multi_ink_total_says_it_is_an_estimate(qapp):
     # The ADD window has no Device box (it extends a chart whose colourspace
     # is fixed), so the New Patch Set window is where a multi-ink state can be
     # reached at all.
-    import tempfile
-    from pathlib import Path
-    new = _NewChartDialog(Path(tempfile.mkdtemp()), _FakeSettings())
+    new = _NewChartDialog(tmp_path, _FakeSettings())
     try:
         new._mode_generate.setChecked(True)
         new._update_gen_counts()
