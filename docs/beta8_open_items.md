@@ -14736,7 +14736,7 @@ over round 12's own 540 built sheets and re-measured here:
   meaning once already.
 - what to do next: round 13, against these fixes.
 
-### B8-347 · OPEN · A pointy honeycomb prints its patches INTO the strip letters
+### B8-347 · OPEN · Charts print their first row INTO the strip letters, honeycomb and rectangular alike
 - blocks release: no
 - status: OPEN
 - Found while fixing B8-346 F1, measured off the rendered page rather than
@@ -14759,10 +14759,20 @@ over round 12's own 540 built sheets and re-measured here:
 - The same collision is presumably on the PRINTED sheet, where the letters and
   the first row of patches touch. `geometry._top_reserve_for_a_turned_hex`
   moves the patch block for a TURNED honeycomb only, and these two are pointy.
+- **AND IT IS NOT ONLY THE HONEYCOMB.** Round 15 photographed the same
+  collision on the ORDINARY chart shape: a rectangular CR30 A4 sheet with a
+  6 mm spacer and edge spacers on records its band bottom at 157, prints its
+  edge spacer from 153 and inks its letters to 155, so three rows carry both.
+  On screen with nothing read the blank keeps **94.15 %** of the letters and
+  the bottom bar of the `E` opens. The preview's rectangular branch takes
+  `min(band, first patch top - spacer)` unconditionally, so the ink wins there
+  as it does on a honeycomb; the comment above it said the band wins and has
+  been corrected to say what the code does.
 - **This is a design question, not a code fix.** Reserving the apex overhang
   above the first row would move every pointy honeycomb's patch block down and
-  could cost a row of capacity, which is Knut's call under the binding-spec
-  rule, not ours.
+  could cost a row of capacity, and reserving the edge spacer would do the same
+  to every rectangular chart, which is Knut's call under the binding-spec rule,
+  not ours.
 - evidence: `tests/test_the_blank_cuts_between_the_letters_and_the_ink.py`
   asserts the recorded band line is at most three rows below the first inked
   row, which is what pins the size of the overlap; the table above is in
@@ -14950,4 +14960,66 @@ from one number now.
   same second leaves a `.pyc` that pytest still imports, and 11 tests then fail
   on a tree `git status` calls clean, looking exactly like a product
   regression. Clear `__pycache__` between a mutation and its restore.
-- what to do next: round 15, and then the three gates.
+- what to do next: round 15 found five more; they are B8-351.
+
+### B8-351 · FIXED · Round 15's five findings on the round-14 fixes
+- blocks release: yes
+- status: FIXED
+- evidence: `test_the_lab_cloud_path_writes_both_bottom_lines`,
+  `test_a_renamed_project_is_still_ONE_project`,
+  `test_a_dot_in_a_charts_name_is_not_a_suffix`,
+  `test_the_page_is_read_once_per_chart_not_once_per_load`,
+  `test_a_chart_with_no_label_band_is_not_read_at_all`.
+
+**F1 · the guard for R14-F7 could not see R14-F7.** It called
+`_set_total_labels` directly and never reached `_push_lab_cloud`, which is
+where B8-341 lived. Round 15 restored the fault verbatim, one line, and the
+whole everyday tier stayed green: **16,506 passed**. A guard that only its own
+mutation can redden guards nothing. The new case drives the state-3 path
+itself, with `forward_lab` stubbed because it is the only part that needs a
+profile and a subprocess.
+
+**F2 · R14-F5's fix brought R14-F4 straight back.** The disk branch of
+`_project_of` resolves its key; the path-shape branch, which is the ONLY one a
+renamed folder reaches, did not. One project, four measurements opened through
+`/tmp` and `/private/tmp`, and after a rename the document said "recorded for
+the projects it is drawn from", plural, about one project: R14-F4's symptom
+word for word, reintroduced by the fix for the finding after it.
+
+**F3 · the one-page name was still derived with `with_suffix`**, which eats
+everything after the last dot. `TC9.18`, a preset this app ships, asked the
+disk for `TC9.tif` and found nothing. R14-F3 fixed the multi-page branch and
+its own docstring named this branch as the one its mutation could not reach.
+
+**F4 · 832 ms of frozen window per chart change.** The page probe runs from
+`set_ti1_path`, where a project open, a Profile-run change, a Run-type change
+and every cross-tab load all arrive, and it decodes every page: measured in the
+real window on a 3-page A3 at 600 dpi, 1,576 ms against 744 with the key. Two
+changes: a chart with no label band is not read at all, because there is no
+clamp for the answer to be compared against; and the answer is kept against the
+sidecar's size and timestamp, since a chart already written cannot change.
+Measured here: 52 ms on the first call, 0.3 ms on the next.
+
+**F5 · the same layout collision on a rectangular chart**, photographed: band
+157, edge spacer from 153, letters inked to 155, and 94.15 % of the letters
+left with the `E`'s bottom bar open. The preview's comment claimed the band
+wins where the code takes the minimum unconditionally; the comment is corrected
+and the collision is recorded against the LAYOUT, in B8-347, which now covers
+both chart shapes.
+
+- Mutations, each proven to land, 2026-09-18: T1 B8-341 restored verbatim in
+  `_push_lab_cloud` (1 red), T2 the renamed-folder key not resolved (1 red),
+  T3 the one-page name back on `with_suffix` (1 red), T4 the no-band early
+  return removed (1 red), T5 the answer not kept (1 red).
+- **What round 15 could NOT break**: the band test on a genuinely old chart,
+  reproduced by returning 0 from `raster._label_ink_bottom` over 48 engine
+  charts (the old band is always above the new one, so the silence costs
+  nothing); `stem_files` over `[`, `]`, `*`, `?`, `#`, NFD and NFC; the
+  path-shape branch over a project called `runs`, two `runs` components, and
+  verifications; `forward_lab` cannot drop points, because `_run_xicclu` raises
+  on a length mismatch, so writing both labels from `len(labs)` is sound.
+- **Inherited and still open**: a CALIBRATION measurement has no `runs`
+  component in its path, so it stays `external:` and is in neither number.
+  `run_context_for` has never recognised `cal/`; recorded here rather than
+  changed under a release.
+- what to do next: round 16, and then the three gates.

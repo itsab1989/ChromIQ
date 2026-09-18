@@ -3026,6 +3026,17 @@ class TiffPreview(QWidget):
                 # every chart today's layout engine builds, because there the
                 # rect's top IS the first patch top. Measured in the suite: 2,688
                 # of 5,706 edge-spacer pixels still showing, the top one whole.
+                #
+                # **AND THE INK WINS WHERE THE TWO CROSS, WHICH THE PARAGRAPH
+                # ABOVE DOES NOT SAY.** `min(...)` is unconditional: on a
+                # rectangular CR30 A4 sheet with a 6 mm spacer and edge spacers
+                # the band ends at 157, the spacer begins at 153 and the letters
+                # ink to 155, so three rows carry both and the cut goes to 153.
+                # Photographed on screen with nothing read: 94.15 % of the
+                # letters left, and the bottom bar of the `E` open. That is the
+                # same trade the hexagonal branch makes, and it is deliberate
+                # here too, but it is a LAYOUT collision either way and it is
+                # recorded against the layout as B8-347.
                 top = max(top, min(float(rects[i].top()), min_py - esp))
                 bot = max(b.y() + b.height() for b in cp) + vpad + esp
                 # A HONEYCOMB IS BLANKED BY ITS HEXAGONS, NOT BY A RECTANGLE.

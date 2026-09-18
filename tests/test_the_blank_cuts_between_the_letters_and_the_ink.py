@@ -534,3 +534,101 @@ def test_an_ink_line_recorded_at_row_zero_reaches_the_preview(tmp_path):
     got = patch_ink_top_px_from_sidecar(tmp_path / name / f"{name}.ti2")
     assert got == {0: 0.0}, (
         f"a chart whose ink starts at row 0 hands the preview {got}")
+
+
+def test_a_dot_in_a_charts_name_is_not_a_suffix(tmp_path):
+    """R15-F3: the single-page branch built its file name with `with_suffix`,
+    which eats everything after the LAST dot. A dot is legal in a chart's name
+    and `TC9.18` is a preset this app ships: it asked the disk for `TC9.tif`
+    and found nothing, so the fall-back returned nothing and the chart kept its
+    leak.
+
+    R14-F3 fixed the multi-page branch and its own docstring named this one as
+    the branch its mutation could not reach. One page here on purpose.
+
+    MUTATION, proven to land: `stem.with_suffix(".tif")`.
+    """
+    import json as _json
+    import shutil
+    from ui.tabs.tab_measure import patch_ink_top_px_from_sidecar
+    name = "TC9.18"
+    _side, _page = _build(tmp_path, name, ring=3.0, edge=True, flat=False)
+    ti2 = tmp_path / name / f"{name}.ti2"
+    channels = tmp_path / name / f"{name}.channels.json"
+    doc = _json.loads(channels.read_text(encoding="utf-8"))
+    doc["layout"].pop("patch_ink_top_px", None)
+    shutil.copy2(channels, channels.with_suffix(".keep"))
+    channels.write_text(_json.dumps(doc), encoding="utf-8")
+    try:
+        measured = patch_ink_top_px_from_sidecar(ti2)
+    finally:
+        shutil.move(str(channels.with_suffix(".keep")), str(channels))
+    assert measured, (
+        f"a chart called {name!r} found none of its own pages")
+
+
+def test_the_page_is_read_once_per_chart_not_once_per_load(tmp_path,
+                                                           monkeypatch):
+    """R15-F4: this fall-back decodes every page of the chart, and it runs from
+    `set_ti1_path`, which is where a project open, a Profile-run change, a
+    Run-type change and every cross-tab load all arrive. Measured in the real
+    window on a 3-page A3 at 600 dpi: **832 ms** of frozen GUI per chart
+    change, against 1.6 ms when the chart records its own line.
+
+    A chart that is already written cannot change under us, so the answer is
+    kept against the sidecar's size and timestamp. Measured here: 52 ms on the
+    first call and 0.3 ms on the next.
+
+    MUTATION, proven to land: do not store the answer.
+    """
+    import json as _json
+    import shutil
+    from ui.tabs import tab_measure as tm
+    name = "readonce"
+    _side, _page = _build(tmp_path, name, ring=3.0, edge=True, flat=False)
+    ti2 = tmp_path / name / f"{name}.ti2"
+    channels = tmp_path / name / f"{name}.channels.json"
+    doc = _json.loads(channels.read_text(encoding="utf-8"))
+    doc["layout"].pop("patch_ink_top_px", None)
+    shutil.copy2(channels, channels.with_suffix(".keep"))
+    channels.write_text(_json.dumps(doc), encoding="utf-8")
+    reads = []
+    real = tm._first_coloured_row
+    monkeypatch.setattr(tm, "_first_coloured_row",
+                        lambda *a, **k: (reads.append(1), real(*a, **k))[1])
+    try:
+        first = tm.patch_ink_top_px_from_sidecar(ti2)
+        n_after_first = len(reads)
+        again = tm.patch_ink_top_px_from_sidecar(ti2)
+    finally:
+        shutil.move(str(channels.with_suffix(".keep")), str(channels))
+    assert first and again == first, (first, again)
+    assert n_after_first > 0, "the fixture never reached the page at all"
+    assert len(reads) == n_after_first, (
+        f"the pages were read {len(reads)} times for two loads of one chart; "
+        f"every project open and every tab change pays that again")
+
+
+def test_a_chart_with_no_label_band_is_not_read_at_all(tmp_path, monkeypatch):
+    """The same cost, avoided completely: with the strip indicators off there
+    is no band, so there is no clamp in the preview and nothing this line could
+    be compared against. Reading the pages to answer a question nobody asks is
+    the whole of R15-F4.
+    """
+    import json as _json
+    from ui.tabs import tab_measure as tm
+    name = "noband"
+    _side, _page = _build(tmp_path, name, ring=3.0, edge=True, flat=False)
+    channels = tmp_path / name / f"{name}.channels.json"
+    doc = _json.loads(channels.read_text(encoding="utf-8"))
+    doc["layout"].pop("patch_ink_top_px", None)
+    doc["layout"].pop("label_band_bottom_px", None)
+    channels.write_text(_json.dumps(doc), encoding="utf-8")
+    reads = []
+    monkeypatch.setattr(tm, "_first_coloured_row",
+                        lambda *a, **k: (reads.append(1), None)[1])
+    assert tm.patch_ink_top_px_from_sidecar(
+        tmp_path / name / f"{name}.ti2") == {}
+    assert not reads, (
+        f"the pages were read {len(reads)} times for a chart that has no "
+        f"label band, so there was nothing to compare the answer against")

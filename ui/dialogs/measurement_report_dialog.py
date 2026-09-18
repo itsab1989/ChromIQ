@@ -6273,7 +6273,16 @@ class MeasurementReportDialog(QDialog):
                 # disappears, which is a filtered report passing as complete
                 # (R14-F5). The path's own shape still says which project it
                 # was, and grouping is all that is wanted here.
-                _pp = Path(_o)
+                # ...RESOLVED HERE TOO. The disk branch above resolves its key
+                # and this one did not, so a renamed project went straight back
+                # to counting `/tmp` and `/private/tmp` as two projects: one
+                # project, four measurements, and the document said "recorded
+                # for THE PROJECTS it is drawn from" (R14-F4's exact symptom,
+                # brought back by R14-F5's own fix and caught by round 15).
+                try:
+                    _pp = Path(_o).resolve()
+                except OSError:
+                    _pp = Path(_o)
                 _parts = list(_pp.parts)
                 if "runs" in _parts:
                     _i = len(_parts) - 1 - _parts[::-1].index("runs")

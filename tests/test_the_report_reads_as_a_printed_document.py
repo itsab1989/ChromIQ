@@ -402,6 +402,63 @@ def test_two_spellings_of_one_folder_are_one_project(tmp_path, qapp):
         dlg.close()
 
 
+def test_a_renamed_project_is_still_ONE_project(tmp_path, qapp):
+    """R15-F2: R14-F5's own fix brought R14-F4 straight back. The disk branch
+    resolves its key and the path-shape branch, which is the only one a renamed
+    folder reaches, did not: one project, four measurements opened through two
+    spellings of the same folder, and after the rename the document said
+    "recorded for THE PROJECTS it is drawn from", plural, about one project.
+
+    MUTATION, proven to land: drop the `.resolve()` from the shape branch.
+    """
+    from tests.test_a_report_says_what_it_is_and_what_judged_it import _dialog
+    from tests.test_import_measurement_module import _cgats, _PATCHES
+    dlg, _run, fm = _dialog(tmp_path, qapp)
+    try:
+        proj = fm.project()
+        root = Path(str(proj.root))
+        made = []
+        for scale in (0.5, 0.25):
+            run = proj.new_run()
+            v = run.new_verification()
+            v.ensure_dir()
+            v.measurement_ti3.write_text(
+                _cgats("CTI3", [(r * scale, g, b) for (r, g, b) in _PATCHES]),
+                encoding="utf-8")
+            made.append(v.measurement_ti3)
+        # the same two files reached by a second spelling of the same folder
+        alias = tmp_path / "another-way-in"
+        try:
+            alias.symlink_to(root.parent, target_is_directory=True)
+        except (OSError, NotImplementedError):
+            pytest.skip("this filesystem will not make a symlink")
+        for f in made:
+            dlg._add_source(f)
+            qapp.processEvents()
+            through = alias / root.name / f.relative_to(root)
+            if through.is_file():
+                dlg._add_source(through)
+                qapp.processEvents()
+        rows = list(dlg._history)
+        dlg._hidden_runs = {dlg._run_key(rows[0])}
+        qapp.processEvents()
+        renamed = root.with_name(root.name + "-renamed")
+        root.rename(renamed)
+        try:
+            body = _plain(dlg._report_body_html(dlg._runs_for_report(),
+                                                for_pdf=False))
+        finally:
+            renamed.rename(root)
+        m = re.search(r"covers (\d+) of the (\d+) measurements recorded for "
+                      r"(this project|the projects it is drawn from)", body)
+        assert m, body[-400:]
+        assert m.group(3) == "this project", (
+            f'one renamed project, reached two ways, and the document says '
+            f'"{m.group(0)}"')
+    finally:
+        dlg.close()
+
+
 def test_renaming_the_project_folder_does_not_silence_the_note(tmp_path,
                                                                qapp):
     """R14-F5: the total is read off the disk, and a folder renamed while the

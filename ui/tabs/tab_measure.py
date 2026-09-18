@@ -534,6 +534,12 @@ def edge_spacer_px_from_sidecar(ti2_path: "Path | None") -> int:
 #: faintest tint this misses is about a seventh of full strength.
 _INK_CHROMA_FLOOR = 40
 
+#: `{sidecar|size|mtime: {page: row}}` for charts that do not record
+#: their own ink line. Keyed on the file's stamp so a rebuilt chart is
+#: read again; process-local, nothing is written to disk.
+_INK_TOP_CACHE: "dict[str, dict[int, float]]" = {}
+_INK_TOP_CACHE_MAX = 32
+
 
 def _first_coloured_row(page: "Path", x0: int, x1: int,
                         stop_at: int) -> "int | None":
@@ -596,6 +602,32 @@ def patch_ink_top_px_from_sidecar(ti2_path: "Path | None") -> "dict[int, float]"
             if out:
                 return out
         # ...the fall-back, for a chart whose sidecar predates the key.
+        #
+        # ONCE PER CHART, NOT ONCE PER LOAD. This runs from `set_ti1_path`,
+        # which is where a project open, a Profile-run change, a Run-type
+        # change and every cross-tab load all arrive, and it decodes each page
+        # to do its work: measured on a 3-page A3 at 600 dpi it is 832 ms of
+        # frozen window, against 1.6 ms when the chart records the key
+        # (R15-F4). The pages cannot change under a chart that is already
+        # written, so the answer is kept against their size and timestamp.
+        band_bot = layout.get("label_band_bottom_px")
+        band_bot = (float(band_bot)
+                    if isinstance(band_bot, (int, float))
+                    and not isinstance(band_bot, bool) else None)
+        if band_bot is None:
+            # No label band means no clamp in the preview at all, so there is
+            # nothing this line could be compared against. Do not read the
+            # pages to answer a question nobody asks.
+            return {}
+        _key = str(Path(ti2_path))
+        try:
+            _st = channels.stat()
+            _key = f"{_key}|{_st.st_size}|{_st.st_mtime_ns}"
+        except OSError:
+            pass
+        _hit = _INK_TOP_CACHE.get(_key)
+        if _hit is not None:
+            return dict(_hit)
         pats = layout.get("patches") or []
         if not pats:
             return {}
@@ -605,13 +637,14 @@ def patch_ink_top_px_from_sidecar(ti2_path: "Path | None") -> "dict[int, float]"
         # nothing. `stem_files` escapes the stem once, which is what it is for.
         from core.file_manager import stem_files
         stem = Path(ti2_path).with_suffix("")
+        # ...AND THE ONE-PAGE NAME IS BUILT, NOT DERIVED. `with_suffix` eats
+        # everything after the LAST dot, and a dot is legal in a chart's name:
+        # `TC9.18`, which is a preset this app ships, asked for `TC9.tif` and
+        # found nothing. R14-F3 fixed the multi-page branch and its own
+        # docstring named this one as the branch its mutation could not reach.
+        _one = stem.parent / (stem.name + ".tif")
         pages = (sorted(stem_files(stem.parent, stem.name, "_*.tif"))
-                 or ([stem.with_suffix(".tif")]
-                     if stem.with_suffix(".tif").is_file() else []))
-        band_bot = layout.get("label_band_bottom_px")
-        band_bot = (float(band_bot)
-                    if isinstance(band_bot, (int, float))
-                    and not isinstance(band_bot, bool) else None)
+                 or ([_one] if _one.is_file() else []))
         found: "dict[int, float]" = {}
         for i, page in enumerate(pages):
             own = [p for p in pats if int(p.get("page", 0)) == i]
@@ -630,8 +663,11 @@ def patch_ink_top_px_from_sidecar(ti2_path: "Path | None") -> "dict[int, float]"
             # with any chroma in it is a PATCH, well below the ring that is
             # really the top of the ink. Reporting that as "the first inked
             # row" would be a wrong number dressed as a measurement.
-            if row is not None and (band_bot is None or row < band_bot):
+            if row is not None and row < band_bot:
                 found[i] = float(row)
+        _INK_TOP_CACHE[_key] = dict(found)
+        while len(_INK_TOP_CACHE) > _INK_TOP_CACHE_MAX:
+            _INK_TOP_CACHE.pop(next(iter(_INK_TOP_CACHE)))
         return found
     except Exception:      # noqa: BLE001 — a preview must never die on a sidecar
         return {}

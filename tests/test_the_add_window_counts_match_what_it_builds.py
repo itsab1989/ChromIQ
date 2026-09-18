@@ -557,3 +557,63 @@ def test_both_bottom_lines_are_written_from_one_number(qapp):
             f'the Total says {total} and "Chart after adding" says {after} on '
             f'a chart of {len(existing)}: the two do not add up')
     dlg.deleteLater()
+
+
+def test_the_lab_cloud_path_writes_both_bottom_lines(qapp, monkeypatch):
+    """R15-F1: the guard above calls `_set_total_labels` directly and never
+    reaches `_push_lab_cloud`, which is where B8-341 lived. Round 15 restored
+    the fault verbatim, one line, and the WHOLE everyday tier stayed green:
+    16,506 passed. A guard that only its own mutation can redden guards
+    nothing.
+
+    So this one drives the state-3 path itself. `forward_lab` is the only part
+    that needs a profile and a subprocess, and it is replaced by a stub that
+    returns a known number of points; everything else is the real method.
+
+    MUTATION, proven to land: put `self._gen_total.setText(...)` back in place
+    of `self._set_total_labels(...)` in `_push_lab_cloud`.
+    """
+    existing = _chart_with_white_and_black()
+    dlg = _AddPatchesDialog(_FakeSettings(), existing_patches=existing)
+    dlg._add_mode_gen.setChecked(True)
+    _sets_off(dlg)
+    dlg._gen_cube.setChecked(True)
+    dlg._gen_cube_n.setValue(4)
+
+    # State 3 is "multi-ink with a preconditioning profile that matches", and
+    # the cloud only runs with the cube unfolded.
+    monkeypatch.setattr(type(dlg), "_nch_state", lambda self: 3)
+    monkeypatch.setattr(type(dlg), "_gen_sets_active", lambda self: True)
+    dlg._cube_shown = True
+    dlg._nch_cube_hidden = False
+
+    made = {}
+
+    class _Panel:
+        def set_lab_cloud(self, labs, colors):
+            made["n"] = len(labs)
+
+        def set_program(self, *a, **k):
+            pass
+
+    dlg._cube_panel = _Panel()
+    n_points = 40
+    monkeypatch.setattr(
+        "workflow.xicclu_runner.forward_lab",
+        lambda program, precond, bin_dir: [(50.0, 0.0, 0.0)] * n_points)
+    monkeypatch.setattr(type(dlg), "_build_generated_program",
+                        lambda self: [(50.0, 50.0, 50.0)] * n_points)
+    dlg._precond_path = "unused-by-the-stub"
+    dlg._bin_dir = ""
+    dlg._extra_inks = []
+
+    dlg._do_push_live_preview()
+    assert made.get("n") == n_points, (
+        "the Lab-cloud path did not run, so this test proves nothing")
+    total = _row_number(dlg._gen_total)
+    after = _row_number(dlg._gen_after_total)
+    assert total == n_points, dlg._gen_total.text()
+    assert after == len(existing) + n_points, (
+        f'the 3D-cube path left "Chart after adding" at {after} while the '
+        f'Total says {total} on a chart of {len(existing)}')
+    dlg.deleteLater()
