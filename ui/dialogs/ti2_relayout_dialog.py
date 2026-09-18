@@ -4139,7 +4139,22 @@ class _NewChartDialog(QDialog):
                           default=str)
         cached = getattr(self, "_lab_cloud_cache", None)
         if cached is not None and cached[0] == key:
+            # ...AND THE ROW COUNTS COME BACK WITH IT. This cache sits on top
+            # of `_PROGRAM_CACHE`, and a hit here skips the build AND the
+            # `_apply_built_row_counts` call below it, which is the exact trap
+            # that cache's own comment records one level down: the Total stayed
+            # exact while the fill row went back to the estimate. Measured in a
+            # real state-3 window, `_apply_built_row_counts` was called 0 times
+            # across two pushes and the fill row read "≈ 32 patches" against
+            # "Total: 40 patches" (R16-F3).
             labs, colors = cached[1], cached[2]
+            # The program itself is cached one level down and a hit there is
+            # free, so ask for it rather than keep a second copy of the two
+            # numbers here: `_build_generated_program` restores
+            # `_built_row_counts` from `_PROGRAM_CACHE` on its own hit, and the
+            # expensive part this cache exists for, the `xicclu` call, is still
+            # skipped.
+            self._apply_built_row_counts(self._build_generated_program())
         else:
             try:
                 from workflow.xicclu_runner import forward_lab

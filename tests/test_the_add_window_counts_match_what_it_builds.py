@@ -617,3 +617,53 @@ def test_the_lab_cloud_path_writes_both_bottom_lines(qapp, monkeypatch):
         f'the 3D-cube path left "Chart after adding" at {after} while the '
         f'Total says {total} on a chart of {len(existing)}')
     dlg.deleteLater()
+
+
+def test_the_lab_cloud_cache_does_not_put_the_estimate_back(qapp, monkeypatch):
+    """R16-F3: `_lab_cloud_cache` sits on top of the program cache, and a hit
+    skipped the build AND the `_apply_built_row_counts` call under it. That is
+    the exact trap the program cache's own comment records one level down: the
+    Total stayed exact while the fill row went back to the estimate. Measured
+    in a real state-3 window, `_apply_built_row_counts` was called 0 times
+    across two pushes.
+
+    MUTATION, proven to land: drop the call from the cache-hit branch.
+    """
+    existing = _chart_with_white_and_black()
+    dlg = _AddPatchesDialog(_FakeSettings(), existing_patches=existing)
+    dlg._add_mode_gen.setChecked(True)
+    _sets_off(dlg)
+    dlg._gen_cube.setChecked(True)
+    monkeypatch.setattr(type(dlg), "_nch_state", lambda self: 3)
+    monkeypatch.setattr(type(dlg), "_gen_sets_active", lambda self: True)
+    dlg._cube_shown = True
+    dlg._nch_cube_hidden = False
+    dlg._extra_inks = []
+    dlg._precond_path = "unused"
+    dlg._bin_dir = ""
+
+    class _Panel:
+        def set_lab_cloud(self, *a):
+            pass
+
+        def set_program(self, *a, **k):
+            pass
+
+    dlg._cube_panel = _Panel()
+    monkeypatch.setattr("workflow.xicclu_runner.forward_lab",
+                        lambda p, q, r: [(50.0, 0.0, 0.0)] * 40)
+    monkeypatch.setattr(type(dlg), "_build_generated_program",
+                        lambda self: [(50.0, 50.0, 50.0)] * 40)
+    seen = []
+    real = type(dlg)._apply_built_row_counts
+    monkeypatch.setattr(type(dlg), "_apply_built_row_counts",
+                        lambda self, a: (seen.append(1), real(self, a))[1])
+
+    dlg._do_push_live_preview()
+    first = len(seen)
+    dlg._do_push_live_preview()          # the second push is the cache hit
+    assert first > 0, "the first push never reached the row counts"
+    assert len(seen) > first, (
+        "the cached push skipped the row counts, so the fill row keeps the "
+        "estimate while the Total is exact")
+    dlg.deleteLater()

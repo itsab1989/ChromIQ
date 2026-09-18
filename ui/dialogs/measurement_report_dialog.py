@@ -12,6 +12,7 @@ from __future__ import annotations
 import copy
 import html
 import json
+import os
 from functools import partial
 from datetime import datetime
 from pathlib import Path
@@ -6307,10 +6308,36 @@ class MeasurementReportDialog(QDialog):
         # until the sentence fell silent on a project that really was being
         # filtered (B8-346 F6). Both numbers now count only the rows that
         # belong to a project this report is about.
-        _mine = {_p for _p in (_project_of(r) for r in runs)
-                 if not _p.startswith("external:")}
+        # **THE DISK'S OWN IDENTITY, NOT THE SPELLING.** `resolve()` fixes a
+        # symlink and `/private/tmp`, and it does NOT case-fold: APFS is
+        # case-insensitive, so `.../CaseTest/runs/run1` and
+        # `.../casetest/runs/run1` are one directory by `samefile` and two keys
+        # after `resolve()`. Driven in the real window, one project holding
+        # four measurements with two rows opened through the other case said
+        # "covers 3 of the 8 measurements recorded for THE PROJECTS it is drawn
+        # from" (R16-F1, photographed) -- R14-F4's symptom again, and this time
+        # in BOTH branches. It is reachable because `FileManager.root_dir()` is
+        # the custom output path verbatim, so a project carries the case typed
+        # in Settings while a `.ti3` added through the file dialog carries the
+        # volume's.
+        #
+        # A directory's device and inode are the one thing every spelling of it
+        # agrees on. A folder that has gone has neither, and then the resolved
+        # path is the best identity there is.
+        def _ident(_p: str) -> str:
+            try:
+                _st = os.stat(_p)
+                return f"{_st.st_dev}:{_st.st_ino}"
+            except OSError:
+                return _p
+
+        _mine: "dict[str, str]" = {}
+        for _p in (_project_of(r) for r in runs):
+            if not _p.startswith("external:"):
+                _mine.setdefault(_ident(_p), _p)
         covered = len([r for r in runs
-                       if not _is_raw_drift(r) and _project_of(r) in _mine])
+                       if not _is_raw_drift(r)
+                       and _ident(_project_of(r)) in _mine])
         # A FOLDER THAT HAS GONE IS NOT A PROJECT WITH NOTHING IN IT. Rename a
         # project in Finder while its report is open and the disk count drops
         # to zero, `max(total, covered)` makes the two equal, and the sentence
@@ -6320,10 +6347,11 @@ class MeasurementReportDialog(QDialog):
         # for that project are the best count there is, which is what this
         # counted before it counted the disk at all.
         total_known = 0
-        for _p in _mine:
+        for _k, _p in _mine.items():
             _n = self._measurements_recorded_in(_p)
             if _n <= 0:
-                _n = len([r for r in self._history if _project_of(r) == _p])
+                _n = len([r for r in self._history
+                          if _ident(_project_of(r)) == _k])
             total_known += _n
         # A measurement with no saved report beside it is still in this
         # document, so the total can never be smaller than what is covered.

@@ -632,3 +632,45 @@ def test_a_chart_with_no_label_band_is_not_read_at_all(tmp_path, monkeypatch):
     assert not reads, (
         f"the pages were read {len(reads)} times for a chart that has no "
         f"label band, so there was nothing to compare the answer against")
+
+
+def test_nothing_is_remembered_from_pages_that_were_not_there(tmp_path):
+    """R16-W1: the cache was keyed on the sidecar, and an EMPTY answer that had
+    come from pages which were simply missing survived their arrival. Measured:
+    pages absent at the first read gave `{}`, and with the pages back and the
+    sidecar untouched it was still `{}` until the cache was cleared by hand.
+
+    The answer belongs to the files it was read from, so the key names them and
+    a chart with no pages is not remembered at all.
+
+    MUTATION, proven to land: key on the sidecar's own stamp instead of the
+    pages' and keep the empty answer. The `if not pages` guard alone does NOT
+    redden this, because the page-stamped key already re-reads when they come
+    back; it is there so that nothing is remembered from a read that never
+    happened, which is a smaller claim and the honest one.
+    """
+    import json as _json
+    import shutil
+    from ui.tabs import tab_measure as tm
+    name = "gonepages"
+    _side, _page = _build(tmp_path, name, ring=3.0, edge=True, flat=False)
+    ti2 = tmp_path / name / f"{name}.ti2"
+    channels = tmp_path / name / f"{name}.channels.json"
+    doc = _json.loads(channels.read_text(encoding="utf-8"))
+    doc["layout"].pop("patch_ink_top_px", None)
+    channels.write_text(_json.dumps(doc), encoding="utf-8")
+
+    hidden = tmp_path / "pages-away"
+    hidden.mkdir()
+    moved = []
+    for tif in sorted((tmp_path / name).glob("*.tif")):
+        shutil.move(str(tif), str(hidden / tif.name))
+        moved.append((hidden / tif.name, tif))
+    assert moved, "the fixture wrote no pages at all"
+    assert tm.patch_ink_top_px_from_sidecar(ti2) == {}, (
+        "a chart whose pages are missing answered something")
+    for src, dst in moved:
+        shutil.move(str(src), str(dst))
+    assert tm.patch_ink_top_px_from_sidecar(ti2), (
+        "the pages are back and the sidecar never changed, and the chart is "
+        "still answering the nothing it learned while they were away")

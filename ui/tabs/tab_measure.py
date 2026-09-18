@@ -534,9 +534,9 @@ def edge_spacer_px_from_sidecar(ti2_path: "Path | None") -> int:
 #: faintest tint this misses is about a seventh of full strength.
 _INK_CHROMA_FLOOR = 40
 
-#: `{sidecar|size|mtime: {page: row}}` for charts that do not record
-#: their own ink line. Keyed on the file's stamp so a rebuilt chart is
-#: read again; process-local, nothing is written to disk.
+#: `{chart|page:size:mtime|...: {page: row}}` for charts that do not record
+#: their own ink line. Keyed on the PAGES, which are what is read, so a rebuilt
+#: chart is read again; process-local, nothing is written to disk.
 _INK_TOP_CACHE: "dict[str, dict[int, float]]" = {}
 _INK_TOP_CACHE_MAX = 32
 
@@ -619,15 +619,6 @@ def patch_ink_top_px_from_sidecar(ti2_path: "Path | None") -> "dict[int, float]"
             # nothing this line could be compared against. Do not read the
             # pages to answer a question nobody asks.
             return {}
-        _key = str(Path(ti2_path))
-        try:
-            _st = channels.stat()
-            _key = f"{_key}|{_st.st_size}|{_st.st_mtime_ns}"
-        except OSError:
-            pass
-        _hit = _INK_TOP_CACHE.get(_key)
-        if _hit is not None:
-            return dict(_hit)
         pats = layout.get("patches") or []
         if not pats:
             return {}
@@ -645,6 +636,27 @@ def patch_ink_top_px_from_sidecar(ti2_path: "Path | None") -> "dict[int, float]"
         _one = stem.parent / (stem.name + ".tif")
         pages = (sorted(stem_files(stem.parent, stem.name, "_*.tif"))
                  or ([_one] if _one.is_file() else []))
+        # **THE KEY NAMES WHAT IS READ, WHICH IS THE PAGES.** An earlier
+        # version keyed on the sidecar alone, so a page rewritten under an
+        # untouched sidecar kept the old answer; and it kept an EMPTY answer
+        # that had come from pages which were simply not there yet, which then
+        # survived their arrival (R16-W1). Both are the same mistake: the
+        # answer belongs to the files it was read from.
+        _key = str(Path(ti2_path))
+        for _pg in pages:
+            try:
+                _ps = _pg.stat()
+                _key += f"|{_pg.name}:{_ps.st_size}:{_ps.st_mtime_ns}"
+            except OSError:
+                _key += f"|{_pg.name}:?"
+        if not pages:
+            # Nothing to read, so nothing is learned and nothing is kept: a
+            # chart whose pages are missing must be asked again when they are
+            # back.
+            return {}
+        _hit = _INK_TOP_CACHE.get(_key)
+        if _hit is not None:
+            return dict(_hit)
         found: "dict[int, float]" = {}
         for i, page in enumerate(pages):
             own = [p for p in pats if int(p.get("page", 0)) == i]

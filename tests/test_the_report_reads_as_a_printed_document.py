@@ -505,3 +505,64 @@ def test_renaming_the_project_folder_does_not_silence_the_note(tmp_path,
             + after[-400:])
     finally:
         dlg.close()
+
+
+def test_two_cases_of_one_name_are_one_project(tmp_path, qapp):
+    """R16-F1: `Path.resolve()` fixes a symlink and `/private/tmp`, and it does
+    NOT case-fold. APFS is case-insensitive, so `CaseTest` and `casetest` are
+    one directory by `samefile` and two keys after `resolve()`: a project
+    holding four measurements, two rows opened through the other case, said
+    "covers 3 of the 8 measurements recorded for THE PROJECTS it is drawn
+    from", photographed. It is reachable because a project carries the case
+    typed in Settings while a `.ti3` added through the file dialog carries the
+    volume's.
+
+    A directory's device and inode are the one thing every spelling agrees on.
+
+    MUTATION, proven to land: group on the resolved path again.
+    """
+    from tests.test_a_report_says_what_it_is_and_what_judged_it import _dialog
+    from tests.test_import_measurement_module import _cgats, _PATCHES
+    dlg, _run, fm = _dialog(tmp_path, qapp)
+    try:
+        proj = fm.project()
+        root = Path(str(proj.root))
+        other_case = root.with_name(root.name.swapcase())
+        if root.name == other_case.name or not other_case.is_dir():
+            pytest.skip("this volume keeps the two cases apart")
+        made = []
+        for scale in (0.5, 0.25):
+            run = proj.new_run()
+            v = run.new_verification()
+            v.ensure_dir()
+            v.measurement_ti3.write_text(
+                _cgats("CTI3", [(r * scale, g, b) for (r, g, b) in _PATCHES]),
+                encoding="utf-8")
+            made.append(v.measurement_ti3)
+        for f in made:
+            dlg._add_source(f)
+            qapp.processEvents()
+            swapped = other_case / f.relative_to(root)
+            if swapped.is_file():
+                dlg._add_source(swapped)
+                qapp.processEvents()
+        rows = list(dlg._history)
+        dlg._hidden_runs = {dlg._run_key(rows[0])}
+        qapp.processEvents()
+        body = _plain(dlg._report_body_html(dlg._runs_for_report(),
+                                            for_pdf=False))
+        m = re.search(r"covers (\d+) of the (\d+) measurements recorded for "
+                      r"(this project|the projects it is drawn from)", body)
+        if m is None:
+            return
+        from ui.dialogs.measurement_report_dialog import (
+            MeasurementReportDialog as _MD)
+        on_disk = _MD._measurements_recorded_in(str(root))
+        assert m.group(3) == "this project", (
+            f'one project under two spellings of its own name, and the '
+            f'document says "{m.group(0)}"')
+        assert int(m.group(2)) == on_disk, (
+            f'the document says "{m.group(0)}" where the project records '
+            f'{on_disk}')
+    finally:
+        dlg.close()

@@ -14971,7 +14971,10 @@ from one number now.
   `test_the_page_is_read_once_per_chart_not_once_per_load`,
   `test_a_chart_with_no_label_band_is_not_read_at_all`.
 
-**F1 · the guard for R14-F7 could not see R14-F7.** It called
+**F1 · the guard for R14-F7 could not see R14-F7.** *(And round 16 corrected
+this section's own claim: see B8-354 F2. B8-341 cannot be reached by a user in
+the shipped app at all, so "measured at last" below is wrong; what was measured
+is the method, not a fault anybody could meet.)* It called
 `_set_total_labels` directly and never reached `_push_lab_cloud`, which is
 where B8-341 lived. Round 15 restored the fault verbatim, one line, and the
 whole everyday tier stayed green: **16,506 passed**. A guard that only its own
@@ -15022,7 +15025,7 @@ both chart shapes.
   component in its path, so it stays `external:` and is in neither number.
   `run_context_for` has never recognised `cal/`; recorded here rather than
   changed under a release.
-- what to do next: round 16, and then the three gates.
+- what to do next: round 16 found three and corrected one of my claims; B8-354.
 
 ### B8-352 · OPEN · Knut's recalculation ruling: a limit change belongs to ONE report
 - blocks release: no
@@ -15085,3 +15088,67 @@ both chart shapes.
   redden something and be visible.
 - what to do first: wait for his answer. Nothing here is a bug until he says
   which side is.
+
+### B8-354 · FIXED · Round 16's three findings, and a claim of mine it corrected
+- blocks release: yes
+- status: FIXED
+- evidence: `test_two_cases_of_one_name_are_one_project`,
+  `test_the_lab_cloud_cache_does_not_put_the_estimate_back`,
+  `test_nothing_is_remembered_from_pages_that_were_not_there`.
+
+**F1 · one project under two CASES of its own name counted as two.**
+`Path.resolve()` fixes a symlink and `/private/tmp` and does NOT case-fold, and
+APFS is case-insensitive, so `.../CaseTest/runs/run1` and
+`.../casetest/runs/run1` are one directory by `samefile` and two keys after
+`resolve()`. Driven in the real window, one project holding four measurements
+with two rows opened through the other case: *"This report covers 3 of the 8
+measurements recorded for the projects it is drawn from"*, photographed. That
+is R14-F4's symptom for the third time, and this time it was in BOTH branches,
+so R14-F4's own fix carried it too. It is reachable because
+`FileManager.root_dir()` is the custom output path verbatim, so a project
+carries the case typed in Settings while a `.ti3` added through the file dialog
+carries the volume's. Grouping is now by the directory's device and inode,
+which is the one thing every spelling of it agrees on; a folder that has gone
+has neither, and then the resolved path is the best identity there is.
+
+**F2 · a claim of mine was wrong, and the fix it describes is still right.**
+B8-351 said B8-341 was "measured at last". It was not. Round 16 drove all three
+windows: the Add window is the only one with existing patches and its
+`_nch_state()` is hard-wired to 1; the New patch set window is the only one
+that reaches states 2 and 3, has no existing patches, and keeps "Chart after
+adding" INVISIBLE with empty text; and the editor refuses Add outright on a
+multi-ink chart. So `_push_lab_cloud` only ever runs where `_set_total_labels`
+writes one line, and **B8-341 cannot be seen by a user in the shipped app**.
+The guard reaches the method only by patching `_nch_state` onto the one class
+that cannot return 3. The fix stays, because the method must not depend on that
+being true for ever, and the register now says what it is: a guard on a method,
+not proof that anybody could meet the fault.
+
+**F3 · the Lab-cloud cache put the estimate back on the fill row.**
+`_lab_cloud_cache` sits on top of `_PROGRAM_CACHE`, and a hit skipped the build
+AND the `_apply_built_row_counts` under it, which is the exact trap that lower
+cache's own comment records. Measured in a real state-3 window,
+`_apply_built_row_counts` ran 0 times across two pushes and the fill row read
+"≈ 32 patches" against "Total: 40 patches". The hit now asks the lower cache
+for the program, which is free, and applies the counts; the `xicclu` call this
+cache exists to skip is still skipped.
+
+**W1 · the ink-line cache kept an answer read from pages that were not there.**
+Pages absent at the first read gave `{}`, and with the pages back and the
+sidecar untouched it was still `{}`. The key named the sidecar while the answer
+came out of the TIFFs. The key names the pages now, and a chart with no pages
+is not remembered at all.
+
+- Mutations, each proven to land, 2026-09-18: U1 the project grouped by its
+  resolved path again (1 red), U2 the cached Lab-cloud push skips the row
+  counts (1 red), U3 the key back on the sidecar's stamp with the empty answer
+  kept (1 red). Recorded honestly: the `if not pages` guard alone does NOT
+  redden U3, because the page-stamped key already re-reads when they return; it
+  is there so that nothing is remembered from a read that never happened.
+- **What round 16 could NOT break, having tried**: R15-F4's no-band early
+  return, which it first believed a regression and then disproved on screen
+  (green 417,821 / 0 and blue 342,058 / 0 with the blank on, and the difference
+  0 over 48 indicator-off charts); the dotted names over ten spellings; the
+  state-3 Total pair; a calibration measurement, which leaves the sentence
+  singular and right.
+- what to do next: round 17, and then the three gates.
