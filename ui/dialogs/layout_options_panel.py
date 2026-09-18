@@ -10,6 +10,7 @@ It is Qt-only UI glue — no engine logic beyond reading/writing the recipe.
 """
 from __future__ import annotations
 
+import time
 from contextlib import contextmanager
 
 from PyQt6.QtCore import pyqtSignal
@@ -4765,15 +4766,35 @@ class LayoutOptionsPanel(QWidget):
         return self.apply_to_recipe(r)
 
     def _emit(self, *_a) -> None:
+        # **TIMED, BECAUSE A LOG CANNOT BE READ FOR A DURATION IT NEVER
+        # RECORDED.** Knut reports that a spin box in this panel lags on his
+        # machine and is comfortable on another instrument; nothing here
+        # reproduces it, and every attempt to get the figure out of his log
+        # measured the spacing of his CLICKS instead. Across 198 helper-marker
+        # steps in one of his logs the median gap is 0.499 s and the fastest is
+        # 0.003 s, which is a rhythm, not a cost. So the chain times itself: one
+        # DEBUG line per change with the three panel steps and the whole emit,
+        # which is synchronous and therefore covers every slot the host
+        # connected. Four `perf_counter` reads on a path that already builds
+        # strings and repaints a preview.
+        t0 = time.perf_counter()
         self._update_text_preview()
+        t1 = time.perf_counter()
         self._refresh_clip_preview()
+        t2 = time.perf_counter()
         # HERE, not on the Clip box's own signal. Whether the typed "Clip" is
         # the one in force depends on the clip border's width, which side it
         # sits on, whether it carries content, the instrument, the paper and
         # the row indicators — every one of which already lands here.
         self._update_text_edge_clip_note()
+        t3 = time.perf_counter()
         if not self._loading:
             self.changed.emit()
+        t4 = time.perf_counter()
+        log.debug("layout panel change: %.1f ms total "
+                  "(text %.1f, clip %.1f, note %.1f, listeners %.1f)",
+                  (t4 - t0) * 1000.0, (t1 - t0) * 1000.0, (t2 - t1) * 1000.0,
+                  (t3 - t2) * 1000.0, (t4 - t3) * 1000.0)
 
     def _update_helper_marker_rows(self, *_a) -> None:
         """Grey the three distances while the markers are switched off.
