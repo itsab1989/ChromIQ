@@ -1,5 +1,185 @@
 # Changelog
 
+## v4.3.0-beta.21
+
+**Everything a honeycomb chart shows while it is being measured, the Patch Set
+editor's counting, and the Measurement Report's voice.**
+
+### New
+
+- **Seventeen more ready-made charts for the two photo-card sheets** (Knut),
+  including a "Maximised - No Clip-border" cut that hands the clip band's width
+  back to the patch area: 12 columns instead of 10 on a 10x15 cm card, 16
+  instead of 12 on a 13x18. The i1Pro photo-card family now offers fifteen, and
+  ChromIQ ships 177 ready-made presets. Every card of both families now
+  carries the chart note, the sheet text size and the text distance from the
+  edge that Knut specified, and prints without a settings-stamp warning.
+
+### Fixed
+
+- **A honeycomb's strip letters lost their feet when "Show only measured
+  patches" was on, and on other charts a dash of unread ink was left on the tip
+  of every column.** `E` read as `F` and `I` read as `T` on a turned CR30
+  sheet. Two separate mistakes met in the same place: the line the blank cut at
+  was measured as the nominal size of the letter's font, where the glyph is
+  drawn a pixel or three lower than that and the round letters lower still; and
+  nothing downstream knew where the printed ink really starts, which on a
+  honeycomb is anywhere from 18 pixels below the first patch box to 40 above
+  it, because the hexagon overhangs its cell, the spacer ring is drawn outside
+  the hexagon and an edge spacer adds a band of its own. The chart now records
+  where it inked its first row, and the blank cuts between that line and the
+  letters. Measured on five real charts at five window sizes each: no chart ink
+  survives the blank anywhere, and the letters are whole. Charts already on
+  disk, made before this release, are covered too: where the chart does not
+  record the line, the sheet itself is measured.
+
+- **The Add patches window's numbers, in three more places.** With "Fill
+  remaining gaps" ticked, every colour-set row read "0 patches": the number
+  beside a row is what ticking it would add, and a fill target absorbs whatever
+  a row adds, so the difference was zero by construction. The rows now say what
+  they contribute and the fill row falls by the same amount, so the window adds
+  up. On a chart that already holds pure white and black, every row that
+  supplies the gamut tips promised two patches too few. And on a CMYK chart the
+  greyed-out RGB rows read "0 patches" instead of their own size.
+
+- **"This report covers N of the M measurements recorded for this project"
+  counted what was loaded in the window, not what the project records.** Three
+  measurements on disk with two loaded said "1 of the 2"; loading the third
+  made the same report say "2 of the 3". The total is read from the project's
+  folder now. A measurement belonging to no project, opened beside a project's
+  own, is in neither number.
+
+- **A strip lettered `Q` lost its tail and read as `O`** when "Show only
+  measured patches" was on, on any chart with seventeen strips or more.
+
+- **The Measurement Report could count one project twice** when two of its
+  measurements were opened through different spellings of the same folder, a
+  symlink or a different capitalisation of its own name, and it stopped saying
+  that a report was leaving measurements out at all if the project's folder had
+  been renamed since.
+
+- **In the Add patches window, with the 3D view unfolded on a CMY or multi-ink
+  chart, the Total and "Chart after adding" could disagree**: one was refreshed
+  from the chart that had just been built and the other was left on the
+  estimate. The 3D view's own cache could also leave the fill row showing an
+  estimate beside an exact total, and could redraw the previous chart's cloud
+  beside the current chart's numbers.
+
+- **Opening the same measurement twice, through a shortcut, a different
+  spelling of its folder or another capitalisation of its own name, added it to
+  the Measurement Report twice.** It then appeared as two columns of one sheet
+  and was counted twice in the report's own "covers N of the M".
+
+- **Importing the same i1Profiler measurement twice added it twice.** Each
+  import is converted into a new working folder, so nothing recognised the
+  second one as the same sheet: it appeared as an extra column, counted twice
+  in the report's own totals, and plotted the same reading twice on the trend.
+
+- **Moving or renaming a project's folder while its report was open changed the
+  report.** It stopped saying that measurements had been left out, and it
+  quietly pulled a measurement judged against different limits into a document
+  that names one limit set at its head. The report now says what it covers
+  without inventing a number it cannot read, and a measurement keeps the limits
+  it was read with.
+
+- **The help for "Prioritise chart area" was wrong in every number it gave.**
+  It named the ColorMunki among the instruments that claim a margin of their
+  own; measured with the clip band really off, a ColorMunki claims exactly what
+  an i1Pro does, which is nothing, and only a SpectroScan or a CR30 keeps
+  anything (about 8.5 mm at the left of an A4 sheet). It said each side ends up
+  the largest of three things, where the clip band and the instrument's claim
+  add on the same side. And it said the top and bottom always come out larger
+  than asked, where on a SpectroScan and a CR30 the top is exactly the number
+  typed. It also named only the left edge of the sheet, where a SpectroScan and
+  a CR30 both keep room at the right as well.
+
+
+- **"Show only measured patches" left a ribbon of unread chart colour beside
+  every read column on a honeycomb.** The blanking hexagon was grown to its
+  printed size twice over, so the hole it cut for a read neighbour was bigger
+  than the patch and the interlocking unread neighbour showed through it. 62,184
+  coloured pixels on one page, 126,577 on a turned chart, now none. The same
+  fix takes a faint outline off the outermost patches of the sheet and makes a
+  big honeycomb's preview repaint two and a half times faster with the option
+  on.
+
+- **In the Add patches window, "Ensure unique colours" could not be clicked**:
+  the chart's resulting size was printed on top of it.
+
+- **"Pure white & black" showed 2 and added 4.** The number beside the row was
+  an estimate of what the ticked sets contribute; on a chart that already holds
+  white and black, "Ensure unique colours" moves the sets' own white and black
+  clear of the ones already there, so they stop counting and the anchors are
+  added in full. The row is filled in from the chart that was really built now,
+  whether the row is ticked or not.
+
+- **"Fill remaining gaps" showed 0 without saying why.** Its target is the size
+  of the FINISHED chart, counting the patches already on it. In the Add window
+  the row now reads "fill chart to: N patches in total", and a chart that has
+  already passed the target says "target already met" instead of "0 patches".
+
+- **The Add window rebuilt its whole patch program on every keystroke**,
+  because it could not key the cache the New Patch Set window uses. Measured on
+  a 615-patch chart with a 2,000-patch fill: 776 ms, then 0.2 ms.
+
+- **The Measurement Report read like a description of the window it was made
+  in.** It named the list above, the ticks, a menu path and a hover, and it
+  named every measurement it had left out along with the limit set each was
+  judged against. It is written for someone holding a printed sheet now: it
+  says what it covers ("This report covers 3 of the 15 measurements recorded
+  for this run") and nothing about other reports (Knut).
+
+- **Generate report wrote the new report and the pulldown went on naming the
+  old one**, so the page and the selector disagreed in front of you (Knut).
+
+- **A recalculated report kept its old label for the rest of the session**,
+  because rewriting a file left it claiming the timestamp it had before.
+
+- **The chart-layout help said your margins were the law** in "Prioritise chart
+  area". They are kept as far as a whole number of patches allows: the leftover
+  is shared between top and bottom and all of it lands on the left margin, and
+  the help now says so with the numbers.
+
+- **The Measurement Report's "Saved reports" pulldown went on naming the old
+  report after Generate**, while the page above it described the new one
+  (Knut).
+
+- **A recalculated report kept its old label for the rest of the session.**
+  Rewriting a file left it claiming the timestamp it had before, so anything
+  that remembered it by date never noticed.
+
+- **Two more patch-set rows promised a number they did not add.**
+  "Gamut-corner emphasis" offered 72 patches and added 80, "Colour extremes"
+  offered 36 and added 42: the greyed number beside an unticked row was
+  answering the question the builder asks, not the one the reader asks.
+
+- **A fill target could be multiplied by a control that is no longer in the
+  window.** A chart designed before the "fill to pages" row was removed could
+  reload with it still selected: the box said 1,000 patches and the chart came
+  out with 1,364.
+
+- **"From image" showed the number you asked for, not the number the picture
+  had.** A two-colour photo with the box at 24 said 24 and added 2. It now
+  reads "≈", like the other row whose number is a request.
+
+- **A patch program could be built from the profile that used to be at a
+  path.** Refining overwrites a profile in place, and the generator recognised
+  it by its name; it now recognises it by its content.
+
+- **The strip letters could be painted over on a honeycomb.** The rule that
+  keeps the blanking off the column labels was read by the rectangular charts
+  only; a honeycomb's hexagons walked into the letters from below.
+
+- **A chart's notes reached the printed sheet and not the project's own
+  record.** Picking a built-in preset wrote an empty note into the run's
+  meta.json.
+
+- **A measurement added to the report a second time kept the numbers the file
+  no longer had.** Read a sheet again (chartread rewrites the file in place),
+  press Add on it, and the report went on judging the measurement you replaced,
+  in silence, until an unrelated click happened to refresh it. Asking to add a
+  measurement that is already loaded now means "read this file again".
+
 ## v4.3.0-beta.20
 
 **A report is written against one set of limits again, the chart panel's
