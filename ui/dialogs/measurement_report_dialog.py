@@ -6248,11 +6248,38 @@ class MeasurementReportDialog(QDialog):
         # measurement left out of one of them is still this project's. Another
         # project's is not.
         def _project_of(_r) -> str:
+            # RESOLVED, BECAUSE TWO SPELLINGS OF ONE FOLDER ARE ONE PROJECT.
+            # These keys are grouped as strings, and on macOS `/tmp` and
+            # `/private/tmp` name the same directory: a project holding four
+            # measurements, two of them opened by each spelling, was counted
+            # TWICE and the document said "2 of the 8 measurements recorded for
+            # the projects it is drawn from" (R14-F4, photographed). A symlink
+            # or a mapped drive does the same thing on the other platforms.
             from workflow.run_compliance import run_context_for
             _o = str(_r.get("_origin_dir") or _r.get("ti3") or "")
             try:
                 _c = run_context_for(_o)
-                return str(_c.run.dir.parent.parent) if _c else f"external:{_o}"
+                if _c:
+                    _d = _c.run.dir.parent.parent
+                    try:
+                        return str(_d.resolve())
+                    except OSError:    # the folder has gone since it was read
+                        return str(_d)
+                # ...AND A FOLDER THAT HAS BEEN RENAMED IS STILL A PROJECT.
+                # `run_context_for` is strict on purpose and asks the disk, so
+                # renaming a project in Finder while its report is open makes
+                # every row of it answer "belongs to no project": the document
+                # then has no project to count against and the honesty note
+                # disappears, which is a filtered report passing as complete
+                # (R14-F5). The path's own shape still says which project it
+                # was, and grouping is all that is wanted here.
+                _pp = Path(_o)
+                _parts = list(_pp.parts)
+                if "runs" in _parts:
+                    _i = len(_parts) - 1 - _parts[::-1].index("runs")
+                    if _i > 0:
+                        return str(Path(*_parts[:_i]))
+                return f"external:{_o}"
             except Exception:      # noqa: BLE001 — a count is never a blocker
                 return f"external:{_o}"
 
@@ -6275,7 +6302,20 @@ class MeasurementReportDialog(QDialog):
                  if not _p.startswith("external:")}
         covered = len([r for r in runs
                        if not _is_raw_drift(r) and _project_of(r) in _mine])
-        total_known = sum(self._measurements_recorded_in(_p) for _p in _mine)
+        # A FOLDER THAT HAS GONE IS NOT A PROJECT WITH NOTHING IN IT. Rename a
+        # project in Finder while its report is open and the disk count drops
+        # to zero, `max(total, covered)` makes the two equal, and the sentence
+        # disappears -- so a filtered report passes as complete, which is the
+        # one thing Sebastian's rule two paragraphs up exists to prevent
+        # (R14-F5). Where the folder cannot be read, the rows this window holds
+        # for that project are the best count there is, which is what this
+        # counted before it counted the disk at all.
+        total_known = 0
+        for _p in _mine:
+            _n = self._measurements_recorded_in(_p)
+            if _n <= 0:
+                _n = len([r for r in self._history if _project_of(r) == _p])
+            total_known += _n
         # A measurement with no saved report beside it is still in this
         # document, so the total can never be smaller than what is covered.
         total_known = max(total_known, covered)

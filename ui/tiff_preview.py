@@ -1737,6 +1737,8 @@ class TiffPreview(QWidget):
         measured patches" cuts its blank between the strip letters and this
         line, and on some charts the two cross (B8-346 F1).
         """
+        # `is not None`, NOT truthiness: row 0 is a row. See
+        # `patch_ink_top_px_from_sidecar`, which keeps it for the same reason.
         self._patch_ink_top_px = {int(k): float(v)
                                   for k, v in (mapping or {}).items()
                                   if v is not None}

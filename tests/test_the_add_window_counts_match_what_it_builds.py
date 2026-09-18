@@ -531,3 +531,29 @@ def test_a_greyed_out_row_shows_its_own_size_not_zero(qapp):
     assert _row_number(dlg._gen_cube_count) == 512, dlg._gen_cube_count.text()
     assert _row_number(dlg._gen_skin_count) == 144, dlg._gen_skin_count.text()
     dlg.deleteLater()
+
+
+def test_both_bottom_lines_are_written_from_one_number(qapp):
+    """B8-341 / R14-F7: with the 3D cube unfolded on a multi-ink chart, the
+    Lab-cloud path rewrote the Total from the build it had just done and never
+    touched "Chart after adding", so the window could state a total and a
+    resulting chart size that do not add up.
+
+    The two are views of one count now, and this pins that: whatever number the
+    Total is written from, the line below it is the chart plus that number.
+
+    MUTATION, proven to land: set `_gen_total` alone in `_set_total_labels`.
+    """
+    existing = _chart_with_white_and_black()
+    dlg = _AddPatchesDialog(_FakeSettings(), existing_patches=existing)
+    dlg._add_mode_gen.setChecked(True)
+    _sets_off(dlg)
+    for n in (0, 7, 512):
+        dlg._set_total_labels(n)
+        total = _row_number(dlg._gen_total)
+        after = _row_number(dlg._gen_after_total)
+        assert total == n, (n, dlg._gen_total.text())
+        assert after == len(existing) + n, (
+            f'the Total says {total} and "Chart after adding" says {after} on '
+            f'a chart of {len(existing)}: the two do not add up')
+    dlg.deleteLater()

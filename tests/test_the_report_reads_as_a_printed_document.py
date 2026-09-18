@@ -342,3 +342,109 @@ def test_a_document_drawn_from_two_projects_does_not_call_them_one(tmp_path,
                 f'{_MD._measurements_recorded_in(str(other_root))}')
     finally:
         dlg.close()
+
+
+def test_two_spellings_of_one_folder_are_one_project(tmp_path, qapp):
+    """R14-F4: the projects are grouped as path STRINGS, and on macOS `/tmp`
+    and `/private/tmp` name the same directory. A project holding four
+    measurements, two of them opened by each spelling, was counted twice: the
+    document said "2 of the 8 measurements recorded for THE PROJECTS it is
+    drawn from", plural, about one project. A symlink or a mapped drive does
+    the same on the other platforms.
+
+    MUTATION, proven to land: drop the `.resolve()`.
+    """
+    from tests.test_a_report_says_what_it_is_and_what_judged_it import _dialog
+    from tests.test_import_measurement_module import _cgats, _PATCHES
+    dlg, _run, fm = _dialog(tmp_path, qapp)
+    try:
+        proj = fm.project()
+        made = []
+        for scale in (0.5, 0.25):
+            run = proj.new_run()
+            v = run.new_verification()
+            v.ensure_dir()
+            v.measurement_ti3.write_text(
+                _cgats("CTI3", [(r * scale, g, b) for (r, g, b) in _PATCHES]),
+                encoding="utf-8")
+            made.append(v.measurement_ti3)
+        # the SAME two files, reached by a second spelling of the same folder
+        alias = tmp_path / "by-another-name"
+        try:
+            alias.symlink_to(Path(str(proj.root)).parent,
+                             target_is_directory=True)
+        except (OSError, NotImplementedError):
+            pytest.skip("this filesystem will not make a symlink")
+        for f in made:
+            dlg._add_source(f)
+            qapp.processEvents()
+        for f in made:
+            through_alias = alias / Path(str(proj.root)).name / \
+                f.relative_to(Path(str(proj.root)))
+            if through_alias.is_file():
+                dlg._add_source(through_alias)
+                qapp.processEvents()
+        body = _plain(dlg._report_body_html(dlg._runs_for_report(),
+                                            for_pdf=False))
+        m = re.search(r"covers (\d+) of the (\d+) measurements recorded for "
+                      r"(this project|the projects it is drawn from)", body)
+        if m is None:
+            return
+        from ui.dialogs.measurement_report_dialog import (
+            MeasurementReportDialog as _MD)
+        on_disk = _MD._measurements_recorded_in(str(proj.root))
+        assert int(m.group(2)) == on_disk, (
+            f'the document says "{m.group(0)}" where the one project records '
+            f'{on_disk}')
+        assert m.group(3) == "this project", (
+            f'one project, and the document calls it "{m.group(3)}"')
+    finally:
+        dlg.close()
+
+
+def test_renaming_the_project_folder_does_not_silence_the_note(tmp_path,
+                                                               qapp):
+    """R14-F5: the total is read off the disk, and a folder renamed while the
+    report is open reads as zero. `max(total, covered)` then makes the two
+    equal and the sentence disappears, so a report that really is leaving
+    measurements out passes as complete. That is the one thing the note exists
+    to prevent.
+
+    MUTATION, proven to land: drop the `if _n <= 0` fall-back.
+    """
+    from tests.test_a_report_says_what_it_is_and_what_judged_it import _dialog
+    from tests.test_import_measurement_module import _cgats, _PATCHES
+    dlg, _run, fm = _dialog(tmp_path, qapp)
+    try:
+        proj = fm.project()
+        for scale in (0.5, 0.25):
+            run = proj.new_run()
+            v = run.new_verification()
+            v.ensure_dir()
+            v.measurement_ti3.write_text(
+                _cgats("CTI3", [(r * scale, g, b) for (r, g, b) in _PATCHES]),
+                encoding="utf-8")
+            dlg._add_source(v.measurement_ti3)
+            qapp.processEvents()
+        rows = list(dlg._history)
+        assert len(rows) >= 2, len(rows)
+        dlg._hidden_runs = {dlg._run_key(rows[0])}
+        qapp.processEvents()
+        before = _plain(dlg._report_body_html(dlg._runs_for_report(),
+                                              for_pdf=False))
+        assert re.search(r"covers \d+ of the \d+ measurements", before), (
+            "the fixture is not filtering anything, so the check below would "
+            "prove nothing")
+        root = Path(str(proj.root))
+        root.rename(root.with_name(root.name + "-renamed"))
+        try:
+            after = _plain(dlg._report_body_html(dlg._runs_for_report(),
+                                                 for_pdf=False))
+        finally:
+            root.with_name(root.name + "-renamed").rename(root)
+        assert re.search(r"covers \d+ of the \d+ measurements", after), (
+            "renaming the project's folder silenced the sentence, so a report "
+            "with a measurement left out now passes as complete\n"
+            + after[-400:])
+    finally:
+        dlg.close()

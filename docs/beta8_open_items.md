@@ -14875,4 +14875,79 @@ and the `MINUS ANY READ NEIGHBOUR` comment pushed to column 40.
   `patch_ink_top_px` against the rendered page on 12 pages of 10 chart types;
   the clip band as `max(asked, band)` on 72 sheets across three papers, both
   sides, three widths.
-- what to do next: round 14, and then the three gates.
+- what to do next: round 14 found seven more; they are B8-350.
+
+### B8-350 · FIXED · Round 14's seven findings on the round-13 fixes
+- blocks release: yes
+- status: FIXED
+- evidence: `test_the_fall_back_is_silent_rather_than_wrong_on_a_black_ring`,
+  `test_a_project_name_with_brackets_still_finds_its_pages`,
+  `test_what_the_ink_probe_can_and_cannot_see`,
+  `test_an_ink_line_recorded_at_row_zero_reaches_the_preview`,
+  `test_two_spellings_of_one_folder_are_one_project`,
+  `test_renaming_the_project_folder_does_not_silence_the_note`,
+  `test_both_bottom_lines_are_written_from_one_number`.
+
+**F1 · the page probe is blind to a BLACK ring, which is a mode a user can
+pick.** `contrast.spacer_rgb` returns black or white, "Black & white" is a
+first-class spacer radio, and the default palette picks black on a grey chart.
+So the probe's "first row with chroma in it" is a PATCH, well below the ring
+that really is the top of the ink: 170 where the engine recorded 154, or on a
+grey chart nothing at all. It now reports a row ONLY when it lands above the
+label band, which is the only place the caller can act on it, so the answer is
+useful or silent and never a guess dressed as a measurement. On such a chart
+the blank behaves exactly as it did before the key existed.
+**The guard could not see it because of its own paint**: every fixture in the
+file rings its patches `#0000ff`, and round 14 turned 11 of 17 red by changing
+that one string to `#000000`. There is a black-ring case now.
+
+**F2 · the chroma floor was an unguarded `40`.** Moved to 0 and to 120, the
+whole everyday tier stayed green both times. It is `_INK_CHROMA_FLOOR` now,
+with the measured edges pinned: a 15 % magenta tint (255, 212, 255) spreads 43
+and is seen, (255, 217, 255) spreads 38 and is not, and neutrals never are.
+
+**F3 · the page list was a raw `Path.glob` on the chart's own name.** A project
+called `Chart [v2]` found none of its pages, because `[`, `]`, `*` and `?` are
+wildcards there; `core.file_manager.stem_files` escapes the stem once, which is
+what it exists for. **The first version of the new guard passed the mutation**:
+a one-page chart is written as `<stem>.tif` and the page list falls back to
+that name directly, so the glob was never asked anything. The fixture spans
+pages now.
+
+**F4 · two spellings of one folder counted as two projects.** The keys are path
+strings and on macOS `/tmp` and `/private/tmp` are the same directory: a
+project holding four measurements, two opened by each spelling, produced "2 of
+the 8 measurements recorded for the projects it is drawn from", plural, about
+one project. The key is resolved now.
+
+**F5 · renaming a project's folder silenced the note.** `run_context_for` asks
+the disk and is strict on purpose, so after a rename every row of that project
+answered "belongs to no project", the document had nothing to count against,
+and a report with a measurement left out passed as complete. Where the disk
+cannot answer, the path's own shape says which project it was.
+
+**F6 · row 0 is a row.** The reader dropped a recorded 0 as falsy while the
+preview's own test said `is not None`, so the two halves disagreed about what
+"no ink line" means.
+
+**F7 · B8-341, measured at last.** In state 3 `_do_push_live_preview` returns
+after `_push_lab_cloud`, which rewrote the Total from its own build and never
+touched "Chart after adding": with the 3D cube unfolded the window could state
+a total and a resulting chart size that do not add up. Both lines are written
+from one number now.
+
+- Mutations, each proven to land, 2026-09-18: S1 the fall-back reports a row
+  found below the band (1 red), S2 the page list back on a raw glob (1 red,
+  after the fixture was made multi-page), S3 the project key not resolved
+  (1 red), S4 a renamed folder belongs to no project (1 red), S5 only the Total
+  is written (1 red), plus the chroma floor moved to 0 and to 120 (1 red each).
+- **What round 14 could NOT break**: the `Q` on screen; the label probe over 19
+  configurations including labels past Z to `AI`, rotations 90/180/270,
+  offsets, sizes, fonts, papers, indicators off and instrument margins on; a
+  numeric strip pattern; the help text's clauses over 234 real sheets; three
+  projects and the PDF path; i18n (0 missing of 5,563 in 13 catalogues).
+- **A method note worth keeping**: mutating and restoring a file inside the
+  same second leaves a `.pyc` that pytest still imports, and 11 tests then fail
+  on a tree `git status` calls clean, looking exactly like a product
+  regression. Clear `__pycache__` between a mutation and its restore.
+- what to do next: round 15, and then the three gates.

@@ -52,7 +52,8 @@ def _ti1(path, n):
     return path
 
 
-def _build(tmp_path, name, *, ring, edge, flat, n=120):
+def _build(tmp_path, name, *, ring, edge, flat, n=120,
+           palette="#0000ff"):
     """A real CR30 A4 honeycomb: green patches, a blue ring, no randomising.
 
     The colours are the point. Green IS a patch and blue IS a spacer, so the
@@ -67,7 +68,7 @@ def _build(tmp_path, name, *, ring, edge, flat, n=120):
                       hex_flat_top=flat,
                       spacer_mode=("none" if ring <= 0 else "colored"),
                       spacer_width_mm=ring, edge_spacers=edge,
-                      spacer_palette=["#0000ff"],
+                      spacer_palette=[palette],
                       layout_mode="patch_first", patch_w_mm=0.0, patch_h_mm=0.0,
                       show_strip_indicators=True, cm_stagger=False,
                       use_instrument_margins=False, randomize=False,
@@ -410,3 +411,126 @@ def test_a_white_patch_is_not_counted_as_ink(tmp_path):
     assert isinstance(tops, list) and tops, side.get("patch_ink_top_px")
     assert not [v for v in tops if v], (
         f"a sheet of pure white patches claims it inked row {tops}")
+
+
+# ---------------------------------------------------------------------------
+# Round 14 on round 13: the fall-back's own limits, pinned so that a later
+# change cannot quietly widen them.
+# ---------------------------------------------------------------------------
+
+def test_the_fall_back_is_silent_rather_than_wrong_on_a_black_ring(tmp_path):
+    """R14-F1: the fall-back proves a row is ink by its COLOUR, and a spacer
+    ring drawn in BLACK has none. `contrast.spacer_rgb` returns black or white,
+    and "Black & white" is a spacer mode a user can choose, so on such a chart
+    the first row with chroma in it is a PATCH, well below the ring that really
+    is the top of the ink.
+
+    Reporting that as "the first inked row" is a wrong number dressed as a
+    measurement, and it is worse than saying nothing: the caller only ever
+    acts on this line when it lands ABOVE the label band. So a row found below
+    the band is dropped, and the chart behaves exactly as it did before the key
+    existed.
+
+    **THE FIXTURE IS THE POINT AGAIN.** Every other case in this file paints
+    its ring `#0000ff`, and round 14 turned the guard red by changing that one
+    string to `#000000` and nothing else.
+
+    MUTATION, proven to land: drop the `row < band_bot` test.
+    """
+    import json as _json
+    import shutil
+    from ui.tabs.tab_measure import patch_ink_top_px_from_sidecar
+    name = "blackring"
+    side, _page = _build(tmp_path, name, ring=3.0, edge=True, flat=False,
+                         palette="#000000")
+    ti2 = tmp_path / name / f"{name}.ti2"
+    channels = tmp_path / name / f"{name}.channels.json"
+    doc = _json.loads(channels.read_text(encoding="utf-8"))
+    recorded = doc["layout"].get("patch_ink_top_px")
+    assert recorded and recorded[0], recorded
+    doc["layout"].pop("patch_ink_top_px", None)
+    shutil.copy2(channels, channels.with_suffix(".keep"))
+    channels.write_text(_json.dumps(doc), encoding="utf-8")
+    try:
+        measured = patch_ink_top_px_from_sidecar(ti2)
+    finally:
+        shutil.move(str(channels.with_suffix(".keep")), str(channels))
+    assert measured == {}, (
+        f"the fall-back answered {measured} on a chart whose ring is black; "
+        f"the engine recorded {recorded[0]}, and anything else here is a "
+        f"guess presented as a measurement")
+
+
+def test_a_project_name_with_brackets_still_finds_its_pages(tmp_path):
+    """R14-F3: the fall-back listed pages with `Path.glob` on the chart's own
+    stem, and `[`, `]`, `*` and `?` are wildcards there. A chart called
+    `Chart [v2]` found no pages and the fall-back returned nothing.
+
+    MUTATION, proven to land: go back to `stem.parent.glob(stem.name + ...)`.
+    """
+    import json as _json
+    import shutil
+    from ui.tabs.tab_measure import patch_ink_top_px_from_sidecar
+    # MULTI-PAGE ON PURPOSE. A one-page chart is written as `<stem>.tif` and
+    # the page list falls back to that name directly, so the glob is never
+    # asked anything and a broken one passes: round 14's own mutation stayed
+    # green until this fixture spanned pages.
+    name = "Chart [v2]"
+    side, _page = _build(tmp_path, name, ring=3.0, edge=True, flat=False,
+                         n=900)
+    ti2 = tmp_path / name / f"{name}.ti2"
+    channels = tmp_path / name / f"{name}.channels.json"
+    doc = _json.loads(channels.read_text(encoding="utf-8"))
+    doc["layout"].pop("patch_ink_top_px", None)
+    shutil.copy2(channels, channels.with_suffix(".keep"))
+    channels.write_text(_json.dumps(doc), encoding="utf-8")
+    try:
+        measured = patch_ink_top_px_from_sidecar(ti2)
+    finally:
+        shutil.move(str(channels.with_suffix(".keep")), str(channels))
+    assert measured, (
+        "a chart whose name holds brackets found none of its own pages")
+
+
+@pytest.mark.parametrize("rgb,found", [((255, 212, 255), True),
+                                       ((255, 217, 255), False),
+                                       ((0, 0, 0), False),
+                                       ((128, 128, 128), False)])
+def test_what_the_ink_probe_can_and_cannot_see(tmp_path, rgb, found):
+    """R14-F2: the chroma floor was a bare `40` that nothing in the suite
+    guarded. Round 14 moved it to 0 and to 120 and the whole everyday tier,
+    16,495 tests, stayed green both times.
+
+    These are the measured edges: a 15 % magenta tint spreads 43 and is seen,
+    (255, 217, 255) spreads 38 and is not, and neutrals of any darkness never
+    are, which is the limit the test above is about.
+    """
+    from ui.tabs.tab_measure import _first_coloured_row
+    page = tmp_path / f"probe-{rgb[0]}-{rgb[1]}-{rgb[2]}.tif"
+    im = Image.new("RGB", (40, 30), (255, 255, 255))
+    for x in range(8, 32):
+        for y in range(10, 20):
+            im.putpixel((x, y), rgb)
+    im.save(page)
+    got = _first_coloured_row(page, 0, 40, 30)
+    assert (got is not None) is found, (
+        f"{rgb} spreads {max(rgb) - min(rgb)} and the probe "
+        f"{'found' if got is not None else 'missed'} it")
+
+
+def test_an_ink_line_recorded_at_row_zero_reaches_the_preview(tmp_path):
+    """R14-F6: row 0 is a row. The reader dropped a recorded 0 as falsy while
+    the preview's own test said `is not None`, so the two halves disagreed
+    about what "no ink line" means and nothing in the suite noticed.
+    """
+    import json as _json
+    from ui.tabs.tab_measure import patch_ink_top_px_from_sidecar
+    name = "atzero"
+    _side, _page = _build(tmp_path, name, ring=3.0, edge=True, flat=False)
+    channels = tmp_path / name / f"{name}.channels.json"
+    doc = _json.loads(channels.read_text(encoding="utf-8"))
+    doc["layout"]["patch_ink_top_px"] = [0]
+    channels.write_text(_json.dumps(doc), encoding="utf-8")
+    got = patch_ink_top_px_from_sidecar(tmp_path / name / f"{name}.ti2")
+    assert got == {0: 0.0}, (
+        f"a chart whose ink starts at row 0 hands the preview {got}")

@@ -4025,6 +4025,22 @@ class _NewChartDialog(QDialog):
         if getattr(self, "_preview_timer", None) is not None:
             self._preview_timer.start()
 
+    def _set_total_labels(self, n_additions: int) -> None:
+        """Write both bottom lines from ONE number.
+
+        The Total is the additions alone and "Chart after adding" is the chart
+        that results, so they are two views of the same count and writing them
+        apart is how they came to disagree: the state-3 Lab-cloud path set the
+        first and left the second on the estimate (B8-341 / R14-F7).
+        """
+        self._gen_total.setText(tr("Total: {label}").format(
+            label=_patches_label(n_additions)))
+        if self._existing_patches:
+            self._gen_after_total.setText(
+                tr("Chart after adding: {label}").format(
+                    label=_patches_label(len(self._existing_patches)
+                                         + n_additions)))
+
     def _do_push_live_preview(self) -> None:
         if getattr(self, "_gen_total", None) is None:
             return
@@ -4045,12 +4061,8 @@ class _NewChartDialog(QDialog):
         additions = self._build_generated_program()
         self._apply_built_row_counts(additions)
         # Total = the additions only (not the existing chart), shown always (#60).
-        self._gen_total.setText(tr("Total: {label}").format(
-            label=_patches_label(len(additions))))
         # In the Add flow, also the chart's resulting size (existing + additions).
-        if self._existing_patches:
-            self._gen_after_total.setText(tr("Chart after adding: {label}").format(
-                label=_patches_label(len(self._existing_patches) + len(additions))))
+        self._set_total_labels(len(additions))
         # The cube shows whatever the *active* source mode would contribute —
         # pasted/loaded colours and the single Add colour too, not only the
         # generated sets (#96).
@@ -4152,8 +4164,14 @@ class _NewChartDialog(QDialog):
                 log.warning("Lab cloud preview failed: %s", exc)
                 return
         self._cube_panel.set_lab_cloud(labs, colors)
-        self._gen_total.setText(tr("Total: {label}").format(
-            label=_patches_label(len(labs))))
+        # BOTH LABELS, OR THE TWO DISAGREE ON SCREEN. This path rewrote the
+        # Total from the build and left "Chart after adding" showing whatever
+        # the arithmetic estimate had put there, so with the 3D cube unfolded
+        # in state 3 the window could state a total and a resulting size that
+        # do not add up (B8-341, read in the source by two rounds and measured
+        # by the third). `len(labs)` is the count this path really has: a point
+        # that `forward_lab` could not place is not in the cloud either.
+        self._set_total_labels(len(labs))
 
     def _live_preview_program(self, additions: list) -> list:
         """The colours the current source mode would add, for the live 3D cube.

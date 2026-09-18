@@ -525,17 +525,29 @@ def edge_spacer_px_from_sidecar(ti2_path: "Path | None") -> int:
         return 0
 
 
+#: How far a pixel's channels must spread before it is certainly not a strip
+#: letter. A letter is drawn in black and fades to the paper through NEUTRAL
+#: greys, where the three channels are equal, so any spread at all is chart
+#: ink in principle; the floor is here to keep a JPEG-ish fringe or a scanner
+#: artefact out. Measured on real pages: a 15 % magenta tint (255, 212, 255)
+#: spreads 43 and is found, and (255, 217, 255) spreads 38 and is not, so the
+#: faintest tint this misses is about a seventh of full strength.
+_INK_CHROMA_FLOOR = 40
+
+
 def _first_coloured_row(page: "Path", x0: int, x1: int,
                         stop_at: int) -> "int | None":
     """The first row of *page* between 0 and *stop_at* carrying COLOURED ink,
     inside the patch columns' own x range, or None.
 
-    **Colour is what separates chart ink from a strip letter.** A letter is
-    drawn in black and fades to the paper through neutral greys, so it never
-    has chroma; a patch or a spacer ring on a profiling chart does. That makes
-    this safe to use as a floor for the blank's top cut: a row it finds cannot
-    be a letter, whatever else is on it. A chart printed entirely in neutrals
-    finds nothing, and the caller is no worse off than before.
+    **Colour is the only thing that separates chart ink from a strip letter
+    here, and it does not always separate them.** A letter is drawn in black
+    and fades to the paper through neutral greys, so a row with chroma in it
+    cannot be a letter, whatever else is on it. The converse does not hold: a
+    spacer ring drawn in BLACK is chart ink with no chroma at all, and
+    "Black & white" is a spacer mode a user can choose, so this answers "the
+    first row I can PROVE is ink", not "the first inked row". The caller turns
+    a useless answer into no answer rather than into a wrong number.
     """
     try:
         from PIL import Image
@@ -545,7 +557,7 @@ def _first_coloured_row(page: "Path", x0: int, x1: int,
                                            max(x0 + 1, x1), max(1, stop_at)))
         a = np.asarray(band).astype(np.int16)
         chroma = a.max(axis=2) - a.min(axis=2)
-        rows = np.where((chroma > 40).any(axis=1))[0]
+        rows = np.where((chroma > _INK_CHROMA_FLOOR).any(axis=1))[0]
         return int(rows[0]) if len(rows) else None
     except Exception:      # noqa: BLE001 — a preview must never die on a page
         return None
@@ -574,19 +586,32 @@ def patch_ink_top_px_from_sidecar(ti2_path: "Path | None") -> "dict[int, float]"
         layout = json.loads(read_text(channels)).get("layout") or {}
         tops = layout.get("patch_ink_top_px")
         if isinstance(tops, list):
+            # ZERO IS A ROW, NOT A MISSING VALUE. A page whose ink starts at
+            # its very first row records 0, and dropping it here while the
+            # preview's own test said `is not None` left the two halves
+            # disagreeing about what "no ink line" means (R13-7, R14-F6).
             out = {i: float(v) for i, v in enumerate(tops)
                    if isinstance(v, (int, float)) and not isinstance(v, bool)
-                   and v > 0}
+                   and v >= 0}
             if out:
                 return out
         # ...the fall-back, for a chart whose sidecar predates the key.
         pats = layout.get("patches") or []
         if not pats:
             return {}
+        # A LITERAL STEM, NOT A PATTERN. `Path.glob` reads `[`, `]`, `*` and
+        # `?` in a project's own name as wildcards, so a chart called
+        # `Chart [v2]` found no pages at all and the fall-back returned
+        # nothing. `stem_files` escapes the stem once, which is what it is for.
+        from core.file_manager import stem_files
         stem = Path(ti2_path).with_suffix("")
-        pages = sorted(stem.parent.glob(stem.name + "_*.tif")) or (
-            [stem.with_suffix(".tif")] if stem.with_suffix(".tif").is_file()
-            else [])
+        pages = (sorted(stem_files(stem.parent, stem.name, "_*.tif"))
+                 or ([stem.with_suffix(".tif")]
+                     if stem.with_suffix(".tif").is_file() else []))
+        band_bot = layout.get("label_band_bottom_px")
+        band_bot = (float(band_bot)
+                    if isinstance(band_bot, (int, float))
+                    and not isinstance(band_bot, bool) else None)
         found: "dict[int, float]" = {}
         for i, page in enumerate(pages):
             own = [p for p in pats if int(p.get("page", 0)) == i]
@@ -596,7 +621,16 @@ def patch_ink_top_px_from_sidecar(ti2_path: "Path | None") -> "dict[int, float]"
             x1 = max(int(p["x"]) + int(p["w"]) for p in own)
             top = min(int(p["y"]) for p in own)
             row = _first_coloured_row(page, x0, x1, top + 1)
-            if row is not None:
+            # USEFUL OR SILENT, NEVER WRONG. This line only ever does anything
+            # when the ink starts ABOVE the label band's bottom, which is where
+            # the blank would otherwise cut. A row found below that line tells
+            # the caller nothing it did not already know, and on a chart whose
+            # ring is black -- `contrast.spacer_rgb` returns black or white, and
+            # "Black & white" is a spacer mode a user can pick -- the first row
+            # with any chroma in it is a PATCH, well below the ring that is
+            # really the top of the ink. Reporting that as "the first inked
+            # row" would be a wrong number dressed as a measurement.
+            if row is not None and (band_bot is None or row < band_bot):
                 found[i] = float(row)
         return found
     except Exception:      # noqa: BLE001 — a preview must never die on a sidecar
