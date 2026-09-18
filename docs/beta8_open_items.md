@@ -13680,6 +13680,19 @@ written for it in the suite passed its own mutation.
   ink at 0 / 0.5 / 1.5 / 3.0 mm). An attempt to do that scanned a whole row
   because touching hexagons share an edge and the scan ran across all of them;
   it has to look for a colour CHANGE, not for paper.
+- **HALF-MEASURED 2026-09-18, and the half that is measured says the ink IS
+  inset.** On the round-9 SpectroScan honeycomb (`spacer_mode` "colored",
+  `spacer_width_mm` 1.5), `ring_mm_of` answers **0.0** while the same call on
+  the two CR30 honeycombs answers 1.5. The printed ink of that sheet is
+  **83 x 94** against a recorded box of 83 x 72 whose true row pitch is 71.61,
+  and 71.61 x 4/3 is 95.5: about **1.5 px of inset that the recipe says is not
+  there**. So the two do disagree, on the evidence available, but 1.5 px at
+  300 dpi is 0.13 mm rather than the 1.5 mm asked for.
+- so the question for Knut is a user-facing one, and it is in the queue for
+  him: the Spacer size box accepts a value on a SpectroScan honeycomb and the
+  sheet does not change. Should the box be greyed for that instrument with a
+  note saying why, or should the spacer be made to work there as it does on
+  the CR30?
 
 ### B8-320 · FIXED · The split's expected half painted a wedge onto the printed spacer ring
 - blocks release: no
