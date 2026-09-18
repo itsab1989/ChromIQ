@@ -15380,3 +15380,21 @@ different document.
   recreated-smaller memo cases, which self-correct; the symlink spelling; and
   the stale-cloud half of R17-F1, which is genuinely fixed.
 - what to do next: round 19, and then the three gates.
+
+### B8-359 · OPEN · Two defaults for the patch area's vertical alignment, and they disagree
+- blocks release: no
+- status: OPEN
+- Found by round 18 while answering B8-357. `LayoutRecipe`'s own default for
+  `patch_area_align` is **`top-left`**; `workflow.layout_engine.chart.build_chart`'s
+  default for the same argument is **`center-left`**. So the same chart built
+  through the recipe and through the function lands its patch block in a
+  different place down the page: measured on an i1Pro A4 sheet at 5 mm asked,
+  6.01 / 6.42 for `top-left` against 6.18 / 6.17 for `center-left`.
+- Nobody has reported it, and both answers obey the margin rule, so this is not
+  a fault a user has met. It is two sources of truth for one setting, which is
+  the shape that produces one later.
+- **Changing either default changes where the patches land on every chart built
+  through that path**, so it is a decision rather than a tidy-up.
+- evidence: none yet; nothing has been changed.
+- what to do first: decide which default is the real one, with Basti, and then
+  make the other one say the same thing.
