@@ -15023,3 +15023,65 @@ both chart shapes.
   `run_context_for` has never recognised `cal/`; recorded here rather than
   changed under a release.
 - what to do next: round 16, and then the three gates.
+
+### B8-352 · OPEN · Knut's recalculation ruling: a limit change belongs to ONE report
+- blocks release: no
+- status: OPEN
+- Knut, 2026-09-18 on #182, ruling against what the code does today: *"The
+  limit set selected, and the other settings in the 'Settings for selected
+  report showing' frame belongs to a specific report, which is identified in
+  the selection field I called 'Current Report Showing'. Changing the 'judged
+  against' parameter would then only change the limit set for that selected
+  report ... and that would show a red text notifying that settings have
+  changed and to click Generate Report to recalculate and regenerate the report
+  selected (not all reports). Unlocking a run's limits and saving a change in
+  the Edit limits window must result in the same behaviour. When 'Current
+  Report Showing' is set to 'New report....' then the settings specified only
+  applies to the new report created."*
+- He is explicit that today's behaviour is wrong: *"This is the wrong
+  behaviour."* So three things follow, and none of them may be guessed at:
+  changing "judged against" must not recalculate anything by itself; it must
+  mark the ONE report named in "Current Report Showing" as stale, with the red
+  notice; and Edit limits must do the same rather than something of its own.
+- This is a specification, so it goes into
+  `docs/design/measurement_report_limits.md` in his words before anything is
+  built from it, and the build is measured against the document rather than
+  against the window.
+- evidence: none yet. Nothing has been built.
+- what to do first: write the ruling into the design document, then find every
+  door that recalculates today (B8-310 lists two of them) and measure what each
+  does now.
+
+### B8-353 · OPEN · "Margins are law" and the sheets do not agree, and Knut has been asked which is wrong
+- blocks release: no
+- status: OPEN
+- Knut, 2026-09-18: *"for 'Prioritise chart area...' the rule is still that the
+  margins are law ... the margins chosen is accurately abided by, either the
+  margins are set via pre-defined instrument margins, or set manually."*
+- Measured on A4 with the clip band really off, `use_instrument_margins` both
+  ways, area-first:
+
+  | asked | i1Pro | ColorMunki | SpectroScan | CR30 |
+  |---|---|---|---|---|
+  | 20 mm, left | 19.98 | 19.98 | 19.98 | 19.98 |
+  | 5 mm, left | 5.00 | 5.00 | **8.47** | **8.47** |
+  | 5 mm, right | 5.02 | 5.02 | **8.58** | **11.03** |
+
+  So the rule holds wherever the typed number clears the instrument's own
+  floor, and below it a SpectroScan or a CR30 keeps that floor instead.
+- **`use_instrument_margins` changes nothing in this mode**, measured to the
+  pixel on and off: `instruments.py:630` reads
+  `law = area_first or bool(kw.get("use_instrument_margins"))`, so area-first is
+  margins-are-law already and the switch only reaches patch-first. That is
+  deliberate in the code and worth knowing before anyone "fixes" the switch.
+- Down the page the number is not kept either and not alike: 5 mm asked gives
+  an i1Pro 6.01 and 6.42, a SpectroScan 5.00 and 5.24; 20 mm gives an i1Pro
+  21.00 and 21.41.
+- **The shipped help text describes the SHEETS, which contradicts the rule.**
+  Asked on #182 (comment 5727915839) which of the two to change. If the rule is
+  right the layout is what needs correcting, not the paragraph.
+- evidence: `test_only_a_spectroscan_or_a_cr30_claims_the_edge_of_the_sheet`
+  pins the floors as they are today, so whichever way he rules, the change will
+  redden something and be visible.
+- what to do first: wait for his answer. Nothing here is a bug until he says
+  which side is.
