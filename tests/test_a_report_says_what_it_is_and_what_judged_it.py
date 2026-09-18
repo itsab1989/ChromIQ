@@ -200,9 +200,16 @@ def test_two_runs_bound_to_different_sets_leave_one_in_the_document(tmp_path,
         assert "Judged against:" in head, (
             "the document holds one limit set and the head names none of them")
         assert "ChromIQ tight" in head, head[-200:]
-        assert "judged against a different limit set" in body, (
-            "the other run's measurement is neither in the report nor named "
-            "as left out of it")
+        # AND THE OTHER RUN IS COUNTED, NOT NAMED. Knut ruled in beta 20 that
+        # a report may not "show information that other reports exist with
+        # other 'judged against' threshold sets", so the sentence that used to
+        # name the left-out measurement and its set is gone and the Scope
+        # states the count instead.
+        assert "judged against a different limit set" not in body
+        import re
+        assert re.search(r"covers \d+ of the \d+ measurements", body), (
+            "the other run's measurement is neither in the report nor counted "
+            "out of it")
     finally:
         dlg.close()
 

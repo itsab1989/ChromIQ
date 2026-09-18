@@ -85,11 +85,19 @@ def test_report_run_deselection_filters_and_says_so(qapp, tmp_path):
         assert len(dlg._runs_for_report()) == 2
         assert len(dlg._history) == 3              # nothing on disk / in memory lost
         html = dlg._scope_html(dlg._runs_for_report())
-        assert "hidden by you" in html
+        # THE DOCUMENT SAYS IT IS FILTERED, WITHOUT NAMING THE WINDOW. It used
+        # to read "runs in the list above are hidden by you (unticked)", which
+        # is a list the reader of a printed sheet cannot see; Knut ruled in
+        # beta 20 that the report must read as a document printed for someone
+        # who has never seen this window. The count survives, the vocabulary
+        # does not.
+        assert "hidden by you" not in html
+        assert "list above" not in html
+        assert "covers 2 of the 3 measurements" in html, html[-400:]
         # Re-ticking brings it straight back.
         item.setCheckState(Qt.CheckState.Checked)
         assert len(dlg._runs_for_report()) == 3
-        assert "hidden by you" not in dlg._scope_html(dlg._runs_for_report())
+        assert "covers" not in dlg._scope_html(dlg._runs_for_report())
     finally:
         dlg.deleteLater()
 

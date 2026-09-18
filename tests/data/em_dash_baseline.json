@@ -829,7 +829,6 @@
   "The volume of the gamut, in cubic units of the colour space shown above — ArgyllCMS calls these cubic colorspace units. It is not a physical volume, and two figures are only comparable when both were measured in the same space.",
   "The white patches on this target came out at {pct} of your scanner’s brightness range. On a scan exposed for this target they sit just under the top of that range, and getting them there is what the brightness or exposure setting in your scanning software is for.\n\nNothing later in ChromIQ would tell you. A dark scan is not harder to describe than a bright one: it passes every other check in this window, and the quality number you are shown at the end of the build is worked out from this same dark reading, so it comes out looking just as good. What changes is the profile itself — it would describe your scanner in a state you are unlikely to set up again, so it would not match your everyday scans.\n\nScan the target again with the brightness or exposure turned back up in your scanner’s own software — not in ChromIQ, which never changes your scan — so that the white patches sit just below the top of the scale without touching it.\n\nOne exception: if you are scanning a transparency or a negative, a low reading here can be normal for that medium. Check the exposure before you go on, but you may find nothing is wrong.",
   "The {v} dated verification measurements in this run were made with this verification chart. Replacing it does not make them wrong — each date keeps its own stored copy of the chart it was measured with, so every result stays readable, and “Restore Used Chart” can bring a date's chart back on screen.\n\nOne thing to keep in mind: a trend across the change compares two different charts, which is not the same measurement made twice.\n\nThe chart itself moves to the “old” folder inside “verifications”; no measurement is touched and nothing is deleted. If you would rather keep measuring the current chart, duplicate the run first — it lives on in the copy.",
-  "The ΔE figures measure a whole chain in one number: the profile's conversion of each colour to printer values, the printer's behaviour on the day, and your instrument's own small uncertainty. A rising number tells you something in that chain has moved — not, by itself, which part. To look at the profile alone, use Check & Refine ▸ “Analyse Profile Quality”: it checks how well the profile describes your printer, using the measurement it was built from.",
   "The “Location being edited” line, the reveal-folder button, the log — which names every file written — or the “Where are my files?” help card in this window.",
   "There is no laid-out chart to measure. ChromIQ measures the chart's .ti2 file, which says where every patch sits on the sheet, and this run does not have one.\n\nCreate the chart in the “Create Chart” tab — or load a .ti2 with “Open Chart File (.ti2)” — and this button becomes available.",
   "These are the five boxes of the picture's left-hand column — Profile run: run 1, Run type: Profiling — in the same order, with the details the picture leaves out.",
@@ -1300,10 +1299,6 @@
   [
    "de",
    "6e3d71c4372fa0cf"
-  ],
-  [
-   "de",
-   "6f281e4e125aab14"
   ],
   [
    "de",
@@ -2452,10 +2447,6 @@
   [
    "ru",
    "6e3d71c4372fa0cf"
-  ],
-  [
-   "ru",
-   "6f281e4e125aab14"
   ],
   [
    "ru",

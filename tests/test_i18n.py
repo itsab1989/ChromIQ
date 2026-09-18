@@ -940,18 +940,25 @@ _IDENTICAL_TO_KEY = {
     #
     # They stay English until the pass before GA, which is the standing rule
     # for a beta. Every number below is counted off this tree.
-    "de": 134,
-    "es": 382,
-    "fr": 404,
-    "it": 393,
-    "ja": 368,
-    "nl": 409,
-    "no": 394,
-    "pl": 386,
-    "pt": 384,
-    "ru": 357,
-    "sv": 395,
-    "zh_CN": 362,
+    # 2026-09-18, later the same night: B8-309, and the numbers move in BOTH
+    # directions, which is why they are counted and not adjusted. Knut ruled
+    # that the Measurement Report must read as a document printed for a
+    # customer, so five sentences that named a window control or another
+    # report's limit set were rewritten or removed. The removals took
+    # untranslated placeholders with them in the eleven languages that had not
+    # been swept, so de rises by five while es, fr and the rest fall.
+    "de": 139,
+    "es": 379,
+    "fr": 401,
+    "it": 390,
+    "ja": 365,
+    "nl": 406,
+    "no": 391,
+    "pl": 383,
+    "pt": 381,
+    "ru": 354,
+    "sv": 392,
+    "zh_CN": 359,
 }
 
 

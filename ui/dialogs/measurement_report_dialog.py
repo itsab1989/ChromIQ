@@ -4539,14 +4539,12 @@ class MeasurementReportDialog(QDialog):
             if not self._is_in_a_run(r):
                 return tr(
                     "This measurement is not in a project, so it has no saved "
-                    "report and no run of its own. Its words are worked out now "
-                    "against the limit set {label} chosen in this window."
+                    "report and no run of its own. Its words are worked out "
+                    "against the limit set {label}."
                 ).format(label=label)
             return tr(
                 "This date has no saved report of its own, so its words are "
-                "worked out now against this run's limit set {label}. A report "
-                "is saved when a measurement is made with “Save a measurement "
-                "report after each measurement” ticked in Preferences → Reports."
+                "worked out now against this run's limit set {label}."
             ).format(label=label)
         return tr(
             "Nothing is wrong with this report. It was saved by a version of "
@@ -6214,54 +6212,36 @@ class MeasurementReportDialog(QDialog):
         # one-page summary narrows to a single measurement by its nature, and
         # the sentence then told a user who had unticked nothing that they had
         # hidden a run.
-        hidden = (sum(1 for r in self._history
-                      if self._run_key(r) in self._hidden_runs)
-                  if getattr(self, "_all_runs_check", None) is not None
-                  and self._all_runs_check.isChecked() else 0)
-        if hidden > 0:
-            note = (tr("One run in the list above is hidden by you (unticked) "
-                       "and is not part of this report.") if hidden == 1
-                    else tr("{n} runs in the list above are hidden by you "
-                            "(unticked) and are not part of this report.")
-                    .format(n=hidden))
-            out += (f"<div style='color:{_C['fail']};margin-top:6px'>"
+        # A FILTERED REPORT MUST SAY IT IS FILTERED, IN THE DOCUMENT'S OWN
+        # VOICE. Knut, beta 20: *"the text must be written as if it is a
+        # separate document printed for a customer, and that customer knows
+        # nothing of the Measurement Report windows, buttons, selections that
+        # can be made or changed ... shall only contain data and results
+        # relating to that one report's settings, and not show information
+        # that other reports exist with other 'judged against' threshold
+        # sets."*
+        #
+        # So the two red blocks that stood here are gone: one said "runs in the
+        # list above are hidden by you (unticked)", which names a list the
+        # reader of a printed sheet cannot see, and the other named every
+        # measurement left out AND the limit set each was judged against,
+        # twelve of them on the demo project, which is exactly the "other
+        # reports exist" he ruled out.
+        #
+        # What replaces them keeps Sebastian's honesty rule (a filtered report
+        # may never pass as the complete history) without borrowing the
+        # window's vocabulary: it states what this document covers, counted
+        # against what the run holds. Whether they were unticked or judged on
+        # other numbers is the same fact to the reader: not in here.
+        covered = len([r for r in runs if not _is_raw_drift(r)])
+        total_known = len(self._history) or covered
+        if covered < total_known:
+            note = tr("This report covers {n} of the {total} measurements "
+                      "recorded for this run.").format(n=covered,
+                                                       total=total_known)
+            out += (f"<div style='color:{_C['dim']};margin-top:6px'>"
                     + html.escape(note) + "</div>")
-        out += self._other_limit_sets_html(runs, dropped or [])
         return out + self._scope_warnings_html(sc["warnings"])
-
-    def _other_limit_sets_html(self, runs: list, dropped: list) -> str:
-        """Name every measurement `_one_limit_set` left out, and say why.
-
-        It replaces the red line this fault was reported on, which named the
-        same measurements and then left them in the table anyway.
-        """
-        if not dropped:
-            return ""
-        kept = [r for r in runs if not _is_raw_drift(r)]
-        mine = (self._judged_label_for(kept[-1], mark_unsaved=False)
-                if kept else "")
-        lead = (tr("One measurement loaded in this window was judged against "
-                   "a different limit set, so it is not in the results below.")
-                if len(dropped) == 1 else
-                tr("{n} measurements loaded in this window were judged against "
-                   "a different limit set, so they are not in the results "
-                   "below.").format(n=len(dropped)))
-        why = tr(
-            "This report is written against {set}. A verdict given on other "
-            "numbers cannot be read beside these ones, so it is left out "
-            "rather than mixed in. Nothing is deleted: every measurement is "
-            "still in the list and still on the trend over time, which plots "
-            "measured values and no verdicts."
-        ).format(set=mine)
-        from workflow.measurement_report import _run_label
-        lis = "".join(
-            "<li>" + html.escape(_run_label(r)) + ": "
-            + html.escape(tr("judged against {set}").format(
-                set=self._judged_label_for(r, mark_unsaved=False)))
-            + "</li>" for r in dropped)
-        return (f"<div style='color:{_C['fail']};margin-top:10px'>"
-                + "<div><b>" + html.escape(lead) + "</b> "
-                + html.escape(why) + "</div><ul>" + lis + "</ul></div>")
 
     def _run_description(self) -> str:
         """What the user wrote about this run, or "".
@@ -6326,21 +6306,17 @@ class MeasurementReportDialog(QDialog):
                         "method changed:"))
                     + "</div><ul>" + lis + "</ul>")
             elif w["kind"] == "compliance":
-                # #182 (D9): one limit set per profile run; two in one report
-                # means archived history or two projects, and the reader must
-                # see where the yardstick changed.
-                lis = "".join(
-                    "<li>" + html.escape(o["run"]) + ": "
-                    + html.escape(tr("judged against {set}").format(set=o["set"]))
-                    + "</li>" for o in w["runs"])
-                blocks.append(
-                    "<div><b>" + html.escape(tr(
-                        "Warning: these reports were not all judged against "
-                        "the same limit set.")) + "</b> "
-                    + html.escape(tr(
-                        "The words in one column are not comparable with the "
-                        "words in another where the limit set differs:"))
-                    + "</div><ul>" + lis + "</ul>")
+                # NOT PRINTED ANY MORE, AND DELIBERATELY. This named every
+                # other limit set a column had been judged against, which is
+                # the thing Knut ruled out of the document in beta 20: *"shall
+                # only contain data and results relating to that one report's
+                # settings, and not show information that other reports exist
+                # with other 'judged against' threshold sets."* It was already
+                # unreachable, because `_one_limit_set` narrows the runs before
+                # this is asked, so nothing on a sheet changes today; the
+                # branch stays, empty, so that a future change to that
+                # narrowing meets this ruling rather than the old paragraph.
+                continue
             elif w["kind"] == "corners":
                 lis = "".join(
                     "<li>" + html.escape(o["run"]) + " — "
@@ -6447,9 +6423,8 @@ class MeasurementReportDialog(QDialog):
                 "rows in the last two cases.")) + "</li>"
             "<li>" + html.escape(tr(
                 "N-A (not applicable): the row does not apply here. The reason "
-                "is shown when you point at the cell and is listed under the "
-                "results, for example that the chart has too few grey "
-                "steps.")) + "</li>"
+                "is listed under the results, for example that the chart has "
+                "too few grey steps.")) + "</li>"
             "</ul>"
             # WHAT THE REPORT SHOWS, NOT WHAT IT WITHHOLDS. Knut, 2026-09-11,
             # on the sentence that used to close this paragraph, *"and this
@@ -6588,10 +6563,9 @@ class MeasurementReportDialog(QDialog):
                 "profile's conversion of each colour to printer values, the "
                 "printer's behaviour on the day, and your instrument's own "
                 "small uncertainty. A rising number tells you something in "
-                "that chain has moved — not, by itself, which part. To look "
-                "at the profile alone, use Check & Refine ▸ “Analyse Profile "
-                "Quality”: it checks how well the profile describes your "
-                "printer, using the measurement it was built from.")) + "</p>"
+                "that chain has moved; by itself it does not say which part. "
+                "Judging the profile on its own is a separate check, made "
+                "against the measurement the profile was built from.")) + "</p>"
             "<p>" + html.escape(tr(
                 "Compare a profile with itself over time — that is what "
                 "these figures are for. They are not a fair way to rank "

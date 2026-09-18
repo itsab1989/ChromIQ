@@ -170,19 +170,33 @@ def test_the_document_never_holds_two_limit_sets(tmp_path, qapp):
         dlg.close()
 
 
-def test_the_left_out_measurement_is_named_in_the_report_scope(tmp_path, qapp):
-    """Nothing loaded may quietly vanish: the Scope says which and why.
+def test_the_left_out_measurement_is_counted_and_never_named(tmp_path, qapp):
+    """Nothing loaded may quietly vanish, and the document may not gossip.
 
-    MUTATION: return "" from `_other_limit_sets_html` and this goes red.
+    THIS TEST USED TO ASSERT THE OPPOSITE, and Knut overruled it in beta 20:
+    *"the text must be written as if it is a separate document printed for a
+    customer, and that customer knows nothing of the Measurement Report
+    windows, buttons, selections that can be made or changed ... shall only
+    contain data and results relating to that one report's settings, and not
+    show information that other reports exist with other 'judged against'
+    threshold sets."* The Scope block named every measurement left out AND the
+    limit set each was judged against, twelve of them on the demo project.
+
+    What survives is Sebastian's honesty rule in the document's own voice: a
+    filtered report still says it is filtered, by COUNT.
+
+    MUTATION: drop the "covers N of the M" note from `_scope_html` and this
+    goes red.
     """
     dlg, _run, fm = _dialog(tmp_path, qapp)
     try:
         _second_run(tmp_path, fm, dlg, qapp)
         body = _plain(dlg)
-        assert "judged against a different limit set" in body
-        assert "not in the results below" in body
-        # and it names the set that WAS left out, not only a count
-        assert "ChromIQ tight" in body or "ChromIQ default" in body
+        assert "judged against a different limit set" not in body
+        assert "not in the results below" not in body
+        assert "loaded in this window" not in body
+        import re
+        assert re.search(r"covers \d+ of the \d+ measurements", body), body[:400]
     finally:
         dlg.close()
 

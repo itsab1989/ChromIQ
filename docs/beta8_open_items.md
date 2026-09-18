@@ -10639,7 +10639,8 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   test_a_recommendation_and_a_requirement_of_the_same_value_differ,
   test_a_report_with_no_record_of_what_judged_it_has_no_key,
   test_the_document_never_holds_two_limit_sets,
-  test_the_left_out_measurement_is_named_in_the_report_scope,
+  test_the_left_out_measurement_is_counted_and_never_named,
+- **AND KNUT OVERRULED THE HALF THIS ENTRY PINNED**, in beta 20: the document may not name a measurement it left out, nor the set it was judged against. See B8-309. The test named above still exists and still guards this entry's rule, from the other side: nothing may quietly vanish, so the Scope COUNTS what it covers.
   test_the_old_red_warning_can_no_longer_fire_on_a_rendered_document,
   test_two_copies_of_ONE_set_are_still_separated_in_the_window,
   test_one_limit_set_everywhere_keeps_the_history_loaded,
@@ -13348,9 +13349,9 @@ on a face whose italic is a real second face, and both are asserted.
   exact symptom.
 - proof of the fix on screen: `~/Desktop/ChromIQ-beta21-proof/b8-308-the-selector-follows-the-report/`
 
-### B8-309 · OPEN · The report text is written to a reader who is sitting in front of the window
+### B8-309 · FIXED · The report text is written to a reader who is sitting in front of the window
 - blocks release: no
-- status: OPEN
+- status: FIXED
 - found by: Knut, beta 20: *"the text must be written as if it is a separate
   document printed for a customer, and that customer knows nothing of the
   Measurement Report windows, buttons, selections that can be made or changed
@@ -13376,6 +13377,23 @@ on a face whose italic is a real second face, and both are asserted.
   (`_scope_warnings_html`, `kind == "compliance"`). It is unreachable today
   only because `_one_limit_set` narrows the runs first, and it comes back the
   moment that narrowing changes.
+- fix: `_other_limit_sets_html` is deleted, the `compliance` branch is emptied
+  (kept, so a future change to the narrowing meets the ruling rather than the
+  old paragraph), and the five window-vocabulary sentences are rewritten or
+  removed. Sebastian's honesty rule survives in the document's own voice: the
+  Scope says *"This report covers {n} of the {total} measurements recorded for
+  this run."*
+- evidence: `test_no_report_type_describes_the_window`,
+  `test_no_report_type_mentions_another_report_or_another_limit_set`,
+  `test_a_filtered_report_still_says_it_is_filtered` (every report type
+  rendered, two phrase lists refused, three mutations proven to land). Three
+  older tests asserted the OLD behaviour and were rewritten to the ruling.
+- `docs/design/measurement_report_limits.md` §11 carries the ruling, dated and
+  quoted, in the same commit.
+- **still open, and it is Knut's:** a left-out measurement is now named nowhere
+  at all, the WINDOW included. If he wants the window to keep saying which it
+  dropped and why, that is a new window message and needs its own wording.
+- proof: `~/Desktop/ChromIQ-beta21-proof/b8-309-the-report-is-a-document/`
 
 ### B8-310 · OPEN · Changing "Judged against" recalculates every saved report, and the SPEC says it must
 - blocks release: no

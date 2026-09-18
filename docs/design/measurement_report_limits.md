@@ -665,6 +665,43 @@ against that copy so the dates can be compared, a later change in Preferences
 does not reach a bound run, and the copy is locked once a second dated
 verification has been measured.
 
+**THE REPORT IS A DOCUMENT PRINTED FOR SOMEONE WHO HAS NEVER SEEN THE WINDOW
+(Knut, beta 20, 2026-09-17).** *"the text must be written as if it is a
+separate document printed for a customer, and that customer knows nothing of
+the Measurement Report windows, buttons, selections that can be made or
+changed ... shall only contain data and results relating to that one reports
+settings, and not show information that other reports exist with other 'judged
+against' threshold sets."*
+
+Two rules, and both are now pinned by
+`tests/test_the_report_reads_as_a_printed_document.py`, which renders every
+report type and refuses a list of phrases:
+
+* **No window vocabulary.** Five sentences named something only the window has,
+  and each is gone: *"runs in the list above are hidden by you (unticked)"*,
+  *"the limit set chosen in this window"*, *"ticked in Preferences → Reports"*,
+  *"the reason is shown when you point at the cell"* (a printed sheet has no
+  hover) and *"use Check & Refine ▸ Analyse Profile Quality"*.
+* **No other reports and no other limit sets.** The Report Scope block that
+  named every measurement left out AND the set each was judged against is
+  removed, twelve entries on the demo project. The `kind == "compliance"`
+  warning is removed with it; it was already unreachable, because
+  `_one_limit_set` narrows the runs before it is asked, and the branch is kept
+  empty so a future change to that narrowing meets this ruling and not the old
+  paragraph.
+
+**What replaces them, and why something had to.** Sebastian's rule of
+2026-08-10 still stands: a filtered report may never pass as the complete
+history. So the Scope now states, in the document's own voice and without
+saying who filtered it or why, *"This report covers {n} of the {total}
+measurements recorded for this run."* Unticked and judged-on-other-numbers are
+the same fact to the reader: not in here.
+
+**Still open, and it is Knut's:** a measurement left out is no longer named
+anywhere at all, including in the WINDOW. If he wants the window (not the
+document) to keep saying which measurements it dropped and why, that is a new
+window message and needs its own wording.
+
 **"(edited)" beside a set name was correct.** Knut read *"Judged against:
 ChromIQ default (recommended) (edited)"* and asked why, having edited nothing.
 The flag is derived, never stored as a claim: `is_edited` compares the run's
