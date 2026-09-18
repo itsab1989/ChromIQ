@@ -39,6 +39,16 @@ FORBIDDEN = (
     # round 11: false on a ColorMunki, a SpectroScan and a CR30, where the
     # instrument's own claim is the larger one and the band changes nothing
     "Switch it off and your number stands",
+    # round 12 (B8-346 F7), measured over 540 built sheets: the clip band and
+    # the instrument's claim ADD on the same side (an A4 SpectroScan with the
+    # band on the left comes out at 30.48, not at the larger of 26 and 8.47),
+    # so no "largest of" formulation is true; a ColorMunki claims exactly what
+    # an i1Pro does, which is nothing; and the top comes out EXACTLY the
+    # number typed on a SpectroScan and a CR30.
+    "largest of three things",
+    "LARGEST of three things",
+    "30 mm on the left and 9 on the right",
+    "slightly larger than you asked",
 )
 
 
@@ -52,8 +62,16 @@ def _area_first_texts() -> "dict[str, str]":
     card = inspect.getsource(tab_chart)
     k = card.index('"Prioritise chart area, then fit patches to it\\" is')
     m = card.index("If you are unsure", k)
-    return {"the Create layout tooltip": panel[i:j],
-            "the Create Chart step 1 card": card[k:m]}
+    # **JOINED AND COLLAPSED, OR A SENTENCE CAN HIDE IN THE GAPS.** These are
+    # read out of the SOURCE, where a paragraph is a run of adjacent string
+    # literals, so "... need " + "nothing there" carries a quote, a newline and
+    # an indent in the middle of a phrase a reader sees as one. A guard that
+    # matched the raw source could be defeated by a line break, which is the
+    # same shape as the fault B8-344 fixed in the site check.
+    def _flat(s: str) -> str:
+        return " ".join(s.replace('"', " ").split())
+    return {"the Create layout tooltip": _flat(panel[i:j]),
+            "the Create Chart step 1 card": _flat(card[k:m])}
 
 
 def _sheet(tmp_path, tag, **recipe_kw) -> dict:
@@ -92,96 +110,159 @@ def _sheet(tmp_path, tag, **recipe_kw) -> dict:
 
 
 def test_neither_help_text_promises_an_exact_margin():
-    """MUTATION: put "margins are the law" back into either text and this goes
-    red, naming which one."""
+    """MUTATION, proven to land: put any of the FORBIDDEN clauses back into
+    either text and this goes red, naming which one."""
     for where, text in _area_first_texts().items():
         for promise in FORBIDDEN:
             assert promise not in text, (
                 f"{where} still promises {promise!r}, which no sheet keeps")
 
 
-def test_both_help_texts_name_the_clip_band_and_the_instrument_reserves():
-    """The two claimants on the space, which is what the numbers really show.
+def test_both_help_texts_say_what_raises_a_margin():
+    """The two claimants, in the words the sheets support.
 
-    MUTATION: drop the clip-border sentence from either text and this goes red.
+    **THESE ARE DELIBERATELY THE NEW SENTENCES' OWN WORDS.** Round 12 deleted
+    each clause of the previous version of this text one at a time and the
+    guard stayed green every time, because every assertion it made was already
+    satisfied by a sentence that had been there for months (its F9). So the
+    phrases below appear nowhere else in either text, and each one carries a
+    fact the tests underneath measure.
+
+    MUTATION, proven to land: delete any one of these phrases from either text.
     """
     for where, text in _area_first_texts().items():
-        low = text.lower()
-        assert "clip border" in low, (
-            f"{where} does not say that a clip border takes its own width")
-        assert "reserve" in low or "strip letters" in low, (
-            f"{where} does not say the instrument's own reserves take space")
-        # THE THIRD CLAIMANT, which round 11 measured and the second version
-        # of this text did not mention: the instrument's own minimum. Asking
-        # 5 mm on an A4 SpectroScan gives 30 mm on the left with the clip band
-        # off, so "switch it off and your number stands" was false.
-        assert "instrument needs" in low, (
-            f"{where} does not say the instrument itself claims a margin")
-        assert "spectroscan" in low or "colormunki" in low, (
-            f"{where} does not name an instrument the claim applies to")
+        low = " ".join(text.lower().split())
+        for phrase, what in (
+                ("minimum", "that the number typed is a minimum"),
+                ("clip border", "that the clip border claims its own side"),
+                ("at least the band", "that the side is raised TO the band, "
+                                      "not that the band is added to it"),
+                ("need nothing", "that some instruments claim nothing"),
+                ("colormunki", "which instruments claim nothing"),
+                ("8.5 mm", "how much a SpectroScan or a CR30 does claim"),
+                ("need not match", "that the top and bottom differ"),
+        ):
+            assert phrase in low, f"{where} no longer says {what} ({phrase!r})"
 
 
 @pytest.mark.slow
-def test_the_clip_band_is_what_claims_the_margin(tmp_path):
-    """The mechanism the text now gives, measured three ways.
+def test_switching_the_clip_band_off_takes_two_switches(tmp_path):
+    """**THE CONTROL THIS FILE MEASURES AGAINST, PINNED.**
 
-    MUTATION: neuter `ml = max(ml, clip_w)` in `instruments.py` and this goes
-    red.
+    `clip_border=False` is documented in `presets.py` as i1/p3 only, and it is:
+    measured here at 5 mm on A4, it leaves the band's 26 mm on the left of a
+    ColorMunki (25.99) and a SpectroScan (30.48) exactly as if it were on, and
+    `clip_content_mode="off"` does the same to an i1Pro. Only both together
+    give every instrument the number that was typed.
+
+    This is not a footnote. The previous version of this guard switched the
+    band off with `clip_border=False` alone and then recorded the band it had
+    failed to switch off as "the ColorMunki's own claim" -- the false sentence
+    the help text then repeated to the user (B8-346 F8).
     """
-    on = _sheet(tmp_path, "band-left", instrument="p3", paper="A4",
-                margin_left=5.0, margin_right=5.0, margin_top=5.0,
-                margin_bottom=5.0, clip_border=True,
-                clip_border_width_mm=26.0, clip_side="left")
-    assert on["left"] > 20.0, on          # the band, not the number typed
-    off = _sheet(tmp_path, "band-off", instrument="p3", paper="A4",
-                 margin_left=5.0, margin_right=5.0, margin_top=5.0,
-                 margin_bottom=5.0, clip_border=False)
-    assert abs(off["left"] - 5.0) < 1.0, off   # the number typed stands
-    right = _sheet(tmp_path, "band-right", instrument="p3", paper="A4",
+    for inst, only_border, only_content in (("i1", 5.0, 25.99),
+                                            ("CM", 25.99, 5.0),
+                                            ("SS", 30.48, 8.47)):
+        a = _sheet(tmp_path, f"ob-{inst}", instrument=inst, paper="A4",
                    margin_left=5.0, margin_right=5.0, margin_top=5.0,
-                   margin_bottom=5.0, clip_border=True,
-                   clip_border_width_mm=26.0, clip_side="right")
-    assert abs(right["left"] - 5.0) < 1.0, right
-    assert right["right"] > 20.0, right        # and it moves to the other side
-    # ...and asking for more than the band gets more than the band.
-    wide = _sheet(tmp_path, "band-wide", instrument="p3", paper="A4",
-                  margin_left=40.0, margin_right=40.0, margin_top=40.0,
-                  margin_bottom=40.0, clip_border=True,
-                  clip_border_width_mm=26.0, clip_side="left")
-    assert wide["left"] > 38.0, wide
+                   margin_bottom=5.0, clip_border=False)
+        b = _sheet(tmp_path, f"oc-{inst}", instrument=inst, paper="A4",
+                   margin_left=5.0, margin_right=5.0, margin_top=5.0,
+                   margin_bottom=5.0, clip_content_mode="off")
+        assert abs(a["left"] - only_border) < 0.5, (
+            f"{inst}: clip_border=False alone gives {a['left']:.2f}, "
+            f"measured {only_border}")
+        assert abs(b["left"] - only_content) < 0.5, (
+            f"{inst}: clip_content_mode='off' alone gives {b['left']:.2f}, "
+            f"measured {only_content}")
+
+
+def _band_off(tmp_path, tag, **kw):
+    """A sheet with the clip band REALLY off, both switches thrown."""
+    return _sheet(tmp_path, tag, clip_border=False, clip_content_mode="off",
+                  **kw)
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize("instrument,band_off_keeps_the_number",
-                         [("i1", True), ("p3", True), ("CM", False),
-                          ("SS", False), ("CR30", False)])
-def test_the_band_is_not_the_only_claimant(tmp_path, instrument,
-                                           band_off_keeps_the_number):
-    """With the clip band OFF, the typed number stands on an i1Pro and does
-    not on the other three: their own carriage claims more. Measured at 5 mm
-    on A4: i1 and i1Pro 3+ 5.00, ColorMunki 25.99, SpectroScan and CR30 30.48.
+@pytest.mark.parametrize("asked,expect", [(5.0, 26.0), (40.0, 40.0)])
+def test_the_clip_side_is_raised_to_the_band_and_not_added_to_it(tmp_path,
+                                                                 asked, expect):
+    """Claim 1 of the text: the clip side is raised to AT LEAST the band's own
+    width, and the band is never added on top of the number.
 
-    MUTATION: put "Switch it off and your number stands" back in the text and
-    `test_neither_help_text_promises_an_exact_margin` goes red.
+    Measured on an i1Pro A4 sheet, which is the instrument that claims nothing
+    of its own, so the band is the only thing moving: 5 mm asked comes out at
+    25.99 and 40 mm asked comes out at 39.96. Adding would have given 31 and 66.
+
+    MUTATION, proven to land: change `ml = max(ml, clip_w)` in
+    `instruments.py` to `ml += clip_w`.
     """
-    got = _sheet(tmp_path, f"band-off-{instrument}", instrument=instrument,
-                 paper="A4", margin_left=5.0, margin_right=5.0,
-                 margin_top=5.0, margin_bottom=5.0, clip_border=False)
-    if band_off_keeps_the_number:
-        assert abs(got["left"] - 5.0) < 1.0, got
-    else:
-        assert got["left"] > 20.0, (
-            f"{instrument} no longer claims a left margin of its own, so the "
-            f"help text's third claimant needs re-measuring")
+    got = _sheet(tmp_path, f"clipside-{int(asked)}", instrument="i1",
+                 paper="A4", margin_left=asked, margin_right=asked,
+                 margin_top=asked, margin_bottom=asked, clip_border=True,
+                 clip_border_width_mm=26.0, clip_side="left")
+    assert abs(got["left"] - expect) < 0.5, (
+        f"asking {asked} mm on the clip side gives {got['left']:.2f}, "
+        f"measured {expect}")
+    # ...and the other side is untouched by the band.
+    assert abs(got["right"] - asked) < 0.5, got
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("instrument,claims", [("i1", 0.0), ("p3", 0.0),
+                                               ("CM", 0.0), ("SS", 8.55),
+                                               ("CR30", 8.55)])
+def test_only_a_spectroscan_or_a_cr30_claims_the_edge_of_the_sheet(
+        tmp_path, instrument, claims):
+    """Claim 2 of the text, with the band REALLY off and nothing asked for.
+
+    Measured on A4: an i1Pro, a Pro-300 and a ColorMunki leave the patches at
+    the very edge (0.00), and a SpectroScan and a CR30 keep 8.55. The previous
+    text named the ColorMunki among the claimants; it claims exactly what an
+    i1Pro does, which is nothing, and the number that made it look otherwise
+    was a clip band the test had not switched off.
+    """
+    got = _band_off(tmp_path, f"edge-{instrument}", instrument=instrument,
+                    paper="A4", margin_left=0.0, margin_right=0.0,
+                    margin_top=0.0, margin_bottom=0.0)
+    assert abs(got["left"] - claims) < 0.6, (
+        f"{instrument} keeps {got['left']:.2f} mm at the left with nothing "
+        f"asked and no band; the text says {claims}")
+
+
+@pytest.mark.slow
+def test_the_top_and_the_bottom_are_worked_out_separately(tmp_path):
+    """Claim 3 of the text: the two can both come out larger than asked, and
+    they need not match each other.
+
+    Measured on an i1Pro A4 sheet at 5 mm: top 6.01, bottom 6.42. The text no
+    longer says they are ALWAYS larger, because on a SpectroScan and a CR30 the
+    top is exactly the number typed (5.00) -- which is what round 12 caught the
+    previous version claiming.
+    """
+    i1 = _sheet(tmp_path, "vert-i1", instrument="i1", paper="A4",
+                margin_left=5.0, margin_right=5.0, margin_top=5.0,
+                margin_bottom=5.0)
+    assert i1["top"] > 5.2 and i1["bottom"] > 5.2, i1
+    assert abs(i1["top"] - i1["bottom"]) > 0.2, (
+        f"top {i1['top']:.2f} and bottom {i1['bottom']:.2f} now match, so the "
+        f"text's last clause needs re-measuring")
+    ss = _sheet(tmp_path, "vert-ss", instrument="SS", paper="A4",
+                margin_left=5.0, margin_right=5.0, margin_top=5.0,
+                margin_bottom=5.0)
+    assert abs(ss["top"] - 5.0) < 0.1, (
+        f"a SpectroScan's top is {ss['top']:.2f}, not the 5.00 that makes "
+        f'"slightly larger than you asked" a false sentence')
 
 
 @pytest.mark.slow
 @pytest.mark.parametrize("instrument", ["i1", "p3", "CM", "SS", "CR30"])
 def test_every_margin_is_at_least_what_was_asked(tmp_path, instrument):
-    """The only promise the text makes about the four edges, and it holds on
-    every instrument a user can pick. It deliberately does NOT claim that top
-    and bottom are equal: measured, they are up to 2.9 mm apart, because the
-    reserve above the patches and the run-out below them are different sizes.
+    """The only promise the text makes about all four edges at once.
+
+    The tolerance is a measured pixel, not a fudge: the patch grid lands on
+    whole pixels, so asking 9 mm on an i1Pro A4 sheet gives 8.97 and asking 40
+    gives 39.96. One pixel at 300 dpi is 0.085 mm; the slack here is 0.1.
     """
     got = _sheet(tmp_path, f"least-{instrument}", instrument=instrument,
                  paper="A4", margin_left=5.0, margin_right=5.0,

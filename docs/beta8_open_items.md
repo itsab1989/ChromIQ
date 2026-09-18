@@ -14040,9 +14040,9 @@ written for it in the suite passed its own mutation.
   the Settings strip-length help, which listed four instruments where the combo
   offers five (CR30 was missing).
 - evidence: `test_neither_help_text_promises_an_exact_margin`,
-  `test_both_help_texts_name_the_clip_band_and_the_instrument_reserves` (they
+  `test_both_help_texts_say_what_raises_a_margin` (they
   read BOTH texts, which is what the first guard could not do),
-  `test_the_clip_band_is_what_claims_the_margin` (the band left, off, right and
+  `test_the_clip_side_is_raised_to_the_band_and_not_added_to_it` (the band left, off, right and
   wide) and `test_every_margin_is_at_least_what_was_asked` (all five
   instruments). Mutations: the promise back in the step-1 card alone, and
   the clip band's `max()` neutered, each proven to land.
@@ -14429,7 +14429,7 @@ written for it in the suite passed its own mutation.
 - fix: both texts now say each side is the largest of the number you type, the
   clip band on its side, and the instrument's own reach, with the SpectroScan
   numbers in them.
-- evidence: `test_the_band_is_not_the_only_claimant` (all five instruments,
+- evidence: `test_only_a_spectroscan_or_a_cr30_claims_the_edge_of_the_sheet` (all five instruments,
   the band off) and the phrase list in
   `test_neither_help_text_promises_an_exact_margin`, which now refuses the
   sentence that was false.
@@ -14680,8 +14680,50 @@ Two details the fix had to get right, both measured rather than assumed:
   there is no project the sentence could be about. Silence is right there. The
   same state with a project row still in the document now prints "covers 1 of
   the 2", which is what its guard pins.
-- what to do next: F7 to F9 (the area-first help text, whose guard passes three
-  of its own mutations).
+
+**F7, F8 and F9 are FIXED, and the text is on its fourth rewrite because the
+first three were checked against a guard that could not see them.** Measured
+over round 12's own 540 built sheets and re-measured here:
+
+* **F8 first, because it is what made the rest possible.** The guard switched
+  the clip band off with `clip_border=False`, which `presets.py` documents as
+  i1/p3 ONLY, and it is: measured at 5 mm on A4, that flag leaves the band's
+  26 mm on a ColorMunki (25.99) and a SpectroScan (30.48) exactly as if it were
+  on. The guard then recorded the band it had failed to switch off as "the
+  ColorMunki's own claim", and the help text repeated it to the user. Both
+  switches are needed, and `test_switching_the_clip_band_off_takes_two_switches`
+  now pins that: `clip_content_mode="off"` alone does the same to an i1Pro.
+* **F7.** With the band really off and nothing asked for, an i1Pro, a Pro-300
+  AND a ColorMunki leave the patches at the very edge (0.00); only a
+  SpectroScan and a CR30 claim anything (8.55 mm at the left of A4). "The
+  largest of three things" is not the rule either: the band and the
+  instrument's claim ADD on the same side (an A4 SpectroScan with the band on
+  the left comes out at 30.48, not at the larger of 26 and 8.47). And the top
+  comes out EXACTLY the number typed on a SpectroScan and a CR30, so "slightly
+  larger than you asked" was false. All four clauses are rewritten and each is
+  now measured by a test of its own.
+* **F9.** Round 12 deleted each clause of the old text in turn and the guard
+  stayed green every time, because every assertion it made was satisfied by a
+  sentence that had been there for months. The text assertions are now the new
+  sentences' own words, and `_area_first_texts` joins adjacent string literals
+  before matching, so a phrase can no longer hide in the gap between two source
+  lines.
+
+- evidence: `tests/test_the_area_first_help_text_is_true.py`, rewritten: 16
+  cases. Mutations, each proven to land, 2026-09-18: H1 the panel losing "at
+  least the band" (1 red), H2 the card losing the 8.5 mm figure (1 red), H3 the
+  panel losing "need not match" (1 red), H4 `ml = max(ml, clip_w)` changed to
+  `ml += clip_w` in `instruments.py` (3 red), H5 the band-off control back to
+  `clip_border=False` alone (3 red).
+- The two older entries that named the deleted tests, B8-328 and B8-345, now
+  name the tests that replaced them.
+- **A note, not a fault**: there are two switches for the clip band and each
+  works for one instrument family only (`clip_border` for i1/p3,
+  `clip_content_mode` for CM/SS/CR30). The UI sets them together, so no user
+  path was found that sees the difference; `presets.py` documents the first as
+  i1/p3 only, so this is by design. Recorded because it cost a guard its
+  meaning once already.
+- what to do next: round 13, against these fixes.
 
 ### B8-347 · OPEN · A pointy honeycomb prints its patches INTO the strip letters
 - blocks release: no
