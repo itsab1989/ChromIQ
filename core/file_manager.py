@@ -44,6 +44,7 @@ import os
 import re
 import shutil
 import stat as _stat_module
+import time
 import unicodedata
 from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime
@@ -793,8 +794,22 @@ def write_json_atomically(path: Path, payload: dict) -> None:
             # Never fatal: a volume that cannot carry an xattr must not lose
             # the write. What this protects is a property of a file the user
             # set, not the file itself.
+            #
+            # **AND NOT THE TIMESTAMPS.** `copystat` carries `st_mtime` too, so
+            # a rewrite left the file claiming it had not changed, and anything
+            # keyed on the mtime went on serving the old contents. It cost
+            # B8-312: the Measurement Report's label cache is keyed on
+            # `st_mtime_ns`, so after a recalculation the selector went on
+            # reading "Quick check" over a file that now held `chromiq_default`,
+            # for the rest of the session. A freshly opened window was right,
+            # which is why no test that reopens the dialog could see it.
+            #
+            # The mtime is restored to what the write really did: NOW. Mode,
+            # flags and xattrs still cross, which is what this block is for.
             try:
+                _before = os.stat(path)
                 shutil.copystat(path, tmp)
+                os.utime(tmp, ns=(_before.st_atime_ns, time.time_ns()))
             except OSError:
                 log.debug("could not carry %s's properties across", path,
                           exc_info=True)

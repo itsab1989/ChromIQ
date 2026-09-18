@@ -13443,9 +13443,9 @@ on a face whose italic is a real second face, and both are asserted.
   two ticks, and `included` keyed by the three parts of `_run_key`), and the
   block is additive, so `REPORT_SCHEMA` stays 7.
 
-### B8-312 · OPEN · A recalculated report's label is stale for the rest of the session, because the file's mtime never moves
+### B8-312 · FIXED · A recalculated report's label is stale for the rest of the session, because the file's mtime never moves
 - blocks release: no
-- status: OPEN
+- status: FIXED
 - found by: the same investigation, not reported by anyone
 - detail: `write_json_atomically` calls `shutil.copystat(path, tmp)` when the
   target exists (`core/file_manager.py:797`), which carries `st_mtime` across,
@@ -13455,6 +13455,14 @@ on a face whose italic is a real second face, and both are asserted.
   `chromiq_default`. A freshly opened window is correct, so it is invisible to
   any test that reopens the dialog. **This is a fault in a fix of my own**:
   the atomic-write helper is B8-301, from this same round.
+- fix: the helper still carries the mode, the flags and the xattrs across, and
+  then sets the modification time to what the write really did, NOW. That is
+  the honest answer for every caller, not only for the label cache: a file that
+  was rewritten did change.
+- evidence: `test_a_rewrite_moves_the_modification_time` and
+  `test_a_rewrite_still_carries_the_mode`, which are the two halves of the same
+  block and each goes red on its own mutation (a bare `copystat` back, and no
+  `copystat` at all).
 
 ### B8-313 · OPEN · The split's boundary sliver reads its "spacer" colour from inside the neighbouring patch
 - blocks release: no
