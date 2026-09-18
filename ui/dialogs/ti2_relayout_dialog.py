@@ -3271,7 +3271,7 @@ class _NewChartDialog(QDialog):
         # re-enable the spinbox even when the row is off (Knut).
         self._gen_fill_to.setEnabled(not pages_on and fill_on)
 
-    def _estimate_additions(self, assume=None) -> int:
+    def _estimate_additions(self, assume=None, *, with_fill: bool = True) -> int:
         """How many patches the ticked sets would add, by the per-row counters.
 
         No build: every counter here is arithmetic, which is what makes it
@@ -3291,20 +3291,9 @@ class _NewChartDialog(QDialog):
             for cb, _b, count, _l in self._gen_specs():
                 if cb.isChecked() and cb.isEnabled():
                     total += count()
-            corner = ((1 if ((self._gen_cube.isChecked()
-                              and self._gen_cube.isEnabled())
-                             or (self._gen_edges.isChecked()
-                                 and self._gen_edges.isEnabled())
-                             or (self._gen_corners.isChecked()
-                                 and self._gen_corners.isEnabled())) else 0)
-                      + (1 if (self._gen_neutral.isChecked()
-                               and self._gen_neutral_n.value() >= 2) else 0))
-            sets_have = ((1 if corner else 0)
-                         if self._gen_unique.isChecked() else corner)
             if self._gen_whiteblack.isChecked():
-                total += G.white_black_count(self._gen_whiteblack_n.value(),
-                                             sets_have, sets_have)
-            if self._gen_fill.isChecked():
+                total += self._white_black_additions()
+            if with_fill and self._gen_fill.isChecked():
                 total += G.fill_gaps_count(
                     total + len(self._existing_patches),
                     self._effective_fill_target())
@@ -3313,6 +3302,46 @@ class _NewChartDialog(QDialog):
             if restore is not None:
                 restore.setChecked(False)
                 restore.blockSignals(False)
+
+    def _white_black_additions(self) -> int:
+        """How many pure white / black anchors the CURRENT selection appends.
+
+        The eight gamut tips belong to the highest ticked owner in the chain
+        (3D cube, then Saturated edges, then Gamut-corner emphasis), and the
+        Neutral grey ramp's endpoints are pure black and white, so a ticked
+        owner already supplies what the anchors would add and they add nothing
+        (#76, Knut: only the corners the OTHER ticked sets contribute in this
+        same batch count toward N, never the chart's own).
+
+        **...UNLESS "Ensure unique colours" TAKES THEM AWAY AGAIN.**
+        `_build_generated_program` runs `enforce_min_distance(...,
+        existing=self._existing_patches)` before the anchors, so on a chart
+        that already holds pure white and black the owner's OWN white and black
+        are dropped against the chart's, `count_white_black` then finds none in
+        the program, and the anchors go in after all. Both copies of this
+        arithmetic assumed the opposite and were out by exactly the two
+        anchors on every tip-owner row: measured over 1,344 cases, the cube
+        promised 510 where the chart grew by 512, Saturated edges 18 against
+        20, Gamut-corner emphasis 54 against 56, the Neutral grey ramp 14
+        against 16 (B8-346 F3).
+        """
+        corner = ((1 if ((self._gen_cube.isChecked()
+                          and self._gen_cube.isEnabled())
+                         or (self._gen_edges.isChecked()
+                             and self._gen_edges.isEnabled())
+                         or (self._gen_corners.isChecked()
+                             and self._gen_corners.isEnabled())) else 0)
+                  + (1 if (self._gen_neutral.isChecked()
+                           and self._gen_neutral_n.value() >= 2) else 0))
+        sets_have = ((1 if corner else 0)
+                     if self._gen_unique.isChecked() else corner)
+        have_w = have_b = sets_have
+        if sets_have and self._gen_unique.isChecked():
+            _w, _b = G.count_white_black(self._existing_patches or [])
+            have_w = 0 if _w else sets_have
+            have_b = 0 if _b else sets_have
+        return G.white_black_count(self._gen_whiteblack_n.value(),
+                                   have_w, have_b)
 
     def _update_gen_counts(self, *_a) -> None:
         """Refresh each generator's patch count + the running total, and gate
@@ -3398,12 +3427,30 @@ class _NewChartDialog(QDialog):
         # take the whole estimate, tick the row, take it again, and show the
         # difference. `_estimate_additions` blocks signals, so nothing else
         # sees the row move.
-        _base_est = self._estimate_additions()
+        # ...AND THE FILL ROW IS LEFT OUT OF BOTH ESTIMATES, OR EVERY ROW
+        # READS ZERO. "Fill remaining gaps" tops the chart up to a target, so
+        # it absorbs whatever any other row adds and the difference between two
+        # whole estimates is zero BY CONSTRUCTION. Round 12 photographed the
+        # result: with the fill row ticked, all fourteen colour-set rows read
+        # "0 patches" where the cube used to read 512 (B8-346 F2). What the row
+        # contributes is the question the row is asking, and the fill row's own
+        # number falling by the same amount is how the window shows that the
+        # total is pinned.
+        _base_est = self._estimate_additions(with_fill=False)
         total = 0
         for cb, _build, count, label in self._gen_specs():
             n = count()
-            if not (cb.isChecked() and cb.isEnabled()):
-                n = max(0, self._estimate_additions(assume=cb) - _base_est)
+            # A ROW THAT CANNOT CONTRIBUTE HAS NO DIFFERENCE TO SHOW. The
+            # difference basis asks "what would ticking this add", and for a
+            # row the device state has greyed out the answer is zero however
+            # big the set is, because `_estimate_additions` skips a disabled
+            # row: on a CMYK chart every greyed row read "0 patches" where the
+            # cube used to read 512 and Skin tones 144 (B8-346 F4). A greyed
+            # row shows its own size, struck through, which is what it showed
+            # before the difference basis existed and what says something.
+            if cb.isEnabled() and not cb.isChecked():
+                n = max(0, self._estimate_additions(assume=cb, with_fill=False)
+                        - _base_est)
             label.setText(_patches_label(n))
             # Disabled rows never contribute (#72 states 2/3: a ticked but
             # greyed RGB-cube/look-based row must not count or build); the
@@ -3453,15 +3500,7 @@ class _NewChartDialog(QDialog):
         # and white). Near-neutral greys is only off-axis tints, never pure
         # white/black; Colour extremes never lands on white/black either (six
         # chromatic corners only), so neither counts here (Knut, #78).
-        corner = ((1 if ((self._gen_cube.isChecked() and self._gen_cube.isEnabled())
-                         or (self._gen_edges.isChecked() and self._gen_edges.isEnabled())
-                         or (self._gen_corners.isChecked()
-                             and self._gen_corners.isEnabled())) else 0)
-                  + (1 if (self._gen_neutral.isChecked()
-                           and self._gen_neutral_n.value() >= 2) else 0))
-        sets_have = (1 if corner else 0) if self._gen_unique.isChecked() else corner
-        wb_n = G.white_black_count(self._gen_whiteblack_n.value(),
-                                   sets_have, sets_have)
+        wb_n = self._white_black_additions()
         # AN ESTIMATE THAT CANNOT BE CORRECTED SAYS SO. On an RGB chart these
         # two rows are replaced by what the build really appended, a few
         # hundred milliseconds later (`_apply_built_row_counts`). On a

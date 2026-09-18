@@ -14611,8 +14611,43 @@ up to `floor` on the ink's top when the chart has printed ink above the band.
   `shots/`, with `logs/blank-after-fix*.txt` keeping each step of the
   measurement in order.
 - **A layout fault was found on the way and is NOT fixed**: see B8-347.
-- what to do next: F2 to F4 (the Add window's promises), then F5 and F6 (the
-  report's "covers N of the M"), then F7 to F9 (the area-first help text).
+
+**F2, F3 and F4 are FIXED.** Re-swept with round 12's own probe, 1,344 cases:
+the four tip-owner shapes are gone (the cube promises 512 where the chart grows
+by 512, Saturated edges 20, Gamut-corner emphasis 56, the Neutral grey ramp 16),
+a greyed row reads its own size again (512 and 144, struck through, not 0), and
+with the fill row ticked every colour-set row reads its own contribution while
+the fill row falls by the same amount, so the window adds up on screen.
+
+* **F3** was one assumption in two places, now one helper
+  (`_white_black_additions`): a ticked tip owner does supply white and black,
+  but "Ensure unique colours" runs `enforce_min_distance` with the existing
+  chart seeded, which pushes the owner's own white and black OFF pure white and
+  black to clear the chart's. `count_white_black` then finds none in the
+  program and the two anchors go in after all.
+* **F2** was the difference basis meeting a target: the fill absorbs whatever a
+  row adds, so the difference between two whole estimates is zero by
+  construction. Both estimates now leave the fill out.
+* **F4** was the same basis meeting a row that cannot contribute: a greyed row
+  makes the difference zero however big the set is.
+
+- evidence: `tests/test_the_add_window_counts_match_what_it_builds.py`, six new
+  cases. Mutations, each proven to land, 2026-09-18: N1 the white/black
+  estimate ignoring the unique de-dup (4 red), N2 the base estimate counting
+  the fill again (1 red), N3 a greyed row back on the difference basis (1 red).
+- proof: `~/Desktop/ChromIQ-beta21-proof/fix-B8-346/work/probe_add13.py` and
+  `add13.json` (round 12's own probe, re-run on the fix).
+- **One case in round 12's 26 is NOT fixed, and it cannot be**: with
+  "Near-neutral greys" and "Pure white & black" both on, the row promises 96
+  and the chart grows by 95. The loss is not in that row at all: the near-
+  neutral set has no pure black of its own, but `enforce_min_distance` moves
+  one of its near-black patches ONTO pure black, so the anchors then need one
+  patch instead of two. No arithmetic can predict where the distance pass will
+  put a patch. `_apply_built_row_counts` already corrects the white/black row
+  from the build a few hundred milliseconds later, which is the answer that
+  exists; measured, the row does read 1 after the build settles.
+- what to do next: F5 and F6 (the report's "covers N of the M"), then F7 to F9
+  (the area-first help text).
 
 ### B8-347 · OPEN · A pointy honeycomb prints its patches INTO the strip letters
 - blocks release: no

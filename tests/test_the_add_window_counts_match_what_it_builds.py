@@ -415,3 +415,119 @@ def test_a_multi_ink_total_says_it_is_an_estimate(qapp, tmp_path):
             f"were exact")
     finally:
         new.deleteLater()
+
+
+# ---------------------------------------------------------------------------
+# 9. B8-346 F2/F3/F4 — round 12 swept all fifteen rows in fourteen contexts, in
+#    both windows, with and without "Ensure unique colours" and with and
+#    without existing patches: 1,344 cases, 26 of them wrong. Three shapes.
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize("row,spin,value", [
+    ("cube", "cube_n", 8),
+    ("edges", "edges_n", 5),
+    ("corners", "corners_edge", 3),
+    ("neutral", "neutral_n", 8),
+])
+def test_a_tip_owners_promise_survives_the_white_black_row(qapp, row, spin,
+                                                           value):
+    """B8-346 F3: with "Pure white & black" on and a chart that already holds
+    pure white and black, every tip-owner row promised two patches too few (the
+    cube 510 where the chart grew by 512, Saturated edges 18 against 20,
+    Gamut-corner emphasis 54 against 56, the Neutral grey ramp 14 against 16).
+
+    The estimate assumed a ticked tip owner supplies the white and black the
+    anchors would add, so the anchors add nothing. **"Ensure unique colours"
+    takes them straight back**: `enforce_min_distance` runs with the existing
+    chart seeded, so the owner's own white and black are pushed OFF pure white
+    and black to clear the chart's, `count_white_black` then finds none in the
+    program, and the two anchors go in after all.
+
+    MUTATION, proven to land: drop the `_white_black_additions` de-dup branch
+    and go back to `white_black_count(n, sets_have, sets_have)`.
+    """
+    dlg = _AddPatchesDialog(_FakeSettings(),
+                            existing_patches=_chart_with_white_and_black())
+    dlg._add_mode_gen.setChecked(True)
+    _sets_off(dlg)
+    dlg._gen_unique.setChecked(True)
+    dlg._gen_whiteblack.setChecked(True)
+    getattr(dlg, f"_gen_{spin}").setValue(value)
+    cb = getattr(dlg, f"_gen_{row}")
+    label = getattr(dlg, f"_gen_{row}_count")
+
+    cb.setChecked(False)
+    dlg._update_gen_counts()
+    promised = _row_number(label)
+    without = len(dlg._build_generated_program())
+    cb.setChecked(True)
+    dlg._update_gen_counts()
+    with_ = len(dlg._build_generated_program())
+    grew = with_ - without
+    assert grew > 0
+    assert promised == grew, (
+        f"the greyed {row} row promises {promised} and ticking it adds {grew}")
+    dlg.deleteLater()
+
+
+def test_the_fill_row_does_not_make_every_other_row_read_zero(qapp):
+    """B8-346 F2: a row's number is what that row contributes, and "Fill
+    remaining gaps" absorbs it.
+
+    The promise is the difference two whole estimates make, and with a fill
+    target the second estimate is pinned to the target, so the difference is
+    zero BY CONSTRUCTION. Round 12 photographed it: with the fill row ticked,
+    all fourteen colour-set rows read "0 patches" where the cube read 512. Both
+    estimates now leave the fill out, so the rows say what they add and the
+    fill row's own number falls by the same amount, which is how the window
+    shows that the total is pinned.
+
+    MUTATION, proven to land: take `with_fill=False` off either call.
+    """
+    dlg = _AddPatchesDialog(_FakeSettings(), existing_patches=[])
+    dlg._add_mode_gen.setChecked(True)
+    _sets_off(dlg)
+    dlg._gen_unique.setChecked(True)
+    dlg._gen_cube.setChecked(False)
+    dlg._gen_cube_n.setValue(8)
+    dlg._gen_fill.setChecked(True)
+    dlg._gen_fill_to.setValue(1000)
+    dlg._update_gen_counts()
+    promised = _row_number(dlg._gen_cube_count)
+    fill_before = _row_number(dlg._gen_fill_count)
+    assert promised == 512, (
+        f"the cube row promises {promised} with the fill row on; it adds 512")
+    dlg._gen_cube.setChecked(True)
+    dlg._update_gen_counts()
+    fill_after = _row_number(dlg._gen_fill_count)
+    # ...and the window adds up: what the cube took, the fill gave back.
+    assert fill_before - fill_after == 512, (
+        f"the fill row went from {fill_before} to {fill_after}; the cube it "
+        "made room for is 512 patches")
+    dlg.deleteLater()
+
+
+def test_a_greyed_out_row_shows_its_own_size_not_zero(qapp):
+    """B8-346 F4: on a CMYK chart the RGB rows are greyed by the device-state
+    gating, and a greyed row cannot contribute, so "what would ticking this
+    add" is zero however big the set is. Every one of them read "0 patches"
+    where the cube read 512 and Skin tones 144.
+
+    A row the device state has switched off shows its own size, struck through,
+    which is what it showed before the difference basis existed.
+
+    MUTATION, proven to land: go back to
+    `if not (cb.isChecked() and cb.isEnabled())`.
+    """
+    dlg = _AddPatchesDialog(_FakeSettings(), existing_patches=[])
+    dlg._add_mode_gen.setChecked(True)
+    _sets_off(dlg)
+    # exactly what the gating leaves behind: still ticked, so returning to RGB
+    # restores it, but greyed out and contributing nothing.
+    dlg._gen_cube.setChecked(True)
+    dlg._gen_cube.setEnabled(False)
+    dlg._gen_skin.setChecked(False)
+    dlg._gen_skin.setEnabled(False)
+    dlg._update_gen_counts()
+    assert _row_number(dlg._gen_cube_count) == 512, dlg._gen_cube_count.text()
+    assert _row_number(dlg._gen_skin_count) == 144, dlg._gen_skin_count.text()
+    dlg.deleteLater()
