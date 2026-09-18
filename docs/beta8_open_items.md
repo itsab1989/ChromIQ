@@ -14051,11 +14051,10 @@ written for it in the suite passed its own mutation.
 ### B8-329 · FIXED · Knut's new built-in presets, and the landing page's preset count
 - blocks release: no
 - status: FIXED
-- **what is left, and it is a QUESTION not a task:** the thirteen new charts
-  and the landing-page count are done and shipped; one of the two charts the
-  zip re-sends has a different patch set from the one that ships under the same
-  name, and only Knut can say which he wants. See the two bullets marked OPEN
-  below. Nothing is waiting on code.
+- **nothing is left.** Seventeen new charts across two batches, the three
+  settings Knut asked for on all nineteen cards of both families, his 648-patch
+  replacement, and the landing-page count. He answered every question this
+  entry raised on 2026-09-18; the answers and what they changed are below.
 - reported by: Knut, #182, 2026-09-17T22:17:49Z: *"I also created a few more
   presets to be added as built-in as the other built-in presets"* (i1Pro
   130x180 and 100x150, attached as a zip), and *"Update the web page / landing
@@ -14078,22 +14077,52 @@ written for it in the suite passed its own mutation.
   which the truthy test the CR30 family uses cannot ask about.
 - **PROVED ON SCREEN**, in a real window, `scripts/drive_i1pro_photocard_presets.py`:
   all 15 listed in the Presets dropdown and the ★ overlay, each one picked the
-  way a user picks it, and all 15 built the patch count, page count, sheet and
-  patch width their names promise (0 mismatches). Photographs and the JSON are
+  way a user picks it, and all 19 built the patch count, page count, sheet and
+  patch width their names promise (0 mismatches, 0 warnings). Photographs and the JSON are
   in `~/Desktop/ChromIQ-beta21-proof/knut-new-presets/`.
-- **OPEN, FOR KNUT: the 648-patch 13 x 18 chart in the zip is NOT the one that
-  ships.** Same name, same 648 patches, but a different colour set (his new
-  file is a 7-level-per-channel grid, the shipped one 6-level). The shipped
-  chart was left exactly as it is rather than overwritten. Which of the two he
-  wants is his call. (The 600-patch 10 x 15 export is byte-identical to the
-  shipped one apart from its `CREATED` stamp, so nothing was touched there.)
-- **ALSO FOR KNUT, and NOT introduced by this change: eleven of the fifteen
-  cards warn** that "the settings stamp down the right edge runs over the
-  patches". It fires wherever the right margin is 5 mm, which is every 10 x 15
-  card of his and every maximised one — **including the 600-patch chart that
-  has shipped since 2026-09-09**, photographed here as the control. The lever
-  is either his 5 mm right margin or the app's default-on "Stamp settings down
-  the right edge".
+- **ANSWERED AND DONE (Knut, 2026-09-18T00:44:36Z).** All three questions
+  above came back:
+  * *"replace with the following one, do not keep the old"* — the 648-patch
+    13 x 18 chart now carries his colour set. The one that shipped stepped each
+    channel in SIX levels (0, 20, 40 …), his in SEVEN (0, 16.6667, 33.3333 …).
+    Replaced in place: the slug did not move, so no stored selection broke, and
+    the display name gained the "Portrait" token his own files have carried
+    since 2026-09-17.
+  * *"my fault. There were only two presets previously."* — nothing was
+    missing from the zip; there is no third or fourth file to chase.
+  * *"the warning is fixed with my previous post."* — it is. See below.
+- **FOUR MORE CHARTS (Knut, 2026-09-18), and three settings on ALL of them.**
+  One sheet each: 150p and 180p on the 10 x 15 card, 216p and 288p on the
+  13 x 18. The family is now **19 charts** and the registry **177 built-ins**.
+  Every card of both families carries the note he wrote for its size, the sheet
+  text at 6.0 pt and the clip text distance at 2.0 mm.
+  * **HIS "6,0mm" IS 6.0 POINTS.** The Size box under "Sheet text" is in points
+    (`layout_options_panel` converts with `mm_to_pt` / `pt_to_mm`) and the
+    recipe stores millimetres, so it lands as 2.12 — which is exactly what all
+    four of his new exports carry. The same unit slip is on record for the CR30
+    strip labels. Nothing was guessed: his files settled it.
+  * **ONE OF HIS FOUR FILES WRAPS THE NOTE IN A SECOND PAIR OF QUOTES**
+    (`100x150mm-150p`). The other three carry it bare, and bare is what reads
+    correctly on paper, so bare is what ships. Flagged for him.
+- **THE SETTINGS-STAMP WARNING: 0 of 19, and the measurement that got there.**
+  Driven on screen with a bare settings store. His three settings removed the
+  stamp OVERRUN outright (19 of 19 clean). A DIFFERENT warning then fired on
+  19 of 19 — *"The chart notes down the right edge are too long for the sheet.
+  The last 90 to 151 characters are cut off"* — because the right edge of a
+  150 mm card is not tall enough for his note AND the app's default-on settings
+  stamp. Measured both ways in the same run: **19 of 19 warned with the stamp
+  on, 0 of 19 with it off.** Every one of his twenty exports carries it off, so
+  `_Ti1Preset.stamp_settings` now carries it and the photo cards set it False.
+  `None` on every other family means "leave the checkbox alone", which is what
+  the app did before the field existed.
+- **A HOLE THIS OPENED AND CLOSED, found by driving and not by reading.**
+  `_seed_new_project_text` gives the Run description and Chart Notes a home in
+  a project that did not exist when they were written, and `_on_generate` calls
+  it. A built-in preset builds through `_generate_from_ti1`, which did not — so
+  the first photo card picked in a session came back with an EMPTY Chart Notes
+  box and all nineteen wrote `chart_notes: ""` into their run's `meta.json`.
+  Both measured on screen, both fixed by the one line `_on_generate` already
+  had, and both re-measured: 19 of 19 keep the note and write it to disk.
 - evidence: in the photo-card file (124 passed),
   `test_every_chart_registered`,
   `test_no_chart_of_this_family_can_be_deleted`,
@@ -14102,7 +14131,16 @@ written for it in the suite passed its own mutation.
   `test_the_maximised_cut_moves_exactly_two_fields`,
   `test_chart_builds_with_the_sheet_pages_and_patches_its_name_promises` (all
   15 built) and
-  `test_a_maximised_chart_is_not_promised_a_band_it_does_not_print`; the count
+  `test_a_maximised_chart_is_not_promised_a_band_it_does_not_print`,
+  `test_every_card_carries_the_note_for_the_card_it_is_cut_for`,
+  `test_the_note_names_the_card_and_never_the_other_one`,
+  `test_every_card_carries_the_sheet_text_size_and_clip_distance`,
+  `test_a_builtin_note_is_taken_back_out_of_the_box_and_a_typed_one_is_not`,
+  `test_every_card_switches_the_settings_stamp_off`,
+  `test_a_preset_with_no_opinion_leaves_the_stamp_box_alone`,
+  `test_a_builtin_preset_gives_its_text_a_home_in_the_project_it_creates`,
+  `test_every_name_now_spells_its_orientation_out` and
+  `test_the_648_patch_card_carries_the_colour_set_he_replaced_it_with`; the count
   is held against the registry by
   `test_the_site_says_how_many_presets_there_really_are`, and by
   `test_registry_shape` and
@@ -14193,3 +14231,65 @@ written for it in the suite passed its own mutation.
   the question the others asked the white/black row. Mutated in both builders
   at once: it goes red.
 - evidence: `test_the_fill_row_shows_what_the_fill_really_added`.
+
+### B8-336 · FIXED · The honeycomb blank never consulted the label clamp, and walked into the strip letters
+- blocks release: no
+- status: FIXED
+- found by: round 10, stream A, and the change set is part of it.
+- B8-306 made the clamp `top = max(top, min(rects[i].top(), min_py - esp))`
+  unconditional so the blank could not rise into the strip labels, and only
+  the RECTANGULAR branch ever read it. The hexagonal branch fills hexagons
+  grown outward by half the ring plus the fringe slack and never looked.
+- measured on screen, CR30 pointy, 3.0 mm ring, no edge spacers, nothing read:
+  **82.6 %** of the letters' ink left at 940x880, 88.0 at 1180x940, 93.1 at
+  1500x1020; a turned chart with a 4.16 mm ring 84.2 / 87.3 / 89.9. Mutating
+  the fringe slack to 0 takes it to 96.8, so most of the loss is this change
+  set's own.
+- **B8-306's guard could not see it**: it builds its page with
+  `hexagonal=False`, which is the branch that still had the clamp.
+- fix: the strip's region is cut at the same line, converted to device space
+  the same way, **and only where the strip rect carries a label band** (its top
+  above the first patch). A rect whose top IS the first patch has no band and
+  no letters to protect, and clamping there would eat the hexagon's own apex.
+- re-measured headless through the real widget with the app's own grown strip
+  rects: 100 / 100 / 100 % of the letters' ink kept, against 100 / 100 / 98.3
+  with the clamp disabled. The round's photograph-based figure is larger; its
+  README records that locating a page inside a photograph was the hard part of
+  this round and that two of its three methods invented faults.
+- evidence: `test_the_blank_never_rises_into_the_strip_labels` (the rectangular
+  half, pre-existing) and the measurement above; the hexagonal half is pinned
+  by `test_a_real_sheet_at_a_real_size_is_blanked_whole` only in so far as it
+  proves the fill still covers everything it must.
+
+### B8-337 · FIXED · Three parts of the blank could be undone with every guard green
+- blocks release: no
+- status: FIXED
+- found by: round 10, stream A, and it is the most useful thing it found.
+  `_ring = self._hex_ring_px` to 0.0 (the sidecar ring ignored, B8-318 and half
+  of B8-326) left **21 passed** and put **13,354 device pixels** of printed ring
+  back on screen; the device-pixel conversion of the fringe slack to a fixed
+  3.0 left 21 passed and 4,489 px; dropping `slot` left 21 passed and 6 px.
+- cause, and it is the fixture: it paints a 700x900 page into an 820x980
+  widget, so the fit scale is **1.03** and an image pixel and a device pixel
+  are the same thing; its rows are pitched a whole 60 px apart, so the
+  unrounded slot is an arithmetic no-op; and it paints no band OUTSIDE the
+  field, which is the only place growing by the ring helps.
+- fix: `test_a_real_sheet_at_a_real_size_is_blanked_whole` is an A4 sheet at
+  300 dpi in a 700-pixel widget (scale 0.28), with a row pitch of 122.76 and a
+  full ring band around the outermost cells. The first two mutations now land
+  (1 failed each).
+- **`slot` deliberately has no guard of its own.** Its effect is 6 device
+  pixels on the sheets measured, and a test could only reach it by staging a
+  1.5 px rounding error. Round 10 verified it the other way instead, against
+  flood-filled printed ink on 49 chart pages: the hole lands 0.3 to 2.7 px
+  INSIDE the ink every time and never outside.
+- evidence: `test_a_real_sheet_at_a_real_size_is_blanked_whole`.
+
+### B8-338 · FIXED · `- esp` in the blank's top edge was dead code
+- blocks release: no
+- status: FIXED
+- found by: round 10, stream A. The clamp on the next line already lands on
+  `min_py - esp` whenever nothing higher binds, so subtracting the spacer twice
+  changed nothing: removing it moved 0 pixels on every chart the round built.
+- evidence: `test_an_unread_column_hides_its_edge_spacers` (eight window sizes)
+  and `test_the_blank_never_rises_into_the_strip_labels`, both unmoved.

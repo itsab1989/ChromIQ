@@ -513,3 +513,108 @@ def test_the_blank_asks_for_each_hexagon_once_per_strip(qapp, tmp_path,
     assert calls["n"] <= ceiling, (
         f"the blank asked for {calls['n']} hexagons; one pass per strip is at "
         f"most {ceiling}, so it is doing the product again")
+
+
+# ---------------------------------------------------------------------------
+# A REAL SHEET, AT A REAL SIZE. Round 10 undid three parts of the blank with
+# all 21 tests above still green, and the cause was the fixture rather than the
+# tests: it paints a 700x900 page into an 820x980 widget, so the fit scale is
+# 1.03 and a DEVICE-pixel margin and an IMAGE-pixel one are the same number; it
+# pitches its rows a whole 60 px apart, so the unrounded slot the blank derives
+# is an arithmetic no-op; and it paints no band OUTSIDE the field, which is
+# where growing by the ring is the only thing that helps.
+#
+# This one is an A4 sheet at 300 dpi drawn into a 700-pixel-wide widget, a
+# scale of 0.28, with a row pitch of 122.76 and an edge band all round.
+# ---------------------------------------------------------------------------
+A4_W, A4_H = 2480, 3508
+SHEET_PATCH_W, SHEET_ROW_PITCH = 141, 122.76
+SHEET_RING = 17.7
+SHEET_COLS, SHEET_ROWS = 6, 10
+SHEET_LEFT, SHEET_TOP = 440, 300
+EDGE_COLOUR2 = (0, 220, 220)      # the outer band, counted as the ring is
+
+
+def _sheet_boxes():
+    """Boxes the way `geometry.patch_rects_px` records them on a real sheet:
+    integers rounded off a pitch that is not one."""
+    from workflow.layout_engine import hexagon
+    out = []
+    for c in range(SHEET_COLS):
+        for r in range(SHEET_ROWS):
+            dx = hexagon.stagger_dx(SHEET_PATCH_W, r)
+            out.append(QRect(int(SHEET_LEFT + c * SHEET_PATCH_W + dx),
+                             int(round(SHEET_TOP + r * SHEET_ROW_PITCH)),
+                             SHEET_PATCH_W, int(round(SHEET_ROW_PITCH))))
+    return out
+
+
+def _sheet_strip_rects(boxes):
+    out = []
+    for c in range(SHEET_COLS):
+        cb = boxes[c * SHEET_ROWS:(c + 1) * SHEET_ROWS]
+        out.append(QRect(SHEET_LEFT + c * SHEET_PATCH_W,
+                         min(b.y() for b in cb), SHEET_PATCH_W,
+                         max(b.bottom() for b in cb) - min(b.y() for b in cb) + 1))
+    return out
+
+
+def _sheet_page(tmp_path, boxes, name):
+    """The cell in the ring colour, the ink inside it, and a full band of the
+    ring colour OUTSIDE the outermost cells: that band is what "Edge spacers"
+    prints, and covering it is the only job the outward growth has."""
+    from PIL import ImageDraw
+    from workflow.layout_engine import hexagon
+    path = tmp_path / name
+    im = Image.new("RGB", (A4_W, A4_H), (255, 255, 255))
+    dr = ImageDraw.Draw(im)
+    for b in boxes:
+        pts = hexagon.vertices(b.x(), b.y(), b.width(), b.height())
+        out = hexagon.inset(pts, -SHEET_RING / 2.0)          # the outer band
+        dr.polygon([(float(x), float(y)) for x, y in out], fill=EDGE_COLOUR2)
+    for b in boxes:
+        pts = hexagon.vertices(b.x(), b.y(), b.width(), b.height())
+        dr.polygon([(float(x), float(y)) for x, y in pts], fill=RING_COLOUR)
+        ink = hexagon.inset(pts, SHEET_RING / 2.0)
+        dr.polygon([(float(x), float(y)) for x, y in ink], fill=PATCH)
+    im.save(path)
+    return path
+
+
+def test_a_real_sheet_at_a_real_size_is_blanked_whole(qapp, tmp_path):
+    """Every printed pixel of an A4 honeycomb, drawn at the scale a window
+    really draws it, with nothing read.
+
+    MUTATIONS, each proven to land where the older fixture could not see them:
+    ignore `_hex_ring_px`; make the fringe slack a fixed 3.0 image pixels
+    instead of 3.0 device pixels; drop the `slot` argument.
+    """
+    boxes = _sheet_boxes()
+    page = _sheet_page(tmp_path, boxes, "a4-sheet.tif")
+    from ui.tiff_preview import TiffPreview
+    p = TiffPreview()
+    try:
+        p.resize(700, 980)                    # A4 at about 0.28
+        p.load_tiff([page])
+        qapp.processEvents()
+        p.set_hex_zigzag(True, flat_top=False)
+        p.set_hex_ring_px(SHEET_RING)
+        p.set_page_patch_boxes({0: list(boxes)})
+        p.set_stripe_rects(_sheet_strip_rects(boxes))
+        p.set_stripe_read_map({i: False for i in range(SHEET_COLS)})
+        p.set_show_only_measured(True)
+        p.show()
+        qapp.processEvents()
+        p._update_display()
+        qapp.processEvents()
+        pm = p._img_label.pixmap()
+        img = pm.toImage() if pm is not None else None
+    finally:
+        p.close()
+    assert img is not None
+    ink = _count(img, _coloured)
+    band = _count(img, _ring_ink)
+    assert ink == 0, f"{ink} pixels of printed patch ink survived the blank"
+    assert band == 0, (
+        f"{band} pixels of the printed ring or the outer band survived the "
+        f"blank, which is what growing the fill by the ring is for")

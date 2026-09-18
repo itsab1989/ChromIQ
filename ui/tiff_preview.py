@@ -2965,7 +2965,13 @@ class TiffPreview(QWidget):
                 # they should then be i think"*.
                 esp = float(max(0, int(getattr(self, "_edge_spacer_px", 0))))
                 min_py = min(b.y() for b in cp)
-                top = min_py - vpad - esp
+                # NOT `- esp` HERE. The clamp two lines down is
+                # `max(top, min(rects[i].top(), min_py - esp))`, which already
+                # lands on `min_py - esp` whenever nothing higher binds, so
+                # subtracting the spacer a second time changed nothing: round
+                # 10 removed it and measured 0 differing pixels on every chart
+                # it had built.
+                top = min_py - vpad
                 # NEVER RISE ABOVE THE STRIP'S OWN TOP, and that clamp is not
                 # conditional. It used to fire only `if band_top < min_py`,
                 # which reads as "only when the rect was grown up to a label
@@ -3172,6 +3178,43 @@ class TiffPreview(QWidget):
                             continue
                         _reg = _reg.subtracted(
                             QRegion(_pts(_rb, _ring + _HOLE_SLACK)))
+                    # ...AND THE LABEL CLAMP APPLIES HERE TOO. `top` is
+                    # B8-306's unconditional clamp, and until round 10 only the
+                    # RECTANGULAR branch below consulted it: a honeycomb's
+                    # hexagons were grown upward by half the ring plus the
+                    # fringe slack and walked straight into the strip letters.
+                    # Measured on screen, CR30 pointy, 3.0 mm ring, no edge
+                    # spacers, nothing read: **82.6 %** of the letters' ink left
+                    # at 940x880 against 96.8 % with the fringe slack removed,
+                    # so most of the loss is this change set's own. B8-306's
+                    # guard could not see it: it builds its page with
+                    # `hexagonal=False`, which is the branch that still had the
+                    # clamp.
+                    #
+                    # A region cannot be clamped by moving a number, so the
+                    # whole strip's fill is cut at the same line the rectangle
+                    # uses, converted to device space the same way.
+                    # THE FLOOR IS THE LABEL BAND, AND ONLY WHERE THERE IS
+                    # ONE. `top` itself cannot be used: it is clamped to
+                    # `min_py - esp`, the first patch's own top, and a hexagon
+                    # legitimately reaches a sixth of its slot ABOVE that. A
+                    # strip rect that was grown to a label band has its top
+                    # above the first patch (measured on six chart types: i1 85
+                    # against 315, SpectroScan 81 against 123, ColorMunki 102
+                    # against 319, rotated CR30 97 against 134), and that line
+                    # is what the letters stand on. A rect whose top IS the
+                    # first patch carries no band, so there are no letters to
+                    # protect and no clamp is wanted.
+                    if float(rects[i].top()) < min_py:
+                        import math as _m3
+                        _ytop = _m3.floor(
+                            (float(rects[i].top()) * sy + oy) * _dpr) / _dpr
+                        _rb2 = _reg.boundingRect()
+                        _yi = int(_m3.floor(_ytop))
+                        if _rb2.top() < _yi:
+                            _reg = _reg.intersected(QRegion(
+                                _rb2.x(), _yi, _rb2.width(),
+                                _rb2.bottom() - _yi + 1))
                     painter.save()
                     painter.setClipRegion(_reg)
                     painter.fillRect(_reg.boundingRect(), white)
