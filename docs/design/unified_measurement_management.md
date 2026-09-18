@@ -1963,34 +1963,44 @@ grey steps, no tone ramp, needs a reference file, fewer than 20 patches).*
 >
 > A row that was not computed says nothing about the printer. To have it checked, add the missing patches to the chart in Create Chart (for the grey balance: “Neutral grey ramp” with 16 steps), print the new chart and measure it again.
 
-### M-REPORT-DELETE · PROPOSED · one saved report is about to be removed — Measurement Report
+### M-REPORT-DELETE · PROPOSED · one generated report is about to leave the list — Measurement Report
 
 *New for #182, 2026-09-16. The design authority asked for it before a non-beta
 release: "the selection and deletion of reports with a selector input box is
 needed and should be made first". Nothing in this model governs removing a
 report, and §5 of `measurement_report_limits.md` governs only the
 archive-then-recalculate rule, which is about rewriting one. Shown by the
-Measurement Report window's "Saved reports" row when Delete is pressed, before
-anything is removed; Cancel is the default. `{what}` names the report the way
-the selector names it (the measurement's date and time, the report type, the
-limit set it was judged against); `{file}` is the file's own name; `{n}` is how
-many saved reports of that measurement are left afterwards.*
+Measurement Report window's "Delete Selected Report" button, before anything is
+moved; Cancel is the default.*
+
+*REVISED 2026-09-18, and the revision is what the button does. Knut's L.7
+(§13 of `measurement_report_limits.md`) says the files are MOVED: "which then
+creates a dated report folder in the old/ folder where the files for that
+report is moved to." The wording it replaces described deleting one file and
+ended "ChromIQ cannot undo this", which was true of the old button and is false
+of this one. An entry in the list is also one DOCUMENT now (B8-383), which may
+be one file per measurement it covers, so the count is of files rather than of
+what is left behind. Neither wording has been approved. `{what}` names the
+report the way the list names it; `{n}` is how many files it is made of;
+`{where}` is the folder they are moved to, which L.7 decides from what the
+report spans.*
 
 *The one refusal is not a window: the only saved report of a DATED
 VERIFICATION cannot be deleted, because that verdict is the record §5 keeps
 comparable across dates, so the button is disabled and a line beside it says
 so. That rule waits for approval with the wording.*
 
-> **Delete this saved report?**
+> **Delete this report from the list?**
 >
-> This removes one saved report from your project:
+> This report is taken out of the list of generated reports:
 >
 > {what}
-> {file}
 >
-> The measurement it describes is not touched, and no other report of that measurement is touched. {n} saved reports of it are left afterwards.
+> Its {n} files are moved here:
 >
-> ChromIQ cannot undo this.
+> {where}
+>
+> Nothing is destroyed. The files stay on your disk in that folder, and the measurements they describe are not touched.
 
 ### M-THRESHOLDS-NOT-CERTIFICATION · PROPOSED · what ChromIQ measures and what it does not claim — Report limits window
 
@@ -3272,6 +3282,28 @@ was the sentence saying it happened, and where to start again.*
 >
 > A scan is read through the target’s own recognition file, and a different target has a different grid, so a placement made on the old one would not mean anything on this one. The scan that was loaded, its four corners and any further scans on this page have been dropped.
 > Nothing on disk was touched. Pick the scan again — or press “Try with a demo scan” — for the target now selected.
+
+### WITHDRAWN 2026-09-18 — the update-or-create question (B8-375, B8-384)
+
+*Proposed on 2026-09-18 from Knut's own specification of that morning, which
+said that on changing a setting "it is checked if this report type and judged
+against combination already exists. If it exists the user will be asked if he
+wants to update the existing report (overwrite) or create a new report." Two
+readings of it were written out here rather than chosen, and the wording went to
+review before anything was built.*
+
+*He answered the same day and the question is not wanted:*
+
+> *"It is better that existing reports are not overwritten. A user could instead
+> select and delete old reports they do not want."*
+
+*So **Generate report always writes a new report and nothing is ever
+overwritten**, and the user prunes the list with "Delete Selected Report", which
+moves the files into an `old/` folder and destroys nothing (M-REPORT-DELETE
+above). The question is withdrawn rather than left waiting: it was never given an
+`M-` identifier and nothing in the code refers to it. What his defect objected to
+was that ONE press of Generate wrote TWO files and put two lines in the list; one
+press now writes one document and one line, which is the behaviour he asked for.*
 
 ### Frame titles awaiting a ruling — Create Chart ▸ Manual ▸ Expert (B8-21 §4)
 

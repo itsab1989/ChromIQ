@@ -1996,6 +1996,46 @@ still binds the run and still asks its recalculate question; choosing a type
 still stores it on the run. Deferring those would turn a deliberate act into a
 pending one, which is not what he asked for.
 
+### Confirmed behaviour: the PDF is what is on screen, and the door stays open
+
+**Confirmed by:** Knut, 2026-09-18.
+
+Round 21 measured that **Save report as PDF** walked straight past the
+deferral: with the pulldown on `Colour summary (one page)`, the red line up and
+the document on screen still reading *Full colour check* over several pages,
+the export wrote a one-page `Colour summary` document nobody had seen, and left
+the window unchanged with the line still up. The rule did not say what the
+export should do, so it was reported rather than fixed. He answered:
+
+> *"After a setting is changed, giving the user a red text notification that he
+> should press Generate Report to apply the changes, then the 'Print Report as
+> PDF' button should be disabled until the Generate Report button has been
+> pressed. After Generate Report button has been pressed the report output is
+> updated, and then the 'Print Report as PDF' can be pressed, which then
+> creates the document as the report is written. So, as long as the settings
+> for a loaded report is untouched the PDF can be generated and printed."*
+
+He first ruled that the button should be greyed until Generate was pressed,
+and that was built. Later the same day he changed it:
+
+> *"I realise that it is better that clicking the button always generates a pdf
+> from the currently loaded report text. If some settings are changed, those
+> are not applied before clicking Generate Report, and making the PDF should be
+> possible still, because the user can also revert any changed settings. Thus
+> the disabling of the Print Report As PDF button is not needed, unless no
+> report is loaded in the window at all."*
+
+**So the button follows the sources, as it always did, and the fault is fixed
+at the other end**: `_export_pdf` builds from the settings the document on
+screen was built with (`_doc_built_with`) rather than from whatever the
+controls hold now. That answers the original complaint better than greying the
+button did, because a reader can still hand somebody the document in front of
+them while they think about a setting they have moved.
+
+The five settings are restored for the length of the build with every signal
+blocked, so nothing repaints and nothing is written; see
+`_as_the_document_was_built`.
+
 ### ⏳ Awaiting confirmation
 
 **Confirmed by:** *nobody yet.* Driven on the real window over fourteen steps

@@ -2399,19 +2399,26 @@ M_REPORT_CHART_MISMATCH = _m(
 # `measurement_report_limits.md` governs only the archive-then-recalculate
 # rule, which is about rewriting a report rather than removing one. So the
 # window says exactly what goes and what stays, and the WORDING waits here.
+# REVISED 2026-09-18 for Knut's L.7, which says what the button DOES: *"which
+# then creates a dated report folder in the old/ folder where the files for
+# that report is moved to."* The wording it replaces described an unlink and
+# ended "ChromIQ cannot undo this", which was true of the old button and is
+# false of this one. It also spoke of one FILE, and an entry in the list is now
+# one DOCUMENT, which may be one file per measurement it covers (B8-383). Still
+# PROPOSED: neither wording has been approved.
 M_REPORT_DELETE = _m(
     "M-REPORT-DELETE",
-    "Delete this saved report?",
-    "This removes one saved report from your project:\n\n{what}\n{file}\n\n"
-    "The measurement it describes is not touched, and no other report of that "
-    "measurement is touched. {n} saved reports of it are left afterwards.\n\n"
-    "ChromIQ cannot undo this.",
+    "Delete this report from the list?",
+    "This report is taken out of the list of generated reports:\n\n{what}\n\n"
+    "Its {n} files are moved here:\n\n{where}\n\n"
+    "Nothing is destroyed. The files stay on your disk in that folder, and "
+    "the measurements they describe are not touched.",
     body_one=(
-        "This removes one saved report from your project:\n\n{what}\n{file}\n\n"
-        "The measurement it describes is not touched, and no other report of "
-        "that measurement is touched. One saved report of it is left "
-        "afterwards.\n\n"
-        "ChromIQ cannot undo this."),
+        "This report is taken out of the list of generated reports:\n\n"
+        "{what}\n\n"
+        "Its file is moved here:\n\n{where}\n\n"
+        "Nothing is destroyed. The file stays on your disk in that folder, "
+        "and the measurement it describes is not touched."),
     count_key="n",
     approved=False)
 

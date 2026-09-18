@@ -1295,3 +1295,89 @@ def test_re_adding_loaded_files_does_not_re_read_every_source(tmp_path, qapp):
         assert reads[0] == files[2]
     finally:
         dlg.close()
+
+
+def test_the_pdf_door_stays_open_and_the_pdf_is_what_is_on_screen(tmp_path, qapp):
+    """B8-364, and Knut ruled on it twice.
+
+    Round 21 measured the fault on screen: the pulldown said "Colour summary
+    (one page)", the red line was up, the document said "Full colour check" and
+    ran to several pages, and **Save report as PDF...** wrote a one-page Colour
+    summary nobody had ever seen.
+
+    His first ruling was to grey the button until Generate was pressed, and
+    that was built. He then changed it, 2026-09-18: *"I realise that it is
+    better that clicking the button always generates a pdf from the currently
+    loaded report text... Thus the disabling of the Print Report As PDF button
+    is not needed, unless no report is loaded in the window at all."*
+
+    So the button follows the sources, and the fault is fixed at the other end:
+    the export builds from the settings the document was built with. That is
+    the better answer to the original complaint, because a reader can still
+    hand somebody the document in front of them while they think about a
+    setting they have moved.
+
+    MUTATION, proven to land: drop the `_as_the_document_was_built()` wrapper
+    from `_export_pdf`.
+    """
+    from tests.test_a_report_says_what_it_is_and_what_judged_it import _dialog
+
+    dlg, _run, _fm = _dialog(tmp_path, qapp)
+    try:
+        dlg._render()
+        qapp.processEvents()
+        gen = getattr(dlg, "_generate_btn", None)
+        if gen is None or not gen.isEnabled():
+            pytest.skip("Generate is not live here, so nothing can be deferred")
+        assert dlg._pdf_btn.isEnabled(), "a loaded report must be exportable"
+        built = tuple(dlg._doc_built_with)
+        on_screen = dlg._report_body_html(dlg._runs_for_report(), for_pdf=True)
+
+        dlg._detail_check.setChecked(not dlg._detail_check.isChecked())
+        qapp.processEvents()
+        assert dlg._stale_label.isVisible(), "the red line did not come up"
+        assert dlg._pdf_btn.isEnabled(), (
+            "the button is greyed while the red line is up, which is the rule "
+            "he withdrew: a reader must still be able to export the document "
+            "in front of them")
+
+        # **DRIVE THE EXPORT, DO NOT CALL THE HELPER.** The first version of
+        # this test opened the context manager itself and compared the html, so
+        # it proved the helper worked and said nothing about whether
+        # `_export_pdf` uses it: the mutation that removes the wrapper from the
+        # export left it green. What the guard has to watch is the real door.
+        seen = {}
+        real_html = dlg._pdf_html
+
+        def _capture(runs, charts_html):
+            out = real_html(runs, charts_html)
+            seen["html"] = out
+            return out
+
+        dlg._pdf_html = _capture
+        import ui.widgets as _w
+        real_save = _w.save_file_dialog
+        _w.save_file_dialog = lambda *a, **k: str(tmp_path / "out.pdf")
+        from PyQt6.QtGui import QDesktopServices
+        real_open = QDesktopServices.openUrl
+        QDesktopServices.openUrl = staticmethod(lambda *a, **k: True)
+        try:
+            dlg._export_pdf()
+            qapp.processEvents()
+        finally:
+            _w.save_file_dialog = real_save
+            QDesktopServices.openUrl = real_open
+            dlg._pdf_html = real_html
+        assert "html" in seen, "the export never built a document"
+        assert seen["html"] == on_screen, (
+            "the PDF is not the document on screen: the settings moved and the "
+            "export followed them")
+        # ...and the window is exactly as it was afterwards
+        assert tuple(dlg._doc_settings()) != built, (
+            "the fixture put the control back by itself, so this proves "
+            "nothing")
+        assert dlg._stale_label.isVisible()
+    finally:
+        dlg.close()
+
+

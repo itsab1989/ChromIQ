@@ -354,6 +354,13 @@ def load_tiff_as_rgb(
     return TiffPreview._load_frame(path, frame, ink_channels)
 
 
+#: Set to an ``(r, g, b)`` tuple to make "Show only measured patches" paint its
+#: blank in that colour instead of paper white. A diagnostic, never a setting:
+#: no preference reaches it and no code path writes it. See the note beside its
+#: one use in the blanking.
+BLANK_DEBUG_COLOUR = None
+
+
 class _CursorOverlay(QWidget):
     """A transparent overlay that draws the #29 coordinate cross-hair + readout
     box right at the pointer. It sits on top of the image label and shares its
@@ -2893,6 +2900,54 @@ class TiffPreview(QWidget):
         # already promises.
         items = sorted(self._patch_overlay.get(self._current, []),
                        key=lambda it: (int(it[0].y()), int(it[0].x())))
+        # WHERE THE BLANK LANDED, KEPT, BECAUSE THE SPLIT'S SLIVER MIXES WITH
+        # WHAT IS UNDERNEATH AND HAD NO WAY TO KNOW (B8-371).
+        #
+        # `_sliver` below repaints a boundary pixel as `c * split +
+        # (1 - c) * spacer`, and it read `spacer` off the PRINTED PAGE. With
+        # "Show only measured patches" on, the page at that pixel may already
+        # have been covered by the blank, and mixing the printed ink back in
+        # put a slice of it on top of the blank: on a `bw` chart that slice is
+        # a BLACK hairline hugging the patch edge, which is exactly what Basti
+        # photographed (2026-09-18). These are the shapes the blank actually
+        # painted, in the painter's own logical coordinates, so the sliver can
+        # ask what is under the pixel it is about to paint instead of guessing.
+        #
+        # A HONEYCOMB CANNOT SHOW THIS FAULT TODAY, and its shapes are kept
+        # anyway. The hexagonal branch of the items loop below ends in
+        # `continue`, before the slivers, so no sliver is ever drawn on a
+        # honeycomb: measured on screen with the blank in magenta, a
+        # SpectroScan pointy honeycomb at 1160x1000 and a CR30 flat-top
+        # (rotated) at 1320x940 came out **0 device pixels different** before
+        # and after this change. The regions cost one append per blanked strip
+        # and mean that whoever gives the honeycomb a sliver does not have to
+        # find this bug again.
+        _blank_colour = None            # None ⇒ nothing was blanked
+        _blank_rects: list = []         # QRectF, rectangular charts
+        _blank_regions: list = []       # QRegion + label cut, honeycombs
+
+        def _under_blank(pt: QPointF) -> bool:
+            """Whether the blank has already covered this logical point.
+
+            A FLOAT rectangle test, not a QRegion one, for the rectangular
+            charts: the edge that matters sits a fifth of a logical pixel from
+            a read patch's own edge on an A4 sheet, and a region rounded to
+            whole logical pixels cannot tell the two apart. The honeycomb's
+            blank is a region by construction (see the hexagonal branch), and
+            there the same integer scanlines that painted it are the honest
+            answer to what it covered.
+            """
+            if _blank_colour is None:
+                return False
+            for _r in _blank_rects:
+                if _r.contains(pt):
+                    return True
+            for _reg, _cut in _blank_regions:
+                if _cut is not None and pt.y() < _cut:
+                    continue
+                if _reg.contains(QPoint(int(pt.x()), int(pt.y()))):
+                    return True
+            return False
         # "Show only measured patches" (Knut): blank every patch on the page to
         # white with a thin outline first, so unread patches read as empty; the
         # measured split-patch items then draw on top, leaving only the read
@@ -2906,7 +2961,21 @@ class TiffPreview(QWidget):
             # producing (Sebastian). Reading progress is still obvious: measured
             # columns are coloured, unread ones are blank.
             read_map = self._stripe_read_map or {}
-            white = QColor(255, 255, 255)
+            # **THE BLANK CAN BE ASKED TO PAINT ITSELF A COLOUR NOBODY ELSE
+            # USES.** Twenty rounds of this change set have gone into where the
+            # blank stops, and every one of them had to infer that from ink
+            # that survived it: a black spacer, a green dash, a letter's foot.
+            # Inferring is how three probes in one afternoon found their answer
+            # somewhere else (the window's own chrome, the strip labels, the
+            # read column next door). With `BLANK_DEBUG_COLOUR` set the blank
+            # paints magenta instead of paper and the question stops being a
+            # measurement at all: whatever is not magenta was not covered, and
+            # a photograph says so to anybody looking at it.
+            #
+            # `None` in every shipped path; nothing reads it but this line.
+            white = (QColor(*BLANK_DEBUG_COLOUR) if BLANK_DEBUG_COLOUR
+                     else QColor(255, 255, 255))
+            _blank_colour = white
             rects = self._stripe_rects
             n = len(rects)
 
@@ -3239,6 +3308,7 @@ class TiffPreview(QWidget):
                     # protect and no clamp is wanted.
                     painter.save()
                     painter.setClipRegion(_reg)
+                    _cut = None
                     if float(rects[i].top()) < min_py:
                         # CEIL, AND ON A DEVICE ROW, WHICH A QRegion CANNOT DO.
                         # A QRegion's rows are whole WIDGET pixels, and a whole
@@ -3301,6 +3371,7 @@ class TiffPreview(QWidget):
                         if _hi is not None and _yi > _hi:
                             _yi = _m3.floor(_hi * _dpr) / _dpr
                         if float(_rb2.top()) < _yi:
+                            _cut = _yi
                             painter.setClipRect(
                                 QRectF(float(_rb2.x()), _yi,
                                        float(_rb2.width()),
@@ -3308,6 +3379,9 @@ class TiffPreview(QWidget):
                                 Qt.ClipOperation.IntersectClip)
                     painter.fillRect(QRectF(_reg.boundingRect()), white)
                     painter.restore()
+                    # what this strip's blank really covers = the region, cut
+                    # at the label line where there was one (B8-371)
+                    _blank_regions.append((_reg, _cut))
                 else:
                     # Horizontally cover the column's own patches AND reach the
                     # gap midpoint to each neighbour so the inter-column gap is
@@ -3344,10 +3418,10 @@ class TiffPreview(QWidget):
                     import math as _m2
                     _yt = _m2.floor((top * sy + oy) * _dpr) / _dpr
                     _yb = _m2.ceil((bot * sy + oy) * _dpr) / _dpr
-                    painter.fillRect(
-                        QRectF(left * s + ox, _yt,
-                               (right - left) * s, _yb - _yt),
-                        white)
+                    _br = QRectF(left * s + ox, _yt,
+                                 (right - left) * s, _yb - _yt)
+                    painter.fillRect(_br, white)
+                    _blank_rects.append(_br)
 
             # On the clean white background, draw a thin cell grid so each unread
             # patch reads as its own empty cell (Knut). Each patch gets its
@@ -3701,21 +3775,48 @@ class TiffPreview(QWidget):
                         short = -short
                         pos = (_r - 1) / _dpr
                     c = max(0.0, min(1.0, short))
-                    spacer = self._page_colour_at(*probe)
+                    if vertical:
+                        a0 = _dsnap(seg_a * sy + oy)
+                        a1 = _dsnap(seg_b * sy + oy)
+                        band = QRectF(pos, a0, _one, a1 - a0)
+                    else:
+                        a0 = _dsnap(seg_a * s + ox)
+                        a1 = _dsnap(seg_b * s + ox)
+                        band = QRectF(a0, pos, a1 - a0, _one)
+                    # **MIX WITH WHAT IS ON SCREEN, NOT WITH WHAT IS PRINTED
+                    # (B8-371).** The whole point of the mix is to leave the
+                    # ground its share of the pixel, and the ground under this
+                    # band is the BLANK wherever "Show only measured patches"
+                    # has covered the page. Reading the printed page there put
+                    # `1 - c` of a black `bw` spacer back on top of the blank:
+                    # a one-device-pixel black hairline hugging the patch, on
+                    # the top and bottom edges of a patch whose own strip is
+                    # blanked (every whole-chart and patch-by-patch read, where
+                    # no strip is ever marked read) and on the side facing a
+                    # blanked neighbour. Basti photographed it and named it
+                    # exactly: *"bottom of the blue patch black hairline and
+                    # the patch below it has a black hairline on top and
+                    # bottom ... of course on others it is there as well but
+                    # white which you would not see"*. White is what it always
+                    # should have been: the spacer the user is looking at is
+                    # the blank, whatever the chart printed underneath.
+                    #
+                    # The ROUNDING is not the cause and was measured not to be:
+                    # `_r = floor(dev_edge + 0.5)` here is `_dsnap`'s own, the
+                    # same one the box uses, so the band and the box agree on
+                    # every edge. What the rounding decides is WHICH edges get
+                    # a band at all (only those the snap left uncovered), which
+                    # is why the hairline showed on some patches and not on
+                    # their neighbours.
+                    spacer = (_blank_colour if _under_blank(band.center())
+                              else self._page_colour_at(*probe))
                     if spacer is None:
                         return
                     mix = QColor(
                         int(round(c * colour.red() + (1 - c) * spacer.red())),
                         int(round(c * colour.green() + (1 - c) * spacer.green())),
                         int(round(c * colour.blue() + (1 - c) * spacer.blue())))
-                    if vertical:
-                        a0 = _dsnap(seg_a * sy + oy)
-                        a1 = _dsnap(seg_b * sy + oy)
-                        painter.fillRect(QRectF(pos, a0, _one, a1 - a0), mix)
-                    else:
-                        a0 = _dsnap(seg_a * s + ox)
-                        a1 = _dsnap(seg_b * s + ox)
-                        painter.fillRect(QRectF(a0, pos, a1 - a0, _one), mix)
+                    painter.fillRect(band, mix)
 
                 _rx, _ry = int(rect.x()), int(rect.y())
                 _rr = _rx + int(rect.width())

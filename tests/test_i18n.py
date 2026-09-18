@@ -970,18 +970,26 @@ _IDENTICAL_TO_KEY = {
     # ...and once more, +1 each, for B8-328's SECOND attempt: three layout help
     # texts rewritten after an adversary round measured the first rewrite false
     # on 154 of the 160 built-in charts.
+    # 2026-09-18, B8-380/B8-383: the generated-reports control gained fourteen
+    # strings (the list's own name and help, "Delete Selected Report", the two
+    # sentences L.9 asks for, the four clauses a generated NAME is built from,
+    # and the revised M-REPORT-DELETE). German is translated in the same commit,
+    # so `de` does not move; the other twelve stay English until the pass before
+    # GA, which is the standing rule for a beta, so each rises by six. Six and
+    # not fourteen: eight of the fourteen were already in those catalogues from
+    # elsewhere, and `i18n_sync` also retired eight stale keys.
     "de": 143,
-    "es": 383,
-    "fr": 405,
-    "it": 394,
-    "ja": 369,
-    "nl": 410,
-    "no": 395,
-    "pl": 387,
-    "pt": 385,
-    "ru": 358,
-    "sv": 396,
-    "zh_CN": 363,
+    "es": 389,
+    "fr": 411,
+    "it": 400,
+    "ja": 375,
+    "nl": 416,
+    "no": 401,
+    "pl": 393,
+    "pt": 391,
+    "ru": 364,
+    "sv": 402,
+    "zh_CN": 369,
 }
 
 

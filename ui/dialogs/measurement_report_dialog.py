@@ -9,10 +9,13 @@ the same chart can be compared, revealing ink / printer / instrument drift.
 """
 from __future__ import annotations
 
+from contextlib import contextmanager
+
 import copy
 import html
 import json
 import os
+import shutil
 from functools import partial
 from datetime import datetime
 from pathlib import Path
@@ -1145,6 +1148,22 @@ class MeasurementReportDialog(QDialog):
             "trend, the tables and the PDF — nothing is changed on disk, and "
             "ticking it brings it straight back. Select a profile row and use "
             "“Remove Profile's Measurements…” to drop the whole profile."))
+        # **THE SELECTED ROW IS THE WINDOW'S OWN GREEN, NOT THE APP'S CYAN.**
+        # Basti, 2026-09-18, on a photograph of this very list: *"when i click
+        # the demo switching in the list it gets a cyan overlay. should be the
+        # green accent color instead"*. The cyan comes from one app-wide rule
+        # in `ui/styles.py` (`QListWidget::item:selected { background: ACCENT }`
+        # with `ACCENT = SPEC_CYAN`), and every other accent in this window is
+        # SPEC_GREEN already: the info icons, the tick boxes, the help buttons.
+        # Overridden here rather than app-wide, because that one line repaints
+        # every list in ChromIQ and that is his call, not this round's.
+        #
+        # Dark text on it, not white: SPEC_GREEN is a light colour and white on
+        # it is the contrast fault this project has already fixed twice in
+        # other places.
+        self._profile_list.setStyleSheet(
+            "QListWidget::item:selected {"
+            f" background: {SPEC_GREEN}; color: #0a0a0a; }}")
         self._profile_list.itemSelectionChanged.connect(self._update_source_buttons)
         #: run keys the user unticked — session-only, nothing on disk changes.
         self._hidden_runs: "set[str]" = set()
@@ -1160,11 +1179,17 @@ class MeasurementReportDialog(QDialog):
         # button, so the user can choose to generate a report that is
         # selected."* The type is a VIEW of the same judged data, and this is
         # the button that keeps one.
+        # **AND IT IS NOT IN THIS ROW ANY MORE (B8-380, L.8).** Knut,
+        # 2026-09-18: *"The button for Generate Report and Delete Selected
+        # Report should probably be placed vertically over one another left to
+        # the new List of Generated Reports, so that it is clear that the
+        # buttons are related to the list of generated reports."* It is built
+        # here, beside the two buttons it used to sit with, and packed into the
+        # list row below; the widget and its signal are unchanged.
         self._generate_btn = QPushButton(tr("Generate report"), self)
         self._generate_btn.setStyleSheet(_compact_btn)
         self._generate_btn.clicked.connect(self._on_generate_report)
         self._generate_btn.setEnabled(False)
-        out_row.addWidget(self._generate_btn)
         self._pdf_btn = QPushButton(tr("Save report as PDF…"), self)
         self._pdf_btn.setStyleSheet(_compact_btn)
         self._pdf_btn.clicked.connect(self._export_pdf)
@@ -1242,6 +1267,122 @@ class MeasurementReportDialog(QDialog):
             self, min_width=440, color=SPEC_GREEN))
         out_row.addStretch(1)
         top_v.addLayout(out_row)
+
+        # ------------------------------------------------------------------
+        # The list of generated reports (B8-380, §13 rules L.1, L.8, L.9)
+        # ------------------------------------------------------------------
+        # Knut, 2026-09-18: *"the area … is made into a selectable and
+        # scrollable selection box … This selection box needs height to show at
+        # least 3 to 4 rows of text, and only one named report can be selected
+        # at a time, and if more reports than can be shown in the height of the
+        # input box, then one may scroll down … Then it may need to be below the
+        # Generate Report button, and above the Report type field."*
+        #
+        # It was a one-row pulldown, sitting BELOW "Judged against" — measured
+        # on screen at y=388 with Generate report at y=250 and Report type at
+        # y=292. The order is now his: the buttons stacked to the left of a
+        # box that shows four rows and scrolls past them, the whole of it above
+        # Report type.
+        #
+        # AND EVERY ENTRY IS A DOCUMENT, not a file. That is B8-383 and it is
+        # why this could not be rearranged first: a control moved around the
+        # wrong model is still the wrong model.
+        from PyQt6.QtWidgets import QComboBox, QGridLayout
+        from ui.widgets import NoScrollComboBox
+        docs_row = QHBoxLayout()
+        self._delete_report_btn = QPushButton(
+            tr("Delete Selected Report"), self)
+        self._delete_report_btn.setStyleSheet(_compact_btn)
+        self._delete_report_btn.clicked.connect(self._on_delete_report)
+        self._delete_report_btn.setEnabled(False)
+        # A GRID, SO THE PAIR CAN UNSTACK ON A SHORT SCREEN. Stacked they are
+        # 64 px tall, which is 34 px more than the row they replace, and this
+        # window's own minimum already sits within about 30 px of an 800 px
+        # screen. `showEvent`'s ladder puts them side by side before it takes a
+        # millimetre off the document, which loses a reader nothing: it is the
+        # same two buttons, still beside the list they belong to.
+        self._report_btns = QGridLayout()
+        self._report_btns.setSpacing(4)
+        self._report_btns_stacked = True
+        self._report_btns.addWidget(self._generate_btn, 0, 0)
+        self._report_btns.addWidget(self._delete_report_btn, 1, 0)
+        btn_col = QVBoxLayout()
+        btn_col.setSpacing(4)
+        btn_col.addLayout(self._report_btns)
+        btn_col.addStretch(1)
+        docs_row.addLayout(btn_col)
+        # **A PULLDOWN, ON HIS RULING.** His paragraph asked for "a selectable
+        # and scrollable selection box … height to show at least 3 to 4 rows of
+        # text"; asked about it, he answered *"It is ok that 'Current Report
+        # Showing' is a pulldown list if that saves space in the window."* It
+        # does: a three-row box beside two stacked buttons cost this window
+        # 42 px of a minimum that already sits within about 30 px of an 800 px
+        # screen, and the whole of it had to be traded back out of the report
+        # view on a short display. What the pulldown keeps is the part of L.1
+        # that matters with one row visible: a NAME that carries the settings
+        # and the date and time, so one line can be told from another.
+        self._saved_combo = NoScrollComboBox(self)
+        self._saved_combo.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToContents)
+        self._saved_combo.setMinimumWidth(320)
+        self._saved_combo.currentIndexChanged.connect(self._on_saved_chosen)
+        # **THE NAME COMES BEFORE THE CONTROL IT NAMES.** The first cut put the
+        # label in the column to the RIGHT of the pulldown, and the photograph
+        # showed "Report shown (run2):" sitting past the far edge of the
+        # box, reading as a caption for whatever came after it. The two rows
+        # below this one have had their label on the left since the window was
+        # built; this one now matches them.
+        self._saved_label = QLabel(tr("Report shown:"), self)
+        docs_row.addWidget(self._saved_label)
+        docs_row.addWidget(self._saved_combo, 3)
+        # **ONE LINE, NOT THREE.** The name, the help button, the instruction
+        # and the Delete refusal stacked three deep came to 46 px beside a box
+        # that is 21 px tall when it is empty, and this window's minimum is
+        # measured against an 800 px screen. Only one of the last two ever has
+        # anything to say (`_set_saved_hint`), so the column is a row.
+        side_col = QVBoxLayout()
+        side_col.setSpacing(2)
+        head = QHBoxLayout()
+        self._saved_help = TooltipButton(
+            tr("Report shown"),
+            tr("Every report this run has generated, newest first. One entry "
+               "is one document: a single press of “Generate report” makes "
+               "one, however many measurements it covers.\n\n"
+               "Click an entry to bring that report back into this window "
+               "with the settings it was made with: its report type, the "
+               "limit set it was judged against, both tick boxes and the "
+               "measurements it covers. Nothing is rebuilt and nothing is "
+               "written.\n\n"
+               "Reports made by an earlier ChromIQ are listed one per file, "
+               "exactly as they were saved, and open the same way.\n\n"
+               "Delete Selected Report moves that report's files into an "
+               "old/ folder. Nothing is destroyed, and the measurement "
+               "itself is never touched."),
+            self, min_width=460, color=SPEC_GREEN)
+        head.addWidget(self._saved_help)
+        #: L.9: what to do with the list. One line, elided, whole sentence as
+        #: the tooltip, for the reason `_type_blurb` gives: a word-wrapped
+        #: label of its own is what pushed this window's bottom off an 800 px
+        #: screen, twice.
+        self._saved_hint = QLabel(self)
+        self._saved_hint.setWordWrap(False)
+        self._saved_hint.setStyleSheet(_faint_label_css(
+            resolve_mode(settings.get("appearance", "auto"))))
+        self._saved_hint_full = ""
+        head.addWidget(self._saved_hint, 1)
+        #: Why Delete is refused, when it is. Same one-line treatment.
+        self._saved_note = QLabel(self)
+        self._saved_note.setWordWrap(False)
+        self._saved_note.setStyleSheet(_faint_label_css(
+            resolve_mode(settings.get("appearance", "auto"))))
+        self._saved_note_full = ""
+        head.addWidget(self._saved_note, 1)
+        head.addStretch(1)
+        side_col.addLayout(head)
+        side_col.addStretch(1)
+        docs_row.addLayout(side_col, 2)
+        self._saved_row = docs_row
+        top_v.addLayout(docs_row)
         #: Says the document is older than the settings. **ON ITS OWN ROW,
         #: DIRECTLY UNDER THE BUTTON IT NAMES.** Put inside `out_row` with a
         #: stretch, as it was first built, it competed with four buttons and a
@@ -1301,6 +1442,26 @@ class MeasurementReportDialog(QDialog):
         #: of a measurement's saved reports the window shows, and a run that
         #: holds one report never has an entry here.
         self._chosen_reports: "dict[str, str]" = {}
+        #: B8-383. Which DOCUMENT the window is showing, and the settings that
+        #: document was made with.
+        #:
+        #: `_loaded_doc_id` is the entry in the list (see `document_key`): it
+        #: decides which entry is highlighted and, through `_chosen_reports`,
+        #: which file of each measurement is drawn. It survives a settings
+        #: change, because the document on screen does.
+        #:
+        #: `_loaded_doc` is that document's own recorded settings, and it is
+        #: DROPPED the moment the user moves a control (`_settings_touched`).
+        #: Restoring a report's settings and then going on to claim them after
+        #: the user has changed one is the shape of Knut's fifth defect: an
+        #: entry that disagrees with the document it names.
+        self._loaded_doc_id = ""
+        self._loaded_doc: "dict | None" = None
+        #: Whether the user has moved a setting since the document was loaded.
+        #: While it is True the document's own settings are not consulted: they
+        #: are no longer what is on screen. The document itself stays selected
+        #: and stays on the page, which is what the red line is about.
+        self._doc_settings_moved = False
         self._syncing_limits = False
         # #182 (D28, question 19): the KIND of document, chosen before the
         # numbers it is judged with. Two controls, one rule: D9 governs both,
@@ -1398,51 +1559,6 @@ class MeasurementReportDialog(QDialog):
         judged_row.addStretch(1)
         top_v.addLayout(judged_row)
 
-        # B8-250. The design authority, 2026-09-16: *"the selection and
-        # deletion of reports with a selector input box is needed and should be
-        # made first"*. A run may hold several reports of one measurement
-        # (Knut, 2026-09-11) and until now only the newest of them could ever
-        # be seen: the line above counts them and nothing could open one.
-        saved_row = QHBoxLayout()
-        self._saved_label = QLabel(tr("Saved reports:"), self)
-        saved_row.addWidget(self._saved_label)
-        self._saved_combo = NoScrollComboBox(self)
-        self._saved_combo.setSizeAdjustPolicy(
-            QComboBox.SizeAdjustPolicy.AdjustToContents)
-        self._saved_combo.setMinimumWidth(320)
-        self._saved_combo.currentIndexChanged.connect(self._on_saved_chosen)
-        saved_row.addWidget(self._saved_combo)
-        self._delete_report_btn = QPushButton(tr("Delete…"), self)
-        self._delete_report_btn.setStyleSheet(_compact_btn)
-        self._delete_report_btn.clicked.connect(self._on_delete_report)
-        saved_row.addWidget(self._delete_report_btn)
-        #: Why Delete is refused, when it is. Same one-line, elided treatment
-        #: as `_type_blurb`, for the same reason: a word-wrapped label of its
-        #: own is what pushed this window's bottom off an 800 px screen twice.
-        self._saved_note = QLabel(self)
-        self._saved_note.setWordWrap(False)
-        self._saved_note.setStyleSheet(_faint_label_css(
-            resolve_mode(settings.get("appearance", "auto"))))
-        self._saved_note_full = ""
-        saved_row.addWidget(self._saved_note, 1)
-        self._saved_help = TooltipButton(
-            tr("Saved reports"),
-            tr("Every report this run has saved, newest first. Choosing one "
-               "shows that report instead of the newest of its "
-               "measurement.\n\n"
-               "A measurement can have several: “Generate report” writes a new "
-               "one each time, and a run may hold different report types of "
-               "the same sheet on purpose.\n\n"
-               "Delete… removes the one report you have chosen. The "
-               "measurement itself is never touched, and neither is any other "
-               "report of it. The only saved report of a dated verification "
-               "cannot be deleted: its verdict is this run's record of that "
-               "date, and the dates are kept comparable."),
-            self, min_width=460, color=SPEC_GREEN)
-        saved_row.addWidget(self._saved_help)
-        saved_row.addStretch(1)
-        self._saved_row = saved_row
-        top_v.addLayout(saved_row)
         # The strip (Knut D25): shown only when the chart cannot supply a row
         # the set limits; hidden, not blank, when there is nothing to say.
         self._mismatch = QLabel(self)
@@ -1581,6 +1697,14 @@ class MeasurementReportDialog(QDialog):
 
             charts = (self._trend_de, self._trend_white,
                       self._trend_black, self._trend_corners)
+            # **THE FOURTH ROW OF THE GENERATED-REPORTS LIST GOES FIRST.** It
+            # is the widget that made this window taller (B8-380), it scrolls,
+            # and Knut asked for "at least 3 to 4 rows", so trading the fourth
+            # keeps his rule and costs a reader nothing that a scroll bar does
+            # not give back. Trading the report view for it would shrink the
+            # document to make room for a control about the document.
+            if _over() > 0:
+                self._stack_report_buttons(False)
             if _over() > 0:
                 self._view.setMinimumHeight(max(150, 240 - _over()))
             if _over() > 0:
@@ -1594,6 +1718,19 @@ class MeasurementReportDialog(QDialog):
                     c.setMinimumHeight(
                         max(60, c.minimumHeight() - _over()))
             h = max(h, min(layout.minimumSize().height(), cap))
+        # **AND IT MAY NOT GROW PAST THE SCREEN AFTERWARDS.** `resize` was the
+        # whole of this, and a resize is a one-off request: the window's own
+        # PREFERRED height is the sum of what its widgets would like, which is
+        # larger, and a platform that does not honour `resize` hands that back
+        # instead. Measured under the offscreen plugin, which is exactly such a
+        # platform: the ladder brought the layout's minimum to 729 px against a
+        # 760 px cap, `resize` asked for 729, and the window reported 819,
+        # because 819 is what its widgets would like. A maximum says the thing
+        # the resize was trying to say, and says it for every later relayout
+        # too. It is a ceiling and not a pin: the window can still be made
+        # smaller, and `showEvent` runs once per window, so a screen change
+        # does not leave an old screen's ceiling behind.
+        self.setMaximumHeight(cap)
         self.resize(w, h)
         x = area.left() + max(0, (area.width() - w) // 2)
         y = area.top() + max(0, (area.height() - h) // 2)
@@ -2649,6 +2786,14 @@ class MeasurementReportDialog(QDialog):
     def _settings_touched(self) -> None:
         """One of those five moved: keep the DOCUMENT as it is and say so.
 
+        **AND THE LOADED DOCUMENT STOPS SPEAKING FOR THE CONTROLS.** A document
+        restores the settings it was made with (L.2); the moment the user moves
+        one of them, those are no longer the settings on screen, and a pulldown
+        that went on showing the document's answer would be Knut's fifth defect
+        with the halves swapped: an entry disagreeing with the window that names
+        it. The document stays SELECTED and stays on the page, which is what the
+        red line below is about; only its claim on the controls is dropped.
+
         The control keeps its own new value, and whatever that value does on
         disk it still does: choosing a limit set still binds the run and still
         asks about recalculating its saved reports, because that is a
@@ -2656,6 +2801,7 @@ class MeasurementReportDialog(QDialog):
         document on screen, so a reader can put a control back and be sure
         nothing moved under them.
         """
+        self._doc_settings_moved = True
         self._forget_limits()
         self._sync_limit_controls()
         # **NOTHING WAITS FOR A BUTTON THAT CANNOT BE PRESSED.** `Generate
@@ -2683,8 +2829,31 @@ class MeasurementReportDialog(QDialog):
         if getattr(self, "_stale_label", None) is None:
             return
         built = getattr(self, "_doc_built_with", None)
-        self._stale_label.setVisible(
-            built is not None and tuple(built) != self._doc_settings())
+        stale = bool(built is not None and tuple(built) != self._doc_settings())
+        self._stale_label.setVisible(stale)
+        # **THE PDF DOOR STAYS OPEN, AND THE PDF IS WHAT IS ON SCREEN
+        # (B8-364).** Round 21 measured the fault: with the pulldown on `Colour
+        # summary (one page)`, the red line up and the document still reading
+        # *Full colour check* over several pages, Save report as PDF wrote a
+        # one-page `Colour summary` nobody had ever seen.
+        #
+        # Knut first ruled that the button should be greyed until Generate was
+        # pressed, and that was built. He then changed it, 2026-09-18: *"I
+        # realise that it is better that clicking the button always generates a
+        # pdf from the currently loaded report text. If some settings are
+        # changed, those are not applied before clicking Generate Report, and
+        # making the PDF should be possible still, because the user can also
+        # revert any changed settings. Thus the disabling of the Print Report
+        # As PDF button is not needed, unless no report is loaded in the window
+        # at all."*
+        #
+        # So the button follows the SOURCES, exactly as it did before, and the
+        # fault is fixed at the other end instead: `_export_pdf` builds from
+        # the settings the document on screen was built with rather than from
+        # whatever the controls say now. That answers the original complaint
+        # better than greying the button did, because the reader can still hand
+        # somebody the document they are looking at while they think about a
+        # setting they have moved.
 
     def _refresh(self) -> None:
         """Repaint both the trend charts and the report body (they share the same
@@ -2920,9 +3089,44 @@ class MeasurementReportDialog(QDialog):
         reports = self._reports_to_generate()
         if ctx is None or not reports:
             return
-        from workflow.measurement_report import (save_report, stamp_report_type,
+        from datetime import datetime as _dt
+        from workflow.measurement_report import (document_measurement_key,
+                                                 new_document_id, report_type,
+                                                 save_report, set_report_type,
+                                                 stamp_document,
+                                                 stamp_report_type,
                                                  stamp_verdict)
-        lim = self._window_limits()
+        # WHAT THE WINDOW IS SHOWING, which is the run's set unless a
+        # document is loaded that was judged against another one. Anything else
+        # would file a report against numbers the reader never saw.
+        lim = self._document_limits() or self._window_limits()
+        # ONE PRESS OF GENERATE IS ONE DOCUMENT (B8-383, §13.4).
+        #
+        # It still writes one FILE per measurement, because a dated
+        # verification's verdict is its own record and §5 is built on it being
+        # in that date's own folder. What it did not write was anything saying
+        # those files are one thing, so the selector listed a file per
+        # measurement and Knut counted two new reports for one press: *"Clicking
+        # 'Show all measurement runs' ON, and then generate report, creates 2
+        # new reports under the saved reports, which is wrong behaviour."*
+        # Measured before this: 2 files on disk became 4, then 6.
+        #
+        # The id is decided HERE, once, before the first file is written, and
+        # every file of the press carries it along with the settings the press
+        # was made with. That is the whole of the document record, it is
+        # additive, and `REPORT_SCHEMA` stays 7: a report already on disk has
+        # no block, is not touched by this, and is its own one-file document.
+        when = _dt.now()
+        doc_id = new_document_id(when)
+        doc_created = when.isoformat(timespec="seconds")
+        members = [{"dir": str(r.get("_origin_dir") or ""),
+                    "created": str(r.get("created") or ""),
+                    "ti3": str(r.get("ti3") or ""),
+                    "key": document_measurement_key(
+                        r.get("_origin_dir") or "", str(r.get("created") or ""),
+                        str(r.get("ti3") or ""))}
+                   for r in reports if r.get("_origin_dir")]
+        all_runs, detail = self._tick_state()
         saved, failed = [], []
         for r in reports:
             origin = r.get("_origin_dir")
@@ -2936,6 +3140,19 @@ class MeasurementReportDialog(QDialog):
                 stamp_verdict(rep, lim.limits, set_id=lim.set_id,
                               set_label=lim.label_en, edited=lim.edited)
                 stamp_report_type(rep, ctx.run)
+                # …AND THE TYPE THE PULLDOWN IS SHOWING, which is the run's
+                # unless a document is loaded that is of another kind. D9 puts
+                # the type on the run and that is untouched; what this refuses
+                # to do is write a document of a kind the reader was not
+                # looking at.
+                _tid = self._report_type_now()
+                if _tid and _tid != report_type(rep):
+                    set_report_type(rep, _tid)
+                stamp_document(rep, doc_id=doc_id, created=doc_created,
+                               type_id=report_type(rep),
+                               compliance=rep.get("compliance"),
+                               all_runs=all_runs, detail=detail,
+                               measurements=members)
                 saved.append(save_report(rep, Path(origin)))
             except Exception as exc:             # noqa: BLE001
                 log.warning("could not generate a report in %s: %s", origin, exc)
@@ -2959,6 +3176,15 @@ class MeasurementReportDialog(QDialog):
         for r in reports:
             self._chosen_reports.pop(self._run_key(r), None)
         if saved:
+            # …AND THE WINDOW IS NOW ON THE DOCUMENT IT JUST WROTE, not merely
+            # on one of its files. Without this the list would show the new
+            # entry and the selection would land on it, but nothing would hold
+            # the document open, so the next repaint could fall back to the
+            # newest file of each measurement — which is the same file here and
+            # a different one the moment a second document exists.
+            self._loaded_doc_id = f"id:{doc_id}"
+            self._loaded_doc = None          # read back off the file it wrote
+            self._doc_settings_moved = False
             self._reload_sources()
         else:
             self._refresh()
@@ -3001,6 +3227,57 @@ class MeasurementReportDialog(QDialog):
         from PyQt6.QtGui import QDesktopServices
         if self._sources or self._ti3:
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(self._profile_root())))
+
+    @contextmanager
+    def _as_the_document_was_built(self):
+        """Put the five deferred settings back to what the DOCUMENT was built
+        with, for the length of the block, with every signal blocked.
+
+        Knut, 2026-09-18: *"clicking the button always generates a pdf from the
+        currently loaded report text"*. The body is composed from the controls
+        at the moment it is asked for, so a PDF taken while the red line is up
+        was a document nobody had seen: round 21 photographed the screen saying
+        *Full colour check* over several pages and the exported file saying
+        *Colour summary (one page)* in one.
+
+        `_doc_built_with` is exactly those five as they stood when `_render`
+        last ran, so restoring them for the build and putting them back
+        afterwards makes the file match the screen with no second code path to
+        keep in step. Signals are blocked throughout, so nothing repaints and
+        nothing is written to settings; if anything raises, the `finally` puts
+        every control back.
+        """
+        built = getattr(self, "_doc_built_with", None)
+        if not built:
+            yield
+            return
+        w_type = getattr(self, "_type_combo", None)
+        w_set = getattr(self, "_set_combo", None)
+        w_all = getattr(self, "_all_runs_check", None)
+        w_det = getattr(self, "_detail_check", None)
+        widgets = [w for w in (w_type, w_set, w_all, w_det) if w is not None]
+        before = self._doc_settings()
+        blocked = [(w, w.blockSignals(True)) for w in widgets]
+
+        def _put(vals):
+            t, st, allr, det, hidden = vals
+            if w_type is not None and w_type.findData(t) >= 0:
+                w_type.setCurrentIndex(w_type.findData(t))
+            if w_set is not None and w_set.findData(st) >= 0:
+                w_set.setCurrentIndex(w_set.findData(st))
+            if w_all is not None:
+                w_all.setChecked(bool(allr))
+            if w_det is not None:
+                w_det.setChecked(bool(det))
+            self._hidden_runs = set(hidden)
+
+        try:
+            _put(tuple(built))
+            yield
+        finally:
+            _put(before)
+            for w, was in blocked:
+                w.blockSignals(was)
 
     def _export_pdf(self) -> None:
         """Write the full report — all data, the trend charts and a plain-language
@@ -3067,9 +3344,12 @@ class MeasurementReportDialog(QDialog):
                     "<div style='font-size:16px;font-weight:bold;"
                     "margin-top:4px'>" + html.escape(title) + "</div>"
                     f"<img src='chart://{i}' width='600'>" + _gap())
-        # The exact same run set the window shows, so the PDF matches it (Knut).
-        runs = self._runs_for_report()
-        doc.setHtml(self._pdf_html(runs, charts_html))
+        # The exact same run set the window shows, so the PDF matches it (Knut),
+        # AND the settings it was built with rather than the ones the controls
+        # hold now: see `_as_the_document_was_built`.
+        with self._as_the_document_was_built():
+            runs = self._runs_for_report()
+            doc.setHtml(self._pdf_html(runs, charts_html))
 
         from PyQt6.QtGui import QFontMetricsF
 
@@ -3338,6 +3618,7 @@ class MeasurementReportDialog(QDialog):
         lim = self._window_limits()
         ctx = self._run_ctx
         run = ctx.run if ctx else None
+        self._adopt_visible_document(run)
         # WHAT THE USER IS ABOUT TO BE SHOWN, stamped here because here is the
         # last moment this window and the run agree. A guard that stamps it
         # when a control is CLICKED has already swallowed everything that
@@ -3350,15 +3631,25 @@ class MeasurementReportDialog(QDialog):
         try:
             self._set_combo.clear()
             ids = selectable_set_ids(self._overrides())
+            # **THE LOADED DOCUMENT'S OWN SET, WHEN ONE IS LOADED (B8-382).**
+            # Knut: *"Changing selected report in the saved report pulldown
+            # does not change any of the other settings that the selected
+            # report had when it was generated."* The page already judges each
+            # report by the set its own file records (`_yardstick_of`); this is
+            # what stops the pulldown above it saying something else.
+            dlim = self._document_limits()
+            shown = dlim or lim
             if lim.set_id not in ids:
                 self._set_combo.addItem(lim.set_label, lim.set_id)
+            if shown.set_id not in ids and shown.set_id != lim.set_id:
+                self._set_combo.addItem(shown.set_label, shown.set_id)
             for sid in ids:
                 self._set_combo.addItem(SET_BY_ID[sid].label and
                                         tr(SET_BY_ID[sid].label), sid)
                 self._set_combo.setItemData(
                     self._set_combo.count() - 1, tr(SET_BY_ID[sid].blurb),
                     Qt.ItemDataRole.ToolTipRole)
-            idx = self._set_combo.findData(lim.set_id)
+            idx = self._set_combo.findData(shown.set_id)
             self._set_combo.setCurrentIndex(max(0, idx))
             several = len(self._distinct_run_dirs()) > 1
             # A run THIS WINDOW bound a moment ago keeps its controls: binding
@@ -3473,6 +3764,295 @@ class MeasurementReportDialog(QDialog):
                                 _report_order(t[0].get("_origin_dir"), t[1])),
                  reverse=True)
         return out
+
+    def _adopt_visible_document(self, run) -> None:
+        """The document on the page speaks for the controls, until the user
+        moves one.
+
+        Without this, only a CLICK in the list restored a document's settings,
+        and the two other ways of arriving at a document did not: opening the
+        window on a measurement whose newest report belongs to one, and
+        pressing Generate report, which writes one and shows it. The window
+        then drew a document of one kind under a pulldown naming another, which
+        is Knut's fifth defect seen from the other side.
+
+        It runs before the pulldowns are filled, because they are filled from
+        what this decides.
+        """
+        if getattr(self, "_doc_settings_moved", False):
+            return
+        here = self._loaded_doc_id or self._document_key_of_report()
+        if not here:
+            return
+        if self._loaded_doc is not None and self._loaded_doc_id == here:
+            # Already speaking for the controls, and it may be the settings
+            # `_load_document` worked out for a report that records none of its
+            # own. Re-reading the file here would throw those away.
+            return
+        entry = next((d for d in self._saved_documents(run)
+                      if d["key"] == here), None)
+        if entry is None:
+            return
+        self._loaded_doc_id = entry["key"]
+        self._loaded_doc = entry["doc"]
+
+    def _saved_documents(self, run) -> list:
+        """The generated reports of *run*, as DOCUMENTS, newest first.
+
+        ``[{"key", "doc", "members": [(row, file name)], "label", "order"}]``.
+
+        **THIS IS B8-383.** A saved report was a per-measurement verdict
+        record, so one press of Generate report wrote one file per measurement
+        and the selector listed every one of them. Knut counted it exactly:
+        *"Clicking 'Show all measurement runs' ON, and then generate report,
+        creates 2 new reports under the saved reports, which is wrong
+        behaviour."* Measured on a run with two dated verifications, one press
+        took the project from two files to four, and a second press from four
+        to six.
+
+        The files are still one per measurement, because a dated
+        verification's verdict has to live in that date's own folder (§5). What
+        they carry now is a shared document id and the settings of the press
+        that wrote them, so ONE press is ONE entry here.
+
+        **A REPORT WITH NO DOCUMENT BLOCK IS ITS OWN DOCUMENT.** Every report a
+        user already has was written without one, and every one of them is
+        still listed, still named the way it is named today and still opens.
+        Nothing on disk is read for this beyond the report files themselves,
+        and nothing is written.
+
+        ONLY THIS RUN'S, for the reason `_recalculate_run` gives at length:
+        `…/runs/run10` starts with `…/runs/run1`, so the folders are asked of
+        the run rather than matched out of a string.
+        """
+        from workflow.measurement_report import document_key_of
+        if run is None:
+            return []
+        try:
+            mine = {str(run.dir)} | {str(v.dir) for v in run.verifications()}
+        except Exception:                            # noqa: BLE001
+            mine = {str(run.dir)}
+        docs: "dict[str, dict]" = {}
+        order: "list[str]" = []
+        for r in self._history:
+            origin = str(r.get("_origin_dir") or "")
+            if origin not in mine:
+                continue
+            for name in (r.get("_all_report_files") or []):
+                doc = self._document_of(origin, name, r)
+                key = document_key_of(doc, Path(origin) / "reports" / name)
+                entry = docs.get(key)
+                if entry is None:
+                    entry = docs[key] = {"key": key, "doc": doc,
+                                         "members": [], "order": ()}
+                    order.append(key)
+                entry["members"].append((r, name))
+                when = _report_order(origin, name)
+                if when > entry["order"]:
+                    entry["order"] = when
+        out = [docs[k] for k in order]
+        for entry in out:
+            entry["label"] = self._document_label(entry)
+        # Newest first: the one a reader is most likely to want is at the top,
+        # and `_report_order` is this window's one answer to "which of these
+        # was written last".
+        out.sort(key=lambda e: e["order"], reverse=True)
+        return out
+
+    def _document_of(self, origin, name: str, r: dict) -> "dict | None":
+        """The document block of one saved report file, or None.
+
+        READ ONCE PER FILE, keyed by path and mtime, for the reason
+        `_saved_report_label` gives: this is asked for every saved report of
+        the run on every repaint, and a run can hold fifty reports of 19 kB
+        each.
+        """
+        from workflow.measurement_report import recorded_document
+        path = Path(origin) / "reports" / name
+        cache = getattr(self, "_doc_cache", None)
+        if cache is None:
+            cache = self._doc_cache = {}
+        try:
+            stamp = path.stat().st_mtime_ns
+        except OSError:
+            stamp = 0
+        hit = cache.get(str(path))
+        if hit is not None and hit[0] == stamp:
+            return hit[1]
+        rep: "dict | None" = None
+        if str(r.get("_report_file") or "") == name:
+            rep = r
+        if rep is None:
+            try:
+                rep = json.loads(read_text(path))
+            except Exception:                        # noqa: BLE001
+                rep = {}
+        doc = recorded_document(rep)
+        cache[str(path)] = (stamp, doc)
+        return doc
+
+    def _document_label(self, entry: dict) -> str:
+        """How one document is named in the list (L.3).
+
+        Knut: *"The list of reports need to have names generated, with date and
+        time, that reflect their selections, so that a user can distinguish
+        between them. F.ex. 'Run type, Judged agains, All runs, with details,
+        <date_time>', or 'Run type, Judged agains, only run <date>, without
+        details, <date_time>'."*
+
+        A file with no document block keeps the name it has today, because it
+        recorded none of those selections and a name invented for it would be a
+        claim about a press nobody made.
+        """
+        doc = entry.get("doc")
+        members = entry.get("members") or []
+        if not doc:
+            r, name = members[0]
+            return self._saved_report_label(r, name)
+        from workflow.compliance_sets import set_label
+        from workflow.measurement_report import report_type_name
+        bits: "list[str]" = []
+        try:
+            bits.append(tr(report_type_name(str(doc.get("type") or ""))))
+        except Exception:                            # noqa: BLE001
+            pass
+        comp = doc.get("compliance") or {}
+        if comp.get("set_id"):
+            bits.append(set_label(str(comp.get("set_id", "")),
+                                  str(comp.get("set_label", ""))))
+        ms = doc.get("measurements") or []
+        if doc.get("all_runs"):
+            bits.append(tr("all runs"))
+        else:
+            when = str((ms[0] if ms else {}).get("created") or "")
+            bits.append(tr("only run {date}").format(
+                date=when.replace("T", " ")[:16] or "?"))
+        bits.append(tr("with details") if doc.get("detail")
+                    else tr("without details"))
+        made = str(doc.get("created") or "").replace("T", " ")[:19]
+        if made:
+            bits.append(tr("saved {when}").format(when=made))
+        return " · ".join(bits)
+
+    def _document_key_of_report(self) -> str:
+        """The document key of the file the page is drawn from, or ""."""
+        r = self._report
+        if not r:
+            return ""
+        origin = str(r.get("_origin_dir") or "")
+        name = str(r.get("_report_file") or "")
+        if not origin or not name:
+            return ""
+        from workflow.measurement_report import document_key_of
+        return document_key_of(self._document_of(origin, name, r),
+                               Path(origin) / "reports" / name)
+
+    def _tick_state(self) -> "tuple[bool, bool]":
+        """(Show all measurement runs, Show detailed data), as they stand."""
+        return (bool(getattr(self, "_all_runs_check", None) is not None
+                     and self._all_runs_check.isChecked()),
+                bool(getattr(self, "_detail_check", None) is not None
+                     and self._detail_check.isChecked()))
+
+    def _settings_of_one_saved_report(self, entry: dict) -> "dict | None":
+        """The settings to restore for a report that records no document.
+
+        Knut, 2026-09-18, on the per-dated-verification records ChromIQ writes
+        by itself at measurement time: *"If the list of reports in 'Current
+        Report Showing' have one report per dated verification (by default
+        created during measurement), then each of those reports, when selecting
+        one, should load and show with its report text in the window. And each
+        of those will automatically have the settings updated to what was used
+        when generating those reports (Correct report type, correct Judge
+        Against used, 'Show all measurement runs' OFF (since it is only one
+        date), etc.)"*
+
+        **NOTHING IS INVENTED AND NOTHING IS WRITTEN.** The type and the limit
+        set are read off the file, which has recorded both since 4.2.0; a file
+        that recorded no set leaves the set pulldown where it is, because a
+        wrong set is worse than the run's. The two tick boxes are the only part
+        that is not on disk anywhere, and his sentence is what decides them:
+        such a report is about ONE dated verification, so "Show all measurement
+        runs" is off, and it carries no per-run breakdown, so is the other.
+        """
+        from workflow.measurement_report import (document_measurement_key,
+                                                 recorded_compliance,
+                                                 report_type)
+        members = entry.get("members") or []
+        if not members:
+            return None
+        r, name = members[0]
+        rep: dict = r
+        if str(r.get("_report_file") or "") != name:
+            try:
+                rep = json.loads(read_text(
+                    Path(str(r.get("_origin_dir") or "")) / "reports" / name))
+            except Exception:                        # noqa: BLE001
+                return None
+        return {
+            "id": entry["key"],
+            "created": str(rep.get("created") or ""),
+            "type": report_type(rep),
+            "compliance": recorded_compliance(rep),
+            "all_runs": False,
+            "detail": False,
+            "measurements": [{
+                "dir": str(r.get("_origin_dir") or ""),
+                "created": str(r.get("created") or ""),
+                "ti3": str(r.get("ti3") or ""),
+                "key": document_measurement_key(
+                    r.get("_origin_dir") or "", str(r.get("created") or ""),
+                    str(r.get("ti3") or "")),
+            }],
+        }
+
+    def _document_settings(self) -> "dict | None":
+        """The loaded document's own settings, while they are still what is on
+        screen. `None` once the user has moved one of the controls."""
+        if getattr(self, "_doc_settings_moved", False):
+            return None
+        return getattr(self, "_loaded_doc", None)
+
+    def _document_limits(self):
+        """The RunLimits the LOADED document was judged against, or None.
+
+        The run is not asked and the run is not changed: this is the document's
+        own record, restored so that the "Judged against" pulldown, the page
+        under it and a report generated from here all say the same thing. It is
+        dropped the moment the user moves a control (`_settings_touched`),
+        which is what keeps it from becoming Knut's fifth defect in reverse.
+        """
+        doc = self._document_settings()
+        if not doc:
+            return None
+        comp = doc.get("compliance") or {}
+        sid = str(comp.get("set_id") or "")
+        thr = comp.get("thresholds")
+        if not sid or not isinstance(thr, dict):
+            return None
+        from workflow.compliance_sets import (SET_BY_ID, is_known_set,
+                                              limits_from_json, set_label)
+        from workflow.run_compliance import RunLimits
+        known = is_known_set(sid)
+        stored = str(comp.get("set_label") or "")
+        return RunLimits(sid, set_label(sid, stored), limits_from_json(thr),
+                         label_en=(SET_BY_ID[sid].label if known
+                                   else (stored or sid)),
+                         bound=True, edited=bool(comp.get("edited")),
+                         known=known)
+
+    def _delete_refusal_for(self, entry: dict) -> str:
+        """Why this DOCUMENT may not be deleted, or "".
+
+        The rule is unchanged and is applied to every file the document is made
+        of: the only saved report of a dated verification is kept, because that
+        verdict is this run's record of that date (§5).
+        """
+        for r, name in (entry.get("members") or []):
+            why = self._saved_delete_refusal(r, name)
+            if why:
+                return why
+        return ""
 
     def _saved_report_label(self, r: dict, name: str) -> str:
         """How one saved report is named in the selector.
@@ -3621,89 +4201,87 @@ class MeasurementReportDialog(QDialog):
                   "verdict is this run's record of that date.")
 
     def _sync_saved_reports(self, run) -> None:
-        """Fill the selector, and say whether Delete may be pressed."""
+        """Fill the list of generated reports, and say what may be pressed.
+
+        ONE ENTRY PER DOCUMENT (B8-383). This filled a pulldown with one entry
+        per FILE, which is why one press of Generate report appeared to add two
+        reports: it wrote one file per measurement and the list counted them.
+        """
         combo = getattr(self, "_saved_combo", None)
         if combo is None:
             return
-        choices = self._saved_report_choices(run)
-        want = combo.currentData()
+        docs = self._saved_documents(run)
+        want = self._loaded_doc_id
         combo.blockSignals(True)
         try:
             combo.clear()
-            for r, name, label in choices:
-                combo.addItem(label, (self._run_key(r), name))
-            # NOT `combo.findData(want)`. Driven on screen: the item is there,
-            # `itemData(i) == want` is True in Python, and `findData` answers
-            # -1 all the same — Qt is matching QVariants, and a PyQt-wrapped
-            # tuple is not something it can compare. The selector then snapped
-            # back to the first entry on every pick, so choosing any report but
-            # the top one was impossible. The scan below is this window's own
-            # comparison, and it is the same one `_chosen_pair` makes.
-            # THE DOCUMENT DECIDES, NOT THE SELECTOR'S LAST STATE. This asked
-            # the combo what it was showing FIRST, and the combo's answer is
-            # whatever was picked before, so after "Generate report" the page
-            # moved to the new file and the pulldown went on naming the old
-            # one. Knut, beta 20: *"Now there are two reports in the 'Saved
-            # reports' pulldown, but the selected option did not change to the
-            # new report I generated last."* It was worse than he reported: the
-            # header read "Judged against: ChromIQ default" while the selector
-            # underneath read the other report's name and date, so the two
-            # halves of the same window disagreed in front of him.
-            #
-            # `want` is still consulted, as the FALLBACK for a window that is
-            # not showing any row of this list (no report loaded yet), which is
-            # the only case where the selector's own memory is the better
-            # answer.
-            mine = next(
-                (n for n, (r, nm, _l) in enumerate(choices)
-                 if self._report is not None
-                 and self._run_key(r) == self._run_key(self._report)
-                 and nm == str(self._report.get("_report_file") or "")), -1)
-            chosen = next((n for n, (r, name, _l) in enumerate(choices)
-                           if want and (self._run_key(r), name) == tuple(want)),
-                          -1)
-            # A PICK ON ANOTHER MEASUREMENT IS THE USER BROWSING; A NEW FILE OF
-            # THE SAME ONE IS THE WINDOW MOVING. Only the second may overrule
-            # the selector, which is the whole of this fix: after "Generate
-            # report" the new file belongs to the measurement the window is on,
-            # so the selector follows it, while a row the user picked from
-            # another measurement stays picked.
-            same_subject = (
-                chosen >= 0 and self._report is not None
-                and self._run_key(choices[chosen][0])
-                == self._run_key(self._report))
-            i = mine if (mine >= 0 and (chosen < 0 or same_subject)) else chosen
-            if i < 0 and choices:
+            for d in docs:
+                combo.addItem(d["label"], d["key"])
+                combo.setItemData(combo.count() - 1, d["label"],
+                                  Qt.ItemDataRole.ToolTipRole)
+            # THE DOCUMENT DECIDES, NOT THE LIST'S LAST STATE — the rule the
+            # pulldown already carried, and the reason is unchanged: after
+            # "Generate report" the page moves to the new document and a
+            # selector left on the old one puts two halves of one window in
+            # disagreement in front of the reader (Knut, beta 20).
+            i = next((n for n, d in enumerate(docs) if d["key"] == want), -1)
+            if i < 0:
+                # No document is loaded: follow the file the page is drawn
+                # from, so the list names what the reader is looking at.
+                here = self._document_key_of_report()
+                i = next((n for n, d in enumerate(docs) if d["key"] == here), -1)
+            if i < 0 and docs:
                 i = 0
             combo.setCurrentIndex(max(0, i))
         finally:
             combo.blockSignals(False)
-        # EVERY WIDGET IN THE ROW, THE HELP BUTTON INCLUDED. A hidden widget
-        # claims no space in a Qt layout, so a row with nothing to say costs
-        # nothing — and one widget left visible keeps the whole row's height.
-        # This window's minimum already sits within about 11 px of an 800 px
-        # screen (`test_report_list_shows_at_least_five_rows_and_fits_the_
-        # screen`), and the first cut of this row left the help button behind
-        # and pushed the window's bottom off the screen on a measurement with
-        # no saved report at all.
-        for w in (self._saved_label, self._saved_combo,
-                  self._delete_report_btn, self._saved_note,
-                  self._saved_help):
-            w.setVisible(bool(choices))
-        if not choices:
-            self._saved_note.setText("")
+        # **THE ROW STAYS ON SCREEN WITH NOTHING IN IT (L.9).** The pulldown
+        # hid itself and every widget beside it when a run had saved no report,
+        # which saved 42 px and left a user with no way of knowing the list was
+        # there at all. Knut: *"The window needs to show clearly that a user
+        # should select a report in the list to show/load a previously
+        # generated report. IF the list is empty, then the user could also be
+        # informed to Click Generate Report to create the first report."*
+        self._saved_combo.setEnabled(bool(docs))
+        if not docs:
+            self._saved_label.setText(tr("Report shown:"))
+            self._set_saved_hint(tr("No report has been generated yet. Click "
+                                    "“Generate report” to create the first "
+                                    "one."))
+            self._set_saved_note("")
             self._delete_report_btn.setEnabled(False)
             return
         self._saved_label.setText(
-            tr("Saved reports ({run}):").format(run=run.dir.name)
-            if run is not None else tr("Saved reports:"))
-        r, name = self._chosen_pair(choices)
-        why = self._saved_delete_refusal(r, name) if r is not None else ""
+            tr("Report shown ({run}):").format(run=run.dir.name)
+            if run is not None else tr("Report shown:"))
+        entry = self._chosen_document(docs)
+        why = self._delete_refusal_for(entry) if entry else ""
+        # ONE LINE, AND THE REFUSAL IS THE ONE WORTH READING. A reader who is
+        # being told why a button is dead does not need to be told, on the line
+        # above, that they may click an entry.
+        self._set_saved_hint("" if why else
+                             tr("Click a report to load it here with the "
+                                "settings it was made with."))
         # NOTHING SELECTED IS NOT "NOTHING IN THE WAY". Driven on screen: the
         # last report of a profiling measurement deleted, the pulldown empty,
         # and Delete still live over a list with nothing in it.
-        self._delete_report_btn.setEnabled(bool(r is not None and not why))
+        self._delete_report_btn.setEnabled(bool(entry and not why))
         self._set_saved_note(why)
+
+    def _stack_report_buttons(self, stacked: bool) -> None:
+        """Generate report and Delete Selected Report, one above the other or
+        side by side. L.8 asks for the stack; this is what a screen too short
+        for it gets instead, and it is the last thing that is traded before the
+        document itself starts losing height."""
+        grid = getattr(self, "_report_btns", None)
+        if grid is None or getattr(self, "_report_btns_stacked", True) == stacked:
+            return
+        self._report_btns_stacked = stacked
+        grid.removeWidget(self._generate_btn)
+        grid.removeWidget(self._delete_report_btn)
+        grid.addWidget(self._generate_btn, 0, 0)
+        grid.addWidget(self._delete_report_btn, 1 if stacked else 0,
+                       0 if stacked else 1)
 
     def _set_saved_note(self, full: str) -> None:
         """Why Delete is refused, on one line, with the whole of it as tooltip.
@@ -3724,7 +4302,9 @@ class MeasurementReportDialog(QDialog):
         if not full:
             self._saved_note.setText("")
             self._saved_note.setToolTip("")
+            self._saved_note.setVisible(False)
             return
+        self._saved_note.setVisible(True)
         from PyQt6.QtGui import QFontMetrics
         fm = QFontMetrics(self._saved_note.font())
         room = max(120, self.width() - self._saved_note.x() - 40)
@@ -3732,28 +4312,141 @@ class MeasurementReportDialog(QDialog):
             fm.elidedText(full, Qt.TextElideMode.ElideRight, room))
         self._saved_note.setToolTip(full)
 
-    def _chosen_pair(self, choices: list) -> tuple:
-        """The (row, file name) the selector is on, or (None, "")."""
-        data = self._saved_combo.currentData()
-        if not data:
-            return (None, "")
-        key, name = data
-        for r, nm, _label in choices:
-            if nm == name and self._run_key(r) == key:
-                return (r, nm)
-        return (None, "")
+    def _set_saved_hint(self, full: str) -> None:
+        """What to do with the list (L.9), on one line, whole text as tooltip.
 
-    def _on_saved_chosen(self, _i: int) -> None:
-        """A saved report was picked: show THAT one, in place of the newest."""
+        Knut: *"The window needs to show clearly that a user should select a
+        report in the list to show/load a previously generated report. IF the
+        list is empty, then the user could also be informed to Click Generate
+        Report to create the first report."*
+
+        THE ROOM IS THE WINDOW'S, NOT THE LABEL'S, exactly as `_set_saved_note`
+        measures it: a label's own width is nothing at all before the layout has
+        run, and eliding against it is how a driver came to photograph a greyed
+        button with no reason beside it.
+        """
+        self._saved_hint_full = full or ""
+        hint = getattr(self, "_saved_hint", None)
+        if hint is None:
+            return
+        # A HIDDEN LABEL CLAIMS NO SPACE AND AN EMPTY ONE CLAIMS A LINE. This
+        # row is beside a list box that is already the tallest thing above the
+        # document, and only one of these two lines ever has anything to say.
+        if not full:
+            hint.setText("")
+            hint.setToolTip("")
+            hint.setVisible(False)
+            return
+        hint.setVisible(True)
+        from PyQt6.QtGui import QFontMetrics
+        fm = QFontMetrics(hint.font())
+        room = max(120, self.width() - hint.x() - 40)
+        hint.setText(fm.elidedText(full, Qt.TextElideMode.ElideRight, room))
+        hint.setToolTip(full)
+
+    def _chosen_document(self, docs: list) -> "dict | None":
+        """The document entry the list is on, or None."""
+        combo = getattr(self, "_saved_combo", None)
+        if combo is None:
+            return None
+        key = combo.currentData()
+        return next((d for d in docs if d["key"] == key), None)
+
+    def _chosen_pair(self, choices: list) -> tuple:
+        """The (row, file name) the list is on, or (None, "").
+
+        Kept because three callers and a driver ask this window "which saved
+        report is picked", and the answer is still a file: a document of one
+        file answers with it, and a document of several answers with the file
+        of the measurement the page is drawn from, which is the one a reader
+        would name.
+        """
+        docs = self._saved_documents(self._run_ctx.run if self._run_ctx else None)
+        entry = self._chosen_document(docs)
+        if entry is None:
+            return (None, "")
+        subject = self._run_key(self._report) if self._report else None
+        for r, name in entry["members"]:
+            if subject and self._run_key(r) == subject:
+                return (r, name)
+        return entry["members"][0] if entry["members"] else (None, "")
+
+    def _on_saved_chosen(self, _index: int) -> None:
+        """A generated report was picked: bring THAT document back (L.2).
+
+        Knut, 2026-09-18: *"When I select a report in the 'saved reports'
+        dropdown, the report window does not seem to update according to the
+        selected report"* and *"Changing selected report in the saved report
+        pulldown does not change any of the other settings that the selected
+        report had when it was generated."* (B8-381, B8-382.)
+
+        Measured before this, with every entry picked in turn: the selection
+        stuck and the rendered document's SHA-256 did not move. It could not:
+        an entry named one FILE of one measurement, the window was already
+        drawing that measurement's newest file, and nothing in this path ever
+        wrote to the type pulldown, the limit-set pulldown or the tick boxes.
+        """
         if self._syncing_limits:
             return
-        data = self._saved_combo.currentData()
-        if not data:
+        combo = getattr(self, "_saved_combo", None)
+        key = str((combo.currentData() if combo is not None else "") or "")
+        if not key or key == self._loaded_doc_id:
             return
-        key, name = data
-        if self._chosen_reports.get(key) == name:
+        self._load_document(key)
+
+    def _load_document(self, key: str) -> None:
+        """Show the document *key* names, with the settings it was made with.
+
+        NOTHING IS REGENERATED AND NOTHING IS WRITTEN (L.2). Every setting
+        restored here is read out of the document's own files; the run is not
+        asked, and the run is not told. A report that carries no document block
+        (one saved by an earlier ChromIQ) restores what it does record, which is
+        its own file, and leaves the controls where they are rather than
+        inventing settings it never kept.
+        """
+        docs = self._saved_documents(self._run_ctx.run if self._run_ctx else None)
+        entry = next((d for d in docs if d["key"] == key), None)
+        if entry is None:
             return
-        self._chosen_reports[key] = name
+        self._loaded_doc_id = key
+        doc = entry["doc"] or self._settings_of_one_saved_report(entry)
+        self._loaded_doc = doc
+        self._doc_settings_moved = False
+        # WHICH FILE OF EACH MEASUREMENT THE PAGE IS DRAWN FROM. Only the
+        # document's own measurements are touched: a row belonging to another
+        # run of the project is not this document's to move.
+        for r, name in entry["members"]:
+            self._chosen_reports[self._run_key(r)] = name
+        # THE SUBJECT IS ONE OF ITS OWN MEASUREMENTS, the newest of them, so
+        # that with "Show all measurement runs" off the page is about a sheet
+        # this document is actually about.
+        if entry["members"]:
+            self._report = max((r for r, _n in entry["members"]),
+                               key=lambda r: str(r.get("created") or ""))
+        if doc:
+            # BOTH TICK BOXES AND THE MEASUREMENT LIST — the half of L.2 that a
+            # saved report could not answer at all before B8-383, because it
+            # recorded neither.
+            for chk, val in ((getattr(self, "_all_runs_check", None),
+                              bool(doc.get("all_runs"))),
+                             (getattr(self, "_detail_check", None),
+                              bool(doc.get("detail")))):
+                if chk is None:
+                    continue
+                chk.blockSignals(True)
+                chk.setChecked(val)
+                chk.blockSignals(False)
+            keys = {str(m.get("key") or "")
+                    for m in (doc.get("measurements") or [])}
+            if doc.get("all_runs") and keys:
+                self._hidden_runs = {self._run_key(r) for r in self._history
+                                     if self._run_key(r) not in keys}
+            else:
+                self._hidden_runs = set()
+        # The type and the limit set follow from `_loaded_doc`: they are read
+        # back by `_report_type_now` and `_sync_limit_controls`, which the
+        # repaint below runs. Setting the two combos here as well would be two
+        # answers to one question, and this window has paid for that before.
         self._reload_sources()
 
     def _reload_sources(self) -> None:
@@ -3780,48 +4473,73 @@ class MeasurementReportDialog(QDialog):
         self._rebuild_from_sources()
 
     def _on_delete_report(self) -> None:
-        """Remove one saved report, after saying exactly what goes."""
+        """Move the selected document's files into an ``old/`` folder (L.7).
+
+        Knut, 2026-09-18: *"Having this list, also requires a 'Delete Selected
+        Report' button, so that it is possible to remove reports a user does
+        not want in the list, which then creates a dated report folder in the
+        old/ folder where the files for that report is moved to."* With three
+        destinations, decided by what the document spans:
+        :func:`workflow.measurement_report.document_old_dir` holds the rule and
+        its docstring quotes him on each of the three.
+
+        **NOTHING IS DESTROYED.** This used to `unlink` the one file the
+        pulldown named. It now moves every file of the document, and a file
+        that cannot be moved leaves the rest where they are: a half-moved
+        document is a document that is in neither place.
+        """
+        from datetime import datetime as _dt
         from ui.warning_sign import warn
         from workflow import measurement_messages as M
+        from workflow.measurement_report import document_old_dir
         ctx = self._run_ctx
-        choices = self._saved_report_choices(ctx.run if ctx else None)
-        r, name = self._chosen_pair(choices)
-        if r is None:
+        docs = self._saved_documents(ctx.run if ctx else None)
+        entry = self._chosen_document(docs)
+        if entry is None:
             return
-        if self._saved_delete_refusal(r, name):
+        if self._delete_refusal_for(entry):
             # A REFUSAL A READER CANNOT SEE IS A BUTTON THAT DOES NOTHING.
-            # This used to `return` here in silence, which was harmless while
-            # the only way to reach it was a state the row already showed. Now
-            # that the refusal asks the FOLDER, it can fire on a row whose
-            # button is still live because the window has not re-read the
-            # folder since -- and then the reader presses Delete and nothing
-            # whatever happens. So the window catches up with the disk and
-            # re-draws the row, which greys the button and puts the reason
-            # beside it in the words the row already uses. No new sentence:
-            # `_saved_delete_refusal` owns the only one there is.
+            # The refusal asks the FOLDER, so it can fire on a row whose button
+            # is still live because the window has not re-read the folder
+            # since. The window catches up with the disk and re-draws the row,
+            # which greys the button and puts the reason beside it in the words
+            # the row already uses.
             self._reload_sources()
             return
-        path = Path(str(r.get("_origin_dir") or "")) / "reports" / name
-        left = max(0, len(r.get("_all_report_files") or []) - 1)
+        members = entry.get("members") or []
+        paths = [Path(str(r.get("_origin_dir") or "")) / "reports" / name
+                 for r, name in members]
+        dest = document_old_dir([p.parent.parent for p in paths], _dt.now())
+        if dest is None:
+            return
         title, body = M.CATALOGUE["M-REPORT-DELETE"].render(
-            what=self._saved_report_label(r, name), file=name, n=left)
+            what=entry.get("label", ""), n=len(paths), where=str(dest))
         if not self._confirm(title, body):
             return
         try:
-            path.unlink()
+            dest.mkdir(parents=True, exist_ok=True)
+            for path in paths:
+                target = dest / path.name
+                n = 1
+                while target.exists():
+                    target = dest / f"{path.stem}_{n}{path.suffix}"
+                    n += 1
+                shutil.move(str(path), str(target))
+                log.info("report moved to old/: %s -> %s", path, target)
         except OSError as exc:
-            log.warning("could not delete %s: %s", path, exc)
+            log.warning("could not move %s: %s", dest, exc)
             warn(self, title, str(exc))
+            self._reload_sources()
             return
-        log.info("saved report deleted: %s", path)
-        key = self._run_key(r)
-        if self._chosen_reports.get(key) == name:
-            self._chosen_reports.pop(key, None)
+        for r, name in members:
+            key = self._run_key(r)
+            if self._chosen_reports.get(key) == name:
+                self._chosen_reports.pop(key, None)
+        if self._loaded_doc_id == entry["key"]:
+            self._loaded_doc_id = ""
+            self._loaded_doc = None
         self._reload_sources()
 
-    # ------------------------------------------------------------------
-    # The report TYPE (#182 D28)
-    # ------------------------------------------------------------------
     def _report_type_now(self) -> str:
         """Which kind of document this window is producing.
 
@@ -3845,8 +4563,19 @@ class MeasurementReportDialog(QDialog):
         the pulldown. That is also the only answer that cannot lose a verdict a
         run recorded.
         """
-        from workflow.measurement_report import REPORT_TYPE_DEFAULT, report_type
+        from workflow.measurement_report import (REPORT_TYPE_DEFAULT,
+                                                 REPORT_TYPES, report_type)
         from workflow.run_compliance import run_report_type
+        # **A LOADED DOCUMENT ANSWERS FOR ITSELF (B8-382, L.2).** Its own files
+        # say what kind of document they are, and that is what the page is
+        # drawing, so the pulldown must say it too. The RUN is not asked and the
+        # run is not changed; the claim lasts exactly as long as the user leaves
+        # the controls alone (`_settings_touched` drops it).
+        doc = self._document_settings()
+        if doc:
+            tid = str(doc.get("type") or "")
+            if tid in REPORT_TYPES:
+                return tid
         types = self._types_of_loaded_runs()
         if len(types) > 1:
             return REPORT_TYPE_DEFAULT
@@ -4256,6 +4985,8 @@ class MeasurementReportDialog(QDialog):
             self._set_type_blurb(self._type_blurb_full)
         if getattr(self, "_saved_note_full", ""):
             self._set_saved_note(self._saved_note_full)
+        if getattr(self, "_saved_hint_full", ""):
+            self._set_saved_hint(self._saved_hint_full)
 
     # -- reasons a row was not computed, as sentences --------------------------
     def _reason_sentence(self, code: "str | None", r: "dict | None" = None) -> str:
@@ -4960,11 +5691,23 @@ class MeasurementReportDialog(QDialog):
         thirty-three. A confirmation exists to tell the user the size of what
         they are about to lose, so it counts the thing that is lost.
         """
+        from workflow.measurement_report import recorded_document
         n = 0
         try:
             for v in run.verifications():
                 try:
-                    n += sum(1 for _ in v.reports_dir.glob("report_*.json"))
+                    for path in v.reports_dir.glob("report_*.json"):
+                        # A GENERATED DOCUMENT IS NOT REWRITTEN AND IS NOT
+                        # COUNTED. A confirmation exists to tell the user the
+                        # size of what they are about to lose, and counting a
+                        # file the recalculation now skips would name a loss
+                        # that does not happen. See `_recalculate_run`.
+                        try:
+                            rep = json.loads(read_text(path))
+                        except Exception:             # noqa: BLE001
+                            continue    # unreadable: not rewritten either
+                        if recorded_document(rep) is None:
+                            n += 1
                 except OSError:
                     continue
         except (OSError, AttributeError):
@@ -6100,6 +6843,7 @@ class MeasurementReportDialog(QDialog):
         from datetime import datetime as _dt
         from PyQt6.QtGui import QCursor
         from workflow.measurement_report import (list_reports,
+                                                 recorded_document,
                                                  rewrite_report,
                                                  stamp_report_type,
                                                  stamp_verdict)
@@ -6153,6 +6897,29 @@ class MeasurementReportDialog(QDialog):
                         # READ is its own kind of failure and has its own list.
                         log.warning("could not read %s; left as it is", path)
                         unreadable.append(f"{v.id}/{Path(path).name}")
+                        continue
+                    # **A REPORT THAT IS A DOCUMENT IS NOT RECALCULATED.**
+                    # Knut, 2026-09-18, asked whether D23's archive-then-
+                    # recalculate rule still holds: *"Agreed. D23 stands."*,
+                    # and, on what Generate does: *"It is better that existing
+                    # reports are not overwritten. A user could instead select
+                    # and delete old reports they do not want."*
+                    #
+                    # A document records the settings it was made with (B8-383)
+                    # and is offered in the list under a name built from them.
+                    # Rewriting its verdict against another set would make its
+                    # own record false and its own name a lie, which is the
+                    # photograph in B8-384: an entry reading "ChromIQ tight"
+                    # over a page still reading "ChromIQ default".
+                    #
+                    # **THIS IS NOT THE WHOLE OF B8-384.** A report saved by an
+                    # earlier ChromIQ carries no document block and is still
+                    # rewritten here, exactly as it is today, because stopping
+                    # that reaches the confirmation that precedes it and the
+                    # sentence it puts on screen. That is registered and left.
+                    if recorded_document(rep) is not None:
+                        log.info("left alone (it is a generated document): %s",
+                                 path)
                         continue
                     stamp_verdict(rep, lim.limits, set_id=lim.set_id,
                                   set_label=lim.label_en, edited=lim.edited)

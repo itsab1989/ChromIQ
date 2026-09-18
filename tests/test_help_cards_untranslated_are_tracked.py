@@ -584,18 +584,24 @@ _BUDGET = {
     # again from the real mechanism), and the Settings strip-length list, which
     # named four instruments where the combo offers five.
     # Counted with this file's own `_english_echoes`, never adjusted upward.
+    # RE-MEASURED 2026-09-18, B8-380/B8-383: the generated-reports control.
+    # Fourteen keys in, eight stale out; three of the fourteen are long enough
+    # to count here (the list's own tooltip and the two bodies of the revised
+    # M-REPORT-DELETE). German is translated in the same commit and does not
+    # move; the eleven others each rise by exactly 3 under the beta rule.
+    # Counted with this file's own `_english_echoes`, never adjusted upward.
     "de": 20,
-    "es": 214,
-    "fr": 215,
-    "it": 214,
-    "ja": 214,
-    "nl": 214,
-    "no": 214,
-    "pl": 214,
-    "pt": 214,
-    "ru": 213,
-    "sv": 214,
-    "zh_CN": 213,
+    "es": 217,
+    "fr": 218,
+    "it": 217,
+    "ja": 217,
+    "nl": 217,
+    "no": 217,
+    "pl": 217,
+    "pt": 217,
+    "ru": 216,
+    "sv": 217,
+    "zh_CN": 216,
 }
 
 

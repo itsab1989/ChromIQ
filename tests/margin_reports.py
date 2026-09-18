@@ -50,3 +50,42 @@ def report_for(r, *, left_mm=None, right_mm=None, top_mm=None,
         dpi=float(dpi) if dpi is not None else float(getattr(r, "dpi", 300)
                                                      or 300),
     )
+
+
+def engine_report_for(r, npat: int = 648, page: int = 0):
+    """The report the frame shows for a sheet this recipe REALLY lays out.
+
+    :func:`report_for` hands back the margins the geometry resolved, which is
+    honest for a rectangular chart filling its page and is WRONG the moment the
+    sheet reflows or a honeycomb's last row hangs below the grid box. Measured
+    on Knut's own 648-patch CR30 hexagonal chart with the top margin box at
+    12.0 mm: `report_for` says the patch area starts at 12.0 mm and the sheet
+    measures **15.43**, so a sweep built on it found an instrument difference
+    that the app does not have.
+
+    This asks the engine for every patch rectangle and takes the apex-corrected
+    ink bounds through `margin_inspector.engine_ink_bounds_px` — the same
+    function `measure_from_engine` uses on the chart's own `channels.json`, so
+    the number is the one the "Measured from Preview" frame would print.
+    """
+    from workflow.layout_engine import geometry, instruments, papers
+    from workflow.margin_inspector import MarginReport, engine_ink_bounds_px
+
+    kw = dict(r.build_kwargs(), area_target_count=int(npat))
+    g = instruments.geom_from_build_kwargs(kw)
+    w, h = papers.dimensions_mm(str(r.paper))
+    lay = geometry.compute(g, w, h, int(npat))
+    dpi = float(getattr(r, "dpi", 300) or 300)
+    rects = [x for x in geometry.patch_rects_px(
+        g, w, h, lay, int(dpi), r.strip_pattern, r.patch_pattern)
+        if int(x.get("page", 0)) == page]
+    if not rects:
+        return None
+    x0, x1, y0, y1, pw = engine_ink_bounds_px(
+        rects, r.to_dict() if hasattr(r, "to_dict") else {}, dpi)
+    px = 25.4 / dpi
+    return MarginReport(
+        left_mm=max(0.0, x0 * px), right_mm=max(0.0, w - x1 * px),
+        top_mm=max(0.0, y0 * px), bottom_mm=max(0.0, h - y1 * px),
+        strip_width_mm=pw * px, page_w_mm=w, page_h_mm=h,
+        strip_length_mm=(y1 - y0) * px, dpi=dpi)

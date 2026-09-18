@@ -10813,16 +10813,27 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   test_two_reports_of_one_second_are_told_apart_in_the_list,
   test_choosing_an_entry_that_is_not_the_first_one_sticks,
   test_the_document_follows_the_report_that_was_chosen,
-  test_delete_removes_exactly_the_chosen_file, test_saying_no_removes_nothing,
+  test_delete_moves_exactly_the_chosen_report_and_destroys_nothing,
+  test_saying_no_removes_nothing,
   test_the_only_report_of_a_dated_verification_cannot_be_deleted,
   test_the_second_to_last_report_of_a_date_may_go,
   test_delete_is_dead_when_the_selector_is_empty,
   test_the_window_survives_losing_the_report_it_was_showing,
-  test_the_row_costs_nothing_when_there_is_nothing_to_choose,
+  test_an_empty_list_says_to_press_generate_report,
   test_the_window_still_fits_the_screen_with_the_row_on_it,
   test_the_merge_records_every_report_file_of_a_measurement,
   test_a_chosen_report_wins_over_the_newest,
   test_a_choice_that_names_no_file_falls_back_to_the_newest.
+  **TWO OF THOSE GUARDS WERE RENAMED ON 2026-09-18 AND NEITHER WAS WEAKENED.**
+  Building the document record (B8-383) changed what the two behaviours ARE, so
+  the names had to follow: Delete now MOVES a report's files into an `old/`
+  folder instead of unlinking one (Knut's L.7), which
+  `test_delete_moves_exactly_the_chosen_report_and_destroys_nothing` asserts
+  along with everything the old name asserted; and the row no longer hides
+  itself when the run has no report, because L.9 asks it to say "click Generate
+  report to create the first one", which
+  `test_an_empty_list_says_to_press_generate_report` asserts along with the
+  screen fit the old name was really about.
   Six mutations proved to land by reading the file back: the refusal made inert
   (2 red), `findData` restored (1 red), the `mine` filter removed (1 red), the
   "saved {when}" clause dropped (1 red), `_all_report_files` truncated (5 red),
@@ -15608,9 +15619,28 @@ now what it does.
 - what to do next: B8-364 and B8-365 are round 21's other two, both of them
   questions rather than fixes to make blind.
 
-### B8-364 · OPEN · Save report as PDF walks past the Generate deferral
+### B8-364 · FIXED · Save report as PDF was not the document on screen
 - blocks release: no
-- status: OPEN
+- status: FIXED
+- evidence: `test_the_pdf_door_stays_open_and_the_pdf_is_what_is_on_screen`.
+- **Knut ruled on it twice the same day, and the second ruling is the one
+  built.** First: grey the button until Generate is pressed. That was built.
+  Then: *"I realise that it is better that clicking the button always generates
+  a pdf from the currently loaded report text... Thus the disabling of the
+  Print Report As PDF button is not needed, unless no report is loaded in the
+  window at all."*
+  So the button follows the sources again and the fault is fixed at the other
+  end: the export builds from the settings the document was built with rather
+  than from the controls. Recorded as confirmed behaviour in S2v of
+  `docs/design/issue_182_answers.md`.
+- Mutation proven to land, 2026-09-18: drop the `_as_the_document_was_built()`
+  wrapper from `_export_pdf` and the guard goes red.
+- **And the first version of that guard did not watch the door.** It opened the
+  context manager itself and compared the html, so it proved the helper worked
+  and said nothing about whether `_export_pdf` uses it: the mutation left it
+  green. It now drives `_export_pdf` and captures what the export really
+  builds.
+- What was measured before the ruling, kept because it is the reason:
 - `ui/dialogs/measurement_report_dialog.py` `_export_pdf`, against
   `docs/design/issue_182_answers.md` S2v (Knut, 2026-09-14), which is
   `⏳ Awaiting confirmation` and does not mention the PDF export at all.
@@ -15738,6 +15768,38 @@ would reach.
   and crossing the text controls with both text boxes empty.
 - what to do next: B8-367 is round 22's open half, and round 23.
 
+### B8-368 · FIXED · R22-F4 confirmed against the ink on Knut's own sheet, and his panel numbers will change
+- blocks release: no
+- status: FIXED
+- evidence: `test_the_inspector_asks_the_build_not_the_record_about_edge_spacers`.
+- measured with `measure_from_engine` over `example1/test.channels.json` and a pixel
+  scan of `example1/test_01.tif`, both from the files Knut attached to #182 on
+  2026-09-18.
+- result numbers, on his own i1Pro A4 chart (200 dpi, spacers on, `sscale` 0.6,
+  `edge_spacers` recorded **false**):
+
+  | | top | bottom |
+  |---|---|---|
+  | the patch rectangles | 5.59 mm | 5.53 mm |
+  | **the ink on his sheet** | **5.08 mm** | **5.02 mm** |
+  | the panel before R22-F4 | 5.59 | 5.53 |
+  | the panel after it | **5.08** | **5.03** |
+
+  The pixel scan is unambiguous: 1, 2, 3 and 4 px above the first patch carry
+  **100 %** ink across the whole patch width and the 5th carries **0 %**, and
+  the same four rows below the last patch. Four pixels at 200 dpi is 0.51 mm,
+  which is the edge spacer his recipe says he does not have.
+- **So the earlier reading of this, in B8-357, was matching the wrong thing.**
+  That entry recorded that the panel reproduced Knut's own 5.6 / 5.5 "to the
+  pixel" and concluded the panel was right. Both numbers were the patch box,
+  and both were 0.51 mm short of the ink on the paper. The panel and the user
+  agreed with each other and neither agreed with the sheet.
+- **A user-visible consequence that must be said out loud**: every margin
+  reading on a chart with spacers gets about half a millimetre SMALLER in this
+  beta, and nothing about the printed sheet has changed. A reader who does not
+  know that will think something has broken. It goes in the release notes and
+  on #182.
+
 ### B8-367 · OPEN · "Edge spacers" is inert on three instruments, and the record says so where the sheet does not
 - blocks release: no
 - status: OPEN
@@ -15763,3 +15825,613 @@ would reach.
 - what to do first: decide with Knut whether an instrument that forces a
   setting should grey its control, tick it, or leave it alone, and apply the
   same answer to B8-365.
+
+### B8-369 · OPEN · The blanked cell grid draws 1 to 3 device pixels wide, and Basti saw it in one glance
+- blocks release: no
+- status: OPEN
+- Basti, 2026-09-18, looking at an 8x magnification of the real Measure tab
+  with "Show only measured patches" on: *"sometimes the seam is bigger than the
+  patches, sometimes smaller"*.
+- Measured on that photograph, an i1Pro A4 chart at device pixel ratio 2, over
+  the whole blanked area of the sheet:
+
+  | | widths counted |
+  |---|---|
+  | vertical cell outlines | **2 px nine times, 3 px twice, 1 px twice** |
+  | horizontal cell outlines | **1 px, thirty-one times out of thirty-one** |
+
+  and on the 8x cut, where one device pixel is an 8 px block, the vertical
+  outlines measure 16 px and the horizontal ones 8.
+- `ui/tiff_preview.py`, the unread-cell grid: a **cosmetic** `QPen` of width 1.0
+  stroked at fractional device coordinates, with the horizontal and vertical
+  axes carrying DIFFERENT scales (`s` across, `sy` down). A cosmetic pen is a
+  logical pixel wide, so at dpr 2 it should be two device pixels in BOTH
+  directions; one of the two axes is not getting that, and neither is uniform.
+- It is cosmetic, in the preview only: the printed sheet is untouched, and the
+  dedup rule that draws each boundary exactly once is working (there are no
+  double lines). What a user sees is a grid whose lines are visibly uneven.
+- **Not measured yet, and it is what settles the cause**: the same state driven
+  on screen with the app's own `s`, `sy`, `_dpr` and the pen printed beside the
+  measured line widths. My numbers so far come from photographs alone, and this
+  project has been wrong before by reasoning from a picture without asking the
+  app what it thought it was drawing.
+- evidence: none yet; nothing has been changed. Photographs
+  `~/Desktop/ChromIQ-overlay-gallery/01d-i1pro-plain.png` and
+  `01e-i1pro-plain-BLANK-SEAM-x8.png`.
+- what to do first: take that on-screen measurement, then decide whether the
+  grid should snap to whole device pixels (which would make every line the same
+  width and is what the split overlay already does for its own edges).
+
+### B8-370 · FIXED · The spin-box lag is gone on beta 21, and two of my own figures were withdrawn
+- blocks release: no
+- status: FIXED
+- evidence: `test_a_change_logs_how_long_the_chain_took`,
+  `test_the_listeners_figure_covers_what_the_host_connected`,
+  `test_a_loading_panel_is_silent_unless_the_load_was_slow`,
+  `test_a_slow_load_still_says_so`.
+- Knut, 2026-09-18: *"On beta 21 the changing of minimum patch width does not
+  have a lag anymore."* He also confirmed "Update preview automatically" is
+  off, which rules out the one explanation that would have made a slow step
+  inevitable.
+- **Two figures of mine are withdrawn and must not be quoted again.** "440 ms a
+  step" and "about a second a step" were both derived from the gaps between his
+  own steps in a log. A gap between two user clicks is the user's rhythm plus
+  the lag, never the lag. Counting every helper-marker step in one of his logs
+  rather than the four at the end: 198 of them, median gap 0.499 s, fastest
+  **0.003 s**, and seventeen under 0.1 s apart, which the app cannot do if a
+  step costs a second.
+- What his own chart really costs here, built field for field off his
+  `meta.json` (SpectroScan, 648 patches, two pages, hexagonal, area-first
+  15 x 18 by width): the whole handler chain **11 ms** a step, five filesystem
+  calls at 1 per cent of the step, and **11 ms** again from the step to the
+  preview's next repaint. Crossing the instrument with the clip border, the
+  instrument makes no difference here at all.
+- The timing line stays: it is written only when there is something to time,
+  and it turns the next such report into a measurement instead of a guess.
+
+### B8-371 · FIXED · The split's boundary sliver mixed the PRINTED page into a pixel the blank had already covered
+- blocks release: yes
+- status: FIXED
+- Basti, 2026-09-18: *"maybe this is the reason why in some cases when there
+  are black spacers and the only show measure patches option is active there is
+  a black hairline visible on the side of some patches"*. He was right.
+- **Photographed**: `~/Desktop/ChromIQ-beta22-proof/blank-in-magenta/PROOF-the-black-spacer-survives-the-blank-x8.png`,
+  an 8x nearest-neighbour cut of the real Measure tab with `spacer_mode="bw"`,
+  edge spacers on, half the strips read, "Show only measured patches" on, and
+  the blank painted MAGENTA so that what it covers is not a matter of opinion.
+  A black line sits between the read patch and the magenta, hard against the
+  patch edge. In the shipped colours that line is black on white.
+- **How it was found, after three probes that found their answer somewhere
+  else.** A probe that looked 3 px outside each blanked cell reported eight
+  leaks: every one was the read strip's own dark patches next door. A window
+  sweep reported 2,007 leaked pixels at the smallest size: the photograph
+  showed the window's own black chrome above the sheet. A third counted
+  "not magenta and not paper" inside the magenta's bounding box: that box spans
+  the read strips too, so the count was the read patches. Basti: *"it seems you
+  are looking at the wrong place ... before you had some methods where you
+  painted things green or magenta to expose issues."* The magenta hook
+  (`tiff_preview.BLANK_DEBUG_COLOUR`, `None` in every shipped path) is that
+  method, and the picture settled in one look what three probes could not.
+- **AND THAT GUESS WAS WRONG. IT IS NOT THE BLANK'S EDGE AT ALL, AND NOT A
+  ROUNDING MISMATCH EITHER.** Measured on screen with the app's own numbers
+  (i1 A4, 21 strips, 10 read, 1100x1020, `s=0.20323`, `sy=0.20311`, `ox=6.0`,
+  `oy=13.25`, `dpr=2.0`, `edge_spacer_px=18`): in the gap between the last read
+  strip (patches to image x 1290) and the first blanked one (blank edge at
+  image x 1289.206) there is **no printed ink at all** — every column of that
+  gap reads luma 212 or brighter. The sideways midpoint rule is innocent.
+- **The survivor is drawn BY THE OVERLAY, on top of the blank, one device pixel
+  at a time.** `_draw_cq_overlay._sliver` repaints the boundary pixel of a
+  snapped split box as `c * split + (1 - c) * spacer` so the chart's own spacer
+  band keeps its width instead of losing a pixel to the overlay, and it read
+  `spacer` off the **printed page** (`_page_colour_at`). With "Show only
+  measured patches" on, the page at that pixel has already been covered by the
+  blank, so `1 - c` of a black `bw` spacer went straight back on top of it.
+  Basti, looking at the shipped colours: *"bottom of the blue patch black
+  hairline and the patch below it has a black hairline on top and bottom. of
+  course on others it is there as well but white which you would not see on a
+  regular chart because there the background is white as well"*. He is
+  describing the alternation `bw` prints: the white-spacer columns get the same
+  band and it is invisible.
+- **The rounding decides WHICH edges get one, not what colour it is.** The band
+  is drawn only where the device-pixel snap left the boundary pixel uncovered
+  (`_r = floor(dev_edge + 0.5)`, which is `_dsnap`'s own rounding, the same one
+  the box uses), so it appears on some patch edges and not on their neighbours
+  — which is exactly the "in some cases" in the report.
+- **Where it bites in the shipped app**: every path that produces measured
+  patches without a strip read map. `_update_engine_read_map` is called only
+  from `_on_session_map` and `_on_strip_measured`, so a whole-chart read
+  (`_on_chart_measured`, XY and chart engine modes) and a patch-by-patch read
+  (`_on_patch_measured`) leave every strip counted UNREAD: the whole sheet is
+  blanked and the measured splits are drawn on top of it, every one of them
+  against blanked ground. In ordinary strip mode it bites on the side facing a
+  blanked neighbour.
+- **The fix**: `_draw_cq_overlay` now keeps the shapes the blank actually
+  painted (float `QRectF`s for a rectangular chart, the `QRegion` for a
+  honeycomb) and the sliver mixes with the BLANK's colour wherever the pixel it
+  is about to paint is under one. A read strip is never blanked, so its own
+  printed spacers are still read from the page and still shown, which is Knut's
+  rule and is guarded separately.
+- **Measured before and after, on screen, same chart, same window, photographs
+  at 8x NEAREST** (`~/Desktop/ChromIQ-beta22-proof/b371-the-surviving-spacer/`,
+  `spacer_mode="bw"` throughout):
+
+  | layout | device pixels changed | direction |
+  |---|---|---|
+  | i1 clip, edge spacers, 1100x1020 | 4,551 on 20 device rows | all lighter, none darker |
+  | i1 clip, NO edge spacers, 980x900 | 10,490 on 64 rows | all lighter |
+  | i1 no-clip, 1380x1000 | 5,109 on 26 rows | all lighter |
+  | ColorMunki high density (staggered), 1240x960 | 2,770 on 14 rows | all lighter |
+  | SpectroScan honeycomb (pointy), 1160x1000 | **0** | no change |
+  | CR30 honeycomb, flat-top (turned), no edge spacers, 1320x940 | **0** | no change |
+  | i1, ordinary STRIP read, 10 of 21 read, 1100x1020 | **0** | no change |
+
+  Not one device pixel anywhere got darker, which is the whole claim: the fix
+  can only ever replace printed ink with the blank's own colour.
+- **A honeycomb cannot show this fault**: the hexagonal branch of the items
+  loop ends in `continue` before the slivers, so none is drawn there. That is
+  why both honeycombs measure 0, and the blank's regions are kept anyway so a
+  future hexagonal sliver does not have to find this twice.
+- evidence: `test_no_printed_spacer_survives_under_the_blank` (eight window
+  sizes; the same chart printed once with BLACK spacers and once with WHITE
+  must render pixel-identical, because the blank covers every spacer on it),
+  `test_a_read_strip_still_shows_its_own_printed_spacers` (the other half of
+  the rule: a read strip keeps its own printed spacers, counted by a colour
+  printed into that column and no geometry),
+  `test_the_blank_colour_is_what_the_sliver_mixes_in`, and
+  `test_the_honeycomb_branch_still_leaves_before_the_sliver`. All four live in
+  `tests/`, in the file named after the first rule.
+  MUTATION RUN: restore `spacer = self._page_colour_at(*probe)` and **seven of
+  the eight sizes go red** at 1,008 / 1,104 / 1,256 / 1,314 / 1,350 / 1,386 /
+  1,660 differing device pixels; 784x952 stays green because at that rounding
+  phase no sliver is drawn at all, which is the argument for the sweep.
+- **The unreachable half is KEPT, and pinned.** `_blank_regions`, the honeycomb
+  arm of `_under_blank`, cannot run today: the hexagonal branch of the items
+  loop ends in `continue` before the sliver code, which is why every hexagonal
+  case in the sweep measured **0 device pixels changed** while the rectangular
+  ones changed thousands. Deleting three unexercised lines was the alternative
+  and it is the worse one: the day somebody gives a honeycomb a sliver the
+  fault returns and nothing points at the reason.
+  `test_the_honeycomb_branch_still_leaves_before_the_sliver` is that pointer,
+  and it fails with a sentence saying what has just become load-bearing.
+  Mutation proven to land 2026-09-18: replace that `continue` with `pass` and
+  it goes red.
+- files touched: `ui/tiff_preview.py` (the blank records what it painted; the
+  sliver asks it), the new test file, this entry.
+- **still open, and NOT this fault**: B8-369, the unread-cell grid drawing 1 to
+  3 device pixels wide, is a different mechanism (a cosmetic pen at fractional
+  coordinates) and is untouched here.
+
+### B8-372 · REPORTED, NOT A FAULT · Knut's "no warning on the SpectroScan" is the instrument's own label band, not a missing check
+- blocks release: no
+- status: VERIFIED
+- outcome: measured and answered. Nothing was changed in the app; a guard was
+  added so the answer stays true.
+- Knut, 2026-09-18, testing beta 21 with his own 648-patch CR30 honeycomb:
+  *"Using this chart, there is a warning message for overlapping strip labels
+  for the CR30, but if you change instrument to SpectroScan, there is no
+  warning. All the warnings for the label overlapping, row indicator
+  overlapping, or clip-border text overlapping, or bottom text overlapping,
+  they should all also happen for the SpectroScan instrument. Test for that to
+  make sure it is implemented and verified."*
+- **On HIS chart, at HIS margins, BOTH instruments warn.** Driven on screen
+  (`scripts/drive_b22_knut_warnings_two_instruments.py`): his
+  `create_chart_ui.engine_recipe` loaded into the real Manual panel through
+  `set_recipe` and read back field for field (**0 of 76 fields drifted**), his
+  `test.ti1` armed so Generate lays out his own 648 patches, built once as CR30
+  and once as SpectroScan. CR30: *"they reach 13.5 mm down the page, and the
+  patch area starts at 6.2 mm"*. SpectroScan: *"they reach 11.0 mm … starts at
+  6.2 mm"*. Photographed both ways,
+  `~/Desktop/ChromIQ-beta22-proof/knut-report-and-warnings/A-reproduction/`.
+- **Where his observation comes from.** The strip-label text height is the
+  INSTRUMENT'S: `Geom.txhisl` is 7.0 mm on the CR30 and 5.0 mm on the
+  SpectroScan, so the SpectroScan's letters end about 2.4 mm higher up the
+  page. Between those two reaches there is a band of top margins where the
+  CR30's letters are on the patches and the SpectroScan's are not, and that is
+  his sentence exactly. Measured off the rendered sheets at 200 dpi, top margin
+  box 8.0 mm, "T" 8.0 mm: the SpectroScan's letter ink ends at **12.95 mm** and
+  the first patch row begins at **13.46 mm**, half a millimetre of clear paper,
+  while the CR30's letter ink and its patches are one unbroken run of ink.
+- **The law is already one law.** No instrument key appears in the code of
+  `_engine_text_notes` or anywhere in `workflow/text_edge_fit.py`; every number
+  the notices use is asked of `Geom`. Swept over 7 instruments x 2 layout modes
+  x 2 patch shapes: the strip-label, row-indicator, bottom-text and right-edge
+  notices each fire on the SpectroScan.
+- evidence: `QT_QPA_PLATFORM=offscreen pytest -n auto` — **16548 passed, 353
+  skipped, 4 xfailed** on 2026-09-18, which includes
+  `QT_QPA_PLATFORM=offscreen pytest tests/test_every_notice_speaks_on_every_instrument.py`
+  — **10 passed**. The tests are
+  `test_the_spectroscan_earns_every_notice_the_cr30_earns`,
+  `test_no_instrument_is_left_out_of_a_notice`,
+  `test_the_notice_block_keys_on_no_instrument`,
+  `test_the_engine_report_is_not_the_margin_box`. Two mutations proven to land:
+  an `and r.instrument != "SS"` on the strip-label gate turned three of them
+  red, and making `margin_reports.engine_report_for` fall back to `report_for`
+  turned the fourth red.
+- what to do first: put the measurement to Knut. If he wants the SpectroScan to
+  warn where its own letters clear the paper, that is a ruling about what the
+  notice means, not a bug fix.
+
+### B8-373 · OPEN · The strip-label notice quotes the WHOLE CHART's worst letter against the page on screen
+- blocks release: no
+- status: OPEN
+- how it was found: while measuring B8-372. It is a judgement call and is
+  reported rather than fixed (CLAUDE.md, "a fault that contradicts the
+  specification is reported and approved").
+- Measured on Knut's chart, SpectroScan, top margin box 8.0 mm, "T" 8.0 mm:
+  the panel says *"they reach 14.0 mm down the page, and the patch area starts
+  at 13.5 mm, so 0.4 mm of every letter is on the first row of patches"*. On
+  the page in the preview the letters' ink ends at **12.95 mm** and the patches
+  begin at **13.46 mm**. Nothing is on the patches, and "every letter" is false.
+- **Why.** `raster._furniture_reserves_mm` probes the label band with the
+  worst letter the chart's strip pattern can produce, and a 27-strip chart has
+  a **Q**, whose descender inks about 0.65 mm below every other letter. His
+  chart is `PASSES_IN_STRIPS2 "14,13"`, so page 1 carries A..N and the Q is on
+  page 2 — while "Measured from Preview" measures the page on screen. The
+  notice is therefore up to about a millimetre pessimistic on any page that
+  does not carry the chart's deepest letter.
+- **Both readings are defensible**, which is why nothing was changed: a notice
+  about the CHART is right to use the worst letter anywhere in it, and a notice
+  that names the measured margin of the page in front of the reader should
+  describe that page. The same millimetre goes the other way on the page that
+  does carry the Q, so it is not a safety margin either.
+- evidence: none yet; measured in
+  `~/Desktop/ChromIQ-beta22-proof/knut-report-and-warnings/B-divergence/`
+  (`SS-top8-T8.tif`, per-row ink census in the README).
+- what to do first: ask Knut which of the two the sentence should describe, and
+  whether it should say "the deepest letter on this chart" rather than "every
+  letter".
+
+### B8-374 · OPEN · The clip-border content overlap notice cannot fire on any instrument
+- blocks release: no
+- status: OPEN
+- in one line: Knut names this notice as one of the four that must work on the
+  SpectroScan; it works on nothing.
+- Swept over 7 instruments x 2 clip sides x 4 band widths x 6 margins x 2 patch
+  shapes: the *"⚠ The clip border content runs over the patches"* branch of
+  `_engine_text_notes` was never reached once.
+- **It is unreachable by construction, and the code says so**:
+  `instruments.geom_from_build_kwargs` raises that edge's margin to the clip
+  zone, so the band always ends exactly where the first patch column starts.
+  The comment above the branch already admits it (*"on every chart the app
+  builds today the band ends exactly where the first patch column starts and
+  this stays silent"*) and keeps the check as a tripwire for the day the
+  geometry stops raising the margin.
+- **The second half, and it is the user-visible one.** On the ColorMunki,
+  SpectroScan and CR30 the band only exists when clip CONTENT is on:
+  `geom_from_build_kwargs` adds `clip_band` for those three only when
+  `clip_content_mode` is not "off". So a clip border ticked ON with a 26 mm
+  width and content "off" resolves to `lbord 0.0, has_clip_border False` and
+  draws nothing, where the same recipe on an i1Pro is a 16 mm band. **Knut's
+  own chart is in exactly that state** (`clip_border: true`,
+  `clip_border_width_mm: 26.0`, `clip_content_mode: "off"`), so on his sheet
+  there is no clip band for a clip notice to be about, on either instrument.
+- evidence: none yet; the sweep is
+  `~/Desktop/ChromIQ-beta22-proof/knut-report-and-warnings/README.md`.
+- what to do first: decide with Knut whether a clip border switched on with no
+  content should draw its band on those three instruments, or whether the
+  Create Chart panel should say that the width is doing nothing until content
+  is chosen. Either answer is a change to what the app promises, so neither was
+  made here.
+
+### B8-375 · SUPERSEDED · Knut's five defects in the Measurement Report, in his own words
+- blocks release: no
+- status: SUPERSEDED
+- superseded by: B8-384
+- **Superseded by B8-380, B8-381, B8-382, B8-383 and B8-384**, which are the
+  same five driven, measured and split one to an entry. This was written as an
+  umbrella the hour his list arrived, so that nothing of it could be lost while
+  the work was dispatched; it is kept whole below because it is his own
+  wording, and his wording is the thing later readers should meet first.
+- Four of the five are now FIXED (B8-380 to B8-383). What is left is the
+  remainder of **B8-384**, and it is named there rather than here.
+- Knut, 2026-09-18, on #182, after testing beta 21. He has said he will not
+  comment further until this is implemented, so this entry is the list and
+  nothing here is paraphrased into something easier:
+
+  1. *"The rearangement of the controls as I specified has not been done in the
+     measurement report window."*
+  2. *"When I select a report in the 'saved reports' dropdown, the report window
+     does not seem to update according to the selected report."*
+  3. *"Changing selected report in the saved report pulldown does not change any
+     of the other settings that the selected report had when it was
+     generated."*
+  4. *"The enabling 'Show all measurement runs' then Generate Report seems to
+     add more saved reports, instead of just rebuilding the report selected...
+     Clicking 'Show all measurement runs' ON, and then generate report, creates
+     2 new reports under the saved reports, which is wrong behaviour. Changing
+     report type and then generate report creates a new report in the saved
+     report, with the new report type name."*
+  5. *"When I change Judged Against to another setting, all listed reports in
+     the Saved reports pulldown change to the new judged against setting, AND
+     created a new (third) report. This is not the behaviour I specified."*
+
+  His state when he saw it: project `Report-Limits-Report-Types`, run 5, judged
+  against ChromIQ tight, "Show all measurement runs" OFF.
+- **4 and 5 are the dangerous pair.** One multiplies files on the user's disk;
+  the other rewrites what entries already in the pulldown claim to be. A fix
+  must not delete or rename anything a user already has.
+- **FOUR OF THE FIVE ARE FIXED, 2026-09-18**, and each has its own entry with
+  its own on-screen measurement and its own mutations: **B8-383** (the document
+  record, which is the root of the other four), **B8-381**, **B8-382** and
+  **B8-380**. Driven in a real window, his own number first:
+  one press of Generate with "Show all measurement runs" ON put **one** entry in
+  the list where it put two before.
+  `~/Desktop/ChromIQ-beta22-proof/b383-the-document-record/`.
+- **THIS ENTRY STAYS OPEN FOR HIS FIFTH**, which is **B8-384**. Its own half is
+  done, and named there: a report carrying a `document` block is never
+  recalculated, so nothing that is generated from now on can be relabelled under
+  the user. A report written by an earlier ChromIQ still is, and stopping that
+  reaches the confirmation in front of it and the two other doors that call
+  `_recalculate_run` (B8-310). Knut ruled on it the same day, *"Agreed. D23
+  stands"*, so it is a plain fault with a ruling behind it rather than a
+  specification conflict.
+- and two of his own rulings made the work SMALLER rather than larger: there is
+  no update-or-create question (*"It is better that existing reports are not
+  overwritten"*), and the list stays a pulldown (*"It is ok that 'Current Report
+  Showing' is a pulldown list if that saves space in the window"*). Both are
+  recorded in §13.3b of `docs/design/measurement_report_limits.md`.
+- evidence: the four entries below carry it, test by test and mutation by
+  mutation. This umbrella has none of its own and is not called fixed.
+- what is left: B8-384's remaining half, and nothing else of his five.
+
+### B8-380 · FIXED · The generated-reports list is a one-row pulldown in the wrong place, with no Delete button
+- blocks release: no
+- Knut, 2026-09-18: *"The rearangement of the controls as I specified has not
+  been done in the measurement report window."* His specification is now §13 of
+  `docs/design/measurement_report_limits.md`, rule L.8.
+- measured on screen (`scripts/drive_b22_knuts_five_report_defects.py`,
+  `~/Desktop/ChromIQ-beta22-proof/knut-report-and-warnings/D-five-defects/K1-the-arrangement.png`):
+  Generate report y=250, Report type y=292, Judged against y=340, **Saved
+  reports y=388**. L.8 puts the list between Generate report and Report type.
+  Widths 301 / 264 / 478 px and not left-aligned with each other.
+- also missing: a 3-to-4-row scrollable list (it is a pulldown), a "Delete
+  Selected Report" button stacked under Generate report, and the sentence that
+  tells a user with an empty list to press Generate report.
+- **FIXED 2026-09-18**, and SMALLER than his first paragraph asked, on his own
+  later ruling: *"It is ok that 'Current Report Showing' is a pulldown list if
+  that saves space in the window."* So the 3-to-4-row scrolling box is NOT
+  built. A three-row box beside two stacked buttons cost this window 42 px of a
+  minimum that already sits within about 30 px of an 800 px screen, and the
+  whole of it had to be traded back out of the report view; measured, built,
+  and removed again when he ruled.
+- what was built: the pulldown **moved** to where L.8 puts it, with **Generate
+  report** and a new **Delete Selected Report** stacked to its left; the
+  generated NAME of L.3 on every entry; and the two sentences of L.9.
+- **driven on screen, before and after** (`b383-the-document-record/`,
+  `D1-the-arrangement.png`):
+
+  | control | before | after |
+  |---|---|---|
+  | Generate report | y=250 | y=292 |
+  | the list | y=**388** | y=**306** |
+  | Delete Selected Report | — | y=326 |
+  | Report type | y=292 | y=368 |
+  | Judged against | y=340 | y=416 |
+
+- **Delete MOVES and never destroys** (L.7). `document_old_dir` decides from
+  what the document spans: one folder → that folder's `reports/old/<stamp>/`;
+  several dates of one run → the run's `verifications/old/<stamp>/`; several
+  profile runs → the project's `old/<stamp>/`. Driven: a document spanning two
+  dated verifications, 6 live files → 4, 4 entries → 3, and both files found in
+  `runs/run2/verifications/old/<stamp>/`.
+- **M-REPORT-DELETE was rewritten** for it, in §M-PROPOSED and still unapproved:
+  the old wording described an unlink and ended *"ChromIQ cannot undo this"*,
+  which is false of this button.
+- **the name is still his to settle.** He proposes **"Current Report Showing"**
+  and offered it twice as a suggestion (*"a better name could be given if you
+  find a better wording for its use"*). It is labelled **"Generated reports"**
+  for now, which is the phrase his own specification uses for the list.
+- status: FIXED
+- evidence: test_the_list_sits_between_generate_report_and_report_type,
+  test_every_entry_carries_its_own_settings_in_its_name,
+  test_delete_moves_every_file_of_the_document,
+  test_delete_of_a_one_date_document_lands_in_that_dates_own_old_folder,
+  test_the_old_folder_is_decided_by_what_the_document_spans,
+  test_the_empty_list_and_the_instruction
+  (the new guard file for this round), and, in the B8-250 file,
+  test_delete_moves_exactly_the_chosen_report_and_destroys_nothing,
+  test_an_empty_list_says_to_press_generate_report.
+  Mutations proved to land: the row packed after `type_row` (**1 failed**), the
+  one-folder branch of `document_old_dir` disabled (**2 failed**), Delete made
+  to `unlink` instead of moving (**4 failed**); restored, green each time.
+
+### B8-381 · FIXED · Picking a saved report does not redraw the window with it
+- blocks release: no
+- Knut, 2026-09-18: *"When I select a report in the 'saved reports' dropdown,
+  the report window does not seem to update according to the selected report."*
+  Rule L.2.
+- measured on screen: each entry picked in turn, the selection sticks and the
+  rendered document's SHA-256 **does not change**.
+  `D-five-defects/five-defects.json`, `2_3_picking_a_saved_report`.
+- **FIXED 2026-09-18**, on the document record. `_on_saved_chosen` now calls
+  `_load_document`, which points every measurement of that document at the file
+  the document is made of, makes one of them the subject, and repaints.
+- **driven on screen**: the same two entries picked in turn,
+  `document_changed` **true** for both where it was false before
+  (`b383-the-document-record/the-document-record.json`,
+  `2_3_picking_a_saved_report`).
+- status: FIXED
+- evidence: test_picking_a_report_redraws_the_window_with_it
+  (the new guard file for this round).
+  Mutation proved to land: the tick-box restore removed from `_load_document`
+  (**2 failed**); restored, green.
+
+### B8-382 · FIXED · Picking a saved report does not restore the settings it was made with
+- blocks release: no
+- Knut, 2026-09-18: *"Changing selected report in the saved report pulldown
+  does not change any of the other settings that the selected report had when
+  it was generated."* Rule L.2 again, and L.3 for the names.
+- measured on screen: Report type and "Judged against" do not move when the
+  selection changes. **Read this one carefully**: on the project it was driven
+  on, both saved reports share a type and a set, so the measurement is
+  consistent with the defect rather than decisive on its own. The decisive part
+  is structural: a saved report does not record both tick boxes or its list of
+  measurements at all (B8-383), so there is nothing to restore them from.
+- **FIXED 2026-09-18.** `_load_document` restores both tick boxes and the
+  measurement list from the document's own record; `_report_type_now` and
+  `_sync_limit_controls` read the type and the limit set off it. The RUN is not
+  asked and the run is not written to. A `_doc_settings_moved` flag drops the
+  document's claim the moment the user moves a control, so the pulldowns can
+  never disagree with the page.
+- **AND A REPORT THAT RECORDS NO DOCUMENT RESTORES WHAT IT DOES RECORD.** Knut,
+  the same day, on the per-dated-verification records ChromIQ writes at
+  measurement time: *"each of those will automatically have the settings updated
+  to what was used when generating those reports (Correct report type, correct
+  Judge Against used, 'Show all measurement runs' OFF (since it is only one
+  date), etc.)"*. `_settings_of_one_saved_report` reads the type and the set off
+  the file and takes both tick boxes from his sentence. Nothing is written.
+- **driven on screen**: picking a one-date record switched "Show all
+  measurement runs" from ON to OFF
+  (`b383-the-document-record/the-document-record.json`, pick 0).
+  The decisive case, two documents differing in type AND in both tick boxes, is
+  in the test rather than the driver, because the project on disk has no such
+  pair: the test generates them through the window's own buttons.
+- status: FIXED
+- evidence: test_picking_a_report_restores_the_settings_it_was_made_with,
+  test_the_restored_set_is_the_documents_own_and_the_run_is_not_touched,
+  test_moving_a_control_stops_the_document_speaking_for_it,
+  test_a_report_that_records_no_document_still_restores_what_it_records
+  (the new guard file for this round).
+  Mutation proved to land: the tick-box restore removed (**2 failed**);
+  restored, green.
+
+### B8-383 · FIXED · One press of Generate writes one file per measurement, so "the selected report" has no document to rebuild
+- blocks release: no
+- Knut, 2026-09-18: *"The enabling 'Show all measurement runs' then Generate
+  Report seems to add more saved reports, instead of just rebuilding the report
+  selected showing the data for all the included measurements selected."* and
+  *"Clicking 'Show all measurement runs' ON, and then generate report, creates
+  2 new reports under the saved reports, which is wrong behaviour."*
+- **measured, and it is exactly his number**: on a run with two dated
+  verifications, one press of Generate report took the project from **2 saved
+  report files to 4**, one new file per dated verification. Ticking "Show all
+  measurement runs" and pressing Generate again took it from **4 to 6**.
+  Nothing was rebuilt. `D-five-defects/five-defects.json`, `4_generate_plain`
+  and `4_generate_show_all`; `K4a-after-generate.png`, `K4b-show-all-then-generate.png`.
+- **THIS IS THE ROOT OF THE OTHER FOUR.** A saved report today is a
+  per-measurement verdict record, not a document, so there is no single file
+  for "the report selected" to name, to rebuild, to restore settings from, or
+  to delete. §13.4 lists the fields the document record needs; the block is
+  additive and `REPORT_SCHEMA` stays 7.
+- **FIXED 2026-09-18.** A saved report now carries an additive `document`
+  block: a document id decided once per press, the settings that press was made
+  with (type, set id and label, the thresholds copy, both tick boxes) and the
+  list of measurements it covers. `workflow/measurement_report.py`:
+  `new_document_id`, `stamp_document`, `recorded_document`, `document_key` /
+  `document_key_of`, `document_measurement_key`, `document_old_dir`.
+  `REPORT_SCHEMA` stays **7**.
+- **Nothing on disk was deleted, renamed or rewritten.** A report with no block
+  is its own one-file document (`document_key_of`'s `file:` branch), is listed
+  under the name it already had and opens as it always did.
+- **driven on screen, 2026-09-18** (`scripts/drive_b22_the_document_record.py`,
+  `~/Desktop/ChromIQ-beta22-proof/b383-the-document-record/`), same project and
+  same sequence as the measurement above:
+
+  | | before | after |
+  |---|---|---|
+  | Generate, "Show all measurement runs" ON | 2 files → 4, **2 entries → 4** | 2 files → 4, **2 entries → 3** |
+  | Generate again | 4 files → 6, 4 entries → 6 | 4 files → 6, **3 entries → 4** |
+
+  The files are still one per measurement, because a dated verification's
+  verdict has to live in that date's own folder (§5). One press is now one
+  ENTRY, which is the thing Knut counted.
+- status: FIXED
+- evidence: test_one_press_of_generate_writes_one_document,
+  test_the_document_records_what_it_was_made_with,
+  test_the_schema_is_not_bumped_and_nothing_on_disk_is_rewritten,
+  test_a_report_with_no_document_block_is_still_listed_and_named,
+  test_a_report_that_records_no_document_still_restores_what_it_records
+  (the new guard file for this round).
+  Mutations proved to land, `__pycache__` cleared around each: `stamp_document`
+  disabled (**10 failed**), the `file:` branch of `document_key_of` removed
+  (**18 failed**), Generate made to rewrite a file already on disk
+  (**4 failed**); restored, green each time.
+
+### B8-384 · OPEN · Changing "Judged against" relabels every entry in the list and rewrites every saved report on disk
+- blocks release: no
+- status: OPEN
+- Knut, 2026-09-18: *"When I change Judged Against to another setting, all
+  listed reports in the Saved reports pulldown change to the new judged against
+  setting, AND created a new (third) report. This is not the behaviour I
+  specified."*
+- **measured**: changing "Judged against" from ChromIQ default to ChromIQ tight
+  relabelled **all six** pulldown entries and **rewrote all six files in
+  place**, `chromiq_default` → `chromiq_tight`, including the two original
+  reports that carried no recorded set at all. One window was shown,
+  *"Change this run's limit set?"*. On this project no new file was added; on
+  his, with more reports of more shapes, a third was created.
+  `D-five-defects/five-defects.json`, `5_judged_against`;
+  `K5-after-changing-judged-against.png`.
+- **and the photograph shows the entry disagreeing with the document it
+  names**: the pulldown reads *"… Full colour check · ChromIQ tight ·
+  saved 2026-09-18 17:16:26"* while the report body under it still reads
+  *"Report type: Full colour check · Judged against: ChromIQ default
+  (recommended)"*. The line beside Report type reads *"Already generated
+  for this run: Full colour check (6)"* after two presses of Generate.
+- his specification instead (§13, L.5 and L.6, and §5's 2026-09-18 block, N.2):
+  the change belongs to the ONE loaded report, recalculates nothing by itself,
+  and where the combination already exists the user is **asked** whether to
+  update it or create a new one. That question is new user-facing text and is
+  in §M-PROPOSED of `unified_measurement_management.md`, unapproved, with two
+  readings his paragraph allows and neither chosen here.
+- **HE HAS NOW RULED, 2026-09-18**, asked directly: *"Agreed. D23 stands."*
+  and, on Generate, *"It is better that existing reports are not overwritten. A
+  user could instead select and delete old reports they do not want."* So this
+  stops being a specification conflict and becomes a plain fault.
+- **HALF OF IT IS FIXED, and the half is named.** A report carrying a `document`
+  block is never recalculated: `_recalculate_run` skips it and
+  `_saved_report_count` does not count it, so the confirmation cannot promise a
+  loss that does not happen. Driven on screen with four generated documents and
+  two reports from an earlier ChromIQ: changing "Judged against" rewrote **2 of
+  6** files and **none of the 4 generated documents**
+  (`b383-the-document-record/the-document-record.json`, `5_judged_against`).
+- **THE OTHER HALF IS OPEN AND IS NOT THIS ROUND'S.** A report saved by an
+  earlier ChromIQ carries no block and IS still rewritten and relabelled,
+  exactly as Knut photographed. Stopping that reaches the confirmation that
+  precedes it (`_confirm_recalculate`, `_saved_report_count`, the sentence it
+  puts on screen) and the two other doors that call `_recalculate_run`
+  (the unlock tick box, and the Report limits window's Save), which are B8-310.
+  The one write is `MeasurementReportDialog._on_set_chosen`'s
+  `self._recalculate_run()` call.
+- **and one more thing the driver showed.** `Verification.archive_reports`
+  copies EVERY live report of a date into `reports/old/<stamp>/` before the
+  rewrite, generated documents included, even though they are then skipped. The
+  copy loses nothing and destroys nothing, but it is clutter that a full fix
+  should remove.
+- status: OPEN
+- partly fixed: the generated documents are safe; the remainder is a plain
+  fault with a ruling behind it, described above.
+- evidence for the half that is fixed:
+  test_a_generated_document_is_never_recalculated
+  (same file), which also asserts that
+  the legacy files ARE still rewritten, so the test cannot pass by accident.
+  Mutation proved to land: the `recorded_document` guard removed from
+  `_recalculate_run` (**1 failed**); restored, green.
+
+### B8-385 · OPEN · "Show only measured patches" blanks the whole sheet for ever in two of the three reading modes
+- blocks release: no
+- status: OPEN
+- Found on the way to B8-371, by the agent fixing it, and it is the reason that
+  fault bit so hard: with the read map never updated, EVERY measured patch sits
+  on blanked ground on all four edges instead of only on the side facing a
+  blanked neighbour.
+- `ui/tabs/tab_measure.py::_update_engine_read_map` is the only thing that
+  tells the preview which strips have been read, and it is called from exactly
+  two places, both inside the strip path: `_on_session_map` and
+  `_on_strip_measured`. Neither `_on_chart_measured` (the whole-chart read, the
+  engine's XY and CHART modes) nor `_on_patch_measured` (patch by patch, spot
+  mode) calls it.
+- **So in those two modes, with "Show only measured patches" on, the sheet
+  stays entirely blank while the measurement runs.** The feature exists to make
+  reading progress obvious at a glance, and in two of the three ways a user can
+  read a chart it shows nothing at all. Both modes are shipped.
+- The fix is not one line: the read map is per STRIP and those two modes
+  deliver a whole chart or a single patch, so "read" has to be derived (a strip
+  is read when its patches are), and it must not flicker a strip on and off as
+  patches arrive.
+- evidence: none yet; nothing has been changed. The call sites are
+  `tab_measure.py:13157` and `:13201` against the handlers at `:13322`
+  (`_on_chart_measured`) and `:13249` (`_on_patch_measured`).
+- what to do first: drive a spot-mode and a chart-mode read on screen with the
+  feature on, photograph the sheet staying blank, and only then decide how a
+  strip earns "read" in each mode.

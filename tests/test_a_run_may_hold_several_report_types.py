@@ -41,10 +41,22 @@ def _run_with_a_measurement(tmp_path, qapp):
 
 
 def _as(dlg, run, tid):
-    from workflow.run_compliance import set_run_report_type
-    set_run_report_type(run, tid)
-    dlg._forget_limits()
-    dlg._sync_limit_controls()
+    """Choose a report type the way a user does: in the pulldown.
+
+    **THIS USED TO REACH PAST THE WINDOW**, writing the type straight onto the
+    run with `set_run_report_type` and then asking the window to re-sync. That
+    was the same thing while the run was the only place a type could come from.
+    It stopped being the same thing when a generated report became a DOCUMENT
+    that carries its own type (B8-383): with one loaded, the window shows the
+    document's type, `Generate report` writes the type the window is showing,
+    and a back door that moves the run without telling the window leaves the
+    two disagreeing. Driven through the pulldown, all of it stays true.
+    """
+    from workflow.run_compliance import run_report_type
+    dlg._sync_type_combo_to(tid)
+    dlg._on_type_chosen(dlg._type_combo.currentIndex())
+    assert run_report_type(run) == tid, (
+        f"the pulldown did not store {tid} on the run")
 
 
 def test_nothing_is_generated_until_the_button_is_pressed(tmp_path, qapp):

@@ -303,6 +303,53 @@ no verdict cannot tell whether something is wrong.
 > Registered as **B8-310**. Until it is built and he has confirmed it, the
 > paragraphs below remain the specification and the code follows them.
 
+> ### ⏳ AWAITING IMPLEMENTATION: what changing a limit set does, and to which report
+>
+> **Ruled by:** Knut, 2026-09-18, on issue #182.
+> **Confirmed by:** *nobody yet.* Nothing has been built, so there is nothing
+> for anyone to confirm; this records his ruling in his own words so that the
+> build is measured against the document and not against the window.
+>
+> He elaborated the ruling above the following morning, and said plainly that
+> today's behaviour is wrong:
+>
+> > *"The limit set selected, and the other settings in the 'Settings for
+> > selected report showing' frame belongs to a specific report, which is
+> > identified in the selection field I called 'Current Report Showing'.
+> > Changing the 'judged against' parameter would then only change the limit
+> > set for that selected report in 'Current Report Showing', and that would
+> > show a red text notifying that settings have changed and to click Generate
+> > Report to recalculate and regenerate the report selected (not all
+> > reports). Unlocking a run's limits and saving a change in the Edit limits
+> > window must result in the same behaviour. When 'Current Report Showing' is
+> > set to 'New report....' then the settings specified only applies to the new
+> > report created."*
+>
+> Four rules follow, and none of them may be guessed at:
+>
+> | # | Rule |
+> |---|---|
+> | N.1 | The settings in "Settings for selected report showing" belong to the ONE report named in "Current Report Showing". |
+> | N.2 | Changing "Judged against" recalculates NOTHING by itself. It marks that one report as stale and shows the red notice: settings have changed, click Generate report. |
+> | N.3 | Unlocking a run's limits, and saving a change in the Edit limits window, do exactly the same thing to the same one report. |
+> | N.4 | With "New report..." selected, the settings apply to the report about to be created and to no existing one. |
+>
+> **N.2 and N.3 cannot be built before a saved report is a DOCUMENT.** Measured
+> on screen and registered as B8-311: with "Show all measurement runs" ticked,
+> one press of Generate report writes one file per dated verification, eleven
+> on the run it was driven on, and the pulldown goes from eleven entries to
+> twenty-two. "Current Report Showing" names one document, so a document-level
+> record has to exist before there is anything for a limit set to belong to.
+> The fields are known (type, set id and label, the thresholds copy, the two
+> tick boxes and the list of measurements included) and the block is additive,
+> so `REPORT_SCHEMA` stays 7.
+>
+> **The archive-then-recalculate rule below is untouched by this** and must be
+> re-read before anything changes: a report that has been SAVED is a record,
+> and N.2 is about a report being VIEWED. Registered as **B8-352**, with
+> B8-310 naming two of the doors that recalculate today.
+
+
 
 > **REVISED 2026-09-10 on Knut's report, and it moved for two reasons.** This
 > section said the run's limits lock once a verification has been measured.
@@ -797,3 +844,146 @@ second tells them their file is old and their data was discarded. ChromIQ saves
 a report under a dated verification and not under the sheet a profile was built
 from, so the first case is the everyday one and it was the one being described
 as damage.
+
+
+---
+
+## 13. The list of generated reports (Knut, 2026-09-18)
+
+**⏳ AWAITING IMPLEMENTATION.** **Ruled by:** Knut, 2026-09-18, on issue #182.
+**Confirmed by:** *nobody yet.* Nothing below is built, so there is nothing for
+anyone to confirm. It is written here in his words, before any code, so the
+build is measured against the document and not against the window.
+
+This section supersedes the "Saved reports" pulldown as it exists today. It is
+the model his five beta-21 defects are all symptoms of, and it is why he wrote
+*"The measurement report does not behave as specified, so I will not comment
+until it is implemented."*
+
+### 13.1 What he specified
+
+> *"I suggest that the area on the right side of the Report Type, to the right
+> of the help icon, is made into a selectable and scrollable selection box,
+> similar to the selection box listing measurements included in the report, but
+> in this box, the already generated reports can be clicked, which reads the
+> report files and brings the report back into the window (with all its
+> settings used), without having to re-generate anything.*
+>
+> *This selection box needs height to show at least 3 to 4 rows of text, and
+> only one named report can be selected at a time … Whenever I then change
+> report type or Judged against, or limit values, or the checkboxes for "Show
+> all measurement runs" or "Show detailed data for each run", then it is
+> checked if this report type and judged against combination already exists. If
+> it exists the user will be asked if he wants to update the existing report
+> (overwrite) or create a new report. The list of reports need to have names
+> generated, with date and time, that reflect their selections, so that a user
+> can distinguish between them. F.ex. "Run type, Judged agains, All runs, with
+> details, <date_time>" … It is possible that this List of Existing reports
+> needs more space than possible on the right side of Report type field. Then
+> it may need to be below the Generate Report button, and above the Report type
+> field … Having this list, also requires a "Delete Selected Report" button …
+> which then creates a dated report folder in the old/ folder where the files
+> for that report is moved to … It is allowed to have several reports in the
+> list of generated reports with the same setup and name, only distinguished by
+> the date and time. If a report is selected and then viewed in the Measurement
+> Report window, changing limits (or other settings that affect the report)
+> will update that report, unless user answers in the mentioned popup message
+> that he wants to create and generate a new report with the changes made."*
+
+### 13.2 The rules, numbered
+
+| # | Rule |
+|---|---|
+| L.1 | The generated reports are a **list box**, 3 to 4 rows tall, scrollable, one selection at a time. |
+| L.2 | Clicking one **reads its files and brings that report back into the window with every setting it was made with**, and regenerates nothing. |
+| L.3 | Each entry's **name is generated from its own settings plus date and time**: report type, limit set, whether all runs were included, whether detailed data was shown. |
+| L.4 | Several reports may share a setup and a name, distinguished only by date and time. |
+| L.5 | Changing report type, "Judged against", a limit value, or either checkbox, **checks whether that combination already exists** and, if it does, **asks**: update the existing report, or create a new one. |
+| L.6 | With a report loaded, a settings change **updates that report**, unless the user answers the question by asking for a new one. |
+| L.7 | A **"Delete Selected Report"** button MOVES that report's files into an `old/` folder; nothing is destroyed. Which `old/` depends on the report's span: one dated verification → that date's folder; several dates of one run → the run's `verifications/old/`; several profile runs → the project's. |
+| L.8 | Placement: the list goes below **Generate report** and above **Report type**, with **Generate report** and **Delete Selected Report** stacked vertically to its left so the buttons read as belonging to the list. It may be collapsible. |
+| L.9 | The window says to pick a report to load one, and says "click Generate Report to create the first report" when the list is empty. |
+| L.10 | Report limits: the column "This run" becomes **"This report"**, reflects the LOADED report's limits, and is editable for the loaded report when unlocked. Editing a shared set (e.g. "ChromIQ tight") affects every report using it but changes no report until it is regenerated, and a warning window must say so. Thresholds of a report that is NOT loaded may not be edited. |
+
+### 13.3 What the app does today, measured
+
+Driven on screen 2026-09-18,
+`scripts/drive_b22_knuts_five_report_defects.py`, on a project with one profile
+run, two dated verifications and two saved reports. Photographs and the JSON
+are in `~/Desktop/ChromIQ-beta22-proof/knut-report-and-warnings/D-five-defects/`.
+
+| his defect | measured |
+|---|---|
+| the arrangement | "Saved reports" sits at y=388, BELOW Report type (y=292) and Judged against (y=340); L.8 puts it between Generate report (y=250) and Report type. The three boxes are 301 / 264 / 478 px wide and not aligned. There is no Delete-Selected-Report button beside the list, no empty-list sentence, and the list is a one-row pulldown rather than a 3-to-4-row box. |
+| picking one does not update the window | picking each entry in turn: the selection sticks, and the rendered document's hash **does not change**. |
+| picking one does not restore its settings | Report type and "Judged against" do not move when the selection changes. *(On this project both saved reports share a type and a set, so this reading is structural rather than decisive; the decisive evidence is that nothing in the pick path writes to those controls.)* |
+| Generate adds reports instead of rebuilding the selected one | **one press of Generate wrote TWO files**, one per dated verification: 2 files on disk → 4. Ticking "Show all measurement runs" and pressing Generate again wrote **two more**: 4 → 6. Nothing was rebuilt. |
+| changing "Judged against" relabels every entry and writes another | all **six** entries were relabelled from "ChromIQ default (recommended)" to "ChromIQ tight", and **all six files were rewritten in place**, including the two originals that carried no recorded set at all. One confirmation was shown, *"Change this run's limit set?"*. No new file was added on this project; Knut saw a third report created on his, which has more reports of more shapes. |
+
+### 13.3b Knut's rulings of the same evening, and what they removed
+
+**Ruled by:** Knut, 2026-09-18, on issue #182, answering three questions put to
+him after the five defects above were measured. **Confirmed by:** *nobody yet* —
+these are his words; what the app now does with them is not confirmed.
+
+| # | His ruling |
+|---|---|
+| K.1 | **Nothing is ever overwritten, and there is no update-or-create question.** *"It is better that existing reports are not overwritten. A user could instead select and delete old reports they do not want."* So Generate report always writes a NEW report and the user prunes the list with Delete Selected Report. The question L.5 describes is **withdrawn**: it was in §M-PROPOSED of `unified_measurement_management.md`, never had an `M-` id, and nothing in the code referred to it. L.5 and L.6 stand only as far as the naming rule goes. |
+| K.2 | **D23 stands.** Asked whether the archive-then-recalculate rule still held after his beta-20 report, he answered *"Agreed. D23 stands."* Changing "Judged against" must not rewrite, relabel or touch a saved report on disk. |
+| K.3 | **A pulldown is acceptable.** *"It is ok that 'Current Report Showing' is a pulldown list if that saves space in the window."* So L.1's 3-to-4-row scrolling box is not built; what survives of it is the NAME an entry carries, which matters more when one row is visible at a time. |
+| K.4 | **One report is one line, whatever it spans.** *"If I make a report that has all dated verifications included, and this report outputs a text representing all of those measurements, that is still only ONE report listed in the pulldown."* |
+| K.5 | **The per-dated-verification records count too.** *"If the list of reports in 'Current Report Showing' have one report per dated verification (by default created during measurement), then each of those reports, when selecting one, should load and show with its report text in the window. And each of those will automatically have the settings updated to what was used when generating those reports (Correct report type, correct Judge Against used, 'Show all measurement runs' OFF (since it is only one date), etc.)"* |
+| K.6 | He proposes renaming the control **"Current Report Showing"**. The wording is his and is **not settled**: he offered it twice as a suggestion (*"a better name could be given if you find a better wording for its use"*). |
+
+**And one question he asked back, answered in §13.5.**
+
+> *"When verification measurements are made, a measurement report is saved, but
+> this should only save the raw data needed to generate a report. If an actual
+> report is generated, then that report is probably using some default
+> settings. Are these defaults specified somewhere?"*
+
+### 13.4 What has to exist before any of this can be built
+
+**A saved report is not a document today.** It is a per-measurement verdict
+record: that is why one press of Generate writes one file per dated
+verification, and why "the report selected" has no single file to rebuild.
+L.1 to L.7 all name one document, so the document-level record (B8-311) is the
+first thing, and it is additive: type, set id and label, the thresholds copy,
+both tick boxes, and the list of measurements included. `REPORT_SCHEMA` stays 7.
+
+**The question of L.5 is new user-facing text** and is in §M-PROPOSED of
+`unified_measurement_management.md`, unapproved, with the two things about it
+that his paragraph can be read two ways.
+
+**Nothing may be deleted or renamed on disk by this change.** Every report a
+user already has must still open, and L.7 moves files rather than removing them.
+
+Registered as **B8-380** to **B8-384**, under B8-375.
+
+### 13.5 The defaults the automatic measurement-time report uses
+
+**Measured 2026-09-18 in `ui/tabs/tab_measure.py::_maybe_save_measurement_report`,
+which is the only place ChromIQ writes a report by itself.** This answers K.6's
+question and nothing here is a proposal.
+
+| what | where it comes from | written down anywhere? |
+|---|---|---|
+| whether a report is written at all | Preferences ▸ Reports ▸ "Save measurement report", **off** as shipped | the preference is on screen; the default is not in any document |
+| the report **type** | `run_report_type(run)`: the profile run's stored type, and `t2_full_colour_check` for a run that has never had one chosen | D9 and D28 say the type belongs to the run; the FALLBACK is `REPORT_TYPE_DEFAULT` in the code and appears in no document |
+| the **limit set** | `TabMeasure._report_limits_for(ti3)`: the run's bound copy, or the Preferences default set for a run that is not bound | §5 of this document, in full |
+| **"Show all measurement runs"** | not recorded, and nothing sets it: the two tick boxes are report-window view settings that do not exist at measurement time | **nowhere** |
+| **"Show detailed data for each run"** | the same | **nowhere** |
+
+**So: two of the five are specified, one is in the code only, and the two tick
+boxes are specified nowhere at all**, because until the document record existed
+there was nothing for a saved report to record them in.
+
+What the window now does about the last two is K.5's own sentence and no more:
+an entry that records no document of its own is loaded with its own recorded
+type and limit set, and with both tick boxes OFF, *"since it is only one date"*.
+Nothing is written to disk to achieve that. Whether the automatic record should
+itself carry a document block, so that those two are a fact on disk rather than
+an inference at load time, is **not built and is a question for Knut**: it would
+also take every such record out of reach of §5's unlock recalculation, which is
+B8-310 ground.
+

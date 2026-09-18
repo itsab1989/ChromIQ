@@ -1102,6 +1102,166 @@ def save_report(report: dict, run_dir: str | Path) -> Path:
     return path
 
 
+# ---------------------------------------------------------------------------
+# The DOCUMENT record (#182, Knut 2026-09-18; §13.4 of
+# docs/design/measurement_report_limits.md, register B8-383)
+# ---------------------------------------------------------------------------
+#: The additive block. **`REPORT_SCHEMA` STAYS 7 AND NOTHING ON DISK MOVES.**
+#: Every report a user already has was written without this key, opens without
+#: it, and is listed, rendered and judged exactly as it was; a file that has no
+#: block is its own one-file document (see :func:`document_key`). The block is
+#: only ever ADDED, by the press of Generate that writes the file.
+DOCUMENT_BLOCK = "document"
+
+
+def new_document_id(when: "datetime | None" = None) -> str:
+    """A fresh document id: time-ordered, and unique within the same second.
+
+    ONE PRESS OF GENERATE IS ONE DOCUMENT, and a document can be several files
+    — one per measurement it covers, in that measurement's own folder, because
+    that is where a dated verification's verdict has to live (§5). The id is
+    what makes those files one thing, so the id has to be decided once, before
+    the first file is written, and handed to every file of the press.
+
+    Time-ordered so the list can be sorted on it without reading a clock out of
+    the block, and salted because a user can press Generate twice in one
+    second: `save_report` already learned that lesson the hard way and grew a
+    `_2` suffix for it.
+    """
+    import secrets
+    stamp = (when or datetime.now()).strftime("%Y%m%d_%H%M%S")
+    return f"doc_{stamp}_{secrets.token_hex(3)}"
+
+
+def stamp_document(report: dict, *, doc_id: str, created: str, type_id: str,
+                   compliance: "dict | None", all_runs: bool, detail: bool,
+                   measurements: "list[dict]") -> dict:
+    """Record, on one file, which DOCUMENT it belongs to and how that document
+    was made. Returns *report*, stamped in place.
+
+    §13.4 names the fields and this writes exactly them: the type, the limit
+    set with its label and the thresholds copy it was judged against, both tick
+    boxes, and the list of measurements the document covers. Nothing here is
+    derived at read time, because the whole point is that selecting the
+    document restores the settings it was MADE with (L.2), not the settings the
+    run happens to carry today.
+    """
+    report[DOCUMENT_BLOCK] = {
+        "id": str(doc_id),
+        "created": str(created),
+        "type": str(type_id or ""),
+        "compliance": dict(compliance) if isinstance(compliance, dict) else None,
+        "all_runs": bool(all_runs),
+        "detail": bool(detail),
+        "measurements": [dict(m) for m in (measurements or [])],
+    }
+    return report
+
+
+def recorded_document(report: "dict | None") -> "dict | None":
+    """The document block a report was saved with, or None.
+
+    None is the honest answer for every report written before this existed and
+    is never an error: such a file is a document of one file (`document_key`).
+    """
+    d = (report or {}).get(DOCUMENT_BLOCK)
+    if not isinstance(d, dict) or not str(d.get("id") or ""):
+        return None
+    return d
+
+
+def document_key(report: "dict | None", path: "str | Path") -> str:
+    """Which document one saved report file belongs to.
+
+    A file carrying a block answers with its id. **A file without one answers
+    with its own path**, so every report already on disk stays in the list as
+    its own entry, named as it is named today, and the list a user has been
+    looking at does not change under them.
+    """
+    return document_key_of(recorded_document(report), path)
+
+
+def document_key_of(doc: "dict | None", path: "str | Path") -> str:
+    """:func:`document_key`, for a caller that has already read the block.
+
+    One rule in one place: the report window reads each file's block once per
+    mtime and caches it, so it never has the whole report to hand when it needs
+    the key.
+    """
+    if doc is not None:
+        return f"id:{doc['id']}"
+    return f"file:{Path(path)}"
+
+
+def document_measurement_key(origin_dir: "str | Path", created: str,
+                             ti3: str) -> str:
+    """The identity of ONE measurement inside a document's list.
+
+    The same three parts the report window's `_run_key` uses, in the same
+    order, because the window has to match a document's recorded list against
+    the rows it has loaded and two answers to "which measurement is this" is
+    one answer too many.
+    """
+    return f"{origin_dir}|{created}|{ti3}"
+
+
+def document_old_dir(member_dirs: "list[Path] | list[str]",
+                     when: "datetime | None" = None) -> "Path | None":
+    """Where **Delete Selected Report** moves a document's files (L.7).
+
+    Knut, 2026-09-18: *"which then creates a dated report folder in the old/
+    folder where the files for that report is moved to. If it is several dated
+    verification runs, it will land in the old/ folder in the verifications/
+    folder. If it is only one dated verification run included in the report,
+    then the report files will be moved to the old/ folder in the dated folder
+    for that verification run. If the included measurements for the report span
+    several profile runs, then the report files will be moved to the old/
+    folder for the project (common for all the runs)."*
+
+    So the destination is decided by the document's SPAN, and the three answers
+    are:
+
+    ============================== ==========================================
+    the document covers            it is moved to
+    ============================== ==========================================
+    one folder                     ``<that folder>/reports/old/<stamp>/``
+    several dates of ONE run       ``<run>/verifications/old/<stamp>/``
+    several profile runs           ``<project>/old/<stamp>/``
+    ============================== ==========================================
+
+    ``reports/old/`` is this project's existing word for an archived report
+    (``Verification.archive_reports``), so the one-folder answer uses it rather
+    than inventing a second place for the same thing.
+
+    Returns None when *member_dirs* is empty. **Nothing is created here** and
+    nothing is deleted anywhere: this only names the folder.
+    """
+    from core.file_manager import REPORTS_DIRNAME, VERIFICATIONS_DIRNAME
+    dirs = [Path(d) for d in (member_dirs or []) if str(d)]
+    if not dirs:
+        return None
+    stamp = (when or datetime.now()).strftime("%Y-%m-%d_%H%M%S")
+    uniq = sorted({str(d) for d in dirs})
+    if len(uniq) == 1:
+        return dirs[0] / REPORTS_DIRNAME / "old" / stamp
+
+    def _run_of(d: Path) -> "Path | None":
+        """The profile run a measurement folder belongs to: the run itself, or
+        the run above a dated verification folder."""
+        if d.parent.name == VERIFICATIONS_DIRNAME:
+            return d.parent.parent
+        return d
+
+    runs = {str(_run_of(d)) for d in dirs}
+    if len(runs) == 1:
+        run = _run_of(dirs[0])
+        return run / VERIFICATIONS_DIRNAME / "old" / stamp
+    # Several profile runs: the project is the folder above `runs/`.
+    run = _run_of(dirs[0])
+    project = run.parent.parent if run.parent.name == "runs" else run.parent
+    return project / "old" / stamp
+
+
 def list_reports(run_dir: str | Path) -> list[Path]:
     """All saved reports for a run, oldest first."""
     from core.file_manager import reports_subdir

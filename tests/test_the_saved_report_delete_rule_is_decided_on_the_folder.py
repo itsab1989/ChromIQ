@@ -127,13 +127,20 @@ def test_a_refused_delete_re_reads_instead_of_doing_nothing():
     tree = ast.parse(textwrap.dedent(src))
     calls = {n.func.attr for n in ast.walk(tree)
              if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
-    assert "_saved_delete_refusal" in calls, "the refusal is no longer consulted"
+    # B8-380: the button acts on a DOCUMENT, which may be several files, so it
+    # asks `_delete_refusal_for`; that method's whole body is the same rule
+    # applied to each of the document's files in turn with
+    # `_saved_delete_refusal`, and the test below pins it.
+    assert "_delete_refusal_for" in calls, "the refusal is no longer consulted"
     assert "_reload_sources" in calls, (
         "a refused delete must re-read the folder so the row can show why")
     # …and the refusal must not be answered by falling straight out.
-    head = src.split("_saved_delete_refusal", 1)[1]
-    assert "_reload_sources" in head.split("path =", 1)[0], (
+    head = src.split("_delete_refusal_for", 1)[1]
+    assert "_reload_sources" in head.split("members =", 1)[0], (
         "the refusal branch returns without telling the reader anything")
+    per_file = inspect.getsource(MeasurementReportDialog._delete_refusal_for)
+    assert "_saved_delete_refusal" in per_file, (
+        "the document-level refusal no longer asks the per-file rule")
 
 
 def test_a_file_the_window_cannot_read_is_not_a_spare(dated_verification):

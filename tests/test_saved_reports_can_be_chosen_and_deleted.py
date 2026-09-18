@@ -70,6 +70,41 @@ def _reports(v):
 
 
 # --------------------------------------------------------------------------
+# B8-380/B8-383: the pulldown is a LIST BOX and every entry is a DOCUMENT.
+#
+# The fixture here saves reports through `save_report` directly, exactly as an
+# earlier ChromIQ did and as every report already on a user's disk was written,
+# so none of them carries a document block and each is its own one-file
+# document. That is deliberate: these tests are the record that such a file is
+# still listed, still named as it was and still opens.
+# --------------------------------------------------------------------------
+def _count(dlg) -> int:
+    return dlg._saved_combo.count()
+
+
+def _key(dlg, i: int) -> str:
+    return str(dlg._saved_combo.itemData(i) or "")
+
+
+def _text(dlg, i: int) -> str:
+    return dlg._saved_combo.itemText(i)
+
+
+def _file_of(key: str) -> str:
+    """The report file a one-file document's key names."""
+    return Path(key.split("file:", 1)[1]).name if key.startswith("file:") else ""
+
+
+def _current_file(dlg) -> str:
+    return _file_of(str(dlg._saved_combo.currentData() or ""))
+
+
+def _pick(dlg, i: int, qapp) -> None:
+    dlg._saved_combo.setCurrentIndex(i)
+    qapp.processEvents()
+
+
+# --------------------------------------------------------------------------
 # the selector
 # --------------------------------------------------------------------------
 def test_every_saved_report_of_the_run_is_offered(tmp_path, qapp):
@@ -83,8 +118,8 @@ def test_every_saved_report_of_the_run_is_offered(tmp_path, qapp):
     try:
         on_disk = sum(len(_reports(v)) for v in vs)
         assert on_disk == 4, on_disk
-        assert dlg._saved_combo.count() == 4, (
-            f"{dlg._saved_combo.count()} entries for {on_disk} saved reports")
+        assert _count(dlg) == 4, (
+            f"{_count(dlg)} entries for {on_disk} saved reports")
     finally:
         dlg.close()
 
@@ -125,8 +160,7 @@ def test_the_selector_never_offers_another_run_s_reports(tmp_path, qapp):
         # two runs' first reports of the same second are the same NAME in
         # different folders, and a first cut of this test compared the names
         # and failed on a window that was filtering correctly.
-        keys = [dlg._saved_combo.itemData(i)[0]
-                for i in range(dlg._saved_combo.count())]
+        keys = [_key(dlg, i) for i in range(_count(dlg))]
         assert keys, "the selector is empty, so this proves nothing"
         assert not any(str(run2.dir) in k for k in keys), (
             f"the selector offers another run's report: {keys}")
@@ -146,8 +180,7 @@ def test_two_reports_of_one_second_are_told_apart_in_the_list(tmp_path, qapp):
     s, _fm, _run, vs = _env(tmp_path, dates=1, per_date=3)
     dlg = _dialog(s, vs[0].measurement_ti3, qapp)
     try:
-        labels = [dlg._saved_combo.itemText(i)
-                  for i in range(dlg._saved_combo.count())]
+        labels = [_text(dlg, i) for i in range(_count(dlg))]
         assert len(labels) == 3
         assert len(set(labels)) == 3, labels
     finally:
@@ -172,12 +205,10 @@ def test_choosing_an_entry_that_is_not_the_first_one_sticks(tmp_path, qapp):
         # moved the window's row, so a test on the easy shape passed with the
         # scan replaced by `findData` again.
         here = str(vs[-1].dir)
-        i = next(n for n in range(dlg._saved_combo.count())
-                 if here not in dlg._saved_combo.itemData(n)[0])
-        want = dlg._saved_combo.itemData(i)
-        dlg._saved_combo.setCurrentIndex(i)
-        qapp.processEvents()
-        assert dlg._saved_combo.currentData() == want, (
+        i = next(n for n in range(_count(dlg)) if here not in _key(dlg, n))
+        want = _key(dlg, i)
+        _pick(dlg, i, qapp)
+        assert str(dlg._saved_combo.currentData() or "") == want, (
             f"the selector went back to index "
             f"{dlg._saved_combo.currentIndex()}")
     finally:
@@ -196,13 +227,10 @@ def test_the_document_follows_the_report_that_was_chosen(tmp_path, qapp):
     dlg = _dialog(s, vs[0].measurement_ti3, qapp)
     try:
         was = str(dlg._report.get("_report_file"))
-        other = next(dlg._saved_combo.itemData(i)[1]
-                     for i in range(dlg._saved_combo.count())
-                     if dlg._saved_combo.itemData(i)[1] != was)
-        i = next(n for n in range(dlg._saved_combo.count())
-                 if dlg._saved_combo.itemData(n)[1] == other)
-        dlg._saved_combo.setCurrentIndex(i)
-        qapp.processEvents()
+        i = next(n for n in range(_count(dlg))
+                 if _file_of(_key(dlg, n)) != was)
+        other = _file_of(_key(dlg, i))
+        _pick(dlg, i, qapp)
         assert str(dlg._report.get("_report_file")) == other, (
             f"the window still shows {dlg._report.get('_report_file')}")
     finally:
@@ -212,11 +240,17 @@ def test_the_document_follows_the_report_that_was_chosen(tmp_path, qapp):
 # --------------------------------------------------------------------------
 # the delete
 # --------------------------------------------------------------------------
-def test_delete_removes_exactly_the_chosen_file(tmp_path, qapp):
-    """One file, named in the question, and nothing else on disk.
+def test_delete_moves_exactly_the_chosen_report_and_destroys_nothing(tmp_path,
+                                                                     qapp):
+    """One report, named in the question, MOVED into `old/` (L.7).
 
-    MUTATION: unlink `r["_report_file"]` instead of the selected name and this
-    goes red whenever the two differ.
+    Knut, 2026-09-18: *"Having this list, also requires a 'Delete Selected
+    Report' button … which then creates a dated report folder in the old/
+    folder where the files for that report is moved to."* This button used to
+    `unlink`, under a question that ended *"ChromIQ cannot undo this"*.
+
+    MUTATION: unlink the file instead of moving it, or move a file the list is
+    not on, and this goes red.
     """
     s, _fm, _run, vs = _env(tmp_path, dates=1, per_date=3)
     dlg = _dialog(s, vs[0].measurement_ti3, qapp)
@@ -224,15 +258,23 @@ def test_delete_removes_exactly_the_chosen_file(tmp_path, qapp):
     dlg._confirm = lambda t, b: (asked.append((t, b)), True)[1]
     try:
         before = _reports(vs[0])
-        target = dlg._saved_combo.currentData()[1]
+        target = _current_file(dlg)
+        label = _text(dlg, dlg._saved_combo.currentIndex())
         dlg._on_delete_report()
         qapp.processEvents()
         after = _reports(vs[0])
         assert sorted(set(before) - set(after)) == [target]
         assert len(after) == len(before) - 1
+        # ONE DATED VERIFICATION, so it lands in that date's own reports/old/.
+        moved = list(vs[0].dir.glob("reports/old/*/" + target))
+        assert moved, (
+            f"{target} was destroyed instead of moved into old/: "
+            f"{sorted((vs[0].dir / 'reports').rglob('*'))}")
         assert vs[0].measurement_ti3.is_file(), "the MEASUREMENT was deleted"
-        assert asked and target in asked[0][1], (
-            "the question does not name the file it is about to remove")
+        assert asked and label in asked[0][1], (
+            "the question does not name the report it is about to move")
+        assert asked and "old" in asked[0][1], (
+            "the question does not say where the files go")
     finally:
         dlg.close()
 
@@ -261,7 +303,7 @@ def test_the_only_report_of_a_dated_verification_cannot_be_deleted(tmp_path,
     dlg = _dialog(s, vs[0].measurement_ti3, qapp)
     dlg._confirm = lambda t, b: True
     try:
-        assert dlg._saved_combo.count() == 1
+        assert _count(dlg) == 1
         assert not dlg._delete_report_btn.isEnabled()
         assert dlg._saved_note.toolTip(), "the refusal gives no reason"
         assert dlg._saved_note.text(), "the reason is not on screen"
@@ -309,8 +351,10 @@ def test_delete_is_dead_when_the_selector_is_empty(tmp_path, qapp):
             "be: it is not a dated verification")
         dlg._on_delete_report()
         qapp.processEvents()
-        assert not p.exists()
-        assert dlg._saved_combo.count() == 0
+        assert not p.exists(), "the file is still in the reports folder"
+        moved = list(run.dir.glob("reports/old/*/" + p.name))
+        assert moved, "the file was destroyed instead of moved to old/"
+        assert _count(dlg) == 0
         assert not dlg._delete_report_btn.isEnabled()
     finally:
         dlg.close()
@@ -333,11 +377,10 @@ def test_the_window_survives_losing_the_report_it_was_showing(tmp_path, qapp):
     dlg = _dialog(s, own, qapp)
     dlg._confirm = lambda t, b: True
     try:
-        gone = dlg._saved_combo.currentData()[1]
+        gone = _current_file(dlg)
         dlg._on_delete_report()
         qapp.processEvents()
-        names = [dlg._saved_combo.itemData(i)[1]
-                 for i in range(dlg._saved_combo.count())]
+        names = [_file_of(_key(dlg, i)) for i in range(_count(dlg))]
         assert gone not in names, "the window still offers a file that is gone"
         assert str(dlg._report.get("_report_file")) != gone, (
             "the window is still showing the report it deleted")
@@ -428,17 +471,19 @@ def test_no_label_in_this_window_is_styled_with_palette_mid():
         "a label is styled with palette(mid) again")
 
 
-def test_the_row_costs_nothing_when_there_is_nothing_to_choose(tmp_path, qapp):
-    """A hidden widget claims no space; ONE left visible keeps the whole row.
+def test_an_empty_list_says_to_press_generate_report(tmp_path, qapp):
+    """**AND THE ROW NO LONGER HIDES ITSELF.** It used to, to save 42 px on an
+    800 px screen, which left a user with no way of knowing the list was there.
+    Knut, 2026-09-18 (L.9): *"The window needs to show clearly that a user
+    should select a report in the list to show/load a previously generated
+    report. IF the list is empty, then the user could also be informed to Click
+    Generate Report to create the first report."*
 
-    This window's minimum already sits within about 11 px of an 800 px screen,
-    and the first cut of this row left its help button visible and pushed the
-    window's bottom off the screen on a measurement with no saved report at
-    all.
+    The height it costs is still the thing that was right about the old
+    behaviour, so `_fits` is asserted in the same breath.
 
-    MUTATION: drop `self._saved_help` from the visibility loop and this goes
-    red, together with the two screen-fit tests in
-    `tests/test_install_rename_and_run_filter.py`.
+    MUTATION: drop the `_set_saved_hint` call from the empty branch of
+    `_sync_saved_reports` and this goes red.
     """
     from tests.test_import_measurement_module import (_cgats, _PATCHES,
                                                       _verify_env)
@@ -448,11 +493,13 @@ def test_the_row_costs_nothing_when_there_is_nothing_to_choose(tmp_path, qapp):
     v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES), encoding="utf-8")
     dlg = _dialog(s, v.measurement_ti3, qapp)
     try:
-        assert dlg._saved_combo.count() == 0, "this run has a saved report"
-        for name in ("_saved_label", "_saved_combo", "_delete_report_btn",
-                     "_saved_note", "_saved_help"):
-            assert not getattr(dlg, name).isVisible(), (
-                f"{name} is on screen with nothing to choose")
+        assert _count(dlg) == 0, "this run has a saved report"
+        assert dlg._saved_combo.isVisible(), (
+            "the selector hides itself when empty")
+        assert not dlg._delete_report_btn.isEnabled()
+        assert "Generate report" in dlg._saved_hint.toolTip(), (
+            f"the empty list says {dlg._saved_hint.toolTip()!r}")
+        assert dlg._saved_hint.text(), "the sentence is not on screen"
         assert _fits(dlg)
     finally:
         dlg.close()
@@ -492,7 +539,7 @@ def test_the_window_still_fits_the_screen_with_the_row_on_it(tmp_path, qapp):
     s, _fm, _run, vs = _env(tmp_path, dates=2, per_date=2)
     dlg = _dialog(s, vs[-1].measurement_ti3, qapp)
     try:
-        assert dlg._saved_combo.isVisible() and dlg._saved_combo.count() == 4
+        assert dlg._saved_combo.isVisible() and _count(dlg) == 4
         assert _fits(dlg)
     finally:
         dlg.close()
@@ -544,10 +591,9 @@ def test_generate_shows_the_report_it_just_wrote(tmp_path, qapp):
     try:
         # point the window at the OLDEST of the three
         oldest = sorted(_reports(vs[0]))[0]
-        i = next(n for n in range(dlg._saved_combo.count())
-                 if dlg._saved_combo.itemData(n)[1] == oldest)
-        dlg._saved_combo.setCurrentIndex(i)
-        qapp.processEvents()
+        i = next(n for n in range(_count(dlg))
+                 if _file_of(_key(dlg, n)) == oldest)
+        _pick(dlg, i, qapp)
         assert str(dlg._report.get("_report_file")) == oldest
         before = set(_reports(vs[0]))
         dlg._on_generate_report()
@@ -555,7 +601,11 @@ def test_generate_shows_the_report_it_just_wrote(tmp_path, qapp):
         after = set(_reports(vs[0]))
         written = sorted(after - before)
         assert len(written) == 1, written
-        assert dlg._saved_combo.count() == len(after), (
+        # …AND THE LIST GAINED EXACTLY ONE ENTRY, because one press of Generate
+        # is one DOCUMENT (B8-383). The three files already there carry no
+        # document block, so they are three one-file documents; the new one is
+        # the fourth entry.
+        assert _count(dlg) == len(after), (
             "the report it just wrote is not in the list")
         assert str(dlg._report.get("_report_file")) == written[0], (
             f"Generate wrote {written[0]} and the page still describes "
@@ -566,8 +616,10 @@ def test_generate_shows_the_report_it_just_wrote(tmp_path, qapp):
         # The page moved and the pulldown did not, so the window's header named
         # one report and its selector named another, in front of him. The
         # missing line below is why that shipped.
-        assert dlg._saved_combo.currentData()[1] == written[0], (
-            f"Generate wrote {written[0]} and the selector still names "
-            f"{dlg._saved_combo.currentData()[1]}")
+        row = dlg._saved_combo.currentIndex()
+        names = [m[1] for m in dlg._saved_documents(
+            dlg._run_ctx.run if dlg._run_ctx else None)[row]["members"]]
+        assert names == [written[0]], (
+            f"Generate wrote {written[0]} and the selector names {names}")
     finally:
         dlg.close()
