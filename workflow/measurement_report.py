@@ -1309,7 +1309,7 @@ def recorded_document(report: "dict | None") -> "dict | None":
     None is the honest answer for every report written before this existed and
     is never an error: such a file is a document of one file (`document_key`).
     """
-    d = (report or {}).get(DOCUMENT_BLOCK)
+    d = report_object(report).get(DOCUMENT_BLOCK)
     if not isinstance(d, dict) or not str(d.get("id") or ""):
         return None
     return d
@@ -1452,6 +1452,25 @@ def generated_report_types(run) -> "dict[str, int]":
             tid = report_type(doc)
             out[tid] = out.get(tid, 0) + 1
     return out
+
+
+def report_object(obj) -> dict:
+    """A saved report as a dict, or an empty one for anything that is not.
+
+    **`json.loads` IS HAPPY WITH `[]`, `null`, `"x"` AND `5` (R25-F1).** Every
+    reader of a saved report guarded itself with `(report or {}).get(...)`,
+    which catches None and an empty dict and lets a string, a list and a number
+    straight through: `5 or {}` is `5`. One such file anywhere under
+    `runs/*/reports/` then took the whole Measurement Report window down for
+    every measurement of every run, with the list empty, all three pulldowns
+    blank, Generate, PDF, Reveal and Delete dead, and the message naming no
+    file. Driven in a real window in all four shapes.
+
+    ChromIQ writes no such file. The doors are a shared project, a hand edit
+    and the declutter migration, which is enough: a report is a record of
+    somebody's measurement and a folder of them is not ours to assume clean.
+    """
+    return obj if isinstance(obj, dict) else {}
 
 
 def list_project_reports(run_dir: str | Path) -> list[Path]:
@@ -1661,7 +1680,7 @@ def report_type(report: "dict | None") -> str:
     one does — and nothing is rewritten, so the later ChromIQ still finds the
     user's choice where it left it.
     """
-    t = (report or {}).get("report_type")
+    t = report_object(report).get("report_type")
     return t if t in REPORT_TYPES and report_type_is_built(t) \
         else REPORT_TYPE_DEFAULT
 

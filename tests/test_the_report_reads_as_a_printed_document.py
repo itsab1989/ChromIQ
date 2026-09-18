@@ -1500,3 +1500,43 @@ def test_the_pdfs_trend_charts_are_drawn_with_the_documents_own_limits(
             f"document was built with ({as_built})")
     finally:
         dlg.deleteLater()
+
+
+@pytest.mark.parametrize("junk", ["[]", "null", '"x"', "5"])
+def test_a_report_file_that_is_not_an_object_does_not_take_the_window_down(
+        tmp_path, qapp, junk):
+    """R25-F1: `json.loads` is happy with `[]`, `null`, `"x"` and `5`, and the
+    `.get` two lines below the parse then raised OUTSIDE the `except` that
+    catches a bad parse.
+
+    `list_project_reports` globs `runs/*/reports/`, so ONE such file anywhere
+    in a project took the whole window down for every measurement of every run:
+    driven in a real window, the list empty, all three pulldowns blank,
+    Generate, PDF, Reveal and Delete all dead, and the message naming no file.
+
+    ChromIQ writes no such file. The doors are a shared project, a hand edit,
+    and the declutter migration. A file we cannot read is now skipped exactly
+    as an unparseable one already was.
+
+    MUTATION, proven to land: drop the `isinstance(rep, dict)` check.
+    """
+    from tests.test_a_report_says_what_it_is_and_what_judged_it import _dialog
+
+    dlg, run, _fm = _dialog(tmp_path, qapp)
+    try:
+        before = len(dlg._history)
+        assert before, "the fixture rendered nothing to begin with"
+        reports = Path(run.dir) / "reports"
+        reports.mkdir(parents=True, exist_ok=True)
+        (reports / "report_20260919_000000.json").write_text(
+            junk, encoding="utf-8")
+        dlg._reload_sources()
+        qapp.processEvents()
+        assert len(dlg._history) == before, (
+            f"a report file holding {junk} emptied the window: "
+            f"{before} rows became {len(dlg._history)}")
+        assert "Could not read this measurement" not in _plain(
+            dlg._view.toHtml()), (
+            f"a report file holding {junk} took the document down")
+    finally:
+        dlg.close()

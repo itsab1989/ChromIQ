@@ -1893,6 +1893,24 @@ class MeasurementReportDialog(QDialog):
                 rep = json.loads(read_text(p))
             except Exception:  # noqa: BLE001
                 continue
+            # **AND A FILE THAT PARSES IS NOT NECESSARILY A REPORT (R25-F1).**
+            # `json.loads` is happy with `[]`, `null`, `"x"` and `5`, and the
+            # `.get` two lines down then raises OUTSIDE the `except` above. One
+            # such file anywhere under `runs/*/reports/` took the whole window
+            # down for EVERY measurement of EVERY run of the project: the list
+            # empty, all three pulldowns blank, Generate, PDF, Reveal and
+            # Delete all dead, and a message naming no file. Driven in a real
+            # window in all four shapes (round 25), with the no-file control
+            # rendering a full report.
+            #
+            # ChromIQ writes no such file; the doors are a shared project, a
+            # hand edit, and the declutter migration. A file we cannot read is
+            # skipped exactly as an unparseable one is, which is the behaviour
+            # this loop already had for the case it thought of.
+            if not isinstance(rep, dict):
+                log.warning("ignoring %s: a report must be a JSON object, "
+                            "this one is %s", p, type(rep).__name__)
+                continue
             saved.append((p, rep))
             dates_by_origin.setdefault(str(p.parent.parent), set()).add(
                 str(rep.get("created") or ""))
