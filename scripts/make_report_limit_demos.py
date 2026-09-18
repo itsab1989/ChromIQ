@@ -268,30 +268,25 @@ class GamutChartRecipe:
                 f"plus the 8 cube corners, on {self.paper}")
 
 
-#: **THE GENERATOR CLAMPS THE MODULE'S DEVICE VALUES, AND THE APP DOES NOT.**
-#: This is the one place in this file that works around a fault in shipped
-#: code rather than demonstrating it, and it is here because without it the
-#: package cannot demonstrate three of the rows Knut asked for at all.
+#: **THE GENERATOR USED TO CLAMP THE MODULE'S DEVICE VALUES, AND NOW IT
+#: REFUSES INSTEAD.** Until B8-398 was fixed, `select_gamut_targets` took its
+#: device values from xicclu's numeric inverse and nothing bounded them:
+#: measured 2026-09-18 on a 200-colour selection, 17 of 200 came back over 100
+#: on a channel and 15 over 101, the largest 107.69, and
+#: `measurement_report._rgb_to_0_100` then rescaled the WHOLE chart by 100/255
+#: because one patch exceeded 101. Not one cube corner read `present` after
+#: that, so all three reference rows read `no_corners`. This file clamped for
+#: itself so that the package could demonstrate those rows at all, and said so
+#: loudly, because a demo that silently works around a fault in the product is
+#: a demo of the workaround.
 #:
-#: Measured 2026-09-18 on a 200-colour selection through an ordinary demo
-#: profile: ``select_gamut_targets`` takes its device values from xicclu's
-#: numeric inverse and **nothing clamps them**, so 17 of 200 came back over
-#: 100 on a channel and 15 over 101, the largest 107.69.
-#: ``measurement_report._rgb_to_0_100`` then rescales the WHOLE chart by
-#: 100/255 (its rule is ``arr.max() > 101.0``), and one overshooting patch is
-#: enough. Measured consequence on a real report built from such a chart: not
-#: one cube corner reads ``present`` (device white lands at 39.2), so all
-#: three reference rows read ``no_corners``; the grey ramp reads
-#: ``too_few_steps`` and the tone ramps ``no_ramp`` for the same reason.
-#: Clamping to 0..100 and changing nothing else put all eight corners back and
-#: gave all three rows a number.
-#:
-#: Registered in this round's report as **F1**. The fix belongs in
-#: ``gamut_target.write_gamut_ti1``: a device value above 100 is not
-#: printable, and printtarg and the TIFF renderer clamp it anyway, so the
-#: chart file is the only place it survives to mislead a reader. **It is not
-#: made here**, because the app is not this script's to change.
-GAMUT_DEVICE_CLAMP = True
+#: B8-398 chose to DROP such a colour rather than clamp it: a clamped patch
+#: keeps an aim the profile itself says the ink cannot make. Re-measured
+#: 2026-09-19 through the same 200-colour selection: **0 of 200** outside the
+#: cube. So the workaround is gone, and what stands in its place is a refusal:
+#: if the app ever hands this generator an ink amount a printer has not got,
+#: the build stops instead of quietly papering over it in the demo data.
+GAMUT_DEVICE_CLAMP = False
 
 
 def make_gamut_chart(into: Path, stem: str, recipe: GamutChartRecipe,
@@ -307,14 +302,17 @@ def make_gamut_chart(into: Path, stem: str, recipe: GamutChartRecipe,
                                        write_gamut_ti1)
     sel = select_gamut_targets(profile, recipe.count, recipe.margin,
                                recipe.intent, bin_dir=ARGYLL)
-    if GAMUT_DEVICE_CLAMP:
-        over = sum(1 for _i, _lab, d in sel.targets if max(d) > 100.0)
-        if over:
-            print(f"    NOTE (F1): {over} of {len(sel.targets)} colours came "
-                  f"back over device 100; clamped so the report does not read "
-                  f"the chart as 0..255")
-        sel.targets = [(i, lab, tuple(min(100.0, max(0.0, v)) for v in dev))
-                       for i, lab, dev in sel.targets]
+    outside = [dev for _i, _lab, dev in sel.targets
+               if max(dev) > 100.0 or min(dev) < 0.0]
+    if outside:
+        raise SystemExit(
+            f"select_gamut_targets returned {len(outside)} of "
+            f"{len(sel.targets)} colours outside the device cube (worst "
+            f"{max(max(d) for d in outside):.2f}). That is B8-398 back: the "
+            f"report rescales the whole chart by 100/255 as soon as one patch "
+            f"exceeds 101, and every cube corner then reads as missing. The "
+            f"demo package does not work around it; fix "
+            f"workflow/gamut_target.select_gamut_targets.")
     into.mkdir(parents=True, exist_ok=True)
     write_gamut_ti1(sel, into / f"{stem}.ti1")
     write_colorimetric_reference(sel, into / f"{stem}-reference.ti3")
@@ -323,50 +321,53 @@ def make_gamut_chart(into: Path, stem: str, recipe: GamutChartRecipe,
     return sel
 
 
-#: The sidecar that makes a chart declare its own control strip (#182 S2w,
-#: Knut 2026-09-18). ChromIQ holds no standard's published patch list and will
-#: not guess one, so the CHART says which of its patches make up the strip.
-#: 24 ids, because the 95th-percentile row needs 20 before its nearest rank
-#: stops being the largest patch itself.
-CONTROL_STRIP_PATCHES = 24
+#: **THE PACKAGE DOES NOT PICK ITS OWN CONTROL STRIP ANY MORE, AND THAT IS THE
+#: WHOLE POINT OF THIS ROUND.** Until 2026-09-19 this file chose 24 patches of
+#: its own, spread through the chart and deliberately holding no grey, no bare
+#: paper and no cube corner. That selection demonstrated THIS GENERATOR. It
+#: could not demonstrate ChromIQ, because nothing in ChromIQ wrote a
+#: declaration at all (B8-405), and a demo pack whose fixture re-implements the
+#: feature it is meant to show agrees with itself whatever the app does.
+#:
+#: B8-405 shipped the producer, so the package asks it. `declare_for_chart` is
+#: the same call `TabChart._on_generate_finished` makes when the app files a
+#: verification chart, and the sidecar in this package is the sidecar a user
+#: gets. Its ladder is the opposite population to the old one: the substrate,
+#: the eight cube corners, an 18-rung tint ladder and three neutral greys.
+#:
+#: MEASURED on this package's own charts (2026-09-19, `declare_for_chart`
+#: asked with ``write=False``), rungs filled of the ladder's 29:
+#:
+#:     20-patch chart (CHART_TINY)        8   declares; NO 95th percentile
+#:     90-patch, no grey ramp            23   declares; 95th percentile too
+#:     105-patch (CHART_SMALL)           26   declares; 95th percentile too
+#:     156-patch (CHART_WIDE)            28   declares; 95th percentile too
+#:     210-patch (CHART_MEDIUM)          29   declares; 95th percentile too
+#:     400-patch (CHART_LARGE)           29   declares; 95th percentile too
+#:     208-patch FROM PROFILE GAMUT      17   declares; NO 95th percentile
+#:     125-patch mid-tone grid            4   CANNOT DECLARE ONE AT ALL
+#:
+#: Three of those are states no hand-picked strip could have shown: a chart
+#: that fills the ladder but not far enough for the 95th-percentile row
+#: (`control_strip_too_small`), a chart that cannot fill it at all
+#: (`no_control_strip`), and a full strip. All three are in this package.
+def declare_control_strip(chart_dir: Path, stem: str):
+    """Ask THE APP to declare this chart's control strip, and return its answer.
 
-
-def control_strip_ids(chart: Path, exclude: "set[str] | None" = None) -> "list[str]":
-    """Which of *chart*'s patches to declare as its control strip.
-
-    Spread evenly through the chart, and **never a grey, a bare-paper patch or
-    a cube corner**. A strip taken off the front of a targen chart is all
-    neutrals, which would make the three strip rows a second reading of the
-    grey ramp; a strip holding a grey would also make the grey-balance design
-    and the strip design fight over the same patch.
+    No selection is made here and none may be: the moment this file decides
+    which patches make up a strip, the package stops being evidence about
+    ChromIQ and becomes evidence about the package.
     """
-    from workflow.ti3_analysis import parse_ti3
-    d = parse_ti3(chart)
-    rgb = np.asarray(d.rgb, dtype=float)
-    skip = set(exclude or ())
-    pool = [sid for i, sid in enumerate(d.sample_ids)
-            if sid not in skip
-            and float(rgb[i].max() - rgb[i].min()) > GREY_SPREAD_TOL
-            and float(rgb[i].min()) < DEVICE_WHITE_MIN]
-    n = min(CONTROL_STRIP_PATCHES, len(pool))
-    if n < CONTROL_STRIP_PATCHES:
-        raise SystemExit(
-            f"{chart}: only {len(pool)} patches are eligible for a control "
-            f"strip and the package declares {CONTROL_STRIP_PATCHES}. The "
-            f"95th-percentile row needs 20 before its nearest rank stops being "
-            f"the largest patch itself, so a shorter strip would leave that "
-            f"row reading control_strip_too_small on every date.")
-    step = max(1, len(pool) // n)
-    return [pool[i * step] for i in range(n)]
+    from workflow.control_strip import declare_for_chart
+    return declare_for_chart(chart_dir / f"{stem}.ti2")
 
 
-def write_control_strip(chart_dir: Path, stem: str, ids: "list[str]",
-                        name: str) -> Path:
-    """The sidecar itself, beside the chart it is about."""
-    p = chart_dir / f"{stem}.control-strip.json"
-    p.write_text(json.dumps({"name": name, "sample_ids": list(ids)}, indent=2),
-                 encoding="utf-8")
-    return p
+def _strip_slots() -> tuple:
+    """The ladder, asked of the app. Its length is the denominator every count
+    in this file prints, and typing 29 here would be the same mistake as
+    typing a patch list."""
+    from workflow.control_strip import SLOTS
+    return SLOTS
 
 
 _chart_cache: "dict[tuple, Path]" = {}
@@ -571,14 +572,35 @@ class Design:
     #:  difference is exactly the chord asked for.
     cmy_dh: "float | None" = None
 
-    # -- THE DECLARED CONTROL STRIP. Its three rows are order statistics over
-    #    one subset, so they take the same shape as the sheet's own: a bulk, a
-    #    shoulder that the 95th percentile reads, and a single peak that the
-    #    largest reads. With 24 declared ids the nearest rank is 23, so the
-    #    shoulder patch IS the 95th percentile and the peak is the largest.
+    # -- THE DECLARED CONTROL STRIP, which ChromIQ itself declares (B8-405)
+    #    and this file no longer chooses. Its three rows are order statistics
+    #    over one subset, so they take the same shape as the sheet's own: a
+    #    bulk, a shoulder that the 95th percentile reads, and a single peak
+    #    that the largest reads.
+    #
+    #    **A THIRD OF THE STRIP CANNOT BE MOVED, AND THAT IS A PROPERTY OF THE
+    #    SHIPPED LADDER RATHER THAN A LIMIT OF THIS SCRIPT.** ChromIQ's strip
+    #    IS the substrate, the eight cube corners and three neutral greys, and
+    #    every one of those already carries its own design here: the bare
+    #    paper is pinned to L*100 a*0 b*0 by the media-relative normalisation,
+    #    the greys carry ``grey_dch``, and a declared corner carries
+    #    ``white_de`` / ``solid_de`` / ``cmy_dh`` or is put exactly on its
+    #    reference. A patch cannot have two designed values, so the three
+    #    knobs below are laid over the rungs that are NOT already spoken for,
+    #    and the rungs that are still count in the strip's statistics, because
+    #    the report counts them.
+    #
+    #    That is why ``strip_avg`` exists. The per-patch value that puts the
+    #    WHOLE strip's average on a chosen number depends on how many rungs a
+    #    chart filled and on what the spoken-for ones carry, and neither is a
+    #    number this file may type: the ladder is the app's and a chart fills
+    #    as much of it as it fills. Given a target, the bulk is SOLVED from
+    #    what the strip actually holds. It is exact rather than iterative,
+    #    because every designed patch lands on exactly its target dE00.
     strip_bulk: "float | None" = None
     strip_shoulder: "float | None" = None
     strip_peak: "float | None" = None
+    strip_avg: "float | None" = None
 
     # -- THE TWO GAMUT POPULATIONS ChromIQ defines for itself (S2w).
     #:  every patch with a channel within 2.0 of 0 or 100
@@ -665,6 +687,7 @@ def apply_design(ti3: Path, ti2: Path, design: Design,
                  relative: bool = True,
                  ref_labs: "dict[str, tuple] | None" = None,
                  corner_ids: "set[str] | None" = None,
+                 corner_devices: "dict[str, tuple] | None" = None,
                  strip_ids: "list[str] | None" = None) -> "dict[str, float]":
     """Rewrite the measurement's XYZ so the chart's statistics are the design's.
 
@@ -884,19 +907,6 @@ def apply_design(ti3: Path, ti2: Path, design: Design,
     if design.surface_de is not None:
         for i in _surface_patches(rgb, data.sample_ids, ref):
             _set_de(i, design.surface_de)
-    if strip_ids and design.strip_bulk is not None:
-        at = {sid: i for i, sid in enumerate(data.sample_ids)}
-        members = [at[s] for s in strip_ids if s in at]
-        # The largest reads the peak, the 95th percentile reads the shoulder
-        # (nearest rank 23 of 24), and the bulk is everything else. The two
-        # extras go on the END of the list so the bulk keeps its own order.
-        plan = [design.strip_bulk] * len(members)
-        if design.strip_shoulder is not None and len(plan) >= 2:
-            plan[-2] = design.strip_shoulder
-        if design.strip_peak is not None and plan:
-            plan[-1] = design.strip_peak
-        for i, target in zip(members, plan):
-            _set_de(i, target)
 
     # -- THE EIGHT CUBE CORNERS, last, because every population above can
     #    contain one and the corner rows are the ones a reader came for.
@@ -907,6 +917,14 @@ def apply_design(ti3: Path, ti2: Path, design: Design,
     #    fakeread, because the module's corner aims are the IDEAL sRGB values
     #    and no printer reaches them — which would make every "nothing
     #    crosses" date fail rows 14 and 15 for a reason the date is not about.
+    # The patches the CORNER block designed, whichever they turn out to be.
+    # The strip below must not lay a value over one: a corner row is what a
+    # reader came for, and a strip rung aims at the same eight device values
+    # the corners do, so the nearest patch to a corner aim is very often the
+    # same patch. Measured the first time the strip ran last: seven of the ten
+    # profile-gamut dates lost their K corner to the strip's own solid_K rung
+    # and "Solid colours, largest" stopped crossing on every one of them.
+    corner_read: "set[int]" = set()
     if corner_at:
         from workflow.measurement_report import CUBE_CORNERS
         # EVERY DECLARED CORNER IS PUT ON ITS REFERENCE FIRST. They are out of
@@ -919,22 +937,39 @@ def apply_design(ti3: Path, ti2: Path, design: Design,
             r = ref.get(data.sample_ids[i])
             if r is not None:
                 new_lab[i] = tuple(r)
+        # THE PATCH THE REPORT WILL READ, ASKED OF THE FUNCTION THE REPORT ASKS.
+        #
+        # **AND THE ANSWER CHANGED UNDER THIS FILE.** Until B8-398 the report
+        # found a corner by the nearest device value over the whole chart and
+        # never consulted the chart's own `CHROMIQ_CORNER_IDS`, so a selected
+        # colour sitting at device (0,0,0) was read as the composite black
+        # while the declared corner beside it was read by nobody (measured:
+        # the K corner came off sample 2, not sample 202). This file therefore
+        # designed the nearest-device patch, on purpose, and said so. B8-398
+        # fixed the report to read the DECLARATION, and this file went on
+        # designing the other patch: measured on the first build after that
+        # fix, "Solid colours, largest" was designed at 5.0 against a limit of
+        # 3.0 and read back **inside its limit on all six profile-gamut runs**,
+        # in every limit set, because the 5.0 had been put on a patch the
+        # report no longer calls a corner.
+        #
+        # So the question is asked of `_declared_corner_rows`, which IS what
+        # `build_report` calls. A chart that declares nothing gets the
+        # nearest-device answer, which is what the report does for it too.
+        from workflow.measurement_report import _declared_corner_rows
+        declared_rows = _declared_corner_rows(data.sample_ids,
+                                              set(corner_ids or ()),
+                                              dict(corner_devices or {}))
         for name, target in CUBE_CORNERS:
-            # THE PATCH THE REPORT WILL READ, not the one the chart declares,
-            # and on a From-profile-gamut chart those are not always the same
-            # patch. `build_report` finds a corner by the NEAREST device value
-            # and never consults the chart's own `CHROMIQ_CORNER_IDS`, so a
-            # selected colour that happens to sit at device (0,0,0) is read as
-            # the composite-black corner while the declared corner beside it is
-            # read by nobody. Measured on this very project: the K corner came
-            # off sample 2, not sample 202. Registered as F3 in this round's
-            # report; designing the patch the report reads is what makes the
-            # demo about the row rather than about that fault.
-            diffs = np.abs(rgb - np.array(target))
-            ci = int((diffs ** 2).sum(axis=1).argmin())
+            if name in declared_rows:
+                ci = declared_rows[name]
+            else:
+                diffs = np.abs(rgb - np.array(target))
+                ci = int((diffs ** 2).sum(axis=1).argmin())
             r = ref.get(data.sample_ids[ci])
             if r is None:
                 continue
+            corner_read.add(ci)
             if name == "W" and design.white_de is not None:
                 new_lab[ci] = _place(r, measured[ci], design.white_de)
             elif name in ("C", "M", "Y") and design.cmy_dh is not None:
@@ -943,6 +978,75 @@ def apply_design(ti3: Path, ti2: Path, design: Design,
                 new_lab[ci] = _place(r, measured[ci], design.solid_de)
             else:
                 new_lab[ci] = tuple(r)
+
+    # -- THE DECLARED CONTROL STRIP, LAST OF ALL, and it is last for a reason
+    #    the order above does not have. Every population before it may be
+    #    overridden by the one after; the strip is not a population this file
+    #    chooses, it is the one ChromIQ declared, and by the time we reach it
+    #    the bare paper, the greys and the eight corners are already carrying
+    #    the values their own rows are judged on. A patch cannot have two, so
+    #    the strip's knobs are laid over the rungs nobody else has spoken for,
+    #    and the strip's statistics are computed over ALL of them, because
+    #    `control_strip_block` is computed over all of them.
+    #
+    #    THE FIRST VERSION OF THIS PUT THE PEAK ON THE LAST MEMBER OF THE
+    #    DECLARATION and the declaration's last three rungs are the neutral
+    #    greys, which `_set_de` refuses. The peak and the shoulder were
+    #    silently dropped and the two rows they exist to move never moved.
+    #    They go on the last FREE rungs now.
+    if strip_ids and (design.strip_bulk is not None
+                      or design.strip_avg is not None):
+        at = {sid: i for i, sid in enumerate(data.sample_ids)}
+        # The population the REPORT takes the three rows over: a declared id
+        # that is in this measurement and carries a reference value
+        # (`control_strip_block`, which counts those two conditions as one k).
+        counted = [at[s] for s in strip_ids
+                   if s in at and data.sample_ids[at[s]] in ref]
+        taken = _off_limits | corner_read
+        free = [i for i in counted if i not in taken]
+        spoken_for = [i for i in counted if i in taken]
+        if not free:
+            raise SystemExit(
+                f"{ti3}: every rung of the declared control strip is already "
+                f"carrying another row's design, so no strip value can be "
+                f"placed. The chart filled {len(counted)} rungs.")
+        extras: "list[float]" = []
+        if design.strip_peak is not None:
+            extras.append(design.strip_peak)
+        if design.strip_shoulder is not None and len(free) >= len(extras) + 1:
+            extras.append(design.strip_shoulder)
+        if design.strip_avg is not None:
+            # Solve the bulk EXACTLY. `_place` lands every free rung on its
+            # target dE00, so the strip's mean is linear in the bulk value and
+            # there is nothing to iterate.
+            fixed = sum(_de(new_lab.get(i, measured[i]), ref[data.sample_ids[i]])
+                        for i in spoken_for)
+            n_bulk = len(free) - len(extras)
+            if n_bulk < 1:
+                raise SystemExit(
+                    f"{ti3}: strip_avg was asked for on a strip with "
+                    f"{len(free)} free rung(s) and {len(extras)} of them "
+                    f"already named by strip_shoulder/strip_peak")
+            bulk = (design.strip_avg * len(counted) - fixed - sum(extras)) / n_bulk
+            if bulk < 0.0:
+                raise SystemExit(
+                    f"{ti3}: a strip average of {design.strip_avg} is below "
+                    f"what this chart's own spoken-for rungs already carry "
+                    f"({fixed / max(1, len(counted)):.3f} over "
+                    f"{len(counted)} rungs); no value on the free rungs can "
+                    f"bring the mean down that far")
+        else:
+            bulk = float(design.strip_bulk)
+        plan = [bulk] * len(free)
+        # The largest rung last, the 95th-percentile rung beside it. Order
+        # statistics do not care where in the list a value sits; a reader of
+        # the file does.
+        if design.strip_peak is not None:
+            plan[-1] = design.strip_peak
+        if design.strip_shoulder is not None and len(plan) >= 2:
+            plan[-2] = design.strip_shoulder
+        for i, target in zip(free, plan):
+            _set_de(i, target)
 
     predicted = _predict_from(new_lab, ref, data.sample_ids, judged)
     if design.ramp_dl is not None:
@@ -1880,13 +1984,22 @@ class RunPlan:
     #: to grade against profile accuracy), or "none" (nobody recorded it, which
     #: puts a numbered note on the grey rows). See `write_print_record`.
     print_colour: str = "through-profile"
-    #: Declare a control strip on this run's verification chart (#182 S2w).
-    #: Without one the three control-strip rows read `no_control_strip` on
-    #: every date, which is the state every chart in the world is in today.
-    control_strip: bool = False
-    #: The strip's own name, which the report prints. Two different names in
-    #: the package, so a reader can see that the name comes off the chart.
-    control_strip_name: str = "ChromIQ demo 24-patch strip"
+    #: WHAT CHROMIQ'S OWN RULE MUST ANSWER ABOUT THIS RUN'S VERIFICATION
+    #: CHART. Every verification chart in the package is offered to
+    #: `workflow.control_strip.declare_for_chart`, exactly as the Create Chart
+    #: tab offers one it has just filed, so there is no flag for "declare a
+    #: strip here": the app decides, and this says what the app is expected to
+    #: decide. A plan that expects the wrong thing stops the build, so a
+    #: change to the ladder or to a chart recipe cannot quietly turn a
+    #: demonstrated row into an undemonstrated one.
+    #:
+    #: One of `control_strip.OUTCOME_WRITTEN` or `OUTCOME_TOO_FEW`.
+    expect_strip: str = "written"
+    #: Whether this chart is expected to fill enough rungs for the
+    #: 95th-percentile row as well (S2w: 20 of them). A chart that declares a
+    #: strip and cannot reach twenty is its own demonstration, so it is stated
+    #: rather than discovered.
+    expect_strip_p95: bool = True
 
     @property
     def set_name(self) -> str:
@@ -1961,18 +2074,39 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
                                        read_colorimetric_reference)
     cref_labs = None
     corner_ids: "set[str]" = set()
+    corner_devices: "dict[str, tuple]" = {}
     if gsel is not None:
         cref = read_colorimetric_reference(
             run.verifications_dir / f"{vstem_}-reference.ti3")
         cref_labs = cref["labs"]
+        # The ink amount the chart recorded for each sample, which is how the
+        # report decides WHICH declared id is which corner. Read out of the
+        # reference file, like the report, and not re-derived here.
+        corner_devices = dict(cref.get("devices") or {})
         corner_ids = {str(i) for i in corner_sample_ids(gsel)}
 
-    strip_ids: "list[str]" = []
-    if plan.control_strip:
-        strip_ids = control_strip_ids(
-            run.verifications_dir / f"{vstem_}.ti2", exclude=corner_ids)
-        write_control_strip(run.verifications_dir, vstem_, strip_ids,
-                            plan.control_strip_name)
+    # THE APP DECLARES THE STRIP, on every verification chart, because the app
+    # declares one on every verification chart it files (B8-405). What the
+    # plan carries is what the app is expected to ANSWER, checked here, so a
+    # chart that stops filling the ladder cannot silently take three rows out
+    # of the package.
+    decl = declare_control_strip(run.verifications_dir, vstem_)
+    strip_ids: "list[str]" = list(decl.selection.ids) if decl.written else []
+    if decl.outcome != plan.expect_strip:
+        raise SystemExit(
+            f"{run.id}: the plan expects ChromIQ to answer "
+            f"{plan.expect_strip!r} for this chart's control strip and it "
+            f"answered {decl.outcome!r} ({decl.selection.n} of "
+            f"{len(_strip_slots())} rungs filled; missing "
+            f"{decl.selection.missing}). Fix the plan or the chart recipe, "
+            f"never the declaration.")
+    if decl.written and decl.selection.p95_ready != plan.expect_strip_p95:
+        raise SystemExit(
+            f"{run.id}: the plan expects the 95th-percentile control-strip "
+            f"row to be {'available' if plan.expect_strip_p95 else 'withheld'} "
+            f"on this chart and ChromIQ filled {decl.selection.n} rungs, "
+            f"which makes it "
+            f"{'available' if decl.selection.p95_ready else 'withheld'}.")
 
     meta = run.load_meta()
     meta.description = plan.full_description
@@ -2051,8 +2185,14 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
         gamut = None
         print(f"  {run.id}: colorimetric reference, {len(cref_labs)} aims, "
               f"{len(corner_ids)} of them cube corners; no gamut split")
-    if strip_ids:
-        print(f"  {run.id}: control strip declared, {len(strip_ids)} patches")
+    if decl.written:
+        print(f"  {run.id}: ChromIQ declared a control strip of "
+              f"{decl.selection.n} of {len(_strip_slots())} rungs"
+              f"{'' if decl.selection.p95_ready else ', too few for the 95th percentile row'}")
+    else:
+        print(f"  {run.id}: ChromIQ declared NO control strip "
+              f"({decl.outcome}, {decl.selection.n} rungs); the three "
+              f"strip rows read their reason on every date of this run")
     for date in plan.dates:
         v = run.verification(date.vid)
         v.ensure_dir()
@@ -2074,7 +2214,8 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
         predicted = apply_design(
             ti3, work / f"{vstem}.ti2", date.design, gamut,
             relative=plan.print_colour == "through-profile" and cref_labs is None,
-            ref_labs=cref_labs, corner_ids=corner_ids, strip_ids=strip_ids)
+            ref_labs=cref_labs, corner_ids=corner_ids,
+            corner_devices=corner_devices, strip_ids=strip_ids)
         stamp(ti3, date.when)
         shutil.move(str(ti3), str(v.dir / f"{vstem}.ti3"))
         cdir = snapshot(v.dir, vstem, work)
@@ -2137,6 +2278,11 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
                         else {"crossed": as_full["crossed"],
                               "verdict": as_full["overall"]}),
             "values": actual["values"],
+            # The reason each row that carries no number gives, as the WINDOW
+            # would show it (a row with no word is never drawn, so those are
+            # already left out). The on-screen driver checks the page really
+            # prints the sentence this names.
+            "shown_reasons": actual["shown_reasons"],
             "predicted": predicted,
         })
         # A STORY MAY NOT NAME A VERDICT THE REPORT DID NOT GIVE. The same
@@ -2331,12 +2477,20 @@ ROWS_ORDINARY = (
     "control_strip_de00_p95", "surface_gamut_de00_avg",
     "outer_gamut_226_de00_avg",
 )
+#: **AND THE 95TH-PERCENTILE CONTROL-STRIP ROW IS NOT IN THE SECOND LIST.**
+#: ChromIQ's ladder has 29 rungs and a FROM PROFILE GAMUT chart fills 17 of
+#: them (measured 2026-09-19: the eight corners, three greys and six tints;
+#: the twelve it misses are single-ink and two-ink tints, which a selection
+#: made out of a profile's own gamut simply does not contain). Seventeen is
+#: past the eight a strip needs and short of the twenty the 95th percentile
+#: needs, so that row reads `control_strip_too_small` on this kind of chart
+#: however well it measures. The row's cell in the matrix is filled by the
+#: ORDINARY run of the same set, which is the pair each set has.
 ROWS_GAMUT = (
     "all_de00_avg", "best95_de00_avg", "worst5_de00_avg", "all_de00_max",
     "all_de00_p95", "substrate_de00_max", "solids_de00_max",
     "cmy_solids_dhab_max", "control_strip_de00_avg", "control_strip_de00_max",
-    "control_strip_de00_p95", "surface_gamut_de00_avg",
-    "outer_gamut_226_de00_avg",
+    "surface_gamut_de00_avg", "outer_gamut_226_de00_avg",
 )
 RELAX_ALL = {rid: 9.0 for rid in set(ROWS_ORDINARY) | set(ROWS_GAMUT)}
 
@@ -2421,7 +2575,14 @@ def matrix_dates(set_id: str, kind: str) -> "list[Date]":
                "this sheet at all: a chart selected from the profile's gamut "
                "has no grey ramp and no single-ink ramp, so those three have "
                "no value to judge here and are exercised on the ordinary "
-               "charts instead."
+               "charts instead. The 95th-percentile control-strip row is "
+               "withheld too, and for a reason this chart shows better than "
+               "any other: ChromIQ declares a control strip on it, of "
+               "seventeen of the twenty-nine rungs it looks for, and the "
+               "95th percentile needs twenty before its nearest rank stops "
+               "being the largest patch again. The other two strip rows are "
+               "judged here; that one is judged on the ordinary chart of the "
+               "same column."
                if kind == "gamut" else
                "The three rows that need a reference measurement of the "
                "printing condition have no value here: an ordinary chart "
@@ -2488,46 +2649,56 @@ GAMUT_ISOLATION: "list[Date]" = [
        []),
 ]
 
-#: The control strip, one row at a time. 24 declared patches, so the
-#: 95th-percentile row's nearest rank is 23 and the shoulder patch IS the 95th
-#: percentile.
+#: The control strip, one row at a time, on the strip CHROMIQ DECLARES.
+#:
+#: The chart is CHART_MEDIUM and ChromIQ fills all twenty-nine rungs of its
+#: ladder on it, so the 95th percentile is the nearest rank ceil(0.95 x 29) =
+#: 28 of 29, which is the SECOND LARGEST rung. Four of the twenty-nine carry
+#: another row's design and cannot be moved by a strip knob (the substrate and
+#: the three neutral greys); the designs below say so where it matters and the
+#: `strip_avg` solver takes them into account where it does not.
 #:
 #: **THE 95TH PERCENTILE CANNOT CROSS ALONE, AND THAT IS ARITHMETIC, NOT A GAP
 #: IN THIS PACKAGE.** It is never larger than the largest, so a strip whose
-#: 95th percentile is over 3.0 has a largest patch over 3.0 too. The pair of
+#: 95th percentile is over 3.0 has a largest rung over 3.0 too. The pair of
 #: dates below is what separates the two readings instead: one where the
 #: largest crosses and the 95th percentile does not, and one where both do.
 STRIP_ISOLATION: "list[Date]" = [
     _d("2028-08-03_100000", "2028-08-03T10:00:00",
        "The whole strip drifts",
-       "All 24 declared patches sit at 2.5, over the 2.0 this column puts on "
-       "the strip's average and inside the 3.0 on its largest and its 95th "
-       "percentile. Every other row is relaxed to 9.0. ONE row crosses.",
+       "The strip's average is designed at 2.3, over the 2.0 this column puts "
+       "on it, while every rung stays under the 3.0 on its largest and its "
+       "95th percentile. The twenty-five rungs the strip design can move are "
+       "solved for, because the substrate is pinned at zero by the "
+       "media-relative yardstick and the three neutral greys carry the "
+       "grey-balance design; a package that typed a per-patch number here "
+       "would be typing one that only holds for one chart. Every other row is "
+       "relaxed to 9.0. ONE row crosses.",
        Design(bulk=0.5, shoulder=0.8, peak=1.2, tail=0.9, grey_dch=0.4,
-              strip_bulk=2.5),
+              strip_avg=2.3),
        ["control_strip_de00_avg"]),
     _d("2028-08-17_100000", "2028-08-17T10:00:00",
-       "One patch of the strip is badly wrong",
-       "23 of the 24 declared patches are at 0.5 and one is at 4.5. The "
-       "strip's largest is over 3.0; its average is 0.67 and its 95th "
-       "percentile is the second largest, 0.5, so neither of those moves. ONE "
-       "row crosses.",
+       "One rung of the strip is badly wrong",
+       "One rung of the strip is at 4.5 and the rest at 0.5. The strip's "
+       "largest is over 3.0; its average stays near 0.6 and its 95th "
+       "percentile is the second largest rung, 0.5, so neither of those "
+       "moves. ONE row crosses.",
        Design(bulk=0.5, shoulder=0.8, peak=1.2, tail=0.9, grey_dch=0.4,
               strip_bulk=0.5, strip_peak=4.5),
        ["control_strip_de00_max"]),
     _d("2028-08-31_100000", "2028-08-31T10:00:00",
        "The top of the strip goes, and the 95th percentile says so",
-       "22 patches at 0.5, one at 4.0 and one at 4.2. The 95th percentile now "
-       "reads 4.0 and the largest 4.2, so both cross while the average stays "
-       "at 0.85. Read against the date before it, this is what makes the two "
-       "rows separate readings rather than one.",
+       "Two rungs go: one at 4.0 and one at 4.2. The 95th percentile now "
+       "reads the 4.0 and the largest the 4.2, so both cross while the "
+       "average stays near 0.8. Read against the date before it, this is what "
+       "makes the two rows separate readings rather than one.",
        Design(bulk=0.5, shoulder=0.8, peak=1.2, tail=0.9, grey_dch=0.4,
               strip_bulk=0.5, strip_shoulder=4.0, strip_peak=4.2),
        ["control_strip_de00_max", "control_strip_de00_p95"]),
     _d("2028-09-14_100000", "2028-09-14T10:00:00",
        "The strip comes back",
-       "All 24 declared patches back at 0.5. All three strip rows recover on "
-       "the same date and nothing else on the sheet moved.",
+       "Every rung ChromIQ declared is back at 0.5. All three strip rows "
+       "recover on the same date and nothing else on the sheet moved.",
        Design(bulk=0.5, shoulder=0.8, peak=1.2, tail=0.9, grey_dch=0.4,
               strip_bulk=0.5),
        []),
@@ -2588,6 +2759,14 @@ NO_SURFACE: "list[Date]" = [
        "patches are missing and what to add in Create Chart, rather than "
        "passing the row. The two grey-balance rows have only five levels "
        "here, which is under the eight they need, so they say so too.\n"
+       "AND CHROMIQ REFUSES TO DECLARE A CONTROL STRIP FOR THIS CHART, for "
+       "the same reason: a control strip is mostly the substrate, the solid "
+       "inks and their tints, and this chart has none of them. It fills four "
+       "of the twenty-nine rungs ChromIQ looks for, eight are needed, so all "
+       "three control-strip rows print 'this chart declares no control "
+       "strip'. Every other verification chart in this package declares one, "
+       "because ChromIQ writes the declaration itself the moment it files a "
+       "verification chart; this run is where a reader sees it decline.\n"
        "This sheet ships with no record of how it was printed, and that is "
        "deliberate: with no bare-paper patch on the chart there is nothing "
        "for the media-relative yardstick to anchor on, and the lightest "
@@ -2596,9 +2775,10 @@ NO_SURFACE: "list[Date]" = [
        []),
     _d("2028-12-07_100000", "2028-12-07T10:00:00",
        "The same chart a fortnight later",
-       "Nothing about the missing population changes with the measurement, "
+       "Nothing about the missing populations changes with the measurement, "
        "which is the point: a chart that cannot supply a row cannot supply it "
-       "on any date.",
+       "on any date, and a chart that cannot carry a control strip does not "
+       "grow one by being measured again.",
        Design(bulk=0.6, shoulder=0.9, peak=1.4, tail=1.0),
        []),
 ]
@@ -2721,6 +2901,13 @@ PROJECTS = [
                 "the sheet is the empty set and that row cannot be computed.",
                 CHART_SMALL, CHART_TINY, "chromiq_default",
                 BORDER_SMALL_SAMPLE, unlocked=True, lock="unlocked",
+                # Exactly eight rungs, measured: the substrate, four of the
+                # eight corners and the three greys. That is the floor at
+                # which ChromIQ declares a strip at all, and twelve short of
+                # the 95th-percentile row, so this run is where a reader sees
+                # a strip that exists and a strip row that is withheld on the
+                # same page.
+                expect_strip_p95=False,
                 note="Deliberately twenty patches. Do not regenerate it "
                      "larger: this run exists to show what the report says "
                      "when a sheet is too small to have a worst 5 %."),
@@ -2785,8 +2972,10 @@ PROJECTS = [
                 "one at a time, isolated by this run's own edited column.",
                 CHART_MEDIUM, CHART_GAMUT, "chromiq_default",
                 GAMUT_ISOLATION, unlocked=True, lock="unlocked",
-                control_strip=True,
-                control_strip_name="Gamut chart 24-patch strip",
+                # 17 of the 29 rungs, measured: the eight corners, three
+                # greys and six tints. Enough to declare, three short of the
+                # twenty the 95th-percentile row needs.
+                expect_strip_p95=False,
                 edited_limits=fill_limits(
                     "chromiq_default", relax=RELAX_ALL,
                     keep=("substrate_de00_max", "solids_de00_max",
@@ -2800,7 +2989,7 @@ PROJECTS = [
                 "sixteen judgeable rows.",
                 CHART_MEDIUM, CHART_GAMUT, "custom_iso_12647_7",
                 matrix_dates("custom_iso_12647_7", "gamut"),
-                unlocked=True, lock="unlocked", control_strip=True,
+                unlocked=True, lock="unlocked", expect_strip_p95=False,
                 note="The limits of this column are not edited by this "
                      "package and must not be: they are placeholders under a "
                      "permission condition, pinned by a test."),
@@ -2814,21 +3003,31 @@ PROJECTS = [
     # the day they landed: measured on the previous build, all three strip
     # rows read N-A in 80 of 80 saved reports because no chart in the package
     # declared a strip.
+    #
+    # AND THE FIRST PACKAGE THAT DID EXERCISE THEM DECLARED ITS OWN STRIP,
+    # which demonstrated this generator rather than ChromIQ: nothing in the
+    # app wrote a declaration at all until B8-405, so the fixture had to
+    # invent one, and it invented the opposite population to the one the app
+    # now writes (24 mid-gamut patches, deliberately no grey, no paper and no
+    # corner; ChromIQ's ladder is the substrate, the corners, the tints and
+    # the greys). Every chart in this package is now offered to the app's own
+    # `declare_for_chart`, and run4 below is a chart it refuses.
     ("Report-Limits-Strip-And-Gamut", [
-        RunPlan("The chart declares its own control strip, and each of the "
-                "three strip rows is isolated by this run's own edited column.",
+        RunPlan("ChromIQ's own control-strip declaration, with each of the "
+                "three strip rows isolated by this run's own edited column.",
                 CHART_MEDIUM, CHART_MEDIUM, "chromiq_default",
                 STRIP_ISOLATION, unlocked=True, lock="unlocked",
-                control_strip=True,
-                control_strip_name="Demo press strip, 24 patches",
                 edited_limits=fill_limits(
                     "chromiq_default", relax=RELAX_ALL,
                     keep=("control_strip_de00_avg", "control_strip_de00_max",
                           "control_strip_de00_p95")),
                 note="The sidecar beside this chart is what declares the "
-                     "strip. Delete it and all three strip rows go back to "
-                     "reading 'this chart declares no control strip', which "
-                     "is the state every other chart in the package is in."),
+                     "strip, and ChromIQ wrote it: it is the same file the "
+                     "app writes beside any verification chart it creates, "
+                     "naming the 29 device aims a control strip is made of "
+                     "and which of this chart's patches filled each one. "
+                     "Delete it and all three strip rows go back to reading "
+                     "'this chart declares no control strip'."),
         RunPlan("The surface of the device cube, isolated by this run's own "
                 "edited column.",
                 CHART_MEDIUM, CHART_MEDIUM, "chromiq_default",
@@ -2843,11 +3042,22 @@ PROJECTS = [
                 edited_limits=fill_limits(
                     "chromiq_default", relax=RELAX_ALL,
                     keep=("outer_gamut_226_de00_avg",))),
-        RunPlan("A chart with nothing on the surface of the device cube, so "
-                "the surface-gamut row cannot be supplied at all.",
+        RunPlan("A chart that can supply neither the surface-gamut row nor a "
+                "control-strip declaration, so four rows are seen to be "
+                "refused rather than passed.",
                 CHART_SMALL, CHART_MIDTONES, "chromiq_default",
                 NO_SURFACE, unlocked=True, lock="unlocked",
                 edited_limits=fill_limits("chromiq_default"),
+                # AND IT IS ALSO THE CHART THAT CANNOT CARRY A CONTROL STRIP.
+                # Measured: it fills four of the twenty-nine rungs (the
+                # substrate and the three greys) and ChromIQ refuses to
+                # declare one, so all three strip rows print
+                # `no_control_strip` here while every other chart in the
+                # package supplies at least the first two. The same reason
+                # holds for both refusals: nothing on this chart goes near an
+                # edge of the device cube, and a control strip is mostly made
+                # of patches that do.
+                expect_strip="too_few_patches",
                 # AND IT SHIPS WITHOUT A PRINTING RECORD, for a measured
                 # reason rather than a stylistic one. A sheet printed through
                 # the profile is judged MEDIA-RELATIVE: every reading is
@@ -2865,8 +3075,10 @@ PROJECTS = [
                      "Do not regenerate it with a targen recipe: every targen "
                      "chart is full of patches on the cube's surface (measured "
                      "over this package's six sizes: 21 of 30 up to 200 of "
-                     "405), so this is the only run that can show the report "
-                     "detecting that a chart cannot support the row."),
+                     "405) and every one of them fills enough of ChromIQ's "
+                     "control-strip ladder to declare a strip (8 rungs on the "
+                     "smallest, 29 on the largest), so this is the only run "
+                     "that can show the report detecting either refusal."),
     ]),
     # -----------------------------------------------------------------------
     # The ninth project: EVERY judgeable row against EVERY limit set
@@ -2893,14 +3105,14 @@ PROJECTS = [
                     f"answer: over on one date, inside on the next.",
                     CHART_SMALL, CHART_MEDIUM, set_id,
                     matrix_dates(set_id, "ordinary"),
-                    unlocked=True, lock="unlocked", control_strip=True,
+                    unlocked=True, lock="unlocked",
                     edited_limits=(None if set_id.startswith("custom_")
                                    else fill_limits(set_id))),
             RunPlan(f"{_SET_WORD[set_id]}, every row a From-profile-gamut "
                     f"chart can answer: over on one date, inside on the next.",
                     CHART_SMALL, CHART_GAMUT, set_id,
                     matrix_dates(set_id, "gamut"),
-                    unlocked=True, lock="unlocked", control_strip=True,
+                    unlocked=True, lock="unlocked", expect_strip_p95=False,
                     edited_limits=(None if set_id.startswith("custom_")
                                    else fill_limits(set_id))),
         )
@@ -3044,12 +3256,28 @@ _REPORT_RE = re.compile(r"(?:^|/)reports/report_[^/]*\.json$")
 _NOT_A_JUDGED_SHEET = ("reads", "cache", "old", "_work")
 _NOT_A_JUDGED_STEM = ("preconditioning", "merged")
 
+#: **AND A COLORIMETRIC REFERENCE IS NOT A MEASUREMENT.** A FROM PROFILE GAMUT
+#: chart ships `<stem>-reference.ti3` beside itself: it is the chart's AIM
+#: values, written at build time, and nobody measured it, so demanding a saved
+#: verdict beside it is demanding a verdict on a chart file.
+#:
+#: **BOTH PACKS SHIPPED WITH THIS CHECK FAILING AND NOBODY RAN IT.** Measured
+#: 2026-09-19: `--verify` on the beta.21-era archive in
+#: `~/Desktop/ChromIQ-beta22-proof/b393-the-demo-package/build/` prints
+#: INCOMPLETE with 23 of these and nothing else, and so did the first build of
+#: this round. A completeness check that cries wolf is a completeness check
+#: nobody reads, which is exactly what `verify_pack`'s own docstring is about:
+#: the pack that shipped with two projects missing passed a check comparing the
+#: wrong thing.
+_REFERENCE_SUFFIX = "-reference"
+
 
 def _is_intermediate(name: str) -> bool:
     parts = name.split("/")
     stem = parts[-1].rsplit(".", 1)[0]
     return (any(d in _NOT_A_JUDGED_SHEET for d in parts[:-1])
-            or stem in _NOT_A_JUDGED_STEM)
+            or stem in _NOT_A_JUDGED_STEM
+            or stem.endswith(_REFERENCE_SUFFIX))
 
 
 def _pack_listing(path: Path) -> "list[str] | None":

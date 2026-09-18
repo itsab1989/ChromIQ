@@ -13,7 +13,12 @@ implemented, tested and working."*
 *what does a real patch set actually supply*. A hand-written .ti1 with twenty-nine
 tidy patches would fill the ladder perfectly and prove nothing: the sizes that
 matter are the ones where it does not, and those are only knowable by building
-them. 17 patches supplies 7 rungs and cannot declare; 21 supplies 11 and can.
+them. 16 patches supplies 7 rungs and cannot declare; 20 supplies 11 and can
+(measured 2026-09-19; 100 supplies 22 and 210 supplies 27).
+(That sentence used to name 17 and 21. It was re-measured after B8-407 stopped
+the ladder offering its substrate rung to one of printtarg's padding patches,
+which moved every padded chart's count by one: a 17-patch chart now fills 8
+and declares. SIZES below carries the sizes this file actually builds.)
 
 **AND THE APP'S OWN SEQUENCE FILES THEM.** `test_the_app_declares_the_strip_*`
 drives `TabChart._on_generate_finished`, which is the single funnel every

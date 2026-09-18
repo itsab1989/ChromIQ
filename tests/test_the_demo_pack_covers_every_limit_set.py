@@ -15,8 +15,11 @@ THIS file guards is the things a rebuild cannot notice, because they are about
 the plan rather than the data:
 
 * every selectable limit set has runs of its own;
-* the FROM PROFILE GAMUT chart is in the package, and so is a chart that
-  declares a control strip;
+* the FROM PROFILE GAMUT chart is in the package;
+* the control strip in the package is the one CHROMIQ declares and not one
+  this generator picked, and the package holds all three answers the app can
+  give about a chart: a full strip, a strip too small for the 95th-percentile
+  row, and a refusal;
 * `fill_limits` never overwrites a number a set already ships, and never
   invents one for a row ChromIQ cannot measure.
 """
@@ -89,15 +92,68 @@ def test_the_package_contains_a_from_profile_gamut_chart(gen):
         "under every limit set as well as the isolation project")
 
 
-def test_the_package_declares_a_control_strip_somewhere(gen):
-    """A chart declares its own strip or those three rows are never judged."""
-    strips = [p for _n, p in _plans(gen) if p.control_strip]
-    assert strips, ("no run declares a control strip, so all three "
-                    "control-strip rows read no_control_strip on every date")
-    names = {p.control_strip_name for p in strips}
-    assert len(names) >= 2, (
-        "every declared strip carries the same name, so nothing in the pack "
-        "shows that the name is read off the chart rather than built in")
+def test_the_package_never_picks_its_own_control_strip(gen):
+    """THE STRIP IN THE PACK MUST BE THE ONE CHROMIQ WRITES, not one this
+    generator chose.
+
+    Until 2026-09-19 the generator selected 24 patches of its own, because
+    nothing in ChromIQ wrote a declaration at all (B8-405). That fixture
+    demonstrated the fixture: it picked the OPPOSITE population to the one the
+    app now writes (mid-gamut patches, deliberately no grey, no bare paper and
+    no cube corner, against ChromIQ's substrate + corners + tints + greys), so
+    every verdict it produced would have agreed with itself whatever the app
+    did.
+
+    MUTATION: give `declare_control_strip` a patch list of its own and this
+    goes red, because the only selection allowed in this file is the app's.
+    """
+    import inspect
+    src = inspect.getsource(gen.declare_control_strip)
+    assert "declare_for_chart" in src, (
+        "the generator no longer asks the app which patches make up the "
+        "strip, so the package demonstrates its own selection rule")
+    body = gen.declare_control_strip.__code__
+    assert "sample_ids" not in body.co_names and "ids" not in body.co_consts, (
+        "declare_control_strip appears to be choosing patches itself")
+    whole = _SCRIPT.read_text(encoding="utf-8")
+    assert "def control_strip_ids(" not in whole, (
+        "the generator's own control-strip selection is back; the pack would "
+        "then be evidence about this script and not about ChromIQ")
+
+
+def test_the_pack_holds_a_chart_chromiq_refuses_a_strip_for(gen):
+    """The half Knut asked to be able to watch: the refusal.
+
+    A plan states what ChromIQ is expected to answer about its chart, and
+    `build_run` stops the build when the answer differs, so this only has to
+    check that both answers are claimed somewhere.
+    """
+    from workflow.control_strip import OUTCOME_TOO_FEW, OUTCOME_WRITTEN
+    want = {p.expect_strip for _n, p in _plans(gen)}
+    assert OUTCOME_WRITTEN in want, (
+        "no run expects ChromIQ to declare a control strip, so the three "
+        "strip rows are never judged anywhere in the package")
+    assert OUTCOME_TOO_FEW in want, (
+        "no run expects ChromIQ to REFUSE a control strip, so the package "
+        "never shows a reader the report saying 'this chart declares no "
+        "control strip'")
+
+
+def test_the_pack_holds_a_strip_too_small_for_the_95th_percentile(gen):
+    """The third state, which is neither of the other two.
+
+    `CONTROL_STRIP_MIN` is 8 and `CONTROL_STRIP_P95_MIN` is 20, so a chart can
+    declare a strip and still have the 95th-percentile row withheld. Measured
+    2026-09-19: a 20-patch chart fills 8 rungs and a FROM PROFILE GAMUT chart
+    fills 17, and both are in the package.
+    """
+    from workflow.control_strip import OUTCOME_WRITTEN
+    small = [p for _n, p in _plans(gen)
+             if p.expect_strip == OUTCOME_WRITTEN and not p.expect_strip_p95]
+    assert small, (
+        "every declared strip in the package reaches twenty rungs, so nothing "
+        "shows the report withholding the 95th-percentile row with "
+        "control_strip_too_small while the other two strip rows are judged")
 
 
 def test_a_chart_that_cannot_supply_the_surface_row_is_in_the_package(gen):
@@ -175,20 +231,57 @@ def test_the_generator_refuses_a_pack_with_an_incomplete_cell(gen):
          "complete": True}]}) == []
 
 
-def test_the_generator_clamps_the_gamut_module_s_device_values_and_says_why(gen):
-    """F1: the app does not clamp, and the package says so rather than hiding it.
+def test_the_generator_no_longer_works_around_the_gamut_device_fault(gen):
+    """B8-398 is fixed in the app, so the workaround must be gone from here.
 
-    `select_gamut_targets` takes its device values from xicclu's numeric
-    inverse and nothing clamps them: measured, 17 of 200 came back over 100 on
-    a channel and 15 over 101, and `measurement_report._rgb_to_0_100` then
-    rescales the WHOLE chart by 100/255. If the app ever clamps, this test's
-    reason for existing goes with it and the constant should go too; until
-    then the generator must keep clamping and must keep explaining.
+    `select_gamut_targets` used to hand back device values from xicclu's
+    numeric inverse with nothing bounding them (measured: 17 of 200 over 100,
+    the largest 107.69), and this generator clamped them for itself so the
+    package could demonstrate the three reference rows at all. B8-398 chose to
+    DROP such a colour instead, because a clamped patch keeps an aim the ink
+    cannot make. Re-measured 2026-09-19 on the same selection: 0 of 200
+    outside the cube.
+
+    A demo package that keeps a workaround for a fault the product has fixed
+    is a package that hides the product. So the clamp is gone and a refusal
+    stands in its place.
+
+    MUTATION: put the clamp back and this goes red.
     """
-    assert gen.GAMUT_DEVICE_CLAMP is True
-    src = (ROOT / "scripts" / "make_report_limit_demos.py").read_text(
-        encoding="utf-8")
-    assert "107.69" in src, (
-        "the clamp's note no longer carries the measurement that justifies it")
-    assert "write_gamut_ti1" in src.split("GAMUT_DEVICE_CLAMP")[0][-3000:], (
-        "the clamp's note no longer says where the fix belongs in the app")
+    import inspect
+    assert gen.GAMUT_DEVICE_CLAMP is False
+    src = inspect.getsource(gen.make_gamut_chart)
+    assert "min(100.0, max(0.0," not in src, (
+        "make_gamut_chart is clamping the module's device values again; if "
+        "the app has regressed, fix the app")
+    assert "B8-398" in src and "raise SystemExit" in src, (
+        "make_gamut_chart no longer REFUSES a selection outside the device "
+        "cube, so a regression in the app would be papered over in demo data")
+
+
+def test_the_completeness_check_does_not_ask_a_chart_file_for_a_verdict(gen):
+    """`verify_pack` called both shipped packs INCOMPLETE, and it was wrong.
+
+    A FROM PROFILE GAMUT chart ships `<stem>-reference.ti3` beside itself: the
+    chart's AIM values, written at build time. Nobody measures it, so there is
+    no verdict to save beside it, and `_verdicts_missing` demanded one.
+    Measured 2026-09-19: `--verify` on the beta.21-era archive prints
+    INCOMPLETE with 23 of these and nothing else.
+
+    It matters because `verify_pack` is the release step's own check, and its
+    docstring is about exactly this: a pack once shipped with two projects
+    missing because the check that should have caught it compared the wrong
+    thing. A check that is always red is a check nobody reads.
+
+    MUTATION: drop the `-reference` suffix rule and this goes red.
+    """
+    assert gen._is_intermediate(
+        "P/runs/run1/verifications/2028-01-05_100000/chart/P-verify-reference.ti3")
+    assert gen._is_intermediate("P/runs/run1/verifications/P-verify-reference.ti3")
+    # …and a real measurement is still asked for its verdict.
+    assert not gen._is_intermediate(
+        "P/runs/run1/verifications/2028-01-05_100000/P-verify.ti3")
+    assert not gen._is_intermediate("P/runs/run1/P.ti3")
+    # the two rules that were already there
+    assert gen._is_intermediate("P/runs/run1/reads/read1.ti3")
+    assert gen._is_intermediate("P/runs/run1/merged.ti3")

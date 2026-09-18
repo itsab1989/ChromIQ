@@ -17053,9 +17053,9 @@ would reach.
   the first version of the guard asked the DERIVED scope, which answers "One
   date" for a file carrying nothing**); restored, green each time.
 
-### B8-393 · OPEN · The demo package must be rebuilt for the new report model and released with beta 22
+### B8-393 · FIXED · The demo package must be rebuilt for the new report model and released with beta 22
 - blocks release: yes
-- status: OPEN
+- status: FIXED
 - Knut, 2026-09-18, and it is a release condition rather than a fault:
 
   > *"After you are ready with the implementation and have thoroughly tested it
@@ -17091,10 +17091,69 @@ would reach.
      genuinely cannot be triggered that has to be said rather than faked.
 - The existing package is `ChromIQ-Report-Limit-Demos.zip`, attached to the
   beta.20 and beta.21 releases and carried forward unchanged.
-- evidence: none; nothing started.
-- what to do first: re-measure which limit rows can be triggered at all on the
-  current build, because that decides whether obligation 3 is a week of work or
-  an afternoon, and tell Knut the answer before building the data.
+- **BUILT, IN TWO ROUNDS.** The first (2026-09-18,
+  `~/Desktop/ChromIQ-beta22-proof/b393-the-demo-package/`) re-measured the
+  trigger map, added the FROM PROFILE GAMUT project and Knut's matrix, and
+  drove all 39 profile runs on screen: 1034 verdict words read off the
+  rendered page, 132 saved reports re-rendered in the pulldown, 0 mismatches.
+  The second (2026-09-19,
+  `~/Desktop/ChromIQ-beta22-proof/b393-the-control-strip-demos/`) took the
+  control-strip rows off the generator's own selection and onto the producer
+  B8-405 shipped.
+- **THE SECOND ROUND IS THE ONE KNUT MADE A CONDITION OF BETA 22:** *"Make
+  sure to verify the feature and that the new demo package contains charts
+  with control strips and that the associated metrics are tested, verified and
+  limits tripped, as part of the demo projects package."* The first round's
+  pack declared a strip its OWN generator picked — 24 mid-gamut patches,
+  deliberately no grey, no bare paper and no cube corner — because nothing in
+  ChromIQ wrote a declaration at all until B8-405. That is the opposite
+  population to ChromIQ's ladder, so the pack demonstrated the generator.
+  `scripts/make_report_limit_demos.py` now offers every verification chart to
+  `workflow.control_strip.declare_for_chart`, the same call the Create Chart
+  tab makes, and **all 127 sidecars in the pack carry
+  `"generator": "chromiq.control_strip"`**.
+- **WHAT THE PACK NOW SHOWS ABOUT THE THREE CONTROL-STRIP ROWS**, measured on
+  the built artefact: 89 of 89 dated verifications carry a strip ChromIQ
+  declared, at six sizes (8, 17, 23, 26, 28 and 29 rungs of the ladder's 29);
+  the three rows carry a number on 91 saved reports; 18 reports withhold the
+  95th-percentile row with `control_strip_too_small` because their chart fills
+  fewer than twenty rungs; 2 dated verifications and all 39 profiling sheets
+  read `no_control_strip`, the first because the chart cannot carry a strip
+  and the second because ChromIQ does not declare one beside a profiling
+  chart. **All 15 control-strip cells of the matrix (3 rows x 5 selectable
+  sets) are complete**, each shown over its limit on one dated verification
+  and inside it on another.
+- the build refuses to ship a pack that is short of any of that: 91 of 91
+  dated verifications match their design, 80 of 80 judged matrix cells are
+  complete, and the generator exits non-zero otherwise.
+- **AND THE ROUND FOUND TWO FAULTS IN SHIPPED CODE RATHER THAN WORKING ROUND
+  THEM.** B8-407 below (a declaration naming one of printtarg's padding
+  patches) and the stale corner workaround this generator carried: it designed
+  the patch the report USED to read (nearest device value), and B8-398 had
+  since made the report read the chart's own `CHROMIQ_CORNER_IDS`, so "Solid
+  colours, largest" was designed at 5.0 against a limit of 3.0 and read back
+  INSIDE its limit on all six profile-gamut runs, in every set. The generator
+  now asks `measurement_report._declared_corner_rows`, which is what
+  `build_report` asks.
+- evidence: test_the_package_never_picks_its_own_control_strip,
+  test_the_pack_holds_a_chart_chromiq_refuses_a_strip_for,
+  test_the_pack_holds_a_strip_too_small_for_the_95th_percentile,
+  test_every_selectable_limit_set_has_runs_of_its_own,
+  test_the_package_contains_a_from_profile_gamut_chart,
+  test_a_chart_that_cannot_supply_the_surface_row_is_in_the_package,
+  test_the_matrix_designs_cover_every_set_and_both_directions,
+  test_the_generator_refuses_a_pack_with_an_incomplete_cell,
+  test_fill_limits_never_overwrites_a_number_the_set_already_ships,
+  test_fill_limits_never_numbers_a_row_chromiq_cannot_measure,
+  test_the_generator_no_longer_works_around_the_gamut_device_fault
+- where those guards live: `tests/` + `test_the_demo_pack_covers_every_limit_set.py`,
+  one file. Beside them the generator's own `matrix_faults()` and
+  `support_faults()` refusals, which run on the real data at every rebuild and
+  are the checks that actually hold the claim up.
+- **WHAT IS LEFT IS THE RELEASE STEP, AND IT IS NOT A FAULT.** The rebuilt
+  `ChromIQ-Report-Limit-Demos.zip` has to be attached to the beta 22 release,
+  as beta.20 and beta.21 carried its predecessor. Nothing was committed by
+  either round.
 
 
 ### B8-395 · FIXED · The PDF export was not the document on screen, for the two settings that are not widgets (R23-F1)
@@ -17849,3 +17908,54 @@ would reach.
      that type.
   3. **Nothing was written into `docs/design/`.** The behaviour is driven and
      photographed and nobody has confirmed it is what it should be.
+
+### B8-407 · FIXED · A control-strip declaration named one of printtarg's padding patches, and on a small chart that cost the whole strip
+- blocks release: yes
+- status: FIXED
+- found by: the B8-393 round, rebuilding the demo package against the producer
+  B8-405 shipped the same evening. Nothing in the suite had it, because every
+  chart B8-405's own guards build happens to be one printtarg does not pad.
+- **THE FAULT.** `printtarg` pads a partial last strip with bare-paper patches
+  and gives every one of them `SAMPLE_ID 0`. They are printed on the sheet,
+  they are never read, and no `.ti3` ever carries that id.
+  `control_strip.chart_device_values` read them as patches. A pad patch sits at
+  device (100, 100, 100), which is the ladder's FIRST aim, so on every padded
+  chart the pad took the **substrate rung** and the real bare-paper patch
+  beside it was never declared. `control_strip_block` then counted that
+  declared id as absent and `k` fell by one.
+- **MEASURED, on the demo package before the fix (2026-09-19): 23 of 89 dated
+  declarations named sample id 0.** On the 20-patch chart that single phantom
+  took k from 8 to 7, under `CONTROL_STRIP_MIN`, so **all three
+  control-strip rows read `control_strip_too_small` on a chart that really does
+  carry a strip**. After the fix: 0 of 89, and that chart declares its 8 rungs.
+- **CHROMIQ ALREADY KNEW.** `workflow/ti2_relayout.py` has carried the rule
+  since the relayout engine was written: *"printtarg pads a partial last strip
+  with white patches whose SAMPLE_ID is 0 ... they don't correspond to anything
+  the user placed, so skip them"*. The new module did not, and a second answer
+  to a question ChromIQ had already answered is exactly the shape this project
+  keeps finding.
+- fix: `chart_device_values` skips a row whose numeric `SAMPLE_ID` is `<= 0`.
+  Non-numeric ids are untouched, so a chart whose patches are named keeps every
+  one of them.
+- **IT MOVES THE MEASURED TABLE B8-405 PUBLISHED**, and both the module
+  docstring and B8-405's guard file have been re-measured rather than left to
+  rot: on `targen -d2 -fN -e4 -B4 -G` + `printtarg -ii1 -pA4 -t300`, 13 patches
+  now fill 5 rungs (was 4), 17 fill **8 and now DECLARE a strip** (was 7 and
+  refused), 21 fill 10 (was 11), 101 fill 23 (was 22); 31, 51, 210 and 401 are
+  unchanged at 12, 17, 27 and 29. B8-405's proof folder photographs a 17-patch
+  chart being refused; that photograph is now of the old behaviour.
+- evidence: test_printtarg_really_pads_this_chart_with_sample_id_zero,
+  test_a_padding_patch_is_in_no_measurement,
+  test_the_device_values_skip_the_padding,
+  test_the_declared_strip_names_only_patches_the_sheet_will_be_read_for,
+  test_the_substrate_rung_is_a_real_bare_paper_patch,
+  test_the_chart_can_still_declare_a_strip_at_all
+- where those guards live: `tests/` + `test_a_control_strip_never_names_a_padding_patch.py`,
+  one new file. Its fixture builds a REAL chart with `targen` and `printtarg`
+  and **asserts the pad rows are there before it asserts anything about the
+  strip**, so a run in which printtarg did not pad fails loudly instead of
+  passing for the wrong reason.
+- mutation proved to land, `__pycache__` cleared: the `int(sid) <= 0` skip
+  removed (**3 failed**, *"the declaration names ['0'], which no measurement of
+  this chart can contain"*); restored, 6 passed, and B8-405's own 21 guards
+  pass either way.

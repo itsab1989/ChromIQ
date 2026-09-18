@@ -57,20 +57,31 @@ displaced by a tint.
 WHAT IT SELECTS, MEASURED
 -------------------------
 On real charts built by ``targen -d2 -fN -e4 -B4 -G`` and laid out by
-``printtarg`` (2026-09-19, the sizes ChromIQ's own presets produce):
+``printtarg -ii1 -pA4 -t300`` (RE-MEASURED 2026-09-19 after B8-407, which is
+why these are not the numbers B8-405's own notes carry: skipping printtarg's
+padding gave the substrate rung back to a real patch on every chart whose last
+strip was padded, and a 17-patch chart crossed the eight-rung line because of
+it):
 
 =========  ======  ============  =====
 patches    rungs   declaration   95th
 =========  ======  ============  =====
-13         4       no            no
-17         7       no            no
-21         11      yes           no
+13         5       no            no
+17         8       yes           no
+21         10      yes           no
 31         12      yes           no
 51         17      yes           no
-101        22      yes           yes
+101        23      yes           yes
 210        27      yes           yes
 401        29      yes           yes
 =========  ======  ============  =====
+
+And on the demo package's own recipes, which ask targen for a grey ramp and
+single-ink ramps (``-g -s``) and lay out for the ColorMunki: 20 patches fill
+8 rungs, 90 fill 23, 105 fill 26, 156 fill 28, and 210 and 400 fill all 29. A
+FROM PROFILE GAMUT chart of 208 fills 17, which declares a strip and is three
+short of the 95th-percentile row. A 125-patch chart with nothing outside
+20..80 on any channel fills 4 and is refused.
 
 A reader accepts it because every rung is a patch a printer already looks at,
 and because the strip is a property of the CHART: the same chart declares the
@@ -203,6 +214,24 @@ def chart_device_values(path: "str | Path") -> "dict[str, tuple[float, float, fl
     (the patch list, then the white and black reference tables), and the second
     and third repeat SAMPLE_IDs that mean something else entirely.
 
+    **A ROW WHOSE SAMPLE_ID IS 0 IS NOT A PATCH AND IS SKIPPED.** ``printtarg``
+    pads a partial last strip with bare-paper patches and gives every one of
+    them ``SAMPLE_ID 0``; they are printed, they are never measured, and no
+    ``.ti3`` ever carries that id. ChromIQ has known this since the relayout
+    engine was written (``workflow/ti2_relayout.py``: *"printtarg pads a
+    partial last strip with white patches whose SAMPLE_ID is 0 ... skip
+    them"*) and this function did not.
+
+    It cost the substrate rung and, on a small chart, the whole strip. A pad
+    patch is at device (100, 100, 100), so it is the nearest patch to the
+    ladder's first aim and it took that rung on every padded chart; the report
+    then counted the declared id as absent, and ``k`` fell by one. Measured on
+    the demo package, 2026-09-19: **23 of 89 dated declarations named sample
+    id 0**, and on the 20-patch chart that one phantom took k from 8 to 7, put
+    it under ``CONTROL_STRIP_MIN``, and left all three control-strip rows
+    reading ``control_strip_too_small`` on a chart that really does carry a
+    strip.
+
     The scale is normalised exactly as the report normalises it: a file whose
     largest value is past 101 is 0..255 code values.
     """
@@ -232,6 +261,13 @@ def chart_device_values(path: "str | Path") -> "dict[str, tuple[float, float, fl
         if len(parts) <= max(cols):
             continue
         sid = parts[cols[0]].strip('"')
+        # printtarg's padding. Numeric ids only: a chart whose ids are names
+        # keeps every one of them.
+        try:
+            if int(sid) <= 0:
+                continue
+        except (TypeError, ValueError):
+            pass
         try:
             dev = tuple(float(parts[i]) for i in cols[1:])
         except ValueError:
