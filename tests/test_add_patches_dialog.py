@@ -712,9 +712,24 @@ def test_fill_to_pages_target(qapp, tmp_path):
     # patches mode → the patches spin
     d._gen_fill_unit_patches.setChecked(True)
     assert d._effective_fill_target() == 900
-    # pages mode → pages spin × capacity
+    # ...AND THE HIDDEN PAGES UNIT CANNOT DECIDE IT. #93 took "fill to pages"
+    # out of the window and left the widgets constructed but hidden, while
+    # `fill_unit_pages` stayed in the persisted state and in every chart recipe
+    # written before that. Round 10 measured what a restored True then did: the
+    # visible box read "fill to: 1000 patches", greyed un-editable, and the
+    # chart came out with 1,364. Nothing on screen said 1,364.
     d._gen_fill_unit_pages.setChecked(True)
+    d._sync_fill_unit()
+    assert d._gen_fill_unit_patches.isChecked()
+    assert d._effective_fill_target() == 900
+    # The plumbing itself still works, so the row can come back if it is ever
+    # offered again: shown, the pages spin multiplies by the capacity.
+    d._gen_fill_unit_pages.setVisible(True)
+    d._gen_fill_unit_pages.setChecked(True)
+    d._sync_fill_unit()
     assert d._effective_fill_target() == 2 * per
+    d._gen_fill_unit_pages.setVisible(False)
+    d._sync_fill_unit()
 
     # engine off → no per-page capacity, 'pages' toggle disabled + reverts
     s.set("use_chromiq_layout_engine", False)

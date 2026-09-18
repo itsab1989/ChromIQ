@@ -229,3 +229,123 @@ def test_the_add_window_keys_and_reuses_its_program_cache(qapp):
     assert first == second
     assert len(builds) == 1, f"the same settings were built {len(builds)} times"
     dlg.deleteLater()
+
+
+# ---------------------------------------------------------------------------
+# 6. Round 10's own findings: the promise beside an UNTICKED row was wrong on
+#    two more rows, a hidden unit could decide a visible number, and one of the
+#    guards above passed its own mutation.
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize("row,spin,value", [
+    ("corners", "corners_edge", 3),
+    ("spirals", "spirals_end", 4),
+])
+def test_the_greyed_promise_is_what_ticking_the_row_adds(qapp, row, spin, value):
+    """`_corners_need_tips` and `_spirals_need_tips` answer the BUILDER's
+    question, which begins with the row being ticked. Asking them for the count
+    beside an UNTICKED row answered "it owns no tips" and dropped the eight
+    (resp. six) corners: measured by round 10, the corner row promised 72 and
+    added 80.
+
+    MUTATION: drop `assume_on=True` from either counter and this goes red.
+    """
+    dlg = _AddPatchesDialog(_FakeSettings(), existing_patches=[])
+    dlg._add_mode_gen.setChecked(True)
+    _sets_off(dlg)
+    cb = getattr(dlg, f"_gen_{row}")
+    getattr(dlg, f"_gen_{spin}").setValue(value)
+    label = getattr(dlg, f"_gen_{row}_count")
+
+    cb.setChecked(False)
+    dlg._update_gen_counts()
+    promised = _row_number(label)
+    without = len(dlg._build_generated_program())
+    cb.setChecked(True)
+    dlg._update_gen_counts()
+    shown = _row_number(label)
+    with_ = len(dlg._build_generated_program())
+    assert with_ - without > 0
+    assert promised == with_ - without, (
+        f"the greyed {row} row promises {promised} and ticking it adds "
+        f"{with_ - without}")
+    assert shown == with_ - without
+    dlg.deleteLater()
+
+
+def test_a_hidden_unit_cannot_decide_the_fill_target(qapp):
+    """#93 took "fill to pages" out of the window and left the widgets hidden,
+    while `fill_unit_pages` stayed in every persisted state. Round 10 measured
+    a restored True: the visible box read 1000 patches and the chart came out
+    with 1,364.
+
+    MUTATION: drop the `isHidden()` guard from `_sync_fill_unit` and this goes
+    red.
+    """
+    dlg = _AddPatchesDialog(_FakeSettings(), existing_patches=[])
+    dlg._add_mode_gen.setChecked(True)
+    # A PAGE HAS TO HAVE A CAPACITY for the trap to spring: with no engine the
+    # pages unit falls back to the patches spin on its own and the test would
+    # pass against the fault.
+    dlg._engine_cap_per_page = lambda: 682
+    dlg._gen_fill_to.setValue(1000)
+    dlg._gen_fill_pages.setValue(2)
+    dlg._gen_fill_unit_pages.setChecked(True)
+    dlg._update_gen_counts()
+    assert dlg._effective_fill_target() == 1000, (
+        "a unit the window does not show decided the number it does show")
+    dlg.deleteLater()
+
+
+def test_the_fill_row_shows_what_the_fill_really_added(qapp):
+    """The other half of B8-323, which the first guards did not ask: the fill
+    row's number has to come from the build too.
+
+    MUTATION: drop `self._built_row_counts["fill"] = len(topup)` and this goes
+    red. Round 10 found that mutation surviving the guards as they stood.
+    """
+    existing = _chart_with_white_and_black()
+    dlg = _AddPatchesDialog(_FakeSettings(), existing_patches=existing)
+    dlg._add_mode_gen.setChecked(True)
+    _sets_off(dlg)
+    dlg._gen_unique.setChecked(True)
+    dlg._gen_cube.setChecked(True)
+    dlg._gen_cube_n.setValue(4)
+    dlg._gen_whiteblack_n.setValue(2)
+    dlg._gen_whiteblack.setChecked(True)
+    target = len(existing) + 200
+    dlg._gen_fill.setChecked(True)
+    dlg._gen_fill_to.setValue(target)
+    dlg._do_push_live_preview()
+    built = dlg._build_generated_program()
+    added = len(existing) + len(built)
+    assert added == target, (added, target)
+    # the row must name the fill's OWN share of that, which is the target less
+    # the chart and everything the other sets contributed
+    others = len(built) - int(dlg._built_row_counts.get("fill", -1))
+    assert _row_number(dlg._gen_fill_count) == len(built) - others
+    assert _row_number(dlg._gen_fill_count) == dlg._built_row_counts["fill"]
+    dlg.deleteLater()
+
+
+def test_the_from_image_row_marks_its_number_as_a_request(qapp):
+    """A picture is asked for N representative colours and gives what it has:
+    round 10 loaded a two-colour picture with the spin at 24 and the row read
+    "24 patches" while the build appended 2. The Even-coverage row has carried
+    "≈" for this since #72; so does this one.
+
+    MUTATION: drop the "≈ " prefix and this goes red.
+    """
+    import numpy as np
+    dlg = _AddPatchesDialog(_FakeSettings(), existing_patches=[])
+    dlg._add_mode_gen.setChecked(True)
+    _sets_off(dlg)
+    dlg._gen_image.setChecked(True)
+    dlg._gen_image_n.setValue(24)
+    # a two-colour picture
+    dlg._gen_image_px = np.array([[[255, 0, 0], [0, 0, 255]]] * 8,
+                                 dtype=np.uint8)
+    dlg._update_gen_counts()
+    text = dlg._gen_image_count.text()
+    assert text.startswith("≈"), (
+        f"the From image row reads {text!r} as if it were exact")
+    dlg.deleteLater()

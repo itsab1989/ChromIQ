@@ -2968,15 +2968,30 @@ class _NewChartDialog(QDialog):
         """Whether the 3D cube or Saturated edges already supplies the 8 tips."""
         return self._gen_cube.isChecked() or self._gen_edges.isChecked()
 
-    def _corners_need_tips(self) -> bool:
+    def _corners_need_tips(self, *, assume_on: bool = False) -> bool:
         """The corner-EDGES set owns the exact tips when nothing above it (cube /
-        edges) does, so a tip is never missing yet never duplicated (Knut Q1)."""
-        return (self._gen_corners.isChecked() and not self._corner_tips_present())
+        edges) does, so a tip is never missing yet never duplicated (Knut Q1).
 
-    def _spirals_need_tips(self) -> bool:
+        **TWO QUESTIONS, AND THEY ARE NOT THE SAME ONE.** The builder asks "does
+        this row own the tips", which begins with the row being ticked at all.
+        The COUNT beside an unticked row asks "what would ticking it add", and
+        for that its own checkbox says nothing: asking the builder's question
+        there answered "it owns no tips", so the greyed promise dropped the
+        eight corners. Measured by round 10 with every other set off: the row
+        promised **72 patches** and ticking it added **80**. That is the same
+        shape as B8-323 and it survived that fix because that fix corrected the
+        two rows a BUILD can correct, and this one is wrong before any build.
+        """
+        return ((assume_on or self._gen_corners.isChecked())
+                and not self._corner_tips_present())
+
+    def _spirals_need_tips(self, *, assume_on: bool = False) -> bool:
         """The spiral set owns the tips only when neither the cube, the edges nor
-        the corner-edges set does — the bottom of the priority chain."""
-        return (self._gen_spirals.isChecked() and not self._corner_tips_present()
+        the corner-edges set does: the bottom of the priority chain. Same two
+        questions as :meth:`_corners_need_tips`; round 10 measured this row
+        promising 36 and adding 42."""
+        return ((assume_on or self._gen_spirals.isChecked())
+                and not self._corner_tips_present()
                 and not self._gen_corners.isChecked())
 
     # The generators in fixed concatenation order: (checkbox, builder, counter).
@@ -3011,8 +3026,9 @@ class _NewChartDialog(QDialog):
             (self._gen_corners,
              lambda: G.gamut_corner_edges(self._gen_corners_edge.value(),
                                           None, self._corners_need_tips()),
-             lambda: G.gamut_corner_edges_count(self._gen_corners_edge.value(),
-                                                self._corners_need_tips()),
+             lambda: G.gamut_corner_edges_count(
+                 self._gen_corners_edge.value(),
+                 self._corners_need_tips(assume_on=True)),
              self._gen_corners_count),
             (self._gen_skin,
              lambda: G.skin_tones(self._gen_skin_n.value(),
@@ -3071,8 +3087,9 @@ class _NewChartDialog(QDialog):
              lambda: G.gamut_corners(self._gen_spirals_end.value(),
                                      float(self._gen_spirals_reach.value()),
                                      self._spirals_need_tips()),
-             lambda: G.gamut_corners_count(self._gen_spirals_end.value(),
-                                           self._spirals_need_tips()),
+             lambda: G.gamut_corners_count(
+                 self._gen_spirals_end.value(),
+                 self._spirals_need_tips(assume_on=True)),
              self._gen_spirals_count),
             (self._gen_hs,
              # Highlights & shadows interlocks with Near-neutral greys (the rings):
@@ -3209,7 +3226,20 @@ class _NewChartDialog(QDialog):
     def _sync_fill_unit(self) -> None:
         """'pages' fill only makes sense with the engine — disable the 'pages'
         toggle (falling back to 'patches') when the engine can't size a page;
-        grey the spinbox of whichever unit isn't active."""
+        grey the spinbox of whichever unit isn't active.
+
+        **A HIDDEN UNIT MAY NOT DECIDE A VISIBLE NUMBER.** #93 took "fill to
+        pages" out of the window and left the widgets constructed but hidden,
+        while `fill_unit_pages` stayed in the persisted state and in every
+        chart recipe written before that. Round 10 measured what a restored
+        True then does: the visible box reads "fill to: 1000 patches" and is
+        greyed un-editable, the hidden pages spin says 2, the engine sizes a
+        page at 682, and the chart comes out with **1,364 patches**. Nothing on
+        screen says 1,364 anywhere. So the unit is forced back to patches
+        whenever its radio is not on screen, which is always today.
+        """
+        if self._gen_fill_unit_pages.isHidden():
+            self._gen_fill_unit_patches.setChecked(True)
         can_pages = self._engine_cap_per_page() > 0
         self._gen_fill_unit_pages.setEnabled(can_pages)
         if not can_pages and self._gen_fill_unit_pages.isChecked():
@@ -3300,6 +3330,14 @@ class _NewChartDialog(QDialog):
             # Disabled rows never contribute (#72 states 2/3: a ticked but
             # greyed RGB-cube/look-based row must not count or build); the
             # strike-through marks any non-contributing row's count (Basti).
+            # A REQUEST, NOT AN OUTCOME, AND THE ROW SAYS SO. "From image"
+            # asks the picture for N representative colours and takes what it
+            # has: round 10 loaded a two-colour picture with the spin at 24 and
+            # the row read "24 patches" while the build appended 2. It is the
+            # same shape as the Even-coverage row, which has carried "≈" for
+            # exactly this reason since #72, so it carries the same mark.
+            if cb is self._gen_image and self._gen_image_px is not None:
+                label.setText("≈ " + label.text())
             active = cb.isChecked() and cb.isEnabled()
             _hint_count_inactive(label, active)
             if active:
@@ -3346,7 +3384,17 @@ class _NewChartDialog(QDialog):
         sets_have = (1 if corner else 0) if self._gen_unique.isChecked() else corner
         wb_n = G.white_black_count(self._gen_whiteblack_n.value(),
                                    sets_have, sets_have)
-        self._gen_whiteblack_count.setText(_patches_label(wb_n))
+        # AN ESTIMATE THAT CANNOT BE CORRECTED SAYS SO. On an RGB chart these
+        # two rows are replaced by what the build really appended, a few
+        # hundred milliseconds later (`_apply_built_row_counts`). On a
+        # multi-ink one there is no cheap build to correct them with: state 2
+        # would have to shell targen on every keystroke, and state 3 xicclu.
+        # Round 10 measured what they then read: 6 where the build appends 5,
+        # 270 where it appends 271. The numbers are still the best answer
+        # available, so they stay, with the "≈" the Even-coverage row already
+        # uses for exactly this reason.
+        _approx = "≈ " if state != 1 else ""
+        self._gen_whiteblack_count.setText(_approx + _patches_label(wb_n))
         _hint_count_inactive(self._gen_whiteblack_count,
                              self._gen_whiteblack.isChecked())
         if self._gen_whiteblack.isChecked():
@@ -3356,7 +3404,8 @@ class _NewChartDialog(QDialog):
         self._sync_fill_unit()
         fill_n = G.fill_gaps_count(total + len(self._existing_patches),
                                    self._effective_fill_target())
-        self._gen_fill_count.setText(_fill_count_label(fill_n))
+        self._gen_fill_count.setText(_approx + _fill_count_label(fill_n)
+                                     if fill_n > 0 else _fill_count_label(fill_n))
         _hint_count_inactive(self._gen_fill_count, self._gen_fill.isChecked())
         if self._gen_fill.isChecked():
             total += fill_n
@@ -3531,7 +3580,8 @@ class _NewChartDialog(QDialog):
                              for p in (self._existing_patches or []))
             return (type(self).__name__, state, self._nch_state(),
                     self._effective_fill_target(), existing,
-                    self._gen_image_digest(), self._argyll_key())
+                    self._gen_image_digest(), self._argyll_key(),
+                    self._precond_key())
         except Exception:      # noqa: BLE001 — a cache may never break a build
             return None
 
@@ -3546,6 +3596,35 @@ class _NewChartDialog(QDialog):
         except Exception:      # noqa: BLE001
             # Unhashable is not "the same as last time": refuse the cache.
             return f"unhashable-{id(px)}"
+
+    def _precond_key(self) -> str:
+        """What the preconditioning profile IS, not where it is.
+
+        **colprof OVERWRITES AN ICC IN PLACE, AND THE CACHE IS PROCESS-WIDE.**
+        Keying on the path alone made ChromIQ's own refine loop serve a program
+        built from the profile that used to be at that path: round 10 pointed
+        the same path at a different CMYK profile and got the old program back,
+        while a real rebuild differed in **144 of 144 patches**. The digest is
+        memoised on (path, size, mtime), so a keystroke does not re-read a
+        two-megabyte profile.
+        """
+        p = getattr(self, "_precond_path", "") or ""
+        if not p:
+            return ""
+        try:
+            import hashlib
+            from pathlib import Path as _P
+            st = _P(p).stat()
+            stamp = (str(p), st.st_size, st.st_mtime_ns)
+            cached = getattr(self, "_precond_digest", None)
+            if cached is not None and cached[0] == stamp:
+                return cached[1]
+            digest = hashlib.blake2b(_P(p).read_bytes(),
+                                     digest_size=16).hexdigest()
+            self._precond_digest = (stamp, digest)
+            return digest
+        except Exception:      # noqa: BLE001 — unreadable is not "unchanged"
+            return f"unreadable-{p}-{id(self)}"
 
     def _argyll_key(self) -> str:
         try:
@@ -3879,11 +3958,15 @@ class _NewChartDialog(QDialog):
         state only, which is the only state that reaches here).
         """
         rows = getattr(self, "_built_row_counts", {})
+        rgb = self._nch_state() == 1
         wb, wb_lbl = self._gen_whiteblack, self._gen_whiteblack_count
         if wb.isChecked():
             if "whiteblack" in rows:
                 wb_lbl.setText(_patches_label(int(rows["whiteblack"])))
-        else:
+        elif rgb:
+            # ONLY ON AN RGB PROGRAM. `count_white_black` reads three channels;
+            # handing it a CMYK program would answer about the first three inks
+            # and call the result white.
             have_w, have_b = G.count_white_black(additions)
             wb_lbl.setText(_patches_label(G.white_black_count(
                 self._gen_whiteblack_n.value(), have_w, have_b)))
@@ -3922,6 +4005,10 @@ class _NewChartDialog(QDialog):
             try:
                 from workflow.xicclu_runner import forward_lab
                 program = self._build_generated_program()
+                # THE ONE PLACE A MULTI-INK BUILD REALLY HAPPENS, so the two
+                # rows that can only be right from a build take their numbers
+                # here (see `_apply_built_row_counts`).
+                self._apply_built_row_counts(program)
                 if not program:
                     return
                 bin_dir = self._bin_dir

@@ -14090,3 +14090,86 @@ written for it in the suite passed its own mutation.
   preset cannot go missing quietly. Mutation-proved: deleting a row, removing a
   bundled `.ti1`, and dropping one key out of `BUILTIN_PRESET_KEYS` each turned
   the file red and each went green again on restore.
+
+### B8-330 · FIXED · The greyed promise beside "Gamut-corner emphasis" and "Colour extremes" was wrong
+- blocks release: no
+- status: FIXED
+- found by: round 10, stream B, and it is the same shape as B8-323 in two rows
+  that fix did not reach.
+- measured, with every other set off, in BOTH windows, unique on and off:
+  Gamut-corner emphasis (edge 3) promised **72 patches** and ticking it added
+  **80**; Colour extremes promised **36** and added **42**.
+- cause: `_corners_need_tips` and `_spirals_need_tips` answer the BUILDER's
+  question, which begins with the row being ticked at all. The count beside an
+  UNTICKED row asks a different question, "what would ticking it add", and for
+  that its own checkbox says nothing: asking the builder's question there
+  answered "it owns no tips" and dropped the eight (resp. six) corners.
+- fix: both predicates take `assume_on`, and the counters pass it. The builder
+  is unchanged.
+- evidence: `test_the_greyed_promise_is_what_ticking_the_row_adds`, both rows,
+  each mutation proven to land.
+
+### B8-331 · FIXED · A hidden unit decided the fill target, and the chart came out 364 patches bigger
+- blocks release: no
+- status: FIXED
+- found by: round 10, stream B.
+- #93 took "fill to pages" out of the window and left the widgets constructed
+  but hidden, while `fill_unit_pages` stayed in the persisted state and in
+  every chart recipe written before that. With the engine on and a restored
+  True: the visible box reads "fill to: 1000 patches", greyed un-editable, the
+  hidden pages spin says 2, the engine sizes a page at 682, and **the built
+  chart holds 1,364 patches**. Nothing on screen says 1,364 anywhere.
+- fix: `_sync_fill_unit` forces the patches unit whenever the pages radio is
+  hidden, which is always today. The plumbing still works if the row is ever
+  offered again.
+- evidence: `test_a_hidden_unit_cannot_decide_the_fill_target`, and
+  `test_fill_to_pages_target` was rewritten to the new rule rather than deleted.
+
+### B8-332 · FIXED · On a multi-ink chart the two corrected rows reverted to estimates, and said nothing about it
+- blocks release: no
+- status: FIXED
+- found by: round 10, stream B: `_apply_built_row_counts` ran **0 times** in
+  device states 2 and 3, because `_do_push_live_preview` returns early in one
+  and diverts to the Lab cloud in the other. "Pure white & black" read 6 where
+  the build appends 5; "Fill remaining gaps" read 270 where it appends 271.
+- fix, and it is deliberately not "build on every keystroke": state 2 would
+  have to shell targen and state 3 xicclu for that. The two rows now carry the
+  **"≈"** the Even-coverage row has used since #72, so an estimate that cannot
+  be corrected says so; and where a multi-ink build DOES happen (the Lab cloud)
+  the rows take its numbers. `_apply_built_row_counts` no longer re-derives an
+  RGB white/black count for an n-channel program.
+- evidence: `test_the_row_numbers_survive_a_cache_hit` and
+  `test_the_fill_row_shows_what_the_fill_really_added` cover the RGB path; the
+  multi-ink half is the "≈", checked by `test_the_from_image_row_marks_its_number_as_a_request`
+  for the same mechanism on the other estimating row.
+
+### B8-333 · FIXED · "From image" showed the request, not the outcome
+- blocks release: no
+- status: FIXED
+- found by: round 10, stream B: a two-colour picture with the spin at 24 read
+  "24 patches", greyed and ticked, and built **2**.
+- fix: the row carries "≈", like Even coverage.
+- evidence: `test_the_from_image_row_marks_its_number_as_a_request`.
+
+### B8-334 · FIXED · The program cache keyed the preconditioning profile by path, and colprof overwrites it in place
+- blocks release: no
+- status: FIXED
+- found by: round 10, stream B. Same path, different CMYK profile: the key did
+  not change, the old program was served, and a real rebuild differed in **144
+  of 144 patches**. Reachable through ChromIQ's own refine loop, because
+  colprof writes the .icc in place and the cache is process-wide.
+- fix: the key carries a blake2b digest of the profile's CONTENT, memoised on
+  (path, size, mtime) so a keystroke does not re-read a two-megabyte file.
+- evidence: `test_the_add_window_keys_and_reuses_its_program_cache` covers the
+  key's shape; the digest itself is the fix for the identity.
+
+### B8-335 · FIXED · One of B8-323's own guards passed its own mutation
+- blocks release: no
+- status: FIXED
+- found by: round 10, stream B: deleting `self._built_row_counts["fill"] =
+  len(topup)` left all nine guards green, and it is observable (the fill row
+  read 104 against a build that appends 102).
+- fix: `test_the_fill_row_shows_what_the_fill_really_added` asks the fill row
+  the question the others asked the white/black row. Mutated in both builders
+  at once: it goes red.
+- evidence: `test_the_fill_row_shows_what_the_fill_really_added`.
