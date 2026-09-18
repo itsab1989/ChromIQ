@@ -14434,32 +14434,112 @@ written for it in the suite passed its own mutation.
   `test_neither_help_text_promises_an_exact_margin`, which now refuses the
   sentence that was false.
 
-### B8-346 · OPEN · Round 12's findings, recorded from its logs before the machine went to standby
+### B8-346 · OPEN · Round 12's nine faults, and two corrections to this entry's own first draft
 - blocks release: yes
 - status: OPEN
-- **This entry was written from round 12's own logs while the round was still
-  running**, so that nothing it had measured could be lost. Its README, when it
-  lands in `~/Desktop/ChromIQ-beta21-proof/round-12-on-round-11/`, is the
-  authority; this is the floor.
-- **The strip letters are still being eaten on some charts.** `logs/blank-rest.txt`,
-  the SHIPPED build (B8-339's `ceil` in place): "letters kept **96.68 %**" and
-  "**94.89 %**" at 1500x1020 on the charts that run recorded, against 100.0 %
-  on the A-folder chart. So the clamp binds on one chart and not on another,
-  and the cause of the remainder is not the rounding.
-- **The greyed promise is still out where the FILL row is on.**
-  `logs/RESULT-add-promises.txt`: `nearneutral with whiteblack` promised 96 and
-  the chart grew by 95; `whiteblack with fill` promised 2 and the chart grew by
-  **0**, because the fill target pins the total and the two rows cannot both
-  have their difference. The fill row's own promise reads `None`.
-- **The report's "covers N of the M" can still count a stranger's file.**
-  `logs/report2-driver.txt`: *"This report covers 2 of the 3 measurements
-  recorded for this project"* where the project records 2 and the third file
-  belongs to no project at all. `logs/report-driver.txt` has the other half:
-  with a stranger's file and one row unticked, the document says NOTHING.
-- **The ColorMunki's own margin claim is 33.9 mm, not the 26 measured earlier.**
-  `logs/help-driver.txt`, band OFF, 5 mm asked, from the panel's own "Measured
-  from Preview". The help text now names the SpectroScan's 30 mm; the number
-  for a ColorMunki depends on the sheet and the text does not claim one, but
-  the two measurements should be reconciled before anyone quotes either.
-- what to do first: re-measure the letters on the two charts that differ, since
-  that is the one a user sees.
+- evidence: `tests/test_show_only_measured_blanks_the_right_pixels.py`,
+  `tests/test_the_add_window_counts_match_what_it_builds.py`,
+  `tests/test_the_area_first_help_text_is_true.py`,
+  `tests/test_the_report_reads_as_a_printed_document.py` are the four guards
+  round 12 challenged; every claim below is a measurement they do NOT make.
+- The round's own write-up is
+  `~/Desktop/ChromIQ-beta21-proof/round-12-on-round-11/README.md` and it is the
+  authority. The first draft of this entry was written from its logs while it
+  was still running, so that nothing measured could be lost to standby; two of
+  its sentences were wrong and are corrected at the bottom.
+
+**F1 · B8-339 swapped one fault for the other, and both halves are still live.**
+Letters, shipped build, on screen, nothing read, by the letters' own ink
+(`work/letters12.py`): a **turned** CR30 honeycomb with a 6 mm ring and edge
+spacers on keeps **87.45 / 91.35 / 92.20 / 98.91 / 96.42 / 99.31 %** across six
+window sizes. `E` reads as `F`, `I` reads as `T` — the same sentence B8-339 uses
+for the fault it says it closed. The driver's own earlier metric agrees on a
+different chart: `logs/blank-rest.txt` lines 157 and 160, chart
+**G-ragged-2pages**, 96.68 % at 1280x900 and 94.89 % at 1500x1020.
+And where the letters survive, printed ink does not: **5 / 32 / 3** device
+pixels of spacer ring survive the blank on a pointy chart with edge spacers on,
+and **19 pixels of patch ink** on a ring-0 chart. Mutation (`ceil`→`floor`,
+stamped on the photograph) moves the ring leak 5/32/3 → 0/0/0 and the letters
+100/100/100 → 99.56/98.10/100: one device row either way.
+`ui/tiff_preview.py:3209-3226` rounds to a whole **widget** pixel, which is two
+device rows at dpr 2; the rectangular branch fifteen lines below already states
+the rule that works. The new guard only asserts `after >= before` on letters and
+never looks at chart ink.
+
+**F2 · With "Fill remaining gaps" ticked, all fourteen colour-set rows read
+"0 patches"** (the cube used to read 512), while "Pure white & black" — the one
+row not on the new machinery — promises 2 and adds nothing: Total stays 930,
+"Chart after adding" stays 1000, and the fill row silently drops 930 → 928.
+
+**F3 · With white & black on, and a chart that already holds white and black,
+every tip-owner promise is out by two**: cube 510 against 512, edges 18/20,
+corners 54/56, neutral 14/16. 26 wrong cases in a 1,344-case sweep; the new
+guard covers the one corner where it holds.
+
+**F4 · On a CMYK chart every greyed row now reads "0 patches"** (cube was 512,
+skin 144), structurally: a checked-but-disabled row makes the difference zero by
+construction. This is a side effect of B8-340 that nobody measured.
+
+**F5 · The report's "covers N of the M" counts what the WINDOW has loaded and
+calls it the project's.** Three measurements on disk, two loaded, and the report
+says "1 of the 2"; load the third and the same report says "2 of the 3". All
+eight report types.
+
+**F6 · The other door: a file belonging to no project is counted.**
+`from-a-colleague/someone-elses.ti3` makes a two-measurement project report
+"2 of the 3".
+
+**F7 · B8-345's help text is false in every numeric clause**, measured over 540
+built sheets: "largest of three things" gives 30.48 mm where the largest named
+claimant is 26; "30 on the left and 9 on the right with or without the band" is
+8.47 with the band really off and 12.02/26.02 with it on the right; the
+ColorMunki claims nothing (5.00, the same as an i1Pro) yet is named; "top and
+bottom come out slightly larger" is false on SS and CR30, where the top is
+exactly the number typed — which round 11 had itself measured.
+
+**F8 · B8-345's new guard proves the opposite of its docstring.** It switches
+the band off with `clip_border=False`, which round 11's own README says is not
+the control; the ColorMunki row passes on a 26 mm band that is still on the
+sheet (25.99 against 5.00 with the band really off).
+
+**F9 · Two of that guard's other assertions are met by sentences that were
+already there.** Delete the third claimant's wording, or the instrument names,
+or "Each side ends up the LARGEST of three things", and it is still 13 passed.
+Round 11 found this exact class as its M27 and the guard written in the same
+commit repeats it three times.
+
+**Three guards pass their own mutation** (M10, M12, M15, all in the help-text
+guard); the full 16-mutation table is in the round's README.
+
+**Not reached, which is not the same as passed.** B8-343 was never driven on
+screen (only M6, which lands); the driver is written. Two source reads to carry
+forward: the busy-runner door returns before the snapshot, and
+`_chart_notes_edit` in the new snapshot list **does not exist**, so that half is
+a silent no-op. Round 11's second note hole is not covered by B8-343 and was not
+re-measured. Also unreached: B8-341 with the 3D cube unfolded (`_push_lab_cloud`
+sets the Total with no `≈` and never touches "Chart after adding" — read, not
+measured), page 2 / ragged pages, and the i18n side of the new string.
+
+**Could not break**: 177 is right everywhere it is said; B8-344's
+whitespace-collapse half is load-bearing; the blank still covers everything on
+6 of 8 charts at all six sizes; the "≈" is on the right lines in states 1 and 2.
+
+- **Correction 1, to this entry's first draft.** It said the letter percentages
+  were "on the charts that run recorded" without naming one. They are chart
+  **G-ragged-2pages** in `logs/blank-rest.txt`. The round's README reports
+  different numbers because it re-measured with a different and better metric
+  (`work/letters12.py`, the letters' own dark ink) on a different chart; both
+  measurements say the letters are still being eaten. The round's own note that
+  those percentages "are not in my logs" is mistaken: they are, at lines 157
+  and 160.
+- **Correction 2, and it retires a claim on both sides.** The first draft said
+  a ColorMunki's own margin measures 33.9 mm; the round's README says the app's
+  panel reads "L 33.9 · R 5.2" against the text's 30 and 9. **Neither stands.**
+  `logs/RESULT-help-text.txt` records `the chart that was BUILT : None (?)` on
+  every one of its six rows, and the identical reading 33.9 / 5.2 / 5.0 / 5.3
+  for SS, ColorMunki, CR30 **and** i1Pro. No chart was built, so the panel was
+  showing a stale figure that belongs to no instrument. F7's 30.48 mm and the
+  33.78 mm SS rows in `logs/RESULT-margins.txt` come from the 540 sheets that
+  really were built and are unaffected.
+- what to do first: F1. It is the one a user sees, it is release-blocking, and
+  the fix is named: clamp in device rows, not widget rows.
