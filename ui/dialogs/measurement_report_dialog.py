@@ -1842,18 +1842,36 @@ class MeasurementReportDialog(QDialog):
                     else str(ti3.parent))
         return ("file", _ident or str(ti3))
 
-    def _source_keys(self, ti3: Path) -> tuple:
-        """Every identity this measurement answers to: where it is, and what it
-        is. Two sources are the same when they share either.
+    def _source_keys(self, ti3: Path,
+                     origin: "Path | None" = None) -> tuple:
+        """Every identity this measurement answers to: where it is, what it is,
+        and where the USER got it. Two sources are the same when they share any
+        of them.
 
         A path alone cannot see that two spellings name one file; an inode
         alone cannot see that one path has been written again. See
         `_append_source`, where both halves were learned the hard way one round
         apart.
+
+        **AND THE FILE THE USER PICKED IS THE THIRD.** An `.mxf` or `.cxf`
+        import is converted into a FRESH temporary folder every time, so its
+        path and its inode are both new on every press and neither can see that
+        it is the same measurement: importing one `.mxf` three times gave three
+        sources, "3 runs" in the Report Scope and a flat trend through three
+        points all carrying one date (R20-F2). That route had no duplicate
+        guard of any kind. `origin` is the one thing about it that does not
+        move.
         """
-        by_id = self._source_key(ti3)
+        keys = [self._source_key(ti3)]
         by_path = self._source_key(ti3, by_identity=False)
-        return (by_id, by_path) if by_id != by_path else (by_id,)
+        if by_path not in keys:
+            keys.append(by_path)
+        if origin is not None and Path(origin) != Path(ti3):
+            try:
+                keys.append(("origin", str(Path(origin).resolve())))
+            except OSError:
+                keys.append(("origin", str(origin)))
+        return tuple(keys)
 
     def _append_source(self, ti3: Path, origin: "Path | None" = None) -> bool:
         """Add one measurement to the source list (no repaint). Returns False if it
@@ -1874,9 +1892,22 @@ class MeasurementReportDialog(QDialog):
         # again became a third row and the Report Scope read "2 runs" for one
         # file (R19-2, a regression from the fix for R18-F2). A source is
         # already here when it matches on either.
-        keys = self._source_keys(ti3)
-        if any(set(s.get("keys") or ()) & set(keys) for s in self._sources):
-            return False
+        keys = self._source_keys(ti3, origin)
+        for s in self._sources:
+            if set(s.get("keys") or ()) & set(keys):
+                # **AND THE MATCH REFRESHES WHAT IT MATCHED ON.** The key set
+                # was worked out once, when the source was added, and never
+                # again: rewrite the file and its identity half goes stale for
+                # good, so the NEXT spelling of it matches nothing and comes in
+                # as a second row. Driven: add, replace in place, then add the
+                # same file under another capitalisation, and the Report Scope
+                # listed `exported - 1 run` and `EXPORTED - 1 run` with "No. of
+                # Measurements: 3" for two files on the disk (R20-F1). What was
+                # matched is this measurement, so what it answers to is updated
+                # to what it answers to now.
+                s["keys"] = tuple(dict.fromkeys(tuple(s.get("keys") or ())
+                                                + tuple(keys)))
+                return False
         key = keys[0]
         name, runs = self._gather_runs(ti3)
         if not runs:

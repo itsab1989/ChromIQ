@@ -960,3 +960,88 @@ def test_a_measurement_written_again_in_place_is_still_one_source(tmp_path,
             f"{len(dlg._history) - n_rows} more rows")
     finally:
         dlg.close()
+
+
+def test_a_rewritten_file_does_not_go_stale_in_the_source_list(tmp_path, qapp):
+    """R20-F1: a source's key set was worked out once, when it was added, and
+    never again. Rewrite the file and its identity half goes stale for good, so
+    the next SPELLING of it matches nothing and comes in as a second row.
+    Driven: add, replace in place, then add the same file under another
+    capitalisation, and the Report Scope listed `exported - 1 run` and
+    `EXPORTED - 1 run` with "No. of Measurements: 3" for two files on disk, the
+    trend plotting one sheet twice.
+
+    MUTATION, proven to land: do not refresh the keys of the source that
+    matched.
+    """
+    import os
+    from tests.test_a_report_says_what_it_is_and_what_judged_it import _dialog
+    from tests.test_import_measurement_module import _cgats, _PATCHES
+    dlg, _run, _fm = _dialog(tmp_path, qapp)
+    try:
+        loose = tmp_path / "exports" / "exported.ti3"
+        loose.parent.mkdir(parents=True, exist_ok=True)
+        loose.write_text(
+            _cgats("CTI3", [(r * 0.8, g, b) for (r, g, b) in _PATCHES]),
+            encoding="utf-8")
+        dlg._add_source(loose)
+        qapp.processEvents()
+        n_rows = len(dlg._history)
+        before = loose.stat().st_ino
+        fresh = loose.with_suffix(".new")
+        fresh.write_text(
+            _cgats("CTI3", [(r * 0.81, g, b) for (r, g, b) in _PATCHES]),
+            encoding="utf-8")
+        os.replace(fresh, loose)
+        if loose.stat().st_ino == before:
+            pytest.skip("this filesystem kept the inode across a replace")
+        dlg._add_source(loose)          # same path: matches, and refreshes
+        qapp.processEvents()
+        other_case = Path(str(loose).swapcase())
+        if str(other_case) == str(loose) or not other_case.is_file():
+            pytest.skip("this volume keeps the two cases apart")
+        dlg._add_source(other_case)
+        qapp.processEvents()
+        assert len(dlg._history) == n_rows, (
+            f"one file, rewritten once and then opened under another "
+            f"capitalisation, is now {len(dlg._history)} rows")
+    finally:
+        dlg.close()
+
+
+def test_one_imported_file_added_three_times_is_one_source(tmp_path, qapp):
+    """R20-F2: an `.mxf` or `.cxf` import is converted into a FRESH temporary
+    folder every time, so its path and its inode are both new on every press
+    and neither can see that it is the same measurement. Driven: one file,
+    three presses of "Add Profile's Measurements...", and the window held four
+    sources with the Report Scope reading "3 runs" and a flat trend through
+    three points all carrying one date. That route had no duplicate guard of
+    any kind, and the two rounds before this one drove only `.ti3`.
+
+    The file the USER picked does not move, so it is one of the keys now.
+
+    MUTATION, proven to land: drop `origin` from `_source_keys`.
+    """
+    from tests.test_a_report_says_what_it_is_and_what_judged_it import _dialog
+    from tests.test_import_measurement_module import _cgats, _PATCHES
+    dlg, _run, _fm = _dialog(tmp_path, qapp)
+    try:
+        picked = tmp_path / "from-i1profiler" / "meas.mxf"
+        picked.parent.mkdir(parents=True, exist_ok=True)
+        picked.write_text("not really an mxf", encoding="utf-8")
+        n_rows = len(dlg._history)
+        for i in range(3):
+            # what the importer does: convert into a fresh temp folder each
+            # time, then add THAT file while remembering the one picked
+            conv = tmp_path / f"conv-{i}" / "meas.ti3"
+            conv.parent.mkdir(parents=True, exist_ok=True)
+            conv.write_text(
+                _cgats("CTI3", [(r * 0.7, g, b) for (r, g, b) in _PATCHES]),
+                encoding="utf-8")
+            dlg._add_source(conv, origin=picked)
+            qapp.processEvents()
+        assert len(dlg._history) == n_rows + 1, (
+            f"one imported file added three times left "
+            f"{len(dlg._history) - n_rows} rows")
+    finally:
+        dlg.close()

@@ -15405,7 +15405,7 @@ different document.
 - evidence: `test_the_limit_split_survives_the_window_repainting_itself`,
   `test_a_measurement_written_again_in_place_is_still_one_source`,
   `test_the_numberless_sentence_also_says_which_projects`,
-  `test_the_estimate_mark_does_not_depend_on_which_path_wrote_the_row`.
+  `test_the_fill_rows_mark_says_what_the_number_really_is`.
 
 **R18-F1 holds**, and round 19 checked that first: window 1 pushes in 0.411 s,
 window 2 evicts the program entry, back in window 1 **0.410 s and 0 uncached
@@ -15462,7 +15462,7 @@ preconditioning profile took it from "7220 patches" to "≈ 7220 patches".
   delete-then-create gave a new inode on both FAT32 and APFS); hard links;
   `_dir_ident`; colliding `_origin_dir` strings; a project with nothing hidden
   and no readable folder.
-- what to do next: round 20, and then the three gates.
+- what to do next: round 20 found three; they are B8-362. **Round 19's own four all held**, which is the first time since round 12 that a round's fixes were not still live.
 
 ### B8-361 · OPEN · A raw drift check makes the honesty note fire with nothing hidden
 - blocks release: no
@@ -15480,3 +15480,60 @@ preconditioning profile took it from "7220 patches" to "≈ 7220 patches".
 - evidence: none yet; nothing has been changed.
 - what to do first: decide which reading is right, with Knut, since the note is
   his honesty rule and the raw-drift exemption is his ruling too.
+
+### B8-362 · FIXED · Round 20's three, and the first round whose predecessor held
+- blocks release: yes
+- status: FIXED
+- evidence: `test_a_rewritten_file_does_not_go_stale_in_the_source_list`,
+  `test_one_imported_file_added_three_times_is_one_source`,
+  `test_the_fill_rows_mark_says_what_the_number_really_is`.
+- **Round 19's four were re-driven against HEAD first and all hold**: the
+  plural sentence on all six report types in HTML and PDF, the rewrite case
+  (2 rows to add, 2 to replace, 2 to add again), and the renamed folder after a
+  real `_refresh()` (1 kept, 2 dropped, memo holding 3). That is the first
+  round since 12 where the previous round's fixes were not still live.
+
+**F1 · one rewrite poisons a source's identity for good.** The key set was
+worked out once, at append, and never again. Driven: add, replace in place
+(inode ...273 to ...274, the source still remembering ...273), then add the
+same file under another capitalisation, and the Report Scope listed
+`exported · 1 run` AND `EXPORTED · 1 run`, "No. of Measurements: 3" for two
+files on the disk, with the trend plotting one sheet twice. A match now
+refreshes what it matched on.
+
+**F2 · one `.mxf` imported three times became three sources**, and this one is
+inherited rather than new: the import converts into a FRESH temporary folder
+every time, so its path and its inode are both new on every press and neither
+can see it is the same measurement. `origin`, the file the user actually
+picked, was stored and never keyed on. Driven: three presses gave four
+sources, "meas ... 3 runs" in the Report Scope and a flat trend through three
+points all carrying one date. **That route had no duplicate guard of any kind**,
+and the two rounds before this one drove only `.ti3`.
+
+**F3 · "≈ target already met".** Round 19 made both paths mark the fill row,
+which put the estimate mark on a number that is derived from the program really
+built, and copied the mark WITHOUT the `fill_n > 0` guard that lives beside it
+in `_update_gen_counts`: `_fill_count_label(0)` is the sentence "target already
+met", so the row called a sentence approximate, photographed in a real New
+patch set window. **And round 19's guard stepped around that state in its own
+docstring** ("a target the chart has NOT already met, or the row says so
+instead of carrying a number"). The number from a build carries no mark; what
+R19-4 was really about is that a cache hit must KEEP the confirmed number
+rather than fall back to the estimate, which is now what it does.
+
+- Mutations, each proven to land, 2026-09-18: Y1 the matched source's keys not
+  refreshed (1 red), Y2 the imported file's own path not a key (1 red), Y3 the
+  derived number marked approximate (1 red), Y4 a cache hit falling back to the
+  estimate (1 red). Y4 needed the test to run the APP's sequence, with
+  `_update_gen_counts` between the two calls; back to back it cannot be seen.
+- **Two corrections round 20 made of itself**, worth as much as its faults: it
+  first flagged the one-page summary as singular on a three-project document
+  and disproved it (`_one_page` narrows to one measurement before the scope
+  block), and it expected the window's limit strip and the memo to drift apart
+  on an override edit with the folder gone; they do not.
+- **A lead, not a finding**: `_measurements_recorded_in` counts every `*.ti3`
+  in a run folder bar two role names, so an un-migrated pre-#130 project with a
+  flat `<stem>-verify.ti3` would be in the total with no row for it.
+  `file_manager.py` folds that file away, but only under `Project.load`, which
+  the report window never calls.
+- what to do next: round 21, and then the three gates.

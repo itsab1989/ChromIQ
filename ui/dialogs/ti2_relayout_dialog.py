@@ -4120,25 +4120,35 @@ class _NewChartDialog(QDialog):
         if fill.isChecked():
             if "fill" in rows:
                 fill_lbl.setText(_fill_count_label(int(rows["fill"])))
-        elif additions is not None:
+        elif additions is None:
+            # Nothing to count with, so whatever this branch worked out LAST
+            # time stands. Without this the row fell back to the arithmetic
+            # estimate on every cache hit, mark and all, for a number that had
+            # already been confirmed from a build and had not moved (R19-4).
+            if "fill_when_off" in rows:
+                fill_lbl.setText(_fill_count_label(int(rows["fill_when_off"])))
+        else:
             # What it would add: the target less the chart it tops up, which is
             # the existing chart plus everything the ticked sets just built.
             # Without a program in hand there is nothing to count, so the
             # estimate `_update_gen_counts` already wrote is left alone rather
             # than replaced by a worse one.
             #
-            # **AND THE MARK COMES WITH IT.** `_update_gen_counts` writes this
-            # row with a leading "≈" in the multi-ink states, because there the
-            # number cannot be corrected from a build; this branch wrote the
-            # same number without one. So the row's mark flickered on and off
-            # with which path last touched it, for a number that never moved:
-            # re-picking the same preconditioning profile took it from
-            # "7220 patches" to "≈ 7220 patches" (R19-4). The estimate is an
-            # estimate whoever writes it.
-            _mark = "≈ " if self._nch_state() != 1 else ""
-            fill_lbl.setText(_mark + _fill_count_label(G.fill_gaps_count(
+            # **AND NO MARK, BECAUSE THIS NUMBER IS NOT AN ESTIMATE.** It is
+            # derived from the program that was really built, and it matches
+            # the build exactly. Round 19 copied the "≈" from
+            # `_update_gen_counts`, where the number really is arithmetic, and
+            # copied it without the `fill_n > 0` guard that lives beside it:
+            # `_fill_count_label(0)` is the SENTENCE "target already met", so
+            # the row read **"≈ target already met"** in a real New patch set
+            # window (R20-F3, photographed). What R19-4 was really about is the
+            # branch above: a cache hit must keep the confirmed number rather
+            # than fall back to the estimate.
+            _n = G.fill_gaps_count(
                 len(self._existing_patches) + len(additions),
-                self._effective_fill_target())))
+                self._effective_fill_target())
+            self._built_row_counts["fill_when_off"] = int(_n)
+            fill_lbl.setText(_fill_count_label(_n))
 
     def _push_lab_cloud(self) -> None:
         """State-3 3D preview (#72): the generated ink patches as a Lab-space

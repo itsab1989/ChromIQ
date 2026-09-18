@@ -759,16 +759,24 @@ def test_a_cached_lab_cloud_never_pays_for_a_rebuild(qapp, monkeypatch):
     dlg.deleteLater()
 
 
-def test_the_estimate_mark_does_not_depend_on_which_path_wrote_the_row(qapp,
-                                                                       monkeypatch):
-    """R19-4: `_update_gen_counts` writes the fill row with a leading "≈" in
-    the multi-ink states, because there the number cannot be corrected from a
-    build, and `_apply_built_row_counts` wrote the same number without one. So
-    the mark flickered on and off with whichever path last touched the row, for
-    a number that never moved: re-picking the same preconditioning profile took
-    it from "7220 patches" to "≈ 7220 patches".
+def test_the_fill_rows_mark_says_what_the_number_really_is(qapp, monkeypatch):
+    """R19-4 and R20-F3, which are two halves of one thing.
 
-    MUTATION, proven to land: drop the mark from the estimate branch.
+    `_update_gen_counts` works the unticked fill row out by arithmetic, so in
+    the multi-ink states it marks it "≈"; `_apply_built_row_counts` derives it
+    from the program that was really built, so it does not. Round 19 saw the
+    mark appear and disappear and made both paths mark it, which put "≈" on a
+    number that is exact, and copied the mark WITHOUT the `fill_n > 0` guard
+    beside it, so the row read **"≈ target already met"** in a real window: a
+    sentence with no number in it, called approximate.
+
+    What actually flickered is the third case: a cloud cache hit calls
+    `_apply_built_row_counts(None)`, which has no program to count and left the
+    row on the estimate, mark and all, for a number that had been confirmed and
+    had not moved. So the confirmed number is kept.
+
+    MUTATIONS, each proven to land: mark the derived number; drop the kept
+    number so a cache hit falls back to the estimate.
     """
     dlg = _AddPatchesDialog(_FakeSettings(),
                             existing_patches=_chart_with_white_and_black())
@@ -776,16 +784,39 @@ def test_the_estimate_mark_does_not_depend_on_which_path_wrote_the_row(qapp,
     _sets_off(dlg)
     dlg._gen_cube.setChecked(True)
     dlg._gen_fill.setChecked(False)
-    # a target the chart has NOT already met, or the row says so instead of
-    # carrying a number and there is no mark to compare
     dlg._gen_fill_to.setValue(4000)
     monkeypatch.setattr(type(dlg), "_nch_state", lambda self: 3)
+
     dlg._update_gen_counts()
-    from_counts = dlg._gen_fill_count.text()
-    dlg._apply_built_row_counts([(50.0, 50.0, 50.0)] * 8)
-    from_build = dlg._gen_fill_count.text()
-    assert from_counts.startswith("≈"), from_counts
-    assert from_build.startswith("≈"), (
-        f"the row reads {from_counts!r} from one path and {from_build!r} from "
-        f"the other, for the same estimate")
+    estimate = dlg._gen_fill_count.text()
+    assert estimate.startswith("≈"), (
+        f"the arithmetic estimate is unmarked in a multi-ink state: "
+        f"{estimate!r}")
+
+    built = [(50.0, 50.0, 50.0)] * 8
+    dlg._apply_built_row_counts(built)
+    confirmed = dlg._gen_fill_count.text()
+    assert not confirmed.startswith("≈"), (
+        f"a number derived from the built program is marked approximate: "
+        f"{confirmed!r}")
+
+    # ...and a cache hit keeps it. THE APP'S OWN SEQUENCE: every push starts
+    # with `_update_gen_counts`, which rewrites the row from arithmetic, and
+    # only then reaches the cloud, which on a hit has no program to count with.
+    # Calling the two straight after one another, as the first version of this
+    # test did, cannot see the fall-back at all.
+    dlg._update_gen_counts()
+    assert dlg._gen_fill_count.text().startswith("≈")
+    dlg._apply_built_row_counts(None)
+    assert dlg._gen_fill_count.text() == confirmed, (
+        f"a cached push put the row back to {dlg._gen_fill_count.text()!r} "
+        f"where the build had confirmed {confirmed!r}")
+
+    # ...and the sentence that carries no number is never called approximate
+    dlg._gen_fill_to.setValue(1)
+    dlg._update_gen_counts()
+    dlg._apply_built_row_counts(built)
+    met = dlg._gen_fill_count.text()
+    assert "≈" not in met, (
+        f"the row reads {met!r}: there is no number in it to be approximate")
     dlg.deleteLater()
