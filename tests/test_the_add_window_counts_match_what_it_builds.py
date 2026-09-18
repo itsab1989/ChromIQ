@@ -349,3 +349,71 @@ def test_the_from_image_row_marks_its_number_as_a_request(qapp):
     assert text.startswith("≈"), (
         f"the From image row reads {text!r} as if it were exact")
     dlg.deleteLater()
+
+
+@pytest.mark.parametrize("first,second", [
+    (a, b) for a in ("cube", "edges", "corners", "spirals")
+    for b in ("cube", "edges", "corners", "spirals") if a != b])
+def test_the_promise_holds_when_another_tip_owner_is_already_on(qapp, first,
+                                                                second):
+    """The sets are not independent: the eight gamut tips belong to the highest
+    ticked owner in the chain, so ticking one row changes ANOTHER row's number.
+
+    Round 11 measured 6 of these 12 pairs wrong on the shipped build: with
+    Saturated edges on, the 3D cube row promised 125 patches and the chart grew
+    by 423.
+
+    MUTATION: go back to the per-row counter for an unticked row (drop
+    `_estimate_additions(assume=cb)`) and half of these go red.
+    """
+    dlg = _AddPatchesDialog(_FakeSettings(), existing_patches=[])
+    dlg._add_mode_gen.setChecked(True)
+    _sets_off(dlg)
+    getattr(dlg, f"_gen_{first}").setChecked(True)
+    dlg._update_gen_counts()
+    label = getattr(dlg, f"_gen_{second}_count")
+    promised = _row_number(label)
+    before = len(dlg._build_generated_program())
+    getattr(dlg, f"_gen_{second}").setChecked(True)
+    dlg._update_gen_counts()
+    after = len(dlg._build_generated_program())
+    assert promised == after - before, (
+        f"with {first} on, the {second} row promises {promised} and ticking "
+        f"it adds {after - before}")
+    dlg.deleteLater()
+
+
+def test_a_multi_ink_total_says_it_is_an_estimate(qapp):
+    """On an RGB chart the Total is replaced by the real built number a moment
+    later. On a multi-ink one it cannot be: state 2 would shell targen on every
+    keystroke and state 3 xicclu, so the line stays an estimate. Round 11 read
+    "Total: 30" against a build of 29, with nothing saying so.
+
+    MUTATION: drop the "≈" from the Total and this goes red.
+    """
+    # The ADD window has no Device box (it extends a chart whose colourspace
+    # is fixed), so the New Patch Set window is where a multi-ink state can be
+    # reached at all.
+    import tempfile
+    from pathlib import Path
+    new = _NewChartDialog(Path(tempfile.mkdtemp()), _FakeSettings())
+    try:
+        new._mode_generate.setChecked(True)
+        new._update_gen_counts()
+        assert not new._gen_total.text().startswith("≈"), (
+            "an RGB total is exact and must not be marked as an estimate")
+        ix = new._device_type.findData("cmyk")
+        if ix < 0:
+            ix = next((i for i in range(new._device_type.count())
+                       if new._device_type.itemData(i) not in (None, "rgb")), -1)
+        if ix < 0:
+            pytest.skip("this build offers no multi-ink device type")
+        new._device_type.setCurrentIndex(ix)
+        qapp.processEvents()
+        new._update_gen_counts()
+        assert new._nch_state() != 1
+        assert new._gen_total.text().startswith("≈"), (
+            f"the multi-ink total reads {new._gen_total.text()!r} as if it "
+            f"were exact")
+    finally:
+        new.deleteLater()

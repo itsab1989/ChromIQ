@@ -36,6 +36,9 @@ FORBIDDEN = (
     "the patch area lands exactly",
     "all goes to the LEFT",
     "come out equal to each other",
+    # round 11: false on a ColorMunki, a SpectroScan and a CR30, where the
+    # instrument's own claim is the larger one and the band changes nothing
+    "Switch it off and your number stands",
 )
 
 
@@ -108,6 +111,14 @@ def test_both_help_texts_name_the_clip_band_and_the_instrument_reserves():
             f"{where} does not say that a clip border takes its own width")
         assert "reserve" in low or "strip letters" in low, (
             f"{where} does not say the instrument's own reserves take space")
+        # THE THIRD CLAIMANT, which round 11 measured and the second version
+        # of this text did not mention: the instrument's own minimum. Asking
+        # 5 mm on an A4 SpectroScan gives 30 mm on the left with the clip band
+        # off, so "switch it off and your number stands" was false.
+        assert "instrument needs" in low, (
+            f"{where} does not say the instrument itself claims a margin")
+        assert "spectroscan" in low or "colormunki" in low, (
+            f"{where} does not name an instrument the claim applies to")
 
 
 @pytest.mark.slow
@@ -138,6 +149,30 @@ def test_the_clip_band_is_what_claims_the_margin(tmp_path):
                   margin_bottom=40.0, clip_border=True,
                   clip_border_width_mm=26.0, clip_side="left")
     assert wide["left"] > 38.0, wide
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("instrument,band_off_keeps_the_number",
+                         [("i1", True), ("p3", True), ("CM", False),
+                          ("SS", False), ("CR30", False)])
+def test_the_band_is_not_the_only_claimant(tmp_path, instrument,
+                                           band_off_keeps_the_number):
+    """With the clip band OFF, the typed number stands on an i1Pro and does
+    not on the other three: their own carriage claims more. Measured at 5 mm
+    on A4: i1 and i1Pro 3+ 5.00, ColorMunki 25.99, SpectroScan and CR30 30.48.
+
+    MUTATION: put "Switch it off and your number stands" back in the text and
+    `test_neither_help_text_promises_an_exact_margin` goes red.
+    """
+    got = _sheet(tmp_path, f"band-off-{instrument}", instrument=instrument,
+                 paper="A4", margin_left=5.0, margin_right=5.0,
+                 margin_top=5.0, margin_bottom=5.0, clip_border=False)
+    if band_off_keeps_the_number:
+        assert abs(got["left"] - 5.0) < 1.0, got
+    else:
+        assert got["left"] > 20.0, (
+            f"{instrument} no longer claims a left margin of its own, so the "
+            f"help text's third claimant needs re-measuring")
 
 
 @pytest.mark.slow

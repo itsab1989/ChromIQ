@@ -56,7 +56,11 @@ def test_the_site_says_how_many_presets_there_really_are():
     from ui.tabs.tab_chart import BUILTIN_PRESET_KEYS
 
     n = len(BUILTIN_PRESET_KEYS)
-    text = SITE.read_text(encoding="utf-8")
+    # NEWLINES ARE NOT PART OF THE SENTENCE. The body copy wraps "152
+    # ready-made chart\n presets" across two lines, so the pattern below saw
+    # only the spec table's number and the page advertised 177 in one place
+    # and 152 in the other for a week (round 11).
+    text = re.sub(r"\s+", " ", SITE.read_text(encoding="utf-8"))
     claimed = {int(m) for m in re.findall(r"(\d+) ready-made chart presets", text)}
     assert claimed, "the site no longer names a preset count at all"
     assert claimed == {n}, (

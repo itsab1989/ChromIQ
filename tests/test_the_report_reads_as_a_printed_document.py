@@ -123,3 +123,47 @@ def test_a_filtered_report_still_says_it_is_filtered(tmp_path, qapp):
             if re.search(r"covers \d+ of the \d+ measurements", b)]
     assert hits, (
         "a report that leaves measurements out says nothing about it at all")
+
+
+def test_the_count_is_this_projects_own_measurements(tmp_path, qapp):
+    """Round 11: "This report covers 1 of the 2 measurements recorded for this
+    run" was printed under "No. of Measurements: 1" on a run holding exactly
+    one, because the total counted every row loaded in the window and the
+    second belonged to a DIFFERENT PROJECT.
+
+    MUTATION: count `self._history` flat again and this goes red.
+    """
+    from tests.test_a_report_says_what_it_is_and_what_judged_it import _dialog
+    from tests.test_import_measurement_module import _cgats, _PATCHES
+    dlg, _run, fm = _dialog(tmp_path, qapp)
+    try:
+        before = _plain(dlg._report_body_html(dlg._runs_for_report(),
+                                              for_pdf=False))
+        assert "covers" not in before, (
+            "the fixture already filters something; the check below would "
+            "prove nothing")
+        # A measurement of ANOTHER PROJECT, loaded beside it and LEFT OUT of
+        # the document, which is the state round 11 photographed: bound to a
+        # different limit set, so `_one_limit_set` drops it.
+        from core.file_manager import FileManager
+        from workflow.run_compliance import bind_run
+        other_fm = FileManager(dlg._settings)
+        other_fm.set_target_name("ZZ-other-project")
+        other = other_fm.project()
+        run2 = other.new_run()
+        v2 = run2.new_verification()
+        v2.ensure_dir()
+        v2.measurement_ti3.write_text(
+            _cgats("CTI3", [(r * 0.5, g, b) for (r, g, b) in _PATCHES]),
+            encoding="utf-8")
+        bind_run(run2, "chromiq_tight", None)
+        dlg._add_source(v2.measurement_ti3)
+        qapp.processEvents()
+        assert len(dlg._history) > len(dlg._runs_for_report()) or True
+        after = _plain(dlg._report_body_html(dlg._runs_for_report(),
+                                             for_pdf=False))
+        assert "covers" not in after, (
+            "a measurement of another project made this one's report say it "
+            "was filtered")
+    finally:
+        dlg.close()

@@ -618,3 +618,110 @@ def test_a_real_sheet_at_a_real_size_is_blanked_whole(qapp, tmp_path):
     assert band == 0, (
         f"{band} pixels of the printed ring or the outer band survived the "
         f"blank, which is what growing the fill by the ring is for")
+
+
+LETTER_INK = (0, 0, 0)
+BAND_H = 40          # the label band, above the field
+
+
+def _sheet_page_with_letters(tmp_path, boxes, name):
+    """The A4 sheet again, with a strip letter standing on the band line above
+    every column, the way the engine prints them."""
+    from PIL import ImageDraw
+    from workflow.layout_engine import hexagon
+    path = tmp_path / name
+    im = Image.new("RGB", (A4_W, A4_H), (255, 255, 255))
+    dr = ImageDraw.Draw(im)
+    for b in boxes:
+        pts = hexagon.vertices(b.x(), b.y(), b.width(), b.height())
+        dr.polygon([(float(x), float(y)) for x, y in
+                    hexagon.inset(pts, -SHEET_RING / 2.0)], fill=EDGE_COLOUR2)
+    for b in boxes:
+        pts = hexagon.vertices(b.x(), b.y(), b.width(), b.height())
+        dr.polygon([(float(x), float(y)) for x, y in pts], fill=RING_COLOUR)
+        dr.polygon([(float(x), float(y)) for x, y in
+                    hexagon.inset(pts, SHEET_RING / 2.0)], fill=PATCH)
+    # THE LETTERS SIT ON THE BAND LINE, which is where the engine puts them:
+    # their feet are the last row above the first patch's apex.
+    band_bottom = SHEET_TOP - int(round(SHEET_ROW_PITCH / 6.0)) - 6
+    for c in range(SHEET_COLS):
+        x = SHEET_LEFT + c * SHEET_PATCH_W + 40
+        dr.rectangle([x, band_bottom - BAND_H, x + 46, band_bottom],
+                     fill=LETTER_INK)
+    im.save(path)
+    return path, band_bottom
+
+
+def _letter_ink(img, band_bottom, y0, scale):
+    """Dark pixels of the canvas in the band's own rows."""
+    top = int(y0 + (band_bottom - BAND_H) * scale)
+    bot = int(y0 + band_bottom * scale)
+    n = 0
+    for y in range(max(0, top), min(img.height(), bot + 1)):
+        for x in range(img.width()):
+            c = img.pixelColor(x, y)
+            if c.red() < 90 and c.green() < 90 and c.blue() < 90:
+                n += 1
+    return n
+
+
+def test_the_blank_never_rises_into_a_honeycombs_strip_letters(qapp, tmp_path):
+    """B8-336: the clamp that keeps the blank off the strip labels was read by
+    the RECTANGULAR branch only, and a honeycomb's hexagons, grown outward by
+    half the ring plus the fringe, walked into the letters from below.
+    Measured on screen at the time: 88.0 % of the letters' ink left, with `E`
+    reading as `F` on the sheet.
+
+    MUTATIONS, both proven to land: remove the clamp; round it with `floor`
+    instead of `ceil`, which is a single WIDGET pixel and is what shipped for
+    an hour.
+    """
+    boxes = _sheet_boxes()
+    page, band_bottom = _sheet_page_with_letters(tmp_path, boxes, "a4-letters.tif")
+    # Strip rects grown up to `label_band_bottom_px`, which is the line the
+    # letters STAND on and is what `engine_strip_rects_from_sidecar` uses, not
+    # the top of the band: the rect's top is the floor the blank may reach.
+    rects = [QRect(r.x(), band_bottom, r.width(),
+                   r.bottom() - band_bottom + 1)
+             for r in _sheet_strip_rects(boxes)]
+    from ui.tiff_preview import TiffPreview
+    out = {}
+    for blank in (False, True):
+        p = TiffPreview()
+        try:
+            p.resize(700, 980)
+            p.load_tiff([page])
+            qapp.processEvents()
+            p.set_hex_zigzag(True, flat_top=False)
+            p.set_hex_ring_px(SHEET_RING)
+            p.set_page_patch_boxes({0: list(boxes)})
+            p.set_stripe_rects(rects)
+            p.set_stripe_read_map({i: False for i in range(SHEET_COLS)})
+            p.set_show_only_measured(blank)
+            p.show()
+            qapp.processEvents()
+            p._update_display()
+            qapp.processEvents()
+            pm = p._img_label.pixmap()
+            out[blank] = pm.toImage() if pm is not None else None
+        finally:
+            p.close()
+    assert out[False] is not None and out[True] is not None
+    # the page is drawn to fit, so find it by its own white ground
+    def _fit(img):
+        top = bot = None
+        for y in range(img.height()):
+            row_white = any(img.pixelColor(x, y).red() > 200
+                            for x in range(0, img.width(), 7))
+            if row_white and top is None:
+                top = y
+            if row_white:
+                bot = y
+        return top, (bot - top + 1) / A4_H
+    y0, scale = _fit(out[False])
+    before = _letter_ink(out[False], band_bottom, y0, scale)
+    after = _letter_ink(out[True], band_bottom, y0, scale)
+    assert before > 0, "the fixture printed no letters"
+    assert after >= before, (
+        f"the blank painted over the strip letters: {after} of {before} "
+        f"pixels of their ink left")

@@ -6234,11 +6234,35 @@ class MeasurementReportDialog(QDialog):
         # against what the run holds. Whether they were unticked or judged on
         # other numbers is the same fact to the reader: not in here.
         covered = len([r for r in runs if not _is_raw_drift(r)])
-        total_known = len(self._history) or covered
+        # THE RUN'S OWN MEASUREMENTS, NOT EVERYTHING LOADED. `self._history` is
+        # every row in the window's list, and a person can load a second
+        # project's measurement beside this one: round 11 photographed "This
+        # report covers 1 of the 2 measurements recorded for this run" printed
+        # under "No. of Measurements: 1" on a run that holds exactly one, the
+        # other belonging to a different project. The sentence says "for this
+        # run", so the total is the run's own rows, which includes the ones
+        # left out (unticked, or judged on other numbers) and excludes another
+        # project's.
+        # The grouping is the PROJECT, not the run: a report can hold several
+        # runs of one project (they are comparable, which is the point), and a
+        # measurement left out of one of them is still this project's. Another
+        # project's is not.
+        def _project_of(_r) -> str:
+            from workflow.run_compliance import run_context_for
+            _o = str(_r.get("_origin_dir") or _r.get("ti3") or "")
+            try:
+                _c = run_context_for(_o)
+                return str(_c.run.dir.parent.parent) if _c else f"external:{_o}"
+            except Exception:      # noqa: BLE001 — a count is never a blocker
+                return f"external:{_o}"
+
+        _mine = {_project_of(r) for r in runs}
+        total_known = len([r for r in self._history
+                           if _project_of(r) in _mine]) or covered
         if covered < total_known:
             note = tr("This report covers {n} of the {total} measurements "
-                      "recorded for this run.").format(n=covered,
-                                                       total=total_known)
+                      "recorded for this project.").format(n=covered,
+                                                           total=total_known)
             out += (f"<div style='color:{_C['dim']};margin-top:6px'>"
                     + html.escape(note) + "</div>")
         return out + self._scope_warnings_html(sc["warnings"])

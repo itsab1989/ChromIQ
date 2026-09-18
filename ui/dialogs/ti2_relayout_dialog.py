@@ -3271,6 +3271,49 @@ class _NewChartDialog(QDialog):
         # re-enable the spinbox even when the row is off (Knut).
         self._gen_fill_to.setEnabled(not pages_on and fill_on)
 
+    def _estimate_additions(self, assume=None) -> int:
+        """How many patches the ticked sets would add, by the per-row counters.
+
+        No build: every counter here is arithmetic, which is what makes it
+        affordable to ask the question once per row. With *assume* that row is
+        treated as ticked (signals blocked, put straight back), so the caller
+        can ask "what would ticking this add" rather than "what does this row
+        count on its own" -- the two differ whenever the tip-owner chain moves,
+        which is 6 of its 12 pairs.
+        """
+        restore = None
+        if assume is not None and not assume.isChecked():
+            assume.blockSignals(True)
+            assume.setChecked(True)
+            restore = assume
+        try:
+            total = 0
+            for cb, _b, count, _l in self._gen_specs():
+                if cb.isChecked() and cb.isEnabled():
+                    total += count()
+            corner = ((1 if ((self._gen_cube.isChecked()
+                              and self._gen_cube.isEnabled())
+                             or (self._gen_edges.isChecked()
+                                 and self._gen_edges.isEnabled())
+                             or (self._gen_corners.isChecked()
+                                 and self._gen_corners.isEnabled())) else 0)
+                      + (1 if (self._gen_neutral.isChecked()
+                               and self._gen_neutral_n.value() >= 2) else 0))
+            sets_have = ((1 if corner else 0)
+                         if self._gen_unique.isChecked() else corner)
+            if self._gen_whiteblack.isChecked():
+                total += G.white_black_count(self._gen_whiteblack_n.value(),
+                                             sets_have, sets_have)
+            if self._gen_fill.isChecked():
+                total += G.fill_gaps_count(
+                    total + len(self._existing_patches),
+                    self._effective_fill_target())
+            return total
+        finally:
+            if restore is not None:
+                restore.setChecked(False)
+                restore.blockSignals(False)
+
     def _update_gen_counts(self, *_a) -> None:
         """Refresh each generator's patch count + the running total, and gate
         the per-row spin boxes on their checkbox."""
@@ -3342,9 +3385,25 @@ class _NewChartDialog(QDialog):
         # Near-neutral greys always has at least one ring, so its offset is always
         # meaningful — grey the offset label alongside the spin (set on/off only).
         self._gen_nearneutral_off_label.setEnabled(self._gen_nearneutral.isChecked())
+        # WHAT TICKING THIS ROW WOULD ADD, NOT WHAT IT COUNTS ON ITS OWN.
+        # The sets are not independent: the eight gamut tips belong to the
+        # highest ticked owner in the chain (cube, then Saturated edges, then
+        # Gamut-corner emphasis, then Colour extremes), so ticking one row
+        # changes ANOTHER row's number. Round 11 measured it: with Saturated
+        # edges on, the cube row promised 125 patches and the chart grew by
+        # 423, and five more pairs were out by 6 to 8. B8-330 corrected the
+        # isolated case and this is the rest of it.
+        #
+        # The counters are arithmetic, so the honest answer is affordable:
+        # take the whole estimate, tick the row, take it again, and show the
+        # difference. `_estimate_additions` blocks signals, so nothing else
+        # sees the row move.
+        _base_est = self._estimate_additions()
         total = 0
         for cb, _build, count, label in self._gen_specs():
             n = count()
+            if not (cb.isChecked() and cb.isEnabled()):
+                n = max(0, self._estimate_additions(assume=cb) - _base_est)
             label.setText(_patches_label(n))
             # Disabled rows never contribute (#72 states 2/3: a ticked but
             # greyed RGB-cube/look-based row must not count or build); the
@@ -3437,11 +3496,19 @@ class _NewChartDialog(QDialog):
         # estimate shows instantly; _do_push_live_preview refreshes it from the
         # real built program ~300 ms later (which catches any cross-set de-dup
         # the per-set estimate can't see).
-        self._gen_total.setText(tr("Total: {label}").format(
+        # AND THE TOTAL IS AN ESTIMATE TOO, WHEREVER THE ROWS ARE. On an RGB
+        # chart `_do_push_live_preview` replaces this with the real built
+        # number a few hundred milliseconds later; on a multi-ink one it
+        # cannot (state 2 would shell targen on every keystroke, state 3
+        # xicclu), so the line stays an estimate and now says so with the same
+        # "≈" the rows carry. Round 11 read "Total: 30" against a build of 29
+        # with the 3D preview folded, and the line claimed to be exact.
+        self._gen_total.setText(_approx + tr("Total: {label}").format(
             label=_patches_label(total)))
         if self._existing_patches:
-            self._gen_after_total.setText(tr("Chart after adding: {label}").format(
-                label=_patches_label(len(self._existing_patches) + total)))
+            self._gen_after_total.setText(
+                _approx + tr("Chart after adding: {label}").format(
+                    label=_patches_label(len(self._existing_patches) + total)))
         # Keep the embedded live cube in step with the colour-set controls.
         self._push_live_preview()
 

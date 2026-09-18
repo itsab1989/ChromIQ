@@ -673,3 +673,43 @@ def test_a_preset_that_IS_applied_still_collapses_it(tab, monkeypatch):
     _pick(tab, _ENGINE_KEY)
     assert grp.is_collapsed() is True, \
         "an applied preset no longer collapses the recipe — the test above proves nothing"
+
+
+def test_a_refused_preset_takes_its_chart_note_with_it(tab, monkeypatch):
+    """Round 11: pick a photo card, cancel the window that follows, and the
+    card's Chart Notes stayed in the box while everything else went back. The
+    next chart on any paper was then stamped "10x15cm / 4x6" photo card".
+
+    The undo can only put back what the snapshot took, and the notes box was
+    not in it: it is a field a preset only started writing on 2026-09-18.
+
+    MUTATION: drop `_manual_chart_notes_edit` from the snapshot's name list and
+    this goes red.
+    """
+    noted = sorted((p for p in KNUT_PRESETS if p.chart_notes),
+                   key=lambda p: p.key)
+    if not noted:
+        pytest.skip("no built-in carries a chart note")
+    was = "what the person had written"
+    tab._manual_chart_notes_edit.setText(was)
+    _refuse(tab, monkeypatch)
+    _pick(tab, noted[0].key)
+    assert tab._manual_chart_notes_edit.text() == was, (
+        f"the refused preset left {tab._manual_chart_notes_edit.text()!r} in "
+        f"the Chart Notes box")
+
+
+def test_the_same_preset_accepted_DOES_write_its_note(tab, monkeypatch):
+    """The other half, so the test above cannot pass by the note never being
+    written at all."""
+    noted = sorted((p for p in KNUT_PRESETS if p.chart_notes),
+                   key=lambda p: p.key)
+    if not noted:
+        pytest.skip("no built-in carries a chart note")
+    tab._manual_chart_notes_edit.setText("")
+    monkeypatch.setattr(tab, "_generate_from_ti1", lambda *a, **k: True,
+                        raising=False)
+    monkeypatch.setattr(tab, "_create_prebuilt_target", lambda *a, **k: True,
+                        raising=False)
+    _pick(tab, noted[0].key)
+    assert tab._manual_chart_notes_edit.text() == noted[0].chart_notes

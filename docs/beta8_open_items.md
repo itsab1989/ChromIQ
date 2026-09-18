@@ -14323,3 +14323,113 @@ written for it in the suite passed its own mutation.
   changed nothing: removing it moved 0 pixels on every chart the round built.
 - evidence: `test_an_unread_column_hides_its_edge_spacers` (eight window sizes)
   and `test_the_blank_never_rises_into_the_strip_labels`, both unmoved.
+
+### B8-339 · FIXED · The label clamp rounded the wrong way and still ate the letters
+- blocks release: no
+- status: FIXED
+- found by: round 11, against B8-336, which this register recorded as
+  "100 / 100 / 100 %" on a headless measurement of my own.
+- measured on the shipped build by the round's own driver: **88.0 % / 88.5 %**
+  of the strip letters' ink left at 940x880 / 1500x1020 (a turned chart 93.2 /
+  91.9), with `E` reading as `F` on the sheet.
+- cause: `int(math.floor(_ytop))` truncates the cut to a whole WIDGET pixel in
+  the direction that eats the letters, and the device-pixel step above it was a
+  no-op (`floor(floor(y * 2) / 2) == floor(y)` for every y: 200,000 random
+  cases, 0 differing).
+- fix: `ceil`, and the conversion written the way it is used, one widget pixel.
+  Re-measured with the round's own driver and metric: **letters kept 100.0 %**
+  at both sizes, patch ink and ring still 0.
+- **and nothing guarded it**: removing the clamp entirely left 22 passed.
+  `test_the_blank_never_rises_into_a_honeycombs_strip_letters` builds an A4
+  sheet with a letter standing on the band line above every column and strip
+  rects grown to that line, which is what `engine_strip_rects_from_sidecar`
+  hands the preview. Both mutations land: no clamp, and `floor` for `ceil`.
+- evidence: `test_the_blank_never_rises_into_a_honeycombs_strip_letters`.
+
+### B8-340 · FIXED · The greyed promise was right alone and wrong in company
+- blocks release: no
+- status: FIXED
+- found by: round 11, against B8-330. With Saturated edges on, the 3D cube row
+  promised **125 patches** and the chart grew by **423**; five more tip-owner
+  pairs were out by 6 to 8. **6 of the 12 pairs**, in both windows.
+- cause: the sets are not independent. The eight gamut tips belong to the
+  highest ticked owner in the chain (cube, then Saturated edges, then
+  Gamut-corner emphasis, then Colour extremes), so ticking one row changes
+  ANOTHER row's number. B8-330's `assume_on` corrects the row's own count and
+  cannot see that.
+- fix: an unticked row's number is the difference between the whole estimate
+  with it ticked and without. `_estimate_additions` is arithmetic only (no
+  build), blocks signals and puts the box straight back.
+- measured after the fix, all 12 pairs: promise == what ticking it adds.
+- evidence: `test_the_promise_holds_when_another_tip_owner_is_already_on`,
+  parametrised over the twelve; the mutation reddens exactly six of them.
+
+### B8-341 · FIXED · A multi-ink Total claimed to be exact
+- blocks release: no
+- status: FIXED
+- found by: round 11, against B8-332. With the 3D preview folded, which is how
+  the window opens, `_apply_built_row_counts` ran **0 times** in states 2 and
+  3: the rows read "≈ 6 patches" and the Total read **30** against a build of
+  29, with nothing marking the Total as an estimate.
+- fix: the Total and the "Chart after adding" line carry the same "≈" the rows
+  do whenever the device is not RGB. Building on every keystroke is not the
+  answer there: state 2 would shell targen and state 3 xicclu.
+- evidence: `test_a_multi_ink_total_says_it_is_an_estimate`.
+
+### B8-342 · FIXED · "covers N of the M measurements" counted another project's
+- blocks release: no
+- status: FIXED
+- found by: round 11. "This report covers 1 of the 2 measurements recorded for
+  this run" printed under "No. of Measurements: 1", on a run holding exactly
+  one: the second belonged to a different project and `total_known` counted
+  every row loaded in the window.
+- fix: the total is the rows of the same PROJECT as the runs the document is
+  about, which keeps a measurement left out of one of its runs (unticked, or
+  judged on other numbers) and excludes another project's. The sentence says
+  "for this project" now, which is what the number means.
+- evidence: `test_the_count_is_this_projects_own_measurements`.
+
+### B8-343 · FIXED · A refused preset left its chart note behind
+- blocks release: no
+- status: FIXED
+- found by: round 11. Pick a photo card, cancel the window that follows, and
+  the card's Chart Notes stayed in the box while every tick box, the dropdown
+  and the name went back. The next chart on any paper was then stamped
+  "10x15cm / 4x6 photo card".
+- cause: the undo puts back what the snapshot took, and the notes box is a
+  field a preset only started writing on 2026-09-18 (B8-329).
+- fix: the snapshot takes it, so the restore puts it back.
+- re-measured with the round's own driver: `after: notes=''`, stamp back to
+  True, combo back to "none".
+- evidence: `test_a_refused_preset_takes_its_chart_note_with_it` and
+  `test_the_same_preset_accepted_DOES_write_its_note`, so the first cannot
+  pass by the note never being written.
+
+### B8-344 · FIXED · The landing page named the preset count twice and the guard saw one
+- blocks release: no
+- status: FIXED
+- found by: round 11: `docs/index.html` said **177** in the spec table and
+  **152** in the body copy, 25 stale.
+- cause: the guard's pattern is `(\d+) ready-made chart presets` and the body
+  copy wraps that phrase across a line, so `re.findall` never matched it.
+- fix: the page says 177 in both places, and the guard collapses whitespace
+  before matching. Putting 152 back reddens it.
+- evidence: `test_the_site_says_how_many_presets_there_really_are`.
+
+### B8-345 · FIXED · The third area-first help text was still false on three instruments
+- blocks release: no
+- status: FIXED
+- found by: round 11, against B8-328's second rewrite. *"Switch it off and your
+  number stands"* is false on a ColorMunki, a SpectroScan and a CR30: measured
+  at 5 mm on A4 with the clip band OFF, the left margin is 25.99 / 30.48 /
+  30.48 against 5.00 on an i1Pro and an i1Pro 3+.
+- cause: there are THREE claimants on a margin, not two. The third is what the
+  instrument itself needs to reach the patches, and on those three it is the
+  larger claim.
+- fix: both texts now say each side is the largest of the number you type, the
+  clip band on its side, and the instrument's own reach, with the SpectroScan
+  numbers in them.
+- evidence: `test_the_band_is_not_the_only_claimant` (all five instruments,
+  the band off) and the phrase list in
+  `test_neither_help_text_promises_an_exact_margin`, which now refuses the
+  sentence that was false.

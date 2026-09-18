@@ -4559,13 +4559,16 @@ class TabChart(QWidget):
                 "anything lands. You define the area and the grid, and ChromIQ "
                 "sizes the patches to fill it, so you decide where the block "
                 "sits and how it is divided rather than how big one patch is. "
-                "Your margins are kept wherever nothing else needs that space, "
-                "and two things do: a clip border takes its own width on the "
-                "side it is printed on, so that margin is whichever is larger, "
-                "your number or the band; and your instrument's own reserves, "
-                "the strip letters above the patches and the run-out below "
-                "them, can push the block in a little further. The \"Measured "
-                "from Preview\" panel always shows what the sheet really got. "
+                "Your margins are kept wherever nothing else needs that space. "
+                "Each side ends up the largest of three things: the number you "
+                "type, the clip border's width on the side it is printed on, "
+                "and what your instrument needs to reach the patches at all, "
+                "which is nothing on an i1Pro and the larger claim on a "
+                "ColorMunki, a SpectroScan or a CR30. Down the page a little "
+                "is added as well, because the block is centred between two "
+                "reserves that are not the same size: the strip letters above "
+                "the patches and the run-out below them. The \"Measured from "
+                "Preview\" panel always shows what the sheet really got. "
                 "A strip may run past your instrument's ruler, and ChromIQ "
                 "warns you rather than quietly shortening it. The trade is "
                 "that patch size is decided for you, so keep an eye on it: "
@@ -9823,7 +9826,13 @@ class TabChart(QWidget):
                     snap["checks"][attr] = w.isChecked()
             except Exception:          # noqa: BLE001
                 log.debug("preset undo: could not read %s", attr, exc_info=True)
-        for attr in ("_target_name_edit", "_manual_target_name_edit"):
+        # ...AND THE CHART NOTES, which a preset now writes too. Round 11:
+        # pick a photo card, cancel the name window, and the card's note stays
+        # in the box while everything else is put back, so the NEXT chart on
+        # any paper is stamped "10x15cm / 4x6 photo card". The undo can only
+        # put back what the snapshot took.
+        for attr in ("_target_name_edit", "_manual_target_name_edit",
+                     "_manual_chart_notes_edit", "_chart_notes_edit"):
             try:
                 w = getattr(self, attr, None)
                 if w is not None:
