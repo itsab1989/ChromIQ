@@ -1907,6 +1907,19 @@ class MeasurementReportDialog(QDialog):
                 # to what it answers to now.
                 s["keys"] = tuple(dict.fromkeys(tuple(s.get("keys") or ())
                                                 + tuple(keys)))
+                # **AND THE MEASUREMENT ITSELF IS READ AGAIN.** Refreshing the
+                # keys and returning leaves `runs` exactly as it was when the
+                # source was first added, and `runs` is the measurement. Driven
+                # through the real Add button: a sheet added at 8 patches,
+                # re-measured in place to 12, and added again still read **8**,
+                # with no message and no change to the document; a fresh window
+                # on the same file read 12, and an unrelated click later
+                # corrected it in silence (Average ΔE 20.91 to 23.20, Spread
+                # 10.67 to 9.69, and a row appearing that says the chart has 12
+                # patches). Asking to add a measurement that is already here is
+                # the clearest way a user can say "look at this file again", so
+                # that is what it does (R21-F1).
+                self._reload_sources()
                 return False
         key = keys[0]
         name, runs = self._gather_runs(ti3)

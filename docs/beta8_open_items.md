@@ -15537,3 +15537,122 @@ rather than fall back to the estimate, which is now what it does.
   `file_manager.py` folds that file away, but only under `Project.load`, which
   the report window never calls.
 - what to do next: round 21, and then the three gates.
+
+### B8-363 · FIXED · Round 21's F1: a measurement added again was never read again
+- blocks release: yes
+- status: FIXED
+- evidence: `test_adding_a_measurement_again_reads_it_again`.
+- **Round 20's three were re-driven against HEAD first and all hold**: the
+  matched source's key set refreshed across a real `os.replace` and a swapped
+  capitalisation (2 rows throughout, "No. of Measurements: 2" for two files),
+  one `.mxf` imported three times through the window's own
+  `_on_add_project` with a real CxF3 conversion on each press (3 rows, 3
+  sources, every time), and the fill row's mark. That is the second round
+  running whose predecessor's fixes all held, and round 21's three faults are
+  all inherited rather than new.
+
+**F1 · a source that is added again keeps the numbers the file no longer has,
+and says nothing.** Round 20's fix made a match refresh the source's KEYS. It
+refreshes only the keys: `runs` is the measurement, it is worked out once at
+append by `_gather_runs`, and the duplicate branch returns before reaching it
+while `_on_add_project` does nothing at all when nothing was added. Driven
+through the window's own **Add Profile's Measurements...** button, on screen:
+a sheet added at 8 patches, re-measured in place (same path, same inode) to 12,
+added again, and the source still said **8** with the document text unchanged
+and no message of any kind. A fresh window on the same file read 12. An
+unrelated click later corrected it in silence, because `_reload_sources` is
+what picking or deleting a saved report runs: Average dE, all patches
+**20.91 to 23.20**; Spread (std. dev.) **10.67 to 9.69**; and a row appearing
+that says the chart has 12 patches. Asking to add a measurement that is already
+loaded is the clearest way a user can say "look at this file again", so that is
+now what it does.
+- Mutation, proven to land 2026-09-18: drop `self._reload_sources()` from the
+  duplicate branch of `_append_source`, clear `__pycache__`, and the guard
+  reads `[8] == [12]` red; restored, green.
+- **And the first version of that guard was too small to hold the fault**, in
+  both of the two ways this loop keeps meeting: it re-measured the sheet with
+  `_PATCHES[:12]` from a list of EIGHT, so the file on disk never changed, and
+  it read the patch count off the first history row that carried one, which is
+  the fixture's own run and not the sheet under test. Both are recorded in the
+  guard's own docstring.
+- Recorded, not fixed: the same file moved to a new path IS recognised as one
+  source and its keys refresh, but `ti3`, `dir` and `origin` keep pointing at
+  the old path. `_anchor_dir()` uses `origin.parent` and a moved file usually
+  leaves its folder standing, so the PDF and Reveal still land somewhere real.
+- **Four corrections to this register, measured rather than argued:**
+  1. `DISABLED_BUILTIN_PRESET_KEYS` is **empty**, so B8-343's "doors 1 to 3
+     hold" is really two reachable refusal doors, and there are two more the
+     register never named (S4.7 and the displacement confirm) which also hold.
+     A fifth, the runner being busy, returns above the snapshot.
+  2. `_chart_notes_edit` in the snapshot list **does not exist** anywhere in
+     `ui/` (the real widget is `_manual_chart_notes_edit`, which is in the same
+     list). A dead name behind `getattr(..., None)`, harmless.
+  3. B8-362's legacy `<stem>-verify.ti3` lead is **not a fault**. Built a
+     genuine un-migrated project and opened the report on it: the sentence
+     "covers 1 of the 2 measurements recorded for this project" is true both
+     before and after a real `Project.load()` migration, because migration
+     moves the file and does not change the count. The residue is only that
+     the second measurement is unreachable from the window until the project
+     is opened once.
+  4. Round 17's "dpr 1 cannot be had on this machine" is **wrong**:
+     `QT_SCALE_FACTOR=0.5` gives `devicePixelRatioF() == 1.0` (every other
+     variable round 17 named still reports 2.0). It halves every logical size
+     too, so only pixel-level questions are answered honestly by it.
+- Also photographed for the first time: a SpectroScan honeycomb with "Show only
+  measured patches" on, at dpr 2 and dpr 1. Read strips stay coloured, unread
+  strips blank to paper with the outlines left, nothing leaks and nothing is
+  eaten. And the area-first parity half of Knut's question is answered: the same
+  area-first recipe on an SS and a CR30 gives the same pages, patches, columns,
+  rows and strips (1 / 150 / 18 / 17 / 9), differing only where the instruments
+  reach differently.
+- what to do next: B8-364 and B8-365 are round 21's other two, both of them
+  questions rather than fixes to make blind.
+
+### B8-364 · OPEN · Save report as PDF walks past the Generate deferral
+- blocks release: no
+- status: OPEN
+- `ui/dialogs/measurement_report_dialog.py` `_export_pdf`, against
+  `docs/design/issue_182_answers.md` S2v (Knut, 2026-09-14), which is
+  `⏳ Awaiting confirmation` and does not mention the PDF export at all.
+- Measured on screen in one window, without pressing Generate: the pulldown
+  said `Colour summary (one page)`, the red line was up ("Settings changed.
+  Click Generate report to build the report with them, or put the setting
+  back."), the document on screen said "Report type: Full colour check" and ran
+  to several pages, and **Save report as PDF...** wrote a 48,085 byte ONE-page
+  document saying "Report type: Colour summary (one page)". The window
+  afterwards was unchanged and the red line still up. The control: press
+  Generate, export again, and the screen and the PDF agree.
+- Two readings are defensible (the PDF is what you are looking at; or the PDF
+  is a fresh generate), so under CLAUDE.md this is Knut's call and nothing has
+  been changed.
+- evidence: none yet; nothing has been changed. Photographs
+  `~/Desktop/ChromIQ-beta21-proof/round-21-on-round-20/F/`.
+- what to do first: ask Knut which reading S2v means, and say that the one
+  action that produces a file to hand somebody is the one door that ignores the
+  rule the red line is stating.
+
+### B8-365 · OPEN · Four live spacer controls on an instrument that can never have a spacer
+- blocks release: no
+- status: OPEN
+- `ui/dialogs/layout_options_panel.py`: `_sync_spacer_swatches` is connected to
+  the spacer mode's `currentIndexChanged` only, and nothing re-runs it when the
+  **instrument** changes.
+- Measured on the engine, pixel by pixel on the app's own A4 sheets, spacer on
+  against spacer off: i1 (`pspa` 1.0) and CR30 (`pspa` 1.3) differ in both
+  layout modes; a SpectroScan (`pspa` 0.0) is byte-identical in both, hexagonal
+  or not. Read off the live Create Chart window on an SS: the "Spacers:"
+  pulldown enabled and showing `Coloured`, the spacer width row enabled, custom
+  spacer colours enabled, edge spacers enabled, and `get_recipe()` recording
+  `spacer_mode='colored' spacer_on=True`. Move the spacer pulldown to `None` and
+  back to `Coloured` and the width row goes disabled, same instrument, same
+  mode; an i1 through the identical sequence stays enabled, so the sequence is
+  not what kills it.
+- So which boxes are greyed depends on whether the user happened to touch the
+  spacer pulldown after choosing the instrument, and the "Spacers:" pulldown
+  itself is never greyed on any instrument.
+- evidence: none yet; nothing has been changed. Photographs
+  `~/Desktop/ChromIQ-beta21-proof/round-21-on-round-20/J/`.
+- what to do first: decide whether an instrument with `pspa == 0.0` should grey
+  the whole spacer block (the pulldown included) or refuse to record
+  `spacer_on=True`, then re-run the guard on both, since a recipe that records
+  a spacer no sheet can show is the part a user would be surprised by.

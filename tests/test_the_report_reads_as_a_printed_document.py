@@ -1045,3 +1045,70 @@ def test_one_imported_file_added_three_times_is_one_source(tmp_path, qapp):
             f"{len(dlg._history) - n_rows} rows")
     finally:
         dlg.close()
+
+
+def test_adding_a_measurement_again_reads_it_again(tmp_path, qapp):
+    """R21-F1: the duplicate branch refreshed the source's KEYS and returned,
+    leaving `runs` exactly as it was when the source was first added. `runs` is
+    the measurement.
+
+    Driven through the real Add button: a sheet added at 8 patches, re-measured
+    in place to 12, added again, and the window still read 8 with no message
+    and no change to the document. A fresh window on the same file read 12, and
+    an unrelated click corrected it in silence much later (Average dE 20.91 to
+    23.20, Spread 10.67 to 9.69).
+
+    Asking to add a measurement that is already loaded is the clearest way a
+    user can say "look at this file again".
+
+    MUTATION, proven to land: drop the `_reload_sources()` call from the
+    duplicate branch of `_append_source` and this reads 8 where 12 is on disk.
+
+    AND THE FIXTURE HAD TO BE BIG ENOUGH TO CONTAIN THE FAULT. The first
+    version of this test re-measured the sheet with `_PATCHES[:12]` from a list
+    of EIGHT, so the file on disk never changed and nothing could move; it also
+    read the patch count off the first history row that carried one, which is
+    the fixture's OWN run and not the sheet under test. Both are the same
+    mistake: a fixture too small or too tidy to hold the fault agrees with
+    whatever the code does.
+    """
+    from tests.test_a_report_says_what_it_is_and_what_judged_it import _dialog
+    from tests.test_import_measurement_module import _cgats
+    from workflow.measurement_report import build_report
+
+    def _sheet(n):
+        """*n* distinct patches, so a file of 8 and one of 12 really differ."""
+        return [((i * 100.0) / (n - 1), 100.0 - (i * 100.0) / (n - 1),
+                 float((i * 37) % 101)) for i in range(n)]
+
+    dlg, _run, _fm = _dialog(tmp_path, qapp)
+    try:
+        loose = tmp_path / "again" / "sheet.ti3"
+        loose.parent.mkdir(parents=True, exist_ok=True)
+        loose.write_text(_cgats("CTI3", _sheet(8)), encoding="utf-8")
+        dlg._add_source(loose)
+        qapp.processEvents()
+        n_rows = len(dlg._history)
+        assert n_rows, "the fixture added nothing"
+
+        def _patch_count():
+            """What the window says THIS sheet has, not what another row says."""
+            here = str(loose.parent)
+            mine = [r for r in dlg._history
+                    if str(r.get("_origin_dir") or "") == here]
+            assert mine, "the sheet under test is not in the history at all"
+            return [r.get("patches") for r in mine]
+
+        assert _patch_count() == [8], "the fixture did not write 8 patches"
+        # re-measured in place: the same path, more patches
+        loose.write_text(_cgats("CTI3", _sheet(12)), encoding="utf-8")
+        assert build_report(loose).get("patches") == 12, (
+            "the fixture did not change the file on disk")
+        dlg._add_source(loose)
+        qapp.processEvents()
+        assert len(dlg._history) == n_rows, "adding it again made a second row"
+        assert _patch_count() == [12], (
+            f"the file was re-measured from 8 to 12 patches and adding it "
+            f"again left the window reading {_patch_count()}")
+    finally:
+        dlg.close()
