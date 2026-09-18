@@ -3423,8 +3423,10 @@ class _NewChartDialog(QDialog):
         self._sync_fill_unit()
         fill_n = G.fill_gaps_count(total + len(self._existing_patches),
                                    self._effective_fill_target())
-        self._gen_fill_count.setText(_approx + _fill_count_label(fill_n)
-                                     if fill_n > 0 else _fill_count_label(fill_n))
+        _fill_text = _fill_count_label(fill_n)
+        if fill_n > 0:
+            _fill_text = _approx + _fill_text      # "" on an RGB chart
+        self._gen_fill_count.setText(_fill_text)
         _hint_count_inactive(self._gen_fill_count, self._gen_fill.isChecked())
         if self._gen_fill.isChecked():
             total += fill_n
