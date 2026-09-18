@@ -14797,3 +14797,82 @@ over round 12's own 540 built sheets and re-measured here:
   up should drive each on screen before deciding whether anything is wrong.
 - what to do first: B8-343 on screen, because a named no-op is the most likely
   of these to be real.
+
+### B8-349 · FIXED · Round 13's eight findings on the B8-346 fixes
+- blocks release: yes
+- status: FIXED
+- evidence: `test_the_band_clears_the_deepest_letter_on_every_page`,
+  `test_a_chart_built_before_the_key_existed_is_measured_off_its_page`,
+  `test_a_white_patch_is_not_counted_as_ink`,
+  `test_a_document_drawn_from_two_projects_does_not_call_them_one`,
+  `test_both_help_texts_say_what_raises_a_margin`,
+  `test_only_a_spectroscan_or_a_cr30_claims_the_edge_of_the_sheet`.
+
+**R13-1 · `Q` read as `O`.** The B8-346 probe left `Q` out to keep the band
+clear of a spacer ring its tail can be printed on. On a 17-strip CR30 A4 chart
+the `Q` column then lost its tail: 15 dark device pixels gone, twelve clear
+rows below it, photographed. The probe is now the chart's OWN label set, which
+is the only version that is right in both directions: the whole alphabet puts
+the band 12 px below where an A-to-K chart's letters really stop, which is past
+the top of the printed field on two of the five charts measured. Capping the
+recorded band by the ink line was tried and reverted: the same number anchors
+the scan arrow, and Knut's ruling lets the letters overlap the patch area when
+the top margin cannot hold them. Where a tail really does reach the ink the
+PREVIEW pulls its cut up, which is what that mechanism is for.
+**The guard could not see it, and that is the finding behind the finding**: its
+fixture built 120 patches = eleven strips, A to K, and a chart that cannot
+contain a `Q` cannot show this. The new case builds 900 and asserts the band
+clears the deepest letter on every page.
+
+**R13-2 · every chart already on disk still leaked.** The fix was carried
+entirely by a new sidecar key and nothing migrates a chart: remove
+`patch_ink_top_px` and the ring comes back, 30 / 36 / 30 device pixels at three
+window sizes. The page is asked instead, by COLOUR: a strip letter is drawn in
+black and fades to the paper through neutral greys, so a row with chroma in it
+cannot be a letter whatever else is on it, which makes it safe as a floor for
+the cut. Measured against the recorded value on three charts: identical (154 in
+each). A chart printed entirely in neutrals finds nothing and is no worse off
+than before.
+
+**R13-3 · the report summed two projects and said "this project".** A project
+recording 2 beside one recording 5 produced "covers 2 of the 7 measurements
+recorded for this project"; no project records seven. There is a second wording
+now for a document drawn from more than one.
+
+**R13-4 · a help-text clause could still be deleted green.** Two of the seven
+phrases the guard looked for (`minimum`, `clip border`) also occur in a
+sentence that predates the fix, so deleting the whole new sentence left 16
+passed. That is round 12's F9 repeated inside the guard written to close it.
+Every phrase must now occur EXACTLY once, and the phrases were changed to ones
+that do.
+
+**R13-5 · a CR30 raises the RIGHT margin too**: 5.87 mm on an A4 sheet with
+nothing asked and no band, a SpectroScan 3.50. The text named only the left and
+the test asserted only `got["left"]`.
+
+**R13-6 · a white patch counted as ink.** `_note_ink` fired for every polygon
+the renderer drew whatever its colour, so a sheet of pure white patches
+recorded an inked row where the printer lays nothing down, and the blank's cut
+was pulled up for no reason.
+
+**R13-7 · three small ones**: a comment claiming two device rows of fringe
+where the code spends one; `if _ink_i` reading a recorded 0 as "no ink line";
+and the `MINUS ANY READ NEIGHBOUR` comment pushed to column 40.
+
+**R13-8 · a correction to B8-348**, folded into that entry.
+
+- Mutations, each proven to land, 2026-09-18: Q1 the probe drops `Q` again
+  (1 red), Q2 the probe is the whole alphabet whatever the chart prints
+  (2 red), Q3 no fall-back for a chart built before the key (1 red), Q4 a white
+  patch counts as ink again (1 red), R3 the single-project wording used
+  unconditionally (1 red), H6 the panel's whole new sentence deleted, which is
+  round 13's own mutation (1 red), H7 the right-margin clause deleted (1 red).
+- **What round 13 could NOT break**, and it tried: the Add window over 720
+  crossed cases (4 bad, all the one already recorded as unfixable, though it
+  also occurs on charts holding NEITHER anchor, which the register's mechanism
+  did not predict); "the window adds up" on screen in 53 of 53; the blank with
+  strips READ (letters 99.45 to 100 %, no leak at the cut); page 2 indexing;
+  `patch_ink_top_px` against the rendered page on 12 pages of 10 chart types;
+  the clip band as `max(asked, band)` on 72 sheets across three papers, both
+  sides, three widths.
+- what to do next: round 14, and then the three gates.
