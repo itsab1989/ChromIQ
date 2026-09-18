@@ -272,18 +272,18 @@ class WindowDriver:
     def _tick(self) -> None:
         from PyQt6.QtWidgets import QApplication
 
-        modal = QApplication.instance().activeModalWidget()
+        up = QApplication.instance().activeModalWidget()
         if self.window is None:
-            if modal is None:
+            if up is None:
                 if time.monotonic() - self._started > self._give_up:
                     self.disarm()
                 return
-            self.window = modal
-            self.acted_on = describe(modal)
+            self.window = up
+            self.acted_on = describe(up)
             self._acted_at = time.monotonic()
-            self.act(modal)
+            self.act(up)
             return
-        if modal is self.window and \
+        if up is self.window and \
                 time.monotonic() - self._acted_at > self._settle:
             self.stuck = True
             self.disarm()
@@ -292,5 +292,39 @@ class WindowDriver:
             except (AttributeError, RuntimeError):
                 self.window.close()
             return
-        if modal is not self.window:
+        if up is not self.window:
             self.disarm()
+
+
+def the_menu_up():
+    """The popup ChromIQ has on screen right now, or None.
+
+    A `QMenu` is not a modal window: Qt files it under
+    ``activePopupWidget()``, and that is the whole of R24-F4 -- the gate in
+    `TabMeasure.eventFilter` asked only about `activeModalWidget()`, so the
+    application-wide key filter was still first in line for a key pressed at a
+    menu ChromIQ itself put up.
+    """
+    from PyQt6.QtWidgets import QApplication
+
+    return QApplication.instance().activePopupWidget()
+
+
+def right_click(widget) -> None:
+    """Right-click *widget*, the way the window server delivers it.
+
+    A `QContextMenuEvent` through the real widget is what a right click IS at
+    the Qt level, and the widget's own `contextMenuEvent` is what builds the
+    menu -- the same menu, from the same code, that R24-F4 was measured at.
+    Qt 6 `popup()`s it rather than `exec()`ing it, so this returns with the
+    menu standing on screen and :func:`the_menu_up` is what finds it.
+    """
+    from PyQt6.QtGui import QContextMenuEvent
+    from PyQt6.QtWidgets import QApplication
+
+    target = getattr(widget, "viewport", None)
+    target = target() if callable(target) else widget
+    pos = target.rect().center()
+    QApplication.sendEvent(
+        target, QContextMenuEvent(QContextMenuEvent.Reason.Mouse, pos,
+                                  target.mapToGlobal(pos)))

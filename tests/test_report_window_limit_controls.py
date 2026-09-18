@@ -671,3 +671,60 @@ def test_both_limits_doors_are_the_same_window():
     from workflow.compliance_sets import factory_limits
     f = factory_limits("custom_iso_12647_7")
     assert f["all_de00_avg"].is_numeric
+
+
+# ---------------------------------------------------------------------------
+# R24-F6 — what the controls say about a measurement that has no run
+# ---------------------------------------------------------------------------
+def test_a_calibration_is_not_told_it_is_outside_the_project(qapp, tmp_path):
+    """R24-F6. A false sentence, in shipped text, about the user's own file.
+
+    With Run type = Calibration the limit controls carried the tooltip *"This
+    measurement is not in a ChromIQ project, so the choice is not stored
+    anywhere."* The measurement is at ``<project>/cal/<name>-cal.ti3``, which
+    is where `calibration_run_type.md` puts a calibration: inside the project,
+    in the folder the project gives it.
+
+    `run_context_for` answers None for anything that is not ``runs/runN/…``,
+    and that None was read as "not in a project". The half that is true, and
+    the reason the controls say anything at all, is the second one: there is
+    no run for the choice to be stored on.
+
+    MUTATION, proved to land: read the old sentence for both branches again.
+    """
+    proj = Project.create(tmp_path / "P", "P")
+    cal = proj.calibration
+    cal.ensure_dir()
+    ti3 = _write_ti3(cal.ti3, _ramp(16) + _colours())
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        assert dlg._run_ctx is None, (
+            "the calibration resolved to a RUN, so this is not the state the "
+            "sentence is shown in")
+        tip = dlg._set_combo.toolTip()
+        assert "not stored" in tip, (
+            f"the controls no longer say the choice is unstored: {tip!r}")
+        assert "not in a ChromIQ project" not in tip, (
+            f"the window tells the user their calibration is outside the "
+            f"project it is sitting in: {tip!r}")
+        assert "does not belong to a profile run" in tip, tip
+    finally:
+        dlg.deleteLater()
+
+
+def test_a_file_outside_any_project_is_still_told_so(qapp, tmp_path):
+    """The control: the sentence is right where it was written to be right.
+
+    A measurement in Downloads really is in no ChromIQ project, and that is
+    what the tooltip says there. Without this, "fix the sentence" could mean
+    "say the weaker thing everywhere", which loses what a reader needs.
+    """
+    dl = tmp_path / "Downloads"; dl.mkdir()
+    ti3 = _write_ti3(dl / "x.ti3", _ramp(16) + _colours())
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        assert dlg._run_ctx is None
+        tip = dlg._set_combo.toolTip()
+        assert "not in a ChromIQ project" in tip, tip
+    finally:
+        dlg.deleteLater()

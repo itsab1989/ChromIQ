@@ -77,6 +77,35 @@ def run_context_for(path: "Path | str | None") -> "RunContext | None":
     return None
 
 
+def project_root_for(path: "Path | str | None") -> "Path | None":
+    """The ChromIQ project a file lies in, or None when it lies in none.
+
+    NOT THE SAME QUESTION AS :func:`run_context_for`, and telling a user
+    otherwise was a false sentence in shipped text (R24-F6). That one answers
+    "which RUN is this measurement's", and a calibration has none: it lives at
+    ``<project>/cal/<name>-cal.ti3``, which `calibration_run_type.md` gives it.
+    The report window read the None and told the reader *"This measurement is
+    not in a ChromIQ project"* about a file sitting inside one.
+
+    A project is a folder carrying the manifest, asked of the folder itself
+    rather than matched out of a string, and the walk stops at the first one
+    found. Bounded: the deepest thing a measurement reaches from is
+    ``<project>/runs/runN/verifications/<date>/``, four levels.
+    """
+    if path is None:
+        return None
+    from core.file_manager import is_a_project
+    p = Path(path)
+    d = p.parent if p.suffix else p
+    try:
+        for cand in (d, *list(d.parents)[:7]):
+            if is_a_project(cand):
+                return cand
+    except (OSError, ValueError):
+        return None
+    return None
+
+
 def has_measured_verification(run: Run) -> bool:
     """True once any dated verification of the run holds a measurement."""
     try:

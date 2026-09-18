@@ -12491,7 +12491,29 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             # (`_show_cr30_read_failed_window`): its remedy is to press the
             # button on the instrument, so it must not stand between the user
             # and that press -- and this gate leaves it alone.
-            if QApplication.instance().activeModalWidget() is not None:
+            #
+            # AND A MENU IS NOT A MODAL WINDOW (R24-F4). Qt keeps a QMenu, a
+            # combo-box popup and any other `Qt::Popup` under
+            # `activePopupWidget()`, NOT under `activeModalWidget()`, so the
+            # gate above saw nothing while ChromIQ's own right-click menu stood
+            # over the measurement log -- and Escape, which is how a menu is
+            # dismissed, went down the pipe as `\x1b`. That is the same
+            # give-up byte, at the same prompt, with the same `.ti3` never
+            # written: round 24 measured `b'\x1b'` at the far end of a real
+            # pty with the real menu up, against nothing at all at the modal
+            # ending window in the same session. Right-clicking the log to
+            # copy a line out of it is an ordinary thing to do while a strip
+            # reader waits.
+            #
+            # A popup takes the key for the same reason a modal does: it is
+            # what the user is looking at. `return False` hands it over, so
+            # Escape closes the menu and nothing is consumed and nothing is
+            # sent. A TOOLTIP is not caught by this and does not need to be --
+            # `activePopupWidget` is only set for `windowType() == Qt::Popup`,
+            # and `Qt::ToolTip` is its own type.
+            app = QApplication.instance()
+            if app.activeModalWidget() is not None \
+                    or app.activePopupWidget() is not None:
                 return False
             key = event.key()
             # A SHORTCUT IS NOT AN INSTRUMENT KEY.

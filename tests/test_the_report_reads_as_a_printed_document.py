@@ -1411,3 +1411,92 @@ def test_the_pdf_door_stays_open_and_the_pdf_is_what_is_on_screen(tmp_path, qapp
         dlg.close()
 
 
+
+
+def test_the_pdfs_trend_charts_are_drawn_with_the_documents_own_limits(
+        tmp_path, qapp, monkeypatch):
+    """R24-F3. B8-395 put the BODY inside the snapshot and stopped there.
+
+    The four trend charts were rendered before the `with`, so their ΔE guide
+    lines came from `self._thresholds()` -- which reads `self._limits`, which
+    `_settings_touched` has just cleared, so it is the set the PULLDOWN now
+    holds. Round 24 measured four real PDFs: with the red line up the text
+    said *"Judged against: ChromIQ default (recommended)"* while the picture
+    on the facing page was drawn with **ChromIQ tight**'s [1.0, 1.5]; the body
+    was byte-identical between exports and the chart image's hash moved.
+
+    One file, judged against two sets, with nothing in it saying so.
+
+    **WHAT IS WATCHED IS WHAT THE CHART WAS GIVEN**, not what a helper
+    returns: `_TrendChart.set_data` is spied on for the length of the real
+    export, so a fix that moves the numbers and not the drawing would not pass
+    here. And the door driven is `_export_pdf` itself, which is the lesson the
+    guard above it had to learn twice.
+
+    MUTATION, proven to land: move the chart loop back above
+    `with self._as_the_document_was_built():`.
+    """
+    from tests.test_a_set_change_asks_before_it_rewrites_history import (
+        _dialog, _run_with_saved_reports, _settings)
+    import ui.dialogs.measurement_report_dialog as mrd
+
+    _proj, _run, ti3 = _run_with_saved_reports(tmp_path, 3)
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        monkeypatch.setattr(type(dlg), "_confirm", lambda self, t, x: True)
+        dlg._all_runs_check.setChecked(True)
+        qapp.processEvents()
+        dlg._render()
+        qapp.processEvents()
+        if not dlg._trend_de.has_trend():
+            pytest.skip("no trend on this fixture, so no chart is drawn")
+        as_built = tuple(dlg._thresholds())
+
+        # THE SET, THROUGH THE APP'S OWN PULLDOWN, and not generated after it.
+        i = dlg._set_combo.findData("chromiq_tight")
+        assert i >= 0, "the fixture cannot reach a second limit set"
+        dlg._set_combo.setCurrentIndex(i)
+        qapp.processEvents()
+        now = tuple(dlg._thresholds())
+        assert now != as_built, (
+            f"both sets judge with {now}, so this fixture cannot show the "
+            f"chart following the wrong one")
+        # …and the state the fault needs really exists: the snapshot the BODY
+        # is built from still holds the document's own pair. (The wrapper is
+        # opened here to READ that, never to make the assertion -- what is
+        # asserted below comes out of the real `_export_pdf`.)
+        with dlg._as_the_document_was_built():
+            assert tuple(dlg._thresholds()) == as_built, (
+                "the document was not built with the set that moved, so this "
+                "fixture cannot show the two disagreeing")
+
+        drawn: list = []
+        real_set_data = mrd._TrendChart.set_data
+
+        def _spy(self, *a, **kw):
+            if kw.get("thresholds") is not None:
+                drawn.append(tuple(kw["thresholds"]))
+            return real_set_data(self, *a, **kw)
+
+        import ui.widgets as _w
+        real_save = _w.save_file_dialog
+        _w.save_file_dialog = lambda *a, **k: str(tmp_path / "out.pdf")
+        from PyQt6.QtGui import QDesktopServices
+        real_open = QDesktopServices.openUrl
+        QDesktopServices.openUrl = staticmethod(lambda *a, **k: True)
+        mrd._TrendChart.set_data = _spy
+        try:
+            dlg._export_pdf()
+            qapp.processEvents()
+        finally:
+            mrd._TrendChart.set_data = real_set_data
+            _w.save_file_dialog = real_save
+            QDesktopServices.openUrl = real_open
+
+        assert drawn, "no trend chart with guide lines was drawn into the PDF"
+        assert all(pair == as_built for pair in drawn), (
+            f"the PDF's trend chart was drawn with {drawn}, the set the "
+            f"pulldown now holds, while the text beside it names the set the "
+            f"document was built with ({as_built})")
+    finally:
+        dlg.deleteLater()

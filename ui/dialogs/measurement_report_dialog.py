@@ -1313,11 +1313,19 @@ class MeasurementReportDialog(QDialog):
         out_row.addSpacing(18)
 
         self._all_runs_check = QCheckBox(tr("Show all measurement runs"), self)
-        # Both option boxes remember the user's last choice (Sebastian,
-        # 2026-08-10: "so I don't have to select it every time again") —
-        # saved the moment they are toggled, like the Pass thresholds.
+        # **THE TWO BOXES START FROM PREFERENCES ▸ REPORTS, AND FROM NOTHING
+        # ELSE (R24-F1).** They were built from `report_show_all_runs` /
+        # `report_show_details`, the last-used pair Sebastian asked for on
+        # 2026-08-10 (*"so I don't have to select it every time again"*), and
+        # B8-388 then made Preferences the source of the opening state without
+        # moving these two lines. So Preferences said "Show detailed data for
+        # each run, by default" was ON, and every window that did not go
+        # through `_defaults_document()` opened with it OFF: measured on a
+        # fresh settings file, which is every new installation. One question,
+        # one answer -- and the last-used pair is still written below, so
+        # restoring that behaviour is still the one line B8-388 promised.
         self._all_runs_check.setChecked(
-            str(settings.get("report_show_all_runs", "true")).lower() != "false")
+            bool(settings.get("report_default_show_all_runs", True)))
         self._all_runs_check.toggled.connect(
             lambda on: (settings.set("report_show_all_runs",
                                      "true" if on else "false"),
@@ -1337,7 +1345,7 @@ class MeasurementReportDialog(QDialog):
             self, min_width=440, color=SPEC_GREEN))
         self._detail_check = QCheckBox(tr("Show detailed data for each run"), self)
         self._detail_check.setChecked(
-            str(settings.get("report_show_details", "false")).lower() == "true")
+            bool(settings.get("report_default_show_details", True)))
         self._detail_check.toggled.connect(
             lambda on: (settings.set("report_show_details",
                                      "true" if on else "false"),
@@ -1417,6 +1425,15 @@ class MeasurementReportDialog(QDialog):
             QComboBox.SizeAdjustPolicy.AdjustToContents)
         self._saved_combo.setMinimumWidth(320)
         self._saved_combo.currentIndexChanged.connect(self._on_saved_chosen)
+        # **AND A CHOICE THAT DOES NOT MOVE THE INDEX IS STILL A CHOICE
+        # (R24-F1).** `currentIndexChanged` cannot fire for the entry the list
+        # is already on, so picking "New report…" while the pulldown read "New
+        # report…" did nothing at all: the one control that loads the
+        # Preferences defaults could not be used to load them. `activated`
+        # fires whenever the USER picks a row, the same row included, and the
+        # slot below acts only on that case so a real move is still handled
+        # once by `currentIndexChanged`.
+        self._saved_combo.activated.connect(self._on_saved_picked_again)
         # **THE NAME COMES BEFORE THE CONTROL IT NAMES.** The first cut put the
         # label in the column to the RIGHT of the pulldown, and the photograph
         # showed "Report shown (run2):" sitting past the far edge of the
@@ -3502,7 +3519,16 @@ class MeasurementReportDialog(QDialog):
         # with it, but the suggested FILE NAME was still worked out from
         # everything loaded: with a mixed history the name offered could
         # name a different chart from the one printed inside the PDF.
-        default = reports / self._report_filename(self._runs_for_document())
+        #
+        # AND IT IS THE DOCUMENT'S NAME, NOT THE CONTROLS' (R24-F3, the note).
+        # `_report_title` reads the type and the set through the same two
+        # readers the body uses, so a name offered outside this wrapper can
+        # describe a document the file does not contain. Round 24 could not
+        # photograph it moving on the project it drove, whose title strings
+        # carry neither; that is a property of one project's Preferences, not
+        # a reason to compute the name from a different state than the pages.
+        with self._as_the_document_was_built():
+            default = reports / self._report_filename(self._runs_for_document())
         # The house save dialog (sidebar shortcuts, ChromIQ styling) — this
         # was the one save in the app still opening the bare native dialog
         # (Sebastian, 2026-08-10).
@@ -3520,39 +3546,51 @@ class MeasurementReportDialog(QDialog):
 
         doc = QTextDocument()
         charts_html = ""
-        if self._trend_de.has_trend():
-            # Render each grouped chart off-screen (the live tabs only lay out the
-            # current one) and embed it as a resource. Kept compact so all four
-            # trend charts fit on the one trend page (Knut).
-            avg_thr, max_thr = self._thresholds()
-            for i, (_c, title, metrics, y_max, dec, auto) in enumerate(self._trend_configs()):
-                tmp = _TrendChart()
-                tmp.resize(640, 176)
-                thr = (avg_thr, max_thr) if _c is self._trend_de else None
-                tmp.set_data(self._trend_series, metrics, dark=False,
-                             y_max=y_max, dec=dec, auto=auto, thresholds=thr)
-                # Render at 3× and display at the same 600px layout width: a
-                # plain grab() gave a ~96-dpi raster that printed visibly
-                # blurry next to the vector text (Sebastian, 2026-08-10).
-                from PyQt6.QtGui import QImage
-                scale = 3
-                img = QImage(640 * scale, 176 * scale,
-                             QImage.Format.Format_ARGB32_Premultiplied)
-                img.fill(0xFFFFFFFF)
-                ip = QPainter(img)
-                ip.scale(scale, scale)
-                tmp.render(ip)
-                ip.end()
-                url = QUrl(f"chart://{i}")
-                doc.addResource(QTextDocument.ResourceType.ImageResource, url, img)
-                charts_html += (
-                    "<div style='font-size:16px;font-weight:bold;"
-                    "margin-top:4px'>" + html.escape(title) + "</div>"
-                    f"<img src='chart://{i}' width='600'>" + _gap())
         # The exact same run set the window shows, so the PDF matches it (Knut),
         # AND the settings it was built with rather than the ones the controls
         # hold now: see `_as_the_document_was_built`.
+        #
+        # **THE CHARTS ARE INSIDE THE SAME SNAPSHOT AS THE BODY (R24-F3).**
+        # `_thresholds()` reads `self._limits`, which `_settings_touched` has
+        # already cleared, so with the red line up the guide lines on the trend
+        # chart were drawn from the set the PULLDOWN now holds while the text
+        # beside them named the set the document was built with. Measured on
+        # four real PDFs: body byte-identical, *"Judged against: ChromIQ
+        # default"* in the text, [1.0, 1.5] in the picture, and the chart
+        # image's hash moved. One file cannot be judged against two sets, and
+        # nothing in it said which was which.
         with self._as_the_document_was_built():
+            if self._trend_de.has_trend():
+                # Render each grouped chart off-screen (the live tabs only lay
+                # out the current one) and embed it as a resource. Kept compact
+                # so all four trend charts fit on the one trend page (Knut).
+                avg_thr, max_thr = self._thresholds()
+                for i, (_c, title, metrics, y_max, dec, auto) in enumerate(
+                        self._trend_configs()):
+                    tmp = _TrendChart()
+                    tmp.resize(640, 176)
+                    thr = (avg_thr, max_thr) if _c is self._trend_de else None
+                    tmp.set_data(self._trend_series, metrics, dark=False,
+                                 y_max=y_max, dec=dec, auto=auto, thresholds=thr)
+                    # Render at 3× and display at the same 600px layout width: a
+                    # plain grab() gave a ~96-dpi raster that printed visibly
+                    # blurry next to the vector text (Sebastian, 2026-08-10).
+                    from PyQt6.QtGui import QImage
+                    scale = 3
+                    img = QImage(640 * scale, 176 * scale,
+                                 QImage.Format.Format_ARGB32_Premultiplied)
+                    img.fill(0xFFFFFFFF)
+                    ip = QPainter(img)
+                    ip.scale(scale, scale)
+                    tmp.render(ip)
+                    ip.end()
+                    url = QUrl(f"chart://{i}")
+                    doc.addResource(QTextDocument.ResourceType.ImageResource,
+                                    url, img)
+                    charts_html += (
+                        "<div style='font-size:16px;font-weight:bold;"
+                        "margin-top:4px'>" + html.escape(title) + "</div>"
+                        f"<img src='chart://{i}' width='600'>" + _gap())
             runs = self._runs_for_report()
             doc.setHtml(self._pdf_html(runs, charts_html))
 
@@ -3729,6 +3767,18 @@ class MeasurementReportDialog(QDialog):
         if not self._sources:
             return run_context_for(self._ti3) if self._ti3 else None
         return run_context_for(self._sources[0]["origin"])
+
+    def _inside_a_project(self) -> bool:
+        """Whether the measurement on screen lies inside a ChromIQ project.
+
+        Asked of the same file `_context_run` asks about, because the two
+        answers are read side by side: a calibration has no RUN and is in a
+        project all the same (R24-F6).
+        """
+        from workflow.run_compliance import project_root_for
+        origin = (self._sources[0]["origin"] if self._sources
+                  else (self._ti3 or None))
+        return project_root_for(origin) is not None
 
     def _distinct_run_dirs(self) -> "set[str]":
         """How many different PROFILE RUNS the window holds (CH-13)."""
@@ -3930,9 +3980,22 @@ class MeasurementReportDialog(QDialog):
                     tr("Judged against ({run}):").format(run=run.dir.name))
                 tip = ""
             else:
+                # **A CALIBRATION IS IN THE PROJECT, AND THIS SAID IT WAS NOT
+                # (R24-F6).** `run_context_for` answers None for anything that
+                # is not `runs/runN/…`, and the sentence read that as "not in a
+                # ChromIQ project" -- to a user looking at
+                # `<project>/cal/<name>-cal.ti3`, which is where
+                # `calibration_run_type.md` puts a calibration. The half that
+                # matters, and the reason the controls say anything at all, is
+                # the second one: there is no run for the choice to be stored
+                # on. That half was true in both states and is all that is
+                # claimed now.
                 self._judged_label.setText(tr("Judged against:"))
-                tip = tr("This measurement is not in a ChromIQ project, so the "
-                         "choice is not stored anywhere.")
+                tip = (tr("This measurement does not belong to a profile run, "
+                          "so the choice is not stored anywhere.")
+                       if self._inside_a_project() else
+                       tr("This measurement is not in a ChromIQ project, so "
+                          "the choice is not stored anywhere."))
             for w in (self._set_combo, self._unlock_check, self._limits_btn):
                 w.setToolTip(tip)
             self._sync_type_combo(run, several)
@@ -4177,6 +4240,31 @@ class MeasurementReportDialog(QDialog):
         from workflow.measurement_report import document_key_of
         return document_key_of(self._document_of(origin, name, r),
                                Path(origin) / "reports" / name)
+
+    def _entry_the_list_lands_on(self, docs: list) -> str:
+        """Which entry "Report shown" will name, as its key.
+
+        **ONE ANSWER TO ONE QUESTION (R24-F1).** `_sync_saved_reports` decides
+        this when it fills the pulldown, and `_open_on_the_latest_report` has
+        to know the same thing to decide whether the window is in the "New
+        report…" state: the window opened saying *"New report…"* over settings
+        that were not its defaults, because only the pulldown knew where it had
+        landed. A second copy of the rule in the other place is how they would
+        drift apart again, so both ask this.
+
+        The order is the pulldown's own: the loaded document if it is still
+        listed, "New report…" if that is what is loaded, otherwise the file the
+        page is drawn from, and "New report…" when nothing names anything.
+        """
+        want = self._loaded_doc_id
+        if want == NEW_REPORT_KEY:
+            return NEW_REPORT_KEY
+        if any(d["key"] == want for d in docs):
+            return want
+        here = self._document_key_of_report()
+        if here and any(d["key"] == here for d in docs):
+            return here
+        return NEW_REPORT_KEY
 
     def _tick_state(self) -> "tuple[bool, bool]":
         """(Show all measurement runs, Show detailed data), as they stand."""
@@ -4466,13 +4554,16 @@ class MeasurementReportDialog(QDialog):
             # pulldown already carried, and the reason is unchanged: after
             # "Generate report" the page moves to the new document and a
             # selector left on the old one puts two halves of one window in
-            # disagreement in front of the reader (Knut, beta 20).
-            i = next((n for n, d in enumerate(docs) if d["key"] == want), -1)
-            if i < 0 and want != NEW_REPORT_KEY:
-                # No document is loaded: follow the file the page is drawn
-                # from, so the list names what the reader is looking at.
-                here = self._document_key_of_report()
-                i = next((n for n, d in enumerate(docs) if d["key"] == here), -1)
+            # disagreement in front of the reader (Knut, beta 20). With no
+            # document loaded it follows the file the page is drawn from, so
+            # the list names what the reader is looking at.
+            #
+            # The rule itself lives in `_entry_the_list_lands_on`, because
+            # `_open_on_the_latest_report` has to know the same answer and a
+            # second copy of it is exactly how the window came to say "New
+            # report…" over settings that were not its defaults (R24-F1).
+            lands = self._entry_the_list_lands_on(docs)
+            i = next((n for n, d in enumerate(docs) if d["key"] == lands), -1)
             # +1 for the "New report…" row above them; -1 (nothing matched)
             # and the new-report state both land on it.
             combo.setCurrentIndex(i + 1 if i >= 0 else 0)
@@ -4643,6 +4734,27 @@ class MeasurementReportDialog(QDialog):
             return
         self._load_document(key)
 
+    def _on_saved_picked_again(self, _index: int) -> None:
+        """The user picked the entry the list was ALREADY on (R24-F1).
+
+        `currentIndexChanged` never fires for it, so "New report…" over a
+        window already showing "New report…" was a control with no effect --
+        and that is precisely the window this fault leaves a user in. Only
+        that case is handled here: a pick that moves the index is
+        `_on_saved_chosen`'s, and doing it twice would load the same document
+        twice.
+        """
+        if self._syncing_limits:
+            return
+        combo = getattr(self, "_saved_combo", None)
+        key = str((combo.currentData() if combo is not None else "") or "")
+        if not key or key != self._loaded_doc_id:
+            return
+        if key == NEW_REPORT_KEY:
+            self._start_new_report()
+        else:
+            self._load_document(key)
+
     def _defaults_document(self) -> dict:
         """The settings a NEW report starts from, in a document's own shape.
 
@@ -4695,14 +4807,29 @@ class MeasurementReportDialog(QDialog):
         writes a NEW document, which is Knut's K.1 (*"It is better that
         existing reports are not overwritten"*) unchanged.
         """
-        doc = self._defaults_document()
-        self._loaded_doc_id = NEW_REPORT_KEY
-        self._loaded_doc = doc
-        self._doc_settings_moved = False
+        self._load_the_defaults()
         # A NEW REPORT IS ABOUT THE NEWEST FILE OF EACH MEASUREMENT, so the
         # document a click left behind stops choosing which file is drawn.
         self._chosen_reports.clear()
         self._hidden_runs = set()
+        self._refresh()
+
+    def _load_the_defaults(self) -> None:
+        """Put the Preferences defaults on screen, WITHOUT repainting.
+
+        The one place the "New report…" state is entered from, because there
+        are two doors into it and they had drifted apart (R24-F1): choosing the
+        entry did this, and OPENING a window that lands on the same entry did
+        not, so the pulldown said *"New report…"* over settings that were not
+        its defaults. `_start_new_report` adds what a CHOICE means on top of
+        it (the chosen files and the unticked rows are forgotten) and repaints;
+        `_open_on_the_latest_report` runs inside `_rebuild_from_sources`, which
+        repaints straight afterwards.
+        """
+        doc = self._defaults_document()
+        self._loaded_doc_id = NEW_REPORT_KEY
+        self._loaded_doc = doc
+        self._doc_settings_moved = False
         for chk, val in ((getattr(self, "_all_runs_check", None),
                           bool(doc.get("all_runs"))),
                          (getattr(self, "_detail_check", None),
@@ -4712,7 +4839,6 @@ class MeasurementReportDialog(QDialog):
             chk.blockSignals(True)
             chk.setChecked(val)
             chk.blockSignals(False)
-        self._refresh()
 
     def _open_on_the_latest_report(self) -> None:
         """The window opens on the latest report created (B8-388), once.
@@ -4757,21 +4883,26 @@ class MeasurementReportDialog(QDialog):
         if first is not None:
             self._apply_document(first)
             return
-        if docs:
+        # **AND A WINDOW WHOSE LIST LANDS ON "NEW REPORT…" IS IN THAT STATE,
+        # SO IT HOLDS ITS DEFAULTS (R24-F1).** This returned here whenever the
+        # run had saved reports at all, and only the empty case below loaded
+        # the defaults -- while the pulldown, which has its own rule, showed
+        # *"New report…"* for every project whose saved reports name no entry
+        # the page is drawn from. So the window claimed a state it was not in,
+        # over settings nobody had chosen, and Knut's B8-388 sentence (*"when
+        # 'Report shown' is set to 'New report....', all default values shall
+        # be loaded on the settings"*) was true of one door and not the other.
+        #
+        # The list is asked rather than second-guessed, so the two cannot
+        # disagree again. A project whose newest file IS named by an entry
+        # opens exactly as it did: none of those settings is imposed on it,
+        # which is what B8-388 decided deliberately for reports that record
+        # none of their own.
+        #
+        # Nothing on disk is read differently for any of this.
+        if self._entry_the_list_lands_on(docs) != NEW_REPORT_KEY:
             return
-        doc = self._defaults_document()
-        self._loaded_doc_id = NEW_REPORT_KEY
-        self._loaded_doc = doc
-        self._doc_settings_moved = False
-        for chk, val in ((getattr(self, "_all_runs_check", None),
-                          bool(doc.get("all_runs"))),
-                         (getattr(self, "_detail_check", None),
-                          bool(doc.get("detail")))):
-            if chk is None:
-                continue
-            chk.blockSignals(True)
-            chk.setChecked(val)
-            chk.blockSignals(False)
+        self._load_the_defaults()
 
     def _load_document(self, key: str) -> None:
         """Show the document *key* names, with the settings it was made with.
@@ -8669,11 +8800,16 @@ class MeasurementReportDialog(QDialog):
         row_getters += [(_METRIC_LABELS[k](), num((lambda r, k=k: de(r).get(k)), 2))
                         for k in ("avg_all", "avg_low95", "avg_high5",
                                   "max_all", "max_low95", "std")]
+        # WHICHEVER SHAPE THE FILE IS IN (R24-F2). These two read `lab` only,
+        # so a schema-5 measurement -- ChromIQ's own demo projects hold them --
+        # printed a dash here while the detailed section below printed the very
+        # same paper white as *L\* 95.4*. `point_lightness` is the one reader.
+        from workflow.measurement_report import point_lightness
         row_getters += [
             (tr("Paper white L*"),
-             num(lambda r: (r.get("paper_white") or {}).get("lab", [None])[0], 1)),
+             num(lambda r: point_lightness(r.get("paper_white")), 1)),
             (tr("Black L*"),
-             num(lambda r: (r.get("max_black") or {}).get("lab", [None])[0], 1)),
+             num(lambda r: point_lightness(r.get("max_black")), 1)),
         ]
         for code in ("W", "K", "R", "G", "B", "C", "M", "Y"):
             lbl = tr("{corner} ΔE00").format(corner=_CORNER_LABELS[code]())
@@ -9506,11 +9642,11 @@ class MeasurementReportDialog(QDialog):
             # Nothing is invented here: a swatch is drawn when there is a
             # colour to draw, the location is named when it is recorded, and
             # L* is printed from whichever of the two shapes the file uses.
-            def _lightness(pt: dict):
-                lab = pt.get("lab")
-                if isinstance(lab, (list, tuple)) and lab:
-                    return lab[0]
-                return pt.get("L")
+            # …AND IT IS THE SAME READER THE OTHER TWO USE NOW (R24-F2). This
+            # was a local `_lightness`, which is how the window came to print
+            # one paper white three ways: right here, a dash in the Overview
+            # table, and no point at all on the trend.
+            from workflow.measurement_report import point_lightness
 
             def _line(pt: dict, label: str) -> str:
                 bits = []
@@ -9519,9 +9655,9 @@ class MeasurementReportDialog(QDialog):
                 bits.append(html.escape(label))
                 if pt.get("loc"):
                     bits.append(f"({html.escape(str(pt['loc']))})")
-                lv = _lightness(pt)
-                if isinstance(lv, (int, float)):
-                    bits.append(f"- L* {float(lv):.1f}")
+                lv = point_lightness(pt)
+                if lv is not None:
+                    bits.append(f"- L* {lv:.1f}")
                 return "<div>" + " ".join(bits) + "</div>"
 
             parts.append(_h3(tr("Paper white & darkest black")))

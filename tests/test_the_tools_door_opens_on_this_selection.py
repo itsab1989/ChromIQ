@@ -144,3 +144,66 @@ def test_a_verification_still_seeds_its_newest_date(qapp, tmp_path):
     _s, _fm, ctl, proj, _run, v, _cal = _project_with_everything(tmp_path)
     ctl.set_run_type(RUN_TYPE_VERIFICATION)
     assert _seed(ctl, proj) == v.measurement_ti3
+
+
+# ---------------------------------------------------------------------------
+# R24-F5 — "New run" is not a run, and the tool opened on somebody else's
+# ---------------------------------------------------------------------------
+def test_new_run_seeds_nothing_rather_than_the_manifests_current_run(qapp,
+                                                                     tmp_path):
+    """R24-F5. With the bar on "Profile run: New run", Tools ▸ Measurement
+    report opened on `runs/run2`.
+
+    `resolve_run(project, target)` with ``create=False`` falls through to
+    `project.current_run()` for a target that has created nothing, so the
+    window opened on the manifest's current run, labelled itself *"Judged
+    against (run2):"* while the bar said *"New run"*, kept Generate live, and
+    rewrote `runs/run2/meta.json` when the "Judged against" pulldown moved --
+    re-binding the limit set of a run the user was not looking at.
+
+    Whether the tool should refuse to OPEN in this state is
+    `tool_availability.md` §4's ✕, and that document is a DRAFT awaiting
+    Knut's confirmation, so it is not decided here. This is the half that
+    needs no ruling and that `_report_seed`'s own docstring already states:
+    one selection's report must not be filed into another selection's folder.
+
+    MUTATION, proved to land: drop the `is_new_run()` branch from
+    `_report_seed`.
+    """
+    _s, _fm, ctl, proj, run, _v, _cal = _project_with_everything(tmp_path)
+    ctl.set_run_type(RUN_TYPE_PROFILING)
+    ctl.set_profile_run("")                    # the bar reads "New run"
+    assert ctl.target.is_new_run(), "the bar is not on “New run”"
+    assert run.measurement_ti3.exists(), (
+        "the current run has no measurement, so there is nothing for the tool "
+        "to have borrowed and this would pass on the fault")
+
+    assert _seed(ctl, proj) is None, (
+        "the tool opened on a measurement belonging to another selection; "
+        "its report, and its limit set, would be filed into that run")
+
+
+def test_a_new_verification_seeds_nothing_either(qapp, tmp_path):
+    """S4 has the same shape as S2: nothing has been created to report on."""
+    _s, _fm, ctl, proj, _run, _v, _cal = _project_with_everything(tmp_path)
+    ctl.set_run_type(RUN_TYPE_VERIFICATION)
+    ctl.set_profile_run("")
+    assert _seed(ctl, proj) is None, (
+        "a new verification borrowed another selection's measurement")
+
+
+def test_a_calibration_is_not_caught_by_the_new_run_branch(qapp, tmp_path):
+    """The control. A calibration's profile-run box means nothing -- there is
+    one `cal/` per project -- so `is_new_run()` is True for it and the
+    calibration must still find its own measurement.
+
+    MUTATION: put the `is_new_run()` branch ABOVE the calibration branch and
+    this goes red.
+    """
+    _s, _fm, ctl, proj, _run, _v, cal = _project_with_everything(tmp_path)
+    ctl.set_run_type(RUN_TYPE_CALIBRATION)
+    ctl.set_profile_run("")
+    assert ctl.target.is_new_run()
+    assert _seed(ctl, proj) == cal.ti3, (
+        "the calibration was caught by the New-run branch and lost its own "
+        "measurement")

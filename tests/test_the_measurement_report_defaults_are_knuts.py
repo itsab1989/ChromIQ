@@ -752,3 +752,165 @@ def test_the_detailed_section_survives_a_report_of_another_shape(tmp_path,
         assert "118" in html, "the worst patch is in the file and not on the page"
     finally:
         dlg.close()
+
+
+# ---------------------------------------------------------------------------
+# 5. R24-F1 — the window may not say "New report…" over other settings
+# ---------------------------------------------------------------------------
+def _pick_the_row_the_list_is_on(combo, qapp) -> None:
+    """Open the pulldown and choose the entry it is ALREADY on.
+
+    The app's own gesture, and the only one that reaches the fault: Qt emits
+    no `currentIndexChanged` for a pick that does not move the index, so a
+    window whose pulldown already reads "New report…" could not be told to
+    load the defaults. `activated` is what a real choice emits.
+    """
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtTest import QTest
+
+    combo.showPopup()
+    qapp.processEvents()
+    view = combo.view()
+    view.setCurrentIndex(view.model().index(combo.currentIndex(), 0))
+    QTest.keyClick(view, Qt.Key.Key_Return)
+    qapp.processEvents()
+
+
+def _a_run_whose_newest_sheet_has_no_report(tmp_path):
+    """A project with saved reports in it, opened on a measurement that is not
+    one of their subjects -- so "Report shown" lands on "New report…".
+
+    This is the shape round 24 photographed on ChromIQ's own `Demo-Switching`:
+    the list holds saved reports, none of them names the file the page is
+    drawn from, and the pulldown therefore shows the top row. Every project a
+    user already has has saved reports in it, which is why this branch and not
+    the empty one is where nearly every window lands.
+    """
+    from tests.test_a_generated_report_is_one_document import _messy_project
+
+    s, fm, run, vs = _messy_project(tmp_path, dates=2)
+    for f in (vs[-1].dir / "reports").glob("report_*.json"):
+        f.unlink()
+    return s, fm, run, vs
+
+
+def test_a_window_that_lands_on_new_report_holds_its_defaults(tmp_path, qapp):
+    """R24-F1. The pulldown said "New report…" over settings that were not
+    the "New report…" defaults.
+
+    `_open_on_the_latest_report` loaded the Preferences defaults only when the
+    run had NO saved report at all; with saved reports that carry no document
+    block -- which is every project made before this beta -- it returned, and
+    the tick boxes kept whatever they were built with, while the list showed
+    "New report…" because no document matched. Measured on screen on a fresh
+    settings file: Preferences ▸ Reports said "Show detailed data for each
+    run, by default" was ON and the window it governs opened with it OFF.
+
+    MUTATION, proved to land: put `if docs: return` back in front of
+    `_load_the_defaults()` in `_open_on_the_latest_report`.
+    """
+    from ui.dialogs.measurement_report_dialog import NEW_REPORT_KEY
+
+    s, _fm, _run, vs = _a_run_whose_newest_sheet_has_no_report(tmp_path)
+    s.set("report_default_show_all_runs", True)
+    s.set("report_default_show_details", True)
+    dlg = _report_window(s, vs[-1].measurement_ti3, qapp)
+    try:
+        assert dlg._saved_combo.count() > 1, (
+            "the fixture has no saved reports, so this is the empty case that "
+            "already worked")
+        assert not any(d.get("doc") for d in
+                       dlg._saved_documents(dlg._run_ctx.run
+                                            if dlg._run_ctx else None)), (
+            "a saved DOCUMENT exists here, so the window opens on it and this "
+            "is not the branch the fault lives in")
+        assert dlg._detail_check.isChecked(), (
+            "“Show detailed data for each run” did not come from Preferences: "
+            "the window opened on a run with saved reports, so the defaults "
+            "never reached it")
+        assert dlg._all_runs_check.isChecked(), (
+            "“Show all measurement runs” did not come from Preferences")
+        # …and the pulldown's claim and the window's state are the same thing
+        assert dlg._loaded_doc_id == NEW_REPORT_KEY
+        assert dlg._saved_combo.currentData() == NEW_REPORT_KEY, (
+            "the window is in the “New report…” state and the list says "
+            "something else")
+    finally:
+        dlg.close()
+
+
+def test_that_opening_state_is_preferences_and_not_a_constant(tmp_path, qapp):
+    """The other direction, which is what makes the test above mean something:
+    with the Preferences defaults OFF the same window opens with both off."""
+    s, _fm, _run, vs = _a_run_whose_newest_sheet_has_no_report(tmp_path)
+    s.set("report_default_show_all_runs", False)
+    s.set("report_default_show_details", False)
+    dlg = _report_window(s, vs[-1].measurement_ti3, qapp)
+    try:
+        assert not dlg._detail_check.isChecked(), (
+            "the detail box is on with the Preferences default off")
+        assert not dlg._all_runs_check.isChecked(), (
+            "the all-runs box is on with the Preferences default off")
+    finally:
+        dlg.close()
+
+
+def test_the_tick_boxes_are_built_from_the_preferences_defaults(tmp_path,
+                                                                qapp):
+    """One question, one answer. They were built from `report_show_details` /
+    `report_show_all_runs`, the last-used pair, so a window that never reached
+    `_defaults_document()` at all showed a third state.
+
+    MUTATION: read `report_show_details` again in `__init__` and this goes red.
+    """
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+
+    s = _settings(tmp_path, report_default_show_all_runs=True,
+                  report_default_show_details=True,
+                  report_show_all_runs="false", report_show_details="false")
+    dlg = MeasurementReportDialog(s, None)
+    try:
+        assert dlg._all_runs_check.isChecked(), (
+            "the box was built from the last-used value, not from Preferences")
+        assert dlg._detail_check.isChecked(), (
+            "the box was built from the last-used value, not from Preferences")
+    finally:
+        dlg.close()
+
+
+def test_picking_new_report_again_still_loads_the_defaults(tmp_path, qapp):
+    """R24-F1's other half: the user cannot correct it by hand either.
+
+    Choosing "New report…" while the pulldown already reads "New report…"
+    emits no `currentIndexChanged`, so `_start_new_report` never ran and the
+    one control that loads the defaults did nothing at all. Driven the way a
+    user does it: open the list, pick the row it is on.
+
+    MUTATION, proved to land: drop the `activated` connection.
+    """
+    from ui.dialogs.measurement_report_dialog import NEW_REPORT_KEY
+
+    s, _fm, _run, vs = _a_run_whose_newest_sheet_has_no_report(tmp_path)
+    s.set("report_default_show_all_runs", True)
+    s.set("report_default_show_details", True)
+    dlg = _report_window(s, vs[-1].measurement_ti3, qapp)
+    try:
+        assert dlg._saved_combo.currentData() == NEW_REPORT_KEY
+        # the user has since changed both, and now wants the defaults back
+        dlg._all_runs_check.setChecked(False)
+        dlg._detail_check.setChecked(False)
+        qapp.processEvents()
+        assert dlg._saved_combo.currentIndex() == 0, (
+            "the list moved off “New report…”, so re-picking it would move "
+            "the index and this proves nothing")
+
+        _pick_the_row_the_list_is_on(dlg._saved_combo, qapp)
+
+        assert dlg._all_runs_check.isChecked(), (
+            "choosing “New report…” did nothing, because it was already the "
+            "current entry")
+        assert dlg._detail_check.isChecked(), (
+            "choosing “New report…” did nothing, because it was already the "
+            "current entry")
+    finally:
+        dlg.close()

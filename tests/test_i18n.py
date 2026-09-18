@@ -997,18 +997,33 @@ _IDENTICAL_TO_KEY = {
     # rise by twenty-one each, which is the twenty-two less the one that was
     # already in those catalogues from elsewhere, and `i18n_sync` also retired
     # nine stale keys. **Counted off this tree, not adjusted.**
+    # RE-MEASURED 2026-09-19, the round-24 fix set (B8-404): the Measurement
+    # Report's limit controls no longer tell a user that the calibration they
+    # are looking at is outside the project it sits in. ONE key in, none out --
+    # "This measurement does not belong to a profile run, so the choice is not
+    # stored anywhere." -- and the sentence it replaces is still in use for a
+    # file that really is in no project, so nothing went stale. German is
+    # translated, so **de does not move (143)**; the eleven others carry the
+    # English under the beta rule and each rises by exactly 1.
+    #
+    # COUNTED, not adjusted: every number below is
+    # `len([k for k, v in cat.items() if v == k and not k.startswith("@")])`
+    # run over each catalogue at HEAD and again here, and the HEAD column came
+    # back equal to the numbers that were recorded, so the eleven +1s are the
+    # whole of the change.
+
     "de": 143,
-    "es": 422,
-    "fr": 444,
-    "it": 433,
-    "ja": 408,
-    "nl": 449,
-    "no": 434,
-    "pl": 426,
-    "pt": 424,
-    "ru": 397,
-    "sv": 435,
-    "zh_CN": 402,
+    "es": 423,
+    "fr": 445,
+    "it": 434,
+    "ja": 409,
+    "nl": 450,
+    "no": 435,
+    "pl": 427,
+    "pt": 425,
+    "ru": 398,
+    "sv": 436,
+    "zh_CN": 403,
 }
 
 

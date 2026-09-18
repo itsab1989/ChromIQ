@@ -17269,3 +17269,331 @@ would reach.
   `no_control_strip` in all six of its projects; if that pack is rebuilt, one
   project wants a declared strip of twenty and one a strip of seven, so the two
   new reasons and the judged rows are both in it.
+
+### B8-398 · FIXED · A FROM PROFILE GAMUT chart cannot answer the rows it exists to answer, and its declared corners are read by nobody
+- blocks release: yes
+- status: FIXED
+- found by: the B8-393 round, measuring the demo package's three reference rows
+  (`~/Desktop/ChromIQ-beta22-proof/b393-the-demo-package/step1-trigger-map/README.md`,
+  F1 and F3). That round had to make its generator clamp for itself to
+  demonstrate the rows at all, and said so.
+- **F1 — the selection kept ink amounts that do not exist.**
+  `select_gamut_targets` takes its device values from xicclu's numeric inverse
+  (`-fif`), which answers OUTSIDE the device cube, and the forward leg of the
+  round trip extrapolates the same way, so the two errors cancel: a colour
+  needing device 107.69 comes back 0.000 ΔE00 from its aim and is selected as
+  reachable. Measured over the whole 5,960-colour master set through a
+  210-patch `colprof -ql -aG` profile: 304 colours out of the cube, 238 past
+  101, largest 107.69.
+- One patch past 101 is enough to ruin the whole report:
+  `measurement_report._rgb_to_0_100` then reads the chart as 0..255 code values
+  and divides every device value by 2.55. Measured on a chart built by the app
+  itself, before the fix: 19 patches over 100, device white reading 39.2, seven
+  of the eight cube corners `(missing)` on the rendered page, `substrate` and
+  `cmy_solids` reading `no_corners`, and "Solid colours, largest" reporting
+  **0.00** off a body patch.
+- **DROPPED, NOT CLAMPED, and that is the decision in this item.** Clamping
+  keeps the patch and keeps its stored aim, and the aim is then one the profile
+  itself says the ink cannot make: measured, 17 of 200 patches, mean 2.40 and
+  up to **8.24 ΔE00** out. A verification chart carrying such a patch charges
+  the selection's own error to the printer, which is the opposite of what the
+  chart is for. Dropping costs nothing: the next reachable colour in master
+  order takes the slot, the chart is the size asked for, and every prefix stays
+  nested. Coverage falls from 5,613 to 5,331 of 5,960 on that profile, which is
+  the honest number. `device_is_printable` is the filter; both file writers
+  additionally snap through `snap_to_device_cube`, so the chart and the
+  colorimetric reference beside it can never describe one patch two ways.
+- **F2 — the chart's own declaration was read by nobody.**
+  `build_report` found each cube corner by nearest device value over the whole
+  chart and never looked at `CHROMIQ_CORNER_IDS`, so the master set's own black
+  patch at device (0,0,0) was read as the composite black while the declared
+  corner beside it was read by nobody — and stayed inside the ΔE00 statistics
+  as well, counted twice. Measured: the K corner came off sample 1, the R
+  corner off sample 141. `_declared_corner_rows` now pairs each declared id
+  with its corner by the ink amount the reference records for it, so the order
+  the ids were written in does not matter; a chart that declares nothing
+  answers exactly as it did, which is its own test. Each corner also carries
+  the `sample` it was read off, because establishing the fault at all took a
+  separate probe.
+- A chart already on a user's disk keeps its unprintable device values, and the
+  declaration fix still rescues its report: driven on screen, the fixed app
+  reads all eight corners off the chart the broken app wrote and gives the same
+  three numbers.
+- evidence: test_the_profile_really_does_ask_for_ink_that_does_not_exist,
+  test_no_selected_colour_needs_an_ink_amount_the_printer_has_not_got,
+  test_the_chart_and_its_reference_carry_only_printable_ink_amounts,
+  test_the_chart_and_the_reference_agree_on_every_ink_amount,
+  test_every_stored_aim_is_a_colour_the_stored_ink_amount_can_make,
+  test_the_report_reads_the_chart_on_the_scale_it_was_written_on,
+  test_the_report_finds_every_cube_corner,
+  test_the_three_reference_rows_get_a_number,
+  test_every_corner_is_the_patch_the_chart_declares,
+  test_the_composite_black_is_not_read_off_a_body_patch,
+  test_no_patch_is_both_a_corner_and_a_statistic,
+  test_a_chart_that_declares_nothing_answers_exactly_as_it_did
+- the guards live in one new file,
+  `tests/test_a_profile_gamut_chart_is_printable_and_names_its_corners.py`,
+  whose module fixture builds a real
+  profile with Argyll and drives the Create Chart tab's own Generate and its
+  own adopt hook: a hand-written .ti1 cannot contain either fault, and neither
+  can a chart built through a stubbed xicclu.
+- proof: `~/Desktop/ChromIQ-beta22-proof/the-gamut-chart-faults/` — the before
+  and after of a real chart's report driven ON SCREEN in a real window, the
+  corner table photographed both ways, and each fix shown to be what its guards
+  catch by mutating it and watching them go red.
+- what to do first: nothing here. Two things are reported and not decided: the
+  design record's §3 sentence about the three reference rows (see the proof
+  README), and `flags_in_gamut`, which answers the same "can this profile reach
+  this colour" question for the report's in/out-of-gamut split on ORDINARY
+  charts and is deliberately left as it was, because changing it would move
+  numbers in reports that already exist.
+
+### B8-399 · FIXED · Escape at ChromIQ's own right-click menu is the instrument's give-up key (R24-F4)
+- blocks release: yes
+- status: FIXED
+- found by: adversary round 24, on branch `fix/split-overlay-gap`, driving the
+  real app with a raw-mode stand-in reader at the far end of a real PTY.
+- **THIS IS THE FAULT B8-389 WAS RECORDED AS CLOSING**, through a door its gate
+  does not watch. `TabMeasure.eventFilter` asked
+  `QApplication.activeModalWidget() is not None`, and a `QMenu` is not a modal
+  window: Qt keeps a menu, a combo-box popup and every other `Qt::Popup` under
+  `activePopupWidget()`. `grep -rn activePopupWidget ui/ core/` returned
+  nothing at all. So the application-wide key filter was still first in line
+  for a key pressed at a menu ChromIQ itself had put on screen, and Escape --
+  which is how a menu is dismissed -- went down the pipe as `\x1b`. On stock
+  chartread that byte at a prompt is GIVE UP: the process returns without
+  writing its `.ti3` (chartread.c:1654) and every reading of the session is
+  gone. Right-clicking the measurement log to copy a line out of it while a
+  strip reader waits at its prompt is an ordinary thing to do.
+- measured, round 24 and again here on the same driver: at the menu the reader
+  received `b'\x1b'` and the menu stayed up (the key was forwarded AND eaten);
+  the modal ending window sent nothing in the same session; Escape with nothing
+  up still reached the reader, so the gate was not simply off.
+- fix: the gate asks both questions. A popup takes the key for the same reason a
+  modal does -- it is what the user is looking at -- so `return False` hands it
+  over, Escape closes the menu, and nothing is sent. A tooltip is not caught by
+  this and does not need to be: `activePopupWidget` is only set for
+  `windowType() == Qt::Popup`, and `Qt::ToolTip` is its own type.
+- status: FIXED
+- evidence: test_escape_at_our_own_context_menu_sends_nothing_to_the_instrument,
+  test_escape_at_our_own_context_menu_closes_it,
+  test_a_menu_does_not_switch_the_filter_off_for_good,
+  test_the_gate_asks_about_a_popup_as_well_as_a_modal, on B8-389's own
+  live-reader harness: the real widget's own `contextMenuEvent` builds the real
+  menu, the key goes through the real application so the real app-wide filter
+  is first in line, and what is asserted is the byte at the far end of a real
+  pty.
+  Mutation proved to land, `__pycache__` cleared: the `activePopupWidget()`
+  half of the gate removed (**3 failed**, `assert b'\x1b' == b''` and *"the
+  context menu was still up after Escape"*); restored, 13 passed.
+- guard file: `no_key_at_our_own_window_reaches_the_instrument`, under
+  `tests/`, on the harness in `tests/helpers/live_reader.py`, which gains
+  `right_click` and `the_menu_up`.
+- on screen: `~/Desktop/ChromIQ-beta22-proof/r24-the-fixes/`, before/after with
+  round 24's own driver `r24_h_escape_at_a_popup.py`. Every byte the reader
+  received, in order: before `b'x'  b'\x1b'  b'\x1b'`, after `b'x'  b'\x1b'`
+  -- the third byte is the menu's Escape and it is gone, the second is the
+  control with nothing up and it is still there.
+
+### B8-400 · FIXED · The report window said "New report…" over settings that were not its defaults (R24-F1)
+- blocks release: no
+- status: FIXED
+- found by: adversary round 24, on a FRESH settings file, which is what every
+  new installation has.
+- **Two halves, and a user could not correct either.** Preferences ▸ Reports
+  said *"Show detailed data for each run, by default"* was ON (B8-388's new
+  default); the window it governs opened with it OFF, under a pulldown reading
+  *"Report shown: New report..."*. And choosing "New report…" did nothing,
+  because it was already the current index, so `currentIndexChanged` never
+  fired and `_start_new_report` never ran.
+- the two causes, both structural:
+  * the tick boxes were built from `report_show_all_runs` /
+    `report_show_details`, the LAST-USED pair, while B8-388 made Preferences
+    the source of the opening state without moving those two lines. One
+    question, two answers.
+  * `_open_on_the_latest_report` loaded the Preferences defaults only when the
+    run had NO saved report at all, while the PULLDOWN has its own rule and
+    lands on "New report…" whenever no entry names the file the page is drawn
+    from. Two places deciding one thing.
+- fix: the tick boxes are built from the Preferences defaults (the last-used
+  pair is still written, so B8-388's "one line if they want it" is still one
+  line); the pulldown's rule lives in `_entry_the_list_lands_on`, which both
+  the pulldown and the open path ask, so the window's state and the list's
+  claim cannot disagree; and `activated` is connected as well as
+  `currentIndexChanged`, so choosing the entry the list is already on is a
+  choice. A project whose newest file IS named by an entry opens exactly as it
+  did -- none of those settings is imposed on it, which is what B8-388 decided
+  deliberately for reports that record none of their own.
+- status: FIXED
+- evidence: test_a_window_that_lands_on_new_report_holds_its_defaults,
+  test_that_opening_state_is_preferences_and_not_a_constant,
+  test_the_tick_boxes_are_built_from_the_preferences_defaults,
+  test_picking_new_report_again_still_loads_the_defaults (which drives the real
+  gesture: open the list, pick the row it is standing on).
+  Three mutations proved to land, `__pycache__` cleared around each:
+  `if docs: return` put back in the open path (**2 failed**),
+  the `activated` connection dropped (**1 failed**), the detail box built from
+  `report_show_details` again (**1 failed**); restored, 25 passed each time.
+- guard file: `the_measurement_report_defaults_are_knuts`, under `tests/`.
+- on screen: round 24's own driver `r24_e_new_report_claims_a_state.py` on
+  ChromIQ's own `Demo-Switching` with a fresh settings file. At open, before:
+  *"New report…"*, Show all ✓, **Show detailed data ☐**, `_loaded_doc_id` empty.
+  After: *"New report…"*, Show all ✓, **Show detailed data ✓**,
+  `_loaded_doc_id = "new:"`. And with the list opened and the standing row
+  picked (`r24fix_pick_new_report_again.py`), before: both stay off; after:
+  both come back on.
+- **A CONSEQUENCE WORTH SAYING OUT LOUD**: with the detail box now really ON by
+  default, the document is longer. Measured on `Demo-Switching`, the same PDF
+  export went from 6 pages to 10. That is B8-388's decision taking effect, not
+  a new one.
+
+### B8-401 · FIXED · One paper white, three answers in one document (R24-F2)
+- blocks release: no
+- status: FIXED
+- found by: adversary round 24, reachable on ChromIQ's own `Demo-Switching`
+  with the shipped defaults. B8-396's own entry said the two demo-project
+  shapes were worth a separate look and were not chased there; this is it.
+- The detailed section printed *White - L\* 95.4*, the Overview table printed a
+  dash for the same measurement, and the "Paper white (L\*)" trend chart had no
+  point for it at all. Schema 5 keeps paper white as `{"L", "a", "b"}`; 6 and 7
+  write `{"loc", "lab", "hex"}`. B8-396 taught the DETAILED section both shapes
+  and left `measurement_report_dialog`'s Overview rows and
+  `measurement_report.report_trend` reading `lab` alone.
+- what it costs a reader: a dash reads as "not measured" about a number that is
+  on the page above, and a trend whose whole job is to show drift over a year
+  silently drops every measurement written before the shape changed, with
+  nothing saying a point is missing.
+- fix: `measurement_report._point_L` becomes the public `point_lightness` and is
+  the only reader of that field; the Overview rows, the trend builder and the
+  detailed section all ask it.
+- status: FIXED
+- evidence: test_the_one_reader_knows_both_shapes,
+  test_the_trend_has_a_point_for_the_older_shape,
+  test_the_overview_table_prints_it_rather_than_a_dash,
+  test_the_detailed_section_and_the_table_say_the_same_number. The fixture
+  keeps the newer shape beside the older one as the control, and removes the older date's
+  `.ti3` -- not tidying: a saved report whose measurement is still on disk is
+  REBUILT from it (`_report_needs_rebuilding`) into today's shape, so a fixture
+  that keeps the file measures the rebuild and never the reader.
+  Three mutations proved to land, `__pycache__` cleared around each:
+  `report_trend` reading `lab` only (**1 failed**), the Overview rows reading
+  `lab` only (**2 failed**, and the red line is the dash itself:
+  `Paper white L*</td><td>—</td><td>88.5</td>`), `point_lightness` losing its
+  `{"L"}` branch (**4 failed**); restored, 4 passed.
+- guard file: `one_paper_white_has_one_answer` (new), under `tests/`.
+- on screen: round 24's driver `r24_e_new_report_claims_a_state.py` on
+  `Demo-Switching`. Overview row, before: `Paper white L* — 99.3`; after:
+  `Paper white L* 95.4 99.3`. Trend `white_L`, before `[None, 99.34]`, after
+  `[95.4, 99.34]`; `black_L` before `[None, 0.0]`, after `[6.2, 0.0]`.
+
+### B8-402 · FIXED · The PDF's trend charts were drawn with the pulldown's limit set, not the document's (R24-F3)
+- blocks release: no
+- status: FIXED
+- found by: adversary round 24, on four real PDFs. B8-395 made the BODY the
+  document on screen and stopped there.
+- The four trend charts were rendered BEFORE
+  `with self._as_the_document_was_built():`, so their ΔE guide lines came from
+  `self._thresholds()` -- which reads `self._limits`, which `_settings_touched`
+  has just cleared, so it is the set the pulldown now holds. With the red line
+  up the exported file's text said *"Judged against: ChromIQ default
+  (recommended)"* and the picture on the facing page was drawn with **ChromIQ
+  tight**'s [1.0, 1.5]. One file, judged against two sets, with nothing in it
+  saying so.
+- fix: the chart loop is inside the same snapshot the body uses. The suggested
+  FILE NAME, which round 24 recorded as a note it could not photograph moving,
+  is computed inside it too: `_report_title` reads the type and the set through
+  the same two readers the body uses, so a name offered from a different state
+  can describe a document the file does not contain.
+- status: FIXED
+- evidence: test_the_pdfs_trend_charts_are_drawn_with_the_documents_own_limits,
+  which sits beside B8-395's own guard. It spies on `_TrendChart.set_data` for the length of the REAL
+  `_export_pdf`, so what is asserted is what the chart was given and not what a
+  helper returns; the wrapper is opened only to read the precondition.
+  Mutation proved to land, `__pycache__` cleared: the chart loop moved back
+  above the `with` (**1 failed**, *"the PDF's trend chart was drawn with
+  [(1.0, 1.5)] … while the text beside it names … (2.0, 3.0)"*); restored, 26
+  passed.
+- guard file: `the_report_reads_as_a_printed_document`, under `tests/`.
+- on screen: round 24's own driver `r24_g_the_pdf_is_still_not_the_screen.py`,
+  four real PDFs each time. With "Judged against" moved to ChromIQ tight and
+  NOT generated, the first chart image's hash was `7093220eceaa6f16` before and
+  is `00634c0613088932` after -- byte-identical to the control exported before
+  anything moved.
+
+### B8-403 · FIXED · Tools ▸ Measurement report opened on, and wrote to, a run the bar was not on (R24-F5)
+- blocks release: yes
+- status: FIXED
+- found by: adversary round 24. It also corrects round 23's Report 5, which
+  said the tool "opens on nothing" on New run.
+- With Run type = Profiling and Profile run = **New run**, `_report_seed` called
+  `resolve_run(project, target)`, which with `create=False` falls through to
+  `project.current_run()`. So the window opened on `runs/run2`, labelled itself
+  *"Report type (run2):"* and *"Judged against (run2):"* while the bar said
+  *"Profile run: New run"*, kept Generate report live, and **rewrote
+  `runs/run2/meta.json`** when the "Judged against" pulldown moved: the limit
+  set of a run the user was not looking at, re-bound from a window they opened
+  while the bar said they were about to make a new one. §5 of
+  `measurement_report_limits.md` is built on that set being a recorded
+  decision.
+- **WHAT IS NOT DECIDED HERE**: `docs/design/tool_availability.md` §4 marks this
+  tool ✕ on both New-run selections and §5 says an ✕ tool's output belongs
+  *"Nowhere — it cannot be opened in this state"*. That document is a DRAFT
+  awaiting confirmation, so **whether the tool should refuse to open at all is
+  Knut's to confirm** and no code greys anything out on the strength of it.
+  What is fixed is the half that needs no ruling and that `_report_seed`'s own
+  docstring already states: one selection's report must not be filed into
+  another selection's folder.
+- fix: a target that has created nothing seeds nothing, so the window opens
+  empty with its "Add measurement…" button, exactly as it does for any other
+  unmeasured selection. The calibration branch is untouched and still runs
+  first, because a calibration's profile-run box means nothing (there is one
+  `cal/` per project) and `is_new_run()` is True for it.
+- status: FIXED
+- evidence: test_new_run_seeds_nothing_rather_than_the_manifests_current_run,
+  test_a_new_verification_seeds_nothing_either,
+  test_a_calibration_is_not_caught_by_the_new_run_branch (the control).
+  Two mutations proved to land, `__pycache__` cleared: the `is_new_run()`
+  branch dropped (**2 failed**), the same branch put ABOVE the calibration
+  branch (**1 failed**, the calibration losing its own measurement); restored,
+  8 passed.
+- guard file: `the_tools_door_opens_on_this_selection`, under `tests/`.
+- on screen: round 24's own driver `r24_i_the_tool_follows_the_wrong_run.py` on
+  a copy of `Demo-Switching` with `current_run = run2`. On New run, before:
+  seed `runs/run2/Demo-Switching.ti3`, *"Judged against (run2):"*, Generate
+  enabled, and `runs/run2/meta.json` rewritten when the set moved. After: seed
+  None, *"Judged against:"*, Generate disabled, **nothing written**. The
+  control with the bar on run2, and the calibration control, are unchanged in
+  both runs.
+
+### B8-404 · FIXED · The window told a user their calibration is not in a ChromIQ project (R24-F6)
+- blocks release: no
+- status: FIXED
+- found by: adversary round 24, with Run type = Calibration.
+- The limit controls carried the tooltip *"This measurement is not in a ChromIQ
+  project, so the choice is not stored anywhere."* The measurement is at
+  `<project>/cal/<name>-cal.ti3`, which is where `calibration_run_type.md` puts
+  a calibration: inside the project, in the folder the project gives it.
+  `run_compliance.run_context_for` answers None for anything that is not
+  `runs/runN/…`, and that None was read as "not in a project".
+- The second half of the sentence is true and is the part that matters, and
+  Generate is correctly disabled, so nothing is written: what was wrong was the
+  explanation.
+- fix: `run_compliance.project_root_for` answers the question that was being
+  guessed at, and the controls say *"This measurement does not belong to a
+  profile run, so the choice is not stored anywhere."* A file that really is in
+  no project still gets the old sentence, which is right where it was written
+  to be right. One new user-facing string, translated into German, the other
+  eleven catalogues carrying the English through `scripts/i18n_sync.py
+  --apply`; no em dash, and the em-dash ledger re-measured rather than nudged
+  (0 not grandfathered).
+- status: FIXED
+- evidence: test_a_calibration_is_not_told_it_is_outside_the_project,
+  test_a_file_outside_any_project_is_still_told_so (the control).
+  Mutation proved to land, `__pycache__` cleared: the old sentence read for
+  both branches (**1 failed**); restored, 21 passed.
+- guard file: `report_window_limit_controls`, under `tests/`.
+- on screen: round 24's own driver `r24_j_the_name_and_the_calibration.py`,
+  opened the way a user opens it on `Demo-Switching/cal/Demo-Switching-cal.ti3`.
+  `inside_the_project: true` in both runs; the tooltip on the set pulldown AND
+  on "Show limits…" before: *"This measurement is not in a ChromIQ project…"*,
+  after: *"This measurement does not belong to a profile run…"*.

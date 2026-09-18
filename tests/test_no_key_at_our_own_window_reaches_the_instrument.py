@@ -14,12 +14,21 @@ away. The window did not even close, because the filter consumed the event, so
 the natural next move was to press Escape again. Return had the mirror fault:
 eaten here, so the default button could not be pressed from the keyboard at all.
 
-The fix is a modal gate in `eventFilter` -- ``activeModalWidget() is not None``
--> ``return False`` -- not a tenth remove-and-reinstall. Nine failure-window
+The fix is a gate in `eventFilter` -- ``activeModalWidget()`` or
+``activePopupWidget()`` is not None -> ``return False`` -- not a tenth
+remove-and-reinstall. Nine failure-window
 slots each removed the filter by hand and the routes every ending goes through
 (`_on_stop`, `_confirm_end_of_session`, `confirm_quit_during_measurement`) did
 not; a tenth removal would only have left the eleventh window to remember.
 `measurement_exit_strategy.md` note 8a.
+
+**AND THE SECOND HALF OF THAT GATE WAS MISSING FOR A DAY (R24-F4).** It asked
+about modal windows only, and a `QMenu` is not modal: Qt keeps it under
+``activePopupWidget()``. So Escape at ChromIQ's own right-click menu on the
+measurement log still reached the reader as ``\x1b``, measured through this
+same harness, while the modal ending window sent nothing in the same session.
+A guard asserting on a Qt signal would not have seen it; the byte at the far
+end of a real pty did.
 
 **These guards run the app's own sequence**: the real Stop button, the real
 window, a real key event through the real application (so the real filter is
@@ -40,7 +49,8 @@ from PyQt6.QtTest import QTest                            # noqa: E402
 from PyQt6.QtWidgets import QApplication                  # noqa: E402
 
 from tests.helpers.live_reader import (                   # noqa: E402
-    THE_LINES_THAT_START_A_SESSION, WindowDriver, measuring,
+    THE_LINES_THAT_START_A_SESSION, WindowDriver, measuring, right_click,
+    the_menu_up,
 )
 
 
@@ -196,6 +206,101 @@ def test_with_no_window_up_the_keys_still_reach_the_instrument(qapp, tmp_path):
         assert reader.wait_for_a_byte() == b" ", (
             "a key pressed with no window up no longer reaches the reader, so "
             "the fix has switched the filter off rather than gating it")
+
+
+# ---- …and a MENU is not a modal window (R24-F4) ---------------------------
+def test_escape_at_our_own_context_menu_sends_nothing_to_the_instrument(
+        qapp, tmp_path):
+    """The same fault, through a door the modal gate does not watch.
+
+    Qt files a `QMenu` under `activePopupWidget()`, never under
+    `activeModalWidget()`, so ChromIQ's own right-click menu on the
+    measurement log stood over a live session with the application filter
+    still first in line for the keyboard. Escape -- which is how a menu is
+    dismissed -- went down the pipe as ``\x1b``, chartread's give-up, and the
+    ``.ti3`` is then never written. Right-clicking the log to copy a line out
+    of it while the reader waits at its prompt is an ordinary thing to do.
+
+    Round 24 measured `b'\x1b'` here at the far end of a real pty, with
+    nothing at the modal ending window in the same session.
+
+    THE APP'S OWN SEQUENCE: the real widget's own `contextMenuEvent` builds
+    the real menu, and the key goes through the real application, so the real
+    app-wide filter is first in line -- which is the only place this fault
+    lives. A guard asserting on a signal would see nothing.
+    """
+    with measuring(tmp_path) as (tab, reader):
+        reader.forget()
+        right_click(tab._log)
+        menu = the_menu_up()
+        try:
+            assert menu is not None and type(menu).__name__ == "QMenu", (
+                f"no menu came up to press a key at: {menu!r}")
+            assert QApplication.instance().activeModalWidget() is None, (
+                "a modal window is up, so this would pass on the old gate")
+            rows = [a.text() for a in menu.actions()]
+            assert any("Copy" in r for r in rows), (
+                f"that was not the log's own context menu: {rows}")
+            QTest.keyClick(menu, Qt.Key.Key_Escape)
+        finally:
+            if the_menu_up() is not None:
+                the_menu_up().close()
+        assert reader.wait_for_a_byte() == b"", (
+            "Escape pressed at ChromIQ's own context menu reached the "
+            "instrument. On stock chartread that byte is give-up, and every "
+            "reading of the session goes with it (chartread.c:1654)")
+
+
+def test_escape_at_our_own_context_menu_closes_it(qapp, tmp_path):
+    """It was consumed as well as forwarded, so the menu stayed up too."""
+    with measuring(tmp_path) as (tab, _reader):
+        right_click(tab._log)
+        menu = the_menu_up()
+        assert menu is not None, "no menu came up"
+        QTest.keyClick(menu, Qt.Key.Key_Escape)
+        still = the_menu_up()
+        if still is not None:
+            still.close()
+        assert still is None, (
+            "the context menu was still up after Escape, so the filter ate "
+            "the key instead of handing it to the menu")
+
+
+def test_a_menu_does_not_switch_the_filter_off_for_good(qapp, tmp_path):
+    """The control for the control: once the menu is gone the keys are the
+    instrument's again. A gate that latched would be a second fault."""
+    with measuring(tmp_path) as (tab, reader):
+        right_click(tab._log)
+        menu = the_menu_up()
+        assert menu is not None
+        QTest.keyClick(menu, Qt.Key.Key_Escape)
+        if the_menu_up() is not None:
+            the_menu_up().close()
+        assert the_menu_up() is None
+        reader.forget()
+        QTest.keyClick(tab, Qt.Key.Key_Space)
+        assert reader.wait_for_a_byte() == b" ", (
+            "with the menu gone, a key pressed at the tab no longer reaches "
+            "the reader")
+
+
+def test_the_gate_asks_about_a_popup_as_well_as_a_modal():
+    """Both halves of the question, held as structure as well as behaviour.
+
+    `grep -rn activePopupWidget ui/ core/` returned nothing at all when round
+    24 looked, which is how a menu came to be the one window ChromIQ puts on
+    screen that the gate could not see.
+    """
+    from ui.tabs.tab_measure import TabMeasure
+
+    fn = next(n for n in ast.walk(ast.parse(inspect.getsource(TabMeasure)))
+              if isinstance(n, ast.FunctionDef) and n.name == "eventFilter")
+    asked = {n.func.attr for n in ast.walk(fn)
+             if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)}
+    assert "activePopupWidget" in asked, (
+        "`eventFilter` does not ask whether a popup of ChromIQ's own is up, "
+        "so Escape at a right-click menu is the instrument's give-up key "
+        "again")
 
 
 def test_the_gate_asks_about_a_modal_window_not_about_a_flag():

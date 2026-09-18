@@ -2397,6 +2397,9 @@ def _report_seed(parent, project) -> "Path | None":
     measurement. That table is a DRAFT awaiting Knut's confirmation; what is
     fixed here is the part that needs no ruling, which is that one selection's
     report must not be filed into another selection's folder.
+
+    AND "NEW RUN" IS THE SAME SENTENCE A THIRD TIME (R24-F5): a selection that
+    has created nothing has no measurement of its own, so it seeds nothing.
     """
     try:
         run = None
@@ -2413,6 +2416,26 @@ def _report_seed(parent, project) -> "Path | None":
             cal = project.calibration.ti3
             return cal if cal.exists() else None
         if ctl is not None and project is not None:
+            # **"NEW RUN" IS NOT A RUN, AND `resolve_run` ANSWERS ONE ANYWAY
+            # (R24-F5).** With `create=False` it falls through to
+            # `project.current_run()`, so Tools ▸ Measurement report opened on
+            # the MANIFEST's current run while the bar said "Profile run: New
+            # run": measured on screen, the window labelled itself *"Judged
+            # against (run2):"*, Generate report was live, and moving the
+            # pulldown rewrote `runs/run2/meta.json` -- the limit set of a run
+            # the user was not looking at, re-bound from a window they opened
+            # while the bar said they were about to make a new one.
+            #
+            # Whether the tool should REFUSE to open here is
+            # `tool_availability.md` §4's ✕, and that document is a DRAFT
+            # awaiting Knut's confirmation, so it is not decided in code. What
+            # needs no ruling is this docstring's own rule: one selection's
+            # report must not be filed into another selection's folder. A
+            # selection that has no measurement of its own seeds nothing, and
+            # the window opens empty with its "Add measurement…" button, which
+            # is what it does for any other unmeasured selection.
+            if ctl.target.is_new_run():
+                return None
             from core.measurement_target import resolve_run
             run = resolve_run(project, ctl.target)
         elif project is not None:

@@ -12,8 +12,11 @@ on a report that names it, and only then is it frozen under a version number.
 For a given profile this module *selects*: every master colour is pushed
 backward through the profile (its B2A — "which ink amounts produce this
 colour?") and forward again (its A2B), and the round-trip ΔE76 says whether
-the profile can actually reach it. Two numbers fall out, answering two
-different questions (§5.1):
+the profile can actually reach it — **together with the ink amount itself,
+which has to exist**: the numeric inverse answers outside the device cube and
+the forward leg extrapolates back, so a colour needing device 107.69 round
+trips perfectly and is still unprintable (:func:`device_is_printable`). Two
+numbers fall out, answering two different questions (§5.1):
 
 * **coverage** — how many of the master set this profile can print at all;
 * the **chart** — reachable colours in master order, with one adjustment for
@@ -94,6 +97,47 @@ CORNER_DEVICES: "tuple[tuple[float, float, float], ...]" = (
     (100.0, 0.0, 0.0), (0.0, 100.0, 0.0), (0.0, 0.0, 100.0),
     (0.0, 100.0, 100.0), (100.0, 0.0, 100.0), (100.0, 100.0, 0.0),
 )
+
+
+#: The printable device cube. Argyll speaks 0..100 per channel and there is
+#: no ink amount outside it: printtarg and the ChromIQ layout engine both
+#: clip what they render, so a value beyond these bounds can only mislead
+#: whoever reads the file.
+DEVICE_MIN = 0.0
+DEVICE_MAX = 100.0
+#: How far outside the cube is still the same value. Arithmetic dust only —
+#: measured over the whole 5,960-colour master set through two real profiles,
+#: nothing at all lands in (0, 0.01] outside the cube, so this tolerance
+#: decides no colour's fate; it exists so a 100.0000001 from the inverse is
+#: not read as a different number from 100.
+DEVICE_EPS = 0.01
+
+
+def device_is_printable(device: "Sequence[float]") -> bool:
+    """Is this ink amount one the printer can actually be asked for?
+
+    **xicclu's numeric inverse answers outside the device cube.** Asked for a
+    colour the profile cannot reach, ``-fif`` extrapolates the forward table
+    and hands back device values above 100 (measured: 304 of 5,960 master
+    colours through a 210-patch ``colprof -ql -aG`` profile, the largest
+    107.69). The round trip does not catch it, because the forward leg
+    extrapolates the same way and the two errors cancel: those colours come
+    back 0.000 ΔE00 from their aim while no printer can print them.
+    """
+    return all(DEVICE_MIN - DEVICE_EPS <= float(v) <= DEVICE_MAX + DEVICE_EPS
+               for v in device)
+
+
+def snap_to_device_cube(device: "Sequence[float]") -> "tuple[float, ...]":
+    """*device* with each channel put back inside 0..100.
+
+    The last line of defence, applied by both file writers so the chart and
+    its colorimetric reference can never describe the same patch with two
+    different ink amounts. After :func:`select_gamut_targets` it moves
+    nothing further than :data:`DEVICE_EPS`, because a colour that needs more
+    than that is not selected at all.
+    """
+    return tuple(min(DEVICE_MAX, max(DEVICE_MIN, float(v))) for v in device)
 
 
 class GamutTargetError(RuntimeError):
@@ -332,6 +376,9 @@ def select_gamut_targets(
     The round trip: master Lab → B2A → device → A2B → Lab′. A colour the
     profile can reach comes back within interpolation error; a clipped one
     lands on the gamut surface and moves far. The margin picks the threshold.
+    A colour whose ink amount falls outside the device cube is not reachable
+    whatever the round trip says (:func:`device_is_printable`), so it counts
+    against neither ``in_gamut_total`` nor the chart.
 
     The pick is the first *count* reachable colours in master order, EXCEPT
     that the master's opening neutral block (white, black, grey wedge — read
@@ -358,11 +405,31 @@ def select_gamut_targets(
         in_gamut_total=0, requested=int(count),
         intent=intent, margin=margin)
 
+    # THE ROUND TRIP ALONE IS NOT THE QUESTION: A COLOUR IS REACHABLE ONLY IF
+    # ITS INK AMOUNT EXISTS. `-fif` extrapolates outside the device cube, and
+    # the forward leg extrapolates back, so a colour needing device 107.69
+    # returns 0.000 ΔE00 from its aim and reads as comfortably in gamut. It is
+    # not: the printer receives 100, and what it prints is up to 8.86 ΔE00
+    # from the aim the chart's reference file would store beside it (measured
+    # over the whole master set, 238 such colours, mean 2.34). Keeping the
+    # patch and clamping it writes an aim the print provably cannot hit, and
+    # the verification report then charges that error to the printer. Dropping
+    # it costs nothing: the next reachable colour in master order takes the
+    # slot, every prefix stays nested, and the chart is the size asked for.
     passing = []
+    unprintable = 0
     for i, (lab, lab2) in enumerate(zip(labs, back)):
-        if math.dist(lab, lab2) <= threshold:
-            passing.append(i)
+        if math.dist(lab, lab2) > threshold:
+            continue
+        if not device_is_printable(device[i]):
+            unprintable += 1
+            continue
+        passing.append(i)
     selection.in_gamut_total = len(passing)
+    if unprintable:
+        log.info("gamut selection: %d master colours round-tripped inside the "
+                 "%s margin but need ink amounts outside 0..100 and are not "
+                 "reachable", unprintable, margin)
 
     # The neutral block at the head of the master order, budgeted. The
     # header says where it ends; the chroma check makes sure the entries
@@ -408,7 +475,7 @@ def select_gamut_targets(
         chosen.extend(rest[:count - len(chosen)])
 
     for i in sorted(chosen):
-        selection.targets.append((i, labs[i], tuple(device[i])))
+        selection.targets.append((i, labs[i], snap_to_device_cube(device[i])))
     selection.corners = list(zip(CORNER_DEVICES, _corner_ideal_labs()))
     log.info("gamut selection: %d of %d master colours in gamut (%s margin), "
              "%d requested, %d chosen (%d neutral) + %d corners",
@@ -458,10 +525,20 @@ def write_gamut_ti1(selection: GamutSelection, out_path: Path) -> Path:
 
     Uses the battle-tested 3-table RGB emitter, so printtarg and the ChromIQ
     layout engine both accept the file exactly as they do any other .ti1.
+
+    **No ink amount outside 0..100 reaches the file** (:func:`snap_to_device_cube`,
+    applied identically by :func:`write_colorimetric_reference` so the two can
+    never describe one patch two ways). With a selection from
+    :func:`select_gamut_targets` this changes nothing — such a colour is not
+    selected — but one patch above 100 in a chart is enough to make the
+    measurement report read the whole chart as 0..255 code values and divide
+    every device value by 2.55, and then not one cube corner is found.
     """
     from workflow.i1profiler_import import RgbPatch, write_ti1
-    patches = [RgbPatch(*dev) for _i, _lab, dev in selection.targets]
-    patches += [RgbPatch(*dev) for dev, _lab in selection.corners]
+    patches = [RgbPatch(*snap_to_device_cube(dev))
+               for _i, _lab, dev in selection.targets]
+    patches += [RgbPatch(*snap_to_device_cube(dev))
+                for dev, _lab in selection.corners]
     if not patches:
         raise GamutTargetError("nothing to write — no colour is in gamut")
     return write_ti1(patches, Path(out_path))
@@ -473,10 +550,10 @@ def reference_rows(selection: GamutSelection):
     rows = []
     sid = 1
     for _i, lab, dev in selection.targets:
-        rows.append((sid, dev, lab))
+        rows.append((sid, snap_to_device_cube(dev), lab))
         sid += 1
     for dev, lab in selection.corners:
-        rows.append((sid, dev, lab))
+        rows.append((sid, snap_to_device_cube(dev), lab))
         sid += 1
     return rows
 
@@ -536,9 +613,15 @@ def write_colorimetric_reference(selection: GamutSelection, out_path: Path) -> P
 
 
 def read_colorimetric_reference(path: Path) -> "dict | None":
-    """{"labs": {sample_id_str: (L,a,b)}, "corner_ids": set[str], meta…} — or
-    None when the file is missing or unreadable. Sample ids are strings, the
-    same shape ``parse_ti3`` gives the report, so pairing needs no casts."""
+    """{"labs": {sample_id_str: (L,a,b)}, "devices": {sample_id_str: (R,G,B)},
+    "corner_ids": set[str], meta…} — or None when the file is missing or
+    unreadable. Sample ids are strings, the same shape ``parse_ti3`` gives the
+    report, so pairing needs no casts.
+
+    ``devices`` is the chart's OWN record of which ink amount each sample was
+    given, which is how the measurement report can tell WHICH corner a
+    declared corner id is (the file names the ids, not the corners) without
+    depending on the order they were written in."""
     path = Path(path)
     if not path.is_file():
         return None
@@ -549,6 +632,7 @@ def read_colorimetric_reference(path: Path) -> "dict | None":
     keywords: dict = {}
     fields: "list[str]" = []
     labs: dict = {}
+    devices: dict = {}
     in_fmt = in_data = False
     for raw in text.splitlines():
         s = raw.strip()
@@ -580,6 +664,12 @@ def read_colorimetric_reference(path: Path) -> "dict | None":
                                           float(row["LAB_B"]))
             except (KeyError, ValueError):
                 continue
+            try:
+                devices[row["SAMPLE_ID"]] = (float(row["RGB_R"]),
+                                             float(row["RGB_G"]),
+                                             float(row["RGB_B"]))
+            except (KeyError, ValueError):
+                pass          # a reference without ink amounts still has aims
             continue
         if " " in s and s.split(None, 1)[1].startswith('"'):
             key, val = s.split(None, 1)
@@ -589,6 +679,7 @@ def read_colorimetric_reference(path: Path) -> "dict | None":
     corner_ids = set((keywords.get("CHROMIQ_CORNER_IDS") or "").split())
     return {
         "labs": labs,
+        "devices": devices,
         "corner_ids": corner_ids,
         "set_version": keywords.get("CHROMIQ_SET_VERSION", ""),
         "intent": keywords.get("CHROMIQ_INTENT", ""),

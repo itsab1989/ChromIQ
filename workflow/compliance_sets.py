@@ -207,7 +207,14 @@ ROW_STATUSES = ("now", "build", "ref", "unknown", "unmeasurable")
 GROUP_LABELS: "dict[str, str]" = {
     "substrate":     "Paper",
     "solids":        "Solid colours",
-    "control_strip": "Control strip (the standard's own patches)",
+    # Knut, 2026-09-18, asked directly: *"change the heading, 'Control strip' is
+    # fine, then the help text explains what that means and the method used to
+    # select the patches"*. It said "the standard's own patches" while what
+    # ChromIQ detects is the CHART's own declaration, which is the same claim
+    # the heading above it was changed for an hour earlier: this file already
+    # records that coverage has twice been attributed to a standard that never
+    # granted it.
+    "control_strip": "Control strip",
     "grey_ramp":     "Grey ramp of the measured chart",
     "all_patches":   "All patches of the measured chart",
     # KNUT, 2026-09-18, ruling on S2w: *"I have already proposed to change the

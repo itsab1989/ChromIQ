@@ -83,6 +83,57 @@ CUBE_CORNERS: "list[tuple[str, tuple[float, float, float]]]" = [
 ]
 
 
+def _declared_corner_rows(sample_ids, corner_ids, ref_devices) -> "dict[str, int]":
+    """``{corner name: row index}`` from the chart's OWN declaration, or ``{}``.
+
+    A FROM PROFILE GAMUT chart names its eight corner patches by SAMPLE_ID in
+    its colorimetric reference (``CHROMIQ_CORNER_IDS``), and those patches are
+    the only ones printed at an exact cube corner. Nothing read that
+    declaration until 2026-09-18: the corners were found by nearest device
+    value over the whole chart, so a selected colour that happens to sit at
+    device (0,0,0) was read as the composite black while the declared corner
+    beside it was read by nobody — and, being no corner as far as the report
+    was concerned, that patch stayed in the ΔE00 statistics as well, counted
+    twice. Measured on a 200-colour chart: the K corner came off sample 2
+    rather than the declared sample 202, and R off sample 141.
+
+    WHICH declared id is which corner is decided by the ink amount the
+    reference itself records for it, not by the order the ids were written in,
+    so a reference re-cut in another order still answers correctly. A chart
+    that declares nothing (every chart that is not a gamut chart, and every
+    gamut chart built before the declaration existed) returns ``{}`` and the
+    caller does exactly what it has always done.
+    """
+    if not corner_ids or not ref_devices:
+        return {}
+    where: "dict[str, int]" = {}
+    for i, sid in enumerate(sample_ids):
+        where.setdefault(sid, i)
+
+    def _order(sid: str):
+        try:
+            return (0, int(sid), "")
+        except (TypeError, ValueError):
+            return (1, 0, str(sid))
+
+    free = [(sid, ref_devices[sid]) for sid in sorted(corner_ids, key=_order)
+            if sid in ref_devices and sid in where]
+    out: "dict[str, int]" = {}
+    for name, target in CUBE_CORNERS:
+        best_sid, best_d = None, None
+        for sid, dev in free:
+            d = max(abs(float(a) - float(b)) for a, b in zip(dev, target))
+            if best_d is None or d < best_d:
+                best_sid, best_d = sid, d
+        # A declaration that names a patch nowhere near the corner it would
+        # have to be is not believed: the nearest-value search below is then
+        # the honest answer, and it is also what says "no patch here".
+        if best_sid is not None and best_d <= CORNER_PRESENT_TOL:
+            out[name] = where[best_sid]
+            free = [f for f in free if f[0] != best_sid]
+    return out
+
+
 def _srgb_hex(xyz100: "tuple[float, float, float]") -> str:
     """D50 XYZ (0..100) → #rrggbb for display (Bradford to D65, sRGB gamma)."""
     x, y, z = (v / 100.0 for v in xyz100)
@@ -555,10 +606,21 @@ def measurement_facts(ti3_path: "str | Path", *, data=None,
     }
 
 
-def _point_L(point) -> "float | None":
+def point_lightness(point) -> "float | None":
     """The L* of a report's ``paper_white`` / ``max_black``, whichever shape it
     is in. Schema 5 wrote ``{"L": .., "a": .., "b": ..}``; 6 and 7 write
-    ``{"loc": .., "lab": [L, a, b], ..}``. Both are on this machine's disk."""
+    ``{"loc": .., "lab": [L, a, b], ..}``. Both are on this machine's disk.
+
+    **PUBLIC, AND THE ONLY READER OF THAT FIELD (R24-F2).** It was private, so
+    three other places read ``["lab"][0]`` for themselves and one schema-5
+    measurement came out three different ways in ONE document: the detailed
+    section printed *White - L* 95.4*, the Overview table printed a dash for
+    the same run, and the paper-white trend chart had no point for it at all.
+    A reader comparing two papers reads that dash as "not measured", and a
+    trend whose whole job is to show drift silently dropped every measurement
+    written before the shape changed. Anything wanting the L* of one of those
+    two records asks this, and there is one answer.
+    """
     if not isinstance(point, dict):
         return None
     if isinstance(point.get("lab"), (list, tuple)) and point["lab"]:
@@ -600,7 +662,7 @@ def facts_disagree(rep: dict, ti3_path: "str | Path") -> bool:
             and want_n != facts["patches"]:
         return True
     for key in ("paper_white", "max_black"):
-        a, b = _point_L(rep.get(key)), _point_L(facts.get(key))
+        a, b = point_lightness(rep.get(key)), point_lightness(facts.get(key))
         if a is not None and b is not None and abs(a - b) > _SAME_FILE_DL:
             return True
     return False
@@ -736,6 +798,7 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
     ref: "dict[str, tuple]" = {}
     ref_source = "design"
     corner_ids: "set[str]" = set()
+    corner_devices: "dict[str, tuple]" = {}
     from workflow.verification_print import (STATE_CONVERTED,
                                              STATE_CONVERTED_REF_MISSING,
                                              chart_conversion_state,
@@ -750,6 +813,7 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
             ref = cref["labs"]
             ref_source = "colorimetric"
             corner_ids = set(cref["corner_ids"])
+            corner_devices = dict(cref.get("devices") or {})
             report["colorimetric"] = {
                 "set_version": cref["set_version"],
                 "intent": cref["intent"],
@@ -828,27 +892,45 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
                 report["yardstick"] = "media-relative"
 
     # The eight cube corners (paper white, composite black, the six ink
-    # primaries/secondaries) — nearest patch to each corner by device RGB. Each
+    # primaries/secondaries) — the patch the chart DECLARES as each corner
+    # where it declares one, else the nearest patch to it by device RGB. Each
     # carries its measured colour and, when a reference exists, its expected
     # colour and ΔE00, so the report says something about the inks, not only the
     # instrument (Knut). rgb is device 0..100.
     report["corners"] = []
     if rgb100 is not None:
         rgb = rgb100
+        declared_rows = _declared_corner_rows(data.sample_ids, corner_ids,
+                                              corner_devices)
         for name, target in CUBE_CORNERS:
-            diffs = np.abs(rgb - np.array(target))
-            ci = int((diffs ** 2).sum(axis=1).argmin())
-            # "present" = the chart actually has a patch AT this corner, not just
-            # a nearest neighbour miles away. A minimal verification chart may omit
-            # some corners; the report flags that (Knut).
-            present = bool(float(diffs[ci].max()) <= CORNER_PRESENT_TOL)
+            ci = declared_rows.get(name)
+            declared = ci is not None
+            if declared:
+                # The chart says this patch IS the corner, so it is present —
+                # it was printed at the corner's own ink amount whatever the
+                # measurement's device column has since been normalised to.
+                present = True
+            else:
+                diffs = np.abs(rgb - np.array(target))
+                ci = int((diffs ** 2).sum(axis=1).argmin())
+                # "present" = the chart actually has a patch AT this corner, not
+                # just a nearest neighbour miles away. A minimal verification chart
+                # may omit some corners; the report flags that (Knut).
+                present = bool(float(diffs[ci].max()) <= CORNER_PRESENT_TOL)
             entry: dict = {
                 "name": name,
                 "loc": data.sample_locs[ci] if data.sample_locs else data.sample_ids[ci],
+                # WHICH PATCH THIS IS, unambiguously. `loc` is the sheet
+                # position and is the right thing to print, but it cannot be
+                # paired back with the chart's own files, so establishing that
+                # a corner had been read off the wrong patch took a separate
+                # probe (B8-393).
+                "sample": data.sample_ids[ci],
                 "rgb": [round(v, 1) for v in rgb[ci]],
                 "lab": [round(v, 2) for v in lab[ci]],
                 "hex": _srgb_hex(tuple(data.xyz[ci])),
                 "present": present,
+                "declared": declared,
             }
             r = ref.get(data.sample_ids[ci]) if ref else None
             if r is not None:
@@ -1417,11 +1499,16 @@ def report_trend(reports: "list[dict]") -> "list[dict]":
                   "avg_all", "avg_low95", "avg_high5", "max_all", "max_low95"):
             if de.get(k) is not None:
                 pt[k] = float(de[k])
-        w, b = r.get("paper_white"), r.get("max_black")
-        if w and w.get("lab"):
-            pt["white_L"] = float(w["lab"][0])
-        if b and b.get("lab"):
-            pt["black_L"] = float(b["lab"][0])
+        # WHICHEVER SHAPE THE FILE IS IN (R24-F2). This read ``lab`` only, so a
+        # schema-5 report -- which is what ChromIQ's own demo projects hold --
+        # contributed no point to the paper-white or the black trend, with
+        # nothing anywhere saying a point was missing.
+        white_L = point_lightness(r.get("paper_white"))
+        black_L = point_lightness(r.get("max_black"))
+        if white_L is not None:
+            pt["white_L"] = white_L
+        if black_L is not None:
+            pt["black_L"] = black_L
         # Per-corner ΔE00-from-design, so the cube-corner chart can plot how
         # each ink drifts over time (Knut).
         #
