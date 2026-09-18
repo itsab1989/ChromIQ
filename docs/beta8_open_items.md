@@ -16697,3 +16697,50 @@ would reach.
   arrived after the change set was closed and none of it is a fault: it is a
   specification for work that has not started. The honest answer is probably
   beta 23, and telling him so.
+
+### B8-389 · OPEN · Three measurement-window fixes are in the tree with no guard and no mutation
+- blocks release: yes
+- status: OPEN
+- **This is a debt, not a fault**, and it is release-blocking because of where
+  it sits: the path that can lose a measurement.
+- Committed in `e83e1f29`, driven and photographed, **not proven**:
+  * **R23-F2**, no key pressed at a ChromIQ window reaches the instrument.
+    Measured through a raw-mode PTY: before, Escape reached the reader as
+    `\x1b` and the window stayed up; after, neither Escape nor Return reaches
+    it and Escape presses "Keep measuring", Return presses "Save and stop" and
+    the reader then receives `b'd'`, which is the save chain itself. The fix is
+    a modal gate in `eventFilter` rather than a tenth remove-and-reinstall, so
+    every close route is covered including Cmd-Q.
+  * **R23-F4**, the title-bar X on "Wrong Strip Read" and "Unexpected Colour
+    Response" now means Retry rather than Use Anyway. Before `\r`, after `' '`,
+    with "Strip Read Interrupted" unchanged at `\r` as the control.
+    `unified_measurement_management.md` already required it: *"a dismissal
+    takes the option that changes nothing"*.
+  * **R23-F6, half**: M-END no longer plays an unlisted sound on every ending,
+    which also stopped "Patches still unread" playing twice.
+- **What is missing**: a harness with a real `os.openpty()` pair driving
+  `ArgyllRunner._pty_master` AND a real live child, because without a live
+  child `is_running` is False, `_send_failure_choice` early-returns, and the
+  R23-F4 mutation cannot land. That harness was designed and not written.
+- evidence: **none**. That is the point of this entry.
+- what to do first: write those three guards and run each mutation until it is
+  SEEN red. Three guards in this change set have already passed under their own
+  mutation, so assume the fourth will until proved otherwise. Until then these
+  three fixes are unverified, and the beta should not be tagged.
+
+### B8-390 · OPEN · The CR30 read-failed window still opens in silence
+- blocks release: no
+- status: OPEN
+- The one window built because a failure was going unnoticed, and it plays
+  nothing. It is missing from `core/measure_windows.py`, which
+  `measurement_window_sounds.md` calls its own single source.
+- It was built and driven working, then **withdrawn** before the commit: adding
+  it introduces one new user-facing string, and a parallel agent had already
+  swept that string into thirteen catalogues, which is not a thing to settle
+  under time pressure. The exact three-edit patch is kept at
+  `~/Desktop/ChromIQ-beta22-proof/r23-the-measurement-windows/drivers/WITHDRAWN-the-cr30-sound-row.txt`.
+- **Which sound it plays is Knut's to name**, so the withdrawal costs nothing
+  that was not already waiting on him.
+- evidence: none; withdrawn before it landed.
+- what to do first: ask him which sound, then re-apply the patch, translate the
+  one string into German, and re-measure the ledgers rather than nudging them.
