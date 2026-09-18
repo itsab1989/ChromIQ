@@ -17156,3 +17156,43 @@ would reach.
   here: whether `scripts/make_demo_projects.py` should write the shape
   `build_report` writes is B8-393's ground, and a report on a user's disk may
   hold either way round.
+
+### B8-397 · OPEN · Knut approved all three S2w proposals, so the five undetected rows get detection
+- blocks release: no
+- status: OPEN
+- Knut, 2026-09-18: *"Implement the proposals. I have already proposed to change
+  the heading from 'Selected patches of the standard's chart' to 'Selected
+  patches of the chart'. The help text can explain, as for all the other
+  metrics, what the detection method is and how it is used, and if there are
+  any requirements to the charts etc."*
+- That approves the three proposals written out in S2w of
+  `docs/design/issue_182_answers.md`, which have been waiting since
+  2026-09-14, and it settles the one question that held two of them:
+
+  1. **Rows 8, 9, 10, the control strip.** A chart carries one when a sidecar
+     `<chart stem>.control-strip.json` sits beside it with a name and sample
+     ids, or when the `.ti1` / `.ti2` carries a CGATS `CONTROL_STRIP_IDS`
+     keyword naming the same. Computable at **k >= 8** with a reference, and
+     the 95th percentile row needs **k >= 20**, because below that its nearest
+     rank equals k and it would simply repeat the largest. Two reason codes,
+     `no_control_strip` and `control_strip_too_small`.
+  2. **Rows 18 and 19, the gamut populations.** Surface gamut: every patch
+     whose device values touch the cube surface, `min(v, 100 - v) <= 2.0` on at
+     least one of R, G, B, with at least 10 carrying a reference. Outer gamut:
+     the top quartile by chroma, at least 20 patches.
+  3. **The heading changes with them**, which is what made 18 and 19 a
+     specification question rather than a fault: giving those rows ChromIQ's
+     own definition while leaving the words "of the standard's chart" is the
+     attributing-coverage-to-a-standard mistake `compliance_sets.py` already
+     records being made twice. He has changed the heading, so it is no longer
+     that mistake.
+- **And every new row needs its help text in the same structure as the other
+  thirty**, which `compliance_sets.ROWS.__post_init__` already refuses to let
+  anyone skip, and `tests/test_every_metric_says_how_it_is_detected.py` reads
+  the numbers back out of `measurement_report`'s own constants so a changed
+  threshold cannot leave the window promising the old one.
+- evidence: none; nothing built.
+- what to do first: S2w moves from "⏳ Awaiting confirmation" to confirmed
+  behaviour naming him and the date, because he has now said so. Then build the
+  three, and expect the demo package (B8-393) to want data that triggers the
+  five new rows as well.
