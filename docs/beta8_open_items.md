@@ -14541,5 +14541,23 @@ whitespace-collapse half is load-bearing; the blank still covers everything on
   showing a stale figure that belongs to no instrument. F7's 30.48 mm and the
   33.78 mm SS rows in `logs/RESULT-margins.txt` come from the 540 sheets that
   really were built and are unaffected.
-- what to do first: F1. It is the one a user sees, it is release-blocking, and
-  the fix is named: clamp in device rows, not widget rows.
+- **A source read on F1, before anyone starts: "clamp in device rows" cannot be
+  done with a QRegion at all.** `QRegion` takes integers and its rows ARE whole
+  widget pixels, so the cut can never land between two device rows at dpr 2.
+  The rectangular branch at `ui/tiff_preview.py:3264-3266` does not have this
+  problem because it fills a `QRectF` and snaps each edge to a device row
+  (`floor((top * sy + oy) * _dpr) / _dpr` at the top, `ceil` at the bottom).
+  The hex branch's clamp therefore wants the same treatment: keep the QRegion
+  for the strip's SHAPE, and take the horizontal cut with a float clip rect
+  intersected into it, snapped with `ceil((rects[i].top() * sy + oy) * _dpr)
+  / _dpr`. That is worth half a widget pixel and is the part the mutation
+  measured (one device row either way).
+  **It is very unlikely to be the whole of F1.** Chart J loses 12.55 % of its
+  letters, which is far more than one device row, so `rects[i].top()` is
+  probably landing INSIDE the letter band on a turned chart with edge spacers,
+  and the thing to measure first is where that top sits against the letters'
+  own ink on chart J, not the rounding. Fixing the rounding and declaring F1
+  closed is exactly what B8-339 did.
+- what to do first: F1, and measure where the strip rect's top falls on chart J
+  before touching the rounding. It is the one a user sees and it is
+  release-blocking.
