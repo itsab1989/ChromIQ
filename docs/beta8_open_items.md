@@ -14646,8 +14646,42 @@ the fill row falls by the same amount, so the window adds up on screen.
   put a patch. `_apply_built_row_counts` already corrects the white/black row
   from the build a few hundred milliseconds later, which is the answer that
   exists; measured, the row does read 1 after the build settles.
-- what to do next: F5 and F6 (the report's "covers N of the M"), then F7 to F9
-  (the area-first help text).
+
+**F5 and F6 are FIXED.** "Recorded for this project" is a fact about the
+project's folder, so it is read off the disk: every run's own measurement plus
+every dated verification folder that holds one. Loading a measurement can no
+longer change what the project is said to record (three on disk now reads "of
+the 3" whether one, two or three are loaded, where it read "of the 2" then "of
+the 3"), and a file belonging to no project is in neither number.
+
+Two details the fix had to get right, both measured rather than assumed:
+
+* `Verification.measurement_ti3` resolves `<the run's stem>.ti3`, so a
+  verification measured from a different chart is invisible to it: on a
+  two-date fixture holding `Alpha.ti3` and `Bravo.ti3` it found one of the two,
+  and the honesty note disappeared from a report that really was filtered. The
+  count walks the verification FOLDERS instead.
+* `preconditioning.ti3` and `merged.ti3` are role-named and are not
+  measurements anybody read, so they are not counted.
+
+- evidence: `tests/test_the_report_reads_as_a_printed_document.py`, two new
+  cases. Mutations, each proven to land, 2026-09-18: R1 the total counted out
+  of the window's list again (1 red), R2 a file from outside any project
+  counted as the project's (1 red), R3 verifications not counted (4 red).
+  R2 was NOT caught by the first version of its guard, which let the sentence
+  be absent; it is caught now because the guard asserts both numbers in the
+  state the sentence exists for.
+- proof: `~/Desktop/ChromIQ-beta21-proof/fix-B8-346/work/probe_report13.py`
+  (round 12's own probe, re-run on the fix).
+- **One of round 12's two report findings is NOT a fault.** It reported that
+  with a stranger's file loaded and one project row unticked "the document says
+  NOTHING". Driven again with the numbers printed: in that state the only row
+  left in the document IS the stranger's, and it belongs to no project, so
+  there is no project the sentence could be about. Silence is right there. The
+  same state with a project row still in the document now prints "covers 1 of
+  the 2", which is what its guard pins.
+- what to do next: F7 to F9 (the area-first help text, whose guard passes three
+  of its own mutations).
 
 ### B8-347 · OPEN · A pointy honeycomb prints its patches INTO the strip letters
 - blocks release: no

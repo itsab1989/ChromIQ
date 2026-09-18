@@ -167,3 +167,111 @@ def test_the_count_is_this_projects_own_measurements(tmp_path, qapp):
             "was filtered")
     finally:
         dlg.close()
+
+
+def test_the_total_is_what_the_project_records_not_what_is_loaded(tmp_path,
+                                                                  qapp):
+    """B8-346 F5: "recorded for this project" is a fact about the project's
+    folder, and it was counted out of the window's own list.
+
+    Round 12 drove a project holding three measurements, loaded two of them,
+    and the document said "covers 1 of the 2"; loading the third made the same
+    document say "2 of the 3" with nothing else changed. The denominator is now
+    read off the disk, so loading a measurement cannot change what the project
+    is said to record.
+
+    MUTATION, proven to land: count `self._history` again.
+    """
+    from tests.test_a_report_says_what_it_is_and_what_judged_it import _dialog
+    from tests.test_import_measurement_module import _cgats, _PATCHES
+    from workflow.run_compliance import bind_run
+    dlg, _run, fm = _dialog(tmp_path, qapp)
+    try:
+        proj = fm.project()
+        made = []
+        for scale in (0.5, 0.25):
+            run = proj.new_run()
+            v = run.new_verification()
+            v.ensure_dir()
+            v.measurement_ti3.write_text(
+                _cgats("CTI3", [(r * scale, g, b) for (r, g, b) in _PATCHES]),
+                encoding="utf-8")
+            bind_run(run, "chromiq_tight", None)
+            made.append(v)
+        # THREE on disk, ONE loaded: the sentence must already say "of the 3".
+        totals = []
+        for v in (None, made[0], made[1]):
+            if v is not None:
+                dlg._add_source(v.measurement_ti3)
+                qapp.processEvents()
+            body = _plain(dlg._report_body_html(dlg._runs_for_report(),
+                                                for_pdf=False))
+            m = re.search(r"covers (\d+) of the (\d+) measurements", body)
+            assert m, f"no scope sentence with {len(dlg._history)} loaded"
+            totals.append(int(m.group(2)))
+        assert totals == [3, 3, 3], (
+            f"the project records three measurements throughout and the "
+            f"document said {totals} as they were loaded one by one")
+    finally:
+        dlg.close()
+
+
+def test_a_file_from_outside_any_project_is_in_neither_number(tmp_path, qapp):
+    """B8-346 F6: a colleague's `.ti3`, opened beside a project's own, was
+    counted as one of the project's measurements ("covers 2 of the 3" where the
+    project records two) and, from the other end, padded the covered count
+    until the sentence fell silent on a project that really was being filtered.
+
+    It belongs to no project, so it is in NEITHER number.
+
+    MUTATIONS, both proven to land: drop the `external:` filter from `_mine`
+    (the stranger is then covered and the sentence goes silent), and count the
+    window's list instead of the disk.
+    """
+    from tests.test_a_report_says_what_it_is_and_what_judged_it import _dialog
+    from tests.test_import_measurement_module import _cgats, _PATCHES
+    dlg, _run, fm = _dialog(tmp_path, qapp)
+    try:
+        proj = fm.project()
+        # A second measurement OF THIS PROJECT, on the same limit set, so the
+        # "one document, one set" split cannot decide which rows are in the
+        # document and this test measures only what it says it measures.
+        run2 = proj.new_run()
+        v2 = run2.new_verification()
+        v2.ensure_dir()
+        v2.measurement_ti3.write_text(
+            _cgats("CTI3", [(r * 0.5, g, b) for (r, g, b) in _PATCHES]),
+            encoding="utf-8")
+        dlg._add_source(v2.measurement_ti3)
+        qapp.processEvents()
+
+        stranger = tmp_path / "from-a-colleague" / "someone-elses.ti3"
+        stranger.parent.mkdir(parents=True, exist_ok=True)
+        stranger.write_text(
+            _cgats("CTI3", [(r * 0.9, g, b) for (r, g, b) in _PATCHES]),
+            encoding="utf-8")
+        dlg._add_source(stranger)
+        qapp.processEvents()
+        # ...and one of the PROJECT's own rows left out, which is the state the
+        # sentence exists for.
+        own = [r for r in dlg._history
+               if "from-a-colleague" not in str(r.get("_origin_dir") or "")]
+        assert len(own) >= 2, [str(r.get("_origin_dir")) for r in dlg._history]
+        dlg._hidden_runs = {dlg._run_key(own[0])}
+        qapp.processEvents()
+        body = _plain(dlg._report_body_html(dlg._runs_for_report(),
+                                            for_pdf=False))
+        m = re.search(r"covers (\d+) of the (\d+) measurements", body)
+        assert m, (
+            "a project with a measurement left out says nothing, because a "
+            "file belonging to no project was counted as covering it\n"
+            + body[-400:])
+        covered, total = int(m.group(1)), int(m.group(2))
+        assert total == 2, (
+            f"the project records two measurements and the document says "
+            f"{total}; the third file belongs to no project")
+        assert covered == 1, (
+            f"the document covers one of the project's measurements and says "
+            f"{covered}; the stranger's file is not one of them")
+    finally:
+        dlg.close()

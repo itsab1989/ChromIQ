@@ -6256,9 +6256,29 @@ class MeasurementReportDialog(QDialog):
             except Exception:      # noqa: BLE001 — a count is never a blocker
                 return f"external:{_o}"
 
-        _mine = {_project_of(r) for r in runs}
-        total_known = len([r for r in self._history
-                           if _project_of(r) in _mine]) or covered
+        # COUNTED OFF THE DISK, NOT OUT OF THE WINDOW. `self._history` is
+        # what somebody has LOADED, and the sentence says "recorded for this
+        # project": round 12 drove a project holding three measurements, loaded
+        # two of them, and the document said "covers 1 of the 2"; loading the
+        # third made the same document say "2 of the 3" with nothing else
+        # changed (B8-346 F5). The project's own folder is the only thing that
+        # can answer "recorded".
+        #
+        # AND A FILE THAT BELONGS TO NO PROJECT IS NOT IN EITHER NUMBER. A
+        # colleague's `.ti3`, opened beside the project's own, was counted as
+        # one of its measurements ("covers 2 of the 3" where the project
+        # records two), and in the other direction it padded the covered count
+        # until the sentence fell silent on a project that really was being
+        # filtered (B8-346 F6). Both numbers now count only the rows that
+        # belong to a project this report is about.
+        _mine = {_p for _p in (_project_of(r) for r in runs)
+                 if not _p.startswith("external:")}
+        covered = len([r for r in runs
+                       if not _is_raw_drift(r) and _project_of(r) in _mine])
+        total_known = sum(self._measurements_recorded_in(_p) for _p in _mine)
+        # A measurement with no saved report beside it is still in this
+        # document, so the total can never be smaller than what is covered.
+        total_known = max(total_known, covered)
         if covered < total_known:
             note = tr("This report covers {n} of the {total} measurements "
                       "recorded for this project.").format(n=covered,
@@ -6266,6 +6286,46 @@ class MeasurementReportDialog(QDialog):
             out += (f"<div style='color:{_C['dim']};margin-top:6px'>"
                     + html.escape(note) + "</div>")
         return out + self._scope_warnings_html(sc["warnings"])
+
+    @staticmethod
+    def _measurements_recorded_in(project_dir: str) -> int:
+        """How many measurements a project's folder holds, read from the disk.
+
+        Every run's own measurement plus every dated verification of every run.
+        Role-named files (`preconditioning.ti3`, `merged.ti3`, the
+        `reads/readN.ti3` snapshots that are averaged back into the run's own)
+        are not measurements in this sense and are not counted: what is counted
+        is what the window would show as a row.
+
+        Never raises: the count decorates a sentence and a missing folder or an
+        unreadable manifest must not cost the reader the report.
+        """
+        try:
+            from core.file_manager import VERIFICATIONS_DIRNAME
+            root = Path(project_dir) / "runs"
+            if not root.is_dir():
+                return 0
+            # ROLE-NAMED, SO NOT A MEASUREMENT. `preconditioning.ti3` is
+            # inherited from the parent run and `merged.ti3` is the average of
+            # two; neither is a sheet anybody read, and `reads/readN.ti3` lives
+            # in its own folder and is averaged back into the run's own.
+            roles = {"preconditioning.ti3", "merged.ti3"}
+            n = 0
+            for d in sorted(root.iterdir()):
+                if not (d.is_dir() and d.name.startswith("run")):
+                    continue
+                n += len([f for f in d.glob("*.ti3") if f.name not in roles])
+                # A DATED VERIFICATION IS FOUND BY ITS FOLDER, NOT BY ITS NAME.
+                # `Verification.measurement_ti3` resolves `<the run's stem>.ti3`,
+                # so a verification measured from a different chart is invisible
+                # to it: measured on a two-date fixture holding `Alpha.ti3` and
+                # `Bravo.ti3`, it found one of the two.
+                for v in sorted((d / VERIFICATIONS_DIRNAME).glob("*")):
+                    if v.is_dir() and any(v.glob("*.ti3")):
+                        n += 1
+            return n
+        except Exception:      # noqa: BLE001 — a count is never a blocker
+            return 0
 
     def _run_description(self) -> str:
         """What the user wrote about this run, or "".
