@@ -947,18 +947,21 @@ _IDENTICAL_TO_KEY = {
     # report's limit set were rewritten or removed. The removals took
     # untranslated placeholders with them in the eleven languages that had not
     # been swept, so de rises by five while es, fr and the rest fall.
-    "de": 139,
-    "es": 379,
-    "fr": 401,
-    "it": 390,
-    "ja": 365,
-    "nl": 406,
-    "no": 391,
-    "pl": 383,
-    "pt": 381,
-    "ru": 354,
-    "sv": 392,
-    "zh_CN": 359,
+    # ...and once more, +1 each, for B8-328's SECOND attempt: three layout help
+    # texts rewritten after an adversary round measured the first rewrite false
+    # on 154 of the 160 built-in charts.
+    "de": 140,
+    "es": 380,
+    "fr": 402,
+    "it": 391,
+    "ja": 366,
+    "nl": 407,
+    "no": 392,
+    "pl": 384,
+    "pt": 382,
+    "ru": 355,
+    "sv": 393,
+    "zh_CN": 360,
 }
 
 

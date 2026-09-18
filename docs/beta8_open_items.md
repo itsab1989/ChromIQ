@@ -13991,14 +13991,42 @@ written for it in the suite passed its own mutation.
   equal to each other and a little larger than asked (the vertical leftover IS
   shared). The floor is the chart's, not the instrument's: round 9 saw ~35 mm
   on a 300-patch sheet and this is 26 on a 120-patch one.
-- evidence: `test_the_text_does_not_promise_an_exact_margin` and
-  `test_the_sheet_behaves_the_way_the_text_now_says`, which pin the sentence
-  and the sheet to each other (putting the old promise back makes the first
-  one red).
-- **OPEN QUESTION FOR KNUT:** down the page the leftover is shared between top
-  and bottom; across the page it all lands on the left. Should the horizontal
-  leftover be shared too, so a 5 mm request gives 15 mm on each side instead of
-  26 and 5? That is a layout ruling, so nothing was changed.
+- **AND THE FIRST REWRITE WAS FALSE TOO. Round 10 measured it on every
+  built-in chart ChromIQ ships**, which is the check the first one skipped:
+
+  | the sentence said | measured |
+  |---|---|
+  | "the left one takes the remainder" | false on **154 of 160** built-ins: the left is exactly the number typed |
+  | "the right margin is exactly the number you typed" | false on 32 of 160; SpectroScan asks 5 and gets 8.58, CR30 11.03 |
+  | "top and bottom come out equal to each other" | false on all five instruments, up to **2.88 mm** apart |
+  | the mechanism ("a whole number of patches rarely fills the area") | wrong: it is the CLIP BAND |
+
+- **THE MECHANISM IS LOCATED, and it is not `geometry.py:551` either.**
+  `instruments.py`: `ml = max(ml, geom.lbord + geom.border)` on whichever side
+  the clip band is (`mr` when `clip_side == "right"`). Vary the band width
+  15 / 26 / 40 / 60 mm and the left margin follows to 14.99 / 25.99 / 39.96 /
+  60.03; switch the band off and it is 5.00. **75 of the shipped presets put
+  the band on the RIGHT** (49 ColorMunki, 26 CR30), where the old sentence was
+  exactly backwards. The vertical difference is `geometry.py:478` centring the
+  block between a TOP reserve (the strip letters) and a BOTTOM one (the
+  run-out), which are different sizes.
+- **AND THE APP ALREADY SAID IT CORRECTLY TWO ROWS DOWN.** The Margins and
+  Clip-border-width tooltips in the same panel say *"the reserved clip zone is
+  whichever of the two is larger"*. The rewrite replaced a wrong promise with a
+  wrong explanation while the right one sat beside it.
+- the third text now says that, in all THREE places that describe the mode: the
+  Create layout tooltip, the Create Chart step-1 card (which the first fix
+  never touched, so the promise went on shipping while B8-328 read FIXED) and
+  the Settings strip-length help, which listed four instruments where the combo
+  offers five (CR30 was missing).
+- evidence: `test_neither_help_text_promises_an_exact_margin`,
+  `test_both_help_texts_name_the_clip_band_and_the_instrument_reserves` (they
+  read BOTH texts, which is what the first guard could not do),
+  `test_the_clip_band_is_what_claims_the_margin` (the band left, off, right and
+  wide) and `test_every_margin_is_at_least_what_was_asked` (all five
+  instruments). Mutations: the promise back in the step-1 card alone, and
+  the clip band's `max()` neutered, each proven to land.
+- proof: `~/Desktop/ChromIQ-beta21-proof/round-10-the-help-and-presets/`
 
 ### B8-329 · FIXED · Knut's new built-in presets, and the landing page's preset count
 - blocks release: no

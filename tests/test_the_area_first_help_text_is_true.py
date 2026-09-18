@@ -1,36 +1,65 @@
-"""The area-first help text is a promise, so it is measured against a sheet.
+"""The layout help is a promise, so it is measured against real sheets.
 
-Knut asked for the two layout methods to be explained properly, and the text
-written for him said of "Prioritise chart area": *"Here your margins are the
-law. The patch area lands exactly where you defined it."* An adversary round
-drove the real Create Chart window and found that false: asking for 5 mm all
-round on an i1Pro 3+ sheet gives a LEFT margin of 36.15 mm, because a whole
-number of patches does not fill the width and the leftover is pushed to the
-non-clip side so the patches butt against the clip strip. Down the page the
-leftover is shared evenly instead, which is the constant ~1 mm on top and
-bottom.
+Knut asked for the two layout methods to be explained properly. The first
+attempt said of "Prioritise chart area": *"Here your margins are the law. The
+patch area lands exactly where you defined it."* An adversary round measured
+that false. The second attempt said the leftover width "all goes to the LEFT",
+and the next round measured THAT false on 154 of the 160 built-in charts, on
+both counts of the vertical claim, and backwards on the 75 presets whose clip
+band sits on the right.
 
-This file pins the two together: the sentence and the sheet have to agree.
+What is actually going on is one rule the app already stated correctly two rows
+below, in the Margins tooltip: a clip border takes its own width on the side it
+is printed on, and that margin is `max(your number, the band)`
+(`instruments.py`, `ml = max(ml, clip_w)`). The instrument's own reserves above
+and below the patches are the other claimant, and they are not the same size as
+each other, so top and bottom come out larger than asked by DIFFERENT amounts.
+
+Two rules for this file, and the second is why the first attempt shipped:
+
+* every claim in the text is measured against built sheets, across instruments,
+  papers and both clip sides;
+* BOTH places that describe the mode are read. The promise was written into two
+  texts and removed from one, and the guard only knew about that one.
 """
 from __future__ import annotations
 
+import inspect
 import json
-import re
 
 import pytest
 
+#: Promises no sheet keeps. Each was in a shipped help text.
+FORBIDDEN = (
+    "margins are the law",
+    "lands exactly where you",
+    "the patch area lands exactly",
+    "all goes to the LEFT",
+    "come out equal to each other",
+)
 
-def _sheet_margins(tmp_path, instrument: str, margin_mm: float) -> dict:
-    """Build a real area-first sheet and measure its patch area, in mm."""
+
+def _area_first_texts() -> "dict[str, str]":
+    """Every place that describes "Prioritise chart area" to a user."""
+    from ui.dialogs import layout_options_panel as lop
+    from ui.tabs import tab_chart
+    panel = inspect.getsource(lop)
+    i = panel.index("Prioritise chart area, then fit patches to it")
+    j = panel.index("PATCH-FIRST FIELDS", i)
+    card = inspect.getsource(tab_chart)
+    k = card.index('"Prioritise chart area, then fit patches to it\\" is')
+    m = card.index("If you are unsure", k)
+    return {"the Create layout tooltip": panel[i:j],
+            "the Create Chart step 1 card": card[k:m]}
+
+
+def _sheet(tmp_path, tag, **recipe_kw) -> dict:
+    """Build a real sheet and measure its patch area, in mm."""
     from workflow.layout_engine import chart as le, papers
     from workflow.layout_engine.presets import LayoutRecipe
-    rec = LayoutRecipe(
-        instrument=instrument, paper="A4", layout_mode="area_first",
-        area_min_patch_mm=8.0, use_instrument_margins=False,
-        margin_left=margin_mm, margin_right=margin_mm,
-        margin_top=margin_mm, margin_bottom=margin_mm, dpi=300,
-    )
-    d = tmp_path / f"{instrument}-{margin_mm}"
+    rec = LayoutRecipe(layout_mode="area_first", area_min_patch_mm=8.0,
+                       use_instrument_margins=False, dpi=300, **recipe_kw)
+    d = tmp_path / tag
     d.mkdir(parents=True, exist_ok=True)
     src = d / "s.ti1"
     rows = ["CTI1", "", 'DESCRIPTOR "help"', 'ORIGINATOR "ChromIQ"',
@@ -47,55 +76,79 @@ def _sheet_margins(tmp_path, instrument: str, margin_mm: float) -> dict:
     kw["randomize"] = False
     kw["seed"] = 1
     le.build_chart(src, d / "s", instrument=rec.instrument, paper=rec.paper, **kw)
-    st = json.loads((d / "s.strips.json").read_text())
-    pats = [p for p in st["patches"] if int(p["page"]) == 0]
+    pats = [p for p in json.loads((d / "s.strips.json").read_text())["patches"]
+            if int(p["page"]) == 0]
     assert pats
     k = 25.4 / 300.0
-    pw, ph = papers.dimensions_mm("A4")
-    return {
-        "left": min(p["x"] for p in pats) * k,
-        "right": pw - max(p["x"] + p["w"] for p in pats) * k,
-        "top": min(p["y"] for p in pats) * k,
-        "bottom": ph - max(p["y"] + p["h"] for p in pats) * k,
-    }
+    pw, ph = papers.dimensions_mm(rec.paper)
+    return {"left": min(p["x"] for p in pats) * k,
+            "right": pw - max(p["x"] + p["w"] for p in pats) * k,
+            "top": min(p["y"] for p in pats) * k,
+            "bottom": ph - max(p["y"] + p["h"] for p in pats) * k}
 
 
-def _area_first_paragraph() -> str:
-    """The part of the Create-layout tooltip that describes area-first."""
-    import inspect
-    from ui.dialogs import layout_options_panel as lop
-    src = inspect.getsource(lop)
-    i = src.index("Prioritise chart area, then fit patches to it")
-    j = src.index("PATCH-FIRST FIELDS", i)
-    return src[i:j]
+def test_neither_help_text_promises_an_exact_margin():
+    """MUTATION: put "margins are the law" back into either text and this goes
+    red, naming which one."""
+    for where, text in _area_first_texts().items():
+        for promise in FORBIDDEN:
+            assert promise not in text, (
+                f"{where} still promises {promise!r}, which no sheet keeps")
 
 
-def test_the_text_does_not_promise_an_exact_margin():
-    para = _area_first_paragraph()
-    for promise in ("margins are the law", "lands exactly where you defined"):
-        assert promise not in para, (
-            f"the area-first help still promises {promise!r}, which a sheet "
-            f"does not deliver")
-    for needed in ("left over", "shared", "goes to the LEFT"):
-        assert needed in para, (
-            f"the area-first help does not explain {needed!r}, so a user "
-            f"reading a 36 mm margin off a 5 mm request has nothing to go on")
+def test_both_help_texts_name_the_clip_band_and_the_instrument_reserves():
+    """The two claimants on the space, which is what the numbers really show.
+
+    MUTATION: drop the clip-border sentence from either text and this goes red.
+    """
+    for where, text in _area_first_texts().items():
+        low = text.lower()
+        assert "clip border" in low, (
+            f"{where} does not say that a clip border takes its own width")
+        assert "reserve" in low or "strip letters" in low, (
+            f"{where} does not say the instrument's own reserves take space")
 
 
 @pytest.mark.slow
-def test_the_sheet_behaves_the_way_the_text_now_says(tmp_path):
-    """Measured, not asserted from the code: the vertical leftover is shared
-    and the horizontal leftover is not."""
-    tight = _sheet_margins(tmp_path, "p3", 5.0)
-    wide = _sheet_margins(tmp_path, "p3", 40.0)
-    # Down the page: a little more than asked, both ends ALIKE, because the
-    # leftover height is shared. How much "a little" is depends on the chart
-    # (round 9 measured 1.01 mm on a 300-patch sheet, this one gives 2.03), so
-    # the test pins the sharing rather than the number.
-    assert 5.0 < tight["top"] < 9.0 and 5.0 < tight["bottom"] < 9.0
-    assert abs(tight["top"] - tight["bottom"]) < 0.2
-    # Across it: the far side takes the whole leftover...
-    assert tight["left"] > tight["right"] + 15.0
-    assert abs(tight["right"] - 5.0) < 0.5
-    # ...and it shrinks back to what was asked as the others widen.
-    assert abs(wide["left"] - 40.0) < 1.0
+def test_the_clip_band_is_what_claims_the_margin(tmp_path):
+    """The mechanism the text now gives, measured three ways.
+
+    MUTATION: neuter `ml = max(ml, clip_w)` in `instruments.py` and this goes
+    red.
+    """
+    on = _sheet(tmp_path, "band-left", instrument="p3", paper="A4",
+                margin_left=5.0, margin_right=5.0, margin_top=5.0,
+                margin_bottom=5.0, clip_border=True,
+                clip_border_width_mm=26.0, clip_side="left")
+    assert on["left"] > 20.0, on          # the band, not the number typed
+    off = _sheet(tmp_path, "band-off", instrument="p3", paper="A4",
+                 margin_left=5.0, margin_right=5.0, margin_top=5.0,
+                 margin_bottom=5.0, clip_border=False)
+    assert abs(off["left"] - 5.0) < 1.0, off   # the number typed stands
+    right = _sheet(tmp_path, "band-right", instrument="p3", paper="A4",
+                   margin_left=5.0, margin_right=5.0, margin_top=5.0,
+                   margin_bottom=5.0, clip_border=True,
+                   clip_border_width_mm=26.0, clip_side="right")
+    assert abs(right["left"] - 5.0) < 1.0, right
+    assert right["right"] > 20.0, right        # and it moves to the other side
+    # ...and asking for more than the band gets more than the band.
+    wide = _sheet(tmp_path, "band-wide", instrument="p3", paper="A4",
+                  margin_left=40.0, margin_right=40.0, margin_top=40.0,
+                  margin_bottom=40.0, clip_border=True,
+                  clip_border_width_mm=26.0, clip_side="left")
+    assert wide["left"] > 38.0, wide
+
+
+@pytest.mark.slow
+@pytest.mark.parametrize("instrument", ["i1", "p3", "CM", "SS", "CR30"])
+def test_every_margin_is_at_least_what_was_asked(tmp_path, instrument):
+    """The only promise the text makes about the four edges, and it holds on
+    every instrument a user can pick. It deliberately does NOT claim that top
+    and bottom are equal: measured, they are up to 2.9 mm apart, because the
+    reserve above the patches and the run-out below them are different sizes.
+    """
+    got = _sheet(tmp_path, f"least-{instrument}", instrument=instrument,
+                 paper="A4", margin_left=5.0, margin_right=5.0,
+                 margin_top=5.0, margin_bottom=5.0)
+    for edge, mm in got.items():
+        assert mm >= 5.0 - 0.1, f"{instrument}: the {edge} margin is {mm:.2f}"
