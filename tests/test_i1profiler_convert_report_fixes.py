@@ -116,6 +116,10 @@ def test_report_pdf_anchors_on_origin_not_temp(qapp, tmp_path, monkeypatch):
     host._source_key = types.MethodType(M._source_key, host)
     host._source_keys = types.MethodType(M._source_keys, host)
     host._reload_sources = lambda: None      # the real one needs a window
+    host._rebuild_from_sources = lambda: None
+    host._disk_stamp = M._disk_stamp
+    host._source_has_moved_on = types.MethodType(M._source_has_moved_on, host)
+    host._reread_one_source = types.MethodType(M._reread_one_source, host)
     host._gather_runs = lambda t: (t.stem, [{"created": "2026-01-01"}])
     types.MethodType(M._append_source, host)(temp_ti3, origin=origin)
 
@@ -185,6 +189,10 @@ def test_several_loose_ti3_in_one_folder_each_add(qapp, tmp_path, monkeypatch):
     host._source_key = types.MethodType(M._source_key, host)
     host._source_keys = types.MethodType(M._source_keys, host)
     host._reload_sources = lambda: None      # the real one needs a window
+    host._rebuild_from_sources = lambda: None
+    host._disk_stamp = M._disk_stamp
+    host._source_has_moved_on = types.MethodType(M._source_has_moved_on, host)
+    host._reread_one_source = types.MethodType(M._reread_one_source, host)
     host._gather_runs = lambda ti3: (ti3.stem, [{"created": "2026-01-01"}])
     append = types.MethodType(M._append_source, host)
     assert append(a) is True

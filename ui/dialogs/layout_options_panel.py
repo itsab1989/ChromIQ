@@ -4791,10 +4791,20 @@ class LayoutOptionsPanel(QWidget):
         if not self._loading:
             self.changed.emit()
         t4 = time.perf_counter()
-        log.debug("layout panel change: %.1f ms total "
-                  "(text %.1f, clip %.1f, note %.1f, listeners %.1f)",
-                  (t4 - t0) * 1000.0, (t1 - t0) * 1000.0, (t2 - t1) * 1000.0,
-                  (t3 - t2) * 1000.0, (t4 - t3) * 1000.0)
+        # **AND NOT WHILE THE PANEL IS LOADING, UNLESS THE LOAD ITSELF WAS
+        # SLOW (R22-F3).** All three steps above early-return during a load and
+        # nothing is emitted, so the line came out
+        # `0.0 ms total (0.0, 0.0, 0.0, 0.0)` and that was **68 %** of every
+        # line it wrote: an instrument change alone produced eight of them, a
+        # preset apply ten. The file handler is DEBUG and rotates at 5 MB, so
+        # noise here costs a user the log they would have sent. A load that
+        # really did take time still says so.
+        total = (t4 - t0) * 1000.0
+        if not self._loading or total >= 1.0:
+            log.debug("layout panel change: %.1f ms total "
+                      "(text %.1f, clip %.1f, note %.1f, listeners %.1f)",
+                      total, (t1 - t0) * 1000.0, (t2 - t1) * 1000.0,
+                      (t3 - t2) * 1000.0, (t4 - t3) * 1000.0)
 
     def _update_helper_marker_rows(self, *_a) -> None:
         """Grey the three distances while the markers are switched off.

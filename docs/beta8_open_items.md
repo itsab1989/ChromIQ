@@ -15656,3 +15656,110 @@ now what it does.
   the whole spacer block (the pulldown included) or refuse to record
   `spacer_on=True`, then re-run the guard on both, since a recipe that records
   a spacer no sheet can show is the part a user would be surprised by.
+
+### B8-366 · FIXED · Round 22: three of its four were in work hours old, and two of those were round 21's fix
+- blocks release: yes
+- status: FIXED
+- evidence: `test_a_duplicate_add_of_an_unchanged_file_changes_nothing`,
+  `test_re_reading_a_measurement_is_not_confirming_the_settings`,
+  `test_re_adding_loaded_files_does_not_re_read_every_source`,
+  `test_a_loading_panel_is_silent_unless_the_load_was_slow`,
+  `test_a_slow_load_still_says_so`,
+  `test_the_inspector_asks_the_build_not_the_record_about_edge_spacers`.
+
+**F1 · a duplicate add took the red "Settings changed" line down.** B8-363's
+fix called `_reload_sources`, which ends in `_render`, and `_render` is the one
+place that stamps `_doc_built_with` and clears the banner. Driven on screen:
+one source, Generate pressed, the report type moved so the red line was up and
+the document still said "Full colour check"; pressing Add and picking the file
+already loaded, unchanged on disk (sha1 checked), took the red line **down** and
+put "Colour summary (one page)" into the document, with nothing added, nothing
+written to `reports/`, and the line beside the pulldown still reading "No report
+has been generated for this run yet". The control in the same window: Add then
+cancel keeps the line up, and so does the same press against the code before
+B8-363.
+
+**F2 · and the re-read sat inside `_on_add_project`'s loop.** Measured with 12
+sources loaded: cancelling 56 ms and 0 reads; adding 11 NEW files 565 ms;
+re-picking ONE already-loaded file 599 ms and 12 reads; re-picking all eleven
+**5,548 ms and 132 `_gather_runs` calls**, synchronous, no cursor, nothing on
+screen.
+
+Both are one fix: **a file that has not changed has nothing to say**, which is
+what the code before B8-363 got right. The disk is asked first by a (mtime,
+size) stamp, only the matched source is re-read, and the banner survives that
+re-read, because re-reading a measurement is not the reader confirming the five
+settings they moved.
+
+**F3 · 68 per cent of the new timing line was zeros.** The line added for
+Knut's spin-box report sat outside the `_loading` guard, so a load, during which
+all three steps early-return and nothing is emitted, wrote
+`0.0 ms total (text 0.0, clip 0.0, note 0.0, listeners 0.0)`. Correlated across
+40 lines with `_loading` read on entry: 27 True and all-zero, 13 False and real,
+**zero disagreements**; an instrument change alone wrote eight, a preset apply
+ten. The file handler is DEBUG and rotates at 5 MB, so the noise costs a user
+the log they would otherwise have sent, which is the whole point of the line. A
+load that really was slow still says so.
+
+**F4 · the Margin Inspector believed a record that contradicts the sheet**, and
+this one is INHERITED, not new. `LayoutRecipe.build_kwargs` forces edge spacers
+on for the strip readers (i1, i1Pro 3+, ColorMunki), so the sheet has one spacer
+above the first patch and one below the last whatever the recipe field says. The
+two doors then record opposite things for the same sheet: Manual stores the
+recipe's own field (`false`, `chart_creator.py:1575`), Guided stores the
+resolved build kwargs (`true`, `:1582`). Driven end to end through real Generate
+on both, a Manual i1Pro A4 chart's panel read **Top 39.0 / min 38.0, Bottom 20.1
+/ min 19.0, "Margins: OK"** while every pixel row of the millimetre above the
+first patch and below the last carried ink (the control millimetre above: 0 %)
+and the bottom-most ink sat at **19.05 mm**. Guided's identical-door chart read
+Top 41.6. The tool now resolves the flag through `build_kwargs` instead of
+reading it, which also fixes every chart already on disk, where no migration
+would reach.
+
+- Mutations, each proven to land, 2026-09-18: Z1 drop the `_source_has_moved_on`
+  check (2 red), Z2 drop the banner restore (1 red), Z3 drop the `not
+  self._loading` condition (1 red), Z4 read `rec["edge_spacers"]` again (2 red).
+- **And one guard had to be rebuilt because it passed for the wrong reason.**
+  The first version of F1's guard stayed green under Z2, because with the disk
+  check in place an unchanged file returns before the banner is ever touched:
+  the two protections were covering each other. It is now two tests, one for the
+  unchanged file (which asserts no re-read at all) and one for a file that HAS
+  changed (where the banner restore is the only thing standing), and each
+  mutation reddens exactly one.
+- **A corrected test expectation, not a nudged one.**
+  `test_measure_from_engine_exact_geometry` asserted `top_mm == 20.0` for a
+  recipe that says `instrument: i1` and nothing about edge spacers, which is
+  precisely the arrangement in which believing the record looks right. An i1Pro
+  sheet's top ink is `pspa` (1.0 mm) above the first patch rect, so 18.98 is the
+  true figure and the assertion now says so, with the reason.
+- **Round 22's own three corrections of itself**, kept in its proof folder:
+  hashing a `.ti2` raw (it carries `CREATED` and `CHART_ID`, so identical builds
+  differ), moving check boxes with `setChecked()` where the signal is `clicked`,
+  and crossing the text controls with both text boxes empty.
+- what to do next: B8-367 is round 22's open half, and round 23.
+
+### B8-367 · OPEN · "Edge spacers" is inert on three instruments, and the record says so where the sheet does not
+- blocks release: no
+- status: OPEN
+- The safety half of this is FIXED under B8-366 F4: the Margin Inspector no
+  longer believes the record. What is left is the control and the record.
+- `LayoutRecipe.build_kwargs` (`presets.py`) and `chart_creator.py:1309` both
+  force `edge_spacers` on for i1, i1Pro 3+ and ColorMunki, deliberately, so that
+  the instrument starts and ends a strip on a spacer (#93, and Sebastian's
+  "guided has a little more space, make it the Manual default too"). Measured:
+  with the box ticked and unticked the rendered sheets are byte-identical on
+  those three instruments, and the sheet has the spacers either way.
+- So the Create Chart panel offers a tick box that cannot change the sheet, and
+  the chart's stored recipe records `edge_spacers: false` for a sheet that has
+  them. This is the same shape as B8-365 (four live spacer controls on a
+  SpectroScan), and the two should be decided together.
+- **Deliberately not changed here**: recording the resolved value would make a
+  reloaded Manual chart show the box ticked, which is a visible change to a
+  control nobody has ruled on, and greying the box is the same question B8-365
+  asks. A fix made blind would settle both by accident.
+- evidence: none yet for the control itself; the inspector's half is
+  `test_the_inspector_asks_the_build_not_the_record_about_edge_spacers`.
+  Photographs `~/Desktop/ChromIQ-beta22-proof/round-22-on-round-21/J/` and `G/`.
+- what to do first: decide with Knut whether an instrument that forces a
+  setting should grey its control, tick it, or leave it alone, and apply the
+  same answer to B8-365.

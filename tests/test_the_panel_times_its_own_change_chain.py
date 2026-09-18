@@ -99,10 +99,23 @@ def test_the_listeners_figure_covers_what_the_host_connected(qapp, caplog):
     p.deleteLater()
 
 
-def test_a_loading_panel_still_reports_its_own_work(qapp, caplog):
-    """While a recipe is being loaded the panel deliberately does not emit, and
-    the line must still be written: a load that is slow is exactly the kind of
-    thing this line exists to catch, and a silent one would look like no work.
+def test_a_loading_panel_is_silent_unless_the_load_was_slow(qapp, caplog):
+    """R22-F3: **68 % of what this line wrote was `0.0 ms total (0.0, 0.0, 0.0,
+    0.0)`.**
+
+    While a recipe is being loaded all three steps early-return and nothing is
+    emitted, so there is no duration to report; the line was outside that
+    guard and wrote one anyway. Measured across 40 lines with `_loading` read
+    on entry: 27 True and all-zero, 13 False and real, zero disagreements. Per
+    gesture, an instrument change wrote eight of them and a preset apply ten.
+    The file handler is DEBUG and rotates at 5 MB, so noise here costs a user
+    the log they would otherwise have sent, which is the whole point of the
+    line.
+
+    A load that really was slow still says so, because that is worth knowing
+    and it is not noise.
+
+    MUTATION, proven to land: drop the `not self._loading` condition.
     """
     p = LayoutOptionsPanel()
     p._loading = True
@@ -110,11 +123,37 @@ def test_a_loading_panel_still_reports_its_own_work(qapp, caplog):
         with caplog.at_level(logging.DEBUG,
                              logger="ui.dialogs.layout_options_panel"):
             caplog.clear()
+            for _ in range(8):
+                p._emit()
+        assert not _timings(caplog), (
+            f"a panel doing no work while it loads wrote "
+            f"{len(_timings(caplog))} timing lines into the user's log")
+    finally:
+        p._loading = False
+        p.deleteLater()
+
+
+def test_a_slow_load_still_says_so(qapp, caplog):
+    """The other side of the same condition: silence must not hide a load that
+    genuinely took time, or the line would be blind to exactly the case a user
+    would complain about."""
+    p = LayoutOptionsPanel()
+    p._loading = True
+    real = p._refresh_clip_preview
+
+    def slow():
+        time.sleep(0.010)
+        return real()
+
+    p._refresh_clip_preview = slow
+    try:
+        with caplog.at_level(logging.DEBUG,
+                             logger="ui.dialogs.layout_options_panel"):
+            caplog.clear()
             p._emit()
         rows = _timings(caplog)
-        assert rows, "a change during a load logged nothing"
-        assert rows[-1][4] < 5.0, (
-            "nothing was emitted, so the listeners figure should be about zero")
+        assert rows, "a load that took 10 ms was not reported at all"
+        assert rows[-1][0] >= 5.0
     finally:
         p._loading = False
         p.deleteLater()

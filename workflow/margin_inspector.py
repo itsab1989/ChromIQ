@@ -229,12 +229,33 @@ def engine_ink_bounds_px(rects, rec, dpi: float):
     # margins under-report and the measured-margin guides land inside the edge
     # spacers, which then look like they overflow the margins (Knut #18). Along
     # the strip axis (vertical in the printtarg frame) only.
-    if rec.get("edge_spacers"):
+    # **ASK THE BUILD, NOT THE RECORD (R22-F4).** `rec["edge_spacers"]` is what
+    # the chart's stored recipe happens to say, and for a strip reader that is
+    # not what the sheet has: `LayoutRecipe.build_kwargs` forces edge spacers on
+    # for i1 / i1Pro 3+ / ColorMunki, so the box cannot change those sheets and
+    # the sheet has the spacers whatever the field says. The two doors then
+    # recorded opposite things for the SAME sheet -- Manual stored the recipe's
+    # own field (`false`), Guided stored the resolved build kwargs (`true`) --
+    # and this tool believed each of them. On a Manual i1Pro A4 chart the panel
+    # read *Top 39.0 / min 38.0, Bottom 20.1 / min 19.0, "Margins: OK"* while
+    # every pixel row of the millimetre above the first patch and below the last
+    # carried ink and the bottom-most ink sat at 19.05 mm. That is the unsafe
+    # direction, on the one tool whose job is to say whether the ink clears the
+    # paper edge.
+    #
+    # Resolving it here rather than at the recording end also fixes every chart
+    # already on disk, which no migration would reach.
+    from dataclasses import fields as _fields
+    from workflow.layout_engine import instruments
+    from workflow.layout_engine.presets import LayoutRecipe
+    _valid = {f.name for f in _fields(LayoutRecipe)}
+    try:
+        _rc0 = LayoutRecipe(**{k: v for k, v in rec.items() if k in _valid})
+        _edge = bool(_rc0.build_kwargs().get("edge_spacers"))
+    except Exception:  # pragma: no cover - defensive
+        _edge = bool(rec.get("edge_spacers"))
+    if _edge:
         try:
-            from dataclasses import fields as _fields
-            from workflow.layout_engine import instruments
-            from workflow.layout_engine.presets import LayoutRecipe
-            _valid = {f.name for f in _fields(LayoutRecipe)}
             _rc = LayoutRecipe(**{k: v for k, v in rec.items() if k in _valid})
             _geom = instruments.geom_from_build_kwargs(_rc.build_kwargs())
             _sp_px = round(_geom.pspa * dpi / _MM_PER_INCH)

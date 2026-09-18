@@ -1873,6 +1873,54 @@ class MeasurementReportDialog(QDialog):
                 keys.append(("origin", str(origin)))
         return tuple(keys)
 
+    @staticmethod
+    def _disk_stamp(ti3: Path) -> tuple:
+        """What this file looked like on disk when it was last read.
+
+        Deliberately (mtime, size) and not a hash: chartread rewrites a `.ti3`
+        in place, every write moves both, and a hash of a measurement file is
+        a read of the whole thing on a path a user can trigger in a loop. A
+        file that cannot be stat'ed answers `()`, which never equals a real
+        stamp, so an unreadable file is always treated as moved on.
+        """
+        try:
+            st = Path(ti3).stat()
+        except OSError:
+            return ()
+        return (st.st_mtime_ns, st.st_size)
+
+    def _source_has_moved_on(self, src: dict) -> bool:
+        """Has the measurement behind *src* changed since it was read?"""
+        was = src.get("stamp")
+        if not was:
+            # Added before this window started stamping, or unreadable then:
+            # the honest answer is "cannot tell", and re-reading is the safe
+            # side of that.
+            return True
+        return tuple(was) != self._disk_stamp(src.get("ti3"))
+
+    def _reread_one_source(self, src: dict) -> None:
+        """Read ONE loaded measurement off disk again, and nothing else.
+
+        `_reload_sources` re-reads everything, which is right when the disk has
+        changed under the whole window (a delete) and ruinous when one file was
+        picked again in a loop (R22-F2).
+        """
+        try:
+            name, runs = self._gather_runs(Path(src["ti3"]))
+        except Exception as exc:  # noqa: BLE001
+            log.warning("could not re-read %s: %s", src.get("ti3"), exc)
+            return
+        src["name"], src["runs"] = name, runs
+        src["stamp"] = self._disk_stamp(src.get("ti3"))
+        # The subject may be one of the rows just replaced, and a stale object
+        # would draw the old numbers for ever.
+        subject = self._run_key(self._report) if self._report else None
+        rows = [r for s in self._sources for r in s["runs"]]
+        self._report = next(
+            (r for r in rows if subject and self._run_key(r) == subject),
+            rows[-1] if rows else self._report)
+
     def _append_source(self, ti3: Path, origin: "Path | None" = None) -> bool:
         """Add one measurement to the source list (no repaint). Returns False if it
         is already present or has no runs. Raises on a gather error, so a batch add
@@ -1907,19 +1955,50 @@ class MeasurementReportDialog(QDialog):
                 # to what it answers to now.
                 s["keys"] = tuple(dict.fromkeys(tuple(s.get("keys") or ())
                                                 + tuple(keys)))
-                # **AND THE MEASUREMENT ITSELF IS READ AGAIN.** Refreshing the
-                # keys and returning leaves `runs` exactly as it was when the
-                # source was first added, and `runs` is the measurement. Driven
-                # through the real Add button: a sheet added at 8 patches,
-                # re-measured in place to 12, and added again still read **8**,
-                # with no message and no change to the document; a fresh window
-                # on the same file read 12, and an unrelated click later
-                # corrected it in silence (Average ΔE 20.91 to 23.20, Spread
-                # 10.67 to 9.69, and a row appearing that says the chart has 12
-                # patches). Asking to add a measurement that is already here is
-                # the clearest way a user can say "look at this file again", so
-                # that is what it does (R21-F1).
-                self._reload_sources()
+                # **AND THE MEASUREMENT ITSELF IS READ AGAIN, BUT ONLY WHEN
+                # THE FILE HAS MOVED ON.** Refreshing the keys and returning
+                # leaves `runs` exactly as it was when the source was first
+                # added, and `runs` is the measurement. Driven through the real
+                # Add button: a sheet added at 8 patches, re-measured in place
+                # to 12, and added again still read **8**, with no message and
+                # no change to the document; a fresh window on the same file
+                # read 12, and an unrelated click later corrected it in silence
+                # (Average ΔE 20.91 to 23.20, Spread 10.67 to 9.69, and a row
+                # appearing that says the chart has 12 patches). Asking to add
+                # a measurement that is already here is the clearest way a user
+                # can say "look at this file again" (R21-F1).
+                #
+                # **THE FIRST VERSION OF THIS CALLED `_reload_sources`, AND
+                # THAT WAS WRONG TWICE OVER (R22-F1, R22-F2).** It re-read
+                # EVERY loaded source and ended in `_render`, which is the one
+                # place that stamps `_doc_built_with`:
+                #
+                # * a duplicate add of an UNCHANGED file took the red "Settings
+                #   changed" line down and put settings nobody had confirmed
+                #   into the document, on screen, with nothing added and
+                #   nothing written;
+                # * and with 12 sources loaded, re-picking 11 already-loaded
+                #   files cost **5.5 seconds and 132 `_gather_runs` calls**,
+                #   synchronously, with no cursor and nothing on screen,
+                #   because `_on_add_project` calls this in a loop.
+                #
+                # A file that has not changed has nothing to say, which is what
+                # the code before R21 got right. So the disk is asked first,
+                # only this one source is re-read, and the banner survives it:
+                # re-reading a measurement is not the user confirming the
+                # settings they moved.
+                if not self._source_has_moved_on(s):
+                    return False
+                built = getattr(self, "_doc_built_with", None)
+                self._reread_one_source(s)
+                # **`_rebuild_from_sources`, NOT `_render`.** The history rows,
+                # the profile list and the button states all come from
+                # `self._sources`, and a repaint that skips them redraws the
+                # document from rows that were replaced a line above.
+                self._rebuild_from_sources()
+                if built is not None:
+                    self._doc_built_with = built
+                    self._show_stale_banner()
                 return False
         key = keys[0]
         name, runs = self._gather_runs(ti3)
@@ -1933,6 +2012,7 @@ class MeasurementReportDialog(QDialog):
                               "name": name, "dir": ti3.parent,
                               "ti3": ti3, "origin": Path(origin or ti3),
                               "runs": runs,
+                              "stamp": self._disk_stamp(ti3),
                               "scale_note": the_colour_scale_note(ti3)})
         if self._ti3 is None:
             self._ti3 = ti3
@@ -3692,6 +3772,7 @@ class MeasurementReportDialog(QDialog):
                 log.warning("could not re-read %s: %s", src.get("ti3"), exc)
                 continue
             src["name"], src["runs"] = name, runs
+            src["stamp"] = self._disk_stamp(src.get("ti3"))
         rows = [r for s in self._sources for r in s["runs"]]
         self._report = next(
             (r for r in rows if subject and self._run_key(r) == subject),

@@ -1112,3 +1112,186 @@ def test_adding_a_measurement_again_reads_it_again(tmp_path, qapp):
             f"again left the window reading {_patch_count()}")
     finally:
         dlg.close()
+
+
+def test_a_duplicate_add_of_an_unchanged_file_changes_nothing(tmp_path, qapp):
+    """R22-F1: the fix for R21-F1 called `_reload_sources`, which ends in
+    `_render`, and `_render` is the one place that stamps `_doc_built_with` and
+    clears the red "Settings changed" line.
+
+    Driven on screen: one source, Generate pressed, then the report type moved
+    so the red line was up and the document still said "Full colour check".
+    Pressing Add and picking the file already loaded, unchanged on disk, took
+    the red line DOWN and put "Colour summary (one page)" into the document,
+    with nothing added, nothing written to reports/, and the line beside the
+    pulldown still reading "No report has been generated for this run yet".
+
+    A file that has not changed has nothing to say. Asking the disk first is
+    also what makes R22-F2 impossible.
+
+    **THE FIXTURE HAS TO KEEP GENERATE LIVE.** `_settings_touched` only defers
+    the document while the Generate button can be pressed; with it disabled
+    (no run, or several profiles loaded) it repaints at once and no red line
+    ever appears, which is the app being right and a test measuring nothing. So
+    this drives ONE source, the window's own measurement, and never loads a
+    second.
+
+    MUTATION, proven to land: drop the `_source_has_moved_on` guard from the
+    duplicate branch of `_append_source`.
+    """
+    from tests.test_a_report_says_what_it_is_and_what_judged_it import _dialog
+
+    dlg, run, _fm = _dialog(tmp_path, qapp)
+    try:
+        ti3 = Path(dlg._sources[0]["ti3"])
+        assert ti3.is_file(), "the fixture's own measurement is not on disk"
+        assert len(dlg._sources) == 1, "this test needs exactly one source"
+
+        dlg._render()                       # what Generate leaves behind
+        qapp.processEvents()
+        built = tuple(dlg._doc_built_with)
+
+        btn = getattr(dlg, "_generate_btn", None)
+        if btn is None or not btn.isEnabled():
+            pytest.skip("Generate is not live here, so nothing can be deferred")
+
+        dlg._detail_check.setChecked(not dlg._detail_check.isChecked())
+        qapp.processEvents()
+        assert tuple(dlg._doc_built_with) == built, (
+            "the fixture never got the document out of step with the controls")
+        assert dlg._stale_label.isVisible(), "the red line did not come up"
+
+        before_rows = list(dlg._history)
+        reads = []
+        real = dlg._gather_runs
+        dlg._gather_runs = lambda t: (reads.append(Path(t)), real(t))[1]
+        dlg._add_source(ti3)                # the SAME file, untouched on disk
+        qapp.processEvents()
+
+        assert not reads, (
+            f"an unchanged file that is already loaded was read again "
+            f"{len(reads)} time(s); the disk was never asked")
+        assert dlg._stale_label.isVisible(), (
+            "adding an unchanged file that is already loaded took the red "
+            "'Settings changed' line down, so the reader is looking at "
+            "settings nobody confirmed")
+        assert tuple(dlg._doc_built_with) == built, (
+            "the document was rebuilt with settings the reader had not "
+            "confirmed")
+        assert len(dlg._history) == len(before_rows), "a row appeared"
+    finally:
+        dlg.close()
+
+
+def test_re_reading_a_measurement_is_not_confirming_the_settings(tmp_path, qapp):
+    """The other half of R22-F1, and the half the disk check cannot cover.
+
+    When the file really HAS been re-measured the window must read it again, so
+    `_rebuild_from_sources` runs and the document is redrawn. That redraw must
+    still not count as the reader pressing Generate: the five settings they
+    moved are just as unconfirmed as they were a moment ago, and the red line
+    has to survive a repaint it did not ask for.
+
+    MUTATION, proven to land: drop the two lines that put `_doc_built_with`
+    back after the rebuild.
+    """
+    from tests.test_a_report_says_what_it_is_and_what_judged_it import _dialog
+    from tests.test_import_measurement_module import _cgats
+
+    def _sheet(n):
+        return [((i * 100.0) / (n - 1), 100.0 - (i * 100.0) / (n - 1),
+                 float((i * 37) % 101)) for i in range(n)]
+
+    dlg, _run, _fm = _dialog(tmp_path, qapp)
+    try:
+        ti3 = Path(dlg._sources[0]["ti3"])
+        assert len(dlg._sources) == 1, "this test needs exactly one source"
+        dlg._render()
+        qapp.processEvents()
+        built = tuple(dlg._doc_built_with)
+        btn = getattr(dlg, "_generate_btn", None)
+        if btn is None or not btn.isEnabled():
+            pytest.skip("Generate is not live here, so nothing can be deferred")
+        dlg._detail_check.setChecked(not dlg._detail_check.isChecked())
+        qapp.processEvents()
+        assert dlg._stale_label.isVisible(), "the red line did not come up"
+
+        # re-measured in place, which is what chartread does
+        ti3.write_text(_cgats("CTI3", _sheet(23)), encoding="utf-8")
+        dlg._add_source(ti3)
+        qapp.processEvents()
+
+        assert dlg._stale_label.isVisible(), (
+            "re-reading a measurement took the red 'Settings changed' line "
+            "down, so a repaint the reader never asked for was counted as "
+            "them confirming the settings they moved")
+        assert tuple(dlg._doc_built_with) == built, (
+            "the document was stamped with settings nobody confirmed")
+        patches = [r.get("patches") for r in dlg._history]
+        assert 23 in patches, (
+            f"the file was re-measured to 23 patches and the window still "
+            f"reads {patches}")
+    finally:
+        dlg.close()
+
+
+def test_re_adding_loaded_files_does_not_re_read_every_source(tmp_path, qapp):
+    """R22-F2: `_on_add_project` calls `_append_source` in a LOOP, and the R21
+    fix re-read every loaded source on each iteration.
+
+    Measured on screen with 12 sources loaded: cancelling cost 56 ms and 0
+    reads; adding 11 new files 565 ms; re-picking ONE already-loaded file 599 ms
+    and 12 reads; re-picking all eleven **5,548 ms and 132 `_gather_runs`
+    calls**, synchronous, no cursor, nothing on screen.
+
+    Unchanged files are now asked of the disk first, so the same gesture costs
+    nothing, and a file that HAS changed re-reads itself alone.
+
+    MUTATION, proven to land: drop the `_source_has_moved_on` guard.
+    """
+    from tests.test_a_report_says_what_it_is_and_what_judged_it import _dialog
+    from tests.test_import_measurement_module import _cgats
+
+    def _sheet(n):
+        return [((i * 100.0) / (n - 1), 100.0 - (i * 100.0) / (n - 1),
+                 float((i * 37) % 101)) for i in range(n)]
+
+    dlg, _run, _fm = _dialog(tmp_path, qapp)
+    try:
+        files = []
+        for i in range(6):
+            f = tmp_path / f"many{i}" / f"sheet{i}.ti3"
+            f.parent.mkdir(parents=True, exist_ok=True)
+            f.write_text(_cgats("CTI3", _sheet(9 + i)), encoding="utf-8")
+            dlg._add_source(f)
+            qapp.processEvents()
+            files.append(f)
+        assert len(dlg._sources) >= 6, "the fixture did not load six sources"
+
+        reads = []
+        real = dlg._gather_runs
+
+        def counting(ti3):
+            reads.append(Path(ti3))
+            return real(ti3)
+
+        dlg._gather_runs = counting
+        # the app's own gesture: every one of them picked again, in a loop
+        for f in files:
+            dlg._append_source(f)
+        qapp.processEvents()
+        assert not reads, (
+            f"re-picking six already-loaded files that had not changed cost "
+            f"{len(reads)} re-reads of the disk")
+
+        # and one that HAS changed re-reads itself, and nothing else
+        reads.clear()
+        files[2].write_text(_cgats("CTI3", _sheet(21)), encoding="utf-8")
+        dlg._append_source(files[2])
+        qapp.processEvents()
+        assert len(reads) == 1, (
+            f"one changed file cost {len(reads)} reads; only its own source "
+            f"needed re-reading")
+        assert reads[0] == files[2]
+    finally:
+        dlg.close()
