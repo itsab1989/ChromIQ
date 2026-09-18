@@ -13953,6 +13953,13 @@ written for it in the suite passed its own mutation.
   `test_a_blanked_honeycomb_does_not_reach_into_a_read_neighbour` (now at a
   95 % bar, which is what makes the subtraction's mutation land)
 - fix proof: `~/Desktop/ChromIQ-beta21-proof/b8-326-the-saw-tooth-fix/`
+- **AND THE SPLIT DELIBERATELY DOES NOT TAKE THE `slot` ARGUMENT.** The blank
+  needs the unrounded pitch because it has to match printed ink to the pixel;
+  the split is drawn ON the patch and the difference between the two
+  geometries is 0.28 to 0.52 IMAGE pixels on the three charts measured, which
+  at an A4 fit scale of 0.41 is 0.1 to 0.2 of a device pixel. Measured rather
+  than argued, so a later round does not chase it: changing the split would
+  risk B8-318 and B8-320, which are proven, for something invisible.
 
 ### B8-327 · FIXED · "Show only measured patches" makes a big honeycomb's repaint 3.1x slower
 - blocks release: no
