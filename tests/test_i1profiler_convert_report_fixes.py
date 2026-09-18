@@ -140,20 +140,34 @@ def test_report_as_ti3_raises_on_bad_file(qapp, settings, tmp_path, monkeypatch)
 
 def test_source_key_standalone_by_file_project_by_folder(qapp, tmp_path, monkeypatch):
     """Standalone/imported measurements key by FILE (so several in one folder each
-    add); a ChromIQ project keys by FOLDER (all its runs = one source)."""
+    add); a ChromIQ project keys by FOLDER (all its runs = one source).
+
+    **THE PROPERTIES, NOT THE SPELLING.** The second half of each key used to be
+    the path as typed, and that let one measurement be added twice under a
+    second spelling of its own name: `/private/tmp` and a symlink, which
+    `resolve()` collapses, and a firmlink or another capitalisation, which it
+    does not (measured: +1 row each). It is the file's own device and inode
+    now, so what this test pins is what the docstring always said it was.
+    """
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog as M
 
     host = types.SimpleNamespace()
     key = types.MethodType(M._source_key, host)
     ti3 = tmp_path / "m.ti3"
     ti3.write_text("x", encoding="utf-8")
+    other = tmp_path / "m2.ti3"
+    other.write_text("y", encoding="utf-8")
     monkeypatch.setattr(
         "workflow.measurement_report.list_project_reports", lambda d: [])
-    assert key(ti3) == ("file", str(ti3))
+    assert key(ti3)[0] == "file"
+    assert key(ti3) != key(other), "two loose files in one folder collapsed"
+    assert key(ti3) == key(tmp_path / "m.ti3"), "one file, two calls, two keys"
     monkeypatch.setattr(
         "workflow.measurement_report.list_project_reports",
         lambda d: [tmp_path / "r.json"])
-    assert key(ti3) == ("dir", str(tmp_path))
+    assert key(ti3)[0] == "dir"
+    assert key(ti3) == key(other), (
+        "two measurements of one project folder must be one source")
 
 
 def test_several_loose_ti3_in_one_folder_each_add(qapp, tmp_path, monkeypatch):

@@ -4290,6 +4290,7 @@
  "This report compares what your instrument measured against the chart's design colours (the reference values the chart was built from). Every number is a colour difference (ΔE00): 0 is a perfect match, 1–2 is barely visible, and 10 or more is clearly different.": "Ce rapport compare ce que ton instrument a mesuré aux couleurs de design de la mire (les valeurs de référence à partir desquelles la mire a été créée). Chaque nombre est une différence de couleur (ΔE00) : 0 est une correspondance parfaite, 1–2 est à peine visible, et 10 ou plus est nettement différent.",
  "This report covers {n} of the {total} measurements recorded for the projects it is drawn from.": "This report covers {n} of the {total} measurements recorded for the projects it is drawn from.",
  "This report covers {n} of the {total} measurements recorded for this project.": "This report covers {n} of the {total} measurements recorded for this project.",
+ "This report does not cover every measurement recorded for this project.": "This report does not cover every measurement recorded for this project.",
  "This row needs a chart built from this reference's own colours. Your sheet was printed from its own chart, so the patches have no partner in the reference.": "This row needs a chart built from this reference's own colours. Your sheet was printed from its own chart, so the patches have no partner in the reference.",
  "This run": "Cette exécution",
  "This run ({run}) has one dated verification.": "Cette exécution ({run}) a une vérification datée.",

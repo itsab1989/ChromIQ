@@ -724,12 +724,29 @@ def test_a_cached_lab_cloud_never_pays_for_a_rebuild(qapp, monkeypatch):
 
     expected = dlg._generator_cache_key()
     assert expected is not None, "the fixture cannot be keyed at all"
+    builds = []
+    real_build = type(dlg)._build_generated_program
+    monkeypatch.setattr(type(dlg), "_build_generated_program",
+                        lambda self: (builds.append(1), real_build(self))[1])
     dlg._push_lab_cloud()
     cached = getattr(dlg, "_lab_cloud_cache", None)
     assert cached is not None, "the cloud did not run"
     assert cached[0] == expected, (
         "the cloud is cached under a key of its own, so it can be served while "
         "the program underneath it is rebuilt")
+    # **AND A HIT ASKS FOR NOTHING.** Keying the two caches alike is not enough
+    # on its own: `_PROGRAM_CACHE` is process-wide, capped at eight and
+    # least-recently-used, while this one is a single entry per window, so an
+    # equal key is not the same thing as an entry still being there. A second
+    # patch-set window evicts the first's program by itself, and the next push
+    # in the first window then cost 19.9 s, of which 19.4 s was one uncached
+    # build (R18-F1, two real windows, nothing cleared by hand). The two
+    # numbers the builder records are kept in this cache instead.
+    n_after_first = len(builds)
+    dlg._push_lab_cloud()
+    assert len(builds) == n_after_first, (
+        "a cached cloud asked for the program again; when the program cache "
+        "has evicted it, that is a 19-second push")
 
     # ...and the key really does move with the things the program depends on,
     # which is what makes the assertion above worth making.

@@ -786,6 +786,11 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-18 again, for round 18's fix to the report's scope
+    # sentence: a folder that cannot be counted no longer has a number invented
+    # for it, so there is a second wording with no numbers in it. ONE key in,
+    # none out, every catalogue up by exactly 1. Counted, not adjusted.
+
     # RE-MEASURED 2026-09-18, the round-13 fix for B8-346/R13-3: the
     # Measurement Report's scope sentence gained a second form for a document
     # drawn from more than one project ("...recorded for the projects it is
@@ -961,18 +966,18 @@ _IDENTICAL_TO_KEY = {
     # ...and once more, +1 each, for B8-328's SECOND attempt: three layout help
     # texts rewritten after an adversary round measured the first rewrite false
     # on 154 of the 160 built-in charts.
-    "de": 141,
-    "es": 381,
-    "fr": 403,
-    "it": 392,
-    "ja": 367,
-    "nl": 408,
-    "no": 393,
-    "pl": 385,
-    "pt": 383,
-    "ru": 356,
-    "sv": 394,
-    "zh_CN": 361,
+    "de": 142,
+    "es": 382,
+    "fr": 404,
+    "it": 393,
+    "ja": 368,
+    "nl": 409,
+    "no": 394,
+    "pl": 386,
+    "pt": 384,
+    "ru": 357,
+    "sv": 395,
+    "zh_CN": 362,
 }
 
 

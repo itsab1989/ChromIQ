@@ -15253,7 +15253,7 @@ why the guards kept needing a row hidden to see anything. It resolves now.
   a SpectroScan honeycomb in a window, the eight report types one by one, and
   a stray `.ti3` produced through an app path, which round 17 looked for in the
   writers and could not find.
-- what to do next: round 18, and then the three gates.
+- what to do next: round 18 found four, three of them in round 17's own code; B8-358.
 
 ### B8-356 · OPEN · Should leaving the preset dropdown undo an ACCEPTED preset?
 - blocks release: no
@@ -15271,9 +15271,14 @@ why the guards kept needing a row hidden to see anything. It resolves now.
 - evidence: none yet, deliberately. Nothing has been changed.
 - what to do first: ask Basti, since the preset dropdown and its undo were his.
 
-### B8-357 · OPEN · The preview panel and the chart's own boxes differ by about 0.4 mm
+### B8-357 · FIXED · The preview panel and the chart's own boxes agree; the sheets differed
 - blocks release: no
-- status: OPEN
+- status: FIXED
+- evidence: `test_only_a_spectroscan_or_a_cr30_claims_the_edge_of_the_sheet`
+  and `test_every_margin_is_at_least_what_was_asked` pin the rule this was
+  measured against. Nothing was changed, because nothing was wrong: the panel
+  reproduces Knut's own numbers from his own file, and the difference between
+  his sheet and mine is named below.
 - Knut, 2026-09-18, reading the "Measured from Preview" panel on an i1Pro A4
   sheet: top 5.6 and bottom 5.5 for 5 mm asked, 20.6 and 20.6 for 20 mm. The
   same sheets measured from the chart's own recorded patch boxes give 6.01 and
@@ -15281,7 +15286,17 @@ why the guards kept needing a row hidden to see anything. It resolves now.
   are measuring to different edges rather than disagreeing about the sheet.
 - It matters because the panel is what a user checks a margin against, and it
   should agree with the ink.
-- **MEASURED, AND IT IS NOT A DISCREPANCY IN THE CODE.** The panel's numbers
+- **SETTLED. Round 18 found the cause: `patch_area_align`.** Reproduced
+  through the real `LayoutRecipe`: `"top-left"`, which is the recipe's own
+  default, gives 6.01 / 6.42 at 5 mm asked and 21.00 / 21.41 at 20 mm;
+  `"center-left"` gives 6.18 / 6.17 and 21.17 / 21.24. So the 0.41 mm split
+  between Knut's top and bottom is the vertical alignment, and his equal pair
+  means a centred one. Edge spacers move both edges by a full `pspa`, 1.01 mm
+  on that sheet. Two more things worth keeping: `build_chart`'s own default is
+  `"center-left"` while the recipe's is `"top-left"`, so the two disagree; and
+  my comparison sheet had a recorded patch width of 178.99 mm, 120 patches in
+  one strip, which is a degenerate sheet and not an i1Pro chart at all.
+- **AND IT IS NOT A DISCREPANCY IN THE CODE.** The panel's numbers
   come from `workflow.margin_inspector.measure_from_engine`, which reads the
   chart's own recorded patch rectangles out of `channels.json`, which is the
   same place the boxes come from. Called on a freshly built i1Pro A4 area-first
@@ -15298,3 +15313,70 @@ why the guards kept needing a row hidden to see anything. It resolves now.
   because nothing compares them.
 - evidence: none yet; nothing has been changed and nothing is known to be
   wrong.
+
+### B8-358 · FIXED · Round 18's four findings, three of them in round 17's own code
+- blocks release: yes
+- status: FIXED
+- evidence: `test_a_cached_lab_cloud_never_pays_for_a_rebuild`,
+  `test_a_second_capitalisation_of_one_file_is_one_source`,
+  `test_a_loose_file_opened_under_two_spellings_is_one_source`,
+  `test_a_folder_that_cannot_be_counted_never_invents_a_number`,
+  `test_renaming_the_project_does_not_pull_another_set_into_the_document`.
+
+**Two of these are faults round 17 measured and reported as FIXED.** That is
+the finding behind the findings: a fix that is reasoned about rather than
+re-measured is not a fix.
+
+**F1 · the 19.4 second push is still 19.4 seconds.** Round 17 made the cloud
+cache under the program's key and wrote that a hit therefore "costs a
+dictionary lookup". False: `_PROGRAM_CACHE` is process-wide, capped at eight
+and least-recently-used, while the cloud cache is one entry per window, so an
+equal key is not the same thing as an entry still being there. Two real
+windows, nothing cleared by hand: window 1 pushes in 0.404 s; window 2 runs
+nine states of its own and evicts window 1's program; back in window 1,
+**19.854 s, of which 19.441 s is one uncached build**. The row counts live in
+the cloud cache now and a hit asks for nothing at all.
+
+**F2 · `resolve()` names four spellings and handles two.** Round 17's comment
+claimed a firmlink and a different capitalisation were covered, and the comment
+added by the same commit thirty lines away says `resolve()` does neither.
+Measured: symlink +0 rows, capitalisation **+1**, firmlink **+1**, and the
+sentence went from "covers 1 of the 3" to "covers 2 of the 3" with one sheet
+printed twice. A file's device and inode are the same under every spelling, so
+that is the key now. **And the branch test was case-sensitive too**: on a
+case-insensitive volume the same folder reached as `VERIFICATIONS` went down
+the loose-file branch, so one key came back as a `dir` and the other as a
+`file` and the identity never got the chance to match them.
+
+**F3 · round 17's memo turned "no sentence" into a WRONG sentence**: "covers 3
+of the 5 measurements" on a project holding four, and "covers 3 of the 4" on a
+project whose folder had been deleted and recreated empty, because nothing ever
+invalidated it. Both of the ways round the problem were worse than not guessing,
+so a folder that cannot be counted is no longer counted: the sentence says the
+same thing without numbers, which is still the honesty rule and claims nothing
+the app cannot stand behind.
+
+**F4 · renaming a project folder ADDS a measurement to the document**, and no
+round had reached it. `_one_limit_set` reads each row's binding off the disk,
+so a folder that has moved sends every row of it to the WINDOW's limit set:
+folder present, 2 kept and 1 dropped; renamed, **3 kept and 0 dropped**, under
+a heading still naming one "Judged against" set. A row that has answered once
+keeps its answer. That is not the memo removed in F3: this remembers a property
+of a row read from its own run, where the alternative is not silence but a
+different document.
+
+- Mutations, each proven to land, 2026-09-18: W1 a row does not keep its limit
+  set (1 red), W2 the branch test case-sensitive again (1 red), W3 a loose file
+  keyed on its path again (1 red), W4 the cached cloud asks for the program
+  again (1 red).
+- **Both of round 17's new guards were blind to the shapes their own docstrings
+  named**, and round 18 proved it by writing two unmutated tests against HEAD
+  that failed: the cloud-hit-is-a-program-hit claim, and the capitalisation,
+  where the guard built only the symlink, which is the one spelling `resolve()`
+  already handled. Both shapes are now in the file.
+- **What round 18 could NOT break**: `_generator_cache_key()` returning `None`
+  in ordinary use, and a `None` key is slow but never stale; a realistic
+  keystroke burst, 0.404 to 0.417 s, unchanged; the two-projects-swap and
+  recreated-smaller memo cases, which self-correct; the symlink spelling; and
+  the stale-cloud half of R17-F1, which is genuinely fixed.
+- what to do next: round 19, and then the three gates.

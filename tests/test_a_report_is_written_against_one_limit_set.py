@@ -439,3 +439,56 @@ def test_a_choice_that_names_no_file_falls_back_to_the_newest():
     key = MeasurementReportDialog._run_key(rows[0])
     out = _merge(rows, {key: "report_that_is_gone.json"})
     assert out[0]["_report_file"] == "report_2026-09-15_13-35-33_16.json"
+
+
+def test_renaming_the_project_does_not_pull_another_set_into_the_document(
+        tmp_path, qapp):
+    """R18-F4: a document is written against ONE "judged against" set, and the
+    split reads each row's binding off the disk through `run_context_for`. Move
+    or rename the project while the window is open and every row of it falls
+    through to the WINDOW's set instead, so a measurement judged against
+    another one is silently pulled IN. Measured: folder present, 2 kept and 1
+    dropped; folder renamed, 3 kept and 0 dropped, under a heading still naming
+    one set.
+
+    A row that has answered once keeps its answer.
+
+    MUTATION, proven to land: drop the `_limits_by_origin` fall-back.
+    """
+    from tests.test_a_report_says_what_it_is_and_what_judged_it import _dialog
+    from tests.test_import_measurement_module import _cgats, _PATCHES
+    from workflow.run_compliance import bind_run
+    from pathlib import Path as _P
+    dlg, _run, fm = _dialog(tmp_path, qapp)
+    try:
+        proj = fm.project()
+        root = _P(str(proj.root))
+        for scale, limits in ((0.9, None), (0.7, "chromiq_tight")):
+            run = proj.new_run()
+            v = run.new_verification()
+            v.ensure_dir()
+            v.measurement_ti3.write_text(
+                _cgats("CTI3", [(r * scale, g, b) for (r, g, b) in _PATCHES]),
+                encoding="utf-8")
+            if limits:
+                bind_run(run, limits, None)
+            dlg._add_source(v.measurement_ti3)
+            qapp.processEvents()
+        kept_before, dropped_before = dlg._one_limit_set(list(dlg._history))
+        assert dropped_before, (
+            "the fixture has nothing judged against another set, so this test "
+            "would prove nothing")
+        moved = root.with_name(root.name + "-moved")
+        root.rename(moved)
+        try:
+            kept_after, dropped_after = dlg._one_limit_set(list(dlg._history))
+        finally:
+            moved.rename(root)
+        assert len(kept_after) == len(kept_before), (
+            f"renaming the project moved {len(kept_after) - len(kept_before)} "
+            f"more measurement(s) into a document written against one set")
+        assert len(dropped_after) == len(dropped_before), (
+            f"{len(dropped_before)} measurements were left out before the "
+            f"rename and {len(dropped_after)} after")
+    finally:
+        dlg.close()

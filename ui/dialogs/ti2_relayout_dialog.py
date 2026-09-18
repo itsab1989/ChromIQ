@@ -4096,6 +4096,13 @@ class _NewChartDialog(QDialog):
         ``additions`` is the built program for the current selection (RGB
         state only, which is the only state that reaches here).
         """
+        # **`additions` MAY BE None**, and then only what the BUILDER recorded
+        # can be used. The Lab-cloud cache serves a cloud without rebuilding
+        # the program, and asking for the program to get these two numbers back
+        # was a 19-second push whenever the process-wide program cache had
+        # evicted the entry (R18-F1), which a second patch-set window does on
+        # its own. Equal keys are not the same thing as an entry still being
+        # there.
         rows = getattr(self, "_built_row_counts", {})
         rgb = self._nch_state() == 1
         wb, wb_lbl = self._gen_whiteblack, self._gen_whiteblack_count
@@ -4106,16 +4113,19 @@ class _NewChartDialog(QDialog):
             # ONLY ON AN RGB PROGRAM. `count_white_black` reads three channels;
             # handing it a CMYK program would answer about the first three inks
             # and call the result white.
-            have_w, have_b = G.count_white_black(additions)
+            have_w, have_b = G.count_white_black(additions or [])
             wb_lbl.setText(_patches_label(G.white_black_count(
                 self._gen_whiteblack_n.value(), have_w, have_b)))
         fill, fill_lbl = self._gen_fill, self._gen_fill_count
         if fill.isChecked():
             if "fill" in rows:
                 fill_lbl.setText(_fill_count_label(int(rows["fill"])))
-        else:
+        elif additions is not None:
             # What it would add: the target less the chart it tops up, which is
             # the existing chart plus everything the ticked sets just built.
+            # Without a program in hand there is nothing to count, so the
+            # estimate `_update_gen_counts` already wrote is left alone rather
+            # than replaced by a worse one.
             fill_lbl.setText(_fill_count_label(G.fill_gaps_count(
                 len(self._existing_patches) + len(additions),
                 self._effective_fill_target())))
@@ -4161,12 +4171,20 @@ class _NewChartDialog(QDialog):
             # real state-3 window, `_apply_built_row_counts` was called 0 times
             # across two pushes and the fill row read "≈ 32 patches" against
             # "Total: 40 patches" (R16-F3).
+            # **THE ROW COUNTS COME OUT OF THIS CACHE, NOT OUT OF A REBUILD.**
+            # Asking `_build_generated_program()` for them read as free and was
+            # not: `_PROGRAM_CACHE` is process-wide, capped at eight and
+            # least-recently-used, while this cache is one entry per window, so
+            # an equal key is not the same thing as an entry still being there.
+            # A second patch-set window evicts the first's program on its own,
+            # and the next push in the first window then cost **19.9 s**, of
+            # which 19.4 s was one uncached build (R18-F1, measured in two real
+            # windows with nothing cleared by hand). The two numbers the
+            # builder records are small; they are kept here.
             labs, colors = cached[1], cached[2]
-            # The program is cached under the SAME key, so this is a hit by
-            # construction: it restores `_built_row_counts` from
-            # `_PROGRAM_CACHE` and costs a dictionary lookup, while the
-            # `xicclu` call this cache exists to skip is still skipped.
-            self._apply_built_row_counts(self._build_generated_program())
+            if len(cached) > 3:
+                self._built_row_counts = dict(cached[3])
+            self._apply_built_row_counts(None)
         else:
             try:
                 from workflow.xicclu_runner import forward_lab
@@ -4187,7 +4205,9 @@ class _NewChartDialog(QDialog):
                     colors.append((round(r * 2.55), round(g * 2.55),
                                    round(b * 2.55)))
                 if key is not None:
-                    self._lab_cloud_cache = (key, labs, colors)
+                    self._lab_cloud_cache = (
+                        key, labs, colors,
+                        dict(getattr(self, "_built_row_counts", {})))
             except Exception as exc:  # noqa: BLE001 — preview is best-effort
                 log.warning("Lab cloud preview failed: %s", exc)
                 return

@@ -539,6 +539,10 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-18, round 18: the report's scope sentence gained a
+    # second wording for a folder that cannot be counted. One new string long
+    # enough to count, so every language rises by exactly 1. Counted with this
+    # file's own `_english_echoes`.
     # RE-MEASURED 2026-09-18, round 13 on the B8-346 fixes: the Measurement
     # Report's scope sentence gained a second form for a document drawn from
     # more than one project. ONE new string long enough to count, so every
@@ -578,18 +582,18 @@ _BUDGET = {
     # again from the real mechanism), and the Settings strip-length list, which
     # named four instruments where the combo offers five.
     # Counted with this file's own `_english_echoes`, never adjusted upward.
-    "de": 18,
-    "es": 212,
-    "fr": 213,
-    "it": 212,
-    "ja": 212,
-    "nl": 212,
-    "no": 212,
-    "pl": 212,
-    "pt": 212,
-    "ru": 211,
-    "sv": 212,
-    "zh_CN": 211,
+    "de": 19,
+    "es": 213,
+    "fr": 214,
+    "it": 213,
+    "ja": 213,
+    "nl": 213,
+    "no": 213,
+    "pl": 213,
+    "pt": 213,
+    "ru": 212,
+    "sv": 213,
+    "zh_CN": 212,
 }
 
 

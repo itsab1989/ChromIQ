@@ -4290,6 +4290,7 @@
  "This report compares what your instrument measured against the chart's design colours (the reference values the chart was built from). Every number is a colour difference (ΔE00): 0 is a perfect match, 1–2 is barely visible, and 10 or more is clearly different.": "Dieser Bericht vergleicht, was dein Messgerät gemessen hat, mit den Sollfarben des Charts (den Referenzwerten, aus denen das Chart gebaut wurde). Jede Zahl ist ein Farbunterschied (ΔE00): 0 ist eine perfekte Übereinstimmung, 1–2 kaum sichtbar und 10 oder mehr klar verschieden.",
  "This report covers {n} of the {total} measurements recorded for the projects it is drawn from.": "This report covers {n} of the {total} measurements recorded for the projects it is drawn from.",
  "This report covers {n} of the {total} measurements recorded for this project.": "This report covers {n} of the {total} measurements recorded for this project.",
+ "This report does not cover every measurement recorded for this project.": "This report does not cover every measurement recorded for this project.",
  "This row needs a chart built from this reference's own colours. Your sheet was printed from its own chart, so the patches have no partner in the reference.": "Diese Zeile braucht ein Chart, das aus den Farben dieser Referenz aufgebaut wurde. Dein Bogen wurde aus seinem eigenen Chart gedruckt, die Felder haben in der Referenz also keinen Partner.",
  "This run": "Dieser Lauf",
  "This run ({run}) has one dated verification.": "Dieser Lauf ({run}) hat eine datierte Verifizierung.",

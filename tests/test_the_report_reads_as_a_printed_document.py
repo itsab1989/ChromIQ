@@ -539,7 +539,13 @@ def test_renaming_the_project_folder_does_not_silence_the_note(tmp_path,
                                                  for_pdf=False))
         finally:
             root.with_name(root.name + "-renamed").rename(root)
-        assert re.search(r"covers \d+ of the \d+ measurements", after), (
+        # EITHER FORM. A renamed folder cannot be counted, so the sentence
+        # drops its numbers rather than inventing them: remembering the last
+        # count the folder gave produced "3 of the 5" on a four-measurement
+        # project and "3 of the 4" on one whose folder had been emptied
+        # (R18-F3). What may never happen is silence.
+        assert re.search(r"covers \d+ of the \d+ measurements", after) or \
+            "does not cover every measurement" in after, (
             "renaming the project's folder silenced the sentence, so a report "
             "with a measurement left out now passes as complete\n"
             + after[-400:])
@@ -662,12 +668,19 @@ def test_a_rename_cannot_silence_the_note_on_a_four_measurement_project(
         finally:
             renamed.rename(root)
         m1 = re.search(r"covers (\d+) of the (\d+) measurements", after)
-        assert m1, (
-            "renaming the project's folder silenced the sentence, so a report "
-            "with a measurement left out passes as complete\n" + after[-400:])
-        assert int(m1.group(2)) == total_before, (
-            f"the project records {total_before} and after the rename the "
-            f"document says {m1.group(2)}")
+        if m1 is None:
+            # A folder that cannot be read cannot be counted, so the sentence
+            # says the same thing without numbers. That is the honest answer:
+            # the alternatives measured were silence (R17-F2) and a wrong
+            # number, "3 of the 5" on a four-measurement project (R18-F3).
+            assert "does not cover every measurement" in after, (
+                "renaming the project's folder silenced the sentence, so a "
+                "report with a measurement left out passes as complete\n"
+                + after[-400:])
+        else:
+            assert int(m1.group(2)) == total_before, (
+                f"the project records {total_before} and after the rename the "
+                f"document says {m1.group(2)}")
     finally:
         dlg.close()
 
@@ -709,5 +722,135 @@ def test_one_measurement_opened_twice_is_one_source(tmp_path, qapp):
         assert len(dlg._history) == n_rows, (
             f"the same measurement opened by a second spelling of its own "
             f"path added {len(dlg._history) - n_rows} more rows")
+    finally:
+        dlg.close()
+
+
+def test_a_folder_that_cannot_be_counted_never_invents_a_number(tmp_path,
+                                                                qapp):
+    """R18-F3: remembering the last count a folder gave turned "no sentence"
+    into a WRONG sentence. Driven: "covers 3 of the 5 measurements recorded for
+    the projects it is drawn from" on a project holding four, and "covers 3 of
+    the 4" on a project whose folder had been deleted and recreated EMPTY, a
+    memo that nothing ever invalidated.
+
+    A folder that cannot be counted is not counted. The sentence says the same
+    thing without numbers, which is still the honesty rule and claims nothing
+    the app cannot stand behind.
+
+    MUTATION, proven to land: put the remembered count back.
+    """
+    from tests.test_a_report_says_what_it_is_and_what_judged_it import _dialog
+    from tests.test_import_measurement_module import _cgats, _PATCHES
+    dlg, _run, fm = _dialog(tmp_path, qapp)
+    try:
+        proj = fm.project()
+        root = Path(str(proj.root))
+        for scale, load in ((0.9, True), (0.7, True), (0.5, False)):
+            run = proj.new_run()
+            v = run.new_verification()
+            v.ensure_dir()
+            v.measurement_ti3.write_text(
+                _cgats("CTI3", [(r * scale, g, b) for (r, g, b) in _PATCHES]),
+                encoding="utf-8")
+            if load:
+                dlg._add_source(v.measurement_ti3)
+                qapp.processEvents()
+        rows = list(dlg._history)
+        dlg._hidden_runs = {dlg._run_key(rows[0])}
+        qapp.processEvents()
+        before = _plain(dlg._report_body_html(dlg._runs_for_report(),
+                                              for_pdf=False))
+        m0 = re.search(r"covers (\d+) of the (\d+) measurements", before)
+        assert m0, "the fixture is not filtering anything"
+        on_disk = int(m0.group(2))
+
+        # the folder goes away entirely, which is what a rename or a move looks
+        # like from in here
+        gone = root.with_name(root.name + "-moved")
+        root.rename(gone)
+        try:
+            after = _plain(dlg._report_body_html(dlg._runs_for_report(),
+                                                 for_pdf=False))
+        finally:
+            gone.rename(root)
+        m1 = re.search(r"covers (\d+) of the (\d+) measurements", after)
+        assert m1 is None, (
+            f'the folder cannot be counted and the document still says '
+            f'"{m1.group(0)}" (it records {on_disk})')
+        assert "does not cover every measurement" in after, (
+            "the folder cannot be counted and the document says nothing at "
+            "all, so a filtered report passes as complete\n" + after[-300:])
+    finally:
+        dlg.close()
+
+
+def test_a_second_capitalisation_of_one_file_is_one_source(tmp_path, qapp):
+    """R18-F2: `_source_key` resolved the path, and `resolve()` collapses
+    `/private/tmp` and a symlink while collapsing NEITHER a firmlink nor a
+    different capitalisation on a case-insensitive volume. Measured: symlink
+    +0 rows, capitalisation +1, firmlink +1, and the sentence went from
+    "covers 1 of the 3" to "covers 2 of the 3" with one sheet printed twice.
+
+    The guard written with that fix built only the symlink, which is the one
+    spelling `resolve()` already handled.
+
+    MUTATION, proven to land: key on the resolved path again.
+    """
+    from tests.test_a_report_says_what_it_is_and_what_judged_it import _dialog
+    from tests.test_import_measurement_module import _cgats, _PATCHES
+    dlg, _run, fm = _dialog(tmp_path, qapp)
+    try:
+        proj = fm.project()
+        root = Path(str(proj.root))
+        run = proj.new_run()
+        v = run.new_verification()
+        v.ensure_dir()
+        v.measurement_ti3.write_text(
+            _cgats("CTI3", [(r * 0.5, g, b) for (r, g, b) in _PATCHES]),
+            encoding="utf-8")
+        dlg._add_source(v.measurement_ti3)
+        qapp.processEvents()
+        n_rows = len(dlg._history)
+        swapped = Path(str(v.measurement_ti3).swapcase())
+        if str(swapped) == str(v.measurement_ti3) or not swapped.is_file():
+            pytest.skip("this volume keeps the two cases apart")
+        dlg._add_source(swapped)
+        qapp.processEvents()
+        assert len(dlg._history) == n_rows, (
+            f"the same measurement opened under another capitalisation added "
+            f"{len(dlg._history) - n_rows} more rows")
+    finally:
+        dlg.close()
+
+
+def test_a_loose_file_opened_under_two_spellings_is_one_source(tmp_path,
+                                                               qapp):
+    """The same identity question for a measurement that belongs to no run,
+    which takes the other branch of `_source_key`. The verification case above
+    goes down the "dir" branch; nothing guarded this one.
+
+    MUTATION, proven to land: key a loose file on its path again.
+    """
+    from tests.test_a_report_says_what_it_is_and_what_judged_it import _dialog
+    from tests.test_import_measurement_module import _cgats, _PATCHES
+    dlg, _run, _fm = _dialog(tmp_path, qapp)
+    try:
+        loose = tmp_path / "from-a-colleague" / "sheet.ti3"
+        loose.parent.mkdir(parents=True, exist_ok=True)
+        loose.write_text(
+            _cgats("CTI3", [(r * 0.8, g, b) for (r, g, b) in _PATCHES]),
+            encoding="utf-8")
+        dlg._add_source(loose)
+        qapp.processEvents()
+        n_rows = len(dlg._history)
+        swapped = Path(str(loose).swapcase())
+        if str(swapped) == str(loose) or not swapped.is_file():
+            pytest.skip("this volume keeps the two cases apart")
+        dlg._add_source(swapped)
+        qapp.processEvents()
+        assert len(dlg._history) == n_rows, (
+            f"a loose measurement opened under another capitalisation added "
+            f"{len(dlg._history) - n_rows} more rows")
     finally:
         dlg.close()

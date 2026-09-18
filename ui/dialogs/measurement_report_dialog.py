@@ -471,6 +471,28 @@ def _report_order(origin, name) -> tuple:
     return (ns, _report_file_order(name))
 
 
+def _dir_ident(d: "Path") -> str:
+    """A directory's identity on the disk, or its path when it has none.
+
+    Device and inode are the same under every spelling that names the same
+    mounted directory: `/tmp` and `/private/tmp`, a symlink, a firmlink
+    (`/Users/...` and `/System/Volumes/Data/Users/...`), and a different
+    capitalisation on a case-insensitive volume. `resolve()` collapses the
+    first two and neither of the last two, which is how one measurement kept
+    being added to a report twice. Two MOUNTS of one filesystem still give
+    different numbers, which is a known limit and not something anybody has
+    driven here.
+    """
+    try:
+        st = d.stat()
+        return f"{st.st_dev}:{st.st_ino}"
+    except OSError:
+        try:
+            return str(d.resolve())
+        except OSError:
+            return str(d)
+
+
 def _is_raw_drift(r: dict) -> bool:
     """A recorded-raw verification sheet judged against the design: its job is
     drift, not accuracy — Pass/Fail against the profile thresholds would fail
@@ -1780,21 +1802,36 @@ class MeasurementReportDialog(QDialog):
         in the same folder each add instead of collapsing to one (Knut)."""
         from core.file_manager import VERIFICATIONS_DIRNAME
         from workflow.measurement_report import list_project_reports
-        # RESOLVED, SO TWO SPELLINGS OF ONE FILE ARE ONE SOURCE. `/tmp` and
-        # `/private/tmp`, a symlink, a firmlink and a different capitalisation
-        # on a case-insensitive volume all name the same measurement, and each
-        # of them slipped past this dedup and was added a second time: the same
-        # sheet then appeared twice in the document and was counted twice in
-        # "covers N of the M". Found while fixing R17-F2.
+        # ONE FILE IS ONE SOURCE, BY THE DISK'S OWN IDENTITY. `resolve()`
+        # alone was not enough and the comment that claimed it was is the one
+        # this replaces: it collapses `/private/tmp` and a symlink and it does
+        # NOT collapse a firmlink or a different capitalisation on a
+        # case-insensitive volume, both of which added the same measurement a
+        # second time. Measured: symlink +0 rows, capitalisation +1, firmlink
+        # +1, and the sentence went from "covers 1 of the 3" to "covers 2 of
+        # the 3" with one sheet printed twice (R18-F2). A file's device and
+        # inode are the same under every one of those spellings.
+        _ident = None
+        try:
+            _st = ti3.stat()
+            _ident = f"{_st.st_dev}:{_st.st_ino}"
+        except OSError:
+            pass
         try:
             ti3 = ti3.resolve()
         except OSError:
             pass
-        if ti3.parent.parent.name == VERIFICATIONS_DIRNAME:
-            return ("dir", str(ti3.parent.parent))
+        # CASE-FOLDED, BECAUSE THE SPELLING DECIDES WHICH BRANCH RUNS. On a
+        # case-insensitive volume the same folder can be reached as
+        # `verifications` or `VERIFICATIONS`, and comparing the name exactly
+        # sent the second spelling down the "loose file" branch: one key came
+        # back as a `dir` and the other as a `file`, so the identity below
+        # never got the chance to match them (R18-F2).
+        if ti3.parent.parent.name.casefold() == VERIFICATIONS_DIRNAME.casefold():
+            return ("dir", _dir_ident(ti3.parent.parent))
         if list_project_reports(ti3.parent):
-            return ("dir", str(ti3.parent))
-        return ("file", str(ti3))
+            return ("dir", _dir_ident(ti3.parent))
+        return ("file", _ident or str(ti3))
 
     def _append_source(self, ti3: Path, origin: "Path | None" = None) -> bool:
         """Add one measurement to the source list (no repaint). Returns False if it
@@ -3075,6 +3112,21 @@ class MeasurementReportDialog(QDialog):
         from workflow.run_compliance import run_context_for, run_limits
         origin = r.get("_origin_dir")
         ti3 = r.get("ti3")
+        # **A ROW THAT HAS ANSWERED ONCE KEEPS ITS ANSWER.** `run_context_for`
+        # asks the disk, so a project renamed or moved while the window is open
+        # makes every row of it fall through to the WINDOW's limit set, and the
+        # document is written against one set: a measurement judged against
+        # another was then silently pulled INTO it. Measured: folder present,
+        # 2 kept and 1 dropped; folder renamed, 3 kept and 0 dropped, under a
+        # heading still naming one "Judged against" set (R18-F4).
+        #
+        # This is not the memo that was removed from the scope count. That one
+        # invented a TOTAL the disk no longer supported; this remembers a
+        # property of a row that was read from its own run, and the alternative
+        # is not silence but a different document.
+        seen = getattr(self, "_limits_by_origin", None)
+        if seen is None:
+            seen = self._limits_by_origin = {}
         if origin and ti3:
             ctx = run_context_for(Path(origin) / str(ti3))
             if ctx is not None:
@@ -3085,7 +3137,10 @@ class MeasurementReportDialog(QDialog):
                 if key not in cache:
                     cache[key] = run_limits(ctx.run, self._overrides(),
                                             self._default_set_id())
+                seen[str(origin)] = cache[key]
                 return cache[key]
+            if str(origin) in seen:
+                return seen[str(origin)]
         return self._window_limits()
 
     def _forget_limits(self) -> None:
@@ -3093,6 +3148,9 @@ class MeasurementReportDialog(QDialog):
         session-only choice for a file that is in no run (CH-14) is kept: there
         is nothing on disk to re-read it from."""
         self._limits_cache = {}
+        # ...and what each row last answered, which is the same cache seen from
+        # the row's end (see `_limits_for`).
+        self._limits_by_origin = {}
         # …AND THE TYPES, for the same reason and at the same moment. A cache
         # that outlives the read it was taken for is a baseline taken later
         # than the write that earned it, which is a fault shape this window has
@@ -6362,38 +6420,31 @@ class MeasurementReportDialog(QDialog):
         # (R14-F5). Where the folder cannot be read, the rows this window holds
         # for that project are the best count there is, which is what this
         # counted before it counted the disk at all.
-        # ...AND WHAT THE FOLDER SAID WHILE IT WAS STILL THERE. Counting the
-        # window's own rows as the fall-back is not enough on its own: when the
-        # window holds only this report's rows, that count can never exceed
-        # what the report covers, so `max(total, covered)` makes the two equal
-        # and the sentence disappears anyway. Driven after a rename: "covers 2
-        # of the 4 measurements recorded for this project" became no sentence
-        # at all, which is a filtered report passing as complete (R17-F2).
-        # A count read from the disk earlier in this window's life is the true
-        # one, so it is kept.
-        _seen = getattr(self, "_recorded_counts", None)
-        if _seen is None:
-            _seen = self._recorded_counts = {}
-        total_known = 0
-        for _k, _p in _mine.items():
-            # REMEMBERED AGAINST THE PATH, NOT THE IDENTITY. The identity is
-            # the folder's device and inode, and a folder that has been renamed
-            # has neither any more, so a memo kept under it could never be
-            # found again by the very rows that need it. The path the rows
-            # carry does not change when the folder does.
-            _n = self._measurements_recorded_in(_p)
-            if _n > 0:
-                _seen[_p] = _n
-            else:
-                _n = _seen.get(_p, 0)
-            if _n <= 0:
-                _n = len([r for r in self._history
-                          if _ident(_project_of(r)) == _k])
-            total_known += _n
+        # **A NUMBER ONLY WHEN THE DISK CAN GIVE ONE.** A folder that has been
+        # renamed or removed cannot be counted, and the two ways of guessing
+        # round it were both worse than not guessing: counting the window's own
+        # rows can never exceed what the report covers when the window holds
+        # only this report's rows, so the sentence vanished (R17-F2); and
+        # remembering the last count the folder gave produced a WRONG one, "3
+        # of the 5" on a four-measurement project and "3 of the 4" on a project
+        # whose folder had been emptied (R18-F3). So: every folder readable,
+        # and the sentence carries numbers; any folder not, and it says the
+        # same thing without them, which is still Sebastian's honesty rule and
+        # claims nothing the app cannot stand behind.
+        _counts = [self._measurements_recorded_in(_p) for _p in _mine.values()]
+        _all_known = bool(_counts) and all(n > 0 for n in _counts)
         # A measurement with no saved report beside it is still in this
         # document, so the total can never be smaller than what is covered.
-        total_known = max(total_known, covered)
-        if covered < total_known:
+        total_known = max(sum(_counts), covered)
+        if not _all_known:
+            _held = len([r for r in self._history
+                         if _ident(_project_of(r)) in _mine])
+            if covered < _held:
+                note = tr("This report does not cover every measurement "
+                          "recorded for this project.")
+                out += (f"<div style='color:{_C['dim']};margin-top:6px'>"
+                        + html.escape(note) + "</div>")
+        elif covered < total_known:
             # ONE PROJECT OR SEVERAL, AND THE SENTENCE SAYS WHICH. A report can
             # hold runs of more than one project -- the window lets a second be
             # opened beside the first -- and the total is then the sum of two
