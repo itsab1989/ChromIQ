@@ -52,6 +52,19 @@ Read `PROJECTS` for the current shape. In outline, what each project is for:
     Report-Limits-Border-Conditions  the edges: a chart with no grey ramp, a
                                      raw sheet, a sheet with no printing
                                      record.
+    Report-Limits-Profile-Gamut      a verification chart built by the app's
+                                     own FROM PROFILE GAMUT module, which is
+                                     the only chart that makes the three
+                                     reference rows answerable at all.
+    Report-Limits-Strip-And-Gamut    the five rows that had no detection until
+                                     B8-397: a chart that declares its own
+                                     control strip, the surface of the device
+                                     cube, the most saturated quarter, and a
+                                     chart that cannot supply the surface row.
+    Report-Limits-Every-Limit-Set    Knut's matrix: every judgeable row against
+                                     EVERY selectable limit set, over its limit
+                                     on one date and inside it on the next, on
+                                     both kinds of chart.
 
 How the measurements are made
 -----------------------------
@@ -172,6 +185,189 @@ CHART_NO_GREY = ChartRecipe(90, 0, 0, "A4", "90 patches on A4, no grey ramp")
 #: column can have a recommended value over its limit at the same time as a
 #: required row nobody could compute.
 CHART_TINY = ChartRecipe(20, 10, 0, "A4", "20 patches on A4")
+
+@dataclass(frozen=True)
+class GridChartRecipe:
+    """A chart written from an explicit device-value grid, not designed by targen.
+
+    It exists for ONE state no targen chart can reach: a chart that cannot
+    supply the surface-gamut row. That row's population is "at least one of
+    red, green and blue within 2.0 of 0 or of 100", and every targen chart is
+    full of such patches — measured over this package's six sizes, 21 of 30,
+    58 of 90, 71 of 105, 105 of 168, 119 of 210 and 200 of 405. So the only
+    way to watch the report DETECT that a chart cannot support the row, which
+    is the half Knut asked for, is a chart built with nothing near an edge of
+    the cube.
+
+    A 5x5x5 grid on 20/35/50/65/80 gives 125 patches, none of them on the
+    surface, a grey axis of five steps (too few for the grey rows, which need
+    eight) and three tone steps inside 30..70 %, which keeps the tone-ramp row
+    eligible.
+    """
+
+    levels: tuple = (20.0, 35.0, 50.0, 65.0, 80.0)
+    paper: str = "A4"
+
+    @property
+    def patches(self) -> int:
+        return len(self.levels) ** 3
+
+    @property
+    def label(self) -> str:
+        return (f"{self.patches} mid-tone patches on {self.paper}, none of "
+                f"them on the surface of the device cube")
+
+
+def make_grid_chart(into: Path, stem: str, recipe: GridChartRecipe) -> None:
+    from workflow.i1profiler_import import RgbPatch, write_ti1
+    into.mkdir(parents=True, exist_ok=True)
+    patches = [RgbPatch(r, g, b)
+               for r in recipe.levels for g in recipe.levels
+               for b in recipe.levels]
+    write_ti1(patches, into / f"{stem}.ti1")
+    run([ARGYLL / "printtarg", "-iCM", f"-p{recipe.paper}", "-t150", "-L",
+         stem], into, TIMEOUT_PRINTTARG)
+
+
+@dataclass(frozen=True)
+class GamutChartRecipe:
+    """A verification chart built by the app's OWN *from profile gamut* module.
+
+    Knut, 2026-09-18: *"some tests require a test chart with From Profile
+    Gamut, which must also be included"*. Such a chart is the only one that
+    makes the report's three reference rows answerable at all: it ships a
+    ``<stem>-reference.ti3`` beside itself, which is what turns
+    ``reference_source`` into ``"colorimetric"``, and only then does
+    ``row_values`` compute *Paper white*, *Solid colours largest* and *CMY hue
+    difference* instead of writing ``needs_reference_file`` on all three.
+
+    **WHAT THIS CHART CANNOT SUPPLY, MEASURED RATHER THAN ASSUMED.** The module
+    picks colours out of a master Lab set through the profile's B2A table, and
+    that selection is not a chart recipe: on a 200-colour selection the grey
+    ramp came back with **6 grey patches at 5 distinct levels** (the row needs
+    8) and the tone ramps with **one step on the grey axis and none on R, G or
+    B**. So a profile-gamut sheet reads ``too_few_steps`` on both grey rows and
+    ``no_ramp`` on the tone row, for ever, whatever it measures. Those three
+    rows are exercised on the ORDINARY charts, and the package says so instead
+    of quietly leaving them out.
+    """
+
+    count: int
+    paper: str = "A4"
+    margin: str = "safe"
+    intent: str = "absolute"
+
+    @property
+    def patches(self) -> int:
+        """The chart's real size: the selected colours plus the 8 corners."""
+        return self.count + 8
+
+    @property
+    def label(self) -> str:
+        return (f"{self.count} colours chosen from the profile's own gamut, "
+                f"plus the 8 cube corners, on {self.paper}")
+
+
+#: **THE GENERATOR CLAMPS THE MODULE'S DEVICE VALUES, AND THE APP DOES NOT.**
+#: This is the one place in this file that works around a fault in shipped
+#: code rather than demonstrating it, and it is here because without it the
+#: package cannot demonstrate three of the rows Knut asked for at all.
+#:
+#: Measured 2026-09-18 on a 200-colour selection through an ordinary demo
+#: profile: ``select_gamut_targets`` takes its device values from xicclu's
+#: numeric inverse and **nothing clamps them**, so 17 of 200 came back over
+#: 100 on a channel and 15 over 101, the largest 107.69.
+#: ``measurement_report._rgb_to_0_100`` then rescales the WHOLE chart by
+#: 100/255 (its rule is ``arr.max() > 101.0``), and one overshooting patch is
+#: enough. Measured consequence on a real report built from such a chart: not
+#: one cube corner reads ``present`` (device white lands at 39.2), so all
+#: three reference rows read ``no_corners``; the grey ramp reads
+#: ``too_few_steps`` and the tone ramps ``no_ramp`` for the same reason.
+#: Clamping to 0..100 and changing nothing else put all eight corners back and
+#: gave all three rows a number.
+#:
+#: Registered in this round's report as **F1**. The fix belongs in
+#: ``gamut_target.write_gamut_ti1``: a device value above 100 is not
+#: printable, and printtarg and the TIFF renderer clamp it anyway, so the
+#: chart file is the only place it survives to mislead a reader. **It is not
+#: made here**, because the app is not this script's to change.
+GAMUT_DEVICE_CLAMP = True
+
+
+def make_gamut_chart(into: Path, stem: str, recipe: GamutChartRecipe,
+                     profile: Path):
+    """The FROM PROFILE GAMUT chart, built through the app's own module.
+
+    Returns the :class:`GamutSelection`, so the caller can ask it which sample
+    ids are the eight corners and read the colorimetric aims back without
+    re-deriving either.
+    """
+    from workflow.gamut_target import (select_gamut_targets,
+                                       write_colorimetric_reference,
+                                       write_gamut_ti1)
+    sel = select_gamut_targets(profile, recipe.count, recipe.margin,
+                               recipe.intent, bin_dir=ARGYLL)
+    if GAMUT_DEVICE_CLAMP:
+        over = sum(1 for _i, _lab, d in sel.targets if max(d) > 100.0)
+        if over:
+            print(f"    NOTE (F1): {over} of {len(sel.targets)} colours came "
+                  f"back over device 100; clamped so the report does not read "
+                  f"the chart as 0..255")
+        sel.targets = [(i, lab, tuple(min(100.0, max(0.0, v)) for v in dev))
+                       for i, lab, dev in sel.targets]
+    into.mkdir(parents=True, exist_ok=True)
+    write_gamut_ti1(sel, into / f"{stem}.ti1")
+    write_colorimetric_reference(sel, into / f"{stem}-reference.ti3")
+    run([ARGYLL / "printtarg", "-iCM", f"-p{recipe.paper}", "-t150", "-L",
+         stem], into, TIMEOUT_PRINTTARG)
+    return sel
+
+
+#: The sidecar that makes a chart declare its own control strip (#182 S2w,
+#: Knut 2026-09-18). ChromIQ holds no standard's published patch list and will
+#: not guess one, so the CHART says which of its patches make up the strip.
+#: 24 ids, because the 95th-percentile row needs 20 before its nearest rank
+#: stops being the largest patch itself.
+CONTROL_STRIP_PATCHES = 24
+
+
+def control_strip_ids(chart: Path, exclude: "set[str] | None" = None) -> "list[str]":
+    """Which of *chart*'s patches to declare as its control strip.
+
+    Spread evenly through the chart, and **never a grey, a bare-paper patch or
+    a cube corner**. A strip taken off the front of a targen chart is all
+    neutrals, which would make the three strip rows a second reading of the
+    grey ramp; a strip holding a grey would also make the grey-balance design
+    and the strip design fight over the same patch.
+    """
+    from workflow.ti3_analysis import parse_ti3
+    d = parse_ti3(chart)
+    rgb = np.asarray(d.rgb, dtype=float)
+    skip = set(exclude or ())
+    pool = [sid for i, sid in enumerate(d.sample_ids)
+            if sid not in skip
+            and float(rgb[i].max() - rgb[i].min()) > GREY_SPREAD_TOL
+            and float(rgb[i].min()) < DEVICE_WHITE_MIN]
+    n = min(CONTROL_STRIP_PATCHES, len(pool))
+    if n < CONTROL_STRIP_PATCHES:
+        raise SystemExit(
+            f"{chart}: only {len(pool)} patches are eligible for a control "
+            f"strip and the package declares {CONTROL_STRIP_PATCHES}. The "
+            f"95th-percentile row needs 20 before its nearest rank stops being "
+            f"the largest patch itself, so a shorter strip would leave that "
+            f"row reading control_strip_too_small on every date.")
+    step = max(1, len(pool) // n)
+    return [pool[i * step] for i in range(n)]
+
+
+def write_control_strip(chart_dir: Path, stem: str, ids: "list[str]",
+                        name: str) -> Path:
+    """The sidecar itself, beside the chart it is about."""
+    p = chart_dir / f"{stem}.control-strip.json"
+    p.write_text(json.dumps({"name": name, "sample_ids": list(ids)}, indent=2),
+                 encoding="utf-8")
+    return p
+
 
 _chart_cache: "dict[tuple, Path]" = {}
 
@@ -357,6 +553,39 @@ class Design:
     ramp_dl: "float | None" = None
     n_shoulder: int = 3
 
+    # -- THE EIGHT CUBE CORNERS, which only a FROM PROFILE GAMUT chart can put
+    #    a verdict on. The report keeps them out of the five colour-difference
+    #    statistics on purpose (§9a rule 2: they are deliberately unreachable
+    #    colours and would drag every average toward a number that says nothing
+    #    about the profile), so these three knobs move rows 14 to 16 WITHOUT
+    #    touching rows 1 to 5. That independence is a property of the report,
+    #    not a trick of this script.
+    #:  substrate_de00_max — the paper against the reference white
+    white_de: "float | None" = None
+    #:  solids_de00_max — the K corner's own dE00; the row is the largest over
+    #:  C, M, Y and K, so ``cmy_dh`` can raise it too and the build's own
+    #:  intended-against-actual check is what settles which of the two did.
+    solid_de: "float | None" = None
+    #:  cmy_solids_dhab_max — a PURE hue rotation of C, M and Y at constant L*
+    #:  and constant chroma, so dL* = 0 and dC* = 0 and the metric hue
+    #:  difference is exactly the chord asked for.
+    cmy_dh: "float | None" = None
+
+    # -- THE DECLARED CONTROL STRIP. Its three rows are order statistics over
+    #    one subset, so they take the same shape as the sheet's own: a bulk, a
+    #    shoulder that the 95th percentile reads, and a single peak that the
+    #    largest reads. With 24 declared ids the nearest rank is 23, so the
+    #    shoulder patch IS the 95th percentile and the peak is the largest.
+    strip_bulk: "float | None" = None
+    strip_shoulder: "float | None" = None
+    strip_peak: "float | None" = None
+
+    # -- THE TWO GAMUT POPULATIONS ChromIQ defines for itself (S2w).
+    #:  every patch with a channel within 2.0 of 0 or 100
+    surface_de: "float | None" = None
+    #:  the top quarter by the chroma of the reference
+    outer_de: "float | None" = None
+
 
 #: Device values at or above this on Argyll's 0..100 scale are the bare paper.
 DEVICE_WHITE_MIN = 99.5
@@ -381,9 +610,62 @@ def in_gamut_flags(ti2: Path, profile: Path) -> "dict[str, bool]":
     return {s: bool(f) for s, f in zip(ids, flags)}
 
 
+#: The two population rules of #182 S2w, mirrored here rather than imported for
+#: the same reason `RAMP_TV_LOW` is: a change to either in the app must show up
+#: as a MISMATCH in this generator's own intended-against-actual check, not
+#: silently move the design with it.
+SURFACE_TOL = 2.0            # a channel within this of 0 or 100
+OUTER_QUARTILE = 0.25        # the top quarter by the chroma of the reference
+
+
+def _surface_patches(rgb100, sample_ids, ref) -> "list[int]":
+    """Indices on the surface of the device cube: at least one of R, G, B
+    within :data:`SURFACE_TOL` of 0 or of 100, and carrying a reference."""
+    return [i for i, sid in enumerate(sample_ids)
+            if sid in ref
+            and any(min(float(v), 100.0 - float(v)) <= SURFACE_TOL
+                    for v in rgb100[i])]
+
+
+def _outer_quarter(sample_ids, ref) -> "list[int]":
+    """Indices in the top quarter by the chroma of their REFERENCE value.
+
+    The aim and not the reading, so the same chart picks the same patches
+    however well it printed, which is the whole reason the row is stable enough
+    to design against.
+    """
+    have = [(math.hypot(ref[s][1], ref[s][2]), i)
+            for i, s in enumerate(sample_ids) if s in ref]
+    have.sort(reverse=True)
+    k = int(len(have) * OUTER_QUARTILE)
+    return [i for _c, i in have[:k]]
+
+
+def _rotate_hue(ref, chord: float) -> tuple:
+    """*ref* rotated about the neutral axis so that dH*ab is exactly *chord*.
+
+    A rotation at constant L* and constant chroma has dL* = 0 and dC* = 0, so
+    the metric hue difference sqrt(dE_ab^2 - dL^2 - dC^2) collapses to the plain
+    chord length between the two points, which is 2 C sin(theta/2). Solving
+    that for theta is the whole of it, and it makes `cmy_solids_dhab_max` a
+    number this script sets rather than one it hopes for.
+    """
+    L, a, b = (float(v) for v in ref)
+    c = math.hypot(a, b)
+    if c <= 1e-9:
+        return (L, a, b)
+    half = min(1.0, chord / (2.0 * c))
+    theta = 2.0 * math.asin(half)
+    phi = math.atan2(b, a) + theta
+    return (L, c * math.cos(phi), c * math.sin(phi))
+
+
 def apply_design(ti3: Path, ti2: Path, design: Design,
                  gamut: "dict[str, bool] | None" = None,
-                 relative: bool = True) -> "dict[str, float]":
+                 relative: bool = True,
+                 ref_labs: "dict[str, tuple] | None" = None,
+                 corner_ids: "set[str] | None" = None,
+                 strip_ids: "list[str] | None" = None) -> "dict[str, float]":
     """Rewrite the measurement's XYZ so the chart's statistics are the design's.
 
     THE DESIGN IS LAID OUT IN THE YARDSTICK THE REPORT ACTUALLY USES, which is
@@ -421,7 +703,16 @@ def apply_design(ti3: Path, ti2: Path, design: Design,
     from workflow.ti3_analysis import parse_ti3
 
     data = parse_ti3(ti3)
-    ref = _reference_labs(ti2)
+    # A FROM PROFILE GAMUT CHART'S .ti2 XYZ IS NOT ITS REFERENCE, and designing
+    # against it would be designing against a yardstick the report does not
+    # use. Such a chart's device values were already converted through the
+    # profile at build time, so its .ti2 XYZ is only the sRGB reading of ink
+    # amounts — a quantity with no relation to the Lab aims those amounts were
+    # computed to produce. The report reads the aims out of
+    # `<stem>-reference.ti3` instead (`reference_source == "colorimetric"`),
+    # and so does this, when the caller hands them over.
+    ref = dict(ref_labs) if ref_labs is not None else _reference_labs(ti2)
+    corners_by_id = set(corner_ids or ())
     n = len(data.sample_ids)
     rgb = np.asarray(data.rgb, dtype=float)
     xyz = np.asarray(data.xyz, dtype=float)
@@ -444,11 +735,35 @@ def apply_design(ti3: Path, ti2: Path, design: Design,
     # In absolute mode nothing pins them, so leaving them out would leave the
     # brightest patches of the sheet carrying fakeread's own error while every
     # other patch carried a designed one, and the statistics would miss.
-    whites = ([i for i in range(n) if float(rgb[i].min()) >= DEVICE_WHITE_MIN]
+    # THE CORNERS ARE THEIR OWN POPULATION AND ARE NEVER IN THE BANDS. The
+    # report excludes them from the five colour-difference statistics by
+    # sample id (§9a rule 2), so laying a band value over one would put a
+    # number on the sheet that no row of the report reads, and take a band
+    # slot away from a patch that is read.
+    corner_at = {i for i, sid in enumerate(data.sample_ids)
+                 if sid in corners_by_id}
+
+    whites = ([i for i in range(n)
+               if float(rgb[i].min()) >= DEVICE_WHITE_MIN and i not in corner_at]
               if relative else [])
     white_set = set(whites)
 
-    greys = [i for i in grey_stat_indices(rgb) if i not in white_set]
+    # A CHART WITH NO BARE-PAPER PATCH HAS AN ANCHOR THAT MUST NOT BE MOVED.
+    # Under the media-relative yardstick the report divides every reading by
+    # the LIGHTEST patch on the sheet. On an ordinary chart that patch is bare
+    # paper, this function pins it to L*100 a*0 b*0, and writing it back
+    # reproduces the very XYZ the design was laid out against, so the report's
+    # anchor and this one are the same. On a chart whose lightest patch is an
+    # ordinary colour, designing that patch MOVES the anchor under the report,
+    # and every other patch shifts with it: measured on the mid-tone grid
+    # chart, a sheet designed for 0.6 dE00 came back reading 14.1.
+    anchor_free: "set[int]" = set()
+    if relative and not whites:
+        anchor_free = {wi}
+
+    greys = [i for i in grey_stat_indices(rgb)
+             if i not in white_set and i not in corner_at
+             and i not in anchor_free]
     grey_set = set(greys)
     spike_at = greys[len(greys) // 2] if (greys and design.grey_spike is not None) else None
 
@@ -478,6 +793,7 @@ def apply_design(ti3: Path, ti2: Path, design: Design,
         else (lambda i: gamut.get(data.sample_ids[i], True))
     others = [i for i in range(n)
               if i not in grey_set and i not in white_set
+              and i not in corner_at and i not in anchor_free
               and data.sample_ids[i] in ref]
     fixed_in = [i for i in list(white_set) + greys
                 if i in new_lab and judged(i)]
@@ -536,6 +852,97 @@ def apply_design(ti3: Path, ti2: Path, design: Design,
         r = ref[data.sample_ids[step]]
         a, b = new_lab[step][1], new_lab[step][2]
         new_lab[step] = (r[0] - design.ramp_dl, a, b)
+
+    # -- THE THREE POPULATIONS THAT ARE SUBSETS OF THE SHEET, in the order the
+    #    report reads them, each one overriding the last where they overlap:
+    #    the outer-gamut quarter, the surface of the device cube, and the
+    #    declared control strip. A patch in two of them takes the LAST one's
+    #    value, which is why the order is written down here rather than left
+    #    to a dict's iteration.
+    # THE BARE PAPER AND THE GREY RAMP ARE NEVER MOVED BY A POPULATION, and
+    # this cost a build to learn. The surface of the device cube is "a channel
+    # within 2.0 of 0 or of 100", which is TRUE OF THE BARE PAPER — and under
+    # the media-relative yardstick the paper is the anchor the whole sheet is
+    # divided by, so moving it moved every other patch with it. Measured: a
+    # grey ramp designed for a flat 8.0 of chroma error came back as a RAMP
+    # from 2.1 to 6.7, and the two grey rows read 4.407 and 6.745 for a design
+    # that asked for 8.0 on both. The greys are excluded for the plainer
+    # reason that they carry their own design and a patch cannot have two.
+    _off_limits = white_set | grey_set | corner_at | anchor_free
+
+    def _set_de(i: int, target: float) -> None:
+        if i in _off_limits:
+            return
+        r = ref.get(data.sample_ids[i])
+        if r is None:
+            return
+        new_lab[i] = _place(r, measured[i], target)
+
+    if design.outer_de is not None:
+        for i in _outer_quarter(data.sample_ids, ref):
+            _set_de(i, design.outer_de)
+    if design.surface_de is not None:
+        for i in _surface_patches(rgb, data.sample_ids, ref):
+            _set_de(i, design.surface_de)
+    if strip_ids and design.strip_bulk is not None:
+        at = {sid: i for i, sid in enumerate(data.sample_ids)}
+        members = [at[s] for s in strip_ids if s in at]
+        # The largest reads the peak, the 95th percentile reads the shoulder
+        # (nearest rank 23 of 24), and the bulk is everything else. The two
+        # extras go on the END of the list so the bulk keeps its own order.
+        plan = [design.strip_bulk] * len(members)
+        if design.strip_shoulder is not None and len(plan) >= 2:
+            plan[-2] = design.strip_shoulder
+        if design.strip_peak is not None and plan:
+            plan[-1] = design.strip_peak
+        for i, target in zip(members, plan):
+            _set_de(i, target)
+
+    # -- THE EIGHT CUBE CORNERS, last, because every population above can
+    #    contain one and the corner rows are the ones a reader came for.
+    #
+    #    EVERY CORNER THIS DATE DOES NOT DESIGN IS PUT EXACTLY ON ITS
+    #    REFERENCE. Left at fakeread's own error a corner carries several
+    #    dE00 of its own — measured, 13.65 on the paper white of a plain
+    #    fakeread, because the module's corner aims are the IDEAL sRGB values
+    #    and no printer reaches them — which would make every "nothing
+    #    crosses" date fail rows 14 and 15 for a reason the date is not about.
+    if corner_at:
+        from workflow.measurement_report import CUBE_CORNERS
+        # EVERY DECLARED CORNER IS PUT ON ITS REFERENCE FIRST. They are out of
+        # the five colour-difference statistics by sample id, so what they
+        # carry is invisible unless the report also READS one as a corner, and
+        # leaving fakeread's own several-dE00 error on them would make a
+        # "nothing crosses" date fail rows 14 and 15 for a reason it is not
+        # about.
+        for i in corner_at:
+            r = ref.get(data.sample_ids[i])
+            if r is not None:
+                new_lab[i] = tuple(r)
+        for name, target in CUBE_CORNERS:
+            # THE PATCH THE REPORT WILL READ, not the one the chart declares,
+            # and on a From-profile-gamut chart those are not always the same
+            # patch. `build_report` finds a corner by the NEAREST device value
+            # and never consults the chart's own `CHROMIQ_CORNER_IDS`, so a
+            # selected colour that happens to sit at device (0,0,0) is read as
+            # the composite-black corner while the declared corner beside it is
+            # read by nobody. Measured on this very project: the K corner came
+            # off sample 2, not sample 202. Registered as F3 in this round's
+            # report; designing the patch the report reads is what makes the
+            # demo about the row rather than about that fault.
+            diffs = np.abs(rgb - np.array(target))
+            ci = int((diffs ** 2).sum(axis=1).argmin())
+            r = ref.get(data.sample_ids[ci])
+            if r is None:
+                continue
+            if name == "W" and design.white_de is not None:
+                new_lab[ci] = _place(r, measured[ci], design.white_de)
+            elif name in ("C", "M", "Y") and design.cmy_dh is not None:
+                new_lab[ci] = _rotate_hue(r, design.cmy_dh)
+            elif name == "K" and design.solid_de is not None:
+                new_lab[ci] = _place(r, measured[ci], design.solid_de)
+            else:
+                new_lab[ci] = tuple(r)
 
     predicted = _predict_from(new_lab, ref, data.sample_ids, judged)
     if design.ramp_dl is not None:
@@ -751,8 +1158,14 @@ def snapshot(vdir: Path, stem: str, src: Path) -> Path:
     page images, they are the bulk of the archive, and no report reads them."""
     cdir = vdir / "chart"
     cdir.mkdir(parents=True, exist_ok=True)
-    for ext in (".ti1", ".ti2"):
-        s = src / f"{stem}{ext}"
+    # THE COLORIMETRIC REFERENCE AND THE CONTROL-STRIP SIDECAR TRAVEL WITH THE
+    # CHART, because the report looks for both BESIDE the chart it paired the
+    # measurement with, and for a dated verification that chart is this
+    # snapshot. Written beside the shared chart only, a sidecar was invisible
+    # to every date (measured on screen 2026-09-18, B8-397).
+    for name in (f"{stem}.ti1", f"{stem}.ti2", f"{stem}-reference.ti3",
+                 f"{stem}.control-strip.json"):
+        s = src / name
         if s.is_file():
             shutil.copy2(s, cdir / s.name)
     return cdir
@@ -771,16 +1184,17 @@ class Date:
     expect: "list[str]"          # row ids intended to cross their limit
 
 
-ROW_TITLES = {
-    "all_de00_avg": "All patches, average",
-    "best95_de00_avg": "Best 95 % of patches, average",
-    "worst5_de00_avg": "Worst 5 % of patches, average",
-    "all_de00_max": "All patches, largest",
-    "all_de00_p95": "All patches, 95th percentile",
-    "grey_balance_neutral_ramp_avg": "Grey balance of the grey ramp, average",
-    "grey_balance_neutral_ramp_max": "Grey balance of the grey ramp, largest",
-    "ramps_30_70_dl_max": "Single-colour ramps 30 % to 70 %, largest lightness difference",
-}
+#: THE ROW NAMES, TAKEN FROM THE APP AND NOT TYPED HERE. This was a hand-kept
+#: dict of eight until 2026-09-18, when B8-397 made five more rows computable
+#: and the README started printing bare row ids for them. Reading
+#: `compliance_sets.ROWS` means a row added to ChromIQ cannot arrive here
+#: nameless.
+def _row_titles() -> "dict[str, str]":
+    from workflow.compliance_sets import ROWS
+    return {r.id: r.label for r in ROWS}
+
+
+ROW_TITLES = _row_titles()
 
 
 def _d(vid, when, title, story, design, expect) -> Date:
@@ -1466,6 +1880,13 @@ class RunPlan:
     #: to grade against profile accuracy), or "none" (nobody recorded it, which
     #: puts a numbered note on the grey rows). See `write_print_record`.
     print_colour: str = "through-profile"
+    #: Declare a control strip on this run's verification chart (#182 S2w).
+    #: Without one the three control-strip rows read `no_control_strip` on
+    #: every date, which is the state every chart in the world is in today.
+    control_strip: bool = False
+    #: The strip's own name, which the report prints. Two different names in
+    #: the package, so a reader can see that the name comes off the chart.
+    control_strip_name: str = "ChromIQ demo 24-patch strip"
 
     @property
     def set_name(self) -> str:
@@ -1522,7 +1943,36 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
     icc = run.built_profile_icc()
 
     print(f"  {run.id}: verification chart, {plan.verify_chart.label}")
-    make_chart(run.verifications_dir, run.verify_stem, plan.verify_chart, cache_root)
+    vstem_ = run.verify_stem
+    gsel = None
+    if isinstance(plan.verify_chart, GamutChartRecipe):
+        gsel = make_gamut_chart(run.verifications_dir, vstem_,
+                                plan.verify_chart, icc)
+    elif isinstance(plan.verify_chart, GridChartRecipe):
+        make_grid_chart(run.verifications_dir, vstem_, plan.verify_chart)
+    else:
+        make_chart(run.verifications_dir, vstem_, plan.verify_chart, cache_root)
+
+    # WHAT THE REPORT WILL USE AS THE REFERENCE, decided once, here, from the
+    # same fact the report decides it from: a `<stem>-reference.ti3` beside the
+    # chart. Everything downstream — the design, the corner rows, the strip —
+    # reads this and not the .ti2's own XYZ.
+    from workflow.gamut_target import (corner_sample_ids,
+                                       read_colorimetric_reference)
+    cref_labs = None
+    corner_ids: "set[str]" = set()
+    if gsel is not None:
+        cref = read_colorimetric_reference(
+            run.verifications_dir / f"{vstem_}-reference.ti3")
+        cref_labs = cref["labs"]
+        corner_ids = {str(i) for i in corner_sample_ids(gsel)}
+
+    strip_ids: "list[str]" = []
+    if plan.control_strip:
+        strip_ids = control_strip_ids(
+            run.verifications_dir / f"{vstem_}.ti2", exclude=corner_ids)
+        write_control_strip(run.verifications_dir, vstem_, strip_ids,
+                            plan.control_strip_name)
 
     meta = run.load_meta()
     meta.description = plan.full_description
@@ -1588,9 +2038,21 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
         prof_rep)
 
     vstem = run.verify_stem
-    gamut = in_gamut_flags(run.verifications_dir / f"{vstem}.ti2", icc)
-    print(f"  {run.id}: {sum(gamut.values())} of {len(gamut)} chart colours are "
-          f"within the profile's gamut and therefore judged")
+    if cref_labs is None:
+        gamut = in_gamut_flags(run.verifications_dir / f"{vstem}.ti2", icc)
+        print(f"  {run.id}: {sum(gamut.values())} of {len(gamut)} chart colours "
+              f"are within the profile's gamut and therefore judged")
+    else:
+        # A COLORIMETRIC REFERENCE IS IN GAMUT BY CONSTRUCTION, and the report
+        # says so: `build_report` computes the in/out split only against the
+        # DESIGN reference. Asking for one here would split the design on a
+        # line the report never draws, and every band would land in the wrong
+        # place.
+        gamut = None
+        print(f"  {run.id}: colorimetric reference, {len(cref_labs)} aims, "
+              f"{len(corner_ids)} of them cube corners; no gamut split")
+    if strip_ids:
+        print(f"  {run.id}: control strip declared, {len(strip_ids)} patches")
     for date in plan.dates:
         v = run.verification(date.vid)
         v.ensure_dir()
@@ -1598,13 +2060,21 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
         work.mkdir(exist_ok=True)
         for ext in (".ti1", ".ti2"):
             shutil.copy2(run.verifications_dir / f"{vstem}{ext}", work / f"{vstem}{ext}")
+        for extra in (f"{vstem}-reference.ti3", f"{vstem}.control-strip.json"):
+            src = run.verifications_dir / extra
+            if src.is_file():
+                shutil.copy2(src, work / extra)
         ti3 = fakeread(work, vstem, icc)
         # WHICH YARDSTICK THE REPORT WILL USE, asked of the same two facts the
         # report asks: only a sheet printed THROUGH the profile with a white
         # mapping intent is judged media-relative. A raw sheet and a sheet with
         # no record of its printing are both judged in absolute Lab.
-        predicted = apply_design(ti3, work / f"{vstem}.ti2", date.design, gamut,
-                                 relative=plan.print_colour == "through-profile")
+        # A COLORIMETRIC reference is judged absolute whatever the printing,
+        # because that reference already includes the paper.
+        predicted = apply_design(
+            ti3, work / f"{vstem}.ti2", date.design, gamut,
+            relative=plan.print_colour == "through-profile" and cref_labs is None,
+            ref_labs=cref_labs, corner_ids=corner_ids, strip_ids=strip_ids)
         stamp(ti3, date.when)
         shutil.move(str(ti3), str(v.dir / f"{vstem}.ti3"))
         cdir = snapshot(v.dir, vstem, work)
@@ -1648,6 +2118,11 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
         results.append({
             "project": "",
             "run": run.id,
+            "set_id": limits_rec.set_id,
+            "chart": ("gamut" if cref_labs is not None
+                      else ("grid" if isinstance(plan.verify_chart,
+                                                 GridChartRecipe)
+                            else "ordinary")),
             "set": limits_rec.label_en + (" (edited for this run)"
                                           if limits_rec.edited else ""),
             "type": plan.report_type,
@@ -1786,8 +2261,348 @@ def _crossed_rows(report, limits, row_values, row_verdict, set_summary,
 
 
 # ---------------------------------------------------------------------------
+# Giving a ChromIQ set a number on every row it can measure
+# ---------------------------------------------------------------------------
+#: How a ChromIQ set's own character scales the numbers it does NOT ship.
+#:
+#: Knut, 2026-09-18: *"those eleven can also be defined for all the Judge
+#: Against limit sets, so the demo data must verify that all thresholds can
+#: trigger correctly for every judged against limit set, not just test all the
+#: thresholds on one of the sets."*
+#:
+#: **MEASURED FIRST, BECAUSE THE SHAPE OF THE MATRIX IS NOT WHAT IT LOOKS
+#: LIKE.** As shipped, ChromIQ default, ChromIQ tight and Quick check put a
+#: number on SEVEN of the sixteen judgeable rows; the two Custom columns put
+#: one on all sixteen; and the two read-only ISO columns put one on none and
+#: are not selectable at all, because their tolerance values are not in this
+#: repository. So "every threshold for every set" is 53 cells as the product
+#: ships, and the other 27 exist only once a user types a number in.
+#:
+#: That is not a workaround. ``effective_limits`` accepts an override on any
+#: row whose status is not ``unmeasurable``/``unknown``, the Report limits
+#: window is where a user types one, and a run's bound copy in
+#: ``meta.json::compliance_thresholds`` is where it lives on disk. These runs
+#: ship in exactly that state.
+#:
+#: The numbers are ChromIQ default's own placeholders scaled by the ratio the
+#: set already uses on the five colour-difference rows it DOES ship: tight is
+#: half of default (1.0 against 2.0, 1.5 against 3.0) and Quick check is
+#: double it. Nothing here was looked up in any standard, and no row the set
+#: already numbers is touched.
+SET_SCALE = {"chromiq_default": 1.0, "chromiq_tight": 0.5, "chromiq_quick": 2.0}
+
+
+def fill_limits(set_id: str, relax: "dict[str, float] | None" = None,
+                keep: "tuple[str, ...]" = ()) -> "dict[str, float]":
+    """Every judgeable row this set leaves unnumbered, given a number.
+
+    *relax* overrides any row with a value of its own (the package's existing
+    way of isolating one row: put 9.0 on every other row of the column so a
+    single crossing stands alone). *keep* names rows that must survive *relax*,
+    which is what makes an isolation run isolate the row it says it does.
+    """
+    from workflow.compliance_sets import ROW_BY_ID, _CUSTOM_PLACEHOLDER, factory_limits
+    scale = SET_SCALE.get(set_id, 1.0)
+    factory = factory_limits(set_id)
+    out: "dict[str, float]" = {}
+    for rid, lim in _CUSTOM_PLACEHOLDER.items():
+        row = ROW_BY_ID.get(rid)
+        if row is None or row.status not in ("now", "build", "ref"):
+            continue
+        if factory.get(rid, None) is not None and factory[rid].is_numeric:
+            continue                      # the set already numbers this row
+        out[rid] = round(float(lim.number) * scale, 3)
+    for rid, v in (relax or {}).items():
+        if rid in keep:
+            continue
+        out[rid] = v
+    return out
+
+
+#: Every row that can carry a verdict on an ORDINARY ChromIQ chart, and every
+#: row that can carry one on a FROM PROFILE GAMUT chart. Neither chart answers
+#: all sixteen and the package says which is which rather than averaging the
+#: two into a claim that is true of neither.
+ROWS_ORDINARY = (
+    "all_de00_avg", "best95_de00_avg", "worst5_de00_avg", "all_de00_max",
+    "all_de00_p95", "grey_balance_neutral_ramp_avg",
+    "grey_balance_neutral_ramp_max", "ramps_30_70_dl_max",
+    "control_strip_de00_avg", "control_strip_de00_max",
+    "control_strip_de00_p95", "surface_gamut_de00_avg",
+    "outer_gamut_226_de00_avg",
+)
+ROWS_GAMUT = (
+    "all_de00_avg", "best95_de00_avg", "worst5_de00_avg", "all_de00_max",
+    "all_de00_p95", "substrate_de00_max", "solids_de00_max",
+    "cmy_solids_dhab_max", "control_strip_de00_avg", "control_strip_de00_max",
+    "control_strip_de00_p95", "surface_gamut_de00_avg",
+    "outer_gamut_226_de00_avg",
+)
+RELAX_ALL = {rid: 9.0 for rid in set(ROWS_ORDINARY) | set(ROWS_GAMUT)}
+
+#: The designs the matrix uses, one pair per set. Everything over, then
+#: everything inside. Written out per set rather than scaled in code, because a
+#: design that is computed from a limit cannot fail the way a design that is
+#: typed can, and this package's whole value is that its numbers were checked
+#: against the shipped code rather than derived from it.
+MATRIX = {
+    "chromiq_default": (
+        Design(bulk=4.0, shoulder=5.0, peak=6.0, tail=5.0, grey_dch=4.0,
+               ramp_dl=3.0, strip_bulk=4.0, strip_shoulder=5.0,
+               strip_peak=6.0, surface_de=4.0, outer_de=4.0,
+               white_de=5.0, solid_de=5.0, cmy_dh=3.5),
+        Design(bulk=0.5, shoulder=0.8, peak=1.2, tail=0.9, grey_dch=0.4,
+               ramp_dl=0.5, strip_bulk=0.5, strip_shoulder=0.8,
+               strip_peak=1.2, surface_de=0.5, outer_de=0.5,
+               white_de=1.0, solid_de=1.0, cmy_dh=0.8),
+    ),
+    "chromiq_tight": (
+        Design(bulk=2.0, shoulder=2.5, peak=3.0, tail=2.5, grey_dch=2.5,
+               ramp_dl=1.5, strip_bulk=2.0, strip_shoulder=2.5,
+               strip_peak=3.0, surface_de=2.0, outer_de=2.0,
+               white_de=3.0, solid_de=3.0, cmy_dh=2.0),
+        Design(bulk=0.3, shoulder=0.45, peak=0.7, tail=0.5, grey_dch=0.3,
+               ramp_dl=0.3, strip_bulk=0.3, strip_shoulder=0.45,
+               strip_peak=0.7, surface_de=0.3, outer_de=0.3,
+               white_de=0.5, solid_de=0.5, cmy_dh=0.3),
+    ),
+    "chromiq_quick": (
+        Design(bulk=8.0, shoulder=9.0, peak=10.0, tail=9.0, grey_dch=8.0,
+               ramp_dl=6.0, strip_bulk=8.0, strip_shoulder=9.0,
+               strip_peak=10.0, surface_de=8.0, outer_de=8.0,
+               white_de=9.0, solid_de=9.0, cmy_dh=6.0),
+        Design(bulk=1.0, shoulder=1.5, peak=2.5, tail=2.0, grey_dch=1.0,
+               ramp_dl=1.0, strip_bulk=1.0, strip_shoulder=1.5,
+               strip_peak=2.5, surface_de=1.0, outer_de=1.0,
+               white_de=1.5, solid_de=1.5, cmy_dh=1.0),
+    ),
+}
+MATRIX["custom_iso_12647_7"] = MATRIX["chromiq_default"]
+MATRIX["custom_iso_12647_8"] = MATRIX["chromiq_default"]
+
+MATRIX_SETS = ("chromiq_default", "chromiq_tight", "chromiq_quick",
+               "custom_iso_12647_7", "custom_iso_12647_8")
+
+#: The label a matrix run's story uses for its set, without repeating the
+#: whole sentence six times.
+_SET_WORD = {"chromiq_default": "ChromIQ default", "chromiq_tight": "ChromIQ tight",
+             "chromiq_quick": "Quick check",
+             "custom_iso_12647_7": "Custom ISO 12647-7",
+             "custom_iso_12647_8": "Custom ISO 12647-8"}
+
+#: One month per set, so no two matrix runs share a date and the pulldown can
+#: never show two entries a reader cannot tell apart.
+_MATRIX_MONTH = {"chromiq_default": "03", "chromiq_tight": "04",
+                 "chromiq_quick": "05", "custom_iso_12647_7": "06",
+                 "custom_iso_12647_8": "07"}
+
+
+def matrix_dates(set_id: str, kind: str) -> "list[Date]":
+    """The two dates of one matrix run: everything over, then everything in.
+
+    *kind* is ``"ordinary"`` or ``"gamut"`` and decides which rows the chart
+    can answer at all, which is the ``expect`` list and therefore the thing the
+    build's own intended-against-actual check tests.
+    """
+    over, inside = MATRIX[set_id]
+    if kind == "gamut":
+        # A CHART SELECTED FROM THE PROFILE'S GAMUT HAS NO TONE RAMP, measured:
+        # one step on the grey axis and none on R, G or B. `ramp_dl` has
+        # nothing to move there and the generator refuses rather than pretending.
+        from dataclasses import replace as _replace
+        over, inside = _replace(over, ramp_dl=None), _replace(inside, ramp_dl=None)
+    rows = list(ROWS_ORDINARY if kind == "ordinary" else ROWS_GAMUT)
+    m = _MATRIX_MONTH[set_id]
+    d = "05" if kind == "ordinary" else "12"
+    d2 = "19" if kind == "ordinary" else "26"
+    what = ("an ordinary ChromIQ chart" if kind == "ordinary"
+            else "a chart built from the profile's own gamut")
+    missing = ("The two grey-balance rows and the tone-ramp row are not on "
+               "this sheet at all: a chart selected from the profile's gamut "
+               "has no grey ramp and no single-ink ramp, so those three have "
+               "no value to judge here and are exercised on the ordinary "
+               "charts instead."
+               if kind == "gamut" else
+               "The three rows that need a reference measurement of the "
+               "printing condition have no value here: an ordinary chart "
+               "cannot supply them, and the Profile-Gamut project is where "
+               "they are exercised.")
+    return [
+        _d(f"2028-{m}-{d}_100000", f"2028-{m}-{d}T10:00:00",
+           f"Every row this chart can answer is over its limit",
+           f"{_SET_WORD[set_id]} on {what}. Every one of the "
+           f"{len(rows)} rows this chart supplies is over the number this "
+           f"column puts on it, so every cell of the column that can carry a "
+           f"word carries one. {missing}",
+           over, rows),
+        _d(f"2028-{m}-{d2}_100000", f"2028-{m}-{d2}T10:00:00",
+           "The same sheet, every row back inside",
+           f"The same chart and the same column, with every value brought "
+           f"back under its limit. Read against the date before it, this pair "
+           f"is what shows each of the {len(rows)} thresholds releasing as "
+           f"well as triggering.",
+           inside, []),
+    ]
+
+
+#: The FROM PROFILE GAMUT project's own dates: the three rows that exist
+#: nowhere else, one at a time. The column relaxes everything else to 9.0 so a
+#: crossing is the row the date is about and nothing else, which is the same
+#: device the Isolated-Rows project uses.
+GAMUT_ISOLATION: "list[Date]" = [
+    _d("2028-01-05_100000", "2028-01-05T10:00:00",
+       "The paper is too far from the reference white",
+       "The paper white is 5.0 from the reference this chart carries, over "
+       "the 3.0 this run's own column asks for. Every other row is relaxed to "
+       "9.0. ONE row crosses, and it is a row no ordinary ChromIQ chart can "
+       "even compute.",
+       Design(bulk=0.6, shoulder=0.9, peak=1.4, tail=1.0,
+              white_de=5.0, solid_de=0.5, cmy_dh=0.4),
+       ["substrate_de00_max"]),
+    _d("2028-01-19_100000", "2028-01-19T10:00:00",
+       "A solid ink is off, and the paper is fine",
+       "The composite black corner is 5.0 out, over the 3.0 on 'Solid "
+       "colours, largest'. The paper white comes back to 0.5 and the hue of "
+       "the three chromatic solids is left alone. ONE row crosses.",
+       Design(bulk=0.6, shoulder=0.9, peak=1.4, tail=1.0,
+              white_de=0.5, solid_de=5.0, cmy_dh=0.4),
+       ["solids_de00_max"]),
+    _d("2028-02-02_100000", "2028-02-02T10:00:00",
+       "The three chromatic solids are rotated in hue",
+       "Cyan, magenta and yellow are each turned about the neutral axis at "
+       "constant lightness and constant chroma, so their metric hue "
+       "difference is 3.0 and their lightness and chroma differences are "
+       "zero. That is over the 2.0 on 'CMY solids, hue difference' and, "
+       "because a pure hue turn at this chroma is a much smaller colour "
+       "difference than it is a hue one, inside the 3.0 on 'Solid colours, "
+       "largest'. ONE row crosses.",
+       Design(bulk=0.6, shoulder=0.9, peak=1.4, tail=1.0,
+              white_de=0.5, solid_de=0.5, cmy_dh=3.0),
+       ["cmy_solids_dhab_max"]),
+    _d("2028-02-16_100000", "2028-02-16T10:00:00",
+       "All three come back",
+       "The paper, the solids and the hue of the three chromatic solids are "
+       "all inside their limits again, on the same chart and the same column.",
+       Design(bulk=0.6, shoulder=0.9, peak=1.4, tail=1.0,
+              white_de=0.5, solid_de=0.5, cmy_dh=0.4),
+       []),
+]
+
+#: The control strip, one row at a time. 24 declared patches, so the
+#: 95th-percentile row's nearest rank is 23 and the shoulder patch IS the 95th
+#: percentile.
+#:
+#: **THE 95TH PERCENTILE CANNOT CROSS ALONE, AND THAT IS ARITHMETIC, NOT A GAP
+#: IN THIS PACKAGE.** It is never larger than the largest, so a strip whose
+#: 95th percentile is over 3.0 has a largest patch over 3.0 too. The pair of
+#: dates below is what separates the two readings instead: one where the
+#: largest crosses and the 95th percentile does not, and one where both do.
+STRIP_ISOLATION: "list[Date]" = [
+    _d("2028-08-03_100000", "2028-08-03T10:00:00",
+       "The whole strip drifts",
+       "All 24 declared patches sit at 2.5, over the 2.0 this column puts on "
+       "the strip's average and inside the 3.0 on its largest and its 95th "
+       "percentile. Every other row is relaxed to 9.0. ONE row crosses.",
+       Design(bulk=0.5, shoulder=0.8, peak=1.2, tail=0.9, grey_dch=0.4,
+              strip_bulk=2.5),
+       ["control_strip_de00_avg"]),
+    _d("2028-08-17_100000", "2028-08-17T10:00:00",
+       "One patch of the strip is badly wrong",
+       "23 of the 24 declared patches are at 0.5 and one is at 4.5. The "
+       "strip's largest is over 3.0; its average is 0.67 and its 95th "
+       "percentile is the second largest, 0.5, so neither of those moves. ONE "
+       "row crosses.",
+       Design(bulk=0.5, shoulder=0.8, peak=1.2, tail=0.9, grey_dch=0.4,
+              strip_bulk=0.5, strip_peak=4.5),
+       ["control_strip_de00_max"]),
+    _d("2028-08-31_100000", "2028-08-31T10:00:00",
+       "The top of the strip goes, and the 95th percentile says so",
+       "22 patches at 0.5, one at 4.0 and one at 4.2. The 95th percentile now "
+       "reads 4.0 and the largest 4.2, so both cross while the average stays "
+       "at 0.85. Read against the date before it, this is what makes the two "
+       "rows separate readings rather than one.",
+       Design(bulk=0.5, shoulder=0.8, peak=1.2, tail=0.9, grey_dch=0.4,
+              strip_bulk=0.5, strip_shoulder=4.0, strip_peak=4.2),
+       ["control_strip_de00_max", "control_strip_de00_p95"]),
+    _d("2028-09-14_100000", "2028-09-14T10:00:00",
+       "The strip comes back",
+       "All 24 declared patches back at 0.5. All three strip rows recover on "
+       "the same date and nothing else on the sheet moved.",
+       Design(bulk=0.5, shoulder=0.8, peak=1.2, tail=0.9, grey_dch=0.4,
+              strip_bulk=0.5),
+       []),
+]
+
+SURFACE_ISOLATION: "list[Date]" = [
+    _d("2028-09-28_100000", "2028-09-28T10:00:00",
+       "The edge of the device cube drifts",
+       "Every patch with a red, green or blue value within 2.0 of 0 or of 100 "
+       "is moved to 3.0, over the 2.0 this column puts on the surface-gamut "
+       "row. Every other row is relaxed to 9.0. ONE row crosses.",
+       Design(bulk=0.5, shoulder=0.8, peak=1.2, tail=0.9, grey_dch=0.4,
+              surface_de=3.0),
+       ["surface_gamut_de00_avg"]),
+    _d("2028-10-12_100000", "2028-10-12T10:00:00",
+       "The edge comes back",
+       "The same patches at 0.5. The row recovers and nothing else moved.",
+       Design(bulk=0.5, shoulder=0.8, peak=1.2, tail=0.9, grey_dch=0.4,
+              surface_de=0.5),
+       []),
+]
+
+OUTER_ISOLATION: "list[Date]" = [
+    _d("2028-10-26_100000", "2028-10-26T10:00:00",
+       "The most saturated quarter of the chart drifts",
+       "The top quarter of the chart by the chroma of its aim values is moved "
+       "to 3.0, over the 2.0 this column puts on the outer-gamut row. Every "
+       "other row is relaxed to 9.0. ONE row crosses.",
+       Design(bulk=0.5, shoulder=0.8, peak=1.2, tail=0.9, grey_dch=0.4,
+              outer_de=3.0),
+       ["outer_gamut_226_de00_avg"]),
+    _d("2028-11-09_100000", "2028-11-09T10:00:00",
+       "The saturated quarter comes back",
+       "The same patches at 0.5. The row recovers and nothing else moved.",
+       Design(bulk=0.5, shoulder=0.8, peak=1.2, tail=0.9, grey_dch=0.4,
+              outer_de=0.5),
+       []),
+]
+
+
+# ---------------------------------------------------------------------------
 # The projects
 # ---------------------------------------------------------------------------
+#: The FROM PROFILE GAMUT verification chart. 200 selected colours plus the
+#: eight cube corners, which is comfortably past the ~80 referenced patches the
+#: outer-gamut row needs before its top quarter holds 20.
+CHART_GAMUT = GamutChartRecipe(200, "A4")
+
+#: The chart that cannot supply the surface-gamut row. See `GridChartRecipe`.
+CHART_MIDTONES = GridChartRecipe()
+
+NO_SURFACE: "list[Date]" = [
+    _d("2028-11-23_100000", "2028-11-23T10:00:00",
+       "A chart with no patch on the surface of the device cube",
+       "Every patch of this chart sits between 20 and 80 on all three "
+       "channels, so not one of them is within 2.0 of 0 or of 100 and the "
+       "surface-gamut row has no population to average. The report says which "
+       "patches are missing and what to add in Create Chart, rather than "
+       "passing the row. The two grey-balance rows have only five levels "
+       "here, which is under the eight they need, so they say so too.\n"
+       "This sheet ships with no record of how it was printed, and that is "
+       "deliberate: with no bare-paper patch on the chart there is nothing "
+       "for the media-relative yardstick to anchor on, and the lightest "
+       "colour on the sheet would read a large difference by construction.",
+       Design(bulk=0.6, shoulder=0.9, peak=1.4, tail=1.0),
+       []),
+    _d("2028-12-07_100000", "2028-12-07T10:00:00",
+       "The same chart a fortnight later",
+       "Nothing about the missing population changes with the measurement, "
+       "which is the point: a chart that cannot supply a row cannot supply it "
+       "on any date.",
+       Design(bulk=0.6, shoulder=0.9, peak=1.4, tail=1.0),
+       []),
+]
+
 PROJECTS = [
     ("Report-Limits-Threshold-Series", [
         RunPlan("The dated series: every judged row crosses on one date and "
@@ -1949,6 +2764,146 @@ PROJECTS = [
                 print_colour="raw",
                 note="Deliberately printed raw. The large numbers are "
                      "correct for a sheet nothing corrected."),
+    ]),
+    # -----------------------------------------------------------------------
+    # The seventh project: the chart built FROM PROFILE GAMUT
+    # -----------------------------------------------------------------------
+    # Knut, 2026-09-18: *"Also, some tests require a test chart with From
+    # Profile Gamut, which must also be included."*
+    #
+    # It is the only chart that makes three of the sixteen judgeable rows
+    # answerable at all. A chart whose device values were converted through the
+    # profile at build time ships a `<stem>-reference.ti3` beside itself; the
+    # report reads that instead of the .ti2's design XYZ, `reference_source`
+    # becomes "colorimetric", and only then does `row_values` compute *Paper
+    # white*, *Solid colours largest* and *CMY solids hue difference* rather
+    # than writing `needs_reference_file` on all three. Before this project
+    # existed those three rows read `needs_reference_file` in 80 of 80 saved
+    # reports of this package.
+    ("Report-Limits-Profile-Gamut", [
+        RunPlan("The three rows only a From-profile-gamut chart can answer, "
+                "one at a time, isolated by this run's own edited column.",
+                CHART_MEDIUM, CHART_GAMUT, "chromiq_default",
+                GAMUT_ISOLATION, unlocked=True, lock="unlocked",
+                control_strip=True,
+                control_strip_name="Gamut chart 24-patch strip",
+                edited_limits=fill_limits(
+                    "chromiq_default", relax=RELAX_ALL,
+                    keep=("substrate_de00_max", "solids_de00_max",
+                          "cmy_solids_dhab_max")),
+                note="A From-profile-gamut chart. Do not regenerate it as an "
+                     "ordinary chart: the colorimetric reference beside it is "
+                     "the only thing that makes three of this package's rows "
+                     "computable."),
+        RunPlan("The same kind of chart under Custom ISO 12647-7, which is "
+                "the one shipped column that already puts a number on all "
+                "sixteen judgeable rows.",
+                CHART_MEDIUM, CHART_GAMUT, "custom_iso_12647_7",
+                matrix_dates("custom_iso_12647_7", "gamut"),
+                unlocked=True, lock="unlocked", control_strip=True,
+                note="The limits of this column are not edited by this "
+                     "package and must not be: they are placeholders under a "
+                     "permission condition, pinned by a test."),
+    ]),
+    # -----------------------------------------------------------------------
+    # The eighth project: the five rows that had no detection until B8-397
+    # -----------------------------------------------------------------------
+    # Knut approved the three S2w proposals on 2026-09-18, so the three
+    # control-strip rows and the two gamut-population rows stopped being
+    # `unknown` and became measurable. Nothing in this package exercised them
+    # the day they landed: measured on the previous build, all three strip
+    # rows read N-A in 80 of 80 saved reports because no chart in the package
+    # declared a strip.
+    ("Report-Limits-Strip-And-Gamut", [
+        RunPlan("The chart declares its own control strip, and each of the "
+                "three strip rows is isolated by this run's own edited column.",
+                CHART_MEDIUM, CHART_MEDIUM, "chromiq_default",
+                STRIP_ISOLATION, unlocked=True, lock="unlocked",
+                control_strip=True,
+                control_strip_name="Demo press strip, 24 patches",
+                edited_limits=fill_limits(
+                    "chromiq_default", relax=RELAX_ALL,
+                    keep=("control_strip_de00_avg", "control_strip_de00_max",
+                          "control_strip_de00_p95")),
+                note="The sidecar beside this chart is what declares the "
+                     "strip. Delete it and all three strip rows go back to "
+                     "reading 'this chart declares no control strip', which "
+                     "is the state every other chart in the package is in."),
+        RunPlan("The surface of the device cube, isolated by this run's own "
+                "edited column.",
+                CHART_MEDIUM, CHART_MEDIUM, "chromiq_default",
+                SURFACE_ISOLATION, unlocked=True, lock="unlocked",
+                edited_limits=fill_limits(
+                    "chromiq_default", relax=RELAX_ALL,
+                    keep=("surface_gamut_de00_avg",))),
+        RunPlan("The most saturated quarter of the chart, isolated by this "
+                "run's own edited column.",
+                CHART_MEDIUM, CHART_MEDIUM, "chromiq_default",
+                OUTER_ISOLATION, unlocked=True, lock="unlocked",
+                edited_limits=fill_limits(
+                    "chromiq_default", relax=RELAX_ALL,
+                    keep=("outer_gamut_226_de00_avg",))),
+        RunPlan("A chart with nothing on the surface of the device cube, so "
+                "the surface-gamut row cannot be supplied at all.",
+                CHART_SMALL, CHART_MIDTONES, "chromiq_default",
+                NO_SURFACE, unlocked=True, lock="unlocked",
+                edited_limits=fill_limits("chromiq_default"),
+                # AND IT SHIPS WITHOUT A PRINTING RECORD, for a measured
+                # reason rather than a stylistic one. A sheet printed through
+                # the profile is judged MEDIA-RELATIVE: every reading is
+                # divided by the LIGHTEST patch of the sheet, which on an
+                # ordinary chart is bare paper. This chart has no bare-paper
+                # patch, so the anchor is an ordinary mid-grey, and dividing
+                # it by itself pins it to L*100 against a design value of
+                # L*82. Measured: that one patch alone read 10.996 dE00 and
+                # took "All patches, largest" and the worst-5 % average with
+                # it, on a sheet designed for 0.6. Without the record the
+                # report judges in absolute Lab, there is no anchor, and the
+                # run is about the row it says it is about.
+                print_colour="none",
+                note="Deliberately built as a 5x5x5 grid on 20/35/50/65/80. "
+                     "Do not regenerate it with a targen recipe: every targen "
+                     "chart is full of patches on the cube's surface (measured "
+                     "over this package's six sizes: 21 of 30 up to 200 of "
+                     "405), so this is the only run that can show the report "
+                     "detecting that a chart cannot support the row."),
+    ]),
+    # -----------------------------------------------------------------------
+    # The ninth project: EVERY judgeable row against EVERY limit set
+    # -----------------------------------------------------------------------
+    # Knut, 2026-09-18: *"the demo data must verify that all thresholds can
+    # trigger correctly for every judged against limit set, not just test all
+    # the thresholds on one of the sets."*
+    #
+    # Ten runs, two to a set: one on an ordinary ChromIQ chart, which answers
+    # thirteen rows, and one on a From-profile-gamut chart, which answers a
+    # different thirteen. Each run holds one date on which every row that chart
+    # can answer is OVER its limit and one on which every one of them is back
+    # inside, so both halves of every cell of the matrix are on the disk.
+    #
+    # The three ChromIQ sets ship a number on seven of the sixteen rows, so
+    # their runs carry the other nine in the run's own bound copy, exactly as a
+    # user who typed them into the Report limits window would have. The two
+    # Custom columns already number all sixteen and are NOT edited.
+    ("Report-Limits-Every-Limit-Set", [
+        plan
+        for set_id in MATRIX_SETS
+        for plan in (
+            RunPlan(f"{_SET_WORD[set_id]}, every row an ordinary chart can "
+                    f"answer: over on one date, inside on the next.",
+                    CHART_SMALL, CHART_MEDIUM, set_id,
+                    matrix_dates(set_id, "ordinary"),
+                    unlocked=True, lock="unlocked", control_strip=True,
+                    edited_limits=(None if set_id.startswith("custom_")
+                                   else fill_limits(set_id))),
+            RunPlan(f"{_SET_WORD[set_id]}, every row a From-profile-gamut "
+                    f"chart can answer: over on one date, inside on the next.",
+                    CHART_SMALL, CHART_GAMUT, set_id,
+                    matrix_dates(set_id, "gamut"),
+                    unlocked=True, lock="unlocked", control_strip=True,
+                    edited_limits=(None if set_id.startswith("custom_")
+                                   else fill_limits(set_id))),
+        )
     ]),
 ]
 
@@ -2254,6 +3209,20 @@ def main(argv=None) -> int:
     for f in sfaults:
         print(f"  COVERAGE: {f}")
 
+    # KNUT'S MATRIX: every judgeable row against EVERY limit set, both halves.
+    mf = matrix_faults(cov)
+    done = sum(1 for c in cov["matrix_cells"] if c["complete"])
+    print(f"\nlimit-set matrix: {done} of {len(cov['matrix_cells'])} judged "
+          f"cells show the row BOTH over its limit and inside it, across "
+          f"{len(cov['matrix_sets'])} selectable limit sets")
+    for f in mf:
+        print(f"  MATRIX: {f}")
+    (dest / "limit-set-matrix.json").write_text(
+        json.dumps({"sets": cov["matrix_sets"],
+                    "cells": cov["matrix_cells"]}, indent=2),
+        encoding="utf-8")
+    sfaults = sfaults + mf
+
     if args.zip:
         archive = dest.parent / f"{dest.name}"
         made = shutil.make_archive(str(archive), "zip", root_dir=str(dest.parent),
@@ -2280,7 +3249,9 @@ def _wrap(text: str, width: int) -> "list[str]":
 
 #: Small numbers as words, for a heading that must agree with a computed list.
 _WORDS = {0: "no", 1: "one", 2: "two", 3: "three", 4: "four", 5: "five",
-          6: "six", 7: "seven", 8: "eight"}
+          6: "six", 7: "seven", 8: "eight", 9: "nine", 10: "ten",
+          11: "eleven", 12: "twelve", 13: "thirteen", 14: "fourteen",
+          15: "fifteen", 16: "sixteen"}
 
 #: Rows that are ordered against another row, and therefore cannot cross their
 #: limit while that other row stays inside its own. The ORDER is a fact about
@@ -2499,6 +3470,7 @@ def coverage(dest: Path, results: list) -> dict:
     out.update(message_coverage(dest))
     out.update(metric_coverage(dest, results))
     out.update(support_coverage(dest))
+    out.update(matrix_coverage(results))
     out.update(custom_column_facts())
     return out
 
@@ -2786,7 +3758,11 @@ def support_coverage(dest: Path) -> dict:
     from workflow.compliance_sets import ROWS
     from workflow.measurement_report import row_values
 
-    computable = [r for r in ROWS if r.status in ("build", "now")]
+    # "ref" JOINS THE LIST, because those three rows stopped being theoretical
+    # the day this package gained a FROM PROFILE GAMUT chart: a chart that
+    # carries a colorimetric reference supplies them and an ordinary chart does
+    # not, so both halves of Knut's question exist for them now.
+    computable = [r for r in ROWS if r.status in ("build", "now", "ref")]
     rows: list = []
     seen: "dict[str, dict]" = {
         r.id: {"value_on": set(), "na_on": set(), "value": 0, "na": 0,
@@ -2831,6 +3807,70 @@ def support_coverage(dest: Path) -> dict:
         })
     return {"support_rows": rows, "support_reports": n_reports,
             "verify_chart_sizes": sorted(sizes)}
+
+
+def matrix_coverage(results: list) -> dict:
+    """EVERY JUDGEABLE ROW AGAINST EVERY LIMIT SET, both halves of each cell.
+
+    Knut, 2026-09-18: *"those eleven can also be defined for all the Judge
+    Against limit sets, so the demo data must verify that all thresholds can
+    trigger correctly for every judged against limit set, not just test all the
+    thresholds on one of the sets."*
+
+    A cell is complete only when the package holds a dated verification judged
+    against that set where the row is OVER its limit, **and** one where the row
+    was judged and is inside it. A row that only ever crosses proves the
+    threshold fires and says nothing about whether it ever releases; a row that
+    is never over proves nothing at all.
+
+    Read off the results of THIS build, so the table cannot drift from the
+    data: `values` holds every row the report judged on that date and
+    `actual` every row it found over the limit, both taken from the shipped
+    `row_values` / `row_verdict` / `set_summary` rather than from the design.
+    """
+    from workflow.compliance_sets import ROW_BY_ID, selectable_set_ids
+    sets = selectable_set_ids({})
+    cells: dict = {}
+    for sid in sets:
+        for rid in ROW_BY_ID:
+            cells[(sid, rid)] = {"judged": False, "over": "", "inside": ""}
+    for r in results:
+        sid = r.get("set_id") or ""
+        at = (f"{r['project'].replace('Report-Limits-', '')}"
+              f"/{r['run']}/{r['date']}")
+        for rid in r.get("values", {}):
+            c = cells.get((sid, rid))
+            if c is None:
+                continue
+            c["judged"] = True
+            if rid in r["actual"]:
+                c["over"] = c["over"] or at
+            else:
+                c["inside"] = c["inside"] or at
+    rows = []
+    for (sid, rid), c in cells.items():
+        if not c["judged"]:
+            continue
+        rows.append({"set": sid, "row": rid, "over": c["over"],
+                     "inside": c["inside"],
+                     "complete": bool(c["over"] and c["inside"])})
+    rows.sort(key=lambda r: (sets.index(r["set"]), r["row"]))
+    return {"matrix_sets": sets, "matrix_cells": rows}
+
+
+def matrix_faults(cov: dict) -> list:
+    """A cell the package claims and does not show. Same refusal as everywhere
+    else in this file: the pack does not ship saying it tested something it
+    did not."""
+    out = []
+    for c in cov["matrix_cells"]:
+        if c["complete"]:
+            continue
+        missing = "never over its limit" if not c["over"] else "never inside it"
+        out.append(f"{c['set']} / {c['row']}: judged in this package but "
+                   f"{missing}, so the cell shows only half of what Knut "
+                   f"asked for")
+    return out
 
 
 def support_faults(cov: dict) -> list:
@@ -3030,7 +4070,7 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("WHAT IS IN HERE")
     a("---------------")
     a("")
-    a(f"{_WORDS.get(len(PROJECTS), len(PROJECTS)).capitalize()} projects. Each "
+    a(f"{str(_WORDS.get(len(PROJECTS), len(PROJECTS))).capitalize()} projects. Each "
       f"project holds several profile runs, and each")
     a("profile run holds its own chart, its own profile, and its dated")
     a("verifications.")
@@ -3114,10 +4154,74 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
         a("Every row that can be judged is crossed by at least one date, and")
         a("comes back inside its limit on another. Nothing here is untested.")
     a("")
-    a("One of them needed a run of its own. No shipped limit set judges the")
-    a("30 to 70 % tone ramps, so that row prints a number nothing can cross;")
+    a("One of them needed a run of its own. Neither ChromIQ default, ChromIQ")
+    a("tight nor Quick check judges the 30 to 70 % tone ramps as they ship, so")
+    a("under those three columns that row prints a number nothing can cross;")
     a("Isolated-Rows/run5 gives it a limit in the run's own edited column,")
-    a("which is the only way a user can have it judged either.")
+    a("which is the only way a user of those columns can have it judged. The")
+    a("two Custom columns DO put a recommended value on it, and")
+    a("Custom-Columns/run2 crosses it there.")
+    a("")
+    a("EVERY JUDGEABLE ROW AGAINST EVERY LIMIT SET")
+    a("-------------------------------------------")
+    a("")
+    a("Knut, 2026-09-18: \"those eleven can also be defined for all the Judge")
+    a("Against limit sets, so the demo data must verify that all thresholds")
+    a("can trigger correctly for every judged against limit set, not just test")
+    a("all the thresholds on one of the sets.\"")
+    a("")
+    a("A cell is complete only when this package holds a dated verification")
+    a("judged against that set where the row is OVER its limit AND one where")
+    a("the row was judged and is inside it. A row that only ever crosses says")
+    a("nothing about whether the threshold ever releases.")
+    a("")
+    _cells = _cov.get("matrix_cells", [])
+    _done = sum(1 for c in _cells if c["complete"])
+    a(f"  {_done} of {len(_cells)} judged cells are complete, over "
+      f"{len(_cov.get('matrix_sets', []))} selectable limit sets.")
+    a("")
+    a("THE TWO READ-ONLY ISO COLUMNS ARE NOT IN THIS TABLE AND CANNOT BE. The")
+    a("tolerance values of ISO 12647-7:2016 and ISO 12647-8:2021 are not in")
+    a("ChromIQ, so every cell of both columns reads '?', neither column has a")
+    a("limit-bearing row, and the report window does not offer either. No")
+    a("measurement can make it offer them.")
+    a("")
+    _by_set: dict = {}
+    for c in _cells:
+        _by_set.setdefault(c["set"], []).append(c)
+    from workflow.compliance_sets import SET_BY_ID as _SBI
+    for sid in _cov.get("matrix_sets", []):
+        _rows = _by_set.get(sid, [])
+        a(f"{_SBI[sid].label}  ({len(_rows)} judged rows)")
+        for c in sorted(_rows, key=lambda x: x["row"]):
+            _mark = "  " if c["complete"] else "!!"
+            a(f"  {_mark} {ROW_TITLES.get(c['row'], c['row'])[:60]}")
+            a(f"        over   {c['over'] or '(never)'}")
+            a(f"        inside {c['inside'] or '(never)'}")
+        a("")
+    a("HOW THE THREE CHROMIQ COLUMNS COME TO JUDGE SIXTEEN ROWS")
+    a("-------------------------------------------------------")
+    a("")
+    a("As shipped, ChromIQ default, ChromIQ tight and Quick check put a number")
+    a("on SEVEN of the sixteen judgeable rows: the five colour-difference rows")
+    a("and the two grey-balance recommendations. The two Custom columns put one")
+    a("on all sixteen.")
+    a("")
+    a("The runs of Report-Limits-Every-Limit-Set that are bound to a ChromIQ")
+    a("column carry the other nine in the RUN'S OWN COPY of the limits, in")
+    a("runs/runN/meta.json, which is exactly the state a user is in after")
+    a("typing them into the Report limits window. Nothing was invented for it:")
+    a("effective_limits() accepts an override on any row whose status is not")
+    a("'unmeasurable', and the numbers used are ChromIQ default's own")
+    a("placeholders scaled by the ratio each set already uses on the five rows")
+    a("it does ship (tight is half of default, Quick check double it). No")
+    a("standard's published tolerance is involved in any of them.")
+    a("")
+    a("If you pick a different set in the 'Judged against' pulldown on one of")
+    a("those runs, ChromIQ re-binds the run to that set's own numbers and the")
+    a("nine typed-in limits are gone. That is correct behaviour and not a")
+    a("fault in the package; regenerate it, or unzip a fresh copy, to get them")
+    a("back.")
     a("")
     a("WHICH DATE CROSSES WHICH LIMIT")
     a("------------------------------")
@@ -3165,7 +4269,7 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("WHAT A CLEAN VERDICT HERE DOES NOT PROVE")
     a("----------------------------------------")
     a("")
-    a(f"{_WORDS.get(len(_cov['shipped_judged']), len(_cov['shipped_judged'])).capitalize()} "
+    a(f"{str(_WORDS.get(len(_cov['shipped_judged']), len(_cov['shipped_judged']))).capitalize()} "
       f"rows of the report can be judged by a SHIPPED limit set")
     a("today: the five all-patch colour differences and the two grey-balance")
     a("rows. An edited column can judge one more, which is what")
