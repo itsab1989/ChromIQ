@@ -619,12 +619,60 @@ python scripts/import_knut_presets.py i1photo <folder-of-exports> --write
 ```
 
 Two of the fifteen exports are re-sends of charts that already ship. One is
-byte-identical apart from its `CREATED` stamp. The other,
-`130x180mm-648p-3pages-w8.0mm`, carries a **different colour set** under the
-same name (7 levels per channel against the shipped 6), and was NOT overwritten:
-which of the two ships is Knut's call. `scripts/drive_i1pro_photocard_presets.py`
-drives the real window over all fifteen and photographs both the listing and the
-panel each one fills in.
+byte-identical apart from its `CREATED` stamp; the other,
+`130x180mm-648p-3pages-w8.0mm`, carried a **different colour set** under the
+same name, and Knut ruled on 2026-09-18: *"replace with the following one, do
+not keep the old"*. It was replaced in place — the bundled `.ti1` is now his
+set, and **the slug did not move**, because the slug is the identity every
+stored selection resolves through. Only the display NAME gained the "Portrait"
+token his own files carry.
+
+#### Four more, and three settings on every card (Knut, 2026-09-18)
+
+Four single-sheet charts (150p / 180p on the 10 x 15, 216p / 288p on the
+13 x 18) take the family to **nineteen**, and with them came an instruction for
+all of them: a Chart Notes line per card size, the "Sheet text" Size at 6.0, and
+the "Clip" distance under "Text distance from edge" at 2.0 mm.
+
+**TWO OF THE THREE LIVE IN THE RECIPE AND ONE DOES NOT.** `chart_text_size_mm`
+and `text_edge_clip_mm` went into `_I1_PHOTO_BASE`, because he asked for them
+family-wide. The note did not: the Chart Notes box is a Create Chart field of
+its own, saved with the run and stamped down the right edge of the sheet, so
+`_Ti1Preset` grew `chart_notes` and `_seed_knut_preset` fills the box from it.
+`_I1_PHOTO_NOTE` holds one sentence per card size, looked up by paper, so
+nineteen charts share two sentences and neither can drift.
+
+**THE EMPTY CASE IS NOT A NO-OP.** A preset with no note CLEARS one another
+built-in left in the box, because a note that says "10x15cm / 4x6" photo card"
+would otherwise be printed on the next chart's paper. It is matched against
+`BUILTIN_CHART_NOTES` — text this app wrote — so a note a person typed is never
+touched.
+
+**"6,0mm" IS 6.0 POINTS.** The Size box under "Sheet text" is in points
+(`layout_options_panel` converts at the boundary) and the recipe stores
+millimetres, so his 6.0 lands as 2.12 — which is exactly what his four exports
+carry. Measure the file rather than the sentence; the same slip is on record for
+the CR30 strip labels.
+
+**AND A FOURTH FIELD, MEASURED RATHER THAN ASKED FOR.** Every one of his twenty
+exports carries "Stamp settings down the right edge" OFF; the app's default is
+ON and a built-in carried no answer. With his note in the box and the stamp on,
+the right edge of a 150 mm card is not tall enough for both and the note was
+truncated: driven on screen, **19 of 19 warned with the stamp on, 0 of 19 with
+it off**. `_Ti1Preset.stamp_settings` carries it; `None` on every other family
+means "leave the checkbox alone".
+
+**ONE HOLE THIS OPENED AND CLOSED.** `_seed_new_project_text` is what gives the
+Run description and the Chart Notes a home in a project that did not exist when
+they were written, and only `_on_generate` called it. A built-in preset builds
+through `_generate_from_ti1`, so text on screen when one was picked reached the
+printed sheet and never reached the run's `meta.json`. Both functions now carry
+the same branch, and `test_a_builtin_preset_gives_its_text_a_home_in_the_project_it_creates`
+holds them to each other.
+
+`scripts/drive_i1pro_photocard_presets.py` drives the real window over all
+nineteen, photographs the listing and the panel each one fills in, and reports
+the layout notices with the stamp both on and off.
 
 ### Rename or re-file an existing preset
 

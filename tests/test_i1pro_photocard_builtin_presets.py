@@ -27,11 +27,11 @@ WHAT THESE TESTS ARE FOR. A shared base recipe changes every chart that hangs
 off it at once and silently, and this change added a THIRD i1Pro base beside two
 that carry nineteen shipping charts each. So these things are pinned here:
 
- 1. ``_I1_PHOTO_BASE`` differs from ``_I1_BASE`` in exactly ten fields and holds
-    no margin at all (no two cards share a sheet-scaled number, so there is
+ 1. ``_I1_PHOTO_BASE`` differs from ``_I1_BASE`` in exactly twelve fields and
+    holds no margin at all (no two cards share a sheet-scaled number, so there is
     nothing honest to inherit and ``_i1_photo_preset`` requires all five);
  2. ``_I1_BASE`` and ``_I1_75_BASE`` still say what they said, in each of those
-    ten fields, so this family cannot have been folded into either;
+    twelve fields, so this family cannot have been folded into either;
  3. ``_I1_PHOTO_MAXIMISED`` moves exactly two fields, and only the seven charts
     whose NAME says so take it;
  4. every chart is registered, non-deletable, still has its bundled ``.ti1``
@@ -90,10 +90,15 @@ def effective_base(preset) -> dict:
         base.update(_I1_PHOTO_MAXIMISED)
     return base
 
-#: What the base moves away from ``_I1_BASE``, and all it moves. Ten fields,
-#: identical on both cards — a design, which is why it is a base and not a pair
+#: What the base moves away from ``_I1_BASE``, and all it moves. Twelve fields,
+#: identical on every card — a design, which is why it is a base and not a set
 #: of per-chart overrides. Written out as (photo, 8 mm) so the test reads both
 #: ends and a change to EITHER is caught.
+#:
+#: The last two arrived on 2026-09-18 with Knut's *"All the built-in
+#: 'i1Pro-100x150mm…' presets (including the new once) need the following
+#: included in the saved settings"*: the sheet text at 6.0 pt and the clip
+#: distance at 2.0 mm, on every chart of both card sizes.
 BASE_DELTA = {
     "area_min_patch_mm":     (17.5, 0.0),
     "border":                (10.0, 6.0),
@@ -105,6 +110,8 @@ BASE_DELTA = {
     "sscale":                (0.6, 0.8),
     "text_edge_top_mm":      (4.0, 8.0),
     "clip_text":             (_I1_PHOTO_CLIP_TEXT, ""),
+    "chart_text_size_mm":    (2.12, 0.0),
+    "text_edge_clip_mm":     (2.0, 4.0),
 }
 
 _NAME_RE = re.compile(
@@ -112,9 +119,13 @@ _NAME_RE = re.compile(
     r"(?:(?P<orientation>Portrait|Landscape)-)?w(?P<width>[\d.]+)mm"
     r"(?P<maximised>-Maximised-No Clip-border)?$")
 
-#: What each name promises, transcribed from the fifteen filenames Knut sent:
+#: What each name promises, transcribed from the nineteen filenames Knut sent:
 #: (paper code, patches, pages, patch width mm, orientation token or None).
 PROMISED = {
+    "100x150mm-150p-1page-Portrait-w7.5mm":
+        ("100x150", 150, 1, 7.5, "Portrait"),
+    "100x150mm-180p-1page-Portrait-w7.5mm-Maximised-No Clip-border":
+        ("100x150", 180, 1, 7.5, "Portrait"),
     "100x150mm-600p-4pages-Portrait-w7.5mm":
         ("100x150", 600, 4, 7.5, "Portrait"),
     "100x150mm-720p-4pages-Portrait-w7.5mm-Maximised-No Clip-border":
@@ -131,8 +142,12 @@ PROMISED = {
         ("100x150", 1440, 8, 7.5, "Portrait"),
     "100x150mm-1500p-10pages-Portrait-w7.5mm":
         ("100x150", 1500, 10, 7.5, "Portrait"),
-    "130x180mm-648p-3pages-w8.0mm":
-        ("130x180", 648, 3, 8.0, None),
+    "130x180mm-216p-1page-Portrait-w8.0mm":
+        ("130x180", 216, 1, 8.0, "Portrait"),
+    "130x180mm-288p-1page-Portrait-w7.5mm-Maximised-No Clip-border":
+        ("130x180", 288, 1, 7.5, "Portrait"),
+    "130x180mm-648p-3pages-Portrait-w8.0mm":
+        ("130x180", 648, 3, 8.0, "Portrait"),
     "130x180mm-864p-3pages-Portrait-w7.5mm-Maximised-No Clip-border":
         ("130x180", 864, 3, 7.5, "Portrait"),
     "130x180mm-1080p-5pages-Portrait-w8.0mm":
@@ -162,6 +177,9 @@ _LARGE_SIDES = dict(margin_left=26.0, margin_right=7.0)
 _MAX_SIDES = dict(margin_left=5.0, margin_right=5.0)
 
 MARGINS = {
+    "100x150mm-150p-1page-Portrait-w7.5mm": {**_SMALL, **_SMALL_SIDES},
+    "100x150mm-180p-1page-Portrait-w7.5mm-Maximised-No Clip-border":
+        {**_SMALL, **_MAX_SIDES},
     "100x150mm-600p-4pages-Portrait-w7.5mm": {**_SMALL, **_SMALL_SIDES},
     "100x150mm-720p-4pages-Portrait-w7.5mm-Maximised-No Clip-border":
         {**_SMALL, **_MAX_SIDES},
@@ -174,7 +192,10 @@ MARGINS = {
     "100x150mm-1440p-8pages-Portrait-w7.5mm-Maximised-No Clip-border":
         {**_SMALL, **_MAX_SIDES},
     "100x150mm-1500p-10pages-Portrait-w7.5mm": {**_SMALL, **_SMALL_SIDES},
-    "130x180mm-648p-3pages-w8.0mm": {**_LARGE, **_LARGE_SIDES},
+    "130x180mm-216p-1page-Portrait-w8.0mm": {**_LARGE, **_LARGE_SIDES},
+    "130x180mm-288p-1page-Portrait-w7.5mm-Maximised-No Clip-border":
+        {**_LARGE, **_MAX_SIDES},
+    "130x180mm-648p-3pages-Portrait-w8.0mm": {**_LARGE, **_LARGE_SIDES},
     "130x180mm-864p-3pages-Portrait-w7.5mm-Maximised-No Clip-border":
         {**_LARGE, **_MAX_SIDES},
     "130x180mm-1080p-5pages-Portrait-w8.0mm": {**_LARGE, **_LARGE_SIDES},
@@ -204,18 +225,18 @@ def test_every_chart_registered():
     renamed, an asset folder lost — is invisible in a dropdown of 173 entries
     and would reach a user as "the chart I had is gone". The count and the
     names are both pinned so it cannot happen quietly."""
-    assert len(PHOTO) == 15
-    assert len({p.slug for p in PHOTO}) == 15        # slugs are the identity
+    assert len(PHOTO) == 19
+    assert len({p.slug for p in PHOTO}) == 19        # slugs are the identity
     assert {p.name for p in PHOTO} == set(PROMISED)
     assert all(p.key in BUILTIN_PRESET_KEYS for p in PHOTO)
     assert all(p.combo_label in BUILTIN_PRESET_LABELS for p in PHOTO)
 
 
 def test_the_cut_is_taken_by_exactly_the_charts_whose_name_says_so():
-    """Seven of the fifteen are "Maximised - No Clip-border", and the name is
-    the promise: the band is off on exactly those, and on on the other eight."""
+    """Nine of the nineteen are "Maximised - No Clip-border", and the name is
+    the promise: the band is off on exactly those, and on on the other ten."""
     named = {p.name for p in PHOTO if p.name.endswith(MAXIMISED_TAIL)}
-    assert len(named) == 7
+    assert len(named) == 9
     for p in PHOTO:
         off = p.layout_recipe["clip_border"] is False
         assert off == (p.name in named), (
@@ -266,7 +287,7 @@ def test_they_sit_beside_the_pharmacist_photo_cards():
     Knut rows are appended after them in ``_paper_sort_key`` order, so the
     photo cards land at the head of the Knut block — before every A4 chart he
     ever exported. Both halves are pinned: the two prebuilt photo cards still
-    open the group, and all fifteen of his open the Knut block, unbroken.
+    open the group, and all nineteen of his open the Knut block, unbroken.
     """
     entries = dict(BUILTIN_PRESET_GROUPS)[INSTRUMENT_LABELS["i1"]]
     overlays = [o for (_c, o, _k) in entries]
@@ -281,9 +302,9 @@ def test_they_sit_beside_the_pharmacist_photo_cards():
     assert set(block) == photo, "the photo cards no longer open the Knut block"
     # The small card comes before the large one (the sort is area-based), and
     # the very first of his is still the 600-patch chart he sent in September.
-    assert overlays[first_knut] == "100x150mm-600p-4pages-Portrait-w7.5mm"
+    assert overlays[first_knut] == "100x150mm-150p-1page-Portrait-w7.5mm"
     assert [o[:7] for o in overlays[first_knut:first_knut + len(PHOTO)]] == (
-        ["100x150"] * 8 + ["130x180"] * 7)
+        ["100x150"] * 10 + ["130x180"] * 9)
     # …and every Knut chart after them is on a named sheet (A4 / Letter / A3),
     # so nothing of his is left stranded between the cards and the A4 block.
     assert all(not o[0].isdigit()
@@ -308,10 +329,11 @@ def test_each_row_carries_the_full_layout_setup_marker():
 # A third i1Pro base, and the two it must not have touched
 # ---------------------------------------------------------------------------
 
-def test_the_base_moves_exactly_ten_fields_away_from_the_8mm_one():
-    """Ten fields, identical on both cards, none of them in any i1Pro
-    ``varying`` set. That is why this is a base and not two rows on an existing
-    family: folding it in would have re-cut nineteen shipping charts."""
+def test_the_base_moves_exactly_twelve_fields_away_from_the_8mm_one():
+    """Twelve fields, identical on every card, none of them in any i1Pro
+    ``varying`` set. That is why this is a base and not a few rows on an
+    existing family: folding it in would have re-cut nineteen shipping charts
+    in the 8 mm family and nineteen more in the 7.5 mm one."""
     moved = {k for k in set(_I1_BASE) & set(_I1_PHOTO_BASE)
              if _I1_BASE[k] != _I1_PHOTO_BASE[k]}
     assert moved == set(BASE_DELTA)
@@ -321,8 +343,9 @@ def test_the_base_moves_exactly_ten_fields_away_from_the_8mm_one():
 
 
 def test_the_75mm_base_is_untouched_too():
-    """``_I1_75_BASE`` derives from ``_I1_BASE``, so it inherits nine of the ten
-    and sets ``sscale`` itself. Pinned at both ends for the same reason."""
+    """``_I1_75_BASE`` derives from ``_I1_BASE``, so it inherits eleven of the
+    twelve and sets ``sscale`` itself. Pinned at both ends for the same
+    reason."""
     for field, (_photo, eight) in BASE_DELTA.items():
         expected = 0.75 if field == "sscale" else eight
         assert _I1_75_BASE[field] == expected, f"_I1_75_BASE moved: {field}"
@@ -360,6 +383,178 @@ def test_the_clip_note_is_shared_with_the_cr30_family_verbatim():
     assert _I1_PHOTO_CLIP_TEXT is _CR30_CLIP_TEXT
     assert _I1_PHOTO_BASE["clip_text"] == _CR30_CLIP_TEXT
     assert "Top margin: 34 mm" in _I1_PHOTO_CLIP_TEXT
+
+
+# ---------------------------------------------------------------------------
+# Knut's three settings, 2026-09-18 — on EVERY chart of both card sizes
+# ---------------------------------------------------------------------------
+
+#: The note each card carries, transcribed from his post character for
+#: character. Written out here rather than imported from the app, because a
+#: test that asks the code what the code says proves nothing: this is the
+#: sentence HE wrote, and the app has to match it.
+#:
+#: He gave it inside quotation marks in the issue; three of his four exports
+#: carry it bare and one carries the outer quotes too. Bare is what reads
+#: correctly on a printed sheet, and bare is what is pinned.
+NOTE = {
+    "100x150": 'i1Pro 1/2/3 target for 10x15cm / 4x6" photo card - print with '
+               'borderless setting / NO expansion, retain size, '
+               'color management: OFF',
+    "130x180": 'i1Pro 1/2/3 target for 13x18cm / 5x7" photo card - print with '
+               'borderless setting / NO expansion, retain size, '
+               'color management: OFF',
+}
+
+
+@pytest.mark.parametrize("preset", PHOTO, ids=lambda p: p.slug)
+def test_every_card_carries_the_note_for_the_card_it_is_cut_for(preset):
+    """Knut, 2026-09-18: *"Make sure Chart Notes are set to: …"*, one sentence
+    per card size, *"Some of the presets already have a similar text in the
+    Chart Notes, but it must be replaced by the text defined above."*
+
+    Two of his earlier exports carried an older wording with "600 patch" in it,
+    and one of those was on a 648-patch chart. The note is printed down the
+    edge of every sheet, so a stale one is a false statement on paper."""
+    assert preset.chart_notes == NOTE[preset.layout_recipe["paper"]]
+    # …and nothing of the older wording survives anywhere.
+    assert "600 patch" not in preset.chart_notes
+
+
+def test_the_note_names_the_card_and_never_the_other_one():
+    """The 10 x 15 note must not appear on a 13 x 18 chart, or the sheet tells
+    the person printing it to use the wrong paper."""
+    for p in PHOTO:
+        other = "130x180" if p.layout_recipe["paper"] == "100x150" else "100x150"
+        wrong = "13x18cm" if other == "130x180" else "10x15cm"
+        assert wrong not in p.chart_notes, p.name
+
+
+@pytest.mark.parametrize("preset", PHOTO, ids=lambda p: p.slug)
+def test_every_card_carries_the_sheet_text_size_and_clip_distance(preset):
+    """His other two: *"the text 'Size' parameter in 'Sheet text' is set to
+    6,0mm"* and *"the 'Clip' parameter in 'Text distance from edge' is set to
+    2,0mm"*.
+
+    THE SIZE BOX IS IN POINTS, and that is the whole reason this test states
+    the conversion instead of the number. `layout_options_panel` reads and
+    writes that box with `mm_to_pt` / `pt_to_mm`, so the 6.0 he types is 6.0
+    POINTS and the recipe stores 2.12 mm — which is exactly what all four of
+    his 2026-09-18 exports carry. The clip distance really is millimetres."""
+    from ui.dialogs.layout_options_panel import mm_to_pt, pt_to_mm
+    rec = preset.layout_recipe
+    assert rec["chart_text_size_mm"] == round(pt_to_mm(6.0), 2) == 2.12
+    assert round(mm_to_pt(rec["chart_text_size_mm"]), 1) == 6.0
+    assert rec["text_edge_clip_mm"] == 2.0
+
+
+def test_the_notes_are_not_translated_and_carry_no_em_dash():
+    """Chart content he authored, like the clip note beside it: what a sheet
+    says on paper is his call, and a translated copy would not be the sheet he
+    tested. The house dash rule still applies to anything new."""
+    from ui.tabs.tab_chart import _I1_PHOTO_NOTE
+    assert set(_I1_PHOTO_NOTE) == {"100x150", "130x180"}
+    for paper, text in _I1_PHOTO_NOTE.items():
+        assert text == NOTE[paper]
+        assert "\u2014" not in text
+
+
+def test_a_builtin_note_is_taken_back_out_of_the_box_and_a_typed_one_is_not(tab):
+    """The else-branch of `_seed_builtin_chart_notes`, which is the half that
+    is easy to leave out and expensive to leave out.
+
+    Pick a photo card, then pick a chart that carries no note: the box must be
+    EMPTY, because "10x15cm / 4x6" photo card" would otherwise be stamped down
+    the edge of an A4 ColorMunki sheet. Type your own note first and the same
+    selection must leave it exactly where it is."""
+    from ui.tabs.tab_chart import BUILTIN_CHART_NOTES, KNUT_PRESETS
+    box = tab._manual_chart_notes_edit
+    other = next(q for q in KNUT_PRESETS if not q.chart_notes)
+
+    tab._seed_knut_preset(PHOTO[0].key)
+    assert box.text() == PHOTO[0].chart_notes
+    assert box.text() in BUILTIN_CHART_NOTES
+    tab._seed_knut_preset(other.key)
+    assert box.text() == "", "a card's note rode onto a chart on other paper"
+
+    box.setText("Canon Pro-1000 / Hahnemuehle Photo Rag 308")
+    tab._seed_knut_preset(other.key)
+    assert box.text() == "Canon Pro-1000 / Hahnemuehle Photo Rag 308", (
+        "a note the user typed was wiped")
+
+
+@pytest.mark.parametrize("preset", PHOTO, ids=lambda p: p.slug)
+def test_every_card_switches_the_settings_stamp_off(preset):
+    """All twenty of Knut's photo-card exports carry "Stamp settings down the
+    right edge" OFF; the app's default is ON and a built-in preset used to
+    carry no answer at all.
+
+    IT IS NOT COSMETIC ON A CARD THIS SMALL, and the number is measured rather
+    than argued. The right edge of a 150 mm sheet is not tall enough for his
+    note AND the command line, so with the stamp on the note was cut off and
+    replaced by "…" — driven on screen 2026-09-18, 19 of 19 warned with it on
+    and 0 of 19 with it off."""
+    assert preset.stamp_settings is False
+
+
+def test_a_preset_with_no_opinion_leaves_the_stamp_box_alone(tab):
+    """`None` is not `False`. Every family but the photo cards states nothing,
+    and nothing must mean "leave the checkbox where the user had it" — the
+    default this app shipped with for a hundred and fifty-eight presets."""
+    from ui.tabs.tab_chart import KNUT_PRESETS
+    other = next(q for q in KNUT_PRESETS if q.stamp_settings is None)
+    box = tab._manual_stamp_cmd_check
+    for state in (True, False):
+        box.setChecked(state)
+        tab._seed_knut_preset(other.key)
+        assert box.isChecked() is state, (
+            f"{other.slug} moved a checkbox it states no opinion on")
+    # …and a photo card does state one, so it moves it in both directions.
+    box.setChecked(True)
+    tab._seed_knut_preset(PHOTO[0].key)
+    assert box.isChecked() is False
+
+
+def test_only_the_photo_cards_have_an_opinion_on_the_stamp():
+    """Stated so that giving another family one is a decision, not a side
+    effect of editing a shared helper."""
+    from ui.tabs.tab_chart import KNUT_PRESETS
+    opinionated = {q.slug for q in KNUT_PRESETS if q.stamp_settings is not None}
+    assert opinionated == {q.slug for q in PHOTO}
+
+
+def test_a_builtin_preset_gives_its_text_a_home_in_the_project_it_creates():
+    """THE HOLE THIS CLOSED, and it was found by driving rather than by reading.
+
+    `_seed_new_project_text` is what writes the Run description and the Chart
+    Notes into a project that did not exist when they were written, and its own
+    docstring says the write must happen before anything re-reads the fields
+    from the fresh, empty ``meta.json``. `_on_generate` calls it. A built-in
+    preset builds through `_generate_from_ti1`, which did NOT — so on screen the
+    first photo card picked in a session came back with an empty Chart Notes box
+    and all nineteen wrote ``chart_notes: ""`` into their run's record.
+
+    Pinned by reading the source, because the alternative is a full chart build
+    per preset: both branches of the same decision must exist in both
+    functions."""
+    import inspect
+    import re
+    from ui.tabs.tab_chart import TabChart
+    for fn in (TabChart._on_generate, TabChart._generate_from_ti1):
+        src = inspect.getsource(fn)
+        assert "_builds_into_project(_proj_before)" in src, fn.__name__
+        assert re.search(r"_seed_new_project_text\(", src), (
+            f"{fn.__name__} claims a new project without giving the Output "
+            f"fields a home in it")
+
+
+def test_only_the_photo_cards_carry_a_note():
+    """Stated so that adding one to another family is a decision, not a
+    side effect."""
+    from ui.tabs.tab_chart import BUILTIN_CHART_NOTES, KNUT_PRESETS
+    with_notes = {q.slug for q in KNUT_PRESETS if q.chart_notes}
+    assert with_notes == {q.slug for q in PHOTO}
+    assert BUILTIN_CHART_NOTES == set(NOTE.values())
 
 
 def test_the_maximised_cut_moves_exactly_two_fields():
@@ -412,7 +607,7 @@ def test_the_two_cards_share_no_sheet_scaled_number():
     base was measured against; the maximised cut deliberately puts 5 mm on both
     sides of both cards, so two of the five agree there by construction."""
     a = MARGINS["100x150mm-600p-4pages-Portrait-w7.5mm"]
-    b = MARGINS["130x180mm-648p-3pages-w8.0mm"]
+    b = MARGINS["130x180mm-648p-3pages-Portrait-w8.0mm"]
     for field in _I1_PHOTO_PER_SHEET:
         assert a[field] != b[field], f"{field} agrees; it belongs in the base"
 
@@ -449,20 +644,61 @@ def test_name_matches_the_bundled_patch_set_and_the_grid(preset):
         f"{pages} page(s)")
 
 
-def test_the_13x18_name_carries_no_orientation_token_and_that_is_his():
-    """Every other chart in the app spells its orientation out. This one does
-    not, and the sheet it lays out is portrait all the same (130 mm wide by 180
-    tall). Pinned as it is rather than re-spelled: the name is Knut's. If it is
-    ever corrected, this test says so instead of the change passing unnoticed.
-    """
+def test_every_name_now_spells_its_orientation_out():
+    """IT USED TO BE ONE NAME SHORT OF A TOKEN, AND HE CORRECTED IT.
+
+    `130x180mm-648p-3pages-w8.0mm` carried no orientation where every other
+    chart in the app spells one out. It was pinned as it stood rather than
+    quietly re-spelled, because what a chart is called is Knut's call. He then
+    sent the chart again twice, both times named "…-3pages-Portrait-w8.0mm",
+    and on 2026-09-18 asked for that file to replace the shipped one. So the
+    display name gained the token.
+
+    THE SLUG DID NOT MOVE. It is still `i1_photo_130x180mm_648p_3pages_w8_0mm`,
+    because the slug is baked into the preset key that projects and settings
+    store, and the doc's rule is that renaming a name must never change one.
+    Both halves are pinned here."""
     from workflow.layout_engine import papers
-    p = next(q for q in PHOTO if q.name == "130x180mm-648p-3pages-w8.0mm")
-    assert "Portrait" not in p.name and "Landscape" not in p.name
+    p = next(q for q in PHOTO
+             if q.slug == "i1_photo_130x180mm_648p_3pages_w8_0mm")
+    assert p.name == "130x180mm-648p-3pages-Portrait-w8.0mm"
+    assert p.key == "__chromiq_knut_i1_photo_130x180mm_648p_3pages_w8_0mm__"
     w, h = papers.dimensions_mm(p.layout_recipe["paper"])
-    assert (w, h) == (130.0, 180.0) and h > w, "the sheet is portrait"
-    # …and the other one does spell it out, so this is one name, not a policy.
-    other = next(q for q in PHOTO if q is not p)
-    assert "Portrait" in other.name
+    assert (w, h) == (130.0, 180.0) and h > w, "the sheet really is portrait"
+    # …and it is now a policy, not one name: every card spells it out.
+    assert all("Portrait" in q.name for q in PHOTO), \
+        [q.name for q in PHOTO if "Portrait" not in q.name]
+
+
+def test_the_648_patch_card_carries_the_colour_set_he_replaced_it_with():
+    """Knut, 2026-09-18: *"replace with the following one, do not keep the
+    old"*. The chart that shipped stepped each channel in SIX levels
+    (0, 20, 40, 60, 80, 100); the one he sent steps it in SEVEN
+    (0, 16.6667, 33.3333 …). Same 648 patches, same grid, different colours, so
+    nothing else in the row moved and only the bundled file did — which means
+    nothing but this test can tell the two apart."""
+    p = next(q for q in PHOTO
+             if q.slug == "i1_photo_130x180mm_648p_3pages_w8_0mm")
+    # THE FIRST TABLE ONLY. A targen .ti1 carries three, and the other two are
+    # not the patch set: counting levels across all of them answers 223 and
+    # says nothing about either chart.
+    txt = resource_path(p.ti1_asset).read_text(
+        encoding="latin-1", errors="ignore")
+    # "\nBEGIN_DATA\n", not "BEGIN_DATA": the header's BEGIN_DATA_FORMAT
+    # block comes first and matches the shorter needle.
+    first = txt.split("\nBEGIN_DATA\n", 1)[1].split("\nEND_DATA", 1)[0]
+    rows = [r.split() for r in first.splitlines() if r[:1].isdigit()]
+    assert len(rows) == 648, f"{len(rows)} patches in the first table"
+    # THE BLUE AXIS IS THE SHARP DISCRIMINATOR. Counting distinct levels over
+    # the whole table answers 223 for both sets, because neither is a plain
+    # cube; the patches with R = G = 0 are the one ramp both sets lay out and
+    # they disagree on it outright.
+    axis = sorted({float(r[3]) for r in rows
+                   if float(r[1]) == 0 and float(r[2]) == 0})
+    assert axis[4] == pytest.approx(16.6667, abs=1e-4), axis
+    assert 20.0 not in axis and 40.0 not in axis, (
+        "this is still the set that was replaced: it steps in 20s")
+    assert len(axis) == 12, axis
 
 
 def test_every_chart_still_has_its_bundled_files_and_nothing_else_is_there():

@@ -1483,6 +1483,29 @@ class _Ti1Preset:
     # only match in size keep the printtarg path.)
     engine: bool = False
     group: str = ""                     # dropdown/overlay group ("" → by instrument)
+    # THE NOTE THE PRESET PUTS IN THE CHART NOTES BOX (Knut, 2026-09-18, #182).
+    # It is not part of the layout recipe — the box is a Create Chart field of
+    # its own, saved with the target and stamped down the right edge of every
+    # sheet — so a preset that wants to fill it needs a field for it here.
+    # Empty on every family but the photo cards, and an empty one CLEARS a note
+    # another built-in left in the box (see `BUILTIN_CHART_NOTES`): a note that
+    # says "10x15cm / 4x6" photo card" is a statement about the paper, and it
+    # would be printed as a lie on the next chart if it were left behind.
+    chart_notes: str = ""
+    # "STAMP SETTINGS DOWN THE RIGHT EDGE", when the preset has an opinion.
+    #
+    # `None` means "leave the checkbox alone", which is every family but the
+    # photo cards and is what the app did before this field existed.
+    #
+    # WHY THE PHOTO CARDS HAVE AN OPINION, and it is measured rather than
+    # assumed. All twenty of Knut's photo-card exports carry it OFF; the app's
+    # default is ON, and a built-in preset carried no answer, so on a fresh
+    # install his charts came up with a setting he had switched off. It is not
+    # cosmetic on a card this small: the right edge of a 150 mm sheet is not
+    # tall enough for his note AND the command line, so the note was truncated
+    # with a "…" on all nineteen. Driven on screen 2026-09-18: 19 of 19 warned
+    # with the stamp on, 0 of 19 with it off, nothing else changed.
+    stamp_settings: "bool | None" = None
 
     @property
     def patch_width_mm(self) -> float:
@@ -1815,12 +1838,52 @@ _I1_PHOTO_PER_SHEET = ("margin_top", "margin_right", "margin_bottom",
 #: on paper is his call, not ours. Flagged for him.
 _I1_PHOTO_CLIP_TEXT = _CR30_CLIP_TEXT
 
+#: THE NOTE THAT GOES ON EVERY PHOTO CARD, one per card size (Knut,
+#: 2026-09-18, issue #182): *"All the built-in 'i1Pro-100x150mm…' presets
+#: (including the new once) need the following included in the saved settings:
+#: Make sure Chart Notes are set to: …"*, and the same for the 13 x 18 cards.
+#: It is stamped down the right edge of every sheet, so it tells whoever prints
+#: the card exactly how to print it.
+#:
+#: VERBATIM, AND NOT TRANSLATED. This is chart content he authored, like
+#: `_CR30_CLIP_TEXT` beside it, not UI text: what a chart says on paper is his
+#: call and a translated copy would not be the sheet he tested.
+#:
+#: THE OUTER QUOTES IN ONE OF HIS FOUR FILES ARE NOT PART OF IT. His
+#: `100x150mm-150p` export carries the whole line wrapped in a second pair of
+#: `"` (the quoted form as he pasted it out of the issue); his other three
+#: carry it bare, and bare is what reads correctly on paper. Flagged for him,
+#: and bare is what ships.
+_I1_PHOTO_NOTE = {
+    "100x150": ('i1Pro 1/2/3 target for 10x15cm / 4x6" photo card - print with '
+                'borderless setting / NO expansion, retain size, '
+                'color management: OFF'),
+    "130x180": ('i1Pro 1/2/3 target for 13x18cm / 5x7" photo card - print with '
+                'borderless setting / NO expansion, retain size, '
+                'color management: OFF'),
+}
+
+#: 6.0 POINTS, WHICH IS WHAT HIS "6,0mm" MEANS. The Size box under "Sheet text"
+#: is in POINTS (`layout_options_panel` converts with `mm_to_pt` / `pt_to_mm`)
+#: and the recipe stores millimetres, so the 6.0 he types lands here as 2.12.
+#: All four of his 2026-09-18 exports carry exactly 2.12, which is the
+#: measurement that settles it rather than the unit in his sentence. The same
+#: slip is on record for the CR30 strip labels ("Set Size … to value 11.0mm"
+#: was 11.0 pt); see `_CR30_HEX`.
+_I1_PHOTO_SHEET_TEXT_PT = 6.0
+
 _I1_PHOTO_BASE: dict = {
     **{k: v for k, v in _I1_BASE.items() if k not in _I1_PHOTO_PER_SHEET},
     "area_min_patch_mm": 17.5, "border": 10.0, "edge_spacers": False,
     "helper_marker_edge_mm": 2.0, "indicator_size_mm": 0.0, "nolimit": False,
     "pscale": 0.95, "sscale": 0.6, "text_edge_top_mm": 4.0,
     "clip_text": _I1_PHOTO_CLIP_TEXT,
+    # Knut, 2026-09-18: the sheet text at 6.0 pt and the clip distance at
+    # 2.0 mm, on EVERY chart of both card sizes. Both are in the base rather
+    # than on the rows because he asked for them family-wide, and both are the
+    # values his own four new exports carry.
+    "chart_text_size_mm": round(_I1_PHOTO_SHEET_TEXT_PT * 25.4 / 72.0, 2),
+    "text_edge_clip_mm": 2.0,
 }
 
 
@@ -1886,6 +1949,11 @@ def _i1_photo_preset(slug: str, name: str, paper: str, cols: int, rows: int,
         ti1_asset=f"{_I1_PHOTO_DIR}/{slug}/chart.ti1",
         patches=patches, white=white, black=black,
         tiff_16bit=False, suffix="",
+        # The note is the CARD's, not the chart's, so it is looked up by paper
+        # rather than written on fifteen rows: nineteen charts, two sentences,
+        # and neither can drift from the other.
+        chart_notes=_I1_PHOTO_NOTE[paper],
+        stamp_settings=False,
         layout_recipe=recipe,
     )
 
@@ -2377,8 +2445,15 @@ KNUT_PRESETS: list[_Ti1Preset] = [
                      "100x150", 10, 15, 600, 4, 1, 1,
                      margin_left=19.0, margin_top=17.0, margin_right=5.0,
                      margin_bottom=13.0, clip_border_width_mm=19.0),
+    # REPLACED IN PLACE, 2026-09-18. Knut: *"replace with the following one, do
+    # not keep the old"*. The bundled .ti1 is now his 7-level-per-channel colour
+    # set where it was a 6-level one; 648 patches either way, same grid, same
+    # margins. THE SLUG DID NOT MOVE, because the slug is the identity every
+    # stored selection resolves through — only the display NAME gained the
+    # "Portrait" token, which is the name his own files have carried since
+    # 2026-09-17 and which every other chart in the app spells out.
     _i1_photo_preset("i1_photo_130x180mm_648p_3pages_w8_0mm",
-                     "130x180mm-648p-3pages-w8.0mm",
+                     "130x180mm-648p-3pages-Portrait-w8.0mm",
                      "130x180", 12, 18, 648, 3, 1, 1,
                      margin_left=26.0, margin_top=19.5, margin_right=7.0,
                      margin_bottom=13.5, clip_border_width_mm=26.0),
@@ -2398,6 +2473,33 @@ KNUT_PRESETS: list[_Ti1Preset] = [
     #
     # Rows generated by
     #   python scripts/import_knut_presets.py i1photo <folder> --write
+    # FOUR SMALL ONES (Knut, 2026-09-18, #182): *"Here are 4 more presets to
+    # add, in addition to previous presets added"*. One sheet each, exactly one
+    # page of the grid the cut gives — 150 and 180 on the 10 x 15 card, 216 and
+    # 288 on the 13 x 18 — so each card now starts at a chart that fits on a
+    # single sheet. They are the reference for the three settings that went into
+    # `_I1_PHOTO_NOTE` / `_I1_PHOTO_BASE` and now apply to all nineteen.
+    _i1_photo_preset("i1_photo_100x150mm_150p_1page_portrait_w7_5mm",
+                     "100x150mm-150p-1page-Portrait-w7.5mm",
+                     "100x150", 10, 15, 150, 1, 1, 1,
+                     margin_left=19.0, margin_top=17.0, margin_right=5.0,
+                     margin_bottom=13.0, clip_border_width_mm=19.0),
+    _i1_photo_preset("i1_photo_100x150mm_180p_1page_portrait_w7_5mm_maximised_no_clip_border",
+                     "100x150mm-180p-1page-Portrait-w7.5mm-Maximised-No Clip-border",
+                     "100x150", 12, 15, 180, 1, 1, 1, maximised=True,
+                     margin_left=5.0, margin_top=17.0, margin_right=5.0,
+                     margin_bottom=13.0, clip_border_width_mm=19.0),
+    _i1_photo_preset("i1_photo_130x180mm_216p_1page_portrait_w8_0mm",
+                     "130x180mm-216p-1page-Portrait-w8.0mm",
+                     "130x180", 12, 18, 216, 1, 1, 1,
+                     margin_left=26.0, margin_top=19.5, margin_right=7.0,
+                     margin_bottom=13.5, clip_border_width_mm=26.0),
+    _i1_photo_preset("i1_photo_130x180mm_288p_1page_portrait_w7_5mm_maximised_no_clip_border",
+                     "130x180mm-288p-1page-Portrait-w7.5mm-Maximised-No Clip-border",
+                     "130x180", 16, 18, 288, 1, 1, 1, maximised=True,
+                     margin_left=5.0, margin_top=19.5, margin_right=5.0,
+                     margin_bottom=13.5, clip_border_width_mm=26.0),
+
     _i1_photo_preset("i1_photo_100x150mm_720p_4pages_portrait_w7_5mm_maximised_no_clip_border",
                      "100x150mm-720p-4pages-Portrait-w7.5mm-Maximised-No Clip-border",
                      "100x150", 12, 15, 720, 4, 1, 1, maximised=True,
@@ -2758,6 +2860,21 @@ KNUT_PRESETS: list[_Ti1Preset] = [
 ]
 KNUT_PRESETS_BY_KEY: dict[str, _Ti1Preset] = {p.key: p for p in KNUT_PRESETS}
 KNUT_PRESET_KEYS = frozenset(KNUT_PRESETS_BY_KEY)
+
+#: Every note a BUILT-IN preset writes into the Chart Notes box.
+#:
+#: It exists so that picking a built-in that carries no note can CLEAR one that
+#: a previous built-in left behind, without ever touching text a person typed.
+#: The note on a photo card names the paper ("10x15cm / 4x6" photo card") and
+#: is stamped down the right edge of every sheet, so carrying it onto the next
+#: chart would print a statement about the wrong paper — a promise the sheet
+#: does not keep, which is the fault shape this project keeps meeting.
+#:
+#: Matching on the TEXT rather than remembering the last selection is what
+#: keeps a user's own note safe: the box is only emptied when it holds, exactly,
+#: something this app put there.
+BUILTIN_CHART_NOTES: frozenset[str] = frozenset(
+    p.chart_notes for p in KNUT_PRESETS if p.chart_notes)
 
 
 # --- built-in preset recipes (Set B: a preset's New-chart / Add design) -------
@@ -12199,6 +12316,35 @@ class TabChart(QWidget):
         r.instrument, r.paper = p.instrument, p.paper
         return r
 
+    def _seed_builtin_chart_notes(self, p: "_Ti1Preset") -> None:
+        """Put the preset's Chart Notes and stamp choice into the Output box.
+
+        Knut, 2026-09-18 (#182): every photo-card preset carries a note naming
+        the card it is cut for, and *"Some of the presets already have a similar
+        text in the Chart Notes, but it must be replaced by the text defined
+        above."* The note is stamped down the right edge of every sheet, so it
+        has to be the CURRENT chart's note and no other.
+
+        Which is why the else-branch is here and is not a no-op. Picking a
+        10 x 15 cm card and then a 13 x 18 one, or then an A4 ColorMunki chart,
+        would otherwise print "10x15cm / 4x6" photo card" on paper that is
+        neither. The box is only emptied when it holds, exactly, a note this app
+        wrote (`BUILTIN_CHART_NOTES`) — text a person typed is never touched.
+
+        The stamp checkbox follows the same rule from the other end: a preset
+        that states `stamp_settings` owns it, and one that does not (every
+        family but the photo cards) leaves it exactly where the user had it.
+        """
+        edit = getattr(self, "_manual_chart_notes_edit", None)
+        if edit is not None:
+            if p.chart_notes:
+                edit.setText(p.chart_notes)
+            elif edit.text().strip() in BUILTIN_CHART_NOTES:
+                edit.setText("")
+        box = getattr(self, "_manual_stamp_cmd_check", None)
+        if box is not None and p.stamp_settings is not None:
+            box.setChecked(p.stamp_settings)
+
     def _seed_knut_preset(self, key: str, target_name: str | None = None) -> None:
         """Load a TC9.18+Spyderprint preset's fixed printtarg layout into the panel.
 
@@ -12282,6 +12428,11 @@ class TabChart(QWidget):
             self._set_manual_value("targen", "-B", p.black)
             if self._manual_pages_spin is not None:
                 self._manual_pages_spin.setValue(p.pages)
+            # AFTER the engine block, never before it: flipping the engine runs
+            # `_refresh_manual_command_preview`, and the user-preset loader
+            # (`_apply_preset`) learned the hard way that anything written to
+            # the Output fields ahead of that is overwritten.
+            self._seed_builtin_chart_notes(p)
             self._seed_preset_name(target_name)
             return
 
@@ -12323,6 +12474,7 @@ class TabChart(QWidget):
 
         if self._manual_pages_spin is not None:
             self._manual_pages_spin.setValue(p.pages)
+        self._seed_builtin_chart_notes(p)
         self._seed_preset_name(target_name)
 
     def _apply_knut_preset(self, key: str, target_name: str | None = None) -> bool:
@@ -13891,6 +14043,22 @@ class TabChart(QWidget):
             _same_project = self._builds_into_project(_proj_before)
             if _same_project:
                 self._align_current_run_to_target()
+            else:
+                # THE SAME LINE `_on_generate` HAS, AND ITS ABSENCE HERE WAS A
+                # REAL HOLE. `_seed_new_project_text` is what gives the Run
+                # description and the Chart Notes a home in a project that did
+                # not exist when they were written, and it has to run BEFORE
+                # anything re-reads the fields from the fresh, empty meta.json
+                # — "that re-read is exactly what wiped them" (its docstring).
+                # A built-in preset builds through THIS function and never
+                # through `_on_generate`, so text on screen when one was picked
+                # reached the printed sheet and never reached the run's record.
+                # Measured on screen, 2026-09-18: the first photo card picked in
+                # a session showed an empty Chart Notes box afterwards and all
+                # nineteen wrote `chart_notes: ""` into meta.json.
+                # A ti1 preset never builds a calibration target, so the flag is
+                # False rather than plumbed.
+                self._seed_new_project_text(False)
             # Run type = Verification builds through the run root too — keep the
             # run's profiling chart (#130, Knut K3).
             self._arm_verification_snapshot()

@@ -33,10 +33,11 @@ def test_the_marker_counts_are_what_the_registry_holds():
     # 2026-09-17 (issue #182): +13 engine-built photo cards by Knut, eleven new
     # patch counts on the same two cards plus the "Maximised - No Clip-border"
     # cut; each ships a recipe.json sidecar, so only the marked count moves.
-    assert len(tc.BUILTIN_PRESET_KEYS) == 173
+    # 2026-09-18: +4 more of the same family, one sheet each.
+    assert len(tc.BUILTIN_PRESET_KEYS) == 177
     assert len(tc.PREBUILT_PRESETS) == 11       # the "by Pharmacist" rows
-    assert (len(marked), len(unmarked)) == (156, 6)
-    assert len(marked) + len(unmarked) + len(tc.PREBUILT_PRESETS) == 173
+    assert (len(marked), len(unmarked)) == (160, 6)
+    assert len(marked) + len(unmarked) + len(tc.PREBUILT_PRESETS) == 177
 
 
 def test_no_red_river_row_carries_the_marker():

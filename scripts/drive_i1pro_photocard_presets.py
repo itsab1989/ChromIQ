@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Drive the REAL ChromIQ window over Knut's fifteen i1Pro photo-card presets.
+"""Drive the REAL ChromIQ window over Knut's nineteen i1Pro photo-card presets.
 
 **This REPLACES the two-card version of this file** (2026-09-09). It covers the
 same four things and then the eleven charts that arrived afterwards, and it
@@ -14,7 +14,7 @@ cm and 13 x 18 cm cards, seven of them a new "Maximised - No Clip-border" cut.
 
 What this proves ON SCREEN, in a real window, and not in a fixture:
 
-1. the **Presets dropdown** in Create Chart → Manual lists all fifteen under
+1. the **Presets dropdown** in Create Chart → Manual lists all nineteen under
    the i1Pro heading, in the order the registry holds them;
 2. the **★ Built-in presets overlay** (the speech bubble) shows the same rows;
 3. **picking one the way a user picks it** seeds the Manual layout panel with
@@ -220,6 +220,11 @@ def run(app, shots: Path, only: int | None) -> int:
         combo.setCurrentIndex(idx)
         combo.activated.emit(idx)
         pump(app, 300)
+        # The box RIGHT AFTER the seed, before the build has finished. Read
+        # separately from the one below because the two disagreed once: the
+        # first preset of a run seeded its note and then lost it, and a single
+        # reading afterwards could not say which half was at fault.
+        notes_at_seed = tab._manual_chart_notes_edit.text()
         ok = False
         for _ in range(360):
             pump(app, 250)
@@ -235,6 +240,33 @@ def run(app, shots: Path, only: int | None) -> int:
         # What the PANEL now shows — the parameters the preset filled in, read
         # off the live widgets rather than off the row that seeded them.
         panel = tab._manual_layout_panel.get_recipe().to_dict()
+        notes_box = tab._manual_chart_notes_edit.text()
+        # THE NOTICES THE APP ITSELF PREDICTS, asked of the app rather than
+        # read off a photograph. `_engine_text_notes` returns (every notice,
+        # the overlap ones); the settings-stamp warning is in the second list.
+        try:
+            all_notes, overlaps = tab._engine_text_notes()
+        except Exception as exc:          # noqa: BLE001
+            all_notes, overlaps = [f"(could not be read: {exc})"], []
+        stamp_warn = [w for w in overlaps if "settings stamp" in w]
+        # A MEASUREMENT, NOT A CHANGE. Every one of Knut's exports carries
+        # "Stamp settings down the right edge" OFF, and the app's default is ON;
+        # the built-in presets do not carry the flag either way. So ask the app
+        # what the notices would be without that line, and put the box back
+        # exactly as it was. Nothing is shipped either way — this only answers
+        # "is the remaining warning the stamp's line or his note?"
+        stamp_box = getattr(tab, "_manual_stamp_cmd_check", None)
+        overlaps_without_stamp = None
+        if stamp_box is not None:
+            was = stamp_box.isChecked()
+            stamp_box.setChecked(False)
+            pump(app, 250)
+            try:
+                overlaps_without_stamp = tab._engine_text_notes()[1]
+            except Exception as exc:      # noqa: BLE001
+                overlaps_without_stamp = [f"(could not be read: {exc})"]
+            stamp_box.setChecked(was)
+            pump(app, 150)
         ti2 = Path(tab._margin_ti2)
         run_dir = ti2.parent
         pages = _tif_pages(run_dir)
@@ -260,12 +292,21 @@ def run(app, shots: Path, only: int | None) -> int:
                 and panel["area_cols"] == p.layout_recipe["area_cols"]
                 and panel["area_rows"] == p.layout_recipe["area_rows"]
                 and panel["margin_left"] == p.layout_recipe["margin_left"]
-                and panel["clip_border"] is not maximised)
+                and panel["clip_border"] is not maximised
+                and notes_box == p.chart_notes
+                and panel["chart_text_size_mm"] == 2.12
+                and panel["text_edge_clip_mm"] == 2.0)
         bad += 0 if good else 1
         print(f"    [{n:2d}] {p.name:<62} built {patches:>5}p on "
               f"{len(pages)} sheet(s) of {written_paper}, patch {width_mm} mm, "
               f"panel {panel['area_cols']}x{panel['area_rows']} "
-              f"clip={panel['clip_border']}  {'OK' if good else '<<< MISMATCH'}")
+              f"clip={panel['clip_border']} "
+              f"text {panel['chart_text_size_mm']}mm/"
+              f"{panel['text_edge_clip_mm']}mm "
+              f"notes={'set' if notes_box else 'EMPTY'}"
+              f"{'' if notes_at_seed == notes_box else '(seeded then LOST)'} "
+              f"warn={len(overlaps)}{'(STAMP)' if stamp_warn else ''}  "
+              f"{'OK' if good else '<<< MISMATCH'}")
         report["charts"].append({
             "name": p.name, "key": p.key, "maximised": maximised,
             "said_paper": p.layout_recipe["paper"], "built_paper": written_paper,
@@ -280,6 +321,16 @@ def run(app, shots: Path, only: int | None) -> int:
             "panel_clip_border": panel["clip_border"],
             "panel_clip_content_mode": panel["clip_content_mode"],
             "panel_clip_border_width_mm": panel["clip_border_width_mm"],
+            "panel_chart_text_size_mm": panel["chart_text_size_mm"],
+            "panel_text_edge_clip_mm": panel["text_edge_clip_mm"],
+            "chart_notes_at_seed": notes_at_seed,
+            "chart_notes_in_the_box": notes_box,
+            "notices": all_notes,
+            "overlap_notices": overlaps,
+            "settings_stamp_warning": stamp_warn,
+            "stamp_on_by_default": bool(
+                stamp_box.isChecked()) if stamp_box is not None else None,
+            "overlap_notices_without_the_stamp": overlaps_without_stamp,
             "run_dir": str(run_dir),
             "pages": [str(x) for x in pages],
             "ok": good,
@@ -295,6 +346,27 @@ def run(app, shots: Path, only: int | None) -> int:
     shots.mkdir(parents=True, exist_ok=True)
     (shots / "drive-report.json").write_text(json.dumps(report, indent=1),
                                              encoding="utf-8")
+    stamped = [c["name"] for c in report["charts"]
+               if c.get("settings_stamp_warning")]
+    overlapped = [c["name"] for c in report["charts"]
+                  if c.get("overlap_notices")]
+    report["still_warning_about_the_settings_stamp"] = stamped
+    report["still_warning_about_any_overlap"] = overlapped
+    print(f"\n    settings-stamp warnings: {len(stamped)} of "
+          f"{len(report['charts'])}")
+    for nme in stamped:
+        print(f"        {nme}")
+    print(f"    any overlap notice     : {len(overlapped)} of "
+          f"{len(report['charts'])}")
+    for nme in overlapped:
+        print(f"        {nme}")
+    nostamp = [c["name"] for c in report["charts"]
+               if c.get("overlap_notices_without_the_stamp")]
+    report["still_warning_with_the_stamp_switched_off"] = nostamp
+    print(f"    …and with “Stamp settings down the right edge” OFF: "
+          f"{len(nostamp)} of {len(report['charts'])}")
+    for nme in nostamp:
+        print(f"        {nme}")
     print(f"\n    report: {shots / 'drive-report.json'}")
     print(f"    mismatches: {bad}")
     if FAILED_CAPTURES:

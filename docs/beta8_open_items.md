@@ -14061,6 +14061,36 @@ written for it in the suite passed its own mutation.
   page for the project on github with corrected numbers of presets that come
   ready-made."*
 - `docs/dev_builtin_presets.md` is the recipe; read it before adding another.
+- **DONE, in two rounds.** 2026-09-17: thirteen new charts, the registry 160 to
+  173, the landing page with it. 2026-09-18: his follow-up, four more charts
+  (registry **177**), the 648-patch 13x18 chart REPLACED by his file (his set
+  steps each channel in 7 levels, the shipped one in 6; the slug did not move,
+  only the display name gained the "Portrait" token his own exports carry), and
+  three settings applied to **all 19** photo cards: his Chart Notes sentence
+  per card size, the sheet text size and the clip text distance.
+- **His "6,0mm" is 6.0 POINTS.** The Size box under "Sheet text" is in points
+  and the recipe stores millimetres, so it lands as 2.12 mm, which is exactly
+  what all four of his new exports carry. The value shipped is his file's, not
+  his sentence's.
+- **A fourth field his files carry that he did not name:** `stamp_commands` is
+  OFF in all twenty of his exports, which is why his charts are clean on his
+  machine and were not on a fresh install. The photo cards set it False.
+- the settings-stamp warning, measured three ways in one run: 11 of 15 before
+  his settings, **0 of 19** with them and the stamp at the app default, 0 of 19
+  with the stamp off as his exports carry it. A second warning surfaced in the
+  middle state (his note plus the default stamp line does not fit the right
+  edge of a 150 mm card, 90 to 151 characters cut) and is gone in the last.
+- **and a hole this opened and closed:** `_seed_new_project_text` gives the Run
+  description and Chart Notes a home in a new project and was called only by
+  `_on_generate`, while a built-in preset builds through `_generate_from_ti1`.
+  Measured: the first photo card picked in a session came back with an EMPTY
+  Chart Notes box and all 19 wrote `chart_notes: ""` into `meta.json`. The note
+  reached the sheet and never the record.
+- evidence: `test_every_card_carries_the_note_for_the_card_it_is_cut_for`,
+  `test_every_card_carries_the_sheet_text_size_and_clip_distance` and
+  `test_no_chart_of_this_family_can_be_deleted` (217 tests in that file), eight
+  mutations proven to land, and 19 panel photographs in
+  `~/Desktop/ChromIQ-beta21-proof/knut-new-presets/photographs-round2/`.
 - **DONE.** The (edited) attachment holds 15 export pairs. Thirteen are new and
   are shipped as built-ins through the existing `i1photo` family: the i1Pro
   photo-card line-up goes from 2 charts to 15, and the whole registry from
