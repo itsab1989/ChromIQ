@@ -484,6 +484,7 @@ def build_chart(
         # whose labels match its .ti2 and one whose labels are a guess.
         "patch_pattern": patch_pattern,
         "label_band_bottom_px": render.label_band_bottom_px,
+        "patch_ink_top_px": render.patch_ink_top_px,
         "strips": rects, "patches": patch_rects,
     }, indent=2), encoding="utf-8")
 

@@ -1424,13 +1424,22 @@ def test_the_turn_does_not_move_a_pointy_honeycomb(tmp_path):
     RESERVE.** It was 83 px while `geometry.placement` slid the letters up
     toward the page edge to keep them off the patches; comment 5649810914 stops
     that, so on the shipped 6.0 mm top margin the band now hangs at the 4.0 mm
-    reserve and ends at 130 px. The patch top is still 91, which is the thing
+    reserve and ends at 133 px. The patch top is still 91, which is the thing
     this test is for: the turn's reserve has not reached a chart that is not
     turned.
+
+    **133, RE-MEASURED, WHERE THIS LINE SAID 130.** The band's bottom used to
+    be the nominal font size below its top, and a capital is drawn from the
+    ascender line to the BASELINE, which is one to three pixels lower, with an
+    antialiased row below that again. Those pixels are the letters' feet, and
+    the blank behind "Show only measured patches" cut at the old line and took
+    them off (B8-346 F1: `E` read as `F` on a photographed CR30 honeycomb).
+    The number here moved because the quantity was corrected, not because a
+    budget was raised; nothing about the turn's reserve changed.
     """
     side = _turned_chart_sidecar(tmp_path, turned=False, n=345)
     assert side["dpi"] == 300
-    assert side["label_band_bottom_px"] == 130, side["label_band_bottom_px"]
+    assert side["label_band_bottom_px"] == 133, side["label_band_bottom_px"]
     top = min(p["y"] for p in side["patches"] if p["page"] == 0)
     assert top == 91, (
         f"the pointy patch area starts at {top} px where it has always started "

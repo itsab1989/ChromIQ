@@ -14558,6 +14558,92 @@ whitespace-collapse half is load-bearing; the blank still covers everything on
   and the thing to measure first is where that top sits against the letters'
   own ink on chart J, not the rounding. Fixing the rounding and declaring F1
   closed is exactly what B8-339 did.
-- what to do first: F1, and measure where the strip rect's top falls on chart J
-  before touching the rounding. It is the one a user sees and it is
-  release-blocking.
+
+**F1 is FIXED.** Measured on screen, five real CR30 honeycombs at five window
+sizes each, nothing read: **not one pixel of patch ink or spacer ring survives
+the blank** (it was 5, 19, 32, 44, 122 and 124 device pixels across those
+charts), and the strip letters keep **100 %** everywhere except two sizes on the
+3.0 mm pointy chart, where they keep 99.56 % and 98.10 % - a single device row,
+on the one chart whose own apex is printed INTO its letters. It was 87.45 % with
+`E` reading as `F`.
+
+Three things were wrong, and the first two were not in the preview at all:
+
+1. **`label_band_bottom_px` was the nominal font size below the band's top.**
+   PIL is asked for the ascender anchor, so a capital is drawn from the
+   ascender line to the BASELINE, which JetBrains Mono puts one to three pixels
+   lower (40 -> 41, 60 -> 62, 80 -> 82, 100 -> 102, 120 -> 123), with an
+   antialiased row below that again, and the round letters `C`, `G`, `J` and
+   `O` are drawn a pixel lower still for optical weight. Those pixels are the
+   letters' feet, and the blank cut at that line. `raster._label_ink_bottom`
+   now renders a capital and measures it; `Q` is deliberately left out of the
+   probe because its tail is printed on the spacer ring and sizing the band to
+   it would move the cut below the ring's top on every page of a chart that has
+   a `Q` strip (measured: band 160, ring top 154).
+2. **Nothing downstream could know where the printed ink starts.** A honeycomb's
+   hexagon overhangs its cell by a sixth of the slot, the ring is drawn outside
+   the hexagon and an edge spacer adds another band, so the first inked row lands
+   anywhere from 18 px BELOW the first recorded box top to 40 above it (measured
+   on five charts: 0, -18, +40, +20, +24, all with the same 122.8 px slot). The
+   engine now records `patch_ink_top_px` per page where it draws.
+3. **The cut was rounded to a whole WIDGET pixel**, which is six image rows on
+   an A4 sheet in a 700 px window, and the gap between the letters and the ink
+   is six image rows: one widget pixel is the whole of the gap. A `QRegion`
+   cannot express anything finer, so the region now carries the SHAPE and a
+   float clip rect carries the CUT, rounded to a device row the way the
+   rectangular branch fifteen lines below already rounds its own edges.
+
+The cut is now taken between the two lines: `ceil` off the band's bottom, pulled
+up to `floor` on the ink's top when the chart has printed ink above the band.
+
+- evidence: `tests/test_the_blank_cuts_between_the_letters_and_the_ink.py`, 14
+  cases, three real engine-built charts at three window sizes. **Its fixtures
+  are real charts on purpose**: the previous guard drew its own sheet with the
+  band line six pixels clear of the apex, so the case that failed on paper
+  could not arise in it. Mutations, each proven to land, 2026-09-18:
+  M1 the band back to the nominal size (2 red), M2 the engine recording the
+  hexagon but not the spacer polygons (5 red), M3 the shipped whole-widget-pixel
+  cut (5 red), M4 the device-row cut with no ink line (5 red). M1 reddens only
+  the sidecar assertion, not the painting one, because at those three window
+  sizes the rounding absorbs three image rows; that is why the two are separate
+  assertions and it is recorded here rather than claimed otherwise.
+- proof: `~/Desktop/ChromIQ-beta21-proof/fix-B8-346/logs/blank-FINAL.txt` and
+  `shots/`, with `logs/blank-after-fix*.txt` keeping each step of the
+  measurement in order.
+- **A layout fault was found on the way and is NOT fixed**: see B8-347.
+- what to do next: F2 to F4 (the Add window's promises), then F5 and F6 (the
+  report's "covers N of the M"), then F7 to F9 (the area-first help text).
+
+### B8-347 · OPEN · A pointy honeycomb prints its patches INTO the strip letters
+- blocks release: no
+- status: OPEN
+- Found while fixing B8-346 F1, measured off the rendered page rather than
+  derived. On a CR30 A4 pointy honeycomb the apex of the first patch row
+  overhangs its cell by a sixth of the slot, and on two of the five charts
+  measured that carries it **above the letters' last inked row**:
+
+  | chart | letters ink to | first inked row | overlap |
+  |---|---|---|---|
+  | pointy, 3.0 mm ring, edge spacers on | 155 | 154 | 2 rows |
+  | pointy, ring 0 | 155 | 154 | 2 rows |
+  | turned, 6.0 mm ring, edge spacers on | 147 | 154 | none |
+  | turned, 3.0 mm ring | 147 | 172 | none |
+  | pointy, 3.0 mm ring, no edge spacers | 155 | 174 | none |
+
+  So on those two charts there is no line at which a blank can both cover the
+  ink and leave every letter whole, and "Show only measured patches" now costs
+  them one device row of letter ink (99.56 % and 98.10 % kept, photographed:
+  every letter still reads).
+- The same collision is presumably on the PRINTED sheet, where the letters and
+  the first row of patches touch. `geometry._top_reserve_for_a_turned_hex`
+  moves the patch block for a TURNED honeycomb only, and these two are pointy.
+- **This is a design question, not a code fix.** Reserving the apex overhang
+  above the first row would move every pointy honeycomb's patch block down and
+  could cost a row of capacity, which is Knut's call under the binding-spec
+  rule, not ours.
+- evidence: `tests/test_the_blank_cuts_between_the_letters_and_the_ink.py`
+  asserts the recorded band line is at most three rows below the first inked
+  row, which is what pins the size of the overlap; the table above is in
+  `~/Desktop/ChromIQ-beta21-proof/fix-B8-346/logs/`.
+- what to do first: ask Knut whether a pointy honeycomb should reserve its apex
+  overhang above the first row.

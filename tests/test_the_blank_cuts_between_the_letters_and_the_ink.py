@@ -1,0 +1,285 @@
+"""B8-346 F1 — the blank has TWO lines to respect, and they can cross.
+
+"Show only measured patches" paints an unread column white. Above that column
+there are two things it must get right at once:
+
+* the strip LETTER, which must stay whole, and
+* the first row of printed INK, which must be covered.
+
+Round 12 photographed both failing on the shipped build, on the same night, on
+different charts: a turned CR30 honeycomb kept **87.45 %** of its letters (`E`
+read as `F`, `I` read as `T`) while a pointy one left a green dash on the tip
+of every column. The cause was one number and one rounding:
+
+* `label_band_bottom_px` was the NOMINAL font size below the band's top, and a
+  capital is drawn from the ascender line to the BASELINE, one to three pixels
+  lower, with an antialiased row below that again. The blank cut at the old
+  line and took the letters' feet off.
+* the cut was rounded to a whole WIDGET pixel, which is six image rows on an A4
+  sheet in a 700 px window, and the gap between the letters and the ink is six
+  image rows. One widget pixel is the whole of the gap.
+
+**THE FIXTURES ARE REAL CHARTS.** A hand-drawn sheet cannot be trusted here:
+the previous guard drew its own band line six pixels clear of the apex, so the
+case that failed on paper could not arise in it, and the guard passed the whole
+time. These build through `workflow.layout_engine.chart.build_chart` and then
+measure the page that comes out, so the geometry is the product's own.
+"""
+from __future__ import annotations
+
+import json
+import re
+
+import pytest
+from PIL import Image
+from PyQt6.QtCore import QRect
+
+pytestmark = pytest.mark.usefixtures("qapp")
+
+GREEN = (0, 255, 0)
+RING = (0, 0, 255)
+
+
+def _ti1(path, n):
+    rows = ["CTI1", "", 'DESCRIPTOR "b8-346"', 'ORIGINATOR "ChromIQ"',
+            'KEYWORD "SAMPLE_LOC"', "NUMBER_OF_FIELDS 7", "BEGIN_DATA_FORMAT",
+            "SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z",
+            "END_DATA_FORMAT", f"NUMBER_OF_SETS {n}", "BEGIN_DATA"]
+    rows += [f"{i + 1} 0 100 0 40 45 50" for i in range(n)]
+    rows += ["END_DATA", ""]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(rows), encoding="utf-8")
+    return path
+
+
+def _build(tmp_path, name, *, ring, edge, flat, n=120):
+    """A real CR30 A4 honeycomb: green patches, a blue ring, no randomising.
+
+    The colours are the point. Green IS a patch and blue IS a spacer, so the
+    question "did any printed ink survive the blank" needs no alignment and no
+    threshold: it is a colour test on the rendered page.
+    """
+    from workflow.layout_engine import chart as le
+    from workflow.layout_engine.presets import LayoutRecipe
+    work = tmp_path / name
+    stem = work / name
+    rc = LayoutRecipe(instrument="CR30", paper="A4", dpi=300, hflag=True,
+                      hex_flat_top=flat,
+                      spacer_mode=("none" if ring <= 0 else "colored"),
+                      spacer_width_mm=ring, edge_spacers=edge,
+                      spacer_palette=["#0000ff"],
+                      layout_mode="patch_first", patch_w_mm=0.0, patch_h_mm=0.0,
+                      show_strip_indicators=True, cm_stagger=False,
+                      use_instrument_margins=False, randomize=False,
+                      seed=1, seed_fixed=True)
+    kw = dict(rc.build_kwargs())
+    kw.pop("instrument", None)
+    kw.pop("paper", None)
+    kw["randomize"] = False
+    kw["seed"] = 1
+    le.build_chart(_ti1(work / "src.ti1", n), stem, instrument="CR30",
+                   paper="A4", **kw)
+    side = json.loads((stem.parent / f"{name}.strips.json")
+                      .read_text(encoding="utf-8"))
+    # ...and the sidecar the MEASURE TAB reads, folded the way
+    # `workflow.chart_creator._fold_engine_geometry` folds it, because that is
+    # where `hex_ring_px_from_sidecar` and the two new readers look. Without it
+    # the ring reads 0 and the guard measures a chart the product never draws.
+    from workflow.layout_engine import papers
+    pw, ph = papers.dimensions_mm("A4")
+    layout = dict(side)
+    layout.update({"engine": "chromiq", "engine_version": 1, "dpi": 300,
+                   "paper_mm": [pw, ph], "recipe": rc.to_dict()})
+    (stem.parent / f"{name}.channels.json").write_text(
+        json.dumps({"ink_channels": ["r", "g", "b"], "layout": layout}, indent=1),
+        encoding="utf-8")
+    pages = sorted(work.glob(f"{name}_*.tif")) or [stem.with_suffix(".tif")]
+    return side, pages[0]
+
+
+def _page_facts(side, page):
+    """Measured off the rendered page: where the letters end, where ink starts.
+
+    Restricted to the patch columns' own x range, so the row numbers down the
+    left margin and the title down the right cannot be counted as letters.
+    """
+    import numpy as np
+    im = np.array(Image.open(page).convert("RGB"))
+    pats = [p for p in side["patches"] if int(p["page"]) == 0]
+    x0 = min(p["x"] for p in pats)
+    x1 = max(p["x"] + p["w"] for p in pats)
+    sub = slice(x0, x1)
+    g = ((im[:, :, 1] > 150) & (im[:, :, 0] < 110) & (im[:, :, 2] < 110))
+    b = ((im[:, :, 2] > 150) & (im[:, :, 0] < 110) & (im[:, :, 1] < 110))
+    dark = (im[:, :, 0] < 90) & (im[:, :, 1] < 90) & (im[:, :, 2] < 90)
+    ink_rows = np.where((g | b)[:, sub].any(axis=1))[0]
+    lines = np.where(dark[:int(ink_rows[0]) + 40, sub].any(axis=1))[0]
+    return {"first_ink": int(ink_rows[0]),
+            "letters": (int(lines[0]), int(lines[-1])),
+            "x": (int(x0), int(x1)),
+            "box_top": min(p["y"] for p in pats)}
+
+
+# --------------------------------------------------------------- the sidecar
+
+@pytest.mark.parametrize("ring,edge,flat", [(6.0, True, True), (0.0, False, False)])
+def test_the_recorded_label_line_is_below_the_letters_last_inked_row(
+        tmp_path, ring, edge, flat):
+    """`label_band_bottom_px` has to bound the INK, not the nominal font size.
+
+    MUTATION M1, proven to land: drop `_label_ink_bottom` and put the nominal
+    `label_band_h` back. Both cases of this test go red (the recorded line
+    comes back as 145 where the letters ink to 147, and as 154 where they ink
+    to 155); the painting test below does NOT see it, because at these three
+    window sizes the device-row rounding happens to absorb three image rows.
+    That is why this assertion exists separately.
+    """
+    side, page = _build(tmp_path, f"band-{int(ring * 10)}-{int(edge)}-{int(flat)}",
+                        ring=ring, edge=edge, flat=flat)
+    facts = _page_facts(side, page)
+    line = side.get("label_band_bottom_px")
+    assert isinstance(line, int), side.get("label_band_bottom_px")
+    assert line > facts["letters"][1], (
+        f"the recorded label line is {line} and the letters' last inked row is "
+        f"{facts['letters'][1]}: a blank cut there paints over their feet")
+    # ...and not so low that it has swallowed the field it is supposed to sit
+    # above. One row of tolerance: on a chart whose apex overhangs INTO the
+    # band the two genuinely overlap, which is the collision F1 records.
+    assert line <= facts["first_ink"] + 3, (
+        f"the recorded label line {line} is below the first inked row "
+        f"{facts['first_ink']} by more than the overlap the chart itself has")
+
+
+@pytest.mark.parametrize("ring,edge,flat", [(6.0, True, True), (0.0, False, False),
+                                            (3.0, True, False)])
+def test_the_recorded_ink_top_is_the_pages_own_first_inked_row(
+        tmp_path, ring, edge, flat):
+    """`patch_ink_top_px` is recorded where the engine draws, and nothing
+    downstream can work it out: measured across these three charts the first
+    inked row lands 18 px BELOW the first recorded box top, 20 above it, and 40
+    above it, for the same 122.8 px slot.
+
+    MUTATION M2, proven to land: record only the hexagon and let the spacer
+    polygons go unrecorded. Five of the fourteen cases in this file go red.
+    """
+    side, page = _build(tmp_path, f"inktop-{int(ring * 10)}-{int(edge)}-{int(flat)}",
+                        ring=ring, edge=edge, flat=flat)
+    facts = _page_facts(side, page)
+    tops = side.get("patch_ink_top_px")
+    assert isinstance(tops, list) and tops, side.get("patch_ink_top_px")
+    assert tops[0] == facts["first_ink"], (
+        f"the engine recorded its first inked row as {tops[0]} and the page it "
+        f"drew starts at {facts['first_ink']}")
+
+
+# ------------------------------------------------------------- the blank itself
+
+def _blank_pair(qapp, side, page, ring_px, flat, size=(700, 980)):
+    """Paint the preview with the blank off and on, and hand back both images."""
+    from ui.tiff_preview import TiffPreview
+    pats = [p for p in side["patches"] if int(p["page"]) == 0]
+    cols: dict[str, list] = {}
+    for p in pats:
+        cols.setdefault(re.match(r"([A-Z]+)", p["loc"]).group(1), []).append(p)
+    order = sorted(cols, key=lambda c: min(p["x"] for p in cols[c]))
+    boxes = [QRect(p["x"], p["y"], p["w"], p["h"]) for p in pats]
+    rects = []
+    line = int(side["label_band_bottom_px"])
+    for c in order:
+        ps = cols[c]
+        x = min(p["x"] for p in ps)
+        w = max(p["x"] + p["w"] for p in ps) - x
+        bot = max(p["y"] + p["h"] for p in ps)
+        rects.append(QRect(x, line, w, bot - line + 1))
+    out = {}
+    for blank in (False, True):
+        p = TiffPreview()
+        try:
+            p.resize(*size)
+            p.load_tiff([page])
+            qapp.processEvents()
+            p.set_hex_zigzag(True, flat_top=flat)
+            p.set_hex_ring_px(ring_px)
+            p.set_patch_ink_top_px({0: side["patch_ink_top_px"][0]})
+            p.set_page_patch_boxes({0: boxes})
+            p.set_stripe_rects(rects)
+            p.set_stripe_read_map({i: False for i in range(len(rects))})
+            p.set_show_only_measured(blank)
+            p.show()
+            qapp.processEvents()
+            p._update_display()
+            qapp.processEvents()
+            pm = p._img_label.pixmap()
+            out[blank] = pm.toImage() if pm is not None else None
+        finally:
+            p.close()
+    return out
+
+
+def _colours(img):
+    """(patch ink, ring ink, dark) pixel counts over the whole canvas."""
+    green = ring = dark = 0
+    for y in range(img.height()):
+        for x in range(img.width()):
+            c = img.pixelColor(x, y)
+            r, g, b = c.red(), c.green(), c.blue()
+            if g > 150 and r < 110 and b < 110:
+                green += 1
+            elif b > 150 and r < 110 and g < 110:
+                ring += 1
+            elif r < 90 and g < 90 and b < 90:
+                dark += 1
+    return green, ring, dark
+
+
+@pytest.mark.parametrize("w,h", [(700, 980), (940, 880), (1100, 760)])
+@pytest.mark.parametrize("ring,edge,flat", [(6.0, True, True), (0.0, False, False),
+                                            (3.0, True, False)])
+def test_no_printed_ink_survives_the_blank_and_the_letters_do(
+        qapp, tmp_path, ring, edge, flat, w, h):
+    """The whole of F1, in one measurement, on three real charts.
+
+    With nothing read, every column is blanked, so ANY green or blue left on
+    the canvas is chart ink the user was told is hidden, and any large loss of
+    dark pixels is a letter losing its feet.
+
+    Measured on screen before the fix: 5, 32 and 122 device pixels of ring on
+    the 3.0 mm chart, 19 of patch ink on the ring-0 one, and 87.45 % of the
+    letters left on the 6.0 mm turned one.
+
+    THREE WINDOW SIZES, because the whole fault is a rounding phase: the
+    shipped build was clean at two of the six sizes round 12 photographed and
+    leaked at the other four, and a single-size guard is how it went unseen.
+
+    MUTATIONS, each proven to land (5 of the 14 cases red for each):
+      * M3, the shipped cut: `ceil` to a whole WIDGET pixel with the integer
+        `QRegion`, and no ink line at all;
+      * M4, keep the device-row rounding but drop the ink line.
+    M2 (the engine recording the hexagon but not the spacers) also reddens this
+    test, from the other end of the same pipe.
+    """
+    name = f"blank-{int(ring * 10)}-{int(edge)}-{int(flat)}-{w}"
+    side, page = _build(tmp_path, name, ring=ring, edge=edge, flat=flat)
+    from ui.tabs.tab_measure import hex_ring_px_from_sidecar
+    ring_px = hex_ring_px_from_sidecar(
+        (tmp_path / name / f"{name}.ti2"))
+    out = _blank_pair(qapp, side, page, ring_px, flat, size=(w, h))
+    assert out[False] is not None and out[True] is not None
+    g_off, r_off, d_off = _colours(out[False])
+    g_on, r_on, d_on = _colours(out[True])
+    assert g_off > 0, "the fixture printed no patches"
+    assert g_on == 0, f"{g_on} pixels of patch ink survived the blank"
+    if ring > 0:
+        assert r_off > 0, "the fixture printed no spacer ring"
+        assert r_on == 0, f"{r_on} pixels of spacer ring survived the blank"
+    # The letters are the dark pixels, and they are all that should be left of
+    # the strip: at most the row the chart itself overlapped with its ink.
+    assert d_off > 0, "the fixture printed no letters"
+    # 98.5 %, MEASURED, NOT PICKED. The fixed build keeps 100.00 / 99.10 /
+    # 100.00 % of the letters on these three charts; the 0.90 % is the row the
+    # ring-0 chart's own apex overlaps them by. The shipped build kept 87.45 %
+    # on a turned CR30 at 700x620, and the mutation table in the register shows
+    # what each mutation does to this number.
+    assert d_on >= 0.985 * d_off, (
+        f"the blank ate the strip letters: {d_on} of {d_off} dark pixels left "
+        f"({100.0 * d_on / d_off:.2f} %)")

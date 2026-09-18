@@ -796,6 +796,8 @@ class TiffPreview(QWidget):
         self._edge_spacer_px: int = 0
         #: The ring between a honeycomb's hexagons, in image px (B8-318).
         self._hex_ring_px: float = 0.0
+        #: First inked row of the patch field, per page, in image px.
+        self._patch_ink_top_px: dict[int, float] = {}
         # Split-patch display: "both" (diagonal split), "expected" or
         # "measured" (whole patch one side). Switchable any time (#126, Knut).
         self._overlay_mode: str = "both"
@@ -1721,6 +1723,23 @@ class TiffPreview(QWidget):
             self._hex_ring_px = max(0.0, float(px or 0.0))
         except (TypeError, ValueError):
             self._hex_ring_px = 0.0
+        self._update_display()
+
+    def set_patch_ink_top_px(self, mapping: "dict[int, float] | None") -> None:
+        """The first inked row of the patch field, per page, in IMAGE pixels.
+
+        Recorded by the layout engine where it draws, because nothing
+        downstream can work it out: a honeycomb's hexagon overhangs its cell by
+        a sixth of the slot, the spacer ring is drawn outside the hexagon, and
+        an edge spacer adds another band, so the first inked row lands anywhere
+        from 18 pixels BELOW the first recorded box top to 40 above it
+        (measured on five CR30 charts: 0, -18, +40, +20, +24). "Show only
+        measured patches" cuts its blank between the strip letters and this
+        line, and on some charts the two cross (B8-346 F1).
+        """
+        self._patch_ink_top_px = {int(k): float(v)
+                                  for k, v in (mapping or {}).items()
+                                  if v is not None}
         self._update_display()
 
     def set_edge_spacer_px(self, px: int) -> None:
@@ -3164,7 +3183,7 @@ class TiffPreview(QWidget):
                         # against 316 with this growth in place.
                         _reg = _reg.united(
                             QRegion(_pts(b, -(_ring + _FILL_SLACK))))
-                    # MINUS ANY READ NEIGHBOUR, and that is not optional.
+                                        # MINUS ANY READ NEIGHBOUR, and that is not optional.
                     # Reaching the apex without this ate the read column
                     # (B8-306), the fault Basti rejected on sight (*"the
                     # colorful patches go down in a straight line although they
@@ -3205,28 +3224,76 @@ class TiffPreview(QWidget):
                     # is what the letters stand on. A rect whose top IS the
                     # first patch carries no band, so there are no letters to
                     # protect and no clamp is wanted.
-                    if float(rects[i].top()) < min_py:
-                        # CEIL, NOT FLOOR, AND THAT IS THE WHOLE OF IT. A
-                        # QRegion's rows are whole WIDGET pixels, so the cut
-                        # has to land on one, and rounding it DOWN hands the
-                        # blank the row the letters stand on: measured on the
-                        # shipped build, 88.0 % of the strip letters' ink left
-                        # at 940x880 and `E` reading as `F` on the sheet. The
-                        # device-pixel step above it cannot help either, since
-                        # `floor(floor(y * 2) / 2) == floor(y)` for every y
-                        # (200,000 random cases, 0 differing), so the whole
-                        # conversion is written the way it is used: one widget
-                        # pixel, rounded the safe way.
-                        import math as _m3
-                        _rb2 = _reg.boundingRect()
-                        _yi = int(_m3.ceil(float(rects[i].top()) * sy + oy))
-                        if _rb2.top() < _yi:
-                            _reg = _reg.intersected(QRegion(
-                                _rb2.x(), _yi, _rb2.width(),
-                                _rb2.bottom() - _yi + 1))
                     painter.save()
                     painter.setClipRegion(_reg)
-                    painter.fillRect(_reg.boundingRect(), white)
+                    if float(rects[i].top()) < min_py:
+                        # CEIL, AND ON A DEVICE ROW, WHICH A QRegion CANNOT DO.
+                        # A QRegion's rows are whole WIDGET pixels, and a whole
+                        # widget pixel is SIX image pixels on an A4 sheet in a
+                        # 700 px window: the cut has to land between the
+                        # letters' last inked row and the top of the printed
+                        # spacer ring, and on a CR30 honeycomb those are six
+                        # image rows apart (147 and 154), so one widget pixel
+                        # is the whole of the gap and rounding either way
+                        # misses. Rounding DOWN took the bottom bar off every
+                        # `E` (B8-339); rounding UP left five to 122 device
+                        # pixels of ring showing at four window sizes out of
+                        # six (B8-346 F1).
+                        #
+                        # So the SHAPE stays a region and the CUT becomes a
+                        # float clip rect, which Qt rasterises at device
+                        # resolution: half a widget pixel, which is three image
+                        # rows, which fits inside the gap with room either
+                        # side. The rectangular branch below already snaps its
+                        # own edges to device rows for the same reason.
+                        import math as _m3
+                        _rb2 = _reg.boundingRect()
+                        # TWO LINES, AND WHICH ONE BINDS DEPENDS ON THE CHART.
+                        # `_lo` is the label band's bottom: cutting above it
+                        # takes the feet off the letters. `_hi` is the top of
+                        # this strip's own printed ink: cutting below it leaves
+                        # ink showing. On a 6 mm ring the band is the higher of
+                        # the two and the ink is safe; on a ring-0 honeycomb the
+                        # POINTY APEX overhangs its cell by a sixth of the slot
+                        # and reaches ABOVE the band (measured on the page: the
+                        # first green row is 154, the band bottom 157), so there
+                        # the ink binds instead. Rounding is chosen to respect
+                        # whichever line binds: down onto the ink, up off the
+                        # letters.
+                        _lo = float(rects[i].top()) * sy + oy
+                        _yi = _m3.ceil(_lo * _dpr) / _dpr
+                        # ...and the ink line carries TWO DEVICE ROWS of
+                        # fringe, not the fill's own `_FILL_SLACK`. The page is
+                        # smooth-scaled, so its colour reaches about a device
+                        # pixel past the geometry; `_FILL_SLACK` is three WIDGET
+                        # pixels, which is thirteen image rows on an A4 sheet in
+                        # a 1500 px window, and spending that here would cut a
+                        # quarter of the way up the letters on a chart whose
+                        # apex already overlaps them.
+                        #
+                        # AND WHERE THE TWO LINES CROSS, THE INK WINS. On a
+                        # pointy honeycomb the apex overhangs its cell by a
+                        # sixth of the slot and is printed INSIDE the label
+                        # band: measured on a ring-0 CR30 page, the letters run
+                        # to row 155 and the first green row is 154, so no cut
+                        # can both cover the ink and leave every letter whole.
+                        # Leaving the ink is the fault that was reported (a
+                        # green dash on the tip of every column, photographed);
+                        # the cost is the two rows the chart itself overlapped.
+                        # The collision belongs to the layout and is recorded
+                        # against it.
+                        _ink_i = self._patch_ink_top_px.get(self._current)
+                        _hi = (float(_ink_i) * sy + oy - 1.0 / _dpr
+                               if _ink_i else None)
+                        if _hi is not None and _yi > _hi:
+                            _yi = _m3.floor(_hi * _dpr) / _dpr
+                        if float(_rb2.top()) < _yi:
+                            painter.setClipRect(
+                                QRectF(float(_rb2.x()), _yi,
+                                       float(_rb2.width()),
+                                       float(_rb2.bottom()) + 1.0 - _yi),
+                                Qt.ClipOperation.IntersectClip)
+                    painter.fillRect(QRectF(_reg.boundingRect()), white)
                     painter.restore()
                 else:
                     # Horizontally cover the column's own patches AND reach the

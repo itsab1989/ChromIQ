@@ -19,7 +19,7 @@ from core.stem_paths import artefact
 
 import numpy as np
 import tifffile
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageChops, ImageDraw, ImageFont, ImageOps
 
 from core.logger import get_logger
 from core.resource_path import resource_path
@@ -234,6 +234,75 @@ def _draw_indicator(draw, cx: int, top: int, text: str, font, spacing_px: int) -
         except Exception:             # default bitmap font: top-left default
             draw.text((x, top), ch, font=font, fill=(0, 0, 0))
         x += w + spacing_px
+
+
+# Capitals that stand ON the baseline in every face this engine ships.
+# `Q` is deliberately not among them: see `_label_ink_bottom`.
+_FLAT_FOOTED_CAPS = "ABCDEFGHIJKLMNOPRSTUVWXYZ"
+
+
+def _label_ink_bottom(text: str, font, spacing_px: int, degrees: int,
+                      band_h: int) -> int:
+    """How far below the band's top line a drawn strip label's INK really goes.
+
+    `label_band_h` is the height the band RESERVES, and for an unrotated label
+    that is the nominal font size. The glyph does not fit in it: PIL is asked
+    for the ascender anchor (``anchor="la"`` in `_draw_indicator`), so a capital
+    is drawn from the ascender line down to the baseline, and the baseline sits
+    at the font's ASCENT, which JetBrains Mono puts one to three pixels below
+    the nominal size at every size this chart engine uses (measured 40 → 41,
+    60 → 62, 80 → 82, 100 → 102, 120 → 123).
+
+    Those pixels are the bottom stroke of the letter, and `label_band_bottom_px`
+    is what "Show only measured patches" cuts its blank at, so under-reporting
+    them by three pixels took the bottom bar off every `E` on a honeycomb and
+    made it read as `F` (B8-346 F1, photographed on a turned CR30 at six window
+    sizes). It is the INK that has to be bounded, so it is the ink that is
+    measured here.
+
+    **`Q` IS DELIBERATELY NOT PROBED.** It is the one capital with a tail, and
+    on a CR30 honeycomb the tail is printed ON the spacer ring: measured on a
+    twenty-column chart, the `Q` column's letter ink runs to row 159 and its
+    own ring ink starts at 154, so the two share six rows. Sizing the band to
+    the tail would move the blank's cut below the top of the ring on every page
+    of that chart, and leaving printed ink showing is the fault this is all
+    about. So the probe is every capital EXCEPT `Q`, and a `Q` strip has its tail
+    covered along with the ring it sits on. The round letters are in the probe
+    on purpose: `C`, `G`, `J` and `O` are drawn a pixel below the baseline for
+    optical weight, and they are exactly the letters that were photographed
+    with their feet missing while `E` and `H` kept theirs. The collision
+    belongs to the layout, not to the blank, and is recorded as such.
+
+    **AND THIS IS A THIRD NUMBER, ON PURPOSE.** `_furniture_reserves_mm`
+    already measures `label_ink_reach_mm` with a probe, `Q` included, for the
+    "Measured from Preview" panel to predict with, and `label_ink_bottom_mm`
+    stays the em box because `geometry._top_reserve_for_a_turned_hex` lays
+    every turned honeycomb out from it. Neither can be reused here: the panel's
+    reach counts the descender this one must not, and the reserve counts the
+    box this one must not. Same family, three questions.
+    """
+    if degrees % 360 == 0:
+        # DRAWN AND MEASURED, NOT COMPUTED. The baseline (the font's ascent) is
+        # where the glyph's shape stops, and the ANTIALIASED edge is a row
+        # below it: on a turned CR30 the letters' last inked row was 147 where
+        # the ascent put the baseline at 146, and one row is the whole of this
+        # fault. So a capital is rendered exactly as `_draw_indicator` renders
+        # it and every non-white pixel is counted.
+        try:
+            asc, desc = font.getmetrics()
+            probe = Image.new("L", (max(8, int(font.getlength(text)) + 8),
+                                    asc + desc + 8), 255)
+            ImageDraw.Draw(probe).text((2, 0), text, font=font, fill=0,
+                                       anchor="la")
+            bb = ImageChops.invert(probe).getbbox()
+            return int(bb[3]) if bb else int(asc)
+        except Exception:                          # pragma: no cover - bitmap font
+            return int(band_h)
+    # A rotated label is pasted as a tile, and it may be justified DOWN the band
+    # (`_extra` in the draw loop), so the worst case is the whole leftover.
+    tile = _indicator_tile(text, font, spacing_px, degrees)
+    bb = tile.getbbox()
+    return (bb[3] if bb else tile.height) + max(0, int(band_h) - tile.height)
 
 
 def _indicator_tile(text: str, font, spacing_px: int, degrees: int) -> Image.Image:
@@ -1724,6 +1793,8 @@ class RenderResult:
     # or None when indicators are off. The measure-tab scan arrow hangs from
     # this line, printtarg-style; without it the arrow floats above the patches.
     label_band_bottom_px: int | None = None
+    #: The first inked row of the PATCH FIELD, per page, in image pixels.
+    patch_ink_top_px: list[int | None] | None = None
     # Per-page patch geometry with exact device values, populated only when
     # ``collect_device_geom`` is set (non-RGB targets → Tier D device-native
     # raster). Each entry is ``("rect", (x0, y0, xR, yB), device_tuple)`` or
@@ -2028,9 +2099,9 @@ def render_pages(
     _spc = max(1, round(ind_px * INDICATOR_LETTER_SPACING))
     _rot = indicator_rotation % 360
     _is_side = _rot in (90, 270)
+    _n_total_strips = max(1, (total + steps - 1) // steps)
+    _longest = label_strip(_n_total_strips)
     if draw_indicators and _is_side:
-        _n_total_strips = max(1, (total + steps - 1) // steps)
-        _longest = label_strip(_n_total_strips)
         label_band_h = _indicator_tile(_longest, font, _spc, _rot).height
     else:
         label_band_h = ind_px
@@ -2041,17 +2112,43 @@ def render_pages(
     _lbl_top = px(place.leader_top + strip_label_offset_mm)
     _band_bottom = None
     if draw_indicators:
-        _band_bottom = _lbl_top + label_band_h + \
+        # THE BAND MUST BOUND THE INK, NOT ONLY THE RESERVE. See
+        # `_label_ink_bottom`: the reserve is the nominal font size and the
+        # glyph reaches the ascent, one to three pixels lower.
+        _band_bottom = _lbl_top + max(
+            label_band_h,
+            _label_ink_bottom(_longest if _is_side else _FLAT_FOOTED_CAPS,
+                              font, _spc, _rot, label_band_h)) + \
             ((ul_gap + ul_th) if underline_on else 0)
 
     _resolve_with = resolve_placeholders
 
     images: list[Image.Image] = []
     page_geoms: list[list[tuple]] = []
+    _ink_tops: list[int | None] = []
     for page in range(layout.pages):
         img = Image.new("RGB", (W, H), (255, 255, 255))
         draw = ImageDraw.Draw(img)
         _geom_rows: list[tuple] = []
+        # THE TOP OF THE INK THIS PAGE ACTUALLY PRINTS, in image pixels.
+        # Not derivable from the recorded patch boxes: a honeycomb's hexagon
+        # overhangs its cell by a sixth of the slot, a spacer ring is drawn
+        # outside it, and an edge spacer adds a further band, so the first
+        # inked row sits anywhere from 18 pixels BELOW the first box top to 40
+        # above it (measured on five CR30 charts: 0, -18, +40, +20, +24). The
+        # blank behind "Show only measured patches" has to know that line, so
+        # it is recorded where it is drawn rather than guessed downstream.
+        _ink_top: int | None = None
+
+        def _note_ink(pts, _ref=lambda: None) -> None:
+            nonlocal _ink_top
+            try:
+                _y = min(int(_p[1]) for _p in pts)
+            except (TypeError, ValueError, IndexError):
+                return
+            if _ink_top is None or _y < _ink_top:
+                _ink_top = _y
+
         _lbl_layer = [None, None]          # this page's strip-label overlay
         _lbl_geom: list[tuple] = []        # ...and its display-list rows
         # Per-page placeholder context: {page} = "page X/Y", plus the chart-wide
@@ -2352,16 +2449,20 @@ def render_pages(
                             _q = [_far[_side], _far[(_side + 1) % 6],
                                   _in[(_side + 1) % 6], _in[_side]]
                             draw.polygon(_q, fill=_fill)
+                            _note_ink(_q)
                             if collect_device_geom:
                                 _geom_rows.append(("spacer_poly", _q, _fill))
                         draw.polygon(_in, fill=rgb)
+                        _note_ink(_in)
                         if collect_device_geom:
                             _geom_rows.append(("hex", _in, dev_by_slot[gslot]))
                     else:
                         draw.polygon(_pts, fill=rgb)
+                        _note_ink(_pts)
                         if collect_device_geom:
                             _geom_rows.append(("hex", _pts, dev_by_slot[gslot]))
                 else:
+                    _note_ink([(x0, y0)])
                     if _fill_rect(draw, [x0, y0, xR - 1, yB - 1], rgb) \
                             and collect_device_geom:
                         _geom_rows.append(
@@ -2860,10 +2961,12 @@ def render_pages(
                 log.warning("could not draw the helper markers", exc_info=True)
         images.append(img)
         page_geoms.append(_geom_rows)
+        _ink_tops.append(_ink_top)
 
     flagged = contrast.low_contrast_passes(rgb_by_slot, steps)
     return RenderResult(images=images, low_contrast_passes=flagged,
                         label_band_bottom_px=_band_bottom,
+                        patch_ink_top_px=_ink_tops,
                         patch_geom=page_geoms if collect_device_geom else None)
 
 

@@ -525,6 +525,31 @@ def edge_spacer_px_from_sidecar(ti2_path: "Path | None") -> int:
         return 0
 
 
+def patch_ink_top_px_from_sidecar(ti2_path: "Path | None") -> "dict[int, float]":
+    """Per page, the first inked row of the patch field, in image px.
+
+    Recorded by the layout engine at the moment it draws (see
+    `TiffPreview.set_patch_ink_top_px`); ``{}`` for a chart whose sidecar
+    predates the key.
+    """
+    if ti2_path is None:
+        return {}
+    import json
+    channels = Path(ti2_path).with_suffix(".channels.json")
+    if not channels.is_file():
+        return {}
+    try:
+        layout = json.loads(read_text(channels)).get("layout") or {}
+        tops = layout.get("patch_ink_top_px")
+        if not isinstance(tops, list):
+            return {}
+        return {i: float(v) for i, v in enumerate(tops)
+                if isinstance(v, (int, float)) and not isinstance(v, bool)
+                and v > 0}
+    except Exception:      # noqa: BLE001 — a preview must never die on a sidecar
+        return {}
+
+
 def hex_ring_px_from_sidecar(ti2_path: "Path | None") -> float:
     """The paper ring between a honeycomb's hexagons (image px), or 0 (B8-318).
 
@@ -4831,6 +4856,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # And the ring between a honeycomb's hexagons, which the boxes do not
         # carry: the split would otherwise be drawn at CELL size (B8-318).
         self._preview.set_hex_ring_px(hex_ring_px_from_sidecar(self._ti1_path))
+        # ...and the first row of ink the page actually carries, which the
+        # blank's top cut is not allowed to fall below.
+        self._preview.set_patch_ink_top_px(
+            patch_ink_top_px_from_sidecar(self._ti1_path))
         # SpectroScan hexagonal charts: the strip highlight follows the column's
         # zigzag (staggered hexagons) instead of a straight rect that would spill
         # into the neighbouring column, and the swipe arrow is hidden — an XY
