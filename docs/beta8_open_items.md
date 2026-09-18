@@ -14434,14 +14434,25 @@ written for it in the suite passed its own mutation.
   `test_neither_help_text_promises_an_exact_margin`, which now refuses the
   sentence that was false.
 
-### B8-346 · OPEN · Round 12's nine faults, and two corrections to this entry's own first draft
+### B8-346 · FIXED · Round 12's nine faults, and two corrections to this entry's own first draft
 - blocks release: yes
-- status: OPEN
-- evidence: `tests/test_show_only_measured_blanks_the_right_pixels.py`,
-  `tests/test_the_add_window_counts_match_what_it_builds.py`,
-  `tests/test_the_area_first_help_text_is_true.py`,
-  `tests/test_the_report_reads_as_a_printed_document.py` are the four guards
-  round 12 challenged; every claim below is a measurement they do NOT make.
+- status: FIXED
+- **All nine are fixed and each fix carries mutations proven to land**: F1 the
+  blank (4), F2 to F4 the Add window (3), F5 and F6 the report (3), F7 to F9 the
+  help text (5). Two of round 12's findings turned out not to be faults and one
+  cannot be fixed by arithmetic; each is recorded in its own section below
+  rather than quietly dropped. The work round 12 did NOT reach is B8-348, and
+  the layout collision found on the way is B8-347.
+- evidence: `test_no_printed_ink_survives_the_blank_and_the_letters_do`,
+  `test_a_tip_owners_promise_survives_the_white_black_row`,
+  `test_the_fill_row_does_not_make_every_other_row_read_zero`,
+  `test_a_greyed_out_row_shows_its_own_size_not_zero`,
+  `test_the_total_is_what_the_project_records_not_what_is_loaded`,
+  `test_a_file_from_outside_any_project_is_in_neither_number`,
+  `test_switching_the_clip_band_off_takes_two_switches`,
+  `test_only_a_spectroscan_or_a_cr30_claims_the_edge_of_the_sheet` — one per
+  fault, each with its own mutation table below. The four guards round 12
+  challenged made none of these measurements.
 - The round's own write-up is
   `~/Desktop/ChromIQ-beta21-proof/round-12-on-round-11/README.md` and it is the
   authority. The first draft of this entry was written from its logs while it
@@ -14758,3 +14769,24 @@ over round 12's own 540 built sheets and re-measured here:
   `~/Desktop/ChromIQ-beta21-proof/fix-B8-346/logs/`.
 - what to do first: ask Knut whether a pointy honeycomb should reserve its apex
   overhang above the first row.
+
+### B8-348 · OPEN · What round 12 did not reach, which is not the same as passed
+- blocks release: no
+- status: OPEN
+- Round 12 ran out of night before it reached these. They are unexamined, and
+  the only honest thing to say about them is that nobody has looked.
+- **B8-343 was never driven on screen.** Only its mutation M6 was run, and it
+  lands; the driver is written and ready in
+  `~/Desktop/ChromIQ-beta21-proof/round-12-on-round-11/work/drive12_preset.py`.
+  Two source reads to carry forward: the busy-runner door returns before the
+  snapshot is taken, and `_chart_notes_edit` in the new snapshot list **does
+  not exist**, so that half of the fix is a silent no-op.
+- Round 11's second note hole is not covered by B8-343 and was not re-measured.
+- **B8-341 with the 3D cube unfolded**: `_push_lab_cloud` sets the Total with no
+  "≈" and never touches "Chart after adding". Read in the source, not measured.
+- Page 2 and ragged pages of the Add window's counters.
+- The i18n side of the new fill-row string.
+- evidence: none yet, which is the point of the entry. A round that picks this
+  up should drive each on screen before deciding whether anything is wrong.
+- what to do first: B8-343 on screen, because a named no-op is the most likely
+  of these to be real.
