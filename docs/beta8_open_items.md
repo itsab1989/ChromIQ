@@ -15281,8 +15281,20 @@ why the guards kept needing a row hidden to see anything. It resolves now.
   are measuring to different edges rather than disagreeing about the sheet.
 - It matters because the panel is what a user checks a margin against, and it
   should agree with the ink.
-- evidence: none yet. Nothing has been changed.
-- what to do first: find which edge each one measures to. The panel's reading
-  comes from the preview; the boxes come from `strips.json`. One of them
-  probably counts the patch's own ink and the other its cell, which on an i1Pro
-  chart would be about the right size of difference.
+- **MEASURED, AND IT IS NOT A DISCREPANCY IN THE CODE.** The panel's numbers
+  come from `workflow.margin_inspector.measure_from_engine`, which reads the
+  chart's own recorded patch rectangles out of `channels.json`, which is the
+  same place the boxes come from. Called on a freshly built i1Pro A4 area-first
+  sheet: panel top 6.01 bottom 6.42 at 5 mm asked, and 21.00 / 21.41 at 20 mm,
+  which is the recorded geometry to the hundredth. So the panel is not
+  measuring a different edge; his sheet and mine are DIFFERENT SHEETS.
+- The question that remains is therefore which setting differs, and it is his
+  to answer, so it is asked on the issue rather than guessed at here. Mine:
+  i1Pro, A4, area-first, smallest patch 8.0 mm, 120 patches, the clip band on
+  the left at its default 26 mm, everything else default.
+- **A note for whoever picks this up**: the panel only reports recorded
+  geometry for an ENGINE chart. For any other it falls back to measuring the
+  rendered image, and those two paths could disagree without anybody noticing,
+  because nothing compares them.
+- evidence: none yet; nothing has been changed and nothing is known to be
+  wrong.
