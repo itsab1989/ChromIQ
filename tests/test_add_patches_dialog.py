@@ -720,8 +720,17 @@ def test_fill_to_pages_target(qapp, tmp_path):
     # chart came out with 1,364. Nothing on screen said 1,364.
     d._gen_fill_unit_pages.setChecked(True)
     d._sync_fill_unit()
-    assert d._gen_fill_unit_patches.isChecked()
+    # The radio KEEPS what a recipe restored, so the preference is not lost if
+    # the row is ever offered again; what it may not do is decide the number.
+    assert d._gen_fill_unit_pages.isChecked()
+    assert not d._pages_unit_is_live()
     assert d._effective_fill_target() == 900
+    d._mode_generate.setChecked(True)     # the panel on...
+    d._gen_fill.setChecked(True)          # ...and the row on, so only the unit
+    d._update_gen_counts()                #    can grey the box
+    assert d._gen_fill_to.isEnabled(), (
+        "the box that decides the number was greyed out by a hidden unit")
+    d._gen_fill.setChecked(False)
     # The plumbing itself still works, so the row can come back if it is ever
     # offered again: shown, the pages spin multiplies by the capacity.
     d._gen_fill_unit_pages.setVisible(True)

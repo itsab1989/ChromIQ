@@ -76,7 +76,8 @@ def _sheet(tmp_path, tag, **recipe_kw) -> dict:
     kw["randomize"] = False
     kw["seed"] = 1
     le.build_chart(src, d / "s", instrument=rec.instrument, paper=rec.paper, **kw)
-    pats = [p for p in json.loads((d / "s.strips.json").read_text())["patches"]
+    pats = [p for p in json.loads(
+        (d / "s.strips.json").read_text(encoding="utf-8"))["patches"]
             if int(p["page"]) == 0]
     assert pats
     k = 25.4 / 300.0

@@ -326,7 +326,14 @@ def test_the_KEY_itself_tells_two_photos_apart(qapp, tmp_path):
             self._gen_image_px = px
             self._settings = _S({"argyll_path": "/Applications/Argyll/bin"})
 
+        _precond_path = ""
+
         def _collect_gen_state(self):
+            return {"same": "settings"}
+
+        def _generator_build_state(self):
+            # the half of the state the cache keys on (the window's identity
+            # and layout are not in it; see `_generator_build_state`)
             return {"same": "settings"}
 
         def _nch_state(self):
@@ -338,6 +345,7 @@ def test_the_KEY_itself_tells_two_photos_apart(qapp, tmp_path):
     # the two methods under test are the real ones, not stand-ins
     _Fake._gen_image_digest = D._gen_image_digest
     _Fake._argyll_key = D._argyll_key
+    _Fake._precond_key = D._precond_key
 
     a = _Fake(np.array([[10, 20, 30]], dtype=np.uint8))
     b = _Fake(np.array([[90, 80, 70]], dtype=np.uint8))

@@ -560,18 +560,28 @@ _BUDGET = {
     # language rises by exactly two, GERMAN INCLUDED this time, because these
     # two were translated in German where the last batch's five were not.
     # Counted with this file's own `_english_echoes`, never adjusted upward.
-    "de": 6,
-    "es": 207,
-    "fr": 208,
-    "it": 207,
-    "ja": 207,
-    "nl": 207,
-    "no": 207,
-    "pl": 207,
-    "pt": 207,
-    "ru": 206,
-    "sv": 207,
-    "zh_CN": 206,
+    # RE-MEASURED 2026-09-18, the beta-20 batch, and German moves most because
+    # German was the only language that HAD these strings translated. Four
+    # pieces of work, all of them replacing text rather than adding it:
+    # Knut's ruling that the Measurement Report reads as a document printed for
+    # a customer (five sentences rewritten or removed), the Patch Set editor's
+    # two counting rows, the chart-layout help written twice (the first rewrite
+    # was measured false on 154 of the 160 built-in charts, so it was written
+    # again from the real mechanism), and the Settings strip-length list, which
+    # named four instruments where the combo offers five.
+    # Counted with this file's own `_english_echoes`, never adjusted upward.
+    "de": 17,
+    "es": 211,
+    "fr": 212,
+    "it": 211,
+    "ja": 211,
+    "nl": 211,
+    "no": 211,
+    "pl": 211,
+    "pt": 211,
+    "ru": 210,
+    "sv": 211,
+    "zh_CN": 210,
 }
 
 

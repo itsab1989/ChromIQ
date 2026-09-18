@@ -3214,10 +3214,25 @@ class _NewChartDialog(QDialog):
         except Exception:
             return 0
 
+    def _pages_unit_is_live(self) -> bool:
+        """Whether the "pages" fill unit is the one in force.
+
+        **IT HAS TO BE ON SCREEN TO COUNT.** #93 took "fill to pages" out of
+        the window and left the widgets constructed but hidden, while
+        `fill_unit_pages` stayed in the persisted state and in every chart
+        recipe written before that. A restored True then multiplied a number
+        nothing on screen showed: the box read "fill to: 1000 patches", greyed
+        un-editable, the hidden pages spin said 2, the engine sized a page at
+        682, and the chart came out with 1,364 patches (round 10). The radio
+        keeps its restored value, so nothing is lost if the row comes back.
+        """
+        return (self._gen_fill_unit_pages.isChecked()
+                and not self._gen_fill_unit_pages.isHidden())
+
     def _effective_fill_target(self) -> int:
         """The fill target as a patch count: the patches spin in 'patches' mode,
         or the pages spin × engine capacity-per-page in 'pages' mode (#93)."""
-        if self._gen_fill_unit_pages.isChecked():
+        if self._pages_unit_is_live():
             per = self._engine_cap_per_page()
             if per > 0:
                 return int(self._gen_fill_pages.value()) * per
@@ -3238,13 +3253,17 @@ class _NewChartDialog(QDialog):
         screen says 1,364 anywhere. So the unit is forced back to patches
         whenever its radio is not on screen, which is always today.
         """
-        if self._gen_fill_unit_pages.isHidden():
-            self._gen_fill_unit_patches.setChecked(True)
         can_pages = self._engine_cap_per_page() > 0
         self._gen_fill_unit_pages.setEnabled(can_pages)
         if not can_pages and self._gen_fill_unit_pages.isChecked():
             self._gen_fill_unit_patches.setChecked(True)
-        pages_on = self._gen_fill_unit_pages.isChecked()
+        # A UNIT THE WINDOW DOES NOT SHOW MAY NOT DECIDE THE NUMBER IT DOES.
+        # See `_effective_fill_target`: the radio keeps whatever a recipe
+        # restored, so the preference is not lost if the row is ever offered
+        # again, but while it is hidden the patches box is the target AND
+        # stays editable. Round 10 measured the alternative: the box read
+        # "fill to: 1000 patches", greyed, and the chart came out with 1,364.
+        pages_on = self._pages_unit_is_live()
         fill_on = self._gen_fill.isChecked()
         self._gen_fill_pages.setEnabled(can_pages and pages_on and fill_on)
         # Also gate on the "Fill remaining gaps" checkbox — this runs after the

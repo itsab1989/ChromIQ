@@ -94,7 +94,13 @@ def test_nobody_is_accused_of_hiding_a_run_they_did_not_hide(two_dated, qapp):
 
 
 def test_but_a_run_the_user_really_unticked_is_still_owned_up_to(two_dated, qapp):
-    """The honesty note must not be lost with the false positive."""
+    """The honesty note must not be lost with the false positive.
+
+    ITS WORDS CHANGED IN BETA 20, NOT ITS JOB. Knut ruled that the report reads
+    as a document printed for someone who has never seen this window, so it no
+    longer says "runs in the list above are hidden by you (unticked)" — a list
+    a printed sheet cannot show. It says what it covers instead, by count.
+    """
     from workflow.run_compliance import set_run_report_type
     dlg, older, newer = two_dated
     set_run_report_type(dlg._run_ctx.run, mr.REPORT_TYPE_FULL)
@@ -105,7 +111,8 @@ def test_but_a_run_the_user_really_unticked_is_still_owned_up_to(two_dated, qapp
     dlg._hidden_runs.add(dlg._run_key(dlg._history[0]))
     dlg._refresh()
     txt = _text(dlg._view.toHtml())
-    assert "hidden by you" in txt
+    import re
+    assert re.search(r"covers \d+ of the \d+ measurements", txt), txt[-400:]
 
 
 # ---------------------------------------------------------------------------

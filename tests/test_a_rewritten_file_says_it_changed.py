@@ -59,4 +59,4 @@ def test_the_rewrite_is_still_the_content_that_was_asked_for(tmp_path, payload):
     import json
     p = tmp_path / "x.json"
     _write(p, payload)
-    assert json.loads(p.read_text()) == payload
+    assert json.loads(p.read_text(encoding="utf-8")) == payload

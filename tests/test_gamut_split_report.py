@@ -262,7 +262,11 @@ def test_the_audit_batch_texts_are_in_the_report(qapp, tmp_path, monkeypatch):
         pct = round(100 * gs["n_in"] / (gs["n_in"] + gs["n_out"]))
         assert f"({pct} %)" in detail
         how = _html.unescape(dlg._how_to_read_html())
-        assert "Analyse Profile Quality" in how
+        # NOT "use Check & Refine ▸ Analyse Profile Quality" any more: Knut
+        # ruled in beta 20 that the report is a document printed for someone
+        # who has never seen the window, and a menu path is not something they
+        # can follow. The fact it carried survives, the route does not.
+        assert "profile on its own is a separate check" in how
         assert "not a fair way to rank papers or printers" in how
         assert "whole chain in one number" in how
     finally:
