@@ -311,7 +311,15 @@ def test_hover_frame_grows_over_edge_spacers():
 
 def test_edge_spacer_px_reads_geometry(tmp_path):
     """#43: the edge-spacer height comes from the chart's own geometry — nonzero
-    only when the recipe says the chart HAS edge spacers."""
+    only when the chart HAS edge spacers.
+
+    **THE "False" CASE MOVED OFF AN i1 (R23-F3).** This test used to assert
+    that an i1 chart whose recipe says `edge_spacers: false` has none, which is
+    the fault: `build_kwargs` forces them on for i1 / i1Pro 3+ / ColorMunki, so
+    that sheet has them whatever the field says. A test that copies the code's
+    bug agrees with it, and this one did. The flag is still honoured, on every
+    instrument that is free to have it either way, and "41" is one of those.
+    """
     import json
     from ui.tabs.tab_measure import edge_spacer_px_from_sidecar
     (tmp_path / "c.ti2").write_text("x", encoding="utf-8")
@@ -319,8 +327,11 @@ def test_edge_spacer_px_reads_geometry(tmp_path):
         {"layout": {"dpi": 200, "recipe": {"instrument": "i1", "edge_spacers": True}}}), encoding="utf-8")
     assert edge_spacer_px_from_sidecar(tmp_path / "c.ti2") > 0
     (tmp_path / "c.channels.json").write_text(json.dumps(
-        {"layout": {"dpi": 200, "recipe": {"instrument": "i1", "edge_spacers": False}}}), encoding="utf-8")
+        {"layout": {"dpi": 200, "recipe": {"instrument": "41", "edge_spacers": False}}}), encoding="utf-8")
     assert edge_spacer_px_from_sidecar(tmp_path / "c.ti2") == 0
+    (tmp_path / "c.channels.json").write_text(json.dumps(
+        {"layout": {"dpi": 200, "recipe": {"instrument": "41", "edge_spacers": True}}}), encoding="utf-8")
+    assert edge_spacer_px_from_sidecar(tmp_path / "c.ti2") > 0
     assert edge_spacer_px_from_sidecar(None) == 0
 
 

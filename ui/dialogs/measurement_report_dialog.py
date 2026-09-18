@@ -908,6 +908,10 @@ class MeasurementReportDialog(QDialog):
     _pending_restore_outcome: str = "none"
     #: what the run was judged by when this window last drew its controls
     _run_state_at_sync: tuple = ()
+    #: and the app-wide stores at that same moment (B8-384): the class default
+    #: is None so a door that runs before the first sync falls back to reading
+    #: them, rather than comparing against an empty tuple nothing ever holds.
+    _prefs_at_sync: "tuple | None" = None
     #: why the last `_confirm_about_run` returned False
     _last_refusal: str = ""
 
@@ -2795,11 +2799,12 @@ class MeasurementReportDialog(QDialog):
         red line below is about; only its claim on the controls is dropped.
 
         The control keeps its own new value, and whatever that value does on
-        disk it still does: choosing a limit set still binds the run and still
-        asks about recalculating its saved reports, because that is a
-        deliberate act with its own question, not a redraw. What waits is the
-        document on screen, so a reader can put a control back and be sure
-        nothing moved under them.
+        disk it still does: choosing a limit set still binds the RUN, which is
+        the yardstick for the dates still to come. It no longer recalculates
+        one saved report (B8-384, Knut's *"Agreed. D23 stands."*), so there is
+        no question in front of it any more either. What waits is the document
+        on screen, so a reader can put a control back and be sure nothing moved
+        under them.
         """
         self._doc_settings_moved = True
         self._forget_limits()
@@ -3627,6 +3632,16 @@ class MeasurementReportDialog(QDialog):
         # exactly that: rebind the run, then click, and the rebind was inside
         # the "before" the guard compared against.
         self._run_state_at_sync = self._run_state_now(run) if run else ()
+        # **AND THE APP-WIDE STORES, AT THE SAME MOMENT AND FOR THE SAME
+        # REASON.** The overrides on the set in the pulldown are what
+        # `bind_run` will copy onto the run, and it reads them LIVE. That used
+        # to be guarded by re-reading them across the recalculate question;
+        # with the question gone (B8-384) the only window left is the one that
+        # matters anyway, between the moment the user was shown these controls
+        # and the moment they used one. R19-1 is what happens without it:
+        # another window overrides the chosen set, and the run is bound to
+        # numbers nobody in this window ever saw.
+        self._prefs_at_sync = self._prefs_state_now()
         self._syncing_limits = True
         try:
             self._set_combo.clear()
@@ -5622,18 +5637,53 @@ class MeasurementReportDialog(QDialog):
         # screen: the user said yes, a locked run was rebound and a saved
         # verdict went from FAIL to PASS, under one box identical to the
         # control. The same re-lock one moment earlier fired a full guard.
-        _prefs_at_question = self._prefs_state_now()
-        if self._recalculating_would_rewrite_history(ctx.run):
-            if not self._confirm_about_run(
-                    ctx.run, partial(self._confirm_recalculate, ctx.run)):
-                if self._last_refusal != "moved":
-                    self._sync_set_combo_to(lim.set_id)
-                return
-        elif self._run_state_now(ctx.run) != self._run_state_at_sync:
-            # NO HISTORY TO REWRITE MEANS NO QUESTION, AND THAT IS EXACTLY THE
-            # STATE A LOCK CAN ARRIVE IN: `is_locked` turns on at the SECOND
-            # dated verification, so a measurement finishing while this window
-            # sat open locks the run with no question ever asked.
+        # THE STORES AS THEY WERE WHEN THIS WINDOW LAST DREW ITSELF, which is
+        # where the user's reading of them comes from. See `_sync_limit_
+        # controls`, which stamps it beside the run's own state.
+        _prefs_at_question = getattr(self, "_prefs_at_sync", None)
+        if _prefs_at_question is None:
+            _prefs_at_question = self._prefs_state_now()
+        # **THIS DOOR NO LONGER REWRITES ONE SAVED REPORT, SO IT NO LONGER ASKS
+        # ABOUT REWRITING THEM (B8-384).**
+        #
+        # Knut, 2026-09-18, on beta 21: *"When I change Judged Against to
+        # another setting, all listed reports in the Saved reports pulldown
+        # change to the new judged against setting, AND created a new (third)
+        # report. This is not the behaviour I specified."* Asked directly
+        # whether his rule supersedes D23, he answered *"Agreed. D23 stands."*
+        #
+        # D23 is a rule about HOW a recalculation is done, never about whether
+        # one happens: §5 of `docs/design/measurement_report_limits.md` states
+        # it as *"first copies each dated report … then rewrites the file in
+        # place (Knut D23; nothing is deleted)"*. His beta-20 ruling, and N.2
+        # of the same section, decide the other question: *"If a report has
+        # been generated, those reports shall not be recalculated if I want to
+        # create a new report with a different Judged Against threshold set."*
+        # Leaving the file alone satisfies both, and satisfies D23's promise
+        # more completely than archiving would: nothing is rewritten, so
+        # nothing has to be kept first.
+        #
+        # **AND FOR A REPORT THAT RECORDS NO SET OF ITS OWN IT IS THE ONLY SAFE
+        # READING.** A rewrite is the one thing that can stamp a set onto such
+        # a file, which is exactly what relabelled the two reports Knut
+        # photographed: their names carried "ChromIQ tight" over a press nobody
+        # made. `_saved_report_label` reads the set off the FILE, so a file
+        # left alone keeps the name it had.
+        #
+        # THE OTHER TWO DOORS ARE UNCHANGED and still recalculate,
+        # archive-first: "Unlock this run's limits" and the Report limits
+        # window's Save. They are B8-310, where N.3 is still an open question
+        # for Knut, and neither is what he ruled on here.
+        if self._run_state_now(ctx.run) != self._run_state_at_sync:
+            # THE RUN MOVED SINCE THIS WINDOW LAST DREW IT: a verification
+            # measurement finished, a dated verification was deleted, or
+            # another window rebound or re-locked it. Nothing is written on
+            # that reading, exactly as before; what has gone is the question in
+            # front of it, because there is no history to lose any more.
+            #
+            # `is_locked` turns on at the SECOND dated verification, so a
+            # measurement finishing while this window sat open locks the run,
+            # and this is the guard that catches it.
             self._sync_set_combo_to(lim.set_id)
             self._say_run_moved_while_asking(ctx.run)
             self._forget_limits()
@@ -5674,14 +5724,24 @@ class MeasurementReportDialog(QDialog):
         except OSError as exc:
             log.warning("could not store the limit set on %s: %s", ctx.run.dir, exc)
         self._forget_limits()
-        # Every saved report of the run now follows the new set, once
-        # (D23, CH-29). THAT still happens at once: it is a deliberate act with
-        # its own question, not a redraw. What waits is the document on screen.
-        self._recalculate_run()
+        # **AND NOT ONE SAVED REPORT IS TOUCHED (B8-384).** `self.
+        # _recalculate_run()` stood here and rewrote every dated report of the
+        # run with the new set, archiving each first. The long note at the head
+        # of this method says why it is gone and what it means for the two
+        # doors that still call it.
+        #
+        # The RUN is still bound to the chosen set, because that is what the
+        # set pulldown is: the yardstick for measurements that carry no verdict
+        # of their own, and for the dated verifications still to come. What the
+        # user sees next is `_settings_touched`'s red line: the settings have
+        # changed, press Generate report (N.2).
         self._settings_touched()
 
     def _saved_report_count(self, run) -> int:
         """How many saved report FILES a recalculation would rewrite.
+
+        ASKED BY THE LIMITS WINDOW'S SAVE, and no longer by the "Judged
+        against" pulldown, which stopped recalculating anything (B8-384).
 
         THIS COUNTED DATES AND THE SENTENCE SAID REPORTS, which is a lie the
         moment a date holds more than one. `save_report` is timestamped on
@@ -5723,6 +5783,11 @@ class MeasurementReportDialog(QDialog):
         The wording follows the unlock confirmation deliberately: the two
         routes have the same consequence, so a user who has met one should
         recognise the other. Singular and plural in full, never "(s)".
+
+        **ONE DOOR SHOWS THIS NOW**: saving a change of the run's own numbers
+        in the Report limits window. The "Judged against" pulldown does not
+        recalculate any more (B8-384), so it does not ask; a question about a
+        loss that cannot happen is worse than no question at all.
         """
         n = self._saved_report_count(run)
         # THE TAIL IS SPLIT TOO, and the first version was not. It said "every
@@ -6836,6 +6901,15 @@ class MeasurementReportDialog(QDialog):
         gets its copy before its first rewrite and a repeat changes nothing.
         A date whose archive fails is left exactly as it is and named in a
         window.
+
+        **TWO DOORS REACH THIS, NOT THREE (B8-384).** "Unlock this run's
+        limits" and the Report limits window's Save still do. The "Judged
+        against" pulldown does NOT any more: Knut ruled that changing it may
+        not rewrite a saved report, and `_on_set_chosen` says at length what
+        that leaves. The two that remain are B8-310, where whether his N.3
+        (*"Unlocking a run's limits and saving a change in the Edit limits
+        window must result in the same behaviour"*) applies to them is still an
+        open question for him and has not been assumed here.
         """
         ctx = self._run_ctx
         if ctx is None:

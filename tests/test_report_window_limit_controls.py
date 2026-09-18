@@ -69,6 +69,49 @@ def _dialog(s, ti3):
     return MeasurementReportDialog(s, None, initial_ti3=ti3)
 
 
+def _edit_the_runs_numbers(dlg, monkeypatch, value=0.2, row="all_de00_avg"):
+    """Drive the Report limits window: edit ONE of the run's own numbers and
+    close, which is a recalculation of the run (§5, D23).
+
+    **THE DOOR MOVED, AND THAT IS B8-384.** These properties belong to
+    `_recalculate_run`, and the tests below used to reach it through the
+    "Judged against" pulldown because that was the shortest way in. That
+    pulldown no longer recalculates anything: Knut ruled that changing it may
+    not rewrite a saved report. Two doors still do, and this is the one that
+    can be driven twice in a row with a different answer each time.
+
+    The real `ThresholdsDialog` writes the edited column in `done()` whatever
+    result it closes with, so the fake does the same thing through the same
+    function.
+    """
+    from workflow.compliance_sets import Limit
+    from workflow.run_compliance import run_limits, set_run_limits
+
+    class _Fake:
+        #: WHAT THE DOOR READS OFF THE DIALOG, spelled out rather than
+        #: answered by a catch-all `__getattr__`: a lambda is truthy, so a
+        #: catch-all made the window believe the Preferences had been edited
+        #: too and left a warning box open on the suite.
+        run_limits_changed = True
+
+        def __init__(self, settings, parent, run=None, run_editable=False):
+            self._run, self._editable = run, run_editable
+
+        def exec(self):
+            if self._run is not None and self._editable:
+                lim = dict(run_limits(self._run, {}).limits)
+                lim[row] = Limit.value(value)
+                set_run_limits(self._run, lim)
+            return 0
+
+        def deleteLater(self):
+            pass
+
+    import ui.dialogs.thresholds_dialog as td
+    monkeypatch.setattr(td, "ThresholdsDialog", _Fake)
+    dlg._on_open_limits()
+
+
 def test_a_measured_run_is_locked_and_the_pulldown_is_disabled(qapp, tmp_path):
     proj, run, ti3s = _verified_run(tmp_path)
     s = _settings(tmp_path)
@@ -104,17 +147,22 @@ def test_preferences_allows_the_unlock_and_unlocking_archives_and_recalculates(
             old = sorted((v.reports_dir / "old").glob("*/report_*.json"))
             assert len(old) == 1, "each date's report is archived exactly once"
             assert old[0].read_text(encoding="utf-8") == before[v.reports_dir / old[0].name]
-        # the pulldown is now live; choosing Quick check re-stamps every date
+        # THE PULLDOWN IS NOW LIVE, AND CHOOSING A SET RE-STAMPS NOTHING
+        # (B8-384). Knut: *"Agreed. D23 stands."* — the archive-then-
+        # recalculate rule is about HOW a recalculation is done, and his
+        # beta-20 ruling is that this door does not start one. It still binds
+        # the RUN, which is the yardstick for the dates still to come.
         assert dlg._set_combo.isEnabled()
+        held = {p: p.read_text(encoding="utf-8")
+                for v in run.verifications() for p in mr.list_reports(v.dir)}
         idx = dlg._set_combo.findData("chromiq_quick")
         dlg._set_combo.setCurrentIndex(idx)
         dlg._on_set_chosen(idx)
         for v in run.verifications():
             live = mr.list_reports(v.dir)
-            assert len(live) == 1, "the live file keeps its name (rewritten in place)"
-            rep = json.loads(live[0].read_text(encoding="utf-8"))
-            assert rep["compliance"]["set_id"] == "chromiq_quick"
-            assert rep["compliance"]["thresholds"]["all_de00_avg"] == 4.0
+            assert len(live) == 1, "the live file keeps its name"
+            assert live[0].read_text(encoding="utf-8") == held[live[0]], (
+                "a saved report was rewritten by a change of limit set")
         assert run.load_meta().compliance_set_id == "chromiq_quick"
     finally:
         dlg.deleteLater()
@@ -332,15 +380,21 @@ def test_a_date_whose_archive_fails_is_not_rewritten(qapp, tmp_path, monkeypatch
         monkeypatch.setattr(warning_sign, "warn", lambda *a, **k: told.append(a[2]))
         before = {p: p.read_text(encoding="utf-8") for v in run.verifications() for p in mr.list_reports(v.dir)}
         dlg._unlock_check.setChecked(True)
-        idx = dlg._set_combo.findData("chromiq_quick")
-        dlg._set_combo.setCurrentIndex(idx)
+        # THROUGH THE LIMITS WINDOW, because the "Judged against" pulldown no
+        # longer recalculates anything (B8-384). The property is the same one:
+        # archive first, and a date that could not be archived keeps its
+        # verdict.
+        _edit_the_runs_numbers(dlg, monkeypatch, value=0.2)
         after = {p: p.read_text(encoding="utf-8") for v in run.verifications() for p in mr.list_reports(v.dir)}
         for p in before:
             if str(p).startswith(str(first.dir)):
                 assert after[p] == before[p], "a report was rewritten although its archive failed"
             else:
-                assert json.loads(after[p])["compliance"]["set_id"] == "chromiq_quick"
-        assert told and first.id in told[-1]
+                assert json.loads(after[p])["compliance"]["thresholds"][
+                    "all_de00_avg"] == 0.2
+        # ACROSS EVERY BOX THIS DOOR RAISED, not only the last one: the date
+        # that could not be archived is named in its own.
+        assert told and first.id in "\n".join(told), told
     finally:
         dlg.deleteLater()
 
@@ -366,15 +420,15 @@ def test_a_report_stamped_after_the_unlock_is_archived_before_its_first_rewrite(
         p2 = v.reports_dir / "report_2026-05-05_05-05-05.json"
         p2.write_text(json.dumps(rep), encoding="utf-8")
         content2 = p2.read_text(encoding="utf-8")
-        idx = dlg._set_combo.findData("chromiq_quick")
-        dlg._set_combo.setCurrentIndex(idx)
+        # THROUGH THE LIMITS WINDOW, for the reason `_edit_the_runs_numbers`
+        # gives: the pulldown recalculates nothing any more (B8-384).
+        _edit_the_runs_numbers(dlg, monkeypatch, value=0.2)
         copies = old()
         assert any(c.read_text(encoding="utf-8") == content2 for c in copies), \
             "the report stamped after the unlock was rewritten without a copy"
         n = len(copies)
         # changing again copies only what changed since
-        idx = dlg._set_combo.findData("chromiq_tight")
-        dlg._set_combo.setCurrentIndex(idx)
+        _edit_the_runs_numbers(dlg, monkeypatch, value=0.3)
         assert len(old()) == n + 2          # both live files changed once more
     finally:
         dlg.deleteLater()

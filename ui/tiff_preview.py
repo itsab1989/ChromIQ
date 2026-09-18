@@ -1522,7 +1522,19 @@ class TiffPreview(QWidget):
         self._schedule_refresh()
 
     def set_stripe_read_map(self, read_map: "dict[int, bool]") -> None:
+        """Which strips of the page on screen have been read.
+
+        **AND IT REPAINTS**, which it did not. "Show only measured patches"
+        paints from this map, and every caller happened to follow it with a
+        `set_patch_overlay` that scheduled a refresh of its own, so a change of
+        the map alone reached the screen at the next repaint for some other
+        reason, or not at all. Paging to another sheet is exactly such a call
+        (B8-385).
+        """
+        if self._stripe_read_map == read_map:
+            return
         self._stripe_read_map = dict(read_map)
+        self._schedule_refresh()
 
     # ---- spot (patch-by-patch) mode --------------------------------------
     def highlight_patch(self, page: int, box: "QRect | None") -> None:

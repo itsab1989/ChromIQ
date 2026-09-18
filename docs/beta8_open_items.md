@@ -16122,8 +16122,10 @@ would reach.
   umbrella the hour his list arrived, so that nothing of it could be lost while
   the work was dispatched; it is kept whole below because it is his own
   wording, and his wording is the thing later readers should meet first.
-- Four of the five are now FIXED (B8-380 to B8-383). What is left is the
-  remainder of **B8-384**, and it is named there rather than here.
+- **ALL FIVE ARE NOW FIXED** (B8-380 to B8-384), each in its own entry with its
+  own on-screen measurement and its own mutations. The last to close was
+  B8-384's second half, on 2026-09-18: a report written by an earlier ChromIQ
+  is no longer rewritten or relabelled either.
 - Knut, 2026-09-18, on #182, after testing beta 21. He has said he will not
   comment further until this is implemented, so this entry is the list and
   nothing here is paraphrased into something easier:
@@ -16157,22 +16159,23 @@ would reach.
   one press of Generate with "Show all measurement runs" ON put **one** entry in
   the list where it put two before.
   `~/Desktop/ChromIQ-beta22-proof/b383-the-document-record/`.
-- **THIS ENTRY STAYS OPEN FOR HIS FIFTH**, which is **B8-384**. Its own half is
-  done, and named there: a report carrying a `document` block is never
-  recalculated, so nothing that is generated from now on can be relabelled under
-  the user. A report written by an earlier ChromIQ still is, and stopping that
-  reaches the confirmation in front of it and the two other doors that call
-  `_recalculate_run` (B8-310). Knut ruled on it the same day, *"Agreed. D23
-  stands"*, so it is a plain fault with a ruling behind it rather than a
-  specification conflict.
+- **HIS FIFTH IS B8-384, AND IT IS NOW CLOSED TOO.** Its first half was a
+  report carrying a `document` block, which is never recalculated, so nothing
+  generated from now on can be relabelled under the user. Its second half was a
+  report written by an earlier ChromIQ, which was still rewritten: that write
+  is gone, with the confirmation in front of it, and the two other doors that
+  call `_recalculate_run` are untouched and stay B8-310. Knut ruled on it the
+  same day, *"Agreed. D23 stands"*, so it was a plain fault with a ruling
+  behind it rather than a specification conflict.
 - and two of his own rulings made the work SMALLER rather than larger: there is
   no update-or-create question (*"It is better that existing reports are not
   overwritten"*), and the list stays a pulldown (*"It is ok that 'Current Report
   Showing' is a pulldown list if that saves space in the window"*). Both are
   recorded in §13.3b of `docs/design/measurement_report_limits.md`.
-- evidence: the four entries below carry it, test by test and mutation by
+- evidence: the five entries below carry it, test by test and mutation by
   mutation. This umbrella has none of its own and is not called fixed.
-- what is left: B8-384's remaining half, and nothing else of his five.
+- what is left of his five: nothing. What is NOT his, and stays open, is
+  B8-310's two other recalculating doors and the wording registered as B8-386.
 
 ### B8-380 · FIXED · The generated-reports list is a one-row pulldown in the wrong place, with no Delete button
 - blocks release: no
@@ -16347,9 +16350,9 @@ would reach.
   (**18 failed**), Generate made to rewrite a file already on disk
   (**4 failed**); restored, green each time.
 
-### B8-384 · OPEN · Changing "Judged against" relabels every entry in the list and rewrites every saved report on disk
+### B8-384 · FIXED · Changing "Judged against" relabels every entry in the list and rewrites every saved report on disk
 - blocks release: no
-- status: OPEN
+- status: FIXED
 - Knut, 2026-09-18: *"When I change Judged Against to another setting, all
   listed reports in the Saved reports pulldown change to the new judged against
   setting, AND created a new (third) report. This is not the behaviour I
@@ -16385,32 +16388,104 @@ would reach.
   two reports from an earlier ChromIQ: changing "Judged against" rewrote **2 of
   6** files and **none of the 4 generated documents**
   (`b383-the-document-record/the-document-record.json`, `5_judged_against`).
-- **THE OTHER HALF IS OPEN AND IS NOT THIS ROUND'S.** A report saved by an
-  earlier ChromIQ carries no block and IS still rewritten and relabelled,
-  exactly as Knut photographed. Stopping that reaches the confirmation that
-  precedes it (`_confirm_recalculate`, `_saved_report_count`, the sentence it
-  puts on screen) and the two other doors that call `_recalculate_run`
-  (the unlock tick box, and the Report limits window's Save), which are B8-310.
-  The one write is `MeasurementReportDialog._on_set_chosen`'s
-  `self._recalculate_run()` call.
-- **and one more thing the driver showed.** `Verification.archive_reports`
-  copies EVERY live report of a date into `reports/old/<stamp>/` before the
-  rewrite, generated documents included, even though they are then skipped. The
-  copy loses nothing and destroys nothing, but it is clutter that a full fix
-  should remove.
-- status: OPEN
-- partly fixed: the generated documents are safe; the remainder is a plain
-  fault with a ruling behind it, described above.
-- evidence for the half that is fixed:
-  test_a_generated_document_is_never_recalculated
-  (same file), which also asserts that
-  the legacy files ARE still rewritten, so the test cannot pass by accident.
-  Mutation proved to land: the `recorded_document` guard removed from
-  `_recalculate_run` (**1 failed**); restored, green.
+- **THE OTHER HALF WAS OPEN AND IS NOW FIXED, 2026-09-18.** A report saved by
+  an earlier ChromIQ carries no block and WAS still rewritten and relabelled,
+  exactly as Knut photographed. The one write was
+  `MeasurementReportDialog._on_set_chosen`'s `self._recalculate_run()` call,
+  and it is gone.
+- **WHICH READING OF D23 WAS BUILT, AND WHY.** §5 states D23 as *"Every
+  recalculation ... first copies each dated report whose content has no copy
+  yet into `reports/old/<timestamp>/`, then rewrites the file in place (Knut
+  D23; nothing is deleted)"*. That is a rule about HOW a recalculation is done,
+  not about whether one happens; **what decides that is the other half of §5**:
+  his beta-20 ruling (*"If a report has been generated, those reports shall not
+  be recalculated if I want to create a new report with a different Judged
+  Against threshold set"*) and N.2 of the same section (*"Changing 'Judged
+  against' recalculates NOTHING by itself"*). So the file is **left alone**,
+  which keeps D23's promise more completely than archiving would: nothing of a
+  saved verdict is lost, because nothing is rewritten.
+  **For a report that records no set of its own, leaving it alone is the only
+  reading that works at all.** A rewrite is the one thing that can stamp a set
+  ONTO such a file, and `_saved_report_label` reads the set off the FILE, so
+  stamping it is exactly what relabelled the two entries Knut photographed.
+  Archiving a copy first would have kept the old bytes and still left the live
+  file claiming a press nobody made.
+- **THE QUESTION IN FRONT OF IT IS GONE TOO**, because it promised a
+  recalculation that no longer happens: *"This run (run2) has 3 saved reports.
+  Changing the limit set recalculates every one of them..."* was false the
+  moment the write went. No new text was written for this door;
+  `_confirm_recalculate` and `_saved_report_count` stay, reached now by the
+  Report limits window's Save alone.
+- **THE TWO OTHER DOORS ARE UNCHANGED AND STILL RECALCULATE, ARCHIVE-FIRST**:
+  "Unlock this run's limits", and the Report limits window's Save. They are
+  B8-310, where whether Knut's N.3 reaches them is still an open question for
+  him, and nothing here assumes an answer.
+- **and the clutter the driver showed is gone with the write.**
+  `Verification.archive_reports` copied EVERY live report of a date into
+  `reports/old/<stamp>/` before the rewrite, generated documents included, even
+  though they were then skipped. On this door there is now nothing to archive:
+  driven, **0 copies** where there were 4.
+- **driven on screen, before and after** (`scripts/drive_b384_the_older_reports.py`,
+  `~/Desktop/ChromIQ-beta22-proof/b384-and-b385/BEFORE-b384/` and `AFTER-b384/`),
+  on a fixture holding four shapes: two reports from an older schema (5, no set
+  and no verdict), one of the 4.2.x shape (schema 7 carrying its own
+  `chromiq_quick`), one document written by the window's own Generate button,
+  and a second run copied to `runs/run20` whose reports still name `run2`
+  inside themselves, which is the renamed-folder case and the `run2`/`run20`
+  prefix trap in one.
 
-### B8-385 · OPEN · "Show only measured patches" blanks the whole sheet for ever in two of the three reading modes
+  | changing "Judged against" | before | after |
+  |---|---|---|
+  | report files rewritten | **3 of 8** | **0 of 8** |
+  | modification times moved | 3 | 0 |
+  | entries relabelled in the pulldown | 3 | 0 |
+  | questions shown | 1 | 0 |
+  | copies left in `reports/old` | 4 | 0 |
+  | every entry still opens | yes | yes |
+
+  The 4.2.x-shaped report is the worst of the three: it recorded
+  `chromiq_quick` and came back claiming `chromiq_tight`. `run20` was untouched
+  in both runs, so the prefix trap stayed shut.
+- guard file: `tests/test_a_saved_report_is_not_rewritten_by_a_set_change.py`
+  (new), alongside `tests/test_a_set_change_asks_before_it_rewrites_history.py`
+  and `tests/test_a_generated_report_is_one_document.py`.
+- status: FIXED
+- evidence: test_changing_the_set_rewrites_not_one_report_file,
+  test_a_report_that_records_no_set_still_records_none,
+  test_the_entries_in_the_list_keep_their_names,
+  test_nothing_is_archived_because_nothing_is_rewritten,
+  test_no_question_is_asked_about_a_rewrite_that_cannot_happen,
+  test_another_runs_reports_are_not_touched_either,
+  test_every_saved_report_still_opens_afterwards,
+  test_the_run_is_still_bound_to_the_set_that_was_chosen,
+  test_the_unlock_door_still_recalculates
+  (the new guard file named above); test_changing_the_set_neither_asks_nor_rewrites and
+  test_the_set_change_still_binds_the_run (the B8-310 file); and
+  test_a_generated_document_is_never_recalculated, which now drives the UNLOCK
+  door and still asserts that a legacy report IS rewritten there, so it cannot
+  pass by accident.
+  Mutations proved to land, `__pycache__` cleared around each: putting
+  `self._recalculate_run()` back at the end of `_on_set_chosen` (**5 failed**),
+  putting the `_recalculating_would_rewrite_history` question back
+  (**4 failed**); restored, green each time.
+- **FOUR TESTS THAT ENCODED THE OVERTURNED BEHAVIOUR WERE REWRITTEN, NOT
+  DELETED.** `test_changing_the_set_asks_first` is now
+  `test_changing_the_set_neither_asks_nor_rewrites`, and says in its own
+  docstring that Knut overturned it; the two question-counting tests and the
+  three archive tests in `test_report_window_limit_controls.py` were re-aimed
+  at the Report limits window's Save, the door that still asks and still
+  recalculates, so every property they guarded is still guarded.
+- **ONE INACCURATE SENTENCE WAS WIDENED AND IS REGISTERED RATHER THAN
+  REWORDED**, B8-386 below: with no question on this door, the refusal that
+  fires when the run moved under the window still says *"This run changed while
+  the question was on screen"*. It already fired on that same no-question path
+  (a run with no saved report), so the wording was inaccurate before this
+  change and is now the only wording this door can show. Changing it is new
+  user-facing text and German, and belongs in a round that can carry it.
+
+### B8-385 · FIXED · "Show only measured patches" blanks the whole sheet, and on the ORDINARY path as well as in two reading modes
 - blocks release: no
-- status: OPEN
+- status: FIXED
 - Found on the way to B8-371, by the agent fixing it, and it is the reason that
   fault bit so hard: with the read map never updated, EVERY measured patch sits
   on blanked ground on all four edges instead of only on the side facing a
@@ -16429,9 +16504,196 @@ would reach.
   deliver a whole chart or a single patch, so "read" has to be derived (a strip
   is read when its patches are), and it must not flicker a strip on and off as
   patches arrive.
-- evidence: none yet; nothing has been changed. The call sites are
-  `tab_measure.py:13157` and `:13201` against the handlers at `:13322`
-  (`_on_chart_measured`) and `:13249` (`_on_patch_measured`).
-- what to do first: drive a spot-mode and a chart-mode read on screen with the
-  feature on, photograph the sheet staying blank, and only then decide how a
-  strip earns "read" in each mode.
+- **MY READING OF ITS REACH WAS TOO NARROW, AND ROUND 23 CORRECTED IT.** This
+  entry said the fault is reachable only in the two beta engine modes. It is
+  reachable on the DEFAULT path: round 23 photographed the window reading
+  *"Progress: 100.0 %"* over a wholly blank sheet, which is what a user gets by
+  opening a project whose chart has been measured and ticking the box. The read
+  map is a SESSION thing, filled by `_on_session_map`, and outside a session
+  nothing had ever filled it. "Show overlay from existing measurement" ships
+  OFF, so the split overlay could not cover for it either.
+- **AND ONE CLAIM IN THIS ENTRY WAS TOO STRONG**, which the photographs
+  corrected: in SPOT mode the sheet does not stay blank, because each patch's
+  split is drawn on top of the blank as it arrives. What is true of all three
+  paths is that no strip is ever marked read, so every measured patch sits on
+  blanked ground on all four sides and the chart's own ink between the patches
+  never returns. In CHART mode nothing appears at all until the read ends,
+  because that is when the one event arrives.
+- **measured on screen before the fix** (`scripts/drive_b385_the_blank_sheet.py`
+  and `scripts/drive_b385_the_default_path.py`,
+  `~/Desktop/ChromIQ-beta22-proof/b384-and-b385/BEFORE-b385*/`), on a
+  240-patch, three-sheet chart:
+
+  | | before | after |
+  |---|---|---|
+  | chart mode, whole chart reported | read map `{0..6: False}` | `{0..6: True}` |
+  | spot mode, strips A and B read patch by patch | read map `{}` | `{0: True, 1: True, 2..6: False}` |
+  | spot mode, strip C HALF read | `{}` | unchanged: C stays False |
+  | the default path, a measured chart opened | read map `{}`, preview **45.9 %** paper white | `{0..6: True}`, **13.3 %** |
+
+- **FIXED 2026-09-18. WHEN A STRIP COUNTS AS READ**, and it is one rule for all
+  three paths: when the chart's own geometry has a box for every one of its
+  patches and each of those has been reported. That is what strip mode already
+  means by "read" (the strip was swiped end to end), it needs no count from the
+  engine, and it cannot flicker, because the set of reported locations only
+  grows while a chart is loaded. A patch the geometry does not know is not
+  counted, so a strip whose locations the sidecar cannot place simply never
+  completes and the preview shows exactly what it shows today.
+- what was built, in `ui/tabs/tab_measure.py`: `_engine_patch_read` (the
+  locations reported this session), `_note_patches_read`, `_letters_fully_read`,
+  `_strip_letters` and `_note_measurement_on_disk`, with
+  `_update_engine_read_map` now answering **for the page on screen** and called
+  from `_on_chart_measured`, `_on_patch_measured`, both branches of
+  `_on_session_map`, `_on_preview_page_changed` and the view-control door.
+- **AND THE MAP WAS PAGE-BLIND, WHICH THE FIX WOULD HAVE MADE VISIBLE.** It is
+  keyed by the strip's LOCAL index on its sheet, and it was built from every
+  page at once, so a three-page chart wrote strips A, H and O into key 0 and the
+  last one won. Nothing showed while every value was False; the moment a
+  whole-chart or spot read starts filling them in, reading strip A on sheet 1
+  would have un-blanked strip H on sheet 2. `_update_engine_read_map` now takes
+  the page, and `_on_preview_page_changed` re-points the map with the rects.
+- `TiffPreview.set_stripe_read_map` also **repaints** now. It decides what the
+  blank covers and scheduled nothing; every caller happened to follow it with a
+  `set_patch_overlay` that scheduled a repaint of its own, and paging does not.
+- guard file: `tests/test_the_read_map_follows_every_reading_mode.py` (new).
+- status: FIXED
+- evidence: test_a_whole_chart_read_marks_the_strips_it_covered,
+  test_a_strip_is_read_only_once_every_patch_of_it_is,
+  test_a_strip_that_has_been_read_stays_read,
+  test_the_map_describes_the_page_on_screen,
+  test_a_changed_read_map_asks_for_a_repaint,
+  test_the_strip_map_still_comes_from_the_engine_in_strip_mode,
+  test_a_measurement_already_on_disk_is_read_with_no_session_at_all,
+  test_a_half_measured_chart_on_disk_shows_only_what_it_holds,
+  test_loading_another_chart_forgets_the_first_ones_patches,
+  test_the_blank_lifts_off_a_strip_the_reading_has_finished
+  (the new guard file named above). The last one is the picture: column A's spacers are printed navy and
+  every other column's black, so ink that survives the blank says which column
+  it came from.
+  Mutations proved to land, `__pycache__` cleared around each:
+  `_note_patches_read(placed)` dropped from `_on_chart_measured`
+  (**1 failed**), `_note_patches_read([loc])` dropped from `_on_patch_measured`
+  (**4 failed**), the page filter dropped from `_update_engine_read_map`
+  (**1 failed**), a strip counted read at its FIRST patch (**1 failed**), the
+  location set rebuilt instead of grown (**4 failed**),
+  `_note_measurement_on_disk` dropped from the view door (**2 failed**), the
+  chart-change reset dropped (**1 failed**), and the repaint dropped from
+  `set_stripe_read_map` (**1 failed**); restored, green each time.
+
+### B8-386 · OPEN · A refusal on the "Judged against" door still says "while the question was on screen", and there is no question
+- blocks release: no
+- status: OPEN
+- `_say_run_moved_while_asking` is what the set pulldown shows when the run
+  moved between the window drawing its controls and the user using one: the
+  title is *"This run changed while the question was on screen"*. There is no
+  question on that door any more (B8-384), so that clause is not true.
+- **IT WAS ALREADY INACCURATE BEFORE B8-384**, on the same path: the branch that
+  raises it fired without a question whenever the run had no saved report to
+  rewrite. What B8-384 changed is that this is now the ONLY way in, so an
+  inaccurate sentence went from rare to ordinary.
+- the rest of the message is true and is the part that matters: *"Nothing was
+  unlocked and nothing was recalculated"*, which is now true of this door in
+  every case.
+- what to do: reword the title and the first clause so they describe the window
+  between the controls being drawn and being used, rather than a question. It
+  is new user-facing text, so it needs German and the ledgers re-measured, and
+  it was left rather than slipped into a change set about something else.
+- evidence: none; nothing has been changed.
+
+### B8-387 · FIXED · The blank's edge spacer asked the chart's RECORD, and the record disagrees with the build (R23-F3)
+- blocks release: no
+- status: FIXED
+- found by: round 23, and it is B8-366 F4 arriving through a second door.
+- `ui/tabs/tab_measure.py::edge_spacer_px_from_sidecar` tells the preview how
+  far past the first and last patch of a strip the printed content reaches, and
+  "Show only measured patches" blanks exactly that far. It asked
+  `recipe["edge_spacers"]`, the chart's stored flag, two lines before asking the
+  engine how tall they are.
+- **THE RECORD AND THE BUILD DISAGREE BY DESIGN**: `LayoutRecipe.build_kwargs`
+  forces edge spacers on for i1, i1Pro 3+ and ColorMunki, so a strip reader's
+  sheet has them whether the box was ticked or not, and the two doors record
+  opposite things for the same sheet (Manual the recipe's own field, Guided the
+  resolved kwargs).
+- **measured by round 23 on one sheet through both doors**: Manual **0 px**,
+  Guided **12 px**; the blank came out **8 device rows shorter** and the row
+  below it was **86.8 % dark** where the other was 0 %. On a black-and-white
+  spacer chart that bar is black, which is Basti's hairline report (B8-371)
+  arriving by another route.
+- fix: build the recipe, resolve `build_kwargs()`, and ask THAT — the same
+  correction `workflow/margin_inspector.py` carries for the same reason. Done
+  here rather than at the recording end, so it reaches every chart already on a
+  user's disk, which no migration would. Measured after: i1 12 px, i1Pro 3+
+  24 px and ColorMunki 12 px whatever the stored flag says, and every
+  instrument the build does not force still follows it both ways.
+- guard file: `tests/test_the_edge_spacer_height_comes_from_the_build.py` (new).
+- evidence: test_a_strip_readers_sheet_has_its_spacers_whatever_the_box_said,
+  test_the_two_doors_answer_the_same_for_the_same_sheet,
+  test_an_instrument_that_is_free_to_have_none_still_has_none,
+  test_the_height_follows_the_page_resolution,
+  test_the_blank_covers_the_edge_spacer_the_build_really_prints
+  (the new guard file named above, which drives the SIDECAR: B8-371's guard
+  cannot see this because it hands `set_edge_spacer_px(8)` in as a constant).
+  Mutation proved to land: `recipe.get("edge_spacers")` read again instead of
+  the resolved kwargs (**7 failed**); restored, green.
+- **AND ONE EXISTING TEST ASSERTED THE FAULT.** The one in
+  `tests/test_engine_ui.py` that reads this geometry asked for an i1 chart with `edge_spacers: false` and required
+  **0**, which is the bug written down as a requirement. Its "no spacers" case
+  now uses an instrument the build does not force, and the i1 case asserts the
+  opposite of what it used to.
+
+### B8-388 · OPEN · Knut's Preferences, Reports defaults, specified 2026-09-18 and not built
+- blocks release: no
+- status: OPEN
+- Arrived after beta 22's work was already under way, in answer to the
+  measurement in §13.5. **Nothing of it is built.** Recorded verbatim so that
+  the next session starts from his words and not from a summary:
+
+  > *"I suggest that the automatic record should itself carry a document block,
+  > so that 'Show all measurement runs' and 'Show detailed data for each run'
+  > are a fact on disk rather than an inference when it is loaded. Bot set to
+  > OFF as default. However, when the Measurement window appears, the latest
+  > report shall load automatically with its settings."*
+  >
+  > *"Regarding 'the report type': The type belongs to the run, yes, but the
+  > default should be the 'Full colour check'."*
+  >
+  > *"Regarding 'whether a report is written at all': The 'Save measurement
+  > report' should be ON, visible in the settings on-screen (measurement tab?)
+  > when 'Preferences -> reports' 'Save measurement report after each
+  > measurement' is set (should be default ON). When ... is OFF, then 'Save
+  > measurement report' is default OFF, but a user may still change it to ON.
+  > 'Save measurement report' parameter is also remembered as all other
+  > settings are remembered for a run."*
+  >
+  > *"I suggest that the following under Preferences -> Reports:
+  > 1. 'Measurement Report limits' frame is renamed to 'Measurement Report
+  > Defaults' frame.
+  > 2. Below the Report Limits button ... add a pulldown selector to select
+  > 'Report type, default', where the selected option is used as default when
+  > opening measurement report (when no report is showing) or when an automatic
+  > measurement report is written after a completed measurement. It can also be
+  > the default used when 'Report shown' is set to 'New report....'
+  > 3. Add two checkboxes to set the default value for 'Show all measurement
+  > runs' and 'Show detailed data for each run'. These shall be default ON.
+  > however, during automatic saving of a report during measurement, these are
+  > always OFF (that is natural because it is one measurement only)
+  > 4. The Report Limits button contain the Judged Against default chosen, so no
+  > separate selection box is needed in the Preferences -> Reports tab."*
+  >
+  > *"In the 'Measurement Report' window, when 'Report shown' is set to 'New
+  > report....', all default values shall be loaded on the settings, which then
+  > can be changed by a user. The default values are fetched from the
+  > preferences->reports tab."*
+- **Two things in it change what ships as a default**, and they are the ones to
+  weigh before building: "Save measurement report after each measurement"
+  becomes default ON where it ships OFF today, and the two view tick boxes
+  become default ON. Both are his call and both are stated plainly, but a
+  default that starts writing files after every measurement deserves to be
+  said out loud in the release notes rather than discovered.
+- **It also introduces a "New report...." entry** in the "Report shown"
+  pulldown, which the document record built in B8-383 has no notion of yet.
+- evidence: none; nothing built.
+- what to do first: decide whether any of it belongs in beta 22 at all. It
+  arrived after the change set was closed and none of it is a fault: it is a
+  specification for work that has not started. The honest answer is probably
+  beta 23, and telling him so.

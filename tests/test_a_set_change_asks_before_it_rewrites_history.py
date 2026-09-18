@@ -95,10 +95,29 @@ def _saved_json(run) -> list:
     return out
 
 
-def test_changing_the_set_asks_first(qapp, tmp_path, monkeypatch):
-    """MUTATION: drop the `_recalculating_would_rewrite_history` guard from
-    `_on_set_chosen` and this goes red. Watched."""
+def test_changing_the_set_neither_asks_nor_rewrites(qapp, tmp_path, monkeypatch):
+    """**KNUT OVERTURNED THIS TEST, AND IT IS KEPT AS THE OPPOSITE OF ITSELF.**
+
+    It used to assert that the pulldown ASKS before rewriting every saved
+    report, because it did rewrite them. Knut, beta 20: *"If a report has been
+    generated, those reports shall not be recalculated if I want to create a
+    new report with a different Judged Against threshold set."*, and beta 21,
+    watching the same act relabel every entry in the list: *"This is not the
+    behaviour I specified."* Asked directly whether that supersedes D23, the
+    archive-then-recalculate rule stated twice in his own name, he answered
+    *"Agreed. D23 stands."* — D23 says how a recalculation is done, never that
+    one must happen, so the two live together: nothing is rewritten here, so
+    there is nothing to keep first and nothing to ask about (B8-384).
+
+    The whole rule, on disk and on screen, is in
+    `tests/test_a_saved_report_is_not_rewritten_by_a_set_change.py`; this is
+    the door that used to do it.
+
+    MUTATION: put `self._recalculate_run()` back at the end of
+    `_on_set_chosen` and this goes red.
+    """
     proj, run, ti3 = _run_with_saved_reports(tmp_path, 3)
+    before = _saved_json(run)
     dlg = _dialog(_settings(tmp_path), ti3)
     try:
         asked: list = []
@@ -107,35 +126,35 @@ def test_changing_the_set_asks_first(qapp, tmp_path, monkeypatch):
         i = dlg._set_combo.findData("chromiq_tight")
         assert i >= 0
         dlg._set_combo.setCurrentIndex(i)
-        assert asked, "the set was changed with no confirmation at all"
-        title, text = asked[0]
-        assert "3" in text, f"the question does not say how much is at stake: {text!r}"
-        assert "reports/old" in text, (
-            "the question does not say the old reports are kept, which is the "
-            f"fact that makes it answerable: {text!r}")
+        assert not asked, (
+            f"the pulldown asked about a rewrite it no longer does: {asked!r}")
+        assert _saved_json(run) == before, (
+            "a set change rewrote a saved report of the run")
     finally:
         dlg.deleteLater()
 
 
-def test_saying_no_changes_nothing_at_all(qapp, tmp_path, monkeypatch):
-    """A confirmation that is asked and ignored is worse than none.
+def test_the_set_change_still_binds_the_run(qapp, tmp_path, monkeypatch):
+    """What the pulldown DOES do, now that it does not recalculate.
 
-    MUTATION: make `_on_set_chosen` fall through on a refusal and this goes red
-    on the first assertion.
+    The set is the run's yardstick for the dated verifications still to come
+    and for anything with no verdict of its own, so choosing one still binds
+    the run; only the saved reports are out of its reach. The window then shows
+    the red "settings have changed, press Generate report" line, which is N.2
+    of §5 of `docs/design/measurement_report_limits.md`.
+
+    MUTATION: drop the `bind_run` call from `_on_set_chosen` and this goes red.
     """
     proj, run, ti3 = _run_with_saved_reports(tmp_path, 3)
-    before = _saved_json(run)
     dlg = _dialog(_settings(tmp_path), ti3)
     try:
-        monkeypatch.setattr(type(dlg), "_confirm", lambda self, t, x: False)
+        monkeypatch.setattr(type(dlg), "_confirm", lambda self, t, x: True)
         i = dlg._set_combo.findData("chromiq_tight")
         dlg._set_combo.setCurrentIndex(i)
-
-        assert _saved_json(run) == before, "a refused change rewrote the reports"
-        assert not rc.is_bound(run), "a refused change bound the run"
-        assert dlg._set_combo.currentData() != "chromiq_tight", (
-            "the pulldown kept the refused choice, so the window now says the "
-            "run is judged by a set it is not judged by")
+        assert rc.is_bound(run), "the run was not bound to the chosen set"
+        assert rc.run_limits(run, {}).set_id == "chromiq_tight"
+        assert dlg._set_combo.currentData() == "chromiq_tight", (
+            "the pulldown does not show the set the run is now bound to")
     finally:
         dlg.deleteLater()
 
@@ -174,15 +193,16 @@ def test_a_run_with_nothing_saved_is_not_interrogated(qapp, tmp_path, monkeypatc
 
 def test_the_question_counts_one_report_in_the_singular(qapp, tmp_path, monkeypatch):
     """CLAUDE.md asks for explicit singular and plural, never "(s)", and the
-    sister confirmation was corrected for exactly this a day earlier."""
+    sister confirmation was corrected for exactly this a day earlier.
+
+    **THROUGH THE LIMITS WINDOW**, which is the one door that still shows this
+    question: changing "Judged against" stopped recalculating anything, so it
+    stopped asking (B8-384). The sentence is the same sentence.
+    """
     proj, run, ti3 = _run_with_saved_reports(tmp_path, 1)
     dlg = _dialog(_settings(tmp_path), ti3)
     try:
-        asked: list = []
-        monkeypatch.setattr(type(dlg), "_confirm",
-                            lambda self, t, x: asked.append(x) or True)
-        i = dlg._set_combo.findData("chromiq_tight")
-        dlg._set_combo.setCurrentIndex(i)
+        asked = _edit_through_the_limits_window(dlg, monkeypatch)
         assert asked
         assert "one saved report" in asked[0], asked[0]
         assert "1 saved reports" not in asked[0], asked[0]
@@ -420,11 +440,10 @@ def test_the_question_counts_report_files_and_not_dates(qapp, tmp_path, monkeypa
 
     dlg = _dialog(_settings(tmp_path), ti3)
     try:
-        asked: list = []
-        monkeypatch.setattr(type(dlg), "_confirm",
-                            lambda self, t, x: asked.append(x) or False)
-        i = dlg._set_combo.findData("chromiq_tight")
-        dlg._set_combo.setCurrentIndex(i)
+        # THROUGH THE LIMITS WINDOW: the "Judged against" pulldown no longer
+        # rewrites a saved report, so it no longer asks (B8-384). This door
+        # still does both.
+        asked = _edit_through_the_limits_window(dlg, monkeypatch, answer=False)
         assert asked
         assert "9" in asked[0], (
             f"the question undercounts what it would rewrite: {asked[0]!r}")
@@ -3119,55 +3138,47 @@ def test_the_locked_window_does_not_talk_about_a_refusal(qapp, tmp_path,
 # ---------------------------------------------------------------------------
 # Round 17: a question takes as long as a person takes to read it
 # ---------------------------------------------------------------------------
-def _relock_during(dlg, monkeypatch, run, method="_confirm_recalculate"):
-    """Answer the door's question yes, and re-lock the run while it is on
-    screen, which is the state four rounds kept finding in a fourth door."""
-    from workflow.run_compliance import set_run_unlocked
+def test_the_pulldown_sees_a_run_rebound_since_it_last_drew_itself(
+        qapp, tmp_path, monkeypatch):
+    """R17-1, RE-AIMED AT THE GUARD THAT IS NOW THE ONLY ONE ON THIS DOOR.
 
-    def _asked(self, *a, **k):
-        set_run_unlocked(run, False)
-        return True
+    It used to re-lock the run inside `_confirm_recalculate`, because that
+    question was the window a second writer needed. There is no question here
+    any more (B8-384), and the window that is left is the one that always
+    mattered: everything between the moment this window drew these controls and
+    the moment the user used one. `_run_state_at_sync` is that moment, and this
+    drives another window rebinding the run inside it.
 
-    monkeypatch.setattr(type(dlg), method, _asked)
+    A LOCK IS NOT USED HERE ON PURPOSE: a locked run is refused one guard
+    earlier, by `_locked_here`, which
+    `test_the_pulldown_refuses_a_run_that_was_locked_while_it_sat_open`
+    already covers. A rebind moves the state without touching the lock, so it
+    is the one that reaches this branch.
 
-
-def test_the_pulldown_checks_the_lock_after_its_question_too(qapp, tmp_path,
-                                                            monkeypatch):
-    """R17-1: THE GUARD RAN BEFORE THE QUESTION AND NOTHING RAN AFTER IT.
-
-    Round 16 fixed this exact shape on the unlock door. The pulldown asks the
-    same question, for the same rebind and the same recalculation, and
-    re-checked nothing. A challenge round re-locked the run while the question
-    was on screen: the user said yes, a locked run was rebound and a saved
-    verdict went from FAIL to PASS, under one box identical to the control.
-    The same re-lock one moment earlier fired a full guard.
-
-    MUTATION: ask with `_confirm_recalculate` instead of `_confirm_about_run`
-    and this goes red.
+    MUTATION: drop the `_run_state_now(ctx.run) != self._run_state_at_sync`
+    check from `_on_set_chosen` and this goes red.
     """
-    from workflow.run_compliance import (bind_run, is_locked, run_limits,
-                                         set_run_unlocked)
+    from workflow.run_compliance import bind_run, is_locked, run_limits
 
-    proj, run, ti3 = _run_with_saved_reports(tmp_path, 2)
+    proj, run, ti3 = _run_with_saved_reports(tmp_path, 1)
     bind_run(run, "chromiq_default", {})
-    set_run_unlocked(run, True)
+    assert not is_locked(run), "the premise failed: one date does not lock"
     dlg = _dialog(_settings(tmp_path), ti3)
     try:
         told: list = []
         import ui.warning_sign as ws
         monkeypatch.setattr(ws, "warn", lambda parent, t, x: told.append(x))
-        _relock_during(dlg, monkeypatch, run)
-        before = run_limits(run, {}).set_id
+        ids = [dlg._set_combo.itemData(i) for i in range(dlg._set_combo.count())]
+        theirs = next(i for i in ids if i and i != "chromiq_default")
+        mine = next(i for i in ids if i and i not in ("chromiq_default", theirs))
 
-        other = next(dlg._set_combo.itemData(i)
-                     for i in range(dlg._set_combo.count())
-                     if dlg._set_combo.itemData(i)
-                     and dlg._set_combo.itemData(i) != before)
-        dlg._on_set_chosen(dlg._set_combo.findData(other))
+        # ANOTHER WINDOW MOVES THE RUN after this one drew its controls
+        bind_run(run, theirs, {})
+        dlg._on_set_chosen(dlg._set_combo.findData(mine))
 
-        assert is_locked(run), "the premise failed"
-        assert run_limits(run, {}).set_id == before, (
-            "a run locked while the question was on screen was rebound anyway")
+        assert run_limits(run, {}).set_id == theirs, (
+            "a run rebound since this window drew itself was rebound again, "
+            "over the other window's choice, with no question and no word")
         assert told and "no longer the run" in "\n".join(told), told
     finally:
         dlg.deleteLater()
@@ -3306,17 +3317,18 @@ def test_a_second_measurement_arriving_during_the_question_is_seen(
         monkeypatch.setattr(ws, "warn", lambda parent, t, x: told.append(x))
         before = run_limits(run, {}).set_id
 
-        def _asked(self, r):
-            # a SECOND measurement finishes while the question is on screen,
-            # which is what turns the lock on
-            v = run.new_verification(_dt(2026, 2, 2, 10, 0, 0))
-            v.ensure_dir()
-            raw = v.dir / "P.ti3"
-            _write_ti3(raw, _ramp(16) + _colours(), verification=False)
-            mark_verification_ti3(raw).rename(v.dir / f"{run.verify_stem}.ti3")
-            return True
+        # A SECOND MEASUREMENT FINISHES while this window sits open, which is
+        # what turns the lock on. It used to be driven inside
+        # `_confirm_recalculate`; that question is gone (B8-384), and the
+        # window that is left is the one that always mattered: between the
+        # controls being drawn and the user using one.
+        v = run.new_verification(_dt(2026, 2, 2, 10, 0, 0))
+        v.ensure_dir()
+        raw = v.dir / "P.ti3"
+        _write_ti3(raw, _ramp(16) + _colours(), verification=False)
+        mark_verification_ti3(raw).rename(v.dir / f"{run.verify_stem}.ti3")
+        assert is_locked(run), "the premise failed: two dates lock a bound run"
 
-        monkeypatch.setattr(type(dlg), "_confirm_recalculate", _asked)
         other = next(dlg._set_combo.itemData(i)
                      for i in range(dlg._set_combo.count())
                      if dlg._set_combo.itemData(i)
@@ -3325,7 +3337,7 @@ def test_a_second_measurement_arriving_during_the_question_is_seen(
 
         assert run_limits(run, {}).set_id == before, (
             "the run was rebound after its own second measurement locked it "
-            "while the question was on screen")
+            "while this window sat open")
         assert told, "the user was told nothing"
     finally:
         dlg.deleteLater()
@@ -3640,18 +3652,19 @@ def test_the_pulldown_binds_with_the_numbers_the_answer_was_given_for(
                      if dlg._set_combo.itemData(i)
                      and dlg._set_combo.itemData(i) != before)
 
-        def _asked(self, r):
-            # another window tightens the set the user has just chosen, WHILE
-            # the question about it is on screen
-            store_compliance_overrides(s, {other: {"all_de00_avg": 0.20}})
-            return True
-
-        monkeypatch.setattr(type(dlg), "_confirm_recalculate", _asked)
+        # ANOTHER WINDOW TIGHTENS THE SET the user is about to choose, after
+        # this window drew the pulldown they are choosing from. It used to be
+        # driven inside `_confirm_recalculate`, and with that question gone
+        # (B8-384) the baseline is the moment the controls were drawn, which is
+        # where the user's reading of them comes from.
+        store_compliance_overrides(s, {other: {"all_de00_avg": 0.20}})
         dlg._on_set_chosen(dlg._set_combo.findData(other))
 
         assert not recalculated, (
-            "every saved report was recalculated against an override written "
-            "while the question was on screen")
+            "a saved report was recalculated against an override written "
+            "after the user was shown these controls")
+        assert run_limits(run, {}).set_id == before, (
+            "the run was bound to numbers nobody in this window ever saw")
         assert told and "Preferences" in "\n".join(told), told
     finally:
         dlg.deleteLater()

@@ -499,9 +499,28 @@ def edge_spacer_px_from_sidecar(ti2_path: "Path | None") -> int:
     recorded patch geometry, so the strip-hover frame must add them back.
 
     Read straight from the chart's own geometry so it is always accurate: the
-    channels.json recipe's ``edge_spacers`` flag says whether they exist, and
-    the engine geometry gives their height (the patch spacing ``pspa``, the same
-    value the margin inspector uses for edge spacers, #18)."""
+    engine geometry says whether the sheet has them and gives their height (the
+    patch spacing ``pspa``, the same value the margin inspector uses for edge
+    spacers, #18).
+
+    **ASK THE BUILD, NOT THE RECORD (R23-F3, and R22-F4 before it).** This read
+    `recipe["edge_spacers"]`, which is what the chart's stored recipe happens to
+    say, and for a strip reader that is not what the sheet has:
+    `LayoutRecipe.build_kwargs` forces edge spacers on for i1 / i1Pro 3+ /
+    ColorMunki, so the box cannot change those sheets and the spacers are
+    printed whatever the field says. The two doors then record opposite things
+    for the SAME sheet, Manual storing the recipe's own field (`false`) and
+    Guided the resolved build kwargs (`true`), and this function believed each
+    of them: measured by round 23 on one sheet, Manual answered **0 px** and
+    Guided **12 px**, the blank of "Show only measured patches" came out EIGHT
+    device rows shorter, and the row below it was 86.8 % dark where the other
+    was 0 %. On a black-and-white spacer chart that bar is black, which is
+    Basti's own hairline report arriving through a second door.
+
+    `workflow/margin_inspector.py` was corrected the same way and for the same
+    reason; resolving it here rather than at the recording end also reaches
+    every chart already on a user's disk, which no migration would.
+    """
     if ti2_path is None:
         return 0
     import json
@@ -511,14 +530,15 @@ def edge_spacer_px_from_sidecar(ti2_path: "Path | None") -> int:
     try:
         layout = json.loads(read_text(channels)).get("layout") or {}
         recipe = layout.get("recipe") or {}
-        if not recipe.get("edge_spacers"):
-            return 0
         from dataclasses import fields as _fields
         from workflow.layout_engine import instruments
         from workflow.layout_engine.presets import LayoutRecipe
         valid = {f.name for f in _fields(LayoutRecipe)}
         rc = LayoutRecipe(**{k: v for k, v in recipe.items() if k in valid})
-        geom = instruments.geom_from_build_kwargs(rc.build_kwargs())
+        kw = rc.build_kwargs()
+        if not kw.get("edge_spacers"):
+            return 0
+        geom = instruments.geom_from_build_kwargs(kw)
         dpi = float(layout.get("dpi") or 300) or 300.0
         return max(0, round(geom.pspa * dpi / 25.4))
     except Exception:  # noqa: BLE001 — a hover nicety must never break loading
@@ -1223,6 +1243,18 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # #126 chart-reading engine session state
         self._engine_strips: list[dict] = []      # session_start strip map
         self._engine_read: dict[str, bool] = {}   # letter → measured?
+        #: Every patch location this session has a reading for, whichever way
+        #: it arrived (B8-385). The strip map above is the ENGINE's, one entry
+        #: per strip, and the two modes that do not read strips cannot fill it:
+        #: a whole-chart read reports a chart and a spot read reports one
+        #: patch. This is what those two put their answers in, and
+        #: `_strips_fully_read` turns it back into strips for the preview.
+        #: It only ever grows within a chart, so a strip cannot flicker off.
+        self._engine_patch_read: set[str] = set()
+        #: (path, size, mtime) of the measurement `_note_measurement_on_disk`
+        #: last read its locations out of, so the ordinary path does not re-read
+        #: the file every time a view control moves.
+        self._disk_read_key: "tuple | None" = None
         # Per-page {loc: QRect} for the split-patch overlay; empty when the
         # chart exposes no per-patch geometry (then the overlay is suppressed).
         self._patch_boxes: list[dict[str, QRect]] = []
@@ -1439,6 +1471,14 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._preview.set_overlay_mode(combo.currentData())
         if only is not None:
             self._preview.set_show_only_measured(only.isChecked())
+            # **AND WHAT THE CHART'S OWN MEASUREMENT ALREADY HOLDS (B8-385).**
+            # "Show only measured patches" blanks every strip the preview has
+            # not been told is read, and outside a session nothing tells it:
+            # round 23 photographed a window reading "Progress: 100.0 %" over a
+            # wholly blank sheet, on the ordinary path of opening a project
+            # that already has a measurement.
+            if only.isChecked():
+                self._note_measurement_on_disk()
         if tile is not None:
             self._preview.set_show_patch_tile(tile.isChecked())
         aim = getattr(self, f"_{prefix}_aim_help", None)
@@ -4971,6 +5011,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._page_stripe_rects = []
         self._strips_per_page = []
         self._stripe_arrow_mode = "base"
+        # A DIFFERENT CHART MEANS DIFFERENT PATCHES (B8-385). The locations are
+        # this chart's, so carrying them across would mark strips of the new one
+        # read on the strength of the old one's reading.
+        self._engine_patch_read = set()
+        self._disk_read_key = None
         if not self._tiff_pages:
             return
 
@@ -5018,6 +5063,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._strips_per_page = counts
             self._stripe_arrow_mode = arrow_mode
             self._preview.set_stripe_rects(per_page[0], arrow_mode)
+            self._note_measurement_on_disk()
             return
 
         # PASSES_IN_STRIPS2 lives only in the .ti2, but _ti1_path can hold either
@@ -6853,7 +6899,32 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._log.ensureCursorVisible()
             return "discard"
 
-        self._cue_window("STRIP_FAIL")
+        # THIS WINDOW PLAYS NOTHING, AND THAT IS THE TABLE'S ANSWER.
+        #
+        # It used to cue "STRIP_FAIL" here, on EVERY ending: Stop, Cmd-Q, Give
+        # Up, a disconnection, a CR30 loss, the magnet warning, No Instrument
+        # Found, Confirm Abort and "Patches still unread". Two things were
+        # wrong with that and `measurement_window_sounds.md` settles both --
+        # it is binding, and its table is generated from
+        # `core.measure_windows.WINDOW_ROWS`, which is also the help card the
+        # user reads under Preferences -> Sounds.
+        #
+        #  * THE TABLE HAS NO ROW FOR "Keep what you have measured so far?".
+        #    Its own opening sentence is *"Every window a measurement can
+        #    raise, and the sound played as it opens"*, so a window sounding
+        #    off the table tells the user "Strip read failed" when no strip
+        #    failed -- and on this window nothing has failed at all, because
+        #    the user pressed Stop.
+        #  * IT PLAYED TWICE. "Patches still unread" cues STRIP_FAIL from the
+        #    top of its own slot (the table's row 8) and then arrived here two
+        #    lines later; `play_window` has no de-duplication, so the second
+        #    play restarted the same QSoundEffect and truncated the first. On
+        #    the eight routes that come here from a failure window the user
+        #    heard that window's own cue and this one back to back.
+        #
+        # Every route in reaches this window either from a window that has
+        # already cued (all of the above) or from a button the user has just
+        # pressed themselves, so nothing is left unannounced by the removal.
         n = self._manager.readings_this_session
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Icon.NoIcon)
@@ -7283,7 +7354,31 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         msg.setWordWrap(True)
         layout.addWidget(msg)
 
-        chosen = ["\r"]   # default: use anyway
+        # A DISMISSAL IS A WITHDRAWAL, SO IT IS RETRY -- NOT "USE ANYWAY".
+        #
+        # This value is what gets sent when NO button was pressed: all three
+        # buttons below set it for themselves, so the initial value is read
+        # only when the window is dismissed -- the title-bar X, the red traffic
+        # light, Escape. It used to be "\r", which is Use Anyway, so the one
+        # window whose whole job is to say THIS READING IS PROBABLY WRONG filed
+        # the suspect reading under the expected strip's name the moment the
+        # user closed it, with no confirmation and nothing in the window
+        # warning them. Measured at the far end of a real PTY: a `reject()` on
+        # this dialog put `\r` into the reader.
+        #
+        # `unified_measurement_management.md` already rules on what a dismissal
+        # means, twice, and it is not taste: *"Skipping a calibration step is a
+        # positive decision and keeps its own button. Dismissing a window is a
+        # withdrawal"*, and at M-CR30-INSTRUMENT-GONE *"`clickedButton()` is
+        # None for the red traffic light, the Windows X and Esc alike, and
+        # ending is the consequential act, so a dismissal takes the option that
+        # changes nothing"*. Here the consequential act is FILING the reading.
+        # Retry files nothing and ends nothing -- the reader re-scans the same
+        # strip, and Knut himself called Retry on these windows *"the same
+        # thing as 'Keep measuring'"* (`measurement_exit_strategy.md`, note 1).
+        # So retry is the option that changes nothing, and it is what a
+        # dismissal now sends.
+        chosen = [" "]   # a dismissal means Retry
 
         btn_row = QHBoxLayout()
         btn_row.setSpacing(8)
@@ -7357,7 +7452,31 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         msg.setWordWrap(True)
         layout.addWidget(msg)
 
-        chosen = ["\r"]
+        # A DISMISSAL IS A WITHDRAWAL, SO IT IS RETRY -- NOT "USE ANYWAY".
+        #
+        # This value is what gets sent when NO button was pressed: all three
+        # buttons below set it for themselves, so the initial value is read
+        # only when the window is dismissed -- the title-bar X, the red traffic
+        # light, Escape. It used to be "\r", which is Use Anyway, so the one
+        # window whose whole job is to say THIS READING IS PROBABLY WRONG filed
+        # the suspect reading under the expected strip's name the moment the
+        # user closed it, with no confirmation and nothing in the window
+        # warning them. Measured at the far end of a real PTY: a `reject()` on
+        # this dialog put `\r` into the reader.
+        #
+        # `unified_measurement_management.md` already rules on what a dismissal
+        # means, twice, and it is not taste: *"Skipping a calibration step is a
+        # positive decision and keeps its own button. Dismissing a window is a
+        # withdrawal"*, and at M-CR30-INSTRUMENT-GONE *"`clickedButton()` is
+        # None for the red traffic light, the Windows X and Esc alike, and
+        # ending is the consequential act, so a dismissal takes the option that
+        # changes nothing"*. Here the consequential act is FILING the reading.
+        # Retry files nothing and ends nothing -- the reader re-scans the same
+        # strip, and Knut himself called Retry on these windows *"the same
+        # thing as 'Keep measuring'"* (`measurement_exit_strategy.md`, note 1).
+        # So retry is the option that changes nothing, and it is what a
+        # dismissal now sends.
+        chosen = [" "]   # a dismissal means Retry
 
         btn_row = QHBoxLayout()
         btn_row.setSpacing(8)
@@ -12300,6 +12419,46 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             if not getattr(self, "_session_live", False):
                 QApplication.instance().removeEventFilter(self)
                 return False
+            # NO KEY PRESSED AT ONE OF OUR OWN WINDOWS REACHES THE INSTRUMENT.
+            #
+            # This filter is installed on the whole APPLICATION, so it is first
+            # in line for a key pressed at a modal window ChromIQ has put in
+            # front of the user -- and it forwarded that key to the reader and
+            # then ate it (`return True` below). Escape at "Keep what you have
+            # measured so far?" therefore wrote `\x1b` down the pipe, which on
+            # stock chartread is GIVE UP: the process returns without writing
+            # its `.ti3` (chartread.c:1654) and every reading that window was
+            # offering to save is gone. Measured through a real PTY with the
+            # reader's own file recording the byte; the window did not even
+            # close, so the natural next move was to press Escape again. Return
+            # had the mirror fault -- eaten here, so the default button could
+            # not be pressed from the keyboard at all.
+            #
+            # NINE FAILURE-WINDOW SLOTS EACH REMOVED THE FILTER BY HAND before
+            # showing their window, and the two routes every ending goes
+            # through -- `_confirm_end_of_session` and `_on_stop`, plus
+            # `confirm_quit_during_measurement` -- did not. Adding a tenth
+            # removal would leave the eleventh window to remember; and a
+            # removal has its own failure mode, which the comment above this
+            # one describes: a filter taken out and put back by hand is left
+            # behind when a window closes by a route nobody planned for.
+            #
+            # So the question asked here is not "did this slot remember" but
+            # "is the user looking at one of our windows". A modal window IS
+            # the user's attention. `return False` hands the key to that window
+            # instead of consuming it, which is what makes Return press the
+            # default button and Escape answer the dialog. Nothing has to be
+            # removed and nothing has to be put back, so a window closed by the
+            # title-bar X, by Escape, by `_close_measurement_windows()` or by
+            # the application quitting simply stops being the active modal and
+            # forwarding resumes on its own.
+            #
+            # The CR30 read-failure window is deliberately NOT modal
+            # (`_show_cr30_read_failed_window`): its remedy is to press the
+            # button on the instrument, so it must not stand between the user
+            # and that press -- and this gate leaves it alone.
+            if QApplication.instance().activeModalWidget() is not None:
+                return False
             key = event.key()
             # A SHORTCUT IS NOT AN INSTRUMENT KEY.
             #
@@ -12567,6 +12726,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # immediately re-drawn from the file, and this session's strips add to
         # it as they are read.
         self._preview.clear_patch_overlay()
+        # …AND THE PATCHES THE OVERLAY IS MADE OF (B8-385). The set is what
+        # decides which strips a whole-chart or spot read has finished, so it
+        # is cleared with the overlay and re-filled by the same repaint: the
+        # two must always describe the same picture.
+        self._engine_patch_read = set()
         self._repaint_overlay_from_disk()
         self._patch_geom_warned = False
         self._patch_missing_warned = False
@@ -12577,6 +12741,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             # (because strip-click is tested before patch-click) swallows the
             # patch click so nothing jumps.
             self._preview.set_stripe_click_enabled(False)
+            # THAT CLEARS THE READ MAP (it takes one and defaults to {}), and
+            # spot mode had nothing to put back: every strip read as unread for
+            # the whole session, so "Show only measured patches" blanked the
+            # sheet under every patch it drew (B8-385).
+            self._update_engine_read_map()
             self._m_engine_tip.setVisible(False)
             self._set_autosave_banner()
             return
@@ -12595,6 +12764,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             _pg, li, _r = self._locate_strip(s.get("strip", "A"))
             read_map[li] = bool(s.get("read"))
         self._preview.set_stripe_click_enabled(True, read_map)
+        # ONE ANSWER, from the one function that gives it: `set_stripe_click_
+        # enabled` takes a read map too, and it is built above from the session
+        # map alone. On a multi-page chart that map collides local indices
+        # across sheets, and it cannot see a patch read since.
+        self._update_engine_read_map()
         if any(not s.get("verifiable", True) for s in strips):
             self._log.appendPlainText(
                 tr("[Engine] Note: some rows of this chart are too similar "
@@ -12627,6 +12801,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         idx = max(0, min(int(page), len(rects) - 1))
         self._preview.set_stripe_rects(rects[idx],
                                        getattr(self, "_stripe_arrow_mode", "base"))
+        # AND THE READ MAP WITH THEM (B8-385): it is keyed by the local index
+        # on the sheet, so it means something different on every page, and
+        # "Show only measured patches" paints from it.
+        self._update_engine_read_map(idx)
 
     def _on_preview_strip_clicked(self, page: int, local_idx: int) -> None:
         if not self._manager.engine_active:
@@ -13313,6 +13491,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # re-reading a patch refreshes it rather than stacking).
         self._preview.set_patch_overlay(page, [item])
         self._preview.set_patch_info(page, [info])
+        # …and the strip this patch belongs to is read once all of it is
+        # (B8-385). Patch by patch is the mode that shows this best: the strip
+        # stops being blanked at the moment its last patch is reported, and
+        # never before, so nothing flickers on and off as the reader moves.
+        self._note_patches_read([loc])
 
     def _on_chart_reading(self) -> None:
         """XY/chart mode (engine opt-in): an autonomous whole-chart read began."""
@@ -13330,11 +13513,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         warn_de = float(self._settings.get("patch_read_warn_de", _PATCH_WARN_DE))
         items: dict[int, list] = {}
         infos: dict[int, list] = {}
+        placed: list = []
         for p in patches:
             loc = str(p.get("loc", ""))
             page, box = self._locate_patch(loc)
             if page < 0 or box is None:
                 continue
+            placed.append(loc)
             de_p = float(p.get("de", 0))
             exyz = p.get("exyz", [0, 0, 0])
             mxyz = p.get("xyz", [0, 0, 0])
@@ -13353,6 +13538,11 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         for page, its in items.items():
             self._preview.set_patch_overlay(page, its)
             self._preview.set_patch_info(page, infos[page])
+        # WHAT THIS MODE HAS READ, in the only terms the preview understands
+        # (B8-385). Only the patches that found a box are counted, which is the
+        # same set the loop above drew and the same set `_letters_fully_read`
+        # measures against.
+        self._note_patches_read(placed)
 
     def _read_builds_on_existing(self) -> bool:
         """True when this read ADDS to the measurement already on disk.
@@ -14143,11 +14333,139 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         self._log.appendPlainText(
             tr("[Engine] Jumping to patch {loc}…").format(loc=loc))
 
-    def _update_engine_read_map(self) -> None:
+    @staticmethod
+    def _strip_of(loc: str) -> str:
+        """The strip letter of a patch location: "A12" -> "A", "AB3" -> "AB"."""
+        return "".join(c for c in str(loc) if c.isalpha()).upper()
+
+    def _note_patches_read(self, locs) -> None:
+        """Record that these patch locations now have a reading, and tell the
+        preview which strips that finishes (B8-385).
+
+        **THE READ MAP IS PER STRIP AND THESE TWO MODES DO NOT READ STRIPS.**
+        A whole-chart read (the engine's XY and CHART modes) reports a chart at
+        once and a spot read reports one patch at a time, so neither could ever
+        reach `_update_engine_read_map`, which is the only thing that tells the
+        preview what has been read. With "Show only measured patches" on, the
+        blank therefore covered every strip for the whole measurement: in chart
+        mode nothing at all appeared until the read ended, and in spot mode
+        every patch that did appear sat on blanked ground on all four sides,
+        which is why B8-371's hairline bit so hard.
+
+        **WHEN A STRIP COUNTS AS READ**, and it is the same rule in both modes:
+        when the chart's own geometry has a box for every one of its patches
+        and each of those has been reported. That is the same thing strip mode
+        means by "read" (the strip was swiped end to end), it needs no count
+        from the engine, and it cannot flicker: this set only grows while a
+        chart is loaded, so a strip that has earned the mark keeps it until the
+        chart or the session changes.
+
+        A patch the chart has no geometry for is not counted, so a strip whose
+        locations the sidecar does not know simply never completes, and the
+        preview goes on showing exactly what it shows today.
+        """
+        got = self._engine_patch_read
+        before = len(got)
+        for loc in locs:
+            if loc:
+                got.add(str(loc))
+        if len(got) != before:
+            self._update_engine_read_map()
+
+    def _note_measurement_on_disk(self) -> None:
+        """Record every patch the chart's own measurement already holds.
+
+        **THE DEFAULT PATH, AND IT IS THE ONE A USER MEETS (B8-385).** The read
+        map is a session thing: `_on_session_map` fills it when a measurement
+        starts. Open a project that already HAS a measurement, tick "Show only
+        measured patches", and nothing has ever told the preview that anything
+        was read, so the blank covers the whole sheet. Round 23 photographed
+        exactly that, with the window reading *"Progress: 100.0 %"* above it.
+
+        The split overlay is not the answer, and cannot be: it is drawn only
+        when "Expected & measured" is switched on, and this must be true
+        whether it is or not. So the measurement is read for its patch
+        LOCATIONS here, and nothing is drawn.
+
+        Cheap to call: the answer is cached on the measurement's own path,
+        size and modification time, and re-read when the set has been cleared
+        (a new chart, or a session starting).
+        """
+        if not any(self._patch_boxes) or self._ti1_path is None:
+            return
+        try:
+            ti3 = self._existing_ti3_for_chart()
+            if ti3 is None:
+                return
+            st = Path(ti3).stat()
+            key = (str(ti3), st.st_size, st.st_mtime_ns)
+            if key == getattr(self, "_disk_read_key", None) \
+                    and self._engine_patch_read:
+                return
+            self._disk_read_key = key
+            from workflow.measurement_report import per_patch_overlay
+            patches = per_patch_overlay(ti3, self._chart_file_for(self._ti1_path))
+        except Exception:      # noqa: BLE001 — a preview is never worth a crash
+            log.debug("could not read the measurement for the read map",
+                      exc_info=True)
+            return
+        self._note_patches_read(str(p.get("loc", "")) for p in patches)
+
+    def _letters_fully_read(self) -> set:
+        """The strips every patch of which has been reported this session."""
+        got = self._engine_patch_read
+        if not got:
+            return set()
+        need: "dict[str, int]" = {}
+        have: "dict[str, int]" = {}
+        for boxes in self._patch_boxes:
+            for loc in boxes:
+                letter = self._strip_of(loc)
+                if not letter:
+                    continue
+                need[letter] = need.get(letter, 0) + 1
+                if loc in got:
+                    have[letter] = have.get(letter, 0) + 1
+        return {s for s, n in need.items() if n and have.get(s, 0) >= n}
+
+    def _strip_letters(self) -> list:
+        """Every strip this chart has, from the engine's map or the geometry.
+
+        THE GEOMETRY AS WELL AS THE SESSION, because a chart can be on screen
+        with no session at all: opening a project paints the overlay from the
+        measurement already on disk (`_show_overlay_from_existing_ti3`), and
+        `_engine_strips` is empty there. Without this, a reopened project with
+        "Show only measured patches" on blanked a sheet whose every patch had
+        been measured.
+        """
+        letters = {self._strip_of(s.get("strip", ""))
+                   for s in self._engine_strips}
+        letters |= {self._strip_of(loc)
+                    for boxes in self._patch_boxes for loc in boxes}
+        return sorted(l for l in letters if l)
+
+    def _update_engine_read_map(self, page: "int | None" = None) -> None:
+        """Tell the preview which strips OF THE PAGE IT IS SHOWING are read.
+
+        **THE PAGE, AND IT USED TO BE EVERY PAGE AT ONCE.** The map is keyed by
+        the strip's LOCAL index on its sheet, which `TiffPreview` matches
+        against the rects of the one page it is drawing, so a three-page chart
+        wrote strip A, strip H and strip O into key 0 and the last one won.
+        Nothing showed while every value was False; the moment a whole-chart or
+        spot read starts filling them in, reading strip A on sheet 1 would have
+        un-blanked strip H on sheet 2.
+        """
+        page = self._preview.current_page() if page is None else int(page)
+        done = self._letters_fully_read()
+        # NORMALISED, because the engine's keys are whatever the session map
+        # and `strip_measured` called the strip and these are the chart's own.
+        eng = {self._strip_of(k): v for k, v in self._engine_read.items()}
         read_map = {}
-        for s in self._engine_strips:
-            _pg, li, _r = self._locate_strip(s.get("strip", "A"))
-            read_map[li] = self._engine_read.get(s.get("strip", ""), False)
+        for letter in self._strip_letters():
+            pg, li, _r = self._locate_strip(letter)
+            if pg != page:
+                continue
+            read_map[li] = bool(eng.get(letter, False) or letter in done)
         self._preview.set_stripe_read_map(read_map)
 
     def _reveal_chart_folder(self) -> None:

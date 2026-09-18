@@ -95,7 +95,8 @@ whether the handler works.**
 | **Wrong Strip Read** | Use Anyway | `\r` | keep the reading as the expected strip | ✅ not an exit |
 | | Retry | `space` → `{"cmd":"retry"}` | discard and re-scan | ✅ not an exit |
 | | Give Up | `GIVE_UP_PENDING` | as above | ✅ |
-| **Unexpected Response** | Use Anyway / Retry / Give Up | as Wrong Strip Read | | ✅ |
+| | *dismissed — the X, Esc* | `space` → Retry | a dismissal is a withdrawal, so it takes the option that changes nothing — **note 8b**; it used to send `\r`, which files the reading the window has just called wrong | ✅ not an exit |
+| **Unexpected Response** | Use Anyway / Retry / Give Up / *dismissed* | as Wrong Strip Read | | ✅ |
 | **Strip Read Interrupted** | Continue / Give Up | `\r`, `GIVE_UP_PENDING` | | ✅ |
 | **Place the sheet** (XY mode) | Continue / Give Up | `\r`, `GIVE_UP_PENDING` | | ✅ |
 | **Patch Read Failed** | Retry | `retry` | | ✅ not an exit |
@@ -265,3 +266,76 @@ instrument-fault sound still plays first, because the window blocks.
 here for that reason: an i1Pro user who unplugs mid-measurement is now offered
 Save / Discard / Keep instead of losing the session outright. It is reported as
 a change rather than assumed to be wanted.
+
+## Note 8 — what a keystroke at one of OUR windows does, and what the title-bar X means
+
+⏳ **Awaiting confirmation.** **Confirmed by:** *nobody yet.*
+
+Both halves were found by driving the real Start button with a real
+`ArgyllRunner` and reading what arrived at the far end of the pipe (round 23,
+2026-09-18). Neither was a row in this document, and the tables above list
+buttons only, so both are added here.
+
+### 8a · No key pressed at a window ChromIQ raises reaches the instrument
+
+`TabMeasure` installs an **application-wide** event filter while a session is
+live, so it is first in line for every keystroke — including one pressed at a
+modal window ChromIQ has put in front of the user. It forwarded that key to the
+reader and then consumed it.
+
+Measured: with *"Keep what you have measured so far?"* on screen, Escape put
+`\x1b` down a real PTY, the runner logged `send_key ESC -> pty OK`, the
+reader's own file recorded the byte and the window stayed up. On stock
+chartread `\x1b` at a prompt is **give up**, and the `.ti3` is then never
+written — so the key the user pressed to dismiss a window offering to save
+their work had already thrown it away. Return was consumed too, so the default
+button could not be pressed from the keyboard at all.
+
+Nine failure-window slots each removed the filter by hand before showing their
+window; `_on_stop`, `_confirm_end_of_session` and
+`confirm_quit_during_measurement` did not, and a tenth removal would only leave
+the eleventh window to remember. **The filter now asks whether a modal window
+is up** (`QApplication.activeModalWidget()`) and, if one is, leaves the key to
+that window. Nothing is removed and nothing is put back, so a window closed by
+any route — a button, Escape, the title-bar X, `_close_measurement_windows()`,
+the application quitting — simply stops being the active modal and forwarding
+resumes on its own.
+
+The **CR30 read-failure window is deliberately modeless** and is deliberately
+left alone by this: its remedy is to press the button on the instrument, so it
+must not stand between the user and that press.
+
+### 8b · A dismissal is a withdrawal, and on these two windows it was the opposite
+
+`unified_measurement_management.md` already rules on what dismissing a window
+means, in two places and on three windows: *"Skipping a calibration step is a
+positive decision and keeps its own button. Dismissing a window is a
+withdrawal"*, and at M-CR30-INSTRUMENT-GONE *"`clickedButton()` is None for the
+red traffic light, the Windows X and Esc alike, and ending is the consequential
+act, so a dismissal takes the option that changes nothing"*.
+
+**Wrong Strip Read** and **Unexpected Colour Response** did the opposite.
+Measured at the far end of the pipe: dismissing either with its own close button
+sent `\r`, which is **Use Anyway** — so the two windows whose whole job is to
+say *this reading is probably wrong* filed the suspect reading under the
+expected strip's name, with no confirmation and nothing in the window warning
+anybody.
+
+Applying the rule above: the consequential act on these windows is **filing the
+reading**. Retry files nothing and ends nothing (Knut, note 1: Retry here *"is
+the same thing as 'Keep measuring'"*), and Give Up ends the session. So a
+dismissal is **Retry**, and that is what it now sends.
+
+| Window | Dismissed with the X / Escape | Why |
+|---|---|---|
+| **Wrong Strip Read** | `space` → Retry | filing the reading is the consequential act |
+| **Unexpected Response** | `space` → Retry | same |
+| **Strip Read Interrupted** | `\r` → Resume — **unchanged** | Resume files nothing and ends nothing; it was already the option that changes nothing |
+| **Patch/Strip Read Failed** | `retry` — **unchanged** | already correct |
+| **Instrument Error** | `\r` → Retry — **unchanged** | already correct |
+| **Abort?** | `n` — **unchanged** | already correct |
+
+Nothing was changed on the four windows that were already right, and no window
+text was touched: the wording of these windows is §M's and says nothing about
+closing them. **Whether the windows should SAY what closing them does is a §M
+question and is not decided here.**

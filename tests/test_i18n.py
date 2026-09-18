@@ -979,17 +979,17 @@ _IDENTICAL_TO_KEY = {
     # not fourteen: eight of the fourteen were already in those catalogues from
     # elsewhere, and `i18n_sync` also retired eight stale keys.
     "de": 143,
-    "es": 389,
-    "fr": 411,
-    "it": 400,
-    "ja": 375,
-    "nl": 416,
-    "no": 401,
-    "pl": 393,
-    "pt": 391,
-    "ru": 364,
-    "sv": 402,
-    "zh_CN": 369,
+    "es": 390,
+    "fr": 412,
+    "it": 401,
+    "ja": 376,
+    "nl": 417,
+    "no": 402,
+    "pl": 394,
+    "pt": 392,
+    "ru": 365,
+    "sv": 403,
+    "zh_CN": 370,
 }
 
 

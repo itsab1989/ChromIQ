@@ -635,14 +635,23 @@ def test_a_generated_document_is_never_recalculated(tmp_path, qapp):
     record false and its own name a lie. That is the photograph in B8-384: an
     entry reading "ChromIQ tight" over a page still reading "ChromIQ default".
 
-    **THIS IS NOT THE WHOLE OF B8-384**, and the second half of this test says
-    so: a report saved by an earlier ChromIQ carries no document block and IS
-    still rewritten, exactly as it is today.
+    **THROUGH THE UNLOCK DOOR, WHICH IS WHERE A RECALCULATION STILL HAPPENS.**
+    When this was written the "Judged against" pulldown recalculated too, and
+    this test drove it there; that half of B8-384 is finished and the pulldown
+    now rewrites nothing at all, which
+    `tests/test_a_saved_report_is_not_rewritten_by_a_set_change.py` is the
+    guard for. Two doors still recalculate (B8-310) and this is the guard that
+    a document survives them.
+
+    The second half is what stops it passing by accident: the legacy report,
+    which carries no document block, IS rewritten on this door, so the run
+    really was recalculated.
 
     MUTATION: drop the `recorded_document` guard from `_recalculate_run` and
     this goes red.
     """
     s, _fm, run, vs = _messy_project(tmp_path, dates=1)
+    s.set("compliance_allow_edit_after_measurement", True)
     dlg = _dialog(s, vs[0].measurement_ti3, qapp)
     dlg._confirm = lambda t, b: True
     try:
@@ -654,10 +663,9 @@ def test_a_generated_document_is_never_recalculated(tmp_path, qapp):
         was = Path(written[0]).read_bytes()
         legacy = sorted(before)
         legacy_was = {p: Path(p).read_bytes() for p in legacy}
-        # the app's own door: choose another limit set in the pulldown
-        i = dlg._set_combo.findData("chromiq_tight")
-        assert i >= 0
-        dlg._set_combo.setCurrentIndex(i)
+        # the app's own door: tick "Unlock this run's limits", which
+        # recalculates the run exactly as §5 says it does
+        dlg._unlock_check.setChecked(True)
         qapp.processEvents()
         assert Path(written[0]).read_bytes() == was, (
             "the generated document was recalculated")

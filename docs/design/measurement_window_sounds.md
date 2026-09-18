@@ -74,6 +74,49 @@ fault was positioning sends them the wrong way.
 | Light level is too low / too high | The instrument or the sheet, not speed | Strip read failed |
 | Reading is inconsistent | Uneven rather than simply quick — blaming speed could send you the wrong way | Strip read failed |
 
+## 3a. The ending window is NOT here, on purpose, and one window is MISSING
+
+⏳ **Awaiting confirmation.** **Confirmed by:** *nobody yet.*
+
+**MISSING, and not fixed here.** `TabMeasure._show_cr30_read_failed_window`
+("That reading did not come through") is a measurement window with **no row and
+no sound**, measured on screen 2026-09-18. It is the one window in the app built
+*because* a failure was going unnoticed: the owner, 2026-08-30, *"a message like
+this would be better in a pop up so the user is aware of it instead of ruining a
+whole measurement session when this is unnoticed"*. A CR30 session is spent
+looking at the sheet and the instrument, so a silent window is that same failure
+in a new shape.
+
+The fix is one row in `core/measure_windows.py` plus one `_cue_window` call, and
+it was built and driven (the window sounded once per patch, and stayed silent on
+the suppressed second refusal of the same patch, keeping rule W-2). It was then
+**withdrawn**, because the row is a new user-facing string and translating it
+into thirteen languages was not something that round could finish; an untranslated
+row would have raised every language's ledger by one. The nearest existing row is
+2, *Patch read failed → Strip read failed*, and a CR30 chart is read patch by
+patch, so that is the likely value — **but which sound it plays is Knut's to
+name**, and that is the open question here.
+
+**The window that is NOT here, on purpose.** *"Keep what you have measured so
+far?"* (M-END) has no row, and it plays nothing. Until 2026-09-18 it cued
+*Strip read failed* on **every** ending: Stop, Cmd-Q, Give Up, a disconnection,
+a CR30 loss, the magnet warning, No Instrument Found, Confirm Abort and
+*"Patches still unread"*. Two things were wrong with that.
+
+* It said *Strip read failed* when no strip had failed. On the Stop and Cmd-Q
+  routes nothing has failed at all: the user pressed a button.
+* It played the row-8 sound **twice**. *"Patches still unread"* cues
+  *Strip read failed* from the top of its own slot and then reaches M-END two
+  lines later; `play_window` has no de-duplication (`core/sound.py`), so the
+  second play restarts the same `QSoundEffect` and truncates the first. On the
+  eight routes that arrive from a failure window, that window's own cue and
+  M-END's played back to back.
+
+Every route into M-END comes either from a window that has already sounded or
+from a button the user has just pressed, so the removal leaves nothing
+unannounced. **If a sound of its own is wanted for the ending window, that is a
+new row here and Knut's to name.**
+
 ## 4. The rules these tables imply
 
 **W-1 · The sound plays as the window opens, not after it closes.** `_cue_window`

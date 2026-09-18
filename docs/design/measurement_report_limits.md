@@ -349,6 +349,55 @@ no verdict cannot tell whether something is wrong.
 > and N.2 is about a report being VIEWED. Registered as **B8-352**, with
 > B8-310 naming two of the doors that recalculate today.
 
+> ### ⏳ BUILT 2026-09-18 FOR ONE OF THE THREE DOORS: "Judged against" now recalculates nothing
+>
+> **Ruled by:** Knut, 2026-09-18, on issue #182.
+> **Confirmed by:** *nobody yet.* This records what the code now does, so that
+> the next reader is not left with a section that describes the opposite.
+>
+> Asked directly whether his ruling supersedes **D23**, he answered
+> *"Agreed. D23 stands."*, and on Generate, *"It is better that existing
+> reports are not overwritten. A user could instead select and delete old
+> reports they do not want."*
+>
+> **The two are read as one rule, and this is the reading that was built.** D23,
+> as the last bullet of this section states it, is about HOW a recalculation is
+> done: *"first copies each dated report whose content has no copy yet into
+> `reports/old/<timestamp>/`, then rewrites the file in place … nothing is
+> deleted"*. Whether one happens at all is decided by his beta-20 ruling and by
+> N.2 above. So the "Judged against" pulldown now:
+>
+> * **rewrites no saved report, of any shape**, and therefore archives none:
+>   nothing is kept first because nothing changes. Driven on screen before and
+>   after, on a project holding reports of four shapes, the count went from
+>   **3 of 8 files rewritten** to **0 of 8**, with no entry in the list renamed
+>   and no copy left in `reports/old`;
+> * **asks nothing**, because the question it used to ask promised exactly that
+>   recalculation;
+> * **still binds the run** to the chosen set, which is the yardstick for the
+>   dated verifications still to come and for any measurement carrying no
+>   verdict of its own;
+> * and leaves the red "the settings have changed, press Generate report" line
+>   as the whole of what happens on screen, which is N.2's second half.
+>
+> **A report that records no limit set of its own is the case that decides the
+> reading.** A rewrite is the only thing that can stamp a set ONTO such a file,
+> and the list names an entry from what its file records, so the rewrite is
+> what made two of Knut's entries claim "ChromIQ tight" over a press nobody
+> made. Archiving a copy first would have kept the old bytes and still left the
+> live file lying about itself.
+>
+> **THE OTHER TWO DOORS ARE UNCHANGED**: unlocking a run's limits, and saving a
+> change in the Report limits window, still recalculate the run's dated reports
+> and still archive each first. Whether N.3 (*"Unlocking a run's limits and
+> saving a change in the Edit limits window must result in the same
+> behaviour"*) reaches them is an open question for Knut, registered as
+> **B8-310**, and nothing here assumes an answer.
+>
+> Registered as **B8-384**. The last bullet of this section still describes all
+> three doors recalculating; it is left as the record of what was agreed, with
+> this block saying which of it is still true of the code.
+
 
 
 > **REVISED 2026-09-10 on Knut's report, and it moved for two reasons.** This
@@ -373,9 +422,11 @@ no verdict cannot tell whether something is wrong.
 >
 > **So: the limits lock once a SECOND dated verification of the run has been
 > measured, and only on a run that is bound.** Below that, the set may be chosen
-> in the report window; choosing one re-binds the run and recalculates that
-> date's saved reports, archiving them first, exactly as the unlock path does.
-> The unlock gate itself is unchanged.
+> in the report window; choosing one re-binds the run. (It also recalculated
+> that date's saved reports, archiving them first, exactly as the unlock path
+> does. **That half is superseded** by Knut's ruling of 2026-09-18 and is no
+> longer what the code does: see the "BUILT 2026-09-18" block at the head of
+> this section.) The unlock gate itself is unchanged.
 >
 > Still to be confirmed by a human: whether the lock protects comparability
 > across DATES, which is what this assumes, or fixes the yardstick the moment any
@@ -929,7 +980,7 @@ these are his words; what the app now does with them is not confirmed.
 | # | His ruling |
 |---|---|
 | K.1 | **Nothing is ever overwritten, and there is no update-or-create question.** *"It is better that existing reports are not overwritten. A user could instead select and delete old reports they do not want."* So Generate report always writes a NEW report and the user prunes the list with Delete Selected Report. The question L.5 describes is **withdrawn**: it was in §M-PROPOSED of `unified_measurement_management.md`, never had an `M-` id, and nothing in the code referred to it. L.5 and L.6 stand only as far as the naming rule goes. |
-| K.2 | **D23 stands.** Asked whether the archive-then-recalculate rule still held after his beta-20 report, he answered *"Agreed. D23 stands."* Changing "Judged against" must not rewrite, relabel or touch a saved report on disk. |
+| K.2 | **D23 stands.** Asked whether the archive-then-recalculate rule still held after his beta-20 report, he answered *"Agreed. D23 stands."* Changing "Judged against" must not rewrite, relabel or touch a saved report on disk. **BUILT 2026-09-18** for that one door, including for reports written by an earlier ChromIQ: see the "BUILT 2026-09-18" block in §5 for the reading of D23 that was taken and why, and B8-384 for the before-and-after measurement. |
 | K.3 | **A pulldown is acceptable.** *"It is ok that 'Current Report Showing' is a pulldown list if that saves space in the window."* So L.1's 3-to-4-row scrolling box is not built; what survives of it is the NAME an entry carries, which matters more when one row is visible at a time. |
 | K.4 | **One report is one line, whatever it spans.** *"If I make a report that has all dated verifications included, and this report outputs a text representing all of those measurements, that is still only ONE report listed in the pulldown."* |
 | K.5 | **The per-dated-verification records count too.** *"If the list of reports in 'Current Report Showing' have one report per dated verification (by default created during measurement), then each of those reports, when selecting one, should load and show with its report text in the window. And each of those will automatically have the settings updated to what was used when generating those reports (Correct report type, correct Judge Against used, 'Show all measurement runs' OFF (since it is only one date), etc.)"* |
