@@ -15055,9 +15055,38 @@ both chart shapes.
   door that recalculates today (B8-310 lists two of them) and measure what each
   does now.
 
-### B8-353 · OPEN · "Margins are law" and the sheets do not agree, and Knut has been asked which is wrong
+### B8-353 · FIXED · "Margins are law" and the sheets DO agree; the misreading was mine
 - blocks release: no
-- status: OPEN
+- status: FIXED
+- evidence: `test_only_a_spectroscan_or_a_cr30_claims_the_edge_of_the_sheet`
+  and `test_every_margin_is_at_least_what_was_asked` already encode the rule
+  Knut confirmed: a margin is never below the number typed, and the two things
+  that can raise it are named. Nothing in the layout was changed, because
+  nothing in it was wrong; what was wrong was my reading of his rule, and the
+  entry is kept so the next round does not re-open it.
+- **Knut answered on 2026-09-18 and there is no discrepancy.** His rule, in his
+  own words, is that the chart area is fitted to the margins and *"they keep
+  the margins above the specified number and do not go below"*. Measured across
+  all 540 sheets, every side, both layout modes, three papers and five
+  instruments: **the largest amount by which any measured margin falls below
+  the number asked is 0.037 mm**, which is less than half a pixel at 300 dpi.
+  So a SpectroScan's 8.47 mm left edge when 5 mm is asked is ABOVE the number,
+  which is the rule working and not failing, and an i1Pro's top of 6.01 is the
+  same thing down the page. Nothing in the layout needs correcting and the help
+  text needs no change of substance: "the number you type is a minimum that two
+  things can raise" IS his rule. He has been offered his own phrasing instead.
+- **And I was wrong about "Use instrument margins".** There is an internal flag
+  of that name in the layout engine and I toggled THAT with the margin boxes
+  held fixed, which is the one arrangement that could not show a difference,
+  because the feature's whole effect is to change those boxes: with it on, the
+  Preferences values for the instrument and paper are copied into Page
+  geometry and the layout treats them as law like any others. The feature is
+  not broken. Withdrawn on the issue.
+- **One number is still open and is now B8-357**: his preview panel reads 5.6
+  and 5.5 for an i1Pro A4 at 5 mm where the recorded patch boxes give 6.01 and
+  6.42, consistently about 0.4 mm apart.
+- (the measurements that were here are kept below, because they are the
+  evidence for the rule rather than against it)
 - Knut, 2026-09-18: *"for 'Prioritise chart area...' the rule is still that the
   margins are law ... the margins chosen is accurately abided by, either the
   margins are set via pre-defined instrument margins, or set manually."*
@@ -15241,3 +15270,19 @@ why the guards kept needing a row hidden to see anything. It resolves now.
   did".
 - evidence: none yet, deliberately. Nothing has been changed.
 - what to do first: ask Basti, since the preset dropdown and its undo were his.
+
+### B8-357 · OPEN · The preview panel and the chart's own boxes differ by about 0.4 mm
+- blocks release: no
+- status: OPEN
+- Knut, 2026-09-18, reading the "Measured from Preview" panel on an i1Pro A4
+  sheet: top 5.6 and bottom 5.5 for 5 mm asked, 20.6 and 20.6 for 20 mm. The
+  same sheets measured from the chart's own recorded patch boxes give 6.01 and
+  6.42, and 21.00 and 21.41. The gap is consistent, about 0.4 mm, so the two
+  are measuring to different edges rather than disagreeing about the sheet.
+- It matters because the panel is what a user checks a margin against, and it
+  should agree with the ink.
+- evidence: none yet. Nothing has been changed.
+- what to do first: find which edge each one measures to. The panel's reading
+  comes from the preview; the boxes come from `strips.json`. One of them
+  probably counts the patch's own ink and the other its cell, which on an i1Pro
+  chart would be about the right size of difference.
