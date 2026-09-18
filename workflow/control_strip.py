@@ -92,6 +92,23 @@ WHAT IT NEVER DOES
 ------------------
 * It does not touch a chart that already declares a strip, by sidecar or by
   keyword. A declaration the user or another tool wrote outranks this one.
+
+  **AND ON THE CREATE CHART PATH THAT SENTENCE CANNOT APPLY (R25-F2), WHICH IS
+  WORTH SAYING RATHER THAN LEAVING TO BE DISCOVERED.** `_on_generate_finished`
+  calls `adopt_run_chart_as_verify()` first, and that ARCHIVES everything at
+  the `verifications/` root into `verifications/old/<date>/` before the new
+  chart lands, so the chart handed here is always fresh and the branch above
+  can only ever fire at the import door (`chart_import.import_external_chart`,
+  Open chart file). Round 25 read that as ChromIQ silently replacing a
+  hand-written declaration; it is not, because nothing is deleted: the old
+  chart and the declaration that described it are archived together, which is
+  the rule the whole of `_clear_verify_chart_files` exists to keep.
+
+  What is genuinely undecided is whether a declaration should FOLLOW a user
+  across a regenerate, when the chart it described has been archived and a
+  different chart now stands in its place. That is a rule about what a
+  declaration belongs to, so it is Knut's, and it is asked on the issue rather
+  than answered here.
 * It does not write beside a profiling chart. Knut scoped this to the
   verification chart, and a profiling sheet carries no verdict at all.
 * It does not rewrite anything on a user's disk. The sidecar is written beside
