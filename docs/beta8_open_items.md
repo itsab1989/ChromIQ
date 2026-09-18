@@ -10179,7 +10179,7 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   keeping their names (1 red, and the guard was strengthened after it slipped
   the first version), the search started at the old default (3 red).
 
-### B8-239 · ANSWERED · Is "T" meant to do nothing to the strip labels in "Prioritise patch size"?
+### B8-239 · SUPERSEDED · Is "T" meant to do nothing to the strip labels in "Prioritise patch size"?
 - blocks release: no
 - status: SUPERSEDED
 - superseded by: B8-270
@@ -10215,7 +10215,7 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   area’? Or is it correct that only the top margin and ‘Label offset’ move them
   there, in which case ‘T’’s help text should say so?"**
 
-### B8-240 · ANSWERED · What should the bottom notice name, now that the rise search is retired?
+### B8-240 · SUPERSEDED · What should the bottom notice name, now that the rise search is retired?
 - blocks release: no
 - status: SUPERSEDED
 - superseded by: B8-271
@@ -10326,7 +10326,7 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 
 ---
 
-### B8-242 · ANSWERED · The new top notice fires on a honeycomb with clear paper under every letter
+### B8-242 · SUPERSEDED · The new top notice fires on a honeycomb with clear paper under every letter
 - blocks release: no
 - status: SUPERSEDED
 - superseded by: B8-272
@@ -13464,7 +13464,7 @@ on a face whose italic is a real second face, and both are asserted.
   block and each goes red on its own mutation (a bare `copystat` back, and no
   `copystat` at all).
 
-### B8-313 · OPEN · The split's boundary sliver reads its "spacer" colour from inside the neighbouring patch
+### B8-313 · FIXED · The split's boundary sliver reads its "spacer" colour from inside the neighbouring patch
 - blocks release: no
 - status: FIXED
 - evidence: `test_the_sliver_never_reads_its_spacer_colour_out_of_a_patch`
@@ -13498,7 +13498,7 @@ on a face whose italic is a real second face, and both are asserted.
   is eating about a fifth of the ring where it is drawn.
 - **INTRODUCED by this change set** (`cd7f0c4d`).
 
-### B8-314 · OPEN · The sliver decides with banker's rounding, which `_dsnap` documents as wrong
+### B8-314 · FIXED · The sliver decides with banker's rounding, which `_dsnap` documents as wrong
 - blocks release: no
 - status: FIXED
 - evidence: `test_the_sliver_rounds_the_way_dsnap_does`
@@ -13525,7 +13525,7 @@ on a face whose italic is a real second face, and both are asserted.
   window sizes, none of which lands on the phase.
 - **INTRODUCED by this change set.**
 
-### B8-315 · OPEN · The guard written for the sliver cannot see the sliver
+### B8-315 · FIXED · The guard written for the sliver cannot see the sliver
 - blocks release: no
 - **AND IT IS WHY B8-313 AND B8-314 SHIPPED GREEN.**
 - status: FIXED
