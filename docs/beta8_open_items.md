@@ -14433,3 +14433,33 @@ written for it in the suite passed its own mutation.
   the band off) and the phrase list in
   `test_neither_help_text_promises_an_exact_margin`, which now refuses the
   sentence that was false.
+
+### B8-346 · OPEN · Round 12's findings, recorded from its logs before the machine went to standby
+- blocks release: yes
+- status: OPEN
+- **This entry was written from round 12's own logs while the round was still
+  running**, so that nothing it had measured could be lost. Its README, when it
+  lands in `~/Desktop/ChromIQ-beta21-proof/round-12-on-round-11/`, is the
+  authority; this is the floor.
+- **The strip letters are still being eaten on some charts.** `logs/blank-rest.txt`,
+  the SHIPPED build (B8-339's `ceil` in place): "letters kept **96.68 %**" and
+  "**94.89 %**" at 1500x1020 on the charts that run recorded, against 100.0 %
+  on the A-folder chart. So the clamp binds on one chart and not on another,
+  and the cause of the remainder is not the rounding.
+- **The greyed promise is still out where the FILL row is on.**
+  `logs/RESULT-add-promises.txt`: `nearneutral with whiteblack` promised 96 and
+  the chart grew by 95; `whiteblack with fill` promised 2 and the chart grew by
+  **0**, because the fill target pins the total and the two rows cannot both
+  have their difference. The fill row's own promise reads `None`.
+- **The report's "covers N of the M" can still count a stranger's file.**
+  `logs/report2-driver.txt`: *"This report covers 2 of the 3 measurements
+  recorded for this project"* where the project records 2 and the third file
+  belongs to no project at all. `logs/report-driver.txt` has the other half:
+  with a stranger's file and one row unticked, the document says NOTHING.
+- **The ColorMunki's own margin claim is 33.9 mm, not the 26 measured earlier.**
+  `logs/help-driver.txt`, band OFF, 5 mm asked, from the panel's own "Measured
+  from Preview". The help text now names the SpectroScan's 30 mm; the number
+  for a ColorMunki depends on the sheet and the text does not claim one, but
+  the two measurements should be reconciled before anyone quotes either.
+- what to do first: re-measure the letters on the two charts that differ, since
+  that is the one a user sees.
