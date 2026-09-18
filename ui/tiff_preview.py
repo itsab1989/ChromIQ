@@ -3183,7 +3183,7 @@ class TiffPreview(QWidget):
                         # against 316 with this growth in place.
                         _reg = _reg.united(
                             QRegion(_pts(b, -(_ring + _FILL_SLACK))))
-                                        # MINUS ANY READ NEIGHBOUR, and that is not optional.
+                    # MINUS ANY READ NEIGHBOUR, and that is not optional.
                     # Reaching the apex without this ate the read column
                     # (B8-306), the fault Basti rejected on sight (*"the
                     # colorful patches go down in a straight line although they
@@ -3262,7 +3262,7 @@ class TiffPreview(QWidget):
                         # letters.
                         _lo = float(rects[i].top()) * sy + oy
                         _yi = _m3.ceil(_lo * _dpr) / _dpr
-                        # ...and the ink line carries TWO DEVICE ROWS of
+                        # ...and the ink line carries ONE DEVICE ROW of
                         # fringe, not the fill's own `_FILL_SLACK`. The page is
                         # smooth-scaled, so its colour reaches about a device
                         # pixel past the geometry; `_FILL_SLACK` is three WIDGET
@@ -3284,7 +3284,7 @@ class TiffPreview(QWidget):
                         # against it.
                         _ink_i = self._patch_ink_top_px.get(self._current)
                         _hi = (float(_ink_i) * sy + oy - 1.0 / _dpr
-                               if _ink_i else None)
+                               if _ink_i is not None else None)
                         if _hi is not None and _yi > _hi:
                             _yi = _m3.floor(_hi * _dpr) / _dpr
                         if float(_rb2.top()) < _yi:

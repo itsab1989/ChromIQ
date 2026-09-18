@@ -133,16 +133,28 @@ def test_both_help_texts_say_what_raises_a_margin():
     for where, text in _area_first_texts().items():
         low = " ".join(text.lower().split())
         for phrase, what in (
-                ("minimum", "that the number typed is a minimum"),
-                ("clip border", "that the clip border claims its own side"),
+                ("two things can raise it",
+                 "that the number typed is a minimum two things can raise"),
                 ("at least the band", "that the side is raised TO the band, "
                                       "not that the band is added to it"),
                 ("need nothing", "that some instruments claim nothing"),
                 ("colormunki", "which instruments claim nothing"),
+                ("room at both sides",
+                 "that a SpectroScan and a CR30 claim BOTH sides"),
                 ("8.5 mm", "how much a SpectroScan or a CR30 does claim"),
                 ("need not match", "that the top and bottom differ"),
         ):
-            assert phrase in low, f"{where} no longer says {what} ({phrase!r})"
+            n = low.count(phrase)
+            assert n, f"{where} no longer says {what} ({phrase!r})"
+            # **EXACTLY ONCE, OR THE ASSERTION PROVES NOTHING.** Round 13
+            # deleted the whole new sentence from the panel and this test
+            # stayed green, because two of the seven phrases it looked for
+            # also occur in a sentence that predates the fix -- which is the
+            # same fault (F9) the guard was written to close, in the guard
+            # written to close it.
+            assert n == 1, (
+                f"{where} says {phrase!r} {n} times, so finding it proves "
+                f"nothing about the sentence this test is here for")
 
 
 @pytest.mark.slow
@@ -209,11 +221,11 @@ def test_the_clip_side_is_raised_to_the_band_and_not_added_to_it(tmp_path,
 
 
 @pytest.mark.slow
-@pytest.mark.parametrize("instrument,claims", [("i1", 0.0), ("p3", 0.0),
-                                               ("CM", 0.0), ("SS", 8.55),
-                                               ("CR30", 8.55)])
+@pytest.mark.parametrize("instrument,claims,right", [
+    ("i1", 0.0, 0.0), ("p3", 0.0, 0.0), ("CM", 0.0, 0.0),
+    ("SS", 8.55, 3.50), ("CR30", 8.55, 5.87)])
 def test_only_a_spectroscan_or_a_cr30_claims_the_edge_of_the_sheet(
-        tmp_path, instrument, claims):
+        tmp_path, instrument, claims, right):
     """Claim 2 of the text, with the band REALLY off and nothing asked for.
 
     Measured on A4: an i1Pro, a Pro-300 and a ColorMunki leave the patches at
@@ -228,6 +240,13 @@ def test_only_a_spectroscan_or_a_cr30_claims_the_edge_of_the_sheet(
     assert abs(got["left"] - claims) < 0.6, (
         f"{instrument} keeps {got['left']:.2f} mm at the left with nothing "
         f"asked and no band; the text says {claims}")
+    # ...AND THE RIGHT SIDE, WHICH THE TEXT USED TO LEAVE OUT. A CR30 keeps
+    # 5.87 mm at the right of the same sheet and a SpectroScan 3.50, so
+    # "8.5 mm at the left" was true and incomplete, and this test asserted
+    # only the side the text happened to name (R13-5).
+    assert abs(got["right"] - right) < 0.6, (
+        f"{instrument} keeps {got['right']:.2f} mm at the RIGHT with nothing "
+        f"asked and no band; the text says {right}")
 
 
 @pytest.mark.slow

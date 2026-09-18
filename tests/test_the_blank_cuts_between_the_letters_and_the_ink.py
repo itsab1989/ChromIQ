@@ -283,3 +283,130 @@ def test_no_printed_ink_survives_the_blank_and_the_letters_do(
     assert d_on >= 0.985 * d_off, (
         f"the blank ate the strip letters: {d_on} of {d_off} dark pixels left "
         f"({100.0 * d_on / d_off:.2f} %)")
+
+
+# ---------------------------------------------------------------------------
+# Round 13 on these fixes: a fixture too small to hold the letter that broke,
+# a fix that reached only charts built after it, and a white patch counted as
+# ink.
+# ---------------------------------------------------------------------------
+
+def test_the_band_clears_the_deepest_letter_on_every_page(tmp_path):
+    """R13-1: `Q` is the only capital with a TAIL, and the first version of
+    this fix left it out of the probe to keep the band clear of a spacer ring.
+    On a 17-strip chart the `Q` column then lost its tail and read as `O`, with
+    twelve clear rows below it: 15 dark device pixels gone, photographed.
+
+    **THE FIXTURE IS THE POINT.** Every other case in this file builds 120
+    patches, which is eleven strips, A to K: a chart that cannot contain a `Q`
+    cannot see this fault, and the guard written to close B8-346 F1 was blind
+    to it for exactly that reason. This one builds 900.
+
+    MUTATION, proven to land: probe `_ALL_CAPS` minus `Q`, or the whole
+    alphabet regardless of the chart (the first clips the tail, the second puts
+    the band below the first inked row on a chart with no `Q` at all).
+    """
+    import numpy as np
+    side, page = _build(tmp_path, "deepest", ring=3.0, edge=False, flat=True,
+                        n=900)
+    band = int(side["label_band_bottom_px"])
+    pages = sorted(page.parent.glob(f"{page.stem.rsplit('_', 1)[0]}_*.tif"))
+    assert len(pages) > 1, "the fixture must span pages to reach a Q"
+    seen = set()
+    for pg, tif in enumerate(pages):
+        im = np.array(Image.open(tif).convert("RGB"))
+        dark = (im[:, :, 0] < 90) & (im[:, :, 1] < 90) & (im[:, :, 2] < 90)
+        own = [p for p in side["patches"] if int(p["page"]) == pg]
+        if not own:
+            continue
+        for c in {re.match(r"([A-Z]+)", p["loc"]).group(1) for p in own}:
+            ps = [p for p in own
+                  if re.match(r"([A-Z]+)", p["loc"]).group(1) == c]
+            x0 = min(p["x"] for p in ps)
+            x1 = max(p["x"] + p["w"] for p in ps)
+            rows = np.where(dark[:900, x0:x1].any(axis=1))[0]
+            assert len(rows), f"{c} printed no letter"
+            seen.add(c)
+            assert int(rows[-1]) < band, (
+                f"the strip letter {c!r} inks down to row {int(rows[-1])} and "
+                f"the band is recorded at {band}: the blank cuts through it")
+    assert "Q" in seen, f"the fixture never printed a Q: {sorted(seen)}"
+
+
+def test_a_chart_built_before_the_key_existed_is_measured_off_its_page(
+        tmp_path):
+    """R13-2: the fix is carried by a new sidecar key, and nothing migrates a
+    chart. Every chart already on disk kept the leak: measured on screen, 30,
+    36 and 30 device pixels of spacer ring at three window sizes.
+
+    The page itself is asked instead, BY COLOUR: a strip letter is drawn in
+    black and fades through neutral greys, so a row with chroma in it cannot be
+    a letter, whatever else it holds.
+
+    MUTATION, proven to land: return `{}` when the key is absent.
+    """
+    import json as _json
+    import shutil
+    from ui.tabs.tab_measure import patch_ink_top_px_from_sidecar
+    name = "oldchart"
+    side, _page = _build(tmp_path, name, ring=3.0, edge=True, flat=False)
+    ti2 = tmp_path / name / f"{name}.ti2"
+    channels = tmp_path / name / f"{name}.channels.json"
+    recorded = patch_ink_top_px_from_sidecar(ti2)
+    assert recorded, "the fixture recorded no ink top at all"
+    doc = _json.loads(channels.read_text(encoding="utf-8"))
+    doc["layout"].pop("patch_ink_top_px", None)
+    shutil.copy2(channels, channels.with_suffix(".keep"))
+    channels.write_text(_json.dumps(doc), encoding="utf-8")
+    try:
+        measured = patch_ink_top_px_from_sidecar(ti2)
+    finally:
+        shutil.move(str(channels.with_suffix(".keep")), str(channels))
+    assert measured, (
+        "a chart built before the key existed gets no ink line at all, so the "
+        "blank goes back to cutting at the band and the ring shows")
+    assert measured == recorded, (
+        f"the page says {measured} and the engine recorded {recorded}")
+
+
+def test_a_white_patch_is_not_counted_as_ink(tmp_path):
+    """R13-6: `_note_ink` fired for every polygon the renderer drew, whatever
+    colour it was, so a chart whose first row is pure white recorded an inked
+    row where the printer lays nothing down. The blank's cut is then pulled up
+    for no reason, and on a chart where the letters and the field are close
+    that costs a row of letter.
+
+    MUTATION, proven to land: drop the white test from `_note_ink`.
+    """
+    from workflow.layout_engine import chart as le
+    from workflow.layout_engine.presets import LayoutRecipe
+    work = tmp_path / "white"
+    stem = work / "white"
+    src = work / "src.ti1"
+    work.mkdir(parents=True, exist_ok=True)
+    rows = ["CTI1", "", 'DESCRIPTOR "white"', 'ORIGINATOR "ChromIQ"',
+            'KEYWORD "SAMPLE_LOC"', "NUMBER_OF_FIELDS 7", "BEGIN_DATA_FORMAT",
+            "SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z",
+            "END_DATA_FORMAT", "NUMBER_OF_SETS 24", "BEGIN_DATA"]
+    rows += [f"{i + 1} 100 100 100 95 100 108" for i in range(24)]
+    rows += ["END_DATA", ""]
+    src.write_text("\n".join(rows), encoding="utf-8")
+    rc = LayoutRecipe(instrument="CR30", paper="A4", dpi=300, hflag=True,
+                      hex_flat_top=False, spacer_mode="none",
+                      spacer_width_mm=0.0, edge_spacers=False,
+                      layout_mode="patch_first", patch_w_mm=8.0,
+                      patch_h_mm=8.0, show_strip_indicators=True,
+                      use_instrument_margins=False, randomize=False,
+                      seed=1, seed_fixed=True)
+    kw = dict(rc.build_kwargs())
+    kw.pop("instrument", None)
+    kw.pop("paper", None)
+    kw["randomize"] = False
+    kw["seed"] = 1
+    le.build_chart(src, stem, instrument="CR30", paper="A4", **kw)
+    side = json.loads((stem.parent / "white.strips.json")
+                      .read_text(encoding="utf-8"))
+    tops = side.get("patch_ink_top_px")
+    assert isinstance(tops, list) and tops, side.get("patch_ink_top_px")
+    assert not [v for v in tops if v], (
+        f"a sheet of pure white patches claims it inked row {tops}")

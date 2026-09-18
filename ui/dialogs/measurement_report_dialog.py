@@ -6280,9 +6280,19 @@ class MeasurementReportDialog(QDialog):
         # document, so the total can never be smaller than what is covered.
         total_known = max(total_known, covered)
         if covered < total_known:
-            note = tr("This report covers {n} of the {total} measurements "
-                      "recorded for this project.").format(n=covered,
-                                                           total=total_known)
+            # ONE PROJECT OR SEVERAL, AND THE SENTENCE SAYS WHICH. A report can
+            # hold runs of more than one project -- the window lets a second be
+            # opened beside the first -- and the total is then the sum of two
+            # folders. "This project" was still the wording, so a document
+            # covering a two-measurement project and a five-measurement one
+            # said "2 of the 7 measurements recorded for this project", and no
+            # project on the disk records seven (R13-3, photographed).
+            note = (tr("This report covers {n} of the {total} measurements "
+                       "recorded for this project.")
+                    if len(_mine) == 1 else
+                    tr("This report covers {n} of the {total} measurements "
+                       "recorded for the projects it is drawn from.")
+                    ).format(n=covered, total=total_known)
             out += (f"<div style='color:{_C['dim']};margin-top:6px'>"
                     + html.escape(note) + "</div>")
         return out + self._scope_warnings_html(sc["warnings"])

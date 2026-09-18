@@ -786,6 +786,17 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-18, the round-13 fix for B8-346/R13-3: the
+    # Measurement Report's scope sentence gained a second form for a document
+    # drawn from more than one project ("...recorded for the projects it is
+    # drawn from"), because the single-project wording was summing two folders
+    # and calling the total "this project". ONE key in, none out, so every
+    # catalogue rose by exactly 1 -- German included, because the sentence it
+    # is a sibling of is itself an English placeholder there, so the family is
+    # on the beta rule and not on the German-is-complete rule. Counted with
+    # `len([k for k, v in cat.items() if v == k and not k.startswith("@")])`
+    # per catalogue, which is the expression the test below uses.
+
     # RE-MEASURED AGAIN after the merge of that round into this branch:
     # the numbers above were counted on ITS base, which did not carry the
     # report round's placeholders. Counted on the merged catalogues.
@@ -950,18 +961,18 @@ _IDENTICAL_TO_KEY = {
     # ...and once more, +1 each, for B8-328's SECOND attempt: three layout help
     # texts rewritten after an adversary round measured the first rewrite false
     # on 154 of the 160 built-in charts.
-    "de": 140,
-    "es": 380,
-    "fr": 402,
-    "it": 391,
-    "ja": 366,
-    "nl": 407,
-    "no": 392,
-    "pl": 384,
-    "pt": 382,
-    "ru": 355,
-    "sv": 393,
-    "zh_CN": 360,
+    "de": 141,
+    "es": 381,
+    "fr": 403,
+    "it": 392,
+    "ja": 367,
+    "nl": 408,
+    "no": 393,
+    "pl": 385,
+    "pt": 383,
+    "ru": 356,
+    "sv": 394,
+    "zh_CN": 361,
 }
 
 

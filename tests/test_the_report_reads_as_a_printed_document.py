@@ -20,6 +20,7 @@ set so the "other set" paragraph would fire if it were still there.
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 import pytest
 from PyQt6.QtWidgets import QApplication
@@ -273,5 +274,71 @@ def test_a_file_from_outside_any_project_is_in_neither_number(tmp_path, qapp):
         assert covered == 1, (
             f"the document covers one of the project's measurements and says "
             f"{covered}; the stranger's file is not one of them")
+    finally:
+        dlg.close()
+
+
+def test_a_document_drawn_from_two_projects_does_not_call_them_one(tmp_path,
+                                                                   qapp):
+    """R13-3: the total is the SUM over every project the document is drawn
+    from, and the sentence said "this project" regardless.
+
+    Photographed: a project recording 2 and another recording 5, both named in
+    the report's own Scope, and the document saying "covers 2 of the 7
+    measurements recorded for this project". No project on the disk records
+    seven.
+
+    MUTATION, proven to land: use the single-project wording unconditionally.
+    """
+    from tests.test_a_report_says_what_it_is_and_what_judged_it import _dialog
+    from tests.test_import_measurement_module import _cgats, _PATCHES
+    from core.file_manager import Project
+    dlg, _run, fm = _dialog(tmp_path, qapp)
+    try:
+        proj = fm.project()
+        # a second measurement of the FIRST project, so it records two
+        run2 = proj.new_run()
+        v2 = run2.new_verification()
+        v2.ensure_dir()
+        v2.measurement_ti3.write_text(
+            _cgats("CTI3", [(r * 0.5, g, b) for (r, g, b) in _PATCHES]),
+            encoding="utf-8")
+        dlg._add_source(v2.measurement_ti3)
+        qapp.processEvents()
+        # ...and a SECOND PROJECT beside it, with two of its own
+        other_root = Path(str(proj.root)).parent / "Other-Target"
+        other = Project.create(other_root, "Other-Target")
+        made = []
+        for scale in (0.8, 0.6):
+            r = other.new_run()
+            v = r.new_verification()
+            v.ensure_dir()
+            v.measurement_ti3.write_text(
+                _cgats("CTI3", [(c * scale, g, b) for (c, g, b) in _PATCHES]),
+                encoding="utf-8")
+            made.append(v)
+        for v in made:
+            dlg._add_source(v.measurement_ti3)
+            qapp.processEvents()
+        own = [r for r in dlg._history]
+        assert len(own) >= 4, len(own)
+        dlg._hidden_runs = {dlg._run_key(own[0])}
+        qapp.processEvents()
+        body = _plain(dlg._report_body_html(dlg._runs_for_report(),
+                                            for_pdf=False))
+        m = re.search(r"covers (\d+) of the (\d+) measurements recorded for "
+                      r"(this project|the projects it is drawn from)", body)
+        if m is None:
+            return          # nothing is being left out; nothing to claim
+        if int(m.group(2)) > 0 and m.group(3) == "this project":
+            # then it really must be ONE project's own count
+            from ui.dialogs.measurement_report_dialog import (
+                MeasurementReportDialog as _MD)
+            assert int(m.group(2)) in (
+                _MD._measurements_recorded_in(str(proj.root)),
+                _MD._measurements_recorded_in(str(other_root))), (
+                f'the document says "{m.group(0)}" where the two projects '
+                f'record {_MD._measurements_recorded_in(str(proj.root))} and '
+                f'{_MD._measurements_recorded_in(str(other_root))}')
     finally:
         dlg.close()

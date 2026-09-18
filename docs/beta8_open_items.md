@@ -14778,12 +14778,19 @@ over round 12's own 540 built sheets and re-measured here:
 - **B8-343 was never driven on screen.** Only its mutation M6 was run, and it
   lands; the driver is written and ready in
   `~/Desktop/ChromIQ-beta21-proof/round-12-on-round-11/work/drive12_preset.py`.
-  Two source reads to carry forward: the busy-runner door returns before the
-  snapshot is taken, and `_chart_notes_edit` in the new snapshot list **does
-  not exist**, so that half of the fix is a silent no-op.
+  One source read to carry forward: the busy-runner door returns before the
+  snapshot is taken.
+- **CORRECTED 2026-09-18 (round 13, R13-8).** This entry said
+  `_chart_notes_edit` in the snapshot list "does not exist, so that half of
+  the fix is a silent no-op". The dead name is real and is skipped silently,
+  but the conclusion was wrong: `_manual_chart_notes_edit`, the only
+  chart-notes widget in the file, is in the same list and IS snapshotted and
+  restored. Nothing is lost; there is a dead name to tidy.
 - Round 11's second note hole is not covered by B8-343 and was not re-measured.
-- **B8-341 with the 3D cube unfolded**: `_push_lab_cloud` sets the Total with no
-  "≈" and never touches "Chart after adding". Read in the source, not measured.
+- **B8-341 with the 3D cube unfolded**: `_push_lab_cloud` rewrites `_gen_total`
+  and never touches `_gen_after_total`, so with the cube unfolded the two can
+  disagree by the white/black de-dup amount. Read in the source by two rounds
+  now, measured by neither.
 - Page 2 and ragged pages of the Add window's counters.
 - The i18n side of the new fill-row string.
 - evidence: none yet, which is the point of the entry. A round that picks this

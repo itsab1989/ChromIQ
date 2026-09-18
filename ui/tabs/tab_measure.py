@@ -525,12 +525,44 @@ def edge_spacer_px_from_sidecar(ti2_path: "Path | None") -> int:
         return 0
 
 
+def _first_coloured_row(page: "Path", x0: int, x1: int,
+                        stop_at: int) -> "int | None":
+    """The first row of *page* between 0 and *stop_at* carrying COLOURED ink,
+    inside the patch columns' own x range, or None.
+
+    **Colour is what separates chart ink from a strip letter.** A letter is
+    drawn in black and fades to the paper through neutral greys, so it never
+    has chroma; a patch or a spacer ring on a profiling chart does. That makes
+    this safe to use as a floor for the blank's top cut: a row it finds cannot
+    be a letter, whatever else is on it. A chart printed entirely in neutrals
+    finds nothing, and the caller is no worse off than before.
+    """
+    try:
+        from PIL import Image
+        import numpy as np
+        with Image.open(page) as im:
+            band = im.convert("RGB").crop((max(0, x0), 0,
+                                           max(x0 + 1, x1), max(1, stop_at)))
+        a = np.asarray(band).astype(np.int16)
+        chroma = a.max(axis=2) - a.min(axis=2)
+        rows = np.where((chroma > 40).any(axis=1))[0]
+        return int(rows[0]) if len(rows) else None
+    except Exception:      # noqa: BLE001 — a preview must never die on a page
+        return None
+
+
 def patch_ink_top_px_from_sidecar(ti2_path: "Path | None") -> "dict[int, float]":
     """Per page, the first inked row of the patch field, in image px.
 
     Recorded by the layout engine at the moment it draws (see
-    `TiffPreview.set_patch_ink_top_px`); ``{}`` for a chart whose sidecar
-    predates the key.
+    `TiffPreview.set_patch_ink_top_px`).
+
+    **AND MEASURED OFF THE PAGE FOR EVERY CHART BUILT BEFORE THE KEY EXISTED.**
+    The key is what lets "Show only measured patches" cover a honeycomb's
+    printed ring, and without it a chart already on disk keeps the leak it
+    always had: measured on screen, 30, 36 and 30 device pixels of ring at
+    three window sizes, against none with the key. Nothing migrates a chart, so
+    the page itself is asked, by colour, which cannot answer with a letter.
     """
     if ti2_path is None:
         return {}
@@ -541,11 +573,32 @@ def patch_ink_top_px_from_sidecar(ti2_path: "Path | None") -> "dict[int, float]"
     try:
         layout = json.loads(read_text(channels)).get("layout") or {}
         tops = layout.get("patch_ink_top_px")
-        if not isinstance(tops, list):
+        if isinstance(tops, list):
+            out = {i: float(v) for i, v in enumerate(tops)
+                   if isinstance(v, (int, float)) and not isinstance(v, bool)
+                   and v > 0}
+            if out:
+                return out
+        # ...the fall-back, for a chart whose sidecar predates the key.
+        pats = layout.get("patches") or []
+        if not pats:
             return {}
-        return {i: float(v) for i, v in enumerate(tops)
-                if isinstance(v, (int, float)) and not isinstance(v, bool)
-                and v > 0}
+        stem = Path(ti2_path).with_suffix("")
+        pages = sorted(stem.parent.glob(stem.name + "_*.tif")) or (
+            [stem.with_suffix(".tif")] if stem.with_suffix(".tif").is_file()
+            else [])
+        found: "dict[int, float]" = {}
+        for i, page in enumerate(pages):
+            own = [p for p in pats if int(p.get("page", 0)) == i]
+            if not own:
+                continue
+            x0 = min(int(p["x"]) for p in own)
+            x1 = max(int(p["x"]) + int(p["w"]) for p in own)
+            top = min(int(p["y"]) for p in own)
+            row = _first_coloured_row(page, x0, x1, top + 1)
+            if row is not None:
+                found[i] = float(row)
+        return found
     except Exception:      # noqa: BLE001 — a preview must never die on a sidecar
         return {}
 

@@ -236,9 +236,8 @@ def _draw_indicator(draw, cx: int, top: int, text: str, font, spacing_px: int) -
         x += w + spacing_px
 
 
-# Capitals that stand ON the baseline in every face this engine ships.
-# `Q` is deliberately not among them: see `_label_ink_bottom`.
-_FLAT_FOOTED_CAPS = "ABCDEFGHIJKLMNOPRSTUVWXYZ"
+#: Fallback probe text when the chart's own labels cannot be worked out.
+_ALL_CAPS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 
 def _label_ink_bottom(text: str, font, spacing_px: int, degrees: int,
@@ -260,18 +259,19 @@ def _label_ink_bottom(text: str, font, spacing_px: int, degrees: int,
     sizes). It is the INK that has to be bounded, so it is the ink that is
     measured here.
 
-    **`Q` IS DELIBERATELY NOT PROBED.** It is the one capital with a tail, and
-    on a CR30 honeycomb the tail is printed ON the spacer ring: measured on a
-    twenty-column chart, the `Q` column's letter ink runs to row 159 and its
-    own ring ink starts at 154, so the two share six rows. Sizing the band to
-    the tail would move the blank's cut below the top of the ring on every page
-    of that chart, and leaving printed ink showing is the fault this is all
-    about. So the probe is every capital EXCEPT `Q`, and a `Q` strip has its tail
-    covered along with the ring it sits on. The round letters are in the probe
-    on purpose: `C`, `G`, `J` and `O` are drawn a pixel below the baseline for
-    optical weight, and they are exactly the letters that were photographed
-    with their feet missing while `E` and `H` kept theirs. The collision
-    belongs to the layout, not to the blank, and is recorded as such.
+    **`Q` IS PROBED, AND THE ROUND LETTERS MATTER.** `C`, `G`, `J` and `O` are
+    drawn a pixel below the baseline for optical weight, and they are exactly
+    the letters that were photographed with their feet missing while `E` and
+    `H` kept theirs. `Q` is the one capital with a TAIL, and leaving it out of
+    the probe -- which the first version of this did, to keep the band clear of
+    a spacer ring the tail can be printed on -- took the tail off every `Q`
+    column and made it read as `O` on a 17-strip chart, with twelve clear rows
+    below it (R13-1, photographed). Where the tail really does collide with the
+    ink, the PREVIEW pulls its cut up to `patch_ink_top_px` and the tail is
+    covered along with the ring it sits on; capping this number instead was
+    tried and is wrong, because the same number anchors the scan arrow and
+    Knut's ruling lets the letters overlap the patch area when the top margin
+    cannot hold them. The probe's job is only to say where the letters stop.
 
     **AND THIS IS A THIRD NUMBER, ON PURPOSE.** `_furniture_reserves_mm`
     already measures `label_ink_reach_mm` with a probe, `Q` included, for the
@@ -2101,6 +2101,20 @@ def render_pages(
     _is_side = _rot in (90, 270)
     _n_total_strips = max(1, (total + steps - 1) // steps)
     _longest = label_strip(_n_total_strips)
+    # THE LETTERS THIS CHART ACTUALLY PRINTS, AND NOT ONE MORE. Among the
+    # capitals only `Q` has a tail, and it is 12 px deeper than the rest at a
+    # 100 px em. Probing the whole alphabet on a chart whose strips run A to K
+    # put the band 12 px below where its letters really stop -- past the top of
+    # the printed field on two of five measured charts. Probing the alphabet
+    # MINUS `Q` was the other way round: the `Q` column of a 17-strip chart
+    # lost its tail and read as `O`, photographed, with twelve clear rows below
+    # it (B8-346 F1, then R13-1, which is the same fault from the other side).
+    # So the probe is this chart's own label set. Where a `Q` tail really does
+    # reach into the printed ink, the preview pulls its cut up to
+    # `patch_ink_top_px` and the tail is covered with the ring it sits on.
+    _drawn_letters = "".join(sorted({
+        _c for _i in range(_n_total_strips) for _c in label_strip(_i + 1)
+    })) or _ALL_CAPS
     if draw_indicators and _is_side:
         label_band_h = _indicator_tile(_longest, font, _spc, _rot).height
     else:
@@ -2117,7 +2131,7 @@ def render_pages(
         # glyph reaches the ascent, one to three pixels lower.
         _band_bottom = _lbl_top + max(
             label_band_h,
-            _label_ink_bottom(_longest if _is_side else _FLAT_FOOTED_CAPS,
+            _label_ink_bottom(_longest if _is_side else _drawn_letters,
                               font, _spc, _rot, label_band_h)) + \
             ((ul_gap + ul_th) if underline_on else 0)
 
@@ -2140,8 +2154,19 @@ def render_pages(
         # it is recorded where it is drawn rather than guessed downstream.
         _ink_top: int | None = None
 
-        def _note_ink(pts, _ref=lambda: None) -> None:
+        def _note_ink(pts, fill=None) -> None:
+            # PAPER WHITE IS NOT INK. A chart whose first row is pure white
+            # prints nothing there, and recording it as the page's first inked
+            # row pulls the blank's top cut up for no reason -- into the strip
+            # letters on a chart where the two are close (R13-6). Anything the
+            # printer actually lays down counts, including a near-white.
             nonlocal _ink_top
+            if fill is not None:
+                try:
+                    if all(int(_c) >= 255 for _c in fill[:3]):
+                        return
+                except (TypeError, ValueError, IndexError):
+                    pass
             try:
                 _y = min(int(_p[1]) for _p in pts)
             except (TypeError, ValueError, IndexError):
@@ -2449,20 +2474,20 @@ def render_pages(
                             _q = [_far[_side], _far[(_side + 1) % 6],
                                   _in[(_side + 1) % 6], _in[_side]]
                             draw.polygon(_q, fill=_fill)
-                            _note_ink(_q)
+                            _note_ink(_q, _fill)
                             if collect_device_geom:
                                 _geom_rows.append(("spacer_poly", _q, _fill))
                         draw.polygon(_in, fill=rgb)
-                        _note_ink(_in)
+                        _note_ink(_in, rgb)
                         if collect_device_geom:
                             _geom_rows.append(("hex", _in, dev_by_slot[gslot]))
                     else:
                         draw.polygon(_pts, fill=rgb)
-                        _note_ink(_pts)
+                        _note_ink(_pts, rgb)
                         if collect_device_geom:
                             _geom_rows.append(("hex", _pts, dev_by_slot[gslot]))
                 else:
-                    _note_ink([(x0, y0)])
+                    _note_ink([(x0, y0)], rgb)
                     if _fill_rect(draw, [x0, y0, xR - 1, yB - 1], rgb) \
                             and collect_device_geom:
                         _geom_rows.append(

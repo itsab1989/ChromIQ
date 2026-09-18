@@ -539,6 +539,14 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-18, round 13 on the B8-346 fixes: the Measurement
+    # Report's scope sentence gained a second form for a document drawn from
+    # more than one project. ONE new string long enough to count, so every
+    # language rises by exactly 1, German included, because this family is on
+    # the beta rule (its sibling sentence is an English placeholder in German
+    # too). The two chart-layout help texts changed again in the same pass and
+    # do NOT move the number: they were already counted as English. Counted
+    # with this file's own `_english_echoes`, never adjusted upward.
     # MERGED 2026-09-16: two branches raised this for different reasons, and
     # these numbers are neither side's and not their sum. They are counted
     # off the merged catalogues, because a budget adjusted upward admits the
@@ -570,18 +578,18 @@ _BUDGET = {
     # again from the real mechanism), and the Settings strip-length list, which
     # named four instruments where the combo offers five.
     # Counted with this file's own `_english_echoes`, never adjusted upward.
-    "de": 17,
-    "es": 211,
-    "fr": 212,
-    "it": 211,
-    "ja": 211,
-    "nl": 211,
-    "no": 211,
-    "pl": 211,
-    "pt": 211,
-    "ru": 210,
-    "sv": 211,
-    "zh_CN": 210,
+    "de": 18,
+    "es": 212,
+    "fr": 213,
+    "it": 212,
+    "ja": 212,
+    "nl": 212,
+    "no": 212,
+    "pl": 212,
+    "pt": 212,
+    "ru": 211,
+    "sv": 212,
+    "zh_CN": 211,
 }
 
 
