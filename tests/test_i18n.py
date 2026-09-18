@@ -989,18 +989,26 @@ _IDENTICAL_TO_KEY = {
     # that were already in those catalogues from elsewhere. **Counted off this
     # tree, not adjusted**: `python - <<'PY'` over data/i18n/*.json, values
     # identical to their key.
+    # 2026-09-18, B8-397: the five limit rows that had no detection method got
+    # one, so the limits window gained 22 strings (the changed group heading,
+    # five blurbs, three detection essays, three levers, and the ten fragments
+    # the report window builds the four new reasons out of). German is
+    # translated in the same commit, so `de` does not move; the other twelve
+    # rise by twenty-one each, which is the twenty-two less the one that was
+    # already in those catalogues from elsewhere, and `i18n_sync` also retired
+    # nine stale keys. **Counted off this tree, not adjusted.**
     "de": 143,
-    "es": 401,
-    "fr": 423,
-    "it": 412,
-    "ja": 387,
-    "nl": 428,
-    "no": 413,
-    "pl": 405,
-    "pt": 403,
-    "ru": 376,
-    "sv": 414,
-    "zh_CN": 381,
+    "es": 422,
+    "fr": 444,
+    "it": 433,
+    "ja": 408,
+    "nl": 449,
+    "no": 434,
+    "pl": 426,
+    "pt": 424,
+    "ru": 397,
+    "sv": 435,
+    "zh_CN": 402,
 }
 
 

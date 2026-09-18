@@ -405,6 +405,80 @@ def _small_sample_sentence(r: "dict | None") -> str:
               "the worst 5 %").format(n=_count if _count is not None else "?")
 
 
+# ---------------------------------------------------------------------------
+# #182 S2w: why one of the five newly computable rows was withheld
+# ---------------------------------------------------------------------------
+#
+# Each of these names the NUMBER THE CHART SUPPLIED and the number that is
+# wanted, and each ends in something to change. A count with no target is a
+# complaint; a target with no count leaves a reader guessing how far off they
+# are. `_small_sample_sentence` above is the same shape, and it is the shape
+# because a round measured its predecessor saying *"the chart has 20 patches;
+# at least 20 are needed"*.
+
+
+def _control_strip_sentence(r: "dict | None") -> str:
+    """Why a control-strip row was withheld: the strip is too short.
+
+    ONE SENTENCE FOR ALL THREE ROWS, and it names both thresholds because both
+    are reachable from here. A strip of twelve satisfies the average and the
+    largest and not the 95th percentile, so the sentence a reader sees beside
+    that row has to say why the two rows above it were judged and this one was
+    not.
+    """
+    from workflow.measurement_report import (CONTROL_STRIP_MIN,
+                                             CONTROL_STRIP_P95_MIN)
+    block = (r or {}).get("control_strip") or {}
+    k = block.get("n")
+    k = k if isinstance(k, int) else 0
+    if k == 1:
+        counted = tr("the control strip this chart declares has one patch in "
+                     "this measurement with a reference value")
+    else:
+        counted = tr("the control strip this chart declares has {k} patches in "
+                     "this measurement with reference values").format(k=k)
+    return counted + tr("; at least {n} are needed for the average and the "
+                        "largest, and at least {p} for the 95th percentile. "
+                        "Declare a longer strip, or add its patches to the "
+                        "chart").format(n=CONTROL_STRIP_MIN,
+                                        p=CONTROL_STRIP_P95_MIN)
+
+
+def _surface_gamut_sentence(r: "dict | None") -> str:
+    """Why the surface-gamut row was withheld: too few patches on the cube."""
+    from workflow.measurement_report import SURFACE_GAMUT_MIN
+    block = ((r or {}).get("gamut_populations") or {}).get("surface") or {}
+    n = block.get("n")
+    n = n if isinstance(n, int) else 0
+    if n == 1:
+        counted = tr("one patch of this chart sits on the surface of the "
+                     "device cube and carries a reference value")
+    else:
+        counted = tr("{n} patches of this chart sit on the surface of the "
+                     "device cube and carry reference values").format(n=n)
+    return counted + tr("; at least {k} are needed. Add solid inks, two-ink "
+                        "overprints, or steps that hold one of red, green or "
+                        "blue at 0 or at 100, in Create Chart").format(
+                            k=SURFACE_GAMUT_MIN)
+
+
+def _outer_gamut_sentence(r: "dict | None") -> str:
+    """Why the outer-gamut row was withheld: the top quarter is too small."""
+    from workflow.measurement_report import OUTER_GAMUT_MIN
+    block = ((r or {}).get("gamut_populations") or {}).get("outer") or {}
+    n = block.get("n")
+    n = n if isinstance(n, int) else 0
+    if n == 1:
+        counted = tr("the most saturated quarter of this chart is one patch")
+    else:
+        counted = tr("the most saturated quarter of this chart is {n} "
+                     "patches").format(n=n)
+    return counted + tr("; at least {k} are needed for an average, which wants "
+                        "roughly {c} patches carrying reference values on the "
+                        "chart. Use a larger chart").format(
+                            k=OUTER_GAMUT_MIN, c=OUTER_GAMUT_MIN * 4)
+
+
 def _faint_label_css(mode: str) -> str:
     """The style for a window's secondary one-line label, per appearance.
 
@@ -5397,6 +5471,20 @@ class MeasurementReportDialog(QDialog):
             "not_computed": tr("this value is not in this saved report; it "
                                "was not one of the values ChromIQ kept when "
                                "the report was saved"),
+            # #182 S2w, approved by Knut on 2026-09-18. TWO codes rather than
+            # one, because they send a reader to different places: the first
+            # asks the chart to declare a strip at all, the second says the
+            # strip it declares is too short to average over. A reason a
+            # reader cannot act on is not a reason, so each names the thing to
+            # change and not only the thing that is wrong.
+            "no_control_strip": tr(
+                "this chart declares no control strip; name the patches that "
+                "make one up in a file beside the chart, called after it with "
+                "\".control-strip.json\" on the end, or in a "
+                "CONTROL_STRIP_IDS keyword in its .ti1 or .ti2"),
+            "control_strip_too_small": _control_strip_sentence(r),
+            "too_few_surface_patches": _surface_gamut_sentence(r),
+            "too_few_outer_patches": _outer_gamut_sentence(r),
         }
         return texts.get(code or "", "")
 
@@ -8479,9 +8567,18 @@ class MeasurementReportDialog(QDialog):
             notes += (f"<div style='{note_css}'><b>" + html.escape(tr(
                 "Not computed on this chart:")) + "</b> " + html.escape("; ".join(
                     f"{label} ({why})" for (label, why) in seen)) + " " + html.escape(tr(
+                    # ONE REMEDY FOR EVERY REASON WAS TRUE UNTIL B8-397, AND IS
+                    # NOT ANY MORE. The three control-strip rows are missing a
+                    # DECLARATION, not patches, and this sentence told a reader
+                    # to go and add patches that are already on the sheet, one
+                    # line under a reason that had just said "declare a longer
+                    # strip". Photographed on screen, 2026-09-18. Each reason
+                    # now carries its own lever, so the closing sentence points
+                    # at them instead of naming one of them for all.
                     "A row that was not computed says nothing about the "
-                    "printer; add the missing patches to the chart in Create "
-                    "Chart to have it checked.")) + "</div>")
+                    "printer; each reason above names what that row needs, so "
+                    "make that change, print the chart again and measure "
+                    "it.")) + "</div>")
         # …AND THE ROWS THAT WERE MEASURED AND NOT GRADED, WHICH ARE NOT THE
         # SAME THING AND MAY NOT SHARE THAT SENTENCE. The chart has these
         # patches; what it lacks is whatever the grading needed. The heading

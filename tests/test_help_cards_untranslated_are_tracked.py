@@ -604,18 +604,24 @@ _BUDGET = {
     # B8-391 (the unlock tick box's own label, and the two tooltips that
     # promised a recalculation the door no longer does). Rewriting them
     # retired one long English placeholder in the eleven languages.
+    # RE-MEASURED 2026-09-18 for B8-397, the five limit rows that had no
+    # detection method. Twenty-two new strings in the limits and report
+    # windows, German translated in the same commit (so `de` does not move) and
+    # twenty-one substantial ones left English in the other twelve, which is
+    # the standing rule during a beta. Counted with this file's own
+    # `_english_echoes`, never adjusted upward.
     "de": 20,
-    "es": 224,
-    "fr": 225,
-    "it": 224,
-    "ja": 224,
-    "nl": 224,
-    "no": 224,
-    "pl": 224,
-    "pt": 224,
-    "ru": 223,
-    "sv": 224,
-    "zh_CN": 223,
+    "es": 245,
+    "fr": 246,
+    "it": 245,
+    "ja": 245,
+    "nl": 245,
+    "no": 245,
+    "pl": 245,
+    "pt": 245,
+    "ru": 244,
+    "sv": 245,
+    "zh_CN": 244,
 }
 
 

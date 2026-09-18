@@ -82,8 +82,13 @@ def test_tight_is_half_and_quick_is_double_on_the_five_de00_rows():
 
 def test_chromiq_sets_define_no_limit_on_the_standards_only_rows():
     f = factory_limits("chromiq_default")
+    # …and that is still true of the five rows B8-397 made computable: ChromIQ
+    # default's own numbers are Knut's K4 ruling and he did not extend them.
+    # They are limited in the two Custom columns, which is where he asked for
+    # "a value that can be tested against" for every measurable metric.
     for rid in ("substrate_de00_max", "control_strip_de00_avg",
-                "outer_gamut_226_de00_avg", "uniformity_sd"):
+                "outer_gamut_226_de00_avg", "surface_gamut_de00_avg",
+                "uniformity_sd"):
         assert f[rid].kind == "none", rid
 
 
@@ -458,13 +463,26 @@ def test_factory_limits_refuses_a_placeholder_on_an_unmeasurable_row(monkeypatch
     `factory_limits` would refuse a bad entry even if somebody added one. A
     mutation that removes the status check has to be able to fail something.
     """
+    # NO SHIPPED ROW IS `unknown` ANY MORE (B8-397 gave the last five of them a
+    # detection method), so the row that stands for "ChromIQ does not know
+    # which patches this is about" has to be built here. The lock is what is
+    # under test, not which row happens to trip it, and a lock no test can
+    # reach is decoration.
+    ghost = cs.Row("ghost_unknown_row", "selected", "A row nobody can compute",
+                   "ΔE00", "unknown",
+                   blurb="A row whose population ChromIQ does not know.",
+                   detect="ChromIQ does not know which patches this is about.")
+    monkeypatch.setitem(cs.ROW_BY_ID, ghost.id, ghost)
+    monkeypatch.setattr(cs, "ROWS", cs.ROWS + (ghost,))
+    monkeypatch.setitem(cs._ISO_ROWS, "iso_12647_7",
+                        cs._ISO_ROWS["iso_12647_7"] + (ghost.id,))
     bad = dict(cs._CUSTOM_PLACEHOLDER)
-    bad["control_strip_de00_avg"] = Limit.value(3.0)     # status "unknown"
+    bad[ghost.id] = Limit.value(3.0)                     # status "unknown"
     bad["light_fastness"] = Limit.value(3.0)             # status "unmeasurable"
     monkeypatch.setattr(cs, "_CUSTOM_PLACEHOLDER", bad)
     cs.reset_iso_cache()
     f = factory_limits("custom_iso_12647_7")
-    assert f["control_strip_de00_avg"].kind == "unknown", (
+    assert f[ghost.id].kind == "unknown", (
         "a placeholder reached a row ChromIQ cannot compute; the column would "
         "carry a limit nothing is ever compared with")
     assert f["light_fastness"].kind == "unmeasurable"

@@ -53,9 +53,22 @@ readable the row reads `?` and nothing was inferred.
 
 Rows are grouped by population (shape A, Knut K-a): Paper · Solid colours ·
 Control strip · Grey ramp of the measured chart · All patches of the measured
-chart · Selected patches of the standard's chart · Not evaluated by ChromIQ.
+chart · Selected patches of the chart · Not evaluated by ChromIQ.
 The full list, with each row's unit, status and formula, is
 `workflow/compliance_sets.py::ROWS`.
+
+That sixth heading read "Selected patches of the standard's chart" until
+2026-09-18, when Knut changed it (S2w of `issue_182_answers.md`, B8-397) in the
+same ruling that gave the two rows under it ChromIQ's own definition of their
+population. Under the old heading, ChromIQ's own definition would have been the
+attributing-coverage-to-a-standard mistake `compliance_sets.py` already records
+being made twice.
+
+Five rows of that table had NO detection method until the same ruling: the
+three control-strip rows and the two gamut populations. They are computable
+now, so **no row is left in the `unknown` status**, and the three control-strip
+rows depend on the chart DECLARING its own strip
+(`<chart stem>.control-strip.json`, or a CGATS `CONTROL_STRIP_IDS` keyword).
 
 Sets, in order: ChromIQ default (recommended) · ChromIQ tight · Quick check ·
 ISO 12647-7:2016 values (read-only) · ISO 12647-8:2021 values (read-only) ·

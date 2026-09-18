@@ -133,27 +133,102 @@ def test_the_reference_rows_say_where_the_reference_comes_from(rid):
     assert "profile's gamut" in text
 
 
-def test_the_five_rows_with_no_detection_say_so_plainly():
+#: The five rows that had no detection method until B8-397. Knut approved all
+#: three S2w proposals on 2026-09-18 and they are built, so NOTHING in this
+#: table is left in the `unknown` status any more.
+_THE_FIVE = ("control_strip_de00_avg", "control_strip_de00_max",
+             "control_strip_de00_p95", "outer_gamut_226_de00_avg",
+             "surface_gamut_de00_avg")
+
+
+def test_no_row_is_left_without_a_detection_method():
     """*"If any metric is missing a detection method ... then this detection
     method must be determined and specified."*
 
-    Five rows have none, and the honest thing on screen is to say that rather
-    than to invent a condition. What each would need is written out in
-    `docs/design/issue_182_answers.md`; two of them are a specification change
-    and are Knut's to approve.
+    Five were. They are the three control-strip rows and the two gamut
+    populations, and their icons said plainly that ChromIQ did not judge them.
+    Knut approved the three S2w proposals on 2026-09-18 (B8-397), so each of
+    them now names a condition ChromIQ really applies.
+
+    MUTATION: put any of the five back to `status="unknown"` and this goes red.
     """
-    ids = [r.id for r in cs.ROWS if r.status == "unknown"]
-    assert ids == ["control_strip_de00_avg", "control_strip_de00_max",
-                   "control_strip_de00_p95", "outer_gamut_226_de00_avg",
-                   "surface_gamut_de00_avg"]
-    for rid in ids:
-        text = next(r.detect for r in cs.ROWS if r.id == rid)
-        # SAID IN THE PRODUCT'S TERMS, not the project's. These three sentences
-        # used to end "and that is a change still to be agreed", which is true
-        # between Knut and me and tells a reader nothing.
-        assert ("never judged" in text or "does not judge this row" in text), rid
-        assert "stays empty in every limit set" in text, rid
-        assert "does not hold that list" in text or "ChromIQ cannot read" in text, rid
+    assert [r.id for r in cs.ROWS if r.status == "unknown"] == []
+    for rid in _THE_FIVE:
+        row = cs.ROW_BY_ID[rid]
+        assert row.status == "build", rid
+        assert row.detect and row.remedy, rid
+        # …AND THE OLD SENTENCES ARE GONE. Each of the five used to say the row
+        # was never judged; leaving one of those beside a row that now carries
+        # a verdict would be the window contradicting the table next to it.
+        for dead in ("does not judge this row", "never judged",
+                     "stays empty in every limit set",
+                     "does not hold that list"):
+            assert dead not in row.detect, f"{rid} still says {dead!r}"
+
+
+def test_the_control_strip_condition_quotes_the_real_thresholds():
+    """*"at least 8 ... The 95th percentile needs 20"*, read back out of
+    `measurement_report`'s own constants.
+
+    MUTATION: change `CONTROL_STRIP_MIN` or `CONTROL_STRIP_P95_MIN` and this
+    goes red, because the icon would be promising a condition the report does
+    not apply.
+    """
+    import math
+    from workflow import measurement_report as mr
+    text = cs.ROW_BY_ID["control_strip_de00_avg"].detect
+    assert mr.CONTROL_STRIP_MIN == 8
+    assert f"least {mr.CONTROL_STRIP_MIN} are needed" in text
+    assert mr.CONTROL_STRIP_P95_MIN == 20
+    assert f"95th percentile needs {mr.CONTROL_STRIP_P95_MIN}" in text
+    # …and the REASON the second number is 20, which the sentence states: the
+    # nearest rank ceil(0.95 k) is k itself for every k below twenty, so the
+    # row would repeat the largest.
+    assert all(math.ceil(k * 0.95) >= k for k in range(1, mr.CONTROL_STRIP_P95_MIN))
+    assert math.ceil(mr.CONTROL_STRIP_P95_MIN * 0.95) < mr.CONTROL_STRIP_P95_MIN
+    assert mr.CONTROL_STRIP_SIDECAR == ".control-strip.json"
+    assert mr.CONTROL_STRIP_SIDECAR in text
+    assert mr.CONTROL_STRIP_KEYWORD in text
+
+
+def test_the_gamut_population_conditions_quote_the_real_thresholds():
+    """The cube-surface tolerance, the ten, the quarter and the twenty.
+
+    MUTATION: change `SURFACE_GAMUT_TOL`, `SURFACE_GAMUT_MIN`,
+    `OUTER_GAMUT_FRACTION` or `OUTER_GAMUT_MIN` and this goes red.
+    """
+    from workflow import measurement_report as mr
+    surf = cs.ROW_BY_ID["surface_gamut_de00_avg"].detect
+    assert mr.SURFACE_GAMUT_TOL == 2.0
+    assert f"within {mr.SURFACE_GAMUT_TOL} of 0 or of 100" in surf
+    assert mr.SURFACE_GAMUT_MIN == 10
+    assert f"at least {mr.SURFACE_GAMUT_MIN} of them" in surf
+    outer = cs.ROW_BY_ID["outer_gamut_226_de00_avg"].detect
+    assert mr.OUTER_GAMUT_FRACTION == 0.25 and "top quarter" in outer
+    assert mr.OUTER_GAMUT_MIN == 20
+    assert f"at least {mr.OUTER_GAMUT_MIN} patches" in outer
+    # The "roughly 80" the sentence quotes is the quartile rule applied
+    # backwards, not a number of its own.
+    assert str(int(mr.OUTER_GAMUT_MIN / mr.OUTER_GAMUT_FRACTION)) in outer
+
+
+def test_the_heading_over_the_two_gamut_rows_no_longer_names_a_standard():
+    """Knut, 2026-09-18: *"I have already proposed to change the heading from
+    'Selected patches of the standard's chart' to 'Selected patches of the
+    chart'."*
+
+    It is the half that made those two rows a specification question rather
+    than a fault: ChromIQ's own definition of a population under a heading
+    that calls it the standard's is the attributing-coverage-to-a-standard
+    mistake `compliance_sets.py` records being made twice already.
+
+    MUTATION: put "standard's" back in the heading and this goes red.
+    """
+    heading = cs.GROUP_LABELS["selected"]
+    assert heading == "Selected patches of the chart"
+    assert "standard" not in heading.lower()
+    assert {r.id for r in cs.rows_in_group("selected")} >= {
+        "outer_gamut_226_de00_avg", "surface_gamut_de00_avg"}
 
 
 def test_no_row_promises_a_reason_code_that_does_not_exist():
@@ -345,7 +420,10 @@ def test_every_judgeable_row_names_a_lever():
     """
     judgeable = [r for r in cs.ROWS
                  if r.status not in ("unmeasurable", "unknown")]
-    assert len(judgeable) == 11, len(judgeable)
+    # ELEVEN UNTIL 2026-09-18, sixteen since: B8-397 built the detection for
+    # the three control-strip rows and the two gamut populations, so five rows
+    # that had nothing to advise now do.
+    assert len(judgeable) == 16, len(judgeable)
     for row in judgeable:
         assert row.remedy, f"{row.id} tells the reader nothing to do"
         assert len(row.remedy.split()) >= 25, (

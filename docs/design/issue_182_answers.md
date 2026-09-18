@@ -2083,8 +2083,8 @@ kind of chart supplies them.
 
 The population is the standard's own control strip, a named strip with a
 published patch list that ChromIQ does not hold and cannot invent. But the
-detection does not need the list, only a declaration. **Proposed, and awaiting
-Knut:**
+detection does not need the list, only a declaration. **Approved by Knut,
+2026-09-18, and built (B8-397):**
 
 > A chart carries a control strip when a sidecar `<chart stem>.control-strip.json`
 > sits beside it holding `{"name": "<the strip's own name>", "sample_ids":
@@ -2120,14 +2120,53 @@ them honestly today:
 chart", and giving them ChromIQ's own definition while leaving that heading is
 exactly the "attributing coverage to a standard" mistake `compliance_sets.py`
 already records being made twice.** If Knut wants them computable, the group
-heading and the row names change with them. Until he says so, the icons say
-plainly that ChromIQ does not judge those rows and why.
+heading and the row names change with them.
 
-### ⏳ Awaiting confirmation
+He does, and he changed the heading in the same breath (2026-09-18): *"I have
+already proposed to change the heading from 'Selected patches of the standard's
+chart' to 'Selected patches of the chart'."* `GROUP_LABELS["selected"]` reads
+that now, and the row NAMES are unchanged, which he did not ask for and which
+name no standard.
 
-**Confirmed by:** *nobody yet.* The icons are built and driven on screen
-(`scripts/drive_182_metric_help_icons.py`, thirty icons, three of the info
-dialogs photographed). The three proposals above are proposals.
+### Confirmed behaviour
+
+**Confirmed by:** Knut, 2026-09-18, on #182: *"Implement the proposals. I have
+already proposed to change the heading from 'Selected patches of the standard's
+chart' to 'Selected patches of the chart'. The help text can explain, as for
+all the other metrics, what the detection method is and how it is used, and if
+there are any requirements to the charts etc. (similar structure as the other
+metrics help file)."*
+
+All three are built (B8-397). The icons were built and driven on screen for the
+2026-09-14 round (`scripts/drive_182_metric_help_icons.py`, thirty icons, three
+of the info dialogs photographed); the detection itself is driven by
+`scripts/drive_182_the_five_rows.py`, which photographs the changed heading,
+the five rows carrying a limit in the two Custom columns, all five new help
+texts, and the two new reasons as sentences in the Measurement Report.
+
+**What is built, exactly as the proposals read, with four things they left
+open and the code had to settle:**
+
+1. **k counts the ids that are in the measurement AND carry a reference
+   value.** The proposal states those two conditions separately; counting them
+   as one number is never more lenient, and it is the population the statistics
+   are actually taken over. A strip that is all present and has no reference at
+   all reads `no_reference` rather than "too small", because those send a reader
+   to different places.
+2. **The outer-gamut quarter is ranked by the REFERENCE's chroma, not the
+   measured one**, so the population is a property of the chart and the same
+   chart picks the same patches however well it printed.
+3. **The cube corners are in both gamut populations.** They are surface patches
+   by construction and the most saturated patches on any chart, and the
+   proposal excludes nothing. The ΔE00 statistics elsewhere exclude them for a
+   different reason (they are unreachable by design on a from-profile-gamut
+   chart) and that exclusion is not carried over.
+4. **"At least 20 patches" is the size of the QUARTER**, which is what its own
+   reason clause says ("so the average is not one or two readings"). A chart
+   therefore needs roughly 80 patches carrying reference values before the
+   outer-gamut row can be judged. Measured: the demo pack's 210-patch
+   verification charts give a quarter of 53 and are judged; a 76-patch chart
+   gives 19 and is not.
 
 ### And one fault found while mapping the table
 

@@ -210,7 +210,14 @@ GROUP_LABELS: "dict[str, str]" = {
     "control_strip": "Control strip (the standard's own patches)",
     "grey_ramp":     "Grey ramp of the measured chart",
     "all_patches":   "All patches of the measured chart",
-    "selected":      "Selected patches of the standard's chart",
+    # KNUT, 2026-09-18, ruling on S2w: *"I have already proposed to change the
+    # heading from 'Selected patches of the standard's chart' to 'Selected
+    # patches of the chart'."* It had to change in the same breath as the two
+    # rows under it became computable: giving them ChromIQ's OWN definition of
+    # their population while the heading still said "of the standard's chart"
+    # is the attributing-coverage-to-a-standard mistake this file already
+    # records being made twice, a third time.
+    "selected":      "Selected patches of the chart",
     "not_evaluated": "Not evaluated by ChromIQ",
 }
 
@@ -284,14 +291,23 @@ _D_REFERENCE_CMY = (
     "corners that were found, not of all three. Charts built from your "
     "profile's gamut carry that reference; an ordinary test chart has no aim "
     "for this row.")
+#: **A CHART DECLARES ITS OWN STRIP.** Knut approved this on 2026-09-18
+#: (S2w). It replaces a sentence that said this row is never judged, which was
+#: true for as long as ChromIQ had no way to be told which patches the strip
+#: is. It still holds no standard's published list and still will not guess
+#: one; the chart is asked instead.
 _D_CONTROL_STRIP = (
-    "ChromIQ has no way to tell whether your chart carries the standard's own "
-    "control strip, so this row is never judged and the cell stays empty in "
-    "every limit set.\n\n"
-    "The strip is a specific list of patches published with the standard, and "
-    "ChromIQ does not hold that list. A chart would have to say for itself "
-    "which of its patches make up the strip, and ChromIQ cannot read that "
-    "yet.")
+    "A chart carries a control strip when it says so itself. ChromIQ holds no "
+    "standard's published patch list and will not guess one, so the chart "
+    "declares its own: a file beside the chart, named after it with "
+    "\".control-strip.json\" on the end, holding the strip's name and the "
+    "sample ids that make it up. A CONTROL_STRIP_IDS keyword in the chart's "
+    ".ti1 or .ti2, naming the same ids, does the same job.\n\n"
+    "ChromIQ then counts how many of those ids are in the measurement and "
+    "carry a reference value. At least 8 are needed for the average and the "
+    "largest, because below that an average over the strip says nothing. The "
+    "95th percentile needs 20: on a shorter strip its nearest rank is the "
+    "largest patch itself, so the row would only repeat the one above it.")
 _D_GREY_RAMP = (
     "The chart needs a grey ramp. A patch counts as grey when its red, green "
     "and blue values are within one unit of each other.\n\n"
@@ -318,18 +334,29 @@ _D_RAMPS = (
     "with at least three distinct steps between 30 % and 70 % tone value, "
     "spanning at least twenty points of it, and carrying reference values. Any "
     "one of the four axes, red, green, blue or grey, is enough.")
+#: **CHROMIQ'S OWN POPULATION, UNDER A HEADING THAT NO LONGER NAMES A
+#: STANDARD.** These two rows were never missing a detection method; they were
+#: missing the DEFINITION of the patches they are about, which the standards
+#: publish as lists ChromIQ does not hold. Knut settled both halves on
+#: 2026-09-18: ChromIQ defines the populations, and the group heading above
+#: them drops the words "of the standard's chart".
 _D_OUTER_GAMUT = (
-    "ChromIQ does not judge this row, and the cell stays empty in every limit "
-    "set.\n\n"
-    "The patches this row is about are the standard's own list of saturated "
-    "colours. ChromIQ does not hold that list, so it can neither find those "
-    "patches on your chart nor tell you whether they are there.")
+    "These are the most saturated patches of your own chart. ChromIQ ranks "
+    "every patch that carries a reference value by the chroma of that "
+    "reference, C*ab, and takes the top quarter of them.\n\n"
+    "The row is judged when that quarter holds at least 20 patches, so the "
+    "average is not one or two readings. That wants roughly 80 patches with "
+    "reference values on the chart. The ranking uses the aim values and not "
+    "the measured ones, so the same chart picks the same patches however well "
+    "it printed.")
 _D_SURFACE_GAMUT = (
-    "ChromIQ does not judge this row, and the cell stays empty in every limit "
-    "set.\n\n"
-    "The patches this row is about are the standard's own list of colours on "
-    "the outside of the printable colour solid. ChromIQ does not hold that "
-    "list, so it cannot find them on your chart.")
+    "These are the patches on the surface of the device cube. A patch counts "
+    "when at least one of its red, green and blue values is within 2.0 of 0 "
+    "or of 100, so it sits on a face, an edge or a corner of everything the "
+    "printer can be asked for.\n\n"
+    "The row is judged when at least 10 of them carry a reference value. The "
+    "cube corners are counted with the rest: they are surface patches, and "
+    "they are where a profile has least room.")
 
 #: **AND WHAT TO DO ABOUT IT.** Every other help text in this app ends with a
 #: lever a reader can pull; the first version of these thirty stopped at the
@@ -362,6 +389,22 @@ _R_RAMPS = (
     "Use a chart with a tone ramp through the mid-tones: three steps between "
     "30 % and 70 % of one single ink, or of grey, is enough. The built-in "
     "presets have one; a patch set you build yourself may not.")
+_R_CONTROL_STRIP = (
+    "Declare the strip on the chart. Put a file beside the chart named after "
+    "it with \".control-strip.json\" on the end, holding the strip's name and "
+    "the list of sample ids that make it up, and make sure the chart really "
+    "has those patches: 8 of them for the average and the largest, 20 for the "
+    "95th percentile.")
+_R_SURFACE_GAMUT = (
+    "Add patches at the edge of the device cube in Create Chart: the solid "
+    "inks, their two-ink overprints, and steps that hold one of red, green or "
+    "blue at 0 or at 100. Ten such patches carrying reference values is all "
+    "this row needs.")
+_R_OUTER_GAMUT = (
+    "Use a larger chart. The top quarter by chroma has to hold 20 patches, so "
+    "the chart needs roughly 80 patches carrying reference values. The "
+    "built-in Create Chart presets are well past that; a small patch set you "
+    "build yourself may not be.")
 
 ROWS: "tuple[Row, ...]" = (
     # -- Paper
@@ -399,17 +442,20 @@ ROWS: "tuple[Row, ...]" = (
         blurb='Named brand inks, such as a company colour, against their published book values.'),
     # -- Control strip
     Row("control_strip_de00_avg", "control_strip",
-        "Control-strip patches, average", "ΔE00", "unknown",
-        blurb='The average colour error over the strip of patches the standard publishes for checking a press or a proof.',
-        detect=_D_CONTROL_STRIP),
+        "Control-strip patches, average", "ΔE00", "build",
+        blurb='The average colour error over the control strip your chart declares: the run of patches a press or a proof is checked on.',
+        detect=_D_CONTROL_STRIP,
+        remedy=_R_CONTROL_STRIP),
     Row("control_strip_de00_max", "control_strip",
-        "Control-strip patches, largest", "ΔE00", "unknown",
-        blurb='The worst single patch of that published strip.',
-        detect=_D_CONTROL_STRIP),
+        "Control-strip patches, largest", "ΔE00", "build",
+        blurb='The worst single patch of that declared strip.',
+        detect=_D_CONTROL_STRIP,
+        remedy=_R_CONTROL_STRIP),
     Row("control_strip_de00_p95", "control_strip",
-        "Control-strip patches, 95th percentile", "ΔE00", "unknown",
-        blurb='The error that 95 % of the published strip stays under, so one bad patch does not decide the result.',
-        detect=_D_CONTROL_STRIP),
+        "Control-strip patches, 95th percentile", "ΔE00", "build",
+        blurb='The error that 95 % of the declared strip stays under, so one bad patch does not decide the result.',
+        detect=_D_CONTROL_STRIP,
+        remedy=_R_CONTROL_STRIP),
     # -- Grey ramp (K-h)
     Row("grey_balance_neutral_ramp_avg", "grey_ramp",
         "Grey balance of the grey ramp, average", "ΔCh", "build",
@@ -447,15 +493,21 @@ ROWS: "tuple[Row, ...]" = (
         blurb='The error 95 % of the chart stays under, counted by rank rather than by fitting a curve.',
         detect=_D_ALL_PATCHES,
         remedy=_R_ALL_PATCHES),
-    # -- Selected patches of the standard's chart
+    # -- Selected patches of the chart (S2w, Knut 2026-09-18)
+    # THE ID KEEPS ITS "226", which came from a standard's 226-patch list this
+    # row is no longer about. A run's stored limits and every saved report on
+    # disk are keyed by the id; renaming it would silently drop the limit a
+    # user set and the verdict a report recorded. The id is not shown anywhere.
     Row("outer_gamut_226_de00_avg", "selected",
-        "Outer-gamut patches, average", "ΔE00", "unknown",
-        blurb="The average error over the standard's own set of saturated patches at the edge of the printable colours.",
-        detect=_D_OUTER_GAMUT),
+        "Outer-gamut patches, average", "ΔE00", "build",
+        blurb="The average error over the most saturated quarter of your chart, the colours at the edge of what the printer can reach.",
+        detect=_D_OUTER_GAMUT,
+        remedy=_R_OUTER_GAMUT),
     Row("surface_gamut_de00_avg", "selected",
-        "Surface-gamut patches, average", "ΔE00", "unknown",
-        blurb='The average error over the patches that sit on the outside of the printable colour solid, where a profile has least room.',
-        detect=_D_SURFACE_GAMUT),
+        "Surface-gamut patches, average", "ΔE00", "build",
+        blurb='The average error over the patches that sit on the outside of the device cube, where a profile has least room.',
+        detect=_D_SURFACE_GAMUT,
+        remedy=_R_SURFACE_GAMUT),
     Row("ramps_30_70_dl_max", "selected",
         "Single-colour ramps 30 % to 70 %, largest lightness difference", "ΔL*",
         "build",
@@ -784,6 +836,18 @@ _CUSTOM_PLACEHOLDER: "dict[str, Limit]" = {
     "cmy_solids_dhab_max": Limit.value(2.0),         # ΔH*ab
     # §3: ISO 12647-8:2021 4.2.7 is a *should*, so this row is a recommendation
     "ramps_30_70_dl_max": Limit.should(2.0),         # ΔL*
+    # THE FIVE ROWS S2w MADE COMPUTABLE (Knut, 2026-09-18). They arrive here
+    # by the same rule as everything above and for the same reason: Knut asked
+    # the two Custom columns to carry *"a value that can be tested against"*
+    # for every metric ChromIQ can check, and as of this release ChromIQ can
+    # check these. The numbers are ChromIQ default's own 2.0 and 3.0, an
+    # average taking the average's number and a maximum the maximum's; nothing
+    # here was looked up in either standard.
+    "control_strip_de00_avg": Limit.value(2.0),      # ΔE00
+    "control_strip_de00_max": Limit.value(3.0),      # ΔE00
+    "control_strip_de00_p95": Limit.value(3.0),      # ΔE00
+    "outer_gamut_226_de00_avg": Limit.value(2.0),    # ΔE00
+    "surface_gamut_de00_avg": Limit.value(2.0),      # ΔE00
 }
 
 #: What went wrong with the file the ENVIRONMENT VARIABLE names, as
@@ -1041,6 +1105,20 @@ def is_edited(values: "dict[str, Limit]", set_id: str,
     ref = effective_limits(set_id, overrides)
     for rid in set(ref) | set(values):
         a, b = ref.get(rid, Limit.none()), values.get(rid, Limit.none())
+        # A STORED ``?`` IS NOT AN EDIT, AND CANNOT BE ONE. Nothing a user can
+        # do produces an ``unknown`` limit: the spin box writes a number or
+        # "–", and `effective_limits` turns an override into ``value``,
+        # ``should`` or ``none``. A ``?`` on a run's copy is what the SET gave
+        # it on the day it was bound, for a row that build could not judge.
+        #
+        # MEASURED, 2026-09-18: without this, the five rows S2w made
+        # computable (B8-397) turned every run bound to a Custom column before
+        # that release into an "edited" run, because its stored ``?`` now
+        # faces a number. The user had edited nothing. The other direction is
+        # untouched: a number stored where the set now says ``?`` is a real
+        # edit and still reads as one.
+        if b.kind == "unknown":
+            continue
         if a.is_numeric != b.is_numeric:
             return True
         if a.is_numeric and b.is_numeric and abs(a.number - b.number) > 1e-9:

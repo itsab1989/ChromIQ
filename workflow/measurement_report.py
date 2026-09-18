@@ -183,6 +183,35 @@ def _sheet_kind(ti3_path: "Path | str") -> str:
     return "standalone"
 
 
+def _reference_ti2_candidates(ti3_path: Path) -> "list[Path]":
+    """Every ``.ti2`` a measurement could be paired with, best first.
+
+    Split out of :func:`_find_reference_ti2` so the control-strip declaration
+    can be looked for beside EVERY chart this measurement might be paired with
+    and not only beside the winner. Driven on screen 2026-09-18: a sidecar
+    written beside the run's own chart was invisible, because a dated
+    verification is paired with the snapshot in its own ``chart/`` folder, and
+    "beside the chart" then meant a folder the user never opens.
+    """
+    stem = ti3_path.stem
+    base = stem[:-7] if stem.endswith("-verify") else stem
+    return [
+        ti3_path.with_suffix(".ti2"),
+        # The dated verification's own chart/ snapshot OUTRANKS the shared
+        # chart: the shared one changes with every regenerate/restore, and
+        # judging an old date against whatever chart happens to be live gave
+        # nonsense the moment they differed (Sebastian, 2026-08-10: the gamut
+        # date's trend point jumped to ΔE ≈ 41 after the chart was swapped, its
+        # own honest value is 2.8). The snapshot is written at measure time for
+        # exactly this.
+        ti3_path.parent / "chart" / f"{stem}.ti2",
+        ti3_path.parent.parent / f"{stem}.ti2",          # shared verify chart
+        # verifications/<date>/ → runN/: the profiling chart at the run root,
+        # when a verification re-measures the same chart.
+        ti3_path.parent.parent.parent / f"{base}.ti2",
+    ]
+
+
 def _find_reference_ti2(ti3_path: Path) -> Path:
     """Locate the design ``.ti2`` for a measurement (#130). A verification lives
     in ``runs/runN/verifications/<date>/`` and holds only its ``.ti3``, so the
@@ -191,28 +220,11 @@ def _find_reference_ti2(ti3_path: Path) -> Path:
     run root (``runs/runN/<name>.ti2`` when a verification re-measures the same
     chart). Falls back to the sibling path (which then triggers the device
     reference) when nothing is found."""
-    same = ti3_path.with_suffix(".ti2")
-    if same.is_file():
-        return same
-    stem = ti3_path.stem
-    # The dated verification's own chart/ snapshot OUTRANKS the shared chart:
-    # the shared one changes with every regenerate/restore, and judging an
-    # old date against whatever chart happens to be live gave nonsense the
-    # moment they differed (Sebastian, 2026-08-10: the gamut date's trend
-    # point jumped to ΔE ≈ 41 after the chart was swapped — its own honest
-    # value is 2.8). The snapshot is written at measure time for exactly this.
-    snap = ti3_path.parent / "chart" / f"{stem}.ti2"
-    if snap.is_file():
-        return snap
-    up = ti3_path.parent.parent / f"{stem}.ti2"           # shared verify chart
-    if up.is_file():
-        return up
-    base = stem[:-7] if stem.endswith("-verify") else stem
-    run_root = ti3_path.parent.parent.parent              # verifications/<date>/ → runN/
-    cand = run_root / f"{base}.ti2"                        # profiling chart at run root
-    if cand.is_file():
-        return cand
-    return same
+    cands = _reference_ti2_candidates(ti3_path)
+    for c in cands:
+        if c.is_file():
+            return c
+    return cands[0]
 
 
 def _reference_labs(ti2_path: Path) -> "dict[str, tuple]":
@@ -941,6 +953,19 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
     if rgb100 is not None:
         report["grey_balance"] = grey_balance_block(rgb100, lab, ref, data.sample_ids)
         report["ramps_30_70"] = ramps_block(rgb100, lab, ref, data.sample_ids)
+        # #182 S2w (Knut, 2026-09-18): the two gamut populations ChromIQ now
+        # defines for itself. Written even when the chart cannot supply them,
+        # with the reason, exactly as the two blocks above are.
+        report["gamut_populations"] = gamut_populations_block(
+            rgb100, lab, ref, data.sample_ids)
+
+    # …and the control strip, which is a DECLARATION rather than a measurement:
+    # it needs the chart file, not the device values, so it is written whether
+    # or not the measurement carries device columns.
+    report["control_strip"] = control_strip_block(
+        lab, ref, data.sample_ids,
+        control_strip_declaration(ti3_path,
+                                  ref_ti2 if ref_ti2.is_file() else None))
     return report
 
 
@@ -1946,6 +1971,50 @@ RAMP_TV_LOW, RAMP_TV_HIGH = 30.0, 70.0
 RAMP_MIN_STEPS = 3
 RAMP_MIN_SPAN = 20.0
 
+# --- #182 S2w: the control strip, and the two gamut populations -------------
+#
+# Knut approved these three detection rules on 2026-09-18, after they had
+# waited as proposals since 2026-09-14 (`docs/design/issue_182_answers.md`
+# S2w). Before them, five rows of the limits table had NO detection method at
+# all and their help icons said so: ChromIQ could not tell whether a chart
+# carried the patches those rows are about, so the rows were never judged.
+#
+# The control strip is DECLARED BY THE CHART, never guessed. ChromIQ does not
+# hold any standard's published patch list and may not invent one, so the
+# question the detection answers is *"does this chart say which of its patches
+# make up a control strip, and are there enough of them"* — which is the
+# question Knut asked the detection to answer, and it reads no standard.
+#
+#: ``<chart stem>.control-strip.json`` beside the chart, holding
+#: ``{"name": "<the strip's own name>", "sample_ids": ["A1", "A2", ...]}``.
+CONTROL_STRIP_SIDECAR = ".control-strip.json"
+#: …or the same ids in a CGATS keyword on the ``.ti1`` / ``.ti2``.
+CONTROL_STRIP_KEYWORD = "CONTROL_STRIP_IDS"
+#: **k**, the count of declared ids that are in the measurement AND carry a
+#: reference value. Below eight an average over the strip says nothing.
+CONTROL_STRIP_MIN = 8
+#: The 95th-percentile row needs more, and the reason is arithmetic rather
+#: than taste: the nearest rank ``ceil(0.95 k)`` equals ``k`` for every k below
+#: 20 (`_stats` computes it), so the row would simply repeat the largest.
+CONTROL_STRIP_P95_MIN = 20
+
+#: **Surface-gamut patches**: every patch whose device values touch the
+#: surface of the device cube, ``min(v, 100 - v) <= 2.0`` for at least one of
+#: R, G, B. This is ChromIQ's OWN definition of the population, which is why
+#: the group heading lost the words "of the standard's chart" in the same
+#: change (Knut, 2026-09-18).
+SURFACE_GAMUT_TOL = 2.0
+#: …computable with at least ten such patches carrying a reference.
+SURFACE_GAMUT_MIN = 10
+#: **Outer-gamut patches**: the top quartile by chroma, ``C*ab`` of each
+#: patch's REFERENCE value (the population is a property of the chart, not of
+#: how well it printed).
+OUTER_GAMUT_FRACTION = 0.25
+#: …and the quartile itself must hold at least twenty patches, so the average
+#: is not one or two readings. That wants roughly eighty referenced patches on
+#: the chart.
+OUTER_GAMUT_MIN = 20
+
 #: Reason codes for a row that could not be computed. The report window turns
 #: them into sentences through tr(); the JSON keeps the code.
 REASON_NO_GREYS = "no_greys"
@@ -1968,6 +2037,16 @@ REASON_SMALL_SAMPLE = "small_sample"
 REASON_PRINTING_UNRECORDED = "printing_unrecorded"
 REASON_NO_CORNERS = "no_corners"
 REASON_NOT_COMPUTED = "not_computed"     # the block is missing from this report
+#: S2w, approved 2026-09-18. TWO codes for the control strip, because they
+#: send a reader to different places: one asks the chart to declare a strip at
+#: all, the other says the strip it declares is too short to average over.
+REASON_NO_CONTROL_STRIP = "no_control_strip"
+REASON_CONTROL_STRIP_TOO_SMALL = "control_strip_too_small"
+#: …and one per gamut population, for the same reason: the patches to add are
+#: different colours and the reader is sent to a different corner of Create
+#: Chart.
+REASON_TOO_FEW_SURFACE_PATCHES = "too_few_surface_patches"
+REASON_TOO_FEW_OUTER_PATCHES = "too_few_outer_patches"
 
 # ---------------------------------------------------------------------------
 # Notes: a comment ON a verdict, which is not a reason for withholding one
@@ -2079,6 +2158,233 @@ def ramps_block(rgb100, lab, ref: "dict[str, tuple]",
     return {"axes": axes, "eligible": any_eligible,
             "reason": None if any_eligible else REASON_NO_RAMP,
             "max_dl": round(float(overall_max), 3) if overall_max is not None else None}
+
+
+# ---------------------------------------------------------------------------
+# The control strip a chart declares for itself (#182 S2w)
+# ---------------------------------------------------------------------------
+#: The header of a CGATS file, one keyword per line, above BEGIN_DATA_FORMAT.
+_CGATS_KW_RE = re.compile(r'^([A-Z][A-Z0-9_]*)\s+"?(.*?)"?\s*$')
+
+
+def _cgats_keyword(path: Path, key: str) -> str:
+    """One CGATS keyword from a ``.ti1`` / ``.ti2`` / ``.ti3`` header, or ``""``.
+
+    Read directly rather than through :func:`parse_ti3`, and that is the point:
+    a ``.ti1`` need not carry any colour column at all, and ``parse_ti3``
+    refuses a file with no measurement table. The control-strip declaration
+    lives in the header, so a chart that declares one must be readable whether
+    or not its file would survive being parsed as a measurement.
+    """
+    try:
+        text = read_text(path, lenient=True)
+    except OSError:
+        return ""
+    for ln in text.splitlines():
+        s = ln.strip()
+        if s == "BEGIN_DATA_FORMAT":
+            break
+        if not s.startswith(key):
+            continue
+        m = _CGATS_KW_RE.match(s)
+        if m and m.group(1) == key:
+            return m.group(2)
+    return ""
+
+
+def _split_ids(text: str) -> "list[str]":
+    """``"A1 A2, A3"`` → ``["A1", "A2", "A3"]``, order kept, duplicates dropped."""
+    parts = [p for p in re.split(r"[,\s]+", str(text or "").strip()) if p]
+    return list(dict.fromkeys(parts))
+
+
+def control_strip_declaration(ti3_path: "str | Path",
+                              chart_path: "Path | None" = None) -> "dict | None":
+    """What the chart says its own control strip is, or None when it says nothing.
+
+    Knut's S2w rule, approved 2026-09-18:
+
+        A chart carries a control strip when a sidecar
+        ``<chart stem>.control-strip.json`` sits beside it holding
+        ``{"name": "<the strip's own name>", "sample_ids": ["A1", "A2", ...]}``,
+        or when the ``.ti1`` / ``.ti2`` carries a CGATS keyword
+        ``CONTROL_STRIP_IDS`` naming the same ids.
+
+    The sidecar wins where both exist, because it is the one a user can edit
+    without rewriting a chart file. Anything unreadable is passed over with a
+    log line and the next candidate tried: a broken sidecar leaves the chart
+    where it was, undeclared, which is the state every chart is in today.
+
+    Returns ``{"name", "ids", "source", "file"}``. ``source`` is ``"sidecar"``
+    or ``"keyword"`` so the report can say where the declaration came from.
+    """
+    ti3_path = Path(ti3_path)
+    chart_path = Path(chart_path) if chart_path else None
+    # BESIDE ANY CHART THIS MEASUREMENT COULD BE PAIRED WITH, not only beside
+    # the one that won. A dated verification is paired with the snapshot in its
+    # own `chart/` folder, so a sidecar beside the run's chart, which is the
+    # file a user opens and names, was invisible; measured on screen while
+    # photographing this, on the demo pack. The order is the report's own
+    # pairing order, then the measurement itself, because a user who drops a
+    # sidecar next to the file they measured means it.
+    for base in [*_reference_ti2_candidates(ti3_path),
+                 *( [chart_path] if chart_path else [] ), ti3_path]:
+        if base is None:
+            continue
+        p = base.parent / (base.stem + CONTROL_STRIP_SIDECAR)
+        if not p.is_file():
+            continue
+        try:
+            doc = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            log.warning("control-strip sidecar %s unreadable (%s); "
+                        "the chart declares no strip", p, exc)
+            continue
+        if not isinstance(doc, dict):
+            log.warning("control-strip sidecar %s is not an object", p)
+            continue
+        ids = _split_ids(" ".join(str(s) for s in (doc.get("sample_ids") or [])))
+        if not ids:
+            log.warning("control-strip sidecar %s names no sample_ids", p)
+            continue
+        return {"name": str(doc.get("name") or "").strip(), "ids": ids,
+                "source": "sidecar", "file": p.name}
+    seen: "set[Path]" = set()
+    for base in [*_reference_ti2_candidates(ti3_path),
+                 *( [chart_path] if chart_path else [] )]:
+        for cand in (base, base.with_suffix(".ti1"), base.with_suffix(".ti2")):
+            if cand in seen:
+                continue
+            seen.add(cand)
+            if not cand.is_file():
+                continue
+            ids = _split_ids(_cgats_keyword(cand, CONTROL_STRIP_KEYWORD))
+            if ids:
+                name = _cgats_keyword(cand, "CONTROL_STRIP_NAME")
+                return {"name": name.strip(), "ids": ids,
+                        "source": "keyword", "file": cand.name}
+    return None
+
+
+def control_strip_block(lab, ref: "dict[str, tuple]", sample_ids: "list[str]",
+                        declaration: "dict | None") -> dict:
+    """The control-strip block of a report (see :func:`control_strip_declaration`).
+
+    ``n`` is **k**: the declared ids that are in this measurement AND carry a
+    reference value. S2w states those two conditions separately ("k, the count
+    of those ids present in the measured .ti3 … and when a reference exists for
+    them"); counting them as one number is never more lenient than counting
+    them apart, and it is the population the statistics are actually taken
+    over, which is what the eight and the twenty are about. ``n_present``
+    keeps the other count so the two can be told apart: a strip that is all
+    there and has no reference reads ``no_reference``, not "too small", because
+    those send a reader to different places.
+    """
+    block: dict = {
+        "declared": declaration is not None,
+        "name": (declaration or {}).get("name", ""),
+        "source": (declaration or {}).get("source", ""),
+        "declared_ids": len((declaration or {}).get("ids", ())),
+        "n_present": 0, "n": 0, "eligible": False, "p95_eligible": False,
+        "reason": REASON_NO_CONTROL_STRIP,
+        "avg": None, "max": None, "p95": None,
+    }
+    if declaration is None:
+        return block
+    index = {sid: i for i, sid in enumerate(sample_ids)}
+    present = [sid for sid in declaration["ids"] if sid in index]
+    block["n_present"] = len(present)
+    des = [ciede2000(tuple(lab[index[sid]]), tuple(ref[sid]))
+           for sid in present if ref and sid in ref]
+    block["n"] = k = len(des)
+    if len(present) >= CONTROL_STRIP_MIN and k == 0:
+        block["reason"] = REASON_NO_REFERENCE
+        return block
+    if k < CONTROL_STRIP_MIN:
+        block["reason"] = REASON_CONTROL_STRIP_TOO_SMALL
+        return block
+    s = _stats(des)
+    block["eligible"] = True
+    block["reason"] = None
+    block["avg"] = s["avg_all"]
+    block["max"] = s["max_all"]
+    # THE 95TH PERCENTILE IS A SEPARATE ELIGIBILITY, not a separate statistic.
+    # `_stats` computes it as the nearest rank ceil(0.95 k), which IS k below
+    # twenty, so the number exists at every size and is simply the largest
+    # again. Publishing it there would be a second row saying what the row
+    # above it already says.
+    block["p95_eligible"] = k >= CONTROL_STRIP_P95_MIN
+    block["p95"] = s["max_low95"] if block["p95_eligible"] else None
+    return block
+
+
+# ---------------------------------------------------------------------------
+# The two gamut populations ChromIQ defines for itself (#182 S2w)
+# ---------------------------------------------------------------------------
+def gamut_populations_block(rgb100, lab, ref: "dict[str, tuple]",
+                            sample_ids: "list[str]") -> dict:
+    """The surface-gamut and outer-gamut populations, and their averages.
+
+    These two rows were missing the DEFINITION of their population, not the
+    detection: the standards name their own lists of patches and ChromIQ does
+    not hold them. Knut's S2w ruling gives ChromIQ its own definitions and
+    changes the group heading to "Selected patches of the chart" in the same
+    breath, so the rows describe the chart in front of the user and claim
+    nothing about anybody's published list.
+
+    The cube corners are IN both populations. They are surface patches by
+    construction and the most saturated patches on any chart, and S2w excludes
+    nothing; the ΔE00 statistics above exclude them for a different reason
+    (they are unreachable by design on a from-profile-gamut chart) and that
+    exclusion is not carried over here.
+    """
+    rgb = np.asarray(rgb100, dtype=float)
+    n_rows = len(sample_ids)
+    surface: dict = {"n_surface": 0, "n": 0, "eligible": False,
+                     "reason": REASON_TOO_FEW_SURFACE_PATCHES, "avg": None}
+    outer: dict = {"n_referenced": 0, "n": 0, "eligible": False,
+                   "reason": REASON_TOO_FEW_OUTER_PATCHES, "avg": None,
+                   "chroma_floor": None}
+
+    on_surface = [i for i in range(n_rows)
+                  if float(np.min(np.minimum(rgb[i], 100.0 - rgb[i])))
+                  <= SURFACE_GAMUT_TOL]
+    surface["n_surface"] = len(on_surface)
+    sdes = [ciede2000(tuple(lab[i]), tuple(ref[sample_ids[i]]))
+            for i in on_surface if ref and sample_ids[i] in ref]
+    surface["n"] = len(sdes)
+    if len(on_surface) >= SURFACE_GAMUT_MIN and not sdes:
+        surface["reason"] = REASON_NO_REFERENCE
+    elif len(sdes) >= SURFACE_GAMUT_MIN:
+        surface["eligible"] = True
+        surface["reason"] = None
+        surface["avg"] = round(float(np.mean(sdes)), 3)
+
+    # The population is the top quartile BY THE REFERENCE'S chroma, so it is a
+    # property of the chart and the same patches every time that chart is
+    # measured. Ordered by chroma and then by sample id, so a tie at the
+    # quartile boundary is broken the same way on every run.
+    referenced = [i for i in range(n_rows) if ref and sample_ids[i] in ref]
+    outer["n_referenced"] = len(referenced)
+    if not referenced:
+        outer["reason"] = REASON_NO_REFERENCE
+        return {"surface": surface, "outer": outer}
+    ranked = sorted(referenced,
+                    key=lambda i: (-math.hypot(float(ref[sample_ids[i]][1]),
+                                               float(ref[sample_ids[i]][2])),
+                                   sample_ids[i]))
+    k = max(1, int(math.ceil(len(referenced) * OUTER_GAMUT_FRACTION)))
+    top = ranked[:k]
+    outer["n"] = len(top)
+    outer["chroma_floor"] = round(
+        float(math.hypot(float(ref[sample_ids[top[-1]]][1]),
+                         float(ref[sample_ids[top[-1]]][2]))), 2)
+    if len(top) >= OUTER_GAMUT_MIN:
+        odes = [ciede2000(tuple(lab[i]), tuple(ref[sample_ids[i]])) for i in top]
+        outer["eligible"] = True
+        outer["reason"] = None
+        outer["avg"] = round(float(np.mean(odes)), 3)
+    return {"surface": surface, "outer": outer}
 
 
 def is_graded_sheet(report: dict) -> bool:
@@ -2219,6 +2525,52 @@ def row_values(report: dict) -> "dict[str, dict]":
     else:
         for rid in ("substrate_de00_max", "solids_de00_max", "cmy_solids_dhab_max"):
             put(rid, None, REASON_NEEDS_REFERENCE_FILE)
+
+    # -- the control strip the chart declares for itself (S2w, 2026-09-18)
+    #
+    # A report saved before this existed carries no block, which is not the
+    # same thing as "this chart declares no strip" (N9, the same distinction
+    # the grey rows draw above): it says nothing at all, and the sentence for
+    # `not_computed` says exactly that.
+    _CS_ROWS = ("control_strip_de00_avg", "control_strip_de00_max",
+                "control_strip_de00_p95")
+    cstrip = report.get("control_strip")
+    if not isinstance(cstrip, dict):
+        for rid in _CS_ROWS:
+            put(rid, None, REASON_NOT_COMPUTED)
+    elif cstrip.get("eligible"):
+        put("control_strip_de00_avg", cstrip.get("avg"))
+        put("control_strip_de00_max", cstrip.get("max"))
+        if cstrip.get("p95") is not None:
+            put("control_strip_de00_p95", cstrip["p95"])
+        else:
+            # THE STRIP IS BIG ENOUGH FOR TWO OF THE THREE ROWS AND NOT THE
+            # THIRD, and that is the whole reason the 95th percentile carries
+            # its own threshold. The same code, because it is the same thing
+            # to do about it: a longer strip.
+            put("control_strip_de00_p95", None, REASON_CONTROL_STRIP_TOO_SMALL)
+    else:
+        for rid in _CS_ROWS:
+            put(rid, None, cstrip.get("reason") or REASON_NO_CONTROL_STRIP)
+
+    # -- the two gamut populations (S2w, 2026-09-18)
+    gp = report.get("gamut_populations")
+    if not isinstance(gp, dict):
+        put("surface_gamut_de00_avg", None, REASON_NOT_COMPUTED)
+        put("outer_gamut_226_de00_avg", None, REASON_NOT_COMPUTED)
+    else:
+        surf = gp.get("surface") or {}
+        if surf.get("eligible") and surf.get("avg") is not None:
+            put("surface_gamut_de00_avg", surf["avg"])
+        else:
+            put("surface_gamut_de00_avg", None,
+                surf.get("reason") or REASON_TOO_FEW_SURFACE_PATCHES)
+        outr = gp.get("outer") or {}
+        if outr.get("eligible") and outr.get("avg") is not None:
+            put("outer_gamut_226_de00_avg", outr["avg"])
+        else:
+            put("outer_gamut_226_de00_avg", None,
+                outr.get("reason") or REASON_TOO_FEW_OUTER_PATCHES)
     return out
 
 

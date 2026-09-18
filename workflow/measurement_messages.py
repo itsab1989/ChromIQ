@@ -2385,10 +2385,11 @@ M_REPORT_CHART_MISMATCH = _m(
     "Some limits cannot be checked on this chart",
     "The limit set {set} puts a limit on values this chart cannot supply, so "
     "these rows read N-A (not applicable):\n{rows}\n\n"
-    "A row that was not computed says nothing about the printer. To have it "
-    "checked, add the missing patches to the chart in Create Chart (for the "
-    "grey balance: “Neutral grey ramp” with 16 steps), print the new chart and "
-    "measure it again.",
+    "A row that was not computed says nothing about the printer. Each reason "
+    "above names what that row needs: most want patches added to the chart in "
+    "Create Chart (for the grey balance: “Neutral grey ramp” with 16 steps), "
+    "and the control strip wants the chart to declare one. Make the change, "
+    "print the chart again and measure it.",
     approved=False)
 
 # --- PROPOSED (#182, 2026-09-16): deleting one saved report ------------------

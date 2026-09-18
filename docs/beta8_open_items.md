@@ -6088,7 +6088,7 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   test_the_ramp_condition_quotes_the_real_thresholds,
   test_the_worst_five_condition_quotes_the_real_population_size,
   test_the_reference_rows_say_where_the_reference_comes_from,
-  test_the_five_rows_with_no_detection_say_so_plainly,
+  test_no_row_is_left_without_a_detection_method,
   test_no_row_promises_a_reason_code_that_does_not_exist,
   test_the_window_carries_one_icon_per_row,
   test_each_icon_carries_both_halves,
@@ -6219,7 +6219,7 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   test_the_lever_names_a_control_a_reader_can_find,
   test_the_help_shows_the_lever_under_its_own_heading,
   test_no_help_text_talks_about_the_project_instead_of_the_product,
-  test_the_five_rows_with_no_detection_say_so_plainly.
+  test_no_row_is_left_without_a_detection_method.
   Driven on screen; seven verdicts green, four dialogs photographed.
 - detail: three things, and the first is the one that mattered.
 
@@ -17157,9 +17157,9 @@ would reach.
   `build_report` writes is B8-393's ground, and a report on a user's disk may
   hold either way round.
 
-### B8-397 · OPEN · Knut approved all three S2w proposals, so the five undetected rows get detection
+### B8-397 · FIXED · Knut approved all three S2w proposals, so the five undetected rows get detection
 - blocks release: no
-- status: OPEN
+- status: FIXED
 - Knut, 2026-09-18: *"Implement the proposals. I have already proposed to change
   the heading from 'Selected patches of the standard's chart' to 'Selected
   patches of the chart'. The help text can explain, as for all the other
@@ -17191,8 +17191,81 @@ would reach.
   anyone skip, and `tests/test_every_metric_says_how_it_is_detected.py` reads
   the numbers back out of `measurement_report`'s own constants so a changed
   threshold cannot leave the window promising the old one.
-- evidence: none; nothing built.
-- what to do first: S2w moves from "⏳ Awaiting confirmation" to confirmed
-  behaviour naming him and the date, because he has now said so. Then build the
-  three, and expect the demo package (B8-393) to want data that triggers the
-  five new rows as well.
+- evidence:
+  test_no_row_is_left_without_a_detection_method,
+  test_the_control_strip_condition_quotes_the_real_thresholds,
+  test_the_gamut_population_conditions_quote_the_real_thresholds,
+  test_the_heading_over_the_two_gamut_rows_no_longer_names_a_standard,
+  test_a_chart_that_declares_nothing_has_no_control_strip,
+  test_both_declarations_are_read_and_both_name_the_strip,
+  test_seven_is_too_few_and_eight_is_enough,
+  test_nineteen_cannot_carry_a_95th_percentile_and_twenty_can,
+  test_a_declaration_naming_patches_the_chart_does_not_have,
+  test_an_unreadable_sidecar_leaves_the_chart_where_it_was,
+  test_the_sidecar_outranks_the_keyword,
+  test_a_sidecar_beside_the_run_chart_reaches_a_dated_verification,
+  test_a_ti1_that_carries_no_colour_column_can_still_declare_a_strip,
+  test_the_surface_population_is_the_patches_on_the_cube,
+  test_the_surface_rule_is_the_one_s2w_states,
+  test_the_outer_population_is_the_top_quarter_by_chroma,
+  test_the_outer_quarter_is_ranked_by_the_AIM_and_not_by_the_PRINT,
+  test_a_chart_with_no_reference_at_all_says_so_rather_than_too_few,
+  test_a_declared_strip_with_no_reference_says_no_reference,
+  test_a_report_saved_before_this_release_says_not_computed,
+  test_a_run_bound_before_this_release_is_not_reported_as_edited,
+  test_a_chart_with_no_declaration_behaves_exactly_as_it_did,
+  test_every_new_reason_becomes_a_sentence_that_says_what_to_do,
+  test_the_strip_sentence_names_the_count_and_both_thresholds,
+  test_the_count_bearing_sentences_have_a_singular_form,
+  test_the_closing_note_does_not_name_one_remedy_for_every_reason,
+  test_every_judgeable_row_names_a_lever.
+  Sixteen mutations were applied to the real source, the caches cleared and the
+  tests re-run: every one turned the suite RED and green again on restore. The
+  list is in `~/Desktop/ChromIQ-beta22-proof/b397-the-five-rows/mutations.txt`.
+  Driven on screen by `scripts/drive_182_the_five_rows.py`: nine frames, each
+  one's client area pixel-identical to its own retake a second later, eight
+  verdicts green.
+- detail: three rules, five rows, and the heading.
+
+  **The control strip is DECLARED BY THE CHART.** ChromIQ holds no standard's
+  published patch list and will not guess one, so the chart says for itself
+  which of its patches make up a strip: a sidecar
+  `<chart stem>.control-strip.json` holding a name and the sample ids, or a
+  CGATS `CONTROL_STRIP_IDS` keyword on the `.ti1` / `.ti2`. The row is
+  computable at k >= 8 and the 95th percentile at k >= 20, k being the declared
+  ids that are in the measurement and carry a reference value. Two reason
+  codes, `no_control_strip` and `control_strip_too_small`, because they send a
+  reader to different places.
+
+  **The two gamut populations are ChromIQ's own.** Surface gamut: a patch whose
+  device values touch the cube surface, `min(v, 100 - v) <= 2.0` on at least one
+  of R, G, B, ten of them carrying a reference. Outer gamut: the top quarter by
+  the REFERENCE's chroma, the quarter itself holding at least twenty patches.
+
+  **The heading changed with them**, to "Selected patches of the chart", which
+  is what keeps the second of those from being a third instance of attributing
+  ChromIQ's own coverage to a standard.
+
+  **FOUND WHILE DRIVING IT, and both are fixed here.** A sidecar written beside
+  the run's chart was invisible to a dated verification, because such a
+  measurement is paired with the snapshot in its own `chart/` folder: the
+  declaration is now looked for beside every chart the report would pair the
+  measurement with, in the report's own pairing order. And the note under the
+  results table closed with "add the missing patches to the chart in Create
+  Chart to have it checked", one line under a reason that had just said
+  "Declare a longer strip": one remedy for every reason was true while every
+  reason meant "the chart is short of patches", and three reasons no longer do.
+  Both photographed. M-REPORT-CHART-MISMATCH carried the same clause and is
+  revised in §M with a note saying why.
+
+  **AND A REGRESSION THIS CHANGE WOULD HAVE SHIPPED, measured before it could.**
+  The five rows arrive with a limit in the two Custom columns, so a run bound to
+  one of those before this release holds a `?` where the set now holds 2.0, and
+  `is_edited` answered True: a run whose limits nobody had touched was labelled
+  edited. Nothing a user can do produces a `?`, so a stored one is never an
+  edit, and `is_edited` now says so.
+- what to do first: nothing here. The demo package (B8-393) has no chart that
+  declares a control strip, so the three control-strip rows read
+  `no_control_strip` in all six of its projects; if that pack is rebuilt, one
+  project wants a declared strip of twenty and one a strip of seven, so the two
+  new reasons and the judged rows are both in it.
