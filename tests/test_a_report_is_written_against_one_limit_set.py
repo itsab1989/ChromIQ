@@ -492,3 +492,56 @@ def test_renaming_the_project_does_not_pull_another_set_into_the_document(
             f"rename and {len(dropped_after)} after")
     finally:
         dlg.close()
+
+
+def test_the_limit_split_survives_the_window_repainting_itself(tmp_path, qapp):
+    """R19-3: the fix for R18-F4 was inert in the app, and the guard could not
+    see it because it called `_one_limit_set` twice by hand. `_refresh()` calls
+    `_forget_limits()` and THEN renders, and that was emptying the very memo
+    the fix depends on, so with the folder already gone nothing in the render
+    could refill it. Driven through `_refresh()`: memo 0 entries, 3 kept and 0
+    dropped, which is the symptom the fix was written for.
+
+    **This test repaints the window, because that is the only sequence the app
+    ever runs.**
+
+    MUTATION, proven to land: clear `_limits_by_origin` in `_forget_limits`.
+    """
+    from tests.test_a_report_says_what_it_is_and_what_judged_it import _dialog
+    from tests.test_import_measurement_module import _cgats, _PATCHES
+    from workflow.run_compliance import bind_run
+    from pathlib import Path as _P
+    dlg, _run, fm = _dialog(tmp_path, qapp)
+    try:
+        proj = fm.project()
+        root = _P(str(proj.root))
+        for scale, limits in ((0.9, None), (0.7, "chromiq_tight")):
+            run = proj.new_run()
+            v = run.new_verification()
+            v.ensure_dir()
+            v.measurement_ti3.write_text(
+                _cgats("CTI3", [(r * scale, g, b) for (r, g, b) in _PATCHES]),
+                encoding="utf-8")
+            if limits:
+                bind_run(run, limits, None)
+            dlg._add_source(v.measurement_ti3)
+            qapp.processEvents()
+        dlg._refresh()
+        qapp.processEvents()
+        kept_before, dropped_before = dlg._one_limit_set(list(dlg._history))
+        assert dropped_before, "the fixture leaves nothing out"
+        moved = root.with_name(root.name + "-moved")
+        root.rename(moved)
+        try:
+            dlg._refresh()            # the app's own sequence, forget then render
+            qapp.processEvents()
+            kept_after, dropped_after = dlg._one_limit_set(list(dlg._history))
+        finally:
+            moved.rename(root)
+        assert len(kept_after) == len(kept_before), (
+            f"after the window repainted itself, {len(kept_after)} "
+            f"measurements are in a document written against one set where "
+            f"{len(kept_before)} were")
+        assert len(dropped_after) == len(dropped_before)
+    finally:
+        dlg.close()

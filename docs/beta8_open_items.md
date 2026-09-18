@@ -15379,7 +15379,7 @@ different document.
   keystroke burst, 0.404 to 0.417 s, unchanged; the two-projects-swap and
   recreated-smaller memo cases, which self-correct; the symlink spelling; and
   the stale-cloud half of R17-F1, which is genuinely fixed.
-- what to do next: round 19, and then the three gates.
+- what to do next: round 19 found three of these four STILL LIVE; B8-360.
 
 ### B8-359 · OPEN · Two defaults for the patch area's vertical alignment, and they disagree
 - blocks release: no
@@ -15398,3 +15398,85 @@ different document.
 - evidence: none yet; nothing has been changed.
 - what to do first: decide which default is the real one, with Basti, and then
   make the other one say the same thing.
+
+### B8-360 · FIXED · Round 19: three of round 18's four were still live
+- blocks release: yes
+- status: FIXED
+- evidence: `test_the_limit_split_survives_the_window_repainting_itself`,
+  `test_a_measurement_written_again_in_place_is_still_one_source`,
+  `test_the_numberless_sentence_also_says_which_projects`,
+  `test_the_estimate_mark_does_not_depend_on_which_path_wrote_the_row`.
+
+**R18-F1 holds**, and round 19 checked that first: window 1 pushes in 0.411 s,
+window 2 evicts the program entry, back in window 1 **0.410 s and 0 uncached
+builds** against round 18's 19.854 s.
+
+**R19-3 · the fix for R18-F4 was inert in the app, and my guard could not see
+it because it never repainted.** `_refresh()` calls `_forget_limits()` and THEN
+renders, and the forget was emptying the very memo the fix depends on, so with
+the folder already gone nothing in the render could refill it. Driven by hand,
+two direct calls: 1 kept, 2 dropped, held. Driven the way the app does it,
+through `_refresh()`: **memo 0 entries, 3 kept and 0 dropped**, which is the
+symptom the fix was written for. The memo now survives a forget, which is safe
+because it is only ever consulted when the run cannot be read at all. **The new
+guard repaints**, because that is the only sequence the app runs.
+
+**R19-2 · the fix for R18-F2 reintroduced R18-F2's symptom.** An inode is the
+same under every SPELLING of a file and does not survive the file being
+REPLACED, which `os.replace`, a Finder replace, an export written again and a
+synced folder all do. Driven: add, second add refused, then replaced in place
+under the same name, and the third add went through as a new row with the
+Report Scope reading "2 runs" for one file. A source answers to BOTH what it is
+and where it is now, and the two new guards before this one both re-spelled a
+file that is never rewritten.
+
+**R19-1 · the numberless sentence said "this project" on a two-project
+document.** The branch written in round 18 had no "one or several" test, which
+the numbered branch thirteen lines below it has carried since R13-3. Two real
+projects recording two each, one folder renamed: *"does not cover every
+measurement recorded for this project"* with the Report Scope naming both in
+the same picture. Round 13's own guard opens `if m is None: return`, and
+`m is None` is exactly what round 18's branch produces.
+
+**R19-4 · the estimate mark flickered.** `_update_gen_counts` writes the fill
+row with a leading "≈" in the multi-ink states and `_apply_built_row_counts`
+wrote the same number without one, so the mark went on and off with whichever
+path last touched the row, for a number that never moved: re-picking the same
+preconditioning profile took it from "7220 patches" to "≈ 7220 patches".
+
+- Mutations, each proven to land, 2026-09-18: X1 a source answers only to its
+  identity (1 red), X2 the numberless sentence always singular (1 red), X3 the
+  memo cleared on every forget (1 red), X4 the estimate branch drops the mark
+  (1 red).
+- **Corrections from round 19**: there are **six** report types of which four
+  are built, not eight, and several briefs of mine have said eight. And
+  B8-358's F4 entry read as fixed when it was not, which this entry replaces.
+- **Inherited, and NOT fixed**: a project holding one recorded-raw sheet fires
+  the honesty note with nothing hidden, because `covered` excludes a raw drift
+  check and the total does not. Driven both ways by round 19; the line came in
+  at `ae66726b`. It is arguably right (a sheet that cannot be judged is not
+  covered) and it is arguably a false alarm, so it is B8-361 rather than a fix
+  made blind.
+- **What round 19 could NOT break**: the two numbers now kept in the cloud
+  cache; inode reuse (24 files on a FAT32 volume, zero collisions, and
+  delete-then-create gave a new inode on both FAT32 and APFS); hard links;
+  `_dir_ident`; colliding `_origin_dir` strings; a project with nothing hidden
+  and no readable folder.
+- what to do next: round 20, and then the three gates.
+
+### B8-361 · OPEN · A raw drift check makes the honesty note fire with nothing hidden
+- blocks release: no
+- status: OPEN
+- Found by round 19 while attacking something else, and inherited rather than
+  new: the line came in at `ae66726b`. `covered` counts the rows in the
+  document EXCLUDING a recorded-raw verification, which is never judged at all,
+  while the project's total counts every measurement on the disk. So a project
+  holding one raw sheet and nothing else reports "covers 0 of the 1" with
+  nothing hidden by anybody.
+- Two readings, and they are both defensible, which is why this is not a fix
+  made blind: a sheet that carries no verdict is genuinely not covered by a
+  document made of verdicts, so the sentence is true; or nothing was left out
+  by a choice anybody made, so the sentence is a false alarm.
+- evidence: none yet; nothing has been changed.
+- what to do first: decide which reading is right, with Knut, since the note is
+  his honesty rule and the raw-drift exemption is his ruling too.

@@ -786,6 +786,10 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-18, round 19: the numberless scope sentence gained
+    # its own plural form for a document drawn from more than one project,
+    # which the numbered one has had since R13-3. One key in, none out.
+
     # RE-MEASURED 2026-09-18 again, for round 18's fix to the report's scope
     # sentence: a folder that cannot be counted no longer has a number invented
     # for it, so there is a second wording with no numbers in it. ONE key in,
@@ -966,18 +970,18 @@ _IDENTICAL_TO_KEY = {
     # ...and once more, +1 each, for B8-328's SECOND attempt: three layout help
     # texts rewritten after an adversary round measured the first rewrite false
     # on 154 of the 160 built-in charts.
-    "de": 142,
-    "es": 382,
-    "fr": 404,
-    "it": 393,
-    "ja": 368,
-    "nl": 409,
-    "no": 394,
-    "pl": 386,
-    "pt": 384,
-    "ru": 357,
-    "sv": 395,
-    "zh_CN": 362,
+    "de": 143,
+    "es": 383,
+    "fr": 405,
+    "it": 394,
+    "ja": 369,
+    "nl": 410,
+    "no": 395,
+    "pl": 387,
+    "pt": 385,
+    "ru": 358,
+    "sv": 396,
+    "zh_CN": 363,
 }
 
 

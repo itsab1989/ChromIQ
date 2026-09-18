@@ -1795,11 +1795,17 @@ class MeasurementReportDialog(QDialog):
         name = runs[-1].get("chart") or ti3.stem
         return name, runs
 
-    def _source_key(self, ti3: Path) -> tuple:
+    def _source_key(self, ti3: Path, by_identity: bool = True) -> tuple:
         """Dedup identity for a measurement. A ChromIQ project (saved reports
         across its runs/) is ONE source per FOLDER — all its runs. A standalone or
         imported measurement is ONE source per FILE, so several loose measurements
-        in the same folder each add instead of collapsing to one (Knut)."""
+        in the same folder each add instead of collapsing to one (Knut).
+
+        With *by_identity* the second half of the key is the disk's own device
+        and inode, which every SPELLING of one file agrees on; without it, the
+        resolved path, which survives the file being REWRITTEN. `_source_keys`
+        asks for both, because each one misses what the other catches.
+        """
         from core.file_manager import VERIFICATIONS_DIRNAME
         from workflow.measurement_report import list_project_reports
         # ONE FILE IS ONE SOURCE, BY THE DISK'S OWN IDENTITY. `resolve()`
@@ -1812,11 +1818,12 @@ class MeasurementReportDialog(QDialog):
         # the 3" with one sheet printed twice (R18-F2). A file's device and
         # inode are the same under every one of those spellings.
         _ident = None
-        try:
-            _st = ti3.stat()
-            _ident = f"{_st.st_dev}:{_st.st_ino}"
-        except OSError:
-            pass
+        if by_identity:
+            try:
+                _st = ti3.stat()
+                _ident = f"{_st.st_dev}:{_st.st_ino}"
+            except OSError:
+                pass
         try:
             ti3 = ti3.resolve()
         except OSError:
@@ -1828,10 +1835,25 @@ class MeasurementReportDialog(QDialog):
         # back as a `dir` and the other as a `file`, so the identity below
         # never got the chance to match them (R18-F2).
         if ti3.parent.parent.name.casefold() == VERIFICATIONS_DIRNAME.casefold():
-            return ("dir", _dir_ident(ti3.parent.parent))
+            return ("dir", _dir_ident(ti3.parent.parent) if by_identity
+                    else str(ti3.parent.parent))
         if list_project_reports(ti3.parent):
-            return ("dir", _dir_ident(ti3.parent))
+            return ("dir", _dir_ident(ti3.parent) if by_identity
+                    else str(ti3.parent))
         return ("file", _ident or str(ti3))
+
+    def _source_keys(self, ti3: Path) -> tuple:
+        """Every identity this measurement answers to: where it is, and what it
+        is. Two sources are the same when they share either.
+
+        A path alone cannot see that two spellings name one file; an inode
+        alone cannot see that one path has been written again. See
+        `_append_source`, where both halves were learned the hard way one round
+        apart.
+        """
+        by_id = self._source_key(ti3)
+        by_path = self._source_key(ti3, by_identity=False)
+        return (by_id, by_path) if by_id != by_path else (by_id,)
 
     def _append_source(self, ti3: Path, origin: "Path | None" = None) -> bool:
         """Add one measurement to the source list (no repaint). Returns False if it
@@ -1842,9 +1864,20 @@ class MeasurementReportDialog(QDialog):
         ChromIQ .ti3, but the original .mxf/.txt/.cxf when *ti3* is a temp
         conversion). The report is saved next to the origin, never the temp folder
         (Knut)."""
-        key = self._source_key(ti3)
-        if any(s.get("key") == key for s in self._sources):
+        # **EITHER THE SAME PLACE OR THE SAME FILE, BECAUSE NEITHER ALONE IS
+        # ENOUGH.** Keying on the path let a second SPELLING of one measurement
+        # in twice (a firmlink, another capitalisation: +1 row each, and one
+        # sheet printed twice). Keying on the file's device and inode fixed
+        # that and broke the other half: an inode does not survive the file
+        # being REPLACED, which `os.replace`, a Finder replace, an export
+        # written again and a synced folder all do, so the same path added
+        # again became a third row and the Report Scope read "2 runs" for one
+        # file (R19-2, a regression from the fix for R18-F2). A source is
+        # already here when it matches on either.
+        keys = self._source_keys(ti3)
+        if any(set(s.get("keys") or ()) & set(keys) for s in self._sources):
             return False
+        key = keys[0]
         name, runs = self._gather_runs(ti3)
         if not runs:
             return False
@@ -1852,7 +1885,8 @@ class MeasurementReportDialog(QDialog):
         # this window. The reading opens the file, so it is not something to
         # repeat on every repaint. See `_scale_label`.
         from ui.measurement_filing import the_colour_scale_note
-        self._sources.append({"key": key, "name": name, "dir": ti3.parent,
+        self._sources.append({"key": key, "keys": keys,
+                              "name": name, "dir": ti3.parent,
                               "ti3": ti3, "origin": Path(origin or ti3),
                               "runs": runs,
                               "scale_note": the_colour_scale_note(ti3)})
@@ -3148,9 +3182,15 @@ class MeasurementReportDialog(QDialog):
         session-only choice for a file that is in no run (CH-14) is kept: there
         is nothing on disk to re-read it from."""
         self._limits_cache = {}
-        # ...and what each row last answered, which is the same cache seen from
-        # the row's end (see `_limits_for`).
-        self._limits_by_origin = {}
+        # **AND `_limits_by_origin` IS DELIBERATELY NOT CLEARED HERE.** It was,
+        # and that made the fix it exists for inert in the app: `_refresh()`
+        # calls this and THEN renders, so with the folder already gone nothing
+        # in the render could refill it and every row fell through to the
+        # window's set again. Driven through `_refresh()`: memo 0 entries, 3
+        # kept and 0 dropped, which is the symptom the fix was written for
+        # (R19-3). It is only ever consulted when `run_context_for` cannot read
+        # the run at all, so a stale entry can only be reached in the one state
+        # where there is nothing on disk to be stale against.
         # …AND THE TYPES, for the same reason and at the same moment. A cache
         # that outlives the read it was taken for is a baseline taken later
         # than the write that earned it, which is a fault shape this window has
@@ -6440,8 +6480,17 @@ class MeasurementReportDialog(QDialog):
             _held = len([r for r in self._history
                          if _ident(_project_of(r)) in _mine])
             if covered < _held:
-                note = tr("This report does not cover every measurement "
-                          "recorded for this project.")
+                # ONE PROJECT OR SEVERAL, HERE TOO. The numbered branch below
+                # learned this as R13-3 and this one was written without it, so
+                # a document drawn from two projects with one folder unreadable
+                # said "does not cover every measurement recorded for THIS
+                # project" with the Report Scope naming both of them in the
+                # same picture (R19-1, photographed).
+                note = (tr("This report does not cover every measurement "
+                           "recorded for this project.")
+                        if len(_mine) == 1 else
+                        tr("This report does not cover every measurement "
+                           "recorded for the projects it is drawn from."))
                 out += (f"<div style='color:{_C['dim']};margin-top:6px'>"
                         + html.escape(note) + "</div>")
         elif covered < total_known:

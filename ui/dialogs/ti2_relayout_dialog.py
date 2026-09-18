@@ -4126,7 +4126,17 @@ class _NewChartDialog(QDialog):
             # Without a program in hand there is nothing to count, so the
             # estimate `_update_gen_counts` already wrote is left alone rather
             # than replaced by a worse one.
-            fill_lbl.setText(_fill_count_label(G.fill_gaps_count(
+            #
+            # **AND THE MARK COMES WITH IT.** `_update_gen_counts` writes this
+            # row with a leading "≈" in the multi-ink states, because there the
+            # number cannot be corrected from a build; this branch wrote the
+            # same number without one. So the row's mark flickered on and off
+            # with which path last touched it, for a number that never moved:
+            # re-picking the same preconditioning profile took it from
+            # "7220 patches" to "≈ 7220 patches" (R19-4). The estimate is an
+            # estimate whoever writes it.
+            _mark = "≈ " if self._nch_state() != 1 else ""
+            fill_lbl.setText(_mark + _fill_count_label(G.fill_gaps_count(
                 len(self._existing_patches) + len(additions),
                 self._effective_fill_target())))
 

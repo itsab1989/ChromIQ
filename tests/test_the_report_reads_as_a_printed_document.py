@@ -854,3 +854,109 @@ def test_a_loose_file_opened_under_two_spellings_is_one_source(tmp_path,
             f"{len(dlg._history) - n_rows} more rows")
     finally:
         dlg.close()
+
+
+def test_the_numberless_sentence_also_says_which_projects(tmp_path, qapp):
+    """R19-1: the sentence written when a folder cannot be counted had no
+    "one project or several" test, unlike the numbered one thirteen lines below
+    it whose own comment records that exact lesson. Driven: two projects
+    recording two each, one row hidden, one folder renamed, and the document
+    said "does not cover every measurement recorded for THIS project" with the
+    Report Scope naming both of them in the same picture.
+
+    MUTATION, proven to land: use the singular wording unconditionally.
+    """
+    from tests.test_a_report_says_what_it_is_and_what_judged_it import _dialog
+    from tests.test_import_measurement_module import _cgats, _PATCHES
+    from core.file_manager import Project
+    dlg, _run, fm = _dialog(tmp_path, qapp)
+    try:
+        proj = fm.project()
+        root = Path(str(proj.root))
+        for scale in (0.9, 0.7):
+            run = proj.new_run()
+            v = run.new_verification()
+            v.ensure_dir()
+            v.measurement_ti3.write_text(
+                _cgats("CTI3", [(r * scale, g, b) for (r, g, b) in _PATCHES]),
+                encoding="utf-8")
+            dlg._add_source(v.measurement_ti3)
+            qapp.processEvents()
+        other_root = root.parent / "Second-Target"
+        other = Project.create(other_root, "Second-Target")
+        for scale in (0.6, 0.4):
+            r2 = other.new_run()
+            v2 = r2.new_verification()
+            v2.ensure_dir()
+            v2.measurement_ti3.write_text(
+                _cgats("CTI3", [(c * scale, g, b) for (c, g, b) in _PATCHES]),
+                encoding="utf-8")
+            dlg._add_source(v2.measurement_ti3)
+            qapp.processEvents()
+        rows = list(dlg._history)
+        dlg._hidden_runs = {dlg._run_key(rows[0])}
+        qapp.processEvents()
+        moved = other_root.with_name(other_root.name + "-moved")
+        other_root.rename(moved)
+        try:
+            body = _plain(dlg._report_body_html(dlg._runs_for_report(),
+                                                for_pdf=False))
+        finally:
+            moved.rename(other_root)
+        if "does not cover every measurement" not in body:
+            pytest.skip("this state does not reach the numberless sentence")
+        assert "recorded for the projects it is drawn from" in body, (
+            "a document drawn from two projects says 'this project'\n"
+            + body[-300:])
+    finally:
+        dlg.close()
+
+
+def test_a_measurement_written_again_in_place_is_still_one_source(tmp_path,
+                                                                  qapp):
+    """R19-2: keying the source on the file's device and inode fixed one half
+    and broke the other. An inode is the same under every SPELLING of a file
+    and does not survive the file being REPLACED, which `os.replace`, a Finder
+    replace, an export written again and a synced folder all do. Driven: add,
+    refused on a second add, then replaced in place under the same name, and
+    the third add went through as a new row with the Report Scope reading
+    "2 runs" for one file.
+
+    A source answers to both what it is and where it is.
+
+    MUTATION, proven to land: return only the identity key from
+    `_source_keys`.
+    """
+    from tests.test_a_report_says_what_it_is_and_what_judged_it import _dialog
+    from tests.test_import_measurement_module import _cgats, _PATCHES
+    dlg, _run, _fm = _dialog(tmp_path, qapp)
+    try:
+        loose = tmp_path / "exports" / "exported.ti3"
+        loose.parent.mkdir(parents=True, exist_ok=True)
+        loose.write_text(
+            _cgats("CTI3", [(r * 0.8, g, b) for (r, g, b) in _PATCHES]),
+            encoding="utf-8")
+        dlg._add_source(loose)
+        qapp.processEvents()
+        n_rows = len(dlg._history)
+        assert n_rows, "the fixture added nothing"
+        before = loose.stat().st_ino
+
+        # written again in place, the way an export or a sync does it
+        tmp_new = loose.with_suffix(".new")
+        tmp_new.write_text(
+            _cgats("CTI3", [(r * 0.81, g, b) for (r, g, b) in _PATCHES]),
+            encoding="utf-8")
+        import os
+        os.replace(tmp_new, loose)
+        assert loose.stat().st_ino != before, (
+            "this filesystem kept the inode across a replace, so the case "
+            "this test is for did not happen")
+
+        dlg._add_source(loose)
+        qapp.processEvents()
+        assert len(dlg._history) == n_rows, (
+            f"the same file, written again under the same name, added "
+            f"{len(dlg._history) - n_rows} more rows")
+    finally:
+        dlg.close()

@@ -4290,6 +4290,7 @@
  "This report compares what your instrument measured against the chart's design colours (the reference values the chart was built from). Every number is a colour difference (ΔE00): 0 is a perfect match, 1–2 is barely visible, and 10 or more is clearly different.": "本报告将你的仪器所测与色卡的设计颜色（生成色卡所依据的参考值）进行比较。每个数字都是一个色差（ΔE00）：0 为完美匹配，1–2 几乎不可见，10 或以上则明显不同。",
  "This report covers {n} of the {total} measurements recorded for the projects it is drawn from.": "This report covers {n} of the {total} measurements recorded for the projects it is drawn from.",
  "This report covers {n} of the {total} measurements recorded for this project.": "This report covers {n} of the {total} measurements recorded for this project.",
+ "This report does not cover every measurement recorded for the projects it is drawn from.": "This report does not cover every measurement recorded for the projects it is drawn from.",
  "This report does not cover every measurement recorded for this project.": "This report does not cover every measurement recorded for this project.",
  "This row needs a chart built from this reference's own colours. Your sheet was printed from its own chart, so the patches have no partner in the reference.": "This row needs a chart built from this reference's own colours. Your sheet was printed from its own chart, so the patches have no partner in the reference.",
  "This run": "本次运行",

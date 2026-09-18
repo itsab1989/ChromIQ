@@ -757,3 +757,35 @@ def test_a_cached_lab_cloud_never_pays_for_a_rebuild(qapp, monkeypatch):
     dlg._push_lab_cloud()
     assert dlg._lab_cloud_cache[0] == dlg._generator_cache_key()
     dlg.deleteLater()
+
+
+def test_the_estimate_mark_does_not_depend_on_which_path_wrote_the_row(qapp,
+                                                                       monkeypatch):
+    """R19-4: `_update_gen_counts` writes the fill row with a leading "≈" in
+    the multi-ink states, because there the number cannot be corrected from a
+    build, and `_apply_built_row_counts` wrote the same number without one. So
+    the mark flickered on and off with whichever path last touched the row, for
+    a number that never moved: re-picking the same preconditioning profile took
+    it from "7220 patches" to "≈ 7220 patches".
+
+    MUTATION, proven to land: drop the mark from the estimate branch.
+    """
+    dlg = _AddPatchesDialog(_FakeSettings(),
+                            existing_patches=_chart_with_white_and_black())
+    dlg._add_mode_gen.setChecked(True)
+    _sets_off(dlg)
+    dlg._gen_cube.setChecked(True)
+    dlg._gen_fill.setChecked(False)
+    # a target the chart has NOT already met, or the row says so instead of
+    # carrying a number and there is no mark to compare
+    dlg._gen_fill_to.setValue(4000)
+    monkeypatch.setattr(type(dlg), "_nch_state", lambda self: 3)
+    dlg._update_gen_counts()
+    from_counts = dlg._gen_fill_count.text()
+    dlg._apply_built_row_counts([(50.0, 50.0, 50.0)] * 8)
+    from_build = dlg._gen_fill_count.text()
+    assert from_counts.startswith("≈"), from_counts
+    assert from_build.startswith("≈"), (
+        f"the row reads {from_counts!r} from one path and {from_build!r} from "
+        f"the other, for the same estimate")
+    dlg.deleteLater()

@@ -4290,6 +4290,7 @@
  "This report compares what your instrument measured against the chart's design colours (the reference values the chart was built from). Every number is a colour difference (ΔE00): 0 is a perfect match, 1–2 is barely visible, and 10 or more is clearly different.": "このレポートは、測定器が測定した値をチャートの設計色（チャートを作成した元の基準値）と比較します。すべての数値は色差（ΔE00）です: 0 は完全一致、1–2 はほとんど見えない、10 以上は明らかに異なります。",
  "This report covers {n} of the {total} measurements recorded for the projects it is drawn from.": "This report covers {n} of the {total} measurements recorded for the projects it is drawn from.",
  "This report covers {n} of the {total} measurements recorded for this project.": "This report covers {n} of the {total} measurements recorded for this project.",
+ "This report does not cover every measurement recorded for the projects it is drawn from.": "This report does not cover every measurement recorded for the projects it is drawn from.",
  "This report does not cover every measurement recorded for this project.": "This report does not cover every measurement recorded for this project.",
  "This row needs a chart built from this reference's own colours. Your sheet was printed from its own chart, so the patches have no partner in the reference.": "This row needs a chart built from this reference's own colours. Your sheet was printed from its own chart, so the patches have no partner in the reference.",
  "This run": "この実行",
