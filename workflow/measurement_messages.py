@@ -933,6 +933,51 @@ M_PATCHSET_MISSING = _m(
     "\u201cGenerate Chart\u201d.",
     approved=False)
 
+# --- PROPOSED: a verification chart that cannot carry a control strip ------
+# #182, beta 22. ChromIQ now writes a control-strip declaration beside every
+# verification chart it creates (`workflow/control_strip.py`), which is what
+# makes the three control-strip rows of the Measurement Report computable at
+# all. A chart whose patches cannot fill eight rungs of the ladder gets no
+# declaration, and Knut asked for that to be said out loud rather than
+# discovered later in a report: *"notify the user if a selected/loaded/created
+# chart ... does not fulfil the requirements to be able to create the
+# control-strip declaration ... The warning must specify what is required when
+# selecting a chart for the control-strip declaration to be created, and also
+# refer to the button function in Create Chart mentioned above for help in
+# selecting a compatible chart."*
+#
+# {n} is how many of the 29 rungs the chart filled. {button} is the Create
+# Chart control that lists the patch sets which can carry a strip: it is a
+# placeholder and not a literal precisely because that control is being built
+# alongside this message, so the name is settled in ONE place
+# (`control_strip.ELIGIBILITY_CONTROL`) rather than transcribed here.
+M_VERIFY_NO_CONTROL_STRIP = _m(
+    "M-VERIFY-NO-CONTROL-STRIP",
+    "This chart cannot carry a control strip",
+    "ChromIQ has saved it as this run's verification chart and it is ready to "
+    "print. What it cannot do is carry a control strip, so the three "
+    "control-strip rows of the Measurement Report will read \u201cthis chart "
+    "declares no control strip\u201d for every measurement made on it.\n\n"
+    "A control strip is the short run of patches a print is checked on, and "
+    "ChromIQ builds one out of the chart's own patches: the bare paper, the "
+    "composite black, the cyan, magenta and yellow solids, the red, green and "
+    "blue overprints, a 25 %, 50 % and 75 % step of each of those six colours, "
+    "and a 25 %, 50 % and 75 % neutral grey. That is 29 patches in all, and a "
+    "patch of your chart counts for one of them when its red, green and blue "
+    "values are each within 12 units of it.\n\n"
+    "This chart supplied {n} of the 29. At least 8 are needed before the "
+    "average and the largest patch can be reported, and 20 before the 95th "
+    "percentile can.\n\n"
+    "What to do: build the verification chart from a patch set with more "
+    "patches, or one spread more evenly over the colour cube. "
+    "\u201c{button}\u201d on this tab lists every chart preset against the "
+    "rows a Measurement Report judges, so you can choose a patch set that "
+    "answers more of them.\n\n"
+    "Nothing is wrong with the chart itself and nothing has been changed. "
+    "Every other row of the Measurement Report is unaffected.",
+    approved=False)
+
+
 # --- PROPOSED: the how-was-this-sheet-printed question ---------------------
 # Asked once, at measure time, ONLY for a verification sheet that has no
 # print record — i.e. a sheet ChromIQ did not print itself. The answer decides
@@ -2472,6 +2517,7 @@ CATALOGUE = {m.id: m for m in (
     M_OVERLAY_NO_MEASUREMENT, M_ALL_STRIPS_PATCHES_LEFT,
     M_ENGINE_FELL_BACK,
     M_PATCHSET_MISSING,
+    M_VERIFY_NO_CONTROL_STRIP,
     M_PROJECT_EXISTS,
     M_PROJECT_REPLACE_CONFIRM,
     M_PROJECT_REPLACE_FAILED,

@@ -124,6 +124,13 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # too — so a second window at Generate time
                                  # interrupted a decision already made.
                                  "M-PATCHSET-MISSING",
+                                 # #182, beta 22: ChromIQ now writes a
+                                 # control-strip declaration beside every
+                                 # verification chart it creates, and Knut
+                                 # asked to be told when a chart cannot carry
+                                 # one. The WINDOW is his request; the wording
+                                 # waits here.
+                                 "M-VERIFY-NO-CONTROL-STRIP",
                                  # #182, 2026-09-08: the Measurement Report is
                                  # judged against a limit set bound to the run.
                                  # The strip for rows the chart cannot supply

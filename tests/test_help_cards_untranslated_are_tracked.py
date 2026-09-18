@@ -610,18 +610,33 @@ _BUDGET = {
     # twenty-one substantial ones left English in the other twelve, which is
     # the standing rule during a beta. Counted with this file's own
     # `_english_echoes`, never adjusted upward.
+    # RE-MEASURED 2026-09-19, beta 22, with TWO change sets in the tree at once,
+    # and the split is recorded because they are not one piece of work:
+    #
+    # * the control-strip declaration (B8-405) adds 6 keys, **all six
+    #   translated into German in the same commit**, of which 5 are long enough
+    #   to count here. German therefore does not move for them; the other
+    #   eleven carry the English source under the beta rule and rise by 5;
+    # * the "Which presets can be verified?" window adds 38 keys, untranslated
+    #   in every language, 28 of them long enough to count. German does not
+    #   move either, because its own count is already 20 against a budget of 20
+    #   and none of those 28 is in the family this file counts for `de`.
+    #
+    # So `de` stands still at 20 and each of the other eleven rises by exactly
+    # 33. COUNTED with this file's own `_english_echoes` over the catalogues as
+    # they stand, never adjusted upward: 245 -> 278 and its neighbours.
     "de": 20,
-    "es": 245,
-    "fr": 246,
-    "it": 245,
-    "ja": 245,
-    "nl": 245,
-    "no": 245,
-    "pl": 245,
-    "pt": 245,
-    "ru": 244,
-    "sv": 245,
-    "zh_CN": 244,
+    "es": 278,
+    "fr": 279,
+    "it": 278,
+    "ja": 278,
+    "nl": 278,
+    "no": 278,
+    "pl": 278,
+    "pt": 278,
+    "ru": 277,
+    "sv": 278,
+    "zh_CN": 277,
 }
 
 

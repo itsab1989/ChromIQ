@@ -956,8 +956,43 @@ def _handle_loose_into_project(parent, ti2_path, working_dir, controller,
                                                      bin_dir=_bin_dir(settings))
         else:
             return None
+    _maybe_warn_no_control_strip(parent, out, verif)
     _point_bar_at_current_run(controller)
     return out, _dest_tiffs(out)
+
+
+def _maybe_warn_no_control_strip(parent, ti2: "Path | None", verif: bool) -> None:
+    """Say so when an imported VERIFICATION chart cannot carry a control strip.
+
+    #182, beta 22. `workflow.chart_import.import_external_chart` has already
+    written the declaration if the chart can carry one; this asks the same
+    question without touching the disk again, and is the only thing the door
+    needs in order to tell the user. Knut asked for the notice on *"the other
+    usual paths to create a chart while 'run type' = Verification"*, and this
+    is the one that does not pass through Create Chart's own funnel.
+    """
+    if not verif or ti2 is None:
+        return
+    try:
+        from workflow.control_strip import ELIGIBILITY_CONTROL, declare_for_chart
+        result = declare_for_chart(ti2, write=False)
+    except Exception:      # noqa: BLE001 — never break a finished import
+        log.warning("imported chart: control-strip check failed", exc_info=True)
+        return
+    if not result.needs_warning:
+        return
+    from workflow import measurement_messages as M
+    title, body = M.M_VERIFY_NO_CONTROL_STRIP.render(
+        n=result.selection.n, button=ELIGIBILITY_CONTROL)
+    _info_dialog(parent, title, body)
+
+
+def _info_dialog(parent, title: str, body: str) -> None:
+    """One modal notice. A module-level function, as `_choice_dialog` is, so a
+    test can drive this door without a window opening in front of a suite that
+    has nobody to close it."""
+    from ui.tooltip_button import InfoDialog
+    InfoDialog(title, body, parent, min_width=560).exec()
 
 
 def _handle_inside_current(parent, ti2_path, working_dir, controller):

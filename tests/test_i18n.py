@@ -1012,18 +1012,38 @@ _IDENTICAL_TO_KEY = {
     # back equal to the numbers that were recorded, so the eleven +1s are the
     # whole of the change.
 
+    # 2026-09-19, beta 22, TWO change sets landing together and the split is
+    # worth recording because the two behave differently.
+    #
+    # * the control-strip declaration (#182, M-VERIFY-NO-CONTROL-STRIP and four
+    #   Create Chart log lines) adds **6 keys, all six translated into German**,
+    #   so de does not move for them and the eleven others each carry the
+    #   English under the beta rule;
+    # * the "Which presets can be verified?" window adds **38**, and the line
+    #   above recorded them as untranslated in German too. **RE-MEASURED the
+    #   same day, once that window's German landed: all 38 are translated, so
+    #   de does not move at all and stays at 143.** 181 would have been an
+    #   upper bound with 38 keys of slack under it, and a budget with slack
+    #   admits the next regression for free -- this test only checks `<=`, so
+    #   nothing would have gone red.
+    #
+    # So de does NOT move (143) and each of the other eleven rises by 44.
+    # COUNTED, not adjusted: every number below is
+    # `len([k for k, v in cat.items() if v == k and not k.startswith("@")])`
+    # run over each catalogue as it stands, and the arithmetic above is the
+    # whole of the difference from the previous column.
     "de": 143,
-    "es": 423,
-    "fr": 445,
-    "it": 434,
-    "ja": 409,
-    "nl": 450,
-    "no": 435,
-    "pl": 427,
-    "pt": 425,
-    "ru": 398,
-    "sv": 436,
-    "zh_CN": 403,
+    "es": 467,
+    "fr": 489,
+    "it": 478,
+    "ja": 453,
+    "nl": 494,
+    "no": 479,
+    "pl": 471,
+    "pt": 469,
+    "ru": 442,
+    "sv": 480,
+    "zh_CN": 447,
 }
 
 

@@ -103,10 +103,18 @@ def test_loose_new_run_verification_chart_only(qapp, tmp_path, monkeypatch):
     ctl.set_run_type(RUN_TYPE_VERIFICATION); ctl.set_profile_run("")
     ti2 = _loose(tmp_path / "ext", ti3=True, icc=True)
     monkeypatch.setattr(L, "_choice_dialog", lambda *a, **k: "import")
+    # #182, beta 22: a chart imported as a verification chart is asked whether
+    # it can carry a control strip, and this two-patch stand-in cannot, so the
+    # door says so. Recorded rather than opened: a modal here would hang the
+    # suite, and the notice is part of what this route now does.
+    said = []
+    monkeypatch.setattr(L, "_info_dialog",
+                        lambda parent, title, body: said.append(title))
     out, _ = L.resolve_ti2(None, ti2, _settings(tmp_path), ctl)
     r = Project.load(proj.root).run("run2")
     assert out == r.verify_chart_ti2 and r.verify_chart_ti2.exists()
     assert not r.profile_icc.exists()                # icc/ti3 ignored
+    assert said == ["This chart cannot carry a control strip"], said
 
 
 def test_loose_overwrite_replace_archives(qapp, tmp_path, monkeypatch):
@@ -221,6 +229,7 @@ def test_A04_verification_replace_archives_and_keeps_profile(qapp, tmp_path, mon
     ctl.set_run_type(RUN_TYPE_VERIFICATION); ctl.set_profile_run("run1")
     ti2 = _loose(tmp_path / "ext", ti3=True, icc=True)
     monkeypatch.setattr(L, "_choice_dialog", lambda *a, **k: "replace")
+    monkeypatch.setattr(L, "_info_dialog", lambda *a, **k: None)
     out, _ = L.resolve_ti2(None, ti2, _settings(tmp_path), ctl)
     r = Project.load(proj.root).run("run1")
     assert r.verifications_old_dir.exists(), "archive belongs in verifications/old/"

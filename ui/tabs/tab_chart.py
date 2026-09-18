@@ -3739,6 +3739,58 @@ def comparable_presets(settings) -> list[tuple[str, list[tuple[str, "Path"]]]]:
     return groups
 
 
+def verification_preset_rows(settings) -> list:
+    """Every preset the "Which presets can be verified" window lists (#182).
+
+    EVERY preset, not only the ones with a chart on disk: Knut's window has to
+    say something about each entry in the dropdown, and a user preset saved
+    without its patch set is the one real case where ChromIQ has nothing to
+    read. It appears with no chart and the window says so, and says which tick
+    box would fix it.
+
+    The page count is the shipped one for a built-in (`_Ti1Preset.pages`, the
+    number in the preset's own name; the eleven prebuilt bundles are counted
+    from the page TIFFs beside their `.ti1`). A USER preset has none and none
+    can be derived: how many sheets a patch set lays out depends on the
+    instrument, the paper and the patch width, and answering it honestly means
+    laying the chart out. It is left at 0, which reads as "?" and withholds the
+    star rather than guessing at it.
+    """
+    from ui.dialogs.preset_verification_dialog import PresetRow
+    from workflow.preset_eligibility import patch_count
+
+    rows: list = []
+    for instr, entries in BUILTIN_PRESET_GROUPS:
+        for _combo, overlay_label, key in entries:
+            asset = TabChart._builtin_ti1_asset(key)
+            chart = resource_path(asset) if asset else None
+            if chart is not None and not chart.is_file():
+                chart = None
+            p = KNUT_PRESETS_BY_KEY.get(key)
+            if p is not None:
+                pages = int(p.pages or 0)
+            elif chart is not None:
+                pages = len(list(chart.parent.glob(chart.stem + "_*.tif")))
+            else:
+                pages = 0
+            rows.append(PresetRow(
+                group=instr, label=overlay_label, chart=chart,
+                patches=patch_count(chart) if chart else 0,
+                pages=pages, builtin=True))
+    own: list = []
+    for name, data in _load_tab_presets("create_chart", settings).items():
+        chart = None
+        if isinstance(data, dict) and data.get("attached_ti1"):
+            sc = _preset_sidecar_path("create_chart", str(name), ".ti1")
+            if sc.is_file():
+                chart = sc
+        own.append(PresetRow(
+            group=tr("Custom presets"), label=str(name), chart=chart,
+            patches=patch_count(chart) if chart else 0,
+            pages=0, builtin=False))
+    return rows + sorted(own, key=lambda r: r.label.lower())
+
+
 # --- Override-checkbox copy (preset panels) --------------------------------
 # Shown next to the "Edit patch recipe / page layout" checkboxes that unlock a
 # preset's otherwise-greyed panels. Written for beginners: lead with the plain
@@ -5733,8 +5785,15 @@ class TabChart(QWidget):
 
         # Presets
         presets_grp = QGroupBox(tr("Presets"), w)
-        presets_row = QHBoxLayout(presets_grp)
-        presets_row.setContentsMargins(8, 4, 8, 8)
+        # A COLUMN, because Knut asked for the verification button to sit
+        # BELOW the dropdown (#182, beta 22). The dropdown and its +/−/folder
+        # buttons keep the row they have always had; the new button gets a row
+        # of its own underneath it.
+        presets_col = QVBoxLayout(presets_grp)
+        presets_col.setContentsMargins(8, 4, 8, 8)
+        presets_col.setSpacing(6)
+        presets_row = QHBoxLayout()
+        presets_col.addLayout(presets_row)
         presets_row.addWidget(QLabel(tr("Select preset:"), w))
         self._preset_combo = _CappedComboBox(w)
         # Long built-in preset names must not stretch the row and squeeze the
@@ -5808,6 +5867,38 @@ class TabChart(QWidget):
             w,
             min_width=600,
         ))
+
+        # #182, Knut, beta 22: *"the function button I specified in Create
+        # Chart, below the preset selection dropdown, which opens a window
+        # listing all the presets that fulfil the requirements for
+        # verification on a specified report type and judge against
+        # selection."*
+        verify_row = QHBoxLayout()
+        self._preset_verify_btn = QPushButton(
+            tr("Which presets can be verified?"), w)
+        self._preset_verify_btn.setObjectName("preset_verify_btn")
+        self._preset_verify_btn.clicked.connect(
+            self._open_preset_verification_window)
+        verify_row.addWidget(self._preset_verify_btn)
+        verify_row.addStretch()
+        verify_row.addWidget(TooltipButton(
+            tr("Which presets can be verified?"),
+            tr("Opens a list of every chart preset, marked against the "
+            "Measurement Report type and limit set you choose.\n\n"
+            "A verification is judged row by row, and not every chart carries "
+            "the patches every row needs. This window asks ChromIQ's own "
+            "report code what each preset's patch set could answer if it were "
+            "printed and measured as a verification sheet, and shows, for "
+            "every row it could not, what is missing and what to do about "
+            "it.\n\n"
+            "Nothing is hidden: presets that fall short stay on the list with "
+            "their reasons. A ★ marks a chart made for verification, which is "
+            "one printed page of a few hundred patches or fewer that leaves "
+            "nothing on the table."),
+            w,
+            min_width=560,
+        ))
+        presets_col.addLayout(verify_row)
         layout.addWidget(presets_grp)
 
         scroll = FadeScrollArea(w)
@@ -9649,6 +9740,22 @@ class TabChart(QWidget):
             "asks the run's profile which colours to test. To use a built-in "
             "preset, switch to GUIDED or MANUAL first.")
             if gamut else self._builtin_preset_tip)
+
+    def _open_preset_verification_window(self) -> None:
+        """Open "Which presets can be verified" (#182, Knut, beta 22).
+
+        The button under the presets dropdown. Modeless is wrong here: the
+        answer depends on the report type and limit set chosen inside it, and
+        the window is a place to read and decide before picking a preset, so it
+        is modal like every other decision window on this tab.
+        """
+        from core.settings import compliance_overrides_of
+        from ui.dialogs.preset_verification_dialog import (
+            PresetVerificationDialog)
+        rows = verification_preset_rows(self._settings)
+        dlg = PresetVerificationDialog(
+            rows, compliance_overrides_of(self._settings), self)
+        dlg.exec()
 
     def _open_builtin_preset_overlay(self) -> None:
         """Show the speech-bubble overlay of built-in presets under the star button."""
@@ -18683,6 +18790,77 @@ class TabChart(QWidget):
                 "it the measurement report cannot judge this chart. Please "
                 "generate the chart again."))
 
+    # ------------------------------------------------------------------
+    # #182 beta 22 — the control strip a verification chart declares
+    # ------------------------------------------------------------------
+    def _declare_control_strip(self, chart_ti2: Path) -> "object | None":
+        """Write the chart's control-strip declaration, and say when it cannot be.
+
+        Knut, beta 22: *"It is essential that the function that makes ChromIQ
+        write a control-strip declaration for a chart is implemented, tested and
+        working. … notify the user if a selected/loaded/created chart (from
+        loading a preset or otherwise, in the verifications/ folder for a run)
+        does not fulfil the requirements to be able to create the control-strip
+        declaration."*
+
+        The rule itself is in `workflow/control_strip.py` and not here: this
+        method only reports what it did. Three endings, and each one says
+        something different, because they send a reader to different places.
+
+        Returns the `DeclarationResult` so a guard can assert on it without
+        reaching into the file system, or None when the module could not run at
+        all (which is logged and never breaks a finished build).
+        """
+        try:
+            from workflow import control_strip as cstrip
+        except Exception:      # noqa: BLE001 — never break a finished build
+            log.warning("control-strip module unavailable", exc_info=True)
+            return None
+        try:
+            result = cstrip.declare_for_chart(chart_ti2)
+        except Exception:      # noqa: BLE001 — never break a finished build
+            log.warning("control-strip declaration failed", exc_info=True)
+            return None
+        n = result.selection.n
+        total = len(cstrip.SLOTS)
+        if result.outcome == cstrip.OUTCOME_ALREADY:
+            self._log.appendPlainText(tr(
+                "This chart already declares its own control strip, so "
+                "ChromIQ has left that declaration alone."))
+        elif result.written and result.selection.p95_ready:
+            self._log.appendPlainText(tr(
+                "A control strip of {n} patches was declared for this chart "
+                "(out of {total} ChromIQ looks for). All three control-strip "
+                "rows of the Measurement Report can be judged on it.").format(
+                    n=n, total=total))
+        elif result.written:
+            self._log.appendPlainText(tr(
+                "A control strip of {n} patches was declared for this chart "
+                "(out of {total} ChromIQ looks for). That is enough for the "
+                "average and the largest patch; the 95th percentile row needs "
+                "20 and will read as not computed.").format(n=n, total=total))
+        else:
+            self._log.appendPlainText(tr(
+                "No control strip could be declared for this chart: it "
+                "supplies {n} of the {total} patches one is made of, and at "
+                "least 8 are needed. The three control-strip rows of the "
+                "Measurement Report will read as not computed.").format(
+                    n=n, total=total))
+            self._warn_no_control_strip(n)
+        return result
+
+    def _no_control_strip_message(self, n: int) -> "tuple[str, str]":
+        """M-VERIFY-NO-CONTROL-STRIP, rendered. Split out so the catalogue test
+        can read the text this tab shows without opening a window."""
+        from workflow import measurement_messages as M
+        from workflow.control_strip import ELIGIBILITY_CONTROL
+        return M.M_VERIFY_NO_CONTROL_STRIP.render(
+            n=n, button=ELIGIBILITY_CONTROL)
+
+    def _warn_no_control_strip(self, n: int) -> None:
+        title, body = self._no_control_strip_message(n)
+        InfoDialog(title, body, self, min_width=560).exec()
+
     def _snapshot_profiling_chart(self) -> "Path | None":
         """Copy the current run's PROFILING work aside before a verification
         chart is built into the same run root, so building the verify chart
@@ -19640,6 +19818,16 @@ class TabChart(QWidget):
                     # #133: store the colorimetric reference beside the adopted
                     # chart (no-op unless this build came from the gamut module).
                     self._write_gamut_reference_after_adopt(new_ti2)
+                    # #182, beta 22: declare the chart's control strip. THIS IS
+                    # THE FUNNEL every creation path reaches — Generate Chart,
+                    # every preset, a loaded .ti1, a prebuilt bundle, the
+                    # patch-set editor's Apply, the gamut module and a page
+                    # rebuild all end here — so one call covers Knut's "either
+                    # when pressing Generate Chart, or when loading a preset, or
+                    # the other usual paths". It must come AFTER the gamut
+                    # reference, because that write is what makes a gamut
+                    # chart's patches referenced at all.
+                    self._declare_control_strip(new_ti2)
             except Exception:  # noqa: BLE001 — never break a finished generation
                 log.warning("verify-chart adopt failed", exc_info=True)
             # A pending gamut selection is consumed by the adopt above; if the

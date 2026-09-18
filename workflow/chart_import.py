@@ -29,7 +29,11 @@ from core.logger import get_logger
 log = get_logger(__name__)
 
 # Chart-file extensions that travel WITH a chart (never the measurement/profile).
-_CHART_EXTS = (".cht", ".channels.json", ".strips.json", ".cie", ".pdf")
+# `.control-strip.json` travels too (#182, beta 22): it is the chart's own
+# declaration of which patches make up its control strip, and leaving it behind
+# would silently discard a declaration the user or another tool wrote.
+_CHART_EXTS = (".cht", ".channels.json", ".strips.json", ".cie", ".pdf",
+               ".control-strip.json")
 
 
 def resolve_import_run(project: Project, target) -> Run:
@@ -75,6 +79,13 @@ def import_external_chart(ti2_path: Path, ti1: "Path | None", tiffs: "list[Path]
             # "did any come with the file" once the copy has run, and it is the
             # one a test can reach.
             rebuild_missing_pages(run.verify_chart_ti2, bin_dir)
+        # #182, beta 22: a chart placed in verifications/ declares its control
+        # strip, whichever door it came through. This is the door the Create
+        # Chart funnel does not cover. A declaration that came WITH the file is
+        # left alone (`declare_for_chart` checks first), so importing a chart
+        # that already names its own strip keeps that strip.
+        from workflow.control_strip import declare_for_chart
+        declare_for_chart(run.verify_chart_ti2)
         return run.verify_chart_ti2
     # Profiling → run root. Clear any stale page TIFFs first (a Replace already
     # archived the rest; a fresh New run is empty).

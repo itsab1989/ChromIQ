@@ -17597,3 +17597,255 @@ would reach.
   `inside_the_project: true` in both runs; the tooltip on the set pulldown AND
   on "Show limits…" before: *"This measurement is not in a ChromIQ project…"*,
   after: *"This measurement does not belong to a profile run…"*.
+
+### B8-405 · FIXED · Nothing in ChromIQ ever wrote a control-strip declaration, so three rows were dead on every chart
+- blocks release: yes
+- status: FIXED
+- asked for by Knut, beta 22, after being offered beta 23 (*"Make it all part of
+  beta 22, because we have limited time to complete and verify, so it is better
+  to do it now"*):
+
+  > *"It is essential that the function that makes ChromIQ write a
+  > control-strip declaration for a chart is implemented, tested and working.
+  > It is important to know how and when the control-strip declaration is
+  > created for a chart. If that is a function that can always be created for a
+  > chart placed in the verifications/ folder, and notify the user if a
+  > selected/loaded/created chart (from loading a preset or otherwise, in the
+  > verifications/ folder for a run) does not fulfil the requirements to be able
+  > to create the control-strip declaration (either when pressing Generate
+  > Chart, or when loading a preset, or the other usual paths to create a chart
+  > while "run type" = Verification). The warning must specify what is required
+  > when selecting a chart for the control-strip declaration to be created, and
+  > also refer to the button function in Create Chart mentioned above for help
+  > in selecting a compatible chart."*
+- **THE DETECTION SHIPPED WITHOUT A PRODUCER.** B8-397 built S2w's rule: a chart
+  declares a control strip through a `<stem>.control-strip.json` sidecar or a
+  CGATS `CONTROL_STRIP_IDS` keyword, and the rows become computable at 8 ids
+  present and referenced, the 95th percentile at 20. Nothing in ChromIQ wrote
+  either, so the three rows read *"this chart declares no control strip"* on
+  every chart on every disk. B8-397's own entry recorded it: *"the demo package
+  has no chart that declares a control strip, so the three control-strip rows
+  read `no_control_strip` in all six of its projects"*.
+- **THE RULE, AND WHY IT IS THIS ONE.** `workflow/control_strip.py` holds a
+  ladder of **29 aims in the printer's own device space**, and a chart fills
+  each rung with its own nearest patch: the substrate; the seven other cube
+  corners (composite black, the C, M and Y solids and the R, G and B two-ink
+  overprints); a 25 %, 50 % and 75 % tint of each of those six colours; and a
+  neutral grey at the same three levels. That is the shape of a press control
+  wedge, which is what a control strip IS: substrate, solids, tint ladders,
+  three-colour greys. It is the SHAPE and not anybody's patch list, so ChromIQ
+  still holds no standard's published strip and still does not guess one.
+  A rung is filled by the nearest patch within `CORNER_PRESENT_TOL` on every
+  channel, **read from `measurement_report` rather than copied**: ChromIQ
+  already has one answer to "is there a patch at this device aim" and a second
+  number here would be a second answer to the same question.
+- **WHAT IT SELECTS, MEASURED** on real `targen -d2 -fN -e4 -B4 -G` charts laid
+  out by `printtarg` (2026-09-19): 13 patches → 4 rungs; 17 → 7 (no
+  declaration); 21 → 11; 31 → 12; 51 → 17; 101 → 22 (the 95th percentile row
+  becomes computable); 210 → 27; 401 → 29. So every chart a ChromIQ preset
+  produces declares a strip, and everything from about a hundred patches up
+  carries all three rows.
+- **WHERE IT IS WRITTEN.** `TabChart._on_generate_finished` is the single funnel
+  every creation path reaches (Generate Chart, every built-in and user preset, a
+  loaded .ti1, a prebuilt bundle, the patch-set editor's Apply, the FROM PROFILE
+  GAMUT module and a page rebuild), so ONE call there covers Knut's list. The
+  one door it does not cover is `workflow/chart_import.import_external_chart`,
+  the Open Chart File import, which writes into `verifications/` itself; that
+  declares there, and `ui/ti2_loader.py` shows the warning.
+- **WHAT IT NEVER DOES.** It does not touch a chart that already declares a
+  strip, by sidecar or by keyword (a declaration somebody else wrote outranks
+  ChromIQ's). It does not write beside a profiling chart. It changes nothing on
+  a user's disk: the sidecar is written beside a chart ChromIQ has just made, in
+  the same breath as the chart, and a chart that exists today answers exactly as
+  it does today until it is rebuilt.
+- **THE WARNING IS §M-PROPOSED AND UNAPPROVED.** `M-VERIFY-NO-CONTROL-STRIP`,
+  `approved=False`, written into §M-PROPOSED of
+  `docs/design/unified_measurement_management.md` and named in the document's
+  awaiting-review line. It says what a strip is made of, how many rungs this
+  chart filled, what the two thresholds are, and points at the *"Which presets
+  can be verified?"* button, through a `{button}` placeholder filled from
+  `control_strip.ELIGIBILITY_CONTROL` so the two features have one name between
+  them and not two.
+- the guards live in one new file,
+  `tests/test_a_verification_chart_declares_its_control_strip.py`, whose module
+  fixture builds four REAL charts with targen and printtarg, because the whole
+  question this change answers is what a real patch set supplies.
+- evidence: test_the_ladder_is_the_wedge_it_says_it_is,
+  test_the_tolerance_is_the_reports_own_number,
+  test_a_real_chart_too_small_cannot_declare_a_strip,
+  test_a_real_chart_just_over_the_line_declares_one,
+  test_a_bigger_real_chart_carries_the_95th_percentile_as_well,
+  test_the_strip_grows_with_the_chart_and_never_shrinks,
+  test_no_patch_serves_two_rungs,
+  test_the_same_chart_declares_the_same_strip_every_time,
+  test_every_rung_it_filled_is_really_within_the_tolerance,
+  test_the_report_reads_the_declaration_back,
+  test_the_three_rows_are_judged_on_a_chart_that_declares_one,
+  test_a_chart_that_cannot_declare_still_says_why,
+  test_a_declaration_the_chart_already_carries_is_left_alone,
+  test_a_stale_declaration_of_ours_does_not_outlive_its_chart,
+  test_asking_without_writing_writes_nothing,
+  test_an_unreadable_chart_is_reported_and_not_guessed_at,
+  test_only_the_first_data_table_of_a_ti1_is_read,
+  test_the_app_declares_the_strip_when_it_files_a_verification_chart,
+  test_the_app_warns_when_the_chart_it_filed_cannot_carry_one,
+  test_a_profiling_chart_is_left_exactly_as_it_was,
+  test_the_warning_is_the_catalogue_entry_and_is_not_approved_yet.
+  Eleven mutations were applied to the real source, every `__pycache__`
+  cleared, the file re-run and restored: all eleven turn it RED. **Two of them
+  did not, first time round, and both guards were wrong rather than the
+  mutations** — the once-only rule cannot be violated at a 12-unit tolerance
+  when the rungs are 25 apart, and the profiling guard looked for a stale
+  sidecar at the run root while the mutation put it one folder down. Both
+  guards were rewritten and both mutations now land. The log is
+  `~/Desktop/ChromIQ-beta22-proof/the-control-strip-declaration/mutations.txt`.
+- on screen: `scripts/drive_the_control_strip_declaration.py`, a real Create
+  Chart tab in a real top-level window, filing a real 210-patch chart and a
+  real 17-patch one with Run type = Verification through the app's own funnel.
+  Three subjects photographed with `capture_window`, each as two frames that
+  agree pixel for pixel: the tab after the big chart (its log reading *"A
+  control strip of 27 patches was declared for this chart (out of 29 ChromIQ
+  looks for)"*), the tab after the small one, and the real
+  M-VERIFY-NO-CONTROL-STRIP window with its real text. `defaults read
+  com.chromiq.ChromIQ custom_output_path` after the run: *does not exist*, as
+  before it.
+- **THE OTHER HALF OF BETA 22 NOW READS THIS MODULE.** The "Which presets can be
+  verified?" window (`workflow/preset_eligibility`) was written while nothing
+  declared a strip, and its docstring said so: *"no preset declares a control
+  strip"*. That hand has since asked `control_strip.declare_for_chart(chart,
+  write=False)`, which answers what a chart WOULD declare without writing
+  anything, and measured all 177 preset charts past the twenty-rung mark. So
+  the three control-strip rows are answered by every preset the window lists,
+  and the warning's pointer at that button leads somewhere.
+- what to do first: one thing is reported and NOT done here. **The demo package
+  (B8-393) still has no chart that declares a strip.** It now would if rebuilt,
+  since every one of its verification charts is past the threshold, which is
+  the cheapest way to get the three judged rows into the pack.
+
+### B8-406 · FIXED · Knut's preset eligibility window: which chart presets can be verified, and what the rest are missing
+- blocks release: no
+- status: FIXED
+- Knut, beta 22, on #182: *"the function button I specified in Create Chart,
+  below the preset selection dropdown, which opens a window listing all the
+  presets that fulfil the requirements for verification on a specified report
+  type and judge against selection. I specified this feature earlier, and it is
+  important that this is also implemented so a user knows which preset can be
+  selected. Most preset groups for instruments and medium and small paper sizes
+  have at least one chart preset with a lower patch count, from about 80 patches
+  to a few hundred patches. These are the presets made especially with the
+  thought they may be used for verification, and it is important if any one-page
+  preset has what it needs for verification measurements and the reporting, so
+  the button mentioned in Create Chart opening a window with a list of
+  compatible presets should highlight especially those charts suitable for
+  verification."* And, in the same message, that the check must cover *"the
+  required chart size and the patches that must be present to detect if a chart
+  is usable for the verification for these metrics, and all the other
+  metrics"*.
+- **Built as "Which presets can be verified?", a button in the Presets group
+  box of Create Chart → Manual, on its own row under the dropdown.** Measured
+  on the laid-out widgets: the button's top is at y=338, the dropdown's bottom
+  at y=329.
+- **THERE IS NO SECOND OPINION IN IT.** Every eligibility test in the report
+  reads device RGB and sample ids only, so `workflow/preset_eligibility.py`
+  builds the report a flawless print of a preset's `.ti1` would produce and
+  hands it to `measurement_report.row_values` itself. A changed threshold in
+  the report changes this window on the same day, which is asserted by moving
+  `OUTER_GAMUT_MIN` and `GREY_MIN_LEVELS` and watching the verdict turn over.
+  The stand-in report claims `reference_source = "design"`, which is what a
+  preset chart really gets.
+- **IT MARKS, IT DOES NOT FILTER, and that was measured rather than chosen.**
+  On the 177 built-ins: any report type against the three ChromIQ sets asks 7
+  rows and **177 of 177** answer every one; "Grey and tone check" against a
+  Custom ISO set asks 3 and 177 of 177 answer; "Colour summary" or "Full colour
+  check" against a Custom ISO set asks 16 and **0 of 177** answer every one
+  (13 each); "Printing record (not graded)" asks 0, because it withholds every
+  judgement. **A filter is therefore either a no-op or an empty window.** The
+  list holds every preset always; one opt-in tick box, off by default, narrows
+  177 to 49.
+- The zero is not a fault in the presets: both Custom ISO columns limit the
+  three reference rows, and no preset chart can carry a colorimetric reference,
+  which is written only beside a chart built FROM PROFILE GAMUT. Measured on
+  all 177. The detail pane says which three and hands over the metric's own
+  remedy text rather than a second sentence written here.
+- **"Made for verification" = one printed page, 600 patches or fewer, and
+  nothing withheld that a different patch set would supply. 49 of 177.** The
+  600 is where the shipped charts themselves separate: the one-page built-ins
+  run 77 … 572, 572, 588 and then jump to 616, 648, 648, 800, 1144, 1404, 3250,
+  3430. **No lower bound is imposed**, because S2w's outer-gamut rule already
+  sets one at `ceil(n/4) >= 20`, i.e. 77, and the smallest one-page built-in
+  has exactly 77 and answers every row. By group: i1Pro 15, ColorMunki 15, CR30
+  14, i1Pro 3 Plus 5, Scanner 0, Red River Paper 0. The last two are named in
+  the guard rather than left as a silent gap: the Scanner charts start at 3,250
+  patches and the Red River set is 2,052 over four to nine sheets.
+- **A user preset saved without its patch set is listed, marked "Cannot be
+  checked", and told which tick box fixes it.** Two things it must not say, and
+  one of them was on screen before it was fixed: *"0 patches · 0 pages"*, which
+  is a false statement about a chart ChromIQ has never seen, and a star, which
+  would rest on a page count that is not knowable from a `.ti1` at all.
+- **CORRECTED MID-ROUND, because B8-405 landed in the same hour.** The first
+  build read the control-strip declaration off the disk, found none beside any
+  preset, and would have told every user that every preset declares no control
+  strip. `workflow.control_strip` now writes that declaration out of a chart's
+  own patches when a verification chart is filed, so the window asks
+  `declare_for_chart(chart, write=False)` instead. Measured: all 177 fill the
+  ladder past its twenty-rung mark, so the strictest combination went from 10
+  of 16 rows to 13 of 16. That also closes the first of B8-405's two "what to
+  do first" notes.
+- evidence: test_the_button_sits_below_the_preset_dropdown,
+  test_the_button_opens_the_window_with_the_real_preset_list,
+  test_every_shipped_preset_reaches_the_window,
+  test_nothing_is_hidden_on_the_combination_that_nothing_answers,
+  test_the_opt_in_tick_box_is_the_only_thing_that_narrows,
+  test_moving_the_reports_own_threshold_moves_this_window,
+  test_the_grey_rule_is_the_reports_grey_rule,
+  test_what_a_report_type_asks_is_the_reports_own_row_list,
+  test_a_report_type_that_grades_nothing_asks_for_nothing,
+  test_a_set_that_limits_nothing_is_not_offered,
+  test_a_chart_too_small_is_told_exactly_what_it_is_short_of,
+  test_every_reason_this_window_can_show_has_a_sentence,
+  test_every_reason_the_report_can_produce_is_classified,
+  test_a_missing_row_shows_the_metrics_own_lever,
+  test_the_star_means_one_page_and_a_few_hundred_patches,
+  test_the_star_does_not_move_when_the_pulldowns_do,
+  test_each_instrument_group_has_at_least_one_starred_preset,
+  test_the_three_reference_rows_are_beyond_every_preset,
+  test_the_control_strip_is_the_one_chromiq_would_declare,
+  test_a_chart_whose_ladder_does_not_fill_is_told_so,
+  test_a_user_preset_with_no_patch_set_is_listed_and_told_why,
+  test_a_user_preset_with_an_attached_chart_is_judged,
+  test_no_self_capturing_lambda_is_connected_to_a_signal,
+  test_no_user_facing_string_here_carries_an_em_dash.
+- guard file: `the_preset_window_says_what_a_chart_can_answer`, under `tests/`.
+  Every one of the twenty-four is on the REAL 177-preset set with their real
+  `.ti1` files and goes through the app's own sequence: a real `TabChart` in
+  Manual mode, a real click on the real button, the real handler opening the
+  real dialog.
+  **Fourteen mutations, every one proven to land**: applied to the real source,
+  `__pycache__` cleared, run, RED, restored, green. Baseline 24 passed,
+  fourteen reds, restored 24 passed. The log and what each one breaks are in
+  `~/Desktop/ChromIQ-beta22-proof/the-preset-eligibility-window/mutations.txt`.
+- on screen: `scripts/drive_182_preset_verification_window.py`, a real
+  `TabChart` in a real top-level window with the settings and the preset store
+  sandboxed. Six subjects photographed with `capture_window`, each as two
+  frames whose client areas agree pixel for pixel, none refused: the button
+  under the dropdown, the best case (7 of 7 rows everywhere), the worst case
+  (16 asked, 13 answered, 0 complete, nothing hidden), the tick box narrowing
+  to 49, a real user preset with no `.ti1`, and the report type that judges
+  nothing. `defaults read com.chromiq.ChromIQ custom_output_path` after the
+  run: *does not exist*, as before it, and the real preset folder holds no test
+  preset.
+- proof: `~/Desktop/ChromIQ-beta22-proof/the-preset-eligibility-window/`, with
+  a README carrying every number above, the frames, `measured.json`, the
+  mutation log, and a separate list of what was not built.
+- what to do first: three things are reported and NOT done here.
+  1. **Every built-in preset answers every patch-based row**, so the per-preset
+     chip is uniform across the shipped set. Where the window earns its keep is
+     a user's own patch set, the three rows no preset can answer, and the star.
+     If that reads as too little discrimination, the lever is the star's upper
+     bound, not the eligibility code.
+  2. **"Answering every row asked: 177" is shown for "Printing record (not
+     graded)"**, which judges nothing. True, and beside a line that says nothing
+     is judged; if it reads oddly to Knut the figure could be suppressed for
+     that type.
+  3. **Nothing was written into `docs/design/`.** The behaviour is driven and
+     photographed and nobody has confirmed it is what it should be.
