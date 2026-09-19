@@ -1,5 +1,23 @@
 # Changelog
 
+## v4.3.0-beta.24
+
+**One fix: the outline of the last visible patches with "Show only measured
+patches" on.**
+
+### Fixed
+
+- **On a honeycomb, the last column of visible patches had a rough, stepped
+  outline where every other patch was smooth, and the blank took a bite out of
+  it.** The blank was painted by clipping to a shape that can only describe
+  whole screen pixels, so its boundary against a measured patch was a
+  staircase, and on a Retina screen each step was two pixels of the measured
+  hexagon, all the way down the column. It is painted at the screen's real
+  resolution now. Measured, the share of a read column that survives the blank
+  beside it: 98.3 % to 100.0 % on a pointy honeycomb, 98.8 % to 99.9 % on a
+  flat-top one. A honeycomb with no spacer ring, where the two inks touch and
+  there is no room to give, holds where it was with nothing leaking through.
+
 ## v4.3.0-beta.23
 
 **Knut's rulings on the control-strip declaration and the preset button, the
