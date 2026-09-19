@@ -1,33 +1,56 @@
 #!/usr/bin/env python3
-"""Create Chart presets built to FAIL one verification metric each (#182).
+"""Create Chart presets, TWO PER REQUIREMENT, one each side of its line (#182).
 
 Knut, 2026-09-19:
 
-    *"the demo package project must create a set of demo chart presets that are
-    built to fail the metrics used during a verification. One test-preset made
-    to fail one metric […] so if there are 17 metrics to test then make 17
-    presets that is made to prove that the 'Which presets can be verified?'
-    window works and detects which metric on a presets does not pass the
-    criteria, and reports what is wrong/missing in the window. […] When the
-    demo package then is released and downloadable, a user can place the
-    presets in the '…/Library/Preferences/ChromIQ/presets/Create Chart' folder
-    (on mac), and restart the app."*
+    *"Recreate the chart presets so that every metric that can be tested has
+    one preset for each condition a metric uses to select if a patch set can
+    be used in verification to test against that metric. For example, of one
+    metric uses a grey ramp of several patches, and is counted as grey if the
+    red, green and blue values are within one unit of each other. Secondly,
+    there is a requirement minimum eight steps. Further, there migth also be a
+    requirement that the selected patches have a certain distance between each
+    other, and that they reach whit and black at the end […] Thus, create one
+    preset for each requirement of a metric, where each threshold is on the
+    border of the threshold, but not complying with that specific requirement.
+    And then one preset for each requirement of a metric, where each threshold
+    is on the border of the threshold, but complying with that specific
+    requirement."*
 
-**HOW MANY PRESETS, AND WHY NOT SEVENTEEN.** The window
-(:mod:`ui.dialogs.preset_verification_dialog`) never invents a verdict: every
-answer is :func:`workflow.measurement_report.row_values`' own, reached through
-:mod:`workflow.preset_eligibility`. So the question "which metric can a preset
-fail" is really "which REASON CODE can an unprinted patch set provoke", and
-that is a smaller, countable set. :func:`workflow.preset_eligibility.classified_reasons`
-knows fourteen codes. Ten of them a patch set can cause; four it cannot, and
-the reasons are in ``UNREACHABLE`` below, written down rather than left as a
-silent gap. Nine of the ten can be provoked ALONE. The tenth,
-``small_sample``, cannot: see ``Demo.also`` on demo 11.
+**WHAT CHANGED, AND WHY IT IS A FINER GRID THAN THE ONE BEFORE IT.** The pack
+that shipped in beta 23 had fourteen presets built around REASON CODES: one
+preset per sentence the window can say. A reason code is not a requirement.
+``control_strip_too_small`` is two requirements (eight ids for the average,
+twenty for the 95th percentile); ``too_few_surface_patches`` is two (what
+counts as a surface patch, and how many are needed); ``no_ramp`` is two (how
+many steps, and how far apart). One preset per code cannot tell you which half
+of a code is broken.
+
+So this pack is built around REQUIREMENTS: thirteen of them, each with a FAIL
+preset one notch outside its line and a PASS preset exactly ON it. A pair
+differs by ONE thing and nothing else, so the rows that change between the two
+are the rows that requirement governs, and a detection that quietly went dead
+turns exactly one pair grey.
+
+**EVERY OPERATOR HERE WAS READ OUT OF THE SOURCE, NOT ASSUMED.** "At least 8
+steps" fails at 7 and passes at 8; "within 1 unit" passes AT 1 only because the
+comparison is ``<=``; "reaches white" is really ``max(level) >= 90`` and not
+"there is a paper patch". Each :class:`Requirement` below carries the
+comparison as it is written in the source, and the file and constant it was
+read from, so a reader can check the claim rather than believe it.
+
+**AND TWO PRESETS ASK A QUESTION INSTEAD OF MAKING A CLAIM.** Knut's own
+paragraph names a requirement he expected to find: *"that the selected patches
+have a certain distance between each other … so that they are not clumped
+together in one end or in the middle"*. There is no such requirement in the
+code. The two ``open`` presets are charts that are clumped exactly that way and
+that ChromIQ accepts today, with nothing withheld. They are not faults until he
+says they are; they are the question, shipped in a form he can open.
 
 Every design here was measured, not reasoned about: ``--check`` builds each
-patch set, runs the app's own eligibility path over it, and prints the reason
-each row really came back with. That is the loop the numbers in the README came
-out of.
+patch set, runs the app's own eligibility path over it, and prints the rows
+each preset really answers and really withholds. ``--grid`` prints the same
+thing as the FAIL-against-PASS table the round's report is made of.
 
 No Qt in here, and no ArgyllCMS: a ``.ti1`` is CGATS text and these charts are
 designed patch by patch, because a chart designed by ``targen`` is exactly the
@@ -37,7 +60,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -75,7 +97,7 @@ def aim_xyz(rgb: "tuple[float, float, float]") -> "tuple[float, float, float]":
     colour, because ``parse_ti3`` reads it and the outer-gamut quartile is
     ranked by its chroma.
     """
-    lin = [ (max(0.0, min(100.0, v)) / 100.0) ** 2.2 for v in rgb ]
+    lin = [(max(0.0, min(100.0, v)) / 100.0) ** 2.2 for v in rgb]
     xyz = [sum(_M[i][j] * lin[j] for j in range(3)) * 100.0 for i in range(3)]
     return tuple(round((1.0 - _FLARE) * xyz[i] + _FLARE * _WHITE[i], 4)
                  for i in range(3))
@@ -105,141 +127,460 @@ def write_ti1(path: Path, patches: "list[tuple[float, float, float]]",
     path.write_text("\n".join(lines), encoding="utf-8")
 
 
-def _dedup(patches):
-    """Keep the first of each device triple, order preserved."""
-    seen, out = set(), []
-    for p in patches:
-        key = tuple(round(v, 4) for v in p)
-        if key not in seen:
-            seen.add(key)
-            out.append(tuple(float(v) for v in p))
+# ---------------------------------------------------------------------------
+# The parts every chart here is assembled from
+# ---------------------------------------------------------------------------
+#: **WHY NOT A CUBE AND A targen CHART.** Every part below is built so that it
+#: can only satisfy the ONE condition it is there for. A five-level cube
+#: satisfies four of them at once and cannot be moved off any single line
+#: without moving off the others too, which is how the old pack ended up with a
+#: preset that failed three requirements and proved none of them.
+#:
+#: The rules each part obeys, and the reason for each:
+#:
+#: * a **filler** has every channel inside 15..85 and a channel spread over 24.
+#:   Inside 15..85 it cannot be a surface patch (needs a channel within 2.0 of
+#:   0 or 100) and cannot reach a control-strip rung that has a channel at 0 or
+#:   100; a spread over 24 keeps it off the three grey rungs and out of the
+#:   grey population; and with no two channels at 99 or over it is on no
+#:   single-ink ramp axis. A filler therefore only ever adds to the PATCH
+#:   COUNT, which is what the outer-gamut and worst-5 % requirements are about.
+#: * a **surface candidate** has exactly one channel near a face and the other
+#:   two 30 or more apart, so it is a surface patch and nothing else.
+#: * a **neutral** is (v, v, v), or (v, v, v + s) when a spread is asked for.
+#: * the **cyan ramp** is the single-ink axis: G and B at 100, R stepped. It is
+#:   the only part with two channels at 99 or over, so it is the only part that
+#:   can put steps on a non-grey ramp axis.
+
+def greys(levels, spread: float = 0.0) -> "list[tuple[float, float, float]]":
+    """Neutrals at each level, optionally *spread* device units out of neutral.
+
+    The spread is put on the channel that keeps the patch inside 0..100, which
+    matters: a value over 101 would make ``_rgb_to_0_100`` decide the chart is
+    on the 0..255 scale and divide the whole thing by 2.55.
+    """
+    out = []
+    for v in levels:
+        v = float(v)
+        if not spread:
+            out.append((v, v, v))
+        elif v < 50.0:
+            out.append((v, v, v + spread))
+        else:
+            out.append((v - spread, v, v))
     return out
 
 
-def cube(levels) -> "list[tuple[float, float, float]]":
-    return [(r, g, b) for r in levels for g in levels for b in levels]
+#: Twelve surface candidates: one channel on a face, the other two far apart
+#: and far from every rung of the control-strip ladder.
+_FACE_SEEDS = ((0, 40, 62), (0, 62, 40), (40, 0, 62), (62, 0, 40),
+               (40, 62, 0), (62, 40, 0), (100, 30, 66), (100, 66, 30),
+               (30, 100, 66), (66, 100, 30), (30, 66, 100), (66, 30, 100))
 
 
-def greys(levels) -> "list[tuple[float, float, float]]":
-    return [(v, v, v) for v in levels]
+def surface(k: int = 12, distance: float = 0.0
+            ) -> "list[tuple[float, float, float]]":
+    """*k* patches whose nearest cube face is *distance* device units away."""
+    out = []
+    for seed in _FACE_SEEDS[:k]:
+        t = [float(c) for c in seed]
+        for j in range(3):
+            if t[j] == 0.0:
+                t[j] = float(distance)
+            elif t[j] == 100.0:
+                t[j] = 100.0 - float(distance)
+        out.append(tuple(t))
+    return out
 
 
-def ladder_patches() -> "list[tuple[float, float, float]]":
-    """One patch at every rung of ChromIQ's own control-strip ladder."""
-    from workflow.control_strip import SLOTS
-    return [tuple(float(v) for v in s.device) for s in SLOTS]
+_LATTICE = (15.0, 25.0, 35.0, 45.0, 55.0, 65.0, 75.0, 85.0)
+
+
+def fillers(n: int) -> "list[tuple[float, float, float]]":
+    """*n* interior patches that satisfy no condition at all. See the note
+    above: they only ever add to the patch count."""
+    out = []
+    for r in _LATTICE:
+        for g in _LATTICE:
+            for b in _LATTICE:
+                if max(r, g, b) - min(r, g, b) <= 24.0:
+                    continue
+                out.append((r, g, b))
+                if len(out) == n:
+                    return out
+    raise AssertionError(f"only {len(out)} fillers available, {n} asked for")
+
+
+def cyan_ramp(tone_values=(30.0, 50.0, 70.0)
+              ) -> "list[tuple[float, float, float]]":
+    """The single-ink axis: G and B at 100, R at ``100 - tone value``."""
+    return [(100.0 - float(tv), 100.0, 100.0) for tv in tone_values]
+
+
+def strip_ids(k: int) -> "dict[str, str]":
+    """A CONTROL_STRIP_IDS keyword naming the chart's first *k* patches.
+
+    **THE CHART DECLARES ITS OWN STRIP, AND THAT IS THE POINT OF USING IT
+    HERE.** `workflow.control_strip.declare_for_chart` will write a
+    declaration for any chart that fills eight of its twenty-nine ladder rungs,
+    and every chart in this pack fills five (paper, solid black and the three
+    grey rungs) because none of them carries a cube corner or a tint. Without a
+    keyword every one of them would read `no_control_strip`, and a preset that
+    fails the control strip AND the thing it is about proves neither. The
+    keyword is the app's own second route to a declaration
+    (`measurement_report.CONTROL_STRIP_KEYWORD`), so this is a chart saying
+    what it has, not a test hook.
+    """
+    return {"CONTROL_STRIP_IDS": " ".join(str(i) for i in range(1, k + 1))}
+
+
+#: A neutral ramp that clears every grey-balance condition with room to spare:
+#: eleven levels, reaching 0 and 100, five of them inside the 30 to 70 % band.
+_GREY_OK = (0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0)
+
+#: The same, kept OFF the cube faces (nothing within 2.0 of 0 or 100) so that a
+#: chart's surface population is exactly the surface candidates it was given.
+#: 2.5 is still "black" (the line is 10) and 97.5 is still "white" (the line is
+#: 90), which is why the two conditions can be separated at all.
+_GREY_OFF_THE_FACES = (2.5, 12.0, 22.0, 35.0, 50.0, 65.0, 78.0, 88.0, 97.5)
+
+#: How far past a line a FAIL preset sits. One tenth of a device unit on a
+#: continuous threshold, one patch or one step on a counted one: the smallest
+#: step this file can express and still have a reader see it in the .ti1.
+NOTCH = 0.1
+
+#: Every chart in the pack is this big unless its own requirement is about the
+#: patch count. 78 clears the outer-gamut floor of 77 by one.
+_N = 78
+
+
+def _pad(parts, n: int = _N):
+    """*parts*, topped up with fillers to *n* patches."""
+    return list(parts) + fillers(n - len(parts))
 
 
 # ---------------------------------------------------------------------------
-# The charts
+# The charts, one pair per requirement
 # ---------------------------------------------------------------------------
-#: The base: a 5-level cube plus a long grey ramp. Everything a patch set can
-#: answer, it answers. Each fault below is this chart with ONE thing taken away.
-_BASE_LEVELS = (0.0, 25.0, 50.0, 75.0, 100.0)
-_LONG_GREY = (0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0)
-#: Three patches on the red axis (G = B = 100) at tone values 30, 50 and 70, so
-#: a chart whose GREY ramp cannot carry the mid-tone row still has one axis
-#: that can. Used by the two demos that take the grey ramp away.
-_RED_AXIS_RAMP = [(70.0, 100.0, 100.0), (50.0, 100.0, 100.0), (30.0, 100.0, 100.0)]
-
-
 def chart_control():
-    return _dedup(cube(_BASE_LEVELS) + greys(_LONG_GREY))
+    """Everything a patch set can answer, answered, with room on every line."""
+    return _pad(greys(_GREY_OK) + surface() + cyan_ramp())
 
 
-def chart_no_greys():
-    """Every neutral patch removed, and one coloured axis kept for the ramp."""
-    keep = [p for p in cube(_BASE_LEVELS) if max(p) - min(p) > 1.0]
-    return _dedup(keep + _RED_AXIS_RAMP)
+# -- R01 / R02 / R03: the control strip ------------------------------------
+def chart_strip_base():
+    """One patch set for all four control-strip presets: what changes across
+    them is the KEYWORD and nothing else.
 
-
-def chart_too_few_steps():
-    """Five grey levels, three short of the eight the ramp row wants."""
-    return _dedup(cube(_BASE_LEVELS) + _RED_AXIS_RAMP)
-
-
-def chart_no_white():
-    """Nine grey levels, the lightest at 85: the ramp never reaches paper."""
-    lv = (0.0, 5.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 75.0, 80.0, 85.0)
-    keep = [p for p in cube(_BASE_LEVELS) if not (p == (100.0, 100.0, 100.0))]
-    return _dedup(keep + greys(lv))
-
-
-def chart_no_black():
-    """Ten grey levels, the darkest at 15: the ramp never reaches solid."""
-    lv = (15.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0)
-    keep = [p for p in cube(_BASE_LEVELS) if not (p == (0.0, 0.0, 0.0))]
-    return _dedup(keep + greys(lv))
-
-
-def chart_no_ramp():
-    """Twelve grey levels, and a hole from 26 % to 74 %: no axis has three
-    steps inside the 30 to 70 % band."""
-    lv = (0.0, 5.0, 10.0, 15.0, 20.0, 25.0, 75.0, 80.0, 85.0, 90.0, 95.0, 100.0)
-    return _dedup(cube(_BASE_LEVELS) + greys(lv))
-
-
-def chart_too_few_surface():
-    """Nothing within 2 % of a face of the device cube, so the surface-gamut
-    population is empty.
-
-    The grey ramp is the part that has to be watched: a five-level cube gives
-    five neutral levels and the grey row then reads ``too_few_steps`` as well,
-    which is what the first measured build of this chart did. Eight more
-    neutrals, all of them well inside the cube, put it back to one fault. The
-    ladder still fills, because every rung has a patch within its 12-unit
-    tolerance.
+    **AND IT HAS NO CYAN RAMP, WHICH IS NOT A DETAIL.** Measured while building
+    this pack: the control chart's three cyan-ramp patches sit inside 12 device
+    units of three tint rungs, which takes the ladder from five filled rungs to
+    eight, and eight is exactly where
+    `control_strip.declare_for_chart` starts writing a declaration of its own.
+    The first build of R01's FAIL side therefore ANSWERED the two rows it was
+    built to withhold. The neutral ramp already carries the 30 to 70 % row, so
+    the cyan ramp is simply left out here and the ladder stays at five.
     """
-    inner_greys = (15.0, 25.0, 35.0, 45.0, 55.0, 65.0, 75.0, 85.0)
-    return _dedup(cube((10.0, 30.0, 50.0, 70.0, 90.0)) + greys(inner_greys))
+    return _pad(greys(_GREY_OK) + surface())
 
 
-def chart_too_few_outer():
-    """Thirty-seven patches: the most saturated quarter holds ten, and the row
-    wants twenty. Everything else is still answered, the whole control strip
-    included."""
-    return _dedup(ladder_patches() + greys(_LONG_GREY))
+# -- R04: what counts as a neutral -----------------------------------------
+def chart_grey_spread(spread: float):
+    """The same eleven-level ramp, *spread* device units out of neutral.
 
-
-def chart_no_control_strip():
-    """A chart that fills five of the ladder's twenty-nine rungs.
-
-    The bulk sits inside the cube, 30 % away from every solid and every tint;
-    the surface patches it needs are on the R = 0 face, far from the corners.
-    Only paper, solid black and the three greys find a patch inside 12 units.
+    The cyan ramp is in both sides of the pair, so the 30 to 70 % row is
+    answered whether or not the neutrals count as neutral: this pair moves the
+    grey-balance rows and nothing else.
     """
-    bulk = cube((30.0, 40.0, 50.0, 60.0, 70.0))
-    ends = greys((0.0, 5.0, 95.0, 100.0)) + greys((38.0, 62.0))
-    faces = [(0.0, g, b) for g in (40.0, 60.0) for b in (40.0, 60.0)]
-    faces += [(r, 0.0, b) for r in (40.0, 60.0) for b in (40.0, 60.0)]
-    faces += [(r, g, 0.0) for r in (40.0, 60.0) for g in (40.0, 60.0)]
-    return _dedup(bulk + ends + faces)
+    return _pad(greys(_GREY_OK, spread) + surface() + cyan_ramp())
 
 
-def chart_small_sample():
-    """Nineteen patches. See ``Demo.also``: this one cannot fail alone."""
-    return _dedup(greys((0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0,
-                         90.0, 100.0))
-                  + [(0.0, 100.0, 100.0), (100.0, 0.0, 100.0),
-                     (100.0, 100.0, 0.0), (100.0, 0.0, 0.0),
-                     (0.0, 100.0, 0.0), (0.0, 0.0, 100.0),
-                     (25.0, 100.0, 100.0), (100.0, 25.0, 100.0)])
+# -- R05 / R06 / R07 / R09 / R10: the neutral ramp itself ------------------
+def chart_grey_levels(levels):
+    return _pad(greys(levels) + surface())
+
+
+# -- R08: the patch count --------------------------------------------------
+def chart_patch_count(n: int):
+    """A chart of exactly *n* patches that clears every OTHER line it can.
+
+    Eight neutral steps reaching 0 and 100, four of them in the 30 to 70 % band
+    and spanning 40 points; ten surface patches, two of which are the ends of
+    the ramp. What it cannot clear is the outer-gamut line, which wants 77
+    patches: see ``also``.
+    """
+    parts = greys((0.0, 10.0, 30.0, 45.0, 60.0, 70.0, 85.0, 100.0)) + surface(8)
+    return _pad(parts, n)
+
+
+# -- R11 / R12: the surface population -------------------------------------
+def chart_surface(k: int, distance: float):
+    """*k* surface candidates at *distance* from a face, and a neutral ramp
+    that stays off the faces so it adds none of its own."""
+    return _pad(greys(_GREY_OFF_THE_FACES) + surface(k, distance))
+
+
+# -- R13: the outer-gamut quartile -----------------------------------------
+def chart_total(n: int):
+    return _pad(greys(_GREY_OK) + surface(), n)
+
+
+# -- the two open questions ------------------------------------------------
+def chart_clumped_greys():
+    """Eight neutral steps, seven of them inside 3.6 device units.
+
+    0, then 90.0, 90.6, 91.2, 91.8, 92.4, 93.0, 93.6. Eight distinct steps by
+    ChromIQ's own 0.5-unit rule, it reaches black at one end and 93.6 clears
+    the 90 that "reaches white" means, so the grey-balance rows are judged on a
+    ramp that is one black patch and a huddle at the top.
+    """
+    lv = (0.0, 90.0, 90.6, 91.2, 91.8, 92.4, 93.0, 93.6)
+    return _pad(greys(lv) + surface() + cyan_ramp())
+
+
+def chart_clumped_ramp():
+    """Three mid-tone steps spanning 20 points, two of them 0.6 apart.
+
+    Tone values 40.0, 59.4 and 60.0 on the cyan axis. Three distinct steps by
+    the same 0.5-unit rule and a span of exactly 20, so the 30 to 70 % row is
+    judged on two readings at one end and one at the other. The neutral ramp is
+    held outside the band so the cyan axis is the only one in it.
+    """
+    lv = (0.0, 10.0, 20.0, 25.0, 75.0, 80.0, 90.0, 100.0)
+    return _pad(greys(lv) + surface() + cyan_ramp((40.0, 59.4, 60.0)))
 
 
 # ---------------------------------------------------------------------------
-# The demos
+# The requirements
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True)
+class Requirement:
+    """One condition the eligibility path applies, and the pair that proves it.
+
+    *comparison* is the line as it is written in the source, and *source* says
+    where to read it. They are here because a boundary without its operator is
+    a guess: "at least 8" and "more than 8" put the PASS preset on different
+    patch counts, and this pack has been wrong about one of them before.
+    """
+    key: str
+    #: the metric, in the words of the row group it belongs to
+    metric: str
+    #: the condition, in the words of the help text the user is shown
+    text: str
+    #: the comparison, copied from the source
+    comparison: str
+    #: module and constant it was read from
+    source: str
+    #: the row ids this requirement alone decides
+    rows: "tuple[str, ...]"
+    #: the reason code the FAIL side must produce on those rows
+    reason: str
+    #: what is one notch outside the line, and what is exactly on it
+    fail_label: str
+    pass_label: str
+    fail_chart: Callable
+    pass_chart: Callable
+    fail_keywords: "dict[str, str]" = field(default_factory=dict)
+    pass_keywords: "dict[str, str]" = field(default_factory=dict)
+    #: reason codes BOTH sides carry, with the arithmetic that forces them.
+    #: A pair is isolated when the two sides differ only on ``rows``; a code
+    #: here is constant across the pair and therefore changes nothing.
+    also: "tuple[str, ...]" = ()
+    also_why: str = ""
+
+
+_CS_ROWS = ("control_strip_de00_avg", "control_strip_de00_max",
+            "control_strip_de00_p95")
+_GREY_ROWS = ("grey_balance_neutral_ramp_avg", "grey_balance_neutral_ramp_max")
+
+REQUIREMENTS: "tuple[Requirement, ...]" = (
+    Requirement(
+        "R01", "Control strip",
+        "A chart carries a control strip when it says so itself: a sidecar "
+        "beside it, or a CONTROL_STRIP_IDS keyword in its .ti1.",
+        "declaration is None  ->  no_control_strip",
+        "measurement_report.control_strip_block",
+        _CS_ROWS, "no_control_strip",
+        "the same patch set with no keyword and too few ladder rungs to be "
+        "given one",
+        "the same patch set with a CONTROL_STRIP_IDS keyword naming 20 ids",
+        chart_strip_base, chart_strip_base,
+        {}, strip_ids(20)),
+    Requirement(
+        "R02", "Control strip, average and largest",
+        "At least 8 of the declared ids are in the measurement and carry a "
+        "reference value.",
+        "k < CONTROL_STRIP_MIN (8)  ->  control_strip_too_small",
+        "measurement_report.CONTROL_STRIP_MIN",
+        ("control_strip_de00_avg", "control_strip_de00_max"),
+        "control_strip_too_small",
+        "a declaration naming 7 ids", "a declaration naming 8 ids",
+        chart_strip_base, chart_strip_base,
+        strip_ids(7), strip_ids(8),
+        ("control_strip_too_small",),
+        "The 95th-percentile row wants 20 of the same ids, so it is short on "
+        "both sides of this pair. R02 and R03 are two lines on ONE number and "
+        "the pass side of the lower one is the fail side of the higher one."),
+    Requirement(
+        "R03", "Control strip, 95th percentile",
+        "The 95th percentile needs 20 of them, because below that its nearest "
+        "rank is the largest patch itself.",
+        "k >= CONTROL_STRIP_P95_MIN (20)  ->  p95_eligible",
+        "measurement_report.CONTROL_STRIP_P95_MIN",
+        ("control_strip_de00_p95",), "control_strip_too_small",
+        "a declaration naming 19 ids", "a declaration naming 20 ids",
+        chart_strip_base, chart_strip_base,
+        strip_ids(19), strip_ids(20)),
+    Requirement(
+        "R04", "Grey balance",
+        "A patch counts as grey when its red, green and blue values are "
+        "within one unit of each other.",
+        "rgb.max() - rgb.min() <= GREY_SPREAD_TOL (1.0)",
+        "measurement_report.GREY_SPREAD_TOL",
+        _GREY_ROWS, "no_greys",
+        "a ramp built 1.1 units out of neutral",
+        "a ramp built exactly 1.0 unit out of neutral",
+        lambda: chart_grey_spread(1.0 + NOTCH),
+        lambda: chart_grey_spread(1.0),
+        strip_ids(20), strip_ids(20)),
+    Requirement(
+        "R05", "Grey balance",
+        "There have to be at least eight distinct steps of it. Two levels "
+        "count as one step unless they are more than 0.5 units apart.",
+        "_distinct_levels(levels) < GREY_MIN_LEVELS (8)  ->  too_few_steps",
+        "measurement_report.GREY_MIN_LEVELS, GREY_LEVEL_TOL",
+        _GREY_ROWS, "too_few_steps",
+        "7 distinct steps", "8 distinct steps",
+        lambda: chart_grey_levels((0.0, 10.0, 35.0, 50.0, 65.0, 90.0, 100.0)),
+        lambda: chart_grey_levels((0.0, 10.0, 20.0, 35.0, 50.0, 65.0, 90.0,
+                                   100.0)),
+        strip_ids(20), strip_ids(20)),
+    Requirement(
+        "R06", "Grey balance",
+        "It has to reach white at one end. What the code asks for is a "
+        "neutral at level 90 or lighter, which is not the same as a patch of "
+        "bare paper.",
+        "max(levels) < GREY_LIGHTEST_MIN (90.0)  ->  no_white",
+        "measurement_report.GREY_LIGHTEST_MIN",
+        _GREY_ROWS, "no_white",
+        "the lightest neutral at 89.9", "the lightest neutral at exactly 90.0",
+        lambda: chart_grey_levels((0.0, 10.0, 20.0, 35.0, 50.0, 65.0, 80.0,
+                                   90.0 - NOTCH)),
+        lambda: chart_grey_levels((0.0, 10.0, 20.0, 35.0, 50.0, 65.0, 80.0,
+                                   90.0)),
+        strip_ids(20), strip_ids(20)),
+    Requirement(
+        "R07", "Grey balance",
+        "It has to reach black at the other. What the code asks for is a "
+        "neutral at level 10 or darker.",
+        "min(levels) > GREY_DARKEST_MAX (10.0)  ->  no_black",
+        "measurement_report.GREY_DARKEST_MAX",
+        _GREY_ROWS, "no_black",
+        "the darkest neutral at 10.1", "the darkest neutral at exactly 10.0",
+        lambda: chart_grey_levels((10.0 + NOTCH, 20.0, 35.0, 50.0, 65.0, 80.0,
+                                   90.0, 100.0)),
+        lambda: chart_grey_levels((10.0, 20.0, 35.0, 50.0, 65.0, 80.0, 90.0,
+                                   100.0)),
+        strip_ids(20), strip_ids(20)),
+    Requirement(
+        "R08", "Worst 5 % of patches",
+        "The chart needs at least twenty patches counted, so that a worst "
+        "twentieth exists to average.",
+        "ceil(0.95 n) == n  ->  small_sample, which is every n <= 19",
+        "measurement_report._stats",
+        ("worst5_de00_avg",), "small_sample",
+        "19 patches", "20 patches",
+        lambda: chart_patch_count(19), lambda: chart_patch_count(20),
+        strip_ids(8), strip_ids(8),
+        ("too_few_outer_patches", "control_strip_too_small"),
+        "A chart of twenty patches cannot put twenty in its own top quarter, "
+        "which needs 77, and cannot declare a strip of twenty either. Both "
+        "are short on BOTH sides of this pair, so neither moves with it. "
+        "Twenty patches is the smallest chart in the pack for the same reason "
+        "it is the requirement: there is no smaller one that can carry it."),
+    Requirement(
+        "R09", "Ramps 30 to 70 %",
+        "At least three distinct steps between 30 % and 70 % tone value, on "
+        "any one of the four axes.",
+        "distinct >= RAMP_MIN_STEPS (3)",
+        "measurement_report.RAMP_MIN_STEPS",
+        ("ramps_30_70_dl_max",), "no_ramp",
+        "2 steps in the band", "3 steps in the band",
+        lambda: chart_grey_levels((0.0, 10.0, 20.0, 40.0, 60.0, 80.0, 90.0,
+                                   100.0)),
+        lambda: chart_grey_levels((0.0, 10.0, 20.0, 40.0, 50.0, 60.0, 80.0,
+                                   90.0, 100.0)),
+        strip_ids(20), strip_ids(20)),
+    Requirement(
+        "R10", "Ramps 30 to 70 %",
+        "Those steps have to span at least twenty points of tone value.",
+        "span >= RAMP_MIN_SPAN (20.0)",
+        "measurement_report.RAMP_MIN_SPAN",
+        ("ramps_30_70_dl_max",), "no_ramp",
+        "3 steps spanning 19 points", "3 steps spanning exactly 20 points",
+        lambda: chart_grey_levels((0.0, 10.0, 20.0, 40.5, 50.0, 59.5, 80.0,
+                                   90.0, 100.0)),
+        lambda: chart_grey_levels((0.0, 10.0, 20.0, 40.0, 50.0, 60.0, 80.0,
+                                   90.0, 100.0)),
+        strip_ids(20), strip_ids(20)),
+    Requirement(
+        "R11", "Surface of the device cube",
+        "A patch is on the surface when at least one of its red, green and "
+        "blue values is within 2.0 of 0 or of 100.",
+        "min(v, 100 - v) <= SURFACE_GAMUT_TOL (2.0), for some channel",
+        "measurement_report.SURFACE_GAMUT_TOL",
+        ("surface_gamut_de00_avg",), "too_few_surface_patches",
+        "12 candidates, every one 2.1 from the nearest face",
+        "the same 12, every one exactly 2.0 from the nearest face",
+        lambda: chart_surface(12, 2.0 + NOTCH),
+        lambda: chart_surface(12, 2.0),
+        strip_ids(20), strip_ids(20)),
+    Requirement(
+        "R12", "Surface of the device cube",
+        "At least 10 of those patches carry a reference value.",
+        "len(sdes) >= SURFACE_GAMUT_MIN (10)",
+        "measurement_report.SURFACE_GAMUT_MIN",
+        ("surface_gamut_de00_avg",), "too_few_surface_patches",
+        "9 surface patches", "10 surface patches",
+        lambda: chart_surface(9, 0.0), lambda: chart_surface(10, 0.0),
+        strip_ids(20), strip_ids(20)),
+    Requirement(
+        "R13", "Outer gamut, top quarter by C*ab",
+        "The top quarter by chroma has to hold at least 20 patches. The help "
+        "text says that wants roughly 80; the arithmetic says 77.",
+        "ceil(n_referenced * 0.25) >= OUTER_GAMUT_MIN (20), so n >= 77",
+        "measurement_report.OUTER_GAMUT_FRACTION, OUTER_GAMUT_MIN",
+        ("outer_gamut_226_de00_avg",), "too_few_outer_patches",
+        "76 patches, so the quarter holds 19",
+        "77 patches, so the quarter holds exactly 20",
+        lambda: chart_total(76), lambda: chart_total(77),
+        strip_ids(20), strip_ids(20)),
+)
+
+
+# ---------------------------------------------------------------------------
+# The presets
 # ---------------------------------------------------------------------------
 @dataclass(frozen=True)
 class Demo:
-    """One preset, and the one thing it is built to fail."""
+    """One preset: a name, a patch set, and what it is built to prove."""
     n: int
     name: str
     #: what a reader should understand it proves, one sentence
     blurb: str
-    #: the reason code the window must give it, or "" for the control
+    #: "control", "FAIL", "PASS", "open" or "other"
+    kind: str = "other"
+    #: the requirement it belongs to, or ""
+    key: str = ""
+    #: the reason code the window must give it, or "" when nothing is withheld
     reason: str = ""
-    #: reason codes it ALSO fires, with why that is arithmetic and not sloppy
+    #: the rows that reason must land on
+    rows: "tuple[str, ...]" = ()
+    #: reason codes it ALSO fires, with the arithmetic in ``Requirement.also_why``
     also: "tuple[str, ...]" = ()
+    #: the comparison, copied from the source, for the README and the report
+    comparison: str = ""
+    source: str = ""
     chart: "Callable | None" = None
     keywords: "dict[str, str]" = field(default_factory=dict)
     #: write a .ti1 that cannot be parsed as a chart
@@ -248,74 +589,76 @@ class Demo:
     no_chart: bool = False
 
 
-def _strip_ids(k: int) -> "dict[str, str]":
-    return {"CONTROL_STRIP_IDS": " ".join(str(i) for i in range(1, k + 1))}
+def _build_demos() -> "tuple[Demo, ...]":
+    out = [Demo(0, "Verify 00 control, every row answered",
+                "The control. Every row a patch set can decide is answered, "
+                "so a reader can see that the shortfalls below are the charts "
+                "and not the window.",
+                kind="control", chart=chart_control, keywords=strip_ids(20))]
+    n = 1
+    for r in REQUIREMENTS:
+        out.append(Demo(
+            n, f"Verify {r.key} FAIL, {r.fail_label}",
+            f"{r.metric}. {r.text} This preset is one notch outside that "
+            f"line: {r.fail_label}.",
+            kind="FAIL", key=r.key, reason=r.reason, rows=r.rows, also=r.also,
+            comparison=r.comparison, source=r.source,
+            chart=r.fail_chart, keywords=dict(r.fail_keywords)))
+        n += 1
+        out.append(Demo(
+            n, f"Verify {r.key} PASS, {r.pass_label}",
+            f"{r.metric}. The same chart exactly on the line: "
+            f"{r.pass_label}. The rows the preset above withholds are "
+            f"answered here, and nothing else changes.",
+            kind="PASS", key=r.key, reason="", rows=r.rows, also=r.also,
+            comparison=r.comparison, source=r.source,
+            chart=r.pass_chart, keywords=dict(r.pass_keywords)))
+        n += 1
+    out += [
+        Demo(n, "Verify Q1 open, a grey ramp clumped at the light end",
+             "Eight neutral steps, seven of them inside 3.6 device units at "
+             "the top and one black patch at the bottom. ChromIQ judges the "
+             "grey rows on it and withholds nothing. Knut asked whether a "
+             "spacing requirement should exist; there is none, and this is "
+             "the question rather than a claim that it is wrong.",
+             kind="open", chart=chart_clumped_greys, keywords=strip_ids(20)),
+        Demo(n + 1, "Verify Q2 open, mid-tone steps 0.6 apart",
+             "Three steps in the 30 to 70 % band at tone values 40.0, 59.4 "
+             "and 60.0: three distinct steps and a span of exactly 20, with "
+             "two of the three readings 0.6 apart. Judged, and nothing "
+             "withheld. The same question as Q1, on the other ramp.",
+             kind="open", chart=chart_clumped_ramp, keywords=strip_ids(20)),
+        Demo(n + 2, "Verify X1 other, settings only, no patch set",
+             "A preset saved with the attach tick box OFF. Not a metric: it "
+             "is the one state in which the window can say nothing about a "
+             "preset, and it must say which tick box fixes it.",
+             kind="other", no_chart=True),
+        Demo(n + 3, "Verify X2 other, the patch set cannot be read",
+             "A .ti1 beside the preset that is not a chart. Not a metric "
+             "either: the other half of \"Cannot be checked\".",
+             kind="other", corrupt=True, chart=chart_control),
+    ]
+    return tuple(out)
 
 
-DEMOS: "tuple[Demo, ...]" = (
-    Demo(0, "Verify demo 00, everything passes",
-         "The control. Every row a patch set can decide is answered, so a "
-         "reader can see that the faults below are the charts and not the "
-         "window.", chart=chart_control),
-    Demo(1, "Verify demo 01, no grey patches",
-         "No neutral patch at all, so the two grey-balance rows have nothing "
-         "to average.", reason="no_greys", chart=chart_no_greys),
-    Demo(2, "Verify demo 02, grey ramp too short",
-         "Five grey levels where the row wants eight.",
-         reason="too_few_steps", chart=chart_too_few_steps),
-    Demo(3, "Verify demo 03, grey ramp stops short of white",
-         "Eight grey levels and more, but the lightest is 85 %, so the ramp "
-         "never reaches paper.", reason="no_white", chart=chart_no_white),
-    Demo(4, "Verify demo 04, grey ramp stops short of black",
-         "The same the other way up: the darkest neutral is 15 %.",
-         reason="no_black", chart=chart_no_black),
-    Demo(5, "Verify demo 05, no mid-tone ramp",
-         "A long grey ramp with a hole in it from 26 % to 74 %, and no "
-         "single-ink axis with three steps in the 30 to 70 % band.",
-         reason="no_ramp", chart=chart_no_ramp),
-    Demo(6, "Verify demo 06, too few surface patches",
-         "133 patches, none of them within 2 % of a face of the device "
-         "cube, so the surface-gamut population is empty.",
-         reason="too_few_surface_patches", chart=chart_too_few_surface),
-    Demo(7, "Verify demo 07, too few outer-gamut patches",
-         "Thirty-seven patches: the most saturated quarter holds ten and the "
-         "row wants twenty.",
-         reason="too_few_outer_patches", chart=chart_too_few_outer),
-    Demo(8, "Verify demo 08, no control strip",
-         "A patch set that fills five of the twenty-nine rungs of ChromIQ's "
-         "ladder, so no control strip can be declared for it.",
-         reason="no_control_strip", chart=chart_no_control_strip),
-    Demo(9, "Verify demo 09, declared control strip too short",
-         "The control chart, with a CONTROL_STRIP_IDS keyword naming five "
-         "patches. A declaration ChromIQ must not overrule, and five is under "
-         "the eight an average needs.",
-         reason="control_strip_too_small", chart=chart_control,
-         keywords=_strip_ids(5)),
-    Demo(10, "Verify demo 10, control strip too short for the 95th percentile",
-         "The same declaration at twelve patches: enough for the average and "
-         "the largest, three short of the twenty the 95th percentile needs. "
-         "The same reason code on ONE row instead of three.",
-         reason="control_strip_too_small", chart=chart_control,
-         keywords=_strip_ids(12)),
-    Demo(11, "Verify demo 11, too few patches",
-         "Nineteen patches, one short of the twenty a worst twentieth needs.",
-         reason="small_sample",
-         also=("too_few_outer_patches", "control_strip_too_small"),
-         chart=chart_small_sample),
-    Demo(12, "Verify demo 12, settings only, no patch set",
-         "A preset saved with the attach tick box OFF. Not a metric: it is "
-         "the one state in which the window can say nothing about a preset, "
-         "and it must say which tick box fixes it.", no_chart=True),
-    Demo(13, "Verify demo 13, the patch set cannot be read",
-         "A .ti1 beside the preset that is not a chart. Not a metric either: "
-         "the other half of \"Cannot be checked\".",
-         corrupt=True, chart=chart_control),
-)
+DEMOS: "tuple[Demo, ...]" = _build_demos()
+
+REQ_BY_KEY: "dict[str, Requirement]" = {r.key: r for r in REQUIREMENTS}
+
+
+def pairs() -> "list[tuple[Requirement, Demo, Demo]]":
+    """(requirement, its FAIL preset, its PASS preset), in table order."""
+    out = []
+    for r in REQUIREMENTS:
+        f = next(d for d in DEMOS if d.key == r.key and d.kind == "FAIL")
+        p = next(d for d in DEMOS if d.key == r.key and d.kind == "PASS")
+        out.append((r, f, p))
+    return out
 
 
 #: The reason codes NO patch set can provoke in this window, and why. Written
-#: down because a demo package that ships nine presets for fourteen codes has
-#: to say what happened to the other five, and four of them are these.
+#: down because a pack that covers ten codes has to say what happened to the
+#: other four.
 UNREACHABLE: "dict[str, str]" = {
     "needs_reference_file":
         "It is the STATE OF EVERY PRESET, not a fault in one. A preset chart "
@@ -326,7 +669,9 @@ UNREACHABLE: "dict[str, str]" = {
     "no_reference":
         "Unreachable by construction. The stand-in report gives every sample "
         "id an aim value (preset_eligibility._perfect_print), so no block can "
-        "ever find a patch without one.",
+        "ever find a patch without one. It is reachable in a REAL report, "
+        "where the reference comes from a .ti2 that need not cover every "
+        "sample, which is why two of its branches are worth reading twice.",
     "no_corners":
         "On the colorimetric branch of row_values only, which an unprinted "
         "preset never takes: it needs a reference file, which is the code "
@@ -392,9 +737,9 @@ def build(dest: Path) -> "list[tuple[Demo, Path | None]]":
         elif d.corrupt:
             chart = dest / (stem + ".ti1")
             chart.write_text(
-                "This file is deliberately not a chart. Verify demo 13 exists "
-                "to show what the window says about a preset whose patch set "
-                "it cannot read.\n", encoding="utf-8")
+                "This file is deliberately not a chart. This preset exists to "
+                "show what the window says about a preset whose patch set it "
+                "cannot read.\n", encoding="utf-8")
         else:
             chart = dest / (stem + ".ti1")
             write_ti1(chart, d.chart(), keywords=d.keywords,
@@ -407,6 +752,11 @@ def build(dest: Path) -> "list[tuple[Demo, Path | None]]":
 # ---------------------------------------------------------------------------
 # What the window really says about each one
 # ---------------------------------------------------------------------------
+#: The one code every preset carries and no preset causes. Excluded everywhere
+#: a claim is checked, because it is the background and not the picture.
+CONSTANT = "needs_reference_file"
+
+
 def assess(chart: "Path | None") -> "dict[str, str]":
     """``{row_id: reason}`` for every row this chart cannot answer, through the
     app's own eligibility path."""
@@ -422,41 +772,101 @@ def assess(chart: "Path | None") -> "dict[str, str]":
             for rid, v in values.items() if v.get("value") is None}
 
 
+def withheld(chart: "Path | None") -> "dict[str, str]":
+    """The same, without the code every preset carries."""
+    return {rid: why for rid, why in assess(chart).items()
+            if why != CONSTANT}
+
+
 def check(dest: Path) -> int:
-    """Build, assess, and say whether each demo fails exactly what it claims."""
-    from workflow import preset_eligibility as PE
-    rows = build(dest)
+    """Build, assess, and say whether each preset does exactly what it claims.
+
+    Three claims per pair, all measured:
+
+    1. the FAIL preset withholds its requirement's rows, with its own code;
+    2. the PASS preset answers them;
+    3. **nothing else moves.** Every other row reads the same on both sides.
+       That is what makes the pair evidence about one requirement instead of
+       an observation about two charts.
+    """
+    build(dest)
     bad = 0
-    for d, chart in rows:
-        got = assess(chart)
-        codes = sorted({c for c in got.values() if c})
-        patch_codes = sorted({c for c in codes if PE.is_patch_shortfall(c)
-                              or c in ("no_control_strip",
-                                       "control_strip_too_small")})
-        want = sorted({d.reason} | set(d.also)) if d.reason else []
-        ok = patch_codes == want
+
+    def chart_of(d):
+        stem = _sanitize(d.name)
+        return None if d.no_chart else dest / (stem + ".ti1")
+
+    for r, f, p in pairs():
+        got_f, got_p = withheld(chart_of(f)), withheld(chart_of(p))
+        want_f = {rid: r.reason for rid in r.rows}
+        problems = []
+        for rid, code in want_f.items():
+            if got_f.get(rid) != code:
+                problems.append(f"FAIL {rid}: want {code}, got "
+                                f"{got_f.get(rid) or 'answered'}")
+            if rid in got_p:
+                problems.append(f"PASS {rid}: still withheld ({got_p[rid]})")
+        moved = {rid for rid in set(got_f) | set(got_p)
+                 if rid not in r.rows and got_f.get(rid) != got_p.get(rid)}
+        for rid in sorted(moved):
+            problems.append(f"NOT ISOLATED {rid}: {got_f.get(rid)} vs "
+                            f"{got_p.get(rid)}")
+        constant = sorted({c for rid, c in got_f.items() if rid not in r.rows})
+        if constant != sorted(set(r.also)):
+            problems.append(f"also: want {sorted(set(r.also))}, got {constant}")
+        bad += 1 if problems else 0
+        print(f"{'ok ' if not problems else 'BAD'} {r.key}  {r.metric}")
+        print(f"       {r.comparison}")
+        print(f"       FAIL {f.name}")
+        print(f"            withholds {sorted(got_f.items()) or 'nothing'}")
+        print(f"       PASS {p.name}")
+        print(f"            withholds {sorted(got_p.items()) or 'nothing'}")
+        for line in problems:
+            print(f"       !! {line}")
+
+    for d in DEMOS:
+        if d.kind not in ("control", "open"):
+            continue
+        got = withheld(chart_of(d))
+        ok = not got
         bad += 0 if ok else 1
-        print(f"{'ok ' if ok else 'BAD'} {d.n:>2} {d.name}")
-        print(f"       want {want or ['(nothing)']}")
-        print(f"       got  {patch_codes or ['(nothing)']}")
-        if not ok:
-            for rid, code in sorted(got.items()):
-                print(f"          {rid:36} {code}")
-    print(f"\n{len(rows) - bad} of {len(rows)} demos fail exactly what they claim.")
+        print(f"{'ok ' if ok else 'BAD'} {d.kind:8} {d.name}")
+        if got:
+            print(f"       !! withholds {sorted(got.items())}")
+    print(f"\n{len(REQUIREMENTS)} requirements, {len(DEMOS)} presets, "
+          f"{bad} not doing what they claim.")
     return 1 if bad else 0
 
 
+def grid(dest: Path) -> int:
+    """The FAIL-against-PASS table, measured, one line per requirement."""
+    build(dest)
+
+    def chart_of(d):
+        return None if d.no_chart else dest / (_sanitize(d.name) + ".ti1")
+
+    print(f"{'req':4} {'metric':34} {'comparison':58} {'FAIL':26} PASS")
+    for r, f, p in pairs():
+        gf = sorted({c for c in withheld(chart_of(f)).values()})
+        gp = sorted({c for c in withheld(chart_of(p)).values()})
+        print(f"{r.key:4} {r.metric[:34]:34} {r.comparison[:58]:58} "
+              f"{','.join(gf)[:26]:26} {','.join(gp) or '(nothing)'}")
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# The README a user downloads
+# ---------------------------------------------------------------------------
 def readme() -> str:
-    from workflow import preset_eligibility as PE
     title = "ChromIQ demo presets for \"Which presets can be verified?\""
     lines = [title, "=" * len(title), ""]
     lines += _wrap(
         "Each preset in this folder is a Create Chart preset with its own "
-        "patch set (.ti1) attached, and each one is built to fall short of "
-        "exactly one of the checks the \"Which presets can be verified?\" "
-        "window applies. Copy the whole contents of this folder into your "
-        "own Create Chart presets folder, restart ChromIQ, and they appear in "
-        "the preset dropdown on the Create Chart tab and in that window.", 76)
+        "patch set (.ti1) attached. They come in PAIRS: for each requirement "
+        "the verification check applies, one chart sits one notch OUTSIDE "
+        "that line and one sits exactly ON it. Everything else about the two "
+        "charts is the same, so the rows that change between them are the "
+        "rows that requirement decides, and nothing else.", 76)
     lines += ["", "WHERE THE FOLDER IS", "-" * 19, "",
               "  macOS    ~/Library/Preferences/ChromIQ/presets/Create Chart",
               "  Windows  %APPDATA%\\ChromIQ\\presets\\Create Chart",
@@ -466,15 +876,37 @@ def readme() -> str:
         "and the .ti1 is the patch set the window reads. ChromIQ reads the "
         "folder once at start-up, so RESTART THE APP after copying. Delete "
         "them the same way, or from the minus button beside the dropdown.", 76)
-    lines += ["", "WHAT EACH ONE IS FOR", "-" * 20, ""]
-    for d in DEMOS:
-        lines.append(f"  {d.name}")
-        for ln in _wrap(d.blurb, 72):
+    lines += ["", "THE REQUIREMENTS, AND WHERE EACH LINE IS DRAWN", "-" * 46,
+              ""]
+    lines += _wrap(
+        "The comparison beside each one is copied from ChromIQ's own source, "
+        "because a boundary without its operator is a guess: \"at least 8 "
+        "steps\" fails at 7 and passes at 8, and \"within 1 unit\" passes AT "
+        "1 only because the comparison is <=.", 76)
+    lines.append("")
+    for r, f, p in pairs():
+        lines.append(f"  {r.key}  {r.metric}")
+        for ln in _wrap(r.text, 70):
             lines.append("      " + ln)
-        if d.reason:
-            lines.append(f"      window's reason code: {d.reason}")
-        for extra in d.also:
-            lines.append(f"      and, unavoidably: {extra}")
+        lines.append(f"      the line:  {r.comparison}")
+        lines.append(f"      read from: {r.source}")
+        lines.append(f"      FAIL       {f.name}")
+        lines.append(f"      PASS       {p.name}")
+        lines.append(f"      the rows it decides: "
+                     f"{', '.join(r.rows)}")
+        if r.also:
+            for ln in _wrap("and on BOTH sides of this pair, unavoidably: "
+                            + ", ".join(sorted(set(r.also))) + ". "
+                            + r.also_why, 70):
+                lines.append("      " + ln)
+        lines.append("")
+    lines += ["THE OTHER FOUR PRESETS", "-" * 22, ""]
+    for d in DEMOS:
+        if d.kind not in ("control", "open", "other"):
+            continue
+        lines.append(f"  {d.name}")
+        for ln in _wrap(d.blurb, 70):
+            lines.append("      " + ln)
         lines.append("")
     lines += ["WHAT NO PRESET CAN FAIL", "-" * 23, ""]
     lines += _wrap(
@@ -483,15 +915,16 @@ def readme() -> str:
     lines.append("")
     for code, why in UNREACHABLE.items():
         lines.append(f"  {code}")
-        for ln in _wrap(why, 72):
+        for ln in _wrap(why, 70):
             lines.append("      " + ln)
         lines.append("")
     lines += _wrap(
-        f"The remaining ten are the ten these presets cover. Nine of them are "
-        f"provoked alone. The tenth, small_sample, cannot be: a chart with "
-        f"under twenty patches also has under twenty in its most saturated "
-        f"quarter and under twenty on its control strip, so demo 11 shows "
-        f"three reasons and the arithmetic is why.", 76)
+        "The other ten are the codes these presets cover, between them. Note "
+        "that a code is not a requirement: control_strip_too_small is two "
+        "requirements (R02 and R03), too_few_surface_patches is two (R11 and "
+        "R12), and no_ramp is two (R09 and R10). That is why this pack is "
+        "built around the thirteen requirements and not around the ten "
+        "codes.", 76)
     lines.append("")
     return "\n".join(lines) + "\n"
 
@@ -507,11 +940,15 @@ def main(argv=None) -> int:
                     default=str(_HERE.parent / "demo-projects" / FOLDER))
     ap.add_argument("--check", action="store_true",
                     help="build, then assess each preset through the app's own "
-                         "eligibility path and say what it really fails")
+                         "eligibility path and say what it really does")
+    ap.add_argument("--grid", action="store_true",
+                    help="the measured FAIL-against-PASS table, one line each")
     args = ap.parse_args(argv)
     dest = Path(args.dest).resolve()
     if args.check:
         return check(dest)
+    if args.grid:
+        return grid(dest)
     build(dest)
     print(f"{len(DEMOS)} demo presets written to {dest}")
     return 0
