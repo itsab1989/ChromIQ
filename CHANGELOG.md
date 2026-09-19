@@ -1,5 +1,29 @@
 # Changelog
 
+## v4.3.0-beta.25
+
+**The honeycomb blanking again: it was painting over the measured columns next
+to it, at every window size a real screen uses.**
+
+### Fixed
+
+- **With "Show only measured patches" on a honeycomb, the blank painted over
+  part of the measured columns beside it.** The test that asks "is there a
+  measured patch next to me?" compared two different coordinate systems. They
+  happen to agree at the scale the test suite uses and not at the scale a real
+  window uses, so on a real chart it threw measured patches away: on a rotated
+  CR30 honeycomb, 1,219 of 1,288 of them. The share of a measured column the
+  blank leaves alone, on three real charts: 91.7 % to 99.3 % with no spacer,
+  89.1 % to 100 % with 1.5 mm spacers and edge spacers, 88.7 % to 100 % on a
+  rotated chart with spacers. It was not new in beta 24; that release made it
+  about three points worse.
+
+- **On a honeycomb with no spacer ring, the blank leaked a little of an unread
+  patch's ink beside a measured column.** Beta 24 grew the gap it leaves around
+  a measured patch by four screen pixels with nothing to spend them on, so on a
+  chart whose hexagons touch it took the room out of the neighbour. It takes at
+  most half the spacer ring now, which is nothing at all when there is no ring.
+
 ## v4.3.0-beta.24
 
 **One fix: the outline of the last visible patches with "Show only measured
