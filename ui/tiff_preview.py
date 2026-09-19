@@ -3258,7 +3258,24 @@ class TiffPreview(QWidget):
                     # `test_a_blank_never_leaks_an_unread_patch_beside_a_read_one`
                     # is the guard, at ring=0, both orientations -- the test
                     # this comment claimed for a day before it existed.
-                    _HOLE_SLACK = -min(2.0 / _dev, max(0.0, _ring / 2.0))
+                    # **BASTI RULED ON THE PICTURES, 2026-09-19: the blank
+                    # TAKES the ring.** Round 28's repair grew the hole to the
+                    # whole cell, so a measured hexagon kept its own half of
+                    # the printed spacer ring where it met the blank, which is
+                    # what the paragraph above said the rule was. Shown the two
+                    # photographs side by side he chose the other one: *"the
+                    # pictures in shipped beta 24 look better than the ones in
+                    # fixed r28"*. A ring beside a blanked column reads as the
+                    # black hairline he reported in the first place, so the
+                    # blank covers it and the hole is the read patch's PRINTED
+                    # INK and nothing more, which is what `_pts(_rb, _ring)`
+                    # already is.
+                    #
+                    # Nothing else about round 28 is undone by this. The hole
+                    # being the ink is a different question from WHICH read
+                    # patches get a hole at all, and that was the fault worth
+                    # having (B8-439, the two coordinate spaces, below).
+                    _HOLE_SLACK = 0.0
 
                     # **A REGION, NOT A CHAIN OF PATH SUBTRACTIONS.**
                     # `QPainterPath.subtracted` is floating-point boolean

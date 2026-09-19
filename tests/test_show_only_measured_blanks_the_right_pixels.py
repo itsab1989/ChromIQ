@@ -755,8 +755,33 @@ def test_the_blank_stops_at_the_read_patch_and_not_inside_it(qapp, tmp_path,
     A ring=0 honeycomb has no room at all - the two inks touch - so it keeps
     its own looser bar in the test above and is deliberately not asserted here.
 
-    MUTATION: paint the blank by clipping to `_reg` again (or take the device
-    pixel back off `_HOLE_SLACK`) and this goes red naming the percentage.
+    **RE-MEASURED 2026-09-19 AFTER BASTI RULED, and the number went DOWN, which
+    is the direction that needs saying out loud.** Shown the two photographs he
+    chose the one where the blank TAKES the printed spacer ring rather than
+    leaving the read patch its half: *"the pictures in shipped beta 24 look
+    better than the ones in fixed r28"*. So the hole is the read patch's ink
+    and nothing more, the ring beside it is covered on purpose, and the
+    antialiased boundary row of that ink is half-covered by construction:
+    **97.5 % and 97.4 %**, and no arrangement of this code will put those two
+    and a half points back while the ruling stands.
+
+    What that costs this guard is worth being honest about: at this fixture's
+    scale of 1.17 the fault it was written against (B8-439, two coordinate
+    spaces) read 98.3 %, so this bar can no longer see that one. The guard that
+    can is `test_a_read_column_survives_the_blank_at_a_real_preview_scale`,
+    which runs at the 0.26 a real window uses and where the same fault reads
+    86.9 %. What is left here is a gross bite - a blank that eats a patch
+    rather than its edge - and the mutation below is what proves it still can.
+
+    MUTATION: give the mask no holes to cut (`for _pth in []`), which is
+    B8-306's own shape - a blank that covers the read patch instead of stopping
+    at it - and this goes red at **85.4 %**.
+
+    The mutation first written here was *"clip to `_reg` again"*, and it is not
+    this guard's: put back, it turns
+    `test_the_blank_never_rises_into_a_honeycombs_strip_letters` red at 782 of
+    801 pixels and leaves this one green. A mutation claim is a claim about
+    what a guard can see, and the only way to make one true is to run it.
     """
     boxes = _hex_boxes(flat_top)
     read_ix = {i for i in range(len(boxes)) if i // ROWS == 2}
@@ -770,7 +795,7 @@ def test_the_blank_stops_at_the_read_patch_and_not_inside_it(qapp, tmp_path,
     assert off is not None and on is not None
     whole, kept = _count(off, _read_ink), _count(on, _read_ink)
     assert whole > 1000, "the fixture drew no read column to measure"
-    assert kept >= 0.995 * whole, (
+    assert kept >= 0.97 * whole, (
         f"the blank ate into the read column beside it: {kept} of its "
         f"{whole} pixels left ({100.0 * kept / whole:.1f} %)")
 

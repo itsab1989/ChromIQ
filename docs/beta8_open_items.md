@@ -18864,3 +18864,39 @@ would reach.
 - evidence: test_the_honeycomb_branch_still_leaves_before_the_sliver (the
   existing guard that keeps the arm unreachable)
 - proof: `~/Desktop/ChromIQ-beta24-proof/round-28/` (FINDINGS.md, R28-F4).
+
+### B8-443 · FIXED · Basti ruled that the blank TAKES the printed spacer ring, against what B8-439's repair restored
+- blocks release: no
+- status: FIXED
+- B8-439's repair grew the hole cut for a read patch to the whole cell, so a
+  measured hexagon kept its own half of the printed spacer ring where it met
+  the blank. That is what the rule written in `ui/tiff_preview.py` says should
+  happen, and no release had ever done it.
+- shown the two photographs side by side, same chart, same window, 8x, Basti
+  chose the other one: *"the pictures in shipped beta 24 look better than the
+  ones in fixed r28"*. A ring beside a blanked column reads as the black
+  hairline he reported in the first place.
+- fix: `_HOLE_SLACK` is `0.0` again, so the hole is the read patch's PRINTED
+  INK and nothing more, and the blank covers the ring. **None of B8-439 is
+  undone by this**: which read patches get a hole at all is a different
+  question from how big the hole is, and that was the fault worth having.
+- photographed, the same view three times:
+  `~/Desktop/ChromIQ-beta24-proof/round-28/shipped-beta24/`,
+  `.../fixed-r28/` and `.../hole-is-the-ink/`,
+  `B-cr30-honeycomb-spacers-edge--1500x1020--8x-boundary.png` in each.
+- **AND A GUARD'S BAR CAME DOWN, which is the direction that needs saying.**
+  `test_the_blank_stops_at_the_read_patch_and_not_inside_it` asked for 99.5 %
+  of a read column and now asks 97 %: with the ring covered on purpose, the
+  antialiased boundary row of the ink is half-covered by construction and
+  reads 97.5 / 97.4 %. What that costs is written into the test: at the
+  fixture's scale of 1.17 it can no longer see B8-439, and the guard that can
+  is `test_a_read_column_survives_the_blank_at_a_real_preview_scale`, which
+  runs at the 0.26 a real window uses.
+- **AND ITS MUTATION CLAIM WAS WRONG AND IS NOW THE ONE THAT WAS RUN.** The
+  docstring said "clip to `_reg` again and this goes red at 93.6 %". Put back,
+  that turns `test_the_blank_never_rises_into_a_honeycombs_strip_letters` red
+  at 782 of 801 pixels and leaves this guard green. The mutation recorded now
+  is giving the mask no holes to cut, B8-306's own shape, which reads 85.4 %.
+- evidence: test_the_blank_stops_at_the_read_patch_and_not_inside_it,
+  test_a_read_column_survives_the_blank_at_a_real_preview_scale,
+  test_a_blank_never_leaks_an_unread_patch_beside_a_read_one
