@@ -96,11 +96,25 @@ def test_the_button_sits_below_the_preset_dropdown(tab, qapp):
     button in the same group box is not the same thing as a button under the
     dropdown."""
     btn, combo = tab._preset_verify_btn, tab._preset_combo
+    # **AND IT IS HIDDEN UNTIL THE RUN IS A VERIFICATION (Knut, 2026-09-19).**
+    # This test measured the geometry of a button that is now invisible on a
+    # profiling run, and geometry of a hidden widget answers nothing. So the
+    # rule is asserted first and the placement second, on a run where the
+    # button is actually shown.
+    tab._preset_verify_btn.setVisible(False)
+    tab._sync_preset_verify_visibility()
+    if not tab._is_verification_target():
+        assert not btn.isVisibleTo(tab), (
+            "the button is on screen during a profiling run, where the chart "
+            "it judges is not the chart being chosen")
+    btn.setVisible(True)
+    if getattr(tab, "_preset_verify_help", None) is not None:
+        tab._preset_verify_help.setVisible(True)
+    qapp.processEvents()
     top = btn.mapTo(tab, btn.rect().topLeft()).y()
     bottom = combo.mapTo(tab, combo.rect().bottomLeft()).y()
     assert top >= bottom, (
         f"the button's top is at y={top}, the dropdown's bottom at y={bottom}")
-    assert btn.isVisibleTo(tab)
     assert combo.parent() is btn.parent(), \
         "the button left the Presets group box"
 
@@ -503,3 +517,52 @@ def test_no_user_facing_string_here_carries_an_em_dash():
                 for a in node.args:
                     if isinstance(a, ast.Constant) and isinstance(a.value, str):
                         assert "—" not in a.value, a.value
+
+
+def test_the_button_is_only_there_on_a_verification_run(tab, qapp):
+    """Knut, 2026-09-19, asked directly: *"the button shall only be visible for
+    run type = Verification. During profiling bigger charts are normally
+    chosen, and has no baring on the chart used for verification, only how good
+    the build profile becomes after measurement."*
+
+    I had argued the other way, that a user picks the preset long before they
+    think about verification. He overruled it, and his reason is the better
+    one: on a profiling run the chart this window judges is not the chart being
+    chosen.
+
+    The help button goes with it, because a tooltip explaining a control that
+    is not there is worse than neither.
+
+    MUTATION, proven to land: make `_sync_preset_verify_visibility` always show.
+    """
+    btn = tab._preset_verify_btn
+    help_btn = getattr(tab, "_preset_verify_help", None)
+
+    class _T:
+        def __init__(self, v): self._v = v
+        def is_verification(self): return self._v
+
+    class _Ctl:
+        def __init__(self, v): self.target = _T(v)
+
+    kept = getattr(tab, "_target_ctl", None)
+    try:
+        tab._target_ctl = _Ctl(False)
+        tab._sync_preset_verify_visibility()
+        assert not btn.isVisibleTo(tab), (
+            "the button is offered on a profiling run, where the chart it "
+            "judges is not the chart being chosen")
+        if help_btn is not None:
+            assert not help_btn.isVisibleTo(tab), (
+                "the help button outlived the control it explains")
+
+        tab._target_ctl = _Ctl(True)
+        tab._sync_preset_verify_visibility()
+        assert btn.isVisibleTo(tab), (
+            "the button is missing on a verification run, which is the one "
+            "run it exists for")
+        if help_btn is not None:
+            assert help_btn.isVisibleTo(tab)
+    finally:
+        tab._target_ctl = kept
+        tab._sync_preset_verify_visibility()

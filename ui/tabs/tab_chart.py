@@ -5891,7 +5891,7 @@ class TabChart(QWidget):
             self._open_preset_verification_window)
         verify_row.addWidget(self._preset_verify_btn)
         verify_row.addStretch()
-        verify_row.addWidget(TooltipButton(
+        self._preset_verify_help = TooltipButton(
             tr("Which presets can be verified?"),
             tr("Opens a list of every chart preset, marked against the "
             "Measurement Report type and limit set you choose.\n\n"
@@ -5907,8 +5907,11 @@ class TabChart(QWidget):
             "nothing on the table."),
             w,
             min_width=560,
-        ))
+        )
+        verify_row.addWidget(self._preset_verify_help)
         presets_col.addLayout(verify_row)
+        # Knut's rule: this pair belongs to a verification run only.
+        self._sync_preset_verify_visibility()
         layout.addWidget(presets_grp)
 
         scroll = FadeScrollArea(w)
@@ -7483,6 +7486,7 @@ class TabChart(QWidget):
     def showEvent(self, event) -> None:      # noqa: N802 (Qt override)
         super().showEvent(event)
         self._refit_logs()
+        self._sync_preset_verify_visibility()
         # Fill the preset-eligibility cache while the tab is idle, so the
         # "Which presets can be verified?" button does not make the user wait
         # for work that could have been done already. Started once; see
@@ -18136,6 +18140,32 @@ class TabChart(QWidget):
         return title, body + self._pages_paragraph(cost) \
             + self._duplicate_blocked_note(cost)
 
+    def _sync_preset_verify_visibility(self) -> None:
+        """Show "Which presets can be verified?" only on a verification run.
+
+        Knut, 2026-09-19, asked directly after Basti wondered whether it
+        belongs in a profiling run at all: *"I clearly specified this before,
+        and I said that the button shall only be visible for run type =
+        Verification. During profiling bigger charts are normally chosen, and
+        has no baring on the chart used for verification, only how good the
+        build profile becomes after measurement."*
+
+        I had argued the other way, that a user picks the preset long before
+        they think about verification, so hiding the window until the run type
+        is Verification delivers the information after the decision it should
+        have informed. He overruled it, and his reason is the better one: on a
+        profiling run the chart this window judges is not the chart being
+        chosen.
+
+        The help button goes with it. A tooltip explaining a control that is
+        not there is worse than neither.
+        """
+        show = self._is_verification_target()
+        for attr in ("_preset_verify_btn", "_preset_verify_help"):
+            w = getattr(self, attr, None)
+            if w is not None:
+                w.setVisible(show)
+
     def _is_verification_target(self) -> bool:
         ctl = getattr(self, "_target_ctl", None)
         return ctl is not None and ctl.target.is_verification()
@@ -19581,6 +19611,9 @@ class TabChart(QWidget):
         fingerprint, re-baseline it here and drop anything already queued. A real
         edit made AFTER the switch still arms the timer normally.
         """
+        # Knut's rule: the preset-verification button belongs to a
+        # verification run only, and the run type changes here.
+        self._sync_preset_verify_visibility()
         # ONCE PER TARGET CHANGE, NOT TWICE.
         #
         # This handler is reached from the controller AND from the main window,
@@ -19845,6 +19878,10 @@ class TabChart(QWidget):
         # One-shot flag: consumed by this run, don't carry over to the next.
         self._preconditioning_from_dialog = False
         self._precond_parent_run_id = None
+        # One-shot too: a chart whose control-strip declaration is waiting for
+        # the rebuild guard. A build that raised before the guard was released
+        # must not hand the NEXT build a chart to declare for.
+        self._declare_after_rebuild = None
 
         # Deliberate user cancel via the watchdog: report it plainly and skip
         # the generic "generation failed" error path below.
@@ -19913,7 +19950,24 @@ class TabChart(QWidget):
                     # the other usual paths". It must come AFTER the gamut
                     # reference, because that write is what makes a gamut
                     # chart's patches referenced at all.
-                    self._declare_control_strip(new_ti2)
+                    #
+                    # **…AND AFTER THE REBUILD GUARD, WHEN ONE IS ARMED.**
+                    # Measured on screen, 2026-09-19 (B8-408): pressing Restore
+                    # Used Chart redraws the pages, which comes back through
+                    # here, and `_release_rebuild_guard` then puts the RESTORED
+                    # chart's bytes back over whatever the redraw laid out. The
+                    # declaration written here was computed from the redrawn
+                    # chart, so what was left on disk was a strip of a layout
+                    # that no longer existed: the restored chart named 22
+                    # patches and the declaration beside it named 23. A
+                    # declaration is tied to the chart it is made for (Knut,
+                    # 2026-09-19), and that one was made for a chart the guard
+                    # had just thrown away. So when a guard is armed the
+                    # declaration waits for it.
+                    if getattr(self, "_rebuild_guard", None) is None:
+                        self._declare_control_strip(new_ti2)
+                    else:
+                        self._declare_after_rebuild = new_ti2
             except Exception:  # noqa: BLE001 — never break a finished generation
                 log.warning("verify-chart adopt failed", exc_info=True)
             # A pending gamut selection is consumed by the adopt above; if the
@@ -20009,6 +20063,13 @@ class TabChart(QWidget):
             # marked RANDOM_START when it had been laid out in fixed order, and
             # chartread reads those two differently.
             self._release_rebuild_guard()
+            # The chart on disk is final now — either the redraw's, or the
+            # restored bytes the guard put back. THIS is the chart the
+            # declaration has to describe (see the deferral above).
+            deferred = getattr(self, "_declare_after_rebuild", None)
+            if deferred is not None:
+                self._declare_after_rebuild = None
+                self._declare_control_strip(deferred)
             # Remember the .ti1 backing this chart so the Save Preset dialog can
             # offer to attach it.
             ti1 = tiffs[0].parent / f"{stem}.ti1"
