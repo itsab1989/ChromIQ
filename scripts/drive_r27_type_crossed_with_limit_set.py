@@ -184,7 +184,7 @@ def main() -> int:                                          # noqa: C901
     print(f"    photograph: {ok} {why}; identical: {same}/{tries}", flush=True)
     res["photo"] = {"taken": ok, "why": why, "identical": same}
     res["asked"] = asked
-    json.dump(res, (out / "result.json").open("w"), indent=2, default=str)
+    json.dump(res, (out / "result.json").open("w", encoding="utf-8"), indent=2, default=str)
     print("    wrote result.json", flush=True)
     dlg.close()
     pump(app, 400)

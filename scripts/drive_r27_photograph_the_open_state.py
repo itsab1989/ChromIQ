@@ -118,7 +118,7 @@ def main() -> int:
     print(f"    photograph: {ok} {why}; two identical frames: {same}",
           flush=True)
     facts["photograph"] = {"taken": ok, "why": why, "two_identical_frames": same}
-    json.dump(facts, (out / f"{tag}-facts.json").open("w"), indent=2)
+    json.dump(facts, (out / f"{tag}-facts.json").open("w", encoding="utf-8"), indent=2)
     dlg.close()
     pump(app, 400)
     return 0

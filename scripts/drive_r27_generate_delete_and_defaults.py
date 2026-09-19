@@ -239,7 +239,7 @@ def main() -> int:                                          # noqa: C901
     res["live_files_end"] = live_files()
     res["old_files_end"] = old_files()
     res["asked"] = asked
-    json.dump(res, (out / "result.json").open("w"), indent=2, default=str)
+    json.dump(res, (out / "result.json").open("w", encoding="utf-8"), indent=2, default=str)
     print("    wrote result.json", flush=True)
     dlg.close()
     pump(app, 400)

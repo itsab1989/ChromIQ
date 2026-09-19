@@ -4999,7 +4999,7 @@
  "[STOPPED] You cancelled the calibration, so this measurement did not start. Nothing has been changed and nothing has been measured — your instrument still has the calibration it had before. Press “{start}” whenever you are ready to begin.": "[STOPPED] Du hast die Kalibrierung abgebrochen, deshalb wurde diese Messung nicht gestartet. Es wurde nichts geändert und nichts gemessen — dein Gerät hat noch die Kalibrierung, die es vorher hatte. Drücke „{start}“, sobald du bereit bist anzufangen.",
  "[WARNING] After the black calibration, a reading of nothing came back at {zero:.3f} % instead of near zero. Something was probably in front of the opening. Take the black calibration again with the instrument pointing at nothing.": "[WARNING] Nach der Schwarzkalibrierung kam eine Messung des Nichts mit {zero:.3f} % zurück statt nahe null. Wahrscheinlich war etwas vor der Öffnung. Nimm die Schwarzkalibrierung erneut vor, während das Messgerät ins Nichts zeigt.",
  "[WARNING] Could not move the previous profile and its verification measurements out of the way: {error}": "[WARNING] Das bisherige Profil und seine Verifizierungsmessungen konnten nicht beiseitegeräumt werden: {error}",
- "[WARNING] Could not move the previous profile out of the way: {error}": "[WARNUNG] Das bisherige Profil konnte nicht zur Seite geräumt werden: {error}",
+ "[WARNING] Could not move the previous profile out of the way: {error}": "[WARNING] Das bisherige Profil konnte nicht zur Seite geräumt werden: {error}",
  "[WARNING] Instrument connection lost. Still trying to save the partial measurement…": "[WARNING] Verbindung zum Messgerät verloren. Versuche trotzdem, die Teilmessung zu speichern …",
  "a built profile": "ein erstelltes Profil",
  "a calibration": "eine Kalibrierung",

@@ -187,7 +187,7 @@ def main() -> int:                                          # noqa: C901
     res["1_page_all_same"] = len({hashlib.sha256(t.encode()).hexdigest()
                                   for t in texts}) == 1
 
-    json.dump(res, (out / "result.json").open("w"), indent=2, default=str)
+    json.dump(res, (out / "result.json").open("w", encoding="utf-8"), indent=2, default=str)
     print("    wrote result.json", flush=True)
     dlg.close()
     pump(app, 500)
