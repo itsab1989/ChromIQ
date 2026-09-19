@@ -271,13 +271,22 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
             # own guard is "neither ISO set is selectable", so it was shown
             # ONLY in the state where its second clause had become false, with
             # the two enabled radio buttons three rows above it.
+            # AND IT NOW SAYS HOW, which it did not. Knut asked for the
+            # standards' limits laid out in this window's own order so they
+            # could be filled in; the values cannot come from ChromIQ, but the
+            # table can, and a reader who is told "supply your own copy"
+            # without being told how has been given a shrug.
             sub_text += " " + tr(
                 "The ISO value sets are not yet available in this version: "
                 "whether a standard's numbers may ship inside ChromIQ is still "
                 "being decided. A cell reading ? is a limit the standard "
                 "defines and ChromIQ does not show yet; you may type your own "
                 "number into a Custom column from your own copy of the "
-                "standard.")
+                "standard. To fill a whole column at once, run "
+                "\"python scripts/iso_values_template.py -o iso12647.json\", "
+                "which writes every row these sets use in the order shown "
+                "here, fill in the numbers from your own copy, and point the "
+                "environment variable CHROMIQ_COMPLIANCE_ISO_FILE at the file.")
         sub = QLabel(sub_text, self)
         sub.setWordWrap(True)
         inner.addWidget(sub)
@@ -775,9 +784,11 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
             "so that every row ChromIQ can measure has a limit to be judged "
             "against. They are not the published tolerances of ISO 12647-7 or "
             "ISO 12647-8, which ChromIQ does not hold. If you hold either "
-            "standard, point ChromIQ at your own copy of its values and the "
-            "Custom column starts from those instead. Every limit here is "
-            "yours to change.")
+            "standard, run \"python scripts/iso_values_template.py\" for a "
+            "file listing every row these sets use, fill in your own copy's "
+            "numbers, point CHROMIQ_COMPLIANCE_ISO_FILE at it, and the Custom "
+            "column starts from those instead. Every limit here is yours to "
+            "change.")
         cannot = [tr(r.label) for r in ROWS if r.status == "unmeasurable"]
         title, body = M_THRESHOLDS_NOT_CERTIFICATION.render(rows=", ".join(cannot))
         return legend + "\n" + foot + "\n\n" + custom + "\n\n" + title + "\n" + body
