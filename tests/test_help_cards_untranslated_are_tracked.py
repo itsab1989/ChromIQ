@@ -650,18 +650,42 @@ _BUDGET = {
     # So `de` stands still at 20 and each of the other eleven rises by exactly
     # 3. COUNTED with this file's own `_english_echoes` over the catalogues as
     # they stand, never adjusted upward from the old numbers.
+    # RE-MEASURED 2026-09-19, Knut's beta 25 Create Chart batch (B8-444 to
+    # B8-450). The preset-eligibility window is renamed, says "metric" where it
+    # said "row", and gained the From-Profile-Gamut note: **17 keys in, 11
+    # stale out**, of which 14 in and 10 out are long enough for this file to
+    # count, so each of the eleven non-German catalogues rises by exactly 4.
+    #
+    # `de` STANDS STILL AT 20. Sixteen of the seventeen are translated into
+    # German in the same change; the seventeenth, `{metric}: {explanation}`,
+    # is two placeholders with no German to write and is under this file's own
+    # 25-character floor, so it is not counted here at all (it IS counted by
+    # `_IDENTICAL_TO_KEY` in test_i18n.py, which has no floor -- that is why
+    # the two ledgers move by different amounts this time).
+    #
+    # Three of the seventeen came from the concurrent Measurement Report work
+    # sharing this tree, not from this change set; see the same note in
+    # test_i18n.py.
+    #
+    # COUNTED with this file's own `_english_echoes` over the catalogues as
+    # they stand, never adjusted upward.
+    # RE-MEASURED once more the same evening for B8-464 (see the same note in
+    # test_i18n.py): the Report limits window's two ISO sentences, stale since
+    # `1db705f1`. Both are long enough to count here, both are translated into
+    # German in the same change, so **de stands still at 20** and each of the
+    # eleven others rises by exactly 1. COUNTED, not adjusted.
     "de": 20,
-    "es": 283,
-    "fr": 284,
-    "it": 283,
-    "ja": 283,
-    "nl": 283,
-    "no": 283,
-    "pl": 283,
-    "pt": 283,
-    "ru": 282,
-    "sv": 283,
-    "zh_CN": 282,
+    "es": 288,
+    "fr": 289,
+    "it": 288,
+    "ja": 288,
+    "nl": 288,
+    "no": 288,
+    "pl": 288,
+    "pt": 288,
+    "ru": 287,
+    "sv": 288,
+    "zh_CN": 287,
 }
 
 

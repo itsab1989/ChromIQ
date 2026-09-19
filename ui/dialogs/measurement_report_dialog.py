@@ -1162,6 +1162,65 @@ class MeasurementReportDialog(QDialog):
         top_v = v
         top_v.addWidget(intro)
 
+        # ------------------------------------------------------------------
+        # KNUT'S BETA-25 MOCKUP, and it supersedes L.8 (B8-460)
+        # ------------------------------------------------------------------
+        # `~/Desktop/ChromIQ-knut-beta25-batch/mockup-report-window-layout.png`,
+        # 2026-09-19: *"Note that a frame called 'Report settings' encompass all
+        # the relevant buttons and input controls that are related to the
+        # settings for a report. The report shown is above the frame, with its
+        # help icon, and two text elements: the text 'Click a report to load …'
+        # to the right of the 'report shown' (and its help icon) and the
+        # 'Already generated…' below the 'report shown' input box. Below the
+        # 'Report settings' frame there are 4 buttons and a help icon (starting
+        # left with Generate Report, then Delete Selected Report, then Save
+        # Report As PDF, then Reveal Folder, then help icon). Inside the
+        # 'Report settings' frame all the remaining buttons and elements are
+        # placed carefully."*
+        #
+        # L.8 put Generate report and Delete Selected Report beside the "Report
+        # shown" pulldown, which is where beta 22 shipped them. This moves both
+        # into the action row under the frame; the pulldown keeps its own help
+        # button and its hint, which is the half of L.8 his mockup keeps.
+        #
+        # The containers are built HERE, before the widgets that go in them, so
+        # that the order they are added to `top_v` is the order on his image.
+        # Every widget below is created exactly where it was; only the layout
+        # it is put into changed.
+        from PyQt6.QtWidgets import QGridLayout, QGroupBox
+        #: "Report shown", its help, its hint and the "Already generated" line.
+        #: A grid, so the second row starts at the pulldown's left edge, which
+        #: is where his mockup puts it.
+        shown_grid = QGridLayout()
+        shown_grid.setHorizontalSpacing(8)
+        shown_grid.setVerticalSpacing(2)
+        shown_grid.setContentsMargins(0, 0, 0, 0)
+        #: The frame. Its title is the one new string this layout needs.
+        self._settings_box = QGroupBox(tr("Report settings"), self)
+        box_v = QVBoxLayout(self._settings_box)
+        # **TIGHT, BECAUSE THE FRAME IS NOT FREE.** Measured on the real
+        # window: his layout costs 61 px of the window's unshrinkable minimum
+        # (the frame's title and margins, the list's new label, and the
+        # "Already generated" line no longer sharing the type row), and this
+        # window's minimum is measured against a laptop screen. 39 of the 61
+        # are bought back here and in the two grids' spacings, which is the
+        # difference between the run list opening at three rows and opening
+        # compacted to two on a 1080 px display.
+        box_v.setContentsMargins(12, 4, 12, 8)
+        box_v.setSpacing(7)
+        #: The three layouts `_compact_the_settings_frame` squeezes when the
+        #: window's own minimum will not fit the screen. Kept here so the
+        #: ladder in `showEvent` has one thing to call and no knowledge of how
+        #: this block is built.
+        self._roomy = (box_v, shown_grid)
+        #: Four buttons and a help icon, under the frame, in his order.
+        actions_row = QHBoxLayout()
+        #: What rides to the RIGHT of "Report type" on his image: the type's own
+        #: help button (prepended by the type block below) and the two report
+        #: tick boxes with theirs.
+        type_tail = QHBoxLayout()
+        type_tail.setContentsMargins(0, 0, 0, 0)
+
         # Sourcing: add / remove / clear the profiles whose measurements the
         # report covers. Each list entry is one profile's runs (Knut).
         add_row = QHBoxLayout()
@@ -1224,7 +1283,14 @@ class MeasurementReportDialog(QDialog):
                "instruments or a chart is missing cube corners."),
             self, color=SPEC_GREEN))
         add_row.addStretch(1)
-        top_v.addLayout(add_row)
+        box_v.addLayout(add_row)
+
+        #: **THE LIST IS NAMED ON HIS MOCKUP AND WAS NOT NAMED HERE.** Every
+        #: other control in the frame carries a label; the list of measurements
+        #: carried only a tooltip, so a reader had to hover a box to learn what
+        #: the box was.
+        self._list_label = QLabel(tr("Included Measurements in report:"), self)
+        box_v.addWidget(self._list_label)
 
         self._profile_list = QListWidget(self)
         # A fixed height cramped this into ~3 visible rows the moment a run
@@ -1261,37 +1327,43 @@ class MeasurementReportDialog(QDialog):
         self._list_rows: "list[tuple]" = []
         self._building_list = False
         self._profile_list.itemChanged.connect(self._on_run_row_toggled)
-        top_v.addWidget(self._profile_list)
+        box_v.addWidget(self._profile_list)
 
-        out_row = QHBoxLayout()
+        out_row = type_tail
         # KNUT, 2026-09-11: *"A user should be allowed to print several report
         # types for a run, as the user may have several uses for different
         # reports … This also makes it logical that there is a Generate Report
         # button, so the user can choose to generate a report that is
         # selected."* The type is a VIEW of the same judged data, and this is
         # the button that keeps one.
-        # **AND IT IS NOT IN THIS ROW ANY MORE (B8-380, L.8).** Knut,
-        # 2026-09-18: *"The button for Generate Report and Delete Selected
-        # Report should probably be placed vertically over one another left to
-        # the new List of Generated Reports, so that it is clear that the
-        # buttons are related to the list of generated reports."* It is built
-        # here, beside the two buttons it used to sit with, and packed into the
-        # list row below; the widget and its signal are unchanged.
+        # **AND THE FOUR BUTTONS ARE ONE ROW UNDER THE FRAME (B8-460).** L.8
+        # put Generate report and Delete Selected Report beside the "Report
+        # shown" pulldown, and beta 25's mockup puts all four in a row of their
+        # own under the "Report settings" frame, in this order: Generate
+        # Report, Delete Selected Report, Save Report As PDF, Reveal Folder,
+        # help icon. The widgets and their signals are unchanged.
         self._generate_btn = QPushButton(tr("Generate report"), self)
         self._generate_btn.setStyleSheet(_compact_btn)
         self._generate_btn.clicked.connect(self._on_generate_report)
         self._generate_btn.setEnabled(False)
+        actions_row.addWidget(self._generate_btn)
+        self._delete_report_btn = QPushButton(
+            tr("Delete Selected Report"), self)
+        self._delete_report_btn.setStyleSheet(_compact_btn)
+        self._delete_report_btn.clicked.connect(self._on_delete_report)
+        self._delete_report_btn.setEnabled(False)
+        actions_row.addWidget(self._delete_report_btn)
         self._pdf_btn = QPushButton(tr("Save report as PDF…"), self)
         self._pdf_btn.setStyleSheet(_compact_btn)
         self._pdf_btn.clicked.connect(self._export_pdf)
         self._pdf_btn.setEnabled(False)
-        out_row.addWidget(self._pdf_btn)
+        actions_row.addWidget(self._pdf_btn)
         self._reveal_btn = QPushButton(tr("Reveal folder"), self)
         self._reveal_btn.setStyleSheet(_compact_btn)
         self._reveal_btn.clicked.connect(self._on_reveal)
         self._reveal_btn.setEnabled(False)
-        out_row.addWidget(self._reveal_btn)
-        out_row.addWidget(TooltipButton(
+        actions_row.addWidget(self._reveal_btn)
+        actions_row.addWidget(TooltipButton(
             tr("Saving and finding the report"),
             tr("Save report as PDF… — writes the whole report (this window's "
                "contents, laid out for print with the ChromIQ heading and page "
@@ -1307,9 +1379,13 @@ class MeasurementReportDialog(QDialog):
                "you can browse to the reports folder and open any PDF you saved "
                "earlier."),
             self, color=SPEC_GREEN))
-        # the two report-option checkboxes join this row on the right
-        # (Knut, beta.5: 'moved to the right of the buttons, to save a
-        # bit of vertical space')
+        actions_row.addStretch(1)
+        # **THE TWO TICK BOXES RIDE WITH "REPORT TYPE" NOW (B8-460).** Knut,
+        # beta.5, put them to the right of the buttons *"to save a bit of
+        # vertical space"*; his beta-25 mockup keeps them on one line and moves
+        # that line to the right of the "Report type" pulldown, inside the
+        # "Report settings" frame. The saving is the same and they now sit with
+        # the setting they qualify.
         out_row.addSpacing(18)
 
         self._all_runs_check = QCheckBox(tr("Show all measurement runs"), self)
@@ -1343,6 +1419,9 @@ class MeasurementReportDialog(QDialog):
                "opened on — one run, in full, with no comparison.\n\n"
                "The saved PDF always matches what you see here."),
             self, min_width=440, color=SPEC_GREEN))
+        # His mockup leaves clear air between the two tick boxes; without it
+        # the first one's info icon reads as belonging to the second.
+        out_row.addSpacing(14)
         self._detail_check = QCheckBox(tr("Show detailed data for each run"), self)
         self._detail_check.setChecked(
             bool(settings.get("report_default_show_details", True)))
@@ -1375,7 +1454,6 @@ class MeasurementReportDialog(QDialog):
                "Reports ▸ Measurement Report Defaults."),
             self, min_width=440, color=SPEC_GREEN))
         out_row.addStretch(1)
-        top_v.addLayout(out_row)
 
         # ------------------------------------------------------------------
         # The list of generated reports (B8-380, §13 rules L.1, L.8, L.9)
@@ -1396,44 +1474,13 @@ class MeasurementReportDialog(QDialog):
         # AND EVERY ENTRY IS A DOCUMENT, not a file. That is B8-383 and it is
         # why this could not be rearranged first: a control moved around the
         # wrong model is still the wrong model.
-        from PyQt6.QtWidgets import QComboBox, QGridLayout
+        from PyQt6.QtWidgets import QComboBox
         from ui.widgets import NoScrollComboBox
-        docs_row = QHBoxLayout()
-        self._delete_report_btn = QPushButton(
-            tr("Delete Selected Report"), self)
-        self._delete_report_btn.setStyleSheet(_compact_btn)
-        self._delete_report_btn.clicked.connect(self._on_delete_report)
-        self._delete_report_btn.setEnabled(False)
-        # A GRID, SO THE PAIR CAN UNSTACK ON A SHORT SCREEN. Stacked they are
-        # 64 px tall, which is 34 px more than the row they replace, and this
-        # window's own minimum already sits within about 30 px of an 800 px
-        # screen. `showEvent`'s ladder puts them side by side before it takes a
-        # millimetre off the document, which loses a reader nothing: it is the
-        # same two buttons, still beside the list they belong to.
-        self._report_btns = QGridLayout()
-        self._report_btns.setSpacing(4)
-        # **ONE LINE, ON KNUT'S SECOND RULING.** L.8 asked for the two buttons
-        # stacked *"so the buttons read as belonging to the list"*, and that is
-        # what shipped in beta 22. Basti, looking at the released window:
-        # *"could all of this elements be in one line maybe"*. Put to Knut, who
-        # answered *"Implement the one line suggestion, then we can review on
-        # the released beta."*
-        #
-        # His intent survives the change: the buttons still sit immediately
-        # beside the pulldown they belong to. What it costs is width, which the
-        # generated names want, and what it buys is the 34 px of height this
-        # window already trades away first on a short screen: the ladder in
-        # `showEvent` that used to unstack them has nothing left to do, and
-        # `_stack_report_buttons` returns early when it is asked for the
-        # arrangement it already has.
-        self._report_btns_stacked = False
-        self._report_btns.addWidget(self._generate_btn, 0, 0)
-        self._report_btns.addWidget(self._delete_report_btn, 0, 1)
-        btn_col = QVBoxLayout()
-        btn_col.setSpacing(4)
-        btn_col.addLayout(self._report_btns)
-        btn_col.addStretch(1)
-        docs_row.addLayout(btn_col)
+        # **THE TWO BUTTONS HAVE LEFT THIS ROW (B8-460).** L.8 kept Generate
+        # report and Delete Selected Report beside the pulldown; his beta-25
+        # mockup puts them in the action row under the frame, and this row is
+        # the pulldown, its help button and its hint. Both buttons are built
+        # above, with the other two they now stand beside.
         # **A PULLDOWN, ON HIS RULING.** His paragraph asked for "a selectable
         # and scrollable selection box … height to show at least 3 to 4 rows of
         # text"; asked about it, he answered *"It is ok that 'Current Report
@@ -1465,8 +1512,8 @@ class MeasurementReportDialog(QDialog):
         # below this one have had their label on the left since the window was
         # built; this one now matches them.
         self._saved_label = QLabel(tr("Report shown:"), self)
-        docs_row.addWidget(self._saved_label)
-        docs_row.addWidget(self._saved_combo, 3)
+        shown_grid.addWidget(self._saved_label, 0, 0)
+        shown_grid.addWidget(self._saved_combo, 0, 1)
         # **ONE LINE, NOT THREE.** The name, the help button, the instruction
         # and the Delete refusal stacked three deep came to 46 px beside a box
         # that is 21 px tall when it is empty, and this window's minimum is
@@ -1521,9 +1568,24 @@ class MeasurementReportDialog(QDialog):
         side_col.addStretch(1)
         side_col.addLayout(head)
         side_col.addStretch(1)
-        docs_row.addLayout(side_col, 2)
-        self._saved_row = docs_row
-        top_v.addLayout(docs_row)
+        shown_grid.addLayout(side_col, 0, 2)
+        # **AND THE "ALREADY GENERATED" LINE STARTS AT THE PULLDOWN'S LEFT
+        # EDGE.** That is what his mockup shows, and a grid is the only way to
+        # promise it: the line is row 1 of columns 1 and 2, so it begins
+        # exactly under the box it is about however long the label gets in
+        # another language. The widget itself (`_type_blurb`) is built with the
+        # "Report type" row below, where it has always been built; only where
+        # it is PLACED moved, because the line is about the run's reports and
+        # not about the type.
+        self._already_row = QHBoxLayout()
+        self._already_row.setContentsMargins(0, 0, 0, 0)
+        shown_grid.addLayout(self._already_row, 1, 1, 1, 2)
+        shown_grid.setColumnStretch(1, 3)
+        shown_grid.setColumnStretch(2, 2)
+        self._saved_row = shown_grid
+        top_v.addLayout(shown_grid)
+        top_v.addWidget(self._settings_box)
+        top_v.addLayout(actions_row)
         #: Says the document is older than the settings. **ON ITS OWN ROW,
         #: DIRECTLY UNDER THE BUTTON IT NAMES.** Put inside `out_row` with a
         #: stretch, as it was first built, it competed with four buttons and a
@@ -1598,6 +1660,39 @@ class MeasurementReportDialog(QDialog):
         #: entry that disagrees with the document it names.
         self._loaded_doc_id = ""
         self._loaded_doc: "dict | None" = None
+        #: **WHEN THE DOCUMENT ON SCREEN WAS CREATED (B8-461).** Knut, beta 25:
+        #: *"The report text updates, but the first line says 'Created:
+        #: 2026-09-19 17:57:22', which is not the same creation time as the
+        #: report name is giving. They should be the same."* The body was
+        #: stamped with `self._created`, which is the moment this WINDOW was
+        #: opened, so every saved report ever loaded claimed to have been made
+        #: seconds ago. Filled from the same two places the entry's own name is
+        #: built from, so the line and the name cannot disagree: the document
+        #: block's `created` when there is one, and the report file's own saved
+        #: stamp when the document is a single pre-#182 file.
+        #:
+        #: Empty means "no document is loaded" — the "New report…" state and a
+        #: measurement with nothing saved — and then the line is this window's
+        #: own clock again, which is what it is for.
+        self._doc_created = ""
+        #: **WHAT THE TWO PULLDOWNS WERE SHOWING WHEN THE USER MOVED A CONTROL
+        #: (B8-462).** Knut, beta 25: *"If I change Judged against from
+        #: 'ChromIQ default' to 'ChromIQ tight', then suddenly report type also
+        #: changes to 'Grey and tone check'. Changing judged against parameter
+        #: shall not ever alter report type."*
+        #:
+        #: The mechanism is `_settings_touched` dropping the loaded document's
+        #: claim on ALL the controls the moment ONE of them is moved: the type
+        #: pulldown then fell back to the RUN, which may carry a different type
+        #: from the report on screen, and jumped to it. The document's claim
+        #: still has to go, because it no longer describes the screen; what
+        #: replaces it is the value that WAS on screen, taken from the widgets
+        #: themselves, so the control the user did not touch does not move.
+        #:
+        #: Session-only, written nowhere, and dropped the moment another
+        #: document is loaded (`_forget_sticky_settings`).
+        self._sticky_type = ""
+        self._sticky_set = ""
         #: Whether the user has moved a setting since the document was loaded.
         #: While it is True the document's own settings are not consulted: they
         #: are no longer what is on screen. The document itself stays selected
@@ -1613,16 +1708,25 @@ class MeasurementReportDialog(QDialog):
         # numbers it is judged with. Two controls, one rule: D9 governs both,
         # because a run whose dated verifications produced different kinds of
         # report is no more comparable than one whose limits moved under it.
-        type_row = QHBoxLayout()
+        # **ROW 0 OF THE FRAME'S GRID (B8-460).** His mockup aligns the
+        # "Report type" and "Judged against" pulldowns on one left edge, which
+        # two independent QHBoxLayouts cannot promise: the labels are different
+        # lengths, so the boxes started 32 px apart on screen. A grid with the
+        # label in column 0 and the box in column 1 is the promise.
+        settings_grid = QGridLayout()
+        settings_grid.setHorizontalSpacing(8)
+        settings_grid.setVerticalSpacing(6)
+        settings_grid.setContentsMargins(0, 0, 0, 0)
+        self._settings_grid = settings_grid
         self._type_label = QLabel(tr("Report type:"), self)
-        type_row.addWidget(self._type_label)
+        settings_grid.addWidget(self._type_label, 0, 0)
         self._type_combo = NoScrollComboBox(self)
         from PyQt6.QtWidgets import QComboBox
         self._type_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         self._type_combo.setMinimumWidth(260)
         self._type_combo.currentIndexChanged.connect(self._on_type_chosen)
-        type_row.addWidget(self._type_combo)
-        type_row.addWidget(TooltipButton(
+        settings_grid.addWidget(self._type_combo, 0, 1)
+        type_tail.insertWidget(0, TooltipButton(
             tr("Report type"),
             tr("Which kind of document this run's verifications produce. The "
                "measurement is the same either way; the type decides what is "
@@ -1658,18 +1762,25 @@ class MeasurementReportDialog(QDialog):
         self._type_blurb.linkActivated.connect(self._show_generated_reports)
         self._type_blurb_full = ""
         self._generated_full = ""
-        type_row.addWidget(self._type_blurb, 1)
-        top_v.addLayout(type_row)
+        # **IT SITS UNDER "REPORT SHOWN", NOT BESIDE "REPORT TYPE" (B8-460).**
+        # His mockup puts "Already generated for this run: …" on its own line
+        # directly under the pulldown, and the tick boxes take the room it used
+        # to have. The widget, its eliding, its "show all" link and its tooltip
+        # are unchanged; `_already_row` was reserved above, in the grid that
+        # aligns it with the box.
+        self._already_row.addWidget(self._type_blurb, 1)
+        settings_grid.addLayout(type_tail, 0, 2)
 
-        judged_row = QHBoxLayout()
         self._judged_label = QLabel(tr("Judged against:"), self)
-        judged_row.addWidget(self._judged_label)
+        settings_grid.addWidget(self._judged_label, 1, 0)
+        judged_row = QHBoxLayout()
+        judged_row.setContentsMargins(0, 0, 0, 0)
         self._set_combo = NoScrollComboBox(self)
         from PyQt6.QtWidgets import QComboBox
         self._set_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         self._set_combo.setMinimumWidth(220)
         self._set_combo.currentIndexChanged.connect(self._on_set_chosen)
-        judged_row.addWidget(self._set_combo)
+        settings_grid.addWidget(self._set_combo, 1, 1)
         self._limits_btn = QPushButton(tr("Show limits…"), self)
         self._limits_btn.setStyleSheet(_compact_btn)
         self._limits_btn.clicked.connect(self._on_open_limits)
@@ -1710,7 +1821,11 @@ class MeasurementReportDialog(QDialog):
             + "\n\n" + tr(_PAIRING_HELP) + "\n\n" + tr(_CHART_HELP),
             self, min_width=460, color=SPEC_GREEN))
         judged_row.addStretch(1)
-        top_v.addLayout(judged_row)
+        settings_grid.addLayout(judged_row, 1, 2)
+        # The tail column takes the slack, so the two pulldowns keep the width
+        # their contents ask for and everything beside them stays put.
+        settings_grid.setColumnStretch(2, 1)
+        box_v.addLayout(settings_grid)
 
         # The strip (Knut D25): shown only when the chart cannot supply a row
         # the set limits; hidden, not blank, when there is nothing to say.
@@ -1850,14 +1965,17 @@ class MeasurementReportDialog(QDialog):
 
             charts = (self._trend_de, self._trend_white,
                       self._trend_black, self._trend_corners)
-            # **THE FOURTH ROW OF THE GENERATED-REPORTS LIST GOES FIRST.** It
-            # is the widget that made this window taller (B8-380), it scrolls,
-            # and Knut asked for "at least 3 to 4 rows", so trading the fourth
-            # keeps his rule and costs a reader nothing that a scroll bar does
-            # not give back. Trading the report view for it would shrink the
-            # document to make room for a control about the document.
+            # **THE FRAME'S OWN AIR GOES BEFORE THE DOCUMENT DOES (B8-460).**
+            # The ladder used to put Generate report and Delete Selected Report
+            # side by side here; Knut's beta-25 mockup has all four buttons on
+            # one row already, so that step is gone, and what took its place is
+            # the padding his "Report settings" frame costs. Measured on the
+            # two-date fixture: 781 px against a 760 px cap with the frame at
+            # its roomy spacings, 751 with them squeezed, so this is the whole
+            # of what the frame cost an 800 px screen and the report view keeps
+            # every pixel it had. On a screen with room, nothing is squeezed.
             if _over() > 0:
-                self._stack_report_buttons(False)
+                self._compact_the_settings_frame()
             if _over() > 0:
                 self._view.setMinimumHeight(max(150, 240 - _over()))
             if _over() > 0:
@@ -2818,6 +2936,31 @@ class MeasurementReportDialog(QDialog):
         self._profile_list.setMinimumHeight(h)
         self._profile_list.setMaximumHeight(h)
 
+    def _compact_the_settings_frame(self) -> None:
+        """Take the air out of the "Report settings" frame and the row above it.
+
+        Knut's beta-25 mockup is the layout this window ships; the frame it
+        adds costs 30 px of a minimum that is measured against an 800 px
+        screen, and 30 px is what this gives back. Only the SPACING moves:
+        every control, its order and its size are his.
+
+        Idempotent, and called only from `showEvent`'s ladder.
+        """
+        pair = getattr(self, "_roomy", None)
+        if not pair or getattr(self, "_frame_compacted", False):
+            return
+        self._frame_compacted = True
+        box_v, shown_grid = pair
+        box_v.setContentsMargins(10, 0, 10, 2)
+        box_v.setSpacing(3)
+        shown_grid.setVerticalSpacing(0)
+        grid = getattr(self, "_settings_grid", None)
+        if grid is not None:
+            grid.setVerticalSpacing(2)
+        lay = self.layout()
+        if lay is not None:
+            lay.activate()
+
     def _update_source_buttons(self) -> None:
         self._remove_btn.setEnabled(bool(self._profile_list.selectedItems()))
 
@@ -2958,7 +3101,7 @@ class MeasurementReportDialog(QDialog):
             tuple(sorted(getattr(self, "_hidden_runs", ()) or ())),
         )
 
-    def _settings_touched(self) -> None:
+    def _settings_touched(self, *, type_id: str = "", set_id: str = "") -> None:
         """One of those five moved: keep the DOCUMENT as it is and say so.
 
         **AND THE LOADED DOCUMENT STOPS SPEAKING FOR THE CONTROLS.** A document
@@ -2977,6 +3120,14 @@ class MeasurementReportDialog(QDialog):
         on screen, so a reader can put a control back and be sure nothing moved
         under them.
         """
+        # **THE VALUES ON SCREEN SURVIVE THE DOCUMENT'S CLAIM (B8-462).**
+        # Read from the WIDGETS, before the flag below drops the document,
+        # because a widget is the only thing that knows what the user is
+        # looking at: the handler that called this has already put the user's
+        # new value into the control they moved, and the control they did not
+        # move still shows the document's. Knut's rule is that the second one
+        # must not budge, and this is the whole of it.
+        self._remember_what_is_on_screen(type_id, set_id)
         self._doc_settings_moved = True
         self._forget_limits()
         self._sync_limit_controls()
@@ -3000,6 +3151,44 @@ class MeasurementReportDialog(QDialog):
             return
         self._refresh_trend()
         self._render()
+
+    def _remember_what_is_on_screen(self, type_id: str = "",
+                                    set_id: str = "") -> None:
+        """Pin the type and the limit set the window is showing.
+
+        **B8-462**, and the two halves of it are the same rule seen from each
+        end: changing "Judged against" must not move "Report type", and
+        changing "Report type" must not move "Judged against". Both moved for
+        the same reason, so both are fixed in one place.
+
+        Called from `_settings_touched`, BEFORE the loaded document's claim on
+        the controls is dropped, so the values read here are the ones the user
+        is looking at. The handler that just took a change passes ITS new value
+        in, and the other is read from what is on the page:
+
+        * `_report_type_now` answers with the loaded document's type while the
+          document still speaks, which is the type on screen, and not with the
+          RUN's, which is the thing that must not reach the other pulldown;
+        * the set is the document's, or an earlier pin, or the run's, in the
+          order `_sync_limit_controls` fills the box from.
+
+        **NOT FROM THE WIDGETS.** That was the first cut, and a widget is only
+        the truth when the signal came from it: `_on_set_chosen` can be called
+        with an index the box has not moved to, which is how two existing
+        guards drive this door, and reading the box then pins the value the
+        user has just left rather than the one they chose.
+        """
+        from workflow.measurement_report import REPORT_TYPES
+        tid = str(type_id or self._report_type_now() or "")
+        if tid in REPORT_TYPES:
+            self._sticky_type = tid
+        sid = str(set_id or "")
+        if not sid:
+            lim = (self._document_limits() or self._sticky_limits()
+                   or self._window_limits())
+            sid = str(getattr(lim, "set_id", "") or "")
+        if sid:
+            self._sticky_set = sid
 
     def _show_stale_banner(self) -> None:
         if getattr(self, "_stale_label", None) is None:
@@ -3341,7 +3530,8 @@ class MeasurementReportDialog(QDialog):
         # WHAT THE WINDOW IS SHOWING, which is the run's set unless a
         # document is loaded that was judged against another one. Anything else
         # would file a report against numbers the reader never saw.
-        lim = self._document_limits() or self._window_limits()
+        lim = (self._document_limits() or self._sticky_limits()
+               or self._window_limits())
         # ONE PRESS OF GENERATE IS ONE DOCUMENT (B8-383, §13.4).
         #
         # It still writes one FILE per measurement, because a dated
@@ -3441,6 +3631,8 @@ class MeasurementReportDialog(QDialog):
             self._loaded_doc_id = f"id:{doc_id}"
             self._loaded_doc = None          # read back off the file it wrote
             self._doc_settings_moved = False
+            self._doc_created = doc_created
+            self._forget_sticky_settings()
             self._reload_sources()
         else:
             self._refresh()
@@ -3953,7 +4145,7 @@ class MeasurementReportDialog(QDialog):
             # report had when it was generated."* The page already judges each
             # report by the set its own file records (`_yardstick_of`); this is
             # what stops the pulldown above it saying something else.
-            dlim = self._document_limits()
+            dlim = self._document_limits() or self._sticky_limits()
             shown = dlim or lim
             if lim.set_id not in ids:
                 self._set_combo.addItem(lim.set_label, lim.set_id)
@@ -4155,6 +4347,7 @@ class MeasurementReportDialog(QDialog):
         # what the window SAYS it is showing, not what it shows.
         self._loaded_doc = (entry["doc"]
                             or self._settings_of_one_saved_report(entry))
+        self._doc_created = self._document_created_stamp(entry)
 
     def _saved_documents(self, run) -> list:
         """The generated reports of *run*, as DOCUMENTS, newest first.
@@ -4407,6 +4600,50 @@ class MeasurementReportDialog(QDialog):
             }],
         }
 
+    def _document_created_stamp(self, entry: dict) -> str:
+        """When the DOCUMENT in *entry* was created, exactly as its NAME says.
+
+        **B8-461.** Knut, beta 25: *"The report text updates, but the first
+        line says 'Created: 2026-09-19 17:57:22', which is not the same
+        creation time as the report name is giving. They should be the
+        same."*
+
+        The name is built in two places and this reads the same two sources, so
+        the two cannot drift apart:
+
+        * a document written since #182 carries its own ``created`` stamp in
+          the document block, which is what `_saved_document_label` puts after
+          "saved";
+        * a report written before that is a document of one file, and
+          `_saved_report_label` takes its "saved" stamp from the FILE NAME,
+          which `save_report` writes with the second it saved. So does this.
+
+        Returns "" when neither is available, and the caller then falls back to
+        the window's own clock, which is the honest answer for a page that no
+        saved document is behind.
+        """
+        doc = entry.get("doc")
+        if isinstance(doc, dict) and str(doc.get("created") or ""):
+            return str(doc.get("created"))
+        members = entry.get("members") or []
+        if len(members) == 1:
+            _rank, when_saved, _n = _report_file_order(members[0][1])
+            if _rank:
+                day, _, clock = str(when_saved).partition("_")
+                if day and clock:
+                    return f"{day}T{clock.replace('-', ':')}"
+        return ""
+
+    def _forget_sticky_settings(self) -> None:
+        """Drop the "what the controls were showing" pair (B8-462).
+
+        Called wherever a DOCUMENT starts or stops speaking for the controls:
+        from that moment the document itself is the answer, and a leftover pair
+        from the last one would outrank it.
+        """
+        self._sticky_type = ""
+        self._sticky_set = ""
+
     def _document_settings(self) -> "dict | None":
         """The loaded document's own settings, while they are still what is on
         screen. `None` once the user has moved one of the controls."""
@@ -4441,6 +4678,40 @@ class MeasurementReportDialog(QDialog):
                                    else (stored or sid)),
                          bound=True, edited=bool(comp.get("edited")),
                          known=known)
+
+    def _sticky_limits(self):
+        """The RunLimits the "Judged against" pulldown was showing, or None.
+
+        The mirror of `_report_type_now`'s sticky type, and the other half of
+        B8-462: choosing a report TYPE drops the loaded document's claim, and
+        without this the limit-set pulldown fell back to the run's set and
+        moved under a user who had touched a different control. Nothing is
+        read from the run and nothing is written.
+
+        Only a set the user can still be shown is honoured; anything else falls
+        through to the run, which is what the pulldown does with an unknown set
+        anyway.
+        """
+        sid = str(getattr(self, "_sticky_set", "") or "")
+        if not sid:
+            return None
+        from workflow.compliance_sets import (SET_BY_ID, effective_limits,
+                                              is_known_set)
+        from workflow.run_compliance import RunLimits
+        if not is_known_set(sid):
+            return None
+        # **AND THE RUN'S OWN COPY WINS WHENEVER IT IS THE SAME SET.** A bound
+        # run holds a COPY of the set's numbers, which a user may have edited
+        # in the limits window; rebuilding them from the set here would quietly
+        # judge the page against the published numbers instead of the run's.
+        # Sticky is only ever about the pulldown showing a DIFFERENT set from
+        # the run, which is the only case it was added for.
+        run_lim = self._window_limits()
+        if run_lim is not None and run_lim.set_id == sid:
+            return None
+        return RunLimits(sid, tr(SET_BY_ID[sid].label),
+                         effective_limits(sid, self._overrides()),
+                         label_en=SET_BY_ID[sid].label, bound=False)
 
     def _delete_refusal_for(self, entry: dict) -> str:
         """Why this DOCUMENT may not be deleted, or "".
@@ -4687,21 +4958,6 @@ class MeasurementReportDialog(QDialog):
         self._delete_report_btn.setEnabled(bool(entry and not why))
         self._set_saved_note(why)
 
-    def _stack_report_buttons(self, stacked: bool) -> None:
-        """Generate report and Delete Selected Report, one above the other or
-        side by side. L.8 asks for the stack; this is what a screen too short
-        for it gets instead, and it is the last thing that is traded before the
-        document itself starts losing height."""
-        grid = getattr(self, "_report_btns", None)
-        if grid is None or getattr(self, "_report_btns_stacked", True) == stacked:
-            return
-        self._report_btns_stacked = stacked
-        grid.removeWidget(self._generate_btn)
-        grid.removeWidget(self._delete_report_btn)
-        grid.addWidget(self._generate_btn, 0, 0)
-        grid.addWidget(self._delete_report_btn, 1 if stacked else 0,
-                       0 if stacked else 1)
-
     def _set_saved_note(self, full: str) -> None:
         """Why Delete is refused, on one line, with the whole of it as tooltip.
 
@@ -4912,6 +5168,10 @@ class MeasurementReportDialog(QDialog):
         self._loaded_doc_id = NEW_REPORT_KEY
         self._loaded_doc = doc
         self._doc_settings_moved = False
+        # NOTHING IS LOADED, so the "Created:" line is this window's own clock
+        # and the controls answer for themselves again (B8-461, B8-462).
+        self._doc_created = ""
+        self._forget_sticky_settings()
         for chk, val in ((getattr(self, "_all_runs_check", None),
                           bool(doc.get("all_runs"))),
                          (getattr(self, "_detail_check", None),
@@ -5016,6 +5276,8 @@ class MeasurementReportDialog(QDialog):
         doc = entry["doc"] or self._settings_of_one_saved_report(entry)
         self._loaded_doc = doc
         self._doc_settings_moved = False
+        self._doc_created = self._document_created_stamp(entry)
+        self._forget_sticky_settings()
         # WHICH FILE OF EACH MEASUREMENT THE PAGE IS DRAWN FROM. Only the
         # document's own measurements are touched: a row belonging to another
         # run of the project is not this document's to move.
@@ -5141,6 +5403,7 @@ class MeasurementReportDialog(QDialog):
         if self._loaded_doc_id == entry["key"]:
             self._loaded_doc_id = ""
             self._loaded_doc = None
+            self._doc_created = ""
         self._reload_sources()
 
     def _report_type_now(self) -> str:
@@ -5186,6 +5449,17 @@ class MeasurementReportDialog(QDialog):
             tid = str(doc.get("type") or "")
             if tid in REPORT_TYPES:
                 return tid
+        # **AND WHEN THE DOCUMENT'S CLAIM WAS DROPPED, WHAT WAS ON SCREEN
+        # (B8-462).** Moving the "Judged against" pulldown drops the claim
+        # above, and this used to fall through to the RUN: on a run whose
+        # stored type differs from the report being shown, the type pulldown
+        # jumped on a change nobody made to it. Knut: *"Changing judged against
+        # parameter shall not ever alter report type."* `_settings_touched`
+        # pins the widget's own value first, so the fall-through below is
+        # reached only when no document was speaking at all.
+        sticky = str(getattr(self, "_sticky_type", "") or "")
+        if sticky in REPORT_TYPES:
+            return sticky
         types = self._types_of_loaded_runs()
         if len(types) > 1:
             return REPORT_TYPE_DEFAULT
@@ -5544,7 +5818,7 @@ class MeasurementReportDialog(QDialog):
             # because a measurement in no run has no Generate button to press,
             # so the behaviour is the same and there is now one rule.
             self._session_type = type_id
-            self._settings_touched()
+            self._settings_touched(type_id=type_id)
             return
         if self._run_state_now(ctx.run) != self._run_state_at_sync:
             self._sync_type_combo_to(current)
@@ -5565,7 +5839,10 @@ class MeasurementReportDialog(QDialog):
         # path above still calls `_refresh`, because those PUT THE CONTROL BACK
         # and the document has to match the control again. This is the path
         # where the change took.
-        self._settings_touched()
+        #
+        # AND IT NAMES WHAT IT JUST CHANGED (B8-462), so the pin taken inside
+        # is the type the user chose and not the one the page still shows.
+        self._settings_touched(type_id=type_id)
 
     def _sync_type_combo_to(self, type_id: str) -> None:
         """Put the pulldown back on *type_id* without re-entering the handler."""
@@ -6248,7 +6525,11 @@ class MeasurementReportDialog(QDialog):
         # line, and a document left claiming the set it was made with under a
         # pulldown now naming another. That is Knut's fifth defect exactly, in
         # the one window this round is about.
-        shown = self._document_limits() or lim
+        # THE STICKY SET COUNTS AS "WHAT THE PULLDOWN WAS SHOWING" TOO
+        # (B8-462): after a type change the box may be showing the document's
+        # set over a run bound to another, and choosing the RUN's set from
+        # there is a real change that must not read as a no-op.
+        shown = self._document_limits() or self._sticky_limits() or lim
         if not set_id or set_id == shown.set_id:
             return
         if set_id == lim.set_id:
@@ -6257,7 +6538,7 @@ class MeasurementReportDialog(QDialog):
             # document on screen was made with another set and stops speaking
             # for the controls, and the red line says to press Generate report
             # (N.2). Nothing on disk is touched on this path at all.
-            self._settings_touched()
+            self._settings_touched(set_id=set_id)
             return
         ctx = self._run_ctx
         if ctx is None:
@@ -6271,7 +6552,7 @@ class MeasurementReportDialog(QDialog):
             # measurement in no run has no Generate button to press.
             # `_forget_limits` deliberately KEEPS an unbound session choice, so
             # the RunLimits just built survives it.
-            self._settings_touched()
+            self._settings_touched(set_id=set_id)
             return
         # IS IT STILL UNLOCKED? THIS DOOR NEVER ASKED.
         # The lock is read when the window refreshes, to decide whether this
@@ -6409,7 +6690,7 @@ class MeasurementReportDialog(QDialog):
         # of their own, and for the dated verifications still to come. What the
         # user sees next is `_settings_touched`'s red line: the settings have
         # changed, press Generate report (N.2).
-        self._settings_touched()
+        self._settings_touched(set_id=set_id)
 
     def _saved_report_count(self, run) -> int:
         """How many saved report FILES a recalculation would rewrite.
@@ -8320,6 +8601,26 @@ class MeasurementReportDialog(QDialog):
         return (f"<div style='color:{_C['fail']};margin-top:10px'>"
                 + "".join(blocks) + "</div>")
 
+    def _rows_the_results_show(self, runs: list) -> "list[str]":
+        """The metric rows Report Results lists for *runs*, in the table's order.
+
+        **ONE ANSWER TO ONE QUESTION (B8-463).** `_report_results_html` worked
+        this out for the table and `_how_to_read_html` explained four fixed
+        bullets beside it, so the guide and the table described different sets
+        of metrics. Knut, beta 25: *"Whatever metrics are shown in Report
+        Results: each metric used in the report shall have a corresponding
+        explanation of each metric in the 'How to read this report' section …
+        The bullet list of parameters explained is then changing with which
+        metrics the report contains."* Both now ask this.
+        """
+        from workflow.compliance_sets import ROWS
+        verd = {}
+        for r in runs:
+            rows, _rec = self._verdict_rows(r)
+            verd[id(r)] = {(x.get("row_id") or x.get("key")) for x in rows}
+        return [row.id for row in ROWS
+                if any(row.id in verd[id(r)] for r in runs)]
+
     def _explained_row_groups(self) -> "set[str] | None":
         """Which row GROUPS this document's results table can contain.
 
@@ -8337,9 +8638,22 @@ class MeasurementReportDialog(QDialog):
             return None
         return {r.group for r in ROWS if r.id in set(keep)}
 
-    def _how_to_read_html(self) -> str:
+    def _how_to_read_html(self, present: "list[str] | None" = None) -> str:
         """The plain-language guide. The heading sits OUTSIDE its background frame,
-        with a blank line above it like every other section heading (Knut)."""
+        with a blank line above it like every other section heading (Knut).
+
+        **AND ITS BULLET LIST IS THE RESULTS TABLE'S OWN ROWS (B8-463).** It
+        used to be four fixed bullets about two row GROUPS and two report
+        sections, whatever the table underneath actually listed: a report
+        judged against a set that puts a limit on the control strip, the solid
+        inks or the outer gamut showed those rows with no explanation anywhere,
+        and a set that puts none still explained the grey ramp. Knut asked for
+        one explanation per metric shown, and for the list to follow the
+        metrics. `present` is the same list the table is built from
+        (`_rows_the_results_show`); None means "work it out", which is what a
+        caller with no runs to hand gets.
+        """
+        from workflow.compliance_sets import ROW_BY_ID
         groups = self._explained_row_groups()
 
         def _for(group: "str | None", text: str) -> str:
@@ -8348,6 +8662,19 @@ class MeasurementReportDialog(QDialog):
             if group is not None and groups is not None and group not in groups:
                 return ""
             return "<li>" + html.escape(text) + "</li>"
+
+        def _metrics() -> str:
+            """One bullet per metric row the results table lists."""
+            out = []
+            for rid in (present or []):
+                row = ROW_BY_ID.get(rid)
+                if row is None or not row.blurb:
+                    continue
+                out.append("<li>" + html.escape(
+                    tr("{metric}: {explanation}").format(
+                        metric=tr(row.label), explanation=tr(row.blurb)))
+                    + "</li>")
+            return "".join(out)
 
         body = (
             "<p>" + html.escape(tr(
@@ -8375,12 +8702,29 @@ class MeasurementReportDialog(QDialog):
                 "and secondary inks. These say as much about your inks as about "
                 "the instrument."))
             + "</ul>"
+            # **AND THEN EVERY METRIC THE RESULTS TABLE JUDGES, BY NAME
+            # (B8-463).** The four bullets above are about the report's
+            # sections; Knut's beta-25 note is about its METRICS: *"Whatever
+            # metrics are shown in Report Results: each metric used in the
+            # report shall have a corresponding explanation of each metric in
+            # the 'How to read this report' section … The bullet list of
+            # parameters explained is then changing with which metrics the
+            # report contains."* Measured before this, on his own demo project
+            # and every type crossed with every limit set: 13 metrics judged,
+            # 0 of them named here, in all 20 combinations.
+            #
+            # The words are the rows' own one-line descriptions, the same ones
+            # the Report limits window shows against each row, so a metric is
+            # described in one place and reads the same wherever it appears.
+            + (("<p>" + html.escape(tr(
+                "Every metric this report judges, and what it means:"))
+                + "</p><ul>" + _metrics() + "</ul>") if _metrics() else "")
             # ONE WORD PER BULLET. Knut, 2026-09-11: *"This paragraph must
             # describe each 5 words, one at a time in a bullet list, organised
             # and orderly, not in a messy bulk."* Every clause of the
             # paragraph it replaces is still here; only the shape changed,
             # plus the closing sentence covered by the note below.
-            "<p><b>" + html.escape(tr("The five verdict words.")) + "</b> "
+            + "<p><b>" + html.escape(tr("The five verdict words.")) + "</b> "
             + html.escape(tr(
                 "A limit set is one column of the limits table: the numbers a "
                 "report is judged against. Every row of the results ends in "
@@ -8577,7 +8921,8 @@ class MeasurementReportDialog(QDialog):
                 f"<tr><td style='background:{_C['panel']}'>" + body
                 + "</td></tr></table>")
 
-    def _report_results_html(self, runs: list) -> str:
+    def _report_results_html(self, runs: list,
+                             present: "list[str] | None" = None) -> str:
         """Report Results: the verdict grid, rows = every row the runs' limit
         sets judge, columns = dated runs (≤6 per table, continuing below).
         Cells are the five words (Knut, K-f): PASS green, FAIL red, COND amber,
@@ -8589,8 +8934,12 @@ class MeasurementReportDialog(QDialog):
         for r in runs:
             rows, _rec = self._verdict_rows(r)
             verd[id(r)] = {(x.get("row_id") or x.get("key")): x for x in rows}
-        present = [row.id for row in ROWS
-                   if any(row.id in verd[id(r)] for r in runs)]
+        # THE SAME LIST THE GUIDE ABOVE EXPLAINS (B8-463), worked out once by
+        # the caller and handed to both, so the two cannot disagree about which
+        # metrics this report is about.
+        if present is None:
+            present = [row.id for row in ROWS
+                       if any(row.id in verd[id(r)] for r in runs)]
 
         _note_nums = self._note_numbering(runs)
 
@@ -8958,7 +9307,15 @@ class MeasurementReportDialog(QDialog):
         # A plain "Created: …" line — at the top of the window body, and under
         # the title + spectrum line in the PDF (Knut). The profile line that used
         # to be here is dropped; Report Scope already lists it.
-        when = html.escape((created or self._created).replace("T", " "))
+        # **THE DOCUMENT'S OWN CREATION TIME, NOT THIS WINDOW'S (B8-461).**
+        # `self._created` is the second the window opened, so a report saved in
+        # November and loaded today announced itself as made today, under an
+        # entry whose name said November. Knut: *"They should be the same."*
+        # `_doc_created` is empty whenever no saved document is on the page
+        # ("New report…", an unsaved measurement), and then the window's own
+        # clock is the right answer and is what is used.
+        when = html.escape((created or getattr(self, "_doc_created", "")
+                            or self._created).replace("T", " "))
         created_line = ("<div style='margin:2px 0 0'>"
                         + html.escape(tr("Created:")) + " " + when + "</div>")
         # WHICH DOCUMENT THIS IS. A two-page report about the neutral axis,
@@ -9048,9 +9405,10 @@ class MeasurementReportDialog(QDialog):
             return (f"<div style=\"font-family:'{family}';color:{_C['text']};"
                     f"font-size:12px\">"
                     + head + self._one_page_html(runs, _other_sets) + "</div>")
+        _present = self._rows_the_results_show(runs)
         parts = [head, self._scope_html(runs, _other_sets),
-                 self._how_to_read_html(),
-                 self._report_results_html(runs)]
+                 self._how_to_read_html(_present),
+                 self._report_results_html(runs, _present)]
         if for_pdf and charts_html:
             parts.append(
                 _h2(tr("Trend over time (this printer)"), page_break=True) + _gap()

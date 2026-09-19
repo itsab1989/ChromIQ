@@ -1006,9 +1006,40 @@ until it is implemented."*
 | L.5 | Changing report type, "Judged against", a limit value, or either checkbox, **checks whether that combination already exists** and, if it does, **asks**: update the existing report, or create a new one. |
 | L.6 | With a report loaded, a settings change **updates that report**, unless the user answers the question by asking for a new one. |
 | L.7 | A **"Delete Selected Report"** button MOVES that report's files into an `old/` folder; nothing is destroyed. Which `old/` depends on the report's span: one dated verification → that date's folder; several dates of one run → the run's `verifications/old/`; several profile runs → the project's. |
-| L.8 | Placement: the list goes below **Generate report** and above **Report type**, with **Generate report** and **Delete Selected Report** beside it on ONE LINE. *(Revised by Knut, 2026-09-19: the rule first said stacked vertically "so the buttons read as belonging to the list", which is what beta 22 shipped. Shown the released window, Basti asked whether the two buttons, the pulldown and its help button could share a line; Knut answered "Implement the one line suggestion, then we can review on the released beta." The buttons still sit immediately beside the pulldown, so the original intent holds; what changes is that the window stops spending 34 px of height on the arrangement.)* It may be collapsible. |
+| L.8 | **SUPERSEDED by L.8b.** Placement: the list goes below **Generate report** and above **Report type**, with **Generate report** and **Delete Selected Report** beside it on ONE LINE. *(Revised by Knut, 2026-09-19: the rule first said stacked vertically "so the buttons read as belonging to the list", which is what beta 22 shipped. Shown the released window, Basti asked whether the two buttons, the pulldown and its help button could share a line; Knut answered "Implement the one line suggestion, then we can review on the released beta." The buttons still sit immediately beside the pulldown, so the original intent holds; what changes is that the window stops spending 34 px of height on the arrangement.)* It may be collapsible. |
+| L.8b | **The whole area between the title's coloured line and the graph tabs is laid out from Knut's mockup.** *"Analyse the position of all components in the image and place them accordingly. Note that a frame called 'Report settings' encompass all the relevant buttons and input controls that are related to the settings for a report. The report shown is above the frame, with its help icon, and two text elements: the text 'Click a report to load ...' to the right of the 'report shown' (and its help icon) and the 'Already generated...' below the 'report shown' input box. Below the 'Report settings' frame there are 4 buttons and a help icon (starting left with Generate Report, then Delete Selected Report, then Save Report As PDF, then Reveal Folder, then help icon). Inside the 'Report settings' frame all the remaining buttons and elements are placed carefully. Replicate that."* |
 | L.9 | The window says to pick a report to load one, and says "click Generate Report to create the first report" when the list is empty. |
 | L.10 | Report limits: the column "This run" becomes **"This report"**, reflects the LOADED report's limits, and is editable for the loaded report when unlocked. Editing a shared set (e.g. "ChromIQ tight") affects every report using it but changes no report until it is regenerated, and a warning window must say so. Thresholds of a report that is NOT loaded may not be edited. |
+
+### 13.2b L.8b in full, and where L.8 stops applying
+
+**Ruled by:** Knut, 2026-09-19, on issue #182, with a mockup image saved at
+`~/Desktop/ChromIQ-knut-beta25-batch/mockup-report-window-layout.png`. His
+words are quoted verbatim in L.8b above. **The old L.8 text is left standing,
+marked superseded, rather than overwritten**: it is what beta 22 and beta 25
+shipped, and the two rulings a day apart are the record of how the window got
+here.
+
+What L.8b changes against L.8, read off the image and measured on it:
+
+| element | L.8 (beta 25 as shipped) | L.8b (his mockup) |
+|---|---|---|
+| "Report shown" | fourth row down, with Generate report and Delete Selected Report to its LEFT on the same line | the FIRST row under the intro sentence, with only its help button and the hint to its right |
+| "Already generated for this run: …" | rides on the "Report type" row, elided against the type's own description | its own line directly under the pulldown, starting at the pulldown's left edge |
+| Add / Remove / Clear, the measurement list, Report type, Judged against, Edit limits, Unlock, the two tick boxes | loose rows of the window | all inside a frame titled **"Report settings"** |
+| the measurement list | unlabelled, tooltip only | labelled **"Included Measurements in report:"** |
+| Report type and Judged against | two independent rows, the pulldowns 32 px out of line | one grid, the two pulldowns on one left edge |
+| the two tick boxes | on the Save-as-PDF row | to the right of the **Report type** pulldown |
+| Generate report, Delete Selected Report, Save report as PDF, Reveal folder | split across two rows, two of them beside the pulldown | one row UNDER the frame, in that order, help icon last |
+
+**What it costs, measured (B8-460).** The frame's title and margins, the list's
+new label and the "Already generated" line no longer sharing a row add 61 px to
+the window's own unshrinkable minimum, of which 39 were bought back by
+tightening the spacings inside the frame and 30 more are given back by
+`_compact_the_settings_frame`, a rung of `showEvent`'s ladder that runs only
+when the screen cannot take the roomy version. Measured against the 800 px
+screen this window's floor is designed for: 781 px before that rung, 751 after,
+against a 760 px cap, with the report view keeping every pixel it had.
 
 ### 13.3 What the app does today, measured
 

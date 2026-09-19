@@ -1052,18 +1052,52 @@ _IDENTICAL_TO_KEY = {
     # strings (the window's title and its body). German is translated in the
     # same commit, so **de does not move (143)** and each of the other eleven
     # rises by exactly 2. COUNTED off the tree, not adjusted.
-    "de": 143,
-    "es": 472,
-    "fr": 494,
-    "it": 483,
-    "ja": 458,
-    "nl": 499,
-    "no": 484,
-    "pl": 476,
-    "pt": 474,
-    "ru": 447,
-    "sv": 485,
-    "zh_CN": 452,
+    # RE-MEASURED 2026-09-19, Knut's beta 25 Create Chart batch (B8-444 to
+    # B8-450): the preset-eligibility window is renamed "Which presets can be
+    # used for verification", says "metric" where it said "row", names the
+    # metrics a prebuilt-TIFF preset can never fulfil, and tells the reader a
+    # double-click loads the preset. **17 keys in, 11 stale out.**
+    #
+    # Sixteen of the seventeen are translated into German in the same change.
+    # The seventeenth is `{metric}: {explanation}`, which is nothing but two
+    # placeholders and has no German to write, so it counts as identical to
+    # its key and **de moves by exactly one, 143 -> 144**. The eleven others
+    # carry the English under the beta rule and each rises by 17 - 11 = 6.
+    #
+    # THREE OF THE SEVENTEEN ARE NOT THIS CHANGE SET'S. "Report settings",
+    # "Included Measurements in report:" and "Every metric this report judges,
+    # and what it means:" arrived in the same working tree from the concurrent
+    # Measurement Report work and were already missing from every catalogue
+    # before this change; `i18n_sync` is a whole-tree operation and picked them
+    # up, and their German is written here so the tree is not left red. If that
+    # work rewords them, sync again and re-measure this block rather than
+    # nudging it.
+    #
+    # COUNTED, not adjusted:
+    # `len([k for k, v in cat.items() if v == k and not k.startswith("@")])`
+    # run over each catalogue as it stands.
+    # RE-MEASURED once more the same evening, for B8-464, which the concurrent
+    # Measurement Report round found and left alone rather than have two agents
+    # rewrite one ledger. It is INHERITED: `1db705f1` grew the Report limits
+    # window's two ISO sentences and never synced the catalogues, so both were
+    # stale AND missing in all twelve at HEAD. Two keys in, two out; **de does
+    # not move**, because both German translations already existed for the
+    # shorter sentences and the added sentence is written here by hand (and the
+    # older of the two was in Sie-Form against the German Du rule, which the
+    # rewrite corrects). Each of the eleven others rises by exactly 1.
+    # COUNTED off the tree, not adjusted.
+    "de": 144,
+    "es": 479,
+    "fr": 501,
+    "it": 490,
+    "ja": 465,
+    "nl": 506,
+    "no": 491,
+    "pl": 483,
+    "pt": 481,
+    "ru": 454,
+    "sv": 492,
+    "zh_CN": 459,
 }
 
 

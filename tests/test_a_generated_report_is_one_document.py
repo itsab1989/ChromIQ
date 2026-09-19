@@ -402,25 +402,74 @@ def test_moving_a_control_stops_the_document_speaking_for_it(tmp_path, qapp):
 # --------------------------------------------------------------------------
 # B8-380 — where the list is, what it looks like, and Delete
 # --------------------------------------------------------------------------
-def test_the_list_sits_between_generate_report_and_report_type(tmp_path, qapp):
-    """L.8. Measured before this: Generate report y=250, Report type y=292,
-    Judged against y=340, **Saved reports y=388**, below both.
+def test_the_window_is_laid_out_the_way_knut_drew_it(tmp_path, qapp):
+    """**HIS BETA-25 MOCKUP, AND IT SUPERSEDES L.8 (B8-460).**
 
-    MUTATION: pack the list row after `type_row` and this goes red.
+    `~/Desktop/ChromIQ-knut-beta25-batch/mockup-report-window-layout.png`,
+    2026-09-19: *"a frame called 'Report settings' encompass all the relevant
+    buttons and input controls that are related to the settings for a report.
+    The report shown is above the frame, with its help icon, and two text
+    elements: the text 'Click a report to load …' to the right of the 'report
+    shown' (and its help icon) and the 'Already generated…' below the 'report
+    shown' input box. Below the 'Report settings' frame there are 4 buttons and
+    a help icon (starting left with Generate Report, then Delete Selected
+    Report, then Save Report As PDF, then Reveal Folder, then help icon)."*
+
+    This test used to be `test_the_list_sits_between_generate_report_and_
+    report_type`, which is L.8: *"The button for Generate Report and Delete
+    Selected Report should probably be placed vertically over one another left
+    to the new List of Generated Reports"*. That measured Generate report at
+    y=250 above the pulldown; his mockup puts it below the frame instead, so
+    the old assertion is the one this replaces rather than joins.
+
+    MUTATION (run 2026-09-19, seen red, restored): put `actions_row` back above
+    `self._settings_box` in `__init__`::
+
+        E  AssertionError: 'Generate report' at 191 is not below the frame
+        E  assert 191 > 372
     """
+    def _y(w):
+        return w.mapTo(dlg, w.rect().topLeft()).y()
+
+    def _x(w):
+        return w.mapTo(dlg, w.rect().topLeft()).x()
+
     s, _fm, _run, vs = _messy_project(tmp_path, dates=1)
     dlg = _dialog(s, vs[0].measurement_ti3, qapp)
     try:
-        gen = dlg._generate_btn.mapTo(dlg, dlg._generate_btn.rect().topLeft()).y()
-        lst = dlg._saved_combo.mapTo(dlg, dlg._saved_combo.rect().topLeft()).y()
-        typ = dlg._type_combo.mapTo(dlg, dlg._type_combo.rect().topLeft()).y()
-        jud = dlg._set_combo.mapTo(dlg, dlg._set_combo.rect().topLeft()).y()
-        assert gen <= lst < typ < jud, (
-            f"Generate {gen}, list {lst}, Report type {typ}, Judged {jud}")
-        # …and the two buttons are stacked to its LEFT
-        assert dlg._delete_report_btn.mapTo(
-            dlg, dlg._delete_report_btn.rect().topLeft()).x() \
-            < dlg._saved_combo.mapTo(dlg, dlg._saved_combo.rect().topLeft()).x()
+        # 1. the pulldown is ABOVE the frame, and the frame holds the settings
+        assert _y(dlg._saved_combo) < _y(dlg._settings_box), (
+            f"Report shown {_y(dlg._saved_combo)}, "
+            f"frame {_y(dlg._settings_box)}")
+        for w in (dlg._add_btn, dlg._profile_list, dlg._list_label,
+                  dlg._type_combo, dlg._set_combo, dlg._limits_btn,
+                  dlg._all_runs_check, dlg._detail_check, dlg._unlock_check):
+            assert dlg._settings_box.isAncestorOf(w), (
+                f"{w.objectName() or w.__class__.__name__} is outside the "
+                f"Report settings frame")
+        # 2. and the four buttons are BELOW it, in his order, left to right
+        for w in (dlg._generate_btn, dlg._delete_report_btn, dlg._pdf_btn,
+                  dlg._reveal_btn):
+            assert not dlg._settings_box.isAncestorOf(w)
+            assert _y(w) > _y(dlg._set_combo), (
+                f"{w.text()!r} at {_y(w)} is not below the frame")
+        xs = [_x(dlg._generate_btn), _x(dlg._delete_report_btn),
+              _x(dlg._pdf_btn), _x(dlg._reveal_btn)]
+        assert xs == sorted(xs) and len(set(xs)) == 4, xs
+        ys = {_y(w) for w in (dlg._generate_btn, dlg._delete_report_btn,
+                              dlg._pdf_btn, dlg._reveal_btn)}
+        assert len(ys) == 1, f"the four buttons are not on one line: {ys}"
+        # 3. "Already generated…" sits under the pulldown, at its left edge
+        assert _y(dlg._type_blurb) > _y(dlg._saved_combo)
+        assert _y(dlg._type_blurb) < _y(dlg._settings_box)
+        assert abs(_x(dlg._type_blurb) - _x(dlg._saved_combo)) <= 2, (
+            f"blurb x={_x(dlg._type_blurb)}, box x={_x(dlg._saved_combo)}")
+        # 4. the hint rides to the RIGHT of the pulldown and its help button
+        assert _x(dlg._saved_help) > _x(dlg._saved_combo)
+        assert _x(dlg._saved_hint) > _x(dlg._saved_help)
+        # 5. the two pulldowns inside the frame share one left edge
+        assert _x(dlg._type_combo) == _x(dlg._set_combo), (
+            f"type {_x(dlg._type_combo)}, judged {_x(dlg._set_combo)}")
     finally:
         dlg.close()
 

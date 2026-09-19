@@ -214,12 +214,17 @@ def test_every_one_of_the_five_goes_through_one_door(tmp_path, qapp):
     from ui.dialogs import measurement_report_dialog as mrd
 
     src = inspect.getsource(mrd.MeasurementReportDialog)
-    assert src.count("self._settings_touched()") >= 5, (
+    # **THE DOOR TAKES AN ARGUMENT NOW (B8-462), so the locator is the call and
+    # not the empty pair of brackets.** Two of the five name the value they
+    # just changed, `_settings_touched(set_id=…)` and `(type_id=…)`, so that
+    # the pin it takes is the control the user moved rather than the one the
+    # page still shows. The claim is unchanged: five controls, one method.
+    assert src.count("self._settings_touched(") >= 5, (
         "fewer than five call sites reach the one door; a control was wired "
         "straight to _refresh again")
     for name in ("_on_type_chosen", "_on_set_chosen"):
         body = inspect.getsource(getattr(mrd.MeasurementReportDialog, name))
-        assert "self._settings_touched()" in body, (
+        assert "self._settings_touched(" in body, (
             f"{name} does not defer the document at all")
 
 
@@ -380,7 +385,7 @@ def test_the_loose_type_pulldown_goes_through_the_same_door(tmp_path, qapp):
         loose = body.split("ctx is None", 1)
         assert len(loose) == 2, f"{name} no longer has a no-run branch"
         head = loose[1].split("return", 1)[0]
-        assert "self._settings_touched()" in head, (
+        assert "self._settings_touched(" in head, (
             f"{name}'s no-run branch does not go through the one door")
         assert "self._refresh()" not in head, (
             f"{name}'s no-run branch still repaints on its own")

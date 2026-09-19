@@ -443,12 +443,20 @@ def test_the_verdict_cell_carries_the_note_s_number(tmp_path, qapp):
         assert noted, "no row carries a note number, so nothing is proved"
 
         body = dlg._report_body_html(reps, for_pdf=True)
+        # **LOOK INSIDE REPORT RESULTS, NOT ON THE WHOLE PAGE (B8-463).** Every
+        # metric the table judges is now also NAMED in the guide above it, one
+        # bullet each, on Knut's beta-25 ruling. `body.find(label)` found the
+        # bullet, read the paragraph after it and reported a missing marker on
+        # a table cell that carries one. The claim is unchanged; where it looks
+        # is.
+        _results_at = body.find(_html.escape(tr("Report Results")))
+        assert _results_at >= 0, "the page has no Report Results section"
         for x in noted:
             rid = x.get("row_id")
             if rid not in ROW_BY_ID:
                 continue
             label = _html.escape(tr(ROW_BY_ID[rid].label))
-            i = body.find(label)
+            i = body.find(label, _results_at)
             assert i >= 0, f"{rid} is not on the page at all"
             # the row's own <tr>, so a number elsewhere cannot stand in
             tr_end = body.find("</tr>", i)
@@ -465,7 +473,7 @@ def test_the_verdict_cell_carries_the_note_s_number(tmp_path, qapp):
         assert plain, "every row is noted, so the negative half is not tested"
         for x in plain[:3]:
             label = _html.escape(tr(ROW_BY_ID[x["row_id"]].label))
-            i = body.find(label)
+            i = body.find(label, _results_at)
             tr_end = body.find("</tr>", i)
             block = body[i:tr_end if tr_end > 0 else i + 1200]
             assert "<sup" not in block, (
