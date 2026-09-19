@@ -1,5 +1,165 @@
 # Changelog
 
+## v4.3.0-beta.22
+
+**What the Measurement Report does when you hand it the same file twice, and a
+margin reading that was telling you the ink was clear when it was not.**
+
+### Fixed
+
+- **The Margin Inspector could say "Margins: OK" while the ink sat inside the
+  minimum.** On a chart built through the Manual door for an i1Pro, an
+  ColorMunki or an i1Pro 3+, the panel read the top and bottom margins as if
+  the sheet had no edge spacers, because the chart's own record said so while
+  the sheet had them. Measured on an A4 i1Pro chart: the panel said the bottom
+  margin was 20.1 mm against a 19 mm minimum, and the lowest ink was at
+  19.05 mm. Charts built through the Guided door read correctly, so the same
+  sheet gave two different answers. Every chart already on your disk reads
+  correctly now, with no rebuild.
+
+- **Adding a measurement to the report a second time no longer quietly changes
+  the document.** If the file had not been touched, pressing Add on it took the
+  red "Settings changed" line down and rebuilt the report with settings you had
+  not confirmed. It now does nothing at all, which is what there is to do. If
+  the file HAS been measured again, it is read again and the red line stays up,
+  because reading a file is not you pressing Generate.
+
+- **And that gesture is no longer slow.** Adding a folder of measurements that
+  are already loaded re-read every loaded measurement once per file: eleven
+  files against twelve loaded measurements took five and a half seconds with
+  nothing on screen. Unchanged files now cost nothing.
+
+### Changed
+
+- **The chart layout panel records how long its own work took**, in the app's
+  log, so a report of a slow control can be answered with the app's own
+  numbers instead of a guess.
+
+- **Save report as PDF is no longer available while the report is out of
+  date.** Change one of the five settings that make the red "Settings changed"
+  line appear and the PDF button greys until you press Generate report, with
+  the line's own sentence as its tooltip. Before this, exporting while the line
+  was up wrote a document you had never seen: the screen showed a multi-page
+  full colour check and the PDF was a one-page colour summary (Knut).
+
+### Worth knowing before you compare numbers
+
+- **Margin readings on a chart with spacers get about half a millimetre
+  smaller, and nothing about your printed sheets has changed.** The Measured
+  from Preview panel used to read to the patch rectangles; on an i1Pro, a
+  ColorMunki or an i1Pro 3+ the sheet also carries a spacer above the first
+  patch and below the last, so the ink starts earlier than the panel said.
+  Measured on a real chart: the panel read 5.59 mm where the ink is at 5.08 mm.
+  It now reads to the ink.
+
+- **A black hairline could sit against a patch while "Show only measured
+  patches" was on.** With black-and-white spacers the line was plainly visible;
+  it came and went as you resized the window. The blank was not at fault: the
+  overlay was painting a fraction of the printed page back on top of it, and
+  under the blank that page is one nobody can see. Measured across every
+  instrument and both patch shapes, every pixel the fix changes gets lighter
+  and none darker, so nothing can disappear under it.
+
+- **"Show only measured patches" showed nothing at all in some cases.** Open an
+  existing measurement, switch it on, and the window could read "Progress:
+  100.0 %" over a completely blank sheet. Reading a chart in one pass, or patch
+  by patch, had the same effect for the whole measurement. The preview now
+  learns which strips are read on every route, and a strip counts as read when
+  every one of its patches has been reported.
+
+- **Saved reports are no longer rewritten when you change "Judged against".**
+  Changing the set relabelled every entry in the list and rewrote every report
+  file in place, including reports that recorded no limit set of their own,
+  which is how an entry could end up claiming a set its own document never
+  used. Nothing on disk is touched now.
+
+- **The report list is a list of documents.** One press of "Generate report" is
+  one report and one line, whatever it covers; before, it wrote one file per
+  measurement, so a single press could add two entries and a second press two
+  more. Picking a report shows it and puts its settings back. The list has
+  moved above "Report type", it is called "Report shown", and it has a Delete
+  button that moves a report into an old folder rather than destroying it.
+
+- **Saving the report as a PDF gives you the document you are looking at.**
+  With a setting changed but not yet applied, the export followed the setting
+  instead of the screen: a multi-page full colour check on screen could save as
+  a one-page colour summary.
+
+- **Keys pressed at a ChromIQ window no longer reach the instrument.** Pressing
+  Escape at "Keep what you have measured so far?" was passed through to the
+  chart reader, where it means give up, and the measurement was then never
+  written. Escape now keeps measuring and Return presses the default button.
+
+- **Closing "Wrong Strip Read" with the window's own close button no longer
+  files the reading.** It meant "use anyway", so dismissing a warning about a
+  misread strip accepted it. Dismissing now retries, which is what dismissing
+  means everywhere else in the app.
+
+- **A margin reading on a chart with spacers gets about half a millimetre
+  smaller, and your sheets have not changed.** The panel measured to the patch
+  rectangles; on an i1Pro, a ColorMunki or an i1Pro 3+ the sheet also carries a
+  spacer above the first patch and below the last, so the ink starts earlier
+  than the panel said. It now reads to the ink.
+
+- **Preferences → Reports now holds the Measurement Report's defaults.** The
+  frame is called "Measurement Report Defaults" and carries a "Report type,
+  default" pulldown and two tick boxes, "Show all measurement runs, by default"
+  and "Show detailed data for each run, by default". Both start on. A profile
+  run that has chosen a report type of its own keeps it: the default is what a
+  run that has never chosen gets.
+
+- **"Save measurement report" is on the Measure tab.** It starts from
+  Preferences → Reports → "Save a measurement report after each measurement",
+  you can change it for a run either way, and the run remembers what you chose,
+  like every other setting on that tab. **The preference itself has been on by
+  default since 4.1**, so nothing starts writing reports that was not writing
+  them before; what is new is that you can see the switch, and change it for
+  one run without changing it for everything.
+
+- **The report ChromIQ writes after a measurement now records what it is.** It
+  carries the report type it was made as and both view settings, so opening it
+  later shows it exactly as it was written instead of working it out. Reports
+  already on your disk are untouched and still open.
+
+- **"New report…" sits at the top of "Report shown".** Choose it and the window
+  loads your defaults from Preferences, ready to change; nothing is written
+  until you press Generate report. Opening the window itself puts you on the
+  latest report you created, with the settings it was made with.
+
+- **A report's name now says what it covers**: "All dates", "One date" or
+  "Multiple dates", and "Detailed" when the detailed data is in it. A window
+  holding a single measurement switches "Show all measurement runs" off, since
+  there is no history for it to widen to.
+
+- **Unlocking a run's limits no longer rewrites every dated report of that
+  run.** It lets you change the numbers, and the report you have open is
+  rebuilt when you press Generate report; everything already saved stays as it
+  is. The window said otherwise, in the question and on the tick box itself.
+
+- **Every limit row can now be judged, or says why not.** Five rows had no way
+  of telling whether your chart could answer them: the three control-strip rows
+  and the two that judge selected patches of the chart. A chart declares its
+  control strip, and the two gamut rows are defined by the chart's own patches.
+  Sixteen rows can now carry a verdict where eleven could, and none is left
+  without a detection method.
+
+- **A chart built with "From profile gamut" could not answer the rows it exists
+  to answer.** Colours were selected with ink amounts above 100 %, which the
+  report then read on the wrong scale, so not one cube corner was recognised
+  and the paper white, solid colours and CMY hue rows all reported that the
+  chart had no corners. Those colours are now left out of the chart rather than
+  squeezed into range, because squeezing them stores a colour the printer was
+  never asked for and then blames the printer for the difference: up to
+  8.24 ΔE00 of the selection's own error, charged to your press. The chart still
+  carries its full patch count.
+
+- **A report could read a cube corner off the wrong patch**, on a chart that
+  names its own corners, and then count that patch twice in the statistics.
+
+- **The Measurement Report demo package has been rebuilt** for the new report
+  model, and now shows every judgeable row crossing its limit and staying
+  inside it, for every limit set the window offers.
+
 ## v4.3.0-beta.21
 
 **Everything a honeycomb chart shows while it is being measured, the Patch Set
