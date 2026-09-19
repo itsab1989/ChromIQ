@@ -3231,7 +3231,20 @@ class TiffPreview(QWidget):
                     # read column left instead of 100).
                     _dev = max(1e-6, min(float(s), float(sy if sy else s)))
                     _FILL_SLACK = 3.0 / _dev
-                    _HOLE_SLACK = 0.0
+                    # THE HOLE IS GROWN BY ONE DEVICE PIXEL, and only since
+                    # the blank became an antialiased mask. A hole whose edge
+                    # is soft leaves the blank about half-opaque exactly on the
+                    # read patch's outline, which reads as a white bite out of
+                    # the hexagon: Basti, looking at the first version of this
+                    # fix, *"the outline of the hexes looked better but it
+                    # still cut away too much of them"*. Growing the hole moves
+                    # that soft row off the ink and into the ring, where a
+                    # half-covered pixel is paper against paper. One device
+                    # pixel, not more: the room it spends is the ring, and a
+                    # honeycomb with NO ring has none, which is what
+                    # `test_a_blank_never_leaks_an_unread_patch_beside_a_read_one`
+                    # measures at ring=0.
+                    _HOLE_SLACK = -2.0 / _dev
 
                     # **A REGION, NOT A CHAIN OF PATH SUBTRACTIONS.**
                     # `QPainterPath.subtracted` is floating-point boolean
@@ -3261,9 +3274,22 @@ class TiffPreview(QWidget):
                         _ys = sorted({b.y() for b in allb})
                         if len(_ys) > 1:
                             _slot = (_ys[-1] - _ys[0]) / float(len(_ys) - 1)
-                    _pts = (lambda _b, _in: self._patch_hexagon(
-                        _b, s, ox, oy, self._hex_flat_top, sy, _in, _slot)
-                        .toFillPolygon().toPolygon())
+                    # THE PATH IS KEPT, NOT ASKED FOR TWICE. The region and
+                    # the mask below want the same hexagon, and
+                    # `_patch_hexagon` is the expensive part of this loop:
+                    # `test_the_blank_asks_for_each_hexagon_once_per_strip`
+                    # counts the calls precisely because the cost of this mode
+                    # is its shape, not a stopwatch.
+                    _hex_paths: "list" = []
+                    _hole_paths: "list" = []
+
+                    def _pts(_b, _in, _keep=None):
+                        _pth = self._patch_hexagon(
+                            _b, s, ox, oy, self._hex_flat_top, sy, _in, _slot)
+                        if _keep is not None:
+                            _keep.append(_pth)
+                        return _pth.toFillPolygon().toPolygon()
+
                     _reg = QRegion()
                     for b in cp:
                         # HALF THE RING OUTWARD FROM THE CELL, so the outer
@@ -3276,7 +3302,8 @@ class TiffPreview(QWidget):
                         # pixels of printed ring around the edge of the field
                         # against 316 with this growth in place.
                         _reg = _reg.united(
-                            QRegion(_pts(b, -(_ring + _FILL_SLACK))))
+                            QRegion(_pts(b, -(_ring + _FILL_SLACK),
+                                         _hex_paths)))
                     # MINUS ANY READ NEIGHBOUR, and that is not optional.
                     # Reaching the apex without this ate the read column
                     # (B8-306), the fault Basti rejected on sight (*"the
@@ -3290,7 +3317,8 @@ class TiffPreview(QWidget):
                                 _rb.adjusted(-_grow, -_grow, _grow, _grow)):
                             continue
                         _reg = _reg.subtracted(
-                            QRegion(_pts(_rb, _ring + _HOLE_SLACK)))
+                            QRegion(_pts(_rb, _ring + _HOLE_SLACK,
+                                         _hole_paths)))
                     # ...AND THE LABEL CLAMP APPLIES HERE TOO. `top` is
                     # B8-306's unconditional clamp, and until round 10 only the
                     # RECTANGULAR branch below consulted it: a honeycomb's
@@ -3319,7 +3347,11 @@ class TiffPreview(QWidget):
                     # first patch carries no band, so there are no letters to
                     # protect and no clamp is wanted.
                     painter.save()
-                    painter.setClipRegion(_reg)
+                    # THE CLIP IS NO LONGER THE SHAPE, only the label cut: the
+                    # blank itself is painted as an antialiased mask below, and
+                    # clipping to `_reg` would put the widget-pixel staircase
+                    # straight back on top of it.
+                    import math as _m3
                     _cut = None
                     if float(rects[i].top()) < min_py:
                         # CEIL, AND ON A DEVICE ROW, WHICH A QRegion CANNOT DO.
@@ -3341,7 +3373,6 @@ class TiffPreview(QWidget):
                         # rows, which fits inside the gap with room either
                         # side. The rectangular branch below already snaps its
                         # own edges to device rows for the same reason.
-                        import math as _m3
                         _rb2 = _reg.boundingRect()
                         # TWO LINES, AND WHICH ONE BINDS DEPENDS ON THE CHART.
                         # `_lo` is the label band's bottom: cutting above it
@@ -3389,7 +3420,78 @@ class TiffPreview(QWidget):
                                        float(_rb2.width()),
                                        float(_rb2.bottom()) + 1.0 - _yi),
                                 Qt.ClipOperation.IntersectClip)
-                    painter.fillRect(QRectF(_reg.boundingRect()), white)
+                    # **THE SHAPE IS A REGION; THE PAINT IS NOT.**
+                    # `_reg` is integer WIDGET scanlines, built from polygons
+                    # `toPolygon()` has already truncated to whole widget
+                    # coordinates, and painting through it as a clip put a
+                    # staircase down the boundary between the blank and the
+                    # last read column: on a 2x screen every step is two device
+                    # pixels, and the same rounding takes the step out of the
+                    # READ patch, so a measured hexagon came out visibly chewed
+                    # while its neighbours two columns in were smooth. Basti,
+                    # 2026-09-19, on the beta 23 gallery: *"the last strip of
+                    # visible patches has a very rough outline compared to the
+                    # others which are much smoother"* and *"more of the
+                    # already measured patch is painted over than it actually
+                    # needed to be"*. Both are that one rounding.
+                    #
+                    # The region stays, because it is what `_under_blank`
+                    # answers with and because a chain of
+                    # `QPainterPath.subtracted` collapses (see the note above
+                    # this loop, and the three unpainted patches it cost). What
+                    # changes is only HOW the same two shapes are painted: into
+                    # an alpha mask at DEVICE resolution, the fill antialiased
+                    # and the read neighbours cleared antialiased, then blitted
+                    # once. Qt then resolves both edges at the device grid
+                    # instead of the widget grid, which is the whole of the
+                    # difference.
+                    _rbF = QRectF(_reg.boundingRect())
+                    _mw = max(1, int(_m3.ceil(_rbF.width() * _dpr)) + 2)
+                    _mh = max(1, int(_m3.ceil(_rbF.height() * _dpr)) + 2)
+                    _mask = QImage(_mw, _mh,
+                                   QImage.Format.Format_ARGB32_Premultiplied)
+                    _mask.setDevicePixelRatio(_dpr)
+                    _mask.fill(0)
+                    _mp = QPainter(_mask)
+                    _mp.translate(-_rbF.x(), -_rbF.y())
+                    # THE FILL IS HARD-EDGED AND THE HOLE IS NOT, and the
+                    # asymmetry is the whole point. An antialiased FILL leaves
+                    # a half-covered row around the outside of the field, and
+                    # that row is printed ink: measured on this file's own
+                    # fixture with every strip unread, 13 surviving pixels on a
+                    # pointy honeycomb and 43 on a flat-top one, which is
+                    # exactly the fault
+                    # `test_a_blanked_honeycomb_hides_every_printed_pixel`
+                    # exists to catch. Hard-edged here still beats the region
+                    # it replaces, because the mask is rasterised on the DEVICE
+                    # grid and a QRegion on the widget grid.
+                    #
+                    # The HOLE is the edge a person actually looks at - where
+                    # the blank meets the last read column - so it is cleared
+                    # with antialiasing, and a partly-cleared row there shows
+                    # the read patch's own ink through it, which is the right
+                    # answer rather than a leak.
+                    # AND THE FILL IS STROKED AS WELL AS FILLED. A QRegion
+                    # built from a polygon covers the boundary row; an aliased
+                    # `fillPath` uses the pixel-centre rule and drops it, which
+                    # left 23 and 29 pixels of printed ink on the two
+                    # honeycombs in this file's own fixture - the same guard,
+                    # the same shape, a different rasteriser. A pen two device
+                    # pixels wide puts that row back, on both sides of the
+                    # outline; the inner side is covered by the hexagon anyway
+                    # and the holes are cleared after this, so nothing of a
+                    # read patch is bought with it.
+                    _mp.setPen(QPen(white, 2.0 / _dpr))
+                    _mp.setBrush(white)
+                    for _pth in _hex_paths:
+                        _mp.drawPath(_pth)
+                    _mp.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+                    _mp.setCompositionMode(
+                        QPainter.CompositionMode.CompositionMode_Clear)
+                    for _pth in _hole_paths:
+                        _mp.fillPath(_pth, white)
+                    _mp.end()
+                    painter.drawImage(_rbF.topLeft(), _mask)
                     painter.restore()
                     # what this strip's blank really covers = the region, cut
                     # at the label line where there was one (B8-371)

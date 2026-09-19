@@ -725,3 +725,51 @@ def test_the_blank_never_rises_into_a_honeycombs_strip_letters(qapp, tmp_path):
     assert after >= before, (
         f"the blank painted over the strip letters: {after} of {before} "
         f"pixels of their ink left")
+
+
+@pytest.mark.parametrize("flat_top", [False, True])
+def test_the_blank_stops_at_the_read_patch_and_not_inside_it(qapp, tmp_path,
+                                                             flat_top):
+    """The last read column beside a blank must keep its whole hexagon.
+
+    Basti, on the beta 23 gallery, in two messages: *"with only show measured
+    patches active the last strip of visible patches has a very rough outline
+    compared to the others which are much smoother"*, and then *"more of the
+    already measured patch is painted over than it actually needed to be"*.
+    Both are one cause. The blank was painted by clipping to a `QRegion` built
+    from polygons `toPolygon()` had truncated to whole WIDGET coordinates, so
+    its boundary against a read patch was a staircase, and the staircase's step
+    was taken out of the READ patch: on a 2x screen, two device pixels of the
+    measured hexagon, all the way down the column.
+
+    `test_a_blank_never_eats_the_read_column_beside_it` above measures the same
+    quantity with a 95 per cent bar, which the fault passed comfortably. This
+    one is the bar that can see it. Measured here, the ring case, which is
+    where the room to be wrong exists:
+
+    | | released beta 23 | with the mask |
+    |---|---|---|
+    | pointy, ring 9 | 98.3 % | **100.0 %** |
+    | flat-top, ring 9 | 98.8 % | **99.9 %** |
+
+    A ring=0 honeycomb has no room at all - the two inks touch - so it keeps
+    its own looser bar in the test above and is deliberately not asserted here.
+
+    MUTATION: paint the blank by clipping to `_reg` again (or take the device
+    pixel back off `_HOLE_SLACK`) and this goes red naming the percentage.
+    """
+    boxes = _hex_boxes(flat_top)
+    read_ix = {i for i in range(len(boxes)) if i // ROWS == 2}
+    page = _ink_hex_page(tmp_path, boxes, flat_top,
+                         f"edge-{flat_top}.tif", ring=9, read=read_ix)
+    alone = {i: (i == 2) for i in range(COLS)}
+    off = _hex_canvas(qapp, tmp_path, boxes, page, flat_top, alone, ring=9,
+                      blanking=False)
+    on = _hex_canvas(qapp, tmp_path, boxes, page, flat_top, alone, ring=9,
+                     blanking=True)
+    assert off is not None and on is not None
+    whole, kept = _count(off, _read_ink), _count(on, _read_ink)
+    assert whole > 1000, "the fixture drew no read column to measure"
+    assert kept >= 0.995 * whole, (
+        f"the blank ate into the read column beside it: {kept} of its "
+        f"{whole} pixels left ({100.0 * kept / whole:.1f} %)")
