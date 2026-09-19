@@ -5176,6 +5176,61 @@ class TabProfile(QWidget):
                 "The verification measurements made against it were moved to: "
                 "{folder}").format(folder=vdest))
 
+    def _archive_the_profile_being_replaced(self, params) -> None:
+        """Move the profile this build is about to overwrite into ``old/``.
+
+        **THE ONE DOOR WHOSE JOB IS TO REPLACE A PROFILE WAS THE ONE THAT
+        DESTROYED IT** (adversary round 26, R26-F1, driven on screen).
+        `colprof` is handed the run's own basename, so it opens
+        ``runs/runN/<stem>.icc`` for writing and truncates it on the spot:
+        measured, the finished 203,676-byte profile was **0 bytes a quarter of
+        a second after the button was pressed**, and it stayed 0 bytes for
+        every sample of the next eight seconds. Quit the app, or let the build
+        fail, and what is left is a zero-byte file that `Run.built_profile_icc`
+        reports as present, that enables Check & Refine, and that only
+        `workflow.icc_info.read_icc` refuses.
+
+        `_archive_superseded_profile` already existed and already did the right
+        thing, but it hangs off ONE branch: the "Build here anyway" answer to
+        the §6 warning, which `profile_rebuild_guard.assess` only raises for a
+        run that has dated verifications. For the ordinary run it returns
+        ``needed=False, reason='no verification chart'``, so pressing Build
+        Profile twice went straight past it.
+
+        A profile is thirty to sixty minutes of printing and measuring plus up
+        to ten of `colprof`. The run folder's rule is the same one
+        `Run.reset_chart_artefacts` keeps for a chart re-generation, in
+        `core/file_manager.py`'s own words: a rebuild must NEVER delete the
+        run's finished measurement or profile, because they cannot be
+        regenerated. This is that rule, applied at the door that needed it.
+
+        **The path comes from the BUILDER, not from the run.** A refinement
+        merge repoints `params` at ``merged.ti3``, and the profile that build
+        overwrites is ``merged.icc``; asking the run for "its" profile would
+        archive a different file and leave the one being replaced to be
+        truncated. `expected_icc_path` is what the builder itself will write.
+
+        Nothing here can stop a build: the file is about to be overwritten
+        either way, so a failure is said in the log and the build goes on.
+        """
+        from datetime import datetime
+
+        try:
+            icc = self._builder.expected_icc_path(params)
+            if not icc.is_file() or icc.stat().st_size == 0:
+                return
+            dest = Run.for_dir(icc.parent).archive_to_old([icc], datetime.now())
+        except Exception as exc:      # noqa: BLE001 - never block the build
+            log.warning("could not archive the profile being replaced",
+                        exc_info=True)
+            self._log.appendPlainText(tr(
+                "[WARNING] Could not move the previous profile out of the "
+                "way: {error}").format(error=exc))
+            return
+        if dest is not None:
+            self._log.appendPlainText(tr(
+                "The previous profile was moved to: {folder}").format(folder=dest))
+
     def _on_build(self) -> None:
         if not self._ti3_path or not self._ti3_path.exists():
             self._log.appendPlainText("[ERROR] No valid .ti3 file selected.")
@@ -5274,6 +5329,10 @@ class TabProfile(QWidget):
         # fresh file so Check & Refine keeps working on the physical chart.
         params = self._apply_preconditioning_merge(params)
         self._active_params = params
+        # R26-F1: the profile about to be overwritten goes to `old/` first. Last
+        # thing before the builders, so every refusal above has had its say and
+        # the merge above has settled which file that actually is.
+        self._archive_the_profile_being_replaced(params)
         # (the log was cleared before the questions - see above; `engine` was
         # decided above them too, so that a build which cannot run refuses
         # before anything is moved.)
