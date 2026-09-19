@@ -18168,3 +18168,183 @@ would reach.
 - proof: `~/Desktop/ChromIQ-beta23-proof/the-second-generate/the-rename-window.png`
   — the window itself, photographed by its own window id while it blocked the
   driver.
+
+### B8-430 · FIXED · The Measurement Report window named one report in "Report shown" and drew another
+- blocks release: no
+- status: FIXED
+- found on screen, round 27, 2026-09-19, driving beta 22's window on the demo
+  pack (`ChromIQ-Report-Limit-Demos/Report-Limits-Report-Types/run1`) with
+  DEFAULT Preferences and taking **no action at all**. The window opened
+  reading:
+
+  > Report shown (run1): *2026-11-02 10:00 · **Printing record (not graded)** ·
+  > ChromIQ default (recommended) · saved 2026-11-02 10:00:00 (3)*
+  > Report type (run1): ***Colour summary (one page)***
+  > and the page's own head line: *Report type: **Colour summary (one page)** ·
+  > Judged against: ChromIQ default (recommended)*
+
+  The red *"the settings have changed, press Generate report"* line was DOWN,
+  so the window also said that nothing was out of step. Clicking the entry the
+  pulldown was ALREADY on moved the type pulldown and redrew the page: same
+  entry, two documents.
+- where it comes from: `MeasurementReportDialog._adopt_visible_document` set
+  `self._loaded_doc = entry["doc"]`, which is `None` for every report written
+  before the document record existed — which is every report on every user's
+  disk today. The pulldown still LANDED on that entry (`_loaded_doc_id` was
+  set), so the window named a document whose settings nothing on screen
+  followed. `_apply_document`, which a CLICK runs, has used
+  `_settings_of_one_saved_report` for this since B8-382; the OPEN door did not.
+- which rules it breaks: **P.10** of `docs/design/measurement_report_limits.md`
+  (*"Opening the window selects the latest report created, with the settings it
+  was made with"*) and **K.5**, which says what those settings are for a report
+  that records none of its own. It is Knut's B8-381/B8-382 defect surviving at
+  the one door nobody drove.
+- fix: `_adopt_visible_document` now reads
+  `entry["doc"] or self._settings_of_one_saved_report(entry)`, the same answer
+  a click gives, so the two doors cannot disagree again. **Only the type and
+  the limit set move**: the two tick boxes are written by `_apply_document` and
+  by nothing else, so the objection `_open_on_the_latest_report` records — that
+  imposing "Show all measurement runs" OFF at open would silently narrow every
+  project made before this beta to its newest sheet — is untouched. See B8-432
+  for the half of P.10 that is deliberately left for Knut.
+- **and one narrowing the fix needed** (`recorded_report_type`, new in
+  `workflow/measurement_report.py`): `report_type` answers T2 for a file that
+  chose nothing, because T2 is what such a file RENDERS as. Restoring "the
+  settings it was made with" from that answer makes the window claim a choice
+  nobody made and override the run's own, which §10 forbids in as many words:
+  a report with no type of its own *"still follows the run"*. Measured: a run
+  set to Colour summary whose one saved report records no type read *Full
+  colour check* in both the pulldown and the page.
+- evidence: test_the_window_opens_drawing_the_report_its_pulldown_names,
+  test_clicking_the_entry_the_window_opened_on_changes_no_type,
+  test_a_report_that_records_no_type_still_follows_the_run,
+  test_the_same_is_true_after_clicking_that_entry
+- mutation: put `self._loaded_doc = entry["doc"]` back and the first two go red
+  (`assert 'Colour summary (one page)' == 'Printing record (not graded)'`); put
+  `report_type(rep)` back in `_settings_of_one_saved_report` and the other two
+  go red. Restore either, green. Both reds are in
+  `~/Desktop/ChromIQ-beta23-proof/round-27-report/mutations/`.
+- proof: `~/Desktop/ChromIQ-beta23-proof/round-27-report/D-R27-F3-photographs/`
+  — `BEFORE-open-state.png` and `AFTER-open-state.png`, the same window on the
+  same project, photographed by window id, two pixel-identical frames each.
+
+### B8-431 · FIXED · A `document` block of the wrong shape took the whole Measurement Report window down before it appeared
+- blocks release: no
+- status: FIXED
+- R25-F1 made the TOP level of a saved report safe, because `json.loads` is
+  happy with `[]`, `"x"` and `5`. The `document` block one level down was read
+  as though its fields had the shapes this build writes.
+- found on screen, round 27, 2026-09-19. One report file of
+  `Report-Limits-Report-Types/run1` hand-edited per case, nothing else touched,
+  a real window opened on the project each time. **Five of ten shapes raised
+  inside `MeasurementReportDialog(...)`**, so there is no window to close and no
+  message to read:
+
+  | the block says | what happened |
+  |---|---|
+  | `measurements` is a string | `AttributeError: 'str' object has no attribute 'get'` in `_apply_document` |
+  | `measurements` is a dict | the same |
+  | `measurements` is a list of strings | the same |
+  | `measurements` is a number | `TypeError: object of type 'int' has no len()` in `document_scope_of` |
+  | `compliance` is a string | `AttributeError` in `_document_label` |
+
+  Three doors, all reached from one bad file.
+- fix: `workflow.measurement_report.recorded_document` normalises the block it
+  returns — `measurements` keeps only the entries that are objects,
+  `compliance` is a dict or None, `type`/`created`/`scope` are strings,
+  `all_runs`/`detail` are booleans — and returns a fresh dict, for the same
+  reason `report_object` does. **Nothing on disk is changed**: this reads, and
+  the file keeps whatever it holds for a ChromIQ that knows what to do with it.
+- evidence: test_a_document_block_of_the_wrong_shape_does_not_take_the_window_down
+  (ten shapes), test_a_document_block_keeps_the_fields_it_records
+- mutation: reduce `recorded_document` to its beta-22 three-line body and five
+  of the ten go red with the exact exceptions above; restore, green. The red is
+  in `mutations/R27-F2-recorded-document-mutation-red.txt`.
+
+### B8-432 · OPEN · Opening the window restores a saved report's type and limit set, but not its two tick boxes
+- blocks release: no
+- status: OPEN
+- a question for Knut, deliberately not built
+- measured on screen, round 27, 2026-09-19, after B8-430. The window opens on
+  the entry the list lands on and now draws it as the kind of document it is.
+  It still does NOT restore that report's "Show all measurement runs" and "Show
+  detailed data for each run": those come from Preferences. So on
+  `Report-Limits-Report-Types/run1` the window names a ONE-DATE report and the
+  page under it reads *"2 verification runs"* / *"No. of Measurements: 2"*.
+  Clicking the same entry narrows it to one.
+- **P.10 says opening restores "the settings it was made with" and K.5 names
+  the two tick boxes among them**, so the letter of the specification asks for
+  it. It is not built because `_open_on_the_latest_report` records a deliberate
+  B8-388 decision against it, in the code and not in the document: imposing
+  them *"would silently narrow every project made before this beta to its
+  newest sheet, with settings nobody chose"*. Both readings are defensible and
+  the choice is Knut's, not ours (CLAUDE.md: a fault that contradicts a
+  specification is reported and approved, not quietly fixed).
+- what to ask him: when the window OPENS on a report that records no document
+  of its own, should the two tick boxes follow it (one date, no detail) exactly
+  as they do when the same entry is clicked?
+- evidence: none yet — nothing is built, so there is nothing to guard.
+- proof: `~/Desktop/ChromIQ-beta23-proof/round-27-report/D-R27-F3-photographs/AFTER-open-state.png`
+
+### B8-433 · FIXED · The report window's "Show detailed data" help said the box starts unticked, and it starts ticked
+- blocks release: no
+- status: FIXED
+- the ⓘ beside *Show detailed data for each run* in the Measurement Report
+  window ended: *"It makes the report, and the saved PDF, considerably longer,
+  which is why it starts unticked."* It was true when it was written. **P.3**
+  of `docs/design/measurement_report_limits.md` then made both tick boxes
+  default ON, `core/settings.py` has carried `report_default_show_details:
+  True` since, and the checkbox is built from it two lines above the tooltip.
+  Measured on a fresh settings file, which is every new installation: the box
+  opens TICKED under a sentence saying it does not. Visible in
+  `D-R27-F3-photographs/BEFORE-open-state.png`, where the box is green.
+- fix: the sentence names the lever instead of claiming a value — *"It makes
+  the report, and the saved PDF, considerably longer. Whether it starts ticked
+  is yours to set, in Preferences ▸ Reports ▸ Measurement Report Defaults."*
+  That path is real: `ChromIQ Preferences` ▸ tab `Reports` ▸ group box
+  `Measurement Report Defaults`, and `▸` is the separator the rest of the app
+  uses for a menu path. The Preferences help beside the same setting was
+  already correct (*"Default: on"*) and is untouched.
+- i18n: one key in, one stale out; `i18n_sync.py --apply` for the twelve, the
+  German written by hand in the same change set, and the help-card budget in
+  `tests/test_help_cards_untranslated_are_tracked.py` RE-MEASURED with that
+  file's own `_english_echoes` (278 → 281 for eleven languages, `de` unmoved at
+  20; two of the three are the round-26 fix set already in the tree, and the
+  note there says so).
+- evidence: test_the_detail_help_does_not_claim_a_state_the_box_is_not_in,
+  test_the_detail_help_names_the_lever_that_decides_its_state
+- mutation: put the old sentence back and both go red, the first reading *"the
+  help says the box starts unticked and it is ticked"*; restore, green. The red
+  is in `mutations/R27-F1-tooltip-mutation-red.txt`.
+
+### B8-434 · OPEN · "Already generated for this run" counts reports the "Report shown" list cannot offer
+- blocks release: no
+- status: OPEN
+- measured and reported, not fixed
+- measured on screen, round 27, 2026-09-19, on
+  `Report-Limits-Report-Types/run1`. The line under the Report type pulldown
+  reads *"Already generated for this run: Colour summary (one page) (3), Full
+  colour check (1), Printing record (not graded) (1)"* — five reports. The
+  "Report shown" pulldown offers **four**. The missing one is the run's own
+  PROFILING report, `runs/run1/reports/report_2026-10-26_10-00-00.json`.
+- where it comes from: the two answers are built from different sources, and
+  each is right about its own question. `generated_report_types(run)` walks
+  `run.dir` and every `run.verifications()` folder on DISK, which §10 asks for
+  in as many words (*"counted from the files on disk rather than from anything
+  the window remembers"*). `_saved_documents(run)` is built from the history
+  rows the window has LOADED, and a window opened on a dated verification loads
+  that run's verifications and not its profiling measurement.
+- why it matters: one of the run's generated reports cannot be loaded, cannot
+  be deleted and cannot be accounted for, and the two numbers sit two rows
+  apart on the same window. L.2 and L.9 are about a list a user reaches a
+  generated report through.
+- why it is not fixed here: both candidate fixes reach outside this round's
+  ground. Making the list walk the run's own `reports/` folder puts a report of
+  a measurement the window has not loaded into a selector whose Delete moves
+  files; loading the profiling measurement adds a row to the measurement list
+  and changes what every report covers. Which of the two the window should do
+  is a ruling.
+- evidence: none yet — nothing is built, so there is nothing to guard.
+- proof: `~/Desktop/ChromIQ-beta23-proof/round-27-report/D-R27-F3-photographs/AFTER-open-state.png`
+  (the line and the pulldown are both in frame), and
+  `A-follows-the-selection/result.json`, whose `saved_entries` holds four.

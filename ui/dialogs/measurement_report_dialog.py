@@ -1361,8 +1361,18 @@ class MeasurementReportDialog(QDialog):
                "Handy when you want to see WHY a run passed or failed, not "
                "just that it did: for example which patches pushed the "
                "average over its limit.\n\n"
-               "It makes the report, and the saved PDF, considerably longer, "
-               "which is why it starts unticked."),
+               # **A HELP TEXT IS A PROMISE, AND THIS ONE STOPPED BEING TRUE
+               # (R27-F1).** It read *"which is why it starts unticked"*, and
+               # it was right until P.3 of the design record made both boxes
+               # default ON (`report_default_show_details` is True in
+               # `core/settings.py`, and two lines above this the box is built
+               # from it). Measured on a fresh settings file, which is every
+               # new installation: the box opens TICKED under a sentence
+               # saying it does not. The state is the user's to set, so the
+               # sentence names the lever instead of claiming a value.
+               "It makes the report, and the saved PDF, considerably longer. "
+               "Whether it starts ticked is yours to set, in Preferences ▸ "
+               "Reports ▸ Measurement Report Defaults."),
             self, min_width=440, color=SPEC_GREEN))
         out_row.addStretch(1)
         top_v.addLayout(out_row)
@@ -4118,7 +4128,33 @@ class MeasurementReportDialog(QDialog):
         if entry is None:
             return
         self._loaded_doc_id = entry["key"]
-        self._loaded_doc = entry["doc"]
+        # **AND AN ENTRY WITHOUT A DOCUMENT BLOCK SPEAKS TOO (R27-F3).** This
+        # was `entry["doc"]`, which is None for every report written before the
+        # document record existed, so the pulldown NAMED such an entry and
+        # nothing else on screen followed it. Driven on screen, default
+        # Preferences, `Report-Limits-Report-Types/run1`, no user action at
+        # all: *Report shown* read "2026-11-02 10:00 · **Printing record (not
+        # graded)** · ChromIQ default (recommended)", *Report type* read
+        # "**Colour summary (one page)**", the page's own head line agreed with
+        # the type pulldown, and the red "settings have changed" line was down,
+        # so the window said nothing was out of step. Clicking the entry the
+        # pulldown was ALREADY on then changed both. Same entry, two documents.
+        #
+        # P.10 is the rule: *"Opening the window selects the latest report
+        # created, with the settings it was made with"*, and K.5 says what
+        # those settings are for a report that records none of its own.
+        # `_settings_of_one_saved_report` is the one place that answers it, and
+        # a CLICK has used it since B8-382; this is the same answer at the
+        # other door, so the two cannot disagree again.
+        #
+        # ONLY THE TYPE AND THE LIMIT SET MOVE. The two tick boxes are written
+        # by `_apply_document` and by nothing else, so the objection
+        # `_open_on_the_latest_report` records — that imposing "Show all
+        # measurement runs" OFF would silently narrow every project made
+        # before this beta to its newest sheet — is untouched: this changes
+        # what the window SAYS it is showing, not what it shows.
+        self._loaded_doc = (entry["doc"]
+                            or self._settings_of_one_saved_report(entry))
 
     def _saved_documents(self, run) -> list:
         """The generated reports of *run*, as DOCUMENTS, newest first.
@@ -4337,7 +4373,7 @@ class MeasurementReportDialog(QDialog):
         """
         from workflow.measurement_report import (document_measurement_key,
                                                  recorded_compliance,
-                                                 report_type)
+                                                 recorded_report_type)
         members = entry.get("members") or []
         if not members:
             return None
@@ -4352,7 +4388,12 @@ class MeasurementReportDialog(QDialog):
         return {
             "id": entry["key"],
             "created": str(rep.get("created") or ""),
-            "type": report_type(rep),
+            # **WHAT THE FILE RECORDS, NOT WHAT IT DEFAULTS TO.**
+            # `report_type` answers T2 for a file that chose nothing, and a
+            # document built on that answer makes the window claim a choice
+            # nobody made: §10 says a report with no type of its own follows
+            # the RUN, and "" is what lets `_report_type_now` do that.
+            "type": recorded_report_type(rep),
             "compliance": recorded_compliance(rep),
             "all_runs": False,
             "detail": False,

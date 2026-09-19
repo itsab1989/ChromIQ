@@ -539,6 +539,13 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-19, the round-26 printing refusal and the round-27
+    # report fixes landing together: the macOS print dialog now says why it
+    # cannot carry a four-ink chart (one body long enough to count), and the
+    # "Show detailed data" help was rewritten. German is translated for all of
+    # them, so de does not move; the eleven others carry the English under the
+    # beta rule. COUNTED with this file's own `_english_echoes`, never
+    # adjusted upward.
     # RE-MEASURED 2026-09-18, round 19: one more long string, the plural of
     # the numberless scope sentence. Every language up by exactly 1.
     # RE-MEASURED 2026-09-18, round 18: the report's scope sentence gained a
@@ -625,18 +632,36 @@ _BUDGET = {
     # So `de` stands still at 20 and each of the other eleven rises by exactly
     # 33. COUNTED with this file's own `_english_echoes` over the catalogues as
     # they stand, never adjusted upward: 245 -> 278 and its neighbours.
+    # RE-MEASURED 2026-09-19, and the tree held TWO change sets when it was
+    # counted, so the split is written down rather than left as "+3":
+    #
+    # * the round-26 fix set, already committed (e85f2630 / 49094c3a): the
+    #   Apply Calibration output placeholder and the printcal success window's
+    #   next step were both rewritten, so eleven languages dropped from a real
+    #   translation to the English source. Both are long enough to count here.
+    #   `_IDENTICAL_TO_KEY` in `test_i18n.py` was moved for them and this was
+    #   not, which is why the two numbers disagreed by two;
+    # * round 27 (R27-F1): the Measurement Report's "Show detailed data for
+    #   each run" help ended *"which is why it starts unticked"*, which stopped
+    #   being true when P.3 made the box default ON. The replacement names the
+    #   Preferences lever instead. ONE key in, one stale out, German translated
+    #   in the same change set.
+    #
+    # So `de` stands still at 20 and each of the other eleven rises by exactly
+    # 3. COUNTED with this file's own `_english_echoes` over the catalogues as
+    # they stand, never adjusted upward from the old numbers.
     "de": 20,
-    "es": 278,
-    "fr": 279,
-    "it": 278,
-    "ja": 278,
-    "nl": 278,
-    "no": 278,
-    "pl": 278,
-    "pt": 278,
-    "ru": 277,
-    "sv": 278,
-    "zh_CN": 277,
+    "es": 283,
+    "fr": 284,
+    "it": 283,
+    "ja": 283,
+    "nl": 283,
+    "no": 283,
+    "pl": 283,
+    "pt": 283,
+    "ru": 282,
+    "sv": 283,
+    "zh_CN": 282,
 }
 
 

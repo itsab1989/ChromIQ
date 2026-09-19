@@ -1308,11 +1308,54 @@ def recorded_document(report: "dict | None") -> "dict | None":
 
     None is the honest answer for every report written before this existed and
     is never an error: such a file is a document of one file (`document_key`).
+
+    **AND THE BLOCK'S OWN FIELDS ARE THE NEXT R25-F1 (R27-F2).**
+    :func:`report_object` made the TOP level of a saved report safe, because
+    `json.loads` is happy with `[]`, `"x"` and `5`; this block is a level
+    below it and every reader trusted its shape. Driven in a real window on
+    `Report-Limits-Report-Types`, one report file per case, with nothing else
+    touched: `measurements` as a string, as a dict, as a number, as a list of
+    strings, and `compliance` as a string each took the WHOLE MEASUREMENT
+    REPORT WINDOW DOWN before it appeared — the exception is raised inside
+    `MeasurementReportDialog(...)`, so there is no window to close and no
+    message to read. Three doors, all reached from one bad file:
+    `_apply_document` iterating `measurements`, `_document_label` reading
+    `compliance`, and `document_scope_of` taking `len(measurements)`.
+
+    A block is a RECORD OF FIELDS, so it is read as those fields and a value
+    that is not the shape this build writes is dropped rather than carried
+    into the window. Nothing on disk is changed: this reads, and the file
+    keeps whatever it holds for a ChromIQ that knows what to do with it. A
+    fresh dict is returned for the same reason `report_object` returns one —
+    a reader cannot write back through it by accident.
     """
     d = report_object(report).get(DOCUMENT_BLOCK)
     if not isinstance(d, dict) or not str(d.get("id") or ""):
         return None
-    return d
+    # A measurement entry that is not an object cannot answer "which
+    # measurement is this", so it is not one. The list keeps the entries that
+    # can, in order, which is what `_apply_document` matches its rows against.
+    raw = d.get("measurements")
+    members = [m for m in raw if isinstance(m, dict)] if isinstance(raw, list) \
+        else []
+    comp = d.get("compliance")
+    scope = str(d.get("scope") or "") if isinstance(d.get("scope"), str) else ""
+    out = dict(d)
+    out.update({
+        "id": str(d.get("id") or ""),
+        "created": str(d.get("created") or "")
+        if isinstance(d.get("created"), (str, int, float)) else "",
+        "type": str(d.get("type") or "") if isinstance(d.get("type"), str) else "",
+        "compliance": comp if isinstance(comp, dict) else None,
+        "all_runs": bool(d.get("all_runs")),
+        "detail": bool(d.get("detail")),
+        "measurements": members,
+    })
+    if scope:
+        out["scope"] = scope
+    else:
+        out.pop("scope", None)
+    return out
 
 
 def document_key(report: "dict | None", path: "str | Path") -> str:
@@ -1683,6 +1726,25 @@ def report_type(report: "dict | None") -> str:
     t = report_object(report).get("report_type")
     return t if t in REPORT_TYPES and report_type_is_built(t) \
         else REPORT_TYPE_DEFAULT
+
+
+def recorded_report_type(report: "dict | None") -> str:
+    """The type a report RECORDS, or "" when it records none (R27-F3).
+
+    :func:`report_type` answers T2 for a file that says nothing, because that
+    is what such a file RENDERS as and every caller wanted a type it could
+    draw. This answers the other question — *did this file choose?* — and the
+    two are not the same the moment a run has a type of its own: §10 of
+    `docs/design/measurement_report_limits.md` says a report with no type of
+    its own *"still follows the run"*, and a caller that cannot tell absence
+    from the default makes it follow T2 instead.
+
+    Same treatment of an id this build cannot draw as `report_type` gives it,
+    and for the same reason: a seventh type from a later ChromIQ is not a
+    choice this window can honour, so it is not one it may claim either.
+    """
+    t = report_object(report).get("report_type")
+    return t if t in REPORT_TYPES and report_type_is_built(t) else ""
 
 
 #: The pulldown, in the order Knut approved (issue #182, section 19). Each

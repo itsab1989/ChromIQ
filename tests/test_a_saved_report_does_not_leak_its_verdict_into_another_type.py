@@ -97,10 +97,24 @@ def _saved(tmp_path, qapp):
 
 
 def _as(dlg, run, tid):
-    from workflow.run_compliance import set_run_report_type
-    set_run_report_type(run, tid)
-    dlg._forget_limits()
-    dlg._sync_limit_controls()
+    """Choose *tid* THE WAY A USER DOES: in the Report type pulldown.
+
+    This wrote the run's `meta.json` and then called `_sync_limit_controls`,
+    which is not a door a hand can reach, and R27-F3 made the difference
+    visible: the window now restores the settings of the report it is SHOWING,
+    so a run's stored type is no longer the only answer `_report_type_now`
+    has, and a test that writes one behind the window's back stops moving the
+    document. `_on_type_chosen` is what a click runs, it stores the type on
+    the run exactly as `set_run_report_type` did, and it drops the loaded
+    document's claim on the controls, so everything this file is about is
+    unchanged and now reached through the path the complaint came from.
+    """
+    i = dlg._type_combo.findData(tid)
+    assert i >= 0, f"{tid} is not in the Report type pulldown"
+    dlg._type_combo.setCurrentIndex(i)          # fires `_on_type_chosen`
+    assert dlg._report_type_now() == tid, (dlg._report_type_now(), tid)
+    from workflow.run_compliance import run_report_type
+    assert run_report_type(run) == tid, "the run did not take the type"
     return dlg._runs_for_report()
 
 
