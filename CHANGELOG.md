@@ -1,5 +1,78 @@
 # Changelog
 
+## v4.3.0-beta.26
+
+**Knut's review of beta 25, built: the Measurement Report window laid out the
+way he drew it, a report that remembers every setting it was made with, and
+Generate asking what you meant.**
+
+### New
+
+- **Generate report now asks what you meant.** With a saved report selected and
+  a setting changed, it offers **Update**, **Create New** and **Cancel**
+  instead of silently making a new report every time. Update keeps the report,
+  its place in the list and its creation date, adds when it was last updated,
+  and recalculates it (Knut).
+
+- **A file you can fill in with a standard's own limit values.**
+  `python scripts/iso_values_template.py -o iso12647.json` writes every row the
+  ISO 12647-7 and ISO 12647-8 sets use, in the order the Report limits window
+  shows them, ready for the numbers from your own copy of the standard. Point
+  `CHROMIQ_COMPLIANCE_ISO_FILE` at the filled-in file and ChromIQ judges against
+  it. ChromIQ does not ship those numbers and cannot: they are the content of a
+  paid standard.
+
+### Changed
+
+- **The Measurement Report window is laid out the way Knut drew it.** The
+  report you are looking at sits at the top with the line that says what to do
+  with it; everything that decides what a report contains is inside a **Report
+  settings** frame; and Generate report, Delete Selected Report, Save Report As
+  PDF and Reveal Folder sit in one row beneath it. The window also needs less
+  width than before, at every size.
+
+- **Selecting a saved report now restores everything it was made with**: the
+  measurements it covered, the report type, the limit set, and both view
+  options. Before, the two tick boxes kept whatever Preferences said, so a
+  report could be shown with settings it was never made with (Knut).
+
+- **"Which presets can be used for verification?"** is the button's name now,
+  because it is the chart that is verified and not the preset. Everything that
+  window says counts **metrics** rather than "rows", which is what they are.
+
+- **Double-click a preset in that window to load it**, the same as choosing it
+  from the pulldown. The window closes and the chart settings follow.
+
+- **The eleven ready-made "by Pharmacist" charts are marked as what they are**:
+  they come with their pictures already made, so they cannot be rebuilt through
+  From Profile Gamut, and the window now says which metrics that costs. They
+  are hidden when you tick "Show only the presets made for verification".
+
+- **The demo package's chart presets are rebuilt around requirements.**
+  Thirty-one presets: for each of the thirteen conditions a chart has to meet,
+  one preset that sits exactly on the line and one that sits exactly over it,
+  plus a chart that passes everything. Each was checked twice, by the app and
+  by a separate calculation, over 496 verdicts.
+
+### Fixed
+
+- **A saved report's "Created:" line said when you opened the window**, not
+  when the report was made.
+
+- **Changing "Judged against" silently changed "Report type"** to whatever the
+  run was set to.
+
+- **"How to read this report" explained four metrics whatever the report
+  contained.** Measured across every report type and limit set on one demo
+  project: thirteen metrics judged and none of them explained, in all twenty
+  combinations. Every metric a report judges is now described in it.
+
+- **A new report's name no longer ends with "saved <date>"**, because it begins
+  with the date it was created (Knut).
+
+- **The "Which presets can be used for verification?" button sat on the frame's
+  edge**; it now keeps the same distance as the Randomisation and Layout frames.
+
 ## v4.3.0-beta.25
 
 **The honeycomb blanking again: it was painting over the measured columns next
