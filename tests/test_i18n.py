@@ -1047,18 +1047,23 @@ _IDENTICAL_TO_KEY = {
     # Two keys out, three in. COUNTED, not adjusted:
     # `len([k for k, v in cat.items() if v == k and not k.startswith("@")])`
     # run over each catalogue as it stands.
+    # RE-MEASURED again the same morning, the round-26 printing fix: the macOS
+    # print dialog refuses a chart it would otherwise convert, which is two new
+    # strings (the window's title and its body). German is translated in the
+    # same commit, so **de does not move (143)** and each of the other eleven
+    # rises by exactly 2. COUNTED off the tree, not adjusted.
     "de": 143,
-    "es": 470,
-    "fr": 492,
-    "it": 481,
-    "ja": 456,
-    "nl": 497,
-    "no": 482,
-    "pl": 474,
-    "pt": 472,
-    "ru": 445,
-    "sv": 483,
-    "zh_CN": 450,
+    "es": 472,
+    "fr": 494,
+    "it": 483,
+    "ja": 458,
+    "nl": 499,
+    "no": 484,
+    "pl": 476,
+    "pt": 474,
+    "ru": 447,
+    "sv": 485,
+    "zh_CN": 452,
 }
 
 

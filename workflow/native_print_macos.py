@@ -272,6 +272,33 @@ def _locked_settings_for(print_info) -> dict[str, str]:
     return settings
 
 
+class ChartIsNotRGB(RuntimeError):
+    """The chart's own pixels are not RGB, and this route can only carry RGB.
+
+    **THE SILENT CASE WAS EXACTLY FOUR INKS** (adversary round 26, R26-F8).
+    `use_native_print_dialog` defaults to True on macOS, so this is the route a
+    chart takes unless the user changes a setting, and it built every page
+    through `Image.convert("RGB")` into an `NSDeviceRGBColorSpace` bitmap. On a
+    real `targen -d4` chart, measured: CMYK ``75,0,128,255`` reached the driver
+    as RGB ``0,0,0``, and ``255,255,0,136`` as ``0,0,119``. PIL's CMYK to RGB
+    is a naive formula, not a conversion anybody asked for, and nothing said a
+    word: the sheet then disagrees with the `.ti2`, and the `.ti3` measured
+    from it is paired with values that were never printed.
+
+    An RGB chart is unaffected (`convert` is a no-op). A six-ink chart already
+    failed loudly, because PIL cannot open it at all. Four inks was the one
+    case that went through quietly, which is why this refusal exists rather
+    than a warning.
+
+    Printing a CMYK chart correctly through the native dialog would mean an
+    `NSDeviceCMYKColorSpace` rep and a way to prove on paper that macOS left it
+    alone, and that cannot be proved without a printer and an instrument. Until
+    it is, the standard route - PostScript hex values through ``lp -o raw``,
+    which is what `PostScriptGenerator` exists for - is the one that carries
+    the chart's own numbers.
+    """
+
+
 class ColorManagementMismatch(RuntimeError):
     """Raised when the post-submit verification doesn't match the values we
     locked into the print settings — i.e. some part of the OS or driver stack
@@ -532,6 +559,12 @@ def print_frames(pages: list[tuple[Path, int]]) -> bool:
         with Image.open(tiff_path) as im:
             n_frames = getattr(im, "n_frames", 1)
             im.seek(min(frame, n_frames - 1))
+            # ASKED BEFORE THE CONVERSION, NOT AFTER IT. See `ChartIsNotRGB`:
+            # `convert("RGB")` is a no-op for an RGB chart and a colour
+            # conversion for any other, and this route's whole promise is that
+            # "pixel values reach the driver unchanged".
+            if im.mode != "RGB":
+                raise ChartIsNotRGB(im.mode)
             rgb = im.convert("RGB")
             w_px, h_px = rgb.size
             dpi = rgb.info.get("dpi") or (300.0, 300.0)

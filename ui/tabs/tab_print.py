@@ -2108,9 +2108,31 @@ class TabPrint(QWidget):
         if _sys.platform == "darwin":
             submitted = False
             try:
-                from workflow.native_print_macos import print_frames, ColorManagementMismatch
+                from workflow.native_print_macos import (ChartIsNotRGB,
+                                                          ColorManagementMismatch,
+                                                          print_frames)
                 try:
                     submitted = bool(print_frames(pages))
+                except ChartIsNotRGB as exc:
+                    # R26-F8: this route can only carry RGB, and it used to
+                    # convert anything else on the way in without saying so.
+                    # Nothing was sent, so the print record must not say one
+                    # was.
+                    log.error("Native macOS print refused a %s chart", exc)
+                    QMessageBox.critical(
+                        self, tr("This chart cannot go through the macOS print dialog"),
+                        tr("This chart's pixels are {mode}, and the macOS print "
+                           "dialog can only carry RGB. Sending it this way would "
+                           "change every patch's value on the way to the printer, "
+                           "so the printed sheet would no longer match the chart "
+                           "file and the measurement taken from it would describe "
+                           "colours that were never printed.\n\n"
+                           "Turn off \u201cUse default macOS printer dialog\u201d in "
+                           "Preferences and print again. The standard route sends "
+                           "the chart's own numbers to the printer through lp, "
+                           "with colour management switched off.").format(
+                               mode=str(exc)),
+                    )
                 except ColorManagementMismatch as exc:
                     # The job WAS submitted; only the colour-management lock
                     # could not be verified afterwards. That is a print, so the
