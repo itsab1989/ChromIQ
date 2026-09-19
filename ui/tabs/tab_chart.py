@@ -5877,16 +5877,29 @@ class TabChart(QWidget):
         self._preset_verify_btn = QPushButton(
             tr("Which presets can be verified?"), w)
         self._preset_verify_btn.setObjectName("preset_verify_btn")
-        # **AS SHORT AS THE BUTTONS IT SITS AMONG.** Basti, on the shipped
-        # beta: *"the which presets can be verified button ... is very big. at
-        # least the hight could be reduced."* A default `QPushButton` under
-        # Fusion is 32 px tall here; the Measurement Report's own row of
-        # buttons is pinned to 26, and this is the same kind of control: a door
-        # to a window, beside a pulldown, in a panel whose height is already
-        # the thing this window trades away first on a short screen.
-        self._preset_verify_btn.setStyleSheet(
-            "QPushButton { padding: 1px 14px; min-height: 22px;"
-            " max-height: 22px; }")
+        # **SHORTER THAN THE DEFAULT, AND MEASURED TO BE.** Basti, on the
+        # shipped beta: *"the which presets can be verified button ... is very
+        # big. at least the hight could be reduced."*
+        #
+        # THE FIRST ANSWER MADE IT TALLER. It set
+        # `padding: 1px 14px; min-height: 22px; max-height: 22px` through a
+        # stylesheet, on the belief that a default `QPushButton` under Fusion
+        # is 32 px here. Photographed in the real window with beta 22's own
+        # button inserted beside it (round 27b,
+        # `shots/crop-03-old-and-new-height.png`): the default is **24 px**,
+        # and the "shorter" button came out **26**. A stylesheet's `min-height`
+        # applies to the CONTENT rectangle, so Qt adds the padding and the
+        # style's own frame on top of it and the widget ends up bigger than the
+        # number in the rule. The panel grew by 2 px in answer to a request to
+        # shrink it.
+        #
+        # A widget height is not a suggestion, so the height is set on the
+        # widget: 22 px, four less than the stylesheet gave and two less than
+        # beta 22's. The label needs 15 px of line height in the app's own
+        # Menlo/uppercase button font (measured), so nothing is clipped, and
+        # `ButtonFontFilter` still owns the WIDTH, which is the dimension that
+        # must never be pinned.
+        self._preset_verify_btn.setFixedHeight(22)
         self._preset_verify_btn.clicked.connect(
             self._open_preset_verification_window)
         verify_row.addWidget(self._preset_verify_btn)
@@ -9773,11 +9786,15 @@ class TabChart(QWidget):
             PresetVerificationDialog)
         # **THE WAIT IS REAL AND IT IS SAID OUT LOUD.** Basti, on the shipped
         # beta: *"clicking the button takes quite long until the window
-        # opens."* Measured: 177 presets at about 16 ms each, because the
-        # window asks the REPORT'S OWN code what each chart could answer, which
-        # is the property that makes its answers worth anything. The first
-        # click therefore pays about three seconds and every later one pays
-        # nothing, because `preset_eligibility` caches on (path, mtime, size).
+        # opens."* Timed in the real window (round 27b), click to window:
+        #
+        #     cold cache   3111 ms
+        #     warm cache    324 ms   ->   after B8-421's row cache, see below
+        #
+        # because the window asks the REPORT'S OWN code what each chart could
+        # answer, which is the property that makes its answers worth anything.
+        # `preset_eligibility` caches that on (path, mtime, size), so the cost
+        # is paid once per session per chart.
         #
         # So the cursor says so rather than the window looking stuck.
         # `_warm_preset_eligibility` below spends the tab's idle time filling
@@ -9789,10 +9806,32 @@ class TabChart(QWidget):
         try:
             rows = verification_preset_rows(self._settings)
             dlg = PresetVerificationDialog(
-                rows, compliance_overrides_of(self._settings), self)
+                rows, compliance_overrides_of(self._settings), self,
+                select=self._chosen_preset_label())
         finally:
             _QGA.restoreOverrideCursor()
         dlg.exec()
+
+    def _chosen_preset_label(self) -> "str | None":
+        """The row label of the preset the pulldown is on, or None.
+
+        The pulldown's userData is a built-in's KEY or a user preset's NAME,
+        and the window lists a built-in under its overlay label, so the two
+        cannot simply be compared. `BUILTIN_PRESET_GROUPS` is the same registry
+        `verification_preset_rows` builds its rows from, so translating through
+        it here cannot drift from what the window is showing.
+        """
+        combo = getattr(self, "_preset_combo", None)
+        if combo is None:
+            return None
+        data = combo.currentData()
+        if not data:
+            return None
+        for _instr, entries in BUILTIN_PRESET_GROUPS:
+            for _combo_label, overlay_label, key in entries:
+                if key == data:
+                    return overlay_label
+        return str(data)
 
     def _warm_preset_eligibility(self) -> None:
         """Assess a few preset charts per tick, so the button does not wait.
@@ -9814,6 +9853,17 @@ class TabChart(QWidget):
         """
         from PyQt6.QtCore import QTimer
         if getattr(self, "_preset_warm_timer", None) is not None:
+            return
+        # **ONLY ON A VERIFICATION RUN, BECAUSE THE BUTTON IS ONLY THERE ON A
+        # VERIFICATION RUN.** Knut, 2026-09-19, scoped the window to Run type =
+        # Verification, and the first cut of this warming did not hear him:
+        # measured on screen (round 27b, B8-422), a plain profiling session
+        # opened the Create Chart tab, read all 177 preset charts off disk and
+        # spent a second of processor on a window it cannot open. Started again
+        # by `_sync_preset_verify_visibility` the moment the run type makes the
+        # button appear, which is well before anyone can reach it with a
+        # mouse.
+        if not self._is_verification_target():
             return
         try:
             rows = verification_preset_rows(self._settings)
@@ -18165,6 +18215,11 @@ class TabChart(QWidget):
             w = getattr(self, attr, None)
             if w is not None:
                 w.setVisible(show)
+        if show:
+            # The button has just appeared, so the work behind it may start.
+            # See `_warm_preset_eligibility`: it is gated on this same rule, so
+            # a profiling session never pays for a window it cannot open.
+            self._warm_preset_eligibility()
 
     def _is_verification_target(self) -> bool:
         ctl = getattr(self, "_target_ctl", None)

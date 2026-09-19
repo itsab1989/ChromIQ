@@ -218,11 +218,33 @@ def _declaration_it_would_get(chart: Path) -> "dict | None":
 
 
 #: Keyed by (resolved path, mtime, size), so a preset the user re-saves is read
-#: again and a shipped asset is read once per session. Measured on this host,
-#: cold: parsing and assessing all 177 built-in charts, 10,290 patches included,
-#: costs **0.43 s**. That is inside what a button press may take; doing it again
-#: on every pulldown change would not be.
+#: again and a shipped asset is read once per session.
+#:
+#: **RE-MEASURED 2026-09-19 (round 27b), because the number that stood here was
+#: wrong by a factor of six and it is the number the button's speed was
+#: budgeted against.** It said 0.43 s for all 177 built-in charts and called
+#: that "inside what a button press may take". Timed on this host with a clock
+#: around the loop:
+#:
+#: ===============================================  ========
+#: assessing all 177 built-in charts, cold          2.73 s
+#: the same, before `control_strip.select_strip`
+#: was vectorised                                   5.15 s
+#: the same, warm (this cache)                      0.004 s
+#: ===============================================  ========
+#:
+#: So it is NOT inside a button press, which is why `TabChart` fills this cache
+#: while the tab is idle and puts a busy cursor on the click that finds it
+#: empty. A measured 0.43 s would have needed neither.
 _CACHE: "dict[tuple, dict]" = {}
+
+#: The same trick for :func:`patch_count`, and for the same reason: it is the
+#: OTHER half of what a button press pays. `verification_preset_rows` calls it
+#: once per preset to build the list, which is 177 full `.ti1` parses — 280 ms,
+#: measured — and it was paid again on every open of the window because nothing
+#: remembered it. Keyed identically, so a preset the user re-saves is counted
+#: again.
+_PATCHES: "dict[tuple, int]" = {}
 
 
 def chart_row_values(chart: "str | Path") -> "dict[str, dict]":
@@ -252,6 +274,7 @@ def chart_row_values(chart: "str | Path") -> "dict[str, dict]":
 def clear_cache() -> None:
     """Forget every assessed chart (the tests, and a re-read on demand)."""
     _CACHE.clear()
+    _PATCHES.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -385,11 +408,27 @@ def made_for_verification(chart: "str | Path | None", patches: int,
 
 def patch_count(chart: "str | Path") -> int:
     """How many patches the chart really holds. Measured, never declared: a
-    preset's ``patches`` field is a display value and a user preset has none."""
+    preset's ``patches`` field is a display value and a user preset has none.
+
+    Cached on (path, mtime, size) like :func:`chart_row_values`, because the
+    window's own list is built out of 177 of these and was re-parsing every
+    shipped ``.ti1`` on every open. A chart that changes on disk is counted
+    again; nothing here can go stale.
+    """
+    p = Path(chart)
     try:
-        return int(parse_ti3(Path(chart)).n_patches)
-    except (Ti3ParseError, OSError):
+        st = p.stat()
+        key = (str(p.resolve()), st.st_mtime_ns, st.st_size)
+    except OSError:
         return 0
+    hit = _PATCHES.get(key)
+    if hit is None:
+        try:
+            hit = int(parse_ti3(p).n_patches)
+        except (Ti3ParseError, OSError):
+            return 0
+        _PATCHES[key] = hit
+    return hit
 
 
 def row_label(row_id: str) -> str:

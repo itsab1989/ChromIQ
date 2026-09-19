@@ -376,11 +376,24 @@ def select_strip(devices: "dict[str, tuple[float, float, float]]") -> StripSelec
     order = sorted(devices, key=_sid_order)
     # **THE SAME ANSWER, WITHOUT THE MILLION GENERATOR CALLS.** Basti, on the
     # shipped beta: *"clicking the button takes quite long until the window
-    # opens."* Measured: the preset window assesses 177 charts and pays 19 ms
-    # each, of which 21 of every 23 ms is this function, because it is 29 rungs
-    # times every patch of the chart with a `max()` over a zipped generator
-    # inside: 300,872 `max` calls and 1,123,504 generator evaluations for
-    # FIFTEEN charts. The window took about 3.7 seconds to open.
+    # opens."* This was 29 rungs times every patch of the chart, with a
+    # `max()` over a zipped generator inside: 300,872 `max` calls and 1,123,504
+    # generator evaluations for FIFTEEN charts.
+    #
+    # **WHAT IT ACTUALLY BOUGHT, TIMED RATHER THAN ESTIMATED (round 27b).** The
+    # note here first claimed "21 of every 23 ms is this function", which would
+    # have left almost nothing behind. Measured on this host, assessing all 177
+    # built-in preset charts through `preset_eligibility.chart_row_values`, by
+    # swapping only this function:
+    #
+    #     the loop this replaced   5.15 s
+    #     this                     2.73 s
+    #
+    # A little under half, not nine tenths — worth having, and not the whole
+    # wait. What closes the rest is the idle warming in `TabChart`, because the
+    # honest reading of 2.73 s is that no arithmetic makes 177 charts free.
+    # Equivalence was checked the same way, on every one of those 177 charts:
+    # the old loop and this pick the identical strip for each.
     #
     # The arithmetic is unchanged: still nearest patch by the largest channel
     # difference, still ladder order, still each patch once, still ties broken

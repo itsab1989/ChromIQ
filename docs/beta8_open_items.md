@@ -2165,8 +2165,8 @@ came back to it.
       UNPARENTED and `_keep_until_finished` holds it in the module global
       `_LIVE` until `isFinished()`, with a comment saying exactly why. Nothing
       can destroy those while they run.
-    * `tests/test_cr30_measure_bridge.py::test_a_reading_for_a_patch_we_are_no_longer_on_is_dropped`
-      and `tests/test_cr30_a_press_before_the_read_opens_is_kept.py::test_a_refused_read_does_not_hand_its_press_to_the_retry`
+    * `test_a_reading_for_a_patch_we_are_no_longer_on_is_dropped`
+      and `test_a_refused_read_does_not_hand_its_press_to_the_retry`
       — **real.** `workflow/cr30/measure_bridge.py:_start_read` was the one
       place in the CR30 stack that still wrote `QThread(self)`, so the bridge
       OWNED the thread; and the bridge, `_threads`, the thread, its `finished`
@@ -5044,7 +5044,7 @@ only a triple that DIFFERS from the rule's answer would stop it.
   shape (one file, named `s.tif`, alone in the folder).
 
   **The sweeper cannot see them, and the reason is honest.**
-  `tests/conftest.py::_is_chromiq_temp` recognises a folder by a file only this
+  `_is_chromiq_temp` recognises a folder by a file only this
   suite writes: a `.ti1`, `.ti2`, `.ti3`, `.cht`, `.cie`, `.icc`, `.cal`, a
   `project.json` or a `meta.json`, or a chart-probe folder NAME. A folder
   holding one `.tif` matches nothing, and `.tif` is far too common a suffix to
@@ -18348,3 +18348,264 @@ would reach.
 - proof: `~/Desktop/ChromIQ-beta23-proof/round-27-report/D-R27-F3-photographs/AFTER-open-state.png`
   (the line and the pulldown are both in frame), and
   `A-follows-the-selection/result.json`, whose `saved_entries` holds four.
+
+
+### B8-420 · FIXED · The button asked to be SHORTER came out 2 px taller than the one Basti called too big
+- blocks release: no
+- status: FIXED
+- reported by Basti on beta 22: *"the which presets can be verified button in
+  create chart tab under the presets combobox is very big. at least the hight
+  could be reduced. maybe you can find an even better solution / placement so
+  it takes up less space"*.
+- **WHAT SHIPPED IN ANSWER MADE IT BIGGER.** Commit `f3e1d3ff` set
+  `padding: 1px 14px; min-height: 22px; max-height: 22px` on the button through
+  a stylesheet, on the strength of a comment saying *"A default `QPushButton`
+  under Fusion is 32 px tall here"*. Measured in the real window, with beta
+  22's own button (same label, same parent, no size rule) inserted into the
+  same row so the same layout and the same `ButtonFontFilter` size it:
+
+  | | height |
+  |---|---|
+  | beta 22's button, the one called very big | **24 px** |
+  | the "shorter" button that shipped | **26 px** |
+  | the preset pulldown beside it | 24 px |
+  | after this fix | **22 px** |
+
+  A stylesheet's `min-height` sizes the CONTENT rectangle; Qt then adds the
+  padding and the style's own frame around it, so 22 in the rule became 26 on
+  screen. The number in the rule was never the height.
+- the fix: `self._preset_verify_btn.setFixedHeight(22)`. A widget height is not
+  a suggestion. The label needs 15 px of line height in the app's own
+  Menlo/uppercase button font and the button gives it 22, so nothing is
+  clipped; the WIDTH is still `ButtonFontFilter`'s, which is the dimension that
+  must never be pinned. Checked in German too, where the label is
+  "Welche Presets sind verifizierbar?": 266 px of text in a 282 px button, 15
+  px of line in 22 px of button.
+- evidence: `test_the_button_is_shorter_than_the_one_beta_22_shipped`
+  builds beta 22's button rather than remembering its number, so the yardstick
+  cannot go stale.
+- mutation: the stylesheet put back ->
+  `AssertionError: the button is 26 px tall and beta 22's — the one Basti
+  called very big — is 24 px. It was asked to shrink.`
+- proof: `~/Desktop/ChromIQ-beta23-proof/round-27b-chart/shots/crop-03-old-and-new-height.png`
+  (the shipped button beside beta 22's, before the fix) and
+  `shots/crop-05-height-after-the-fix.png` (after), plus
+  `height-BEFORE.json`, `after/measured.json` and `german-and-demo13.md`.
+
+### B8-421 · FIXED · Every open of the window re-parsed all 177 preset charts to count their patches
+- blocks release: no
+- status: FIXED
+- Basti, on beta 22: *"clicking the button takes quite long until the window
+  opens."* Timed in the real window with a clock around the press, not an
+  impression:
+
+  | | click to window |
+  |---|---|
+  | warm cache, as shipped in beta 22 + 3 commits | **324 ms** |
+  | cold cache | 3111 ms |
+  | warm, after this fix | **45 ms** |
+
+- the 324 ms was `verification_preset_rows`, which calls
+  `preset_eligibility.patch_count` once per preset — 177 full `.ti1` parses,
+  280 ms measured — and nothing remembered it, so it was paid again on every
+  open AND once more by the idle warming. The eligibility cache that beta 22
+  added covers the other half of the work and never covered this half.
+- the fix: `patch_count` caches on (path, mtime, size), exactly like
+  `chart_row_values` beside it, so a preset the user re-saves is counted again
+  and nothing can go stale.
+- **AND THE NUMBER THAT SET THE BUDGET WAS WRONG BY A FACTOR OF SIX.** The
+  `_CACHE` docstring claimed assessing all 177 built-ins cold cost *"0.43 s …
+  inside what a button press may take"*. Timed: **2.73 s**, and **5.15 s**
+  before `control_strip.select_strip` was vectorised. Had the real number been
+  there, the busy cursor and the warming would have been the obvious answer
+  from the start. Both docstrings now carry the measured table.
+- evidence: `test_the_list_does_not_reparse_every_ti1_on_every_open`
+- mutation: `hit = _PATCHES.get(key)` -> `hit = None` ->
+  `AssertionError: opening the window read 177 chart files again:
+  ['tc300.ti1'...]`
+- proof: `~/Desktop/ChromIQ-beta23-proof/round-27b-chart/after/on-screen-button.md`
+
+### B8-422 · FIXED · A profiling run paid for warming a window Knut's own rule says it cannot open
+- blocks release: no
+- status: FIXED
+- Knut, 2026-09-19: *"I clearly specified this before, and I said that the
+  button shall only be visible for run type = Verification."* Commit `62be65bc`
+  applied that to the button. The idle warming added by `f3e1d3ff` did not hear
+  it: measured in the real window, a plain PROFILING session opened the Create
+  Chart tab and
+
+  * ran `verification_preset_rows` synchronously inside `showEvent` (280 ms of
+    disk work on the GUI thread), and
+  * queued **177** preset charts for a button that is not on screen, draining
+    them in 0.98 s of event loop.
+
+  For a window the run type forbids opening.
+- the fix: `_warm_preset_eligibility` is gated on `_is_verification_target()`,
+  and `_sync_preset_verify_visibility` starts it the moment the run type makes
+  the button appear — which is well before anyone can reach it with a mouse.
+  Re-measured on screen: profiling queues 0 charts; switching Run type to
+  Verification queues 177 and drains them in 0.95 s, and the first click then
+  costs 45 ms.
+- evidence: `test_a_profiling_run_never_pays_for_the_warming`,
+  which asserts BOTH halves: nothing on a profiling run, and something the
+  moment the button appears.
+- mutation: the gate replaced by `if False:` ->
+  `AssertionError: a profiling run started warming 177 preset charts for a
+  button that is not there`
+- **AND THE WARMING SURVIVES BEING ATTACKED.** It is a bound method on a
+  `QTimer` parented to the tab, which CLAUDE.md's fade-scroll SIGSEGV is the
+  reason for. Six stress cases on screen, each started from a half-drained
+  warm: open the window mid-warm; open it twice in a row mid-warm; change run
+  type mid-warm; switch tab away and back; hide the tab and drain the loop;
+  and DESTROY the tab with 89 charts still queued. No crash, no orphan timer.
+  `after/on-screen-button.md` section 4.
+
+### B8-423 · FIXED · The window opened on nothing, so "can THIS preset be verified?" was answered with 177 rows
+- blocks release: no
+- status: FIXED
+- measured on screen: the button opens a list of **177 presets in nine
+  instrument groups**, with nothing selected, the detail pane reading "Select a
+  preset on the left", and **no search field of any kind**. The question the
+  window is the door to is asked about the chart the user has just chosen in
+  the pulldown three centimetres above it, and the caller knows which one.
+- the fix: `TabChart._chosen_preset_label()` translates the pulldown's
+  userData (a built-in's KEY, a user preset's NAME) through
+  `BUILTIN_PRESET_GROUPS` — the same registry `verification_preset_rows` builds
+  its rows from, so the two cannot drift — and the dialog takes it as
+  `select=`. `_fill_tree` consumes it ONCE, then the reader's own selection is
+  what survives a refresh, and `scrollToItem` brings the row into view because
+  `setCurrentItem` on a freshly filled tree does not.
+- nothing is filtered and nothing is hidden by this; only the starting point
+  moves. No new user-facing text, so no §M.
+- evidence: `test_the_window_opens_on_the_preset_the_pulldown_is_on`
+- mutation: `select=self._chosen_preset_label()` dropped from the caller ->
+  `AssertionError: the window opened with nothing selected, so the preset the
+  user asked about is one row among 177`
+- proof: `~/Desktop/ChromIQ-beta23-proof/round-27b-chart/shots/06-opens-on-your-preset.png`
+  — chosen in the pulldown: "ColorMunki · A4-300p-1page TC3.00 by Pharmacist";
+  opened on: "★ A4-300p-1page TC3.00 by Pharmacist", in view, detail pane
+  filled, 37 ms.
+- STILL OPEN AND NOT BUILT HERE: there is no way to find a preset by NAME in
+  this window. A search field is new user-facing text and goes to §M-PROPOSED
+  before it goes into a tab.
+
+### B8-424 · FIXED · A preset whose patch set cannot be read was blamed on its page count
+- blocks release: no
+- status: FIXED
+- found by driving the demo pack's fourteen verification-demo presets through
+  the real window, installed the way their own README tells a user to install
+  them. On **"Verify demo 13, the patch set cannot be read"** the detail pane
+  read, in this order:
+
+  > ChromIQ cannot tell how many pages this preset lays out until its chart is
+  > generated, so it is not marked as made for verification.
+  > **Cannot be checked**
+  > ChromIQ could not read this preset's patch set, so it cannot say what the
+  > chart can answer.
+
+  The first sentence sends a reader off to generate a chart. The second is what
+  is actually wrong: the file beside the preset is not a chart at all. A
+  message is a promise, and that one promises the wrong remedy first.
+- the fix: the page-count note is shown only when the patch set COULD be read
+  (`a.checked`). No string was added, changed or removed, so no §M and no
+  translation work; the order of two existing sentences is what changed.
+- evidence: `test_an_unreadable_patch_set_is_not_blamed_on_the_page_count`
+- mutation: `and a.checked` dropped ->
+  `AssertionError: the pane blames the page count for a patch set it could not
+  read at all`
+- proof: `~/Desktop/ChromIQ-beta23-proof/round-27b-chart/demo-presets.json`
+  (before) and `shots-de/de-02-demo-13.png` + `german-and-demo13.md` (after, in
+  German, where the pane now says only "Nicht prüfbar" and the real reason).
+
+### B8-425 · OPEN · A Verification run crushes the Output group's three fields to illegibility, and the preset button widened the band by 25 px
+- blocks release: no
+- status: OPEN
+- OPEN means reported, not fixed: the obvious one-line fix is WRONG, and that
+  is measured below.
+- found while photographing B8-420. On the Create Chart tab, Run type =
+  Verification, in a window 950 px tall, the **Output** group is a 65 px smear:
+  "Printer profile project name", "Run 2 Description" and "Verification Chart
+  Notes" and their three text fields are each given 10-11 px for 16 px of text,
+  and at 800 px the project-name label is given **0**. The field a user types
+  the project name into is unreadable.
+- **HOW MUCH OF IT IS THE BUTTON'S, MEASURED RATHER THAN ASSUMED.** The window
+  height at which the Output group first clips:
+
+  | state | first clips below |
+  |---|---|
+  | Profiling run | never, down to 825 px (the sweep's floor) |
+  | Verification, the preset pair HIDDEN | 1010 px |
+  | Verification, the preset pair SHOWN | **1035 px** |
+
+  So the fault is INHERITED — a verification run adds the "Verification Chart
+  Notes" row and the left column has been over-full since long before beta 22 —
+  and beta 22's button widened the band by 25 px. B8-420's 4 px came back out
+  of that 25. The available screen on this machine is 1079 px, so a maximised
+  window clears both thresholds; a windowed one, or a shorter screen, does not.
+- why it happens: the Output and Presets group boxes sit ABOVE the tab's scroll
+  area, in the fixed head of the column. When the column is short Qt takes the
+  shortfall from whatever can shrink, and a `QLabel`'s minimum height is 0.
+- **DO NOT "FIX" IT BY PINNING THE OUTPUT GROUP'S MINIMUM HEIGHT.** Tried and
+  photographed: `grp.setMinimumHeight(grp.sizeHint().height())` makes every
+  number come out right — Output 155 px, label 24 px, nothing reported clipped,
+  Generate still on screen, the window's minimum unchanged — and the PICTURE
+  shows the Presets group drawn straight over the top of "Run 2 Description".
+  The numbers agreed and the screen did not. `shots-squeeze/sq-pinned-950.png`.
+- what it probably wants instead: the fixed head of the column belongs inside
+  the scroll area, so a short window scrolls rather than crushing three labelled
+  fields. That moves controls Knut placed and is a ruling, not a repair.
+- evidence: none yet — nothing is built, so there is nothing to guard.
+- proof: `~/Desktop/ChromIQ-beta23-proof/round-27b-chart/shots-squeeze/sq-before-950.png`
+  (the smear), `sq-no-pair-950.png` (the same window with the pair hidden: 77 px
+  and a 4 px label, so most of it is inherited), `sq-pinned-950.png` (the fix
+  that must not be used), `squeeze.json`, `squeeze-by-height.json`,
+  `squeeze-thresholds.json`, `squeeze-fix-probe.json`.
+
+### B8-426 · MEASURED, NO CHANGE · Knut's four declaration rules hold on a PROFILING chart too, driven through the real buttons
+- blocks release: no
+- status: VERIFIED
+- VERIFIED means measured and found correct: no code changed.
+- B8-409 fixed the profiling half of Knut's rule (`.control-strip.json` added
+  to `workflow.chart_slot.PROFILING_CHART_SUFFIXES`) but its own on-screen
+  driver only ever set Run type = **Verification**, and reached for
+  `_snapshot_verification_chart()` and `core.run_delete` directly. So the half
+  that had actually been BROKEN was the half nothing photographed, and the
+  three doors were never pressed.
+- driven here on a real project, on a PROFILING run, through the doors:
+  a declaration written beside the run's chart; a measurement brought in
+  through the Measure tab's **IMPORT** button; the **Restore Used Chart**
+  button pressed with its modal answered by clicking its own button; the
+  **Delete** button pressed the same way. All four pass:
+
+  | | |
+  |---|---|
+  | the run's chart slot counts the declaration as a chart file | PASS |
+  | the import's `chart/` snapshot carries it, byte-identical | PASS |
+  | Restore Used Chart puts the chart's OWN declaration back over a later one | PASS |
+  | Delete takes the run's declarations with it | PASS |
+
+- and B8-409's two profiling guards are load-bearing, proved by reverting its
+  own fix: `.control-strip.json` removed from `PROFILING_CHART_SUFFIXES` ->
+  `test_a_profiling_run_stores_the_declaration_beside_its_chart` fails with
+  *"the profiling run stored its chart without the declaration"* and
+  `test_restoring_a_profiling_chart_brings_its_declaration_with_it` with
+  *"the profiling chart came back under the newer chart's declaration"*.
+- **AND THREE COMMENTS THAT JUSTIFIED BETA 22'S SPEED WORK CARRIED WRONG
+  NUMBERS**, all three now re-measured in place: the `_CACHE` docstring's
+  0.43 s (really 2.73 s — see B8-421); `TabChart`'s "about 16 ms each … about
+  three seconds" (the real clock is in the comment now); and
+  `control_strip.select_strip`'s claim that *"21 of every 23 ms is this
+  function"*, which would have left almost nothing behind. Swapping only that
+  function, over all 177 built-in charts: the loop it replaced **5.15 s**, the
+  vectorised version **2.73 s** — a little under half, not nine tenths. The
+  vectorisation itself is CORRECT: the old loop and the new one pick the
+  identical strip on every one of the 177 charts, checked one by one.
+- evidence: driven on screen, not guarded by a new test of its own, so it
+  names the command instead: `QT_QPA_PLATFORM=offscreen pytest
+  tests/test_a_declaration_travels_with_its_chart.py
+  tests/test_a_verification_chart_declares_its_control_strip.py -q` and the
+  driver `scripts/adv27b_the_declaration_on_a_profiling_chart.py`. Back:
+  **4 PASS** on the four doors in the table above, and 97 passed across the
+  five affected test files.
+- proof: `~/Desktop/ChromIQ-beta23-proof/round-27b-chart/profiling-declaration.md`,
+  `shots-strip/`, `mutations.txt`.

@@ -155,11 +155,29 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
 
     def __init__(self, rows: "list[PresetRow]",
                  overrides: "dict | None" = None,
-                 parent: "QWidget | None" = None) -> None:
+                 parent: "QWidget | None" = None,
+                 select: "str | None" = None) -> None:
+        """*select* is the label of the preset to open on.
+
+        **A LIST OF 177 IS NOT AN ANSWER TO "CAN THIS ONE BE VERIFIED?"**
+        Measured on screen (round 27b, B8-423): the window opened with nothing
+        selected, the detail pane reading "Select a preset on the left", and
+        the preset the user had chosen in the pulldown one row among 177 in
+        nine instrument groups, with no search field to find it by name. The
+        question this window is the door to is asked about a particular chart,
+        and the caller knows which one, so it says.
+
+        Nothing is filtered and nothing is hidden by this: the whole list is
+        still there and the reader can click any of it. Only the starting point
+        changes, and it changes to the row they came in asking about.
+        """
         super().__init__(parent)
         self.setWindowTitle(tr("Which presets can be verified"))
         self._rows = list(rows)
         self._overrides = overrides
+        #: consumed by the FIRST `_fill_tree`; after that the user's own
+        #: selection is what is kept across a refresh.
+        self._open_on = select or None
         self._build()
         self.resize(1040, min(700, self._work_area_cap(700)))
         self._keep_inside_the_work_area()
@@ -331,6 +349,8 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         if cur is not None:
             row = cur.data(0, Qt.ItemDataRole.UserRole)
             keep_label = row.label if isinstance(row, PresetRow) else None
+        if keep_label is None and self._open_on is not None:
+            keep_label, self._open_on = self._open_on, None
         self._tree.clear()
         bold = self._tree.font()
         bold.setBold(True)
@@ -354,6 +374,12 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
             head.setExpanded(True)
         if select_me is not None:
             self._tree.setCurrentItem(select_me)
+            # …AND SHOW IT. `setCurrentItem` does not scroll on a tree that has
+            # just been filled, and a selection below the fold is a selection
+            # nobody can see: the preset the caller opened on sat 140 rows down.
+            from PyQt6.QtWidgets import QAbstractItemView
+            self._tree.scrollToItem(
+                select_me, QAbstractItemView.ScrollHint.PositionAtCenter)
         else:
             self._show_detail(None)
 
@@ -429,19 +455,28 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
             facts.append(count_phrase(row.pages, tr("1 page"), tr("{n} pages")))
         if facts:
             self._add("   ·   ".join(facts), info=True)
+        a = row.assessment
         if row.starred:
             self._add(tr("★  Made for verification."))
-        elif row.chart is not None and not row.pages:
+        elif row.chart is not None and not row.pages and a.checked:
             # A USER PRESET'S PAGE COUNT IS NOT KNOWABLE FROM ITS PATCH SET.
             # How many sheets a set lays out depends on the instrument, the
             # paper and the patch width, so the star is withheld and this says
             # why rather than leaving a reader to wonder.
+            #
+            # **…BUT NOT WHEN THE PATCH SET COULD NOT BE READ AT ALL**
+            # (`a.checked` — round 27b, B8-424). Photographed on the demo pack's
+            # "Verify demo 13, the patch set cannot be read": the pane led with
+            # "ChromIQ cannot tell how many pages this preset lays out until
+            # its chart is generated", which sends a reader off to generate a
+            # chart, and only underneath it said the real thing — that the file
+            # beside the preset is not a chart. The page count is not why that
+            # preset is unstarred and saying so first buries the reason that is.
             self._add(tr(
                 "ChromIQ cannot tell how many pages this preset lays out "
                 "until its chart is generated, so it is not marked as made "
                 "for verification."), info=True)
 
-        a = row.assessment
         if not a.checked:
             self._add(tr("Cannot be checked"), bold=True)
             self._add(_unreadable_line(row))
