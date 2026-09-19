@@ -18609,3 +18609,160 @@ would reach.
   five affected test files.
 - proof: `~/Desktop/ChromIQ-beta23-proof/round-27b-chart/profiling-declaration.md`,
   `shots-strip/`, `mutations.txt`.
+
+### B8-427 · FIXED · Build Profile emptied the profile it was replacing, and archived nothing
+- blocks release: yes
+- status: FIXED
+- found by adversary round 26 (R26-F1), driven on screen. A run holding a
+  finished 203,676-byte profile was asked to build again; **a quarter of a
+  second later the file on disk was 0 bytes**, and it stayed 0 bytes for every
+  sample of the next eight seconds. Quitting the app mid-build left it that
+  way. `Run.built_profile_icc().exists()` then answered True, the rebuild guard
+  counted it as a profile, Check & Refine opened on it, and only
+  `workflow.icc_info.read_icc` refused the file: *"File is too small to be an
+  ICC profile."*
+- cause: `colprof` is handed the run's own basename, so it opens
+  `runs/runN/<stem>.icc` for writing and truncates it on the spot.
+  `_archive_superseded_profile` already existed and already did the right
+  thing, but it hangs off ONE branch: the "Build here anyway" answer to the §6
+  verification warning. `profile_rebuild_guard.assess` returns `needed=False`
+  with the reason "no verification chart" for every run that has a profile and
+  no dated verification, so the ordinary run went straight past it.
+- the control, in the round's own driver run: `Run.reset_chart_artefacts()`,
+  the door a chart re-generation goes through, archived that identical `.icc`
+  into `old/2026-09-19_025811/`. The run folder's "archive, never delete" rule
+  was honoured by the chart door and not by the one door whose whole job is to
+  replace a profile.
+- fix: `TabProfile._archive_the_profile_being_replaced`, called at the last
+  moment before either builder is launched, after every refusal has had its say
+  and after the refinement merge has settled WHICH file is about to be
+  overwritten. The path comes from `self._builder.expected_icc_path(params)`,
+  not from the run: a merge repoints the build at `merged.ti3`/`merged.icc`,
+  and asking the run for "its" profile would archive a different file and leave
+  the one being replaced to be truncated.
+- evidence: test_the_profile_is_archived_before_the_build_starts,
+  test_a_run_with_no_profile_archives_nothing,
+  test_a_zero_byte_profile_is_not_archived
+- mutation: replace the call with `pass` and the first guard goes red saying
+  the profile was still in the run folder when colprof was launched; restore
+  it, green. The guard drives `_on_build` with the builder replaced by a
+  recorder, so what it measures is the state of the disk at the instant the
+  process would have started, not what a helper returns.
+- proof: `~/Desktop/ChromIQ-beta23-proof/round-26/` (`r26c/measured.json` step
+  C1, `r26d/measured.json` step D1, and the photographs named there).
+
+### B8-428 · FIXED · Three sentences in the calibration flow described an app that no longer exists
+- blocks release: no
+- status: FIXED
+- adversary round 26, R26-F2 and R26-F3, all three driven on screen.
+- **Apply Calibration could not find the project's calibration.**
+  `_ac_try_autofill` looked for `cal/calibration.cal`; the name is
+  `cal/<project>-cal.cal` (`Calibration.stem`), which is also what `printcal`
+  writes, and the literal "calibration.cal" occurred exactly once in the whole
+  tree, on that line. So the field filled itself in one situation only, the
+  session that made the calibration, from printcal's own finish handler. Come
+  back the next day and the module that applies a calibration to a profile
+  could not find the calibration. fix: it asks `Calibration.cal_path`, the
+  accessor the Create Chart tab was already using, and falls back to the
+  measurement's own stem for a calibration measured under another name.
+- **The printcal success window sent the user to a checkbox #137 removed**:
+  *"untick Create chart for calibration in the Calibration Chart box"*, a group
+  `TabChart.set_calibration_mode` hides unconditionally, as its own docstring
+  says. fix: it names Run type = Profiling, the control that replaced it. Its
+  em dash went with the rewrite, per the rule for a string we touch.
+- **The Apply Calibration output field promised a filename nothing writes**:
+  `cal_<name>.icc`, and with a profile chosen `cal_<stem>.icc`, where the app
+  writes `Run.calibrated_icc` = `calibrated.icc`. #127 removed the `cal_`
+  prefix from the whole tree. fix: the placeholder says what is written, and no
+  longer follows the input field, because the answer no longer depends on it.
+- evidence: test_apply_calibration_finds_the_project_s_own_calibration,
+  test_a_calibration_measured_under_another_name_is_still_found,
+  test_the_output_placeholder_names_the_file_the_app_writes,
+  test_the_success_window_does_not_send_anyone_to_a_retired_checkbox
+- mutation: all three land, one at a time, with `__pycache__` cleared around
+  each. **And the first version of the first guard passed under its own
+  mutation**: it wrote `cal/<stem>.ti3` beside `cal/<stem>.cal`, the tidy case,
+  and the fix's own fallback answered it. The measurement is named something
+  else now, and the fallback has a guard of its own.
+- proof: `~/Desktop/ChromIQ-beta23-proof/round-26/r26d/`.
+
+### B8-429 · FIXED · The DEFAULT macOS print route converted a four-ink chart on the way to the driver, silently
+- blocks release: yes
+- status: FIXED
+- adversary round 26, R26-F8, measured on a real `targen -d4` chart.
+  `use_native_print_dialog` defaults to True on macOS, so this is the path a
+  chart takes unless somebody changes a setting, and `print_frames` built every
+  page through `Image.convert("RGB")` into an `NSDeviceRGBColorSpace` bitmap,
+  under a docstring promising that pixel values reach the driver unchanged.
+  CMYK `75,0,128,255` arrived as RGB `0,0,0`; `255,255,0,136` as `0,0,119`.
+  The printed sheet then disagrees with the `.ti2`, and the `.ti3` measured
+  from it is paired with values that were never printed.
+- an RGB chart is unaffected, because `convert` is then a no-op, and a six-ink
+  chart already failed loudly, because PIL cannot open it at all. **Four inks
+  was the one case that went through quietly.**
+- fix: the route asks before it converts and raises `ChartIsNotRGB`, and the
+  Print tab gives that its own window instead of the generic "could not open
+  the macOS print dialog": what the chart's pixels are, what would happen to
+  them, and the Preferences control to turn off, by the label that control
+  really carries. Nothing is sent, so the print record does not say a print
+  happened.
+- **for Knut**: whether the native route should learn
+  `NSDeviceCMYKColorSpace` is a ruling, not a repair. Doing it would need a way
+  to prove on paper that macOS left the values alone, and that cannot be proved
+  without a printer and an instrument.
+- evidence: test_a_four_ink_chart_is_refused_rather_than_converted,
+  test_an_rgb_chart_still_gets_past_the_check
+- mutation: remove the mode check and the first guard goes red with
+  *"Reached: reached the bitmap"*. **The first version of this guard opened the
+  macOS print dialog under that mutation** and hung for ten minutes: AppKit is
+  replaced in both tests now, so the same mutation answers in a third of a
+  second and nothing reaches the window server.
+- proof: `~/Desktop/ChromIQ-beta23-proof/round-26/` (R26-F8).
+
+### B8-435 · OPEN · Create Calibration File has no guard: aimed at a profiling measurement it writes a .cal into the profiling run and calls it ready
+- blocks release: no
+- status: OPEN
+- adversary round 26, R26-F4, driven on screen: pointed at a profiling `.ti3`
+  the tool writes `runs/run1/<project>.cal` and says *"Your calibration file is
+  ready."*
+- **reported, not fixed: it contradicts `docs/design/tool_availability.md` §5**
+  (a DRAFT), which is Knut's to rule on. The rule this project keeps is that a
+  fault against a specification is reported and approved, not corrected on the
+  spot.
+- evidence: none yet — nothing is built, so there is nothing to guard.
+- proof: `~/Desktop/ChromIQ-beta23-proof/round-26/` (R26-F4).
+
+### B8-436 · OPEN · Run type = Calibration: the layout estimate promises 525 patches at 8.33 mm and the build makes 63 at 24.99 mm
+- blocks release: no
+- status: OPEN
+- adversary round 26, R26-F5, driven on screen. The control is in the same
+  driver run: Profiling with Total Patch Count 58 predicts 63 at 24.99 x 25.55
+  mm exactly, so the estimator is right when it is asked the right question.
+- evidence: none yet — nothing is built, so there is nothing to guard.
+- proof: `~/Desktop/ChromIQ-beta23-proof/round-26/` (R26-F5).
+
+### B8-437 · OPEN · Run type = Calibration declares printtarg -r and the chart comes out randomised
+- blocks release: no
+- status: OPEN
+- adversary round 26, R26-F6: the engine is only synced on the off-to-on
+  transition of the run type and the printtarg group is hidden, so the flag the
+  panel declares and the chart on disk disagree.
+- **reported, not fixed: it contradicts `docs/design/calibration_run_type.md`
+  §4.2 and §5**, which is Knut's to rule on.
+- evidence: none yet — nothing is built, so there is nothing to guard.
+- proof: `~/Desktop/ChromIQ-beta23-proof/round-26/` (R26-F6).
+
+### B8-438 · OPEN · The wrong-paper guard is skipped whenever the PPD lookup fails, and on a real Epson PPD it fails for US Letter
+- blocks release: no
+- status: OPEN
+- adversary round 26, R26-F7: `_compute_geometry` returns `(None, None, None)`
+  when the PPD lookup fails, and the caller then skips the wrong-paper check
+  entirely rather than saying it could not judge. On the real `EPSON_ET_8550`
+  PPD the lookup fails for **US Letter** while A4 and A3 resolve, so A3 warns
+  and Letter is not judged at all. Separately, the 8 % tolerance lets
+  A4 and Letter through even when the size IS known.
+- a guard that fails open is the shape this register keeps meeting; the fix is
+  a sentence that says the size could not be checked, which is new user-facing
+  text and so goes to §M-PROPOSED first.
+- evidence: none yet — nothing is built, so there is nothing to guard.
+- proof: `~/Desktop/ChromIQ-beta23-proof/round-26/` (R26-F7, `r26h/`).
