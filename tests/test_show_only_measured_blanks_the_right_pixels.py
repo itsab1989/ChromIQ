@@ -773,3 +773,207 @@ def test_the_blank_stops_at_the_read_patch_and_not_inside_it(qapp, tmp_path,
     assert kept >= 0.995 * whole, (
         f"the blank ate into the read column beside it: {kept} of its "
         f"{whole} pixels left ({100.0 * kept / whole:.1f} %)")
+
+
+# ---------------------------------------------------------------------------
+# AND AT THE SCALE A REAL WINDOW USES. Round 28: every test above this line
+# paints a 700x900 page into an 820x980 widget, a scale of about 1.1, where an
+# IMAGE pixel and a WIDGET pixel are nearly the same length -- and the blank
+# mixes the two spaces. An A4 sheet at 300 dpi in a 700-pixel window is 0.26,
+# and there the mix-up threw away read patches the blank was supposed to leave
+# alone: 86.9 % of a read column's ink kept, against 100.0 % once the two rects
+# are compared in one space (B8-439). The fixture that could not see it is the
+# fixture's SCALE, one layer under the three the docstring at the top of this
+# file already records.
+# ---------------------------------------------------------------------------
+def _rgb_array(img):
+    """The canvas as an (h, w, 3) uint8 array.
+
+    `_count` walks two and a half million pixels in Python and costs seconds a
+    render; the cases below want four renders each.
+    """
+    import numpy as np
+    from PyQt6.QtGui import QImage
+    im = img.convertToFormat(QImage.Format.Format_RGB888)
+    ptr = im.constBits()
+    ptr.setsize(im.sizeInBytes())
+    a = np.frombuffer(ptr, dtype=np.uint8).reshape(im.height(), im.bytesPerLine())
+    return a[:, :im.width() * 3].reshape(im.height(), im.width(), 3)
+
+
+def _n_read_ink(img):
+    """STRONG blue, the read patches' own colour (the predicate of `_read_ink`)."""
+    a = _rgb_array(img).astype(int)
+    r, g, b = a[..., 0], a[..., 1], a[..., 2]
+    return int(((b > 180) & (r < 90) & (g < 90)).sum())
+
+
+def _n_coloured(img):
+    """Magenta in any strength (the predicate of `_coloured`)."""
+    a = _rgb_array(img).astype(int)
+    r, g, b = a[..., 0], a[..., 1], a[..., 2]
+    return int(((g < r - 40) & (g < b - 40)).sum())
+
+
+def _sheet_page_two_colours(tmp_path, boxes, name, ring, read):
+    """The A4 sheet again, with the READ patches in their own colour.
+
+    The ring is painted under the ink when there is one, exactly as
+    `_ink_hex_page` does it for the small fixture, so a leak can be told from a
+    ring and from paper.
+    """
+    from PIL import ImageDraw
+    from workflow.layout_engine import hexagon
+    path = tmp_path / name
+    im = Image.new("RGB", (A4_W, A4_H), (255, 255, 255))
+    dr = ImageDraw.Draw(im)
+    for i, b in enumerate(boxes):
+        pts = hexagon.vertices(b.x(), b.y(), b.width(), b.height())
+        if ring:
+            dr.polygon([(float(x), float(y)) for x, y in pts], fill=RING_COLOUR)
+            pts = hexagon.inset(pts, ring / 2.0)
+        dr.polygon([(float(x), float(y)) for x, y in pts],
+                   fill=READ_COLOUR if i in read else PATCH)
+    im.save(path)
+    return path
+
+
+def _sheet_canvas(qapp, page, boxes, read_map, ring, w, h, blanking):
+    from ui.tiff_preview import TiffPreview
+    p = TiffPreview()
+    try:
+        p.resize(w, h)
+        p.load_tiff([page])
+        qapp.processEvents()
+        p.set_hex_zigzag(True, flat_top=False)
+        p.set_hex_ring_px(float(ring))
+        p.set_page_patch_boxes({0: list(boxes)})
+        p.set_stripe_rects(_sheet_strip_rects(boxes))
+        p.set_stripe_read_map(read_map)
+        p.set_show_only_measured(blanking)
+        p.show()
+        qapp.processEvents()
+        p._update_display()
+        qapp.processEvents()
+        pm = p._img_label.pixmap()
+        return pm.toImage() if pm is not None else None
+    finally:
+        p.close()
+
+
+@pytest.mark.parametrize("w,h", [(700, 980), (1200, 980)])
+@pytest.mark.parametrize("ring", [0.0, SHEET_RING])
+def test_a_read_column_survives_the_blank_at_a_real_preview_scale(
+        qapp, tmp_path, ring, w, h):
+    """B8-439. Alternate strips read on an A4 sheet at the scale a window
+    really draws one: the read columns must come through, and no unread
+    patch's ink may survive beside them.
+
+    **THE TWO RECTS WERE IN DIFFERENT SPACES.** The blank subtracts a read
+    neighbour's hexagon from the strip it is blanking, and skips the read boxes
+    that are nowhere near it. `_reg` is WIDGET coordinates and the read boxes
+    are IMAGE pixels, and the skip test compared the two directly. At this
+    file's other fixtures' scale (about 1.1) the two numbers are close enough
+    that nothing is skipped; at 0.26 the image coordinate is four times the
+    widget one and read patches that were touching the strip were thrown away.
+    The blank then painted over them, which is B8-306 exactly (*"the colorful
+    patches go down in a straight line although they are staggered"*).
+
+    Measured here, the share of a read column's ink the blank leaves alone,
+    at four window sizes and both rings:
+
+    | | released beta 24 | with the rects in one space |
+    |---|---|---|
+    | ring 0     | 89.4 % | **99.2 %** |
+    | ring 1.5mm | 86.9 % | **100.0 %** |
+
+    The LEAK half of the assertion is the other fix: the hole cut for a read
+    neighbour is grown outward to keep its soft edge off the read patch's ink,
+    and the room that growth spends is the ring, so on a honeycomb whose
+    hexagons touch it has to be clamped. Measured at ring 0 with the skip test
+    already repaired: 7,293 to 7,845 device pixels of an UNREAD patch's ink
+    left beside the read columns unclamped, 115 to 149 clamped.
+
+    MUTATIONS, both proven to land: compare `_rb` instead of `_rbw` in the skip
+    test (the keep assertion goes red at 86.9 %); take the `_ring / 2` clamp off
+    `_HOLE_SLACK` (the leak assertion goes red at 7,293).
+    """
+    boxes = _sheet_boxes()
+    read_ix = {i for i in range(len(boxes))
+               if (i // SHEET_ROWS) % 2 == 0}
+    page = _sheet_page_two_colours(tmp_path, boxes, f"a4-read-{ring}.tif",
+                                   ring, read_ix)
+    read_map = {i: (i % 2 == 0) for i in range(SHEET_COLS)}
+    off = _sheet_canvas(qapp, page, boxes, read_map, ring, w, h, False)
+    on = _sheet_canvas(qapp, page, boxes, read_map, ring, w, h, True)
+    assert off is not None and on is not None
+    whole, kept = _n_read_ink(off), _n_read_ink(on)
+    assert whole > 10000, "the fixture drew no read columns to measure"
+    # THE BAR IS 97 PER CENT BECAUSE A RING-0 HONEYCOMB COSTS TWO POINTS OF
+    # ITS OWN, and it costs them at the ratio the SUITE runs at. Measured both
+    # ways on the same code: ring 1.5 mm keeps 100.0 % at either ratio; ring 0
+    # keeps 99.2 % on the 2x screen the app is used on and 98.2 % under
+    # `offscreen`, where a device pixel is a whole widget pixel and the
+    # antialiased hole rounds harder. The fault this guards against is 86.9 to
+    # 89.4 %, so the bar has eight points of daylight either side.
+    assert kept >= 0.97 * whole, (
+        f"the blank painted over the read columns: {kept} of their {whole} "
+        f"pixels left ({100.0 * kept / whole:.1f} %) at {w}x{h}, ring {ring}")
+    leak = _n_coloured(on)
+    assert leak <= 400, (
+        f"{leak} device pixels of an UNREAD patch's ink survived beside the "
+        f"read columns at {w}x{h}, ring {ring}")
+
+
+@pytest.mark.parametrize("flat_top", [False, True])
+def test_a_blank_never_leaks_an_unread_patch_beside_a_read_one(qapp, tmp_path,
+                                                               flat_top):
+    """The hole cut for a read neighbour, on a honeycomb with NO ring.
+
+    The hole is the read patch's printed ink grown outward, because a hole
+    whose edge is soft leaves the blank half-opaque on the read patch's own
+    outline and that reads as a white bite out of the hexagon (Basti, on the
+    first version of the beta 24 fix: *"the outline of the hexes looked better
+    but it still cut away too much of them"*). The room that growth spends is
+    the RING, and a honeycomb whose hexagons tessellate has none: there the
+    growth comes straight out of the unread neighbour's ink and is left
+    showing, which is the saw-tooth of B8-326 again.
+
+    The code comment beside `_HOLE_SLACK` has cited this test by name since
+    beta 24 and the test did not exist (B8-440). Measured when it was written,
+    device pixels of an UNREAD patch's ink surviving beside a read column at
+    ring 0, 820x980, both orientations:
+
+    | | pointy | flat-top |
+    |---|---|---|
+    | released beta 24 | 16,451 | 14,000 |
+    | clamped to the ring | **3,783** | **2,926** |
+    | beta 23, before the mask | 4,077 | 4,098 |
+
+    The residue is not this change's: it is what a ring-0 honeycomb leaked
+    before the mask as well, and it is recorded as B8-441.
+
+    MUTATION: take the `_ring / 2` clamp off `_HOLE_SLACK` and this goes red
+    naming the count, on both orientations.
+    """
+    boxes = _hex_boxes(flat_top)
+    read_ix = {i for i in range(len(boxes)) if (i // ROWS) % 2 == 0}
+    page = _ink_hex_page(tmp_path, boxes, flat_top,
+                         f"leak0-{flat_top}.tif", ring=0, read=read_ix)
+    read_map = {i: (i % 2 == 0) for i in range(COLS)}
+    img = _hex_canvas(qapp, tmp_path, boxes, page, flat_top, read_map, ring=0)
+    assert img is not None
+    read = _n_read_ink(img)
+    assert read > 0, "the read columns were wiped out entirely"
+    leak = _n_coloured(img)
+    # A SHARE, NOT A COUNT. A device pixel is a quarter of the area at the 2x
+    # ratio the app runs at that it is under `offscreen`, so a count that
+    # separates the two states on one screen cannot on the other: clamped
+    # 3,783 / 709 (pointy, 2x / 1x), unclamped 16,451 / 3,640. As a share of
+    # the read ink in the same picture those are 1.1 % / 0.8 % against
+    # 4.6 % / 4.1 %, and one bar holds at both.
+    assert leak <= 0.02 * read, (
+        f"{leak} device pixels of an UNREAD patch's ink survived beside the "
+        f"read columns on a {'flat-top' if flat_top else 'pointy'} honeycomb "
+        f"with no spacer ring, which is {100.0 * leak / read:.1f} % of the "
+        f"read ink beside them")

@@ -18766,3 +18766,101 @@ would reach.
   text and so goes to §M-PROPOSED first.
 - evidence: none yet — nothing is built, so there is nothing to guard.
 - proof: `~/Desktop/ChromIQ-beta23-proof/round-26/` (R26-F7, `r26h/`).
+
+### B8-439 · FIXED · The blank asked whether a read patch was near it in two different coordinate spaces, and at a real preview scale it threw them all away
+- blocks release: yes
+- status: FIXED
+- adversary round 28, R28-F1. The honeycomb blank subtracts a read neighbour's
+  hexagon from the strip it is covering, and skips the read boxes that are
+  nowhere near that strip. `_reg` is built through `s`/`sy` and is WIDGET
+  coordinates; `_read_boxes` holds the recorded patch boxes, which are IMAGE
+  pixels. The skip test compared the two directly. At the guard fixture's scale
+  (a 700 px page in an 820 px window, 1.17) the two numbers are close enough
+  that nothing is skipped and every test passed; at the scale a window really
+  uses (an A4 sheet at 300 dpi in a 700 px window is 0.26) the image coordinate
+  is four times the widget one, and on the rotated CR30 honeycomb this round
+  built, **1,219 of 1,288 read boxes were skipped**. The blank then painted
+  over them, which is B8-306 exactly.
+- measured on the real charts' own geometry (three CR30 A4 honeycombs built by
+  the app in this round, their own sidecar boxes, strip rects and ring, in a
+  real window at 2x), the share of a read column's ink the blank leaves alone:
+
+  | chart | beta 23 | beta 24 | round 28 |
+  |---|---|---|---|
+  | honeycomb, no spacer | 91.7 / 91.0 % | 88.9 / 88.1 % | **99.3 / 99.0 %** |
+  | honeycomb, 1.5 mm spacers + edge | 89.1 / 88.0 % | 85.9 / 85.2 % | **100.0 %** |
+  | rotated, 1.5 mm spacers | 88.7 / 87.9 % | 85.4 / 84.2 % | **100.0 %** |
+
+  (1500x1020 and 1180x940). So it is INHERITED, from 673eaaf8, and 205ec966
+  made it about three points worse while its own guard reported 98.3 % to
+  100.0 % on the fixture that cannot see it.
+- what a user sees is smaller than those numbers, and this is the honest half:
+  the split overlay is painted on top of the blank, so most of the over-painted
+  ink is put back. What is not put back is the read hexagon's own half of the
+  printed spacer ring, which the design says it keeps. On screen, ink counted
+  inside the patch area of the photographs, the fix moves it by +1.2, +0.3 and
+  -0.2 points on the three charts.
+- fix: convert the read box to widget coordinates before the test.
+- cost: the holes that were being skipped now really are cut. One repaint of a
+  3,312-patch A3 honeycomb at 1500x1020, median of nine: 171 ms (beta 23),
+  179 ms (beta 24), **242 ms**. The file's own comments record 282 ms as this
+  shape's accepted cost.
+- evidence: test_a_read_column_survives_the_blank_at_a_real_preview_scale
+- proof: `~/Desktop/ChromIQ-beta24-proof/round-28/` (FINDINGS.md, R28-F1).
+
+### B8-440 · FIXED · The hole cut for a read patch grew by two logical pixels with nothing to spend them on, and leaked the unread neighbour's ink on a honeycomb with no spacer
+- blocks release: no
+- status: FIXED
+- adversary round 28, R28-F2. `_HOLE_SLACK = -2.0 / _dev` is two LOGICAL
+  pixels, four device pixels at 2x, not the "one device pixel" the comment
+  beside it claimed at any ratio. The growth exists to move the hole's soft
+  edge off the read patch's ink and into the ring, and a honeycomb whose
+  hexagons tessellate has no ring: there it comes out of the unread
+  neighbour's ink and is left showing, which is the saw-tooth of B8-326.
+- measured, device pixels of an UNREAD patch's ink surviving beside a read
+  column at ring 0, alternate strips read: **16,451** pointy and **14,000**
+  flat-top at 2x (beta 23: 4,077 and 4,098); on an A4 sheet at 0.26, with the
+  skip test of B8-439 already repaired, **7,293 to 7,845** at four window
+  sizes. Clamped to half the ring: 3,783 / 2,926 and 115 to 149, with ring 9
+  and ring 1.5 mm unchanged at 0 leaked and 100.0 % of the read column kept.
+- the comment also cited `test_a_blank_never_leaks_an_unread_patch_beside_a_read_one`
+  as measuring the ring=0 case, and no test of that name existed. It does now.
+- evidence: test_a_blank_never_leaks_an_unread_patch_beside_a_read_one,
+  test_a_read_column_survives_the_blank_at_a_real_preview_scale
+- proof: `~/Desktop/ChromIQ-beta24-proof/round-28/` (FINDINGS.md, R28-F2).
+
+### B8-441 · OPEN · A honeycomb with no spacer still leaks a hairline of an unread patch's ink beside a read column
+- blocks release: no
+- status: OPEN
+- adversary round 28, R28-F3, and it is not this change set's: with the hole's
+  growth clamped, 3,783 (pointy) and 2,926 (flat-top) device pixels of unread
+  ink survive beside a read column at ring 0, against beta 23's 4,077 and
+  4,098 for the same picture. On an A4 sheet at a real preview scale it is 115
+  to 149 pixels, and on the real no-spacer CR30 honeycomb this round built,
+  866 and 702 pixels (0.09 % of the read ink in the same picture). It is the
+  antialiased edge of the hole against the two inks that touch there, and the
+  guard's bar (2 % of the read ink beside it) is set above it deliberately
+  rather than pretending it is zero.
+- a fix would have to give the hole a hard edge and put the white bite back, or
+  cut the hole from the unread neighbour's ink rather than the read patch's;
+  neither is a five-minute change and neither is worth making blind.
+- evidence: test_a_blank_never_leaks_an_unread_patch_beside_a_read_one (its bar
+  records the residue rather than hiding it)
+- proof: `~/Desktop/ChromIQ-beta24-proof/round-28/` (FINDINGS.md, R28-F3).
+
+### B8-442 · OPEN · `_under_blank` answers with the region, and the honeycomb's blank is no longer painted from it
+- blocks release: no
+- status: OPEN
+- adversary round 28, R28-F4. Since 205ec966 the honeycomb's blank is an alpha
+  mask resolved on the device grid with each hole grown, while `_blank_regions`
+  still records `_reg`, so the recorded answer is wrong by up to a device pixel
+  around every read patch and by the antialiasing.
+- nothing reads it today, and that was measured rather than assumed: recording
+  an EMPTY region instead of `_reg` changed **0 pixels** at 820x980, 900x1000
+  and 1200x980 on a honeycomb with splits on its read strips, because the
+  hexagonal arm of the overlay loop leaves before the sliver code that asks.
+- so it is a trap, not a fault: the day a honeycomb is given a boundary sliver,
+  the ground it mixes into has to come from what the mask painted.
+- evidence: test_the_honeycomb_branch_still_leaves_before_the_sliver (the
+  existing guard that keeps the arm unreachable)
+- proof: `~/Desktop/ChromIQ-beta24-proof/round-28/` (FINDINGS.md, R28-F4).

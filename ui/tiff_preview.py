@@ -3239,12 +3239,26 @@ class TiffPreview(QWidget):
                     # fix, *"the outline of the hexes looked better but it
                     # still cut away too much of them"*. Growing the hole moves
                     # that soft row off the ink and into the ring, where a
-                    # half-covered pixel is paper against paper. One device
-                    # pixel, not more: the room it spends is the ring, and a
-                    # honeycomb with NO ring has none, which is what
+                    # half-covered pixel is paper against paper.
+                    #
+                    # **TWO LOGICAL PIXELS, AND CLAMPED TO THE ROOM THERE IS.**
+                    # `_dev` is logical pixels per image pixel, so `2.0 / _dev`
+                    # image pixels is two LOGICAL pixels, which is four device
+                    # pixels on the 2x screen the app is used on and two under
+                    # `offscreen`; beta 24 shipped this saying "one device
+                    # pixel", which it never was at any ratio. And the room it
+                    # spends is the RING, which a honeycomb whose hexagons
+                    # tessellate does not have: unclamped it came straight out
+                    # of the unread neighbour's ink and was left showing, 16,451
+                    # device pixels of it on a pointy honeycomb and 14,000 on a
+                    # flat-top one against beta 23's 4,077 and 4,098, and 7,293
+                    # on an A4 sheet at 0.26 (B8-440). Half the ring is where
+                    # the fill and the hole meet, so it is also the most the
+                    # hole may take.
                     # `test_a_blank_never_leaks_an_unread_patch_beside_a_read_one`
-                    # measures at ring=0.
-                    _HOLE_SLACK = -2.0 / _dev
+                    # is the guard, at ring=0, both orientations -- the test
+                    # this comment claimed for a day before it existed.
+                    _HOLE_SLACK = -min(2.0 / _dev, max(0.0, _ring / 2.0))
 
                     # **A REGION, NOT A CHAIN OF PATH SUBTRACTIONS.**
                     # `QPainterPath.subtracted` is floating-point boolean
@@ -3310,11 +3324,31 @@ class TiffPreview(QWidget):
                     # colorful patches go down in a straight line although they
                     # are staggered"*). Only the read patches that actually
                     # touch this strip are subtracted.
-                    _rb_bounds = _reg.boundingRect()
+                    # **IN THE SAME SPACE, WHICH IT WAS NOT.** `_reg` is
+                    # built from `_pts`, which maps through `s`/`sy` and is
+                    # therefore WIDGET coordinates; `_read_boxes` holds the
+                    # recorded patch boxes, which are IMAGE pixels. Comparing
+                    # the two was a coincidence that held at the guard
+                    # fixture's scale (a 700 px page in an 820 px window, 1.17,
+                    # where the two numbers are nearly the same) and failed at
+                    # the scale a real window uses: an A4 sheet at 300 dpi in a
+                    # 700 px window is 0.26, so every read box's image
+                    # coordinate is about four times its widget one and the
+                    # test threw away read patches that were touching the
+                    # strip. The blank then painted over them, which is B8-306
+                    # exactly (*"the colorful patches go down in a straight
+                    # line although they are staggered"*). Measured on the A4
+                    # sheet fixture below, the share of a read column's ink the
+                    # blank leaves alone: **86.9 %** against **100.0 %** with
+                    # the two rects in one space, at four window sizes and both
+                    # rings (B8-439).
+                    _rb_bounds = QRectF(_reg.boundingRect())
                     for _rb in _read_boxes:
-                        _grow = max(_rb.width(), _rb.height())
+                        _rbw = QRectF(_rb.x() * s + ox, _rb.y() * sy + oy,
+                                      _rb.width() * s, _rb.height() * sy)
+                        _grow = max(_rbw.width(), _rbw.height())
                         if not _rb_bounds.intersects(
-                                _rb.adjusted(-_grow, -_grow, _grow, _grow)):
+                                _rbw.adjusted(-_grow, -_grow, _grow, _grow)):
                             continue
                         _reg = _reg.subtracted(
                             QRegion(_pts(_rb, _ring + _HOLE_SLACK,
@@ -3440,9 +3474,11 @@ class TiffPreview(QWidget):
                     # `QPainterPath.subtracted` collapses (see the note above
                     # this loop, and the three unpainted patches it cost). What
                     # changes is only HOW the same two shapes are painted: into
-                    # an alpha mask at DEVICE resolution, the fill antialiased
-                    # and the read neighbours cleared antialiased, then blitted
-                    # once. Qt then resolves both edges at the device grid
+                    # an alpha mask at DEVICE resolution, the fill HARD-EDGED
+                    # and stroked and the read neighbours cleared antialiased
+                    # (the paragraph below says why each, and this sentence said
+                    # "the fill antialiased" for a day while the code beneath it
+                    # said the opposite), then blitted once. Qt then resolves both edges at the device grid
                     # instead of the widget grid, which is the whole of the
                     # difference.
                     _rbF = QRectF(_reg.boundingRect())
@@ -3495,6 +3531,19 @@ class TiffPreview(QWidget):
                     painter.restore()
                     # what this strip's blank really covers = the region, cut
                     # at the label line where there was one (B8-371)
+                    #
+                    # ...AND SINCE THE MASK, THIS IS NO LONGER WHAT WAS
+                    # PAINTED: the mask resolves both edges on the device grid
+                    # and grows each hole, so `_reg` is wrong by up to a device
+                    # pixel around every read patch. Nothing reads it today --
+                    # measured by recording an EMPTY region here instead, which
+                    # changed **0 pixels** at 820x980, 900x1000 and 1200x980
+                    # with splits on the read strips, because the hexagonal arm
+                    # of the overlay loop leaves before the sliver code that
+                    # asks (`test_the_honeycomb_branch_still_leaves_before_the_
+                    # sliver`). If a honeycomb is ever given a sliver, this has
+                    # to become what the mask painted rather than what the
+                    # region says (B8-442).
                     _blank_regions.append((_reg, _cut))
                 else:
                     # Horizontally cover the column's own patches AND reach the
