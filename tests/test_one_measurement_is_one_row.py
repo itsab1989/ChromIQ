@@ -235,6 +235,13 @@ def test_several_runs_still_each_get_their_own_row(tmp_path, qapp, monkeypatch):
         # was made). Loading a report with the settings it was made with is
         # exactly what Knut asked for; this test is about the ROWS, so it opens
         # the window's history up again first.
+        #
+        # …and since B8-490 that report brings its own MEASUREMENT ticks with
+        # it too, and it was generated while only run1 was loaded, so run2's
+        # row comes back unticked. "New report…" is the control that means
+        # "start from everything loaded", which is the state this is about.
+        dlg._saved_combo.setCurrentIndex(0)
+        qapp.processEvents()
         dlg._all_runs_check.setChecked(True)
         qapp.processEvents()
         rows = dlg._runs_for_document()

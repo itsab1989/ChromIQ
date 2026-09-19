@@ -132,6 +132,14 @@ def test_every_measurement_of_a_run_is_its_own_row(tmp_path, qapp, monkeypatch):
         tmp_path, qapp, monkeypatch)
     dlg = _window_on(s, run.measurement_ti3, qapp)
     try:
+        # **"Show all measurement runs" ON, EXPLICITLY (B8-490).** The window
+        # opens on a saved report, and since Knut's beta-25 ruling a saved
+        # report's own two tick boxes come back with it — a per-measurement
+        # record is about one date, so the box comes up OFF where the
+        # Preferences default used to leave it ON. This test is about how many
+        # rows the run HAS, so it asks for all of them.
+        dlg._all_runs_check.setChecked(True)
+        qapp.processEvents()
         rows = dlg._runs_for_document()
         assert [str(r.get("created")) for r in rows] == created, (
             "a run measured %d times is showing %d row(s): %r"
@@ -155,6 +163,14 @@ def test_the_trend_gets_a_point_for_every_measurement(tmp_path, qapp,
         tmp_path, qapp, monkeypatch)
     dlg = _window_on(s, run.measurement_ti3, qapp)
     try:
+        # **"Show all measurement runs" ON, EXPLICITLY (B8-490).** The window
+        # opens on a saved report, and since Knut's beta-25 ruling a saved
+        # report's own two tick boxes come back with it — a per-measurement
+        # record is about one date, so the box comes up OFF where the
+        # Preferences default used to leave it ON. This test is about how many
+        # rows the run HAS, so it asks for all of them.
+        dlg._all_runs_check.setChecked(True)
+        qapp.processEvents()
         trend = report_trend(dlg._runs_for_report())
         assert [str(p.get("created")) for p in trend] == created, (
             "the trend drew %d point(s) for %d measurements: %r"

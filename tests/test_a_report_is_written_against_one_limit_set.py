@@ -112,6 +112,15 @@ def _dialog(tmp_path, qapp, bind="chromiq_default"):
     dlg = MeasurementReportDialog(s, None, initial_ti3=v.measurement_ti3)
     dlg.show()
     qapp.processEvents()
+    # **FROM "New report…" (B8-490).** Since Knut's beta-25 ruling a window
+    # that opens showing a saved report brings that report's own two tick
+    # boxes with it, and a per-measurement record is about ONE date, so "Show
+    # all measurement runs" comes up OFF where the Preferences default used to
+    # leave it ON. "New report…" is the control that means "start from the
+    # defaults with everything loaded", which is the state these checks are
+    # about, and it repaints, which a tick box deliberately does not.
+    dlg._saved_combo.setCurrentIndex(0)
+    qapp.processEvents()
     return dlg, run, fm
 
 

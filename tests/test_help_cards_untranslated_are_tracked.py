@@ -674,18 +674,30 @@ _BUDGET = {
     # `1db705f1`. Both are long enough to count here, both are translated into
     # German in the same change, so **de stands still at 20** and each of the
     # eleven others rises by exactly 1. COUNTED, not adjusted.
+    # 2026-09-19, Knut's beta-25 report-window ruling (B8-490 / B8-491). THREE
+    # of the round's six new keys are long enough for this detector to see: the
+    # three-button question's body and the two tick-box tooltips, which are
+    # rewordings rather than additions and so cost one key in and one key out
+    # each -- no movement from those two. What moves each non-German budget is
+    # the question's body, plus the two tooltips only insofar as their OLD text
+    # was already an English echo in those eleven and their NEW text still is:
+    # counted rather than reasoned, every non-German budget rises by exactly 3
+    # and German does not move (20, unchanged), because all six are translated
+    # by hand in the same change. RE-MEASURED with this file's own
+    # `_english_echoes` on the catalogues this commit leaves behind, never
+    # adjusted upward.
     "de": 20,
-    "es": 288,
-    "fr": 289,
-    "it": 288,
-    "ja": 288,
-    "nl": 288,
-    "no": 288,
-    "pl": 288,
-    "pt": 288,
-    "ru": 287,
-    "sv": 288,
-    "zh_CN": 287,
+    "es": 291,
+    "fr": 292,
+    "it": 291,
+    "ja": 291,
+    "nl": 291,
+    "no": 291,
+    "pl": 291,
+    "pt": 291,
+    "ru": 290,
+    "sv": 291,
+    "zh_CN": 290,
 }
 
 

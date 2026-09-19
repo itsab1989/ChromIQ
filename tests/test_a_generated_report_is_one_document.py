@@ -93,6 +93,20 @@ def _dialog(s, ti3, qapp):
     dlg = MeasurementReportDialog(s, None, initial_ti3=ti3)
     dlg.show()
     qapp.processEvents()
+    # **KNUT'S BETA-25 QUESTION, ANSWERED "Create New" (B8-491).** Generate
+    # report now asks what to do when a report from "Report shown" is selected
+    # and one of its five settings has moved, and the answer decides whether a
+    # new report is written or the selected one is updated. Every test in this
+    # file was written for the behaviour his "Create New" button keeps, so that
+    # is what these windows answer. The QUESTION itself, and the Update button,
+    # are guarded in `tests/test_generate_report_asks_what_to_do.py`.
+    dlg._questions_asked = []
+
+    def _answer_create_new():
+        dlg._questions_asked.append("asked")
+        return "new"
+
+    dlg._ask_update_or_create_new = _answer_create_new
     return dlg
 
 
@@ -122,6 +136,23 @@ def _pick(dlg, i, qapp):
     qapp.processEvents()
 
 
+def _start_fresh(dlg, qapp):
+    """Choose "New report…", the way a user starts one.
+
+    **NEEDED SINCE KNUT'S BETA-25 RULING (B8-490).** A window opens showing a
+    saved report, and a saved report's own measurements are now what is ticked
+    in the "Included Measurements" list — *"Included measurements added for
+    report is ticked"*. Every report in this fixture is a per-measurement
+    record of ONE date, so a window that opens on one has the other date
+    UNTICKED, and "Show all measurement runs" then has one run to show. That is
+    the ruling working, not a fault; a test about what one press of Generate
+    writes has to start from a state where both dates are in, and "New
+    report…" is the control that means exactly that.
+    """
+    dlg._saved_combo.setCurrentIndex(0)
+    qapp.processEvents()
+
+
 # --------------------------------------------------------------------------
 # B8-383 — one press, one document
 # --------------------------------------------------------------------------
@@ -136,6 +167,7 @@ def test_one_press_of_generate_writes_one_document(tmp_path, qapp):
     s, _fm, run, vs = _messy_project(tmp_path, dates=2)
     dlg = _dialog(s, vs[-1].measurement_ti3, qapp)
     try:
+        _start_fresh(dlg, qapp)
         dlg._all_runs_check.setChecked(True)
         qapp.processEvents()
         before_files = _files(run)
@@ -164,6 +196,7 @@ def test_the_document_records_what_it_was_made_with(tmp_path, qapp):
     s, _fm, run, vs = _messy_project(tmp_path, dates=2)
     dlg = _dialog(s, vs[-1].measurement_ti3, qapp)
     try:
+        _start_fresh(dlg, qapp)
         dlg._all_runs_check.setChecked(True)
         dlg._detail_check.setChecked(True)
         qapp.processEvents()
@@ -490,6 +523,7 @@ def test_every_entry_carries_its_own_settings_in_its_name(tmp_path, qapp):
     s, _fm, _run, vs = _messy_project(tmp_path, dates=2)
     dlg = _dialog(s, vs[-1].measurement_ti3, qapp)
     try:
+        _start_fresh(dlg, qapp)
         dlg._all_runs_check.setChecked(True)
         dlg._detail_check.setChecked(True)
         qapp.processEvents()
@@ -529,6 +563,7 @@ def test_delete_moves_every_file_of_the_document(tmp_path, qapp):
     dlg = _dialog(s, vs[-1].measurement_ti3, qapp)
     dlg._confirm = lambda t, b: True
     try:
+        _start_fresh(dlg, qapp)
         dlg._all_runs_check.setChecked(True)
         qapp.processEvents()
         before = set(_files(run))

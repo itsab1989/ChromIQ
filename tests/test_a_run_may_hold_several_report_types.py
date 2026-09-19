@@ -37,6 +37,12 @@ def _run_with_a_measurement(tmp_path, qapp):
     dlg = MeasurementReportDialog(s, None, initial_ti3=v.measurement_ti3)
     dlg.show()
     qapp.processEvents()
+    # **KNUT'S BETA-25 QUESTION, ANSWERED "Create New" (B8-491).** Generate
+    # report asks what to do when a report from "Report shown" is selected and
+    # one of its five settings has moved, and this file is about a run holding
+    # SEVERAL reports, which is what "Create New" keeps doing. The question is
+    # guarded in `tests/test_generate_report_asks_what_to_do.py`.
+    dlg._ask_update_or_create_new = lambda: "new"
     return dlg, run, v
 
 

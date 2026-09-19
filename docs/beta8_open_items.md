@@ -16657,9 +16657,33 @@ would reach.
   now uses an instrument the build does not force, and the i1 case asserts the
   opposite of what it used to.
 
-### B8-388 · FIXED · Knut's Preferences, Reports defaults, specified 2026-09-18
+### B8-388 · SUPERSEDED · Knut's Preferences, Reports defaults, specified 2026-09-18
 - blocks release: no
-- status: FIXED
+- status: SUPERSEDED
+- superseded by: B8-490
+- **ONE DECISION INSIDE THIS ENTRY WAS OVERRULED, AND IT IS NAMED PRECISELY.**
+  Knut, 2026-09-19, asked whether opening a saved report should restore its two
+  tick boxes as well as its type and its limit set:
+
+  > *"Yes. All settings that belong to a report shall be loaded. Included
+  > measurements added for report is ticked, Report type, Judged against, and
+  > 'Show all measurement runs' and 'Show detailed data for each run'."*
+
+  What that overrules is the bullet below reading *"the two tick boxes used to
+  come back as last set … A window showing no report now opens on the
+  Preferences defaults instead"*, as it was applied to a window that IS showing
+  a report: `_open_on_the_latest_report`'s recorded objection, that imposing
+  them *"would silently narrow every project made before this beta to its
+  newest sheet, with settings nobody chose"*. He has heard that objection, it
+  was put to him as B8-432, and he has decided. B8-490 is the build.
+- **EVERYTHING ELSE THIS ENTRY BUILT STILL STANDS**, and the status above is
+  the register's only word for "his ruling replaced part of this". Preferences
+  ▸ Reports ▸ Measurement Report Defaults, the three settings keys, the
+  automatic record's own document block, "Save measurement report" on the
+  Measure tab, "New report…" as the first row of the pulldown, and the
+  correction in §13.6 are all untouched. What changed is their REACH: the
+  Preferences defaults are now what a NEW report starts from and nothing else,
+  which is what P.9 always said them to be.
 - Arrived after beta 22's work was already under way, in answer to the
   measurement in §13.5. **Nothing of it is built.** Recorded verbatim so that
   the next session starts from his words and not from a summary:
@@ -16756,7 +16780,7 @@ would reach.
     measurement where it used to open showing the whole history. That is his
     sentence exactly (*"'Show all measurement runs' OFF (since it is only one
     date)"*), and it is a visible change of what the window does at open.
-- status: FIXED
+- status: SUPERSEDED
 - evidence: test_the_frame_is_named_measurement_report_defaults,
   test_the_three_defaults_are_on_screen_and_default_on,
   test_there_is_no_second_judged_against_selector,
@@ -17968,9 +17992,18 @@ would reach.
   this chart can contain"*); restored, 6 passed, and B8-405's own 21 guards
   pass either way.
 
-### B8-408 · FIXED · The demo package ships chart presets built to fail one verification metric each, because no built-in preset can fail any
+### B8-408 · SUPERSEDED · The demo package ships chart presets built to fail one verification metric each, because no built-in preset can fail any
 - blocks release: no
-- status: FIXED
+- status: SUPERSEDED
+- superseded by: B8-480
+- **THE FOURTEEN REASON-CODE PRESETS AND THEIR GUARD FILE ARE GONE, AND
+  NOTHING THEY PROVED IS.** Knut asked on the same day for the pack to be
+  rebuilt around REQUIREMENTS rather than codes, with a preset each side of
+  every line, so `tests/test_the_demo_presets_fail_one_metric_each.py` and
+  the `DEMOS` table it read were replaced rather than extended. B8-480 is
+  the pack that stands today; the reasoning below is kept because it is
+  where the count of fourteen codes and the four unreachable ones were
+  worked out, and both survive into the new pack unchanged.
 - Knut, 2026-09-19: *"the demo package project must create a set of demo chart
   presets that are built to fail the metrics used during a verification. One
   test-preset made to fail one metric, so if there are 17 metrics to test then
@@ -18269,10 +18302,16 @@ would reach.
   of the ten go red with the exact exceptions above; restore, green. The red is
   in `mutations/R27-F2-recorded-document-mutation-red.txt`.
 
-### B8-432 · OPEN · Opening the window restores a saved report's type and limit set, but not its two tick boxes
+### B8-432 · FIXED · Opening the window restores a saved report's type and limit set, but not its two tick boxes
 - blocks release: no
-- status: OPEN
-- a question for Knut, deliberately not built
+- status: FIXED
+- **ANSWERED AND BUILT, 2026-09-19.** Knut, put the question below word for
+  word: *"Yes. All settings that belong to a report shall be loaded. Included
+  measurements added for report is ticked, Report type, Judged against, and
+  'Show all measurement runs' and 'Show detailed data for each run'."* B8-490
+  is the build and carries the measurement, the one narrowing it took, and the
+  mutations. B8-388's decision the other way is marked SUPERSEDED.
+- a question for Knut, deliberately not built (until he answered it)
 - measured on screen, round 27, 2026-09-19, after B8-430. The window opens on
   the entry the list lands on and now draws it as the kind of document it is.
   It still does NOT restore that report's "Show all measurement runs" and "Show
@@ -18291,8 +18330,11 @@ would reach.
 - what to ask him: when the window OPENS on a report that records no document
   of its own, should the two tick boxes follow it (one date, no detail) exactly
   as they do when the same entry is clicked?
-- evidence: none yet — nothing is built, so there is nothing to guard.
+- evidence: test_opening_the_window_restores_the_tick_boxes_of_a_pre_182_report,
+  test_a_selected_report_restores_all_five_of_its_settings
 - proof: `~/Desktop/ChromIQ-beta23-proof/round-27-report/D-R27-F3-photographs/AFTER-open-state.png`
+  is the fault; `~/Desktop/ChromIQ-beta26-proof/knut-restore-and-generate/` is
+  the same window after his ruling.
 
 ### B8-433 · FIXED · The report window's "Show detailed data" help said the box starts unticked, and it starts ticked
 - blocks release: no
@@ -19347,3 +19389,396 @@ would reach.
 - evidence: test_catalog_is_complete, test_catalog_has_no_stale_keys,
   test_untranslated_values_do_not_creep_in_unseen,
   test_untranslated_strings_stay_within_budget
+
+### B8-480 · VERIFIED · The demo chart presets are rebuilt as THIRTEEN REQUIREMENT PAIRS, and app and arithmetic agree on all 496 verdicts
+- status: VERIFIED
+- blocks release: no
+- Knut, 2026-09-19: *"Recreate the chart presets so that every metric that can
+  be tested has one preset for each condition a metric uses to select if a
+  patch set can be used in verification to test against that metric ... create
+  one preset for each requirement of a metric, where each threshold is on the
+  border of the threshold, but not complying with that specific requirement.
+  And then one preset for each requirement of a metric, where each threshold is
+  on the border of the threshold, but complying with that specific
+  requirement. Then use the demo files in testing on-screen and mathematically
+  to verify that they work."*
+- **A REASON CODE IS NOT A REQUIREMENT, WHICH IS WHY THE PACK BEFORE THIS ONE
+  COULD NOT ANSWER HIM.** B8-408 shipped one preset per code.
+  `control_strip_too_small` is two requirements (8 ids for the average, 20 for
+  the 95th percentile), `too_few_surface_patches` is two (what counts as a
+  surface patch, and how many are needed) and `no_ramp` is two (how many steps,
+  and how far apart). One preset per code cannot say which half went dead.
+  Thirteen pairs can: 26 presets, plus a control, two open questions and the
+  two non-metric states, **31**.
+- **EVERY OPERATOR WAS READ OUT OF THE SOURCE AND IS CARRIED BESIDE ITS
+  PRESET.** `Requirement.comparison` holds the line as it is written
+  (`k < CONTROL_STRIP_MIN (8)`, `max(levels) < GREY_LIGHTEST_MIN (90.0)`,
+  `min(v, 100-v) <= SURFACE_GAMUT_TOL (2.0)`, ...) and `Requirement.source`
+  says where to read it; both go into the README a user downloads, and
+  `test_every_requirement_quotes_a_number_the_app_really_holds` compares the
+  sentence with the constant so the two cannot part.
+- **A PAIR IS ISOLATED, WHICH IS WHAT MAKES IT EVIDENCE.** Between the FAIL and
+  the PASS preset of a pair, only the rows that requirement decides change;
+  every other row reads the same on both sides
+  (`test_nothing_else_moves_across_the_pair`). Two nestings are arithmetic and
+  are recorded rather than hidden: R02's pass side (k=8) is R03's fail side
+  (k=20), because they are two lines on one number; and R08's 19-and-20-patch
+  charts cannot clear the outer-gamut line, which needs 77, so that code is
+  short on BOTH sides and does not move with the pair. That is the answer to
+  the old pack's demo 11, which failed three things at once with no control.
+- **THE SECOND OPINION SHARES NO CODE WITH THE APP.**
+  `~/Desktop/ChromIQ-beta26-proof/knut-demo-presets/independent_verdicts.py`
+  parses the `.ti1` with its own CGATS reader, re-derives the 29-rung
+  control-strip ladder, and types every threshold out of the help text instead
+  of importing it. The same judge is in the repo as `_independent`.
+  **Result: 31 presets x 16 rows, 0 disagreements.** So no preset is
+  mis-specified and no requirement is implemented differently from the way it
+  is written; the findings are all in whether the requirement is the RIGHT one,
+  and those are B8-482 to B8-486.
+- **AND IT NEEDS NO COLOUR ARITHMETIC AT ALL**, which is itself a result: every
+  condition that decides whether a row is answerable reads device RGB and
+  sample ids only. That is the claim `workflow/preset_eligibility`'s docstring
+  makes, reached from the other side.
+- **ON SCREEN, IN A REAL WINDOW.** `drive_demo_presets_onscreen.py` builds a
+  real `TabChart`, switches to Manual, clicks the real
+  "Which presets can be used for verification?" button and reads the real
+  dialog's own rows and detail panes, photographed with
+  `onscreen_capture.capture_window` (the window's own buffer, never
+  `widget.grab()`, never `offscreen`). Nine photographs in
+  `~/Desktop/ChromIQ-beta26-proof/knut-demo-presets/shots/`; the counts in the
+  window's own "Metrics answered" column move 10 -> 13, 10 -> 12, 12 -> 13,
+  11 -> 13, 10 -> 11 and 12 -> 13 across the thirteen pairs exactly as designed.
+  Sandboxed with `CHROMIQ_SETTINGS_FILE` and `CHROMIQ_PRESETS_DIR`;
+  `defaults read com.chromiq.ChromIQ custom_output_path` afterwards answers
+  *"does not exist"*, which is the user's own state.
+- **THE MUTATIONS WERE PROVEN TO LAND**, one shipped constant at a time with
+  `__pycache__` cleared: `GREY_MIN_LEVELS` 8 -> 7 gives **6 failed, 77 passed**;
+  `SURFACE_GAMUT_TOL` 2.0 -> 2.5 gives **8 failed, 75 passed**;
+  `CONTROL_STRIP_P95_MIN` 20 -> 19 gives **5 failed, 78 passed**. Each names
+  the pair it belongs to (R05, R11/R12, R03) plus
+  `test_the_thresholds_the_pack_claims_are_the_apps_own`. All three restored
+  and re-measured green.
+- **THE PACK WAS REBUILT WHOLE AND VERIFIES COMPLETE**: nine projects, 132
+  saved reports, and the preset folder inside it holding 31 presets, 30 `.ti1`
+  files and the README.
+- evidence: `QT_QPA_PLATFORM=offscreen pytest tests/test_the_demo_presets_pair_on_every_requirement.py
+  tests/test_a_demo_pack_ships_every_project_it_declares.py
+  tests/test_every_metric_says_how_it_is_detected.py tests/test_compliance_sets.py
+  tests/test_a_verification_chart_declares_its_control_strip.py
+  tests/test_the_preset_window_says_what_a_chart_can_answer.py
+  tests/test_the_preset_button_is_small_fast_and_where_it_belongs.py` gives
+  **221 passed, 1 skipped**; `python scripts/make_report_limit_demos.py --verify
+  <pack>` answers *"complete: ... (9 projects expected)"*;
+  `python scripts/make_verification_preset_demos.py --check <dir>` answers
+  *"13 requirements, 31 presets, 0 not doing what they claim"*;
+  `compare_verdicts.py` answers *"31 presets x 16 rows compared, 0
+  disagreements"*
+
+### B8-481 · FIXED · The draft grid put the outer-gamut boundary at 79/80; the code's is 76/77
+- status: FIXED
+- blocks release: no
+- `~/Desktop/ChromIQ-knut-beta25-batch/SPEC-DRAFT-demo-presets.md` drew its grid
+  from the help texts in `workflow/compliance_sets.py` and read *"That wants
+  roughly 80 patches with reference values"* as the boundary, so its outer-gamut
+  row was "79 patches FAIL, 80 PASS".
+- the code says `k = max(1, ceil(n_referenced * 0.25))` and `len(top) >= 20`, so
+  the smallest chart that clears it has **77** patches: `ceil(77 * 0.25) = 20`
+  and `ceil(76 * 0.25) = 19`. Measured both ways, through the app's own
+  eligibility path and through the independent calculator.
+- **THE DRAFT WAS WRONG AND THE APP IS RIGHT**, and the help text's "roughly"
+  keeps it honest rather than false. The pair R13 is built on 76/77 and the
+  number is in its README line beside the comparison it came from.
+- the same draft carried a fourteenth requirement, "All patches: reference
+  values present", whose FAIL side would be "a chart with no references". No
+  preset can be that chart: `preset_eligibility._perfect_print` gives every
+  sample an aim by construction, so it is in `UNREACHABLE` and not in the grid.
+- evidence: test_every_requirement_quotes_a_number_the_app_really_holds,
+  test_the_fail_side_withholds_exactly_its_own_rows,
+  test_the_pass_side_answers_them
+
+### B8-482 · OPEN · "Reaches white" is a neutral at level 90, and the help text says "reach white"
+- status: OPEN
+- blocks release: no
+- `_D_GREY_RAMP` tells the user the ramp *"has to reach white at one end and
+  black at the other"*. The code asks for `max(levels) >= 90.0` and
+  `min(levels) <= 10.0` on the 0..100 device scale
+  (`GREY_LIGHTEST_MIN`, `GREY_DARKEST_MAX`), which is not the same claim.
+- measured on the two PASS presets of the new pack, which exist to show it:
+  **R06 PASS** has no white patch anywhere (its lightest patch of any colour is
+  (90, 90, 90); nothing on the chart has every channel above 90) and the two
+  grey rows are judged. **R07 PASS** has no black patch anywhere (its darkest
+  is (10, 10, 10)) and the two grey rows are judged.
+- **the requirement is defensible and the sentence is not.** A ramp that
+  reaches 90 and 10 is a usable grey ramp, and on a real printer ten per cent
+  from each end is often all the ink can do. But a reader is told to include
+  white and black and is not told that a ramp ten per cent short at both ends
+  passes, so a chart that is refused and a chart that is accepted look the same
+  to him.
+- not changed here: it is user-facing product text, and both the wording and
+  whether the threshold itself should move are Knut's to rule on.
+  `docs/design/` is binding and says a fault that contradicts the
+  specification is reported and approved, not corrected.
+- evidence: test_the_pass_side_answers_them
+
+### B8-483 · OPEN · There is no spacing requirement on either ramp, and Knut expected one
+- status: OPEN
+- blocks release: no
+- Knut, in the same message that asked for this pack: *"there migth also be a
+  requirement that the selected patches have a certain distance between each
+  other, and that they reach whit and black at the end, so that they are not
+  clumped together in one end or in the middle for the 3D space."*
+- **there is none.** The only "distance" in the code is `GREY_LEVEL_TOL`, 0.5
+  device units, which decides whether two readings count as one step. It does
+  not care where the steps sit.
+- two presets in the new pack are shipped as the QUESTION rather than as a
+  claim, and both are accepted by ChromIQ today with nothing withheld:
+  **Q1**, a grey ramp at 0, 90.0, 90.6, 91.2, 91.8, 92.4, 93.0, 93.6. Eight
+  distinct steps, black at one end, 93.6 clears the 90 that "reaches white"
+  means, so the grey rows are judged on one black patch and a huddle 3.6
+  device units wide. **Q2**, three mid-tone steps at tone values 40.0, 59.4 and
+  60.0: three distinct steps and a span of exactly 20, two of the three
+  readings 0.6 apart.
+- neither preset is wrong; both are legal charts. The REQUIREMENT is
+  under-defined against what he described, and whether that matters is his
+  ruling. A guard holds the present behaviour
+  (`test_the_open_questions_really_are_accepted_today`) so that the day a
+  spacing rule is added, the suite says which demo it changed.
+- photograph: `~/Desktop/ChromIQ-beta26-proof/knut-demo-presets/shots/verify-q1-open.png`,
+  right-hand pane, "Grey balance of the grey ramp, average" under *This chart
+  can answer*.
+- evidence: test_the_open_questions_really_are_accepted_today
+
+### B8-484 · OPEN · A shortfall of REFERENCES is reported as a shortfall of PATCHES on two rows
+- status: OPEN
+- blocks release: no
+- measured directly on the blocks, with a chart whose aim values cover only
+  five of its samples:
+  `gamut_populations_block` -> `n_surface 12, n 5, reason too_few_surface_patches`;
+  `control_strip_block` -> `declared 20, present 20, k 5, reason control_strip_too_small`.
+- the remedies those codes carry are *"Add patches at the edge of the device
+  cube in Create Chart"* and *"make sure the chart really has those patches"*.
+  Both are the wrong advice in this state: there are twelve surface patches and
+  a twenty-patch strip, and what is missing is aim values.
+- **the distinction is already half-drawn, which is why it reads as finished.**
+  `control_strip_block`'s own docstring says *"a strip that is all there and has
+  no reference reads `no_reference`, not 'too small'"*. That is true only when
+  **k is exactly 0**: the branch is `len(present) >= CONTROL_STRIP_MIN and
+  k == 0`. At k = 5 it falls through to "too small". `gamut_populations_block`
+  has the same shape, where the `no_reference` branch fires only when `sdes` is
+  empty.
+- no preset can reach it: `preset_eligibility._perfect_print` gives every sample
+  an aim, so the window is unaffected. It is reachable in a REAL report whose
+  `.ti2` does not cover every sample, which is the path the demo pack's own
+  132 saved reports do not exercise either.
+- not changed here: `workflow/measurement_report.py` is product code and a
+  change there is a change to the product, not to a demo. Reported for a
+  decision instead, with the measurement above to decide on.
+- evidence: test_the_independent_arithmetic_agrees_with_the_app
+
+### B8-485 · OPEN · The control-strip help text names two routes to a declaration and the third is the one that applies
+- status: OPEN
+- blocks release: no
+- `_D_CONTROL_STRIP` tells the user a chart carries a strip when it *"says so
+  itself"*, and names two ways: a `.control-strip.json` sidecar, or a
+  `CONTROL_STRIP_IDS` keyword. There is a third and it is the usual one:
+  `control_strip.declare_for_chart` writes a declaration by itself for any
+  chart that fills **8 of the 29 rungs** of ChromIQ's own ladder, and
+  `preset_eligibility._declaration_it_would_get` asks it on every preset in the
+  window.
+- measured while building this pack, where it bit the first build of the R01
+  pair: the control chart WITH its three cyan-ramp patches fills **8** rungs
+  and `declare_for_chart` answers `written`; the same chart without them fills
+  **5** and answers `too_few_patches`. Three patches nobody thinks of as a
+  control strip decide whether the chart is said to declare one.
+- the BEHAVIOUR is Knut's own (beta 22: *"It is essential that the function
+  that makes ChromIQ write a control-strip declaration for a chart is
+  implemented, tested and working"*), and nothing here suggests changing it.
+  What is missing is the sentence: a user reading the help text cannot predict
+  the answer for any chart at all, and a chart that fills exactly 8 rungs gets
+  k = 8, which answers the average and the largest and withholds the 95th
+  percentile for a reason the help text cannot explain.
+- not changed here: user-facing text, and §M of
+  `docs/design/unified_measurement_management.md` says new message text goes to
+  §M-PROPOSED before it is written into a tab.
+- evidence: test_the_fail_side_withholds_exactly_its_own_rows
+
+### B8-486 · OPEN · The 0.5-unit rule that decides what "distinct" means is in no help text
+- status: OPEN
+- blocks release: no
+- "at least eight distinct steps" (grey ramp) and "at least three distinct
+  steps" (30 to 70 % ramp) both go through
+  `_distinct_levels(values, tol=GREY_LEVEL_TOL)` with `GREY_LEVEL_TOL = 0.5`:
+  two readings 0.4 device units apart are ONE step, and a chart can therefore
+  be one step short for a reason nothing on screen mentions.
+- it is the smaller half of B8-483 and is recorded on its own because the
+  remedy is different: this is a sentence to add to two help texts, not a rule
+  to decide. The pack's own README states it beside R05 and R09 so the demo
+  files at least do not repeat the omission.
+- evidence: test_every_requirement_quotes_a_number_the_app_really_holds
+
+
+### B8-490 · FIXED · A selected report restores ALL five of its settings, and B8-388's decision the other way is overruled
+- status: FIXED
+- blocks release: no
+- **Knut, 2026-09-19, answering the question that stood as B8-432**, which was
+  put to him because the code carried a deliberate decision the other way:
+
+  > *"Yes. All settings that belong to a report shall be loaded. Included
+  > measurements added for report is ticked, Report type, Judged against, and
+  > 'Show all measurement runs' and 'Show detailed data for each run'."*
+
+- what was true before, measured: **two of the five followed a report and three
+  did not.** The type and the limit set came back at every door (B8-430 made
+  the OPEN door agree with the CLICK door and says so in as many words: *"Only
+  the type and the limit set move"*). The two tick boxes came from Preferences
+  whenever the window merely OPENED on a report, and the measurement list was
+  re-ticked only when *"Show all measurement runs"* happened to be ON, so a
+  report made about ONE measurement came back with every row of the run's
+  history ticked.
+- fix: `_restore_the_documents_view`, one method, called from all three doors
+  into a document — a CLICK (`_apply_document`), the window opening on one
+  (`_open_on_the_latest_report`, through the same method), and the page moving
+  to one by itself (`_adopt_visible_document`, after Generate). It writes the
+  two tick boxes and the measurement ticks; the type and the limit set go on
+  being read back off `_loaded_doc`, so there is still one answer per control.
+- **ONE NARROWING, DELIBERATE AND GUARDED.** A report written before the
+  document record existed lists no measurements;
+  `_settings_of_one_saved_report` INFERS from K.5 that it is about the one
+  dated verification it was filed beside. That inference decides the two tick
+  boxes, which are a view Knut named one by one. It does NOT untick rows, which
+  is a filter that survives the view: every project made before this beta would
+  otherwise open with its history narrowed to one sheet and *"Show all
+  measurement runs"* would have one run to show. `recorded=False` is that
+  narrowing and `test_a_report_that_records_no_measurements_leaves_the_rows_alone`
+  is what keeps it.
+- **AND IT IS A VISIBLE CHANGE OF WHAT THE WINDOW DOES AT OPEN**, which B8-388
+  predicted in as many words: a project whose newest report is a one-date
+  record now opens showing ONE measurement where it used to open on the whole
+  history. That is his ruling, and nine checks in five other files were
+  rewritten to say what they mean rather than to lean on the old default.
+- two help texts were promises that stopped being true with it, and are
+  corrected in the same change: both tick-box tooltips named Preferences as the
+  one lever. They now say Preferences decides where a NEW report starts and
+  that a report you pick brings its own setting with it. Both em dashes in the
+  strings this round touched went with the edit.
+- **B8-388 IS MARKED SUPERSEDED, NOT DELETED**, and only for the one decision
+  inside it Knut overruled; every other thing it built still stands and its
+  entry says which.
+- evidence: test_a_selected_report_restores_all_five_of_its_settings,
+  test_the_included_measurements_list_is_reticked_to_the_reports_own_set,
+  test_opening_the_window_restores_the_tick_boxes_of_a_pre_182_report,
+  test_a_report_that_records_no_measurements_leaves_the_rows_alone
+- mutations, each run with `__pycache__` cleared and SEEN red, then restored:
+  the `_restore_the_documents_view` call dropped from `_apply_document`
+  (**2 failed**), the same call dropped from `_adopt_visible_document`
+  (**1 failed**), `if doc.get("all_runs") and keys:` put back in front of the
+  `_hidden_runs` line (**1 failed**), and the `if not recorded: return` guard
+  removed (**1 failed**). The reds are in
+  `~/Desktop/ChromIQ-beta26-proof/knut-restore-and-generate/mutations/`.
+
+### B8-491 · FIXED · Generate report asks Update / Create New / Cancel, and K.1 is superseded
+- status: FIXED
+- blocks release: no
+- **Knut, 2026-09-19**, overruling his own K.1 (*"Generate report always writes
+  a NEW report"*), in his own words and ending *"This feature overrules a
+  previous ruling that Generate Report always should create a new report."*
+  The question's text is his too, ending *"(or similar)"*:
+
+  > *"Settings were modified for the selected report. / What do you want to
+  > do? / 1. Update selected report with selected settings. / 2. Create new
+  > report with selected settings. / 3. Cancel"*
+
+- when it is asked: both halves of his sentence, and neither alone. A report
+  from "Report shown" is selected AND one of the five settings has moved since
+  the page was drawn, which is the state the red line already names — read
+  through `_settings_were_modified`, the one predicate both use, so the line
+  and the question cannot disagree.
+- **Update** keeps the document's own id and its own creation stamp, rewrites
+  the files it is made of with `rewrite_report` (the same name, the same date,
+  so §5's one-report-per-dated-verification rule holds and there is never a
+  second live report of one press), records the press in a new `updated` list
+  in the document block, and the name gains *" · updated <date> <time>"*.
+  **Create New** and **Cancel** are his other two. One writer,
+  `_write_the_document`, serves both buttons, which is his sentence: *"The same
+  function is used as when 'New report…' option is selected."*
+- **the name, and the half of his naming ruling that moves no file.** *"when a
+  report created the first time the trailing ' - saved <date> <time>' should
+  not be added (created time stamp already part of the beginning of the
+  name)."* His parenthesis was FALSE of this build: a document's name began
+  with its report TYPE and carried the stamp only at the end. So the stamp
+  MOVED to the front, seconds included, and the trailing one is gone — nothing
+  left the name, which matters because `_saved_report_label` records fifty
+  reports of one measurement drawing forty-eight identical lines.
+- **ONE DEFAULT IS MINE AND IS OPEN WITH HIM**: a SECOND update replaces the
+  first stamp rather than appending another, so a name says when the report was
+  created and when it was last updated and nothing else. Every stamp is kept on
+  disk in order, so `measurement_report.NAME_SHOWS_EVERY_UPDATE = True` shows
+  the whole history and nothing has to be recovered.
+- the wording is **M-REPORT-UPDATE-OR-NEW, `approved=False`**, in §M-PROPOSED
+  of `docs/design/unified_measurement_management.md` and in the pinned set of
+  `tests/test_message_catalogue.py`. Its headline is his sentence without its
+  full stop, which is that catalogue's house rule.
+- `REPORT_SCHEMA` stays **7**: `updated` is added to the document block only
+  when there is one, so a report written by Generate is byte-for-byte what it
+  was before the field existed.
+- K.1 is marked SUPERSEDED in `docs/design/measurement_report_limits.md` §13.3b
+  and the new §13.8 carries his words and his date. The old text is left
+  standing, the way L.8 was.
+- evidence: test_the_question_is_the_catalogue_message_with_his_three_buttons,
+  test_the_question_is_asked_only_when_both_halves_of_his_sentence_hold,
+  test_cancel_aborts_the_generate_report_function,
+  test_create_new_writes_a_new_report_and_leaves_the_selected_one_alone,
+  test_update_keeps_the_selected_report_and_recalculates_it,
+  test_a_second_update_replaces_the_first_stamp_in_the_name,
+  test_update_writes_the_same_kind_of_document_create_new_writes,
+  test_update_never_leaves_two_live_reports_of_one_date,
+  test_a_member_the_update_drops_still_agrees_with_its_document,
+  test_a_report_created_the_first_time_carries_no_trailing_saved_stamp
+- mutations, each run with `__pycache__` cleared and SEEN red, then restored:
+  the trailing `saved {when}` put back (**1 failed**), the leading creation
+  stamp removed (**2 failed**), "Create New" renamed (**2 failed**), the
+  `_settings_were_modified()` test dropped from `_document_being_updated`
+  (**1 failed**), Cancel made to fall through (**1 failed**), "new" made to
+  update (**1 failed**), `save_report` called unconditionally (**4 failed**),
+  `updated=updated` dropped from `stamp_document` (**2 failed**),
+  `NAME_SHOWS_EVERY_UPDATE` flipped to True (**1 failed**), `stamp_verdict`
+  skipped on the update branch (**1 failed**), and the leftover-member loop
+  skipped (**1 failed**). The reds are in
+  `~/Desktop/ChromIQ-beta26-proof/knut-restore-and-generate/mutations/`.
+- **one mutation that does NOT land, said out loud rather than claimed:**
+  dropping the `key == NEW_REPORT_KEY` test from `_document_being_updated`
+  leaves the guard green, because "New report…" names no entry in
+  `_saved_documents` either and the lookup below it already answers None. The
+  line stays as the explicit statement of the rule; the docstring says it is
+  not what the check can see.
+
+### B8-492 · OPEN · Which report the window OPENS on, when the latest one records no document
+- status: OPEN
+- blocks release: no
+- **HELD ON PURPOSE, and named here so it is not mistaken for an oversight.**
+  B8-490 makes all five settings follow the report a window is showing. It does
+  NOT change WHICH report that is: `_open_on_the_latest_report` still lands on
+  the latest report carrying a document BLOCK, and where there is none the
+  pulldown's own rule (`_entry_the_list_lands_on`) decides, which is the file
+  the page is drawn from, or "New report…".
+- Knut's beta-25 comment says, twice, that *"the latest created report is by
+  default selected in 'Report shown'"* whatever it records. Both sentences sit
+  inside the storage/naming ruling that is held — which folder a report lives
+  in, the `report_profiling` / `report_verification` tags, what each run type
+  offers in "Report type", and Delete moving a report to
+  `reports/old/date_ReportId` — and four questions about that ruling are
+  unanswered on the issue.
+- why it is not built with B8-490: it changes which report a window opens on
+  for every project made before this beta, and it would take R24-F1 with it
+  (`test_a_window_that_lands_on_new_report_holds_its_defaults`, a window whose
+  list lands on "New report…" holding its Preferences defaults, measured on
+  screen on `Demo-Switching`). That is a ruling to settle, not a line to
+  change.
+- the same held section also asks the NAME to begin with a run number on a
+  profiling run (*"Run 1 - <date_created> <time_created> -"*). B8-491 put the
+  creation stamp at the front, which is the half that moves no file; the run
+  number waits here with the rest.
+- what to ask him: when the latest report of a run records no document of its
+  own, should the window open on it — with the settings K.5 infers for such a
+  report — rather than on the latest one that does?
+- evidence: none yet — nothing is built, so there is nothing to guard.

@@ -1273,9 +1273,37 @@ def document_scope_of(doc: "dict | None") -> str:
     return SCOPE_ALL_DATES if doc.get("all_runs") else SCOPE_MULTIPLE_DATES
 
 
+#: **DOES A SECOND UPDATE APPEND A SECOND STAMP, OR REPLACE THE FIRST?**
+#: Knut ruled that **Update** appends *" - updated <date> <time>"* to the
+#: selected report's name (2026-09-19, #182) and did not say what a SECOND
+#: update does. The question is open with him; the default taken here is
+#: **replace**, so a name says when the report was created and when it was
+#: last updated and nothing else. Every stamp is still kept on disk, in order,
+#: so flipping this to ``True`` shows the whole history in the name and
+#: nothing has to be recovered from anywhere.
+NAME_SHOWS_EVERY_UPDATE = False
+
+
+def document_updated_stamps(doc: "dict | None") -> "list[str]":
+    """Every "updated" stamp a document block carries, oldest first.
+
+    A block written before Update existed carries none, which is the honest
+    answer for it: it has never been updated.
+    """
+    if not isinstance(doc, dict):
+        return []
+    raw = doc.get("updated")
+    if isinstance(raw, str):
+        return [raw] if raw else []
+    if not isinstance(raw, list):
+        return []
+    return [str(v) for v in raw if isinstance(v, (str, int, float)) and str(v)]
+
+
 def stamp_document(report: dict, *, doc_id: str, created: str, type_id: str,
                    compliance: "dict | None", all_runs: bool, detail: bool,
-                   measurements: "list[dict]", scope: str = "") -> dict:
+                   measurements: "list[dict]", scope: str = "",
+                   updated: "list[str] | None" = None) -> dict:
     """Record, on one file, which DOCUMENT it belongs to and how that document
     was made. Returns *report*, stamped in place.
 
@@ -1295,6 +1323,17 @@ def stamp_document(report: dict, *, doc_id: str, created: str, type_id: str,
         "detail": bool(detail),
         "measurements": [dict(m) for m in (measurements or [])],
     }
+    # **WHEN THIS DOCUMENT WAS UPDATED, AND NOT WHEN IT WAS CREATED.** Knut,
+    # 2026-09-19: *"Update button will keep the current selected report, then
+    # append on the ending of the report name ' - updated <date> <time>', then
+    # recalculate and update the report text according to the new settings."*
+    # So `created` never moves — it is what the name LEADS with — and this is
+    # the separate record of every press of Update. Left out of the block
+    # entirely when there is none, so a report written by Generate is byte-for-
+    # byte what it was before this field existed.
+    stamps = [str(v) for v in (updated or []) if str(v)]
+    if stamps:
+        report[DOCUMENT_BLOCK]["updated"] = stamps
     # THE DATE-SCOPE FLAG, as an id (B8-392). An empty or unknown value is left
     # out rather than stored, so `document_scope_of` derives it exactly as it
     # does for a block written before this field existed.
@@ -1351,6 +1390,15 @@ def recorded_document(report: "dict | None") -> "dict | None":
         "detail": bool(d.get("detail")),
         "measurements": members,
     })
+    # The update stamps get the same treatment every other field of this block
+    # gets (R27-F2): a value that is not the shape this build writes is dropped
+    # rather than carried into the window, and the key is left out when there
+    # is nothing in it, so `stamp_document`'s own omission round-trips.
+    stamps = document_updated_stamps(d)
+    if stamps:
+        out["updated"] = stamps
+    else:
+        out.pop("updated", None)
     if scope:
         out["scope"] = scope
     else:

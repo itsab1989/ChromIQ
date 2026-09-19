@@ -272,6 +272,14 @@ def test_the_detail_help_does_not_claim_a_state_the_box_is_not_in(tmp_path, qapp
     dlg = _dialog(s, v.measurement_ti3, qapp)
     try:
         body = _help_body(dlg, "Show detailed data for each run")
+        # **FROM "New report…", WHICH IS THE STATE THE HELP IS ABOUT
+        # (B8-490).** Since Knut's beta-25 ruling a window that opens showing a
+        # SAVED report brings that report's own tick boxes with it, so the
+        # Preferences default decides where a NEW report starts and nothing
+        # else. The help sentence says exactly that now, and this is the state
+        # it describes.
+        dlg._saved_combo.setCurrentIndex(0)
+        qapp.processEvents()
         ticked = dlg._detail_check.isChecked()
         assert ticked is bool(s.get("report_default_show_details", True))
         if "starts unticked" in body:

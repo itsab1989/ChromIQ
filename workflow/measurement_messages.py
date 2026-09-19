@@ -2468,6 +2468,33 @@ M_REPORT_DELETE = _m(
     count_key="n",
     approved=False)
 
+# --- PROPOSED (#182, Knut 2026-09-19): Generate report with a selected report
+# whose settings have been changed --------------------------------------------
+#
+# Knut wrote the text himself and ended it *"(or similar)"*, so it is his
+# wording and it still goes through §M-PROPOSED: *"When Generate Report is then
+# clicked, the user must be shown a popup message with following text (or
+# similar): Settings were modified for the selected report. / What do you want
+# to do? / 1. Update selected report with selected settings. / 2. Create new
+# report with selected settings. / 3. Cancel. The window must then have three
+# buttons: Update, Create New and Cancel."*
+#
+# THE NUMBERED LINES STAY IN THE BODY even though the buttons carry the same
+# three words, because that is what he specified and because the numbered list
+# is what says which button does what: "Update" alone does not say that the
+# SELECTED report is what gets updated.
+M_REPORT_UPDATE_OR_NEW = _m(
+    "M-REPORT-UPDATE-OR-NEW",
+    # HIS SENTENCE WITHOUT ITS FULL STOP: the house rule is that a
+    # headline is not a sentence (`tests/test_message_catalogue.py`),
+    # and he ended the whole block "(or similar)". Nothing else moved.
+    "Settings were modified for the selected report",
+    "What do you want to do?\n\n"
+    "1. Update selected report with selected settings.\n"
+    "2. Create new report with selected settings.\n"
+    "3. Cancel",
+    approved=False)
+
 # --- PROPOSED (#182, Knut D11/D24): the note at the foot of the Report limits
 # window ----------------------------------------------------------------------
 M_THRESHOLDS_NOT_CERTIFICATION = _m(
@@ -2496,6 +2523,7 @@ M_THRESHOLDS_NOT_CERTIFICATION = _m(
 
 CATALOGUE = {m.id: m for m in (
     M_REPORT_CHART_MISMATCH, M_THRESHOLDS_NOT_CERTIFICATION, M_REPORT_DELETE,
+    M_REPORT_UPDATE_OR_NEW,
     M_REPLACE_PARTIAL, M_REPLACE_COMPLETE, M_TI3_MISMATCH,
     M_REPLACE_UNCOUNTABLE,
     M_IMPORT_REPLACE_CONFIRM, M_IMPORT_REPLACE_PROJECT_CONFIRM,

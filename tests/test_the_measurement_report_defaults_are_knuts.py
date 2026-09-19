@@ -437,6 +437,20 @@ def _report_window(s, ti3, qapp):
     dlg = MeasurementReportDialog(s, None, initial_ti3=ti3)
     dlg.show()
     qapp.processEvents()
+    # **KNUT'S BETA-25 QUESTION, ANSWERED "Create New" (B8-491).** Generate
+    # report now asks what to do when a report from "Report shown" is selected
+    # and one of its five settings has moved, and the answer decides whether a
+    # new report is written or the selected one is updated. Every test in this
+    # file was written for the behaviour his "Create New" button keeps, so that
+    # is what these windows answer. The QUESTION itself, and the Update button,
+    # are guarded in `tests/test_generate_report_asks_what_to_do.py`.
+    dlg._questions_asked = []
+
+    def _answer_create_new():
+        dlg._questions_asked.append("asked")
+        return "new"
+
+    dlg._ask_update_or_create_new = _answer_create_new
     return dlg
 
 
@@ -651,6 +665,12 @@ def test_the_name_carries_knuts_flags(tmp_path, qapp):
     dlg = _report_window(s, vs[-1].measurement_ti3, qapp)
     try:
         dlg._say_generated = lambda saved, failed: None
+        # From "New report…", because a window that opens on a saved
+        # report now comes up with that report's own measurements
+        # ticked and no others (B8-490, Knut's beta-25 ruling), and
+        # every report in this fixture is about one date.
+        dlg._saved_combo.setCurrentIndex(0)
+        qapp.processEvents()
         dlg._all_runs_check.setChecked(True)
         dlg._detail_check.setChecked(True)
         qapp.processEvents()

@@ -147,6 +147,14 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # governs removing a report, so the window and
                                  # its one refusal wait here.
                                  "M-REPORT-DELETE",
+                                 # #182, 2026-09-19: Knut overruled his own
+                                 # K.1 ("Generate report always creates a new
+                                 # report"). Pressed with a report selected and
+                                 # one of its five settings changed, the button
+                                 # now asks. He wrote the question himself and
+                                 # ended it "(or similar)", so the WORDING is
+                                 # his and waits here for him to confirm it.
+                                 "M-REPORT-UPDATE-OR-NEW",
                                  "M-CM-NO-CCTIFF", "M-CM-CONVERT-FAILED",
                                  "M-CM-PROFCHECK-CONVERTED",
                                  # Feature B — wording agreed verbatim with

@@ -1086,18 +1086,29 @@ _IDENTICAL_TO_KEY = {
     # older of the two was in Sie-Form against the German Du rule, which the
     # rewrite corrects). Each of the eleven others rises by exactly 1.
     # COUNTED off the tree, not adjusted.
+    # 2026-09-19, Knut's beta-25 report-window ruling (B8-490 / B8-491). SIX
+    # keys in: the three-button question's headline and body, its two new
+    # button labels ("Update", "Create New"), and the "updated {when}" clause a
+    # report's name gains when Update is pressed. The two tick-box tooltips
+    # were REWORDED rather than added, so each of them is one key in and one
+    # key out and neither moves a count: German is written by hand in the same
+    # change for both, and the eleven others carried the old sentences in
+    # English already. **German does not move at all (144, unchanged): all six
+    # new keys are translated here.** Each of the eleven others gains exactly
+    # 6. COUNTED off the catalogues this commit leaves behind, with the same
+    # expression the test below uses, and never adjusted upward.
     "de": 144,
-    "es": 479,
-    "fr": 501,
-    "it": 490,
-    "ja": 465,
-    "nl": 506,
-    "no": 491,
-    "pl": 483,
-    "pt": 481,
-    "ru": 454,
-    "sv": 492,
-    "zh_CN": 459,
+    "es": 485,
+    "fr": 507,
+    "it": 496,
+    "ja": 471,
+    "nl": 512,
+    "no": 497,
+    "pl": 489,
+    "pt": 487,
+    "ru": 460,
+    "sv": 498,
+    "zh_CN": 465,
 }
 
 

@@ -80,6 +80,16 @@ def _window(s, ti3, qapp):
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
     dlg = MeasurementReportDialog(s, None, initial_ti3=ti3)
     dlg.show()
+    qapp.processEvents()
+    # **FROM "New report…" (B8-490).** Since Knut's beta-25 ruling a window
+    # that opens showing a saved report brings that report's own two tick
+    # boxes with it, and a per-measurement record is about ONE date, so "Show
+    # all measurement runs" comes up OFF where the Preferences default used to
+    # leave it ON. "New report…" is the control that means "start from the
+    # defaults with everything loaded", which is the state these checks are
+    # about, and it repaints, which a tick box deliberately does not.
+    dlg._saved_combo.setCurrentIndex(0)
+    qapp.processEvents()
     dlg._all_runs_check.setChecked(True)
     dlg._detail_check.setChecked(True)
     qapp.processEvents()

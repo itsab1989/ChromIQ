@@ -1064,7 +1064,7 @@ these are his words; what the app now does with them is not confirmed.
 
 | # | His ruling |
 |---|---|
-| K.1 | **Nothing is ever overwritten, and there is no update-or-create question.** *"It is better that existing reports are not overwritten. A user could instead select and delete old reports they do not want."* So Generate report always writes a NEW report and the user prunes the list with Delete Selected Report. The question L.5 describes is **withdrawn**: it was in §M-PROPOSED of `unified_measurement_management.md`, never had an `M-` id, and nothing in the code referred to it. L.5 and L.6 stand only as far as the naming rule goes. |
+| K.1 | **SUPERSEDED by K.7 (§13.8), 2026-09-19.** *"Nothing is ever overwritten, and there is no update-or-create question. It is better that existing reports are not overwritten. A user could instead select and delete old reports they do not want."* So Generate report always wrote a NEW report and the user pruned the list with Delete Selected Report. The question L.5 describes was **withdrawn** on this ruling: it was in §M-PROPOSED of `unified_measurement_management.md`, never had an `M-` id, and nothing in the code referred to it. *(Knut reinstated a three-button form of that question on 2026-09-19, in his own words and ending "This feature overrules a previous ruling that Generate Report always should create a new report." The text above is left standing, marked superseded rather than overwritten, because it is what betas 22 to 25 shipped and the two rulings a day apart are the record of how the window got here. K.7 and §13.8 carry the new one. L.5 and L.6 come back with it, in the shape §13.8 states.)* |
 | K.2 | **D23 stands.** Asked whether the archive-then-recalculate rule still held after his beta-20 report, he answered *"Agreed. D23 stands."* Changing "Judged against" must not rewrite, relabel or touch a saved report on disk. **BUILT 2026-09-18** for that one door, including for reports written by an earlier ChromIQ: see the "BUILT 2026-09-18" block in §5 for the reading of D23 that was taken and why, and B8-384 for the before-and-after measurement. |
 | K.3 | **A pulldown is acceptable.** *"It is ok that 'Current Report Showing' is a pulldown list if that saves space in the window."* So L.1's 3-to-4-row scrolling box is not built; what survives of it is the NAME an entry carries, which matters more when one row is visible at a time. |
 | K.4 | **One report is one line, whatever it spans.** *"If I make a report that has all dated verifications included, and this report outputs a text representing all of those measurements, that is still only ONE report listed in the pulldown."* |
@@ -1189,3 +1189,95 @@ ticks are not consulted, so "OFF with several ticked" produces no document of
 several. The flag is computed from the member list, so the day that changes
 this says the right word without being touched.
 
+### 13.8 K.7 in full: Generate report asks, and a report keeps its creation stamp
+
+**Ruled by:** Knut, 2026-09-19, on issue #182, in the same comment as L.8b.
+**Confirmed by:** *nobody yet.* This is his ruling and what the code now does
+with it; nobody has confirmed that what it does is what it should do.
+
+> *"When a report from 'Report shown' is selected, as we know, all settings are
+> updated reflecting the selected reports settings when it was created/saved.
+> If any of the settings are changed, a red text message will show user that he
+> must click Generate Report to apply settings. When Generate Report is then
+> clicked, the user must be shown a popup message with following text (or
+> similar):*
+>
+> *Settings were modified for the selected report. / What do you want to do? /
+> 1. Update selected report with selected settings. / 2. Create new report with
+> selected settings. / 3. Cancel*
+>
+> *The window must then have three buttons: Update, Create New and Cancel.*
+>
+> *Update button will keep the current selected report, then append on the
+> ending of the report name " - updated `<date> <time>`", then recalculate and
+> update the report text according to the new settings. The same function is
+> used as when 'New report...' option is selected then Generate Report clicked,
+> but is instead updating the selected report.*
+>
+> *'Create New' button will perform the same function as if 'New report...'
+> option is selected, then use the selected settings, then recalculate and
+> update the report text according to the new settings. A new report will be
+> created.*
+>
+> *Cancel aborts the Generate Report function.*
+>
+> *This feature overrules a previous ruling that Generate Report always should
+> create a new report."*
+
+…and, in the same breath:
+
+> *"when a report created the first time the trailing ' - saved `<date>
+> <time>`' should not be added (created time stamp already part of the
+> beginning of the name)."*
+
+| # | Rule |
+|---|---|
+| K.7 | **Generate report ASKS** when a report from "Report shown" is selected AND one of its settings has been changed since the page was drawn. Three buttons: **Update**, **Create New**, **Cancel**. This supersedes K.1. |
+| K.7a | **Update** keeps the selected report: its document id and its creation stamp do not move, the files it is made of are rewritten in place, and its name gains *" - updated `<date> <time>`"*. |
+| K.7b | **Create New** is "New report…" followed by Generate: a new report, with the settings on screen. |
+| K.7c | **Cancel** aborts Generate report. Nothing is written. |
+| K.7d | **A report created the first time carries no trailing "saved" stamp**, because its creation time is at the beginning of its name. |
+| K.8 | **All five settings of a selected report are restored** when it is selected and when the window opens on it: the included-measurements ticks, Report type, Judged against, "Show all measurement runs" and "Show detailed data for each run". This supersedes the half of B8-388 that left the two tick boxes to Preferences. |
+
+**What the build does with them, measured (B8-490, B8-491).**
+
+* K.7's condition is one predicate, `_settings_were_modified`, shared with the
+  red line, so the line and the question cannot disagree about whether
+  anything moved.
+* K.7a is `rewrite_report`, the same function §5's archive-then-recalculate
+  rule uses, so a dated verification never ends up with two live reports of one
+  press. The stamps are kept in an `updated` list inside the document block;
+  `REPORT_SCHEMA` stays **7** and the key is written only when there is one.
+* K.7 and K.7b are ONE writer, `_write_the_document`, which is his sentence
+  *"The same function is used"*.
+* K.7d took the creation stamp to the FRONT of the name rather than merely
+  dropping the trailing one: his parenthesis was false of this build, where a
+  document's name began with its report type, and dropping the stamp alone
+  would have left reports of one measurement indistinguishable.
+* K.8's one narrowing: a report written before the document record existed
+  lists no measurements, so its two tick boxes follow K.5's inference and its
+  MEASUREMENT ticks are left alone. Imposing an inferred list would narrow
+  every project made before this beta to one sheet.
+
+**⏳ TWO THINGS ARE OPEN AND ARE NOT BUILT.**
+
+1. **A second Update: append or replace?** He said Update appends
+   *" - updated `<date> <time>`"* and did not say what the next one does. The
+   default taken is **replace**, so a name says when the report was created and
+   when it was last updated and nothing else. Every stamp is kept on disk, so
+   `measurement_report.NAME_SHOWS_EVERY_UPDATE` switches it with nothing to
+   recover. **Awaiting his word.**
+2. **Which report the window OPENS on** when the latest one records no document
+   of its own. His comment says twice that the latest created report is
+   selected whatever it records, but both sentences sit inside the held
+   storage/naming ruling, and changing it would take R24-F1 with it. B8-492.
+
+The popup's wording is **M-REPORT-UPDATE-OR-NEW**, in §M-PROPOSED of
+`unified_measurement_management.md` and **not approved**: he wrote it and ended
+*"(or similar)"*.
+
+**NOT IN THIS SECTION, AND NOT BUILT:** which folder a report lives in, the
+`report_profiling` / `report_verification` tags, what each run type offers in
+"Report type", the run number at the front of a profiling run's entry, and
+Delete moving a report to `reports/old/date_ReportId`. All of it is from the
+same comment and all of it moves files a user already has.
