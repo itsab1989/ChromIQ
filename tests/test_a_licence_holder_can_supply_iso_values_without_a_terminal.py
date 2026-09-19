@@ -132,3 +132,68 @@ def qapp_or_skip():
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     from PyQt6.QtWidgets import QApplication
     return QApplication.instance() or QApplication([])
+
+
+def test_the_row_carries_an_info_icon_and_not_three_hover_tooltips(qapp_or_skip,
+                                                                   tmp_path,
+                                                                   monkeypatch):
+    """Basti, 2026-09-20, asked two questions about the door I had just built:
+    whether the file dialogs are ChromIQ's own with the useful shortcuts down
+    the left, and whether there is *"a tooltip icon that opens a tooltip window
+    - friendly extensive easy to understand and correct"*.
+
+    The first was already true: `open_file_dialog` and `save_file_dialog` are
+    the app's own unless the user has turned native dialogs on in Preferences,
+    and they carry an OS-correct localized sidebar. The second was not. Three
+    hover tooltips are three sentences nobody reads together, and every other
+    control in this app explains itself through an ⓘ that opens a window.
+
+    This pins the ⓘ and what it has to cover, because an info window that does
+    not say why the numbers are missing, or that the values never leave the
+    computer, is the half-answer that made the question necessary.
+    """
+    from PyQt6.QtCore import QSettings
+    from core.settings import AppSettings
+    from ui.dialogs.thresholds_dialog import ThresholdsDialog
+    from ui.tooltip_button import TooltipButton
+
+    s = AppSettings()
+    s._qs = QSettings(str(tmp_path / "t.ini"), QSettings.Format.IniFormat)
+    dlg = ThresholdsDialog(s)
+    try:
+        body = ""
+        for b in dlg.findChildren(TooltipButton):
+            t = (getattr(b, "_title", "") or "") + (getattr(b, "_body", "") or "")
+            if "limit values" in t.lower() or "ISO 12647-7" in t:
+                body = t
+                break
+        assert body, "the ISO row has no ⓘ of its own"
+        for must in ("Save a file to fill in", "Use a file I filled in",
+                     "Stop using it"):
+            assert must in body, f"the ⓘ does not mention {must!r}"
+        assert "paid standard" in body, "it does not say WHY the numbers are absent"
+        assert "does not send them anywhere" in body, \
+            "it does not say the values stay on this computer"
+        assert "—" not in body, "em dash in user-facing text"
+    finally:
+        dlg.close()
+
+
+def test_the_file_dialogs_are_the_apps_own_with_its_sidebar():
+    """Not the OS dialog, unless the user asked for it in Preferences.
+
+    ChromIQ's own dialog is what carries the shortcuts down the left: Desktop,
+    Pictures, Downloads, Documents, the app's working folder, and whatever the
+    caller adds. These two calls add the folder the values file lives in, so a
+    reader who saved a template yesterday can get back to it.
+    """
+    import inspect
+
+    from ui.dialogs import thresholds_dialog as td
+
+    for name in ("_on_iso_template", "_on_iso_use"):
+        src = inspect.getsource(getattr(td.ThresholdsDialog, name))
+        assert "_file_dialog(" in src, f"{name} does not use the app's dialog"
+        assert "QFileDialog" not in src, f"{name} reaches past the app's own"
+        assert "extra_paths" in src, f"{name} offers no shortcut to the folder"
+        assert "DocumentsLocation" in src, f"{name} starts somewhere unhelpful"

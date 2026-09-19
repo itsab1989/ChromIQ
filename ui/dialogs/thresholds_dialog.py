@@ -321,6 +321,40 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
             "ChromIQ's folder; the copy you made it from is untouched."))
         self._iso_forget_btn.clicked.connect(self._on_iso_forget)
         iso_row.addWidget(self._iso_forget_btn)
+        # AN INFO ICON, LIKE EVERY OTHER CONTROL IN THIS APP. Three hover
+        # tooltips are three sentences nobody reads together, and this needs
+        # explaining once, properly: why ChromIQ has no numbers of its own,
+        # what the three buttons do in order, where the file ends up, and that
+        # nothing leaves the computer.
+        iso_row.addWidget(TooltipButton(
+            tr("Using a standard's own limit values"),
+            tr("ChromIQ does not ship the tolerance values of ISO 12647-7 or "
+               "ISO 12647-8, and it cannot: they are the content of a paid "
+               "standard, and putting them inside a program is licensed "
+               "separately from reading them. That is why the two ISO columns "
+               "show ? instead of numbers.\n\n"
+               "If you own a copy of either standard, you can supply its "
+               "values yourself and ChromIQ will judge against them. Three "
+               "steps, and no typing of file paths:\n\n"
+               "1.  Press \u201cSave a file to fill in\u201d and choose "
+               "where to keep it. ChromIQ writes a file listing every row "
+               "these two sets use, in the same order as the table below, "
+               "with the numbers left blank.\n"
+               "2.  Open that file in any text editor and type the numbers "
+               "from your own copy in place of the word null. A row you leave "
+               "alone keeps showing ?, so you can do a few at a time.\n"
+               "3.  Press \u201cUse a file I filled in\u201d and pick it. "
+               "ChromIQ copies it into its own folder, so the values stay "
+               "even if you tidy the file away afterwards.\n\n"
+               "\u201cStop using it\u201d removes ChromIQ's copy and goes "
+               "back to ChromIQ's own numbers. The file you made it from is "
+               "never touched.\n\n"
+               "The values stay on this computer. ChromIQ does not send them "
+               "anywhere, they are not part of a report you share, and they "
+               "are not written into any project.\n\n"
+               "Close and reopen this window after supplying a file: the "
+               "table is drawn once when the window opens."),
+            self))
         iso_row.addStretch(1)
         inner.addLayout(iso_row)
         self._sync_iso_buttons()
@@ -459,11 +493,20 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
 
     def _on_iso_template(self) -> None:
         from ui.widgets import save_file_dialog
-        from workflow.compliance_sets import ISO_USER_FILE, iso_values_template
+        from workflow.compliance_sets import (ISO_USER_FILE,
+                                              iso_values_template,
+                                              user_values_path)
 
+        # DOCUMENTS, NOT HOME, and the app's own sidebar. A file the user has
+        # to find again in a text editor should not land in the one folder
+        # every platform hides differently.
+        from PyQt6.QtCore import QStandardPaths
+        _docs = QStandardPaths.writableLocation(
+            QStandardPaths.StandardLocation.DocumentsLocation) or str(Path.home())
         where = save_file_dialog(
             self, tr("Save a file to fill in"), tr("JSON files (*.json)"),
-            start_path=str(Path.home() / ISO_USER_FILE))
+            start_path=str(Path(_docs) / ISO_USER_FILE),
+            extra_paths=(str(user_values_path().parent),))
         if not where:
             return
         try:
@@ -480,11 +523,16 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
 
     def _on_iso_use(self) -> None:
         from ui.widgets import open_file_dialog
-        from workflow.compliance_sets import install_user_values
+        from workflow.compliance_sets import (install_user_values,
+                                              user_values_path)
 
+        from PyQt6.QtCore import QStandardPaths
+        _docs = QStandardPaths.writableLocation(
+            QStandardPaths.StandardLocation.DocumentsLocation) or str(Path.home())
         src = open_file_dialog(
             self, tr("Use a file I filled in"), tr("JSON files (*.json)"),
-            start_dir=str(Path.home()))
+            start_dir=_docs,
+            extra_paths=(str(user_values_path().parent),))
         if not src:
             return
         try:
