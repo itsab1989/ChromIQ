@@ -104,11 +104,35 @@ WHAT IT NEVER DOES
   chart and the declaration that described it are archived together, which is
   the rule the whole of `_clear_verify_chart_files` exists to keep.
 
-  What is genuinely undecided is whether a declaration should FOLLOW a user
-  across a regenerate, when the chart it described has been archived and a
-  different chart now stands in its place. That is a rule about what a
-  declaration belongs to, so it is Knut's, and it is asked on the issue rather
-  than answered here.
+  **AND KNUT HAS NOW ANSWERED THE QUESTION THAT LEFT (2026-09-19).** What was
+  asked on the issue was whether a declaration should FOLLOW a user across a
+  regenerate, onto the different chart that now stands in the old one's place.
+  It does not:
+
+  > *"The control strip declaration is tied to the chart it is made for, not
+  > the run. If the declaration exists, and measurement is started, that file
+  > shall also be backed up to chart/ folder (like other chart files), and if
+  > the Restore Used Chart button is pressed, the controls strip declaration
+  > shall also be restored with the other chart files. The delete function,
+  > when run type is set to verification, or when the profile run is selected
+  > which the verification belongs to (profile run = run1 etc.), then the
+  > delete button function shall also delete the controls strip declaration
+  > file. Also, the backup function that copies to old/ folder shall copy the
+  > controls strip declaration file if it exists."*
+
+  So a declaration travels with its chart and with nothing else: into the
+  measurement's ``chart/`` snapshot, back out of it on Restore Used Chart, into
+  ``old/`` when the chart it describes is displaced, and out of the project
+  with the folder Delete removes. It never crosses to a chart it was not made
+  for, which is why :func:`_remove_ours` exists at all.
+
+  Three of those four were already true when he ruled, and measured to be
+  (B8-409): the verification slot copies everything at its root, ``old/``
+  archives ``<stem>*``, and Delete moves whole folders. The fourth was not.
+  A PROFILING chart's snapshot takes a NAMED list of suffixes
+  (:data:`workflow.chart_slot.PROFILING_CHART_SUFFIXES`) and the declaration
+  was not on it, so a restore there put an old chart back under the newer
+  chart's declaration. It is on that list now.
 * It does not write beside a profiling chart. Knut scoped this to the
   verification chart, and a profiling sheet carries no verdict at all.
 * It does not rewrite anything on a user's disk. The sidecar is written beside

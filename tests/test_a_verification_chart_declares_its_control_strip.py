@@ -445,11 +445,22 @@ def test_a_profiling_chart_is_left_exactly_as_it_was(
 
 # --- the message ------------------------------------------------------------
 
-def test_the_warning_is_the_catalogue_entry_and_is_not_approved_yet():
+def test_the_warning_is_the_catalogue_entry_and_knut_approved_it():
+    """The wording was proposed on 2026-09-19 and approved the same day.
+
+    Knut, asked for it directly: *"Yes, message text approved."* This guard
+    asserted `approved is False` while the text was in §M-PROPOSED, which is
+    the right thing for a proposal and the wrong thing the moment it is
+    approved: it went red on the branch the moment the catalogue caught up.
+    What is worth keeping is the rest, so the numbers in the sentence still
+    come from the constants rather than being typed twice.
+    """
     from workflow import measurement_messages as M
     msg = M.CATALOGUE["M-VERIFY-NO-CONTROL-STRIP"]
-    assert msg.approved is False, (
-        "this wording has not been reviewed; §M-PROPOSED is where it lives")
+    assert msg.approved is True, (
+        "Knut approved this wording on 2026-09-19; a message that is approved "
+        "in the design record and not in the code is the disagreement this "
+        "catalogue exists to prevent")
     title, body = msg.render(n=3, button=cs.ELIGIBILITY_CONTROL)
     assert "{" not in body and "}" not in body
     assert str(len(cs.SLOTS)) in body

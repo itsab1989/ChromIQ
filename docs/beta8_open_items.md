@@ -17749,7 +17749,7 @@ would reach.
   test_the_app_declares_the_strip_when_it_files_a_verification_chart,
   test_the_app_warns_when_the_chart_it_filed_cannot_carry_one,
   test_a_profiling_chart_is_left_exactly_as_it_was,
-  test_the_warning_is_the_catalogue_entry_and_is_not_approved_yet.
+  test_the_warning_is_the_catalogue_entry_and_knut_approved_it.
   Eleven mutations were applied to the real source, every `__pycache__`
   cleared, the file re-run and restored: all eleven turn it RED. **Two of them
   did not, first time round, and both guards were wrong rather than the
@@ -17959,3 +17959,172 @@ would reach.
   removed (**3 failed**, *"the declaration names ['0'], which no measurement of
   this chart can contain"*); restored, 6 passed, and B8-405's own 21 guards
   pass either way.
+
+### B8-408 · FIXED · The demo package ships chart presets built to fail one verification metric each, because no built-in preset can fail any
+- blocks release: no
+- status: FIXED
+- Knut, 2026-09-19: *"the demo package project must create a set of demo chart
+  presets that are built to fail the metrics used during a verification. One
+  test-preset made to fail one metric, so if there are 17 metrics to test then
+  make 17 presets that is made to prove that the 'Which presets can be
+  verified?' window works and detects which metric on a presets does not pass
+  the criteria, and reports what is wrong/missing in the window. The agents
+  testing shall use these presets in tests to confirm they are working. When
+  the demo package then is released and downloadable, a user can place the
+  presets in the '…/Library/Preferences/ChromIQ/presets/Create Chart' folder
+  (on mac), and restart the app. The demo presets shall then be visible in the
+  preset pulldown, and when opening the 'Which presets can be verified?'
+  window. This also will confirm that a user can create local presets which
+  then are tested for compatibility for verification."*
+- **WHY IT WAS NEEDED, IN B8-406'S OWN WORDS.** That round measured, and wrote
+  into its proof, *"Every built-in preset answers every patch-based row"*: all
+  177 shipped charts give the window the same answer, so nothing in the release
+  could make a single detection speak. Eight of the fourteen reason codes had
+  no chart anywhere in ChromIQ that produces them.
+- **NOT SEVENTEEN. FOURTEEN CODES, OF WHICH TEN ARE REACHABLE AND NINE ARE
+  ISOLATABLE.** The window never invents a verdict, so "which metric can a
+  preset fail" is really "which reason code can an UNPRINTED patch set
+  provoke". `preset_eligibility.classified_reasons()` knows fourteen. Four
+  cannot be provoked by any patch set and are named rather than left as a gap:
+  `needs_reference_file` is the state of EVERY preset (no preset carries a
+  colorimetric reference), `no_reference` and `no_corners` are unreachable by
+  construction on the stand-in report, and `not_computed` can only come out of
+  a report saved before a block existed. The limits table's other fourteen rows
+  are `status: unmeasurable` and have no detection at all.
+- **`small_sample` CANNOT BE ISOLATED, AND THE ARITHMETIC SAYS SO.** It needs
+  under 20 patches; the outer-gamut row needs `ceil(n/4) >= 20`, i.e. 77
+  patches, and the 95th-percentile strip row needs 20. So demo 11 shows three
+  reasons and the package says which two are forced. The other nine designs
+  show exactly one reason each, measured.
+- built: `scripts/make_verification_preset_demos.py`, fourteen Create Chart
+  presets with hand-designed `.ti1` files (no targen: a chart targen designs is
+  exactly the chart that fails nothing). Demo 00 is the control that passes
+  everything; 01 to 11 each carry one fault; 12 and 13 are the two
+  "Cannot be checked" states, a preset saved without its patch set and a
+  preset whose `.ti1` cannot be read.
+- **MEASURED ON SCREEN, in a real window, presets installed by copying the
+  files into the preset folder the way a user does.** The window's own chips,
+  on Full colour check / Custom ISO 12647-7 (16 rows asked): control 13, the
+  grey faults 11, the ramp and the two gamut faults 12, no control strip 10,
+  the short declaration 10, the 95th-percentile-only declaration 12, the
+  19-patch chart 10, and "Cannot be checked" for the last two. Fifteen frames,
+  every one taken twice and pixel-identical in the client area.
+- shipped in the pack: `scripts/make_report_limit_demos.py` builds the folder
+  "Create Chart presets (verification demos)" into the package, `verify_pack`
+  now calls a pack WITHOUT it incomplete (B8-393's lesson), and the pack README
+  names the macOS and the Windows folder and the restart.
+- evidence: test_every_demo_preset_reaches_the_window,
+  test_every_demo_preset_reaches_the_dropdown,
+  test_every_demo_fails_exactly_what_it_claims,
+  test_the_window_says_what_is_missing_in_its_own_words,
+  test_the_control_preset_answers_every_row_its_patches_decide,
+  test_the_short_strip_demo_loses_three_rows_and_the_shorter_one_loses_one,
+  test_the_smallest_chart_cannot_fail_alone_and_says_so,
+  test_the_package_accounts_for_every_reason_the_window_can_show,
+  test_the_unreachable_four_really_are_unreachable_here,
+  test_a_pack_without_the_preset_folder_is_incomplete,
+  test_the_pack_readme_sends_the_user_to_the_right_folder
+- where those guards live: `tests/test_the_demo_presets_fail_one_metric_each.py`,
+  one new file, 38 tests. It COPIES the built folder into the preset store and
+  then drives the app's own sequence: a real `TabChart` in Manual mode, a real
+  click on the real button, the real handler opening the real window, and each
+  preset selected in the real tree so the real detail pane is what is read.
+- **EIGHT MUTATIONS PROVED TO LAND, and a ninth proved INERT and reported as
+  such.** Baseline 36 passed. `GREY_MIN_LEVELS` 8→4 (2 failed),
+  `SURFACE_GAMUT_MIN` 10→0 (3), `OUTER_GAMUT_MIN` 20→5 (3),
+  `CONTROL_STRIP_MIN` 8→2 (3), `GREY_LIGHTEST_MIN` 90→80 (2),
+  `GREY_SPREAD_TOL` 1.0→200.0 (10), `OUTER_GAMUT_FRACTION` 0.25→1.0 (2), and
+  the 30 to 70 % band widened to 0..100 (2). `RAMP_MIN_STEPS` 3→1 changed
+  nothing and that is a fact about the mutation: demo 05 has NO patch in the
+  band at all, so requiring one step still finds none. Restored, 36 passed.
+- proof: `~/Desktop/ChromIQ-beta23-proof/the-seventeen-presets/`
+
+### B8-409 · FIXED · Knut's lifecycle for the control-strip declaration: three places were already right, the fourth put a chart back under another chart's strip
+- blocks release: yes
+- status: FIXED
+- asked for by Knut, 2026-09-19, answering the question `workflow/control_strip.py`
+  had left open (*"whether a declaration should FOLLOW a user across a
+  regenerate"*):
+
+  > *"The control strip declaration is tied to the chart it is made for, not
+  > the run. If the declaration exists, and measurement is started, that file
+  > shall also be backed up to chart/ folder (like other chart files), and if
+  > the Restore Used Chart button is pressed, the controls strip declaration
+  > shall also be restored with the other chart files. The delete function,
+  > when run type is set to verification, or when the profile run is selected
+  > which the verification belongs to (profile run = run1 etc.), then the
+  > delete button function shall also delete the controls strip declaration
+  > file. Also, the backup function that copies to old/ folder shall copy the
+  > controls strip declaration file if it exists."*
+
+- **THREE OF THE FOUR WERE ALREADY TRUE, AND THAT IS MEASURED, NOT ASSUMED.**
+  Driven on a real project with a real chart and a real declaration:
+  * `Run._clear_verify_chart_files` archives `stem_files(vdir, stem, "*")`, so
+    the declaration is already inside that glob and reaches
+    `verifications/old/<date>/` byte-identical. **Nothing was changed here**,
+    which is the brief's own instruction and the honest answer.
+  * a dated verification's `chart/` snapshot copies EVERYTHING at the
+    `verifications/` root (`ChartSlot(suffixes=None)`), so it already carried
+    the declaration, and `restore_slot` already put it back.
+  * Delete moves a whole folder to the Trash in one move — `KIND_VERIFY_ALL`
+    on `verifications/`, `KIND_RUN` on the run — so the declaration leaves with
+    it in both of the cases Knut names.
+  Each of those is a general mechanism that a perfectly reasonable narrowing
+  would break, and nothing anywhere named this file. The four guards below are
+  what now hold them, and every one is proved by a mutation that narrows the
+  mechanism rather than by editing the assertion.
+- **THE FOURTH WAS BROKEN: a PROFILING run's snapshot.** It takes a NAMED list
+  of suffixes (`workflow/chart_slot.PROFILING_CHART_SUFFIXES`) and
+  `.control-strip.json` was not on it. A profiling chart CAN carry a
+  declaration: `measurement_report.control_strip_declaration` reads a sidecar
+  beside whatever chart a measurement is paired with, and the report window's
+  own help text tells the user to write one. So the copy came back without it
+  and a restore left chart X under chart Y's declaration, which is the one
+  thing "tied to the chart" forbids. fix: the suffix is on the list, read from
+  `CONTROL_STRIP_SIDECAR` rather than spelled a second time.
+- **AND THE ON-SCREEN RUN FOUND A FAULT NO OFFSCREEN GUARD WAS LOOKING AT.**
+  Pressing Restore Used Chart in the real window left **a chart of 22 patches
+  under a declaration of 23**. Restoring a chart redraws its page images, the
+  redraw comes back through `TabChart._on_generate_finished`, and that handler
+  declared the strip BEFORE releasing `_ChartRebuildGuard` — which then puts
+  the restored chart's bytes back over whatever the redraw laid out. The
+  declaration on disk therefore described a layout that had just been thrown
+  away, and the app's own log said the guard had fired: *"the page rebuild
+  altered the chart itself … the restored chart has been put back"*. fix: when
+  a guard is armed the declaration waits for it, and is written once, from the
+  chart the guard leaves behind.
+- evidence: test_a_verification_measurement_stores_the_declaration_with_the_chart,
+  test_restore_used_chart_puts_the_declaration_back_too,
+  test_replacing_the_chart_archives_its_declaration_and_destroys_nothing,
+  test_delete_with_run_type_verification_removes_the_declaration,
+  test_delete_of_the_profile_run_removes_the_declaration,
+  test_a_profiling_run_stores_the_declaration_beside_its_chart,
+  test_restoring_a_profiling_chart_brings_its_declaration_with_it,
+  test_the_declaration_describes_the_chart_the_rebuild_guard_left_on_disk
+- where those guards live: `tests/test_a_declaration_travels_with_its_chart.py`,
+  one new file. The chart is built by real `targen`/`printtarg`, the
+  declaration is written by `TabChart._on_generate_finished`, the snapshot is
+  taken by `TabMeasure._snapshot_verification_chart`, the restore is
+  `MeasurementTargetController.restore_used_chart` and Delete is
+  `delete_plan()` followed by the line the button runs. Nothing copies a file
+  by hand.
+- mutations proved to land, `__pycache__` cleared each time: the suffix taken
+  off the profiling list (**2 failed**, *"the profiling run stored its chart
+  without the declaration"*); `_clear_verify_chart_files` narrowed to a named
+  list (**1 failed**, *"the displaced chart was archived and its declaration
+  was not"*); `files_to_snapshot` narrowed the same way (**2 failed**, *"the
+  measurement stored the chart and left its control-strip declaration
+  behind"*); the verification Delete plan aimed at the dated folder (**1
+  failed**, *"the declaration outlived the delete"*); the run Delete moving the
+  declaration out of the way before trashing (**1 failed**, *"a copy of the
+  declaration survived the delete elsewhere in the project"*); and the
+  declaration written before the rebuild guard again (**1 failed**, *"the
+  declaration beside the restored chart describes 25 patches of a layout that
+  is not on disk"*). Restored: 8 passed.
+- **The two Delete guards look at the WHOLE PROJECT, not at the one path.** The
+  first version asserted only that the file was gone from where it had been,
+  and the fifth mutation — a narrowing that moves the declaration aside and
+  deletes around it — passed under it. A delete that relocates is not a delete.
+- proof: `~/Desktop/ChromIQ-beta23-proof/the-declaration-lifecycle/` — the
+  driven run, the files on disk before and after each of the four places, and
+  six photographs of the real window.

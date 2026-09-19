@@ -46,6 +46,14 @@ def _complete(tmp_path: Path) -> Path:
         (d / name).mkdir()
     (d / "README.txt").write_text("x", encoding="utf-8")
     (d / "intended-vs-actual.json").write_text("{}", encoding="utf-8")
+    # …AND THE DEMO CHART PRESETS (B8-408). They are part of a complete pack
+    # from beta 23 on, so a folder without them is not complete and this
+    # fixture must not pretend otherwise. Built by their own generator rather
+    # than mocked, because the name of the folder is the thing `verify_pack`
+    # asks for and a second copy of it here could drift.
+    import importlib
+    presets = importlib.import_module("make_verification_preset_demos")
+    presets.build(d / presets.FOLDER)
     return d
 
 

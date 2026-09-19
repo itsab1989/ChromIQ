@@ -3153,6 +3153,19 @@ def build_project(dest: Path, name: str, plans: "list[RunPlan]",
 # ---------------------------------------------------------------------------
 # main
 # ---------------------------------------------------------------------------
+def _preset_folder() -> str:
+    """The demo-preset folder's name, asked of the module that owns it.
+
+    A pack without it is INCOMPLETE, for the same reason a pack missing two of
+    its projects was: Knut asked for the complete package every time, and a
+    check that knows only what the previous release happened to contain is the
+    baseline-against-itself fault this file already learned once.
+    """
+    sys.path.insert(0, str(_HERE))
+    import make_verification_preset_demos as _PRESETS
+    return _PRESETS.FOLDER
+
+
 def verify_pack(path: "Path") -> "list[str]":
     """What is MISSING from a built pack, as sentences. Empty means complete.
 
@@ -3184,12 +3197,12 @@ def verify_pack(path: "Path") -> "list[str]":
             names = zf.namelist()
         present = {n.split("/")[1] for n in names
                    if "/" in n and len(n.split("/")) > 1}
-        extras = {"README.txt", "intended-vs-actual.json"}
+        extras = {"README.txt", "intended-vs-actual.json", _preset_folder()}
     else:
         if not path.is_dir():
             return [f"no such folder: {path}"]
         present = {c.name for c in path.iterdir()}
-        extras = {"README.txt", "intended-vs-actual.json"}
+        extras = {"README.txt", "intended-vs-actual.json", _preset_folder()}
     for name in want:
         if name not in present:
             missing.append(f"project missing: {name}")
@@ -3401,6 +3414,18 @@ def main(argv=None) -> int:
     for name, plans in PROJECTS:
         build_project(dest, name, plans, cache_root, results, lock_rows)
     shutil.rmtree(cache_root, ignore_errors=True)
+
+    # THE DEMO PRESETS (#182, Knut 2026-09-19), built by their own generator.
+    # They are charts, not projects: `scripts/make_verification_preset_demos.py`
+    # owns them, this line only puts its folder inside the pack a user
+    # downloads. Kept as a separate module because nothing about them needs
+    # ArgyllCMS, a profile or a measurement, and a 250 KB generator is not a
+    # place to add a fifteenth thing.
+    sys.path.insert(0, str(_HERE))
+    import make_verification_preset_demos as _PRESETS
+    _PRESETS.build(dest / _PRESETS.FOLDER)
+    print(f"\ndemo presets: {len(_PRESETS.DEMOS)} written to "
+          f"{dest / _PRESETS.FOLDER}")
 
     cov = coverage(dest, results)
     (dest / "README.txt").write_text(readme(results, lock_rows, cov, dest),
@@ -4702,6 +4727,26 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
             a("SECOND: the two columns hold DIFFERENT numbers from each other,")
             a("so the two runs can be read against one another.")
         a("")
+    sys.path.insert(0, str(_HERE))
+    import make_verification_preset_demos as _PRESETS
+    a("THE DEMO CHART PRESETS")
+    a("----------------------")
+    a("")
+    a("Knut, 2026-09-19: \"the demo package project must create a set of demo")
+    a("chart presets that are built to fail the metrics used during a")
+    a("verification. One test-preset made to fail one metric\".")
+    a("")
+    a(f"They are in the folder \"{_PRESETS.FOLDER}\" beside this file, one")
+    a("preset per reason the \"Which presets can be verified?\" window can")
+    a("give, plus a control that passes everything. Copy that folder's")
+    a("CONTENTS into your own Create Chart preset folder and restart ChromIQ:")
+    a("")
+    a("  macOS    ~/Library/Preferences/ChromIQ/presets/Create Chart")
+    a("  Windows  %APPDATA%\\ChromIQ\\presets\\Create Chart")
+    a("")
+    a("That folder's own README says what each preset is built to fail, and")
+    a("which reasons no patch set can provoke at all.")
+    a("")
     a("EVERY METRIC LIMIT, AND WHETHER THIS PACKAGE TESTS IT")
     a("-----------------------------------------------------")
     a("")
