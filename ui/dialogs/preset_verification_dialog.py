@@ -1,26 +1,41 @@
-"""“Which presets can be verified” — the window under the Create Chart presets
-dropdown (#182, Knut, beta 22).
+"""“Which presets can be used for verification” — the window under the Create
+Chart presets dropdown (#182, Knut, beta 22).
 
 Knut asked for *"a window listing all the presets that fulfil the requirements
 for verification on a specified report type and judge against selection"*, with
 *"those charts suitable for verification"* highlighted, and for a preset that
 does not qualify to say what it is missing.
 
+**IT SAYS "METRICS", NOT "ROWS".** Knut, beta 25: *"The text refers to 'rows',
+or 'Rows answered', which is not intuitively understood as 'verification
+metrics' … Try to reword all the text, and the help text, so that you avoid
+'rows' and 'rows of a report'."* A row is what the Measurement Report's own
+table calls its lines; a reader of THIS window is choosing a chart, and what a
+chart supplies is a metric. The row ids underneath are untouched.
+
 **IT MARKS, IT DOES NOT FILTER, and that decision was measured rather than
 guessed.** On the 177 built-in presets ChromIQ ships (2026-09-19):
 
-=========================================  ==========  =========================
-report type / limit set                    rows asked  answering every row
-=========================================  ==========  =========================
-any / ChromIQ default, tight, quick                 7  **177 of 177**
-Grey and tone check / Custom ISO                    3  **177 of 177**
-Colour summary or Full check / Custom ISO          16  **0 of 177** (13 each)
-Printing record (not graded) / any                  0  every one, nothing judged
-=========================================  ==========  =========================
+=========================================  ============  =======================
+report type / limit set                    metrics asked  answering every one
+=========================================  ============  =======================
+any / ChromIQ default, tight, quick                    7  **177 of 177**
+Grey and tone check / Custom ISO                       3  **177 of 177**
+Colour summary or Full check / Custom ISO             16  **0 of 177** (13 each)
+Printing record (not graded) / any                     0  every one, nothing judged
+=========================================  ============  =======================
 
 A filter is therefore either a no-op or an empty window; it is never the thing
 that helps. The list always holds every preset and marks each one, and a single
-opt-in tick box narrows 177 rows to the 49 the star is on.
+opt-in tick box narrows 177 rows to the ones the star is on.
+
+**THE ONE THING THAT TICK BOX DOES HIDE** is a preset that ships finished page
+TIFFs, which is the eleven "by Pharmacist" bundles. Knut, beta 25: their sheet
+is an image and cannot be laid out again, so it can never be built FROM PROFILE
+GAMUT, which is the only way a chart acquires the colorimetric reference three
+metrics are judged against. They stay on the unfiltered list, with the detail
+pane saying so and naming those three, because hiding them outright would
+answer none of the questions this window exists to answer.
 
 The zero is not a bug in the presets. Both Custom ISO columns put a limit on
 the three reference rows, and **no preset chart can supply them**: a
@@ -80,6 +95,14 @@ class PresetRow:
     patches: int
     pages: int
     builtin: bool
+    #: the Create Chart pulldown's own userData for this preset: a built-in's
+    #: KEY or a user preset's NAME. Knut, beta 25, asked a double-click here to
+    #: be *"equivalent to selecting and loading a preset from the 'Select
+    #: preset' pulldown list"*, and the pulldown is addressed by this.
+    key: "str | None" = None
+    #: False when the preset ships finished page TIFFs, so its sheet cannot be
+    #: laid out again. See `PE.made_for_verification` and `_no_gamut_note`.
+    relayoutable: bool = True
     starred: bool = False
     assessment: PE.Assessment = PE.UNCHECKED
 
@@ -127,8 +150,31 @@ def reason_line(code: str) -> str:
         MR.REASON_NO_CORNERS:
             tr("This chart has no patch at any of the solid ink corners."),
         MR.REASON_NOT_COMPUTED:
-            tr("ChromIQ cannot check this row on this chart."),
-    }.get(code, tr("ChromIQ cannot check this row on this chart."))
+            tr("ChromIQ cannot check this metric on this chart."),
+    }.get(code, tr("ChromIQ cannot check this metric on this chart."))
+
+
+#: **A SHEET THAT IS ALREADY AN IMAGE CANNOT BE BUILT FROM PROFILE GAMUT.**
+#: Knut, beta 25, on the eleven "by Pharmacist" bundles: *"I prefer that these
+#: are noted as 'not usable for verification using From Profile Gamut' and then
+#: also mention which metrics cannot be fulfilled."*
+#:
+#: The metrics are not typed here: they come from
+#: :func:`workflow.preset_eligibility.gamut_only_rows`, which reads them off
+#: the row table, and each is named by the label the Measurement Report uses
+#: for it, so the two windows cannot come to say different things.
+def _no_gamut_lines() -> "list[str]":
+    """The heading and the sentence, then one line per metric out of reach."""
+    lines = [tr(
+        "This preset comes with its pages already rendered, so ChromIQ cannot "
+        "lay the sheet out again. That means it cannot be built with From "
+        "Profile Gamut, and a chart printed any other way carries no "
+        "colorimetric reference. It can still be printed and measured, but "
+        "these metrics can never be fulfilled on it, whichever report type "
+        "and limit set you choose:")]
+    for rid in PE.gamut_only_rows():
+        lines.append("\u2022  " + tr(PE.row_label(rid)))
+    return lines
 
 
 #: Why a preset cannot be checked at all. Knut's window must say something
@@ -172,14 +218,29 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         changes, and it changes to the row they came in asking about.
         """
         super().__init__(parent)
-        self.setWindowTitle(tr("Which presets can be verified"))
+        self.setWindowTitle(tr("Which presets can be used for verification"))
         self._rows = list(rows)
         self._overrides = overrides
+        #: Set by a double-click, read by the caller once `exec` has returned:
+        #: the Create Chart pulldown key of the preset to load. Knut, beta 25.
+        self.chosen_key: "str | None" = None
         #: consumed by the FIRST `_fill_tree`; after that the user's own
         #: selection is what is kept across a refresh.
         self._open_on = select or None
         self._build()
-        self.resize(1040, min(700, self._work_area_cap(700)))
+        # **THE SIZE IN KNUT'S OWN SCREENSHOT.** Beta 25: *"The width of the
+        # right panel for detailed info is too narrow. A good default width of
+        # the right panel in proportion to the left panel is shown in this
+        # screenshot"* — 1179 x 730, with the list 838 px and the detail pane
+        # 305 px. Measured on screen before this line: the splitter holds
+        # 73.8 / 26.2 at EVERY window width (1040, 1179 and 1400 all gave it),
+        # so the proportion he photographed is the proportion the window
+        # already had and the only thing his screenshot changes is how much
+        # window there is to divide. At the old 1040 the detail pane opened at
+        # 263 px; at his 1179 it opens at 299. So the default is his, and the
+        # list keeps the width it has in his picture rather than paying for
+        # the detail pane.
+        self.resize(1179, min(730, self._work_area_cap(730)))
         self._keep_inside_the_work_area()
         self.refresh()
 
@@ -190,10 +251,11 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         outer.setSpacing(10)
 
         intro = QLabel(tr(
-            "Every preset ChromIQ ships, and your own, against the rows a "
-            "report of this type judged against this limit set asks of a "
-            "chart. Nothing is hidden: pick a preset to see what it can "
-            "answer and what it cannot."), self)
+            "Every preset ChromIQ ships, and your own, against the metrics a "
+            "report of this type judged against this limit set asks to verify "
+            "on a chart. Nothing is hidden: click a preset to see what it can "
+            "answer and what it cannot, and double-click it to close this "
+            "window and load it in Create Chart."), self)
         intro.setWordWrap(True)
         intro.setObjectName("info")
         outer.addWidget(intro)
@@ -245,13 +307,13 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         self._tree = QTreeWidget(split)
         self._tree.setColumnCount(4)
         self._tree.setHeaderLabels([tr("Preset"), tr("Patches"), tr("Pages"),
-                                    tr("Rows answered")])
+                                    tr("Metrics answered")])
         self._tree.setRootIsDecorated(True)
         self._tree.setUniformRowHeights(True)
         self._tree.setAlternatingRowColors(True)
         # The NAME takes the leftover width and the three figures keep a
         # fixed one. With the last section stretching instead, 240 px of empty
-        # column sat to the right of "Rows answered" while every preset name
+        # column sat to the right of "Metrics answered" while every preset name
         # was elided; photographed before this line.
         from PyQt6.QtWidgets import QHeaderView
         head = self._tree.header()
@@ -263,6 +325,11 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         # A BOUND METHOD, never a self-capturing lambda on a signal a widget's
         # own child emits: CLAUDE.md, the fade-scroll SIGSEGV.
         self._tree.currentItemChanged.connect(self._on_selected)
+        # Knut, beta 25: *"make it so that double-clicking a preset is
+        # equivalent to selecting and loading a preset from the 'Select preset'
+        # pulldown list."* A BOUND METHOD, for the same reason as the line
+        # above it.
+        self._tree.itemDoubleClicked.connect(self._on_double_clicked)
         split.addWidget(self._tree)
 
         detail_host = QWidget(split)
@@ -285,6 +352,12 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         self._detail_layout.setSpacing(6)
         self._detail_scroll.setWidget(self._detail)
         dh.addWidget(self._detail_scroll)
+        # **THE DETAIL PANE HAS A FLOOR NOW.** Every metric label in it is
+        # word-wrapped, and the pane is the half of the window Knut called too
+        # narrow, so it may not be squeezed below what his screenshot shows
+        # (305 px) however small the window gets: the list can elide a preset
+        # name and still be read, a wrapped sentence three words wide cannot.
+        detail_host.setMinimumWidth(300)
         split.addWidget(detail_host)
         split.setStretchFactor(0, 3)
         split.setStretchFactor(1, 4)
@@ -319,6 +392,31 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         self._show_detail(current.data(0, Qt.ItemDataRole.UserRole)
                           if current is not None else None)
 
+    def _on_double_clicked(self, item, _column: int = 0) -> None:
+        """Knut, beta 25: a double-click loads the preset and closes this.
+
+        *"What happens when double-clicking a preset is that the window is
+        closed and the selected preset is loaded in Create Chart for the
+        selected 'profile run' and 'run type'=verification."*
+
+        THE LOADING IS THE CALLER'S, not this window's, and deliberately so:
+        applying a preset asks for a name, can start a build and can be backed
+        out of (#175), and none of that may happen underneath a modal that is
+        still on screen. This records WHICH preset and accepts; `TabChart`
+        reads `chosen_key` once `exec` has returned and routes it through the
+        pulldown's own handler, so a double-click and a pick in the dropdown
+        run the same code.
+
+        A GROUP HEADING IS NOT A PRESET. Its item carries no `PresetRow`, and
+        the tree expands and collapses on a double-click there, which is what
+        a reader expects; this leaves that alone.
+        """
+        row = item.data(0, Qt.ItemDataRole.UserRole) if item is not None else None
+        if not isinstance(row, PresetRow) or not row.key:
+            return
+        self.chosen_key = str(row.key)
+        self.accept()
+
     # -- the work --------------------------------------------------------
     def refresh(self) -> None:
         """Re-assess every preset against the current choice and redraw."""
@@ -326,19 +424,24 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         for row in self._rows:
             row.assessment = PE.assess(row.chart, type_id, set_id,
                                        self._overrides)
-            row.starred = PE.made_for_verification(row.chart, row.patches,
-                                                   row.pages)
+            row.starred = PE.made_for_verification(
+                row.chart, row.patches, row.pages,
+                relayoutable=row.relayoutable)
         asked = PE.rows_asked(type_id, set_id, self._overrides)
         if not asked:
             self._asked_label.setText(tr(
                 "This report type judges nothing, so no chart can fall short "
                 "of it."))
         else:
+            # Knut's own sentence, beta 25: *"How about writing 'This report
+            # type and limit set asks to verify 9 metrics of a chart during
+            # verification.'"*
             self._asked_label.setText(count_phrase(
                 len(asked),
-                tr("This report type and limit set ask 1 row of a chart."),
-                tr("This report type and limit set ask {n} rows of a "
-                   "chart.")))
+                tr("This report type and limit set asks to verify 1 metric "
+                   "of a chart during verification."),
+                tr("This report type and limit set asks to verify {n} "
+                   "metrics of a chart during verification.")))
         self._fill_tree()
         self._fill_figures()
 
@@ -391,7 +494,7 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         elif not a.asked:
             verdict = tr("Nothing is judged")
         else:
-            verdict = tr("{n} of {total} rows").format(
+            verdict = tr("{n} of {total} metrics").format(
                 n=len(a.answered), total=len(a.asked))
         return [name,
                 str(row.patches) if row.patches else "",
@@ -404,7 +507,7 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         s = PE.summarise(shown)
         self._figures.setText(
             tr("Presets listed: {listed}     Made for verification: "
-               "{starred}     Answering every row asked: {complete}").format(
+               "{starred}     Answering every metric asked: {complete}").format(
                    listed=s["listed"], starred=s["starred"],
                    complete=s["complete"]))
 
@@ -456,6 +559,18 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         if facts:
             self._add("   ·   ".join(facts), info=True)
         a = row.assessment
+        # **THE GAMUT NOTE COMES FIRST, BEFORE THE STAR'S ABSENCE IS EXPLAINED
+        # ANY OTHER WAY.** It is the reason this preset has no star and the
+        # reason it is gone from the filtered list, so a reader who has just
+        # ticked the box and lost it finds the answer at the top of the pane
+        # rather than under two ticks and a cross.
+        if not row.relayoutable:
+            lines = _no_gamut_lines()
+            self._add(tr("Not usable for verification using From Profile "
+                         "Gamut"), bold=True)
+            self._add(lines[0], info=True)
+            for line in lines[1:]:
+                self._add(line, info=True, indent=10)
         if row.starred:
             self._add(tr("★  Made for verification."))
         elif row.chart is not None and not row.pages and a.checked:
@@ -501,6 +616,6 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
                 if remedy:
                     self._add(tr(remedy), info=True, indent=22)
         else:
-            self._add(tr("This chart answers every row this report type and "
-                         "limit set ask of it."))
+            self._add(tr("This chart answers every metric this report type "
+                         "and limit set ask of it."))
         self._detail_layout.addStretch()

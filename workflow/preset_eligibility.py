@@ -148,6 +148,33 @@ def classified_reasons() -> "frozenset[str]":
     return PATCH_SHORTFALL_REASONS | OTHER_SHORTFALL_REASONS
 
 
+# ---------------------------------------------------------------------------
+# The metrics only a FROM PROFILE GAMUT chart can answer
+# ---------------------------------------------------------------------------
+#: Knut, beta 25, on the eleven "by Pharmacist" presets: *"These cannot be used
+#: for verification in many cases, because when assigning colors using 'From
+#: Profile Gamut' the chart image must be recreated to be able to print it, and
+#: that is not possible because these charts do not have a proper layout and
+#: come with pre-made tif files. […] I prefer that these are noted as 'not
+#: usable for verification using From Profile Gamut' and then also mention
+#: which metrics cannot be fulfilled."*
+#:
+#: These are those metrics: the three rows `compliance_sets` marks ``ref``,
+#: which is the status meaning *judged against a colorimetric reference*. A
+#: reference is written beside a chart only when the chart was built FROM
+#: PROFILE GAMUT (:func:`workflow.verification_print.chart_conversion_state`),
+#: so a sheet that cannot be laid out again can never acquire one.
+#:
+#: DERIVED FROM THE ROW TABLE, never typed out, and
+#: `test_the_gamut_only_metrics_are_the_rows_the_report_itself_withholds`
+#: proves on a REAL preset chart that these are exactly the rows
+#: `measurement_report` withholds with ``needs_reference_file``. Two lists that
+#: could drift is the fault this project keeps finding.
+def gamut_only_rows() -> "tuple[str, ...]":
+    """The row ids no preset chart can answer, in table order."""
+    return tuple(r.id for r in CS.ROWS if r.status == "ref")
+
+
 def is_patch_shortfall(reason: "str | None") -> bool:
     """Whether a different patch set would answer this row."""
     return bool(reason) and reason in PATCH_SHORTFALL_REASONS
@@ -381,10 +408,10 @@ def assess(chart: "str | Path | None", type_id: str, set_id: str,
 # The star
 # ---------------------------------------------------------------------------
 def made_for_verification(chart: "str | Path | None", patches: int,
-                          pages: int) -> bool:
+                          pages: int, *, relayoutable: bool = True) -> bool:
     """Whether this chart is one of the ones Knut asked to be highlighted.
 
-    Three conditions, ANDed, and none of them depends on the two pulldowns:
+    Four conditions, ANDed, and none of them depends on the two pulldowns:
     the mark says what the CHART is, so it does not flicker on and off while
     a reader compares report types.
 
@@ -393,8 +420,17 @@ def made_for_verification(chart: "str | Path | None", patches: int,
     3. nothing withheld that a different patch set would supply, over every
        row ChromIQ can compute. Not "every row the selection asks", because a
        selection may ask for a colorimetric reference no preset carries.
+    4. **the sheet can be laid out again** (*relayoutable*). A preset that
+       ships finished page TIFFs is printed as the image it comes with, so it
+       can never be built FROM PROFILE GAMUT and can never carry the
+       colorimetric reference :func:`gamut_only_rows` needs. Knut, beta 25:
+       *"when ticking 'Show only the presets made for verification' these
+       presets should not show up in the list."* The caller knows which
+       presets those are; this module only applies the rule.
     """
     if chart is None or pages < 1 or pages > VERIFICATION_MAX_PAGES:
+        return False
+    if not relayoutable:
         return False
     if patches < 1 or patches > VERIFICATION_MAX_PATCHES:
         return False

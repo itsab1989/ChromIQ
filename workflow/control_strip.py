@@ -185,7 +185,7 @@ STRIP_NAME = "ChromIQ control strip"
 #: translated where the button is built, a second ``tr()`` of the same words
 #: here would be a second key, and the extractor cannot see ``tr(variable)``
 #: at all.
-ELIGIBILITY_CONTROL = "Which presets can be verified?"
+ELIGIBILITY_CONTROL = "Which presets can be used for verification?"
 
 #: Marks a sidecar as ChromIQ's own, so a later release can tell its own
 #: declaration from one a user wrote by hand.

@@ -3740,7 +3740,8 @@ def comparable_presets(settings) -> list[tuple[str, list[tuple[str, "Path"]]]]:
 
 
 def verification_preset_rows(settings) -> list:
-    """Every preset the "Which presets can be verified" window lists (#182).
+    """Every preset the "Which presets can be used for verification" window
+    lists (#182).
 
     EVERY preset, not only the ones with a chart on disk: Knut's window has to
     say something about each entry in the dropdown, and a user preset saved
@@ -3776,7 +3777,15 @@ def verification_preset_rows(settings) -> list:
             rows.append(PresetRow(
                 group=instr, label=overlay_label, chart=chart,
                 patches=patch_count(chart) if chart else 0,
-                pages=pages, builtin=True))
+                pages=pages, builtin=True, key=key,
+                # **A PREBUILT-FILES PRESET SHIPS ITS PAGES AS TIFFs.** Knut,
+                # beta 25: *"these charts do not have a proper layout and come
+                # with pre-made tif files"*, so the sheet cannot be laid out
+                # again and the chart can never be built FROM PROFILE GAMUT.
+                # `PREBUILT_PRESETS` is the registry of exactly those eleven,
+                # which is the same eleven whose overlay label ends "by
+                # Pharmacist" — measured, 2026-09-19, all eleven and no others.
+                relayoutable=key not in PREBUILT_PRESETS))
     own: list = []
     for name, data in _load_tab_presets("create_chart", settings).items():
         chart = None
@@ -3787,7 +3796,7 @@ def verification_preset_rows(settings) -> list:
         own.append(PresetRow(
             group=tr("Custom presets"), label=str(name), chart=chart,
             patches=patch_count(chart) if chart else 0,
-            pages=0, builtin=False))
+            pages=0, builtin=False, key=str(name)))
     return rows + sorted(own, key=lambda r: r.label.lower())
 
 
@@ -5790,7 +5799,18 @@ class TabChart(QWidget):
         # buttons keep the row they have always had; the new button gets a row
         # of its own underneath it.
         presets_col = QVBoxLayout(presets_grp)
-        presets_col.setContentsMargins(8, 4, 8, 8)
+        # **9 AT THE BOTTOM, WHICH IS WHAT THE OTHER FRAMES USE.** Knut, beta
+        # 25: *"The button bottom edge overlaps with the bottom edge of the
+        # Presets frame. Make sure there is a distance between the bottom edge
+        # of the button and the frame edge, as done for other frames, such as
+        # the 'Randomisation' or 'Layout' frames."* Those two set no margins at
+        # all, so they get the style's own `PM_LayoutBottomMargin`, which is 9
+        # under Fusion; measured on screen, their last widget sits 13 px above
+        # their frame's bottom edge and this one's sat at 12. Nine here makes
+        # the three identical instead of nearly. The 4 at the TOP is left as
+        # it was: Knut named the bottom edge, and raising the top would grow a
+        # panel he has not asked to grow.
+        presets_col.setContentsMargins(8, 4, 8, 9)
         presets_col.setSpacing(6)
         presets_row = QHBoxLayout()
         presets_col.addLayout(presets_row)
@@ -5874,8 +5894,16 @@ class TabChart(QWidget):
         # verification on a specified report type and judge against
         # selection."*
         verify_row = QHBoxLayout()
+        # **"CAN BE USED FOR", NOT "CAN BE VERIFIED".** Knut, beta 25: *"The
+        # name of the button is not logical, because it is not the preset that
+        # is being verified. Better suggestion: 'Which Presets Can Be Used for
+        # Verification?'"* His words, in the sentence case every other label in
+        # this app uses (the button font filter renders it in capitals either
+        # way). The name is settled in ONE more place as well —
+        # `control_strip.ELIGIBILITY_CONTROL`, which is what the chart-import
+        # warning puts in its own sentence.
         self._preset_verify_btn = QPushButton(
-            tr("Which presets can be verified?"), w)
+            tr("Which presets can be used for verification?"), w)
         self._preset_verify_btn.setObjectName("preset_verify_btn")
         # **SHORTER THAN THE DEFAULT, AND MEASURED TO BE.** Basti, on the
         # shipped beta: *"the which presets can be verified button ... is very
@@ -5905,19 +5933,24 @@ class TabChart(QWidget):
         verify_row.addWidget(self._preset_verify_btn)
         verify_row.addStretch()
         self._preset_verify_help = TooltipButton(
-            tr("Which presets can be verified?"),
+            tr("Which presets can be used for verification?"),
             tr("Opens a list of every chart preset, marked against the "
             "Measurement Report type and limit set you choose.\n\n"
-            "A verification is judged row by row, and not every chart carries "
-            "the patches every row needs. This window asks ChromIQ's own "
-            "report code what each preset's patch set could answer if it were "
-            "printed and measured as a verification sheet, and shows, for "
-            "every row it could not, what is missing and what to do about "
-            "it.\n\n"
+            "A verification is judged one metric at a time, and not every "
+            "chart carries the patches every metric needs. This window asks "
+            "ChromIQ's own report code what each preset's patch set could "
+            "answer if it were printed and measured as a verification sheet, "
+            "and shows, for every metric it could not, what is missing and "
+            "what to do about it.\n\n"
+            "Click a preset to read that; double-click it to close the window "
+            "and load the preset here.\n\n"
             "Nothing is hidden: presets that fall short stay on the list with "
             "their reasons. A ★ marks a chart made for verification, which is "
             "one printed page of a few hundred patches or fewer that leaves "
-            "nothing on the table."),
+            "nothing on the table. A preset that comes with its pages already "
+            "rendered never carries that mark: its sheet cannot be laid out "
+            "again, so it cannot be built with From Profile Gamut, and the "
+            "list says which metrics that puts out of reach."),
             w,
             min_width=560,
         )
@@ -7501,7 +7534,7 @@ class TabChart(QWidget):
         self._refit_logs()
         self._sync_preset_verify_visibility()
         # Fill the preset-eligibility cache while the tab is idle, so the
-        # "Which presets can be verified?" button does not make the user wait
+        # preset-eligibility button does not make the user wait
         # for work that could have been done already. Started once; see
         # `_warm_preset_eligibility`.
         self._warm_preset_eligibility()
@@ -9774,7 +9807,7 @@ class TabChart(QWidget):
             if gamut else self._builtin_preset_tip)
 
     def _open_preset_verification_window(self) -> None:
-        """Open "Which presets can be verified" (#182, Knut, beta 22).
+        """Open "Which presets can be used for verification" (#182, beta 22).
 
         The button under the presets dropdown. Modeless is wrong here: the
         answer depends on the report type and limit set chosen inside it, and
@@ -9811,6 +9844,20 @@ class TabChart(QWidget):
         finally:
             _QGA.restoreOverrideCursor()
         dlg.exec()
+        # **A DOUBLE-CLICK IN THERE LOADS THE PRESET, AND IT IS LOADED HERE.**
+        # Knut, beta 25: *"double-clicking a preset is equivalent to selecting
+        # and loading a preset from the 'Select preset' pulldown list … the
+        # window is closed and the selected preset is loaded in Create Chart."*
+        # The window records which one and accepts; the dispatch waits until
+        # `exec` has returned, because applying a preset asks for a name, can
+        # start a build and can be backed out of (#175), and none of that may
+        # happen underneath a modal that is still on screen. Routed through
+        # `_activate_builtin_preset`, which is the pulldown's own path for
+        # "apply this entry now" and takes a built-in's KEY or a user preset's
+        # NAME — the same userData the pulldown itself carries.
+        key = getattr(dlg, "chosen_key", None)
+        if key:
+            self._activate_builtin_preset(str(key))
 
     def _chosen_preset_label(self) -> "str | None":
         """The row label of the preset the pulldown is on, or None.
@@ -9918,7 +9965,13 @@ class TabChart(QWidget):
         popup.show_under(self._builtin_preset_btn)
 
     def _activate_builtin_preset(self, key: str) -> None:
-        """Pick a built-in from the overlay — identical to choosing it in the dropdown.
+        """Apply a preset by its dropdown key — identical to choosing it there.
+
+        Named for the built-in overlay it was written for; it takes any
+        userData the pulldown carries, so a user preset's NAME works too, and
+        the double-click in "Which presets can be used for verification" comes
+        through here (Knut, beta 25) rather than growing a second path that
+        could apply a preset differently from the dropdown.
 
         The built-ins live in the Manual presets dropdown, so route through it:
         switch to Manual (so the dropdown and greyed panels are visible), move
@@ -18191,7 +18244,7 @@ class TabChart(QWidget):
             + self._duplicate_blocked_note(cost)
 
     def _sync_preset_verify_visibility(self) -> None:
-        """Show "Which presets can be verified?" only on a verification run.
+        """Show the preset-eligibility button only on a verification run.
 
         Knut, 2026-09-19, asked directly after Basti wondered whether it
         belongs in a profiling run at all: *"I clearly specified this before,

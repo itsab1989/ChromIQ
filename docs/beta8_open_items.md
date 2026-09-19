@@ -16225,7 +16225,15 @@ would reach.
   find a better wording for its use"*). It is labelled **"Generated reports"**
   for now, which is the phrase his own specification uses for the list.
 - status: FIXED
-- evidence: test_the_list_sits_between_generate_report_and_report_type,
+- **AND ITS PLACEMENT RULE IS SUPERSEDED (B8-460).** Knut's beta-25 mockup,
+  2026-09-19, moves the pulldown above a new "Report settings" frame and the
+  two buttons into a four-button row under it, so L.8's arrangement is no
+  longer what the window builds. The guard that measured it,
+  `test_the_list_sits_between_generate_report_and_report_type`, is rewritten as
+  `test_the_window_is_laid_out_the_way_knut_drew_it` in the same file and
+  measures his new order instead. Everything else of this entry stands: the
+  list, its names, the Delete button and the old/ folders are untouched.
+- evidence: test_the_window_is_laid_out_the_way_knut_drew_it,
   test_every_entry_carries_its_own_settings_in_its_name,
   test_delete_moves_every_file_of_the_document,
   test_delete_of_a_one_date_document_lands_in_that_dates_own_old_folder,
@@ -18900,3 +18908,442 @@ would reach.
 - evidence: test_the_blank_stops_at_the_read_patch_and_not_inside_it,
   test_a_read_column_survives_the_blank_at_a_real_preview_scale,
   test_a_blank_never_leaks_an_unread_patch_beside_a_read_one
+
+### B8-460 · FIXED · The Measurement Report window is laid out from Knut's beta-25 mockup, and L.8 is superseded
+- status: FIXED
+- blocks release: no
+- Knut, 2026-09-19, with an image
+  (`~/Desktop/ChromIQ-knut-beta25-batch/mockup-report-window-layout.png`):
+  *"Analyse the position of all components in the image and place them
+  accordingly. Note that a frame called 'Report settings' encompass all the
+  relevant buttons and input controls that are related to the settings for a
+  report. The report shown is above the frame, with its help icon, and two text
+  elements: the text 'Click a report to load ...' to the right of the 'report
+  shown' (and its help icon) and the 'Already generated...' below the 'report
+  shown' input box. Below the 'Report settings' frame there are 4 buttons and a
+  help icon (starting left with Generate Report, then Delete Selected Report,
+  then Save Report As PDF, then Reveal Folder, then help icon). Inside the
+  'Report settings' frame all the remaining buttons and elements are placed
+  carefully. Replicate that."*
+- what moved: "Report shown" is the first row under the intro; "Already
+  generated for this run: …" is a line of its own under the pulldown, starting
+  at the pulldown's left edge; a `QGroupBox` titled **Report settings** holds
+  Add / Remove / Clear, the measurement list (now labelled **"Included
+  Measurements in report:"**, which had only a tooltip before), Report type
+  with the two tick boxes, and Judged against with Edit limits and Unlock; the
+  four buttons are one row under the frame in his order. The two pulldowns
+  inside the frame share one left edge, which two independent rows could not
+  promise: measured 32 px apart before.
+- **L.8 is MARKED SUPERSEDED, NOT OVERWRITTEN**, and L.8b carries his words and
+  his date: `docs/design/measurement_report_limits.md` §13.2 and the new
+  §13.2b, which also tabulates every element that moved.
+- what it costs, measured: 61 px on the window's own unshrinkable minimum. 39
+  bought back in the frame's spacings; the other 30 by
+  `_compact_the_settings_frame`, a new rung of `showEvent`'s ladder that runs
+  only when the screen cannot take the roomy version and comes BEFORE the
+  report view is traded. On the 800 px screen this window's floor is designed
+  for: 781 px before the rung, 751 after, against a 760 px cap.
+  `_stack_report_buttons` is deleted with the stack it undid.
+- widths, driven on screen on Knut's own demo project at 1000, 1200 and 1500 px
+  (`scripts/drive_k25_report_window_bugs.py`): the window's minimum width is
+  993 / 984 / 1019 px, where the OLD layout measured 1016 / 1148 / 1198. It is
+  narrower at every width and no longer grows with the window, because the
+  elided hint no longer shares a row with two buttons. B8-425 is untouched and
+  not made worse.
+- evidence: test_the_window_is_laid_out_the_way_knut_drew_it,
+  test_the_window_still_fits_the_screen_with_the_row_on_it,
+  test_an_empty_list_says_to_press_generate_report
+
+### B8-461 · FIXED · "Created:" announced the moment the WINDOW opened, not when the report was made
+- status: FIXED
+- blocks release: no
+- Knut, beta 25, on demo "Report-Limits-Report-Types", run1, the report shown
+  as *"2026-11-16 10:00 Colour summary…"*: *"The report text updates, but the
+  first line says 'Created: 2026-09-19 17:57:22', which is not the same
+  creation time as the report name is giving. They should be the same (but it
+  is ok that the report name and report text does not show the seconds)"*.
+- reproduced in a real window on his own demo, first try
+  (`~/Desktop/ChromIQ-beta26-proof/knut-report-window/before/result.json`):
+  entry *"2026-11-16 10:00 · Colour summary (one page) · ChromIQ default
+  (recommended) · saved 2026-11-16 10:00:00"*, body *"Created: 2026-09-19
+  22:07:08"*. Every saved report ever loaded claimed to have been made seconds
+  ago, because `_report_body_html` stamped the line with `self._created`, which
+  is set once in `__init__`.
+- fix: `_doc_created`, filled from the same two sources the entry's NAME is
+  built from, so the two cannot drift: the document block's own `created` when
+  there is one, and the report file's saved stamp (`_report_file_order`) for a
+  document of one pre-#182 file. Empty for "New report…" and for a measurement
+  with nothing saved, and then the window's own clock is used, which is what it
+  is for.
+- after, same driver, same project: *"Created: 2026-11-16 10:00:00"*.
+- evidence: test_the_created_line_is_the_reports_own_creation_time,
+  test_a_new_report_still_shows_this_windows_own_clock
+
+### B8-462 · FIXED · Changing "Judged against" moved "Report type", and the mirror moved the set
+- status: FIXED
+- blocks release: no
+- Knut, beta 25: *"If I change Judged against from 'ChromIQ default' to
+  'ChromIQ tight', then suddenly report type also changes to 'Grey and tone
+  check'. Changing judged agains parameter shall not ever alter report type."*
+- **the mechanism, measured before anything was changed.** A saved report keeps
+  the type it was made with; the type pulldown writes to the RUN the moment it
+  is used. So a run can carry one kind and the report on screen another, which
+  is ordinary. `_settings_touched` then dropped the loaded document's claim on
+  ALL the controls the moment ONE of them moved, `_report_type_now` fell
+  through to the run, and the pulldown jumped.
+- driven on his own demo, his run, his report
+  (`scripts/drive_k25_bug2_mechanism.py`, photographs
+  `before/B2-before-1.png` and `before/B2-after-1.png`): open on run1's
+  2026-11-16 measurement, use the type pulldown once (Grey and tone check,
+  which writes t3 onto the run), click the saved "2026-11-16 10:00 · Colour
+  summary (one page)" entry, then move ONLY "Judged against" to ChromIQ tight.
+  Type before *"Colour summary (one page)"*, after *"Grey and tone check"* —
+  his sentence verbatim. After the fix, the same driver: it stays.
+- fix: `_remember_what_is_on_screen`, called from `_settings_touched` BEFORE
+  the document's claim is dropped, pins the two pulldowns' own values
+  (`_sticky_type` / `_sticky_set`). Read from the WIDGETS, because the widget
+  is the only thing that knows what the user is looking at: the control they
+  moved already holds the new value and the one they did not still holds the
+  document's. Session-only, written nowhere, dropped whenever another document
+  is loaded.
+- **the mirror is the same line of code and is fixed with it**: a report judged
+  against one set on a run bound to another had its "Judged against" pulldown
+  jump on a report-TYPE change. `_sticky_limits` returns None whenever the
+  sticky set is the run's own, so a bound run's EDITED copy of the numbers is
+  never replaced by the published ones.
+- evidence: test_changing_the_limit_set_never_moves_the_report_type,
+  test_changing_the_report_type_never_moves_the_limit_set
+
+### B8-463 · FIXED · Every metric in Report Results is explained in "How to read this report"
+- status: FIXED
+- blocks release: no
+- Knut, beta 25: *"The metrics listed under Report Results are directly
+  depending on the selected 'Judged against' setting, and if a user has enabled
+  individual metrics with a threshold (changed from - to a number) in the 'Edit
+  Limits' button (Report Limits window). Whatever metrics are shown in Report
+  Results: each metric used in the report shall have a corresponding
+  explanation of each metric in the 'How to read this report' section.
+  Currently, only 4 metrics are described in a bullet list (Colour accuracy,
+  Grey balance, Paper white & darkest black and Cube corners). The bullet list
+  of parameters explained is then changing with which metrics the report
+  contains."*
+- measured in a real window on his own demo project, every buildable report
+  type crossed with every choosable limit set
+  (`scripts/drive_k25_bug3_every_metric_explained.py`, `before/bug3.json`):
+  **13 metrics judged and 0 of them named in the guide, in all 20
+  combinations — 260 gaps.** After: **0 in all 20.**
+- fix: `_rows_the_results_show` is the one answer to "which metrics is this
+  report about", and `_report_body_html` hands the same list to the guide and
+  to the table, so the two cannot disagree. The guide keeps its four section
+  bullets and gains one bullet per metric, worded from the row's own
+  description in `workflow/compliance_sets.py` — the same sentence the Report
+  limits window shows against that row, so a metric is described in one place.
+- **what moves the list on a real chart is the report TYPE, not the limit set,
+  and that is measured rather than assumed.** A set decides which rows carry a
+  number; which rows the table lists at all is decided by what the chart can
+  supply, so the five sets produced the identical 13 rows on his demo and the
+  identical 8 on the test fixture. "Grey and tone check" drops five. Knut's
+  rule holds either way and the guard drives the whole cross.
+- evidence: test_every_metric_in_report_results_is_explained_in_the_guide,
+  test_the_explained_list_changes_with_the_metrics_the_report_contains,
+  test_the_guide_and_the_table_read_the_same_list
+
+### B8-464 · FIXED · Two Report-limits sentences were in no catalogue, and `test_i18n` was red on all twelve
+- status: FIXED
+- blocks release: no
+- **FOUND HERE, FIXED BY THE CONCURRENT CREATE-CHART ROUND**, which owned both
+  i18n ledgers in the same working tree that evening. Re-measured after their
+  sync: `python scripts/i18n_sync.py` answers *"every catalogue is in step"*
+  and `pytest tests/test_i18n.py` is **87 passed**. Left here as FIXED rather
+  than deleted, because the lesson is the entry: a commit that rewords a
+  `tr()` literal has to sync the catalogues in the same commit, and
+  `1db705f1` did not.
+- `pytest tests/test_i18n.py` fails `test_catalog_is_complete` for every one of
+  the twelve languages: *"[de] 2 untranslated"*. The two are the Report limits
+  window's ISO sentences in `ui/dialogs/thresholds_dialog.py`, *"The ISO value
+  sets are not yet available in this version: …"* and *"The two Custom columns
+  start from ChromIQ's own numbers, …"*, both of which GREW a sentence in
+  commit `1db705f1` (*"#182: the Report limits window now says HOW to supply a
+  standard's values"*) without the catalogues being synced.
+- **INHERITED, AND MEASURED AS INHERITED.** Checked in a detached worktree of
+  HEAD, nothing of this round's in it:
+  `python scripts/i18n_extract.py --missing de` answers *"# 2 missing of
+  5642"*, the same two. It is not this round's and not the concurrent Create
+  Chart round's.
+- not fixed by THIS round on purpose: the remedy is `i18n_sync.py --apply --de …`
+  plus a re-measure of the two ledgers in `tests/test_i18n.py` and
+  `tests/test_help_cards_untranslated_are_tracked.py`, and both ledgers were
+  being rewritten in the same working tree by the concurrent round while this
+  was found. Two agents re-measuring one ledger is how a counted number becomes
+  a nudged one, so it was reported to the owner of those files instead.
+- evidence: test_catalog_is_complete
+
+### B8-444 · FIXED · The preset-eligibility button is renamed "Which presets can be used for verification?"
+- status: FIXED
+- blocks release: no
+- Knut, beta 25: *"The name of the button is not logical, because it is not the
+  preset that is being verified. Better suggestion: 'Which Presets Can Be Used
+  for Verification?'. Update the name in all help text and the popup window
+  referring to this button when loading a chart in a verification run, and any
+  other place where this button is mentioned in text."*
+- three places carry it, and all three are changed: the button in the Create
+  Chart Presets frame, the window's own title, and
+  `workflow/control_strip.ELIGIBILITY_CONTROL`, which is the name the
+  chart-import warning M-VERIFY-NO-CONTROL-STRIP interpolates into its own
+  sentence through a `{button}` placeholder. Photographed after the change:
+  `~/Desktop/ChromIQ-beta26-proof/knut-create-chart/after/after-01-presets-frame.png`
+  and `after-02-pharmacist-detail.png`.
+- **SENTENCE CASE, NOT HIS TITLE CASE, AND THAT IS THE ONE LIBERTY TAKEN.**
+  Every other label in this app is sentence case and the button font filter
+  renders the label in capitals on screen either way, so the words are his and
+  only the capitalisation is the app's. Say the word and it becomes
+  "Which Presets Can Be Used for Verification?" in one line.
+- **THE LONGER NAME COSTS WIDTH, MEASURED A/B IN ONE LIVE WINDOW** (same tab,
+  same font filter, the label swapped and `fit_button_width` re-run): the
+  button's minimum width goes 250 px to 352, and the Presets group's
+  `minimumSizeHint` 288 px to 390. The Create Chart tab's own minimum width is
+  784 px in both, so the Presets group is not what bounds the column and
+  B8-425's narrow-window clipping is not made worse by this.
+- **ONE SENTENCE STILL SAYS "ROWS" AND IS NOT OURS TO REWRITE.**
+  M-VERIFY-NO-CONTROL-STRIP's body reads *"…lists every chart preset against
+  the rows a Measurement Report judges…"*. That text is §M APPROVED (Knut,
+  2026-09-19, *"Yes, message text approved."*) and lives in
+  `workflow/measurement_messages.py`, so under the §M rule the wording change
+  goes to him before it goes into the code. Reported, not changed.
+- evidence: test_the_button_the_window_and_the_warning_all_carry_the_new_name,
+  test_no_string_a_user_can_read_still_says_can_be_verified
+
+### B8-445 · VERIFIED · The button is already shorter than the two buttons Knut named, and now has a guard saying so
+- status: VERIFIED
+- blocks release: no
+- Knut, beta 25: *"The button height is a bit large. Use the button height
+  similar to 'New Seed' or 'Reset to Preset' buttons."*
+- **MEASURED IN A REAL WINDOW BEFORE ANYTHING WAS CHANGED** (`MainWindow` built
+  the way `main.py` builds it, Fusion through `WinButtonLayoutStyle`, the
+  composite application filter installed, Create Chart in Manual on a
+  verification run with the ChromIQ layout engine on):
+
+      the preset-eligibility button   22 px   (hint 24)
+      "New seed"                      24 px   (hint 24)
+      "Reset to preset"               24 px   (hint 24)
+      the preset pulldown beside it   24 px
+      the +/- icon buttons            28 px
+
+  It is the shortest control in the Presets frame and 2 px shorter than both
+  buttons he named, so doing what he asks literally would make it TALLER. No
+  height was changed. `~/Desktop/ChromIQ-beta26-proof/knut-create-chart/before/
+  before-01-presets-frame.png` is the photograph, and `measured-before.json`
+  the numbers.
+- B8-420 took it from 26 px to 22 on 2026-09-19 at 04:45, which is in both the
+  beta 24 and beta 25 builds, so this is not a stale binary either.
+- the guard pins the RELATION he asked for rather than a number, so it goes red
+  the day the button grows past either of them and says nothing about the app's
+  button metrics otherwise. Mutation proven: `setFixedHeight(28)` turns it red.
+- evidence: VERIFIED buys its exemption by naming the command and the numbers.
+  `QT_QPA_PLATFORM=offscreen pytest -k "chart or preset or control_strip or
+  eligib or i18n or help_card or em_dash or message_catalogue or register or
+  design_specs" -q` came back **3242 passed**, and the measurement that decides
+  this item is the one above: the button **22 px**, "New seed" **24 px**,
+  "Reset to preset" **24 px**, read off a real window at 2x.
+  test_the_button_is_no_taller_than_the_two_knut_named is the guard.
+- **QUESTION FOR KNUT, and the reason this is VERIFIED and not FIXED:** what is
+  large about it is its WIDTH, 250 px before the rename and 352 after, against
+  "New seed" at 72 px of minimum. If that is what he is seeing, say so and the
+  answer is a shorter label or a wrapped row, not a shorter button.
+- evidence: test_the_button_is_no_taller_than_the_two_knut_named
+
+### B8-446 · FIXED · The Presets frame left 12 px under its last widget where the frames Knut named leave 13
+- status: FIXED
+- blocks release: no
+- Knut, beta 25: *"The button bottom edge overlaps with the bottom edge of the
+  Presets frame. Make sure there is a distance between the bottom edge of the
+  button and the frame edge, as done for other frames, such as the
+  'Randomisation' or 'Layout' frames."*
+- measured on screen, the three frames in one pass, each in its own
+  coordinates: Presets **12 px** from its lowest widget to its frame's bottom,
+  Randomisation **13**, Layout **13**. It does not overlap and never did, but
+  it is the tighter of the three and he named the other two as the reference.
+- fix: `presets_col.setContentsMargins(8, 4, 8, 8)` becomes `(8, 4, 8, 9)`.
+  Nine is not a chosen number: "Randomisation" and "Layout" set no margins at
+  all, so they take the style's own `PM_LayoutBottomMargin`, which is 9 under
+  Fusion. Re-measured after: all three read **13**. The 4 at the top is left
+  alone, because he named the bottom edge and raising the top grows a panel he
+  has not asked to grow.
+- photographs: `before/before-01-presets-frame.png` and
+  `after/after-01-presets-frame.png`, both two pixel-identical frames.
+- evidence: test_the_presets_frame_leaves_the_same_bottom_gap_as_the_others
+
+### B8-447 · FIXED · The window says "metric" everywhere it said "row"
+- status: FIXED
+- blocks release: no
+- Knut, beta 25: *"The text refers to 'rows', or 'Rows answered', which is not
+  intuitively understood as 'verification metrics' … 'This report type and
+  limit set asks 9 rows of a chart.' is shown. This is not very
+  understandable. How about writing 'This report type and limit set asks to
+  verify 9 metrics of a chart during verification.' Try to reword all the
+  text, and the help text, so that you avoid 'rows'."*
+- nine strings changed, and the count line is his sentence word for word with
+  the number coming from the app. The column heading is "Metrics answered", a
+  verdict cell reads "7 of 7 metrics", the figures line ends "Answering every
+  metric asked", the intro asks "the metrics … asks to verify on a chart", the
+  detail pane's closing line and the not-computed reason both say metric, and
+  the button's help text says *"a verification is judged one metric at a
+  time"*.
+- **the row IDs underneath are untouched.** `compliance_sets.ROWS`,
+  `rows_asked` and `row_label` are the report table's own vocabulary and no
+  user reads them; renaming them would have been a large diff that changes
+  nothing on screen.
+- the guard walks the BUILT WIDGETS, not the source: the intro, the count line,
+  the tick box, all four column headings, the figures line, a verdict cell and
+  a filled detail pane, and searches what they display. A source scan would
+  trip over a hundred row ids and prove nothing.
+- driven after: the window's own dump of every sentence it shows contains no
+  "row" (`after/driver-after.log`, item 4).
+- evidence: test_nothing_this_window_shows_a_reader_says_row,
+  test_the_count_line_is_the_sentence_knut_wrote
+
+### B8-448 · FIXED · The eleven "by Pharmacist" bundles are marked not usable with From Profile Gamut and leave the starred list
+- status: FIXED
+- blocks release: no
+- Knut, beta 25: *"The list contains all the built-in presets called '… by
+  Pharmacist'. These cannot be used for verification in many cases, because
+  when assigning colors using 'From Profile Gamut' the chart image must be
+  recreated to be able to print it, and that is not possible because these
+  charts do not have a proper layout and come with pre-made tif files. […] I
+  prefer that these are noted as 'not usable for verification using From
+  Profile Gamut' and then also mention which metrics cannot be fulfilled.
+  Also, when ticking 'Show only the presets made for verification' these
+  presets should not show up in the list."*
+- **HE NAMED A SET BY NAME AND THE CODE PICKS IT BY PROPERTY, AND THE TWO WERE
+  MEASURED TO BE THE SAME SET.** Every row in the window whose label ends "by
+  Pharmacist" is a `PREBUILT_PRESETS` entry, and every `PREBUILT_PRESETS` entry
+  is one of those rows: eleven each way, no leftovers. The three other
+  Pharmacist presets ChromIQ ships (TC9.18, ColorMunki 324 and 648) are
+  `.ti1` + printtarg presets whose overlay labels do not carry his phrase, they
+  have a real layout, and they are untouched. The guard asserts the two sets
+  are equal, so a twelfth bundle arriving later cannot slip past.
+- `PresetRow` carries `relayoutable`, and
+  `preset_eligibility.made_for_verification` gains a `relayoutable` keyword: a
+  sheet that cannot be laid out again never carries the star, so it is gone
+  from the filtered list and still on the unfiltered one, which is the half he
+  asked to keep.
+- the metrics it names are `preset_eligibility.gamut_only_rows()`, derived from
+  `compliance_sets` (the three rows with status `ref`), never typed out. The
+  guard drives a REAL preset chart through `chart_row_values` — which is
+  `measurement_report`'s own code — and requires the list to equal exactly the
+  rows the report withholds with `needs_reference_file`. Two lists of metrics
+  that could drift apart is the fault this project keeps finding.
+- on screen the pane now reads: *"Not usable for verification using From
+  Profile Gamut"*, the reason, and then Paper white, difference from the
+  reference paper / Solid colours, largest difference / Cyan, magenta and
+  yellow solids, largest hue difference. `after/after-02-pharmacist-detail.png`.
+- the count of starred presets goes 49 to 48, which is TC3.00 losing its star,
+  and "of which by Pharmacist" goes from one to none with the box ticked.
+- evidence: test_every_by_pharmacist_preset_is_a_prebuilt_image_and_no_others_are,
+  test_a_prebuilt_preset_never_carries_the_star_and_leaves_the_filtered_list,
+  test_the_detail_pane_says_from_profile_gamut_and_names_the_metrics,
+  test_the_gamut_only_metrics_are_the_rows_the_report_itself_withholds,
+  test_made_for_verification_refuses_a_sheet_that_cannot_be_laid_out_again
+
+### B8-449 · FIXED · Double-clicking a preset closes the window and loads it, through the pulldown's own path
+- status: FIXED
+- blocks release: no
+- Knut, beta 25: *"make it so that double-clicking a preset is equivalent to
+  selecting and loading a preset from the 'Select preset' pulldown list. What
+  happens when double-clicking a preset is that the window is closed and the
+  selected preset is loaded in Create Chart for the selected 'profile run' and
+  'run type'=verification. The double click feature must also be mentioned in
+  the text explanation in the top of the window."*
+- **THE WINDOW DOES NOT LOAD ANYTHING ITSELF.** It records the row's pulldown
+  key in `chosen_key` and accepts; `TabChart._open_preset_verification_window`
+  reads it once `exec` has returned and routes it into
+  `_activate_builtin_preset`, which is the pulldown's own "apply this entry
+  now" path and takes a built-in's KEY or a user preset's NAME. Applying a
+  preset asks for a target name, can start a build and can be backed out of
+  (#175), and none of that may happen underneath a modal still on screen.
+  "Equivalent to" therefore means the same code, and the guard is that the
+  choice reaches that method.
+- `PresetRow` gains `key`, and a guard proves every listed built-in's key is an
+  entry in the Create Chart pulldown, because a double-click can only load what
+  it can address.
+- a double-click on a GROUP HEADING does nothing, which leaves Qt's own
+  expand/collapse alone.
+- **`QTest.mouseDClick` DOES NOT DOUBLE-CLICK A TREE, AND THAT COST A DRIVER
+  RUN.** It sends press, release, DblClick, release with no SECOND press, and
+  `QAbstractItemView::mouseDoubleClickEvent` refuses to emit `doubleClicked`
+  unless `d->pressedIndex` still holds the index, which the release cleared.
+  Measured on screen: the click point was verified to be over the row, the
+  gesture was sent, and the window sat there until a watchdog closed it. Both
+  the driver and the guards now send the five events the window server sends,
+  and the guards verify `itemAt(point)` IS the row before clicking, so a
+  gesture that lands nowhere fails instead of passing.
+- driven on screen through the REAL modal `exec()` with a real user preset (a
+  built-in would have opened a name prompt and stopped the driver):
+  `drivers/drive_the_double_click.py`, `measured-double-click.json` — the
+  window recorded "K1 double click demo", closed, and the Create Chart
+  pulldown went from "none" to that preset.
+  `after/after-06-double-click-loaded.png`.
+- evidence: test_a_double_click_records_the_preset_and_closes_the_window,
+  test_a_double_click_on_a_group_heading_does_nothing,
+  test_every_row_carries_the_key_the_pulldown_uses,
+  test_the_tab_loads_what_the_window_chose_through_the_pulldowns_own_path,
+  test_the_window_tells_the_reader_about_the_double_click
+
+### B8-450 · FIXED · The window opens at the size in Knut's screenshot, and the detail pane has a floor
+- status: FIXED
+- blocks release: no
+- Knut, beta 25: *"The width of the right panel for detailed info is too
+  narrow. A good default width of the right panel in proportion to the left
+  panel is shown in this screenshot"*, with a 1179 x 730 picture of the window.
+- **THE PROPORTION HE PHOTOGRAPHED IS THE PROPORTION THE WINDOW ALREADY HAD,
+  and that had to be measured before anything could be changed.** Off his
+  screenshot: the list is 1676 of 2294 device pixels of the splitter, 73.1 %,
+  and the detail pane 26.5 %. Off the running app, at three window widths in
+  one session: 1040 gives [741, 263], 1179 gives [844, 299] and 1400 gives
+  [1007, 357] — **73.8 / 26.2 at every one of them**. The splitter's shares do
+  not move with the window at all.
+- so the difference between his picture and what a reader gets is not the
+  proportion, it is the WINDOW: his is 1179 px wide and the window opened at
+  1040, which is a 299 px detail pane against a 263 px one. The fix is his
+  size: `resize(1179, min(730, work_area_cap(730)))`, clamped to the work area
+  as before, so the list keeps the width it has in his picture and the detail
+  pane gains its 36 px rather than taking them off the list.
+- and a floor under it: `detail_host.setMinimumWidth(300)`, because every
+  metric label in that pane is word-wrapped and a sentence three words wide is
+  not readable, where an elided preset name still is.
+- photographs: `before/before-04-the-window.png` (two identical frames) and
+  `after/after-04-the-window.png`, both against
+  `~/Desktop/ChromIQ-knut-beta25-batch/mockup-preset-window-panel-width.png`.
+- **IF 26 % IS STILL TOO NARROW FOR HIM, THIS IS THE WRONG FIX AND HE SHOULD
+  SAY SO**, because it gives him exactly what his own picture shows and no
+  more. The lever then is the splitter's starting sizes, one line.
+- evidence: test_the_window_opens_at_the_size_in_knuts_screenshot,
+  test_the_detail_pane_keeps_its_share_and_has_a_floor
+
+### B8-451 · FIXED · B8-464's two stale ISO sentences are synced and the German written, because the ledgers are this round's
+- status: FIXED
+- blocks release: no
+- B8-464, raised by the concurrent Measurement Report round, is the Report
+  limits window's two ISO sentences: `1db705f1` grew both and never synced the
+  catalogues, so each was **stale and missing at once** in all twelve languages
+  and `tests/test_i18n.py` was red on 24 parametrised cases. That round left it
+  deliberately, because the remedy needs the two untranslated ledgers
+  re-measured and this round was rewriting them in the same tree.
+- so it is done here, where the ledgers already are: `i18n_sync.py --apply`,
+  and both German sentences written by hand rather than left as English
+  placeholders. Each keeps the German it already had for its shorter
+  predecessor plus the new sentence about `scripts/iso_values_template.py`; the
+  older of the two was in **Sie-Form** against the German Du rule and the
+  rewrite corrects it.
+- both ledgers re-measured off the tree afterwards, not nudged: `de` does not
+  move in either (144 and 20) and each of the eleven others rises by exactly 1.
+- **IT WAS MEASURED TWICE BECAUSE IT DISAPPEARED ONCE.** A sync earlier the
+  same evening reported these two keys as already present, and half an hour
+  later they were stale again — `ui/dialogs/thresholds_dialog.py` has a
+  modification time inside that window and no diff against HEAD, so the
+  concurrent round had it reverted and restored while this round was counting.
+  A ledger counted while another agent is mid-edit is a ledger counted twice;
+  the numbers above are from the tree as it now stands.
+- evidence: test_catalog_is_complete, test_catalog_has_no_stale_keys,
+  test_untranslated_values_do_not_creep_in_unseen,
+  test_untranslated_strings_stay_within_budget
