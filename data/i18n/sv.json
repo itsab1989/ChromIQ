@@ -4841,7 +4841,7 @@
  "Yellow": "Gult",
  "Yes": "Ja",
  "Yes — Stop": "Ja — Stoppa",
- "You already created the profile \"{old_name}\", and now asked to generate one called \"{new_name}\".": "Du har redan skapat profilen ”{old_name}” och bad nu att generera en med namnet ”{new_name}”.",
+ "You already created the profile \"{old_name}\", and have now asked for one called \"{new_name}\".": "Du har redan skapat profilen ”{old_name}” och bad nu att generera en med namnet ”{new_name}”.",
  "You already have a chart on disk and just want to print it.": "Du har redan ett diagram på disken och vill bara skriva ut det.",
  "You already have a project with this name.": "Du har redan ett projekt med det här namnet.",
  "You already made a calibration chart for this project, but it has not been measured yet.": "Du har redan gjort ett kalibreringsdiagram för detta projekt, men det har inte mätts ännu.",

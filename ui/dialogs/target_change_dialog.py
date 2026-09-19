@@ -80,7 +80,7 @@ class TargetChangeDialog(QDialog):
         outer.setSpacing(14)
 
         heading = QLabel(
-            tr("You already created the profile \"{old_name}\", and now asked to generate one called \"{new_name}\".").format(old_name=old_name, new_name=new_name),
+            tr("You already created the profile \"{old_name}\", and have now asked for one called \"{new_name}\".").format(old_name=old_name, new_name=new_name),
             self,
         )
         heading.setWordWrap(True)

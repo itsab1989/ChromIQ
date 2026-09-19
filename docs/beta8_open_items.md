@@ -18128,3 +18128,43 @@ would reach.
 - proof: `~/Desktop/ChromIQ-beta23-proof/the-declaration-lifecycle/` — the
   driven run, the files on disk before and after each of the four places, and
   six photographs of the real window.
+
+### B8-410 · FIXED · The rename chooser's heading lost its subject halfway through, and thirteen translations quietly wrote the sentence it meant
+- blocks release: no
+- status: FIXED
+- found on screen, 2026-09-19, while measuring something else. A driver that
+  generated three charts in one session stopped dead on the second, and the
+  window blocking it was **Rename Printer Profile**, doing exactly the right
+  thing: the name had changed, so the app asked what to do with the profile
+  already on disk. Nothing was wrong with the behaviour. What was wrong was
+  the first line of it:
+
+  > *"You already created the profile "gen-a", and now asked to generate one
+  > called "gen-b"."*
+
+  "You already created ..., and now asked to generate ..." has no subject that
+  works in the second half. Every one of the twelve translations had already
+  written the sentence the English was trying to be, which is the tell: the
+  German reads *"Du hast bereits das Profil „gen-a" erstellt und möchtest nun
+  eines ..."*, the Norwegian *"... og ba nå om å generere ..."*. The
+  translators fixed it thirteen times over and the source was never corrected.
+- fix: the heading reads *"You already created the profile "{old_name}", and
+  have now asked for one called "{new_name}"."* The key changed in all twelve
+  catalogues and every translation was CARRIED ACROSS rather than replaced by
+  an English placeholder: the sentence means exactly what it meant, so a
+  placeholder here would throw away twelve good translations to correct an
+  English verb.
+- **AND THE DRIVER ARTEFACT IT EXPLAINS.** The overlay gallery
+  (`~/Desktop/ChromIQ-overlay-gallery/`) ran twice and both times case 01 built
+  a chart and cases 02 to 20 each logged *"generate produced no chart"*. That
+  was this window: the gallery patches `QDialog.exec` to return 1, so the
+  chooser was answered "Accepted" with no button pressed and the build stopped,
+  correctly. The app never refused anything. The gallery's proof therefore
+  covers ONE of the twenty combinations Basti asked for, which is tracked as
+  its own item rather than hidden in this one.
+- evidence: test_the_heading_is_one_grammatical_sentence
+- mutation: put the old wording back, the guard goes red naming the sentence it
+  read; restore it, green.
+- proof: `~/Desktop/ChromIQ-beta23-proof/the-second-generate/the-rename-window.png`
+  — the window itself, photographed by its own window id while it blocked the
+  driver.

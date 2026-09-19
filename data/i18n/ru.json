@@ -4841,7 +4841,7 @@
  "Yellow": "Жёлтый",
  "Yes": "Да",
  "Yes — Stop": "Да — Остановить",
- "You already created the profile \"{old_name}\", and now asked to generate one called \"{new_name}\".": "Вы уже создали профиль «{old_name}», а теперь запросили создание профиля с именем «{new_name}».",
+ "You already created the profile \"{old_name}\", and have now asked for one called \"{new_name}\".": "Вы уже создали профиль «{old_name}», а теперь запросили создание профиля с именем «{new_name}».",
  "You already have a chart on disk and just want to print it.": "Мишень уже есть на диске, и её нужно только напечатать.",
  "You already have a project with this name.": "У вас уже есть проект с таким именем.",
  "You already made a calibration chart for this project, but it has not been measured yet.": "Вы уже сделали калибровочную мишень для этого проекта, но она ещё не измерена.",

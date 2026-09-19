@@ -4841,7 +4841,7 @@
  "Yellow": "黄色",
  "Yes": "是",
  "Yes — Stop": "是 — 停止",
- "You already created the profile \"{old_name}\", and now asked to generate one called \"{new_name}\".": "你已创建配置文件「{old_name}」，现在又要求生成一个名为「{new_name}」的配置文件。",
+ "You already created the profile \"{old_name}\", and have now asked for one called \"{new_name}\".": "你已创建配置文件「{old_name}」，现在又要求生成一个名为「{new_name}」的配置文件。",
  "You already have a chart on disk and just want to print it.": "磁盘上已有色卡，只想把它打印出来。",
  "You already have a project with this name.": "你已经有一个同名的项目。",
  "You already made a calibration chart for this project, but it has not been measured yet.": "你已经为这个项目做过一张校准色卡，但它还没有被测量。",

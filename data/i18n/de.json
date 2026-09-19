@@ -4841,7 +4841,7 @@
  "Yellow": "Gelb",
  "Yes": "Ja",
  "Yes — Stop": "Ja – Beenden",
- "You already created the profile \"{old_name}\", and now asked to generate one called \"{new_name}\".": "Du hast bereits das Profil „{old_name}“ erstellt und möchtest nun eines mit dem Namen „{new_name}“ erzeugen.",
+ "You already created the profile \"{old_name}\", and have now asked for one called \"{new_name}\".": "Du hast bereits das Profil „{old_name}“ erstellt und möchtest nun eines mit dem Namen „{new_name}“ erzeugen.",
  "You already have a chart on disk and just want to print it.": "Du hast bereits ein Chart auf der Festplatte und willst es nur drucken.",
  "You already have a project with this name.": "Du hast bereits ein Projekt mit diesem Namen.",
  "You already made a calibration chart for this project, but it has not been measured yet.": "Du hast für dieses Projekt bereits ein Kalibrierungs-Testchart erstellt, aber es ist noch nicht gemessen.",
