@@ -118,15 +118,6 @@ def test_the_environment_variable_still_wins(own_folder, monkeypatch):
     cs.forget_user_values()
 
 
-def test_the_window_offers_the_three_buttons(qapp_or_skip):
-    """The door a person actually presses, not just the function behind it."""
-    from ui.dialogs.thresholds_dialog import ThresholdsDialog
-
-    for name in ("_on_iso_template", "_on_iso_use", "_on_iso_forget",
-                 "_sync_iso_buttons"):
-        assert callable(getattr(ThresholdsDialog, name, None)), name
-
-
 @pytest.fixture()
 def qapp_or_skip():
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -134,69 +125,22 @@ def qapp_or_skip():
     return QApplication.instance() or QApplication([])
 
 
-def test_the_row_carries_an_info_icon_and_not_three_hover_tooltips(qapp_or_skip,
-                                                                   tmp_path,
-                                                                   monkeypatch):
-    """Basti, 2026-09-20, asked two questions about the door I had just built:
-    whether the file dialogs are ChromIQ's own with the useful shortcuts down
-    the left, and whether there is *"a tooltip icon that opens a tooltip window
-    - friendly extensive easy to understand and correct"*.
-
-    The first was already true: `open_file_dialog` and `save_file_dialog` are
-    the app's own unless the user has turned native dialogs on in Preferences,
-    and they carry an OS-correct localized sidebar. The second was not. Three
-    hover tooltips are three sentences nobody reads together, and every other
-    control in this app explains itself through an ⓘ that opens a window.
-
-    This pins the ⓘ and what it has to cover, because an info window that does
-    not say why the numbers are missing, or that the values never leave the
-    computer, is the half-answer that made the question necessary.
-    """
-    from PyQt6.QtCore import QSettings
-    from core.settings import AppSettings
-    from ui.dialogs.thresholds_dialog import ThresholdsDialog
-    from ui.tooltip_button import TooltipButton
-
-    s = AppSettings()
-    s._qs = QSettings(str(tmp_path / "t.ini"), QSettings.Format.IniFormat)
-    dlg = ThresholdsDialog(s)
-    try:
-        body = ""
-        for b in dlg.findChildren(TooltipButton):
-            t = (getattr(b, "_title", "") or "") + (getattr(b, "_body", "") or "")
-            if "limit values" in t.lower() or "ISO 12647-7" in t:
-                body = t
-                break
-        assert body, "the ISO row has no ⓘ of its own"
-        for must in ("Save a file to fill in", "Use a file I filled in",
-                     "Stop using it"):
-            assert must in body, f"the ⓘ does not mention {must!r}"
-        assert "paid standard" in body, "it does not say WHY the numbers are absent"
-        assert "does not send them anywhere" in body, \
-            "it does not say the values stay on this computer"
-        assert "—" not in body, "em dash in user-facing text"
-    finally:
-        dlg.close()
-
-
 def test_pressing_each_button_really_runs(qapp_or_skip, tmp_path, monkeypatch):
     """PRESS THE BUTTONS. The first version of this file read the slots'
     SOURCE with `inspect.getsource` and asserted the right names appeared in
     it, and it passed while all three buttons did nothing at all: `Path` was
-    never imported into `thresholds_dialog`, every slot raised `NameError`, and
-    Qt swallows an exception raised inside a slot. Basti found it in the
-    shipped beta 26 within minutes: *"clicking save a file to fill in does
-    nowthing"*.
+    never imported, every slot raised `NameError`, and Qt swallows an exception
+    raised inside a slot. Basti found it in the shipped beta 26 within minutes.
 
     That is this project's oldest shape, a guard that tests the HELPER instead
-    of the DOOR, and reading source text is the purest form of it. So this
-    calls the slots, with the file dialogs and the info window replaced, and a
-    NameError anywhere in any of them fails the test.
+    of the DOOR, and reading source text is the purest form of it.
+
+    The three buttons now live in `ReferenceValuesDialog`, one section per
+    source, because Basti saw that one data source costing three buttons meant
+    two would cost six. This presses them where they are.
     """
     import ui.widgets as W
-    from PyQt6.QtCore import QSettings
-    from core.settings import AppSettings
-    from ui.dialogs.thresholds_dialog import ThresholdsDialog
+    from ui.dialogs.reference_values_dialog import ReferenceValuesDialog
 
     monkeypatch.setenv("CHROMIQ_PRESETS_DIR", str(tmp_path / "presets"))
     monkeypatch.delenv(cs.ISO_DATA_ENV, raising=False)
@@ -209,77 +153,198 @@ def test_pressing_each_button_really_runs(qapp_or_skip, tmp_path, monkeypatch):
     monkeypatch.setattr(W, "open_file_dialog",
                         lambda *a, **k: (asked.update(open=k), str(template))[1])
 
-    s_ = AppSettings()
-    s_._qs = QSettings(str(tmp_path / "t.ini"), QSettings.Format.IniFormat)
-    dlg = ThresholdsDialog(s_)
+    dlg = ReferenceValuesDialog()
     said: list = []
-    dlg._iso_say = said.append
+    dlg._say = said.append
     try:
-        dlg._iso_template_btn.click()
+        src, state, forget = dlg._rows[0]
+        assert not forget.isEnabled(), "nothing is supplied, so nothing to forget"
+        assert "Nothing supplied" in state.text()
+
+        dlg._template(src)
         assert template.is_file(), "the first button wrote nothing"
         assert json.loads(template.read_text(encoding="utf-8"))["iso_12647_7"]
 
-        # the dialogs are the app's own and offer the folder as a shortcut
-        assert "extra_paths" in asked["save"], "no shortcut offered"
-
-        dlg._iso_use_btn.click()
+        dlg._install(src)
         assert cs.user_values_path().is_file(), "the second button installed nothing"
-        assert dlg._iso_forget_btn.isEnabled()
+        assert forget.isEnabled()
+        assert "In use:" in state.text(), "the window does not say what is in use"
 
-        dlg._iso_forget_btn.click()
+        dlg._forget(src)
         assert not cs.user_values_path().is_file(), "the third button removed nothing"
-        # saved, using-it, reopen-to-see, and back-to-ours: four sentences,
-        # one per thing that happened, which is what a reader needs to follow.
-        assert len(said) == 5, said
+        assert not forget.isEnabled()
+        assert len(said) == 3, said
     finally:
         dlg.close()
         cs.reset_iso_cache()
 
 
-def test_the_three_buttons_and_the_icon_match_the_window(qapp_or_skip, tmp_path):
-    """Basti on beta 26: *"the three buttons should be reduced in heigth and
-    the report limits window seemingly uses the green accent color so the new
-    tooltip icon should as well"*. Both pinned, both measured off the widgets
-    rather than off the stylesheet."""
+def test_the_report_limits_window_has_one_door_and_it_is_small(qapp_or_skip,
+                                                               tmp_path):
+    """Basti, twice on the shipped beta: *"the three buttons should be reduced
+    in heigth"*, then *"the current ones are still big ... they could be
+    smaller i think"*, and then the reason it matters: *"if you are putting in
+    3 more buttons there will be quite a lot in the end"*.
+
+    So the Report limits window carries ONE button, at 18 px, which is that
+    window's own smallest interactive control, its check boxes. The three
+    actions moved behind it. This guard fails the day a second one appears
+    beside it, which is the failure he predicted.
+    """
     from PyQt6.QtCore import QSettings
+    from PyQt6.QtWidgets import QPushButton
     from core.settings import AppSettings
     from ui.dialogs.thresholds_dialog import ThresholdsDialog
-    from ui.styles import SPEC_GREEN
-    from ui.tooltip_button import TooltipButton
 
     s_ = AppSettings()
     s_._qs = QSettings(str(tmp_path / "t.ini"), QSettings.Format.IniFormat)
     dlg = ThresholdsDialog(s_)
     try:
-        for b in (dlg._iso_template_btn, dlg._iso_use_btn, dlg._iso_forget_btn):
-            assert b.height() <= 24, f"{b.text()!r} is {b.height()} px tall"
-        icon = None
-        for t in dlg.findChildren(TooltipButton):
-            if "limit values" in (getattr(t, "_title", "") or "").lower():
-                icon = t
-                break
-        assert icon is not None
-        assert getattr(icon, "_color_override", None) == SPEC_GREEN, (
-            "the info icon does not take this window's green accent")
+        assert dlg._iso_values_btn.height() == 18, dlg._iso_values_btn.height()
+        # and it is alone: no leftover sibling from the three-button version
+        for name in ("_iso_template_btn", "_iso_use_btn", "_iso_forget_btn"):
+            assert not hasattr(dlg, name), f"{name} is still in this window"
+        # the grey line says which numbers are in force without a click
+        assert dlg._iso_state_lbl.text(), "the window does not say what is in use"
     finally:
         dlg.close()
 
 
-def test_the_file_dialogs_are_the_apps_own_with_its_sidebar():
-    """Not the OS dialog, unless the user asked for it in Preferences.
-
-    ChromIQ's own dialog is what carries the shortcuts down the left: Desktop,
-    Pictures, Downloads, Documents, the app's working folder, and whatever the
-    caller adds. These two calls add the folder the values file lives in, so a
-    reader who saved a template yesterday can get back to it.
-    """
+def test_a_second_source_costs_no_button_in_the_report_limits_window():
+    """The whole point of the one door: Fogra's characterisation data joins
+    `sources()` and the Report limits window does not change at all."""
     import inspect
 
-    from ui.dialogs import thresholds_dialog as td
+    from ui.dialogs import reference_values_dialog as rv
 
-    for name in ("_on_iso_template", "_on_iso_use"):
-        src = inspect.getsource(getattr(td.ThresholdsDialog, name))
-        assert "_file_dialog(" in src, f"{name} does not use the app's dialog"
-        assert "QFileDialog" not in src, f"{name} reaches past the app's own"
-        assert "extra_paths" in src, f"{name} offers no shortcut to the folder"
-        assert "DocumentsLocation" in src, f"{name} starts somewhere unhelpful"
+    src = inspect.getsource(rv.sources)
+    assert "iso_source()" in src
+    # the window builds a section per source, so a second entry is a section
+    assert "for src in sources():" in inspect.getsource(rv.ReferenceValuesDialog.__init__)
+
+
+@pytest.fixture()
+def qapp_or_skip():
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PyQt6.QtWidgets import QApplication
+    return QApplication.instance() or QApplication([])
+
+
+def test_pressing_each_button_really_runs(qapp_or_skip, tmp_path, monkeypatch):
+    """PRESS THE BUTTONS. The first version of this file read the slots'
+    SOURCE with `inspect.getsource` and asserted the right names appeared in
+    it, and it passed while all three buttons did nothing at all: `Path` was
+    never imported, every slot raised `NameError`, and Qt swallows an exception
+    raised inside a slot. Basti found it in the shipped beta 26 within minutes.
+
+    That is this project's oldest shape, a guard that tests the HELPER instead
+    of the DOOR, and reading source text is the purest form of it.
+
+    The three buttons now live in `ReferenceValuesDialog`, one section per
+    source, because Basti saw that one data source costing three buttons meant
+    two would cost six. This presses them where they are.
+    """
+    import ui.widgets as W
+    from ui.dialogs.reference_values_dialog import ReferenceValuesDialog
+
+    monkeypatch.setenv("CHROMIQ_PRESETS_DIR", str(tmp_path / "presets"))
+    monkeypatch.delenv(cs.ISO_DATA_ENV, raising=False)
+    cs.reset_iso_cache()
+
+    template = tmp_path / "template.json"
+    asked: dict = {}
+    monkeypatch.setattr(W, "save_file_dialog",
+                        lambda *a, **k: (asked.update(save=k), str(template))[1])
+    monkeypatch.setattr(W, "open_file_dialog",
+                        lambda *a, **k: (asked.update(open=k), str(template))[1])
+
+    dlg = ReferenceValuesDialog()
+    said: list = []
+    dlg._say = said.append
+    try:
+        src, state, forget = dlg._rows[0]
+        assert not forget.isEnabled(), "nothing is supplied, so nothing to forget"
+        assert "Nothing supplied" in state.text()
+
+        dlg._template(src)
+        assert template.is_file(), "the first button wrote nothing"
+        assert json.loads(template.read_text(encoding="utf-8"))["iso_12647_7"]
+
+        dlg._install(src)
+        assert cs.user_values_path().is_file(), "the second button installed nothing"
+        assert forget.isEnabled()
+        assert "In use:" in state.text(), "the window does not say what is in use"
+
+        dlg._forget(src)
+        assert not cs.user_values_path().is_file(), "the third button removed nothing"
+        assert not forget.isEnabled()
+        assert len(said) == 3, said
+    finally:
+        dlg.close()
+        cs.reset_iso_cache()
+
+
+def test_the_report_limits_window_has_one_door_and_it_is_small(qapp_or_skip,
+                                                               tmp_path):
+    """Basti, twice on the shipped beta: *"the three buttons should be reduced
+    in heigth"*, then *"the current ones are still big ... they could be
+    smaller i think"*, and then the reason it matters: *"if you are putting in
+    3 more buttons there will be quite a lot in the end"*.
+
+    So the Report limits window carries ONE button, at 18 px, which is that
+    window's own smallest interactive control, its check boxes. The three
+    actions moved behind it. This guard fails the day a second one appears
+    beside it, which is the failure he predicted.
+    """
+    from PyQt6.QtCore import QSettings
+    from PyQt6.QtWidgets import QPushButton
+    from core.settings import AppSettings
+    from ui.dialogs.thresholds_dialog import ThresholdsDialog
+
+    s_ = AppSettings()
+    s_._qs = QSettings(str(tmp_path / "t.ini"), QSettings.Format.IniFormat)
+    dlg = ThresholdsDialog(s_)
+    try:
+        assert dlg._iso_values_btn.height() == 18, dlg._iso_values_btn.height()
+        # and it is alone: no leftover sibling from the three-button version
+        for name in ("_iso_template_btn", "_iso_use_btn", "_iso_forget_btn"):
+            assert not hasattr(dlg, name), f"{name} is still in this window"
+        # the grey line says which numbers are in force without a click
+        assert dlg._iso_state_lbl.text(), "the window does not say what is in use"
+    finally:
+        dlg.close()
+
+
+def test_a_second_source_costs_no_button_in_the_report_limits_window():
+    """The whole point of the one door: Fogra's characterisation data joins
+    `sources()` and the Report limits window does not change at all."""
+    import inspect
+
+    from ui.dialogs import reference_values_dialog as rv
+
+    src = inspect.getsource(rv.sources)
+    assert "iso_source()" in src
+    # the window builds a section per source, so a second entry is a section
+    assert "for src in sources():" in inspect.getsource(rv.ReferenceValuesDialog.__init__)
+
+
+def test_the_window_behind_the_door_explains_itself(qapp_or_skip):
+    """What the dropped icon guard was really protecting, kept.
+
+    The three hover tooltips and the one ⓘ in the Report limits window are
+    gone with the three buttons. The explanation moved into the window behind
+    the door, and the two sentences that exist purely to reassure a reader must
+    survive any future edit of it: WHY ChromIQ has no numbers of its own, and
+    that what you supply never leaves the computer.
+    """
+    from ui.dialogs.reference_values_dialog import ReferenceValuesDialog, iso_source
+
+    src = iso_source()
+    assert "paid standard" in src.why, "it does not say WHY the numbers are absent"
+    help_text = ReferenceValuesDialog._help(src)
+    for must in ("Save a file to fill in", "Use a file I filled in",
+                 "Stop using it"):
+        assert must in help_text, f"the ⓘ does not mention {must!r}"
+    assert "does not send them anywhere" in help_text, \
+        "it does not say the values stay on this computer"
+    assert "—" not in help_text and "—" not in src.why, "em dash"

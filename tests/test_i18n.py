@@ -1105,18 +1105,18 @@ _IDENTICAL_TO_KEY = {
     # so **de does not move**; the eleven others carry the English under the
     # beta rule. COUNTED off the tree with each file's own expression, never
     # adjusted to make a red go green.
-    "de": 146,
-    "es": 502,
-    "fr": 524,
-    "it": 513,
-    "ja": 488,
-    "nl": 529,
-    "no": 514,
-    "pl": 506,
-    "pt": 504,
-    "ru": 477,
-    "sv": 515,
-    "zh_CN": 482,
+    "de": 145,
+    "es": 506,
+    "fr": 528,
+    "it": 517,
+    "ja": 492,
+    "nl": 533,
+    "no": 518,
+    "pl": 510,
+    "pt": 508,
+    "ru": 481,
+    "sv": 519,
+    "zh_CN": 486,
 }
 
 
