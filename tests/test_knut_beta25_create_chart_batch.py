@@ -248,6 +248,37 @@ def test_no_string_a_user_can_read_still_says_can_be_verified():
         f"{offenders}")
 
 
+def test_the_readme_a_user_downloads_names_the_button_the_window_shows():
+    """R29-F1. A FOURTH place, and the one nothing was looking at.
+
+    The check above reads `tr()` literals out of two UI modules, which is
+    everything the WINDOW shows and nothing else. The demo-preset pack ships a
+    README whose whole subject is this button, and its title is plain text in
+    `scripts/make_verification_preset_demos.py`, so the rename went past it:
+    the pack rebuilt hours after the rename still opened *ChromIQ demo presets
+    for "Which presets can be verified?"*. Measured on the rebuilt folder at
+    `/private/tmp/chromiq-k3/…/Create Chart presets (verification demos)/README.txt`.
+
+    Knut's sentence is *"any other place where this button is mentioned in
+    text"*, and a file a user downloads and reads is such a place. The title is
+    now read off `control_strip.ELIGIBILITY_CONTROL`, so this asks the two
+    questions that can still go wrong: the old words are gone, and the name in
+    the README is the name the button carries.
+    """
+    import sys
+    from pathlib import Path
+    root = Path(__file__).resolve().parents[1]
+    if str(root / "scripts") not in sys.path:
+        sys.path.insert(0, str(root / "scripts"))
+    import make_verification_preset_demos as GEN
+    text = GEN.readme()
+    assert OLD_NAME not in text, (
+        "the README a user downloads still names the button Knut renamed")
+    assert CSP.ELIGIBILITY_CONTROL in text, (
+        "the README names no button at all, so nothing keeps it in step with "
+        "the window")
+
+
 # ---------------------------------------------------------------------------
 # 2. the height
 # ---------------------------------------------------------------------------

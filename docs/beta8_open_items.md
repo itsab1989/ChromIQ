@@ -19782,3 +19782,155 @@ would reach.
   own, should the window open on it — with the settings K.5 infers for such a
   report — rather than on the latest one that does?
 - evidence: none yet — nothing is built, so there is nothing to guard.
+
+### B8-500 · FIXED · A Generate press that wrote NOTHING took the red line down with it
+- status: FIXED
+- blocks release: no
+- **Adversary round 29, on the Generate popup shipped hours earlier (B8-491).**
+  Measured in a REAL window with the run's report folders set read-only
+  (`scripts/adv29_two_doors.py`, photograph
+  `~/Desktop/ChromIQ-beta26-proof/round-29/shots/B-after-1.png`):
+
+      before the press   red line UP,   settings_modified True,  Update offered
+      Update pressed  -> "Nothing could be written. The log says why."
+      after the press    red line DOWN, settings_modified False, Update gone
+      on disk            0 files written, the saved report byte-for-byte as it was
+
+- the line reads *"⚠ Settings changed. Click "Generate report" to build the
+  report with them, or put the setting back."* After a press that saved no
+  file both halves of that sentence still stand, so taking the line away tells
+  the reader the opposite of what they were told one box earlier. Everything
+  after that reads the window's word for it: Generate no longer offers Update,
+  and Save report as PDF exports a page no saved report matches.
+- the mechanism is one line in the wrong place, not a missing check: `_render`
+  re-stamps `_doc_built_with` from the controls every time it draws, which is
+  right for a repaint and wrong for the failure branch of `_write_the_document`.
+  The same press also dropped `_chosen_reports` for every measurement it tried
+  and failed to write, which walks the page off the file the reader is looking
+  at as a consequence of a press that did nothing.
+- fix: `_write_the_document` remembers what the banner was comparing against
+  before it writes, and the failure branch puts it back after the repaint; the
+  `_chosen_reports` drop is now under `if saved:`. A PARTIAL failure is
+  untouched, because `saved` is non-empty there and something really was
+  written.
+- **NOT NEW TONIGHT, AND WORSE TONIGHT.** A plain Generate that failed cleared
+  the line the same way before B8-491. What B8-491 added is a reader who has
+  just been asked a question, answered *"Update selected report with selected
+  settings"*, and been told the write failed.
+- evidence: test_a_press_that_wrote_nothing_leaves_the_red_line_up
+- mutations, each with `__pycache__` cleared and SEEN red, then restored: the
+  two restore lines removed from the failure branch (**1 failed**,
+  `mutations/M1-banner-restore-removed.txt`) and the `if saved:` guard removed
+  from the `_chosen_reports` drop (**1 failed**,
+  `mutations/M2-chosen-reports-guard-removed.txt`).
+
+### B8-501 · FIXED · A project that has MOVED opens its own saved report onto an empty window
+- status: FIXED
+- blocks release: no
+- **A measurement's identity inside a document is `document_measurement_key`,
+  and it begins with the measurement's ABSOLUTE folder.** So every key a
+  document records stops matching the moment the project is somewhere else:
+  copied to another machine, restored from a backup, found under a different
+  `custom_output_path`, or shipped inside a demo pack a user downloads.
+- driven in a REAL window on the same project twice, once in place and once
+  from a copy at another path (`scripts/adv29_a_project_that_moved.py`,
+  `shots/moved-before.json`, photograph `shots/before-moved-1.png`):
+
+      in place   history 2, hidden 1, 1 row on the page, Generate ENABLED
+      moved      history 2, hidden 2, 0 rows on the page, Generate DISABLED
+
+- **AND THE LIST WENT ON SHOWING BOTH MEASUREMENTS TICKED.** The photograph is
+  the whole finding: two ✓ rows under *Included Measurements in report*, an
+  empty report area, and a greyed "Generate report", with no sentence anywhere
+  saying why. `_hidden_runs` and the ticks the reader can see had parted.
+- B8-490 is what reaches it. Before tonight the rows were re-ticked only with
+  *"Show all measurement runs"* ON; now every door restores them, so the state
+  is one selection away on every project.
+- fix, and it is the rule the line above it already states applied to the case
+  it did not cover: *a document that names no row that is HERE cannot say which
+  rows were ticked*, exactly as one that names none at all cannot. One that
+  names SOME of them still narrows to those, and the guard checks that half
+  too. `self._hidden_runs = (here - keys) if (keys & here) else set()`.
+- **THE DEEPER REMEDY IS NOT THIS AND IS NOT TONIGHT'S:** the recorded key
+  should be relative to the project folder. That changes a persisted record and
+  needs a migration and a ruling, so it is named here and not started. This fix
+  only stops a moved project emptying its own window.
+- after the fix, same driver, same two windows (`shots/moved-after.json`,
+  photograph `shots/after-moved-1.png`, two pixel-identical frames):
+  **moved: history 2, hidden 0, 2 rows on the page, Generate ENABLED.**
+- evidence: test_a_report_whose_measurements_are_all_absent_leaves_the_rows_alone
+- mutation, `__pycache__` cleared and SEEN red, then restored: the shipped rule
+  `(here - keys) if keys else set()` put back (**1 failed**,
+  `mutations/M4-hidden-runs-old-rule.txt`).
+
+### B8-502 · FIXED · The README a user downloads still named the button by the name Knut replaced
+- status: FIXED
+- blocks release: no
+- B8-444 renamed the preset-eligibility button in three places and its guard is
+  called `test_no_string_a_user_can_read_still_says_can_be_verified`. It reads
+  `tr()` literals out of two UI modules, which is everything the WINDOW shows
+  and nothing else.
+- there is a fourth place, and its whole subject is that button: the README
+  inside the demo-preset pack, written by `scripts/make_verification_preset_demos.py`
+  as plain text. The pack rebuilt by the demo-preset round HOURS AFTER the
+  rename still opens *ChromIQ demo presets for "Which presets can be
+  verified?"*. Measured on the rebuilt folder,
+  `/private/tmp/chromiq-k3/ChromIQ-Report-Limit-Demos/Create Chart presets (verification demos)/README.txt`,
+  line 1.
+- Knut asked for the new name *"in all help text and the popup window … and any
+  other place where this button is mentioned in text"*, and a file a user
+  downloads and reads is such a place.
+- fix: the title is read off `workflow.control_strip.ELIGIBILITY_CONTROL`, the
+  same constant the window and the chart-import warning use, so it cannot drift
+  again. The underline sizes itself from the title, so nothing else moved.
+- **THE PACK ON DISK STILL CARRIES THE OLD README** and is rebuilt by
+  `scripts/make_verification_preset_demos.py`; regenerate it before the pack
+  ships with the beta.
+- the changelog's three mentions are left alone: they describe betas 22 and 23,
+  where that was the button's name.
+- evidence: test_the_readme_a_user_downloads_names_the_button_the_window_shows
+- mutation, `__pycache__` cleared and SEEN red, then restored: the old title
+  typed back (**1 failed**, `mutations/M3-readme-old-name.txt`).
+
+### B8-503 · OPEN · B8-480 names one of R08's two constant shortfalls, and the pack has two
+- status: OPEN
+- blocks release: no
+- B8-480 records two arithmetic nestings: R02's pass side being R03's fail side,
+  and R08's 19-and-20-patch charts being unable to clear the outer-gamut line.
+  Read off the pack itself, R08 declares **two** constant codes, not one:
+  `too_few_outer_patches` AND `control_strip_too_small`. A 19-patch chart is
+  short of a control strip on both sides of that pair as well.
+- nothing is wrong in the pack or in the guard.
+  `test_nothing_else_moves_across_the_pair` pins `Requirement.also` EXACTLY
+  (`constant == sorted(set(req.also))`), so a third nesting cannot hide behind
+  the two admitted ones — which is the question this was checked for. Only the
+  register's prose undercounts.
+- left OPEN rather than edited into B8-480, because the entry is that round's
+  account of its own work and the correction belongs beside it, not inside it.
+- evidence: test_nothing_else_moves_across_the_pair
+
+### B8-504 · OPEN · The window's minimum width does NOT stay at 995 px, and in German it reaches 1286
+- status: OPEN
+- blocks release: no
+- B8-460 records *"at 1000 / 1200 / 1500 px the window's minimum is now 995 /
+  995 / 1019 … narrower everywhere, and it no longer grows with the window."*
+  Its driver resizes ONE window through the three widths.
+- measured with a FRESH window built at each width, which is what a reader
+  gets (`scripts/adv29_the_german_window.py`, `shots/result.json`):
+
+      English   1000 -> 995    1200 -> 1110   1500 -> 1110
+      German    1000 -> 992    1200 -> 1192   1500 -> 1286
+
+  So the minimum still grows with the window; the 995 at 1200 px is the
+  compaction the first, narrower showing had already applied to that one
+  window, carried forward by a resize.
+- **NOTHING IS BROKEN ON SCREEN AT 1000 px IN EITHER LANGUAGE.** Photographed,
+  two pixel-identical frames each (`shots/en-1000-1.png`, `shots/de-1000-1.png`):
+  the German row of four buttons, "Bericht erzeugen / Ausgewählten Bericht
+  löschen / Bericht als PDF speichern… / Ordner anzeigen", fits; both pulldowns
+  are full; only the two hint labels elide, which is their design.
+- what is open is the CLAIM, not the layout: a measurement taken by resizing one
+  window is not the number a window opens at, and the German build was never
+  measured at all. Re-measure the way above before the number is quoted again.
+- evidence: none yet — nothing is built and nothing is changed; the numbers are
+  in `~/Desktop/ChromIQ-beta26-proof/round-29/shots/result.json`.

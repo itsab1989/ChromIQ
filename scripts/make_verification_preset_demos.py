@@ -858,7 +858,13 @@ def grid(dest: Path) -> int:
 # The README a user downloads
 # ---------------------------------------------------------------------------
 def readme() -> str:
-    title = "ChromIQ demo presets for \"Which presets can be verified?\""
+    # **THE BUTTON'S NAME IS ASKED FOR, NOT TYPED (R29-F1).** Knut renamed it
+    # in beta 25 and asked for the new name *"in all help text … and any other
+    # place where this button is mentioned in text"*; this README is such a
+    # place, and it went on naming the old button because nothing here read
+    # the constant the window itself uses.
+    from workflow.control_strip import ELIGIBILITY_CONTROL
+    title = f'ChromIQ demo presets for "{ELIGIBILITY_CONTROL}"'
     lines = [title, "=" * len(title), ""]
     lines += _wrap(
         "Each preset in this folder is a Create Chart preset with its own "

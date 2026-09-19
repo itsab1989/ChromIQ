@@ -3726,6 +3726,10 @@ class MeasurementReportDialog(QDialog):
         all_runs, detail = self._tick_state()
         scope = self._document_scope(members)
         saved, failed = [], []
+        #: WHAT THE RED LINE WAS COMPARING AGAINST BEFORE THIS PRESS (R29-F2).
+        #: A press that writes nothing must leave it exactly there: see the
+        #: failure branch at the end of this method.
+        was_built = getattr(self, "_doc_built_with", None)
         #: (measurement key, file name) for every file this press owns, so the
         #: page stays on the document's own files rather than on whatever the
         #: newest file of each measurement happens to be.
@@ -3815,8 +3819,14 @@ class MeasurementReportDialog(QDialog):
         # So the choice this measurement carried is dropped, because the user
         # has just asked for a NEW document of it, and the sources are read
         # again so the file is in the list and is the one the merge keeps.
-        for r in reports:
-            self._chosen_reports.pop(self._run_key(r), None)
+        #
+        # **ONLY WHEN SOMETHING WAS WRITTEN (R29-F2).** With every write
+        # refused there is no new file to move to, and dropping the choice
+        # would walk the page off the report the reader is looking at as a
+        # consequence of a press that failed.
+        if saved:
+            for r in reports:
+                self._chosen_reports.pop(self._run_key(r), None)
         # …AND AN UPDATE PUTS THE DOCUMENT'S OWN FILES BACK, because a rewrite
         # keeps the file's original name and date and "the newest file of this
         # measurement" may therefore be a different report altogether.
@@ -3836,7 +3846,22 @@ class MeasurementReportDialog(QDialog):
             self._forget_sticky_settings()
             self._reload_sources()
         else:
+            # **A PRESS THAT WROTE NOTHING MAY NOT TAKE THE RED LINE DOWN
+            # (R29-F2).** The line says *"Settings changed. Click 'Generate
+            # report' to build the report with them, or put the setting
+            # back."* After a press that saved no file, they are still not in
+            # any report, so both halves of that sentence still stand.
+            #
+            # `_render` re-stamps `_doc_built_with` from the controls every
+            # time it draws, which is right for a repaint and wrong for this:
+            # the reader was just shown *"Nothing could be written"* and the
+            # window then cleared the one signal that says their change has
+            # not been applied. Measured on screen with the reports folder
+            # read-only (round 29): Update pressed, the failure box shown, and
+            # the red line down with the saved report untouched on disk.
             self._refresh()
+            self._doc_built_with = was_built
+            self._show_stale_banner()
 
     def _say_generated(self, saved: list, failed: list) -> None:
         """SUCCESS IS QUIET; A FAILURE IS NOT.
@@ -5602,11 +5627,24 @@ class MeasurementReportDialog(QDialog):
             return
         keys = {str(m.get("key") or "")
                 for m in (doc.get("measurements") or [])}
+        here = {self._run_key(r) for r in self._history}
         # A document whose recorded list is empty cannot say which rows were
         # ticked, so the rows are left as they are rather than all unticked.
-        self._hidden_runs = ({self._run_key(r) for r in self._history
-                              if self._run_key(r) not in keys} if keys
-                             else set())
+        #
+        # **AND NEITHER CAN ONE WHOSE EVERY RECORDED MEASUREMENT IS ABSENT
+        # (R29-F3).** A measurement's identity in that list is
+        # `document_measurement_key`, which begins with the measurement's
+        # ABSOLUTE folder, so a project that has MOVED — copied to another
+        # machine, restored from a backup, or found under a different output
+        # folder — records keys that match nothing here. Measured: the same
+        # project opened in place hid 1 row of 2 and drew the page; opened from
+        # a copy at another path it hid 2 of 2, drew nothing at all, and left
+        # "Generate report" disabled, with no sentence anywhere saying why.
+        # Hiding everything is not a narrower view of the report, it is an
+        # empty window, so the same rule as the empty list applies: a document
+        # that names no row that is here cannot say which rows were ticked.
+        # A document that names SOME of them still narrows to those.
+        self._hidden_runs = (here - keys) if (keys & here) else set()
 
     def _reload_sources(self) -> None:
         """Read every loaded measurement's reports off disk again.

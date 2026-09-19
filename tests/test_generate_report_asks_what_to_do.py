@@ -790,3 +790,153 @@ def test_a_member_the_update_drops_still_agrees_with_its_document(
             "Update wrote a file where it should have rewritten one")
     finally:
         dlg.close()
+
+
+# ---------------------------------------------------------------------------
+# ADVERSARY ROUND 29 — a press that writes nothing
+# ---------------------------------------------------------------------------
+def test_a_press_that_wrote_nothing_leaves_the_red_line_up(two_dates, qapp,
+                                                           monkeypatch):
+    """R29-F2. Update, every write refused, and the window says it was applied.
+
+    Measured on screen with the run's report folders set read-only (round 29,
+    `scripts/adv29_two_doors.py`, `shots/B-after-1.png`): a report selected, a
+    setting moved, the red line up, Generate pressed, **Update** chosen in the
+    real popup, and *"Nothing could be written. The log says why."* shown. The
+    saved report on disk was untouched — and the red line went DOWN.
+
+    That line reads *"Settings changed. Click 'Generate report' to build the
+    report with them, or put the setting back."* After a press that saved no
+    file both halves still stand, so taking it away tells the reader the
+    opposite of what just happened, in the same second they were told the
+    write failed. `_render` re-stamps `_doc_built_with` from the controls every
+    time it draws, which is right for a repaint and wrong here.
+
+    The guard asks the three things a reader depends on: the line is still up,
+    the one predicate behind it still says the settings moved, and Generate
+    would still offer to apply them.
+    """
+    from PyQt6.QtWidgets import QMessageBox
+    import workflow.measurement_report as MR
+
+    from workflow.measurement_report import REPORT_TYPE_SUMMARY
+    s, _fm, run, vs = two_dates
+    dlg = _window(s, vs[-1].measurement_ti3, qapp)
+    try:
+        key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_SUMMARY,
+                               all_runs=False, detail=False)
+        _pick_key(dlg, key, qapp)
+        before = {p: p.read_bytes() for p in _files(run)}
+        chosen_before = dict(dlg._chosen_reports)
+        dlg._detail_check.setChecked(not dlg._detail_check.isChecked())
+        qapp.processEvents()
+        assert dlg._stale_label.isVisible(), "the fixture never raised the line"
+        assert dlg._document_being_updated() is not None
+
+        def _refuse(*a, **k):
+            raise OSError("read-only file system")
+
+        monkeypatch.setattr(MR, "save_report", _refuse)
+        monkeypatch.setattr(MR, "rewrite_report", _refuse)
+        said: list = []
+        dlg._say_generated = lambda saved, failed: said.append(
+            (len(saved), len(failed)))
+        del dlg._ask_update_or_create_new
+        monkeypatch.setattr(QMessageBox, "exec", _press("Update"))
+        dlg._on_generate_report()
+        qapp.processEvents()
+
+        assert said and said[0][0] == 0 and said[0][1] >= 1, (
+            f"the fixture did not actually refuse the write: {said!r}")
+        after = {p: p.read_bytes() for p in _files(run)}
+        assert after == before, (
+            "a refused press still changed what is on disk: "
+            f"{sorted(set(after) ^ set(before))!r}")
+        assert dlg._settings_were_modified(), (
+            "the window says the moved setting has been applied, and no file "
+            "was written")
+        assert dlg._stale_label.isVisible(), (
+            "the red line went down after a press that wrote nothing")
+        assert dlg._document_being_updated() is not None, (
+            "pressing Generate again would no longer offer to update the "
+            "report the reader still has selected")
+        assert dict(dlg._chosen_reports) == chosen_before, (
+            "the refused press walked the page off the file it was drawn "
+            f"from: {chosen_before!r} -> {dict(dlg._chosen_reports)!r}")
+    finally:
+        dlg.close()
+
+
+def test_a_report_whose_measurements_are_all_absent_leaves_the_rows_alone(
+        two_dates, qapp, tmp_path):
+    """R29-F3. A project that has MOVED, and a saved report that blanks it.
+
+    A measurement's identity inside a document is
+    `document_measurement_key`, and it begins with the measurement's ABSOLUTE
+    folder. So every key a document records stops matching the moment the
+    project is somewhere else: copied to another machine, restored from a
+    backup, opened under a different output folder, or shipped in a demo pack
+    a user downloads.
+
+    Measured before the fix, the same project and the same document:
+
+        in place  history 2, hidden 1, 1 row on the page, Generate ENABLED
+        moved     history 2, hidden 2, 0 rows on the page, Generate DISABLED
+
+    Selecting the saved report emptied the window and greyed the one button
+    that writes anything, with no sentence anywhere saying why. B8-490 is what
+    reaches it: before tonight the ticks were restored only with "Show all
+    measurement runs" ON, and now every door restores them.
+
+    The remedy is the rule the line above it already states, applied to the
+    case it does not cover: a document that names no row that is HERE cannot
+    say which rows were ticked. One that names some of them still narrows to
+    those, and that half is checked too.
+
+    MUTATION, proved to land: put `self._hidden_runs = (here - keys) if keys
+    else set()` back.
+    """
+    import shutil
+    from core.file_manager import Project
+    from workflow.measurement_report import REPORT_TYPE_SUMMARY
+
+    s, _fm, run, vs = two_dates
+    dlg = _window(s, vs[-1].measurement_ti3, qapp)
+    try:
+        key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_SUMMARY,
+                               all_runs=True, detail=False)
+        _pick_key(dlg, key, qapp)
+        in_place = (len(dlg._history), len(dlg._hidden_runs),
+                    len(dlg._runs_for_report()))
+        assert in_place[0] >= 2 and in_place[1] >= 1, (
+            "the fixture never narrowed anything, so the moved copy would "
+            f"prove nothing: {in_place!r}")
+        project_dir = run.dir.parent.parent
+    finally:
+        dlg.close()
+
+    moved_root = tmp_path / "moved"
+    moved_root.mkdir()
+    shutil.copytree(project_dir, moved_root / project_dir.name)
+    s.set("custom_output_path", str(moved_root))
+    moved = Project.load(moved_root / project_dir.name)
+    r2 = moved.all_runs()[0]
+    dlg2 = _window(s, r2.verifications()[-1].measurement_ti3, qapp)
+    try:
+        picked = None
+        for i in range(dlg2._saved_combo.count()):
+            if str(dlg2._saved_combo.itemData(i)).startswith("id:"):
+                dlg2._saved_combo.setCurrentIndex(i)
+                qapp.processEvents()
+                picked = str(dlg2._saved_combo.itemData(i))
+                break
+        assert picked, "the moved copy lists no document, so nothing was tested"
+        assert len(dlg2._hidden_runs) < len(dlg2._history), (
+            "every measurement is unticked because the document's recorded "
+            "keys name the project's OLD folder")
+        assert dlg2._runs_for_report(), (
+            "the page has nothing on it after selecting a saved report")
+        assert dlg2._generate_btn.isEnabled(), (
+            "'Generate report' is disabled because the window emptied itself")
+    finally:
+        dlg2.close()
