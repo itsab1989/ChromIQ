@@ -486,3 +486,44 @@ def test_factory_limits_refuses_a_placeholder_on_an_unmeasurable_row(monkeypatch
         "a placeholder reached a row ChromIQ cannot compute; the column would "
         "carry a limit nothing is ever compared with")
     assert f["light_fastness"].kind == "unmeasurable"
+
+
+def test_the_iso_template_gives_everything_except_the_numbers():
+    """What a licence holder gets, and what ChromIQ may never put in it.
+
+    Knut asked for the standards' limits *"in a table, and in the same sequence
+    of the metrics in the Report Limits window"*. The numbers cannot come from
+    us: this repository published those tables once by accident already, and
+    DIN answered in writing on 2026-09-18 that putting them into software is
+    licensed at 50 % of the standard's purchase price.
+
+    So the template carries the STRUCTURE, which has been in the open in
+    `_ISO_ROWS` since the sets existed, and every value is null. This guard is
+    here because the file is one careless commit away from being the thing that
+    caused the trouble last time: **if any value in it is ever a number, this
+    test goes red.**
+    """
+    doc = json.loads(cs.iso_values_template())
+    order = {r.id: i for i, r in enumerate(cs.ROWS)}
+
+    for sid in ("iso_12647_7", "iso_12647_8"):
+        rows = doc[sid]
+        assert rows, f"{sid} lists no rows at all"
+        assert all(v is None for v in rows.values()), (
+            f"{sid} carries a NUMBER. ChromIQ may not ship the values of a "
+            f"paid standard: {[k for k, v in rows.items() if v is not None]}")
+        seq = [order[r] for r in rows]
+        assert seq == sorted(seq), (
+            f"{sid} is not in the Report limits window's order, which is the "
+            f"one thing the template was asked for")
+        assert set(rows) == {r for r in cs._ISO_ROWS[sid] if r in order}
+
+    # and it says how to use it, because a template nobody can act on is a file
+    assert "CHROMIQ_COMPLIANCE_ISO_FILE" in doc["_readme"]
+    # every row is named in words, so it can be filled in without reading code
+    assert set(doc["_rows"]) >= set(doc["iso_12647_7"]) | set(doc["iso_12647_8"])
+
+
+def test_one_set_at_a_time_is_offered_too():
+    doc = json.loads(cs.iso_values_template("iso_12647_8"))
+    assert "iso_12647_8" in doc and "iso_12647_7" not in doc

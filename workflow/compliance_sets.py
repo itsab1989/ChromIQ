@@ -892,6 +892,61 @@ def _looks_unreadable(raw: Any) -> bool:
     return Limit.from_json(raw).kind == "unknown"
 
 
+def iso_values_template(set_id: "str | None" = None) -> str:
+    """A file a LICENCE HOLDER can fill in, in the Report limits window's order.
+
+    Knut asked, 2026-09-19: *"Can you list the limits set by the standards in a
+    post, in a table, and in the same sequence of the metrics in the Report
+    Limits window?"* The values themselves cannot come from us: they are the
+    content of a paid standard, this repository published those tables once
+    already by accident, and DIN's written answer of 2026-09-18 puts shipping
+    the numbers on the *Wiedergabe* side of the line and prices it at 50 % of
+    the standard's purchase price.
+
+    What CAN be given is everything except the numbers, which is most of what
+    the question was really after: **which rows each standard writes a limit
+    over, in the order the window draws them, ready to be filled in from a copy
+    the reader owns.** The structure of a standard is not its content, and
+    `_ISO_ROWS` has been in this file, in the open, since the sets existed.
+
+    So: run `python scripts/iso_values_template.py`, fill the nulls in from
+    your own copy, and point `CHROMIQ_COMPLIANCE_ISO_FILE` at the result. The
+    numbers stay on the machine of somebody licensed to have them, which is the
+    only place they can be.
+
+    A row is written as ``null`` for "no number yet". A filled row is a number,
+    or ``[number, "should"]`` for a recommendation rather than a requirement.
+    Rows the standard writes no limit over are simply absent, which is what
+    makes this a template and not a guess at a table.
+    """
+    import json as _json
+
+    want = (set_id,) if set_id else ("iso_12647_7", "iso_12647_8")
+    order = {r.id: i for i, r in enumerate(ROWS)}
+    labels = {r.id: (r.label, r.unit, r.status) for r in ROWS}
+    out: "dict[str, Any]" = {
+        "_readme": (
+            "Tolerance values for ChromIQ's two ISO limit sets. ChromIQ ships "
+            "this file EMPTY and cannot ship it filled: the numbers are the "
+            "content of a paid standard. Fill a row in from your own copy of "
+            "the standard and point CHROMIQ_COMPLIANCE_ISO_FILE at this file. "
+            "A row is a number, or [number, \"should\"] for a recommendation. "
+            "Leave a row null and ChromIQ goes on drawing '?' for it. The rows "
+            "are in the order the Report limits window draws them."),
+        "_rows": {},
+    }
+    for sid in want:
+        rows = [r for r in _ISO_ROWS.get(sid, ()) if r in order]
+        rows.sort(key=lambda r: order[r])
+        out[sid] = {r: None for r in rows}
+        for r in rows:
+            lab, unit, status = labels[r]
+            out["_rows"][r] = (f"{lab} [{unit}]" if unit else lab) + (
+                "" if status in ("now", "build", "ref")
+                else "  (ChromIQ cannot judge this row today)")
+    return _json.dumps(out, indent=2, ensure_ascii=False) + "\n"
+
+
 def _load_iso_numbers() -> "dict[str, dict[str, Limit]]":
     """``{set_id: {row_id: Limit}}`` from the data file; unreadable → empty.
 
