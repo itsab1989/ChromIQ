@@ -186,6 +186,26 @@ def presets_dir() -> Path:
     return base / "presets"
 
 
+def compliance_dir() -> Path:
+    """Where a licence holder's own limit values live, beside their presets.
+
+    **BECAUSE THE SHIPPED APP CANNOT READ AN ENVIRONMENT VARIABLE.** ChromIQ
+    keeps the ISO 12647 tolerance values out of the repository and reads them
+    from a file the user supplies, and until now the only way to name that file
+    was `CHROMIQ_COMPLIANCE_ISO_FILE`. That is fine for this checkout and
+    useless for anybody else: a `.dmg` carries no `scripts/` folder to make the
+    template with, and a variable exported in a shell never reaches an app
+    launched from Finder or the Dock. Basti, 2026-09-20: *"i just hope this is
+    straightforward and does not require any special knowledge."* It was not.
+
+    So there is a known place instead, beside `presets_dir()` and found the
+    same way on each platform, and the Report limits window puts the file there
+    with a file dialog. The environment variable still wins where it is set,
+    which is what the test suite and this checkout use.
+    """
+    return presets_dir().parent / "compliance"
+
+
 # User override for icc_install_dir (Settings → Paths, Knut #108). Set at
 # startup and on Settings save; platform_paths must not import core.settings
 # (settings imports from here), so the value is pushed in.

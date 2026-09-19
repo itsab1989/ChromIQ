@@ -282,14 +282,48 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                 "being decided. A cell reading ? is a limit the standard "
                 "defines and ChromIQ does not show yet; you may type your own "
                 "number into a Custom column from your own copy of the "
-                "standard. To fill a whole column at once, run "
-                "\"python scripts/iso_values_template.py -o iso12647.json\", "
-                "which writes every row these sets use in the order shown "
-                "here, fill in the numbers from your own copy, and point the "
-                "environment variable CHROMIQ_COMPLIANCE_ISO_FILE at the file.")
+                "standard. To fill a whole column at once, use the two buttons "
+                "below: the first saves a file listing every row these sets "
+                "use, in the order shown here, for you to type the numbers "
+                "into; the second hands that file back to ChromIQ.")
         sub = QLabel(sub_text, self)
         sub.setWordWrap(True)
         inner.addWidget(sub)
+
+        # -- TWO BUTTONS, BECAUSE A SHELL VARIABLE IS NOT A FEATURE.
+        # ChromIQ keeps the ISO 12647 tolerance values out of its own code and
+        # reads them from a file the user supplies. Until now the only way to
+        # name that file was an environment variable, which a shipped app never
+        # sees: a .dmg carries no `scripts/` folder to write the template with,
+        # and a variable exported in a shell does not reach a program launched
+        # from Finder or the Dock. So the feature existed and only this
+        # checkout could use it. Basti, 2026-09-20: *"i just hope this is
+        # straightforward and does not require any special knowledge."*
+        iso_row = QHBoxLayout()
+        iso_row.setSpacing(8)
+        self._iso_template_btn = QPushButton(
+            tr("Save a file to fill in…"), self)
+        self._iso_template_btn.setToolTip(tr(
+            "Writes a file listing every row the ISO limit sets use, in the "
+            "order shown here, with the numbers left blank for you to type in "
+            "from your own copy of the standard."))
+        self._iso_template_btn.clicked.connect(self._on_iso_template)
+        iso_row.addWidget(self._iso_template_btn)
+        self._iso_use_btn = QPushButton(tr("Use a file I filled in…"), self)
+        self._iso_use_btn.setToolTip(tr(
+            "Hands ChromIQ the file you typed the numbers into. They stay on "
+            "this computer and are never sent anywhere."))
+        self._iso_use_btn.clicked.connect(self._on_iso_use)
+        iso_row.addWidget(self._iso_use_btn)
+        self._iso_forget_btn = QPushButton(tr("Stop using it"), self)
+        self._iso_forget_btn.setToolTip(tr(
+            "Goes back to ChromIQ's own numbers. Your file is removed from "
+            "ChromIQ's folder; the copy you made it from is untouched."))
+        self._iso_forget_btn.clicked.connect(self._on_iso_forget)
+        iso_row.addWidget(self._iso_forget_btn)
+        iso_row.addStretch(1)
+        inner.addLayout(iso_row)
+        self._sync_iso_buttons()
 
         # -- the user's OWN limits file, when it could not be understood (F7)
         trouble = self._iso_file_trouble()
@@ -406,6 +440,90 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                 self._set_column_visible(sid, False)
 
     # ------------------------------------------------------------------ build
+    # ---------------------------------------------------------- the ISO file
+    #
+    # THE SAME THREE STEPS ON ALL THREE PLATFORMS, and that is the point of
+    # doing it here rather than in a shell. `compliance_dir()` is derived from
+    # `presets_dir()`, so the file lands in %APPDATA%\ChromIQ on Windows,
+    # ~/Library/Preferences/ChromIQ on macOS and $XDG_CONFIG_HOME/ChromIQ on
+    # Linux, and `save_file_dialog` / `open_file_dialog` are the app's own
+    # wrappers that every other tool uses. Nothing here touches a shell, a
+    # PATH, or a Python interpreter the user may not have: a shipped ChromIQ
+    # has no `scripts/` folder at all.
+    def _sync_iso_buttons(self) -> None:
+        from workflow.compliance_sets import iso_data_path_text
+
+        in_use = bool(iso_data_path_text())
+        if getattr(self, "_iso_forget_btn", None) is not None:
+            self._iso_forget_btn.setEnabled(in_use)
+
+    def _on_iso_template(self) -> None:
+        from ui.widgets import save_file_dialog
+        from workflow.compliance_sets import ISO_USER_FILE, iso_values_template
+
+        where = save_file_dialog(
+            self, tr("Save a file to fill in"), tr("JSON files (*.json)"),
+            start_path=str(Path.home() / ISO_USER_FILE))
+        if not where:
+            return
+        try:
+            Path(where).write_text(iso_values_template(), encoding="utf-8")
+        except OSError as exc:
+            self._iso_say(tr("That file could not be written: {error}")
+                          .format(error=exc))
+            return
+        self._iso_say(tr(
+            "Saved to {path}. Open it in any text editor, type the numbers "
+            "from your own copy of the standard in place of the word null, "
+            "then come back and press \u201cUse a file I filled in\u201d.")
+            .format(path=where))
+
+    def _on_iso_use(self) -> None:
+        from ui.widgets import open_file_dialog
+        from workflow.compliance_sets import install_user_values
+
+        src = open_file_dialog(
+            self, tr("Use a file I filled in"), tr("JSON files (*.json)"),
+            start_dir=str(Path.home()))
+        if not src:
+            return
+        try:
+            dst = install_user_values(src)
+        except (OSError, ValueError) as exc:
+            # A JSON error is a ValueError, and it is the likely one: somebody
+            # has hand-edited a file and left a trailing comma.
+            self._iso_say(tr(
+                "ChromIQ could not read that file: {error}").format(error=exc))
+            return
+        self._iso_say(tr("ChromIQ is using {path} now.").format(path=dst))
+        self._reload_after_iso_change()
+
+    def _on_iso_forget(self) -> None:
+        from workflow.compliance_sets import forget_user_values
+
+        if forget_user_values():
+            self._iso_say(tr("ChromIQ is back to its own numbers."))
+            self._reload_after_iso_change()
+
+    def _iso_say(self, text: str) -> None:
+        from ui.tooltip_button import InfoDialog
+
+        InfoDialog(tr("Limit values"), text, self, min_width=520).exec()
+
+    def _reload_after_iso_change(self) -> None:
+        """What the window can honestly do about it, which is say so.
+
+        `_build_rows` APPENDS to the grid; it does not clear it, so calling it
+        again draws a second table underneath the first. Rebuilding this window
+        in place is a change worth making on its own and not as a side effect
+        of a file dialog, so until then the window says what a reader has to
+        do. Pretending it refreshed itself would be the worse answer: which
+        sets are even selectable moves when these values arrive.
+        """
+        self._sync_iso_buttons()
+        self._iso_say(tr(
+            "Close and reopen this window to see the values in the table."))
+
     def _iso_file_trouble(self) -> str:
         """What to tell a licence holder whose own limits file was not read.
 

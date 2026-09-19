@@ -870,19 +870,69 @@ _MEANS_UNKNOWN = ("?", "unknown")
 ISO_SET_IDS = ("iso_12647_7", "iso_12647_8")
 
 
+#: The name the user's own values file has in :func:`user_values_path`.
+ISO_USER_FILE = "iso12647.json"
+
+
+def user_values_path() -> Path:
+    """Where a licence holder's own values live on this machine.
+
+    **THE ENVIRONMENT VARIABLE IS A DEVELOPER'S DOOR AND WAS THE ONLY ONE.**
+    A shipped ChromIQ carries no `scripts/` folder to write the template with,
+    and a variable exported in a shell never reaches an app launched from
+    Finder or the Dock, so the feature existed and nobody outside this checkout
+    could use it. It is a known file beside the presets now, and the Report
+    limits window puts it there with an ordinary file dialog.
+    """
+    from core.platform_paths import compliance_dir
+
+    return compliance_dir() / ISO_USER_FILE
+
+
+def install_user_values(src: "str | Path") -> Path:
+    """Copy the user's filled-in file into place. Returns where it landed.
+
+    It is COPIED and not linked: the values then survive the user tidying up
+    their Downloads folder, which is where a file they just edited usually is.
+    """
+    import shutil
+
+    dst = user_values_path()
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    json.loads(Path(src).read_text(encoding="utf-8"))   # refuse rubbish early
+    shutil.copyfile(str(src), str(dst))
+    reset_iso_cache()
+    return dst
+
+
+def forget_user_values() -> bool:
+    """Go back to the empty shipped file. True when something was removed."""
+    dst = user_values_path()
+    if not dst.is_file():
+        return False
+    dst.unlink()
+    reset_iso_cache()
+    return True
+
+
 def _iso_data_path() -> Path:
     override = os.environ.get(ISO_DATA_ENV, "").strip()
-    return Path(override) if override else resource_path(ISO_DATA_FILE)
+    if override:
+        return Path(override)
+    own = user_values_path()
+    return own if own.is_file() else resource_path(ISO_DATA_FILE)
 
 
 def _is_the_users_own_file() -> bool:
-    """True when the file came from the environment variable.
+    """True when the file is one the user supplied, either way in.
 
     The bundled file ships deliberately empty, so "no numbers in it" is its
     normal state and not something to report. The user's own file is the only
     one whose emptiness is a mistake.
     """
-    return bool(os.environ.get(ISO_DATA_ENV, "").strip())
+    if os.environ.get(ISO_DATA_ENV, "").strip():
+        return True
+    return user_values_path().is_file()
 
 
 def _looks_unreadable(raw: Any) -> bool:
@@ -1038,8 +1088,12 @@ def iso_data_problems() -> "list[tuple[str, str]]":
 
 
 def iso_data_path_text() -> str:
-    """The path the user pointed at, or "" when they pointed at nothing."""
-    return os.environ.get(ISO_DATA_ENV, "").strip()
+    """The path the user's values came from, or "" when they supplied none."""
+    env = os.environ.get(ISO_DATA_ENV, "").strip()
+    if env:
+        return env
+    own = user_values_path()
+    return str(own) if own.is_file() else ""
 
 
 def reset_iso_cache() -> None:
