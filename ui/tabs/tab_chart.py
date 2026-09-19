@@ -5877,6 +5877,16 @@ class TabChart(QWidget):
         self._preset_verify_btn = QPushButton(
             tr("Which presets can be verified?"), w)
         self._preset_verify_btn.setObjectName("preset_verify_btn")
+        # **AS SHORT AS THE BUTTONS IT SITS AMONG.** Basti, on the shipped
+        # beta: *"the which presets can be verified button ... is very big. at
+        # least the hight could be reduced."* A default `QPushButton` under
+        # Fusion is 32 px tall here; the Measurement Report's own row of
+        # buttons is pinned to 26, and this is the same kind of control: a door
+        # to a window, beside a pulldown, in a panel whose height is already
+        # the thing this window trades away first on a short screen.
+        self._preset_verify_btn.setStyleSheet(
+            "QPushButton { padding: 1px 14px; min-height: 22px;"
+            " max-height: 22px; }")
         self._preset_verify_btn.clicked.connect(
             self._open_preset_verification_window)
         verify_row.addWidget(self._preset_verify_btn)
@@ -7473,6 +7483,11 @@ class TabChart(QWidget):
     def showEvent(self, event) -> None:      # noqa: N802 (Qt override)
         super().showEvent(event)
         self._refit_logs()
+        # Fill the preset-eligibility cache while the tab is idle, so the
+        # "Which presets can be verified?" button does not make the user wait
+        # for work that could have been done already. Started once; see
+        # `_warm_preset_eligibility`.
+        self._warm_preset_eligibility()
 
     def _refit_logs(self) -> None:
         """Re-measure every log panel here in the font it actually has.
@@ -9752,10 +9767,81 @@ class TabChart(QWidget):
         from core.settings import compliance_overrides_of
         from ui.dialogs.preset_verification_dialog import (
             PresetVerificationDialog)
-        rows = verification_preset_rows(self._settings)
-        dlg = PresetVerificationDialog(
-            rows, compliance_overrides_of(self._settings), self)
+        # **THE WAIT IS REAL AND IT IS SAID OUT LOUD.** Basti, on the shipped
+        # beta: *"clicking the button takes quite long until the window
+        # opens."* Measured: 177 presets at about 16 ms each, because the
+        # window asks the REPORT'S OWN code what each chart could answer, which
+        # is the property that makes its answers worth anything. The first
+        # click therefore pays about three seconds and every later one pays
+        # nothing, because `preset_eligibility` caches on (path, mtime, size).
+        #
+        # So the cursor says so rather than the window looking stuck.
+        # `_warm_preset_eligibility` below spends the tab's idle time filling
+        # that cache, so in practice the first click has usually been paid for
+        # already.
+        from PyQt6.QtCore import Qt as _Qt
+        from PyQt6.QtGui import QGuiApplication as _QGA
+        _QGA.setOverrideCursor(_Qt.CursorShape.BusyCursor)
+        try:
+            rows = verification_preset_rows(self._settings)
+            dlg = PresetVerificationDialog(
+                rows, compliance_overrides_of(self._settings), self)
+        finally:
+            _QGA.restoreOverrideCursor()
         dlg.exec()
+
+    def _warm_preset_eligibility(self) -> None:
+        """Assess a few preset charts per tick, so the button does not wait.
+
+        The work is the same work the window does, and the cache it fills is
+        the window's own, keyed by path, mtime and size, so a chart that
+        changes is re-read and nothing here can go stale. It runs on the event
+        loop in small batches rather than a thread: nothing it touches is
+        shared with the GUI, and a thread would buy nothing but a race.
+
+        **THE SLOT IS A BOUND METHOD, NOT A CLOSURE, AND THAT IS NOT A STYLE
+        CHOICE.** The first cut connected a nested function to a `QTimer`
+        parented to this tab, and two xdist workers CRASHED rather than failed.
+        CLAUDE.md records why: PyQt6 faults invoking a Python closure held by a
+        C++ object on the far side of a cycle, and the fix that was proved for
+        the scroll-bar segfault is a bound method, because PyQt keeps a weak
+        reference to a bound receiver and lets Qt sever the connection when the
+        widget dies. The state lives on `self` for the same reason.
+        """
+        from PyQt6.QtCore import QTimer
+        if getattr(self, "_preset_warm_timer", None) is not None:
+            return
+        try:
+            rows = verification_preset_rows(self._settings)
+        except Exception:      # noqa: BLE001 - warming is never worth an error
+            return
+        self._preset_warm_charts = [r.chart for r in rows
+                                    if getattr(r, "chart", None)]
+        if not self._preset_warm_charts:
+            return
+        self._preset_warm_at = 0
+        timer = QTimer(self)
+        timer.setInterval(0)
+        self._preset_warm_timer = timer
+        timer.timeout.connect(self._warm_one_preset_batch)
+        timer.start()
+
+    def _warm_one_preset_batch(self) -> None:
+        """One batch of the warming above. A bound method; see its note."""
+        from workflow import preset_eligibility as _pe
+        charts = getattr(self, "_preset_warm_charts", None) or []
+        at = int(getattr(self, "_preset_warm_at", 0))
+        end = min(len(charts), at + 4)
+        for c in charts[at:end]:
+            try:
+                _pe.chart_row_values(c)
+            except Exception:   # noqa: BLE001 - one bad chart is not fatal
+                pass
+        self._preset_warm_at = end
+        if end >= len(charts):
+            timer = getattr(self, "_preset_warm_timer", None)
+            if timer is not None:
+                timer.stop()
 
     def _open_builtin_preset_overlay(self) -> None:
         """Show the speech-bubble overlay of built-in presets under the star button."""
