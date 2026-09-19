@@ -740,9 +740,26 @@ class TabProfile(QWidget):
 
     def _ac_try_autofill(self) -> None:
         """Pre-fill applycal fields from the project's calibration + current run."""
-        # The .cal sits beside the calibration measurement (cal/calibration.cal).
+        # THE NAME COMES FROM THE CLASS THAT OWNS IT, NOT FROM A STRING HERE.
+        # This looked for `cal/calibration.cal`, a name #127 removed: the
+        # project's calibration is `cal/<project>-cal.cal`
+        # (`Calibration.stem`), and printcal writes `<ti3 stem>.cal`, which is
+        # the same name. The literal "calibration.cal" occurred exactly once in
+        # the whole tree, on this line, so nothing ever filled this field
+        # except printcal's own finish handler - and that only reaches the
+        # session that made the calibration. Come back to the project the next
+        # day and the module that applies a calibration to a profile could not
+        # find the calibration, in the ordinary case (adversary round 26,
+        # R26-F2, driven on screen). The Create Chart tab was already asking
+        # the accessor; this one now does too.
         if not self._ac_cal_edit.text().strip() and self._cal_ti3_path:
-            cal_candidate = self._cal_ti3_path.with_name("calibration.cal")
+            from core.file_manager import Calibration
+
+            cal_candidate = Calibration(self._cal_ti3_path.parent.parent).cal_path
+            if not cal_candidate.exists():
+                # printcal names its output after the measurement it read, so a
+                # calibration measured under another stem is still found.
+                cal_candidate = self._cal_ti3_path.with_suffix(".cal")
             if cal_candidate.exists():
                 self._ac_cal_edit.setText(str(cal_candidate))
 
@@ -1491,7 +1508,12 @@ class TabProfile(QWidget):
         out_row = QHBoxLayout()
         out_row.addWidget(QLabel(tr("Output ICC profile:"), grp))
         self._ac_out_edit = QLineEdit(grp)
-        self._ac_out_edit.setPlaceholderText(tr("Leave blank to save as cal_<name>.icc"))
+        # LEFT BLANK, THE APP WRITES `Run.calibrated_icc` = `calibrated.icc`.
+        # The `cal_` prefix went with #127 and the `<name>` was never part of
+        # it, so this field promised a filename nothing writes and the user
+        # went looking for it afterwards (R26-F3b).
+        self._ac_out_edit.setPlaceholderText(
+            tr("Leave blank to save as calibrated.icc beside the profile"))
         self._ac_out_edit.setObjectName("compact_input")
         self._ac_out_edit.style().unpolish(self._ac_out_edit)
         self._ac_out_edit.style().polish(self._ac_out_edit)
@@ -1577,12 +1599,21 @@ class TabProfile(QWidget):
             self._ac_out_edit.setText(path)
 
     def _ac_update_out_placeholder(self, in_text: str) -> None:
-        """Keep the output placeholder in sync with the input ICC field."""
-        if in_text.strip():
-            stem = Path(in_text.strip()).stem
-            self._ac_out_edit.setPlaceholderText(tr("Leave blank to save as cal_{stem}.icc").format(stem=stem))
-        else:
-            self._ac_out_edit.setPlaceholderText(tr("Leave blank to save as cal_<name>.icc"))
+        """Say what is written when the field is left blank.
+
+        It used to follow the input ICC: *"Leave blank to save as
+        cal_<name>.icc"*, and with a profile chosen, *"cal_<stem>.icc"*. Left
+        blank the app writes `Run.calibrated_icc`, which is
+        ``<run>/calibrated.icc`` - neither the `cal_` prefix, which #127
+        removed from the whole tree, nor the stem. The field promised a
+        filename nothing writes, and the name is how a person finds the file
+        again (adversary round 26, R26-F3b).
+
+        It no longer changes with the input, because the answer no longer
+        depends on it. The argument stays: this is a `textChanged` slot.
+        """
+        self._ac_out_edit.setPlaceholderText(
+            tr("Leave blank to save as calibrated.icc beside the profile"))
 
     def _on_ac_save_defaults(self) -> None:
         s = self._settings
@@ -1735,10 +1766,17 @@ class TabProfile(QWidget):
         layout.addWidget(path_lbl)
 
         next_lbl = QLabel(
-            tr("Next step: go to the <b>1. Create Chart</b> tab, untick "
-            "<i>Create chart for calibration</i> in the <b>Calibration Chart</b> box, "
+            # THE CHECKBOX IS GONE, AND THIS WINDOW WENT ON NAMING IT. #137
+            # retired "Create chart for calibration" - the bar's Run type says
+            # whether a chart is a calibration chart, and
+            # `TabChart.set_calibration_mode` hides that whole group in both
+            # modes. Every calibration ended with this window telling the user
+            # to go and untick a box that is not on the tab they were being
+            # sent to (adversary round 26, R26-F3a, photographed).
+            tr("Next step: go to the <b>1. Create Chart</b> tab, set <b>Run "
+            "type</b> to <b>Profiling</b> on the bar at the top, "
             "and generate your full profiling chart. ChromIQ has already filled the "
-            ".cal path into both calibration fields for you — <b>Apply Calibration "
+            ".cal path into both calibration fields for you: <b>Apply Calibration "
             "File</b> and <b>Include Calibration File (no apply)</b>, under "
             "<b>Expert</b> in Manual mode. Neither is switched on yet, because only "
             "you know which one your printer needs:"),

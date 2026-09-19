@@ -1032,18 +1032,33 @@ _IDENTICAL_TO_KEY = {
     # `len([k for k, v in cat.items() if v == k and not k.startswith("@")])`
     # run over each catalogue as it stands, and the arithmetic above is the
     # whole of the difference from the previous column.
+    # RE-MEASURED 2026-09-19, the round-26 fix set: three strings, all three
+    # translated into German in the same commit, so **de does not move (143)**
+    # and each of the other eleven rises by exactly 3.
+    #
+    # * the Apply Calibration output placeholder, which promised a filename
+    #   nothing writes ("cal_<name>.icc" and "cal_{stem}.icc", both retired);
+    # * the printcal success window's next step, which sent the user to a
+    #   checkbox #137 removed, so its old translations describe a control that
+    #   is not there and could not be carried across;
+    # * the warning line for a profile that could not be archived before the
+    #   build that replaces it.
+    #
+    # Two keys out, three in. COUNTED, not adjusted:
+    # `len([k for k, v in cat.items() if v == k and not k.startswith("@")])`
+    # run over each catalogue as it stands.
     "de": 143,
-    "es": 467,
-    "fr": 489,
-    "it": 478,
-    "ja": 453,
-    "nl": 494,
-    "no": 479,
-    "pl": 471,
-    "pt": 469,
-    "ru": 442,
-    "sv": 480,
-    "zh_CN": 447,
+    "es": 470,
+    "fr": 492,
+    "it": 481,
+    "ja": 456,
+    "nl": 497,
+    "no": 482,
+    "pl": 474,
+    "pt": 472,
+    "ru": 445,
+    "sv": 483,
+    "zh_CN": 450,
 }
 
 
