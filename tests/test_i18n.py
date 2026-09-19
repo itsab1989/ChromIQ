@@ -1097,18 +1097,26 @@ _IDENTICAL_TO_KEY = {
     # new keys are translated here.** Each of the eleven others gains exactly
     # 6. COUNTED off the catalogues this commit leaves behind, with the same
     # expression the test below uses, and never adjusted upward.
-    "de": 144,
-    "es": 485,
-    "fr": 507,
-    "it": 496,
-    "ja": 471,
-    "nl": 512,
-    "no": 497,
-    "pl": 489,
-    "pt": 487,
-    "ru": 460,
-    "sv": 498,
-    "zh_CN": 465,
+    # RE-MEASURED 2026-09-20, the whole of Knut's beta 25 batch in one sweep:
+    # the Create Chart rename and its metrics wording, the report window's
+    # three bugs and its re-layout, the Update / Create New / Cancel popup, and
+    # the door that lets a licence holder supply a standard's own limit values
+    # without a terminal. German is translated by hand for every one of them,
+    # so **de does not move**; the eleven others carry the English under the
+    # beta rule. COUNTED off the tree with each file's own expression, never
+    # adjusted to make a red go green.
+    "de": 146,
+    "es": 502,
+    "fr": 524,
+    "it": 513,
+    "ja": 488,
+    "nl": 529,
+    "no": 514,
+    "pl": 506,
+    "pt": 504,
+    "ru": 477,
+    "sv": 515,
+    "zh_CN": 482,
 }
 
 

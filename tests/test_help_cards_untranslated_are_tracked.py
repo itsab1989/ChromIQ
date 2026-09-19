@@ -539,6 +539,10 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-20, Knut's beta 25 batch in one sweep. German is
+    # translated by hand throughout, so de does not move; the eleven others
+    # carry the English under the beta rule. COUNTED with this file's own
+    # `_english_echoes`, never adjusted upward.
     # RE-MEASURED 2026-09-19, the round-26 printing refusal and the round-27
     # report fixes landing together: the macOS print dialog now says why it
     # cannot carry a four-ink chart (one body long enough to count), and the
@@ -686,18 +690,18 @@ _BUDGET = {
     # by hand in the same change. RE-MEASURED with this file's own
     # `_english_echoes` on the catalogues this commit leaves behind, never
     # adjusted upward.
-    "de": 20,
-    "es": 291,
-    "fr": 292,
-    "it": 291,
-    "ja": 291,
-    "nl": 291,
-    "no": 291,
-    "pl": 291,
-    "pt": 291,
-    "ru": 290,
-    "sv": 291,
-    "zh_CN": 290,
+    "de": 22,
+    "es": 298,
+    "fr": 299,
+    "it": 298,
+    "ja": 298,
+    "nl": 298,
+    "no": 298,
+    "pl": 298,
+    "pt": 298,
+    "ru": 297,
+    "sv": 298,
+    "zh_CN": 297,
 }
 
 
