@@ -975,7 +975,7 @@ M_VERIFY_NO_CONTROL_STRIP = _m(
     "answers more of them.\n\n"
     "Nothing is wrong with the chart itself and nothing has been changed. "
     "Every other row of the Measurement Report is unaffected.",
-    approved=False)
+    approved=True)   # Knut, 2026-09-19: "Yes, message text approved."
 
 
 # --- PROPOSED: the how-was-this-sheet-printed question ---------------------

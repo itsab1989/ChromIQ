@@ -1402,9 +1402,23 @@ class MeasurementReportDialog(QDialog):
         # same two buttons, still beside the list they belong to.
         self._report_btns = QGridLayout()
         self._report_btns.setSpacing(4)
-        self._report_btns_stacked = True
+        # **ONE LINE, ON KNUT'S SECOND RULING.** L.8 asked for the two buttons
+        # stacked *"so the buttons read as belonging to the list"*, and that is
+        # what shipped in beta 22. Basti, looking at the released window:
+        # *"could all of this elements be in one line maybe"*. Put to Knut, who
+        # answered *"Implement the one line suggestion, then we can review on
+        # the released beta."*
+        #
+        # His intent survives the change: the buttons still sit immediately
+        # beside the pulldown they belong to. What it costs is width, which the
+        # generated names want, and what it buys is the 34 px of height this
+        # window already trades away first on a short screen: the ladder in
+        # `showEvent` that used to unstack them has nothing left to do, and
+        # `_stack_report_buttons` returns early when it is asked for the
+        # arrangement it already has.
+        self._report_btns_stacked = False
         self._report_btns.addWidget(self._generate_btn, 0, 0)
-        self._report_btns.addWidget(self._delete_report_btn, 1, 0)
+        self._report_btns.addWidget(self._delete_report_btn, 0, 1)
         btn_col = QVBoxLayout()
         btn_col.setSpacing(4)
         btn_col.addLayout(self._report_btns)

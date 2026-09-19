@@ -101,6 +101,9 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 #: "(with colour management on)", which the app prevents on every print path,
 #: so the print step now names the Print Chart tab's "Colour" row instead —
 #: and the two new failure windows of the print-time conversion (§6 S9/S10).
+# M-VERIFY-NO-CONTROL-STRIP left this set on 2026-09-19: Knut was asked for
+# the wording and answered "Yes, message text approved." A message leaves
+# here only that way, which is the whole point of pinning the set.
 AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # #159, 2026-08-30. The magnet guard used to
                                  # recognise ONE unit's stored white-tile value
@@ -130,7 +133,6 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # asked to be told when a chart cannot carry
                                  # one. The WINDOW is his request; the wording
                                  # waits here.
-                                 "M-VERIFY-NO-CONTROL-STRIP",
                                  # #182, 2026-09-08: the Measurement Report is
                                  # judged against a limit set bound to the run.
                                  # The strip for rows the chart cannot supply
