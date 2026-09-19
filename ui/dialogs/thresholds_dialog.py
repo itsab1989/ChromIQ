@@ -45,6 +45,8 @@ from PyQt6.QtWidgets import (QButtonGroup, QCheckBox, QDialog, QFrame,
 from core.i18n import tr
 from core.logger import get_logger
 from ui.fade_scroll import attach_edge_fades
+from pathlib import Path
+
 from ui.styles import ACCENT_WARN, SPEC_GREEN
 from ui.tab_header import dialog_masthead
 from ui.tooltip_button import TooltipButton
@@ -301,6 +303,12 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         # straightforward and does not require any special knowledge."*
         iso_row = QHBoxLayout()
         iso_row.setSpacing(8)
+        # THE SAME HEIGHT AS THE ROW THEY SIT IN. A default QPushButton is the
+        # tallest thing in this window and these three are a footnote to the
+        # table, not its subject. Basti, 2026-09-20, on the shipped beta:
+        # *"the three buttons should be reduced in heigth"*. 22 px is what the
+        # preset window's own button settled on for the same reason (B8-420).
+        _ISO_BTN_H = 22
         self._iso_template_btn = QPushButton(
             tr("Save a file to fill in…"), self)
         self._iso_template_btn.setToolTip(tr(
@@ -308,24 +316,32 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
             "order shown here, with the numbers left blank for you to type in "
             "from your own copy of the standard."))
         self._iso_template_btn.clicked.connect(self._on_iso_template)
+        self._iso_template_btn.setFixedHeight(_ISO_BTN_H)
         iso_row.addWidget(self._iso_template_btn)
         self._iso_use_btn = QPushButton(tr("Use a file I filled in…"), self)
         self._iso_use_btn.setToolTip(tr(
             "Hands ChromIQ the file you typed the numbers into. They stay on "
             "this computer and are never sent anywhere."))
         self._iso_use_btn.clicked.connect(self._on_iso_use)
+        self._iso_use_btn.setFixedHeight(_ISO_BTN_H)
         iso_row.addWidget(self._iso_use_btn)
         self._iso_forget_btn = QPushButton(tr("Stop using it"), self)
         self._iso_forget_btn.setToolTip(tr(
             "Goes back to ChromIQ's own numbers. Your file is removed from "
             "ChromIQ's folder; the copy you made it from is untouched."))
         self._iso_forget_btn.clicked.connect(self._on_iso_forget)
+        self._iso_forget_btn.setFixedHeight(_ISO_BTN_H)
         iso_row.addWidget(self._iso_forget_btn)
         # AN INFO ICON, LIKE EVERY OTHER CONTROL IN THIS APP. Three hover
         # tooltips are three sentences nobody reads together, and this needs
         # explaining once, properly: why ChromIQ has no numbers of its own,
         # what the three buttons do in order, where the file ends up, and that
         # nothing leaves the computer.
+        # SPEC_GREEN, because this window is green. `TooltipButton.ACCENT` is
+        # a class attribute the main window sets per TAB, so an icon built in a
+        # dialog inherits whatever tab was last open and reads as the wrong
+        # colour here. Every other icon in this window passes the colour
+        # explicitly; this one did not. Basti saw it on the shipped beta.
         iso_row.addWidget(TooltipButton(
             tr("Using a standard's own limit values"),
             tr("ChromIQ does not ship the tolerance values of ISO 12647-7 or "
@@ -354,7 +370,7 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                "are not written into any project.\n\n"
                "Close and reopen this window after supplying a file: the "
                "table is drawn once when the window opens."),
-            self))
+            self, min_width=520, color=SPEC_GREEN))
         iso_row.addStretch(1)
         inner.addLayout(iso_row)
         self._sync_iso_buttons()

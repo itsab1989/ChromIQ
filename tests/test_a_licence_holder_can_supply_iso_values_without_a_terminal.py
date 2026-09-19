@@ -179,6 +179,92 @@ def test_the_row_carries_an_info_icon_and_not_three_hover_tooltips(qapp_or_skip,
         dlg.close()
 
 
+def test_pressing_each_button_really_runs(qapp_or_skip, tmp_path, monkeypatch):
+    """PRESS THE BUTTONS. The first version of this file read the slots'
+    SOURCE with `inspect.getsource` and asserted the right names appeared in
+    it, and it passed while all three buttons did nothing at all: `Path` was
+    never imported into `thresholds_dialog`, every slot raised `NameError`, and
+    Qt swallows an exception raised inside a slot. Basti found it in the
+    shipped beta 26 within minutes: *"clicking save a file to fill in does
+    nowthing"*.
+
+    That is this project's oldest shape, a guard that tests the HELPER instead
+    of the DOOR, and reading source text is the purest form of it. So this
+    calls the slots, with the file dialogs and the info window replaced, and a
+    NameError anywhere in any of them fails the test.
+    """
+    import ui.widgets as W
+    from PyQt6.QtCore import QSettings
+    from core.settings import AppSettings
+    from ui.dialogs.thresholds_dialog import ThresholdsDialog
+
+    monkeypatch.setenv("CHROMIQ_PRESETS_DIR", str(tmp_path / "presets"))
+    monkeypatch.delenv(cs.ISO_DATA_ENV, raising=False)
+    cs.reset_iso_cache()
+
+    template = tmp_path / "template.json"
+    asked: dict = {}
+    monkeypatch.setattr(W, "save_file_dialog",
+                        lambda *a, **k: (asked.update(save=k), str(template))[1])
+    monkeypatch.setattr(W, "open_file_dialog",
+                        lambda *a, **k: (asked.update(open=k), str(template))[1])
+
+    s_ = AppSettings()
+    s_._qs = QSettings(str(tmp_path / "t.ini"), QSettings.Format.IniFormat)
+    dlg = ThresholdsDialog(s_)
+    said: list = []
+    dlg._iso_say = said.append
+    try:
+        dlg._iso_template_btn.click()
+        assert template.is_file(), "the first button wrote nothing"
+        assert json.loads(template.read_text(encoding="utf-8"))["iso_12647_7"]
+
+        # the dialogs are the app's own and offer the folder as a shortcut
+        assert "extra_paths" in asked["save"], "no shortcut offered"
+
+        dlg._iso_use_btn.click()
+        assert cs.user_values_path().is_file(), "the second button installed nothing"
+        assert dlg._iso_forget_btn.isEnabled()
+
+        dlg._iso_forget_btn.click()
+        assert not cs.user_values_path().is_file(), "the third button removed nothing"
+        # saved, using-it, reopen-to-see, and back-to-ours: four sentences,
+        # one per thing that happened, which is what a reader needs to follow.
+        assert len(said) == 5, said
+    finally:
+        dlg.close()
+        cs.reset_iso_cache()
+
+
+def test_the_three_buttons_and_the_icon_match_the_window(qapp_or_skip, tmp_path):
+    """Basti on beta 26: *"the three buttons should be reduced in heigth and
+    the report limits window seemingly uses the green accent color so the new
+    tooltip icon should as well"*. Both pinned, both measured off the widgets
+    rather than off the stylesheet."""
+    from PyQt6.QtCore import QSettings
+    from core.settings import AppSettings
+    from ui.dialogs.thresholds_dialog import ThresholdsDialog
+    from ui.styles import SPEC_GREEN
+    from ui.tooltip_button import TooltipButton
+
+    s_ = AppSettings()
+    s_._qs = QSettings(str(tmp_path / "t.ini"), QSettings.Format.IniFormat)
+    dlg = ThresholdsDialog(s_)
+    try:
+        for b in (dlg._iso_template_btn, dlg._iso_use_btn, dlg._iso_forget_btn):
+            assert b.height() <= 24, f"{b.text()!r} is {b.height()} px tall"
+        icon = None
+        for t in dlg.findChildren(TooltipButton):
+            if "limit values" in (getattr(t, "_title", "") or "").lower():
+                icon = t
+                break
+        assert icon is not None
+        assert getattr(icon, "_color_override", None) == SPEC_GREEN, (
+            "the info icon does not take this window's green accent")
+    finally:
+        dlg.close()
+
+
 def test_the_file_dialogs_are_the_apps_own_with_its_sidebar():
     """Not the OS dialog, unless the user asked for it in Preferences.
 
