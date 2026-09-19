@@ -1,5 +1,107 @@
 # Changelog
 
+## v4.3.0-beta.23
+
+**Knut's rulings on the control-strip declaration and the preset button, the
+report's two buttons on one line, and three rounds of challenging beta 22 that
+found a profile being thrown away and a chart being rewritten on the way to the
+printer.**
+
+### New
+
+- **Fourteen demo chart presets that each fail one verification metric**, in
+  the demo package, one per reason the "Which presets can be verified?" window
+  can give, plus a control that passes everything. Copy the folder's contents
+  into your own Create Chart preset folder to see each verdict in turn; the
+  folder's own README says what each preset is built to fail, and which reasons
+  no patch set can provoke at all (Knut).
+
+### Changed
+
+- **"Generate report", "Delete Selected Report", the pulldown and its help
+  button now share one line** (Knut, revising L.8 after Basti asked). They sat
+  stacked in beta 22, which put the pulldown's vertical centre between the two
+  buttons and the help icon above both.
+
+- **"Which presets can be verified?" is shown on a Verification run only**
+  (Knut): "During profiling bigger charts are normally chosen, and has no
+  baring on the chart used for verification." Its help button goes with it, and
+  a profiling run no longer pays anything for a window it cannot open.
+
+- **The button is smaller, and the window opens without the wait.** Basti, on
+  beta 22: the button "is very big" and "clicking the button takes quite long
+  until the window opens". It is 22 px now, two smaller than beta 22's plain
+  button; the window opens in 45 ms where it took 324, because it no longer
+  re-reads all 177 preset charts every time you open it.
+
+- **The preset window opens on the preset you are using**, scrolled into view,
+  instead of showing 177 rows in nine groups with nothing selected.
+
+### Fixed
+
+- **Build Profile emptied the profile it was replacing, and kept no copy.**
+  Press it a second time on a run that already holds a profile and the file was
+  0 bytes a quarter of a second later, with nothing in the run's "old" folder.
+  A build that then failed, or an app that was quit, left a zero-byte file that
+  ChromIQ went on treating as the run's profile: Check & Refine opened on it,
+  and only Tools, Inspect a profile would say what it really was. The previous
+  profile is archived into the run's "old" folder before the build starts now,
+  the same rule a chart re-generation has always followed.
+
+- **On macOS, printing a four-ink chart through the standard print dialog
+  changed every patch on the way to the driver.** The dialog can only carry
+  RGB, and the chart was converted into it without a word: a CMYK patch of
+  75,0,128,255 reached the printer as 0,0,0. The printed sheet then no longer
+  matched the chart file, and a measurement taken from it described colours
+  that were never printed. RGB charts, which is nearly everyone, were never
+  affected, and a six-ink chart already refused. ChromIQ now says why it cannot
+  send the chart that way and points at the setting to turn off.
+
+- **The Measurement Report window named one report and drew another, on open,
+  with nobody touching anything.** "Report shown" said one thing, "Report type"
+  and the page said another, and clicking the entry the pulldown was already on
+  changed both. One saved report, two documents.
+
+- **A report file of an unexpected shape took the whole window down before it
+  appeared**, with nothing to close and no message.
+
+- **The help on "Show detailed data for each run" said the box starts
+  unticked.** It starts ticked, on every new installation, since beta 22.
+
+- **Apply Calibration could never find the project's calibration.** It looked
+  for a filename ChromIQ stopped writing in #127, so the field filled itself
+  only in the session that created the calibration and was empty every time you
+  came back to the project.
+
+- **The calibration success window sent you to a checkbox that is not there.**
+  It said to untick "Create chart for calibration" in the Create Chart tab; that
+  control was retired, and Run type says whether a chart is a calibration chart.
+
+- **The Apply Calibration output field promised a filename ChromIQ never
+  writes.** Left blank it writes "calibrated.icc", not "cal_<name>.icc".
+
+- **Restore Used Chart could put a profiling chart back underneath a different
+  chart's control-strip declaration.** A declaration is tied to the chart it was
+  made for (Knut), and a profiling chart's snapshot copies a named list of file
+  types that did not include it.
+
+- **The rename question's first line lost its subject halfway through.** It read
+  "You already created the profile X, and now asked to generate one called Y".
+
+- **A preset whose patch set cannot be read at all was blamed on its page
+  count** in the "Which presets can be verified?" window.
+
+### Known, and waiting on a decision
+
+- On a Verification run in a narrow window (below about 1035 px), the Output
+  group's three fields are squeezed to illegibility. It is not new, and the
+  obvious one-line fix draws two groups over each other, so the remedy moves
+  controls and wants a decision first.
+- Two faults found in the calibration flow contradict the written
+  specifications and are reported rather than changed: Create Calibration File
+  accepting a profiling measurement, and a calibration run's printtarg
+  randomise flag.
+
 ## v4.3.0-beta.22
 
 **What the Measurement Report does when you hand it the same file twice, and a
