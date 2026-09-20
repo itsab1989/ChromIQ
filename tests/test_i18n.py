@@ -1116,17 +1116,17 @@ _IDENTICAL_TO_KEY = {
     # the catalogues this change leaves behind, with the expression the test
     # below uses, and never adjusted to make a red go green.
     "de": 145,
-    "es": 515,
-    "fr": 537,
-    "it": 526,
-    "ja": 501,
-    "nl": 542,
-    "no": 527,
-    "pl": 519,
-    "pt": 517,
-    "ru": 490,
-    "sv": 528,
-    "zh_CN": 495,
+    "es": 517,
+    "fr": 539,
+    "it": 528,
+    "ja": 503,
+    "nl": 544,
+    "no": 529,
+    "pl": 521,
+    "pt": 519,
+    "ru": 492,
+    "sv": 530,
+    "zh_CN": 497,
 }
 
 

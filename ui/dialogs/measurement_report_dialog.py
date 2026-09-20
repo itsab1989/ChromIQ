@@ -9934,6 +9934,65 @@ class MeasurementReportDialog(QDialog):
                 if runs and all(r.get("is_verification") for r in runs)
                 else "profiling")
 
+    def _what_this_report_judges(self, runs: list) -> str:
+        """The one sentence that says what a reader is holding.
+
+        Knut, 2026-09-20, correcting a release note of mine: *"It is not the
+        chart that is verified, it is the profile that was made in the profile
+        run that is verified using a chart, printing it, and measuring it, then
+        qualifying the measurements quality using a set of metrics and methods
+        compared against the chart data."* Then, on a first draft that named
+        only "run 1": *"A person reading the report as a document will not be
+        able to trace back where this report comes from, so the project name
+        and run needs to be shown, as well as the included measurement dates
+        (which usually is in the report)."*
+
+        So it names the project and the run, and POINTS at the dates rather
+        than repeating them, because Report Scope already prints the range four
+        lines below and two copies of a date range can disagree.
+
+        Verification only. A profiling measurement is not a judgement of
+        anything, it is the sheet a profile was built from, and a sentence
+        saying otherwise would be the sort of false claim this file keeps
+        having to remove.
+
+        Wording approved verbatim by Knut on 2026-09-20.
+        """
+        if self._report_kind(runs) != "verification":
+            return ""
+        project = self._report_profile_name(runs)
+        if not project:
+            return ""
+        run = self._run_number_for(runs)
+        where = (tr("{project}, run {n}").format(project=project, n=run)
+                 if run else project)
+        return tr(
+            "This report judges the profile built in {where}. It was verified "
+            "by printing a chart through that profile, measuring it, and "
+            "comparing the measurements with the chart's own aim values. The "
+            "measurements it covers are listed under Report Scope."
+        ).format(where=where)
+
+    @staticmethod
+    def _run_number_for(runs: list) -> str:
+        """The run a report belongs to, read off the path it was measured in.
+
+        Returned as text and empty when it cannot be read, because a report
+        that cannot say which run it came from must say nothing rather than
+        guess at "run 1".
+        """
+        import re as _re
+
+        for r in runs:
+            for key in ("ti3", "path", "source"):
+                v = r.get(key)
+                if not v:
+                    continue
+                m = _re.search(r"runs/run(\d+)\b", str(v).replace("\\", "/"))
+                if m:
+                    return m.group(1)
+        return ""
+
     def _report_profile_name(self, runs: list) -> str:
         """The dominant profile/chart name across the included runs."""
         from collections import Counter
@@ -10085,6 +10144,13 @@ class MeasurementReportDialog(QDialog):
                     f"font-size:12px\">"
                     + head + self._one_page_html(runs, _other_sets) + "</div>")
         _present = self._rows_the_results_show(runs)
+        # WHAT THE READER IS HOLDING, before anything else in the document.
+        # See `_what_this_report_judges`: a printed page that never says which
+        # project and run it came from cannot be traced back to either.
+        _judges = self._what_this_report_judges(runs)
+        if _judges:
+            head = head + ("<div style='margin:6px 0 0'>"
+                           + html.escape(_judges) + "</div>")
         parts = [head, self._scope_html(runs, _other_sets),
                  self._how_to_read_html(_present),
                  self._report_results_html(runs, _present)]

@@ -547,6 +547,10 @@ _BUDGET = {
     # translated by hand throughout, so de does not move; the eleven others
     # carry the English under the beta rule. COUNTED with this file's own
     # `_english_echoes`, never adjusted upward.
+    # RE-MEASURED 2026-09-20, Knut's beta 25 batch in one sweep. German is
+    # translated by hand throughout, so de does not move; the eleven others
+    # carry the English under the beta rule. COUNTED with this file's own
+    # `_english_echoes`, never adjusted upward.
     # RE-MEASURED 2026-09-19, the round-26 printing refusal and the round-27
     # report fixes landing together: the macOS print dialog now says why it
     # cannot carry a four-ink chart (one body long enough to count), and the
@@ -705,17 +709,17 @@ _BUDGET = {
     # this file's own `_english_echoes` on the catalogues this change leaves
     # behind, never adjusted upward.
     "de": 21,
-    "es": 306,
-    "fr": 307,
-    "it": 306,
-    "ja": 306,
-    "nl": 306,
-    "no": 306,
-    "pl": 306,
-    "pt": 306,
-    "ru": 305,
-    "sv": 306,
-    "zh_CN": 305,
+    "es": 307,
+    "fr": 308,
+    "it": 307,
+    "ja": 307,
+    "nl": 307,
+    "no": 307,
+    "pl": 307,
+    "pt": 307,
+    "ru": 306,
+    "sv": 307,
+    "zh_CN": 306,
 }
 
 
