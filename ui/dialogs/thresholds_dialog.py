@@ -44,6 +44,7 @@ from PyQt6.QtWidgets import (QButtonGroup, QCheckBox, QDialog, QFrame,
 
 from core.i18n import tr
 from core.logger import get_logger
+from ui.dialogs.reference_values_dialog import SMALL_BTN_QSS
 from ui.fade_scroll import attach_edge_fades
 from pathlib import Path
 
@@ -309,7 +310,15 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         iso_row = QHBoxLayout()
         iso_row.setSpacing(8)
         self._iso_values_btn = QPushButton(tr("Reference values…"), self)
-        self._iso_values_btn.setFixedHeight(18)
+        # NOT A FIXED HEIGHT. It cannot shrink a button in this app: the
+        # application stylesheet's `QPushButton { padding: 6px 18px;
+        # min-height: 28px; }` reaches `minimumSizeHint` as 42 px and a layout
+        # honours that over a fixed height. A fixed 18 measured 42 px on
+        # screen, exactly as beta 26's fixed 22 did, which is what Basti was
+        # looking at when he asked a SECOND time for smaller. The same
+        # declaration as this window's own "Restore this column" button, which
+        # is 22 px and always has been.
+        self._iso_values_btn.setStyleSheet(SMALL_BTN_QSS)
         self._iso_values_btn.setToolTip(tr(
             "Supply the limit values of a standard you own, so ChromIQ can "
             "judge against them."))

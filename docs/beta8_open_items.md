@@ -19934,3 +19934,207 @@ would reach.
   measured at all. Re-measure the way above before the number is quoted again.
 - evidence: none yet — nothing is built and nothing is changed; the numbers are
   in `~/Desktop/ChromIQ-beta26-proof/round-29/shots/result.json`.
+
+### B8-510 · FIXED · `setFixedHeight` cannot make a button short in this app, and a guard that never shows the dialog cannot see that
+- status: FIXED
+- blocks release: no
+- **Basti asked twice.** *"the three buttons should be reduced in heigth"*, then
+  *"the current ones are still big ... they could be smaller i think"*. Beta 26
+  answered with `setFixedHeight(22)`; the one-door rewrite answered with
+  `setFixedHeight(18)`. **Both are 42 px on screen.** He was looking at buttons
+  that had never changed height at all.
+- measured in a real window, round 30
+  (`scripts/adv30_eighteen_px_is_forty_two.py`, photograph
+  `~/Desktop/ChromIQ-beta27-proof/round-30/H-eighteen-is-forty-two-1.png`, two
+  pixel-identical frames):
+
+                                before show()    on screen   minimumSizeHint
+      setFixedHeight(18)                   18           42                42
+      setFixedHeight(22) (beta 26)         22           42                42
+      a plain QPushButton                  30           42                42
+      a per-widget stylesheet              30           22                22
+
+- the mechanism: `ui/styles.py` sets `QPushButton { padding: 6px 18px;
+  min-height: 28px; }` for the whole application. Qt's stylesheet style folds
+  `min-height` and the box model into `minimumSizeHint` (28 + 6 + 6 + 1 + 1 =
+  42) and a layout honours a minimum size hint over a fixed height. So
+  `setFixedHeight` is not merely ignored at some sizes: **it cannot make any
+  button in ChromIQ shorter than 42 px.**
+- **AND THIS IS THE SAME GUARD FAULT AS 6d7b265c, ONE STEP FURTHER IN.**
+  `test_the_report_limits_window_has_one_door_and_it_is_small` asserted
+  `dlg._iso_values_btn.height() == 18` on a `ThresholdsDialog` that is never
+  shown and never laid out, so it read back the 18 nobody sees and went green.
+  Last night's fault was a guard that read a slot's SOURCE; this one measures a
+  real widget in a state the user never meets. Its mutation proof ("put the door
+  back to 26 px and the guard goes red naming the number") was true and landed
+  on a number that does not reach the screen.
+- the fix is the idiom already in this very window, on its "Restore this column"
+  button: a per-widget stylesheet that puts `min-height` DOWN as well as capping
+  `max-height`. On screen afterwards: the door 26 px, the three buttons in
+  `ReferenceValuesDialog` 26 px, "Restore this column" 26 px (five of them),
+  `Close` left at 42 as an ordinary button.
+- the photograph also caught what the number alone would not: at 42 px the three
+  buttons **burst through the bottom of their own `QFrame`**, the panel border
+  cutting across them
+  (`~/Desktop/ChromIQ-beta27-proof/round-30/L2-window-en-1000-1.png`); after the
+  fix they sit inside it (`after-the-fix/B-reference-values-de-1240-1.png`).
+- mutation PROVEN to land: with the three call sites put back to
+  `setFixedHeight(18)`, `QT_QPA_PLATFORM=offscreen pytest
+  tests/test_a_short_button_is_short_on_screen.py -q` gives **2 failed, 4
+  passed**, naming 42; restored, **6 passed**.
+- evidence: test_the_report_limits_door_is_short_where_a_reader_sees_it,
+  test_the_reference_values_buttons_are_short_where_a_reader_sees_them,
+  test_setfixedheight_cannot_shrink_a_button_in_this_app,
+  test_a_per_widget_stylesheet_is_the_idiom_that_works,
+  test_the_ceiling_is_the_windows_own_small_button,
+  test_this_file_can_see_the_fault_it_guards
+
+### B8-511 · FIXED · "Stop using it" was enabled over a `forget` that could remove nothing, and pressing it did NOTHING
+- status: FIXED
+- blocks release: no
+- `ReferenceValuesDialog._refresh` armed the button from `src.in_use()`, which
+  is `iso_data_path_text()`. That answers *"is ChromIQ judging against
+  somebody's numbers"* and returns the path in `CHROMIQ_COMPLIANCE_ISO_FILE`
+  when it is set. `forget_user_values()` only ever deletes ChromIQ's OWN copy,
+  so with the variable set it returned False, `_refresh` never ran, and the
+  slot's whole body was `if src.forget():`.
+- pressed on screen, round 30 (`scripts/adv30_the_reference_values_window.py`,
+  scene F, photograph `round-30/F-env-var-en-1.png`): button ENABLED, pressed,
+  `anything_happened: false` — no message, no state change, the file untouched.
+  **That is precisely the shape beta 26 shipped three times over, in a window
+  four hours old.**
+- fixed by giving `Source` an `own_copy` callable and asking the question the
+  button actually answers: `forget.setEnabled(src.own_copy().is_file())`. Same
+  scene after the fix: `forget_enabled: False`, correctly greyed.
+- evidence: test_pressing_each_button_really_runs
+
+### B8-512 · FIXED · The move to one door dropped the sidebar shortcut from both file dialogs
+- status: FIXED
+- blocks release: no
+- Commit 758bfbbb is titled *"the app's own dialogs with a shortcut to the
+  folder"* and passed `extra_paths=(str(user_values_path().parent),)` to both
+  the save and the open dialog, so a user could reach ChromIQ's own compliance
+  folder without typing a path. The one-door rewrite passes neither.
+- the guard that should have held it,
+  `test_the_file_dialogs_are_the_apps_own_with_its_sidebar`, read the slots'
+  SOURCE with `inspect.getsource` and was deleted with the slots, so nothing
+  noticed.
+- measured by recording what the real dialog helper was CALLED WITH, on screen:
+  before, `{'start_path': '.../Documents/iso12647.json'}`; after,
+  `{'start_path': '.../Documents/iso12647.json', 'extra_paths':
+  ('/tmp/chromiq-r30/compliance',)}`, and the same for `start_dir` on the open
+  dialog.
+- evidence: test_pressing_each_button_really_runs
+
+### B8-513 · OPEN · The window says it "is using" a file it could not read one value from, and so does the grey line next to the door
+- status: OPEN
+- blocks release: no
+- **Three false sentences about one file**, measured by driving the REAL door
+  (`scripts/adv30_the_door_and_the_lie.py`, photographs
+  `round-30/L3-said-en-1000-1.png`, `L5-report-limits-after-en-1000-1.png`).
+  The file used is JSON, parses, and is in ChromIQ's own `meta.json` cell shape
+  (`{"kind": "value", "number": 2.5}`), which is the shape a user is most likely
+  to copy. Not one of its 44 cells is read.
+  1. the popup: *"ChromIQ is using …iso12647.json now. Close and reopen the
+     Report limits window to see the values in the table."* There are no values
+     and the table will not change.
+  2. the new window's state line: *"In use: …iso12647.json"*.
+  3. the Report limits grey line: *"using your own values"*.
+- at the same moment that same Report limits window's own `_iso_file_trouble()`
+  returns *"ChromIQ could not use the limits file you pointed it at, so the ISO
+  limits still read ?"* and lists every row. **The warning panel that would say
+  so is not on screen**, because it is built in `__init__` and the window was
+  already open: `trouble_panel_on_screen: false`. Reopen the window and the
+  panel appears — with the grey line still saying "using your own values"
+  directly above it.
+- the cause is one predicate doing two jobs: `iso_data_path_text()` answers *"is
+  there a file"*, and all three sentences ask it as though it answered *"can the
+  file be read"*. `iso_data_problems()` is the second question and already
+  exists.
+- not fixed here: the honest sentences are NEW user-facing text, which needs
+  `scripts/i18n_sync.py --apply` and the German written by hand, and the round
+  was asked to land before the beta.
+- evidence: none yet — nothing is changed. The measurements are in
+  `~/Desktop/ChromIQ-beta27-proof/round-30/door-and-lie-en-1000.json`.
+
+### B8-514 · OPEN · A JSON array installs as a set of limit values
+- status: OPEN
+- blocks release: no
+- `install_user_values` refuses rubbish with `json.loads(...)` and nothing else,
+  so `[1, 2, 3]` is copied into ChromIQ's compliance folder and reported as in
+  use. Driven on screen (`adv30_the_reference_values_window.py`, scene
+  `C_wrong_shape_list`): `installed: true`, state line *"In use: …"*.
+- `_load_iso_numbers` does record a `not_an_object` problem for it, so the
+  refusal exists one layer down and is never asked at the door. One line:
+  require a `dict` before the copy, and say so with the message the not-JSON
+  case already uses.
+- evidence: none yet — nothing is changed.
+
+### B8-515 · FIXED · 114 lines of the new window's test file were a duplicate paste, and three tests were shadowed dead
+- status: FIXED
+- blocks release: no
+- `tests/test_a_licence_holder_can_supply_iso_values_without_a_terminal.py` as
+  committed in 1dfb278e defined **14** top-level functions and pytest collected
+  **8**: `qapp_or_skip`, `test_pressing_each_button_really_runs`,
+  `test_the_report_limits_window_has_one_door_and_it_is_small` and
+  `test_a_second_source_costs_no_button_in_the_report_limits_window` each
+  appeared twice, byte-identical, and the second definition shadows the first.
+- no coverage was lost, because the copies are identical; what was lost is the
+  file's honesty about how much it runs. Removed the second block, 114 lines;
+  `--collect-only` still reports 8.
+- evidence: test_pressing_each_button_really_runs
+
+### B8-516 · VERIFIED · ChromIQ's excepthook already caught beta 26's dead buttons, five times, and nobody could see it
+- status: VERIFIED
+- blocks release: no
+- The question the round was set: does ChromIQ install an excepthook that would
+  have surfaced the `NameError`? **It does, it ran, and it wrote the fault to
+  disk.** `~/Library/Logs/ChromIQ/chromiq.log` carries five
+  `NameError: name 'Path' is not defined` records, each with
+  `File "ui/dialogs/thresholds_dialog.py", line 508, in _on_iso_template` — one
+  per press Basti made before he reported it.
+- **and both beliefs in this tree about what PyQt does were wrong.** Eight
+  comments in `ui/` say an exception in a slot reaches `sys.excepthook` and then
+  `qFatal()`, so ChromIQ aborts; commit 6d7b265c says "Qt swallows an exception
+  raised inside a slot". Measured, PyQt6 6.11, three shapes, each in its own
+  process with a real window
+  (`scripts/adv30_what_happens_when_a_slot_raises.py`,
+  `round-30/excepthook-probe.json`):
+
+      slot on clicked          excepthook ran, traceback printed, exit 0, app alive
+      slot on a singleShot     excepthook ran, traceback printed, exit 0, app alive
+      a raising paintEvent     excepthook ran, traceback printed, exit 0, app alive
+
+  Nothing aborts and nothing is swallowed. The exception is reported to
+  `sys.excepthook` and the event loop carries on.
+- so the gap is not the hook. It is that **an uncaught exception has no surface
+  a user or a test can see**: `main._log_excepthook` writes to `chromiq.log` and
+  to stderr, and a `.app` launched from the Dock has no stderr at all.
+- what it would cost, both halves measured rather than guessed:
+  - for the USER: `main._log_excepthook` already has the exception; adding a
+    one-line status-bar or toast notice is a change to one function. The words
+    are new user-facing text, so i18n.
+  - for the SUITE, which is the half that would have caught this: an autouse
+    fixture in `tests/conftest.py` that records `sys.excepthook` firings and
+    fails the test. `tests/conftest.py` has no such hook today. **Not built
+    here**, because a suite-wide autouse guard can turn tests red that
+    deliberately raise in a slot, and the blast radius has to be measured on a
+    full `--runslow` run before it goes in, which this round was told not to do.
+  - every round-30 driver already carries the recording hook, and it is what
+    proved scenes B-F of the new window clean: `raised_total: []`.
+- evidence: VERIFIED buys its exemption by naming a command and numbers, and
+  this item's evidence is a measurement rather than a guard, so both are here.
+  `QT_QPA_PLATFORM=offscreen pytest tests/test_a_short_button_is_short_on_screen.py
+  tests/test_a_licence_holder_can_supply_iso_values_without_a_terminal.py
+  tests/test_report_window_limit_controls.py -q` came back **410 passed** over
+  the area this round touched.
+- command and result:
+  `grep -n "NameError: name 'Path' is not defined" ~/Library/Logs/ChromIQ/chromiq.log`
+  → five records, at lines **21287, 21292, 21300, 21305, 21310**, each preceded
+  by `File "ui/dialogs/thresholds_dialog.py", line 508, in _on_iso_template`.
+  `python scripts/adv30_what_happens_when_a_slot_raises.py` → three cases,
+  `excepthook_ran: true` and `qfatal_or_abort: false` in all three.
+  `QT_QPA_PLATFORM=offscreen pytest -n auto -k "threshold or licence_holder or
+  reference_values or short_button or em_dash or i18n or compliance or
+  report_window_limit or scrollbar_signal"` → **410 passed**.
+- evidence: test_the_report_limits_door_is_short_where_a_reader_sees_it

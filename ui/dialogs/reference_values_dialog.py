@@ -31,12 +31,28 @@ from core.i18n import tr
 from ui.styles import SPEC_GREEN
 from ui.tooltip_button import TooltipButton
 
-#: The height every control in here takes. The Report limits window's own
-#: smallest interactive control is its check boxes at 18 px, and these buttons
-#: are a footnote to a table rather than its subject (Basti, twice: *"the three
-#: buttons should be reduced in heigth"*, then *"the current ones are still big
-#: ... they could be smaller i think"*).
-SMALL_H = 18
+#: How a control in here is made short, and it is NOT ``setFixedHeight``.
+#:
+#: Basti asked twice: *"the three buttons should be reduced in heigth"*, then
+#: *"the current ones are still big ... they could be smaller i think"*. Beta 26
+#: answered with a fixed height of 22 and this window first answered with one of
+#: 18, and BOTH ARE 42 px ON SCREEN. `ui/styles.py` sets
+#: `QPushButton { padding: 6px 18px; min-height: 28px; }` for the whole app, and
+#: Qt's stylesheet style folds that into `minimumSizeHint` (28+6+6+1+1 = 42),
+#: which a layout honours over a fixed height. A fixed height therefore cannot
+#: make ANY button in ChromIQ shorter than 42 px, and the guard that read
+#: `.height()` off a dialog nobody showed read back the 18 nobody sees.
+#:
+#: A per-widget stylesheet can, because it puts `min-height` DOWN as well as
+#: capping `max-height`. This is the declaration the Report limits window's own
+#: "Restore this column" button already uses, and it measures 22 px, which is
+#: what the preset window's button settled on (B8-420).
+#:
+#: Measured on screen, round 30, `scripts/adv30_eighteen_px_is_forty_two.py`;
+#: guarded by `tests/test_a_short_button_is_short_on_screen.py`, which lays the
+#: button out under the app's own stylesheet before it measures anything.
+SMALL_BTN_QSS = ("QPushButton { padding: 1px 6px; font-size: 10px;"
+                 " min-height: 22px; max-height: 22px; }")
 
 
 @dataclass(frozen=True)
@@ -48,6 +64,15 @@ class Source:
     why: str
     #: "" when nothing is supplied, else the path in use
     in_use: Callable[[], str]
+    #: Where ChromIQ keeps its OWN copy of this source. Two different
+    #: questions hide behind one answer otherwise: `in_use` says "is ChromIQ
+    #: judging against somebody's numbers", and this says "are they in a file
+    #: ChromIQ may delete". `CHROMIQ_COMPLIANCE_ISO_FILE` makes them differ,
+    #: and with only the first of them "Stop using it" sat ENABLED over a
+    #: `forget` that could not remove anything: measured on screen, round 30,
+    #: pressed, and NOTHING happened -- no message, no state change, no file
+    #: touched. Exactly the shape beta 26 shipped.
+    own_copy: Callable[[], Path]
     write_template: Callable[[Path], None]
     install: Callable[[Path], Path]
     forget: Callable[[], bool]
@@ -66,6 +91,7 @@ def iso_source() -> Source:
                "content of a paid standard. Supply your own copy's values and "
                "the two ISO columns stop showing ? and start judging."),
         in_use=cs.iso_data_path_text,
+        own_copy=cs.user_values_path,
         write_template=lambda p: p.write_text(cs.iso_values_template(),
                                               encoding="utf-8"),
         install=cs.install_user_values,
@@ -149,11 +175,11 @@ class ReferenceValuesDialog(QDialog):
                 (tr("Use a file I filled in…"), lambda _=0, s=src: self._install(s)),
         ):
             b = QPushButton(label, box)
-            b.setFixedHeight(SMALL_H)
+            b.setStyleSheet(SMALL_BTN_QSS)
             b.clicked.connect(slot)
             btns.addWidget(b)
         forget = QPushButton(tr("Stop using it"), box)
-        forget.setFixedHeight(SMALL_H)
+        forget.setStyleSheet(SMALL_BTN_QSS)
         forget.clicked.connect(lambda _=0, s=src: self._forget(s))
         btns.addWidget(forget)
         btns.addStretch(1)
@@ -192,7 +218,15 @@ class ReferenceValuesDialog(QDialog):
             else:
                 state.setText(tr("Nothing supplied, so ChromIQ uses its own "
                                  "numbers and shows ? where it has none."))
-            forget.setEnabled(bool(where))
+            # `in_use` is the wrong question for this button. It answers "is
+            # ChromIQ judging against somebody's numbers", and
+            # `CHROMIQ_COMPLIANCE_ISO_FILE` makes that true without there
+            # being anything here to remove -- `forget` only ever deletes
+            # ChromIQ's OWN copy, returns False, and this method never runs.
+            # The button then sat enabled and did NOTHING when pressed, which
+            # is the fault beta 26 shipped three times over. Ask the question
+            # the button actually answers.
+            forget.setEnabled(src.own_copy().is_file())
 
     def _say(self, text: str) -> None:
         from ui.tooltip_button import InfoDialog
@@ -206,9 +240,15 @@ class ReferenceValuesDialog(QDialog):
 
         docs = QStandardPaths.writableLocation(
             QStandardPaths.StandardLocation.DocumentsLocation) or str(Path.home())
+        # THE SIDEBAR SHORTCUT IS NOT DECORATION. Commit 758bfbbb added it to
+        # both dialogs so a user could reach ChromIQ's own folder without
+        # typing a path, and the move to one door dropped it from both. The
+        # guard that was supposed to hold it read the slots' SOURCE, so it
+        # could not notice (6d7b265c).
         where = save_file_dialog(
             self, tr("Save a file to fill in"), src.file_filter,
-            start_path=str(Path(docs) / src.template_name))
+            start_path=str(Path(docs) / src.template_name),
+            extra_paths=(str(src.own_copy().parent),))
         if not where:
             return
         try:
@@ -231,7 +271,8 @@ class ReferenceValuesDialog(QDialog):
             QStandardPaths.StandardLocation.DocumentsLocation) or str(Path.home())
         chosen = open_file_dialog(
             self, tr("Use a file I filled in"), src.file_filter,
-            start_dir=docs)
+            start_dir=docs,
+            extra_paths=(str(src.own_copy().parent),))
         if not chosen:
             return
         try:
