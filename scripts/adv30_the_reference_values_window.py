@@ -199,11 +199,14 @@ def main() -> int:                                              # noqa: C901
         pump(app, 1400)
         return d
 
+    # `_rows` gained an ITEM KEY on 2026-09-20, when Fogra's reference data
+    # joined this window: a source may supply a dozen independently versioned
+    # things, so a row is one of those rather than one source.
     def state_of(d):
-        return [lbl.text() for _s, lbl, _f in d._rows]
+        return [lbl.text() for _s, _k, lbl, _f in d._rows]
 
     def forget_enabled(d):
-        return [f.isEnabled() for _s, _l, f in d._rows]
+        return [f.isEnabled() for _s, _k, _l, f in d._rows]
 
     # =====================================================================
     # A. THE DOOR in Report limits
@@ -320,7 +323,7 @@ def main() -> int:                                              # noqa: C901
             shaped[sid] = {rid: {"kind": "value", "number": 2.5} for rid in v}
             cells += len(v)
         shape2 = work / "meta-shape.json"
-        shape2.write_text(json.dumps(shaped, indent=2), encoding="utf-8", encoding='utf-8')
+        shape2.write_text(json.dumps(shaped, indent=2), encoding="utf-8")
         n = len(BOXES); RAISED.clear()
         answer["open"] = str(shape2)
         WANT_PHOTO["tag"] = f"C-wrong-shape-meta-{lang}"
@@ -346,7 +349,7 @@ def main() -> int:                                              # noqa: C901
                 v[rid] = 2.5
                 filled += 1
         good = work / "filled.json"
-        good.write_text(json.dumps(doc, indent=2), encoding="utf-8", encoding='utf-8')
+        good.write_text(json.dumps(doc, indent=2), encoding="utf-8")
         n = len(BOXES); RAISED.clear()
         answer["open"] = str(good)
         WANT_PHOTO["tag"] = f"C-good-said-{lang}"
@@ -401,7 +404,16 @@ def main() -> int:                                              # noqa: C901
         "forget_enabled_after": forget_enabled(rv2),
         "iso_data_path_text": CS.iso_data_path_text(),
     }
-    # pressing it again, with nothing installed -- the button should be dead
+    # pressing it again, with nothing installed -- the button should be dead.
+    #
+    # RE-FETCHED, because the window REBUILDS its rows after an install or a
+    # removal: a source may now supply a dozen things and the list of them can
+    # change under the user's hands, so the button pressed above is gone and
+    # `forget_btn` is a deleted C++ object. Holding one across a refresh raised
+    # `RuntimeError: wrapped C/C++ object of type QPushButton has been deleted`
+    # here, which is this driver telling the truth about the window and not a
+    # fault in it: a person's second click lands on the live button.
+    forget_btn = next((f for _s, _k, _l, f in rv2._rows), None)
     n = len(BOXES); RAISED.clear()
     forget_btn.click(); pump(app, 1400)
     res["D_forget_again"] = {
@@ -417,7 +429,7 @@ def main() -> int:                                              # noqa: C901
     #    what the press does.
     # =====================================================================
     envfile = work / "env-values.json"
-    envfile.write_text(json.dumps({"iso12647_7": {}}), encoding="utf-8", encoding='utf-8')
+    envfile.write_text(json.dumps({"iso12647_7": {}}), encoding="utf-8")
     os.environ[CS.ISO_DATA_ENV] = str(envfile)
     CS.reset_iso_cache()
     RAISED.clear()

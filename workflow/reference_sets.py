@@ -81,6 +81,7 @@ REFUSE_CROSS_SPACE = "cross_space"
 REFUSE_NOT_A_PAPER = "not_a_paper"
 REFUSE_NEEDS_BUILT_CHART = "needs_built_chart"
 REFUSE_UNKNOWN_ROW = "unknown_row"
+REFUSE_SUBSTRATE_UNKNOWN = "substrate_unknown"
 
 #: The sentences, English source (the i18n extractor sweeps this dict).
 REFUSAL_REASONS: "dict[str, str]" = {
@@ -97,6 +98,16 @@ REFUSAL_REASONS: "dict[str, str]" = {
         "in the reference.",
     REFUSE_UNKNOWN_ROW:
         "This version of ChromIQ has no way to fill this row from a reference.",
+    # A THIRD ANSWER, BECAUSE "no" AND "we were never told" ARE NOT THE SAME.
+    # `REFUSE_NOT_A_PAPER` states a fact about the reference, and ChromIQ can
+    # only state it about a set it ships, whose entry in SOURCE.json records
+    # it. For a file the user supplied there is no such entry, and saying "this
+    # is a colour exchange space" about a real paper would be a false sentence
+    # in the place a reader goes to find out why a row is empty.
+    REFUSE_SUBSTRATE_UNKNOWN:
+        "You supplied this reference, and nothing in the file says whether it "
+        "describes a real paper or a colour exchange space. ChromIQ leaves "
+        "the paper row empty rather than filling it from a guess.",
 }
 
 #: The groups the chooser shows, in order. English source.
@@ -107,8 +118,19 @@ GROUP_LABELS: "dict[str, str]" = {
     "magazine": "Magazine",
     "newspaper": "Newspaper",
     "metal": "Metal",
+    # LAST, AND IT IS NOT A PRINTING CONDITION. Every group above says what
+    # somebody is printing on. This one says where the file came from, because
+    # for a set ChromIQ does not ship there is nothing else it honestly knows:
+    # the user handed over a file, and the printing condition it describes is
+    # written in the file's own header in the publisher's words, not in any
+    # table here. Putting such a set under "Coated" would be ChromIQ deciding
+    # something it was never told.
+    "supplied": "Supplied by you",
 }
 GROUP_ORDER: "tuple[str, ...]" = tuple(GROUP_LABELS)
+
+#: The group a user-supplied set lands in when ChromIQ ships no entry for it.
+SUPPLIED_GROUP = "supplied"
 
 
 # ---------------------------------------------------------------------------
@@ -128,11 +150,40 @@ class ReferenceSet:
     device_space: str            # "CMYK" | "RGB"
     filter: str                  # "M1" | "" when the file does not say
     paper_lab: "tuple[float, float, float] | None"
-    is_real_paper: bool
+    #: True, False, or **None for "nobody told ChromIQ"**. The third state is
+    #: not tidiness: it exists because a user may supply a file for a set that
+    #: ships no entry here, and :func:`can_fill` must then refuse the paper row
+    #: without asserting anything about what the file describes.
+    is_real_paper: "bool | None"
     sha256: str
-    #: Whether the bytes on this machine are still the ones ``SOURCE.json``
-    #: records. False does NOT hide the set; see :func:`available`.
+    #: Whether the bytes on this machine are still the ones the RECORD for this
+    #: set gives. For a bundled set the record is ``SOURCE.json``; for one the
+    #: user supplied it is the sha256 taken at import. False does NOT hide the
+    #: set; see :func:`available`.
     verified: bool = True
+
+    # ------------------------------------------------------------------
+    # Which archive this is, and where it came from
+    # ------------------------------------------------------------------
+    #: Fogra's own version and publication date for the archive the bundled
+    #: file came out of, so the window can say WHICH copy is in force rather
+    #: than only that one is. Empty for a set the user supplied, because
+    #: ChromIQ was not told and must not invent one.
+    archive_version: str = ""
+    archive_published: str = ""
+
+    #: **THE LINE BETWEEN WHAT CHROMIQ VOUCHES FOR AND WHAT IT MERELY HOLDS.**
+    #: False for the files that ship, whose provenance is recorded in
+    #: ``SOURCE.json`` and checked byte for byte. True for a file the user
+    #: handed over, about which ChromIQ can honestly say only three things:
+    #: when it arrived, what it was called, and what its sha256 was at that
+    #: moment. It must never be presented as carrying the first kind of
+    #: provenance, which is why :attr:`credit_line` says so in the same breath
+    #: as the credit and :func:`bundled` exists for the licence page.
+    supplied_by_user: bool = False
+    #: ``YYYY-MM-DD`` the user supplied it, and the name the file had then.
+    imported: str = ""
+    original_filename: str = ""
 
     @property
     def credit_line(self) -> str:
@@ -163,7 +214,26 @@ class ReferenceSet:
                   "your measurement was compared against. It is not a "
                   "certification, approval or endorsement by {source}."
                   ).format(name=self.id, source=_trimmed)
-        if not self.verified:
+        if self.supplied_by_user:
+            # THE CLAIM CHROMIQ CANNOT MAKE ABOUT THIS FILE. Everything above
+            # is about the printing condition and stays true: the aims are
+            # Fogra's, and naming the set is still not a certification. What
+            # changes is provenance. A bundled file's bytes are recorded in
+            # SOURCE.json and checked against it, so ChromIQ can say it is the
+            # file Fogra published. About a file handed to it on this machine
+            # it can say only when it arrived and what it was called, and it
+            # says exactly that rather than borrowing the other sentence's
+            # authority by staying quiet.
+            line += " " + tr(
+                "You supplied this file on {date}, as {filename}. ChromIQ "
+                "records what it received and does not vouch for where the "
+                "file came from."
+            ).format(date=self.imported or tr("an unknown date"),
+                     filename=self.original_filename or tr("an unnamed file"))
+            if not self.verified:
+                line += " " + tr(
+                    "It has also changed since you supplied it.")
+        elif not self.verified:
             line += " " + tr(
                 "ChromIQ cannot present this file as original data from "
                 "{source}, because it no longer matches the file that shipped."
@@ -183,6 +253,7 @@ class ReferenceSet:
 # Loading, and the credit gate
 # ---------------------------------------------------------------------------
 _cache: "list[ReferenceSet] | None" = None
+_bundled_cache: "list[ReferenceSet] | None" = None
 
 
 def _data_dir() -> Path:
@@ -190,9 +261,11 @@ def _data_dir() -> Path:
 
 
 def reset_cache() -> None:
-    """For tests that swap the data folder."""
-    global _cache
+    """For tests that swap the data folder, and for every install or removal
+    of a user's own copy."""
+    global _cache, _bundled_cache
     _cache = None
+    _bundled_cache = None
 
 
 def _entry_is_credited(entry: Any) -> bool:
@@ -204,15 +277,23 @@ def _entry_is_credited(entry: Any) -> bool:
             and bool(str(entry.get("terms") or "").strip()))
 
 
-def available() -> "list[ReferenceSet]":
-    """Every bundled reference set that is complete, credited and readable.
+def bundled() -> "list[ReferenceSet]":
+    """Every reference set **that ships inside ChromIQ**, complete, credited
+    and readable. Nothing the user supplied is in here.
 
     A file that is missing, uncredited or malformed is logged and skipped, and
     never silently half-loaded.
+
+    **THIS IS THE LIST THE LICENCE PAGE USES**, and that is the whole reason it
+    is a function of its own. The page's job is to state, accurately, what
+    ChromIQ ships and on whose terms. Folding a file somebody dropped into
+    their own folder into that statement would make the page claim provenance
+    for a file ChromIQ has never checked against anything but its own import
+    record. :func:`available` is the list for everything else.
     """
-    global _cache
-    if _cache is not None:
-        return _cache
+    global _bundled_cache
+    if _bundled_cache is not None:
+        return _bundled_cache
     folder = _data_dir()
     out: "list[ReferenceSet]" = []
     try:
@@ -255,6 +336,8 @@ def available() -> "list[ReferenceSet]":
             paper_lab=paper,
             is_real_paper=bool(entry.get("is_real_paper", True)),
             sha256=str(entry.get("sha256") or ""),
+            archive_version=str(entry.get("archive_version") or ""),
+            archive_published=str(entry.get("archive_published") or ""),
         )
         # A CHANGED FILE IS QUALIFIED, NOT HIDDEN, and the first version of
         # this got that backwards.
@@ -284,9 +367,64 @@ def available() -> "list[ReferenceSet]":
                         "file is on the user's disk and this says nothing about "
                         "how it was distributed", set_id, path.name, SOURCE_FILE)
         out.append(replace(candidate, verified=_ok))
-    out.sort(key=lambda s: (GROUP_ORDER.index(s.group), s.id))
+    out.sort(key=_chooser_order)
+    _bundled_cache = out
+    return out
+
+
+def _chooser_order(s: ReferenceSet) -> tuple:
+    return (GROUP_ORDER.index(s.group), s.id)
+
+
+def available() -> "list[ReferenceSet]":
+    """Every reference set ChromIQ can offer: the ones it ships, with the
+    user's own copy preferred **per set** wherever there is one, plus any set
+    the user supplied that ChromIQ ships no copy of at all.
+
+    Sebastian, 2026-09-20: *"we could ship the most recent version and allow
+    for a way to use newer values if they are released at some point in the
+    future without relying on an update to ChromIQ for it."* So a set is a
+    place, not a file: ChromIQ's copy stands in it until the user puts theirs
+    there, and "Stop using it" empties the place again.
+
+    ``FOGRA61`` is the case that stops this being a mere override mechanism. It
+    is still beta in Fogra's archive and ChromIQ ships nothing for it, so it
+    can only ever arrive from the user, and a design that could only REPLACE a
+    shipped set would never be able to hold it.
+    """
+    global _cache
+    if _cache is not None:
+        return _cache
+    mine = {s.id: s for s in bundled()}
+    for supplied in _user_sets():
+        shipped = mine.get(supplied.id)
+        mine[supplied.id] = (supplied if shipped is None
+                             else _wearing_the_shipped_metadata(supplied,
+                                                                shipped))
+    out = sorted(mine.values(), key=_chooser_order)
     _cache = out
     return out
+
+
+def _wearing_the_shipped_metadata(supplied: ReferenceSet,
+                                  shipped: ReferenceSet) -> ReferenceSet:
+    """A newer file for a set ChromIQ already knows, keeping what ChromIQ knows
+    about the CONDITION and nothing about the FILE.
+
+    The split is the point. The label, the group, the one-sentence blurb and
+    whether the condition is a real paper describe a printing condition, and a
+    2027 revision of FOGRA51 is still coated commercial print: dropping them
+    would file the user's own file under "Supplied by you" with a bare code for
+    a name, which is worse for them in every way. The provenance fields go the
+    other way entirely -- the path, the sha256, the archive version and date,
+    and who supplied it are facts about a FILE, and every one of them now
+    belongs to the file in front of us.
+    """
+    return replace(supplied,
+                   label=shipped.label,
+                   group=shipped.group,
+                   blurb=shipped.blurb,
+                   is_real_paper=shipped.is_real_paper)
 
 
 def by_id(set_id: "str | None") -> "ReferenceSet | None":
@@ -319,6 +457,375 @@ def verify_unmodified(s: ReferenceSet) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# The user's own copies: a newer file, without a newer ChromIQ
+# ---------------------------------------------------------------------------
+#: The record of what the user supplied, kept in their own folder and
+#: **deliberately not** in ``SOURCE.json``.
+#:
+#: Two records, because there are two different claims and only one of them is
+#: ChromIQ's to make. ``SOURCE.json`` says "this is the file Fogra published,
+#: here is its sha256, here is the archive it came out of", and a test checks
+#: every byte of it on every run. This file says "on this date a person chose
+#: this file, it was called that, and this was its sha256 at that moment", which
+#: is everything ChromIQ witnessed and nothing more. Writing the second into the
+#: first would quietly promote a download nobody checked into a bundled,
+#: verified artefact, and the licence page reads the first.
+USER_RECORD_FILE = "SUPPLIED.json"
+
+#: How a set is recognised in a file name or a file's own descriptor. Fogra's
+#: own spellings across the archive: ``FOGRA51_MW3_Subset``,
+#: ``3D-DesignRGB_FOGRA61(beta)``, ``MW7C_Ref_FOGRA55_CMYKOGV``.
+_SET_ID_RE = re.compile(r"FOGRA\s*[-_]?\s*(\d{2,3})", re.I)
+
+#: What a supplied file may be called. A ``.zip`` is accepted because that is
+#: the shape Fogra publishes: a user who downloads the characterisation data
+#: gets an archive, and asking them to unpack it first is a step that exists
+#: only for ChromIQ's convenience.
+USER_FILE_SUFFIXES = (".txt", ".zip")
+
+#: A ceiling on what is read out of a zip, so a hostile or merely silly archive
+#: cannot be unpacked over somebody's disk. Fogra's own archive is 21 files and
+#: under 2 MB; the largest single characterisation file in it is ~600 kB.
+_ZIP_MAX_MEMBERS = 200
+_ZIP_MAX_BYTES = 64 * 1024 * 1024
+
+
+def _fogra(field: str) -> str:
+    """Fogra's own name, terms or URL, taken from the file that ships.
+
+    **THERE IS EXACTLY ONE COPY OF THE GRANT IN THIS TREE**, in
+    ``fogra/SOURCE.json``, and this reads it rather than repeating it. A second
+    copy in Python would be a quotation of somebody's licence that nothing
+    keeps in step with the first, and the first is the one the licence page,
+    the README and the test suite all check.
+
+    Returns "" when the bundle did not travel, which makes the caller refuse to
+    offer an uncredited set. That is the same answer :func:`bundled` gives for
+    the same reason.
+    """
+    for s_ in bundled():
+        value = str(getattr(s_, field, "") or "")
+        if value:
+            return value
+    return ""
+
+
+def user_dir() -> Path:
+    """Where the user's own reference files live on this machine."""
+    from core.platform_paths import reference_sets_dir
+
+    return reference_sets_dir()
+
+
+def _user_record_path() -> Path:
+    return user_dir() / USER_RECORD_FILE
+
+
+def user_record() -> "dict[str, dict]":
+    """``{set_id: record}`` for every file the user supplied, or ``{}``."""
+    try:
+        doc = json.loads(_user_record_path().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    sets = doc.get("sets") if isinstance(doc, dict) else None
+    return sets if isinstance(sets, dict) else {}
+
+
+def _write_user_record(sets: "dict[str, dict]") -> None:
+    path = _user_record_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({
+        "_readme": (
+            "Reference data files YOU supplied, and what ChromIQ witnessed "
+            "when you did. This is not ChromIQ's provenance record for the "
+            "files it ships, which is data/reference_sets/fogra/SOURCE.json "
+            "inside the application and is checked byte for byte. ChromIQ "
+            "does not vouch for anything here; it records it."),
+        "sets": sets,
+    }, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def _user_sets() -> "list[ReferenceSet]":
+    """Every set the user supplied, as ``ReferenceSet`` objects.
+
+    A record whose file has gone is skipped rather than offered: a chooser row
+    that cannot be read is worse than no row, and the record is left alone so
+    that the window can still say the file is missing if it ever needs to.
+    """
+    out: "list[ReferenceSet]" = []
+    folder = user_dir()
+    for set_id, rec in sorted(user_record().items()):
+        if not isinstance(rec, dict):
+            continue
+        path = folder / str(rec.get("file") or "")
+        if not path.is_file():
+            log.warning("reference set %s: your own copy %s has gone; "
+                        "ChromIQ is using what shipped", set_id, path.name)
+            continue
+        recorded = str(rec.get("sha256") or "")
+        try:
+            now = hashlib.sha256(path.read_bytes()).hexdigest()
+        except OSError:
+            continue
+        # THE CREDIT GATE APPLIES TO THE USER'S FILES TOO, and it has to: it is
+        # a condition on the DATA, and the data is the same data. A record that
+        # names no rights holder and no terms is not offered, exactly as a
+        # bundled file with no `SOURCE.json` entry is not offered. In practice
+        # the words come from the bundle, so the only way to reach this is a
+        # build whose own provenance file did not travel -- in which case the
+        # honest answer is to offer nothing rather than a set with no credit.
+        source = str(rec.get("source") or _fogra("source")).strip()
+        terms = str(rec.get("terms") or _fogra("terms")).strip()
+        if not source or not terms:
+            log.warning("your copy of %s has no source and terms recorded; "
+                        "not offered (data/reference_sets/README.md says why)",
+                        set_id)
+            continue
+        out.append(ReferenceSet(
+            id=set_id,
+            label=str(rec.get("label") or set_id),
+            group=SUPPLIED_GROUP,
+            blurb=str(rec.get("blurb") or ""),
+            # THE CREDIT CONDITION FOLLOWS THE DATA, NOT THE BUNDLE. Fogra's
+            # grant is a condition on the data, so a Fogra file the user
+            # downloaded themselves is credited in exactly the same words as
+            # one ChromIQ ships. What differs is provenance, and that is said
+            # separately by `supplied_by_user`.
+            source=source,
+            terms=terms,
+            url=str(rec.get("url") or _fogra("url")),
+            path=path,
+            patches=int(rec.get("patches") or 0),
+            device_space=str(rec.get("device_space") or "").upper(),
+            filter=str(rec.get("filter") or ""),
+            paper_lab=None,
+            is_real_paper=None,
+            sha256=recorded,
+            verified=bool(recorded) and now == recorded,
+            supplied_by_user=True,
+            imported=str(rec.get("imported") or ""),
+            original_filename=str(rec.get("original_filename") or ""),
+        ))
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Reading a file somebody handed us
+# ---------------------------------------------------------------------------
+def set_id_in(text: str) -> str:
+    """``"FOGRA51"`` for any of Fogra's spellings of it, or ``""``."""
+    m = _SET_ID_RE.search(text or "")
+    return f"FOGRA{m.group(1)}" if m else ""
+
+
+def inspect_file(path: Path) -> dict:
+    """:func:`inspect_bytes` for a file on disk."""
+    path = Path(path)
+    return inspect_bytes(path.name, path.read_bytes())
+
+
+def inspect_bytes(name: str, raw: bytes) -> dict:
+    """What a candidate file is, or a :class:`ValueError` saying why not.
+
+    **The refusal is the useful half.** A file that is silently installed and
+    then turns out to hold nothing readable becomes a set that shows no aims
+    and explains nothing, and the user has no way back to the moment they could
+    have picked a different file. Everything this can check, it checks here,
+    at the door.
+
+    It takes BYTES rather than a path because the commonest way in is a member
+    of a zip, and writing each member out to be inspected would mean a refused
+    file had already been on disk.
+    """
+    # THE PROJECT'S OWN DECODER, AND THE NEWLINES IT TRANSLATES ARE THE POINT.
+    # This path has BYTES, straight out of a zip member, so nothing has done
+    # what text mode does. Every Fogra file measured on 2026-09-20 is CRLF, the
+    # bundled FOGRA51 subset included, so untranslated the data block's own
+    # `^BEGIN_DATA$` never matches and EVERY file a user supplies is refused as
+    # "not a reference data file". `core.text_io` also names the codec rather
+    # than assuming UTF-8 and papering over the rest with replacement
+    # characters, which `tests/test_proc_text.py` bans by name.
+    from core.text_io import decode_bytes
+
+    text = decode_bytes(raw, what=name or "that file")
+    fields, rows = _data_block(text)
+    if not fields or not rows:
+        raise ValueError(tr(
+            "That file is not a reference data file. ChromIQ reads the CGATS "
+            "and ISO 28178 files Fogra publishes, which hold a BEGIN_DATA "
+            "block of aim colours."))
+    if not all(k in fields for k in ("LAB_L", "LAB_A", "LAB_B")):
+        raise ValueError(tr(
+            "That file holds no CIELAB columns, so there are no aim colours "
+            "in it for ChromIQ to compare a measurement against."))
+    dev = [f for f in fields if "_" in f and not f.startswith("LAB_")
+           and f.split("_", 1)[0] in _DEVICE_PREFIXES]
+    if not dev:
+        raise ValueError(tr(
+            "That file holds no device columns, so ChromIQ cannot tell which "
+            "printing device values its aim colours belong to."))
+    descriptor = _header_value(text, "FILE_DESCRIPTOR") or \
+        _header_value(text, "DESCRIPTOR")
+    set_id = set_id_in(descriptor) or set_id_in(name)
+    if not set_id:
+        raise ValueError(tr(
+            "ChromIQ cannot tell which reference set that file is. It looks "
+            "for a name like FOGRA51 in the file's own description and in the "
+            "file name, and found neither."))
+    return {
+        "set_id": set_id,
+        "descriptor": descriptor,
+        "patches": len(rows),
+        "device_space": dev[0].split("_", 1)[0].upper(),
+        "filter": _header_value(text, "FILTER"),
+        "print_conditions": _header_value(text, "PRINT_CONDITIONS"),
+        "created": _header_value(text, "CREATED"),
+        "sha256": hashlib.sha256(raw).hexdigest(),
+    }
+
+
+def install_user_file(src: "str | Path") -> "list[str]":
+    """Copy the user's own reference file into ChromIQ's folder. Returns the
+    set ids now in force from their copy, in the order they were found.
+
+    It is COPIED, for the reason the ISO values are: the file a person has just
+    downloaded is in Downloads, and a folder they tidy is not a place to keep
+    something the app depends on.
+
+    A ``.zip`` installs every member ChromIQ can read and says so. It does not
+    fail on the ones it cannot -- Fogra's own archive carries a readme beside
+    the data -- but it does fail when it could read NONE of them, because an
+    archive that installs nothing and reports success is the shape of a feature
+    that looks like it worked.
+    """
+    src = Path(src)
+    if src.suffix.lower() == ".zip":
+        return _install_zip(src)
+    info = inspect_file(src)
+    return [_install_one(src.name, src.read_bytes(), info)]
+
+
+def _install_one(original_name: str, data: bytes, info: dict) -> str:
+    from datetime import date
+
+    set_id = info["set_id"]
+    folder = user_dir()
+    folder.mkdir(parents=True, exist_ok=True)
+    # THE STORED NAME IS CHROMIQ'S, NOT THE USER'S. A file called
+    # `../../something.txt` inside a zip, or one called `SUPPLIED.json`, must
+    # not decide where anything lands or what it overwrites. The set id is
+    # matched out of `_SET_ID_RE` and can only ever be FOGRA plus digits.
+    dst = folder / f"{set_id}.txt"
+    dst.write_bytes(data)
+    rec = user_record()
+    rec[set_id] = {
+        "file": dst.name,
+        "original_filename": Path(original_name).name,
+        "imported": date.today().isoformat(),
+        "sha256": info["sha256"],
+        "patches": info["patches"],
+        "device_space": info["device_space"],
+        "filter": info.get("filter", ""),
+        "label": info.get("descriptor") or set_id,
+        "blurb": info.get("print_conditions", ""),
+        "source": _fogra("source"),
+        "terms": _fogra("terms"),
+        "url": _fogra("url"),
+        "supplied_by_user": True,
+    }
+    _write_user_record(rec)
+    reset_cache()
+    return set_id
+
+
+def _install_zip(src: Path) -> "list[str]":
+    import zipfile
+
+    installed: "list[str]" = []
+    refused: "list[str]" = []
+    try:
+        with zipfile.ZipFile(src) as zf:
+            members = [m for m in zf.infolist() if not m.is_dir()]
+            if len(members) > _ZIP_MAX_MEMBERS:
+                raise ValueError(tr(
+                    "That archive holds {count} files, which is far more than "
+                    "a set of reference data. ChromIQ has not opened it."
+                ).format(count=len(members)))
+            total = sum(m.file_size for m in members)
+            if total > _ZIP_MAX_BYTES:
+                raise ValueError(tr(
+                    "That archive unpacks to more than ChromIQ will read from "
+                    "one file. ChromIQ has not opened it."))
+            for m in members:
+                name = Path(m.filename).name
+                if not name.lower().endswith(".txt"):
+                    continue
+                data = zf.read(m)
+                try:
+                    info = inspect_bytes(name, data)
+                except ValueError as exc:
+                    refused.append(f"{name}: {exc}")
+                    continue
+                installed.append(_install_one(name, data, info))
+    except zipfile.BadZipFile as exc:
+        raise ValueError(tr("That file is not a readable archive: {error}")
+                         .format(error=exc)) from exc
+    if not installed:
+        detail = refused[0] if refused else tr(
+            "It holds no reference data file ChromIQ can read.")
+        raise ValueError(tr("Nothing in that archive could be used. {detail}")
+                         .format(detail=detail))
+    return installed
+
+
+def forget_user_set(set_id: str) -> bool:
+    """Drop the user's own copy of one set. True when something was removed.
+
+    What it goes back to is whatever ChromIQ ships for that set, and for a set
+    ChromIQ ships nothing for, to the set not being offered at all. Nothing the
+    user gave us is kept behind their back.
+    """
+    rec = user_record()
+    entry = rec.pop(set_id, None)
+    if entry is None:
+        return False
+    try:
+        (user_dir() / str(entry.get("file") or "")).unlink(missing_ok=True)
+    except OSError as exc:
+        log.warning("could not remove your copy of %s: %s", set_id, exc)
+    _write_user_record(rec)
+    reset_cache()
+    return True
+
+
+def any_user_copy() -> bool:
+    """True when there is at least one of the user's own files to remove."""
+    return bool(_user_sets())
+
+
+def in_force_lines() -> "list[str]":
+    """One sentence per set saying WHICH copy is in force, with its version and
+    its date. English source; translated through ``tr()``.
+
+    The window's whole reason for existing beyond three buttons: a control can
+    offer an action, and only a sentence can tell somebody what is true now.
+    """
+    out: "list[str]" = []
+    for s in available():
+        if s.supplied_by_user:
+            out.append(tr("{name}: your copy, added {date}").format(
+                name=s.id, date=s.imported or tr("an unknown date")))
+        elif s.archive_version and s.archive_published:
+            out.append(tr("{name}: ChromIQ's copy, archive {version} of {date}"
+                          ).format(name=s.id, version=s.archive_version,
+                                   date=s.archive_published))
+        else:
+            out.append(tr("{name}: ChromIQ's copy").format(name=s.id))
+    return out
+
+
+
+# ---------------------------------------------------------------------------
 # Reading the aims
 # ---------------------------------------------------------------------------
 def read_aims(s: ReferenceSet) -> "dict[tuple[float, ...], tuple[float, float, float]]":
@@ -332,30 +839,26 @@ def read_aims(s: ReferenceSet) -> "dict[tuple[float, ...], tuple[float, float, f
     spellings are accepted for the same reason: the modern files use
     ``FILE_DESCRIPTOR`` and the older ones ``DESCRIPTOR``.
     """
+    from core.text_io import read_text
+
     try:
-        text = s.path.read_text(encoding="utf-8", errors="replace")
-    except OSError as exc:
+        text = read_text(s.path, lenient=True)
+    except (OSError, UnicodeDecodeError) as exc:
         log.warning("reference set %s unreadable (%s)", s.id, exc)
         return {}
-    m = re.search(r"BEGIN_DATA_FORMAT\s*\n(.*?)\nEND_DATA_FORMAT", text, re.S)
-    if not m:
-        return {}
-    fields = m.group(1).split()
-    m = re.search(r"^BEGIN_DATA[ \t]*$\r?\n(.*?)^END_DATA", text, re.S | re.M)
-    if not m:
+    fields, rows = _data_block(text)
+    if not fields or not rows:
         return {}
     try:
         lab_idx = [fields.index(k) for k in ("LAB_L", "LAB_A", "LAB_B")]
     except ValueError:
         log.warning("reference set %s has no LAB columns", s.id)
         return {}
-    dev_idx = [i for i, f in enumerate(fields)
-               if f.startswith(("CMYK_", "RGB_", "PC7_"))]
+    dev_idx = _device_columns(fields)
     if not dev_idx:
         return {}
     out: dict = {}
-    for line in m.group(1).splitlines():
-        cells = line.split()
+    for cells in rows:
         if len(cells) < len(fields):
             continue
         try:
@@ -366,13 +869,69 @@ def read_aims(s: ReferenceSet) -> "dict[tuple[float, ...], tuple[float, float, f
     return out
 
 
+#: The device-column prefixes ChromIQ understands in a CGATS reference file.
+#: ``nCLR`` is how the seven-colour sets spell theirs; ``RGB`` is how the
+#: textile and 3D-DesignRGB exchange spaces spell theirs.
+_DEVICE_PREFIXES = ("CMYK", "RGB", "PC7", "7CLR", "nCLR", "CMY")
+
+
+def _device_columns(fields: "list[str]") -> "list[int]":
+    return [i for i, f in enumerate(fields)
+            if "_" in f and f.split("_", 1)[0].upper()
+            in tuple(x.upper() for x in _DEVICE_PREFIXES)]
+
+
+def _data_block(text: str) -> "tuple[list[str], list[list[str]]]":
+    """``(field names, data rows)`` from a CGATS / ISO 28178 file.
+
+    **The rows are counted, never taken from the header**, and the reason is
+    measured rather than defensive: Fogra's own ``FOGRA43.txt`` declares
+    ``NUMBER_OF_SETS 216`` over a data block of 1,617 rows and
+    ``NUMBER_OF_FIELDS 11`` over 48 fields (2026-09-10). A reader that believes
+    the header drops seven eighths of the file and then reports a confident
+    number computed from the rest.
+    """
+    m = re.search(r"BEGIN_DATA_FORMAT\s*\n(.*?)\nEND_DATA_FORMAT", text, re.S)
+    if not m:
+        return [], []
+    fields = m.group(1).split()
+    m = re.search(r"^BEGIN_DATA[ \t]*$\r?\n(.*?)^END_DATA", text, re.S | re.M)
+    if not m:
+        return fields, []
+    rows = [line.split() for line in m.group(1).splitlines() if line.split()]
+    return fields, rows
+
+
+def _header_value(text: str, keyword: str) -> str:
+    """A CGATS header line's quoted value, or "" when it is not there."""
+    m = re.search(rf"^{re.escape(keyword)}[ \t]+\"(.*?)\"\s*$",
+                  text, re.M | re.S)
+    return m.group(1).strip() if m else ""
+
+
 def paper_lab(s: ReferenceSet) -> "tuple[float, float, float] | None":
-    """The reference paper's L*a*b*: the patch with every channel at zero.
+    """The reference paper's L*a*b*: the patch with no ink on it.
 
     Read from the file rather than from ``SOURCE.json`` so that the number
     ChromIQ shows is the number Fogra published, even if the metadata drifts.
+
+    **WHICH PATCH THAT IS DEPENDS ON THE SPACE, and every bundled set being
+    CMYK hid it.** In a subtractive space no ink is every channel at zero. In
+    an additive one it is every channel at its MAXIMUM, and zero is the black
+    patch: Fogra publishes at least two RGB exchange sets (FOGRA58 textile and
+    the FOGRA61 beta, ``3D-DesignRGB``), and either of them can now arrive as a
+    file the user supplies. Reading zero there would have handed back
+    ``L* 11`` as a paper white and every substrate figure computed from it
+    would have been nonsense with no symptom but a large number.
     """
     aims = read_aims(s)
+    if not aims:
+        return s.paper_lab
+    if (s.device_space or "").upper().startswith("RGB"):
+        # the patch with every channel at ITS OWN column maximum
+        top = tuple(max(dev[i] for dev in aims) for i in range(len(
+            next(iter(aims)))))
+        return aims.get(top, s.paper_lab)
     for dev, lab in aims.items():
         if all(abs(v) < 1e-9 for v in dev):
             return lab
@@ -415,6 +974,11 @@ def can_fill(row_id: str, s: ReferenceSet, chart_device_space: str,
     if pairing is None:
         return False, REFUSE_UNKNOWN_ROW
     if pairing == "any":
+        # THREE ANSWERS, NOT TWO. See REFUSE_SUBSTRATE_UNKNOWN: "this is an
+        # exchange space" is a statement about the reference, and ChromIQ can
+        # make it only about a set whose entry in SOURCE.json says so.
+        if s.is_real_paper is None:
+            return False, REFUSE_SUBSTRATE_UNKNOWN
         if not s.is_real_paper:
             return False, REFUSE_NOT_A_PAPER
         return True, None

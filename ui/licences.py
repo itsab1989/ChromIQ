@@ -139,10 +139,17 @@ def reference_data_credits() -> "list[str]":
     rights holder and says in the same breath that naming a set is not a
     certification, because the grant requires both. An empty list means no
     reference data ships, which is its own honest answer.
+
+    **IT IS `bundled()`, NOT `available()`, AND THAT IS THE WHOLE POINT.** This
+    page is ChromIQ's statement about what ChromIQ ships and on whose terms,
+    and since 2026-09-20 a user may put their own newer file beside the
+    shipped ones. Such a file's provenance is a record of what arrived on this
+    machine, not something ChromIQ checked against the publisher, and listing
+    it here would put it under a heading that says otherwise.
     """
     try:
-        from workflow.reference_sets import available
-        return [s.credit_line for s in available()]
+        from workflow.reference_sets import bundled
+        return [s.credit_line for s in bundled()]
     except Exception as exc:            # noqa: BLE001 — a page, not a workflow
         log.warning("reference-set credits could not be read: %s", exc)
         return []
@@ -154,8 +161,8 @@ def reference_data_sources() -> "list[str]":
     eleven sentences."""
     out: "list[str]" = []
     try:
-        from workflow.reference_sets import available
-        for s in available():
+        from workflow.reference_sets import bundled
+        for s in bundled():
             if s.source and s.source not in out:
                 out.append(s.source)
     except Exception as exc:            # noqa: BLE001
@@ -169,8 +176,8 @@ def reference_data_terms() -> "list[tuple[str, str]]":
     paragraph is not a licence page, it is a wall."""
     seen: "dict[str, str]" = {}
     try:
-        from workflow.reference_sets import available
-        for s in available():
+        from workflow.reference_sets import bundled
+        for s in bundled():
             if s.source and s.source not in seen:
                 seen[s.source] = s.terms
     except Exception as exc:            # noqa: BLE001

@@ -708,18 +708,30 @@ _BUDGET = {
     # (21)** and each of the eleven others rises by exactly 8. RE-MEASURED with
     # this file's own `_english_echoes` on the catalogues this change leaves
     # behind, never adjusted upward.
+    # RE-MEASURED 2026-09-20, the Fogra reference-set upgrade path: a user may
+    # point ChromIQ at a newer Fogra file, per set, without a new ChromIQ.
+    # Twenty-eight keys in and two out, of which FOURTEEN are long enough and
+    # wordy enough for this detector to see -- the ⓘ card for the new section,
+    # the five sentences that refuse a file ChromIQ cannot read, the two that
+    # refuse an archive, the "you supplied this" provenance sentence, the one
+    # that says nothing in the file says whether it is a real paper, the
+    # archive-version line, the "nothing in that archive could be used" line
+    # and the "it has also changed" clause. German is translated by hand in the
+    # same change, so **de does not move (21)**, and each of the eleven others
+    # rises by exactly 14. COUNTED with this file's own `_english_echoes` on
+    # the catalogues this change leaves behind, never adjusted upward.
     "de": 21,
-    "es": 307,
-    "fr": 308,
-    "it": 307,
-    "ja": 307,
-    "nl": 307,
-    "no": 307,
-    "pl": 307,
-    "pt": 307,
-    "ru": 306,
-    "sv": 307,
-    "zh_CN": 306,
+    "es": 321,
+    "fr": 322,
+    "it": 321,
+    "ja": 321,
+    "nl": 321,
+    "no": 321,
+    "pl": 321,
+    "pt": 321,
+    "ru": 320,
+    "sv": 321,
+    "zh_CN": 320,
 }
 
 

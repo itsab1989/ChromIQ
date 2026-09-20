@@ -156,9 +156,21 @@ def test_pressing_each_button_really_runs(qapp_or_skip, tmp_path, monkeypatch):
     dlg = ReferenceValuesDialog()
     said: list = []
     dlg._say = said.append
+
+    def iso_row():
+        """The ISO row AS IT IS NOW. The rows are rebuilt when what a source
+        supplies changes, so a widget captured before a press is a widget that
+        may no longer be in the window; holding one and asserting on it is how
+        a guard ends up measuring something nobody can see."""
+        dlg._refresh()
+        return next((r for r in dlg._rows if r[0].key == "iso12647"), None)
+
     try:
-        src, state, forget = dlg._rows[0]
+        src, key, state, forget = iso_row()
+        assert key == "iso12647"
         assert not forget.isEnabled(), "nothing is supplied, so nothing to forget"
+        assert forget.isVisible() or not dlg.isVisible(), \
+            "the one-item source must still SHOW its Stop button"
         assert "Nothing supplied" in state.text()
 
         dlg._template(src)
@@ -167,11 +179,13 @@ def test_pressing_each_button_really_runs(qapp_or_skip, tmp_path, monkeypatch):
 
         dlg._install(src)
         assert cs.user_values_path().is_file(), "the second button installed nothing"
+        _s, _k, state, forget = iso_row()
         assert forget.isEnabled()
         assert "In use:" in state.text(), "the window does not say what is in use"
 
-        dlg._forget(src)
+        dlg._forget(src, "iso12647")
         assert not cs.user_values_path().is_file(), "the third button removed nothing"
+        _s, _k, state, forget = iso_row()
         assert not forget.isEnabled()
         assert len(said) == 3, said
     finally:
@@ -221,17 +235,58 @@ def test_the_report_limits_window_has_one_door_and_it_is_small(qapp_or_skip,
         dlg.close()
 
 
-def test_a_second_source_costs_no_button_in_the_report_limits_window():
-    """The whole point of the one door: Fogra's characterisation data joins
-    `sources()` and the Report limits window does not change at all."""
-    import inspect
+def test_a_second_source_costs_no_button_in_the_report_limits_window(
+        qapp_or_skip, tmp_path):
+    """The whole point of the one door, now that the second source is real.
 
-    from ui.dialogs import reference_values_dialog as rv
+    Fogra's reference data joined `sources()` on 2026-09-20, and this asks the
+    two questions that matter about that: the Report limits window still has
+    exactly ONE button for all of it, and the window behind the door really
+    grew a section rather than merely gaining a list entry.
 
-    src = inspect.getsource(rv.sources)
-    assert "iso_source()" in src
-    # the window builds a section per source, so a second entry is a section
-    assert "for src in sources():" in inspect.getsource(rv.ReferenceValuesDialog.__init__)
+    IT OPENS BOTH WINDOWS. The version this replaced read the SOURCE of
+    `sources()` and of `__init__` with `inspect.getsource` and asserted two
+    substrings appeared in them, which is the shape that let beta 26 ship three
+    buttons that raised `NameError` on every press. A guard that reads code
+    cannot fail when the code is right and the window is wrong.
+
+    MUTATION, run before this sentence was written: drop `fogra_source()` from
+    `sources()` and the section count goes 2 -> 1 and this goes red; add a
+    second button to the Report limits window and the door count goes 1 -> 2
+    and this goes red.
+    """
+    from PyQt6.QtCore import QSettings
+    from PyQt6.QtWidgets import QFrame, QPushButton
+    from core.settings import AppSettings
+    from ui.dialogs.reference_values_dialog import (ReferenceValuesDialog,
+                                                    sources)
+    from ui.dialogs.thresholds_dialog import ThresholdsDialog
+
+    keys = [s.key for s in sources()]
+    assert keys == ["iso12647", "fogra"], keys
+
+    s_ = AppSettings()
+    s_._qs = QSettings(str(tmp_path / "t.ini"), QSettings.Format.IniFormat)
+    th = ThresholdsDialog(s_)
+    try:
+        doors = [b for b in th.findChildren(QPushButton)
+                 if "reference" in (b.text() or "").lower()
+                 or "referenz" in (b.text() or "").lower()]
+        assert len(doors) == 1, [b.text() for b in doors]
+    finally:
+        th.close()
+
+    dlg = ReferenceValuesDialog()
+    try:
+        sections = [f for f in dlg.findChildren(QFrame)
+                    if f.frameShape() == QFrame.Shape.StyledPanel]
+        assert len(sections) == len(keys) == 2, len(sections)
+        assert set(dlg._item_boxes) == {"iso12647", "fogra"}
+        # and Fogra's section says something about EVERY set, not one line
+        fogra_rows = [r for r in dlg._rows if r[0].key == "fogra"]
+        assert len(fogra_rows) >= 11, len(fogra_rows)
+    finally:
+        dlg.close()
 
 
 def test_the_window_behind_the_door_explains_itself(qapp_or_skip):

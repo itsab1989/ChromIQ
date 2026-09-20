@@ -206,6 +206,27 @@ def compliance_dir() -> Path:
     return presets_dir().parent / "compliance"
 
 
+def reference_sets_dir() -> Path:
+    """Where a user's OWN copies of reference data live, beside their presets.
+
+    The second half of the same problem :func:`compliance_dir` solves, and a
+    different one from it. ChromIQ SHIPS reference data: eleven Fogra
+    characterisation files, under a grant that lets them travel. What it cannot
+    ship is a file Fogra publishes AFTER this build. Sebastian, 2026-09-20:
+    *"allow for a way to use newer values if they are released at some point in
+    the future without relying on an update to ChromIQ for it."*
+
+    So a user may put their own copy here and ChromIQ prefers it, per set, over
+    the one that shipped. The folder is kept apart from ``compliance`` because
+    the two answer different questions and must never be confused in a credit:
+    what is in ``compliance`` is a licence holder's own numbers that ChromIQ
+    has never seen, and what is here is a file whose provenance ChromIQ records
+    at import and does not vouch for. `workflow/reference_sets.py` keeps the
+    record.
+    """
+    return presets_dir().parent / "reference_sets"
+
+
 # User override for icc_install_dir (Settings → Paths, Knut #108). Set at
 # startup and on Settings save; platform_paths must not import core.settings
 # (settings imports from here), so the value is pushed in.

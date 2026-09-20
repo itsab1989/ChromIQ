@@ -238,6 +238,41 @@ def _decode_as_declared(raw: bytes) -> str:
     return raw.decode("utf-8", errors="replace")
 
 
+def decode_bytes(raw: bytes, *, what: str = "this file") -> str:
+    """:func:`read_text`'s codec ladder, for bytes that are not a file.
+
+    **BECAUSE A ZIP MEMBER HAS NO PATH.** Fogra publishes its characterisation
+    data as an archive, and ChromIQ reads a member of it without unpacking it
+    first, which means there is nothing for :func:`read_text` to open. The
+    alternative a caller reaches for is `raw.decode("utf-8", errors="replace")`,
+    which `tests/test_proc_text.py` bans by name: it silently turns whatever
+    the file really was into replacement characters and calls the result text.
+
+    Never raises: the caller has the bytes in hand and has to say something
+    about them. The line endings are translated exactly as text mode would.
+    """
+    refused = _not_text_at_all(raw)
+    if refused is not None:
+        log.warning("%s is not UTF-8: %s. Reading it as best as can be "
+                    "managed; the text may not be what whoever wrote it "
+                    "intended.", what, refused[0])
+        return _universal_newlines(_decode_as_declared(raw))
+    for i, enc in enumerate(read_order()):
+        try:
+            text = raw.decode(enc)
+        except UnicodeDecodeError:
+            continue
+        if i:
+            log.warning("%s is not valid UTF-8. It was read as %s instead, "
+                        "which is a guess: the file does not say what it is, "
+                        "so the text may not be what whoever wrote it "
+                        "intended.", what, enc)
+        return _universal_newlines(text)
+    log.warning("%s decodes as no known text encoding; reading it as UTF-8 "
+                "with replacement characters.", what)
+    return _universal_newlines(raw.decode("utf-8", errors="replace"))
+
+
 def read_text(path: str | os.PathLike[str], *, lenient: bool = False) -> str:
     """Read a text file, naming the encoding rather than inheriting one.
 

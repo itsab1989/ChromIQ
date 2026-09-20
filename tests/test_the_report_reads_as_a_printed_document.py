@@ -126,6 +126,14 @@ def test_a_filtered_report_still_says_it_is_filtered(tmp_path, qapp):
         "a report that leaves measurements out says nothing about it at all")
 
 
+#: The "this report left some out" note, which is the only thing this file's
+#: filtered/not-filtered guards judge. Spelled as a PHRASE and not as the bare
+#: word "covers": the verification sentence added in b17f5130 ends "The
+#: measurements it covers are listed under Report Scope", which filters nothing
+#: and turned a fixture guard red without either side being wrong.
+_COVERS_NOTE = re.compile(r"covers \d+ of the \d+ measurements")
+
+
 def test_the_count_is_this_projects_own_measurements(tmp_path, qapp):
     """Round 11: "This report covers 1 of the 2 measurements recorded for this
     run" was printed under "No. of Measurements: 1" on a run holding exactly
@@ -140,7 +148,7 @@ def test_the_count_is_this_projects_own_measurements(tmp_path, qapp):
     try:
         before = _plain(dlg._report_body_html(dlg._runs_for_report(),
                                               for_pdf=False))
-        assert "covers" not in before, (
+        assert not _COVERS_NOTE.search(before), (
             "the fixture already filters something; the check below would "
             "prove nothing")
         # A measurement of ANOTHER PROJECT, loaded beside it and LEFT OUT of
@@ -163,7 +171,7 @@ def test_the_count_is_this_projects_own_measurements(tmp_path, qapp):
         assert len(dlg._history) > len(dlg._runs_for_report()) or True
         after = _plain(dlg._report_body_html(dlg._runs_for_report(),
                                              for_pdf=False))
-        assert "covers" not in after, (
+        assert not _COVERS_NOTE.search(after), (
             "a measurement of another project made this one's report say it "
             "was filtered")
     finally:

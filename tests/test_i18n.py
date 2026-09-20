@@ -1115,18 +1115,34 @@ _IDENTICAL_TO_KEY = {
     # the English under the beta rule and each rises by exactly 9. COUNTED off
     # the catalogues this change leaves behind, with the expression the test
     # below uses, and never adjusted to make a red go green.
+    # RE-MEASURED 2026-09-20, the Fogra reference-set upgrade path: a user may
+    # point ChromIQ at a newer Fogra file, per set, without a new ChromIQ.
+    # TWENTY-EIGHT keys in and TWO out. The two that went are casualties of the
+    # same change and not of a rename elsewhere: the Reference values window's
+    # opening sentence, which said the data "cannot be shipped inside the
+    # program" and is now false of half of what the window covers, and "Use a
+    # file I filled in", which came back a moment later as `Source.pick_title`
+    # because deriving a dialog title by stripping "…" off a button label
+    # makes it invisible to `scripts/i18n_extract.py` and guesses at
+    # punctuation in thirteen languages.
+    #
+    # **German does not move (145)**: all twenty-eight are translated by hand
+    # in this change. The eleven others carry the English under the beta rule
+    # and each rises by exactly 28 - 2 = 26. COUNTED off the catalogues this
+    # change leaves behind, with the expression the test below uses, and never
+    # adjusted to make a red go green.
     "de": 145,
-    "es": 517,
-    "fr": 539,
-    "it": 528,
-    "ja": 503,
-    "nl": 544,
-    "no": 529,
-    "pl": 521,
-    "pt": 519,
-    "ru": 492,
-    "sv": 530,
-    "zh_CN": 497,
+    "es": 543,
+    "fr": 565,
+    "it": 554,
+    "ja": 529,
+    "nl": 570,
+    "no": 555,
+    "pl": 547,
+    "pt": 545,
+    "ru": 518,
+    "sv": 556,
+    "zh_CN": 523,
 }
 
 

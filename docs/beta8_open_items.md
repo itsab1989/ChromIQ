@@ -20382,3 +20382,222 @@ would reach.
   measured it.
 - not fixed here, and deliberately: it is outside the seven items of his
   review and the round that found it was told not to chase it.
+
+### B8-530 · FIXED · ChromIQ could only ever offer the Fogra files this build shipped
+- status: FIXED
+- blocks release: no
+- Sebastian, 2026-09-20: *"we could ship the most recent version and allow for
+  a way to use newer values if they are released at some point in the future
+  without relying on an update to ChromIQ for it. would this be possible?
+  maybe in the same way like we do it for the iso values?"* It was not: the
+  eleven bundled files were the only reference data `workflow/reference_sets.py`
+  could ever see, so a Fogra revision, or a set this build has never heard of,
+  needed a new ChromIQ.
+- Knut, comment 5746711909, settled the two questions behind it: *"build
+  'Verification only, through FROM PROFILE GAMUT.' first"*, and on the licence,
+  *"the first answer from FOGRA was positive and they confirmed it was free and
+  we were allowed to include them in our software."*
+- what is built: a set is a PLACE, not a file. ChromIQ's copy stands in it
+  until the user puts theirs there, per set, and "Stop using it" empties the
+  place again. A `.txt` or the `.zip` exactly as Fogra publishes it; the set is
+  read out of the file's own `FILE_DESCRIPTOR` first and its name second; the
+  copy is kept in `reference_sets_dir()` beside the presets, with a record of
+  what arrived, when, under what name and with what sha256.
+- **FOGRA61 is the case that makes it an upgrade path and not an override.** It
+  is still beta in Fogra's archive, ChromIQ ships nothing for it, and a design
+  that could only replace a shipped set could never hold it. Driven on screen
+  2026-09-20 with Fogra's own `FOGRA61_beta.txt`: the section goes from 11 rows
+  to 12 and the new row says "FOGRA61: your copy, added 2026-09-20".
+- pressed in a real window, both languages, `scripts/drive_fogra_reference_values
+  _onscreen.py`, proof in `~/Desktop/ChromIQ-beta29-proof/fogra-reference-sets/`:
+  7 of 7 photograph pairs pixel-identical, **0 exceptions** through a recording
+  `sys.excepthook`, and Fogra's own files (`FOGRA51_MW3_Subset.txt`,
+  `FOGRA61_beta.txt`, `MK3_Subsets_FOGRA39_until_FOGRA60.zip`) used throughout.
+  The archive install put 21 sets in force in one press.
+- evidence: test_a_newer_file_for_a_shipped_set_takes_over_and_keeps_its_condition,
+  test_a_set_chromiq_ships_nothing_for_can_arrive_from_the_user,
+  test_stop_using_it_drops_back_to_what_shipped,
+  test_a_zip_installs_every_set_in_it_and_says_so,
+  test_the_set_is_read_out_of_the_file_and_not_out_of_its_name,
+  test_rubbish_is_refused_at_the_door_and_told_why,
+  test_a_second_source_costs_no_button_in_the_report_limits_window
+
+### B8-531 · FIXED · The licence page would have claimed ChromIQ's own provenance for a file a user dropped in a folder
+- status: FIXED
+- blocks release: no
+- `ui/licences.py` states what ChromIQ SHIPS and on whose terms, and it read
+  `reference_sets.available()`. The moment `available()` could return a file
+  from the user's own folder, that page would have listed it under a heading
+  that says ChromIQ checked it against the publisher, which it cannot: all
+  ChromIQ witnessed is that a file arrived on this machine on a date.
+- the split is structural, not a wording choice. `bundled()` is the shipped
+  list and is what the licence page, the README's claim and
+  `test_every_bundled_file_is_byte_for_byte_the_one_fogra_published` all read;
+  `available()` is the chooser's list. `SOURCE.json` stays ChromIQ's provenance
+  record and `SUPPLIED.json` in the user's own folder is a separate record of
+  what it received. Installing anything writes nothing into the first.
+- the CREDIT is the same either way, and has to be: Fogra's grant is a
+  condition on the DATA, so a Fogra file the user downloaded carries the same
+  credit sentence. What is added is one more sentence saying who supplied it,
+  when, under what name, and that ChromIQ does not vouch for where it came from.
+- evidence: test_the_licence_page_lists_only_what_ships,
+  test_a_supplied_file_never_claims_chromiqs_own_provenance,
+  test_the_two_records_are_two_files_and_the_shipped_one_is_untouched,
+  test_a_supplied_file_that_changed_since_import_says_so
+
+### B8-532 · FIXED · `paper_lab` reads the BLACK patch as the paper white of an RGB reference set
+- status: FIXED
+- blocks release: no
+- `paper_lab` took "the patch with every channel at zero" as the substrate.
+  That is right in a subtractive space and exactly backwards in an additive
+  one, where zero is black and no ink is every channel at its maximum. Every
+  bundled set is CMYK, so nothing could see it.
+- it stopped being theoretical the moment a user could supply a file: Fogra
+  publishes at least two RGB exchange sets, FOGRA58 textile and the FOGRA61
+  beta. Measured on Fogra's own `FOGRA61_beta.txt`, 2026-09-20: the zero patch
+  is **L\* 11.0** and the maximum patch is **L\* 91.0**. A substrate ΔE00
+  computed from the first is nonsense with no symptom but a large number.
+- evidence: test_an_rgb_reference_takes_its_paper_from_the_maximum_not_from_zero
+
+### B8-533 · FIXED · "This is a colour exchange space" said about a file nobody had told ChromIQ anything about
+- status: FIXED
+- blocks release: no
+- `can_fill` had two answers for the substrate row, and needed three.
+  `REFUSE_NOT_A_PAPER` states a fact about the reference, and ChromIQ can only
+  state it about a set whose own entry in `SOURCE.json` records it. For a file
+  the user supplied there is no entry, `is_real_paper` defaulted to a boolean,
+  and whichever way it defaulted the app would print a false sentence in the
+  place a reader goes to find out why a row is empty.
+- `is_real_paper` is now `bool | None`, and `REFUSE_SUBSTRATE_UNKNOWN` says who
+  does not know: *"You supplied this reference, and nothing in the file says
+  whether it describes a real paper or a colour exchange space. ChromIQ leaves
+  the paper row empty rather than filling it from a guess."*
+- evidence: test_a_supplied_set_is_not_called_an_exchange_space_on_no_evidence
+
+### B8-534 · FIXED · The Reference values window opened 350 px taller than its content, and a third of it was empty
+- status: FIXED
+- blocks release: no
+- found by LOOKING at the first photograph rather than at the result JSON: the
+  window opened 936 px tall over about 580 px of content, with the Close button
+  alone at the bottom of a grey field.
+- the cause is measurable and is not the sections. A word-wrapped `QLabel`
+  reports a sizeHint of TWO lines at its own natural width, and the layout adds
+  those up whatever width the window is actually given. Measured with twelve
+  Fogra rows on screen: each row is **23 px** tall and claims **48**.
+- two changes, both narrow. A per-set line does not wrap, because it is a fixed
+  sentence of a set name, a version and a date with no path in it (`Supplied.
+  wraps`); the ISO line still does, because it carries a file path. And the
+  window sizes itself with `heightForWidth` at the width it opens at rather
+  than with `sizeHint`. Re-photographed: no dead space in either language.
+- evidence: test_a_second_source_costs_no_button_in_the_report_limits_window
+
+### B8-535 · FIXED · The driver that proved B8-510, B8-511 and B8-512 has been a SyntaxError since the day it was written
+- status: FIXED
+- blocks release: no
+- `scripts/adv30_the_reference_values_window.py` carries
+  `write_text(..., encoding="utf-8", encoding='utf-8')` in three places.
+  `compile()` refuses it: *"keyword argument repeated: encoding"*. The file has
+  never run since that edit, so the round-30 evidence three register items cite
+  cannot be re-run by anybody reading them.
+- worth being exact about how it hid: `ast.parse()` accepts it and only
+  `compile()` rejects it, so a syntax check written the obvious way says the
+  file is fine.
+- fixed, and the driver's `_rows` unpacking updated for the item key the window
+  gained. Re-run end to end 2026-09-20 on a real window: **`raised_total: []`**,
+  six boxes, every photograph pair identical, and the B8-511 scene still
+  correct (with `CHROMIQ_COMPLIANCE_ISO_FILE` set, "Stop using it" is disabled
+  and pressing it does nothing).
+- it also caught something real. It held a `QPushButton` across a refresh and
+  raised *"wrapped C/C++ object of type QPushButton has been deleted"*, which
+  is the window telling the truth: the rows are torn down and rebuilt after an
+  install or a removal, so a person's next click lands on the live button and a
+  driver has to re-fetch. That is the reason `_refresh_later` posts the rebuild
+  for after the click returns rather than doing it inside the handler.
+- evidence: test_pressing_each_button_really_runs
+
+### B8-536 · OPEN · A FOGRA verification preset cannot be built yet: two mechanisms do not exist
+- status: OPEN
+- blocks release: no
+- Part B of Knut's ruling is *"Verification only, through FROM PROFILE GAMUT"*,
+  and the path is measured rather than guessed at. Two things are missing and
+  neither is a small edit:
+  1. **Nothing lands a preset on the FROM PROFILE GAMUT module.** `_Ti1Preset`
+     has `engine` and `layout_recipe`, which flip the layout engine's check box
+     (`ui/tabs/tab_chart.py:10568`), and no field that names a MODULE. The only
+     two calls to `_switch_mode("gamut")` are in `_refresh_gamut_visibility`
+     (18537, 18543) and the button itself; every preset path calls
+     `_switch_mode("manual")`.
+  2. **The colour selector cannot take aims from outside.**
+     `gamut_target.select_gamut_targets(profile, count, margin, intent)` always
+     starts from `load_master_labs()`, ChromIQ's own bundled master set;
+     `master_path` only points it at a different FILE of the same kind. There
+     is no way in for a Fogra set's Lab aims, which is the whole idea.
+- what IS measured, so the names can be settled without guessing: see B8-537.
+- three design questions that belong to Knut and Sebastian before this is
+  built, and the first changes every page count in every name:
+  * **Does a FOGRA chart carry the 8 gamut-cube corner patches?**
+    `_GAMUT_CORNER_PATCHES = 8` is added to every FROM PROFILE GAMUT build. A
+    72-patch wedge becomes 80, which is no longer a whole number of 24-patch
+    strips, so the answer decides both the patch count in the name and whether
+    the last strip is full.
+  * **What happens to an aim the profile cannot reach?** A verification chart
+    that silently drops patches is not the reference set any more.
+  * **A 72-patch chart at 10 mm uses three strips of a sheet 18 columns wide**,
+    which is a quarter of the paper. Measured and photographed; it is what the
+    spec asks for, and Knut may want bigger patches instead.
+- evidence: none yet. Nothing is built, and the two missing mechanisms are
+  quoted above from the code that lacks them.
+
+### B8-537 · VERIFIED · The page count of every candidate FOGRA verification chart, measured by building it
+- status: VERIFIED
+- blocks release: no
+- *"I will confirm each one by building the chart before any name is fixed,
+  because a page count in a name that the layout then disagrees with is worse
+  than no page count."* Every number below came out of
+  `workflow.layout_engine.chart.build_from_recipe` on the real engine, with
+  `_I1_BASE` / `_I1_75_BASE` (the shipped i1Pro margins: top 38, right 6 or 4,
+  bottom 19, left 26 mm) on A4 Portrait.
+- **A STRIP IS A COLUMN of `area_rows` patches**, which is what "every strip is
+  a full strip" turns on, and it was measured rather than assumed: round one
+  saw the engine pad 102 to 120, 128 to 144 and 918 to 936, every one of them
+  up to a multiple of `area_rows`, and `len(res.strip_rects)` then confirmed
+  `ceil(patches / rows)` strips in every case.
+
+  | set | patches | grid | patch w | strips | white padding | **pages** |
+  |---|---:|---|---:|---:|---:|---:|
+  | FOGRA MW3 wedge | 72 | 18 x 24 | 9.91 mm | 3 | 0 | **1** |
+  | wedge + 8 corners | 80 | 18 x 20 | 9.91 mm | 4 | 0 | **1** |
+  | FOGRA55 MW7C | 102 | 18 x 17 | 9.91 mm | 6 | 0 | **1** |
+  | FOGRA55 + 8 | 110 | 18 x 22 | 9.91 mm | 5 | 0 | **1** |
+  | FOGRA58 textile | 128 | 18 x 16 | 9.91 mm | 8 | 0 | **1** |
+  | FOGRA58 + 8 | 136 | 18 x 17 | 9.91 mm | 8 | 0 | **1** |
+  | FOGRA61 3D-DesignRGB | 918 | 24 x 27 | 7.49 mm | 34 | 0 | **2** |
+  | FOGRA61 at 8 mm | 918 | 22 x 27 | 8.13 mm | 34 | 0 | **2** |
+  | full characterisation set | 1617 | 24 x 27 | 7.49 mm | 60 | 3 | **3** |
+- so **every 72-patch verification chart is ONE page**, and the eight names
+  proposed in comment 5746155638 that say `1page` for a 72-patch set are right.
+  The `A4-1617p-3pages` profiling names are right too. `A4-4884p-7pages` for
+  FOGRA55's full set was NOT measured and must not be fixed until it is.
+- evidence: `QT_QPA_PLATFORM=offscreen pytest -n auto` on the whole everyday
+  tier after this change set: **17045 passed**, 354 skipped, 4 xfailed, 2:10,
+  one inherited failure (B8-538). The page counts themselves are in
+  `~/Desktop/ChromIQ-beta29-proof/fogra-reference-sets/page-counts/page-counts.json`
+  with a rendered 72-patch sheet beside them.
+
+### B8-538 · OPEN · The everyday tier is RED at `b17f5130`, before this change set
+- status: OPEN
+- blocks release: no
+- `tests/test_the_report_reads_as_a_printed_document.py::test_the_count_is_this
+  _projects_own_measurements` fails with *"the fixture already filters
+  something; the check below would prove nothing"*. Reproduced in a clean
+  worktree at `b17f5130` with nothing of this change set in it, so it is
+  inherited and not caused here.
+- it is a guard noticing that its own fixture no longer sets up the state it
+  was written for, which is the honest failure mode and should not be silenced.
+  It belongs to whoever owns the Measurement Report stream.
+- two other tests failed once each under `-n auto` and passed alone and on the
+  next two full runs: `test_the_blank_asks_for_each_hexagon_once_per_strip` and
+  `test_a_user_preset_with_an_attached_chart_is_judged` (StopIteration).
+  Recorded because an intermittent failure nobody wrote down is one somebody
+  spends an hour on later.
+- evidence: none yet. Not this change set's, and not fixed here.
