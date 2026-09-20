@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (
     QDialogButtonBox,
     QFileDialog,
     QFrame,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -5805,16 +5806,42 @@ class TabChart(QWidget):
         # of the button and the frame edge, as done for other frames, such as
         # the 'Randomisation' or 'Layout' frames."* Those two set no margins at
         # all, so they get the style's own `PM_LayoutBottomMargin`, which is 9
-        # under Fusion; measured on screen, their last widget sits 13 px above
-        # their frame's bottom edge and this one's sat at 12. Nine here makes
-        # the three identical instead of nearly. The 4 at the TOP is left as
+        # under Fusion. Measured on screen 2026-09-20 with the app's own
+        # stylesheet loaded, all three frames now leave their last widget the
+        # SAME 10 px above the frame's bottom edge. The 4 at the TOP is left as
         # it was: Knut named the bottom edge, and raising the top would grow a
         # panel he has not asked to grow.
+        #
+        # **AND THE 9 WAS NEVER WHAT WAS WRONG.** Knut reported the overlap
+        # again on beta 26, after this margin had been changed for it. The
+        # cause was the button: at 42 px (see its own comment below) the frame
+        # needed 117 px, this panel is routinely given less than its minimum on
+        # a laptop display, and the frame absorbed 23 px of the shortfall — so
+        # the button's bottom edge sat 7 px BELOW the frame's own bottom line
+        # and the line was drawn through it. A short button needs 99 px and the
+        # shortfall drops to 5, which the frame's padding can give up without
+        # touching the gap. Measured both ways in a real window,
+        # `scripts/drive_k26_preset_button_geometry.py`.
         presets_col.setContentsMargins(8, 4, 8, 9)
         presets_col.setSpacing(6)
-        presets_row = QHBoxLayout()
+        # **A GRID, BECAUSE TWO ROWS HAVE TO LINE UP.** Knut, beta 26: *"Move
+        # the position of the button so that the left edge of the button is
+        # aligned with the left edge of the dropdown input box for the 'Select
+        # preset'."* Two independent QHBoxLayouts cannot do that: the second
+        # row knows nothing about how wide the first row's label came out, and
+        # measured on screen the button started 91 px to the LEFT of the combo,
+        # flush with the label. A QGridLayout shares its columns between the
+        # rows, so the alignment is a property of the layout and survives a
+        # language whose label is a different width. The button spans the
+        # combo's column and the three icon buttons' columns, left-aligned, so
+        # it starts exactly where the combo starts and adds no width of its own
+        # to the combo's column beyond what it needs.
+        presets_row = QGridLayout()
+        presets_row.setHorizontalSpacing(6)
+        presets_row.setVerticalSpacing(6)
+        presets_row.setColumnStretch(1, 1)
         presets_col.addLayout(presets_row)
-        presets_row.addWidget(QLabel(tr("Select preset:"), w))
+        presets_row.addWidget(QLabel(tr("Select preset:"), w), 0, 0)
         self._preset_combo = _CappedComboBox(w)
         # Long built-in preset names must not stretch the row and squeeze the
         # +/−/folder buttons: ignore the combo's content width, let it take only
@@ -5837,7 +5864,7 @@ class TabChart(QWidget):
         # maxVisibleItems too for platforms that do honour it.
         self._preset_combo.setMaxVisibleItems(20)
         self._preset_combo.addItem(tr("none"), userData=None)
-        presets_row.addWidget(self._preset_combo, stretch=1)
+        presets_row.addWidget(self._preset_combo, 0, 1)
         self._preset_add_btn = QPushButton(w)
         self._preset_add_btn.setObjectName("icon_btn")
         self._preset_add_btn.setFixedSize(28, 28)
@@ -5864,9 +5891,9 @@ class TabChart(QWidget):
         self._preset_reveal_btn.clicked.connect(
             lambda: reveal_in_file_manager(tab_dir("create_chart"))
         )
-        presets_row.addWidget(self._preset_add_btn)
-        presets_row.addWidget(self._preset_del_btn)
-        presets_row.addWidget(self._preset_reveal_btn)
+        presets_row.addWidget(self._preset_add_btn, 0, 2)
+        presets_row.addWidget(self._preset_del_btn, 0, 3)
+        presets_row.addWidget(self._preset_reveal_btn, 0, 4)
         presets_row.addWidget(TooltipButton(
             tr("Manual Presets"),
             tr("Save and recall named snapshots of all Manual mode settings.\n\n"
@@ -5886,14 +5913,13 @@ class TabChart(QWidget):
             "Presets persist between sessions.").format(manager=file_manager_name()),
             w,
             min_width=600,
-        ))
+        ), 0, 5)
 
         # #182, Knut, beta 22: *"the function button I specified in Create
         # Chart, below the preset selection dropdown, which opens a window
         # listing all the presets that fulfil the requirements for
         # verification on a specified report type and judge against
         # selection."*
-        verify_row = QHBoxLayout()
         # **"CAN BE USED FOR", NOT "CAN BE VERIFIED".** Knut, beta 25: *"The
         # name of the button is not logical, because it is not the preset that
         # is being verified. Better suggestion: 'Which Presets Can Be Used for
@@ -5905,33 +5931,40 @@ class TabChart(QWidget):
         self._preset_verify_btn = QPushButton(
             tr("Which presets can be used for verification?"), w)
         self._preset_verify_btn.setObjectName("preset_verify_btn")
-        # **SHORTER THAN THE DEFAULT, AND MEASURED TO BE.** Basti, on the
-        # shipped beta: *"the which presets can be verified button ... is very
-        # big. at least the hight could be reduced."*
+        # **`setFixedHeight` CANNOT MAKE A BUTTON SHORT IN THIS APP, AND THIS
+        # ONE WAS 42 PX ON SCREEN WHILE TWO COMMITS CLAIMED 22.** Knut, beta
+        # 26: *"The button is still too tall, and not reduced in height as I
+        # previously very thoroughly gave examples how it should look."* He is
+        # right, and he had been right the first time too.
         #
-        # THE FIRST ANSWER MADE IT TALLER. It set
-        # `padding: 1px 14px; min-height: 22px; max-height: 22px` through a
-        # stylesheet, on the belief that a default `QPushButton` under Fusion
-        # is 32 px here. Photographed in the real window with beta 22's own
-        # button inserted beside it (round 27b,
-        # `shots/crop-03-old-and-new-height.png`): the default is **24 px**,
-        # and the "shorter" button came out **26**. A stylesheet's `min-height`
-        # applies to the CONTENT rectangle, so Qt adds the padding and the
-        # style's own frame on top of it and the widget ends up bigger than the
-        # number in the rule. The panel grew by 2 px in answer to a request to
-        # shrink it.
+        # `ui/styles.py` sets `QPushButton { padding: 6px 18px; min-height:
+        # 28px; }` for the whole app, Qt's stylesheet style folds that into
+        # `minimumSizeHint` (28+6+6+1+1 = 42), and a layout honours a minimum
+        # size hint over a fixed height — the finding of round 30, recorded on
+        # `SMALL_BTN_QSS` in `ui/dialogs/reference_values_dialog.py`. The 22
+        # here was measured by a driver that never called
+        # `ui/theme.apply_appearance`, so the app's own stylesheet was not
+        # loaded and the fixed height held; under the stylesheet every user
+        # actually runs, this button was 42 px against 24 for both of the
+        # controls Knut named. Measured on screen and photographed,
+        # `scripts/drive_k26_preset_button_geometry.py`, button-before.
         #
-        # A widget height is not a suggestion, so the height is set on the
-        # widget: 22 px, four less than the stylesheet gave and two less than
-        # beta 22's. The label needs 15 px of line height in the app's own
-        # Menlo/uppercase button font (measured), so nothing is clipped, and
-        # `ButtonFontFilter` still owns the WIDTH, which is the dimension that
-        # must never be pinned.
-        self._preset_verify_btn.setFixedHeight(22)
+        # The declaration below is "Reset to preset"'s own, one of the two
+        # buttons Knut pointed at, so the height is not a number of mine: it is
+        # the same rule, and it measures the same 24 px. `ButtonFontFilter`
+        # still owns the WIDTH — it appends its `min-width` rule to this
+        # stylesheet — which is the dimension that must never be pinned.
+        self._preset_verify_btn.setStyleSheet(
+            "QPushButton { min-height: 16px; padding: 3px 10px; }")
         self._preset_verify_btn.clicked.connect(
             self._open_preset_verification_window)
-        verify_row.addWidget(self._preset_verify_btn)
-        verify_row.addStretch()
+        # Column 1 is the combo's column, so the button's left edge IS the
+        # combo's left edge; the span reaches the icon buttons' columns so a
+        # long label costs the combo's column nothing, and AlignLeft keeps the
+        # button its own width instead of stretching it across the frame.
+        presets_row.addWidget(
+            self._preset_verify_btn, 1, 1, 1, 4,
+            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self._preset_verify_help = TooltipButton(
             tr("Which presets can be used for verification?"),
             tr("Opens a list of every chart preset, marked against the "
@@ -5954,8 +5987,7 @@ class TabChart(QWidget):
             w,
             min_width=560,
         )
-        verify_row.addWidget(self._preset_verify_help)
-        presets_col.addLayout(verify_row)
+        presets_row.addWidget(self._preset_verify_help, 1, 5)
         # Knut's rule: this pair belongs to a verification run only.
         self._sync_preset_verify_visibility()
         layout.addWidget(presets_grp)

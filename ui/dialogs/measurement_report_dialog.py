@@ -976,13 +976,51 @@ _CHART_HELP = (
 
 def _types_and_pairing_help() -> str:
     """The six types with their own one-line descriptions, then the two shared
-    paragraphs. Built from the menu data so the help cannot fall behind it."""
-    from workflow.measurement_report import REPORT_TYPE_MENU
-    lines = [f"{tr(name)}: {tr(blurb)}"
-             for _tid, name, blurb, _built in REPORT_TYPE_MENU]
-    return ("\n\n" + tr("What each one is for") + "\n" + "\n".join(lines)
+    paragraphs. Built from the menu data so the help cannot fall behind it.
+
+    **ONE BULLET PER OPTION (B8-525).** Knut, beta 26: *"The report type and
+    judged agains help text need to be more organised with bullets for each
+    option."* The lines were already one per type; what they lacked was the
+    mark that says so, and the room a blank line gives each of them.
+
+    **AND THE COLOUR SUMMARY SAYS WHAT IT CANNOT DO.** Same review: *"If the
+    one page 'Colour summary' only can contain ONE measurement, that is not
+    specified anywhere, and it that is correct, it needs to be specified in the
+    help text."* It can hold one, it has never held more, and it has no
+    detailed section -- so the bullet says all three, where he looked for it.
+    """
+    from workflow.measurement_report import (REPORT_TYPE_MENU,
+                                             REPORT_TYPE_SUMMARY)
+    one_page = tr("This one is about a single measurement: the sheet this "
+                  "window is open on. While it is chosen, “Show all "
+                  "measurement runs” and the list of included measurements "
+                  "are fixed to that sheet, and there is no detailed section, "
+                  "because the whole report is one page to print and hand "
+                  "over with a job.")
+    lines = []
+    for tid, name, blurb, _built in REPORT_TYPE_MENU:
+        line = "\u2022 " + f"{tr(name)}: {tr(blurb)}"
+        if tid == REPORT_TYPE_SUMMARY:
+            line += " " + one_page
+        lines.append(line)
+    return ("\n\n" + tr("What each one is for") + "\n\n"
+            + "\n\n".join(lines)
             + "\n\n" + tr(_WHEN_HELP)
             + "\n\n" + tr(_PAIRING_HELP) + "\n\n" + tr(_CHART_HELP))
+
+
+def _sets_help() -> str:
+    """Every limit set, one bullet each, from the catalogue that defines them.
+
+    The other half of B8-525. The "Judged against" help described what a limit
+    set IS and what the two controls beside it do, and never listed the sets a
+    reader is choosing between; those sentences existed only as the pulldown's
+    per-row tooltips, which a reader has to hover one at a time to collect.
+    """
+    from workflow.compliance_sets import SETS
+    lines = ["\u2022 " + f"{tr(s.label)}: {tr(s.blurb)}"
+             for s in SETS if s.blurb]
+    return ("\n\n" + tr("What each set is") + "\n\n" + "\n\n".join(lines))
 
 
 class MeasurementReportDialog(QDialog):
@@ -1299,12 +1337,15 @@ class MeasurementReportDialog(QDialog):
         # the CONTENT in _size_profile_list: small with few rows, capped
         # (never eats the report below it) once there are many, with an
         # internal scrollbar past the cap either way.
-        self._profile_list.setToolTip(tr(
+        #: The list's own sentence, kept so that the one-page summary can put
+        #: its own in front of it and give this one back (B8-523).
+        self._list_tooltip = tr(
             "The profiles whose measurements this report covers, with one row "
             "per dated run underneath. Untick a run to leave it out of the "
             "trend, the tables and the PDF — nothing is changed on disk, and "
             "ticking it brings it straight back. Select a profile row and use "
-            "“Remove Profile's Measurements…” to drop the whole profile."))
+            "“Remove Profile's Measurements…” to drop the whole profile.")
+        self._profile_list.setToolTip(self._list_tooltip)
         # **THE SELECTED ROW IS THE WINDOW'S OWN GREEN, NOT THE APP'S CYAN.**
         # Basti, 2026-09-18, on a photograph of this very list: *"when i click
         # the demo switching in the list it gets a cyan overlay. should be the
@@ -1562,19 +1603,28 @@ class MeasurementReportDialog(QDialog):
         #: label of its own is what pushed this window's bottom off an 800 px
         #: screen, twice.
         self._saved_hint = QLabel(self)
-        self._saved_hint.setWordWrap(False)
+        # Wrapped to TWO lines by `_wrap_beside_the_pulldown` (B8-524), never
+        # to three: the cap is what keeps a word-wrapped label from asking for
+        # a height the 800 px screen has not got.
+        self._saved_hint.setWordWrap(True)
         self._saved_hint.setStyleSheet(_faint_label_css(
             resolve_mode(settings.get("appearance", "auto"))))
         self._saved_hint_full = ""
         head.addWidget(self._saved_hint, 1)
         #: Why Delete is refused, when it is. Same one-line treatment.
         self._saved_note = QLabel(self)
-        self._saved_note.setWordWrap(False)
+        self._saved_note.setWordWrap(True)
         self._saved_note.setStyleSheet(_faint_label_css(
             resolve_mode(settings.get("appearance", "auto"))))
         self._saved_note_full = ""
         head.addWidget(self._saved_note, 1)
-        head.addStretch(1)
+        # **AND NO STRETCH AFTER THEM (B8-524).** A stretch of its own took a
+        # third of the row while the sentence beside it was being shortened to
+        # fit: measured at 1480 px, the label had 247 px of a row with about
+        # 700 in it, so even an 80-character sentence had to lose its end.
+        # Only one of the two labels is ever visible, it carries stretch 1, and
+        # the grid column it sits in already takes the window's slack, so the
+        # stretch bought nothing and cost the text.
         # **AND IT SITS WITH THE PULLDOWN, NOT ABOVE IT.** With a stretch only
         # BELOW it, this row was pinned to the top of its column while the
         # pulldown beside it is centred between the two stacked buttons, so the
@@ -1836,6 +1886,7 @@ class MeasurementReportDialog(QDialog):
                "A measurement that is not in a ChromIQ project (an imported "
                "file) is judged with the default set for this session only; "
                "nothing is stored for it.")
+            + _sets_help()
             + "\n\n" + tr(_PAIRING_HELP) + "\n\n" + tr(_CHART_HELP),
             self, min_width=460, color=SPEC_GREEN))
         judged_row.addStretch(1)
@@ -2866,6 +2917,7 @@ class MeasurementReportDialog(QDialog):
             # after, so a row says WHICH measurement the sentence below the
             # buttons is about. See `_scale_label`.
             from ui.measurement_filing import the_colour_scale_tag
+            _unticked = self._rows_drawn_unticked()
             for si, s in enumerate(self._sources):
                 n = len(s["runs"])
                 self._profile_list.addItem(
@@ -2882,7 +2934,7 @@ class MeasurementReportDialog(QDialog):
                     item.setFlags(Qt.ItemFlag.ItemIsEnabled
                                   | Qt.ItemFlag.ItemIsUserCheckable)
                     item.setCheckState(
-                        Qt.CheckState.Unchecked if key in self._hidden_runs
+                        Qt.CheckState.Unchecked if key in _unticked
                         else Qt.CheckState.Checked)
                     self._profile_list.addItem(item)
                     self._list_rows.append(("run", si, key))
@@ -2978,6 +3030,81 @@ class MeasurementReportDialog(QDialog):
         lay = self.layout()
         if lay is not None:
             lay.activate()
+
+    def _draw_the_row_ticks(self) -> None:
+        """Put `_hidden_runs` on the screen, without rebuilding the list.
+
+        **THE TICK MARKS AND THE SET BEHIND THEM COULD DISAGREE, AND THE
+        DOCUMENT BELIEVED THE SET (B8-521).** Only `_rebuild_from_sources`
+        ever drew a row's tick, and it is the one door that re-reads the files;
+        every OTHER place that assigns `_hidden_runs` -- choosing "New
+        report…", loading a document, the page adopting the document Generate
+        just wrote -- assigned it and repainted through `_refresh`, which
+        touches the report body and the charts and never the list.
+
+        So the list went on showing the PREVIOUS narrowing while the code
+        believed the new one. Measured on Knut's own
+        `Report-Limits-Threshold-Series` run 1, 11 dated verifications, in a
+        real window: after Generate the list showed 11 ticks over a
+        `_hidden_runs` of 10, and choosing "New report…" showed 1 tick over a
+        `_hidden_runs` of none. From there every later tick is read against the
+        wrong baseline, because `QListWidgetItem.setCheckState` to the value a
+        row already holds emits nothing: a user unticking a row that the list
+        draws as ticked and the set already calls hidden changes neither.
+
+        That is Knut's beta-26 fault in both directions at once: *"Only the
+        measurements ticked at the time I press Generate Report shall be
+        stored as part of the report"* -- ticking three of eleven produced a
+        report of ten.
+        """
+        if getattr(self, "_building_list", False):
+            return
+        unticked = self._rows_drawn_unticked()
+        self._building_list = True
+        try:
+            for i, (kind, _si, key) in enumerate(self._list_rows):
+                if kind != "run" or key is None:
+                    continue
+                item = self._profile_list.item(i)
+                if item is None:
+                    continue
+                want = (Qt.CheckState.Unchecked if key in unticked
+                        else Qt.CheckState.Checked)
+                if item.checkState() != want:
+                    item.setCheckState(want)
+        finally:
+            self._building_list = False
+
+    def _rows_drawn_unticked(self) -> "set[str]":
+        """Which rows the LIST shows unticked, which is not always
+        `_hidden_runs`.
+
+        **THE LIST HAS TO SHOW WHAT GENERATE WILL STORE (B8-523).** On a
+        one-page colour summary the document is about ONE sheet whatever the
+        rows say (`_one_measurement`), so drawing eleven ticks over a document
+        of one is the fault Knut reported: *"the report name ended with 'One
+        date' … the 'Included Measurements in report' box only had one (the
+        last one) ticked"*, after he had ticked all eleven himself.
+
+        It is a DRAWING rule and not a narrowing: `_hidden_runs` is left
+        exactly as the user set it, so the trend charts, the tables and the
+        other report types keep the whole history, and choosing T1 and
+        choosing away from it again gives the ticks back untouched. The list
+        is disabled while T1 is chosen, so nothing a user can press disagrees
+        with it.
+        """
+        from workflow.measurement_report import (REPORT_TYPE_SUMMARY,
+                                                 report_type_is_built)
+        base = set(self._hidden_runs)
+        try:
+            tid = self._report_type_now()
+        except Exception:                                  # noqa: BLE001
+            return base
+        if tid != REPORT_TYPE_SUMMARY or not report_type_is_built(tid):
+            return base
+        keys = {k for kind, _si, k in self._list_rows if kind == "run" and k}
+        subject = self._run_key(self._report) if self._report else ""
+        return (keys - {subject}) if subject in keys else base
 
     def _update_source_buttons(self) -> None:
         self._remove_btn.setEnabled(bool(self._profile_list.selectedItems()))
@@ -3520,14 +3647,31 @@ class MeasurementReportDialog(QDialog):
         cannot produce a document of several. The flag is computed from the
         member list, so if that behaviour ever changes this says the right
         word without being touched.
+
+        **AND IT IS COMPUTED FROM THE MEMBERS ALONE NOW (B8-522).** It asked
+        the tick box and `_hidden_runs` for "all of them", which are two
+        answers to a question the member list already answers, and they
+        disagreed with it in both directions. Knut, beta 26, on a document of
+        ten of eleven measurements named *"All dates"*: *"This is wrong."* And
+        on a one-page summary of one measurement named *"One date"* after he
+        had ticked all eleven -- the same disagreement the other way up, with
+        the flag right and the ticks wrong (see `_draw_the_row_ticks`).
+
+        "All dates" now means exactly what it says: every dated measurement in
+        the list is in the document. Because it is derived from what the
+        document COVERS, an Update that changes the membership changes the
+        flag with it, which is the other half of his sentence: *"The 'One date'
+        tag also needs to be updated if I update the report to contain other
+        measurements included."*
         """
         from workflow.measurement_report import (SCOPE_ALL_DATES,
                                                  SCOPE_MULTIPLE_DATES,
                                                  SCOPE_ONE_DATE)
         if len(members) <= 1:
             return SCOPE_ONE_DATE
-        all_runs, _detail = self._tick_state()
-        if all_runs and not self._hidden_runs:
+        here = {self._run_key(r) for r in self._history}
+        covered = {str(m.get("key") or "") for m in members}
+        if here and here <= covered:
             return SCOPE_ALL_DATES
         return SCOPE_MULTIPLE_DATES
 
@@ -4403,36 +4547,35 @@ class MeasurementReportDialog(QDialog):
                 run is not None and not several
                 and ((may_unlock(run, allow) and has_measured_verification(run))
                      or bool(lim.unlocked)))     # F5: re-locking is always allowed
-            # THE FOURTH CONTROL, AND IT WAS SAYING THE OPPOSITE OF THE OTHER
-            # THREE. An unticked "Unlock this run's limits" MEANS "this run is
-            # locked", and greyed means "and you cannot change that". On a run
-            # with one dated verification, or on one that was never bound, the
-            # pulldown is live, the button says "Edit limits…" and the column
-            # is editable, while this box sat dim and unticked beside them
-            # saying the run was locked. A challenge round photographed the
-            # four together.
+            # **KNUT PUT THIS CONTROL BACK, AND IT NEVER DISAPPEARS AGAIN
+            # (B8-520).** 2026-09-20, reviewing beta 26: *"In the Measurement
+            # Report window, relating to the new layout of buttons and
+            # elements, you removed the 'Unlock this run's limits' checkbox and
+            # its help icon. They should still be there and work as before."*
+            # And, on the state two loaded runs put the window in: *"the
+            # checkbox 'Unlock this run's limit set' was suddenly gone …
+            # 'Unlock this run's limit set' should be available."*
             #
-            # There is nothing to unlock on such a run, so the honest thing is
-            # not to offer the control at all. It comes back the moment the run
-            # has the history that a lock would apply to, which is also the
-            # moment its wording becomes true.
-            # SHOWN ONLY WHERE IT SAYS SOMETHING TRUE.
-            # It was widened to every bound run so that un-ticking at one dated
-            # verification could not make it vanish. That put it back to
-            # contradicting the other three controls in the commonest state
-            # there is: with the shipped preference off, a run one measurement
-            # old is bound and not unlocked, so the box sat VISIBLE, UNTICKED
-            # AND GREYED, which reads "this run is locked and you cannot change
-            # that", beside a live pulldown, an "Edit limits…" button and a
-            # column of live spin boxes. That is the state every run is in after
-            # its first verification.
+            # It was not the beta-25 re-layout that took it away, and that is
+            # reported rather than repeated: the widget is built and added to
+            # `judged_row` in both betas, byte for byte, and the line below is
+            # the one that hid it. It has hidden it since round 6, on this
+            # reasoning:
             #
-            # The vanishing it was meant to fix cannot happen any more: the flag
-            # is no longer set on a run the lock does not reach, so there is no
-            # ticked box at one date to un-tick.
-            self._unlock_check.setVisible(
-                run is not None and not several
-                and (locked or bool(lim.unlocked)))
+            #   an unticked "Unlock this run's limits" MEANS "this run is
+            #   locked", and greyed means "and you cannot change that"; on a
+            #   run with one dated verification the pulldown is live, the
+            #   button says "Edit limits…" and the column is editable, so the
+            #   box sat dim beside three live controls saying the opposite of
+            #   all of them.
+            #
+            # That reading of a greyed box is ours; his instruction is his, and
+            # it wins. A control that vanishes is the worse of the two evils --
+            # a user cannot ask why a control is grey if it is not there -- so
+            # the box is ALWAYS on screen and the honesty problem is answered
+            # where it belongs, in a tooltip that says what would have to be
+            # true for it to be usable.
+            self._unlock_check.setVisible(True)
             # F6: the button's text changes, so its width must follow it
             self._limits_btn.setMinimumWidth(self._limits_btn.sizeHint().width())
             self._set_combo.setEnabled(not several and (run is None or not locked))
@@ -4465,11 +4608,64 @@ class MeasurementReportDialog(QDialog):
                        if self._inside_a_project() else
                        tr("This measurement is not in a ChromIQ project, so "
                           "the choice is not stored anywhere."))
-            for w in (self._set_combo, self._unlock_check, self._limits_btn):
+            # **AND WHY IT IS NOT THE PREFERENCES DEFAULT, WHEN IT IS NOT
+            # (B8-526).** Knut, beta 26: *"When selecting 'New report…' in
+            # Report shown, then the Judged against is set to Quick check,
+            # which is not set as the default limit set in the Report Limits
+            # window."* He is reading a run that is BOUND to another set, and
+            # §5 of `measurement_report_limits.md` is why: the set belongs to
+            # the profile run, and the Preferences default is what a run that
+            # is not bound yet takes. Measured on his own demo pack: 24 of its
+            # 39 runs are bound to a set other than the Preferences default.
+            #
+            # Whether "New report…" should override that is HIS call and is
+            # asked of him rather than answered here -- a report judged against
+            # a set its run is not bound to is the one thing this window must
+            # never file. What the window can do without a ruling is stop being
+            # silent about it.
+            if (self._loaded_doc_id == NEW_REPORT_KEY and run is not None
+                    and not several and lim.bound
+                    and lim.set_id != self._default_set_id()):
+                from workflow.compliance_sets import SET_BY_ID
+                d = SET_BY_ID.get(self._default_set_id())
+                tip = tr(
+                    "This run is judged against {set}, which was stored on the "
+                    "run at its first verification so that every dated "
+                    "verification of the run stays comparable. The default for "
+                    "a run that has none is {default}, in Preferences, "
+                    "Reports.").format(
+                        set=lim.set_label,
+                        default=tr(d.label) if d else self._default_set_id())
+            for w in (self._set_combo, self._limits_btn):
                 w.setToolTip(tip)
+            # **AND THE UNLOCK BOX SAYS WHY IT IS GREY, IN ITS OWN WORDS.** It
+            # shares the other two controls' sentence only when there is no
+            # more specific one: a box that is always on screen has to answer
+            # "why can I not press this?" wherever it is dim, which is the
+            # whole of what hiding it used to answer.
+            self._unlock_check.setToolTip(
+                self._why_the_unlock_box_is_greyed(run, several, locked, lim)
+                or tip)
             self._sync_type_combo(run, several)
             self._sync_saved_reports(run)
             self._set_strip(self._mismatch_text())
+            # **AND THE ROWS ARE DRAWN HERE, IN THE ONE PLACE EVERY DOOR GOES
+            # THROUGH (B8-521).** Only `_rebuild_from_sources` used to draw a
+            # tick, and it is the one door that re-reads the files; every
+            # other door that assigns `_hidden_runs` -- "New report…", loading
+            # a document, the page adopting the document Generate just wrote
+            # -- repainted through `_refresh` or `_settings_touched`, both of
+            # which touch the body and the charts and never the list. So the
+            # list went on showing the PREVIOUS narrowing while the code
+            # believed the new one, and because `setCheckState` to a value a
+            # row already holds emits nothing, every later tick was read
+            # against the wrong baseline: Knut ticked three of eleven and got
+            # a document of ten.
+            #
+            # It sits AFTER `_sync_type_combo` because the report type decides
+            # what the list draws (`_rows_drawn_unticked`), and inside
+            # `_syncing_limits` because it must not be read as a user's tick.
+            self._draw_the_row_ticks()
         finally:
             self._syncing_limits = False
 
@@ -5219,6 +5415,73 @@ class MeasurementReportDialog(QDialog):
         self._delete_report_btn.setEnabled(bool(entry and not why))
         self._set_saved_note(why)
 
+    def _wrap_beside_the_pulldown(self, label, full: str) -> None:
+        """Put *full* on the line beside "Report shown", wrapped to TWO lines.
+
+        **KNUT, BETA 26 (B8-524).** *"To the right of the Report shown and its
+        help icon, there is a text 'The only saved report of a dated....'. This
+        text is cut off and the window must be far too wide to see the whole
+        text. It is better that the text is wrapped down to a second line, and
+        then horizontally centred agains the Report shown input dropdown box,
+        so that the text is always aligned."*
+
+        Two things, and the second is already built: `side_col` carries a
+        stretch above and below this row, so whatever height it takes is
+        centred on the pulldown's own line. A one-line sentence and a two-line
+        one therefore sit on the same axis, which is his *"always aligned"*.
+
+        What is new is the wrap, and it is capped at two lines ON PURPOSE. A
+        word-wrapped `QLabel` asks for whatever height its text needs at a
+        width the layout has not decided yet, and that is what pushed this
+        window's bottom off an 800 px screen twice (see `_type_blurb`). So the
+        height is pinned to two lines, the text is shortened until it fits
+        them, and the whole sentence stays in the tooltip as it always has.
+        """
+        from PyQt6.QtGui import QFontMetrics
+        fm = QFontMetrics(label.font())
+        two = 2 * fm.lineSpacing() + 2
+        # **THE ROOM IS THE LABEL'S OWN WIDTH ONCE IT HAS ONE**, and the
+        # window's only before the first layout. `_set_saved_note` measured
+        # `self.width() - label.x() - 40` because a label's width is zero
+        # before the layout has run -- true, and wrong the moment it is not:
+        # this label shares its row with a second label and a stretch, so the
+        # layout gives it far less than the window has left, and a sentence
+        # fitted to the window's room wraps to THREE lines in the label.
+        # Photographed on screen at 1480 px with the two-line cap already in
+        # place: the third line was clipped in half and drawn over the row
+        # above it.
+        room = label.width() if label.width() > 20 else max(
+            160, self.width() - label.x() - 40)
+        label.setWordWrap(True)
+        label.setMaximumHeight(two)
+        label.setMinimumHeight(0)
+
+        # **ASK THE WIDGET, NOT THE FONT.** A `QFontMetrics.boundingRect` over
+        # the label's width said two lines while the label drew THREE and
+        # clipped the last one: this label carries a stylesheet
+        # (`_faint_label_css`), so its own padding comes off the width before
+        # the text is laid out, and the font metric knows nothing about that.
+        # `QLabel.heightForWidth` is the label's own answer and includes it.
+        # Photographed both ways before this line was written.
+        def _fits(text: str) -> bool:
+            label.setText(text)
+            return label.heightForWidth(room) <= two
+
+        if _fits(full):
+            label.setToolTip(full)
+            return
+        # The longest prefix that still fits two lines, found by halving rather
+        # than by trimming a character at a time: this runs on every resize.
+        lo, hi = 0, len(full)
+        while lo < hi:
+            mid = (lo + hi + 1) // 2
+            if _fits(full[:mid] + "…"):
+                lo = mid
+            else:
+                hi = mid - 1
+        label.setText(full[:lo].rstrip() + "…")
+        label.setToolTip(full)
+
     def _set_saved_note(self, full: str) -> None:
         """Why Delete is refused, on one line, with the whole of it as tooltip.
 
@@ -5241,12 +5504,11 @@ class MeasurementReportDialog(QDialog):
             self._saved_note.setVisible(False)
             return
         self._saved_note.setVisible(True)
-        from PyQt6.QtGui import QFontMetrics
-        fm = QFontMetrics(self._saved_note.font())
-        room = max(120, self.width() - self._saved_note.x() - 40)
-        self._saved_note.setText(
-            fm.elidedText(full, Qt.TextElideMode.ElideRight, room))
-        self._saved_note.setToolTip(full)
+        # TWO LINES, CENTRED ON THE PULLDOWN (B8-524). This is the label Knut
+        # photographed cut off: *"The only saved report of a dated…"* is the
+        # Delete refusal, and it is the longer of the two sentences that share
+        # this row.
+        self._wrap_beside_the_pulldown(self._saved_note, full)
 
     def _set_saved_hint(self, full: str) -> None:
         """What to do with the list (L.9), on one line, whole text as tooltip.
@@ -5274,11 +5536,7 @@ class MeasurementReportDialog(QDialog):
             hint.setVisible(False)
             return
         hint.setVisible(True)
-        from PyQt6.QtGui import QFontMetrics
-        fm = QFontMetrics(hint.font())
-        room = max(120, self.width() - hint.x() - 40)
-        hint.setText(fm.elidedText(full, Qt.TextElideMode.ElideRight, room))
-        hint.setToolTip(full)
+        self._wrap_beside_the_pulldown(hint, full)
 
     def _chosen_document(self, docs: list) -> "dict | None":
         """The document entry the list is on, or None."""
@@ -5411,6 +5669,7 @@ class MeasurementReportDialog(QDialog):
         # document a click left behind stops choosing which file is drawn.
         self._chosen_reports.clear()
         self._hidden_runs = set()
+        # The rows follow, through `_refresh` (B8-521).
         self._refresh()
 
     def _load_the_defaults(self) -> None:
@@ -5645,6 +5904,7 @@ class MeasurementReportDialog(QDialog):
         # that names no row that is here cannot say which rows were ticked.
         # A document that names SOME of them still narrows to those.
         self._hidden_runs = (here - keys) if (keys & here) else set()
+        # The caller repaints, and `_refresh` is what draws the rows (B8-521).
 
     def _reload_sources(self) -> None:
         """Read every loaded measurement's reports off disk again.
@@ -6006,6 +6266,66 @@ class MeasurementReportDialog(QDialog):
                 "There is one measurement in the list, so there is no history "
                 "to widen to. Add another measurement, or open the report on a "
                 "run with more dated verifications.") if alone else "")
+            self._show_that_a_one_page_summary_is_one_sheet(one_page)
+
+    def _show_that_a_one_page_summary_is_one_sheet(self, one_page: bool) -> None:
+        """Make the window SAY that the one-page summary is about one sheet.
+
+        **KNUT, BETA 26, ON THE HALF THAT WAS LEFT TO BE GUESSED (B8-523).**
+        *"When making a new 'Colour summary' with the 'Show detailed data for
+        each run' ON, then there were no Detailed section in the report. When
+        selecting 'Colour summary', the 'Show all measurement runs' checkbox is
+        disabled and locked, indicating indirectly that only one measurment is
+        possible. Help text must be clear about this, and a tool-tip
+        explaining. However, the 'Show detailed data for each run' can still be
+        clicked so I assumed the created new report should have a detailed
+        section. If this is not allowed, due to the one page report size (check
+        what previous releases could do), then also means the 'Show detailed
+        data for each run' should be disabled."*
+
+        **IT IS A LIMIT, NOT A REGRESSION, AND THAT WAS CHECKED BEFORE IT WAS
+        CALLED ONE.** T1 was born on 2026-09-11 (`c8c96709`, *"the one-page
+        report, built as its own document"*) and `_report_body_html` has
+        branched to `_one_page_html` before the detail section since its first
+        line: *"no 'How to read' essay, no trend charts, no comparison table,
+        no opt-in detail"*. No release of ChromIQ has ever produced a Detailed
+        section inside a Colour summary, so there is nothing to restore.
+
+        Three controls, one fact:
+
+        * **The detail box is disabled** while T1 is chosen, like the
+          all-runs box beside it, with a tooltip saying why.
+        * **The measurement list DRAWS the one sheet the page is about**, and
+          is disabled. Ticking eleven rows and getting a document of one is
+          the fault he reported first, and it is this: the document records
+          what T1 covers, so the list has to show it BEFORE Generate is
+          pressed, not after the report comes back named "One date".
+          `_rows_drawn_unticked` is the drawing rule; `_hidden_runs` is not
+          touched, so the trend charts keep the history and the ticks come
+          back when another type is chosen.
+        """
+        det = getattr(self, "_detail_check", None)
+        if det is not None:
+            det.setEnabled(not one_page)
+            det.setToolTip(tr(
+                "The one-page colour summary has no per-run detail section: it "
+                "is one page about one measurement, to print and hand over "
+                "with a job. Choose another report type to see the detailed "
+                "data.") if one_page else "")
+        lst = getattr(self, "_profile_list", None)
+        if lst is None:
+            return
+        if one_page:
+            lst.setEnabled(False)
+            lst.setToolTip(tr(
+                "A one-page colour summary describes the single measurement "
+                "this window is open on, so the list shows that one sheet and "
+                "cannot be changed while the type is chosen. Choose another "
+                "report type to include more measurements; the ticks you had "
+                "come straight back."))
+        else:
+            lst.setEnabled(True)
+            lst.setToolTip(self._list_tooltip)
 
     def _generated_types_line(self, run) -> str:
         """Which report types this run has already produced, or "".
@@ -7570,6 +7890,33 @@ class MeasurementReportDialog(QDialog):
              + " " + _what + "\n\n"
              + tr("Open its limits and check them before you measure it "
                   "again."))
+
+    def _why_the_unlock_box_is_greyed(self, run, several: bool, locked: bool,
+                                      lim) -> str:
+        """The sentence a dim "Unlock this run's limits" owes the reader.
+
+        Knut put the box back on screen in every state (B8-520), so the state
+        it cannot act in is now a GREY control rather than an absent one, and a
+        grey control with no explanation is the fault that made hiding it look
+        reasonable in the first place. One sentence per reason, and an empty
+        string when the box is live, so the caller falls back to the sentence
+        the pulldown and the button share.
+        """
+        if self._unlock_check.isEnabled():
+            return ""
+        if several:
+            return tr("Several measurement runs are loaded. Open the report "
+                      "on one run to unlock that run's limits.")
+        if run is None:
+            return tr("This measurement does not belong to a profile run, so "
+                      "there are no stored limits to unlock.")
+        if not locked and not bool(getattr(lim, "unlocked", False)):
+            return tr("This run's limits are not locked yet. A run is locked "
+                      "by its second dated verification, and this box lifts "
+                      "that lock.")
+        return tr("Preferences, Reports does not allow editing limits after "
+                  "the first measurement, so this run's limits cannot be "
+                  "unlocked here.")
 
     def _locked_here(self, run) -> bool:
         """Whether THIS window treats the run as locked.

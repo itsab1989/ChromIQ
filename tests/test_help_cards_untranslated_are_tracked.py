@@ -694,18 +694,28 @@ _BUDGET = {
     # by hand in the same change. RE-MEASURED with this file's own
     # `_english_echoes` on the catalogues this commit leaves behind, never
     # adjusted upward.
+    # RE-MEASURED 2026-09-20, Knut's beta 26 review (B8-520 to B8-526). Nine
+    # new keys, of which EIGHT are long enough for this detector to see: the
+    # four sentences a greyed "Unlock this run's limits" owes the reader, the
+    # two the one-page summary owes it, the type bullet that says what a Colour
+    # summary cannot hold, and the sentence saying why "Judged against" is not
+    # the Preferences default. ("What each set is" is too short to count.)
+    # German is translated by hand in the same change, so **de does not move
+    # (21)** and each of the eleven others rises by exactly 8. RE-MEASURED with
+    # this file's own `_english_echoes` on the catalogues this change leaves
+    # behind, never adjusted upward.
     "de": 21,
-    "es": 298,
-    "fr": 299,
-    "it": 298,
-    "ja": 298,
-    "nl": 298,
-    "no": 298,
-    "pl": 298,
-    "pt": 298,
-    "ru": 297,
-    "sv": 298,
-    "zh_CN": 297,
+    "es": 306,
+    "fr": 307,
+    "it": 306,
+    "ja": 306,
+    "nl": 306,
+    "no": 306,
+    "pl": 306,
+    "pt": 306,
+    "ru": 305,
+    "sv": 306,
+    "zh_CN": 305,
 }
 
 

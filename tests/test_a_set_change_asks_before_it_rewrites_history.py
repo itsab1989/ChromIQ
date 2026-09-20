@@ -969,9 +969,17 @@ def test_binding_a_run_with_a_history_still_keeps_its_controls(qapp, tmp_path,
         dlg._refresh()
         assert dlg._set_combo.isEnabled(), (
             "binding a run with a history took away the control that bound it")
-        assert not dlg._unlock_check.isVisible(), (
-            "the unlock box is offered on a run this window is treating as "
-            "unlocked, which is two answers about one run")
+        # **KNUT PUT THIS BOX BACK ON SCREEN IN EVERY STATE (B8-520)**, so
+        # what is asserted here is the opposite of what it was, and it is
+        # asserted with a question that can actually fail. This dialog is
+        # never shown, and `isVisible()` is False for every widget in a dialog
+        # nobody showed -- so `assert not …isVisible()` was vacuous for as
+        # long as it stood here. `isVisibleTo` answers what the user would
+        # see.
+        assert dlg._unlock_check.isVisibleTo(dlg), (
+            "the unlock box is off screen again")
+        assert not dlg._unlock_check.isEnabled(), (
+            "a run this window is treating as unlocked has no lock to lift")
     finally:
         dlg.deleteLater()
 
@@ -1518,9 +1526,15 @@ def test_the_window_does_not_tick_a_lock_box_on_a_run_that_has_no_lock(
             "the window ticked 'Unlock this run's limits' on a run nothing had "
             "locked, which asserts the user lifted a lock they never lifted")
         dlg._refresh()
-        assert not dlg._unlock_check.isVisible(), (
-            "the unlock box is shown on a run with no lock, where it can only "
-            "say something untrue")
+        # As above (B8-520): on screen always, greyed where it cannot act,
+        # and saying so. `isVisibleTo`, because this dialog is never shown.
+        assert dlg._unlock_check.isVisibleTo(dlg), (
+            "the unlock box is off screen again")
+        assert not dlg._unlock_check.isEnabled(), (
+            "a run with no lock offers a live control that would say "
+            "something untrue")
+        assert "not locked yet" in dlg._unlock_check.toolTip(), \
+            dlg._unlock_check.toolTip()
     finally:
         dlg.deleteLater()
 

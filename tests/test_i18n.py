@@ -1105,18 +1105,28 @@ _IDENTICAL_TO_KEY = {
     # so **de does not move**; the eleven others carry the English under the
     # beta rule. COUNTED off the tree with each file's own expression, never
     # adjusted to make a red go green.
+    # RE-MEASURED 2026-09-20, Knut's beta 26 review (B8-520 to B8-526): nine
+    # new keys and none retired -- the four sentences a greyed "Unlock this
+    # run's limits" owes the reader, the two the one-page summary owes it, the
+    # bullet heading "What each set is", the type bullet that says what a
+    # Colour summary cannot hold, and the sentence that says why "Judged
+    # against" is not the Preferences default. **German is translated by hand
+    # in the same change, so de does not move (145)**; the eleven others carry
+    # the English under the beta rule and each rises by exactly 9. COUNTED off
+    # the catalogues this change leaves behind, with the expression the test
+    # below uses, and never adjusted to make a red go green.
     "de": 145,
-    "es": 506,
-    "fr": 528,
-    "it": 517,
-    "ja": 492,
-    "nl": 533,
-    "no": 518,
-    "pl": 510,
-    "pt": 508,
-    "ru": 481,
-    "sv": 519,
-    "zh_CN": 486,
+    "es": 515,
+    "fr": 537,
+    "it": 526,
+    "ja": 501,
+    "nl": 542,
+    "no": 527,
+    "pl": 519,
+    "pt": 517,
+    "ru": 490,
+    "sv": 528,
+    "zh_CN": 495,
 }
 
 

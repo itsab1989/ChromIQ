@@ -20138,3 +20138,247 @@ would reach.
   reference_values or short_button or em_dash or i18n or compliance or
   report_window_limit or scrollbar_signal"` → **410 passed**.
 - evidence: test_the_report_limits_door_is_short_where_a_reader_sees_it
+
+### B8-520 · FIXED · Knut's "Unlock this run's limits" was on screen in beta 25 and beta 26 alike, and hidden by a rule of ours in both
+- status: FIXED
+- blocks release: no
+- Knut, 2026-09-20, reviewing beta 26: *"In the Measurement Report window,
+  relating to the new layout of buttons and elements, you removed the 'Unlock
+  this run's limits' checkbox and its help icon. They should still be there and
+  work as before."* And, later in the same review, on the state two loaded runs
+  put the window in: *"the checkbox 'Unlock this run's limit set' was suddenly
+  gone … 'Unlock this run's limit set' should be available."*
+- **HE IS RIGHT ABOUT THE WINDOW AND THE CAUSE IS NOT THE RE-LAYOUT.** The
+  widget is built and added to `judged_row` in both betas, byte for byte the
+  same line: `git show v4.3.0-beta.25:…` and `v4.3.0-beta.26:…` differ in
+  nothing but the line numbers, and the `setVisible` predicate is identical in
+  both. B8-460 moved the row into a grid and did not drop it. What hid it is a
+  rule this project wrote in round 6 (`21afba66`) and never showed him:
+  `run is not None and not several and (locked or lim.unlocked)`.
+- measured on screen, all 39 runs of his own demo pack
+  (`scripts/drive_k26_new_report_defaults.py`,
+  `~/Desktop/ChromIQ-beta28-proof/knut-beta26-review/defaults/`): the old rule
+  hid the box on **1 of 39** — `Report-Limits-Threshold-Series/run3`, a run
+  with one dated verification — and the "several runs loaded" state he
+  describes separately hid it on any project once a second was added.
+- what changed: the box is on screen in every state
+  (`self._unlock_check.setVisible(True)`), greyed where it cannot act, and
+  `_why_the_unlock_box_is_greyed` gives it one sentence per reason so a reader
+  can ask why. Round 6's reasoning — that a greyed unticked box reads as "this
+  run is locked and you cannot change that" — is ours; his instruction is his,
+  and a control that vanishes is the worse of the two evils.
+- **AND THE TWO TESTS THAT CLAIMED TO GUARD THIS WERE VACUOUS.**
+  `test_a_set_change_asks_before_it_rewrites_history.py` asserted
+  `not dlg._unlock_check.isVisible()` twice on a dialog it never showed, where
+  `isVisible()` is False for every widget in it. Both now ask `isVisibleTo`
+  and assert the new rule.
+- evidence: test_the_unlock_box_and_its_help_icon_are_on_screen,
+  test_a_box_that_cannot_be_pressed_says_why,
+  test_the_box_is_still_offered_when_two_runs_are_loaded,
+  test_every_widget_this_window_names_is_in_its_layout
+
+### B8-521 · FIXED · The tick marks and the set behind them could disagree, and the document believed the set
+- status: FIXED
+- blocks release: no
+- Knut, 2026-09-20: *"I tried selecting New report, then selecting 3
+  measurements included, of the 11 in the list, then Generate report. The
+  resulting report now says 'All dates' and the 'Included Measurements in
+  report' box has ticked all measurements. This is wrong. Only the measurements
+  ticked at the time I press Generate Report shall be stored as part of the
+  report, and then re-selected when selecting the report in Report shown
+  pulldown."*
+- reproduced in a real window on his own project before anything changed
+  (`scripts/drive_k26_included_measurements.py`,
+  `~/Desktop/ChromIQ-beta28-proof/knut-beta26-review/before/`): three rows
+  ticked produced a document of **ten**, and the entry was named *"Multiple
+  dates"* over a `_hidden_runs` holding one key.
+- mechanism: only `_rebuild_from_sources` ever DREW a tick, and it is the one
+  door that re-reads the files. Every other door that assigns `_hidden_runs` —
+  "New report…" (`_start_new_report`), loading a document and the page adopting
+  the document Generate just wrote (`_restore_the_documents_view`) — repainted
+  through `_refresh` or `_settings_touched`, which touch the body and the
+  charts and never the list. Measured in the same run: after Generate the list
+  showed **11 ticks over a `_hidden_runs` of 10**, and choosing "New report…"
+  showed **1 tick over a `_hidden_runs` of none**. From there every later tick
+  is read against the wrong baseline, because `setCheckState` to the value a
+  row already holds emits nothing.
+- fix: `_draw_the_row_ticks`, called once, at the end of
+  `_sync_limit_controls` — the one function every door goes through, and after
+  `_sync_type_combo` because the report type decides what the list draws.
+- **KNUT'S OWN LOG RULES OUT THE OTHER THEORY.** A reading of it suggested the
+  eleven files a press wrote were eleven writes over one file. They are not:
+  the eleven `measurement report saved` lines of 02:28:56 name eleven DIFFERENT
+  dated folders (`2026-01-05_100000` … `2026-05-25_100000`), one
+  `report_2026-09-20_02-28-56.json` in each, which is the specified one file
+  per measurement. The repetition was an artefact of the dates being stripped
+  out of the paths when the lines were summarised.
+- after, measured the same way: three ticked → **3 files, 3 measurements
+  recorded, "Multiple dates", 3 still ticked**.
+- evidence: test_new_report_redraws_the_ticks_it_just_cleared,
+  test_the_page_that_adopts_a_new_document_redraws_the_ticks,
+  test_only_the_ticked_measurements_are_stored,
+  test_and_they_are_re_ticked_when_the_report_is_selected_again
+
+### B8-522 · FIXED · The date flag asked the tick box a question the member list already answered
+- status: FIXED
+- blocks release: no
+- Knut, 2026-09-20: *"The 'One date' tag also needs to be updated if I update
+  the report to contain other measurements included, either 'Multiple dates' or
+  'All dates', I think I defined before (please check)."* He did: §13.7, F.1 to
+  F.5 of `docs/design/measurement_report_limits.md`.
+- `_document_scope` read `all_runs and not self._hidden_runs`, which is a
+  second answer to "does this cover all of them" when the member list is right
+  there. It is now derived from the members alone: one member is "One date",
+  members covering every row in the list is "All dates", anything between is
+  "Multiple dates". Because it is derived from what the document COVERS, an
+  Update that changes the membership changes the flag with it, which is the
+  half of his sentence that was not built.
+- **THE TWO ANSWERS AGREE ONCE B8-521 IS FIXED**, in every state a window with
+  one project in it can reach, and that is recorded rather than glossed: the
+  change is a hardening, and the state where they part company is a
+  `_hidden_runs` key left behind by a profile that has been removed from the
+  list. Measured: with the old predicate, unticking a row of a second profile
+  and then removing that profile named every later report "Multiple dates" for
+  the rest of the session, over a document that covered everything.
+- driven on screen after the fix
+  (`~/Desktop/ChromIQ-beta28-proof/knut-beta26-review/after/`): 11 of 11 ticked
+  → *"All dates · Detailed"*; untick two and press **Update** → *"Multiple
+  dates · Detailed · updated 2026-09-20 03:31:17"*, document of 9.
+- evidence: test_the_date_flag_counts_the_document_not_the_tick_box,
+  test_an_update_that_changes_the_membership_changes_the_flag,
+  test_a_stale_untick_no_longer_mislabels_every_later_report
+
+### B8-523 · FIXED · The one-page Colour summary holds one measurement and no detail, and the window now says so before Generate is pressed
+- status: FIXED
+- blocks release: no
+- Knut, 2026-09-20, two items that are one fact: *"the report name ended with
+  'One date', while it was supposed to have All dates. When selecting another
+  report and then going back to the one I newly created the 'Included
+  Measurements in report' box only had one (the last one) ticked."* and *"When
+  making a new 'Colour summary' with the 'Show detailed data for each run' ON,
+  then there were no Detailed section in the report. … If this is not allowed,
+  due to the one page report size (check what previous releases could do), then
+  also means the 'Show detailed data for each run' should be disabled, and
+  function explained in help text, and have a tool-tip explaining why."* And:
+  *"If the one page 'Colour summary' only can contain ONE measurement, that is
+  not specified anywhere, and it that is correct, it needs to be specified in
+  the help text."*
+- **CHECKED BEFORE IT WAS CALLED A LIMIT.** T1 was built on 2026-09-11
+  (`c8c96709`) as its own document, and `_report_body_html` has returned
+  `_one_page_html` before the detail section since its first line: *"no 'How to
+  read' essay, no trend charts, no comparison table, no opt-in detail"*. No
+  release has ever produced a Detailed section inside a Colour summary, so
+  there is nothing to restore. §10 of the design document says T1 *"is about
+  ONE measurement, the one the window is on"*; it says nothing at all about the
+  detail box, which is the gap he found.
+- what changed: the detail box is disabled while T1 is chosen, with a tooltip;
+  the measurement list is disabled and DRAWN as the one sheet the document will
+  cover, with a tooltip; and the type's own help bullet says all three. The
+  narrowing is a DRAWING rule (`_rows_drawn_unticked`) and not an assignment:
+  `_hidden_runs` is untouched, so the trend charts keep the history and the
+  ticks come back when another type is chosen. The first cut did assign it, and
+  the suite caught it —
+  `test_generate_writes_the_one_report_the_page_is_about` went red because the
+  trend had lost its second run.
+- **AND HIS EXPECTATION IS THE ONE THING NOT BUILT.** He expected *"All dates"*
+  on a Colour summary of eleven ticked measurements. That is a one-page
+  document of eleven sheets, which §10 rules out; the window now says so before
+  the press instead of after it. If he wants T1 to widen, that is his ruling to
+  make and it changes §10.
+- evidence: test_the_one_page_summary_disables_the_detail_box_and_says_why,
+  test_the_one_page_summary_draws_one_tick_without_hiding_anything,
+  test_a_one_page_summary_is_named_one_date_and_stores_one
+
+### B8-524 · FIXED · The text beside "Report shown" wraps to a second line and stops there
+- status: FIXED
+- blocks release: no
+- Knut, 2026-09-20: *"To the right of the Report shown and its help icon, there
+  is a text 'The only saved report of a dated....'. This text is cut off and
+  the window must be far too wide to see the whole text. It is better that the
+  text is wrapped down to a second line, and then horizontally centred agains
+  the Report shown input dropdown box, so that the text is always aligned."*
+- photographed cut off at 1480 px on his own project
+  (`~/Desktop/ChromIQ-beta28-proof/knut-beta26-review/before/A0-window-at-open-1.png`):
+  *"The only saved report of a dated verification is kept: its verdict is this
+  run's record of that …"*. The label he names is `_saved_note`, the Delete
+  refusal, and `_saved_hint` shares the row with it.
+- what changed: `_wrap_beside_the_pulldown` wraps both to TWO lines and
+  shortens the text until it fits them, with the whole sentence still in the
+  tooltip. The centring was already built: `side_col` carries a stretch above
+  and below the row, so a one-line and a two-line sentence sit on the same axis
+  as the pulldown, which is his *"always aligned"*.
+- the cap is not decoration. A word-wrapped `QLabel` asks for whatever height
+  its text needs at a width the layout has not decided yet, and that is what
+  pushed this window's bottom off an 800 px screen twice.
+- evidence: test_the_hint_beside_report_shown_wraps_to_two_lines,
+  test_a_sentence_too_long_for_two_lines_is_cut_not_stretched
+
+### B8-525 · FIXED · The report-type and limit-set help texts are one bullet per option
+- status: FIXED
+- blocks release: no
+- Knut, 2026-09-20: *"The report type and judged agains help text need to be
+  more organised with bullets for each option."*
+- the type help already listed one line per type and lacked the mark that says
+  so; the "Judged against" help described what a limit set IS and never listed
+  the sets, whose sentences existed only as the pulldown's per-row tooltips, to
+  be collected one hover at a time. `_types_and_pairing_help` bullets its lines
+  and `_sets_help` builds the other list from `compliance_sets.SETS`, so
+  neither can fall behind the catalogue it describes.
+- evidence: test_the_help_text_lists_every_option_as_a_bullet
+
+### B8-526 · OPEN · "New report…" shows the RUN's limit set, and Knut wants Preferences' default — which contradicts §5
+- status: OPEN
+- blocks release: no
+- Knut, 2026-09-20: *"When selecting 'New report…' in Report shown, then the
+  Judged against is set to Quick check, which is not set as the default limit
+  set in the Report Limits window. The Judged against, report type, and the two
+  checkboxes ('Show all measurements...' and 'Show detailed...') shall be set
+  to the set default value defined in Preferences->Reports-> inside Measurement
+  Report Defaults. If the default value for the Judged against limit set is
+  changed in the 'Edit Limits' in Measurement Report window, then that default
+  takes precedence for the selected profile run only."*
+- **MEASURED, AND HALF OF IT IS ALREADY TRUE.** Driven on screen over every run
+  of his demo pack (`scripts/drive_k26_new_report_defaults.py`, 39 runs,
+  `~/Desktop/ChromIQ-beta28-proof/knut-beta26-review/defaults/new-report-defaults.json`):
+  with Preferences at `chromiq_default` / `t2_full_colour_check` / both boxes
+  ON, choosing "New report…" gives **both tick boxes from Preferences on all 39
+  runs**. What does not come from Preferences is the limit set (24 of 39 runs
+  differ) and the type (2 of 39), and in every one of those cases the value
+  shown is the RUN's own.
+- **THIS IS NOT SIMPLY FIXED, AND THE REASON IS A DATA-CORRECTNESS ONE.** §5 of
+  `measurement_report_limits.md` puts the set on the profile run, bound at its
+  first verification so that a run's dated verifications stay comparable, and
+  P.4 says Preferences holds the default *for a run that has none*. P.6 says
+  the same of the type. Making "New report…" show the Preferences default over
+  a bound run would put a set in the pulldown that the run is not judged by,
+  and `_document_limits` is what Generate stamps the report with — so the press
+  would file a verdict against numbers the run is not bound to. That is the one
+  thing this window must not do.
+- what was done instead, pending his ruling: the window stops being silent.
+  With "New report…" chosen on a bound run whose set differs from the
+  Preferences default, the "Judged against" pulldown's tooltip names both and
+  says which is which.
+- **FOR KNUT:** should "New report…" override a run's bound limit set with the
+  Preferences default, and if so, what should the report then be judged
+  against — the run's numbers or the default's? His Edit-Limits sentence
+  suggests a per-run override, which is what the "Used for this run" row of the
+  Report limits window already writes; if that is what he means, the remaining
+  question is only about a run that has never been given one.
+- evidence: none yet — nothing is changed but a tooltip, and the ruling is
+  his.
+
+### B8-527 · OPEN · An unreadable chart preset is re-parsed on every eligibility pass, 29 times in one session
+- status: OPEN
+- blocks release: no
+- found in Knut's own log of the beta-26 session, not reported by him:
+  `preset chart "Verify demo 13, the patch set cannot be read.ti1" cannot be
+  assessed: Not a CGATS measurement file (missing DATA_FORMAT / DATA)` appears
+  **29 times**. The preset is designed to be unreadable and the message is
+  correct, so this is not a fault in what it says.
+- what it points at: B8-421 cached `patch_count` to bring the window's open
+  time from 324 ms to 45 ms, and the FAILURE path was not cached with it, so a
+  preset that cannot be parsed is parsed again on every pass. The cost is one
+  file read and a parse attempt per unreadable preset per pass; nobody has
+  measured it.
+- not fixed here, and deliberately: it is outside the seven items of his
+  review and the round that found it was told not to chase it.
