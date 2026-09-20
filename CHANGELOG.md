@@ -1,5 +1,41 @@
 # Changelog
 
+## v4.3.0-beta.28
+
+**Knut's review of beta 26: a checkbox that had been hiding for months, reports
+that stored measurements you did not tick, and a button that was never the size
+we said it was.**
+
+### Fixed
+
+- **A report stored measurements you had not ticked.** Ticking three of eleven
+  and pressing Generate wrote ten reports and recorded ten measurements;
+  selecting the report again re-ticked the wrong ones. The tick list was only
+  ever redrawn by one of the several places that change it, so what you saw and
+  what ChromIQ had could drift apart without either changing on screen. The
+  date in a report's name now follows what the report actually contains, and
+  updating a report to cover different measurements moves it between One date,
+  Multiple dates and All dates.
+
+- **"Unlock this run's limits" was missing from the Measurement Report
+  window.** It was being hidden by a rule written months ago that nobody had
+  seen: on any project, it disappeared as soon as a second run was loaded. It
+  is always on screen now, greyed where it cannot act, and its tooltip says
+  which reason applies.
+
+- **The "Which presets can be used for verification?" button was 42 px tall,
+  not the 22 we believed**, because the check that measured it never loaded
+  ChromIQ's own styling. It is 24 px, its left edge lines up with the preset
+  dropdown, and it no longer touches the bottom of its frame.
+
+- **The line beside "Report shown" was cut off** on any normal window width. It
+  wraps to a second line and sits centred under the pulldown.
+
+- **A one-page Colour summary covers one measurement**, which nothing said. The
+  detail option is switched off for that report type with a tooltip explaining
+  why, the measurement list shows the one sheet it will use, and the help text
+  for report types and limit sets now explains each option in turn.
+
 ## v4.3.0-beta.27
 
 **The buttons that were never actually made smaller, and the window behind them
