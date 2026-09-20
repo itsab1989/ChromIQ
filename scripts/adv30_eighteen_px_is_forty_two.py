@@ -76,7 +76,7 @@ def main() -> int:
         app.processEvents()
     ok2, _ = capture_window(d, out / "H-eighteen-is-forty-two-2.png")
     res["photo"] = {"taken": ok and ok2, "why": why}
-    (out / "eighteen-px-is-forty-two.json").write_text(json.dumps(res, indent=2))
+    (out / "eighteen-px-is-forty-two.json").write_text(json.dumps(res, indent=2), encoding='utf-8')
     print(json.dumps(res, indent=2))
     d.close()
     return 0

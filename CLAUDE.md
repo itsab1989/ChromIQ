@@ -233,6 +233,21 @@ Delete `$TMPDIR/chromiq-demo-projects-cache`, or point `CHROMIQ_DEMO_CACHE`
 elsewhere, to force a rebuild. Every consumer still copies what it uses, because
 `Project.load` migrates in place.
 
+**`pytest | tail` REPORTS TAIL'S EXIT CODE, NOT PYTEST'S.** A gate run piped
+into `tail -4` and followed by `echo "exit=$?"` prints `exit=0` however red the
+run was, because `$?` is the last command in the pipeline. That was quoted as
+evidence of three green gates on four releases in one night; the runs really
+were green, but the number cited proved nothing, and on the fifth the same
+script printed `exit=0` beside `1 failed`. Redirect instead:
+
+```bash
+QT_QPA_PLATFORM=offscreen pytest --runslow -n auto -q > /tmp/gate.txt 2>&1
+echo "exit=$?"            # this one is pytest's
+```
+
+or read `${PIPESTATUS[0]}` in bash / `$pipestatus[1]` in zsh. **The count line
+is the other check**: `N passed` with no `failed,` in it.
+
 **Do not edit source files while a gate is running.** Many tests asserts on
 `inspect.getsource(...)`, which reads from disk — an edit mid-run shifts line
 offsets and produces dozens of failures that look like real regressions and are

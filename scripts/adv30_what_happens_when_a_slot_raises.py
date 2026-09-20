@@ -96,7 +96,7 @@ def main() -> int:
     rows = []
     for case in CASES:
         p = subprocess.run([sys.executable, str(Path(__file__)), case],
-                           capture_output=True, text=True, timeout=180, env=env)
+                           capture_output=True, text=True, encoding='utf-8', timeout=180, env=env)
         o = p.stdout
         rows.append({
             "case": case,
@@ -113,7 +113,7 @@ def main() -> int:
 
     dest = Path.home() / "Desktop/ChromIQ-beta27-proof/round-30"
     dest.mkdir(parents=True, exist_ok=True)
-    (dest / "excepthook-probe.json").write_text(json.dumps(rows, indent=2))
+    (dest / "excepthook-probe.json").write_text(json.dumps(rows, indent=2), encoding='utf-8')
     print("\nwrote " + str(dest / "excepthook-probe.json"))
     return 0
 

@@ -320,7 +320,7 @@ def main() -> int:                                              # noqa: C901
             shaped[sid] = {rid: {"kind": "value", "number": 2.5} for rid in v}
             cells += len(v)
         shape2 = work / "meta-shape.json"
-        shape2.write_text(json.dumps(shaped, indent=2), encoding="utf-8")
+        shape2.write_text(json.dumps(shaped, indent=2), encoding="utf-8", encoding='utf-8')
         n = len(BOXES); RAISED.clear()
         answer["open"] = str(shape2)
         WANT_PHOTO["tag"] = f"C-wrong-shape-meta-{lang}"
@@ -346,7 +346,7 @@ def main() -> int:                                              # noqa: C901
                 v[rid] = 2.5
                 filled += 1
         good = work / "filled.json"
-        good.write_text(json.dumps(doc, indent=2), encoding="utf-8")
+        good.write_text(json.dumps(doc, indent=2), encoding="utf-8", encoding='utf-8')
         n = len(BOXES); RAISED.clear()
         answer["open"] = str(good)
         WANT_PHOTO["tag"] = f"C-good-said-{lang}"
@@ -417,7 +417,7 @@ def main() -> int:                                              # noqa: C901
     #    what the press does.
     # =====================================================================
     envfile = work / "env-values.json"
-    envfile.write_text(json.dumps({"iso12647_7": {}}), encoding="utf-8")
+    envfile.write_text(json.dumps({"iso12647_7": {}}), encoding="utf-8", encoding='utf-8')
     os.environ[CS.ISO_DATA_ENV] = str(envfile)
     CS.reset_iso_cache()
     RAISED.clear()
@@ -447,7 +447,7 @@ def main() -> int:                                              # noqa: C901
     res["boxes_total"] = len(BOXES)
     W.save_file_dialog, W.open_file_dialog = saved_save, saved_open
     (OUT / f"reference-values-{lang}-{width}.json").write_text(
-        json.dumps(res, indent=2, default=str))
+        json.dumps(res, indent=2, default=str), encoding="utf-8")
     print(json.dumps(res, indent=2, default=str))
     return 0
 

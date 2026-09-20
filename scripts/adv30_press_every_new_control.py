@@ -249,7 +249,7 @@ def main() -> int:                                              # noqa: C901
             for rid in list(cells):
                 cells[rid] = 2.5
                 filled += 1
-        target.write_text(json.dumps(doc, indent=2), encoding="utf-8")
+        target.write_text(json.dumps(doc, indent=2), encoding="utf-8", encoding='utf-8')
         res["S2_filled_cells"] = filled
 
     W.open_file_dialog = lambda *a, **k: (calls.__setitem__("open", k),
@@ -320,8 +320,8 @@ def main() -> int:                                              # noqa: C901
     dlg2.close()
     pump(app, 500)
     res["raised_total"] = RAISED
-    (out / f"iso-buttons-{lang}.json").write_text(json.dumps(res, indent=2,
-                                                            default=str))
+    (out / f"iso-buttons-{lang}.json").write_text(
+        json.dumps(res, indent=2, default=str), encoding="utf-8")
     W.save_file_dialog, W.open_file_dialog = saved_save, saved_open
     print(json.dumps(res, indent=2, default=str)[:6000])
     return 0

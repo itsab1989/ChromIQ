@@ -165,7 +165,7 @@ def main() -> int:                                              # noqa: C901
              for sid, cells in tmpl.items()
              if not sid.startswith("_") and isinstance(cells, dict)}
     wrong_file = work / "wrong-shape.json"
-    wrong_file.write_text(json.dumps(wrong, indent=2), encoding="utf-8")
+    wrong_file.write_text(json.dumps(wrong, indent=2), encoding="utf-8", encoding='utf-8')
 
     saved_open = W.open_file_dialog
     W.open_file_dialog = lambda *a, **k: str(wrong_file)
@@ -260,7 +260,7 @@ def main() -> int:                                              # noqa: C901
     res["boxes"] = BOXES
     res["raised_total"] = RAISED
     (OUT / f"door-and-lie-{lang}-{width}.json").write_text(
-        json.dumps(res, indent=2, default=str))
+        json.dumps(res, indent=2, default=str), encoding="utf-8")
     print(json.dumps(res, indent=2, default=str))
     return 0
 
