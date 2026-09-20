@@ -185,6 +185,24 @@ class ReferenceSet:
     imported: str = ""
     original_filename: str = ""
 
+    #: **WHAT THE FILE SAYS ABOUT ITSELF**, verbatim and unverified: its own
+    #: ``FILE_DESCRIPTOR`` and its own ``CREATED``. Empty for a bundled set,
+    #: whose version is the ARCHIVE's and is recorded in ``SOURCE.json``.
+    #:
+    #: These exist because "your copy, added 2026-09-20" answers the wrong
+    #: question. Fogra's FOGRA61 is published as a beta today and will be
+    #: published again as a release; both call themselves FOGRA61, both are
+    #: stored under the same name, and the import date is a fact about the
+    #: USER'S ACTION, not about the data. Nothing on screen distinguished the
+    #: two, so a verification could be judged against beta aims by somebody who
+    #: believed they had the final ones.
+    #:
+    #: They are facts about a FILE, so :func:`_wearing_the_shipped_metadata`
+    #: leaves them alone, and they are printed as a QUOTATION of the file
+    #: rather than as anything ChromIQ checked.
+    file_descriptor: str = ""
+    file_created: str = ""
+
     @property
     def credit_line(self) -> str:
         """The credit, which is a required part of every place this set is
@@ -245,8 +263,16 @@ class ReferenceSet:
         """``Coated commercial print, current (FOGRA51)``: the vocabulary of
         what somebody has in front of them, with the set's name in the row and
         never as the row."""
-        return tr("{label} ({name})").format(label=tr(self.label),
-                                             name=self.id)
+        # A SET THE USER SUPPLIED THAT CHROMIQ SHIPS NOTHING FOR HAS NO
+        # LABEL BUT THE ONE IN ITS OWN DESCRIPTOR, and Fogra's `FOGRA55.txt`
+        # calls itself exactly "FOGRA55", so the template printed
+        # "FOGRA55 (FOGRA55)". Measured challenge round 31 against Fogra's own
+        # `Ref_FOGRA55.zip`. There is no vocabulary to lead with here, so the
+        # name leads, once.
+        label = tr(self.label)
+        if not label or label == self.id:
+            return self.id
+        return tr("{label} ({name})").format(label=label, name=self.id)
 
 
 # ---------------------------------------------------------------------------
@@ -301,7 +327,16 @@ def bundled() -> "list[ReferenceSet]":
     except (OSError, ValueError) as exc:
         log.warning("reference sets: %s unreadable (%s); none offered",
                     folder / SOURCE_FILE, exc)
-        _cache = out
+        # NOT CACHED, AND THE DEAD LINE THAT USED TO SIT HERE IS GONE (B8-551).
+        # It read `_cache = out`, which assigned a local this function throws
+        # away: `bundled()` declares `global _bundled_cache` and not `_cache`.
+        # Harmless, but since b7475572 there IS a module-level `_cache`, owned
+        # by `available()`, so a reader checking whether an unreadable
+        # SOURCE.json could hide a user's own supplied sets had to work out
+        # that the statement does nothing before concluding that it cannot.
+        # Leaving the result uncached is also the right behaviour on its own
+        # terms: an unreadable SOURCE.json is a condition of the disk, and a
+        # cached empty list would survive the file becoming readable again.
         return out
     for set_id, entry in sorted((doc.get("sets") or {}).items()):
         if not _entry_is_credited(entry):
@@ -489,6 +524,16 @@ USER_FILE_SUFFIXES = (".txt", ".zip")
 _ZIP_MAX_MEMBERS = 200
 _ZIP_MAX_BYTES = 64 * 1024 * 1024
 
+#: The same ceiling on a single file, and it was missing.
+#:
+#: The zip route refuses an archive that unpacks past `_ZIP_MAX_BYTES`; the
+#: plain-file route read whatever it was given. Measured challenge round 31: a
+#: 277 MB `.txt` was accepted, COPIED into the user's preferences folder, and
+#: recorded as 8,640,000 patches, and every later `available()` re-hashes all
+#: 277 MB of it. The ceiling is the same number because it is the same
+#: question, and the largest file in Fogra's own archive is 435 kB.
+_FILE_MAX_BYTES = _ZIP_MAX_BYTES
+
 
 def _fogra(field: str) -> str:
     """Fogra's own name, terms or URL, taken from the file that ships.
@@ -605,6 +650,8 @@ def _user_sets() -> "list[ReferenceSet]":
             supplied_by_user=True,
             imported=str(rec.get("imported") or ""),
             original_filename=str(rec.get("original_filename") or ""),
+            file_descriptor=str(rec.get("file_descriptor") or ""),
+            file_created=str(rec.get("file_created") or ""),
         ))
     return out
 
@@ -675,6 +722,10 @@ def inspect_bytes(name: str, raw: bytes) -> dict:
     return {
         "set_id": set_id,
         "descriptor": descriptor,
+        # the file's own name for itself, kept apart from `descriptor` so that
+        # `_install_one` can put a CONDITION label in one field and a FILE fact
+        # in the other without either being derived from the other later.
+        "file_descriptor": descriptor,
         "patches": len(rows),
         "device_space": dev[0].split("_", 1)[0].upper(),
         "filter": _header_value(text, "FILTER"),
@@ -701,6 +752,18 @@ def install_user_file(src: "str | Path") -> "list[str]":
     src = Path(src)
     if src.suffix.lower() == ".zip":
         return _install_zip(src)
+    # THE SAME CEILING THE ZIP ROUTE HAS, ASKED BEFORE THE BYTES ARE READ.
+    # `inspect_file` reads the whole file into memory and `_install_one` then
+    # copies it, so a file refused after the read has already cost both.
+    try:
+        size = src.stat().st_size
+    except OSError:
+        size = 0
+    if size > _FILE_MAX_BYTES:
+        raise ValueError(tr(
+            "That file is {size} MB, which is far larger than a set of "
+            "reference data. ChromIQ has not read it."
+        ).format(size=size // (1024 * 1024)))
     info = inspect_file(src)
     return [_install_one(src.name, src.read_bytes(), info)]
 
@@ -728,6 +791,12 @@ def _install_one(original_name: str, data: bytes, info: dict) -> str:
         "filter": info.get("filter", ""),
         "label": info.get("descriptor") or set_id,
         "blurb": info.get("print_conditions", ""),
+        # WHAT THE FILE SAYS ABOUT ITSELF, kept whether or not `label` is
+        # later replaced by the shipped one. `created` was already being
+        # returned by `inspect_bytes` and thrown away here, which is why the
+        # window could say only when a file arrived and never which file it is.
+        "file_descriptor": info.get("file_descriptor") or info.get("descriptor", ""),
+        "file_created": info.get("created", ""),
         "source": _fogra("source"),
         "terms": _fogra("terms"),
         "url": _fogra("url"),
@@ -760,11 +829,39 @@ def _install_zip(src: Path) -> "list[str]":
                 name = Path(m.filename).name
                 if not name.lower().endswith(".txt"):
                     continue
-                data = zf.read(m)
+                # A MEMBER CHROMIQ CANNOT UNPACK IS A REFUSAL, NOT A CRASH.
+                # `zf.read` raises `RuntimeError` for an encrypted member and
+                # `NotImplementedError` for a compression method it does not
+                # have, and neither is an `OSError` or a `ValueError`, so both
+                # went straight past the caller's handler. Measured challenge
+                # round 31 on a `zip -P secret` archive and on one whose
+                # method field was rewritten: two uncaught exceptions out of
+                # the "Use a newer file…" button.
+                try:
+                    data = zf.read(m)
+                except (RuntimeError, NotImplementedError) as exc:
+                    refused.append(f"{name}: {exc}")
+                    continue
                 try:
                     info = inspect_bytes(name, data)
                 except ValueError as exc:
                     refused.append(f"{name}: {exc}")
+                    continue
+                # ONE FILE PER SET, AND FOGRA'S OWN ARCHIVE IS WHY.
+                # `FOGRA1_38.zip` holds `FOGRA11L.txt` (the full set) AND
+                # `FOGRA11S.txt` (the subset); both name FOGRA11, both were
+                # stored as `FOGRA11.txt`, and the second silently overwrote
+                # the first. Sixteen of its sets are doubled that way, so the
+                # confirmation said "your copies of these 45 sets" over 29
+                # files and printed sixteen names twice. Measured challenge
+                # round 31. The first member found for a set wins and is named
+                # in the record; a later one is refused and SAYS which file it
+                # lost to, rather than replacing it without a word.
+                if info["set_id"] in installed:
+                    refused.append(tr(
+                        "{name}: this archive already gave ChromIQ a file for "
+                        "{set_id}, so this one was not used."
+                    ).format(name=name, set_id=info["set_id"]))
                     continue
                 installed.append(_install_one(name, data, info))
     except zipfile.BadZipFile as exc:
@@ -803,25 +900,77 @@ def any_user_copy() -> bool:
     return bool(_user_sets())
 
 
+def in_force_line(s: ReferenceSet) -> str:
+    """The sentence saying WHICH copy of one set is in force.
+
+    **ONE IMPLEMENTATION, BECAUSE THERE USED TO BE TWO AND ONLY ONE OF THEM WAS
+    ON SCREEN.** This built the sentences and nothing but a test ever called
+    it; the Reference values window built the same three sentences again,
+    inline. A guard on the function therefore proved nothing about the window,
+    which is this project's own recorded way for a guard to lie.
+    """
+    if s.supplied_by_user:
+        return tr("{name}: your copy, added {date}").format(
+            name=s.id, date=s.imported or tr("an unknown date"))
+    if s.archive_version and s.archive_published:
+        return tr("{name}: ChromIQ's copy, archive {version} of {date}"
+                  ).format(name=s.id, version=s.archive_version,
+                           date=s.archive_published)
+    return tr("{name}: ChromIQ's copy").format(name=s.id)
+
+
+def what_the_file_says(s: ReferenceSet) -> str:
+    """What a file the USER supplied says about ITSELF, or "" for a set that
+    ships. A second line under :func:`in_force_line`, never folded into it.
+
+    **BECAUSE "added 2026-09-20" ANSWERS THE WRONG QUESTION.** Sebastian asked
+    for the copy in force to be named with its version and its date. For a
+    bundled set that is the archive's, out of ``SOURCE.json``. For the user's,
+    the only date in the line was the date of their own ACTION. Fogra's FOGRA61
+    is published as a beta today and will be published again as a release; both
+    call themselves FOGRA61, both are stored as ``FOGRA61.txt``, both replace
+    the same record, and nothing on screen said which of them the numbers came
+    from, so a verification could be judged against beta aims by somebody who
+    believed they had the final ones.
+
+    **AND IT IS A SEPARATE LINE FOR A LAYOUT REASON AS WELL AS AN HONESTY
+    ONE.** Folded into the first sentence it made a line of 108 characters that
+    wraps at any width this window has, and a wrapped row in this layout paints
+    its second line across the row beneath it. Measured on screen, challenge
+    round 31, in both languages. Two short lines each fit on one.
+
+    It claims nothing. ChromIQ did not check this and does not say it did; it
+    quotes the header, and a file whose header says neither gets a sentence
+    saying exactly that rather than an empty quotation or an invented version.
+    """
+    if not s.supplied_by_user:
+        return ""
+    if s.file_descriptor and s.file_created:
+        return tr('It calls itself "{descriptor}" and is dated {created}.'
+                  ).format(descriptor=s.file_descriptor, created=s.file_created)
+    if s.file_descriptor:
+        return tr('It calls itself "{descriptor}" and carries no date of its '
+                  'own.').format(descriptor=s.file_descriptor)
+    if s.file_created:
+        return tr("It is dated {created} and carries no name of its own."
+                  ).format(created=s.file_created)
+    return tr("The file does not say which version of {name} it is."
+              ).format(name=s.id)
+
+
 def in_force_lines() -> "list[str]":
-    """One sentence per set saying WHICH copy is in force, with its version and
-    its date. English source; translated through ``tr()``.
+    """One sentence per set saying WHICH copy is in force, in chooser order.
 
     The window's whole reason for existing beyond three buttons: a control can
     offer an action, and only a sentence can tell somebody what is true now.
     """
-    out: "list[str]" = []
-    for s in available():
-        if s.supplied_by_user:
-            out.append(tr("{name}: your copy, added {date}").format(
-                name=s.id, date=s.imported or tr("an unknown date")))
-        elif s.archive_version and s.archive_published:
-            out.append(tr("{name}: ChromIQ's copy, archive {version} of {date}"
-                          ).format(name=s.id, version=s.archive_version,
-                                   date=s.archive_published))
-        else:
-            out.append(tr("{name}: ChromIQ's copy").format(name=s.id))
-    return out
+    return [in_force_line(s) for s in available()]
+
+
+def in_force_report() -> "list[tuple[str, str]]":
+    """``[(line, what the file says)]`` in chooser order, the second empty for
+    a set that ships. The window's own source of truth."""
+    return [(in_force_line(s), what_the_file_says(s)) for s in available()]
 
 
 

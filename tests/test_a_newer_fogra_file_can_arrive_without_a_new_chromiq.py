@@ -466,7 +466,191 @@ def test_the_window_says_which_copy_is_in_force_per_set(sandbox):
     mine = [ln for ln in lines if ln.startswith("FOGRA51:")]
     assert mine == [f"FOGRA51: your copy, added "
                     f"{rs.by_id('FOGRA51').imported}"], mine
+    # CHALLENGE ROUND 31 ADDED A SECOND LINE BESIDE THIS ONE, not inside it.
+    # "your copy, added <date>" answers the wrong question on its own: the only
+    # date in it is the date of the user's ACTION, so a FOGRA61 beta and the
+    # FOGRA61 release that follows it read identically. It is a separate line
+    # because folding it in made a row that wraps across the one beneath it.
+    # See `test_the_line_for_your_own_file_says_which_file_it_is`.
+    assert rs.what_the_file_says(rs.by_id("FOGRA51")), \
+        "the line says when the user acted and nothing about the file"
     assert "FOGRA52: ChromIQ's copy, archive V1.0 of 2022-01-27" in lines, \
         "one set's file changed what another says"
     for ln in lines:
         assert "—" not in ln, ln
+
+
+# ---------------------------------------------------------------------------
+# Challenge round 31: the door, the count, and the sentence about what is left
+# ---------------------------------------------------------------------------
+def test_a_zip_gives_each_set_one_file_and_counts_it_once(sandbox):
+    """Fogra's own ``FOGRA1_38.zip`` holds ``FOGRA11L.txt`` AND
+    ``FOGRA11S.txt``: the full set and the subset, both naming FOGRA11.
+
+    Measured challenge round 31 on that real archive: 45 ids came back over 29
+    files, because every doubled set overwrote itself and the second member
+    won without a word. The window's confirmation then said "your copies of
+    these 45 sets" and printed sixteen names twice, over a folder holding 29.
+
+    Two things have to hold. The COUNT must be the number of sets, because a
+    sentence with a number in it is a promise. And the file that won must be
+    the one the record names, so the window is describing something real.
+
+    MUTATION, run: drop the `if info["set_id"] in installed` skip and this goes
+    red on both the length and the recorded filename.
+    """
+    zp = sandbox / "FOGRA1_38.zip"
+    with zipfile.ZipFile(zp, "w") as z:
+        z.writestr("FOGRA51L.txt", _cmyk_file("FOGRA51_full"))
+        z.writestr("FOGRA51S.txt", _cmyk_file("FOGRA51_subset"))
+        z.writestr("FOGRA52.txt", _cmyk_file("FOGRA52_MW3"))
+    ids = rs.install_user_file(zp)
+
+    assert sorted(ids) == ["FOGRA51", "FOGRA52"], ids
+    assert len(ids) == len(set(ids)), f"a set was counted twice: {ids}"
+    assert len(ids) == len(list(rs.user_dir().glob("*.txt"))), \
+        "the count is not the number of files it made"
+    # FIRST WINS, and the record says which file that was rather than leaving
+    # the user to guess which of two same-named members is in force.
+    assert rs.user_record()["FOGRA51"]["original_filename"] == "FOGRA51L.txt"
+
+
+def test_a_member_chromiq_cannot_unpack_is_a_refusal_not_a_crash(sandbox):
+    """``ZipFile.read`` raises ``RuntimeError`` for an encrypted member and
+    ``NotImplementedError`` for a compression method Python does not have.
+
+    Neither is an ``OSError`` or a ``ValueError``, and the window's install
+    handler catches only those two, so both went straight past it. Measured
+    challenge round 31 with a real ``zip -P secret`` archive: uncaught, out of
+    the "Use a newer file…" button.
+
+    The contract this file exists to hold is that a candidate is REFUSED at the
+    door with a sentence, so an archive ChromIQ cannot open has to arrive as
+    one.
+
+    MUTATION, run: remove the `except (RuntimeError, NotImplementedError)`
+    around `zf.read(m)` and this goes red with the raw exception escaping.
+    """
+    zp = sandbox / "encrypted.zip"
+    with zipfile.ZipFile(zp, "w") as z:
+        z.writestr("FOGRA51.txt", _cmyk_file())
+    # Flip the "encrypted" bit on the member, which is what a password does to
+    # a reader that has no password: no external tool needed, same exception.
+    raw = bytearray(zp.read_bytes())
+    for sig, off in ((b"PK\x03\x04", 6), (b"PK\x01\x02", 8)):
+        i = raw.find(sig)
+        while i >= 0:
+            raw[i + off] |= 0x01
+            i = raw.find(sig, i + 4)
+    zp.write_bytes(bytes(raw))
+
+    with pytest.raises(ValueError) as exc:
+        rs.install_user_file(zp)
+    assert "Nothing in that archive" in str(exc.value)
+    assert rs.user_record() == {}
+    assert not list(rs.user_dir().glob("*.txt"))
+
+
+def test_an_enormous_file_is_refused_before_it_is_read(sandbox):
+    """The zip route has a ceiling; the plain-file route had none.
+
+    Measured challenge round 31: a 277 MB ``.txt`` was accepted, COPIED into
+    the user's preferences folder and recorded as 8,640,000 patches, and every
+    later `available()` re-hashed all 277 MB of it. The largest file in Fogra's
+    own archive is 435 kB.
+
+    The refusal has to come from the SIZE and not from the content, because
+    reading the file to find out is the cost being avoided. So the file here is
+    a perfectly good reference set that is merely too big.
+
+    MUTATION, run: delete the `_FILE_MAX_BYTES` check in `install_user_file`
+    and this goes red on the ValueError.
+    """
+    good = _cmyk_file()
+    head, rest = good.split(b"BEGIN_DATA\r\n", 1)
+    body = rest.rsplit(b"END_DATA", 1)[0]
+    reps = (rs._FILE_MAX_BYTES // max(len(body), 1)) + 8
+    big = _drop(sandbox, "FOGRA51_huge.txt",
+                head + b"BEGIN_DATA\r\n" + body * reps + b"END_DATA\r\n")
+    assert big.stat().st_size > rs._FILE_MAX_BYTES
+
+    with pytest.raises(ValueError) as exc:
+        rs.install_user_file(big)
+    assert "far larger than a set of reference data" in str(exc.value)
+    assert rs.user_record() == {}
+    assert not list(rs.user_dir().glob("*.txt"))
+
+    # and the same file under the ceiling still installs, so the guard is on
+    # the size and not on anything else about it
+    assert rs.install_user_file(_drop(sandbox, "ok.txt", good)) == ["FOGRA51"]
+
+
+def test_the_line_for_your_own_file_says_which_file_it_is(sandbox):
+    """Sebastian asked for the copy in force to be named with its version and
+    its date. For ChromIQ's own copy that is the archive's, out of
+    ``SOURCE.json``. For the user's it used to be "your copy, added
+    2026-09-20", whose only date is a fact about the user's ACTION.
+
+    Fogra's FOGRA61 is published as a beta today and will be published again as
+    a release. Both call themselves FOGRA61, both are stored as
+    ``FOGRA61.txt``, both replace the same record, and until challenge round 31
+    the only thing that changed on screen was the "added" date, so a
+    verification could be judged against beta aims by somebody who believed
+    they had the final ones.
+
+    What the line may NOT become is a claim. It quotes the file, in the file's
+    own words, and says so.
+
+    MUTATION, run: drop `file_created` from the record in `_install_one` and
+    this goes red on the date.
+    """
+    beta = _cgats("3D-DesignRGB_FOGRA61(beta)",
+                  "SAMPLE_ID\tRGB_R\tRGB_G\tRGB_B\tLAB_L\tLAB_A\tLAB_B",
+                  ["1\t0\t0\t0\t11\t0\t0", "2\t255\t255\t255\t91\t-1\t4"])
+    rs.install_user_file(_drop(sandbox, "FOGRA61_beta.txt", beta))
+    s61 = rs.by_id("FOGRA61")
+    line, says = rs.in_force_line(s61), rs.what_the_file_says(s61)
+    # TWO LINES, AND THE SPLIT IS THE POINT. The first is what ChromIQ knows;
+    # the second is a QUOTATION of a file it has not checked. Folding them
+    # together also made a line that wraps across the row beneath it at every
+    # width this window has (measured on screen, challenge round 31).
+    assert line == f"FOGRA61: your copy, added {s61.imported}", line
+    assert "3D-DesignRGB_FOGRA61(beta)" in says, says
+    assert "May 2015" in says, says              # the fixture's CREATED
+    assert "calls itself" in says, "it reads as ChromIQ's claim, not the file's"
+    assert "—" not in line and "—" not in says
+
+    # A FILE THAT SAYS NEITHER IS A REAL FILE, and it must not print an empty
+    # quotation or invent a version.
+    bare = _cgats("", "SAMPLE_ID\tCMYK_C\tCMYK_M\tCMYK_Y\tCMYK_K\t"
+                      "LAB_L\tLAB_A\tLAB_B",
+                  ["1\t0\t0\t0\t0\t95\t1\t-6"]) \
+        .replace(b'CREATED\t"May 2015"\r\n', b"") \
+        .replace(b'FILE_DESCRIPTOR\t""\r\n', b"")
+    # nothing in the file names it, so the FILE NAME does, which is the other
+    # half of `inspect_bytes` and the state a hand-trimmed subset arrives in
+    rs.install_user_file(_drop(sandbox, "FOGRA45.txt", bare))
+    bare_says = rs.what_the_file_says(rs.by_id("FOGRA45"))
+    assert '""' not in bare_says and "None" not in bare_says, bare_says
+    assert "does not say" in bare_says, bare_says
+
+    # ChromIQ's own copy is unchanged: it has an archive version, not a file's,
+    # and NOTHING is quoted about it, because SOURCE.json is not a quotation.
+    assert rs.in_force_line(rs.by_id("FOGRA52")) == \
+        "FOGRA52: ChromIQ's copy, archive V1.0 of 2022-01-27"
+    assert rs.what_the_file_says(rs.by_id("FOGRA52")) == ""
+
+
+def test_a_supplied_set_chromiq_ships_nothing_for_is_named_once(sandbox):
+    """Fogra's ``FOGRA55.txt`` calls itself exactly ``FOGRA55``, so the chooser
+    template printed ``FOGRA55 (FOGRA55)``. Measured challenge round 31 against
+    Fogra's own ``Ref_FOGRA55.zip``.
+
+    MUTATION, run: remove the `label == self.id` branch in `display_label` and
+    this goes red.
+    """
+    rs.install_user_file(_drop(sandbox, "f.txt", _cmyk_file("FOGRA55")))
+    assert rs.by_id("FOGRA55").display_label == "FOGRA55"
+    # a set that HAS a label of its own still leads with it
+    assert rs.by_id("FOGRA52").display_label.startswith("Uncoated") or \
+        "(FOGRA52)" in rs.by_id("FOGRA52").display_label

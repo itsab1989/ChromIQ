@@ -539,6 +539,14 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-20, challenge round 31 on the Fogra reference-set
+    # door. Seven new strings, of which FIVE are long enough for this file to
+    # count: the "no copy of that set shipped" sentence, the too-large refusal,
+    # the duplicate-member refusal, and two of the four "which file is in
+    # force" lines. German is written by hand for all seven, so de does not
+    # move; the eleven others carry the English under the beta rule and rise by
+    # exactly 5. COUNTED with this file's own `_english_echoes`, never adjusted
+    # upward.
     # RE-MEASURED 2026-09-20, Knut's beta 25 batch in one sweep. German is
     # translated by hand throughout, so de does not move; the eleven others
     # carry the English under the beta rule. COUNTED with this file's own
@@ -720,18 +728,26 @@ _BUDGET = {
     # same change, so **de does not move (21)**, and each of the eleven others
     # rises by exactly 14. COUNTED with this file's own `_english_echoes` on
     # the catalogues this change leaves behind, never adjusted upward.
+    # RE-MEASURED 2026-09-20, B8-548: the ISO half of the Reference values
+    # window answered a bad file with a raw Python exception string, and now
+    # answers it with two sentences ChromIQ wrote, the way the Fogra half of
+    # the same window already did. Both are long enough for this detector to
+    # see. German is translated by hand in the same change, so **de does not
+    # move (21)** and each of the eleven others rises by exactly 2. COUNTED
+    # with this file's own `_english_echoes` on the catalogues this change
+    # leaves behind, never adjusted upward.
     "de": 21,
-    "es": 321,
-    "fr": 322,
-    "it": 321,
-    "ja": 321,
-    "nl": 321,
-    "no": 321,
-    "pl": 321,
-    "pt": 321,
-    "ru": 320,
-    "sv": 321,
-    "zh_CN": 320,
+    "es": 329,
+    "fr": 330,
+    "it": 329,
+    "ja": 329,
+    "nl": 329,
+    "no": 329,
+    "pl": 329,
+    "pt": 329,
+    "ru": 328,
+    "sv": 329,
+    "zh_CN": 328,
 }
 
 

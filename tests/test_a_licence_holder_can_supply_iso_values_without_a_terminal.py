@@ -309,3 +309,162 @@ def test_the_window_behind_the_door_explains_itself(qapp_or_skip):
     assert "does not send them anywhere" in help_text, \
         "it does not say the values stay on this computer"
     assert "—" not in help_text and "—" not in src.why, "em dash"
+
+
+# ---------------------------------------------------------------------------
+# Challenge round 31
+# ---------------------------------------------------------------------------
+def _a_fogra_file(descriptor: str, fields: str, rows: "list[str]") -> bytes:
+    """A CGATS file with Fogra's own shape, CRLF and all. See
+    `tests/test_a_newer_fogra_file_can_arrive_without_a_new_chromiq.py` for
+    why LF here would make every guard pass over a reader that refuses every
+    real file."""
+    body = ["ISO28178", f'FILE_DESCRIPTOR\t"{descriptor}"',
+            'ORIGINATOR\t"Fogra, www.fogra.org"', 'CREATED\t"31-Jul-2024"',
+            f"NUMBER_OF_FIELDS\t{len(fields.split())}", "BEGIN_DATA_FORMAT",
+            fields, "END_DATA_FORMAT", f"NUMBER_OF_SETS\t{len(rows)}",
+            "BEGIN_DATA", *rows, "END_DATA", ""]
+    return "\r\n".join(body).encode("utf-8")
+
+
+def test_stopping_a_set_chromiq_ships_nothing_for_does_not_claim_one(
+        qapp_or_skip, tmp_path, monkeypatch):
+    """**THE SENTENCE WAS UNTRUE ABOUT THE ONE SET THAT PROVES THE DESIGN.**
+
+    FOGRA61 is still beta in Fogra's archive, ChromIQ ships nothing for it, and
+    the commit that built this calls it "the case that proves it is an upgrade
+    path and not an override". Press "Stop using it" on it and the window said
+    *"ChromIQ is back to the copy of FOGRA61 that shipped with it"*. Measured
+    challenge round 31: at that moment `by_id("FOGRA61")` is None and the row
+    the user just pressed is gone from the window behind the message.
+
+    This presses the REAL Stop button on the REAL row, for both kinds of set,
+    and reads the sentence the window produced.
+
+    MUTATION, run: make `fogra_source().forgotten` return the shipped-copy
+    sentence unconditionally and this goes red on the FOGRA61 half while the
+    FOGRA51 half stays green.
+    """
+    from ui.dialogs.reference_values_dialog import ReferenceValuesDialog
+    from workflow import reference_sets as rs
+
+    monkeypatch.setenv("CHROMIQ_PRESETS_DIR", str(tmp_path / "presets"))
+    rs.reset_cache()
+    assert str(tmp_path) in str(rs.user_dir()), rs.user_dir()
+
+    ships = tmp_path / "FOGRA51_new.txt"
+    ships.write_bytes(_a_fogra_file(
+        "FOGRA51_MW3_Subset",
+        "SAMPLE_ID\tCMYK_C\tCMYK_M\tCMYK_Y\tCMYK_K\tLAB_L\tLAB_A\tLAB_B",
+        ["1\t0\t0\t0\t0\t95.10\t1.40\t-6.10"]))
+    ships_not = tmp_path / "FOGRA61_beta.txt"
+    ships_not.write_bytes(_a_fogra_file(
+        "3D-DesignRGB_FOGRA61(beta)",
+        "SAMPLE_ID\tRGB_R\tRGB_G\tRGB_B\tLAB_L\tLAB_A\tLAB_B",
+        ["1\t0\t0\t0\t11\t0\t0", "2\t255\t255\t255\t91\t-1\t4"]))
+    rs.install_user_file(ships)
+    rs.install_user_file(ships_not)
+
+    dlg = ReferenceValuesDialog()
+    # SHOWN, BECAUSE `isVisible()` ON A CHILD OF A HIDDEN DIALOG IS FALSE AND
+    # A "the button is not there" FAILURE WOULD THEN BE THE GUARD'S OWN. The
+    # button's visibility is the thing under test here: `always_show_forget` is
+    # False for Fogra, so the Stop button appears only on the rows it can act
+    # on, and a guard that could not see it would prove the opposite.
+    dlg.show()
+    qapp_or_skip.processEvents()
+    said: list = []
+    dlg._say = said.append
+
+    def row(set_id):
+        """The row AS IT IS NOW: `_fill_items` destroys and rebuilds them, so a
+        widget held across a press is one nobody can see any more."""
+        dlg._refresh()
+        return next((r for r in dlg._rows
+                     if r[0].key == "fogra" and r[1] == set_id), None)
+
+    try:
+        r61 = row("FOGRA61")
+        assert r61 is not None, "the set the user supplied is not in the window"
+        assert r61[3].isVisible() and r61[3].isEnabled(), \
+            "there is nothing for the user to press"
+        r61[3].click()
+        assert len(said) == 1, said
+        assert "ships no copy of that set" in said[0], said[0]
+        assert "shipped with it" not in said[0], \
+            "it still claims a copy that does not exist"
+        assert "—" not in said[0]
+        assert rs.by_id("FOGRA61") is None, "the fixture did not actually stop"
+        assert row("FOGRA61") is None, "the row is still in the window"
+
+        # ...and the set that DOES ship still gets the sentence it always had
+        r51 = row("FOGRA51")
+        assert r51 is not None and r51[3].isEnabled()
+        r51[3].click()
+        assert len(said) == 2, said
+        assert "back to the copy of FOGRA51 that shipped with it" in said[1]
+        assert rs.by_id("FOGRA51") is not None, "a shipped set must come back"
+        assert not rs.by_id("FOGRA51").supplied_by_user
+    finally:
+        dlg.close()
+        rs.reset_cache()
+
+
+def test_the_window_shows_the_line_the_module_builds(qapp_or_skip, tmp_path,
+                                                     monkeypatch):
+    """`in_force_lines()` built these sentences and NOTHING ON SCREEN CALLED
+    IT: the window built the same three sentences again, inline. A guard on the
+    function therefore proved nothing about the window, which is this project's
+    own recorded way for a guard to lie.
+
+    So this reads the text off the labels the window actually puts in its
+    layout and requires it to be, character for character, what the module
+    says. One implementation, one guard.
+
+    MUTATION, run: go back to building the sentence inside `items()` (or change
+    one word of either copy) and this goes red.
+    """
+    from ui.dialogs.reference_values_dialog import ReferenceValuesDialog
+    from workflow import reference_sets as rs
+
+    monkeypatch.setenv("CHROMIQ_PRESETS_DIR", str(tmp_path / "presets"))
+    rs.reset_cache()
+    mine = tmp_path / "FOGRA61_beta.txt"
+    mine.write_bytes(_a_fogra_file(
+        "3D-DesignRGB_FOGRA61(beta)",
+        "SAMPLE_ID\tRGB_R\tRGB_G\tRGB_B\tLAB_L\tLAB_A\tLAB_B",
+        ["1\t0\t0\t0\t11\t0\t0", "2\t255\t255\t255\t91\t-1\t4"]))
+    rs.install_user_file(mine)
+
+    from PyQt6.QtWidgets import QLabel
+    dlg = ReferenceValuesDialog()
+    dlg.show()
+    qapp_or_skip.processEvents()
+    try:
+        dlg._refresh()
+        on_screen = [lbl.text() for s, _k, lbl, _b in dlg._rows
+                     if s.key == "fogra"]
+        assert on_screen == rs.in_force_lines(), \
+            "the window and the module disagree about what is in force"
+        assert len(on_screen) == 12, on_screen
+
+        # AND THE SECOND LINE, WHICH IS A WHOLE SEPARATE LABEL: it is not in
+        # `_rows` (nothing acts on it), so reading `_rows` alone would have
+        # proved the window shows the one thing this round added and missed
+        # whether it shows the other.
+        every = [lb.text() for lb in dlg.findChildren(QLabel)
+                 if (lb.text() or "").strip()]
+        says = rs.what_the_file_says(rs.by_id("FOGRA61"))
+        assert says and "3D-DesignRGB_FOGRA61(beta)" in says, says
+        assert "31-Jul-2024" in says, (
+            "the window says when the user acted and not which file it is")
+        assert says in every, (
+            "the module builds the file's own line and the window drops it")
+        # ...and it is NOT folded into the first line, which is what made it
+        # wrap across the row beneath it. Measured on screen, round 31.
+        assert all(says not in t for t in on_screen), on_screen
+        for text in on_screen + [says]:
+            assert "—" not in text, text
+    finally:
+        dlg.close()
+        rs.reset_cache()

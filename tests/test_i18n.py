@@ -786,6 +786,11 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-20, challenge round 31 on the Fogra reference-set
+    # door: seven new strings, German written by hand (de does not move) and
+    # the eleven others carrying the English source under the beta rule, so
+    # each rises by exactly 7. COUNTED off the catalogues on disk, never
+    # adjusted upward.
     # RE-MEASURED 2026-09-18, round 19: the numberless scope sentence gained
     # its own plural form for a document drawn from more than one project,
     # which the numbered one has had since R13-3. One key in, none out.
@@ -1131,18 +1136,27 @@ _IDENTICAL_TO_KEY = {
     # and each rises by exactly 28 - 2 = 26. COUNTED off the catalogues this
     # change leaves behind, with the expression the test below uses, and never
     # adjusted to make a red go green.
+    # RE-MEASURED 2026-09-20, B8-548. The ISO half of the Reference values
+    # window used to print a raw Python exception at a user who picked the
+    # wrong file ("'utf-8' codec can't decode byte 0xe2 in position 10"),
+    # measured on screen in challenge round 31. It now answers with two
+    # sentences ChromIQ wrote. German is translated by hand in the same change,
+    # so **de does not move (145)** and each of the eleven others rises by
+    # exactly 2, which is the two new keys carrying their English source under
+    # the beta rule. COUNTED off the catalogues this change leaves behind,
+    # never adjusted upward.
     "de": 145,
-    "es": 543,
-    "fr": 565,
-    "it": 554,
-    "ja": 529,
-    "nl": 570,
-    "no": 555,
-    "pl": 547,
-    "pt": 545,
-    "ru": 518,
-    "sv": 556,
-    "zh_CN": 523,
+    "es": 552,
+    "fr": 574,
+    "it": 563,
+    "ja": 538,
+    "nl": 579,
+    "no": 564,
+    "pl": 556,
+    "pt": 554,
+    "ru": 527,
+    "sv": 565,
+    "zh_CN": 532,
 }
 
 

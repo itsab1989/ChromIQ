@@ -97,6 +97,40 @@ def wake_the_screen(timeout: float = 6.0) -> tuple[bool, str]:
                    "session wants a password; unlock it by hand")
 
 
+def _by_geometry(win, cands: list, slack: float = 24.0):
+    """The candidate whose bounds are where *win* says it is, or None.
+
+    Separate from :func:`window_id_for` so a test can drive it with plain
+    dictionaries and no window server at all: the fault it fixes is a CHOICE
+    between two windows, and a choice can be proved without photographing
+    anything.
+
+    ``slack`` is in points and covers the frame shadow and a window the server
+    has just finished moving. A match must be the closest candidate AND within
+    the slack, so two windows genuinely stacked on the same rectangle still
+    fall through to the caller's size rule rather than being guessed at.
+    """
+    try:
+        g = win.frameGeometry()
+        want = (float(g.x()), float(g.y()), float(g.width()), float(g.height()))
+    except Exception:                                      # noqa: BLE001
+        return None
+    if want[2] <= 0 or want[3] <= 0:
+        return None
+
+    def _off(w) -> float:
+        b = w.get("kCGWindowBounds") or {}
+        try:
+            got = (float(b["X"]), float(b["Y"]),
+                   float(b["Width"]), float(b["Height"]))
+        except (KeyError, TypeError, ValueError):
+            return float("inf")
+        return max(abs(a - c) for a, c in zip(want, got))
+
+    best = min(cands, key=_off, default=None)
+    return best if best is not None and _off(best) <= slack else None
+
+
 def window_id_for(win) -> "int | None":
     """The CGWindowID of *win*, found by this process's pid and the title.
 
@@ -145,9 +179,30 @@ def window_id_for(win) -> "int | None":
         # The biggest window this process owns, preferring an exact title
         # match: a Qt app also owns tiny helper windows (tooltips, shadows).
         named = [w for w in cands if str(w.get("kCGWindowName") or "") == title]
-        pick = max(named or cands,
-                   key=lambda w: (w["kCGWindowBounds"]["Width"]
-                                  * w["kCGWindowBounds"]["Height"]))
+        # THE GEOMETRY DECIDES BEFORE THE SIZE DOES, AND "biggest" ALONE
+        # PHOTOGRAPHED THE WRONG WINDOW FOR AS LONG AS THIS HELPER HAS EXISTED.
+        #
+        # `ui.tooltip_button.InfoDialog` takes its PARENT's title, so a message
+        # box over the Reference values window is also called "Reference
+        # values". Both then land in `named`, `max(..., area)` picks the parent
+        # because a message box is smaller than the window it covers, and the
+        # capture comes back as the window BEHIND the thing it is filed as.
+        # Measured on challenge round 31 against the pictures of round 30:
+        # `C-said-en-1.png`, `E-stop-said-en-1.png` and `G-zip-said-en-1.png`
+        # are all photographs of the parent, greyed out, with the sentence they
+        # are named for nowhere in them. Nothing was faked; the helper simply
+        # answered a different question.
+        #
+        # A widget knows where it is, so ask. `frameGeometry` is in logical
+        # points and `kCGWindowBounds` is too (both are in the display's
+        # points, not device pixels), so they compare directly, with a few
+        # points of slack for the shadow and for a window the server has just
+        # moved. Falling back to the old rule keeps every existing caller
+        # working when the match fails.
+        exact = _by_geometry(win, named or cands)
+        pick = exact or max(named or cands,
+                            key=lambda w: (w["kCGWindowBounds"]["Width"]
+                                           * w["kCGWindowBounds"]["Height"]))
         return int(pick["kCGWindowNumber"])
     except Exception:                                      # noqa: BLE001
         return None

@@ -684,3 +684,99 @@ def test_the_window_route_asks_whether_the_picture_has_anything_in_it():
     assert "_is_one_flat_colour" in called, (
         "the window-id route returns OK without asking whether the buffer has "
         "anything in it")
+
+
+# ---------------------------------------------------------------------------
+# Challenge round 31: the helper photographed the WRONG window of the right app
+# ---------------------------------------------------------------------------
+class _FakeWin:
+    """Just enough of a QWidget for the CHOICE to be measured.
+
+    The fault is a choice between two candidate windows, and a choice can be
+    proved without a window server, a Space, or a Screen Recording grant. Every
+    other guard in this file reads source; this one runs the function.
+    """
+
+    class _G:
+        def __init__(self, x, y, w, h):
+            self._v = (x, y, w, h)
+
+        def x(self): return self._v[0]
+        def y(self): return self._v[1]
+        def width(self): return self._v[2]
+        def height(self): return self._v[3]
+
+    def __init__(self, x, y, w, h, title=""):
+        self._g = self._G(x, y, w, h)
+        self._t = title
+
+    def frameGeometry(self): return self._g
+    def windowTitle(self): return self._t
+
+
+def _helper():
+    """`scripts/` is not a package, so load the helper by path, the way the
+    drivers reach it (`sys.path.insert(0, ROOT / "scripts")`)."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("onscreen_capture_probe",
+                                                  HELPER)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _cg(x, y, w, h, name, number):
+    return {"kCGWindowBounds": {"X": x, "Y": y, "Width": w, "Height": h},
+            "kCGWindowName": name, "kCGWindowNumber": number}
+
+
+def test_the_helper_photographs_the_window_it_was_given_not_the_biggest_one():
+    """**A MODAL MESSAGE TAKES ITS PARENT'S TITLE, SO "biggest with this title"
+    IS ALWAYS THE PARENT.**
+
+    `ui.tooltip_button.InfoDialog` is constructed with its parent's title, so
+    the box over the Reference values window is also called "Reference values".
+    Both matched, `max(..., area)` preferred the larger one, and the capture
+    came back as the window BEHIND the sentence it was filed as.
+
+    Measured challenge round 31 against round 30's own pictures:
+    `C-said-en-1.png`, `E-stop-said-en-1.png` and `G-zip-said-en-1.png` are all
+    1640x1308 photographs of the greyed-out parent, and the message each is
+    named for appears in none of them. Nothing was faked; the helper answered a
+    different question, and it has answered it that way for every driver that
+    has ever photographed a message box on this project.
+
+    MUTATION, run: delete the `_by_geometry` call in `window_id_for` (or make
+    `_by_geometry` return None) and this goes red on the id.
+    """
+    _by_geometry = _helper()._by_geometry
+
+    parent = _cg(100, 100, 820, 654, "Reference values", 11)
+    box = _cg(250, 300, 520, 240, "Reference values", 22)
+
+    # the window the caller asked for is the small one on top
+    assert _by_geometry(_FakeWin(250, 300, 520, 240), [parent, box]) is box
+    # and asking for the parent still gets the parent
+    assert _by_geometry(_FakeWin(100, 100, 820, 654), [parent, box]) is parent
+
+
+def test_the_geometry_match_gives_up_rather_than_guessing():
+    """It may only ANSWER when it is sure, because the caller's fallback (the
+    biggest window this process owns) is right far more often than a wrong
+    id is harmless: a wrong id photographs a real window, so nothing downstream
+    can tell that the picture is of the wrong thing. A near miss inside the
+    frame shadow is a match; anything else is None and the size rule decides.
+    """
+    _by_geometry = _helper()._by_geometry
+
+    a = _cg(100, 100, 820, 654, "x", 11)
+    # off by a shadow: still a match
+    assert _by_geometry(_FakeWin(104, 102, 812, 650), [a]) is a
+    # off by a window: not a match, and it says so rather than picking `a`
+    assert _by_geometry(_FakeWin(600, 400, 300, 200), [a]) is None
+    # nothing to choose from, and a window with no size yet
+    assert _by_geometry(_FakeWin(100, 100, 820, 654), []) is None
+    assert _by_geometry(_FakeWin(0, 0, 0, 0), [a]) is None
+    # a candidate whose bounds the window server did not give us
+    assert _by_geometry(_FakeWin(100, 100, 820, 654),
+                        [{"kCGWindowNumber": 9}]) is None

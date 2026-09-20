@@ -20601,3 +20601,314 @@ would reach.
   Recorded because an intermittent failure nobody wrote down is one somebody
   spends an hour on later.
 - evidence: none yet. Not this change set's, and not fixed here.
+
+### B8-539 · FIXED · "Stop using it" on FOGRA61 claimed ChromIQ was back to a copy that has never existed
+- status: FIXED
+- blocks release: yes
+- it did: this is the set the change set itself calls "the case that proves it
+  is an upgrade path and not an override".
+- FOGRA61 is still beta in Fogra's archive and ChromIQ ships nothing for it.
+  Press "Stop using it" on it and the window said *"ChromIQ is back to the copy
+  of FOGRA61 that shipped with it."* Measured on screen, challenge round 31: at
+  that moment `by_id("FOGRA61")` is None and the row the user just pressed is
+  gone from the window standing behind the message. The sentence was untrue
+  about the one set the feature exists for.
+- the cause is that the sentence branched on `src.template is not None`, which
+  is a question about BUTTONS. Only the source knows what is left behind, so
+  `Source` now carries a `forgotten(key)` of its own and Fogra's asks
+  `by_id(key)` after the removal has happened.
+- new text, German by hand: *"ChromIQ is no longer using your copy of {name}.
+  It ships no copy of that set, so {name} has gone from the list until you
+  supply a file for it again. Your own file is untouched."*
+- mutation, proven and reverted: make `fogra_source().forgotten` return the
+  shipped-copy sentence unconditionally; the FOGRA61 half goes red and the
+  FOGRA51 half stays green.
+- evidence: test_stopping_a_set_chromiq_ships_nothing_for_does_not_claim_one
+- photograph: `~/Desktop/ChromIQ-beta29-proof/challenge-round-31/onscreen/
+  E-stop61-said-en-1.png`, the message box itself.
+
+### B8-540 · FIXED · Two kinds of zip crashed straight out of the install button
+- status: FIXED
+- blocks release: yes
+- the door's whole claim is that a candidate is refused with a sentence before
+  anything is written.
+- `ZipFile.read` raises `RuntimeError` for an encrypted member and
+  `NotImplementedError` for a compression method Python does not have. Neither
+  is an `OSError` or a `ValueError`, and `_install`'s handler catches only
+  those two, so both went past it uncaught. Measured challenge round 31 on a
+  real `zip -P secret` archive and on one whose method field was rewritten.
+- both are now refusals naming the member, and nothing is written.
+- mutation, proven and reverted: remove the `except (RuntimeError,
+  NotImplementedError)` around `zf.read(m)`; the raw exception escapes again.
+- evidence: test_a_member_chromiq_cannot_unpack_is_a_refusal_not_a_crash
+
+### B8-541 · FIXED · A single .txt had no size ceiling at all, and the zip route has one
+- status: FIXED
+- blocks release: yes
+- on a machine it is provoked on, which takes one oversized file.
+- `_install_zip` refuses an archive that unpacks past 64 MB. `install_user_file`
+  read whatever it was handed. Measured challenge round 31: a 277 MB `.txt` was
+  accepted, COPIED into the user's preferences folder and recorded as 8,640,000
+  patches, in 7.7 s on the main thread, and every later `available()` re-hashes
+  all 277 MB of it. The largest file in Fogra's own archive is 435 kB.
+- the same ceiling now applies, asked from `stat()` before the bytes are read,
+  so a refused file costs neither the read nor the copy.
+- new text, German by hand: *"That file is {size} MB, which is far larger than
+  a set of reference data. ChromIQ has not read it."*
+- mutation, proven and reverted: delete the `_FILE_MAX_BYTES` check.
+- evidence: test_an_enormous_file_is_refused_before_it_is_read
+
+### B8-542 · FIXED · Fogra's own FOGRA1_38.zip installed 45 sets over 29 files and said "these 45 sets"
+- status: FIXED
+- blocks release: yes
+- it is one of the archives the ⓘ text tells a user to drop in, unchanged,
+  exactly as downloaded.
+- `FOGRA1_38.zip` holds `FOGRA11L.txt` (the full set) AND `FOGRA11S.txt` (the
+  subset). Both name FOGRA11, both were stored as `FOGRA11.txt`, and the second
+  silently overwrote the first. Sixteen of its sets are doubled that way, so
+  the confirmation said *"your copies of these 45 sets"*, printed sixteen names
+  twice, over a folder holding 29 files. Measured challenge round 31 on the
+  real archive: 45 ids, 29 files, 16 duplicated.
+- the first member found for a set now wins and a later one is refused and says
+  which file it lost to. The count is the number of sets again.
+- **open question for Sebastian, not settled here**: FIRST wins, which for
+  `FOGRA11L` / `FOGRA11S` means the FULL file rather than the subset, because
+  that is the order Fogra's archive lists them in. Choosing by size or by
+  suffix would be ChromIQ deciding something nobody told it.
+- new text, German by hand: *"{name}: this archive already gave ChromIQ a file
+  for {set_id}, so this one was not used."*
+- mutation, proven and reverted: drop the `if info["set_id"] in installed` skip.
+- evidence: test_a_zip_gives_each_set_one_file_and_counts_it_once
+
+### B8-543 · FIXED · The window said WHEN a user acted and never WHICH file is in force
+- status: FIXED
+- blocks release: yes
+- it is a correctness risk rather than a cosmetic one.
+- For ChromIQ's own copy the line names the archive: *"FOGRA51: ChromIQ's copy,
+  archive V1.0 of 2022-01-27"*. For the user's it said only *"FOGRA61: your
+  copy, added 2026-09-20"*, whose only date is a fact about the USER'S ACTION.
+  Fogra's FOGRA61 is published as a beta today and will be published again as a
+  release; both call themselves FOGRA61, both are stored as `FOGRA61.txt`, both
+  replace the same record. Nothing on screen distinguished them, so a
+  verification could be judged against beta aims by somebody who believed they
+  had the final ones.
+- the data was already in hand and was being dropped: `inspect_bytes` returns
+  `created` and `_install_one` never stored it.
+- a SECOND, quieter line under the first now quotes the file's own header:
+  *"It calls itself "3D-DesignRGB_FOGRA61(beta)" and is dated 31-Jul-2024."*
+  Four endings, including one for a file whose header says neither, which gets
+  *"The file does not say which version of {name} it is."* rather than an empty
+  quotation or an invented version.
+- it is a separate line and not a longer sentence for two reasons. The claims
+  are different, and only one of them is ChromIQ's: the first is what ChromIQ
+  knows, the second is a quotation of something it has not checked. And folded
+  together they made 108 characters, which wraps at every width this window
+  has; a wrapped row in this layout paints its second line ACROSS the row
+  beneath it, measured on screen in both languages with *"und ist datiert auf
+  May 2015."* drawn over the FOGRA47 line. Two short lines each fit on one.
+- the fault was found by LOOKING at the photograph. Every per-widget number the
+  driver collected said the window was clean, because no label was clipped: the
+  rows simply overlapped.
+- new text, four strings, German by hand.
+- mutations, both proven and reverted: drop `file_created` from the record in
+  `_install_one`; and make `what_the_file_says` return "" for a file that has
+  both.
+- evidence: test_the_line_for_your_own_file_says_which_file_it_is,
+  test_the_window_shows_the_line_the_module_builds
+- photograph: `.../challenge-round-31/onscreen/H-whole-archive-de-1.png`,
+  twenty-two of Fogra's own sets each naming its own file and date.
+
+### B8-544 · FIXED · `in_force_lines()` was guarded and NOTHING ON SCREEN CALLED IT
+- status: FIXED
+- blocks release: no
+- but it is the reason B8-543 could exist behind a green guard.
+- `workflow.reference_sets.in_force_lines` built the "which copy is in force"
+  sentences and its only caller was a test. The Reference values window built
+  the same three sentences again, inline, so
+  `test_the_window_says_which_copy_is_in_force_per_set` proved nothing about
+  the window it is named for. This project's own recorded way for a guard to
+  lie.
+- one implementation now: `in_force_line(set)` plus `what_the_file_says(set)`,
+  and the window calls both. The new guard reads the text off the labels the
+  window actually puts in its layout and requires it to equal, character for
+  character, what the module says.
+- mutation, proven and reverted: build the sentence inside `items()` again.
+- evidence: test_the_window_shows_the_line_the_module_builds
+
+### B8-545 · FIXED · Every driver on this project has been photographing the WRONG WINDOW of the right app
+- status: FIXED
+- blocks release: no
+- it is proof infrastructure, and it has been quietly wrong for as long as
+  `scripts/onscreen_capture.py` has existed.
+- `ui.tooltip_button.InfoDialog` is constructed with its PARENT's title, so a
+  message box over the Reference values window is also called "Reference
+  values". `window_id_for` matched both windows on the title and then picked
+  `max(..., area)`, which is always the parent, because a message box is
+  smaller than the window it covers.
+- measured challenge round 31 against round 30's own pictures:
+  `C-said-en-1.png`, `E-stop-said-en-1.png` and `G-zip-said-en-1.png` in
+  `~/Desktop/ChromIQ-beta29-proof/fogra-reference-sets/onscreen/` are all
+  1640x1308 photographs of the greyed-out parent, and the sentence each is
+  named for appears in none of them. Nothing was faked and the sentences WERE
+  measured, as text, in `result-*.json`; they were not photographed.
+- the widget knows where it is, so `_by_geometry` now asks it: the candidate
+  whose `kCGWindowBounds` match the widget's `frameGeometry` within 24 points
+  wins, and the old size rule remains the fallback when no candidate matches.
+- mutations, both proven and reverted: make `_by_geometry` return None (the
+  parent is chosen again); and make it return its best candidate without the
+  slack check (it guesses instead of giving up).
+- evidence: test_the_helper_photographs_the_window_it_was_given_not_the_biggest_one,
+  test_the_geometry_match_gives_up_rather_than_guessing
+- photograph proving it works: `.../challenge-round-31/onscreen/
+  E-stop61-said-en-1.png` is 1040x394 and is the message box itself.
+
+### B8-546 · FIXED · A supplied set ChromIQ ships nothing for was named twice in the chooser
+- status: FIXED
+- blocks release: no
+- latent: nothing in `ui/` reads `display_label` yet.
+- Fogra's `FOGRA55.txt` calls itself exactly `FOGRA55`, so the chooser template
+  `"{label} ({name})"` produced `FOGRA55 (FOGRA55)`. Measured challenge round
+  31 against Fogra's own `Ref_FOGRA55.zip`.
+- mutation, proven and reverted: remove the `label == self.id` branch.
+- evidence: test_a_supplied_set_chromiq_ships_nothing_for_is_named_once
+
+### B8-547 · FIXED · With Fogra's published archive installed the window was 297 px taller than the screen
+- status: FIXED
+- Measured on screen, challenge round 31, on a 1728x1079 display: with the
+  eleven shipped sets the window is 626 px (English) / 642 px (German). Install
+  `FOGRA39_to_FOGRA60_v2.zip`, which the ⓘ text tells the user to drop in
+  exactly as downloaded, and it has 22 sets, each with two lines, and grew to
+  **1376 px against 1079 px of available screen**. The Close button went below
+  the screen and, once macOS clamped the height, the rows overlapped: 231
+  overlapping pairs measured in the German run.
+- round 31 reported this rather than building it, on the grounds that a scroll
+  area changes a window Basti specified as *"one door, and a small window
+  behind it"*. That was the right instinct and the wrong conclusion: leaving a
+  shipped window 297 px off the bottom of the screen with overlapping rows is
+  worse than the change, and the change is invisible in the case Basti
+  specified. **Sebastian can reverse this; it is recorded as my call.**
+- the content scrolls, with no frame, no horizontal bar, and a vertical bar
+  only when the content genuinely does not fit. The opening height is still the
+  content's own, capped at 92 % of the available screen. A cap without
+  scrolling was rejected: it hides rows with no way to reach them.
+- AND THE WINDOW MEASURES ITSELF RATHER THAN PREDICTING. The first attempt
+  predicted the height in `__init__` and was 4 px short, which is the scroll
+  area's own chrome. `showEvent` now corrects once, upward only, bounded by the
+  screen, so the archive case still stops at the display edge and still
+  scrolls, and a user who resizes keeps their size.
+- evidence: test_the_whole_published_archive_does_not_push_the_window_off_screen,
+  test_what_chromiq_ships_opens_exactly_as_it_did
+
+### B8-548 · FIXED · The ISO half of the same window answered a bad file with a raw Python exception string
+- status: FIXED
+- Pressing "Use a file I filled in…" and picking a `.zip` produced *"ChromIQ
+  could not read that file: 'utf-8' codec can't decode byte 0xe2 in position
+  10: invalid continuation byte"*. Measured on screen, challenge round 31,
+  while mashing every control twice.
+- both failures of `install_user_values` are ValueError (`UnicodeDecodeError`
+  and `JSONDecodeError` are both subclasses), so the caller's generic branch
+  caught them and formatted the exception verbatim.
+- the ISO source now answers each with a sentence ChromIQ wrote, which is the
+  shape the Fogra half of the same window already used: one for a file that is
+  not text at all, one for text that is not laid out the way ChromIQ wrote it,
+  the second naming the line and quoting the parser's reason.
+- German by hand, both untranslated ledgers re-measured off the tree: de stands
+  still and each of the eleven others rises by exactly 2.
+- evidence: none yet; measured on screen in the beta 29 drive.
+
+### B8-549 · OPEN · A set a supplied file brings in for the first time can fill no row of the Report limits table
+- status: OPEN
+- blocks release: no
+- it is a design question, not a defect.
+- `can_fill` has three answers, and for a set ChromIQ ships no `SOURCE.json`
+  entry for, `is_real_paper` is None, so the substrate row is refused with
+  *"nothing in the file says whether it describes a real paper or a colour
+  exchange space"*. That is deliberate and honest (B8-533). Its consequence,
+  measured challenge round 31 on Fogra's real `Ref_FOGRA55.zip` and the FOGRA58
+  textile subset, is that a set arriving purely through the upgrade path can
+  fill NO row at all: substrate refused as unknown, both solids rows refused as
+  cross-space.
+- so FOGRA61, the case the whole mechanism is named for, supplies aims that
+  currently judge nothing. That may be exactly right until Part B wires the
+  aims into a built chart, but it should be a decision somebody made.
+- evidence: none yet. `.../challenge-round-31/drivers/probe2.py` output.
+
+### B8-550 · OPEN · `patches` counts data rows and `read_aims` counts distinct device colours, and they differ by 612 on FOGRA55
+- status: OPEN
+- blocks release: no
+- latent: `coverage_text` has no caller yet.
+- Fogra's `FOGRA55.txt` has 4,884 data rows and 4,272 distinct seven-channel
+  device tuples. `_install_one` records 4,884; `read_aims` keys by the device
+  tuple and returns 4,272. Measured: the 612 collapsed rows carry an IDENTICAL
+  Lab in every case, so no aim colour is lost, but `coverage_text(found, total)`
+  would print *"of 4884"* over a denominator a sheet can never reach.
+- a count beside a row is a promise. Whichever number is right, the two places
+  must not disagree before Part B gives `coverage_text` a caller.
+- evidence: none yet. `.../challenge-round-31/drivers/probe2.py` output.
+
+### B8-551 · FIXED · A dead line in `bundled()` read as if it poisoned `available()`'s cache
+- status: FIXED
+- `workflow/reference_sets.py`, in the branch taken when `SOURCE.json` cannot be
+  read: `_cache = out`. `bundled()` declares `global _bundled_cache` and NOT
+  `global _cache`, so this assigned a local that was thrown away.
+- deleted rather than corrected to `_bundled_cache = out`, and the comment left
+  behind says why both ways: an unreadable `SOURCE.json` is a condition of the
+  disk, so a cached empty list would survive the file becoming readable again.
+- evidence: none; `python -m pyflakes workflow/reference_sets.py` is clean.
+
+### B8-552 · VERIFIED · The reference data works from a frozen bundle, on all three platforms
+- status: VERIFIED
+- Sebastian, 2026-09-20: *"all of this must work in the bundled releases users
+  can download from github on all supported operating systems."* Everything
+  proved until now ran from this checkout, where `resource_path` falls back to
+  the project root and every file is simply there.
+- all three specs already bundle `data/reference_sets`, and
+  `test_the_three_specs_bundle_the_same_data.py` derives its required list from
+  the tree rather than a hand-kept one, so a new data folder cannot be missed
+  on one platform. What was NOT covered is the path the loader builds out of
+  `sys._MEIPASS`, and the write side.
+- the write side is the worse half: `_MEIPASS` is a TEMPORARY directory a
+  onefile build deletes on exit, so a user's own Fogra file written anywhere
+  inside it would work all evening and silently revert at the next launch.
+- four guards, none needing PyInstaller, so they run on every platform in the
+  ordinary gate, which is the only way Windows and Linux are covered from here:
+  the eleven sets load out of a staged extraction directory and every sha256
+  still matches `SOURCE.json`; the aims parse out of the bundled copy; none of
+  `reference_sets_dir`, `compliance_dir` or `user_dir` resolves inside the
+  bundle; and each platform's folder is its own configuration location.
+- evidence: test_a_frozen_build_finds_the_reference_sets_it_ships,
+  test_a_frozen_build_can_read_the_aims_out_of_its_own_copy,
+  test_a_users_own_file_is_never_written_inside_the_bundle,
+  test_the_users_folder_is_a_place_each_operating_system_keeps
+- verified by: `QT_QPA_PLATFORM=offscreen pytest -q tests/test_the_shipped_bundle_carries_the_reference_data.py` → 4 passed, and all four mutations land
+
+### B8-553 · FIXED · The window doubled its own sentence when it refused a file
+- status: FIXED
+- Photographed in the beta 29 on-screen drive: *"ChromIQ could not read that
+  file: That file is not text ChromIQ can read. …"*. The caller wrapped every
+  refusal in "ChromIQ could not read that file: {error}", and every ValueError
+  an installer raises here is already written English.
+- it was not new with B8-548 either: the Fogra half has raised written
+  sentences since `b7475572` and every one of them was being doubled the same
+  way. Challenge round 31 read those messages as JSON and did not see it; the
+  photograph did.
+- a ValueError is now shown as it is, and an OSError keeps the frame, because
+  an OSError is the operating system talking and the sentence has to say who is
+  being quoted.
+- evidence: none yet; measured on screen in both languages in the beta 29 drive.
+
+### B8-554 · FIXED · With the whole archive installed the sets were listed in no order a reader can follow
+- status: FIXED
+- Photographed with Fogra's published archive installed: the 23 rows read
+  FOGRA39, 51, 47, 52, 56, 57, 45, 46, 42, 48, 60, 40, 41 and so on. That is
+  `available()`'s order, which is by printing-condition group and then by id.
+- the order is right where it comes from. A chooser labels its groups and the
+  grouping is the point there. This window shows no headings: it is a list of
+  which copy of each set is in force, and a person who has just added FOGRA61
+  has to read every line to find it.
+- so this window, and only this window, sorts by the set NUMBER. By the number
+  and not the string, so a hypothetical FOGRA9 sorts before FOGRA60.
+- found by LOOKING at the photograph. Every measured number in the same run
+  said the window was correct, and by its own terms it was.
+- evidence: test_the_sets_are_listed_in_set_number_order
+

@@ -33,13 +33,15 @@ and that is the one fact a person opening this wants first.
 """
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import (QDialog, QFrame, QHBoxLayout, QLabel,
-                             QPushButton, QVBoxLayout)
+from PyQt6.QtWidgets import (QApplication, QDialog, QFrame, QHBoxLayout,
+                             QLabel, QPushButton, QScrollArea, QVBoxLayout,
+                             QWidget)
 
 from core.i18n import tr
 from ui.styles import SPEC_GREEN
@@ -98,6 +100,19 @@ class Supplied:
     #: there is anything for "Stop using it" to remove.
     is_yours: bool
     forget: Callable[[], bool]
+    #: A SECOND, QUIETER LINE UNDER THE FIRST, or "" for no second line.
+    #:
+    #: It exists because the two lines answer two different questions and only
+    #: one of them is ChromIQ's to answer. The first says which copy is in
+    #: force, which ChromIQ knows. The second quotes what a file the user
+    #: supplied says about ITSELF, which ChromIQ has not checked.
+    #:
+    #: **AND BECAUSE ONE LINE COULD NOT HOLD BOTH.** Folded together they made
+    #: 108 characters, which wraps at every width this window has, and a
+    #: wrapped row here paints its second line across the row beneath it:
+    #: measured on screen, challenge round 31, in both languages, with
+    #: "und ist datiert auf May 2015." drawn over the FOGRA47 line.
+    detail: str = ""
     #: Whether the line may wrap, and IT IS NOT A STYLE CHOICE.
     #:
     #: A word-wrapped `QLabel` reports a sizeHint of TWO lines at its own
@@ -156,6 +171,17 @@ class Source:
     #: is a guess about punctuation in thirteen languages.
     pick_title: str
     forget_label: str
+    #: What to say once one item has been given up, given that item's key.
+    #:
+    #: **A SOURCE OWNS THIS SENTENCE BECAUSE ONLY THE SOURCE KNOWS WHAT IS LEFT
+    #: BEHIND.** It used to be one static method on the window that branched on
+    #: `template is not None`, which is a question about buttons, and for Fogra
+    #: it answered "ChromIQ is back to the copy of FOGRA61 that shipped with
+    #: it" -- about the one set in the archive that ships nowhere, which is the
+    #: very case this whole feature exists for. Measured challenge round 31:
+    #: after that sentence `by_id("FOGRA61")` is None and the row is gone from
+    #: the window the sentence is standing in front of.
+    forgotten: "Callable[[str], str] | None" = None
     #: None when the source has nothing to fill in. See :class:`Template`.
     template: "Template | None" = None
     #: Show a greyed "Stop using it" on an item that has nothing to stop.
@@ -190,10 +216,37 @@ def iso_source() -> Source:
                          forget=cs.forget_user_values, wraps=True)]
 
     def install(path: Path) -> str:
-        dst = cs.install_user_values(path)
+        # A SENTENCE CHROMIQ WROTE, NEVER A PYTHON EXCEPTION (B8-548).
+        # `install_user_values` calls `json.loads(read_text(encoding="utf-8"))`
+        # and both of its failures are ValueError, so the caller's generic
+        # branch caught them and printed the exception verbatim. Picking a
+        # `.zip` in this half of the window produced "ChromIQ could not read
+        # that file: 'utf-8' codec can't decode byte 0xe2 in position 10:
+        # invalid continuation byte", measured on screen in challenge round 31.
+        # The Fogra half of the same window answers the same file with a
+        # sentence naming what was wrong; this is that shape.
+        try:
+            dst = cs.install_user_values(path)
+        except UnicodeDecodeError:
+            raise ValueError(tr(
+                "That file is not text ChromIQ can read. The values file is "
+                "the one ChromIQ writes for you with “Save a file to fill "
+                "in”, filled in with a text editor, and this looks like a "
+                "program or an archive instead.")) from None
+        except json.JSONDecodeError as exc:
+            raise ValueError(tr(
+                "That file is text, but it is not laid out the way ChromIQ "
+                "wrote it (line {line}: {why}). Start again from “Save a file "
+                "to fill in” and change only the numbers, leaving the "
+                "punctuation as it is.").format(line=exc.lineno,
+                                                why=exc.msg)) from None
         return tr("ChromIQ is using {path} now. Close and reopen the Report "
                   "limits window to see the values in the table."
                   ).format(path=dst)
+
+    def forgotten(_key: str) -> str:
+        return tr("ChromIQ is back to its own numbers. Close and reopen "
+                  "the Report limits window to see the table change.")
 
     return Source(
         key="iso12647",
@@ -225,6 +278,7 @@ def iso_source() -> Source:
         install_label=tr("Use a file I filled in…"),
         pick_title=tr("Use a file I filled in"),
         forget_label=tr("Stop using it"),
+        forgotten=forgotten,
         template=Template(label=tr("Save a file to fill in…"),
                           name=cs.ISO_USER_FILE,
                           write=lambda p: p.write_text(cs.iso_values_template(),
@@ -254,21 +308,33 @@ def fogra_source() -> Source:
     from workflow import reference_sets as rs
 
     def items() -> "list[Supplied]":
+        # THE SENTENCE COMES FROM `reference_sets`, NOT FROM HERE. This window
+        # used to build the same three sentences a second time, so the guard on
+        # `in_force_lines` measured a function nothing on screen called. One
+        # implementation, and a guard on it is a guard on the window.
         out: "list[Supplied]" = []
-        for s in rs.available():
-            if s.supplied_by_user:
-                line = tr("{name}: your copy, added {date}").format(
-                    name=s.id, date=s.imported or tr("an unknown date"))
-            elif s.archive_version and s.archive_published:
-                line = tr("{name}: ChromIQ's copy, archive {version} of "
-                          "{date}").format(name=s.id,
-                                           version=s.archive_version,
-                                           date=s.archive_published)
-            else:
-                line = tr("{name}: ChromIQ's copy").format(name=s.id)
+        # BY SET NUMBER HERE, WHATEVER ORDER THE CHOOSER WANTS.
+        #
+        # `available()` sorts by printing-condition group and then by id, which
+        # is right where a user is picking a condition, because the groups mean
+        # something there and are labelled. This window has no group headings:
+        # it is a list of files and whose copy is in force. Photographed during
+        # the beta 29 drive with Fogra's whole archive installed, the 23 rows
+        # read 39, 51, 47, 52, 56, 57, 45, 46, 42, 48, 60, 40, 41 and so on,
+        # which is not disorder but is indistinguishable from it, and a person
+        # looking for the FOGRA61 they just added has to read every line.
+        # Sorted by the NUMBER, not the string, so 9 would come before 60.
+        def _by_number(s):
+            digits = "".join(c for c in s.id if c.isdigit())
+            return (int(digits) if digits else 0, s.id)
+
+        for s in sorted(rs.available(), key=_by_number):
             out.append(Supplied(
-                key=s.id, line=line, is_yours=s.supplied_by_user,
-                forget=lambda i=s.id: rs.forget_user_set(i), wraps=False))
+                key=s.id, line=rs.in_force_line(s),
+                detail=rs.what_the_file_says(s),
+                is_yours=s.supplied_by_user,
+                forget=lambda i=s.id: rs.forget_user_set(i),
+                wraps=False))
         return out
 
     def install(path: Path) -> str:
@@ -279,6 +345,26 @@ def fogra_source() -> Source:
         return tr("ChromIQ is using your copies of these {count} sets now: "
                   "{names}. Everything else is unchanged."
                   ).format(count=len(ids), names=", ".join(sorted(ids)))
+
+    def forgotten(key: str) -> str:
+        """What is left once the user's own copy of one set is gone.
+
+        **TWO ANSWERS, BECAUSE THERE ARE TWO OUTCOMES.** For a set ChromIQ
+        ships, the place the file stood in is filled again by the file that
+        shipped, and the old single sentence said so correctly. For a set it
+        ships nothing for, the place is now empty and the set is not offered at
+        all: `by_id` returns None and the row the user just pressed is gone
+        from the window. FOGRA61 is exactly that case and is the case this
+        feature was built for, so the sentence it produced was untrue about the
+        one set that proves the design.
+        """
+        if rs.by_id(key) is None:
+            return tr("ChromIQ is no longer using your copy of {name}. It "
+                      "ships no copy of that set, so {name} has gone from the "
+                      "list until you supply a file for it again. Your own "
+                      "file is untouched.").format(name=key)
+        return tr("ChromIQ is back to the copy of {name} that shipped with "
+                  "it. Your own file is untouched.").format(name=key)
 
     return Source(
         key="fogra",
@@ -318,6 +404,7 @@ def fogra_source() -> Source:
         install_label=tr("Use a newer file…"),
         pick_title=tr("Use a newer file"),
         forget_label=tr("Stop using it"),
+        forgotten=forgotten,
         template=None,
         always_show_forget=False,
         file_filter="Reference data (*.txt *.zip)",
@@ -346,21 +433,56 @@ class ReferenceValuesDialog(QDialog):
         outer.setContentsMargins(18, 16, 18, 14)
         outer.setSpacing(12)
 
+        # THE CONTENT SCROLLS, AND ON ELEVEN SETS IT NEVER HAS TO.
+        #
+        # B8-547, challenge round 31, measured on screen: the eleven shipped
+        # sets open this window at 626 px. Install Fogra's published archive,
+        # which the ⓘ text tells the user to drop in exactly as downloaded, and
+        # 22 sets at two lines each make it **1376 px against 1079 px of
+        # screen**; macOS clamps the height and the rows then overlap, 231
+        # overlapping pairs measured in German. The Close button was below the
+        # bottom of the display.
+        #
+        # A cap on its own would have hidden rows with no way to reach them,
+        # which is worse than a window that is too tall. A scroll area is the
+        # smallest thing that keeps every row reachable, and it is deliberately
+        # invisible in the ordinary case: no frame, no horizontal bar, a
+        # vertical one only when the content genuinely does not fit, and the
+        # opening height still computed from the content. With what ChromIQ
+        # ships, this window is the same window it was.
+        body = QWidget(self)
+        inner = QVBoxLayout(body)
+        inner.setContentsMargins(0, 0, 0, 0)
+        inner.setSpacing(12)
+
         head = QLabel(tr(
             "Some of what ChromIQ judges against was published by somebody "
             "else. Where ChromIQ may not ship it, supply your own copy here "
             "and it will be used. Where ChromIQ does ship it, you can still "
             "point it at a newer file. Everything you supply stays on this "
-            "computer."), self)
+            "computer."), body)
         head.setWordWrap(True)
-        outer.addWidget(head)
+        inner.addWidget(head)
 
         for src in self._sources:
-            outer.addWidget(self._section(src))
-        outer.addStretch(1)
+            inner.addWidget(self._section(src))
+        inner.addStretch(1)
+
+        self._scroll = QScrollArea(self)
+        self._scroll.setWidget(body)
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self._scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self._scroll.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self._body = body
+        self._inner = inner
+        outer.addWidget(self._scroll, 1)
 
         close = QPushButton(tr("Close"), self)
         close.clicked.connect(self.accept)
+        self._close = close
         row = QHBoxLayout()
         row.addStretch(1)
         row.addWidget(close)
@@ -376,7 +498,66 @@ class ReferenceValuesDialog(QDialog):
         # 936 px tall over 580 px of content and a third of it was empty
         # nothing, under the Close button. `heightForWidth` asks the question
         # the window actually faces.
-        self.resize(_DEFAULT_WIDTH, outer.heightForWidth(_DEFAULT_WIDTH))
+        self.resize(_DEFAULT_WIDTH, self._opening_height(outer))
+
+    # ------------------------------------------------------------------
+    def _opening_height(self, outer: QVBoxLayout) -> int:
+        """As tall as the content wants, and never taller than the screen.
+
+        The content's own answer first, because `sizeHint()` asks each
+        word-wrapped label how tall it is at its NATURAL width, which is narrow,
+        so three wrapping paragraphs each claim lines they will not use once the
+        window is 820 px across. Measured 2026-09-20: 936 px asked for over 580
+        px of content, a third of the window empty under the Close button.
+        `heightForWidth` asks the question the window actually faces.
+
+        Then the screen's answer, because the content's can exceed it (B8-547).
+        The margin below leaves room for the menu bar and the dock without
+        needing to know where either is; `availableGeometry` already excludes
+        them where the platform reports them, and subtracting a little more
+        costs nothing and covers the platforms that do not.
+        """
+        want = (self._inner.heightForWidth(_DEFAULT_WIDTH - 36)
+                + outer.contentsMargins().top()
+                + outer.contentsMargins().bottom()
+                + outer.spacing()
+                + self._close_row_height())
+        screen = self.screen() or QApplication.primaryScreen()
+        if screen is None:
+            return want
+        return min(want, int(screen.availableGeometry().height() * 0.92))
+
+    def _close_row_height(self) -> int:
+        """What the Close button and its row occupy, measured and not assumed."""
+        return max(28, self._close.sizeHint().height()) + 8
+
+    def showEvent(self, event):                      # noqa: D401 - Qt override
+        """Correct the opening height against the layout that actually ran.
+
+        `_opening_height` predicts, and a prediction of a laid-out geometry is
+        the thing this project keeps getting wrong. Constructed but unshown,
+        this window reported 378 px of scrolling on content that fits, because
+        its viewport was 30 px tall; shown, the same prediction was 4 px short,
+        which is the scroll area's own chrome. Rather than carry a constant for
+        that, the window asks once it has a layout: if anything is scrolled
+        away and the screen has room, take the room.
+
+        It only ever GROWS, and only up to the screen, so the archive case
+        (B8-547) still stops at the display edge and still scrolls; and it runs
+        once, so a user who resizes the window keeps their size.
+        """
+        super().showEvent(event)
+        if getattr(self, "_height_settled", False):
+            return
+        self._height_settled = True
+        hidden = self._scroll.verticalScrollBar().maximum()
+        if hidden <= 0:
+            return
+        screen = self.screen() or QApplication.primaryScreen()
+        room = (int(screen.availableGeometry().height() * 0.92) - self.height()
+                if screen is not None else hidden)
+        if room > 0:
+            self.resize(self.width(), self.height() + min(hidden, room))
 
     # ------------------------------------------------------------------
     def _section(self, src: Source) -> QFrame:
@@ -463,6 +644,17 @@ class ReferenceValuesDialog(QDialog):
             line.addWidget(stop, 0)
             box.addLayout(line)
             self._rows.append((src, it.key, lbl, stop))
+            if it.detail:
+                # ITS OWN ROW, NOT A WRAP. See `Supplied.detail`: a wrapped row
+                # in this layout paints over the one beneath it, and two short
+                # lines each fit on one at every width this window has.
+                sub = QLabel(it.detail, parent)
+                sub.setWordWrap(False)
+                sub.setIndent(16)
+                sub.setStyleSheet("color: palette(mid);")
+                sub.setTextInteractionFlags(
+                    Qt.TextInteractionFlag.TextSelectableByMouse)
+                box.addWidget(sub)
 
     # ------------------------------------------------------------------
     @staticmethod
@@ -538,7 +730,20 @@ class ReferenceValuesDialog(QDialog):
             return
         try:
             said = src.install(Path(chosen))
-        except (OSError, ValueError) as exc:
+        except ValueError as exc:
+            # A SENTENCE A SOURCE WROTE IS SHOWN AS IT IS. Every ValueError out
+            # of an installer here is written English: "That file is not a
+            # reference data file…", "That file is not text ChromIQ can
+            # read…". Wrapping one in "ChromIQ could not read that file:"
+            # produced the doubled sentence photographed in the beta 29 drive,
+            # *"ChromIQ could not read that file: That file is not text ChromIQ
+            # can read."*, and the Fogra half of the window had been doing it
+            # since b7475572.
+            self._say(str(exc))
+            return
+        except OSError as exc:
+            # An OSError is the operating system talking, not us, so it keeps
+            # the frame that says who is speaking and why it is being quoted.
             self._say(tr("ChromIQ could not read that file: {error}")
                       .format(error=exc))
             return
@@ -565,8 +770,13 @@ class ReferenceValuesDialog(QDialog):
 
     @staticmethod
     def _forgotten_text(src: Source, key: str) -> str:
-        if src.template is not None:
-            return tr("ChromIQ is back to its own numbers. Close and reopen "
-                      "the Report limits window to see the table change.")
-        return tr("ChromIQ is back to the copy of {name} that shipped with "
-                  "it. Your own file is untouched.").format(name=key)
+        """The source's own sentence, asked AFTER the item is gone.
+
+        The order matters: `_forget` calls this once `it.forget()` has
+        returned, so a source that has to look at what is left (Fogra does)
+        sees the state the user is about to be shown, not the one before.
+        """
+        if src.forgotten is not None:
+            return src.forgotten(key)
+        return tr("ChromIQ is back to its own numbers. Close and reopen "
+                  "the Report limits window to see the table change.")
