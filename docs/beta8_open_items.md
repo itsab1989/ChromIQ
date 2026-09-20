@@ -20912,3 +20912,36 @@ would reach.
   said the window was correct, and by its own terms it was.
 - evidence: test_the_sets_are_listed_in_set_number_order
 
+### B8-555 · OPEN · A macOS build made with PyInstaller 6.19.0 does not launch at all
+- status: OPEN
+- blocks release: no, but the RELEASE ASSET must be checked before anyone is
+  told to download it.
+- Measured 2026-09-20 building `ChromIQ.spec` in this checkout with PyInstaller
+  6.19.0: `dist/ChromIQ.app/Contents/MacOS/ChromIQ` exits 1 immediately with
+  *"The following paths were searched for Qt WebEngine Process … but could not
+  find it."* The app never draws a window.
+- the helper IS in the bundle. PyInstaller puts it at
+  `QtWebEngineCore.framework/Versions/Resources/Helpers/QtWebEngineProcess.app`,
+  while the framework's own `Helpers` symlink points at
+  `Versions/Current/Helpers` and `Versions/A` has no `Helpers` at all. One
+  missing symlink between a working app and a dead one. Creating
+  `Helpers -> Versions/Resources/Helpers` by hand, the same build then ran 25 s
+  clean with no output, which is how the rest of the frozen checks in B8-552
+  were completed.
+- **what has shipped is fine.** `/Applications/ChromIQ.app`, version 4.3.0,
+  carries `Versions/A/Helpers` and resolves correctly, so the CI runner that
+  built it had a PyInstaller that lays the framework out properly.
+- **the risk is the next build, not the last one.** `.github/workflows/build-release.yml`
+  runs a bare `pip3 install pyinstaller` and `requirements.txt` says
+  `pyinstaller>=6.0`, so a release built now takes whatever is newest, which on
+  this machine is the version that produces a dead app.
+- NOT fixed tonight on purpose. The obvious repair is to create the symlink
+  after `BUNDLE`, and the bundle is signed before that point, so adding a file
+  afterwards breaks the seal; pinning needs a version somebody has proved good.
+  Neither is a change to make untested against CI at the end of a long night.
+- the cheap check instead: after the tag builds, DOWNLOAD the macOS asset and
+  look at `Contents/Frameworks/PyQt6/Qt6/lib/QtWebEngineCore.framework/Helpers`.
+  If it resolves, the release is sound and this stays a lead. If it does not,
+  the asset must be pulled before anyone is pointed at it.
+- evidence: none yet; measured by building and launching.
+
