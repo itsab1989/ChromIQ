@@ -1,5 +1,35 @@
 # Changelog
 
+## v4.3.0-beta.27
+
+**The buttons that were never actually made smaller, and the window behind them
+that did nothing.**
+
+### Changed
+
+- **Supplying a standard's own limit values now has one button instead of
+  three.** "Reference values..." in the Report limits window opens a window
+  with a section per set of numbers ChromIQ reads but does not ship, each
+  saying plainly whether ChromIQ is using your file or its own numbers. The
+  Report limits window says which is in force without you opening anything.
+
+### Fixed
+
+- **In beta 26, all three of those buttons did nothing when clicked.** An error
+  inside them left no trace on screen, so they simply looked inert.
+
+- **Buttons asked twice to be smaller had never changed size.** A rule that
+  applies to every button in ChromIQ was overriding the smaller height, so two
+  releases claimed a change that never reached the screen. They are 26 px now,
+  and at their old size they were bursting through the bottom of their frame.
+
+- **"Stop using it" could be pressed when there was nothing for it to remove**,
+  and did nothing at all when pressed.
+
+- **The two file dialogs lost their shortcut to ChromIQ's own folder**, so
+  somebody who had saved a values file yesterday had to navigate back to it by
+  hand.
+
 ## v4.3.0-beta.26
 
 **Knut's review of beta 25, built: the Measurement Report window laid out the
