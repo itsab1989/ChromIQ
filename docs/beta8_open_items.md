@@ -20954,5 +20954,18 @@ would reach.
   look at `Contents/Frameworks/PyQt6/Qt6/lib/QtWebEngineCore.framework/Helpers`.
   If it resolves, the release is sound and this stays a lead. If it does not,
   the asset must be pulled before anyone is pointed at it.
-- evidence: none yet; measured by building and launching.
+- **CHECKED AGAINST THE RELEASE ASSET, and it is sound.**
+  `ChromIQ-macOS-arm64_v4.3.0-beta.29.dmg`, downloaded and mounted
+  2026-09-20: `Versions/A/Helpers` is present, the framework's `Helpers` link
+  resolves to `QtWebEngineProcess.app`, and the app runs 30 s from the mounted
+  image with no output. The shipped Fogra data is intact in it too: 11 sets,
+  every sha256 matching SOURCE.json, FOGRA51 yielding 72 aims.
+- so the CI runner still has a PyInstaller that lays the framework out
+  correctly, and this stays a LEAD rather than a fault: the unpinned
+  `pip3 install pyinstaller` means a future release can pick up the version
+  that produces a dead app, with nothing in the pipeline to notice. Worth a
+  pin, or a post-build check that the helper resolves, when there is time to
+  test either against CI.
+- evidence: none; measured by building locally, then by downloading and
+  launching the release asset.
 
