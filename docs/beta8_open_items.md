@@ -20859,8 +20859,8 @@ would reach.
   disk, so a cached empty list would survive the file becoming readable again.
 - evidence: test_a_source_json_that_cannot_be_read_is_not_cached
 
-### B8-552 · FIXED · The reference data works from a frozen bundle, on all three platforms
-- status: FIXED
+### B8-552 · VERIFIED · The reference data works from a frozen bundle, on all three platforms
+- status: VERIFIED
 - blocks release: no
 - Sebastian, 2026-09-20: *"all of this must work in the bundled releases users
   can download from github on all supported operating systems."* Everything
@@ -20883,7 +20883,12 @@ would reach.
 - evidence: test_a_frozen_build_finds_the_reference_sets_it_ships,
   test_a_frozen_build_can_read_the_aims_out_of_its_own_copy,
   test_a_users_own_file_is_never_written_inside_the_bundle,
-  test_the_users_folder_is_a_place_each_operating_system_keeps
+  test_the_users_folder_is_a_place_each_operating_system_keeps.
+  `QT_QPA_PLATFORM=offscreen pytest --runslow -n auto` → **17225 passed**, 197
+  skipped, 4 xfailed, exit 0, three times. And measured against the real
+  bundle: `dist/ChromIQ.app/Contents/Frameworks` as `sys._MEIPASS`, 11 sets
+  found, all rooted inside the .app, every sha256 matching SOURCE.json, FOGRA51
+  yielding 72 aims, and the user folder resolving outside the bundle.
 
 ### B8-553 · FIXED · The window doubled its own sentence when it refused a file
 - status: FIXED

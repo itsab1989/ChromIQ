@@ -1,5 +1,63 @@
 # Changelog
 
+## v4.3.0-beta.29
+
+**Fogra's reference data, and a way to use a newer version of it without
+waiting for a new ChromIQ.**
+
+### Added
+
+- **You can give ChromIQ a newer Fogra file yourself.** ChromIQ ships the
+  eleven Media Wedge 3 subsets it has always shipped, and Report limits ->
+  Reference values now also lets you point it at a newer `.txt`, or at Fogra's
+  archive `.zip` exactly as they publish it. Your copy is used in place of
+  ChromIQ's for that set, one set at a time, and "Stop using it" puts ChromIQ's
+  copy back. A set ChromIQ does not ship at all, FOGRA61 for instance, arrives
+  the same way, so a Fogra release no longer has to wait for a ChromIQ release.
+
+- **The window says which copy is in force, set by set.** ChromIQ's own copies
+  name the archive version and its date. A file you supplied says when you
+  added it, and a second line quotes what the file calls itself and the date in
+  its own header, so swapping a beta file for the final release is something
+  you can see rather than remember.
+
+- **A file you supply keeps its own provenance.** ChromIQ records the checksum
+  of every file it ships and checks it on every run, because Fogra's permission
+  to redistribute is conditional on the data being unmodified. A file you add
+  gets a separate record of what ChromIQ actually witnessed: the date you added
+  it, what it was called, and its checksum at that moment. It never inherits
+  the record of a file ChromIQ verified.
+
+- **A file that is not reference data is refused before anything is written**,
+  with a sentence saying what was wrong with it: no aim colours, no CIELAB
+  columns, no device columns, or no set name ChromIQ could find. An archive
+  installs everything in it that ChromIQ can read and tells you what that was.
+
+### Changed
+
+- **A verification report now says which profile it judges, and where that
+  profile came from.** It names the project and the run, and points at the
+  measurement dates rather than repeating them, so a report read as a document
+  on its own can be traced back to the work it came from.
+
+### Fixed
+
+- **The Reference values window could open taller than your screen.** With
+  Fogra's whole published archive installed it grew past the bottom of the
+  display, putting the Close button out of reach and overlapping its own rows.
+  It now fits any screen and scrolls when it has to, and with the sets ChromIQ
+  ships it is exactly the window it was.
+
+- **The sets are listed in set-number order.** With a lot of them installed the
+  list was ordered by printing condition, which reads as no order at all when
+  there are no headings to explain it.
+
+- **Picking the wrong file no longer answers with a programmer's error.** The
+  ISO values half of the window replied to an archive with a line about UTF-8
+  byte positions; it now says, in a sentence, that the file is not text it can
+  read and where to start again. Refusals are also no longer prefixed with a
+  second sentence saying the same thing twice.
+
 ## v4.3.0-beta.28
 
 **Knut's review of beta 26: a checkbox that had been hiding for months, reports
