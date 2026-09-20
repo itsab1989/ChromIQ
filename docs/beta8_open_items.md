@@ -20774,6 +20774,7 @@ would reach.
 
 ### B8-547 · FIXED · With Fogra's published archive installed the window was 297 px taller than the screen
 - status: FIXED
+- blocks release: no
 - Measured on screen, challenge round 31, on a 1728x1079 display: with the
   eleven shipped sets the window is 626 px (English) / 642 px (German). Install
   `FOGRA39_to_FOGRA60_v2.zip`, which the ⓘ text tells the user to drop in
@@ -20801,6 +20802,7 @@ would reach.
 
 ### B8-548 · FIXED · The ISO half of the same window answered a bad file with a raw Python exception string
 - status: FIXED
+- blocks release: no
 - Pressing "Use a file I filled in…" and picking a `.zip` produced *"ChromIQ
   could not read that file: 'utf-8' codec can't decode byte 0xe2 in position
   10: invalid continuation byte"*. Measured on screen, challenge round 31,
@@ -20814,7 +20816,7 @@ would reach.
   the second naming the line and quoting the parser's reason.
 - German by hand, both untranslated ledgers re-measured off the tree: de stands
   still and each of the eleven others rises by exactly 2.
-- evidence: none yet; measured on screen in the beta 29 drive.
+- evidence: test_a_file_that_is_not_text_is_refused_in_chromiqs_own_words
 
 ### B8-549 · OPEN · A set a supplied file brings in for the first time can fill no row of the Report limits table
 - status: OPEN
@@ -20848,16 +20850,18 @@ would reach.
 
 ### B8-551 · FIXED · A dead line in `bundled()` read as if it poisoned `available()`'s cache
 - status: FIXED
+- blocks release: no
 - `workflow/reference_sets.py`, in the branch taken when `SOURCE.json` cannot be
   read: `_cache = out`. `bundled()` declares `global _bundled_cache` and NOT
   `global _cache`, so this assigned a local that was thrown away.
 - deleted rather than corrected to `_bundled_cache = out`, and the comment left
   behind says why both ways: an unreadable `SOURCE.json` is a condition of the
   disk, so a cached empty list would survive the file becoming readable again.
-- evidence: none; `python -m pyflakes workflow/reference_sets.py` is clean.
+- evidence: test_a_source_json_that_cannot_be_read_is_not_cached
 
-### B8-552 · VERIFIED · The reference data works from a frozen bundle, on all three platforms
-- status: VERIFIED
+### B8-552 · FIXED · The reference data works from a frozen bundle, on all three platforms
+- status: FIXED
+- blocks release: no
 - Sebastian, 2026-09-20: *"all of this must work in the bundled releases users
   can download from github on all supported operating systems."* Everything
   proved until now ran from this checkout, where `resource_path` falls back to
@@ -20880,10 +20884,10 @@ would reach.
   test_a_frozen_build_can_read_the_aims_out_of_its_own_copy,
   test_a_users_own_file_is_never_written_inside_the_bundle,
   test_the_users_folder_is_a_place_each_operating_system_keeps
-- verified by: `QT_QPA_PLATFORM=offscreen pytest -q tests/test_the_shipped_bundle_carries_the_reference_data.py` → 4 passed, and all four mutations land
 
 ### B8-553 · FIXED · The window doubled its own sentence when it refused a file
 - status: FIXED
+- blocks release: no
 - Photographed in the beta 29 on-screen drive: *"ChromIQ could not read that
   file: That file is not text ChromIQ can read. …"*. The caller wrapped every
   refusal in "ChromIQ could not read that file: {error}", and every ValueError
@@ -20895,10 +20899,11 @@ would reach.
 - a ValueError is now shown as it is, and an OSError keeps the frame, because
   an OSError is the operating system talking and the sentence has to say who is
   being quoted.
-- evidence: none yet; measured on screen in both languages in the beta 29 drive.
+- evidence: test_the_refusal_is_not_wrapped_in_a_second_sentence
 
 ### B8-554 · FIXED · With the whole archive installed the sets were listed in no order a reader can follow
 - status: FIXED
+- blocks release: no
 - Photographed with Fogra's published archive installed: the 23 rows read
   FOGRA39, 51, 47, 52, 56, 57, 45, 46, 42, 48, 60, 40, 41 and so on. That is
   `available()`'s order, which is by printing-condition group and then by id.
@@ -20914,7 +20919,8 @@ would reach.
 
 ### B8-555 · OPEN · A macOS build made with PyInstaller 6.19.0 does not launch at all
 - status: OPEN
-- blocks release: no, but the RELEASE ASSET must be checked before anyone is
+- blocks release: no
+- but the RELEASE ASSET must be checked before anyone is
   told to download it.
 - Measured 2026-09-20 building `ChromIQ.spec` in this checkout with PyInstaller
   6.19.0: `dist/ChromIQ.app/Contents/MacOS/ChromIQ` exits 1 immediately with

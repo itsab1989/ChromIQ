@@ -958,19 +958,50 @@ def what_the_file_says(s: ReferenceSet) -> str:
               ).format(name=s.id)
 
 
+def in_window_order(sets: "list[ReferenceSet]") -> "list[ReferenceSet]":
+    """The order the Reference values window lists sets in: by set NUMBER.
+
+    `available()` orders by printing-condition group and then by id, which is
+    right in a chooser, where the groups are labelled and carry the meaning.
+    The values window shows no headings: it is a list of which copy of each set
+    is in force. Photographed with Fogra's whole archive installed, that order
+    read FOGRA39, 51, 47, 52, 56, 57, 45, 46, 42, 48, 60, 40, 41, which is not
+    disorder but cannot be told from it, and somebody looking for the FOGRA61
+    they have just added has to read all 23 lines (B8-554).
+
+    It lives HERE rather than in the window because `in_force_lines` and the
+    window must not be able to disagree: sorting in the window alone broke the
+    guard that exists to keep them one implementation, which is exactly the
+    coupling that guard was written for (B8-544).
+
+    By the number and not the string, so a FOGRA9 would sort before a FOGRA60.
+    """
+    def _key(s: ReferenceSet) -> tuple:
+        digits = "".join(c for c in s.id if c.isdigit())
+        return (int(digits) if digits else 0, s.id)
+
+    return sorted(sets, key=_key)
+
+
 def in_force_lines() -> "list[str]":
-    """One sentence per set saying WHICH copy is in force, in chooser order.
+    """One sentence per set saying WHICH copy is in force, in WINDOW order.
 
     The window's whole reason for existing beyond three buttons: a control can
     offer an action, and only a sentence can tell somebody what is true now.
+
+    In `in_window_order`, not `available()`'s, and that is load-bearing: the
+    window lists by set number and these sentences are what it lists. Sorting
+    in the window alone put them out of step and reddened the guard that keeps
+    the two one implementation, which is the fault that guard was written for.
     """
-    return [in_force_line(s) for s in available()]
+    return [in_force_line(s) for s in in_window_order(available())]
 
 
 def in_force_report() -> "list[tuple[str, str]]":
-    """``[(line, what the file says)]`` in chooser order, the second empty for
+    """``[(line, what the file says)]`` in WINDOW order, the second empty for
     a set that ships. The window's own source of truth."""
-    return [(in_force_line(s), what_the_file_says(s)) for s in available()]
+    return [(in_force_line(s), what_the_file_says(s))
+            for s in in_window_order(available())]
 
 
 

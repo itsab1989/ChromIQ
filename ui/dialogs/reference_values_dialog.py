@@ -313,22 +313,11 @@ def fogra_source() -> Source:
         # `in_force_lines` measured a function nothing on screen called. One
         # implementation, and a guard on it is a guard on the window.
         out: "list[Supplied]" = []
-        # BY SET NUMBER HERE, WHATEVER ORDER THE CHOOSER WANTS.
-        #
-        # `available()` sorts by printing-condition group and then by id, which
-        # is right where a user is picking a condition, because the groups mean
-        # something there and are labelled. This window has no group headings:
-        # it is a list of files and whose copy is in force. Photographed during
-        # the beta 29 drive with Fogra's whole archive installed, the 23 rows
-        # read 39, 51, 47, 52, 56, 57, 45, 46, 42, 48, 60, 40, 41 and so on,
-        # which is not disorder but is indistinguishable from it, and a person
-        # looking for the FOGRA61 they just added has to read every line.
-        # Sorted by the NUMBER, not the string, so 9 would come before 60.
-        def _by_number(s):
-            digits = "".join(c for c in s.id if c.isdigit())
-            return (int(digits) if digits else 0, s.id)
-
-        for s in sorted(rs.available(), key=_by_number):
+        # BY SET NUMBER, AND THE MODULE DECIDES THAT, NOT THIS WINDOW.
+        # `rs.in_window_order` is what `in_force_lines()` iterates too, so the
+        # two cannot drift apart; sorting here alone reddened the guard that
+        # exists to keep them one implementation (B8-544, B8-554).
+        for s in rs.in_window_order(rs.available()):
             out.append(Supplied(
                 key=s.id, line=rs.in_force_line(s),
                 detail=rs.what_the_file_says(s),
