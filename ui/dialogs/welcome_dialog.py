@@ -34,6 +34,7 @@ from ui.fade_scroll import FadeScrollArea
 from ui.styles import SPEC_MAGENTA, TAB_COLORS
 from ui.theme import APPEARANCE_NEUTRAL, accent_for
 from core.i18n import tr
+from core.platform_paths import file_manager_name
 from ui.keyboard_help import keys_for
 from core.logger import get_logger
 from ui.warning_sign import warn
@@ -85,55 +86,91 @@ WORKFLOWS: list[dict] = [
         "title": tr("Build my first ICC profile"),
         "subtitle": tr("The full walk-through from blank chart to finished profile."),
         "steps": [
-            (1, tr("On the Create Chart tab, pick which instrument you'll measure "
-                "with (e.g. i1Pro) and choose your paper size. Set the number "
-                "of pages — more pages means more patches and a more accurate "
-                "profile. Two or three A4 pages is a sensible starting point "
-                "(around 1000–1500 patches with an i1Pro); raise it for "
-                "critical work, or drop it back if you're just experimenting. "
-                "Give the chart a descriptive name — it carries through to "
-                "every file downstream (.ti2, .ti3 and the final .icc). A "
-                "good convention is printer + paper + date, e.g. "
-                "“EpsonP900_HahnemuhlePhotoRag_2026-05”; avoid spaces and "
-                "special characters. Click “Generate Chart”. ChromIQ writes a "
-                "chart TIFF plus a .ti2 file that records exactly where every "
-                "patch sits on the page.\n\n"
-                "Two boxes there are worth filling in while you are at it, "
-                "both optional and both empty until you do. “Run 1 "
-                "Description” is your own note about what this attempt is — "
-                "“PhotoRag Baryta, gloss, large chart” — and it follows the "
-                "run, so you can tell run 1 from run 2 months later; ChromIQ "
-                "also offers it at the end of the profile's description in "
-                "step 5. “Run 1 Chart Notes” is printed ON the sheet, which is "
-                "what lets you tell two printed charts apart on the desk.")),
-            (2, tr("Move to the Print Chart tab and pick your printer and media. "
-                "Driver colour management must be OFF — if the driver re-maps "
-                "colours the patches won't match their definition and the "
-                "profile will be wrong. On macOS ChromIQ disables it "
-                "automatically; just confirm nothing in the print dialog has "
-                "switched it back on. On Windows and other systems you need "
-                "to switch it off yourself in the driver dialog. "
-                "Click “Print”.")),
+            (1, tr("On the Create Chart tab, pick the instrument you will "
+                "measure with (an i1Pro, say) and your paper size, set the "
+                "number of pages, type a name for the chart, and click "
+                "“Generate Chart”."),
+             False,
+             ((tr("How many pages to ask for"),
+               tr("More pages means more patches, and more patches means a "
+                  "more accurate profile. Two or three A4 pages is a sensible "
+                  "start: with an i1Pro that is roughly 1000 to 1500 patches. "
+                  "Raise it for critical work, drop it back while you are "
+                  "still experimenting. The page count is the only size "
+                  "control you need here; ChromIQ fills each page as densely "
+                  "as your instrument allows.")),
+              (tr("The name travels with every file"),
+               tr("Whatever you type here becomes the stem of the chart, the "
+                  "measurement and the finished profile, so it is the name "
+                  "you will read in {manager} and in every colour-managed "
+                  "program months from now. Printer, paper and date works "
+                  "well: “EpsonP900_HahnemuhlePhotoRag_2026-05”. Avoid spaces "
+                  "and punctuation. ChromIQ also writes a .ti2 beside the "
+                  "chart TIFF, which records exactly where every patch sits "
+                  "on the page.").format(manager=file_manager_name())),
+              (tr("Two boxes worth filling in while you are here"),
+               tr("Both are optional and both start empty. “Run 1 "
+                  "Description” is your own note about what this attempt is, "
+                  "such as “PhotoRag Baryta, gloss, large chart”. It follows "
+                  "the run, so you can tell run 1 from run 2 later, and "
+                  "ChromIQ offers it again at the end of the profile's "
+                  "description in step 4. “Run 1 Chart Notes” is printed ON "
+                  "the sheet, which is what lets you tell two printed charts "
+                  "apart on the desk.")))),
+            (2, tr("Move to the Print Chart tab, choose your printer and "
+                "media, check that the driver's colour management is OFF, "
+                "and click “Print”."),
+             False,
+             ((tr("Why colour management has to be off"),
+               tr("The whole point of the chart is to find out what your "
+                  "printer does with a known set of numbers. If the driver "
+                  "re-maps those numbers on the way to the paper, you are "
+                  "measuring the driver instead of the printer, and the "
+                  "profile you build describes something that does not "
+                  "exist. Nothing downstream can detect this, which is why it "
+                  "is worth one look in the print dialog.")),
+              (tr("Where that switch is on each system"),
+               tr("On macOS ChromIQ turns it off for you; all you need do is "
+                  "confirm that nothing in the print dialog has switched it "
+                  "back on. On Windows and elsewhere you turn it off "
+                  "yourself, in the driver's own dialog. The wording varies: "
+                  "look for “No colour adjustment”, “Application manages "
+                  "colours” or “ICM off”.")))),
             (3, tr("On the Measure tab, connect and switch on your "
-                "spectrophotometer, then place the printed chart on a white "
-                "surface (a plain sheet of paper underneath works "
-                "perfectly) — a coloured or dark backing can bleed through "
-                "thin stock and skew the reading. Before you scan, look at "
-                "the “Strip recognition” row and leave its “Auto” box "
-                "ticked — ChromIQ then picks the mode that suits the instrument saved in your chart. Changing it by hand is an expert "
-                "setting — the wrong choice on a fixed-order chart can "
-                "latch onto the wrong strip and quietly build a profile "
-                "with colour casts. Click “Start Measurement” and follow "
-                "the strip-by-strip prompts.")),
+                "spectrophotometer, lay the printed chart on a white "
+                "surface, then click “Start Measurement” and follow the "
+                "strip-by-strip prompts."),
+             False,
+             ((tr("Why the backing has to be white"),
+               tr("Thin stock lets whatever is under it bleed through into "
+                  "the reading. A plain sheet of paper underneath works "
+                  "perfectly; a coloured desk mat or a dark table skews every "
+                  "patch on the page, and the profile inherits the skew.")),
+              (tr("Leave “Strip recognition” on Auto"),
+               tr("With its “Auto” box ticked, ChromIQ picks the mode that "
+                  "suits the instrument saved in your chart. Changing it by "
+                  "hand is an expert setting: the wrong choice on a "
+                  "fixed-order chart can latch onto the wrong strip and "
+                  "quietly build a profile with colour casts. Nothing warns "
+                  "you afterwards, because every patch was read "
+                  "successfully; they were simply the wrong patches.")))),
             (4, tr("On the Build Profile tab the new .ti3 measurement is "
-                "already loaded. If you like, fill in the optional metadata "
-                "fields (Description, Manufacturer, Copyright) — they get "
-                "embedded in the .icc header so colour-management apps can "
-                "identify it later. Then click “Build Profile”. When the "
-                "build finishes a result popup appears — install the .icc "
-                "system-wide from there, or jump to Check & Refine to "
-                "verify its accuracy and start guided refinement (the steps "
-                "below) for a noticeably more accurate profile.")),
+                "already loaded. Click “Build Profile”."),
+             False,
+             ((tr("The three metadata boxes, and whether to fill them in"),
+               tr("Description, Manufacturer and Copyright are embedded in "
+                  "the .icc header, so colour-management programs can name "
+                  "the profile back to you later. They change nothing about "
+                  "the colour. Leave them empty if you would rather, but a "
+                  "Description is the difference between picking a profile "
+                  "from a list of names and picking one from a list of "
+                  "filenames.")),
+              (tr("What the result popup offers"),
+               tr("When the build finishes a popup appears with the next "
+                  "moves: install the .icc into your system colour folder, "
+                  "or jump to Check & Refine to measure how accurate it "
+                  "actually is and start the guided refinement below. You can "
+                  "dismiss the popup and reach either of them later.")))),
             (5, tr("Optional — On the Check & Refine tab click “{analyse}”. "
                 "ChromIQ runs profcheck and flags any patches whose ΔE is "
                 "above your refinement threshold (2.0 is a sensible starting "
@@ -159,68 +196,63 @@ WORKFLOWS: list[dict] = [
         "title": tr("Build a high-quality profile (2-pass)"),
         "subtitle": tr("A pre-conditioning pass produces a sharper second profile."),
         "steps": [
-            (1, tr("Start a fresh chart on the Create Chart tab. Pick the "
-                "instrument and paper size as normal. For this first pass "
-                "you can keep the page count low — one A4 page is plenty. "
-                "The pre-conditioning profile is throwaway, its only job is "
-                "to tell ChromIQ where your printer is most non-linear so "
-                "the second-pass chart can place patches more cleverly. "
-                "Save your paper and ink for the second pass. Give the "
-                "chart a descriptive name — it carries through to every "
-                "file downstream (.ti2, .ti3 and the final .icc). A good "
-                "convention is printer + paper + a “_pre” suffix for this "
-                "pre-conditioning pass, e.g. "
-                "“EpsonP900_HahnemuhlePhotoRag_pre_2026-05”; avoid spaces "
-                "and special characters. Click “Generate Chart”. This first "
-                "chart will produce the pre-conditioning profile — not yet "
-                "the final one.")),
-            (2, tr("Move to the Print Chart tab and pick your printer and media. "
-                "Driver colour management must be OFF — if the driver re-maps "
-                "colours the patches won't match their definition and the "
-                "first-pass profile will be wrong. On macOS ChromIQ disables "
-                "it automatically; just confirm nothing in the print dialog "
-                "has switched it back on. On Windows and other systems you "
-                "need to switch it off yourself in the driver dialog. "
-                "Click “Print”.")),
-            (3, tr("On the Measure tab, connect and switch on your "
-                "spectrophotometer, then place the printed chart on a white "
-                "surface (a plain sheet of paper underneath works "
-                "perfectly) — a coloured or dark backing can bleed through "
-                "thin stock and skew the reading. Before you scan, look at "
-                "the “Strip recognition” row and leave its “Auto” box "
-                "ticked — ChromIQ then picks the mode that suits the instrument saved in your chart. Changing it by hand is an expert "
-                "setting — the wrong choice on a fixed-order chart can "
-                "latch onto the wrong strip and quietly build a profile "
-                "with colour casts. Click “Start Measurement” and follow "
-                "the strip-by-strip prompts.")),
-            (4, tr("On the Build Profile tab click “Build Profile” to "
-                "produce the first .icc. Treat this profile as a colour-"
-                "space map rather than a finished result. In the result popup "
-                "(or in Check & Refine) click “← Use as Pre-conditioning” — ChromIQ jumps back to the Create Chart tab with "
-                "the new .icc loaded as the pre-conditioning profile.")),
-            (1, tr("Optionally raise the patch count — a second-pass chart "
-                "benefits from more patches because they're placed where "
-                "the printer is most non-linear. Click “Generate Chart” to "
-                "generate the high-quality chart.")),
-            (2, tr("Print the new chart on the Print Chart tab. Driver colour "
-                "management must be OFF — on macOS ChromIQ disables it "
-                "automatically; just confirm nothing in the print dialog has "
-                "switched it back on. On Windows and other systems you need "
-                "to switch it off yourself in the driver dialog. "
-                "Click “Print”.")),
-            (3, tr("On the Measure tab, connect the spectrophotometer and "
-                "place the printed chart on a white surface. Look at the "
-                "“Strip recognition” row: leave its “Auto” box ticked and "
-                "ChromIQ picks the mode that suits the instrument saved "
-                "in your chart. Changing it by hand is an expert setting — the "
-                "wrong choice on a fixed-order chart can latch onto the "
-                "wrong strip and quietly build a profile with colour casts. "
-                "Click “Start Measurement” and follow the strip-by-strip "
-                "prompts.")),
-            (4, tr("Click “Build Profile” one more time. The result is "
-                "noticeably more accurate than the first-pass profile "
-                "because targen could place patches where they actually "
-                "mattered. This is the profile to install.")),
+            (1, tr("On the Create Chart tab, start a fresh chart with a LOW "
+                "page count. One A4 page is plenty. Name it with a “_pre” "
+                "suffix so you can tell it apart later, then click “Generate "
+                "Chart”."),
+             False,
+             ((tr("Why the first chart is deliberately small"),
+               tr("The profile this pass produces is throwaway. Its only job "
+                  "is to tell ChromIQ where your printer is most non-linear, "
+                  "so that the second chart can place its patches where they "
+                  "are actually worth measuring. Save your paper, your ink "
+                  "and your reading time for that second pass, where they buy "
+                  "you something.")),)),
+            (2, tr("Print it from the Print Chart tab with the driver's "
+                "colour management OFF, then measure it on the Measure tab "
+                "exactly as you would any chart."),
+             False,
+             ((tr("The same two rules as any chart"),
+               tr("Driver colour management OFF, because a driver that "
+                  "re-maps the patches makes you measure the driver instead "
+                  "of the printer. And the printed sheet on a white backing, "
+                  "because thin stock lets a coloured desk bleed into every "
+                  "reading. On macOS ChromIQ switches the colour management "
+                  "off for you; elsewhere you do it in the driver's own "
+                  "dialog.")),)),
+            (4, tr("On the Build Profile tab click “Build Profile”, then in "
+                "the result popup (or in Check & Refine) click “← Use as "
+                "Pre-conditioning”. ChromIQ jumps back to the Create Chart "
+                "tab with this .icc loaded as the pre-conditioning profile."),
+             False,
+             ((tr("Treat this profile as a map, not as a result"),
+               tr("It is a rough description of your printer's colour space, "
+                  "and it is good enough for exactly one purpose: telling "
+                  "targen where the printer behaves awkwardly. Do not install "
+                  "it. The profile you install is the one the second pass "
+                  "produces.")),)),
+            (1, tr("Raise the patch count for the second chart, then click "
+                "“Generate Chart” again."),
+             False,
+             ((tr("Why more patches pay off this time and not last time"),
+               tr("With a pre-conditioning profile loaded, targen no longer "
+                  "spreads patches evenly through a colour space it knows "
+                  "nothing about. It puts them where your printer's response "
+                  "bends, which is where a profile built from too few "
+                  "measurements goes wrong. Extra patches now buy accuracy; "
+                  "extra patches in pass one would only have bought "
+                  "time.")),)),
+            (2, tr("Print the new chart from the Print Chart tab, colour "
+                "management OFF, and measure it on the Measure tab.")),
+            (4, tr("Click “Build Profile” one more time. This is the profile "
+                "to install."),
+             False,
+             ((tr("What the second pass actually bought you"),
+               tr("The same instrument and the same paper, but the "
+                  "measurements now cover the parts of the colour space the "
+                  "first profile was weakest in. The result is noticeably "
+                  "more accurate than the first-pass profile, and it is the "
+                  "one the result popup offers to install.")),)),
             (5, tr("Optional — On the Check & Refine tab click “{analyse}”. "
                 "ChromIQ runs profcheck and flags any patches whose ΔE is "
                 "above your refinement threshold. After a clean 2-pass build "
@@ -246,44 +278,53 @@ WORKFLOWS: list[dict] = [
         "title": tr("Improve an existing ICC profile"),
         "subtitle": tr("Seed ChromIQ with a current profile to build a sharper one."),
         "steps": [
-            (1, tr("On the Create Chart tab, find the “Refinement (Optional)” "
-                "section, tick “Refinement profile”, then click “Select "
-                "pre-conditioning profile” and pick the existing .icc for "
-                "this printer + paper combination. Choose the instrument "
-                "and paper size as usual, and give the chart a descriptive "
-                "name with a “_v2” (or similar) suffix, e.g. "
-                "“EpsonP900_HahnemuhlePhotoRag_v2_2026-05”. Because the "
-                "seed profile tells ChromIQ exactly where your printer is "
-                "most non-linear, raise the patch count so those tricky "
-                "regions get more samples. Click “Generate Chart”.")),
-            (2, tr("Move to the Print Chart tab and pick your printer and media. "
-                "Driver colour management must be OFF — if the driver re-maps "
-                "colours the patches won't match their definition and the "
-                "refined profile will be wrong. On macOS ChromIQ disables it "
-                "automatically; just confirm nothing in the print dialog has "
-                "switched it back on. On Windows and other systems you need "
-                "to switch it off yourself in the driver dialog. "
-                "Click “Print”.")),
-            (3, tr("On the Measure tab, connect and switch on your "
-                "spectrophotometer, then place the printed chart on a white "
-                "surface (a plain sheet of paper underneath works "
-                "perfectly) — a coloured or dark backing can bleed through "
-                "thin stock and skew the reading. Before you scan, look at "
-                "the “Strip recognition” row and leave its “Auto” box "
-                "ticked — ChromIQ then picks the mode that suits the instrument saved in your chart. Changing it by hand is an expert "
-                "setting — the wrong choice on a fixed-order chart can "
-                "latch onto the wrong strip and quietly build a profile "
-                "with colour casts. Click “Start Measurement” and follow "
-                "the strip-by-strip prompts.")),
+            (1, tr("On the Create Chart tab, open the “Refinement "
+                "(Optional)” section, tick “Refinement profile”, click "
+                "“Select pre-conditioning profile” and pick the existing "
+                ".icc for this printer and paper."),
+             False,
+             ((tr("What the seed profile changes"),
+               tr("Without it, targen spreads patches evenly through a "
+                  "colour space it knows nothing about. With it, ChromIQ "
+                  "already knows where your printer's response bends and "
+                  "puts the patches there. That is why this workflow gets a "
+                  "better profile from the same amount of paper than "
+                  "starting again from scratch would.")),)),
+            (1, tr("Set the instrument and paper size as usual, RAISE the "
+                "patch count, give the chart a name with a “_v2” suffix, and "
+                "click “Generate Chart”."),
+             False,
+             ((tr("Why the count goes up here"),
+               tr("The seed profile has told ChromIQ which regions are "
+                  "tricky, so extra patches land in those regions rather "
+                  "than being spread thin over colours your printer already "
+                  "handles well. A name such as "
+                  "“EpsonP900_HahnemuhlePhotoRag_v2_2026-05” keeps the new "
+                  "profile visibly apart from the one it improves on, in "
+                  "{manager} and in every program that lists profiles by "
+                  "name.").format(manager=file_manager_name())),)),
+            (2, tr("Print the chart from the Print Chart tab with the "
+                "driver's colour management OFF, then measure it on the "
+                "Measure tab as usual."),
+             False,
+             ((tr("The two rules that decide whether this is worth doing"),
+               tr("Driver colour management OFF, or you measure the driver "
+                  "instead of the printer and the refined profile is wrong "
+                  "in a way nothing later can see. And the sheet on a white "
+                  "backing, because thin stock lets a coloured surface bleed "
+                  "into every reading.")),)),
             (4, tr("On the Build Profile tab the new .ti3 is already loaded. "
-                "If you like, fill in the optional metadata fields "
-                "(Description, Manufacturer, Copyright) — they get embedded "
-                "in the .icc header so colour-management apps can identify "
-                "it later. Click “Build Profile”. When the build finishes a "
-                "result popup appears — the new .icc is more accurate than "
-                "the seed profile because ChromIQ placed patches where they "
-                "mattered. Install it from the popup, or jump to Check & "
-                "Refine to verify it before installing.")),
+                "Click “Build Profile”, then install the new .icc from the "
+                "result popup or check it first on the Check & Refine tab."),
+             False,
+             ((tr("Why the new profile beats the seed"),
+               tr("It is built from measurements taken where the printer is "
+                  "hardest to model, rather than from measurements spread "
+                  "evenly over easy and hard colours alike. The optional "
+                  "metadata boxes (Description, Manufacturer, Copyright) are "
+                  "embedded in the .icc header so a colour-managed program "
+                  "can name it back to you; they change nothing about the "
+                  "colour.")),)),
             (5, tr("Optional — On the Check & Refine tab click “{analyse}”. "
                 "ChromIQ runs profcheck and flags any patches whose ΔE is "
                 "above your refinement threshold (2.0 is a sensible starting "
@@ -310,37 +351,53 @@ WORKFLOWS: list[dict] = [
         "subtitle": tr("You already have a chart on disk and just want to print it."),
         "steps": [
             (2, tr("Click “Open Chart File (.ti2)” at the top left of the "
-                "window and pick the chart definition file (.ti2). ChromIQ "
-                "finds the matching TIFF pages automatically — you don't pick "
-                "them by hand — and shows the chart on the Print Chart tab.\n\n"
-                "If the chart was made in ChromIQ, “Open Project” beside it "
-                "opens the whole project instead, and its chart comes with "
-                "it.")),
-            (2, tr("Choose your printer, paper type and any quality settings "
-                "the print dialog exposes. Make sure driver colour "
-                "management is OFF, just like a fresh print.")),
-            (2, tr("Click “Print”. The TIFF is sent as raw PostScript so no "
-                "driver filter alters the patches on the way to the "
-                "printer.")),
-            (3, tr("Once the print is dry, head to the Measure tab and connect "
-                "your spectrophotometer, then place the chart on a white "
-                "surface (a plain sheet of paper underneath works). Before "
-                "scanning, look at the “Strip recognition” row and leave its “Auto” "
-                "box ticked — ChromIQ then picks the mode that suits the "
-                "instrument saved in your chart. If your chart is not "
-                "randomised, ChromIQ warns you before that choice can go "
-                "wrong. "
-                "Click “Start Measurement” and follow the strip-by-strip "
-                "prompts.")),
+                "window and pick the chart definition file. The chart appears "
+                "on the Print Chart tab."),
+             False,
+             ((tr("You do not pick the TIFF pages yourself"),
+               tr("The .ti2 records which patch sits where, and ChromIQ finds "
+                  "the matching TIFF pages beside it automatically. If the "
+                  "chart was made in ChromIQ, “Open Project” next to it opens "
+                  "the whole project instead, and the chart comes with "
+                  "it.")),)),
+            (2, tr("Choose your printer, paper type and whatever quality "
+                "settings the print dialog offers, and check that driver "
+                "colour management is OFF."),
+             False,
+             ((tr("The same rule as a freshly made chart"),
+               tr("A driver that re-maps colours makes the printed patches "
+                  "disagree with their definition in the .ti2, and every "
+                  "measurement taken from that sheet is then wrong by an "
+                  "amount nothing downstream can see. On macOS ChromIQ "
+                  "switches it off for you; elsewhere you do it in the "
+                  "driver's own dialog.")),)),
+            (2, tr("Click “Print”."),
+             False,
+             ((tr("How the sheet reaches the printer"),
+               tr("The TIFF is sent as raw PostScript, so no driver filter "
+                  "alters the patches on the way. That is the same path a "
+                  "chart made in ChromIQ takes, which is what makes the two "
+                  "sheets comparable.")),)),
+            (3, tr("Once the print is dry, go to the Measure tab, connect "
+                "your spectrophotometer, lay the chart on a white surface, "
+                "click “Start Measurement” and follow the prompts."),
+             False,
+             ((tr("Leave “Strip recognition” on Auto"),
+               tr("ChromIQ then picks the mode that suits the instrument "
+                  "saved in your chart. If the chart is not randomised, "
+                  "ChromIQ warns you before that choice can go wrong: on a "
+                  "fixed-order chart the wrong mode can latch onto the wrong "
+                  "strip and build a profile with colour casts, and every "
+                  "patch will have been read successfully.")),)),
             (4, tr("On the Build Profile tab the new .ti3 is already loaded. "
-                "If you like, fill in the optional metadata fields "
-                "(Description, Manufacturer, Copyright) — they get embedded "
-                "in the .icc header so colour-management apps can identify "
-                "it later. Then click “Build Profile”. When the build "
-                "finishes a result popup appears — install the .icc system-"
-                "wide from there, or jump to Check & Refine to verify its "
-                "accuracy and start guided refinement (the steps below) for "
-                "a noticeably more accurate profile.")),
+                "Click “Build Profile”, then install the .icc from the "
+                "result popup or check it first on the Check & Refine tab."),
+             False,
+             ((tr("The optional metadata boxes"),
+               tr("Description, Manufacturer and Copyright are embedded in "
+                  "the .icc header so colour-management programs can identify "
+                  "the profile later. They change nothing about the colour, "
+                  "and you can leave them empty.")),)),
             (5, tr("Optional — On the Check & Refine tab click “{analyse}”. "
                 "ChromIQ runs profcheck and flags any patches whose ΔE is "
                 "above your refinement threshold (2.0 is a sensible starting "
@@ -366,41 +423,60 @@ WORKFLOWS: list[dict] = [
         "title": tr("Measure a chart I already printed"),
         "subtitle": tr("Jump straight to reading patches with your spectrophotometer."),
         "steps": [
-            (3, tr("Click “Open Chart File (.ti2)” at the top left of the window and pick "
-                "the .ti2 that matches your printed chart — it holds the exact "
-                "patch positions. The chart then appears on the Measure tab, "
-                "and on Create Chart and Print Chart too.")),
-            (3, tr("Connect and switch on the spectrophotometer. ChromIQ "
-                "detects it automatically; a green status pill appears in "
-                "the toolbar when it's ready.")),
-            (3, tr("Look at the “Strip recognition” row before you start. "
-                "Leave its “Auto” box ticked and ChromIQ chooses the mode "
-                "that suits the instrument saved in your chart, which is "
-                "right for almost everybody. Changing it by hand is an expert "
-                "setting: the wrong choice on a fixed-order chart can latch "
-                "onto the wrong strip and quietly build a profile with "
-                "colour casts, so ChromIQ warns you before it lets that "
-                "happen.")),
+            (3, tr("Click “Open Chart File (.ti2)” at the top left of the "
+                "window and pick the .ti2 that matches your printed chart."),
+             False,
+             ((tr("Why it has to be the matching .ti2"),
+               tr("The .ti2 holds the exact patch positions of the sheet in "
+                  "front of you. A .ti2 from a different chart will line up "
+                  "with nothing, and ChromIQ has no way of noticing. Once it "
+                  "is open the chart appears on the Measure tab, and on "
+                  "Create Chart and Print Chart as well.")),)),
+            (3, tr("Connect and switch on the spectrophotometer, and wait for "
+                "the green status pill in the toolbar."),
+             False,
+             ((tr("You do not have to choose the instrument"),
+               tr("ChromIQ detects it by itself. The pill turning green is "
+                  "the signal that the instrument has been found and is "
+                  "ready; until then “Start Measurement” has nothing to talk "
+                  "to.")),)),
+            (3, tr("Leave the “Auto” box on the “Strip recognition” row "
+                "ticked."),
+             False,
+             ((tr("What Auto decides, and what it costs to override it"),
+               tr("ChromIQ chooses the mode that suits the instrument saved "
+                  "in your chart, which is right for almost everybody. "
+                  "Changing it by hand is an expert setting: the wrong choice "
+                  "on a fixed-order chart can latch onto the wrong strip and "
+                  "quietly build a profile with colour casts, so ChromIQ "
+                  "warns you before it lets that happen.")),)),
             (3, tr("Click “Start Measurement” and follow the strip-by-strip "
-                "prompts. Results save as a .ti3 next to the chart, "
-                "ready for the Build Profile tab.")),
-            (3, tr("Optional — tick “Play sounds during measurement” to get "
-                "audible feedback as you read: a tick as each patch is read, a "
-                "bell when a strip is done, a warning if a reading looks off, "
-                "and a fanfare when the whole chart is finished. It's a "
-                "hands-free way to follow progress without watching the screen. "
-                "Choose the sound for each event — or add your own — in "
-                "Preferences → Sounds."),
-                True),
+                "prompts. The readings are saved as a .ti3 beside the chart."),
+             False,
+             ((tr("Where that leaves you"),
+               tr("The .ti3 is the measurement, and it is what the Build "
+                  "Profile tab turns into an .icc. It is written when the "
+                  "reading ends cleanly, so let the run finish rather than "
+                  "closing the window part-way through.")),)),
+            (3, tr("Optional: tick “Play sounds during measurement” for "
+                "audible feedback as you read."),
+                True,
+             ((tr("What each sound means, and where to change them"),
+               tr("A tick as each patch is read, a bell when a strip is "
+                  "done, a warning if a reading looks off, and a fanfare when "
+                  "the whole chart is finished. It is a hands-free way to "
+                  "follow progress without watching the screen. Choose the "
+                  "sound for each event, or add your own, in Preferences → "
+                  "Sounds.")),)),
             (4, tr("On the Build Profile tab the new .ti3 is already loaded. "
-                "If you like, fill in the optional metadata fields "
-                "(Description, Manufacturer, Copyright) — they get embedded "
-                "in the .icc header so colour-management apps can identify "
-                "it later. Then click “Build Profile”. When the build "
-                "finishes a result popup appears — install the .icc system-"
-                "wide from there, or jump to Check & Refine to verify its "
-                "accuracy and start guided refinement (the steps below) for "
-                "a noticeably more accurate profile.")),
+                "Click “Build Profile”, then install the .icc from the result "
+                "popup or check it first on the Check & Refine tab."),
+             False,
+             ((tr("The optional metadata boxes"),
+               tr("Description, Manufacturer and Copyright are embedded in "
+                  "the .icc header so colour-management programs can identify "
+                  "the profile later. They change nothing about the colour, "
+                  "and you can leave them empty.")),)),
             (5, tr("Optional — On the Check & Refine tab click “{analyse}”. "
                 "ChromIQ runs profcheck and flags any patches whose ΔE is "
                 "above your refinement threshold (2.0 is a sensible starting "
@@ -426,23 +502,34 @@ WORKFLOWS: list[dict] = [
         "title": tr("Build a profile from an existing measurement"),
         "subtitle": tr("You have a .ti3 file — turn it into an ICC profile."),
         "steps": [
-            (4, tr("On the Build Profile tab, look in the top-right corner of "
-                "the tab for the small chart icon whose tooltip reads “Load "
-                "your measurement data” — click it and pick your existing "
-                "measurement file. The matching .ti1/.ti2 is found and "
-                "loaded automatically.")),
-            (4, tr("If you like, fill in the optional metadata fields "
-                "(Description, Manufacturer, Copyright). These get embedded "
-                "in the .icc header so colour-management apps can identify "
-                "the profile later — you can leave them empty if you don't "
-                "care.")),
-            (4, tr("Click “Build Profile”. The .icc lands next to the .ti3 "
+            (4, tr("On the Build Profile tab, click the small chart icon in "
+                "the top-right corner of the tab, whose tooltip reads “Load "
+                "your measurement data”, and pick your .ti3."),
+             False,
+             ((tr("What comes along with it"),
+               tr("The matching .ti1 or .ti2 is found and loaded "
+                  "automatically, so you do not have to hunt for the chart "
+                  "the measurement came from. Those files say which patch "
+                  "was which, and colprof cannot build without them.")),)),
+            (4, tr("Optional: fill in Description, Manufacturer and "
+                "Copyright."),
+                True,
+             ((tr("What those three boxes are for"),
+               tr("They are embedded in the .icc header, so colour-managed "
+                  "programs can name the profile back to you later. They "
+                  "change nothing about the colour, and an empty box costs "
+                  "you nothing but a less recognisable entry in a long list "
+                  "of profiles.")),)),
+            (4, tr("Click “Build Profile”. The .icc lands next to the .ti3, "
                 "in the same folder.")),
-            (4, tr("A result popup appears with three actions: install the "
-                "profile to your system colour folder, jump to Check & "
-                "Refine to inspect its accuracy, or feed it back as a "
-                "pre-conditioning profile (workflow 2). You can dismiss "
-                "the popup and come back to any of these later.")),
+            (4, tr("Choose what to do from the result popup."),
+             False,
+             ((tr("The three things it offers"),
+               tr("Install the profile into your system colour folder; jump "
+                  "to Check & Refine to measure how accurate it actually is; "
+                  "or feed it back as a pre-conditioning profile, which is "
+                  "the 2-pass workflow on its own card. You can dismiss the "
+                  "popup and reach any of the three later.")),)),
             (5, tr("Optional — On the Check & Refine tab click “{analyse}”. "
                 "ChromIQ runs profcheck and flags any patches whose ΔE is "
                 "above your refinement threshold (2.0 is a sensible starting "
@@ -468,24 +555,43 @@ WORKFLOWS: list[dict] = [
         "title": tr("Refine an existing profile"),
         "subtitle": tr("Re-measure only the strips where ΔE is worst."),
         "steps": [
-            (5, tr("On the Check & Refine tab, find the field labelled “.ti3 "
-                "test data file:” and click the folder button beside it, "
-                "then open the measurement of the profile you want to "
-                "improve. The matching .icc loads automatically.")),
-            (5, tr("Click “{analyse}”. ChromIQ runs profcheck and looks for "
-                "patches whose ΔE is above your refinement threshold "
-                "(configurable in the panel — 2.0 is a sensible "
-                "starting point).").format(analyse=tr('Analyse Profile Quality'))),
-            (5, tr("If outlier patches are found, ChromIQ offers to send you "
-                "back to the Measure tab to re-read only the affected "
-                "strips — much faster than reprinting and re-measuring "
-                "the whole chart.")),
-            (3, tr("Re-measure the strips ChromIQ marks. The new readings "
-                "are merged into the .ti3 — old patches are kept where "
-                "they were already good.")),
-            (4, tr("Click “Build Profile” again. The refined .ti3 produces "
-                "a more accurate profile, and you can repeat this cycle "
-                "until the worst outliers are below threshold.")),
+            (5, tr("On the Check & Refine tab, click the folder button beside "
+                "“.ti3 test data file:” and open the measurement of the "
+                "profile you want to improve."),
+             False,
+             ((tr("The profile comes with the measurement"),
+               tr("The matching .icc loads by itself, because the two share a "
+                  "stem. That pairing is what makes the comparison "
+                  "meaningful: profcheck asks what the profile PREDICTED for "
+                  "each patch and what the instrument actually READ, and both "
+                  "halves have to come from the same build.")),)),
+            (5, tr("Click “{analyse}”.").format(analyse=tr('Analyse Profile Quality')),
+             False,
+             ((tr("What the threshold decides"),
+               tr("ChromIQ runs profcheck and lists every patch whose ΔE is "
+                  "above the refinement threshold in the panel. 2.0 is a "
+                  "sensible starting point: below about 1 a difference is "
+                  "invisible, and between 2 and 4 it is visible side by side. "
+                  "Set it lower and you will be re-measuring patches that "
+                  "were already good enough.")),)),
+            (5, tr("Accept the offer to go back to the Measure tab when "
+                "outliers are found."),
+             False,
+             ((tr("Why only some strips are re-read"),
+               tr("ChromIQ marks just the strips carrying the outlying "
+                  "patches, so you re-read a handful of rows rather than "
+                  "reprinting and re-measuring the whole chart. On a large "
+                  "chart that is the difference between a minute and an "
+                  "afternoon.")),)),
+            (3, tr("Re-measure the strips ChromIQ marks."),
+             False,
+             ((tr("Nothing good is thrown away"),
+               tr("The new readings are merged into the existing .ti3, and "
+                  "patches that were already within threshold are kept "
+                  "exactly as they were. The file grows more accurate in "
+                  "place rather than being replaced.")),)),
+            (4, tr("Click “Build Profile” again, and repeat the cycle until "
+                "the worst outliers are below threshold.")),
         ],
     },
     {
@@ -495,95 +601,116 @@ WORKFLOWS: list[dict] = [
             "an optional step BEFORE profiling, and not the same thing as a "
             "profile."),
         "steps": [
-            (4, tr("WHAT THIS IS, AND WHY IT IS NOT A PROFILE\n\n"
-                "These two words get used as if they meant the same thing, and "
-                "they do not.\n\n"
-                "A CALIBRATION changes the printer. It measures how much ink "
-                "each channel actually lays down and works out a correction, so "
-                "that from then on the printer responds evenly and predictably "
-                "— and, importantly, the SAME way next month as it does today. "
-                "The result is a small file with the ending “.cal”.\n\n"
-                "A PROFILE changes nothing about the printer. It is a "
-                "description of what your printer does with your paper and your "
-                "inks, which colour-managed software reads so it can convert "
-                "your images correctly. The result is a file with the ending "
-                "“.icc”.\n\n"
-                "If it helps: calibrating is tuning the instrument, and the "
-                "profile is the music written for an instrument tuned that way. "
-                "That is also why the order matters — calibrate first, then "
-                "profile — and why re-calibrating means the old profile now "
-                "describes a printer that no longer exists. See the last step.\n\n"
-                "DO YOU NEED IT? Most people do not. Consumer and prosumer "
-                "inkjet printers usually give better results from a plain "
-                "profiling run with no calibration step at all. Reach for this "
-                "when your printer's own documentation asks for linearisation, "
-                "when you are following an ArgyllCMS guide that calls for it, or "
-                "when you want the printer to behave the same way over months "
-                "rather than days.")),
-            (4, tr("Switch the feature on first: Preferences → “Enable "
-                "calibration options”. Until you do, none of this appears — "
-                "which is deliberate, because most people never need it. "
-                "Switching it on adds “Calibration” to the “Run type” list in "
-                "the Profile-run bar above the tabs, and adds two modules to the "
-                "Calibration & Profiling tab.")),
-            (1, tr("In the Profile-run bar above the tabs, set “Run type” to “Calibration”. "
-                "“Profile run” changes to “Project calibration” and greys out — "
-                "that is expected. A calibration describes your printer, your "
-                "paper and your inks rather than one particular profile, so a "
-                "project keeps exactly one and every profile run in it can use "
-                "the same one.")),
-            (1, tr("On the Create Chart tab, ChromIQ has already set the chart "
-                "up for you: a plain ramp of one ink channel at a time, which "
-                "is what a calibration needs. The automatic patch counts switch "
-                "off and grey out, because a calibration chart's size is "
-                "decided by “Single Channel Steps” instead of by filling a "
-                "number of pages. 20 steps is a good starting point — more "
-                "steps measure the printer's response more finely and take "
-                "longer to read. Then click “Generate Chart”.")),
-            (2, tr("Print it from the Print Chart tab exactly as you print any "
-                "chart, with the driver's colour management OFF. This is the "
-                "same rule as profiling and for the same reason: if the driver "
-                "re-maps the colours, you are measuring the driver instead of "
-                "the printer.")),
-            (3, tr("Measure it on the Measure tab, the same way you measure any "
-                "chart. The readings are saved in the project's “cal” folder, "
-                "beside the chart they came from.")),
-            (4, tr("Go to the Calibration & Profiling tab. With Run type set to "
-                "Calibration it offers one module — “Create Calibration File”. "
-                "Click it, and ChromIQ turns your readings into the “.cal” "
-                "file. That file is your calibration, and it is shared by every "
-                "profile run in this project.")),
-            (1, tr("Now put it to work, and there are two ways depending on your "
-                "equipment.\n\n"
-                "If your printer or RIP can apply a calibration itself, load "
-                "the “.cal” file there and let it do the work. ChromIQ then "
-                "prints charts normally and the calibration is already in "
-                "effect.\n\n"
-                "If it cannot, ChromIQ can bake the correction into the chart "
-                "instead. Switch “Run type” back to “Profiling” and, on the "
-                "Create Chart tab, you will find the calibration already filled "
-                "into two fields: “Apply Calibration File” and “Include "
-                "Calibration File”. Neither is switched on for you, because "
-                "which one you want depends on your setup. “Apply” reprints "
-                "every patch value through the calibration; “Include” only "
-                "records it in the chart file. They cannot both be used at "
-                "once.")),
-            (4, tr("Then carry on and build your profile exactly as usual. The "
+            (4, tr("Before anything else, decide whether you need a "
+                "calibration at all. Most people do not."),
+             False,
+             ((tr("What a calibration is, and why it is not a profile"),
+               tr("These two words get used as if they meant the same thing, "
+                  "and they do not. A CALIBRATION changes the printer: it "
+                  "measures how much ink each channel actually lays down and "
+                  "works out a correction, so that from then on the printer "
+                  "responds evenly, predictably, and the same way next month "
+                  "as it does today. The result is a small file ending "
+                  "“.cal”. A PROFILE changes nothing about the printer. It "
+                  "describes what your printer does with your paper and your "
+                  "inks, so that colour-managed software can convert your "
+                  "images correctly. The result is a file ending “.icc”. If "
+                  "it helps: calibrating is tuning the instrument, and the "
+                  "profile is the music written for an instrument tuned that "
+                  "way.")),
+              (tr("Who this is for"),
+               tr("Consumer and prosumer inkjet printers usually give better "
+                  "results from a plain profiling run with no calibration "
+                  "step at all. Reach for this when your printer's own "
+                  "documentation asks for linearisation, when you are "
+                  "following an ArgyllCMS guide that calls for it, or when "
+                  "you want the printer to behave the same way over months "
+                  "rather than days.")))),
+            (4, tr("Switch the feature on: Preferences → “Enable calibration "
+                "options”."),
+             False,
+             ((tr("What appears when you do"),
+               tr("Until you switch it on, none of this is visible, which is "
+                  "deliberate, because most people never need it. Switching "
+                  "it on adds “Calibration” to the “Run type” list in the "
+                  "Profile-run bar above the tabs, and adds two modules to "
+                  "the Calibration & Profiling tab.")),)),
+            (1, tr("In the Profile-run bar above the tabs, set “Run type” to "
+                "“Calibration”."),
+             False,
+             ((tr("Why “Profile run” greys out"),
+               tr("It changes to “Project calibration” and greys, and that is "
+                  "expected rather than a fault. A calibration describes your "
+                  "printer, your paper and your inks rather than one "
+                  "particular profile, so a project keeps exactly one and "
+                  "every profile run in it can use the same one.")),)),
+            (1, tr("On the Create Chart tab, set “Single Channel Steps” (20 "
+                "is a good starting point) and click “Generate Chart”."),
+             False,
+             ((tr("Why the automatic patch counts are greyed out"),
+               tr("ChromIQ has already set the chart up as a plain ramp of "
+                  "one ink channel at a time, which is what a calibration "
+                  "needs. A calibration chart's size is decided by the number "
+                  "of steps rather than by filling a number of pages, so the "
+                  "page-filling controls switch off. More steps measure the "
+                  "printer's response more finely and take longer to "
+                  "read.")),)),
+            (2, tr("Print it from the Print Chart tab with the driver's "
+                "colour management OFF, exactly as you print any chart."),
+             False,
+             ((tr("The same reason as profiling"),
+               tr("If the driver re-maps the colours, you are measuring the "
+                  "driver instead of the printer, and a calibration built "
+                  "from that corrects for something that is not your "
+                  "printer.")),)),
+            (3, tr("Measure it on the Measure tab, the same way you measure "
+                "any chart. The readings are saved in the project's “cal” "
+                "folder, beside the chart they came from.")),
+            (4, tr("Go to the Calibration & Profiling tab and click “Create "
+                "Calibration File”."),
+             False,
+             ((tr("What that produces, and who it belongs to"),
+               tr("ChromIQ turns your readings into the “.cal” file. That "
+                  "file is your calibration, and it is shared by every "
+                  "profile run in this project. With Run type set to "
+                  "Calibration the tab offers this one module and nothing "
+                  "else, because nothing else applies yet.")),)),
+            (1, tr("Put the calibration to work, in whichever of the two ways "
+                "suits your equipment."),
+             False,
+             ((tr("If your printer or RIP can apply a calibration itself"),
+               tr("Load the “.cal” file there and let it do the work. "
+                  "ChromIQ then prints charts normally and the calibration is "
+                  "already in effect by the time the ink reaches the "
+                  "paper.")),
+              (tr("If it cannot, ChromIQ can bake it into the chart"),
+               tr("Switch “Run type” back to “Profiling” and, on the Create "
+                  "Chart tab, you will find the calibration already filled "
+                  "into two fields: “Apply Calibration File” and “Include "
+                  "Calibration File”. Neither is switched on for you, because "
+                  "which one you want depends on your setup. “Apply” reprints "
+                  "every patch value through the calibration; “Include” only "
+                  "records it in the chart file. They cannot both be used at "
+                  "once.")))),
+            (4, tr("Carry on and build your profile exactly as usual. The "
                 "profile you get now describes a calibrated printer, which is "
                 "the point of the whole exercise.")),
-            (4, tr("KEEP THESE TWO IN STEP.\n\n"
-                "A profile describes the printer as it was when you measured "
-                "it. So if you later make a NEW calibration, every profile you "
-                "built on the old one now describes a printer that no longer "
-                "behaves that way — those profiles keep working, but they are "
-                "no longer accurate. Build a fresh profile after re-calibrating.\n\n"
-                "ChromIQ helps you keep track: each run records which "
-                "calibration it was built with, and making a new calibration "
-                "chart never deletes a calibration you have measured — it "
-                "moves into the project's "
-                "“cal/old” folder, in a folder named with the date, so you can "
-                "always go back to it. Runs made before ChromIQ started "
-                "recording this simply say it is unknown.")),
+            (4, tr("From now on, keep the two in step. Build a fresh profile "
+                "whenever you make a new calibration."),
+             False,
+             ((tr("Why an old profile stops being accurate"),
+               tr("A profile describes the printer as it was when you "
+                  "measured it. Make a NEW calibration and every profile you "
+                  "built on the old one now describes a printer that no "
+                  "longer behaves that way. Those profiles keep working; they "
+                  "are simply no longer accurate.")),
+              (tr("What ChromIQ keeps track of for you"),
+               tr("Each run records which calibration it was built with. "
+                  "Making a new calibration chart never deletes a calibration "
+                  "you have measured: it moves into the project's “cal/old” "
+                  "folder, in a folder named with the date, so you can always "
+                  "go back to it. Runs made before ChromIQ started recording "
+                  "this simply say it is unknown.")))),
         ],
     },
     {
@@ -593,55 +720,143 @@ WORKFLOWS: list[dict] = [
             "accurate your finished profile is — and whether it stays that "
             "way over time."),
         "steps": [
-            (1, tr("First make sure the profile you want to check already "
-                "exists — a verification always checks a finished profile. In "
-                "the Profile-run bar at the top of the window set “Profile run” to that "
-                "profile's run, then set “Run type” to “Verification”. If the "
-                "run has no profile yet, ChromIQ tells you to build one first "
-                "and switches the type back to Profiling — do that, then come "
-                "back here.")),
-            (1, tr("On the Create Chart tab, generate a chart as usual. Because "
-                "Run type is Verification, this becomes the run's verification "
-                "chart (a smaller chart is fine — you're checking, not "
-                "rebuilding). It lives in the run's “verifications” folder and "
-                "is reused for every future check, so you compare like with "
-                "like over time — and if you ever replace it, the old chart is "
-                "archived there, and every check you already measured keeps "
-                "its own stored copy of the chart it was measured with. Tip: "
-                "the “From profile gamut” module on the same tab builds the "
-                "chart out of colours your profile promises it can print — "
-                "the most direct accuracy check.")),
-            (2, tr("On the Print Chart tab, the “Colour” row decides what your "
-                "check will mean — and whichever you pick, ChromIQ does all "
-                "the colour work itself and keeps the printer's own colour "
-                "management off, exactly as for a profiling chart. Choose "
-                "“Through the profile”: every patch is converted by the "
-                "profile you are checking, so the sheet is the profile's own "
-                "prediction made real, and measuring it answers “how accurate "
-                "is this profile?”. (“Raw — no profile” prints the chart "
-                "untouched instead — that asks whether the printer has "
-                "drifted, not how good the profile is. And a chart from the "
-                "“From profile gamut” module already has the profile applied, "
-                "so ChromIQ selects Raw for it by itself.)")),
-            (3, tr("On the Measure tab, keep “Run type” on Verification and pick "
-                "“New verification” in the Verification box to start a fresh, "
-                "dated check (or pick an earlier date to re-measure it). Click "
-                "Measure and read the chart as normal. The result is saved in "
-                "its own dated folder under the run's “verifications” folder, "
-                "so each check is kept as history — it never overwrites your "
-                "profiling measurement or builds a profile. (Measured "
-                "elsewhere, for example with an i1iO table? The IMPORT module "
-                "on this tab files that measurement in the same way.)")),
-            (3, tr("Open Tools → “Measurement report (accuracy & drift)” to see "
-                "the numbers. A verification report is titled and filed "
-                "separately from profiling reports (you can set the wording "
-                "in Preferences → Reports), and it only ever trends "
-                "verification measurements — so a profile's checks are never "
-                "mixed in with the run that built it. Repeat a verification "
-                "every few weeks or months to watch the profile hold up, or "
-                "drift, over time. Unsure which kind of check fits you? The "
-                "Dictionary entry “Which verification should I use?” compares "
-                "all three.")),
+            (1, tr("In the Profile-run bar at the top of the window, set "
+                "“Profile run” to the run whose profile you want to check, "
+                "then set “Run type” to “Verification”."),
+             False,
+             ((tr("A verification always checks a profile that already "
+                  "exists"),
+               tr("If the run has no profile yet, ChromIQ tells you to build "
+                  "one first and switches the type back to Profiling. Build "
+                  "it, then come back here. Everything below belongs to that "
+                  "one run: its verification chart, its dated checks, its "
+                  "report type and the limits its results are judged "
+                  "against.")),)),
+            (1, tr("On the Create Chart tab, choose the chart this profile "
+                "will be checked with, then click “Generate Chart”."),
+             False,
+             ((tr("“Which presets can be used for verification?” answers this "
+                  "for you"),
+               tr("That button appears under “Select preset:” in the Presets "
+                  "frame, and only on a Verification run, because a profiling "
+                  "chart is chosen on quite different grounds. It lists every "
+                  "preset ChromIQ ships and every preset of your own against "
+                  "the metrics a report of the type you pick, judged against "
+                  "the limit set you pick, asks of a chart. The “Metrics "
+                  "answered” column says how many of them each preset can "
+                  "answer; click one to see exactly which, and which it "
+                  "cannot and why. Double-click loads it straight into Create "
+                  "Chart. Nothing is hidden and nothing is filtered out: the "
+                  "window marks presets, it does not withhold them.")),
+              (tr("What the ★ means, and why it does not move"),
+               tr("A star marks a chart MADE for verification: one printed "
+                  "page, 600 patches or fewer, and nothing withheld that a "
+                  "different patch set would have supplied. Those are "
+                  "properties of the chart itself, so the star does not "
+                  "change when you change the two pulldowns at the top of the "
+                  "window. Tick “Show only the presets made for verification” "
+                  "to see just those.")),
+              (tr("Three metrics only “FROM PROFILE GAMUT” can answer"),
+               tr("Paper white against the reference paper, the largest "
+                  "difference on the solid colours, and the largest hue "
+                  "difference on the cyan, magenta and yellow solids all need "
+                  "aim colours that no ordinary patch set carries. The “FROM "
+                  "PROFILE GAMUT” module on this tab builds the chart out of "
+                  "colours your profile promises it can print AND writes "
+                  "those aims beside it, which is what fills those three "
+                  "rows. It is also the most direct accuracy check there "
+                  "is.")),
+              (tr("Where the chart lives, and what happens if you replace "
+                  "it"),
+               tr("It goes into the run's “verifications” folder and is "
+                  "reused for every future check, so you compare like with "
+                  "like over time. Replace it and the old chart is archived "
+                  "there rather than deleted, and every check you already "
+                  "measured keeps its own stored copy of the chart it was "
+                  "measured with.")))),
+            (2, tr("On the Print Chart tab, set the “Colour” row to “Through "
+                "the profile”, and print."),
+             False,
+             ((tr("Why that choice is the whole meaning of the check"),
+               tr("Every patch is converted by the profile you are checking, "
+                  "so the sheet is the profile's own prediction made real. "
+                  "Measuring it answers “how accurate is this profile?”. "
+                  "Whichever setting you pick, ChromIQ does all the colour "
+                  "work itself and keeps the printer's own colour management "
+                  "off, exactly as for a profiling chart.")),
+              (tr("When “Raw — no profile” is the right answer instead"),
+               tr("It prints the chart untouched, which asks whether the "
+                  "PRINTER has drifted rather than how good the profile is. "
+                  "ChromIQ treats such a sheet as a drift check and shows its "
+                  "numbers without grading them, because there is no profile "
+                  "in the loop to be right or wrong. A chart from “FROM "
+                  "PROFILE GAMUT” already has the profile applied, so ChromIQ "
+                  "selects Raw for it by itself.")))),
+            (3, tr("On the Measure tab, pick “New verification” in the "
+                "Verification box, then measure the chart as normal."),
+             False,
+             ((tr("What a dated check is, and what it never touches"),
+               tr("The result is saved in its own dated folder under the "
+                  "run's “verifications” folder, so every check is kept as "
+                  "history. It never overwrites your profiling measurement "
+                  "and it never builds a profile. Pick an earlier date "
+                  "instead of “New verification” to re-measure that one.")),
+              (tr("Measured somewhere else? Import it"),
+               tr("If the sheet was read elsewhere, for example on an i1iO "
+                  "table, the IMPORT module on this tab files that "
+                  "measurement in exactly the same way, so it joins the same "
+                  "history.")))),
+            (3, tr("Open Tools → “Measurement report (accuracy & drift)” and "
+                "set “Report type:” and “Judged against:”, then click "
+                "“Generate report”."),
+             False,
+             ((tr("What those two pulldowns decide"),
+               tr("“Report type:” is which document you get: a one-page "
+                  "Colour summary, a Full colour check, a Grey and tone "
+                  "check, or a Printing record, which sets down what was "
+                  "printed and measured and grades none of it. “Judged "
+                  "against:” is the LIMIT SET, one column of numbers saying "
+                  "how far off each measurement may be. ChromIQ ships three "
+                  "of its own, “ChromIQ default (recommended)”, “ChromIQ "
+                  "tight” and “Quick check”, and sets its defaults for new "
+                  "reports in Preferences → Reports.")),
+              (tr("How to read the result words"),
+               tr("Each row reads PASS when it is inside its limit and FAIL "
+                  "when it is not, COND when it missed a limit the set only "
+                  "recommends, INFO when the set puts no limit on that row, "
+                  "and N-A when your chart carries nothing that could answer "
+                  "it. “Overall” is the one word for a whole dated check. A "
+                  "profiling measurement is never graded at all: it is "
+                  "expected to fall outside accuracy limits, and saying so "
+                  "would be noise rather than news.")),
+              (tr("The limits belong to the run, and they lock"),
+               tr("The first verification measurement BINDS a copy of the "
+                  "limits to that run, so every later check of the same "
+                  "profile is judged by the same numbers and the trend means "
+                  "something. From the second dated check they LOCK. If you "
+                  "really do need to change them, tick “Allow editing of "
+                  "thresholds after the first verification measurement” in "
+                  "Preferences → Reports, then “Unlock this run's limits” in "
+                  "the report window. ChromIQ copies every report of the run "
+                  "into its own “reports/old” folder before recalculating "
+                  "them, so the record of what you were told is "
+                  "kept.")))),
+            (3, tr("Repeat a verification every few weeks or months, and read "
+                "the trend."),
+             False,
+             ((tr("What the trend shows, and what it never mixes in"),
+               tr("“Trend over time (this printer)” plots colour accuracy, "
+                  "paper white, darkest black and the cube corners across "
+                  "every dated check of this run. A verification report is "
+                  "titled and filed separately from a profiling report, and "
+                  "it only ever trends verification measurements, so a "
+                  "profile's checks are never mixed in with the run that "
+                  "built it. You can set both titles in Preferences → "
+                  "Reports.")),
+              (tr("Unsure which kind of check fits you?"),
+               tr("The Dictionary entry “Which verification should I use? "
+                  "(the three ways)” compares all three side by "
+                  "side.")))),
         ],
     },
     {
@@ -649,18 +864,36 @@ WORKFLOWS: list[dict] = [
         "title": tr("Visualise a profile's gamut"),
         "subtitle": tr("See in 3D what colours a printer can and can't reproduce."),
         "steps": [
-            (5, tr("On the Check & Refine tab, load the .icc profile you "
-                "want to inspect. A matching .ti3 is helpful but not "
-                "required for the gamut viewer.")),
-            (5, tr("Open the Gamut Viewer pane. ChromIQ runs iccgamut on the "
-                "profile and renders the printer's colour volume as a 3D "
-                "mesh that you can rotate, zoom and pan freely.")),
-            (5, tr("Optionally overlay a reference gamut (e.g. sRGB or "
-                "AdobeRGB) to see at a glance which colours of the "
-                "reference space the printer can hit and which it has "
-                "to clip.")),
-            (5, tr("This workflow is read-only — no files are written, so "
-                "you can poke around freely without changing anything.")),
+            (5, tr("On the Check & Refine tab, load the .icc profile you want "
+                "to inspect."),
+             False,
+             ((tr("A measurement is helpful but not needed"),
+               tr("The gamut viewer works from the profile alone, because a "
+                  "gamut is what the profile claims the device can reach. A "
+                  "matching .ti3 lets the rest of the tab tell you how "
+                  "accurate that claim is, which is a different "
+                  "question.")),)),
+            (5, tr("Open the Gamut Viewer pane, and rotate, zoom and pan the "
+                "colour volume with the mouse."),
+             False,
+             ((tr("What you are looking at"),
+               tr("ChromIQ runs iccgamut on the profile and renders the "
+                  "printer's colour volume as a 3D mesh. Its shape is the "
+                  "honest answer to “what can this paper and ink actually "
+                  "do?”: a deep, even solid is a roomy gamut, and a flattened "
+                  "or dented one shows where the printer runs out of "
+                  "colour.")),)),
+            (5, tr("Optional: overlay a reference gamut such as sRGB or "
+                "AdobeRGB."),
+                True,
+             ((tr("What the overlay tells you"),
+               tr("At a glance: which colours of the reference space your "
+                  "printer can hit, and which it has to clip. That is the "
+                  "practical version of “will this image print the way I see "
+                  "it?”, and it is far easier to read here than in a table of "
+                  "numbers.")),)),
+            (5, tr("Poke around freely. This workflow is read-only and writes "
+                "no files.")),
         ],
     },
     {
@@ -1261,6 +1494,229 @@ GLOSSARY += [
         "sub-folder instead of being deleted, so nothing is ever lost.")),
 ]
 
+
+# The Measurement Report, the limits it judges against, and the standards and
+# reference data behind them (#182, Knut 2026-09-20: *"The 'Dictionary and
+# terminology' help card needs to be updated with all the new terms used in
+# the measurement report, for the verification and standards, the FOGRA
+# related tools (FOGRA, metrics, limits, reference files, etc.)."*).
+#
+# APPENDED, never inserted. `test_the_glossary_prints_its_terms` asserts on
+# GLOSSARY[:8] in SOURCE order, and the card itself sorts alphabetically at
+# render time, so a new term belongs at the end of the list and nowhere else.
+GLOSSARY += [
+    (tr("Measurement Report"),
+     tr("The tool that turns a measurement into a document: what was "
+        "measured, how far each figure is from what the chart asked for, "
+        "whether that is inside the limits you chose, and how the printer has "
+        "moved since the last check. Tools ▸ “Measurement report (accuracy & "
+        "drift)”. It reads measurements you already have and writes a "
+        "report_*.json beside them, plus a PDF when you ask for one; it never "
+        "changes a measurement or a profile.")),
+    (tr("Limit set"),
+     tr("One column of the Report limits table: the numbers a report is "
+        "judged against, one per row. ChromIQ ships three of its own, "
+        "“ChromIQ default (recommended)”, “ChromIQ tight” (half the numbers) "
+        "and “Quick check” (double them), plus two columns named after ISO "
+        "12647-7 and 12647-8 that hold no numbers until a licence holder "
+        "supplies them, and two Custom columns you fill in yourself. Pick one "
+        "in the report window's “Judged against:” pulldown.")),
+    (tr("Row (in the limits table)"),
+     tr("One line of a limit set, and it is always a population and a "
+        "statistic together: WHICH patches, and WHICH number about them. "
+        "“All patches, average” and “All patches, largest” are two rows, not "
+        "one, because a chart can pass on the average and fail on the worst "
+        "patch. The rows are grouped by population: Paper, Solid colours, "
+        "Control strip, the grey ramp, all patches, selected patches, and the "
+        "ones ChromIQ does not evaluate.")),
+    (tr("PASS, FAIL, COND, INFO, N-A (the verdict words)"),
+     tr("What a row of a report says about itself. PASS is inside its limit "
+        "and FAIL is outside it. COND means the row missed a limit the set "
+        "only RECOMMENDS rather than requires. INFO means the set puts no "
+        "limit on that row, so the number is shown and not graded. N-A means "
+        "your chart carries nothing that could answer the row at all. A row "
+        "the set cannot express gets no word.")),
+    (tr("Overall (verdict)"),
+     tr("The one word for a whole dated check, worked out from its rows: any "
+        "FAIL makes it FAIL; a recommendation missed, or a required row your "
+        "chart could not answer, makes it COND; an ungraded sheet is INFO; "
+        "otherwise PASS. A column judged against one of the ISO-named sets "
+        "can never read better than COND, because those numbers are being "
+        "applied to your chart rather than to the standard's own.")),
+    (tr("Graded / not graded"),
+     tr("Whether a sheet's numbers are compared with limits at all. A "
+        "verification sheet printed through the profile is graded. A "
+        "PROFILING measurement never is: it is expected to fall outside "
+        "accuracy limits, because it is the raw material a profile is built "
+        "FROM rather than a test of one. A raw drift check is not graded "
+        "either, because no profile is in the loop to be right or wrong. An "
+        "ungraded sheet shows every figure and reads INFO throughout.")),
+    (tr("Bound (a run's limits)"),
+     tr("Your first verification measurement takes a COPY of the limit set "
+        "you chose and stores it with that run, in its meta.json. From then "
+        "on the run is judged by its own copy, so changing a set later never "
+        "silently re-judges work you have already done, and a trend across "
+        "months compares like with like.")),
+    (tr("Locked / Unlock this run's limits"),
+     tr("From the second dated check onwards a run's bound limits are locked, "
+        "so its history cannot be re-scored halfway through. To change them "
+        "anyway, tick “Allow editing of thresholds after the first "
+        "verification measurement” in Preferences → Reports, then “Unlock "
+        "this run's limits” in the report window. ChromIQ copies every report "
+        "of the run into its own reports/old folder before recalculating "
+        "them, so the record of what you were told is kept.")),
+    (tr("Required limit and recommendation (the brackets)"),
+     tr("In the Report limits table a plain number is a limit the set "
+        "REQUIRES; a number in brackets, such as (2.0), is one it only "
+        "recommends. Missing a required limit reads FAIL and missing a "
+        "recommended one reads COND. Three other marks appear in the same "
+        "column: “–” means the set puts no limit on that row, “?” means the "
+        "number lives in a document ChromIQ does not hold, and “✕” means "
+        "ChromIQ cannot measure that row at all.")),
+    (tr("Report type"),
+     tr("Which document the report is. “Colour summary (one page)” is a "
+        "single sheet about a single measurement. “Full colour check” is the "
+        "complete one. “Grey and tone check” concentrates on neutrals and the "
+        "tone ramps. “Printing record (not graded)” sets down what was "
+        "printed and measured and judges none of it. Two further types named "
+        "after ISO 12647-7 and 12647-8 are shown and greyed out, because the "
+        "figures they would judge against are published in a standard "
+        "ChromIQ may not include.")),
+    (tr("Report scope (All dates, One date, Multiple dates)"),
+     tr("A tag on a report's name saying how much of the history it covers: "
+        "one dated check, several of them, or all of them. It follows what "
+        "the report actually contains, so it changes when you change which "
+        "measurements are ticked and generate again.")),
+    (tr("ΔE00 (CIEDE2000)"),
+     tr("The colour difference ChromIQ reports everywhere, and a newer "
+        "formula than the plain ΔE in the older entry: it corrects for the "
+        "fact that the eye is far fussier about some colours than others. "
+        "Read it the same way, with about 1 invisible and 2 to 4 visible side "
+        "by side.")),
+    (tr("ΔCh (grey balance)"),
+     tr("How far a grey has wandered off neutral, measured as the distance in "
+        "a* and b* from a perfect grey and ignoring lightness altogether. It "
+        "is the right number for a grey ramp, because a grey that is a little "
+        "too dark is a tone problem while a grey that is a little too pink is "
+        "a colour problem, and only the second one is what grey balance "
+        "asks about.")),
+    (tr("ΔH*ab (hue difference)"),
+     tr("How far a colour's HUE has moved, with lightness and saturation "
+        "taken out of it. Used on the cyan, magenta and yellow solids, "
+        "because an ink that prints a little weak is a different fault from "
+        "an ink that prints the wrong colour, and a hue shift is the one that "
+        "shows in every image.")),
+    (tr("ΔL* (lightness difference)"),
+     tr("How much lighter or darker a patch came out than it should be, with "
+        "colour taken out of it. Used on the single-colour ramps between "
+        "30 % and 70 %, where the eye reads a lightness error as a tone "
+        "curve going wrong.")),
+    (tr("95th percentile (a report row)"),
+     tr("The figure that all but the worst 5 % of your patches come in under. "
+        "It is a fairer summary than the largest difference, which one dusty "
+        "patch can dominate, and a stricter one than the average, which hides "
+        "a bad tail. ChromIQ takes it by nearest rank, so the number is "
+        "always one of your real measurements rather than an "
+        "interpolation.")),
+    (tr("Grey ramp"),
+     tr("A run of patches whose red, green and blue values are equal, "
+        "stepping from white to black. ChromIQ needs at least eight of them, "
+        "reaching both ends, before it will judge grey balance or tone on "
+        "your chart; a chart without one gets N-A on those rows rather than a "
+        "guess.")),
+    (tr("Control strip"),
+     tr("In printing, the narrow band of standard patches along the edge of a "
+        "sheet that a press operator measures. ChromIQ has no such band, so "
+        "it looks for patches of its own chart that stand in for one: the "
+        "paper, the eight ink extremes, tint ladders of each, and a few "
+        "neutrals. When enough of them are present it writes a small "
+        "“.control-strip.json” beside the verification chart naming which "
+        "patches those are, and that is what lets a report fill the three "
+        "control-strip rows instead of marking them N-A.")),
+    (tr("Solid colours (solids)"),
+     tr("The inks at full strength, with no tint and nothing mixed in. They "
+        "are judged on their own row because they are the colours a printing "
+        "standard describes most tightly, and because an error there affects "
+        "everything printed with that ink.")),
+    (tr("Cube corners (the eight ink extremes)"),
+     tr("White, black, red, green, blue, cyan, magenta and yellow: the eight "
+        "corners of the device's colour cube. They are the outer limits of "
+        "what the printer can do, so the report trends them separately, and a "
+        "corner that moves tells you something quite different from an "
+        "average that moves.")),
+    (tr("Outer-gamut and surface-gamut patches"),
+     tr("Two populations the report judges apart from the rest. Surface-gamut "
+        "patches sit on the outside of the device's colour cube, and "
+        "outer-gamut patches are the most saturated quarter of the chart. "
+        "Both are where a profile is worked hardest, so a chart that is "
+        "excellent on average and poor here is telling you where it will let "
+        "you down.")),
+    (tr("Not evaluated by ChromIQ (the ✕ rows)"),
+     tr("A group of rows at the foot of the limits table that a printing "
+        "standard asks for and ChromIQ cannot measure: evenness across the "
+        "sheet, macro-uniformity, repeatability from day to day, light "
+        "fastness, permanence in storage, rub resistance and the rest. They "
+        "are listed rather than hidden, so you can see what a report does NOT "
+        "cover as well as what it does.")),
+    (tr("ISO 12647-7 and ISO 12647-8"),
+     tr("Two parts of the printing standard: -7 covers a contract proof and "
+        "-8 a validation print. ChromIQ names two limit-set columns after "
+        "them, and ships NO numbers in either, because the figures are "
+        "published in a standard that may not be redistributed. Until a "
+        "licence holder supplies them those columns read “?” and judge "
+        "nothing. ChromIQ can never say that a print conforms to a standard: "
+        "it reports what it measured against the numbers you gave it, which "
+        "is a different claim.")),
+    (tr("Report limits (window)"),
+     tr("The window that shows every limit set side by side, one column each, "
+        "so you can compare them and edit your own. Reached from the "
+        "Measurement Report through “Edit limits…” or “Show limits…”, and "
+        "from Preferences → Reports. It is also where the default set for new "
+        "runs is chosen.")),
+    (tr("Reference values (window)"),
+     tr("The one door to other people's numbers, reached from Report limits. "
+        "It has two halves that must not be confused: the ISO half, where a "
+        "licence holder puts in a file of limit values ChromIQ may not ship, "
+        "and the FOGRA half, which shows which copy of each reference set is "
+        "in force and lets you replace one with a newer file.")),
+    (tr("Reference set (printing condition)"),
+     tr("A table of the colours a named printing condition AIMS for, such as "
+        "“Coated commercial print, current (FOGRA51)”. It is not a limit set, "
+        "and the difference is worth holding on to: a reference says what a "
+        "colour should BE, a limit set says how far off it may be. ChromIQ "
+        "ships eleven of them and will prefer your own copy of any set over "
+        "the one it shipped.")),
+    (tr("Characterisation data"),
+     tr("Fogra's own name for a reference set: the measured colours of a "
+        "printing condition, published so that everybody aims at the same "
+        "target. ChromIQ ships the Media Wedge subsets under Fogra's own "
+        "published grant, records where each file came from and its checksum, "
+        "and credits Fogra in the Licences page, which the grant "
+        "requires.")),
+    (tr("FOGRAxx (FOGRA39, FOGRA51, FOGRA61 …)"),
+     tr("The identifier of one printing condition, named for the Fogra "
+        "research institute that publishes the data. The number is the "
+        "condition, not a version or a quality: FOGRA51 is today's coated "
+        "commercial print and FOGRA39 is what it replaced. The designation "
+        "may be used solely to identify the respective reference data. It is "
+        "not a certification, approval or endorsement by Fogra.")),
+    (tr("Aim values (colorimetric reference)"),
+     tr("The colours a chart is SUPPOSED to be, which is what a measurement "
+        "has to be compared against before it can mean anything. A chart "
+        "built by “FROM PROFILE GAMUT” carries its own aims in a "
+        "“-reference.ti3” file beside it; without such a file a report "
+        "compares against the chart's own design colours instead, and three "
+        "rows of the limits table cannot be filled at all.")),
+    (tr("Which presets can be used for verification? (window)"),
+     tr("A window on the Create Chart tab, shown on verification runs only, "
+        "that lists every preset against the metrics a report of the type and "
+        "limit set you choose asks of a chart, and says how many of them each "
+        "preset can answer. A ★ marks a chart MADE for verification: one "
+        "page, 600 patches or fewer, and nothing withheld that a different "
+        "patch set would supply. It marks presets, it never withholds them, "
+        "and a double-click loads one into Create Chart.")),
+]
+
 GLOSSARY_CARD: dict = {
     "key": "glossary",
     "title": tr("Dictionary and terminology"),
@@ -1516,58 +1972,80 @@ PATCH_SET_EDITOR_CARD: dict = {
                    "colour set from scratch, or change the one a chart "
                    "already has."),
     "steps": [
-        (1, tr("Open it from “Tools” at the top right, under “Charts & patch "
-            "sets” — the entry is “Edit / create chart patch set”.\n\n"
-            "A patch set is the LIST OF COLOURS a chart prints, and nothing "
-            "else. Where those colours sit on the paper — patch size, "
-            "margins, how many pages — is the Create Chart tab's job, not "
-            "this window's. That split matters when you apply your work: see "
-            "step 6.")),
-        (2, tr("If a chart is already loaded, the window opens on ITS patch "
-            "set, and the title bar names it. Every colour is listed, and the "
-            "grid beside the list shows them as swatches so you can see the "
-            "shape of the set at a glance.\n\n"
-            "If no chart is loaded, the window opens empty and waits for you "
-            "to build one — start at step 3.\n\n"
-            "When the chart carries its setup information (ChromIQ charts "
-            "do), the settings it was built with are shown alongside, so you "
-            "can see what the set was designed for instead of guessing.")),
-        (3, tr("“New patch set” starts a set from scratch and REPLACES what "
-            "is in the window. It offers the generators that build a "
-            "well-spread set for you — a regular grid through the whole "
-            "colour space, extra patches on the gamut corners, detail just "
-            "inside the most saturated colours, pure paper white and solid "
-            "black, and near-neutral greys. You choose how many of each; "
-            "ChromIQ shows the running total as you go.")),
-        (4, tr("“Add” EXTENDS the set already in the window instead of "
-            "replacing it. Two ways: type or pick a single colour, or bring "
-            "in the colours from an existing file so you can fuse two sets "
-            "together. Nothing already in the set is lost.\n\n"
-            "So: “New patch set” to start again, “Add” to build on what you "
-            "have. That is the whole difference.")),
-        (5, tr("Edit individual colours directly in the list — change a "
-            "value, or remove a colour you do not want. The 3D view (Tools ▸ "
-            "“Show patch distribution (3D)”) is the quickest way to see "
-            "whether your set covers the colour space evenly or leaves a "
-            "hole.")),
-        (6, tr("When you are happy, press “Apply / Save…”. You get three "
-            "choices:\n\n"
-            "• “Overwrite” sends the PATCH SET to the Create Chart tab and "
-            "lays it out there. The page layout comes from that tab, not from "
-            "this window — your instrument, paper, margins and patch size are "
-            "used exactly as they are set there, so the arrangement you see "
-            "here is not carried across. The patch recipe is then locked so "
-            "it cannot be rebuilt by accident, while the page layout stays "
-            "editable.\n\n"
-            "• “Save As…” writes the COMPLETE chart — the patch list, this "
-            "layout and the printable pages, plus the i1Profiler files and a "
-            "colour list — into a folder you choose, without leaving the "
-            "editor. This is the one that keeps the layout you see here.\n\n"
-            "• “Cancel” goes back to the editor and changes nothing.")),
-        (7, tr("A project must be open before “Overwrite” has anywhere to "
-            "put the chart. If none is, ChromIQ says so and changes nothing — "
-            "start one on the Create Chart tab, or use “Save As…” instead and "
-            "open the folder afterwards.")),
+        (1, tr("Open “Tools” at the top right and choose “Edit / create chart "
+            "patch set”, under “Charts & patch sets”."),
+         False,
+         ((tr("What this window owns, and what it does not"),
+           tr("A patch set is the LIST OF COLOURS a chart prints, and nothing "
+              "else. Where those colours sit on the paper, the patch size, "
+              "the margins, how many pages, is the Create Chart tab's job. "
+              "That split is invisible until you apply your work, and then it "
+              "decides what happens: see the last two steps.")),)),
+        (2, tr("Look at what the window opened on."),
+         False,
+         ((tr("With a chart loaded"),
+           tr("The window opens on ITS patch set and the title bar names it. "
+              "Every colour is listed, and the grid beside the list shows "
+              "them as swatches so you can see the shape of the set at a "
+              "glance. When the chart carries its setup information, which "
+              "ChromIQ charts do, the settings it was built with are shown "
+              "alongside, so you can see what the set was designed for "
+              "instead of guessing.")),
+          (tr("With no chart loaded"),
+           tr("The window opens empty and waits for you to build a set. Start "
+              "at the next step.")))),
+        (3, tr("Click “New patch set” to start a set from scratch, and pick "
+            "how many of each kind of colour you want."),
+         False,
+         ((tr("What the generators offer, and what each is for"),
+           tr("A regular grid through the whole colour space; extra patches "
+              "on the gamut corners; detail just inside the most saturated "
+              "colours; pure paper white and solid black; and near-neutral "
+              "greys. You choose how many of each and ChromIQ shows the "
+              "running total as you go. Note that this REPLACES whatever is "
+              "in the window.")),)),
+        (4, tr("Click “Add” to extend the set already in the window instead "
+            "of replacing it."),
+         False,
+         ((tr("The two ways to add, and the whole difference"),
+           tr("Type or pick a single colour, or bring in the colours from an "
+              "existing file so you can fuse two sets together. Nothing "
+              "already in the set is lost. So: “New patch set” to start "
+              "again, “Add” to build on what you have. That is the whole "
+              "difference between them.")),)),
+        (5, tr("Edit individual colours directly in the list, or remove ones "
+            "you do not want."),
+         False,
+         ((tr("How to see whether the set is any good"),
+           tr("Tools ▸ “Show patch distribution (3D)” is the quickest way to "
+              "see whether your set covers the colour space evenly or leaves "
+              "a hole. A hole profiles that part of the colour space badly, "
+              "and it is far easier to see as a gap in a cube than as an "
+              "absence in a list of numbers.")),)),
+        (6, tr("Press “Apply / Save…” and choose “Overwrite”, “Save As…” or "
+            "“Cancel”."),
+         False,
+         ((tr("“Overwrite” sends the patch set to Create Chart"),
+           tr("The PATCH SET goes to the Create Chart tab and is laid out "
+              "there. The page layout comes from that tab, not from this "
+              "window: your instrument, paper, margins and patch size are "
+              "used exactly as they are set there, so the arrangement you see "
+              "here is not carried across. The patch recipe is then locked so "
+              "it cannot be rebuilt by accident, while the page layout stays "
+              "editable.")),
+          (tr("“Save As…” writes the complete chart, layout and all"),
+           tr("The patch list, this layout and the printable pages, plus the "
+              "i1Profiler files and a colour list, all into a folder you "
+              "choose, without leaving the editor. This is the one that keeps "
+              "the layout you see here. “Cancel” goes back to the editor and "
+              "changes nothing.")))),
+        (7, tr("Open or start a project before using “Overwrite”."),
+         False,
+         ((tr("What happens if you do not"),
+           tr("“Overwrite” needs somewhere to put the chart. With no project "
+              "open, ChromIQ says so and changes nothing. Start one on the "
+              "Create Chart tab, or use “Save As…” instead and open the "
+              "folder afterwards.")),)),
     ],
 }
 
@@ -1577,42 +2055,60 @@ SPOT_READ_CARD: dict = {
     "subtitle": tr("Using Tools ▸ “Read single patches” — measure one colour "
                    "at a time, with no chart involved."),
     "steps": [
-        (1, tr("Open it from “Tools” at the top right, under “Measurements” — "
-            "the entry is “Read single patches”.\n\n"
-            "This is for measuring ONE colour at a time: a paper you want the "
-            "white point of, an ink patch, a wall, a light source. It is not "
-            "part of profiling and it writes nothing into your project unless "
-            "you save it yourself.")),
-        (2, tr("Pick what you are measuring in the mode box at the top:\n\n"
-            "• “Reflective (material)” — anything lit by room light: paper, "
-            "print, fabric, paint. This is the usual choice.\n"
-            "• “Emissive (display)” — something that makes its own light, "
-            "such as a monitor.\n"
-            "• “Ambient (light)” — the light falling on a scene, measured "
-            "with the instrument's diffuser in place.\n\n"
-            "Pick this BEFORE starting the session: it decides how the "
-            "instrument calibrates.")),
-        (3, tr("Click “Start session”. The instrument calibrates first — for "
-            "most instruments that means putting it on its white tile and "
-            "following the prompt. If your instrument has just calibrated and "
-            "you know it is still valid, “Skip initial calibration” saves the "
-            "step, but leave it unticked when in doubt: an uncalibrated "
-            "reading is confidently wrong rather than obviously wrong.\n\n"
-            "The button becomes “Stop session” while a session is open.")),
-        (4, tr("Place the instrument on the colour and click “Take reading” — "
-            "or press the button on the instrument itself, which is easier "
-            "when it is face-down on a sheet. Each reading is added to the "
-            "list with its Lab values and a swatch of the colour measured.")),
-        (5, tr("To average several readings of the SAME colour — which is "
-            "what you want on textured or uneven material — take a few "
-            "readings, select them in the list, and click “Average selected”. "
-            "The average is added as a new entry; the readings it came from "
-            "stay in the list, so nothing is lost and you can see the spread "
-            "you averaged over.")),
-        (6, tr("“Clear” empties the list and starts over. “Save…” writes the "
-            "readings to a file you choose so you can keep or share them. "
-            "“Close” ends the session and closes the window — anything not "
-            "saved is let go, so save first if the readings matter.")),
+        (1, tr("Open “Tools” at the top right and choose “Read single "
+            "patches”, under “Measurements”."),
+         False,
+         ((tr("What this is for"),
+           tr("Measuring ONE colour at a time: a paper you want the white "
+              "point of, an ink patch, a wall, a light source. It is not part "
+              "of profiling, and it writes nothing into your project unless "
+              "you save it yourself.")),)),
+        (2, tr("Pick what you are measuring in the mode box at the top, "
+            "BEFORE you start the session."),
+         False,
+         ((tr("The three modes, and which one you want"),
+           tr("“Reflective (material)” is anything lit by room light: paper, "
+              "print, fabric, paint. This is the usual choice. “Emissive "
+              "(display)” is something that makes its own light, such as a "
+              "monitor. “Ambient (light)” is the light falling on a scene, "
+              "measured with the instrument's diffuser in place. The mode has "
+              "to be right before you start, because it decides how the "
+              "instrument calibrates.")),)),
+        (3, tr("Click “Start session” and calibrate the instrument when it "
+            "asks."),
+         False,
+         ((tr("When you may skip the calibration, and when you may not"),
+           tr("For most instruments calibrating means putting it on its "
+              "white tile and following the prompt. If your instrument has "
+              "just calibrated and you know it is still valid, “Skip "
+              "initial calibration” saves the step. Leave it unticked when "
+              "in doubt: an uncalibrated reading is confidently wrong "
+              "rather than obviously wrong. The button becomes “Stop "
+              "session” while a session is open.")),)),
+        (4, tr("Place the instrument on the colour and click “Take reading”, "
+            "or press the button on the instrument itself."),
+         False,
+         ((tr("Why the instrument's own button is often easier"),
+           tr("It saves reaching for the mouse while the instrument is "
+              "face-down on a sheet, which is exactly when a nudge spoils the "
+              "reading. Each reading is added to the list with its Lab values "
+              "and a swatch of the colour measured.")),)),
+        (5, tr("To average several readings of the same colour, take a few, "
+            "select them in the list, and click “Average selected”."),
+         False,
+         ((tr("When averaging is worth doing"),
+           tr("On textured or uneven material, where one spot is not "
+              "representative of the surface. The average is added as a new "
+              "entry and the readings it came from stay in the list, so "
+              "nothing is lost and you can see the spread you averaged "
+              "over.")),)),
+        (6, tr("Use “Save…” before “Close”, if the readings matter."),
+         False,
+         ((tr("What each button does to your readings"),
+           tr("“Clear” empties the list and starts over. “Save…” writes the "
+              "readings to a file you choose so you can keep or share them. "
+              "“Close” ends the session and closes the window, and anything "
+              "not saved is let go.")),)),
     ],
 }
 
@@ -1622,30 +2118,40 @@ PATCH_CUBE_CARD: dict = {
     "subtitle": tr("Using Tools ▸ “Show patch distribution (3D)” — see how "
                    "your colours are spread, and where the gaps are."),
     "steps": [
-        (1, tr("Open it from “Tools” at the top right, under “Charts & patch "
-            "sets” — the entry is “Show patch distribution (3D)”. It shows "
-            "the patch set of the chart currently loaded, so open a project "
-            "or a chart first.\n\n"
-            "Every patch in the chart is drawn as a dot, placed where its "
-            "colour sits in the colour space and painted in that colour. A "
-            "well-designed set fills the space evenly; a set with a hole in "
-            "it will profile that part of the colour space badly, and the "
-            "hole is far easier to see here than in a list of numbers.")),
-        (2, tr("Drag with the mouse to turn the cube and look at it from "
-            "another side. Scroll to zoom in and out. Drag with the right "
-            "mouse button to slide the view sideways. Double-click anywhere "
-            "in the view to go back to the starting viewpoint if you lose "
-            "your bearings.")),
-        (3, tr("“Compare with profile” beside the chart name puts a SECOND "
-            "cube next to the first, showing a built-in preset's patch set. "
-            "The presets are grouped by the instrument they were designed "
-            "for. This is the quickest way to answer “is my set as well "
-            "spread as a known-good one?” — the two cubes turn together, so "
-            "you are always comparing the same viewpoint.\n\n"
-            "Choose “None” to close the comparison and go back to one cube.")),
-        (4, tr("“Close” closes the window. Nothing here changes your chart — "
-            "this window only looks. To CHANGE the patch set, use Tools ▸ "
-            "“Edit / create chart patch set”, which has its own card.")),
+        (1, tr("Open a project or a chart first, then open “Tools” at the top "
+            "right and choose “Show patch distribution (3D)”, under “Charts & "
+            "patch sets”."),
+         False,
+         ((tr("What the dots are, and what a gap means"),
+           tr("Every patch in the chart is drawn as a dot, placed where its "
+              "colour sits in the colour space and painted in that colour. A "
+              "well-designed set fills the space evenly. A set with a hole in "
+              "it will profile that part of the colour space badly, and the "
+              "hole is far easier to see here than in a list of "
+              "numbers.")),)),
+        (2, tr("Drag to turn the cube, scroll to zoom, and drag with the "
+            "right mouse button to slide the view sideways."),
+         False,
+         ((tr("If you lose your bearings"),
+           tr("Double-click anywhere in the view to go back to the starting "
+              "viewpoint.")),)),
+        (3, tr("Optional: click “Compare with profile” beside the chart name "
+            "to put a second cube next to the first."),
+            True,
+         ((tr("What the comparison answers"),
+           tr("The second cube shows a built-in preset's patch set, grouped "
+              "by the instrument it was designed for. This is the quickest "
+              "way to answer “is my set as well spread as a known-good "
+              "one?”, and the two cubes turn together, so you are always "
+              "comparing the same viewpoint. Choose “None” to close the "
+              "comparison and go back to one cube.")),)),
+        (4, tr("Click “Close” when you are done. Nothing here changes your "
+            "chart."),
+         False,
+         ((tr("Where to change the patch set instead"),
+           tr("This window only looks. To CHANGE the patch set, use Tools ▸ "
+              "“Edit / create chart patch set”, which has its own "
+              "card.")),)),
     ],
 }
 

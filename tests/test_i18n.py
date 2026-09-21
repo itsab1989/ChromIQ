@@ -786,6 +786,24 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+# +324 each in the eleven and +1 in German, 2026-09-21: Knut's help-card batch
+# (issue #182, 2026-09-20 20:58). Twelve cards rewritten into his
+# to-do-steps-first shape with the reasoning in collapsible notes; the
+# verification card updated for the preset-eligibility window and the
+# Measurement Report; the folder guide given the folders and files the report
+# work introduced (compliance/, reference_sets/, the control-strip
+# declaration, the colorimetric reference, the print record, reports/old); and
+# thirty new Dictionary terms for the report, verification, the standards and
+# the Fogra tools. 324 keys arrive, 69 retire.
+#
+# German is translated by hand for all 324. It rises by exactly ONE because
+# the headword "FOGRAxx (FOGRA39, FOGRA51, FOGRA61 …)" is a list of Fogra's
+# own set identifiers, identical in every language; translating it would mean
+# inventing a German name for a standard's designation.
+#
+# The eleven carry the English source under the project's rule that eleven
+# languages are translated in one pass before a final, not during a beta.
+# These are each language's ACTUAL count, measured off the tree.
     # RE-MEASURED 2026-09-20, challenge round 31 on the Fogra reference-set
     # door: seven new strings, German written by hand (de does not move) and
     # the eleven others carrying the English source under the beta rule, so
@@ -794,12 +812,10 @@ _IDENTICAL_TO_KEY = {
     # RE-MEASURED 2026-09-18, round 19: the numberless scope sentence gained
     # its own plural form for a document drawn from more than one project,
     # which the numbered one has had since R13-3. One key in, none out.
-
     # RE-MEASURED 2026-09-18 again, for round 18's fix to the report's scope
     # sentence: a folder that cannot be counted no longer has a number invented
     # for it, so there is a second wording with no numbers in it. ONE key in,
     # none out, every catalogue up by exactly 1. Counted, not adjusted.
-
     # RE-MEASURED 2026-09-18, the round-13 fix for B8-346/R13-3: the
     # Measurement Report's scope sentence gained a second form for a document
     # drawn from more than one project ("...recorded for the projects it is
@@ -810,11 +826,9 @@ _IDENTICAL_TO_KEY = {
     # on the beta rule and not on the German-is-complete rule. Counted with
     # `len([k for k, v in cat.items() if v == k and not k.startswith("@")])`
     # per catalogue, which is the expression the test below uses.
-
     # RE-MEASURED AGAIN after the merge of that round into this branch:
     # the numbers above were counted on ITS base, which did not carry the
     # report round's placeholders. Counted on the merged catalogues.
-
     # RE-MEASURED 2026-09-11 (#182, the chart-file import refusal).
     # M-IMPORT-NOT-A-CHART is two strings, a headline and a body. German is
     # translated, so its 124 is unchanged; the other eleven carry the English
@@ -822,13 +836,11 @@ _IDENTICAL_TO_KEY = {
     # exactly 2. COUNTED, not adjusted upward: the count is
     # `len([k for k, v in cat.items() if v == k and not k.startswith("@")])`
     # per catalogue, which is the same expression the test below uses.
-
     # RE-MEASURED AGAIN 2026-09-11 (#182, the adversarial round): the Build
     # Profile tab now says when a measurement already on disk carries its CIE
     # columns on the 0..1 scale. Two more strings, a label suffix and the Build
     # button's tooltip; German is translated, so 124 stands, and the other
     # eleven each rose by exactly 2 again. Counted with the expression above.
-
     # RE-MEASURED 2026-09-11, the Report-window round on Knut's report of that
     # day (#182 W1 to W7). **12 keys in, 3 stale out**, counted with
     # `set(after) - set(before)` and `set(before) - set(after)` on each
@@ -1016,7 +1028,6 @@ _IDENTICAL_TO_KEY = {
     # run over each catalogue at HEAD and again here, and the HEAD column came
     # back equal to the numbers that were recorded, so the eleven +1s are the
     # whole of the change.
-
     # 2026-09-19, beta 22, TWO change sets landing together and the split is
     # worth recording because the two behave differently.
     #
@@ -1145,19 +1156,20 @@ _IDENTICAL_TO_KEY = {
     # exactly 2, which is the two new keys carrying their English source under
     # the beta rule. COUNTED off the catalogues this change leaves behind,
     # never adjusted upward.
-    "de": 145,
-    "es": 552,
-    "fr": 574,
-    "it": 563,
-    "ja": 538,
-    "nl": 579,
-    "no": 564,
-    "pl": 556,
-    "pt": 554,
-    "ru": 527,
-    "sv": 565,
-    "zh_CN": 532,
+    "de": 146,
+    "es": 876,
+    "fr": 898,
+    "it": 887,
+    "ja": 862,
+    "nl": 903,
+    "no": 888,
+    "pl": 880,
+    "pt": 878,
+    "ru": 851,
+    "sv": 889,
+    "zh_CN": 856,
 }
+
 
 
 @pytest.mark.parametrize("code", _catalog_codes())

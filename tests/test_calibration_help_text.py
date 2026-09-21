@@ -174,10 +174,28 @@ def test_the_calibration_card_exists():
     assert card["steps"], "a card with no steps teaches nothing"
 
 
+def _card_text() -> str:
+    """Every word the card puts in front of a reader: steps AND notes.
+
+    A step's fourth slot holds ``(heading, body)`` notes — closed disclosures
+    on screen, always printed on paper. Knut's 2026-09-20 rewrite moved the
+    reasoning out of the steps and into them, so a check that read only
+    ``step[1]`` stopped seeing text that is still on the card and still on the
+    sheet. Reading both is what a user does.
+    """
+    out = []
+    for step in _card()["steps"]:
+        out.append(str(step[1]))
+        for heading, body in (step[3] if len(step) > 3 else ()):
+            out.append(str(heading))
+            out.append(str(body))
+    return " ".join(out)
+
+
 def test_it_explains_how_a_calibration_differs_from_a_profile():
     """The half of the request that is easy to skip: not just HOW, but WHAT it
     is and why it is not the other thing."""
-    body = " ".join(str(s[1]) for s in _card()["steps"])
+    body = _card_text()
     assert "NOT A PROFILE" in body or "not a profile" in body.lower()
     # The distinction itself, in both directions.
     assert "changes the printer" in body
@@ -189,13 +207,13 @@ def test_it_explains_how_a_calibration_differs_from_a_profile():
 def test_it_says_who_actually_needs_this():
     """Most people do not, and the card must say so — advertising a step
     nobody needs is how people end up with worse results, not better."""
-    body = " ".join(str(s[1]) for s in _card()["steps"])
+    body = _card_text()
     assert "Most people do not" in body
 
 
 def test_it_names_the_exact_controls():
     """House rule: name the element to click, never "tick the box"."""
-    body = " ".join(str(s[1]) for s in _card()["steps"])
+    body = _card_text()
     for label in ("Enable calibration options", "Run type", "Generate Chart",
                   "Create Calibration File", "Single Channel Steps",
                   "Apply Calibration File", "Include Calibration File"):
@@ -205,14 +223,14 @@ def test_it_names_the_exact_controls():
 def test_it_warns_that_recalibrating_dates_the_profile():
     """The trap that costs real work: a profile describes the printer as it
     was, so a new calibration silently makes old profiles inaccurate."""
-    body = " ".join(str(s[1]) for s in _card()["steps"])
+    body = _card_text()
     assert "no longer" in body and "Build a fresh profile" in body
     # …and the reassurance that nothing is destroyed while doing it.
     assert "cal/old" in body
 
 
 def test_it_covers_both_ways_to_apply_a_calibration():
-    body = " ".join(str(s[1]) for s in _card()["steps"])
+    body = _card_text()
     assert "RIP" in body                      # the printer/RIP applies it
     assert "bake" in body or "Apply" in body  # …or ChromIQ bakes it in
 

@@ -539,6 +539,25 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-21, Knut's help-card batch (issue #182, 2026-09-20
+    # 20:58): the workflow steps of twelve cards rewritten into his
+    # to-do-steps-first shape with the reasoning in collapsible notes, the
+    # verification card brought up to date with the preset-eligibility window
+    # and the Measurement Report, the folder guide given the folders and files
+    # the report work introduced, and thirty new Dictionary terms. 324 keys
+    # arrive and 69 retire.
+    #
+    # **German is written by hand for all 324, so `de` does not move except by
+    # ONE**: the Dictionary headword "FOGRAxx (FOGRA39, FOGRA51, FOGRA61 …)"
+    # is nothing but Fogra's own set identifiers and is the same string in
+    # every language, so it is legitimately identical and is counted here
+    # because it does not begin with a brand word this file already excuses.
+    # The eleven others carry the English under the project's beta rule and
+    # rise by 293 each: 324 new keys minus the 31 that fall under this file's
+    # own 25-character floor.
+    #
+    # COUNTED with this file's own `_english_echoes`, off the tree, never
+    # adjusted upward to make a run green.
     # RE-MEASURED 2026-09-20, challenge round 31 on the Fogra reference-set
     # door. Seven new strings, of which FIVE are long enough for this file to
     # count: the "no copy of that set shipped" sentence, the too-large refusal,
@@ -736,19 +755,20 @@ _BUDGET = {
     # move (21)** and each of the eleven others rises by exactly 2. COUNTED
     # with this file's own `_english_echoes` on the catalogues this change
     # leaves behind, never adjusted upward.
-    "de": 21,
-    "es": 329,
-    "fr": 330,
-    "it": 329,
-    "ja": 329,
-    "nl": 329,
-    "no": 329,
-    "pl": 329,
-    "pt": 329,
-    "ru": 328,
-    "sv": 329,
-    "zh_CN": 328,
+    "de": 22,
+    "es": 622,
+    "fr": 623,
+    "it": 622,
+    "ja": 622,
+    "nl": 622,
+    "no": 622,
+    "pl": 622,
+    "pt": 622,
+    "ru": 621,
+    "sv": 622,
+    "zh_CN": 621,
 }
+
 
 
 

@@ -186,6 +186,23 @@ def test_no_empty_band_is_left_under_a_repeated_header(qapp):
     border to be painted overleaf: a thin empty strip between the repeated
     header and the first real row. It is invisible to `_row_extent`, which
     measures the text blocks and not the row, so it has to be counted in pixels.
+
+    **THE FLOOR IS 2 REAL PIXELS, AND THAT NUMBER IS MEASURED, NOT PICKED.**
+    The bands this test exists for were **12, 12, 7 and 8 px** (see
+    `ui.pdf_layout.avoid_split_rows`), which the padding-zeroing rule removed.
+    What it does NOT remove is a **1 px** residue: measured 2026-09-21 on
+    `file_guide` / US Letter pages 5 and 10, the repeated header's rule lands
+    at y=27.5 and the first data row's at y=29.5, with 1 px of white between
+    them, where an unbroken page (page 4) draws a single rule at y=28.25. It is
+    the border-collapse spacing of the row Qt is still finishing, not an empty
+    row, and it survives zeroing the cell's `bottomBorder` AND setting its
+    `bottomBorderStyle` to `BorderStyle_None` (both tried, both no change), so
+    it is not ours to switch off from here. It is registered as **B8-634**.
+
+    2 px is 3.5x under the smallest real fault this rule was written for, so
+    the guard keeps every case it was built to catch. **Never raise it again
+    to make a run green**: if a band grows past 2 px, the rule has stopped
+    working and the answer is in `avoid_split_rows`, not here.
     """
     import numpy as np
     faults = []
@@ -212,7 +229,9 @@ def test_no_empty_band_is_left_under_a_repeated_header(qapp):
                             groups.append([y])
                 for a, b in zip(groups, groups[1:]):
                     y0, y1 = a[-1] + 1, b[0]
-                    if y1 - y0 < 2:
+                    # `scale=4.0`, so 8 sample rows are the 2 real pixels the
+                    # docstring measures. Below that it is a border hairline.
+                    if y1 - y0 < 8:
                         continue
                     seg = ink[y0:y1]
                     col = seg.sum(axis=0)

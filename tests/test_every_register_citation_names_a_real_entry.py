@@ -101,8 +101,17 @@ _SELF = pathlib.Path(__file__).resolve()
 
 
 def _files():
+    # **MATCH THE SKIP LIST AGAINST THE PATH INSIDE THE REPOSITORY.**
+    # `p.parts` is the ABSOLUTE path, so a checkout that happens to live under
+    # a skipped name matched on its own location and the sweep saw nothing at
+    # all. Measured 2026-09-21: from a git worktree at
+    # `<repo>/.claude/worktrees/<name>/`, which is where every agent on this
+    # project works, `_citations()` returned 0 and
+    # `test_the_sweep_is_not_vacuous` failed on a tree with nothing wrong with
+    # it. Relative parts skip `.claude/worktrees/` INSIDE the repository, which
+    # is what the note above is about, and let the sweep run from inside one.
     for p in sorted(ROOT.rglob("*")):
-        if _SKIP_DIRS.intersection(p.parts):
+        if _SKIP_DIRS.intersection(p.relative_to(ROOT).parts):
             continue
         if p.suffix in _SUFFIXES and p.is_file() and p != _SELF:
             yield p

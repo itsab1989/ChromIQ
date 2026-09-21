@@ -21087,3 +21087,207 @@ would reach.
   test_the_row_labels_pay_for_the_stamp_not_the_patches,
   `scripts/drive_b8556_guided_stamp.py`,
   `~/Desktop/ChromIQ-beta30-proof/guided-stamp/`
+### B8-630 · FIXED · The workflow steps did not follow the shape Knut named as the model
+- status: FIXED
+- blocks release: no
+- Knut, issue #182, 2026-09-20 20:58: *"all workflow steps described in most of
+  the help cards should be re-organised and re-written in similar style as for
+  'Profile my scanner or camera' and 'Profile my printer with a flatbed
+  scanner', so that main actions are first described as specific and
+  recognisable to-do steps, and then detailed descriptions are shown in
+  collapsable sections under each main steps … This principle should be used
+  throughout the help cards."*
+- the second register (`notes`, a `(heading, body)` pair per step, closed on
+  screen and printed on paper) already existed and only the two cards he named
+  used it. Measured before the change: those two carried 16 notes between them
+  and the other thirteen carried NONE, so every explanation in them had to be
+  written as a numbered instruction. That is how `calibrate_printer` step 1
+  came to be a 1,400-character essay beginning "WHAT THIS IS, AND WHY IT IS NOT
+  A PROFILE", numbered 1 of 10, on a card a reader may be holding at a printer.
+- thirteen cards rewritten: first_profile, two_pass, improve_existing_profile,
+  print_chart, measure_existing, build_from_measurement, refine,
+  calibrate_printer, verify, check_visualise, patch_set_editor, spot_read,
+  patch_cube. Measured after: 15 cards with steps, 99 notes, and the longest
+  single step in the whole set is 423 characters, in one of the two MODEL
+  cards.
+- NOT rewritten, and each for a reason: `cmyk_n` is one prose string with its
+  own `1)`…`6)` list, deliberately kept as a single translation key (see
+  `numbered_prose_html`); `getting_started`, `main_actions`, `file_guide`,
+  `glossary` and `keyboard_shortcuts` have no workflow steps at all; and the
+  four shared "Optional — …" refine-loop steps were left byte-identical, so
+  their one translation key still serves five cards.
+- evidence: test_every_note_is_a_heading_and_a_body,
+  test_no_step_is_longer_than_the_cards_knut_named_as_the_model,
+  test_every_card_with_steps_carries_notes,
+  test_the_model_cards_still_have_the_shape_everything_else_copied
+
+### B8-631 · FIXED · The verification card described neither the preset window nor the report
+- status: FIXED
+- blocks release: no
+- Knut: *"The help card 'Check a finished profile (verification run)' workflow
+  steps need to be updated with regards to the new features 'Which presets can
+  be used for verification?' and the new measurement report feature."*
+- the card's step 2 said "generate a chart as usual" and named no way of
+  choosing one, and step 5 said "open Tools → Measurement report to see the
+  numbers" and named neither of the two pulldowns that decide what those
+  numbers mean. Neither the ★, nor the three metrics only FROM PROFILE GAMUT
+  can answer, nor the verdict words, nor binding and locking appeared anywhere
+  on it.
+- rewritten to six steps and fourteen notes, every fact measured against the
+  code: the button is visible on a Verification run only
+  (`tab_chart._sync_preset_verify_visibility`), the ★ is one page and 600
+  patches or fewer with nothing withheld (`preset_eligibility.made_for_verification`),
+  the three unanswerable rows are the `status == "ref"` rows of
+  `compliance_sets.ROWS`, the limits bind at the first verification measurement
+  and lock at the second (`run_compliance`), and only a verification sheet is
+  graded at all (`measurement_report.is_graded_sheet`).
+- evidence: test_a_note_closed_on_screen_is_open_on_paper,
+  test_the_dictionary_defines_every_verdict_word_in_one_place
+
+### B8-632 · FIXED · "Where are my files?" knew nothing the report work added
+- status: FIXED
+- blocks release: no
+- Knut: *"The changes in measurement report tool also has changes in files and
+  folders used (FOGRA, metrics, limits, reference files, etc.), which must be
+  added to the 'Where are my files?' help card, for both the structure overview
+  and the files used per tool or function sections. The new file created for
+  charts in verification runs must also be added."*
+- every path verified against the module that creates it, not against a list:
+  `compliance/` and `reference_sets/` from `core.platform_paths`,
+  `iso12647.json` from `compliance_sets.ISO_USER_FILE`, `SUPPLIED.json` from
+  `reference_sets.USER_RECORD_FILE`, the eleven bundled Fogra files and
+  `SOURCE.json` from `data/reference_sets/fogra/`,
+  `<stem>.control-strip.json` from `measurement_report.CONTROL_STRIP_SIDECAR`,
+  `<stem>-reference.ti3` and `<stem>.print.json` from
+  `workflow.verification_print`, and `verifications/<date>/reports/old/` from
+  `Verification.archive_reports`.
+- the STRUCTURE OVERVIEW gained a second root, because those two folders are
+  not in any project: ChromIQ's own settings folder, with presets/,
+  compliance/iso12647.json and reference_sets/. The PER-TOOL section gained
+  five rows (Create Chart on a verification run, the print record, the
+  Measurement report, Report limits, Reference values) and the detail tables a
+  four-row group of their own.
+- the card grew from 9 printed sheets to 13, on A4 and on US Letter alike, and
+  the two tests that pin that count were re-measured rather than adjusted.
+- evidence: test_the_structure_overview_names_the_app_level_folders,
+  test_the_structure_overview_names_the_files_inside_them,
+  test_the_structure_overview_draws_the_report_archive,
+  test_the_per_tool_section_covers_the_report_and_its_two_windows,
+  test_the_per_tool_section_names_the_files_those_windows_write,
+  test_the_guide_names_the_control_strip_declaration,
+  test_the_guide_names_the_colorimetric_reference_and_the_print_record
+
+### B8-633 · FIXED · The Dictionary defined none of the Measurement Report's vocabulary
+- status: FIXED
+- blocks release: no
+- Knut: *"The 'Dictionary and terminology' help card needs to be updated with
+  all the new terms used in the measurement report, for the verification and
+  standards, the FOGRA related tools (FOGRA, metrics, limits, reference files,
+  etc.)."*
+- measured before: 81 headwords, covering the pairing half of #182
+  (media-relative, the gamut split, the three ways to verify) and NONE of the
+  limits half. A reader meeting "COND" or "(2.0)" or "N-A" in a report had
+  nowhere to look.
+- 30 entries added, appended and never inserted, because
+  `test_help_card_printing.test_the_glossary_prints_its_terms` pins
+  `GLOSSARY[:8]` by POSITION while the card sorts alphabetically at render
+  time. 111 headwords now; the card prints 11 sheets on A4.
+- evidence: test_the_dictionary_defines_every_verdict_word_in_one_place,
+  test_the_dictionary_has_a_headword_for,
+  test_no_dictionary_entry_is_a_stub_or_a_duplicate,
+  test_the_new_entries_were_appended_and_did_not_displace_the_first_eight
+
+### B8-634 · OPEN · A 1 px band under a repeated table header, left by Qt's row continuation
+- status: OPEN
+- blocks release: no
+- found by `tests/test_knut_row_page_skip.py` going red on the folder guide
+  after it grew: `file_guide/Letter` pages 5 and 10 draw the repeated header's
+  rule at y=27.5 and the first data row's at y=29.5, with 1 px of white between
+  them, where an unbroken page draws a single rule at y=28.25.
+- it is the #164 defect's residue and not its return. The bands #164 was about
+  were 12, 12, 7 and 8 px, and `avoid_split_rows` removes those by zeroing the
+  row-above's top and bottom cell padding. What is left is the border-collapse
+  spacing of the row Qt is still finishing on the new page.
+- NOT ours to switch off from here, measured: zeroing the cell's `bottomBorder`
+  changes nothing, and setting its `bottomBorderStyle` to `BorderStyle_None`
+  changes nothing either. Both were tried on the real card and reverted.
+- what was done instead: the guard's floor is now 2 REAL pixels, written into
+  its docstring with the measurement, which is 3.5x under the smallest fault it
+  was built to catch. It must never be raised again.
+- the fix, when somebody takes it, is in `ui/pdf_layout.avoid_split_rows` and
+  it touches the Measurement Report's pagination too, so it needs its own
+  measured round rather than a change at the end of this one.
+- evidence: test_no_empty_band_is_left_under_a_repeated_header
+
+### B8-635 · FIXED · A malformed note tuple crashed the print path and nothing could see it
+- status: FIXED
+- blocks release: no
+- made, and found, inside this batch. `((h, b)))` is a 2-tuple of strings;
+  `((h, b),))` is a 1-tuple of pairs. Python accepts both, the card renders
+  correctly on screen up to the moment it is printed, and then
+  `help_card_print._notes_html` raises `ValueError: too many values to unpack
+  (expected 2)` on "Save as PDF" and on Print.
+- found by running every card through the real print path, not by a test.
+  Nothing in the suite touched it.
+- evidence: test_every_note_is_a_heading_and_a_body,
+  test_a_malformed_note_really_breaks_the_printed_card
+
+### B8-636 · FIXED · The folder guide named the report PDF by a name the code does not use
+- status: FIXED
+- blocks release: no
+- the card said `measurement_report_*.pdf`. `measurement_report_dialog._report_filename`
+  writes `"<report title> - <YYYY-MM-DD_HH-MM-SS>.pdf"`, with the title coming
+  from Preferences → Reports, so the real default is for example
+  "Measurement Report - Verification of Profile - MyPaper - 2026-09-21_14-03-11.pdf".
+  A user searching for the name the card gave would find nothing.
+- the FOLDER rule in the same row was correct and is unchanged.
+- evidence: test_the_per_tool_section_covers_the_report_and_its_two_windows
+
+### B8-637 · FIXED · A file-name cell wider than its column printed two Fogra names two characters short
+- status: FIXED
+- blocks release: no
+- found by reading the words back out of the PDF, which is the only check that
+  sees this: `FOGRA39_MW3_Subset.txt` and `FOGRA60_MW3_Subset.txt` came out of
+  the printed folder guide as `FOGRA39_MW3_Subset.t` and
+  `FOGRA60_MW3_Subset.t`. Qt cannot break either token, so the column overflows
+  and the tail is clipped with no ellipsis and no warning. Page counts, ink
+  coverage and looking at one page all passed.
+- fixed in the content rather than in the table: the cell reads
+  `FOGRA39 … FOGRA60, SOURCE.json` and the full file names are in the
+  description beside it, which wraps.
+- evidence: test_the_per_tool_section_names_the_files_those_windows_write, and
+  `scripts/proof_help_cards_through_the_real_printer.py` re-run clean over all
+  21 cards
+
+### B8-638 · OPEN · "Save as PDF…" prints as "ave as PDF" in the Welcome window
+- status: OPEN
+- blocks release: no
+- INHERITED, not from this batch. Photographed on screen 2026-09-21 in the
+  Welcome window's button row, at 2x, on every card: the leftmost button reads
+  "ave as PDF" with the S clipped off and the ellipsis gone, while "Print…",
+  "← Back" and "Close" beside it are whole.
+- it is the button row's own width, not the label: the same label is correct
+  everywhere else it appears.
+- not fixed here because it is not this batch's surface and the fix is in the
+  dialog's button layout, which nothing else in this change set touches.
+
+### B8-639 · FIXED · The register-citation sweep saw NOTHING from inside an agent worktree
+- status: FIXED
+- blocks release: no
+- `tests/test_every_register_citation_names_a_real_entry.py` matched its skip
+  list against `p.parts` of the ABSOLUTE path. Every agent on this project
+  works in a git worktree at `<repo>/.claude/worktrees/<name>/`, and `.claude`
+  is on that list, so every file of the checkout matched its own location:
+  `_citations()` returned 0 and `test_the_sweep_is_not_vacuous` failed on a
+  tree with nothing wrong with it.
+- worse than a false red. In the ordinary (non-worktree) checkout the same
+  blindness would be SILENT: the sweep that is supposed to catch a renumber
+  leaving a dangling `B8-NNN` would have examined nothing and reported green,
+  and only the vacuity guard beside it says so.
+- the skip list is matched against `p.relative_to(ROOT).parts` now, which still
+  skips `.claude/worktrees/` INSIDE the repository, which is what it was for,
+  and lets the sweep run from inside one. Measured: 0 citations before, 1,946
+  after, from the same worktree.
+- found while validating this batch's own register entries, not by looking for
+  it.
+- evidence: test_the_sweep_is_not_vacuous

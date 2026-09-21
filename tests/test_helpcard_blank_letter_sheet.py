@@ -177,26 +177,48 @@ def test_the_orphan_rule_is_what_is_saving_those_sheets(qapp, tmp_path,
     import ui.pdf_layout as pdf_layout
 
     from core.version import APP_VERSION
+    from ui.dialogs.welcome_dialog import WORKFLOWS
 
     monkeypatch.setattr(pdf_layout, "drop_orphan_tail", lambda *a, **k: None)
     found = []
-    for key in ("first_profile", "cmyk_n", "file_guide"):
-        pdf, _pages, pr = _print_card(key, "Letter", tmp_path)
-        for body in _body_band_text(pdf, pr):
-            if " ".join(body.split()).startswith(f"ChromIQ {APP_VERSION}"):
-                found.append(key)
-    assert sorted(found) == ["cmyk_n", "file_guide", "first_profile"], (
-        "disabling drop_orphan_tail did not bring the three beta.15 sheets "
-        f"back, so the test above is measuring nothing: {found}")
+    for wf in WORKFLOWS:
+        for size in _SIZES:
+            pdf, _pages, pr = _print_card(wf["key"], size, tmp_path)
+            for body in _body_band_text(pdf, pr):
+                if " ".join(body.split()).startswith(f"ChromIQ {APP_VERSION}"):
+                    found.append(f"{wf['key']}/{size}")
+    # SWEEP EVERY CARD, NOT THREE NAMED ONES. The original list was
+    # first_profile, cmyk_n and file_guide, the three sheets beta.15 wasted.
+    # Two of them stopped exercising the rule on 2026-09-21, when Knut's
+    # to-do-steps-first rewrite and the Measurement Report's new folders and
+    # files changed where those two cards break — measured, with the rule off:
+    # only cmyk_n/Letter is left. A list of names would have gone quietly
+    # vacuous; a sweep cannot, because it fails the moment NOTHING needs the
+    # rule, whatever the content is.
+    assert found, (
+        "disabling drop_orphan_tail wasted no sheet on any card at either "
+        "page size, so the test above is measuring nothing and would pass "
+        "with the rule deleted")
+    assert "cmyk_n/Letter" in found, (
+        "cmyk_n on US Letter is the case measured on 2026-09-21 and it no "
+        f"longer needs the rule; re-measure before editing this: {found}")
 
 
 @pytest.mark.parametrize("key,pages", [
-    ("first_profile", 1), ("cmyk_n", 1), ("file_guide", 9),
+    ("first_profile", 2), ("cmyk_n", 1), ("file_guide", 13),
 ])
 def test_us_letter_costs_no_more_sheets_than_a4(qapp, tmp_path, key, pages):
     """US Letter's shorter body must not buy a sheet for one grey line.
 
     beta.15 prints 2, 2 and 10. A4 has always printed 1, 1 and 9.
+
+    The numbers moved on 2026-09-21 and the GUARANTEE did not: what this test
+    pins is that both page sizes cost the SAME, never the absolute count.
+    "first_profile" grew a sheet because its four steps gained collapsible
+    notes (Knut's to-do-steps-first shape), and "file_guide" grew four because
+    the Measurement Report work's folders and files were added to it. Both
+    sizes still agree. Re-measure before editing, and never edit only one
+    number here to make a run green.
     """
     for size in _SIZES:
         _pdf, got, _pr = _print_card(key, size, tmp_path)

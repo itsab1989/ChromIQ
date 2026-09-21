@@ -684,8 +684,8 @@ def test_a_straddling_row_is_pushed_by_breaking_after_the_row_above(qapp):
 
 
 @pytest.mark.parametrize("page,expect", [
-    ("A4", {"main_actions": 3, "file_guide": 9}),
-    ("Letter", {"main_actions": 3, "file_guide": 9}),
+    ("A4", {"main_actions": 3, "file_guide": 13}),
+    ("Letter", {"main_actions": 3, "file_guide": 13}),
 ])
 def test_the_price_of_whole_rows_is_pinned(qapp, tmp_path, page, expect):
     """Keeping a row whole costs very little once the page skip is gone.
@@ -696,7 +696,18 @@ def test_the_price_of_whole_rows_is_pinned(qapp, tmp_path, page, expect):
     The folder guide's tenth sheet on US Letter went with
     :func:`ui.pdf_layout.drop_orphan_tail`: it was never the price of a whole
     row either, but the card's colophon overflowing the shorter US Letter body
-    by 1.7 px. A4 and US Letter now agree at 9.
+    by 1.7 px.
+
+    **9 → 13, 2026-09-21, and it is CONTENT, not a rule.** Knut asked for the
+    folders and files the Measurement Report work introduced
+    (`compliance/`, `reference_sets/`, the control-strip declaration, the
+    colorimetric reference, the print record, the reports/old archive) in both
+    the structure overview and the per-tool section. That is a second tree
+    root, three folder rows, five feature rows and a new four-row group. The
+    number it must NEVER be adjusted to is one that differs between the two
+    page sizes: A4 and US Letter agreeing is the guarantee, and they still do.
+    Re-measure with `scripts/proof_help_cards_through_the_real_printer.py`
+    before touching it.
     """
     from PyQt6.QtCore import QMarginsF
     from PyQt6.QtGui import QPageLayout, QPageSize, QPdfWriter
