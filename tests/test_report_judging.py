@@ -187,7 +187,13 @@ def test_grey_rows_are_graded_and_carry_a_note_when_the_printing_is_unrecorded(t
     ti3 = _write_ti3(tmp_path / "v.ti3", _ramp(16) + _colours(), cast={8: (5.0, 0.0)})
     rep = mr.build_report(ti3)
     rows = {r["row_id"]: r for r in mr.judge(rep, factory_limits("chromiq_default"))}
-    assert rows["grey_balance_neutral_ramp_max"]["word"] == COND   # 5.0 over a should
+    # 5.0 OVER A 3.0 LIMIT READS FAIL, not COND: Knut retired COND as a row
+    # word on 2026-09-21 and took the bracket off the grey pair in the same
+    # ruling, so this row is an ordinary limit judged in the ordinary way.
+    # What the test is about is untouched -- whether the verdict carries the
+    # printing-unrecorded NOTE -- and the note machinery is the half of his
+    # 2026-09-13 ruling the new recommendation note reuses.
+    assert rows["grey_balance_neutral_ramp_max"]["word"] == FAIL   # 5.0 over 3.0
     assert rows["grey_balance_neutral_ramp_max"]["reason"] is None, (
         "a graded row must not carry a reason; a reason explains an absence")
     assert rows["grey_balance_neutral_ramp_max"]["notes"] == [
@@ -196,7 +202,7 @@ def test_grey_rows_are_graded_and_carry_a_note_when_the_printing_is_unrecorded(t
 
     rep["printing"] = {"colour": "through-profile", "intent": "relative", "route": "chromiq"}
     rows = {r["row_id"]: r for r in mr.judge(rep, factory_limits("chromiq_default"))}
-    assert rows["grey_balance_neutral_ramp_max"]["word"] == COND
+    assert rows["grey_balance_neutral_ramp_max"]["word"] == FAIL
     assert rows["grey_balance_neutral_ramp_avg"]["word"] == PASS
     assert rows["grey_balance_neutral_ramp_max"]["notes"] == [], (
         "with the printing condition recorded there is nothing to caveat")
@@ -268,7 +274,12 @@ def test_stamp_writes_the_old_pair_the_new_block_and_the_words(tmp_path):
     c = rep["compliance"]
     assert c["set_id"] == "chromiq_tight" and c["set_label"] == "ChromIQ tight"
     assert c["thresholds"]["all_de00_avg"] == 1.0 and c["edited"] is False
-    assert c["thresholds"]["grey_balance_neutral_ramp_avg"] == [1.0, "should"]
+    # THE STORED FORM OF A RECOMMENDATION IS UNCHANGED -- `[number, "should"]`
+    # stays in the data, because it is what decides which rows get a note --
+    # but no ChromIQ set writes one any more, so the stamped value of this row
+    # is a plain number (Knut, 2026-09-21). The round trip of the bracketed
+    # form is covered by tests/test_compliance_sets.py, which builds one.
+    assert c["thresholds"]["grey_balance_neutral_ramp_avg"] == 1.0
     v = rep["verdict"]
     assert v["graded"] is True and v["all_pass"] is True and v["overall"] == PASS
     keys = {r["key"] for r in v["rows"]}

@@ -45,6 +45,38 @@ def _cell(dlg, col, row_id):
     return dlg._cells[(col, row_id)]
 
 
+@pytest.fixture
+def a_hand_marked_recommendation(tmp_path, monkeypatch):
+    """One row marked ``[number, "should"]``, the way a licence holder's file
+    marks one.
+
+    KNUT TOOK THE LAST RECOMMENDATION OUT OF CHROMIQ'S OWN SETS on 2026-09-21
+    (*"Remove them, so a bracket only ever appears where a standard is
+    involved"*), so nothing ChromIQ ships is a should-limit any more and the
+    two tests below had no vehicle left. The MECHANISMS they guard are
+    untouched by that ruling and still have to work -- the bracket on the spin
+    box, and F4's rule that a trip through zero does not turn a recommendation
+    into a requirement -- so they are driven through the one source that
+    remains, which is also the route Basti told Knut the note path would be
+    demonstrated by.
+
+    3.0 is ChromIQ default's own maximum. No figure from any standard is used
+    here or anywhere in this suite.
+    """
+    import json
+
+    from workflow import compliance_sets as cs
+    f = tmp_path / "iso12647-marked.json"
+    f.write_text(json.dumps({
+        "iso_12647_7": {"grey_balance_neutral_ramp_avg": [3.0, "should"]},
+        "iso_12647_8": {},
+    }), encoding="utf-8")
+    monkeypatch.setenv(cs.ISO_DATA_ENV, str(f))
+    cs.reset_iso_cache()
+    yield "custom_iso_12647_7", "grey_balance_neutral_ramp_avg", 3.0
+    cs.reset_iso_cache()
+
+
 def test_editable_and_read_only_columns_follow_the_rulings(qapp, tmp_path):
     s, dlg = _dlg(qapp, tmp_path)
     try:
@@ -60,11 +92,64 @@ def test_editable_and_read_only_columns_follow_the_rulings(qapp, tmp_path):
         assert _cell(dlg, "iso_12647_7", "best95_de00_avg").text() == "–"
         assert _cell(dlg, "iso_12647_7", "substrate_gloss_class").text() == "✕"
         assert _cell(dlg, "chromiq_default", "substrate_gloss_class").text() == "–"
-        # a should-limit shows its brackets on the spin box
+        # NO BRACKET ANYWHERE, IN ANY COLUMN, AS CHROMIQ SHIPS. Knut,
+        # 2026-09-21. The grey pair carried one in all three ChromIQ sets and
+        # `ramps_30_70_dl_max` in Custom ISO 12647-7; all four are ordinary
+        # limits now, keeping their numbers.
         sb = _cell(dlg, "chromiq_default", "grey_balance_neutral_ramp_avg")
-        assert sb.prefix() == "(" and sb.suffix() == ")" and sb.value() == 1.5
+        assert sb.prefix() == "" and sb.suffix() == "" and sb.value() == 1.5
+        bracketed = sorted(
+            f"{c}/{r}" for (c, r), w in dlg._cells.items()
+            if (isinstance(w, QLabel) and w.text().startswith("("))
+            or (isinstance(w, NoScrollDoubleSpinBox) and w.prefix() == "("))
+        assert bracketed == [], bracketed
         # no "This run" column without a run
         assert not any(c == "__run__" for c, _r in dlg._cells)
+    finally:
+        dlg.deleteLater()
+
+
+def test_a_hand_marked_recommendation_shows_its_brackets(
+        qapp, tmp_path, a_hand_marked_recommendation):
+    """The bracket NOTATION survives the ruling that emptied it of occupants.
+
+    Knut kept it deliberately: *"The notation itself stays … They are what
+    makes such a row readable on the day somebody does mark one."* This is that
+    day, arranged by the fixture above.
+    """
+    col, rid, n = a_hand_marked_recommendation
+    s, dlg = _dlg(qapp, tmp_path)
+    try:
+        sb = _cell(dlg, col, rid)
+        assert sb.prefix() == "(" and sb.suffix() == ")" and sb.value() == n
+        # …and the metric's name carries the reference number that points at
+        # the note, which is the other half of the same ruling.
+        from ui.dialogs.thresholds_dialog import ThresholdsDialog
+        assert ThresholdsDialog.RECOMMENDED_MARK in dlg._row_labels[rid].text()
+        assert dlg._any_row_is_recommended()
+        # the fourth note is under the table, and says what the standard calls it
+        assert ThresholdsDialog.RECOMMENDED_MARK in dlg._notes_text()
+        assert "recommended rather than required" in dlg._notes_text()
+    finally:
+        dlg.deleteLater()
+
+
+def test_with_nothing_marked_there_is_no_marker_and_no_fourth_note(qapp, tmp_path):
+    """The shipping state: a numbered note nothing points at is not written.
+
+    MUTATION: drop the `if self._any_row_is_recommended()` guard in
+    `_notes_text` and this goes red.
+    """
+    from ui.dialogs.thresholds_dialog import ThresholdsDialog
+    s, dlg = _dlg(qapp, tmp_path)
+    try:
+        assert not dlg._any_row_is_recommended()
+        assert not [rid for rid, lab in dlg._row_labels.items()
+                    if ThresholdsDialog.RECOMMENDED_MARK in lab.text()]
+        assert ThresholdsDialog.RECOMMENDED_MARK not in dlg._notes_text()
+        # …but the LEGEND still explains the notation, because a licence
+        # holder's file can put one on screen at any time.
+        assert "recommends rather than requires" in dlg._notes_text()
     finally:
         dlg.deleteLater()
 
@@ -247,19 +332,29 @@ def test_a_default_radio_exists_only_for_selectable_sets(qapp, tmp_path):
         dlg.deleteLater()
 
 
-def test_this_run_recommendation_survives_a_trip_through_zero(qapp, tmp_path):
-    """F4: turning a bracketed cell to 0 and back must keep it a recommendation."""
+def test_this_run_recommendation_survives_a_trip_through_zero(
+        qapp, tmp_path, a_hand_marked_recommendation):
+    """F4: turning a bracketed cell to 0 and back must keep it a recommendation.
+
+    Driven through a hand-marked should-limit, because after Knut's ruling of
+    2026-09-21 no set ChromIQ ships has one. The rule is unchanged and matters
+    more now, not less: the kind is what decides whether the row gets its
+    numbered note, so losing it through a spin box would silently drop the
+    note as well as the bracket.
+    """
+    col, rid, _n = a_hand_marked_recommendation
     proj = Project.create(tmp_path / "P", "P")
     run = proj.current_run(); run.ensure_dir()
-    rc.bind_run(run, "chromiq_default", {})
+    rc.bind_run(run, col, {})
     s, dlg = _dlg(qapp, tmp_path, run=run, run_editable=True)
     try:
-        sb = _cell(dlg, "__run__", "grey_balance_neutral_ramp_avg")
+        sb = _cell(dlg, "__run__", rid)
+        assert sb.prefix() == "(", "the run inherited the set's recommendation"
         sb.setValue(0.0)
         sb.setValue(2.0)
-        assert dlg._run_limits["grey_balance_neutral_ramp_avg"] == Limit.should(2.0)
+        assert dlg._run_limits[rid] == Limit.should(2.0)
         dlg.accept()
-        assert run.load_meta().compliance_thresholds["grey_balance_neutral_ramp_avg"] == [2.0, "should"]
+        assert run.load_meta().compliance_thresholds[rid] == [2.0, "should"]
     finally:
         dlg.deleteLater()
 

@@ -442,7 +442,13 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # that cannot be printed, measured or
                                  # built from, in silence. The guard is
                                  # new and so is the WORDING.
-                                 "M-IMPORT-NOT-A-CHART"}
+                                 "M-IMPORT-NOT-A-CHART",
+                                 # #182, 2026-09-21. The note a bracketed
+                                 # limit points at, asked for by Knut in the
+                                 # message that retired COND as a row word.
+                                 # The WORDING is new and unreviewed; what he
+                                 # ruled on is that such a note must exist.
+                                 "M-LIMIT-RECOMMENDED"}
 # Round 2 of the import-door review added four and Basti approved all four on
 # 2026-09-02, so they never sat in this set for longer than one branch:
 # M-IMPORT-NOT-OPENED, M-IMPORT-FOLDER-EXISTS, M-IMPORT-REPLACE-FOLDER-CONFIRM

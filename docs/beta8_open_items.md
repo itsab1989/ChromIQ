@@ -21552,4 +21552,158 @@ would reach.
   pre-flight did not appear" beside a photograph of the pre-flight. It now
   identifies the window by what it says.
 - evidence: test_the_headline_is_in_the_text_and_not_only_in_the_title_bar
+### B8-570 · FIXED · COND is retired as a row word, and a numbered note takes its place
+- status: FIXED
+- blocks release: no
+- not committed and not gated: the change sits on a branch.
+- **this is a SPECIFICATION CHANGE Knut made in writing**, on #182 between
+  00:46 and 01:06 CEST on 2026-09-21, not a defect. It is recorded in §14 of
+  `docs/design/measurement_report_limits.md`, in an **⏳ Awaiting confirmation**
+  section carrying **Confirmed by:** *nobody yet.*, and §1, §2 and §4 of the
+  same document are corrected where they asserted the old rule.
+- **what changed.** `compliance_sets.row_verdict` returned
+  `COND if limit.is_should else FAIL`; it returns `FAIL`. Every row of every
+  limit set now reads PASS or FAIL. *"it might be better to standardise on all
+  metrics being tested against a threshold shows as FAIL or PASS (always, also
+  for the standards), and the COND term is retired."*
+- **and every should-limit left the set definitions**: the grey-balance pair in
+  ChromIQ default, ChromIQ tight and Quick check, and `ramps_30_70_dl_max` in
+  the Custom ISO placeholder. Seven rows, numbers unchanged, kind changed.
+  Measured after: **0 should-rows in all seven shipped sets.**
+- **what replaces the word.** A reference number at the end of the metric's
+  label in the Report limits window, pointing to a fourth note under the table;
+  and in a report, the existing numbered-note machinery from Knut's 2026-09-13
+  ruling, reused rather than duplicated. One §M catalogue entry,
+  **M-LIMIT-RECOMMENDED**, rendered in both places, so the two cannot drift.
+  The wording is new and sits in §M-PROPOSED with `approved=False`.
+- **THE TRAP, AND IT IS THE PART MOST LIKELY TO BE REBUILT BY MISTAKE.** At
+  00:46 he asked for a failed recommendation to leave the overall result PASS
+  and for the note to say so. **At 00:55 he withdrew both**: *"all thresholds
+  tested against are treated the same … If the test is applied the report shall
+  show the result as is, and the overall result follows as normal."* So the
+  aggregation is untouched, and the note is deliberately silent about the
+  Overall. `test_a_failed_recommendation_sinks_the_column_like_any_other_failure`
+  and a forbidden-phrase check on the note text are what stop the withdrawn
+  version arriving later.
+- **a green suite proves nothing here**, and Knut was told so before it was
+  built: after the ruling no ChromIQ set marks any row a recommendation, so the
+  note path has no occupant on a stock install. It was driven on screen through
+  a hand-marked should-limit in a Custom column instead. Photographed: the
+  label reads *"Grey balance of the grey ramp, largest⁴"*, the cell reads
+  `(3,00)`, the fourth note is under the table, and in the generated report the
+  row reads **FAIL ¹⁾ ²⁾** with note 2) saying the metric is a recommendation.
+- **old reports still open.** COND stays in `WORDS`, in `word_label` and in the
+  report guide; a saved verdict is NOT rewritten, and its tooltip now says the
+  report was saved by an earlier ChromIQ and what the word meant then.
+- evidence: test_a_recommendation_that_is_exceeded_reads_FAIL,
+  test_no_limit_of_any_kind_can_produce_COND_any_more,
+  test_a_recommended_row_carries_the_note_whatever_it_scored,
+  test_the_note_is_numbered_and_the_number_is_shared,
+  test_the_note_text_is_one_catalogue_entry_rendered_in_both_places,
+  test_a_failed_recommendation_sinks_the_column_like_any_other_failure,
+  test_a_stored_COND_verdict_is_still_a_word_the_app_defines,
+  test_no_shipped_set_marks_any_row_a_recommendation,
+  test_a_hand_marked_recommendation_shows_its_brackets,
+  test_with_nothing_marked_there_is_no_marker_and_no_fourth_note — three
+  mutations proven to land. On screen:
+  `~/Desktop/ChromIQ-beta30-proof/verdict-ruling/`,
+  `01-limits-as-shipped.png` (no bracket anywhere),
+  `02-limits-hand-marked-should.png`, `05-report-the-numbered-notes.png`,
+  `driver-report.json`, and `scripts/drive_b8570_the_verdict_ruling.py`.
+
+### B8-571 · FIXED · The limits window said the ISO columns were full and the Custom ones came from a standard
+- status: FIXED
+- blocks release: no
+- not committed and not gated: the change sits on a branch.
+- found by an analysis pass over the same file set as B8-570, and it is the
+  **fourth** time this exact claim has had to be removed from ChromIQ.
+- the masthead tooltip of `ui/dialogs/thresholds_dialog.py` said,
+  unconditionally: *"The two ISO columns hold a standard's published values and
+  are read-only; the two Custom columns start from them and are yours to
+  change."*
+- **both clauses are false as shipped.** Measured against the repository's own
+  deliberately empty `data/compliance_sets/iso12647.json`:
+
+  | set | limit-bearing rows |
+  |---|---|
+  | `iso_12647_7` | **0** |
+  | `iso_12647_8` | **0** |
+  | `custom_iso_12647_7` | **16** |
+  | `custom_iso_12647_8` | **16** |
+
+  The sixteen come from `compliance_sets._CUSTOM_PLACEHOLDER`, which is
+  ChromIQ's own figures. So the reader was told the empty columns were full,
+  and that the full ones carried a standard's numbers.
+- the `SetDef` blurbs were corrected three times for this same class of false
+  sentence and the report guide's own paragraph once. This copy sits about
+  twenty lines above the conditional that guards the blurbs and was never
+  revisited by any of those rounds.
+- **fixed as a measurement, not a string.** `_columns_paragraph()` counts the
+  limits `factory_limits` actually returns and says what is true of the state
+  it finds, so it covers a build as it ships AND one a licence holder has
+  pointed at their own file.
+- the guard counts rather than pinning words, so a rewrite that stays honest
+  passes. **Two mutations proven to land**: forcing either branch turns it red.
+- evidence: test_the_shipping_state_is_not_described_as_full,
+  test_supplied_values_are_not_described_as_absent,
+  test_the_paragraph_never_says_a_column_holds_what_it_does_not,
+  test_the_custom_columns_are_never_called_a_standards_figures,
+  test_the_shipped_file_really_is_empty_and_the_custom_sets_really_are_not,
+  all of them in the limits-window guard file added by this entry. On
+  screen: the same driver run as B8-570; `driver-report.json` records
+  `judged_rows_per_set` for all seven sets.
+
+### B8-572 · FIXED · Read-only cells in the Report limits table sat one row high
+- status: FIXED
+- blocks release: no
+- not committed and not gated: the change sits on a branch.
+- carried in as B8-556. `ThresholdsDialog._make_cell`, the non-editable branch,
+  called `lab.setAlignment(Qt.AlignmentFlag.AlignRight)`. `setAlignment`
+  REPLACES the whole alignment rather than adding to it, and `AlignRight`
+  carries no vertical bit, so Qt fell back to a label's default, which is top.
+  Every read-only cell therefore sat above the spin boxes in its own row.
+- **measured on the pixels, not read off the flag**, because three guards on
+  this project have lied that way. A driver photographs the real window and
+  measures the ink each cell paints, in device pixels, against the spin box in
+  the same row. Same window, same rows, the only change the alignment flag:
+
+  | read-only cell | shows | before | after |
+  |---|---|---|---|
+  | a number | `2,00` | −11.0 | **+1.0** |
+  | a recommendation | `(3,00)` | −12.0 | **+0.0** |
+  | no limit | `–` | −7.3 | **+0.0** |
+  | not held | `?` | −13.5 | **−1.5** |
+  | unmeasurable | `✕` | −5.0 | **+1.0** |
+
+  device px at dpr 2, ink centre against the cell's own centre; negative is
+  high. Paired against the spin box beside it, the offset went from **−11.5 to
+  −13.0** to **−1.0 to +0.5**. All five cell kinds, as asked.
+- the row pitch is untouched; that window has a scroll area and a height cap.
+- **two faults in the measurement had to be fixed before the numbers meant
+  anything**, and both are worth remembering because both produced confident
+  wrong figures rather than obvious nonsense:
+  - a cell scrolled out of the viewport maps outside the picture, and clamping
+    it to the image edge silently sampled whatever was there (spreads of 27 px);
+  - `capture_window` returns the window's own buffer, which is the **FRAME**,
+    title bar included, so mapping a client-coordinate widget with nothing but
+    the device ratio samples a band one row too high, for every cell. That is
+    what made a correctly placed `2,00` read as having no ink in it at all.
+- **the unit guard measures INK, not the flag**, by painting each cell into an
+  image of its own size and taking the vertical centre of the glyphs drawn.
+  Both of its thresholds are measured rather than chosen: with the fault the
+  worst ink centre is 0.318 of the cell's height and the worst label-to-spin
+  drift 0.159; fixed, 0.500 and 0.068. They are pinned at 0.40 and 0.10.
+- **the first cut of that guard guessed 0.33 and 0.18 and was nearly useless**:
+  0.33 caught the fault by 0.012 and 0.18 missed it entirely, so two of its
+  three tests passed with the bug in the tree while the file's docstring
+  claimed all three failed. Written down because a guard that passes on the
+  fault it names is worse than no guard.
+- evidence: test_every_read_only_cell_paints_near_the_middle_of_its_own_cell,
+  test_a_read_only_cell_and_a_spin_box_in_one_row_share_a_line,
+  test_all_five_cell_kinds_are_actually_on_screen_here, in the read-only-cell
+  guard file added by this entry; all three
+  proven to go red on the mutation. On screen:
+  `~/Desktop/ChromIQ-beta30-proof/verdict-ruling/B8-556-BEFORE/` and
+  `B8-556-AFTER/`, each with `driver-report.json` and its photographs, taken by
+  `scripts/drive_b8570_the_verdict_ruling.py`.
 

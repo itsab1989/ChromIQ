@@ -103,6 +103,65 @@ CELL_W = 104
 COLUMN_GAP = 14
 
 
+
+def _columns_paragraph() -> str:
+    """What the seven columns hold, measured rather than asserted (B8-571).
+
+    THE SENTENCE THIS REPLACES WAS FALSE IN THE STATE CHROMIQ SHIPS. It read
+    "The two ISO columns hold a standard's published values and are read-only;
+    the two Custom columns start from them and are yours to change", and
+    measured against the repository's own data file the two read-only ISO
+    columns carry ZERO limit-bearing rows while Custom ISO 12647-7 and Custom
+    ISO 12647-8 carry sixteen each, every one of them from
+    `compliance_sets._CUSTOM_PLACEHOLDER`, which is ChromIQ's own numbers. So
+    it told a reader that the empty columns were full and that the full ones
+    came from a standard.
+
+    THE SAME CLASS OF FALSE SENTENCE AS THE `SetDef` BLURBS, which were
+    corrected three times for it, and as the report guide's own paragraph. What
+    those corrections settled is that a column's NAME is not its CONTENTS, and
+    that a sentence here has to be true both of a build as it ships and of one
+    a licence holder has pointed at their own file. This paragraph is built
+    from `factory_limits`, so it cannot drift from what the table draws: the
+    two states are distinguished by counting, not by a flag somebody has to
+    remember to set.
+    """
+    from workflow.compliance_sets import factory_limits, limit_bearing
+    supplied = any(limit_bearing(factory_limits(sid))
+                   for sid in ("iso_12647_7", "iso_12647_8"))
+    own = tr("ChromIQ default, ChromIQ tight and Quick check are ChromIQ's "
+             "own sets and can be edited here.")
+    if supplied:
+        return own + " " + tr(
+            "The two ISO columns are read-only and hold the published values "
+            "you supplied from your own copy of each standard. The two Custom "
+            "columns start from those figures, and every limit in them is "
+            "yours to change.")
+    # THE SHIPPING STATE, and the one the old sentence described wrongly.
+    return own + " " + tr(
+        "The two ISO columns are read-only and hold a standard's published "
+        "values, which ChromIQ has no permission to include: they are empty "
+        "here, and every cell in them reads ? or ✕, until you supply that "
+        "standard's figures with \u201cReference values…\u201d below. The two "
+        "Custom columns are named after the same standards and start from "
+        "ChromIQ's own numbers rather than from theirs, so that every row "
+        "ChromIQ can measure has a limit to be judged against; every limit in "
+        "them is yours to change.")
+
+
+def _recommended_note_text() -> str:
+    """The body of M-LIMIT-RECOMMENDED as one line.
+
+    THE SAME FUNCTION THE REPORT ASKS. Knut asked for this note in the Report
+    limits window *and* in the report text on 2026-09-21, so it is one
+    catalogue entry rendered twice rather than two sentences that can drift.
+    `measurement_report_dialog._recommended_limit_note` is the other caller.
+    """
+    from workflow.measurement_messages import M_LIMIT_RECOMMENDED
+    _title, body = M_LIMIT_RECOMMENDED.render()
+    return " ".join(body.split())
+
+
 class _ScrolledBody(QWidget):
     """The scrolled half of the table.
 
@@ -187,6 +246,10 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         self._sized_once = False
         self._cells: "dict[tuple[str, str], QWidget]" = {}
         self._column_widgets: "dict[str, list[QWidget]]" = {}
+        #: row id → the QLabel carrying the metric's name and its reference
+        #: number, so the number can be redrawn when the visible columns change
+        self._row_labels: "dict[str, QLabel]" = {}
+        self._notes_label = None
         self._column_checks: "dict[str, QCheckBox]" = {}
         self._default_radios: "dict[str, QRadioButton]" = {}
         #: The "Used for this run" radios, and the set the user picked with
@@ -239,13 +302,13 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                 "Measurement Report is judged against, one per row. Rows are "
                 "grouped by the patches a limit is written over; where a "
                 "statistic ChromIQ computes is also limited by a standard, it "
-                "is one row, so the sets can be read side by side.\n\n"
-                "ChromIQ default, ChromIQ tight and Quick check are ChromIQ's "
-                "own sets and can be edited here. The two ISO columns hold a "
-                "standard's published values and are read-only; the two "
-                "Custom columns start from them and are yours to change.\n\n"
-                "A number in brackets is a recommendation, not a requirement: "
-                "a value over it reads COND, never FAIL. “–” means the set puts "
+                "is one row, so the sets can be read side by side.")
+            + "\n\n" + _columns_paragraph() + "\n\n" + tr(
+                "A number in brackets is a limit the set recommends rather "
+                "than requires. It is judged and reported exactly like any "
+                "other limit; the brackets, and the raised number after the "
+                "metric's name, point to a note below the table saying so. "
+                "“–” means the set puts "
                 "no limit on that row. ✕ means ChromIQ cannot measure it at "
                 "all; the row stays so you can see what the standard asks. "
                 "? means the number is in a part of the standard ChromIQ does "
@@ -430,6 +493,7 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         notes.setWordWrap(True)
         notes.setTextFormat(Qt.TextFormat.PlainText)
         notes.setStyleSheet("color: #8a8a8a; font-size: 11px;")
+        self._notes_label = notes
         inner.addWidget(notes)
 
         close_row = QHBoxLayout()
@@ -694,10 +758,17 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
             g.addWidget(title, r, 0, 1, 2 + len(cols))
             r += 1
             for row in rows_in_group(group):
-                lab = QLabel(tr(row.label), self)
+                lab = QLabel(self._row_label_text(row), self)
                 lab.setStyleSheet("padding-left: 12px;")
+                # THE REFERENCE NUMBER IS PART OF THE NAME, so it is refreshed
+                # with the name whenever the visible columns change: a marker
+                # pointing at a bracket in a column the user has just hidden
+                # points at nothing.
+                self._row_labels[row.id] = lab
                 if row.status == "unmeasurable" and row.note:
                     lab.setToolTip(tr(row.note))
+                elif self._row_is_recommended(row.id):
+                    lab.setToolTip(_recommended_note_text())
                 # THE NAME AND ITS INFO ICON SHARE COLUMN 0, with the icon
                 # pushed to the right edge of that column so the icons line up
                 # in a straight column of their own. Knut, 2026-09-14: *"Right
@@ -733,6 +804,52 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                     self._cells[(col, row.id)] = w
                     self._column_widgets[col].append(w)
                 r += 1
+
+    # ---------------------------------------------------- the metric's note
+    #
+    # KNUT'S SECOND HALF OF THE RULING THAT RETIRED COND (2026-09-21):
+    # *"there should be a note associated with the metric its self, like a
+    # reference number at the end of the metric label-name, pointing to a note
+    # below the table in the Report Limits window (and in the report text also
+    # a number on the metric name, pointing to a note in the report text)."*
+    #
+    # The marker is ⁴ because the three notes already under this table are
+    # ¹ ² ³; one series, continuing, so a reader has one numbered list to
+    # look down rather than two notations. `_notes_text` writes the fourth
+    # item, and it is written ONLY when some visible column really marks a row
+    # a recommendation -- after the same ruling's point 5 no ChromIQ set does,
+    # so on a stock install there is no marker and no fourth note at all.
+    RECOMMENDED_MARK = "\u2074"          # ⁴
+
+    def _row_is_recommended(self, row_id: str) -> bool:
+        """Does any column this window is SHOWING mark *row_id* a should?"""
+        for col in self._column_ids():
+            if not self._column_shown(col):
+                continue
+            lim = self._limits_of(col).get(row_id)
+            if lim is not None and lim.is_should:
+                return True
+        return False
+
+    def _any_row_is_recommended(self) -> bool:
+        return any(self._row_is_recommended(r.id) for r in ROWS)
+
+    def _row_label_text(self, row) -> str:
+        t = tr(row.label)
+        return (t + self.RECOMMENDED_MARK) if self._row_is_recommended(row.id) else t
+
+    def _refresh_row_labels(self) -> None:
+        """Re-draw the markers, the notes block, and the tooltips with them."""
+        for row in ROWS:
+            lab = self._row_labels.get(row.id)
+            if lab is None:
+                continue
+            lab.setText(self._row_label_text(row))
+            if not (row.status == "unmeasurable" and row.note):
+                lab.setToolTip(_recommended_note_text()
+                               if self._row_is_recommended(row.id) else "")
+        if getattr(self, "_notes_label", None) is not None:
+            self._notes_label.setText(self._notes_text())
 
     @staticmethod
     def _row_help(row) -> str:
@@ -804,7 +921,15 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                     and lim.kind in ("value", "should", "none", "unknown"))
         if not editable:
             lab = QLabel(self._cell_text(lim), self)
-            lab.setAlignment(Qt.AlignmentFlag.AlignRight)
+            # B8-556: AND THE VERTICAL HALF, WHICH AlignRight DOES NOT CARRY.
+            # `setAlignment` REPLACES the whole alignment rather than adding to
+            # it, and `AlignRight` has no vertical bit, so Qt fell back to the
+            # default for a label, which is top. A read-only cell (?, ✕, –, a
+            # number, a bracketed number) therefore sat above the spin boxes
+            # beside it in the same row; measured on screen as a baseline
+            # difference, not read off the flag.
+            lab.setAlignment(Qt.AlignmentFlag.AlignRight
+                             | Qt.AlignmentFlag.AlignVCenter)
             lab.setFixedWidth(CELL_W)
             if lim.kind == "unmeasurable" and row.note:
                 lab.setToolTip(tr(row.note))
@@ -829,10 +954,24 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
 
     def _notes_text(self) -> str:
         from workflow.measurement_messages import M_THRESHOLDS_NOT_CERTIFICATION
-        legend = tr("Legend: a number is a required limit; (a number) a "
-                    "recommendation, over it reads COND; “–” the set puts no limit "
-                    "on the row; ✕ ChromIQ cannot measure it; ? the number is in "
-                    "a part of the standard ChromIQ does not hold or may not show.")
+        # THE LEGEND LINE KNUT ASKED FOR, 2026-09-21: *"Keep the bracket in
+        # the table cells, and add one line of legend to the window saying what
+        # it means, alongside what –, ? and ✕ mean."* The line was already
+        # here; what it said about the bracket was the COND rule, which he
+        # retired in the same message. A bracket now says WHAT THE SET CALLS
+        # THE ROW, and says nothing about the word the row will read, because
+        # the word is PASS or FAIL like every other row's.
+        # IT DOES NOT NAME THE NUMBER, because the number is only on screen
+        # when a row carries one. Naming ⁴ in a window with no ⁴ in it sends a
+        # reader looking for a note that is not written; the legend says a
+        # raised number appears, and the note under the table carries it.
+        legend = tr("Legend: a number is a required limit; (a number) a limit "
+                    "the set recommends rather than requires, judged and "
+                    "reported the same way, with a raised number after the "
+                    "metric's name pointing to a note below; “–” the set puts "
+                    "no limit on the row; ✕ ChromIQ cannot measure it; ? the "
+                    "number is in a part of the standard ChromIQ does not hold "
+                    "or may not show.")
         foot = tr("¹ The standards write these limits over their own chart and "
                   "control strip; ChromIQ applies them to the patches of the "
                   "chart that was measured, and the report says so. ² The "
@@ -840,6 +979,14 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                   "condition; without a reference file the aim is the chart's "
                   "own design. ³ The standards set a maximum only over their "
                   "control strip, not over all patches.")
+        # …AND THE FOURTH NOTE, WRITTEN ONLY WHEN SOMETHING POINTS AT IT. An
+        # item in a numbered list that no marker references is a paragraph
+        # pretending to be a note, and on a stock install nothing is marked: the
+        # ruling's point 5 took the last recommendation out of ChromIQ's own
+        # sets, so this appears when a licence holder's file marks a row
+        # "should" or a user marks one in an editable Custom column.
+        if self._any_row_is_recommended():
+            foot += " " + self.RECOMMENDED_MARK + " " + _recommended_note_text()
         # WHOSE NUMBERS THE TWO CUSTOM COLUMNS HOLD, said at the table where
         # they are read. They are named after a standard and start from
         # ChromIQ's own figures, so a reader who is not told will take them for
@@ -1214,6 +1361,7 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
     def _set_column_visible(self, col: str, on: bool) -> None:
         for w in self._column_widgets.get(col, []):
             w.setVisible(on)
+        self._refresh_row_labels()
         self._sync_columns()
 
     def value_of(self, col: str, row_id: str) -> "Limit":

@@ -64,13 +64,33 @@ def test_no_user_facing_label_carries_an_em_dash():
 
 # ---- factory values ---------------------------------------------------------
 
-def test_chromiq_default_is_knuts_2_2_2_3_3_and_the_grey_rows_are_should_rows():
+def test_chromiq_default_is_knuts_2_2_2_3_3_and_the_grey_rows_are_ordinary():
     f = factory_limits("chromiq_default")
     assert [f[r].number for r in cs.OLD_AVG_ROWS] == [2.0, 2.0, 2.0]
     assert [f[r].number for r in cs.OLD_MAX_ROWS] == [3.0, 3.0]
     assert all(f[r].kind == "value" for r in cs.OLD_AVG_ROWS + cs.OLD_MAX_ROWS)
+    # THE GREY PAIR KEEPS ITS NUMBERS AND LOSES ITS BRACKET. Knut, 2026-09-21:
+    # *"Remove them, so a bracket only ever appears where a standard is
+    # involved, and ChromIQ's own sets have requirements and nothing else."*
     g = f["grey_balance_neutral_ramp_avg"], f["grey_balance_neutral_ramp_max"]
-    assert (g[0].kind, g[0].number, g[1].kind, g[1].number) == ("should", 1.5, "should", 3.0)
+    assert (g[0].kind, g[0].number, g[1].kind, g[1].number) == ("value", 1.5, "value", 3.0)
+
+
+def test_no_shipped_set_marks_any_row_a_recommendation():
+    """The consequence of the same ruling, stated once for every set.
+
+    After it, the ONLY source of a should-limit is a licence holder's own ISO
+    values file or a row a user marks in an editable Custom column -- so a
+    green suite proves nothing about the note path, and the note is driven on
+    screen instead. This test is the other half: it fails the day a bracket
+    creeps back into a set ChromIQ ships.
+
+    MUTATION: put `Limit.should` back on one grey row and this goes red.
+    """
+    offenders = {sid: sorted(r for r, l in factory_limits(sid).items()
+                             if l.is_should)
+                 for sid in cs.SET_IDS}
+    assert not any(offenders.values()), offenders
 
 
 def test_tight_is_half_and_quick_is_double_on_the_five_de00_rows():
@@ -210,7 +230,12 @@ def test_overrides_apply_to_editable_sets_only_and_keep_a_should_a_should():
           "iso_12647_7": {"all_de00_avg": 1.0}}
     e = effective_limits("chromiq_default", ov)
     assert e["all_de00_avg"] == Limit.value(2.7)
-    assert e["grey_balance_neutral_ramp_avg"] == Limit.should(2.0)
+    # NO SHIPPED SET MARKS A ROW A RECOMMENDATION ANY MORE (Knut, 2026-09-21),
+    # so the kind-preserving half of this rule is exercised by
+    # test_an_override_keeps_a_licence_holders_should_a_should below, against
+    # the one source of a should-limit that is left. Here the grey row is an
+    # ordinary limit and an override keeps it one.
+    assert e["grey_balance_neutral_ramp_avg"] == Limit.value(2.0)
     assert e["all_de00_max"].kind == "none"
     assert e["all_de00_p95"].kind == "none"
     assert e["uniformity_sd"].kind == "none"
@@ -269,7 +294,16 @@ def test_row_verdict_every_case_of_the_spec():
     assert row_verdict(shall, 2.0, True) == PASS                    # at the limit
     assert row_verdict(shall, 2.0000000001, True) == PASS           # float dust
     assert row_verdict(shall, 2.1, True) == FAIL
-    assert row_verdict(should, 2.1, True) == COND                   # recommended, exceeded
+    # KNUT RETIRED COND AS A ROW WORD, 2026-09-21: *"all metrics being tested
+    # against a threshold shows as FAIL or PASS (always, also for the
+    # standards), and the COND term is retired, all tests that fail or pass are
+    # handled equally"*. A recommendation is still a recommendation in the
+    # DATA -- the bracket, `is_should` and the numbered note all survive -- and
+    # the word it produces is now the ordinary one.
+    #
+    # MUTATION: restore `return COND if limit.is_should else FAIL` and the
+    # first line below goes red.
+    assert row_verdict(should, 2.1, True) == FAIL                   # recommended, exceeded
     assert row_verdict(should, 1.0, True) == PASS
     assert row_verdict(shall, None, True) == N_A                    # chart cannot supply it
     assert row_verdict(shall, 9.9, False) == INFO                   # drift check / profiling

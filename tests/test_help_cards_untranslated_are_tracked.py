@@ -763,18 +763,23 @@ _BUDGET = {
     # tree this commit leaves behind, never adjusted upward. German is
     # translated by hand in the same change and so moves only by strings that
     # are identical in every language.
+    # RE-MEASURED 2026-09-22 on the COMBINED tree, after merging five parallel
+    # rounds. Neither any agent's numbers nor my own earlier ones were carried
+    # forward: every round that lands moves these files, so any figure written
+    # before the last merge is stale by construction. COUNTED with this file's
+    # own helper on the tree this commit leaves behind, never adjusted upward.
     "de": 22,
-    "es": 635,
-    "fr": 636,
-    "it": 635,
-    "ja": 635,
-    "nl": 635,
-    "no": 635,
-    "pl": 635,
-    "pt": 635,
-    "ru": 634,
-    "sv": 635,
-    "zh_CN": 634,
+    "es": 641,
+    "fr": 642,
+    "it": 641,
+    "ja": 641,
+    "nl": 641,
+    "no": 641,
+    "pl": 641,
+    "pt": 641,
+    "ru": 640,
+    "sv": 641,
+    "zh_CN": 640,
 }
 
 

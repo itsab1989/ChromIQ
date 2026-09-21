@@ -68,7 +68,12 @@ def test_binding_copies_the_effective_limits_including_the_users_overrides(tmp_p
     assert meta.compliance_set_id == "chromiq_default"
     assert meta.compliance_set_label == "ChromIQ default (recommended)"
     assert meta.compliance_thresholds["all_de00_avg"] == 2.5
-    assert meta.compliance_thresholds["grey_balance_neutral_ramp_avg"] == [1.5, "should"]
+    # A PLAIN NUMBER SINCE 2026-09-21: Knut took the bracket off ChromIQ's own
+    # sets, so this row binds as an ordinary limit. The `[number, "should"]`
+    # FORM is unchanged and still round-trips; see
+    # tests/test_thresholds_dialog.py, which binds a run to a column whose
+    # limit a licence holder has marked that way.
+    assert meta.compliance_thresholds["grey_balance_neutral_ramp_avg"] == 1.5
     assert meta.compliance_bound_at
 
 

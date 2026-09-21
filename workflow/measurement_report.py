@@ -2306,6 +2306,21 @@ REASON_TOO_FEW_OUTER_PATCHES = "too_few_outer_patches"
 #: value it needed.
 NOTE_PRINTING_UNRECORDED = "printing_unrecorded"
 
+#: A ROW WHOSE LIMIT THE SET RECOMMENDS RATHER THAN REQUIRES. Knut retired COND
+#: as a row word on 2026-09-21 and asked, in the same message, for what takes
+#: its place: *"there should be a note associated with the metric its self,
+#: like a reference number at the end of the metric label-name, pointing to a
+#: note below the table in the Report Limits window (and in the report text
+#: also a number on the metric name, pointing to a note in the report text)."*
+#:
+#: THE ONE NOTE HERE THAT COMES FROM THE LIMIT AND NOT FROM THE VALUE. Every
+#: other code is attached in `row_values`, where the measurement is examined.
+#: This one cannot be: whether a row is a recommendation is a fact about the
+#: SET the report is judged against, which `row_values` never sees. It is
+#: attached in :func:`judge`, the one place that holds a value and its limit at
+#: the same moment. The text is `measurement_messages.M_LIMIT_RECOMMENDED`.
+NOTE_RECOMMENDED_LIMIT = "recommended_limit"
+
 
 def _distinct_levels(levels: "list[float]", tol: float = GREY_LEVEL_TOL) -> int:
     """How many distinct values a sorted list holds when values within *tol*
@@ -2855,10 +2870,26 @@ def judge(report: dict, limits: "dict") -> "list[dict]":
             # A NOTE TRAVELS WITH THE ROW IT COMMENTS, and only where there is
             # a verdict to comment. A note beside an N-A would be a footnote on
             # an absence, which is what `reason` is already for.
-            "notes": (list((cell or {}).get("notes") or [])
+            "notes": (_row_notes(cell, lim)
                       if word in (PASS, FAIL, COND) else []),
         })
     return rows
+
+
+def _row_notes(cell: "dict | None", lim) -> "list[str]":
+    """The note codes one judged row carries.
+
+    The measurement's own notes, then the limit's. A recommended limit is
+    commented WHETHER IT PASSED OR FAILED, because the note says what the
+    standard calls the metric rather than what the number did: a reader of a
+    passing row is owed the same fact as a reader of a failing one, and a note
+    that appeared only on failures would read as an excuse for the failure --
+    which is the reading Knut withdrew on 2026-09-21.
+    """
+    notes = list((cell or {}).get("notes") or [])
+    if getattr(lim, "is_should", False) and NOTE_RECOMMENDED_LIMIT not in notes:
+        notes.append(NOTE_RECOMMENDED_LIMIT)
+    return notes
 
 
 def numbered_notes(rows: "list[dict]") -> "list[tuple[int, str, list[str]]]":

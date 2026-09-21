@@ -22,7 +22,9 @@ here, once:
   (:func:`effective_limits`);
 * the **verdict words** PASS / FAIL / COND / INFO / N-A (Knut, K-f,
   2026-09-07) and the two decision rules that produce them
-  (:func:`row_verdict`, :func:`set_summary`).
+  (:func:`row_verdict`, :func:`set_summary`). COND is an OVERALL word only,
+  since Knut retired it as a row word on 2026-09-21; it stays defined because
+  reports saved before that day carry it.
 
 **The ISO tolerance numbers are not in this file, and not in the repository.**
 They are read from ``data/compliance_sets/iso12647.json``, which ships EMPTY
@@ -81,7 +83,8 @@ def word_label(word: str) -> str:
 # A limit: one cell of the table
 # ---------------------------------------------------------------------------
 #: ``value`` a required limit (a *shall*); ``should`` a recommendation the set
-#: does not require (exceeding it is COND, never FAIL); ``none`` the set
+#: does not require, drawn in brackets and carrying a numbered note, but judged
+#: PASS / FAIL like any other limit (Knut, 2026-09-21); ``none`` the set
 #: defines no limit for this row (``–``); ``unknown`` the number is in a
 #: clause ChromIQ does not hold or may not show (``?``); ``unmeasurable`` the
 #: set defines a limit ChromIQ cannot measure at all (``✕``).
@@ -727,31 +730,36 @@ def set_label(set_id: str, stored_label: str = "") -> str:
 # ---------------------------------------------------------------------------
 #: ChromIQ's own numbers. Knut, #182 K4 (2026-09-05) and Q1 (2026-09-06): the
 #: default stays 2.0 / 2.0 / 2.0 / 3.0 / 3.0; tight and quick are half and
-#: double, "modifiable in the future if needed". The grey-balance pair is a
-#: SHOULD limit in every ChromIQ set until a healthy printer has been measured
-#: (CH-9, recorded in docs/design/measurement_report_limits.md): exceeding
-#: it reads COND, never FAIL.
+#: double, "modifiable in the future if needed".
+#:
+#: THE GREY PAIR IS AN ORDINARY LIMIT AGAIN. It was a SHOULD limit in every
+#: ChromIQ set (CH-9), which drew a bracket in three columns that name no
+#: standard. Knut, 2026-09-21, agreeing to remove them: *"Remove them, so a
+#: bracket only ever appears where a standard is involved, and ChromIQ's own
+#: sets have requirements and nothing else. Simpler, and consistent with your
+#: 'treat all thresholds the same'."* The numbers are unchanged; only the kind
+#: is. See `row_verdict` for the word that went with them.
 _CHROMIQ_FACTORY: "dict[str, dict[str, Limit]]" = {
     "chromiq_default": {
         "all_de00_avg": Limit.value(2.0), "best95_de00_avg": Limit.value(2.0),
         "worst5_de00_avg": Limit.value(2.0), "all_de00_max": Limit.value(3.0),
         "all_de00_p95": Limit.value(3.0),
-        "grey_balance_neutral_ramp_avg": Limit.should(1.5),
-        "grey_balance_neutral_ramp_max": Limit.should(3.0),
+        "grey_balance_neutral_ramp_avg": Limit.value(1.5),
+        "grey_balance_neutral_ramp_max": Limit.value(3.0),
     },
     "chromiq_tight": {
         "all_de00_avg": Limit.value(1.0), "best95_de00_avg": Limit.value(1.0),
         "worst5_de00_avg": Limit.value(1.0), "all_de00_max": Limit.value(1.5),
         "all_de00_p95": Limit.value(1.5),
-        "grey_balance_neutral_ramp_avg": Limit.should(1.0),
-        "grey_balance_neutral_ramp_max": Limit.should(2.0),
+        "grey_balance_neutral_ramp_avg": Limit.value(1.0),
+        "grey_balance_neutral_ramp_max": Limit.value(2.0),
     },
     "chromiq_quick": {
         "all_de00_avg": Limit.value(4.0), "best95_de00_avg": Limit.value(4.0),
         "worst5_de00_avg": Limit.value(4.0), "all_de00_max": Limit.value(6.0),
         "all_de00_p95": Limit.value(6.0),
-        "grey_balance_neutral_ramp_avg": Limit.should(3.0),
-        "grey_balance_neutral_ramp_max": Limit.should(7.0),
+        "grey_balance_neutral_ramp_avg": Limit.value(3.0),
+        "grey_balance_neutral_ramp_max": Limit.value(7.0),
     },
 }
 
@@ -834,15 +842,22 @@ _CUSTOM_PLACEHOLDER: "dict[str, Limit]" = {
     "worst5_de00_avg": Limit.value(2.0),
     "all_de00_max": Limit.value(3.0),
     "all_de00_p95": Limit.value(3.0),
-    # the grey pair, a recommendation in every ChromIQ set (CH-9)
-    "grey_balance_neutral_ramp_avg": Limit.should(1.5),
-    "grey_balance_neutral_ramp_max": Limit.should(3.0),
+    # the grey pair, ChromIQ default's own numbers
+    "grey_balance_neutral_ramp_avg": Limit.value(1.5),
+    "grey_balance_neutral_ramp_max": Limit.value(3.0),
     # the rows ChromIQ default puts no limit on
     "substrate_de00_max": Limit.value(3.0),          # ΔE00
     "solids_de00_max": Limit.value(3.0),             # ΔE00
     "cmy_solids_dhab_max": Limit.value(2.0),         # ΔH*ab
-    # §3: ISO 12647-8:2021 4.2.7 is a *should*, so this row is a recommendation
-    "ramps_30_70_dl_max": Limit.should(2.0),         # ΔL*
+    # A BRACKET IN A COLUMN NAMED AFTER A STANDARD CLAIMED SOMETHING ChromIQ
+    # does not know. This row was marked a recommendation on the reading that
+    # ISO 12647-8:2021 4.2.7 is a *should*; the number beside it is ChromIQ's
+    # own placeholder, not the standard's, so the bracket said "ISO 12647-8
+    # calls this a recommendation" over a figure ISO never wrote. Knut,
+    # 2026-09-21: *"Then the thresholds that use a bracket, ex. '(3,00)',
+    # should not have a bracket, since it is not a 'recommended'/'should' type
+    # metric."* A licence holder's own file may still mark it "should".
+    "ramps_30_70_dl_max": Limit.value(2.0),          # ΔL*
     # THE FIVE ROWS S2w MADE COMPUTABLE (Knut, 2026-09-18). They arrive here
     # by the same rule as everything above and for the same reason: Knut asked
     # the two Custom columns to carry *"a value that can be tested against"*
@@ -1264,7 +1279,27 @@ def row_verdict(limit: Limit, value: "float | None", graded: bool) -> "str | Non
         return INFO
     if float(value) <= float(limit.number) + 1e-9:
         return PASS
-    return COND if limit.is_should else FAIL
+    # KNUT RETIRED COND AS A ROW WORD, 2026-09-21 (#182): *"it might be better
+    # to standardise on all metrics being tested against a threshold shows as
+    # FAIL or PASS (always, also for the standards), and the COND term is
+    # retired, all tests that fail or pass are handled equally"*, and nine
+    # minutes later, withdrawing the special aggregation he had first asked
+    # for: *"all thresholds tested against are treated the same, so there is
+    # no need to have special handling of the results of a metric with
+    # 'should' … If the test is applied the report shall show the result as is,
+    # and the overall result follows as normal."*
+    #
+    # His reasoning is the part worth keeping: outside the ISO sets a
+    # recommended row is simply another test, so a third word carries no
+    # information there and costs understanding everywhere. The
+    # recommended-versus-required distinction survives as `Limit.is_should`,
+    # the bracket in the table cell, and the per-metric NOTE -- see
+    # `measurement_report.NOTE_RECOMMENDED_LIMIT`. Only the word goes.
+    #
+    # COND itself is NOT deleted: it is still an Overall word (an ISO column's
+    # values are applied to a chart that is not the standard's chart, so such a
+    # column is COND at best), and reports saved before today carry it on rows.
+    return FAIL
 
 
 #: Appended to a SAVED verdict when the set it was judged against applies a
@@ -1398,7 +1433,10 @@ def set_summary(rows: "list[tuple[Limit, str | None]]", *, set_is_iso: bool,
       not the standard's chart (footnote 1), so the set was never fully
       tested;
     * any COND, or an N-A on a REQUIRED row → COND (an N-A on a should-row
-      does not demote the column);
+      does not demote the column). Since 2026-09-21 no LIVE row can read COND
+      -- `row_verdict` never returns it -- so the first half of this clause
+      now fires only for a report saved before that day, whose stored rows
+      still carry the word;
     * else PASS.
     """
     bearing = [(lim, w) for lim, w in rows if lim.is_numeric]

@@ -142,15 +142,19 @@ def test_the_help_says_the_things_a_reader_came_for():
       of the five colour difference rows, not of the grey rows (1.5 goes to
       1.0 and 3.0 to 2.0, and Quick check puts the grey maximum at 7.0);
     * "the choice of set matters less there" said of Grey and tone check — it
-      matters more: two of its three rows are recommendations that can only
-      reach COND, and no ChromIQ set limits the third at all.
+      matters more: no ChromIQ set limits the mid-tone ramp at all, so that
+      row is shown for information whichever set is beside it. (Until
+      2026-09-21 the other two were recommendations that could only reach
+      COND; Knut retired both the bracket and the word, so the grey rows are
+      now judged like any other and the help says so.)
     """
     h = _helps()
     must = {
         # which set goes with which type, and what the numbers really are
         "pair": ("2.0 average and 3.0 maximum", "halves those two",
-                 "doubles them", "the worst they can report is COND",
-                 "no ChromIQ set puts a limit on the mid-tone ramp",
+                 "doubles them",
+                 "judges the two grey rows like any other row",
+                 "no limit on the mid-tone ramp",
                  "every row it can compute reads INFO", "still names the set",
                  "Custom ISO", "not rules"),
         # when a reader reaches for each type
@@ -222,11 +226,19 @@ def test_the_numbers_in_the_help_are_the_numbers_in_the_sets():
         "the help says ChromIQ tight halves those two")
     assert (avg["chromiq_quick"], mx["chromiq_quick"]) == (4.0, 6.0), (
         "the help says Quick check doubles them")
-    # …and the two claims about Grey and tone check's own three rows.
+    # …and the claims about Grey and tone check's own three rows.
+    #
+    # THE FIRST TWO CHANGED SIDES ON 2026-09-21. The help used to say the grey
+    # rows were recommendations that could only reach COND, and it was checked
+    # against `is_should`; Knut ruled the brackets off ChromIQ's own sets and
+    # retired the word, so the sentence now says they are judged like any other
+    # row and this is what holds it to that.
     for sid in lim:
-        assert lim[sid]["grey_balance_neutral_ramp_avg"].is_should, (
-            "the help says the grey rows are recommendations")
-        assert lim[sid]["grey_balance_neutral_ramp_max"].is_should
+        assert not lim[sid]["grey_balance_neutral_ramp_avg"].is_should, (
+            "the help says a ChromIQ set judges the grey rows like any other")
+        assert not lim[sid]["grey_balance_neutral_ramp_max"].is_should
+        assert lim[sid]["grey_balance_neutral_ramp_avg"].is_numeric, (
+            "…and that means judged, so the row must still carry a number")
         assert lim[sid]["ramps_30_70_dl_max"].kind == "none", (
             "the help says no ChromIQ set limits the mid-tone ramp")
     # …AND THE ONE CLAIM ABOUT THE GREY ROWS THAT WAS NOT CHECKED.
@@ -306,6 +318,23 @@ def test_every_language_names_the_controls_as_that_language_shows_them(code):
     for which, english in _helps().items():
         body = cat.get(english)
         assert body, f"{code} has no translation of the {which} help"
+        # A BODY THAT IS ITS OWN ENGLISH SOURCE IS NOT TRANSLATED YET, and this
+        # guard could not tell that from the fault it was written for.
+        #
+        # Under the beta rule (German by hand, the eleven others carry the
+        # English until a translation round before the final), a help text that
+        # has just been reworded sits in eleven catalogues as its English
+        # source. Such a body of course names "Custom ISO" rather than "Eigene
+        # ISO", and failing on it says "this translation points at the wrong
+        # control" about a translation that does not exist. Untranslated
+        # strings are COUNTED, in `test_i18n.py::_IDENTICAL_TO_KEY` and in
+        # `test_help_cards_untranslated_are_tracked.py::_BUDGET`, and neither
+        # count may rise unnoticed -- so nothing is hidden by skipping here.
+        #
+        # The fault this test exists for is untouched: a body that HAS been
+        # translated must still name the controls that language shows.
+        if body == english:
+            continue
         for name in NAMES_IN[which]:
             want = _as_prose(cat.get(name, name))
             assert want in body, (

@@ -2581,7 +2581,33 @@ M_THRESHOLDS_NOT_CERTIFICATION = _m(
     "the table so you can see what the standard asks: {rows}",
     approved=False)
 
+# --- PROPOSED (#182, Knut 2026-09-21): the note a bracketed limit points at -
+#
+# THE HALF OF THE RULING THAT IS NOT THE VERDICT WORD. Knut retired COND as a
+# row word and asked, in the same message, for what replaces it: *"there should
+# be a note associated with the metric its self, like a reference number at the
+# end of the metric label-name, pointing to a note below the table in the
+# Report Limits window (and in the report text also a number on the metric
+# name, pointing to a note in the report text)."* One text, rendered in both
+# places, because two copies are two documents that can drift apart.
+#
+# WHAT IT MAY NOT SAY. His first version of this note ended *"but does not
+# affect the overall result of the ISO 12647 verification"*, and he WITHDREW
+# that nine minutes later: *"all thresholds tested against are treated the
+# same … If the test is applied the report shall show the result as is, and the
+# overall result follows as normal."* So the note says what the standard calls
+# the metric and stops. A sentence excusing the row from the Overall would be
+# false of the code and against the ruling that replaced it.
+M_LIMIT_RECOMMENDED = _m(
+    "M-LIMIT-RECOMMENDED",
+    "The standard recommends this metric rather than requiring it",
+    "The standard calls this metric recommended rather than required, so it "
+    "may be applied optionally. Its limit is shown in brackets. It was applied "
+    "here, and the result is reported the same way as every other row.",
+    approved=False)
+
 CATALOGUE = {m.id: m for m in (
+    M_LIMIT_RECOMMENDED,
     M_REPORT_CHART_MISMATCH, M_THRESHOLDS_NOT_CERTIFICATION, M_REPORT_DELETE,
     M_REPORT_UPDATE_OR_NEW,
     M_REPLACE_PARTIAL, M_REPLACE_COMPLETE, M_TI3_MISMATCH,

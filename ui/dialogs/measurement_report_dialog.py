@@ -947,9 +947,8 @@ _PAIRING_HELP = (
     "behaving, and Quick check doubles them, for a health check only a clearly "
     "drifted printer fails; the grey rows move with them. Grey and "
     "tone check keeps three rows, the two grey balance ones and the mid-tone "
-    "ramp, and those are the three a ChromIQ set says least about: the grey "
-    "rows are recommendations, so the worst they can report is COND, and no "
-    "ChromIQ set puts a limit on the mid-tone ramp at all, so it is shown for "
+    "ramp. A ChromIQ set judges the two grey rows like any other row, and puts "
+    "no limit on the mid-tone ramp at all, so that one is shown for "
     "information. A Custom ISO set you have filled in judges all three. "
     "Printing record grades nothing: every row it can compute reads INFO "
     "whichever set is beside it, though the document still names the set it "
@@ -1021,6 +1020,19 @@ def _sets_help() -> str:
     lines = ["\u2022 " + f"{tr(s.label)}: {tr(s.blurb)}"
              for s in SETS if s.blurb]
     return ("\n\n" + tr("What each set is") + "\n\n" + "\n\n".join(lines))
+
+
+def _recommended_limit_note() -> str:
+    """The body of M-LIMIT-RECOMMENDED, as one line of running text.
+
+    The catalogue stores a body; this is what a note item in a list wants, so
+    the paragraph breaks are flattened here rather than by each caller. The
+    Report limits window asks the same function, which is why the number beside
+    a metric there and the number beside a verdict here say the same thing.
+    """
+    from workflow.measurement_messages import M_LIMIT_RECOMMENDED
+    _title, body = M_LIMIT_RECOMMENDED.render()
+    return " ".join(body.split())
 
 
 class MeasurementReportDialog(QDialog):
@@ -6647,6 +6659,11 @@ class MeasurementReportDialog(QDialog):
                 "print on a warm or tinted paper reads higher here than the "
                 "profile deserves. Record the printing condition, or read this "
                 "row against the paper you printed on."),
+            # ONE TEXT FOR THIS NOTE, IN BOTH PLACES IT APPEARS. Knut asked for
+            # the note in the Report limits window AND in the report text
+            # (2026-09-21), so it lives in the §M catalogue and both renderers
+            # ask for it. Two hand-written copies are two documents that drift.
+            "recommended_limit": _recommended_limit_note(),
         }.get(code or "", "")
 
     def _numbered_notes(self, runs: list) -> "list[tuple[int, str, str]]":
@@ -9415,14 +9432,26 @@ class MeasurementReportDialog(QDialog):
             "<li>" + html.escape(tr(
                 "FAIL: the measured value is over the limit for that "
                 "row.")) + "</li>"
+            # COND IS AN OVERALL WORD AND NOTHING ELSE, since Knut retired it
+            # as a row word on 2026-09-21: *"all metrics being tested against a
+            # threshold shows as FAIL or PASS (always, also for the standards),
+            # and the COND term is retired"*. The bullet used to open with the
+            # row meaning, which is now the one thing it can never mean; the
+            # last clause is what it is left saying, and it is the one that was
+            # always about the column. Reports saved before that day still hold
+            # the word on rows, so the bullet stays: a reader opening one needs
+            # it explained, and the last sentence says so rather than leaving a
+            # word on screen the guide no longer covers.
             "<li>" + html.escape(tr(
-                "COND (short for conditional): nothing failed, but the result "
-                "comes with a documented exception. For a row it means the row "
-                "is a recommendation rather than a requirement and the value "
-                "is over it. For a column's Overall it means a recommendation "
-                "was exceeded, or the set contains rows this chart could not "
-                "supply, so the set as a whole was only partly "
-                "checked.")) + "</li>"
+                "COND (short for conditional): a column's Overall word when "
+                "nothing failed but the set was only partly checked, either "
+                "because it holds rows this chart could not supply or because "
+                "its values are a standard's applied to your chart rather than "
+                "to that standard's own. Rows do not use this word. A report "
+                "saved before ChromIQ 4.3.0 may still show it on a row, where "
+                "it meant a value over a limit the set recommended rather than "
+                "required; such a row reads FAIL today and carries a numbered "
+                "note saying the metric is a recommendation.")) + "</li>"
             "<li>" + html.escape(tr(
                 "INFO: the number is shown for your information and nothing "
                 "was judged from it. That happens when this limit set puts no "
@@ -9637,9 +9666,19 @@ class MeasurementReportDialog(QDialog):
             if word == N_A and x.get("reason"):
                 tip = self._reason_sentence(x.get("reason"), r)
             elif word == COND:
-                tip = tr("CONDITIONAL: over a value this limit set recommends "
-                         "but does not require. Nothing failed; the exceedance "
-                         "is documented.")
+                # A ROW CANNOT BE JUDGED COND ANY MORE, so reaching this line
+                # means the report was SAVED with the word and is being read
+                # back. The tooltip says that rather than describing a rule the
+                # app no longer applies; the verdict itself is left exactly as
+                # it was recorded, because a saved verdict is the record §5
+                # keeps comparable across dates and rewriting it would change
+                # history to make a screen tidy.
+                tip = tr("CONDITIONAL: this report was saved by an earlier "
+                         "ChromIQ, where a value over a limit the set "
+                         "recommended rather than required read CONDITIONAL "
+                         "instead of FAIL. The verdict is shown as it was "
+                         "recorded. Generate the report again to have it "
+                         "judged by today's rule.")
             # THE MARKER, WHICH IS THE HALF OF THE RULING THAT IS EASY TO
             # FORGET. A numbered list nobody is pointed at is a paragraph. The
             # numbers come from the same `numbered_notes` call the list below

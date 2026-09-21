@@ -42,7 +42,8 @@ readable the row reads `?` and nothing was inferred.
 |---|---|
 | **limit set** | one column of the limits table: the numbers a report is judged against, one per row. The user-facing word is "limit set"; the code says "compliance set" |
 | **row** | a *population × statistic*: which patches, which number. "All patches, average" and "Control-strip patches, average" are different rows |
-| **PASS / FAIL / COND / INFO / N-A** | the five verdict words (Knut, K-f). COND is short for CONDITIONAL; N-A keeps Knut's hyphen |
+| **PASS / FAIL / COND / INFO / N-A** | the five verdict words (Knut, K-f). COND is short for CONDITIONAL; N-A keeps Knut's hyphen. **Since 2026-09-21 COND is an OVERALL word only** and no row can be judged into it (§14); it stays defined because reports saved before that day carry it on rows |
+| **recommendation / should-limit** | a limit the set recommends rather than requires. Drawn in brackets, `[number, "should"]` in a values file, `Limit.is_should` in code. It is judged and aggregated exactly like a required limit; what it changes is that the row carries a numbered NOTE (§14) |
 | **bound** | a profile run has a copy of a set's limits in its `meta.json` |
 | **locked** | the run has a measured verification and has not been unlocked |
 | **Overall** | the one word for a whole column (one dated verification) |
@@ -120,10 +121,17 @@ Custom ISO 12647-7 · Custom ISO 12647-8.
 
 Factory values (Knut K4/Q1): ChromIQ default 2.0 / 2.0 / 2.0 / 3.0 / 3.0 on
 the five ΔE00 rows; tight 1.0 / 1.0 / 1.0 / 1.5 / 1.5; quick 4.0 / 4.0 / 4.0 /
-6.0 / 6.0. The grey-balance pair is a **recommendation** (shown in brackets) in
-every ChromIQ set, (1.5)/(3.0), (1.0)/(2.0), (3.0)/(7.0), until a healthy
-printer has been measured (Sebastian's S-10); exceeding it reads COND, never
-FAIL.
+6.0 / 6.0. The grey-balance pair carries 1.5/3.0, 1.0/2.0 and 3.0/7.0 in the
+three ChromIQ sets and is an **ordinary limit** in each of them.
+
+> **THIS CHANGED ON 2026-09-21 AND THE NUMBERS DID NOT.** The pair was a
+> **recommendation** (shown in brackets) in every ChromIQ set until that day,
+> on Sebastian's S-10, and exceeding it read COND rather than FAIL. Knut ruled
+> the bracket off ChromIQ's own sets, and off `ramps_30_70_dl_max` in Custom
+> ISO 12647-7 with it, so that a bracket only ever appears where a standard is
+> involved. See §14. **No set ChromIQ ships marks any row a recommendation
+> now**; the notation remains for a licence holder's own values file and for a
+> row a user marks in one of the two editable Custom columns.
 
 A cell is one of: a number (required), a number in brackets (recommended),
 `–` (the set puts no limit on the row), `✕` (ChromIQ cannot measure it; the
@@ -163,11 +171,17 @@ number is in a clause ChromIQ does not hold or may not show).
 
 **⏳ Awaiting confirmation.** **Confirmed by:** *nobody yet.*
 
-Per row: PASS when the value is within the limit; FAIL when over a required
-limit; COND when over a recommended one; INFO when the set puts no limit on
-the row, or the sheet is not graded, **or the row itself could not be graded,
-or the chosen report type judges nothing**; N-A when the chart or the reference
-cannot supply the row, with the reason beside it.
+Per row: PASS when the value is within the limit; FAIL when over it,
+**whether the set requires that limit or only recommends it** (§14); INFO when
+the set puts no limit on the row, or the sheet is not graded, **or the row
+itself could not be graded, or the chosen report type judges nothing**; N-A
+when the chart or the reference cannot supply the row, with the reason beside
+it.
+
+> **COND WAS THE WORD FOR "OVER A RECOMMENDED LIMIT" UNTIL 2026-09-21.** It is
+> retired as a row word; see §14 for the ruling and for what replaces it. A
+> report saved before that day still holds the word on rows and is shown as it
+> was recorded.
 
 > **TWO CAUSES OF INFO WERE MISSING FROM THIS SENTENCE, AND KNUT HAS SEEN
 > NEITHER.** An adversarial round drove them on 2026-09-11 and found the
@@ -1281,3 +1295,94 @@ The popup's wording is **M-REPORT-UPDATE-OR-NEW**, in §M-PROPOSED of
 "Report type", the run number at the front of a profiling run's entry, and
 Delete moving a report to `reports/old/date_ReportId`. All of it is from the
 same comment and all of it moves files a user already has.
+
+
+## 14. The verdict ruling of 2026-09-21: COND retired, and the metric note
+
+**⏳ Awaiting confirmation.** **Confirmed by:** *nobody yet.*
+
+Knut ruled on this in writing on #182 between 00:46 and 01:06 (CEST) on
+2026-09-21, and revised himself twice inside those twenty minutes. What is
+recorded here is the ruling as it stood at the end, not as it started; the
+withdrawn version is written down as well, because it is the part most likely
+to be rebuilt by mistake.
+
+### 14.1 What he ruled
+
+1. **The bracket stays in the table cells**, with one line of legend in the
+   Report limits window saying what it means, *"alongside what –, ? and ✕
+   mean"*.
+2. **A reference number at the end of each metric's label**, pointing to a note
+   below the table: *"there should be a note associated with the metric its
+   self, like a reference number at the end of the metric label-name, pointing
+   to a note below the table in the Report Limits window (and in the report
+   text also a number on the metric name, pointing to a note in the report
+   text)."*
+3. **The note** says the standard calls the metric recommended rather than
+   required, and that it may be applied optionally.
+4. **COND is retired as a row word.** *"it might be better to standardise on
+   all metrics being tested against a threshold shows as FAIL or PASS (always,
+   also for the standards), and the COND term is retired, all tests that fail
+   or pass are handled equally."* His reasoning, which is the part worth
+   keeping: outside the ISO sets a recommended row is *"just another metric to
+   include as a test"*, so a third word carries no information there and costs
+   understanding everywhere.
+5. **Every should-limit leaves ChromIQ's own set definitions.** He first asked
+   for it of the Custom ISO 12647-7 row, *"the thresholds that use a bracket,
+   ex. '(3,00)', should not have a bracket, since it is not a
+   'recommended'/'should' type metric"*, and then agreed to the three ChromIQ
+   sets as well: *"Remove them, so a bracket only ever appears where a standard
+   is involved, and ChromIQ's own sets have requirements and nothing else."*
+
+### 14.2 What he WITHDREW, and which must not be built
+
+At 00:46 he asked that a failed recommendation still leave the overall result
+PASS, and that the note say so. **At 00:55 he withdrew both**:
+
+> *"I recommend that all thresholds tested against are treated the same, so
+> there is no need to have special handling of the results of a metric with
+> 'should' (recommended, not required). If the test is applied the report shall
+> show the result as is, and the overall result follows as normal... So do not
+> do this '...and does not affect the overall result of the ISO 12647
+> verification.' and do not do this 'A failed recommendation must still leave
+> the measurement's overall result PASS, provided every required metric
+> passes.'"*
+
+So **the aggregation does not change at all**. A failed recommendation sinks a
+column exactly as any other failure does, and **the note may not say otherwise**:
+a sentence excusing such a row from the Overall would be false of the code as
+well as against the ruling that replaced it.
+
+### 14.3 What this means in the table
+
+| | before 2026-09-21 | after |
+|---|---|---|
+| a value over a **required** limit | FAIL | FAIL |
+| a value over a **recommended** limit | COND | **FAIL**, plus a numbered note |
+| a value within either | PASS | PASS |
+| the column's **Overall** | unchanged | unchanged |
+| rows marked "should" in ChromIQ's own sets | 7 | **0** |
+
+The bracket, `Limit.is_should` and the `[number, "should"]` form in a values
+file **all stay in the data**: they are what decides which rows carry a note.
+Only the displayed word goes.
+
+### 14.4 The consequence Knut was told about before it was built
+
+After §14.1 point 5, **no bracket appears anywhere by default**, because a
+licence holder's own values file and the two editable Custom columns are the
+only remaining sources of a should-limit. A fully green test suite therefore
+proves nothing about the note path, and the note was demonstrated to him on
+screen through a hand-marked should-limit in a Custom column instead, which
+touches no real standard value.
+
+### 14.5 Reports saved before the ruling
+
+A saved report carries the verdicts it was saved with, COND included, and
+**they are not rewritten**: a saved verdict is the record §5 keeps comparable
+across dates. Such a row is shown exactly as recorded, and the word is still
+defined and still explained in the report's own guide, which now says it is an
+Overall word, that rows do not use it, and what it meant on a row in a report
+saved before ChromIQ 4.3.0. Generating the report again judges it by today's
+rule.
+

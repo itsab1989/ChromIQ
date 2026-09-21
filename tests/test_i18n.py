@@ -1164,18 +1164,23 @@ _IDENTICAL_TO_KEY = {
     # tree this commit leaves behind, never adjusted upward. German is
     # translated by hand in the same change and so moves only by strings that
     # are identical in every language.
+    # RE-MEASURED 2026-09-22 on the COMBINED tree, after merging five parallel
+    # rounds. Neither any agent's numbers nor my own earlier ones were carried
+    # forward: every round that lands moves these files, so any figure written
+    # before the last merge is stale by construction. COUNTED with this file's
+    # own helper on the tree this commit leaves behind, never adjusted upward.
     "de": 146,
-    "es": 891,
-    "fr": 913,
-    "it": 902,
-    "ja": 877,
-    "nl": 918,
-    "no": 903,
-    "pl": 895,
-    "pt": 893,
-    "ru": 866,
-    "sv": 904,
-    "zh_CN": 871,
+    "es": 898,
+    "fr": 920,
+    "it": 909,
+    "ja": 884,
+    "nl": 925,
+    "no": 910,
+    "pl": 902,
+    "pt": 900,
+    "ru": 873,
+    "sv": 911,
+    "zh_CN": 878,
 }
 
 
