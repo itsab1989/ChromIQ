@@ -5806,16 +5806,8 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   will result in a changed report, and will see that it does change or not when
   clicking "Generate report". It will also give a user a chance to undo a
   changed field, if not wanting to regenerate the report. Make the change."*
-- evidence:
-  test_a_fresh_window_says_nothing,
-  test_the_two_tick_boxes_wait_and_say_so,
-  test_the_ticked_measurements_are_one_of_the_five,
-  test_generate_builds_the_document_and_clears_the_warning,
-  test_a_new_measurement_still_appears_at_once,
-  test_every_one_of_the_five_goes_through_one_door,
-  test_the_banner_is_a_comparison_and_not_a_flag,
-  test_choosing_a_type_WAITS_FOR_GENERATE_and_says_so,
-  test_putting_the_type_back_takes_the_warning_away.
+- re-cited 2026-09-22: Its guard named the two tick boxes. One of them, "Show all measurement runs", was removed with its feature by B8-591, so the surviving half is proven by the defaults guard instead.
+- evidence: test_the_two_defaults_that_are_left_are_on_screen_and_default_on
 - detail: five settings now move the CONTROL and leave the DOCUMENT standing,
   with a red line beside the button saying so: report type, judged against,
   show all measurement runs, show detailed data, and the measurements ticked in
@@ -17073,18 +17065,8 @@ would reach.
   document; now `measurements` is `_runs_for_document()`, which is what §13.4
   asks for.
 - status: FIXED
-- evidence: test_the_name_carries_knuts_flags,
-  test_the_flag_words_are_translated_at_display_and_not_stored,
-  test_one_measurement_turns_show_all_off_and_greys_it,
-  test_the_automatic_record_is_named_one_date,
-  test_every_entry_carries_its_own_settings_in_its_name.
-  Mutations proved to land, `__pycache__` cleared around each: the scope clause
-  dropped from `_document_label` (**1 failed**), the `alone` branch removed from
-  `_sync_limit_controls` (**1 failed**), `scope=SCOPE_ONE_DATE` dropped from the
-  automatic record (**1 failed, and this one was found by the mutation itself:
-  the first version of the guard asked the DERIVED scope, which answers "One
-  date" for a file carrying nothing**); restored, green each time.
-
+- re-cited 2026-09-22: Its guard turned on "Show all measurement runs", removed by B8-591. The naming behaviour it recorded is proven by the date-stamp guard.
+- evidence: test_a_report_never_updated_shows_one_date_and_no_saved_stamp
 ### B8-393 · FIXED · The demo package must be rebuilt for the new report model and released with beta 22
 - blocks release: yes
 - status: FIXED
@@ -17516,15 +17498,8 @@ would reach.
   did -- none of those settings is imposed on it, which is what B8-388 decided
   deliberately for reports that record none of their own.
 - status: FIXED
-- evidence: test_a_window_that_lands_on_new_report_holds_its_defaults,
-  test_that_opening_state_is_preferences_and_not_a_constant,
-  test_the_tick_boxes_are_built_from_the_preferences_defaults,
-  test_picking_new_report_again_still_loads_the_defaults (which drives the real
-  gesture: open the list, pick the row it is standing on).
-  Three mutations proved to land, `__pycache__` cleared around each:
-  `if docs: return` put back in the open path (**2 failed**),
-  the `activated` connection dropped (**1 failed**), the detail box built from
-  `report_show_details` again (**1 failed**); restored, 25 passed each time.
+- re-cited 2026-09-22: Its guard read the two tick boxes out of Preferences; one is gone with B8-591. The defaults round trip is proven directly.
+- evidence: test_the_defaults_are_written_and_read_back
 - guard file: `the_measurement_report_defaults_are_knuts`, under `tests/`.
 - on screen: round 24's own driver `r24_e_new_report_claims_a_state.py` on
   ChromIQ's own `Demo-Switching` with a fresh settings file. At open, before:
@@ -18330,8 +18305,8 @@ would reach.
 - what to ask him: when the window OPENS on a report that records no document
   of its own, should the two tick boxes follow it (one date, no detail) exactly
   as they do when the same entry is clicked?
-- evidence: test_opening_the_window_restores_the_tick_boxes_of_a_pre_182_report,
-  test_a_selected_report_restores_all_five_of_its_settings
+- re-cited 2026-09-22: Five settings became four when B8-591 removed the checkbox. What a selected report restores is proven by the ticks guard.
+- evidence: test_selecting_a_report_ticks_only_its_own_measurement
 - proof: `~/Desktop/ChromIQ-beta23-proof/round-27-report/D-R27-F3-photographs/AFTER-open-state.png`
   is the fault; `~/Desktop/ChromIQ-beta26-proof/knut-restore-and-generate/` is
   the same window after his ruling.
@@ -19664,10 +19639,8 @@ would reach.
 - **B8-388 IS MARKED SUPERSEDED, NOT DELETED**, and only for the one decision
   inside it Knut overruled; every other thing it built still stands and its
   entry says which.
-- evidence: test_a_selected_report_restores_all_five_of_its_settings,
-  test_the_included_measurements_list_is_reticked_to_the_reports_own_set,
-  test_opening_the_window_restores_the_tick_boxes_of_a_pre_182_report,
-  test_a_report_that_records_no_measurements_leaves_the_rows_alone
+- re-cited 2026-09-22: Same as B8-432: the fifth setting no longer exists after B8-591, and restoring a report's own measurements is proven here.
+- evidence: test_selecting_a_report_ticks_only_its_own_measurement
 - mutations, each run with `__pycache__` cleared and SEEN red, then restored:
   the `_restore_the_documents_view` call dropped from `_apply_document`
   (**2 failed**), the same call dropped from `_adopt_visible_document`
@@ -20285,10 +20258,8 @@ would reach.
   document of eleven sheets, which §10 rules out; the window now says so before
   the press instead of after it. If he wants T1 to widen, that is his ruling to
   make and it changes §10.
-- evidence: test_the_one_page_summary_disables_the_detail_box_and_says_why,
-  test_the_one_page_summary_draws_one_tick_without_hiding_anything,
-  test_a_one_page_summary_is_named_one_date_and_stores_one
-
+- re-cited 2026-09-22: Its guard asserted the one-page type DREW one tick while the model kept the others, which is the fault B8-590 removed. Generate now refuses and says so, proven here.
+- evidence: test_generate_refuses_a_one_page_summary_of_several
 ### B8-524 · FIXED · The text beside "Report shown" wraps to a second line and stops there
 - status: FIXED
 - blocks release: no
@@ -21025,7 +20996,7 @@ would reach.
   `__pycache__` purged) turns all six per-window/appearance cases red; the fix
   turns them green again. A second test pins the chosen approach by asserting
   no `QFrame {` rule exists in any of the three appearance stylesheets.
-- evidence: `~/Desktop/ChromIQ-beta30-proof/square-corners/FINDINGS.md`.
+- evidence: test_every_bare_styled_panel_is_rounded_not_square, test_the_app_still_has_no_blanket_qframe_rule. Proof: `~/Desktop/ChromIQ-beta30-proof/square-corners/FINDINGS.md`.
 ### B8-556 · FIXED · Guided printed its own settings stamp over the patches and said nothing
 - status: FIXED
 - blocks release: no
@@ -21083,10 +21054,7 @@ would reach.
   that path, and one printtarg raster stamped twice is bit-identical. (Two
   printtarg RUNS are not comparable at all -- identical commands differ in 276
   pixels inside its own right-margin date line.)
-- evidence: test_the_guided_stamp_keeps_off_the_patches,
-  test_the_row_labels_pay_for_the_stamp_not_the_patches,
-  `scripts/drive_b8556_guided_stamp.py`,
-  `~/Desktop/ChromIQ-beta30-proof/guided-stamp/`
+- evidence: test_the_guided_hexagon_sheet_stops_printing_the_stamp_over_its_patches, test_the_whole_guided_surface_keeps_every_patch, test_the_reported_chart_still_holds_396_patches, test_no_guided_chart_lays_patches_under_its_own_stamp, test_the_walk_stops_at_the_first_rung_that_clears, test_a_typed_row_label_size_is_never_walked.
 ### B8-630 · FIXED · The workflow steps did not follow the shape Knut named as the model
 - status: FIXED
 - blocks release: no
@@ -22048,7 +22016,4 @@ would reach.
   bit-identical, and a control sheet's whole STAMPED raster is pinned equal.
 - this also clears the residue B8-556 recorded as unfixable: at 0.25 mm the
   line no longer touches the hexagon apex points at all.
-- evidence: test_the_guided_stamp_keeps_off_the_patches (4 tests, incl.
-  `test_the_freed_paper_is_spent_as_white_and_not_as_type` and
-  `test_an_absurd_gap_cannot_push_the_note_off_the_sheet`),
-  `~/Desktop/ChromIQ-beta30-proof/guided-stamp/before_first_now_zoom.png`
+- evidence: test_the_freed_paper_is_spent_as_white_and_not_as_type, test_an_absurd_gap_cannot_push_the_note_off_the_sheet, test_the_sheets_that_already_had_room_are_not_touched, test_only_the_charts_that_needed_it_moved.

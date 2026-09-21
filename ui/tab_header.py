@@ -1,7 +1,7 @@
 """Reusable step-header widget shown at the top of each workflow tab."""
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QEvent, Qt
 from PyQt6.QtGui import QColor, QFont, QPainter
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 
@@ -68,6 +68,7 @@ class TabHeader(QWidget):
         title_font = QFont()
         title_font.setLetterSpacing(QFont.SpacingType.PercentageSpacing, 85)
         self._title_lbl.setFont(title_font)
+        self._fit_title_ink()
         title_row.addWidget(self._title_lbl, 0, Qt.AlignmentFlag.AlignVCenter)
 
         self._tooltip_btn: TooltipButton | None = None
@@ -130,6 +131,7 @@ class TabHeader(QWidget):
         )
 
     def set_appearance(self, _mode: str) -> None:
+        self._fit_title_ink()
         """Re-paint the accent stroke and eyebrow for a new appearance.
 
         `MainWindow.apply_theme` broadcasts to every descendant that has this
@@ -139,9 +141,69 @@ class TabHeader(QWidget):
         """
         self._paint_accent()
 
+    def _fit_title_ink(self) -> None:
+        """Give the title the width of its INK, not of its advance.
+
+        Sebastian reported this three times and it was never marginal: *"the
+        last letter has a few px cut off"* on the Print Chart heading. The
+        string fits by every width calculation there is, and the final letter
+        is still sliced.
+
+        WHICH OF THE THREE CAUSES IT IS, measured on screen 2026-09-21 in a
+        real window, this heading being Georgia at 30 px with
+        `setLetterSpacing(85 %)`:
+
+            lang  advance   ink right   label width   ink outside
+            uk        354         356           354          2 px
+            de        205         207           205          2 px
+            en        169         170           170          0 px
+
+        Not elision (the label is not narrower than its text) and not a clip
+        rect. It is the **right side bearing**: Georgia's last glyph paints
+        past the advance the layout reserved for it, and `QLabel.sizeHint()` is
+        built from `horizontalAdvance`, so the widget is sized to the layout
+        box while the ink needs one or two pixels more. The 85 % letter
+        spacing pulls every advance in and makes the gap a little wider again.
+
+        So the minimum is raised to the ink box. Measured across five headings
+        in three languages, fourteen of the fifteen were losing 1-2 px and the
+        one that was not is English "Print test chart", which happens to end in
+        a `t`. This is why it looked like a Ukrainian problem: Ukrainian is
+        merely the language whose headings are longest and whose final letters
+        are round.
+        """
+        from PyQt6.QtGui import QFontMetrics
+        text = self._title_lbl.text()
+        if not text:
+            return
+        fm = QFontMetrics(self._title_lbl.font())
+        advance = fm.horizontalAdvance(text)
+        ink = max(fm.tightBoundingRect(text).right() + 1,
+                  fm.boundingRect(text).right() + 1)
+        # Only ever raises, and only by the overhang: a heading whose ink sits
+        # inside its advance is left exactly as it was.
+        if ink > advance:
+            self._title_lbl.setMinimumWidth(ink)
+        else:
+            self._title_lbl.setMinimumWidth(0)
+
+    def changeEvent(self, event) -> None:  # noqa: N802
+        """Re-fit whenever the FONT this is painted in can have changed.
+
+        Measuring once in `__init__` is measuring the wrong font: the heading
+        is Georgia 30 px because of the application stylesheet, which is
+        applied after the widget is built. The first version of this fix did
+        exactly that and moved one heading out of five.
+        """
+        super().changeEvent(event)
+        if event.type() in (QEvent.Type.FontChange, QEvent.Type.StyleChange,
+                            QEvent.Type.ApplicationFontChange):
+            self._fit_title_ink()
+
     def set_texts(self, step_text: str, title_text: str) -> None:
         self._step_lbl.setText(step_text)
         self._title_lbl.setText(title_text)
+        self._fit_title_ink()
 
     def set_tooltip(self, title: str, body: str) -> None:
         """Update the headline tooltip's title and body."""

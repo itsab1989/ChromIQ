@@ -80,6 +80,15 @@ def dlg(qapp, tmp_path, monkeypatch):
     from ui.dialogs.thresholds_dialog import ThresholdsDialog
     s = AppSettings()
     s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
+    # SHOW EVERY COLUMN EXPLICITLY. Which columns are drawn is a remembered
+    # setting, and `ui/widgets.py` keeps the app's settings in a module global,
+    # so a sibling test that hid the ISO columns leaves this window with no
+    # read-only cells at all and these guards pass vacuously or fail with
+    # ('value', []). Seen once in a full -n auto run while passing alone and
+    # under two workers, which is the signature of leaked global state rather
+    # than of a fault in the window.
+    s.set("compliance_columns_shown",
+          ",".join(x.id for x in cs.SETS))
     d = ThresholdsDialog(s, None)
     d.resize(1500, 980)
     yield d
@@ -173,8 +182,14 @@ def test_all_five_cell_kinds_are_actually_on_screen_here(dlg):
     """
     kinds = {k for _r, k, w, _s in _pairs(dlg) if _ink_centre(w) is not None}
     # `unmeasurable` rows have no spin box anywhere in them, so they never pair
+    assert kinds, (
+        "the window drew no read-only cells at all, so these guards would "
+        "prove nothing. The usual cause is that no ISO column is shown: that "
+        "is a remembered setting and the fixture now sets it explicitly.")
     for want in ("value", "should", "none", "unknown"):
-        assert want in kinds, (want, sorted(kinds))
+        assert want in kinds, (
+            f"no read-only cell of kind {want!r} is on screen; kinds drawn: "
+            f"{sorted(kinds)}")
     # …and the fifth kind, checked without a pair
     crosses = [w for (c, r), w in dlg._cells.items()
                if isinstance(w, QLabel) and w.text() == "✕"]

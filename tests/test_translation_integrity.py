@@ -226,7 +226,26 @@ _CHECKBOX_BUDGET = 163   # same column, minus the checkbox indicator
 
 @pytest.mark.parametrize("code", CODES)
 def test_translated_parameter_names_fit_their_column(code, qapp):
-    """A name wider than its column is clipped behind the control beside it."""
+    """A name wider than its column must ELIDE and still be readable in full.
+
+    THIS USED TO SAY "not one name may be wider than the column", and that was
+    the wrong question. The column is a hard 190 px so every control below it
+    lines up, the pane it sits in is locked to 580 px, and there is nowhere for
+    a wider column to go — so the rule amounted to "no language may need more
+    room than English", which is not a property a translation can be asked for.
+    Ukrainian put 22 names over it (widest `colprof -S` at 332 px of 163,
+    2026-09-21) and every one of them was a fact about the COLUMN.
+
+    So the column now elides and hands the reader the whole name as a tooltip
+    (`ElidingLabel` / `ElidingCheckBox`), and what is asked here is the thing
+    that actually protects the reader: a name too wide for its column is shown
+    with an ellipsis rather than sliced at the frame, the full name is one
+    hover away, and `text()` still answers with the whole of it. That holds for
+    every language including the next one, which a width budget never did.
+
+    MUTATION: put `QLabel` / `QCheckBox` back in `ui/parameter_widget.py` and
+    this goes red for every language that overflows the column.
+    """
     from _fontcheck import skip_without_fonts
     skip_without_fonts()                 # column-fit pivots on real text widths
     import yaml
@@ -234,6 +253,7 @@ def test_translated_parameter_names_fit_their_column(code, qapp):
     from core import i18n
     from core.resource_path import resource_path
     from PyQt6.QtWidgets import QLabel
+    from ui.parameter_widget import ParameterWidget
 
     # ALWAYS restore, and restore to what current_language() actually reports.
     # The first version read a "_LANG" attribute that does not exist (the module
@@ -255,11 +275,34 @@ def test_translated_parameter_names_fit_their_column(code, qapp):
                 budget = _CHECKBOX_BUDGET if expert else _LABEL_BUDGET
                 width = metrics.horizontalAdvance(p["name"] + ":")
                 if width > budget:
-                    over.append(f"{tool} {p['flag']} {p['name']!r} "
-                                f"= {width}px, budget {budget}")
-        assert not over, (
-            f"{code}: {len(over)} parameter name(s) overflow the label column "
-            f"and will be clipped on screen:\n  " + "\n  ".join(over)
+                    over.append((tool, p, width, budget))
+
+        # Every one of them, on a REAL row built the way the tab builds it.
+        bad = []
+        for tool, p, width, budget in over:
+            row = ParameterWidget(dict(p))
+            row.resize(560, 32)
+            row.show()
+            qapp.processEvents()
+            w = row._enable_check if p.get("expert_only") else row._label
+            full = p["name"] + ":"
+            painted = type(w).__mro__[1].text(w)     # what Qt will paint
+            if w.text() != full:
+                bad.append(f"{tool} {p['flag']}: text() is not the full name")
+            elif painted == full:
+                pass            # it fits after all; the style gave it room
+            elif "…" not in painted and "(...)" not in painted:
+                bad.append(f"{tool} {p['flag']} ({width}px of {budget}): "
+                           f"cut off without an ellipsis: {painted!r}")
+            elif w.toolTip() != full:
+                bad.append(f"{tool} {p['flag']}: elided to {painted!r} and the "
+                           f"full name is not offered as a tooltip")
+            row.hide()
+            row.deleteLater()
+        qapp.processEvents()
+        assert not bad, (
+            f"{code}: {len(bad)} of {len(over)} parameter name(s) wider than "
+            f"the label column are not handled:\n  " + "\n  ".join(bad)
         )
     finally:
         i18n.set_language(previous)

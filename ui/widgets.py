@@ -2837,6 +2837,157 @@ class ElidingLabel(QLabel):
         self.setToolTip(full)
 
 
+def rewrap_button_label(btn, room_px: int) -> bool:
+    """Re-flow a button's label so its WIDEST LINE fits ``room_px``.
+
+    Why this exists, and why it is not elision. A ChromIQ button's label is
+    written with its own line break -- `"Print\nCurrent Page"` -- and a
+    translator keeps that break where their words want it. `fit_button_width`
+    then sizes the button from the widest LINE, so one long line decides the
+    button's width and, through it, whether four of them fit the 580 px pane.
+
+    Sebastian, 2026-09-21, on the Print Chart row in Ukrainian: all four
+    buttons cut at both ends, and then, when the row was allowed to wrap,
+    *"buttons on the bottom are now in two rows, but should be one like
+    everywhere else"*. Both are right: the ROW must stay one row, and the text
+    has to fit inside it. English already wraps its label onto two lines inside
+    a single button, so this is the existing pattern rather than a new one --
+    it simply stops treating the translator's break as the only one allowed.
+
+    Returns True when the label was changed. Words are never split and never
+    reordered; a single word longer than ``room_px`` is left alone and the
+    caller has to make room some other way.
+    """
+    from PyQt6.QtGui import QFontMetrics
+    text = btn.text() or ""
+    if not text:
+        return False
+    fm = QFontMetrics(btn.font())
+
+    def advance(line: str) -> int:
+        if btn.font().capitalization() == QFont.Capitalization.AllUppercase:
+            line = line.upper()
+        return fm.horizontalAdvance(line)
+
+    original_lines = [x for x in text.split("\n") if x.strip()]
+    if max(advance(x) for x in original_lines) <= room_px:
+        return False
+    words = [w for w in text.replace("\n", " ").split(" ") if w]
+    if len(words) < 2:
+        return False
+
+    def widest(groups):
+        return max(advance(" ".join(g)) for g in groups)
+
+    def best_split(n: int):
+        """The n-line break that makes the WIDEST line as narrow as possible.
+
+        Greedy filling is what produced "Зберегти як За / замовчуванням" --
+        correct width, nonsense break. There are only a handful of words on a
+        button, so every break point is tried and the most balanced one wins,
+        which is also the one that reads like a person put it there.
+        """
+        best = None
+        cuts = len(words) - 1
+        for mask in range(1 << cuts):
+            if bin(mask).count("1") != n - 1:
+                continue
+            groups, cur = [], [words[0]]
+            for i in range(cuts):
+                if mask >> i & 1:
+                    groups.append(cur)
+                    cur = []
+                cur.append(words[i + 1])
+            groups.append(cur)
+            w = widest(groups)
+            if best is None or w < best[0]:
+                best = (w, groups)
+        return best
+
+    # Keep the number of lines the label already had if that can be made to
+    # fit; only take another line when it genuinely cannot.
+    chosen = None
+    for n in range(max(len(original_lines), 2), len(words) + 1):
+        found = best_split(n)
+        if found is None:
+            continue
+        if found[0] <= room_px:
+            chosen = found[1]
+            break
+        chosen = chosen or found[1]
+    if chosen is None:
+        return False
+    new = "\n".join(" ".join(g) for g in chosen)
+    if new == text:
+        return False
+    btn.setText(new)
+    # The full label, unbroken, so a reader who wants it in one piece has it.
+    if not btn.toolTip():
+        btn.setToolTip(" ".join(words))
+    return True
+
+
+class ElidingCheckBox(QCheckBox):
+    """Check box whose LABEL elides instead of being cut off by a fixed width.
+
+    `ElidingLabel`'s contract, on a check box, and for the same reason: the
+    expert parameter rows put their name on a check box pinned to the 190 px
+    name column, and a name longer than the column was simply sliced at the
+    frame with nothing to tell the reader what it said. Measured 2026-09-21 in
+    Ukrainian: 22 parameter names over the column, the widest asking 332 px of
+    163 (`colprof -S`, "Джерело відображення гами (відчуття + насиченість)").
+    A language is allowed to be longer than English; a control that silently
+    swallows the difference is not.
+
+    `text()` still returns the FULL string, so callers, tests and the tooltip
+    all see the name rather than the ellipsis, exactly as `ElidingLabel` does.
+    """
+
+    _SEP = "…"
+
+    def __init__(self, text: str = "", parent: QWidget | None = None) -> None:
+        self._full_text = ""
+        super().__init__(parent)
+        self.setText(text)
+
+    def setText(self, text: str) -> None:  # type: ignore[override]
+        self._full_text = text or ""
+        self._apply_elision()
+
+    def text(self) -> str:  # type: ignore[override]
+        return self._full_text
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._apply_elision()
+
+    def _room_for_text(self) -> int:
+        """The width left after the indicator and its spacing."""
+        from PyQt6.QtWidgets import QStyle, QStyleOptionButton
+        try:
+            opt = QStyleOptionButton()
+            opt.initFrom(self)
+            box = self.style().subElementRect(
+                QStyle.SubElement.SE_CheckBoxContents, opt, self)
+            if box.width() > 0:
+                return box.width()
+        except Exception:      # noqa: BLE001 — sizing must never raise
+            pass
+        return self.width() - 24
+
+    def _apply_elision(self) -> None:
+        full = self._full_text
+        avail = self._room_for_text()
+        fm = self.fontMetrics()
+        if avail <= 0 or fm.horizontalAdvance(full) <= avail:
+            super().setText(full)
+            if self.toolTip() == full:
+                self.setToolTip("")
+            return
+        super().setText(fm.elidedText(full, Qt.TextElideMode.ElideRight, avail))
+        self.setToolTip(full)
+
+
 def reapply_input_stylesheet(root: QWidget) -> None:
     """Re-apply the per-widget input-bg QSS on every combo/spin descendant.
     Called from MainWindow.apply_theme on every theme switch so the

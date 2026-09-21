@@ -170,7 +170,7 @@ def main() -> int:
         shutil.copy(t, out / ("sheet_" + t.name))
     ti2 = sorted((out / "ChromIQ").rglob("*.ti2"))
     for f in ti2:
-        txt = f.read_text(errors="ignore")
+        txt = f.read_text(encoding="utf-8", errors="ignore")
         for line in txt.splitlines():
             if line.startswith(("NUMBER_OF_SETS", "STEPS_IN_PASS",
                                 "PASSES_IN_STRIPS2")):

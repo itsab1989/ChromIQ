@@ -102,7 +102,18 @@ def test_no_new_english_ui_text_uses_an_em_dash():
 #: language, so they were converted back. Without this entry the rule below
 #: would then fire on the 39 of them whose English carries no dash, which is
 #: exactly the case where Russian needs one most.
-_EM_DASH_IS_NATIVE = {"ja", "ru", "zh_CN"}
+#:
+#: **Ukrainian joins for the Russian reason, and it was measured the same way
+#: before it was added.** The Ukrainian dash is the тире, it is U+2014, and the
+#: Правопис gives it the copula job English has no dash for at all ("Київ —
+#: столиця України"). There is no second character to reach for: the en dash is
+#: not Ukrainian punctuation. Measured on LackiUA's catalogue as it arrived
+#: (issue #198, 4,930 translated strings): **1,994 em dashes against 49 spaced
+#: en dashes** — the Russian shape, not the German one. Without this entry the
+#: rule below fires on the 31 strings whose English carries no dash, which is
+#: precisely where Ukrainian needs one, and the fix it suggests (an en dash)
+#: would be wrong in every one of them.
+_EM_DASH_IS_NATIVE = {"ja", "ru", "uk", "zh_CN"}
 
 
 def test_no_translation_adds_an_em_dash_the_english_does_not_have():

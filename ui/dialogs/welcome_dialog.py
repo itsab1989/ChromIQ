@@ -3197,14 +3197,60 @@ class WelcomeDialog(QDialog):
         self._close_btn = QPushButton(tr("Close"), _right)
         self._close_btn.clicked.connect(self.accept)
         _right_l.addWidget(self._close_btn)
+        self._footer_left = _left
+        self._footer_mid = _mid
+        self._footer_right = _right
         for _w in (_left, _mid, _right):
             footer.addWidget(_w, 1)      # equal thirds → true centre line
         outer.addLayout(footer)
+        self._balance_footer()
+
+    def _balance_footer(self) -> None:
+        """Keep the centre line true WITHOUT starving the buttons.
+
+        `addWidget(_w, 1)` three times hands each cell exactly a third of the
+        footer, and a third is not enough for four buttons. A QHBoxLayout given
+        less room than the sum of its items' minimums does not shrink them
+        tidily, it lets them clip — so "Save as PDF…" painted as `ave as PDF.`
+        **in English** at v4.3.0-beta.29, losing its first letter and its
+        ellipsis, and Ukrainian lost characters off both ends of two buttons
+        (measured 2026-09-21: `Зберегти як PDF…` 24 px short, `Роздрукувати…`
+        8 px short). The equal thirds were about the Support link in the middle
+        sitting on the window's true centre, and that survives here: both side
+        cells are given the SAME minimum, so the middle stays centred, and the
+        minimum is the wider side's real need rather than an arbitrary third.
+
+        Called whenever the buttons change visibility, because what the right
+        cell needs depends on how many of them are showing.
+
+        **ALL THREE CELLS, NOT TWO.** The first cut of this gave the two side
+        cells their room and said nothing about the middle, which simply moved
+        the starvation one cell over: the Ko-fi link came out as `дтримка Chr`
+        with both ends outside its frame, photographed within the hour. Three
+        cells and a window minimum wide enough for all three is the whole fix;
+        anything less just chooses which control gets cut.
+        """
+        try:
+            side = max(self._footer_left.sizeHint().width(),
+                       self._footer_right.sizeHint().width())
+            mid = self._footer_mid.sizeHint().width()
+            self._footer_left.setMinimumWidth(side)
+            self._footer_right.setMinimumWidth(side)
+            self._footer_mid.setMinimumWidth(mid)
+            # …and the window has to be able to HOLD all three, or the layout is
+            # back to choosing a victim. `setMinimumWidth` only ever raises the
+            # floor here, so a card that already needs a wider window keeps it.
+            want = 2 * side + mid + 48
+            if self.minimumWidth() < want:
+                self.setMinimumWidth(want)
+        except Exception:      # noqa: BLE001 — sizing must never raise
+            pass
 
     def _on_page_changed(self, index: int) -> None:
         self._back_btn.setVisible(index == 1)
         self._print_btn.setVisible(index == 1)
         self._pdf_btn.setVisible(index == 1)
+        self._balance_footer()
 
     def _save_current_card_pdf(self) -> None:
         """Write the card on screen to a PDF the user names (#164)."""

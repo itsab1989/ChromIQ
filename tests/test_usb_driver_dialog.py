@@ -1331,7 +1331,10 @@ def test_the_rename_reached_every_catalogue():
     from pathlib import Path
     root = Path(sd.__file__).resolve().parent.parent.parent / "data" / "i18n"
     codes = sorted(p.stem for p in root.glob("*.json"))
-    assert len(codes) == 12, codes
+    # Thirteen since 2026-09-21: Ukrainian arrived from LackiUA on issue #198.
+    # The number is here so that ADDING a language has to walk past this line
+    # and answer for the keys below, which is exactly what it did.
+    assert len(codes) == 13, codes
     for code in codes:
         cat = json.loads(root.joinpath(f"{code}.json").read_text(encoding="utf-8"))
         assert "Instrument drivers…" in cat, f"[{code}] the button lost its key"

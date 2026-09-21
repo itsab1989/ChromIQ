@@ -17,7 +17,7 @@ from PyQt6.QtWidgets import (
 
 from core.logger import get_logger
 from ui.tooltip_button import TooltipButton
-from ui.widgets import NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, make_browse_button, open_file_dialog
+from ui.widgets import ElidingCheckBox, ElidingLabel, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, make_browse_button, open_file_dialog
 from core.i18n import tr
 
 log = get_logger(__name__)
@@ -269,14 +269,26 @@ class ParameterWidget(QWidget):
             return  # early exit — no _control needed
 
         # Expert non-boolean: enable-checkbox replaces label
+        #
+        # ELIDING, BOTH OF THEM. The name column is a hard 190 px so that every
+        # control below it lines up, and a plain QLabel or QCheckBox given a
+        # name wider than that does not elide -- it is cut off at the frame with
+        # nothing to say what it said. English fits; Ukrainian put 22 of these
+        # names over the column, the widest asking 332 px of 163 (measured
+        # 2026-09-21, `colprof -S`). Widening the column is not available (the
+        # pane is locked to 580 px to line up with Print, Measure and Check &
+        # Refine) and wrapping would make the rows different heights, so the
+        # name elides and carries the full text as its tooltip. `text()` still
+        # returns the whole name on both widgets, so nothing that reads them
+        # sees an ellipsis.
         if self.expert_only:
-            self._enable_check = QCheckBox(name + ":", self)
+            self._enable_check = ElidingCheckBox(name + ":", self)
             self._enable_check.setChecked(False)
             self._enable_check.setFixedWidth(190)
             self._enable_check.setObjectName("param_label")
             layout.addWidget(self._enable_check)
         else:
-            lbl = QLabel(name + ":", self)
+            lbl = ElidingLabel(name + ":", self)
             lbl.setFixedWidth(190)
             lbl.setWordWrap(False)
             lbl.setObjectName("param_label")

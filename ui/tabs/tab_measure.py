@@ -59,7 +59,7 @@ from ui.cr30_calibration import Cr30CalibrationMixin
 from ui.fade_scroll import FadeScrollArea
 from ui.tab_header import TabHeader
 from ui.tooltip_button import TooltipButton
-from ui.widgets import TailFollowLog, ElidingComboBox, ElidingLabel, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, info_box_qss, make_browse_button, open_file_dialog, set_accent_html, set_ink, set_folder_icon, set_preset_icon, spectrum_cell, tint_dialog_primary
+from ui.widgets import TailFollowLog, ElidingComboBox, ElidingLabel, WrappingCheckBox, NoScrollComboBox, NoScrollDoubleSpinBox, NoScrollSpinBox, info_box_qss, make_browse_button, open_file_dialog, set_accent_html, set_ink, set_folder_icon, set_preset_icon, spectrum_cell, tint_dialog_primary
 
 _TAB_COLOR = "#56d6a5"  # Measure tab accent
 from ui.styles import SPEC_GREEN, TAB_COLORS
@@ -2361,7 +2361,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # #131: master switch for measurement sounds (shared by both modes). The
         # individual sounds for each event are chosen in Preferences → Sounds.
         sound_row = QHBoxLayout()
-        self._sound_cb = QCheckBox(tr("Play sounds during measurement"), btn_outer)
+        self._sound_cb = WrappingCheckBox(
+            tr("Play sounds during measurement"), btn_outer)
         self._sound_cb.setChecked(bool(self._settings.get("sound_enabled", False)))
         self._sound_cb.toggled.connect(self._on_sound_toggled)
         sound_row.addWidget(self._sound_cb)
@@ -2913,10 +2914,18 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             row))
         v.addLayout(show_row)
 
-        only = QCheckBox(tr("Show only measured patches"), row)
+        # WRAPPING, NOT PLAIN. `QCheckBox` has no word wrap and clips
+        # rather than eliding, so a label longer than the English one
+        # loses words off the end with nothing to say so. Measured on
+        # screen 2026-09-21 in Ukrainian: these three were over their
+        # room by 61, 38 and 11 px and read "...при н", "...вимірю"
+        # and "...ділянк". Same class and same reasoning as the
+        # Create Chart options; English is unchanged, because the
+        # preferred size is still one line.
+        only = WrappingCheckBox(tr("Show only measured patches"), row)
         only.toggled.connect(
             lambda _on, p=prefix: self._on_view_control_changed(p))
-        tile = QCheckBox(tr("Show patch values on hover"), row)
+        tile = WrappingCheckBox(tr("Show patch values on hover"), row)
         tile.toggled.connect(
             lambda _on, p=prefix: self._on_view_control_changed(p))
         # Two options share this row: "only measured" on the left with its help

@@ -35,7 +35,7 @@ from ui.fade_scroll import FadeScrollArea
 from ui.tab_header import TabHeader
 from ui.tiff_preview import TiffPreview, _find_sidecar_channels
 from ui.tooltip_button import TooltipButton
-from ui.widgets import NoScrollComboBox, PatchGridButton, info_box_qss, load_refresh_icon, open_file_dialog, set_accent_html, spectrum_cell
+from ui.widgets import NoScrollComboBox, PatchGridButton, rewrap_button_label, info_box_qss, load_refresh_icon, open_file_dialog, set_accent_html, spectrum_cell
 from workflow.cups_printer import CupsRawPrinter
 from workflow.page_geometry import (
     ORIENTATION_LANDSCAPE,
@@ -387,6 +387,29 @@ _CM_NOTICE_RAW_CHOSEN = (
 )
 
 
+#: The left pane every tab is locked to. `left.setFixedWidth(580)`, here and
+#: on Create Chart, Measure and Check & Refine.
+PANE_W = 580
+
+
+def buttons_fit_one_row(hints: "list[int]", spacing: int,
+                        pane: int = PANE_W) -> bool:
+    """Whether these buttons can sit side by side in the locked pane.
+
+    A FUNCTION, SO THAT THE RULE CAN BE TESTED WITHOUT A SCREEN. The row this
+    decides was sized for English metrics and cut all four Ukrainian labels at
+    both ends (Sebastian, 2026-09-21); the guard written for it could only be
+    proved on a host with the real fonts, because under the offscreen plugin
+    the same four buttons genuinely do fit. Feeding the rule its widths is the
+    half that can be proved anywhere.
+
+    `hints` are the buttons' own `sizeHint().width()` values: what each needs
+    to paint its label with its frame. The margins allowance is the pane's own
+    left and right padding.
+    """
+    return sum(hints) + max(len(hints) - 1, 0) * spacing + 24 <= pane
+
+
 class TabPrint(QWidget):
 
     ti2_loaded         = pyqtSignal(Path)  # emitted when the user loads a .ti2 file
@@ -637,6 +660,51 @@ class TabPrint(QWidget):
             tr("Cancel all pending and stuck jobs for the selected printer.")
         )
         self._clear_queue_btn.clicked.connect(self._on_clear_queue)
+
+        # ONE ROW, ALWAYS, AND THE TEXT MADE TO FIT INSIDE IT.
+        #
+        # Sebastian photographed this row in Ukrainian on 2026-09-21 and all
+        # four buttons were cut at BOTH ends -- `Роздрукувати / оточна сторінк`,
+        # `оздрукувати вс / сторінки`, `ясно / Черга друк`, `Зберегти як /
+        # а замовчування`. Losing the first character as well as the last is
+        # the tell that the label is wider than the control and centred, not
+        # that it is running off to the right.
+        #
+        # Measured in a real window, this pane being locked to 580 px: in
+        # ENGLISH each button's width is exactly its own `minimumSizeHint`, so
+        # the row fits with nothing at all to spare, and in Ukrainian the four
+        # wanted 154 + 153 + 117 + 158 = 582 px before a pixel of spacing.
+        #
+        # The first fix let the ROW wrap onto two lines and he rejected it in
+        # the same breath: *"buttons on the bottom are now in two rows, but
+        # should be one like everywhere else"*. So the row stays one row and
+        # the LABELS re-flow inside their own buttons, which is what English
+        # already does ("Print / Current Page"). `rewrap_button_label` only
+        # moves the line break; no word is shortened, split or dropped, and the
+        # unbroken label goes on as the tooltip.
+        _btns = (self._print_page_btn, self._print_all_btn,
+                 self._clear_queue_btn, self._save_defaults_btn)
+        # What one button may take: the pane, less its margins and the gaps
+        # between four buttons, split four ways, less the frame each one draws
+        # around its text. The chrome figure is measured from the button
+        # itself rather than assumed.
+        from PyQt6.QtGui import QFontMetrics
+        _gaps = 3 * max(btn_row.spacing(), 0) + 24
+        _chrome = max(
+            (b.minimumSizeHint().width()
+             - max(QFontMetrics(b.font()).horizontalAdvance(line)
+                   for line in (b.text() or " ").split("\n"))
+             for b in _btns), default=40)
+        # …AND ONLY WHEN THE ROW ACTUALLY NEEDS IT. A per-button quarter share
+        # is stricter than the row is: it took "Друк поточної / сторінки",
+        # which fits perfectly well, onto three lines. So the labels are left
+        # exactly as the translator broke them whenever the four fit as they
+        # are, and re-flowed only when they do not.
+        if not buttons_fit_one_row([b.sizeHint().width() for b in _btns],
+                                   max(btn_row.spacing(), 0)):
+            _room = max((PANE_W - _gaps) // len(_btns) - _chrome, 40)
+            for _b in _btns:
+                rewrap_button_label(_b, _room)
 
         btn_row.addWidget(self._print_page_btn)
         btn_row.addWidget(self._print_all_btn)

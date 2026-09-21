@@ -73,7 +73,7 @@ from ui.tab_header import TabHeader
 from ui.builtin_preset_popup import BuiltinPresetButton, BuiltinPresetPopup
 from ui.tiff_preview import TiffPreview
 from ui.tooltip_button import InfoDialog, TooltipButton
-from ui.widgets import TailFollowLog, add_log_row, fit_log_height, CollapsibleGroupBox, NoScrollComboBox, NoScrollSpinBox, PatchGridButton, PrefixLockedLineEdit, icc_profile_paths, load_magenta_folder_icon, make_browse_button, open_file_dialog, reapply_ink, set_folder_icon, set_ink, set_preset_icon
+from ui.widgets import TailFollowLog, add_log_row, fit_log_height, CollapsibleGroupBox, ElidingComboBox, NoScrollComboBox, NoScrollSpinBox, PatchGridButton, PrefixLockedLineEdit, icc_profile_paths, load_magenta_folder_icon, make_browse_button, open_file_dialog, reapply_ink, set_folder_icon, set_ink, set_preset_icon
 from ui.warning_sign import inform, set_information_icon, set_question_icon
 from core.i18n import count_phrase, tr
 from core.text_io import read_text
@@ -5250,7 +5250,19 @@ class TabChart(QWidget):
         row = QHBoxLayout()
         instr_label = QLabel(tr("Instrument:"), inner)
         row.addWidget(instr_label)
-        self._instr_combo = NoScrollComboBox(inner)
+        # ELIDING, NOT PLAIN. A `QComboBox` makes its LONGEST ITEM the
+        # minimum width of the row, and through it of this 580 px pane, so a
+        # language whose label beside it is longer than English pushes the
+        # row past the viewport and the pane scrolls sideways -- taking the
+        # ⓘ button off the right edge with it. Measured on screen
+        # 2026-09-21 in Ukrainian: three ⓘ buttons on this panel cut in half
+        # and unclickable, where English showed all three. `ElidingComboBox`
+        # leaves `sizeHint()` alone, so a roomy pane looks exactly as it did,
+        # and only lowers the MINIMUM: a cramped one trims the combo's text
+        # (full string still in the popup and the tooltip) instead of
+        # throwing a control off the panel. Same decision Basti took for the
+        # Create-layout dropdown; see ElidingComboBox's docstring.
+        self._instr_combo = ElidingComboBox(inner)
         # External-workflow instruments (i1iSis) are intentionally absent from
         # Guided mode: Guided's job is to optimise the chart layout for the
         # instrument, but for these devices the layout is recomputed by an
@@ -5384,7 +5396,9 @@ class TabChart(QWidget):
         paper_layout = QVBoxLayout(paper_grp)
         paper_row = QHBoxLayout()
         paper_row.addWidget(QLabel(tr("Paper size:"), inner))
-        self._paper_combo = NoScrollComboBox(inner)
+        # Eliding for the same reason as the instrument combo above: this row
+        # and that one are the two that set this pane's minimum width.
+        self._paper_combo = ElidingComboBox(inner)
         self._paper_combo.currentIndexChanged.connect(self._update_patch_count)
         # Paper changes also affect ChromIQ-style gating, which decides whether
         # the guided -L checkbox is visible.
