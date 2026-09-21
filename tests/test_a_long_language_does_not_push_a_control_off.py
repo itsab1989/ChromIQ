@@ -47,8 +47,34 @@ LANGS = ("uk", "en")
 
 
 @pytest.fixture(autouse=True)
-def _reset_language():
+def _reset_language(qapp):
+    """English before AND after, and nothing of ours left alive in between.
+
+    EVERY TEST HERE BUILDS A REAL TAB OR DIALOG IN A NON-ENGLISH LANGUAGE, and
+    the first version of this file only put the language back. That was not
+    enough: measured 2026-09-22, the everyday tier came out red in two runs of
+    three with this file present and green twice in a row without it, in
+    `MeasurementReportDialog` geometry tests that have nothing to do with
+    Ukrainian -- a dialog 809 px tall against an 800 px offscreen screen. A
+    widget that is merely hidden is still alive, still carries the metrics of
+    the language it was built in, and `--dist loadfile` puts the next file on
+    the same worker.
+
+    So the language is reset on both sides and every top-level widget this
+    file created is DESTROYED, not hidden, with the deferred deletes actually
+    pumped before the next test starts.
+    """
+    from PyQt6.QtCore import QEvent
+    i18n.set_language("en")
+    before = {id(w) for w in QApplication.topLevelWidgets()}
     yield
+    for w in QApplication.topLevelWidgets():
+        if id(w) not in before:
+            w.hide()
+            w.setParent(None)
+            w.deleteLater()
+    qapp.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    qapp.processEvents()
     i18n.set_language("en")
 
 

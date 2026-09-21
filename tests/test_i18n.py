@@ -1186,7 +1186,7 @@ _IDENTICAL_TO_KEY = {
     "ru": 873,
     "sv": 911,
     "zh_CN": 878,
-    "uk": 1156,
+    "uk": 1142,
 }
 
 
@@ -1222,3 +1222,59 @@ def test_the_import_button_is_translated_everywhere(_=None):
             assert k in cat, f"[{code}] the import button lost its key {k!r}"
             assert cat[k] != k, (
                 f"[{code}] the import button is still English: {k!r}")
+
+
+# ---- Ukrainian, contributed on issue #198 by LackiUA ---------------------
+#
+# A language is "working" only if all four of these are true at once, and each
+# of them has been the thing that was missing on this project at some point:
+# the Settings combobox can FIND it (it discovers a language by globbing
+# `data/i18n/*.json` and reading `@language_name` out of it, so a catalogue
+# with no native name is listed by its bare code), `set_language` LOADS it,
+# the UI catalogue actually answers, and the parameter overlay merges so the
+# Create Chart rows are Ukrainian too rather than half-English.
+#
+# The native name is asserted verbatim because it is the string the user picks
+# in the combobox, and a catalogue that lost it still passes every other test
+# in this file.
+
+def test_ukrainian_is_discoverable_in_the_language_list():
+    langs = dict(i18n.available_languages())
+    assert langs.get("uk") == "Українська", (
+        "Settings would not offer Ukrainian by name; available_languages() "
+        f"returned {langs.get('uk')!r}")
+
+
+def test_ukrainian_loads_and_translates():
+    i18n.set_language("uk")
+    assert i18n.current_language() == "uk"
+    assert i18n.tr("Cancel") == "Скасувати"
+    assert i18n.tr("Build Profile") == "Побудувати профіль"
+
+
+def test_ukrainian_parameter_overlay_merges():
+    """The overlay is a separate file from the catalogue and it is merged by a
+    separate function, so a language can be fully loaded and still show every
+    Create Chart row in English."""
+    i18n.set_language("uk")
+    params = i18n.translate_parameters(_load_params())
+    d = next(p for p in params["targen"] if p["flag"] == "-d")
+    english = next(p for p in _load_params()["targen"] if p["flag"] == "-d")
+    assert d["name"] == "Тип пристрою"
+    assert len(d["labels"]) == len(english["labels"]) == 16
+    assert d["labels"] != english["labels"]
+
+
+def test_qt_fallback_translates_norwegian_buttons(qapp):
+    """PyQt6 ships no qtbase_nb.qm — the JSON fallback in data/i18n/qt/
+    must still translate Qt's standard dialog buttons for Norwegian."""
+    from PyQt6.QtCore import QCoreApplication
+    i18n.set_language("no")
+    i18n.install_qt_translator(qapp)
+    try:
+        assert QCoreApplication.translate("QPlatformTheme", "Cancel") == "Avbryt"
+        assert QCoreApplication.translate("QPlatformTheme", "Close") == "Lukk"
+    finally:
+        if i18n._qt_translator is not None:
+            qapp.removeTranslator(i18n._qt_translator)
+            i18n._qt_translator = None
