@@ -149,7 +149,8 @@ def test_the_note_stamper_gets_the_distance_the_sheet_uses(monkeypatch,
 
     def spy(tiffs, lines, text_edge_mm=0.0, clip_band_mm=0.0, font_family="",
             size_pt=0.0, clip_reach_mm=-1.0, gap_mm=0.0,
-            text_edge_top_mm=-1.0, text_edge_bottom_mm=-1.0):
+            text_edge_top_mm=-1.0, text_edge_bottom_mm=-1.0,
+            patch_gap_mm=0.0):
         seen.update(side=text_edge_mm, top=text_edge_top_mm,
                     bottom=text_edge_bottom_mm)
 

@@ -22011,3 +22011,44 @@ would reach.
   this while it stood. That is no longer necessary but is harmless, and each
   docstring names what it was steering around.
 - evidence: test_undoing_deselect_all_puts_the_red_line_back_down, test_nothing_ticked_leaves_nothing_to_generate
+
+### B8-560 · FIXED · The paper freed for the Guided stamp was spent on type instead of clearance
+- status: FIXED
+- blocks release: no
+- follows B8-556. Sebastian judged its before/after picture, 2026-09-21:
+  *"it looks better now but i think could be even better ... although it is not
+  overlapping anymore the stamps font size became a tad bigger. I'd rather have
+  the stamp size the same as before (so little smaller than now) but with a
+  tiny gap to the patches."*
+- **he had read it correctly.** `tiff_metadata.fit_rotated_line` starts the
+  automatic size at the width of the paper beside the note, so every pixel
+  B8-556 freed went into the LINE. Measured by capturing the stamper's own
+  answer on a rendered sheet: **7.20 pt as shipped, 8.88 pt after B8-556**, and
+  the clearance stayed negative either way (-0.68 mm, then -0.34 mm), so 22 of
+  the note's pixels were still laid on patch ink.
+- `Geom.side_stamp_freed_mm` now records what the row-label walk gave up, and
+  `chart_creator._stamp_tiff_metadata` hands it to the stamper as a minimum
+  patch-side gap, taken out of the line's thickness. Result on the same sheet:
+  **7.20 pt, +0.254 mm of white, and zero stamp pixels on patch ink.**
+- **396 patches before, 396 after**, read from the `.ti2` of three on-screen
+  runs (A as shipped, B B8-556, C now), each with two pixel-identical
+  photographs. All 120 Guided combinations: still 0 with the stamp over the
+  patches, still 0 losing a patch.
+- **the gap is the whole of what the paper had, not a number anybody chose**:
+  3 px / 0.254 mm on the reported chart, 4 px / 0.339 mm on the others. The
+  row-label band's own clearance on the same sheet measures 8 px / 0.677 mm
+  (12 px / 1.016 mm on a rectangular CR30 chart), so it is NOT matched, and it
+  cannot be by this lever: `_stamp_one` caps the note's strip at 40 px whatever
+  the margin, so the anchor saturates 8 px above the legibility floor. Measured
+  rung by rung from 17.5 pt to 12.0 pt: the gap stops growing at 4 px.
+- **and it is 0.0 on every chart the walk did not touch**, which is what keeps
+  this to twelve charts. A roomy sheet prints its note at 9.12 pt; holding every
+  chart to the floor to buy this one a gap would have cost 1.9 pt of type across
+  the app. The five-chart engine regression set and the printtarg path are
+  bit-identical, and a control sheet's whole STAMPED raster is pinned equal.
+- this also clears the residue B8-556 recorded as unfixable: at 0.25 mm the
+  line no longer touches the hexagon apex points at all.
+- evidence: test_the_guided_stamp_keeps_off_the_patches (4 tests, incl.
+  `test_the_freed_paper_is_spent_as_white_and_not_as_type` and
+  `test_an_absurd_gap_cannot_push_the_note_off_the_sheet`),
+  `~/Desktop/ChromIQ-beta30-proof/guided-stamp/before_first_now_zoom.png`

@@ -2004,9 +2004,45 @@ class ChartCreator:
                                       getattr(_rec, "text_edge_mm", 0.0))
                               or 0.0),
                         _m_on, _m_e, _m_l, _m_tb)
+                # THE PAPER §R9 FREED FOR THIS NOTE, SO THE NOTE SPENDS IT AS
+                # WHITE INSTEAD OF AS TYPE. `raster._clear_the_side_stamp`
+                # shrinks a chart's automatic row labels to move the patch
+                # block clear of this line; the line is then auto-sized from
+                # the paper beside it, so the freed millimetre went straight
+                # into the font and the clearance stayed at nothing --
+                # measured, 7.20 pt to 8.88 pt on the reported chart.
+                # Sebastian, 2026-09-21: *"I'd rather have the stamp size the
+                # same as before (so little smaller than now) but with a tiny
+                # gap to the patches."*
+                #
+                # It is 0.0 on every chart the walk did not touch, so this
+                # changes nothing anywhere else. Asked of the geometry rather
+                # than recomputed here, because the walk is the only thing that
+                # knows what it gave up and a second derivation of that number
+                # is how two of them come to disagree.
+                #
+                # ONLY FOR AN ENGINE CHART. A printtarg sheet is laid out by
+                # ArgyllCMS and the walk never ran on it, so asking OUR
+                # geometry what it freed would hand the stamper a number about
+                # a page that was never drawn.
+                _patch_gap = 0.0
+                if engine_chart:
+                    _saved_notes = list(getattr(self, "_threshold_notes", []))
+                    try:
+                        from workflow.layout_engine import instruments as _inst
+                        _patch_gap = float(getattr(
+                            _inst.geom_from_build_kwargs(
+                                self._engine_kwargs(params)),
+                            "side_stamp_freed_mm", 0.0) or 0.0)
+                    except Exception as exc:  # noqa: BLE001 — never block it
+                        log.debug("side-stamp gap unavailable: %s", exc)
+                    finally:
+                        # `_engine_kwargs` clears this as a side effect and the
+                        # log line that reads it has already run.
+                        self._threshold_notes = _saved_notes
                 stamp_chart_metadata(tiffs, cmd_lines, _edge, _band,
                                      _font_family, _size_pt, _reach, _gap,
-                                     _edge_t, _edge_b)
+                                     _edge_t, _edge_b, _patch_gap)
         else:
             # ChromIQ-style: shift the patch block right by ~28 mm so the left
             # side becomes a fresh white strip ready for the left-clip stamp.

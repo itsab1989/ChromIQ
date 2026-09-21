@@ -118,6 +118,7 @@ def stamp_chart_metadata(
     gap_mm: float = 0.0,
     text_edge_top_mm: float = -1.0,
     text_edge_bottom_mm: float = -1.0,
+    patch_gap_mm: float = 0.0,
 ) -> None:
     """Stamp `lines` joined into a single rotated text line on each TIFF's right margin.
 
@@ -144,6 +145,26 @@ def stamp_chart_metadata(
     and is the distance this note has to keep off. Negative means "not
     supplied", and the band's width is used, which is what every caller did
     before #182. See :func:`_stamp_one` for why the difference matters.
+
+    *patch_gap_mm* is EXTRA white the note keeps on the patch side, on top of
+    :data:`text_edge_fit.NOTE_PATCH_GAP_MM`, and it is taken out of the line's
+    own thickness rather than out of the page-edge reserve. Zero, the default,
+    is exactly the behaviour every caller had.
+
+    **IT EXISTS BECAUSE PAPER FREED FOR THE NOTE WAS SPENT ON THE WRONG
+    THING.** `raster._clear_the_side_stamp` (§R9) shrinks a chart's automatic
+    row labels so the patch block stops short of this note; the note is then
+    auto-sized from the paper beside it, so the first thing the freed
+    millimetre bought was a bigger line and the clearance stayed at nothing.
+    Measured on the reported chart: **7.20 pt before the walk, 8.88 pt after,
+    with the ink still four pixels inside the outermost hexagon points.**
+    Sebastian, 2026-09-21: *"I'd rather have the stamp size the same as before
+    (so little smaller than now) but with a tiny gap to the patches."*
+
+    So the gap is served first and the line takes what is left -- but never
+    below :func:`text_edge_fit.note_min_strip_px`, because a gap bought with an
+    illegible line is not a trade anybody asked for. On the reported chart that
+    hands back exactly the 7.20 pt it had and 0.59 mm of new white.
     """
     pieces = [s.strip() for s in lines if s and s.strip()]
     if not pieces:
@@ -153,7 +174,7 @@ def stamp_chart_metadata(
         try:
             _stamp_one(Path(path), text, text_edge_mm, clip_band_mm,
                        font_family, size_pt, clip_reach_mm, gap_mm,
-                       text_edge_top_mm, text_edge_bottom_mm)
+                       text_edge_top_mm, text_edge_bottom_mm, patch_gap_mm)
         except Exception as exc:
             log.warning("Right-edge stamp failed for %s: %s", path, exc)
 
@@ -327,7 +348,8 @@ def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0,
                clip_band_mm: float = 0.0, font_family: str = "",
                size_pt: float = 0.0, clip_reach_mm: float = -1.0,
                gap_mm: float = 0.0, text_edge_top_mm: float = -1.0,
-               text_edge_bottom_mm: float = -1.0) -> None:
+               text_edge_bottom_mm: float = -1.0,
+               patch_gap_mm: float = 0.0) -> None:
     with tifffile.TiffFile(str(path)) as tf:
         page = tf.pages[0]
         # Device-native (separated) CMYK / CMYK+N charts: skip the post-render
@@ -575,8 +597,36 @@ def _stamp_one(path: Path, text: str, text_edge_mm: float = 0.0,
     # so that it is not going towards the edge?"* -- and it is also what makes
     # the page-edge reserve above cheap: the blank part of the strip now falls
     # on the reserve's side, where it costs nothing.
+    # …AND THE PAPER §R9 FREED IS SPENT AS WHITE, NOT AS TYPE.
+    #
+    # `fit_rotated_line` starts the automatic size at `strip_w - the gap`, so
+    # every pixel `raster._clear_the_side_stamp` frees for this note is taken
+    # by the LINE unless something says otherwise. Measured on the chart
+    # Sebastian reported: 7.20 pt before the walk and 8.88 pt after, with the
+    # ink still four pixels inside the outermost hexagon points. He asked for
+    # the opposite trade by name (2026-09-21): *"I'd rather have the stamp size
+    # the same as before (so little smaller than now) but with a tiny gap to
+    # the patches."*
+    #
+    # So the freed paper is added to the patch-side anchor, which takes it out
+    # of the line's own thickness and puts it where he wants it. Two bounds,
+    # and both are load-bearing:
+    #
+    #   * it can never take the line below `_floor_px`, the narrowest strip
+    #     that still renders a legible line -- a gap bought with an unreadable
+    #     note is not the trade he asked for;
+    #   * `patch_gap_mm` is 0 for every chart §R9 did not touch, so a chart
+    #     whose right margin the USER chose is stamped exactly as before. That
+    #     is what keeps this to twelve charts rather than all of them: measured
+    #     on a roomy sheet the note prints at 9.12 pt, and holding every chart
+    #     to the floor would have cost 1.9 pt of type across the whole app for
+    #     a fault that is only on the tight ones.
+    _extra_gap = 0
+    if patch_gap_mm and patch_gap_mm > 0 and not _overlaps:
+        _extra_gap = max(0, min(int(round(float(patch_gap_mm) * _dpi / 25.4)),
+                                strip_w - _floor_px))
     strip = _render_fitted_rotated_line(text, strip_h, strip_w, dtype, C,
-                                        anchor_px=_NOTE_PATCH_GAP_PX,
+                                        anchor_px=_NOTE_PATCH_GAP_PX + _extra_gap,
                                         font_family=font_family,
                                         size_pt=size_pt, dpi=_dpi)
     # The strip itself stays anchored to the patch-side (left) edge of the

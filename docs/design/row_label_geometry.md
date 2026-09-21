@@ -589,3 +589,66 @@ pixels and never rises above about 113 — it is a graze on the apexes, it does
 not follow the label size, and no amount of walking removes it. It is a
 separate, much smaller thing than the fault this section is about and it is
 recorded rather than fixed.
+
+### §R9.4 · The freed paper is spent as WHITE, not as type — ⏳ AWAITING CONFIRMATION
+
+**Confirmed by:** *nobody yet.*
+
+Sebastian judged the first before/after picture on 2026-09-21 and asked for one
+change:
+
+> *"it looks better now but i think could be even better. the comparison looks
+> like the row labels size is a little smaller which is good but although it is
+> not overlapping anymore the stamps font size became a tad bigger. I'd rather
+> have the stamp size the same as before (so little smaller than now) but with
+> a tiny gap to the patches."*
+
+**He had read it correctly, and the mechanism is the one he guessed.** The note
+is auto-sized from the paper beside it: `tiff_metadata.fit_rotated_line` starts
+at `strip_w - the patch-side gap` and shrinks from there. So every pixel §R9
+frees is taken by the TYPE, and the clearance stays where it was. Measured on
+the reported chart, the stamper's own answer captured as it was called:
+
+| | as shipped | §R9.1 alone | §R9.1 + §R9.4 |
+|---|---|---|---|
+| stamp size | **7.20 pt** | **8.88 pt** | **7.20 pt** |
+| white between the patch ink and the stamp's ink | **-0.68 mm** | **-0.34 mm** | **+0.25 mm** |
+| stamp pixels laid on patch ink | 206 | 22 | **0** |
+| patches | 396 | 396 | 396 |
+
+A negative figure means the stamp is printed over the patches. Note the middle
+column: §R9.1 alone did not reach clear paper at all, because what it bought
+went into the line's thickness.
+
+**The rule.** `Geom.side_stamp_freed_mm` records what the walk gave up on the
+left; `chart_creator._stamp_tiff_metadata` hands it to the stamper as a minimum
+patch-side gap, which comes out of the line's own thickness rather than out of
+the page-edge reserve. Two bounds, both load-bearing:
+
+* **it can never take the line below `note_min_strip_px`**, the narrowest strip
+  that still renders a legible line. A gap bought with an unreadable note is
+  not the trade he asked for, and an uncapped gap does not merely shrink the
+  line, it draws it outside its own canvas and the note vanishes.
+* **it is 0.0 on every chart the walk did not touch**, so a chart whose right
+  margin the USER chose is stamped exactly as it was. That bound is what keeps
+  this to twelve charts instead of all of them: measured on a roomy sheet the
+  note prints at **9.12 pt**, and holding every chart to the floor to give this
+  one its gap would have cost 1.9 pt of type across the whole app.
+
+**The gap is not a number anybody chose: it is the whole of what the paper
+had.** 3 px, 0.254 mm, on the reported chart; 4 px, 0.339 mm, on the others.
+The obvious precedent is the clearance the row-label band keeps on the other
+side of the same sheet, and it was measured rather than quoted: 8 px, 0.677 mm
+on this honeycomb (12 px, 1.016 mm on a rectangular CR30 chart, where the
+apexes do not eat into it). **It is not matched, and it cannot be by this
+lever**: walking the labels further down does not help, because
+`tiff_metadata._stamp_one` caps the note's strip at 40 px whatever the margin,
+so the patch-side anchor saturates 8 px above the legibility floor. Measured
+rung by rung from 17.5 pt to 12.0 pt, the gap stops growing at 4 px and the
+patch count is 396 throughout.
+
+This also removes the residue §R9.3 recorded as unfixable on the reported
+chart: at 0.25 mm of clearance the line no longer touches the apex points at
+all, and the stamp's ink on patch ink goes from 206 pixels to **none**. §R9.3
+still stands as a description of the mechanism, and a honeycomb the walk never
+touches still carries it.

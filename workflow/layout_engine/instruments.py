@@ -133,6 +133,22 @@ class Geom:
     # the one size the margin was reserved for; a size the user TYPED never
     # reaches this field, because §R8 does not touch a typed size.
     row_label_size_mm: float = 0.0
+    # §R9: the paper the row-label walk handed the RIGHT edge, in mm -- how far
+    # left the patch block moved so the side stamp would fit beside it. 0 on
+    # every chart the walk did not touch, which is all but twelve of the 120
+    # Guided combinations and every built-in preset.
+    #
+    # **IT IS NOT ROOM FOR THE STAMP TO GROW INTO.** Sebastian, 2026-09-21, on
+    # the before/after picture: *"although it is not overlapping anymore the
+    # stamps font size became a tad bigger. I'd rather have the stamp size the
+    # same as before (so little smaller than now) but with a tiny gap to the
+    # patches."* The stamp is auto-sized from the paper beside it
+    # (`tiff_metadata.fit_rotated_line`), so freeing 0.92 mm for it took the
+    # size from 7.20 pt to 8.88 pt and kept the clearance at nothing.
+    # `chart_creator._stamp_tiff_metadata` passes this on as the stamper's
+    # minimum patch-side gap, so the freed paper is spent as WHITE and the line
+    # keeps the size it had. Read by nothing else.
+    side_stamp_freed_mm: float = 0.0
     strip_indicator_gap: float = 0.0   # gap (mm) between strip label and strip
     offset_x: float = 0.0              # whole-chart offset (mm)
     offset_y: float = 0.0

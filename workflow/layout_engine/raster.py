@@ -1317,7 +1317,24 @@ def _clear_the_side_stamp(geom, kw: dict, *, asked_l: float, floor: float,
             continue
         if cap != cap0:
             return geom                   # not at the cost of one patch
-        return cand
+        # WHAT WAS FREED, RECORDED, BECAUSE IT IS NOT ROOM FOR THE STAMP TO
+        # GROW INTO. The note is auto-sized from the paper beside it
+        # (`tiff_metadata.fit_rotated_line` starts at `strip_w - the gap`), so
+        # without this the first thing the freed millimetre bought was a bigger
+        # line and the clearance stayed at nothing: measured on the reported
+        # chart, 7.20 pt before and 8.88 pt after, with the ink still 4 px
+        # inside the outermost hexagon points. Sebastian, 2026-09-21: *"I'd
+        # rather have the stamp size the same as before (so little smaller than
+        # now) but with a tiny gap to the patches."*
+        #
+        # `chart_creator._stamp_tiff_metadata` hands this to the stamper as a
+        # minimum patch-side gap. It is the DIFFERENCE and not the whole
+        # margin, so a chart this walk never touched carries 0 and its stamp is
+        # laid out exactly as before -- which is what keeps the blast radius of
+        # his change at twelve charts instead of every chart ChromIQ builds.
+        return replace(cand, side_stamp_freed_mm=max(
+            0.0, float(getattr(geom, "margin_l", 0.0) or 0.0)
+            - float(getattr(cand, "margin_l", 0.0) or 0.0)))
 
 
 def _rows_that_fit(geom, kw: dict) -> int:
