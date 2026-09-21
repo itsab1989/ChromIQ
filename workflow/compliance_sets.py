@@ -228,6 +228,15 @@ GROUP_LABELS: "dict[str, str]" = {
     # is the attributing-coverage-to-a-standard mistake this file already
     # records being made twice, a third time.
     "selected":      "Selected patches of the chart",
+    # **THE ONE HEADING IN THIS TABLE THAT NAMES ITS OWN AUTHOR, BECAUSE IT
+    # HAS TO.** Every other numeric row here comes from a document somebody
+    # else wrote. The two rows under this heading do not: they are computed
+    # from the user's own measurements of the user's own prints, no standard
+    # defines them, nobody licenses them, and they can be judged for a printer
+    # user who holds no document at all. Saying so in the heading is what
+    # stops the arrangement claiming otherwise, which is the failure this file
+    # already records being made twice by juxtaposition rather than by words.
+    "repeatability": "Repeatability, measured by ChromIQ",
     "not_evaluated": "Not evaluated by ChromIQ",
 }
 
@@ -415,6 +424,48 @@ _R_OUTER_GAMUT = (
     "the chart needs roughly 80 patches carrying reference values. The "
     "built-in Create Chart presets are well past that; a small patch set you "
     "build yourself may not be.")
+#: **THE TWO ROWS THAT ARE CHROMIQ'S OWN.** Both say so in as many words, in
+#: the place a reader actually looks, because a row in this table is read
+#: against the column it sits under and two of those columns are named after a
+#: standard. Neither sentence may be softened into implying that anybody
+#: published these.
+_D_REPEAT_WITHIN = (
+    "ChromIQ can judge this row when your chart asks for the same device "
+    "colour more than once on one sheet. Two patches count as repeats of each "
+    "other when their red, green and blue values agree to two decimal "
+    "places, and a set of them is called a group.\n\n"
+    "The row is judged when the sheet carries at least 2 such groups. One "
+    "group is one colour, and where a chart repeats anything at all it "
+    "usually repeats bare paper and solid black, so a reading taken from one "
+    "of those alone would stand for nothing else on the sheet.\n\n"
+    "This row is ChromIQ's own. No standard defines it. It needs no reference "
+    "values and no second print, so it can be judged on a chart that carries "
+    "no aim values at all.")
+_D_REPEAT_ACROSS = (
+    "ChromIQ can judge this row from the second measurement of a verification "
+    "chart onward. Each dated verification of a run is compared with the one "
+    "immediately before it, patch by patch, paired by sample id.\n\n"
+    "A patch is counted only when both measurements agree about the device "
+    "values it was asked for, so a chart that was rebuilt between the two "
+    "dates drops out of the comparison instead of being read as the printer "
+    "moving. At least 14 patches have to survive that test, because below "
+    "that the largest difference says more about which patches happened to "
+    "match than about the printer.\n\n"
+    "This row is ChromIQ's own. No standard defines it, and it needs no "
+    "reference values, so it can be judged on a chart that carries no aim "
+    "values at all.")
+_R_REPEAT_WITHIN = (
+    "Use a chart that repeats a colour. Most of the built-in Create Chart "
+    "presets place a few repeated patches for the instrument to settle on, "
+    "and a patch set you build yourself may place none at all. Adding two or "
+    "more patches that ask for the same device values, at different places on "
+    "the sheet, is all this row needs.")
+_R_REPEAT_ACROSS = (
+    "Measure the same verification chart a second time, on another sheet or "
+    "on another day. Keep the chart itself as it is rather than building a "
+    "new one in Create Chart: the comparison counts only patches whose device "
+    "values both measurements agree on, so a rebuilt chart starts the series "
+    "again instead of extending it.")
 
 ROWS: "tuple[Row, ...]" = (
     # -- Paper
@@ -524,6 +575,29 @@ ROWS: "tuple[Row, ...]" = (
         blurb='Whether the mid-tones of each single ink, and of grey, land at the right lightness. This is the part of a ramp the eye reads as contrast.',
         detect=_D_RAMPS,
         remedy=_R_RAMPS),
+    # -- Repeatability, measured by ChromIQ
+    #
+    # TWO ROWS NOBODY ELSE WROTE. They are computed from the user's own
+    # measurements of the user's own prints, and they are the only numeric
+    # rows in this table that are ChromIQ's rather than a standard's. Both
+    # populations are ChromIQ's own definition, both work without a reference
+    # file and without a profile, and both say so in their own help text.
+    #
+    # `repeatability_de00_max`, further down under "Not evaluated by ChromIQ",
+    # is NOT these and is deliberately left exactly as it is. That row is a
+    # standard's criterion over that standard's own timed protocol; repointing
+    # it at a number ChromIQ can compute would attribute these definitions to
+    # a document that does not contain them.
+    Row("repeat_patches_de00_max", "repeatability",
+        "Repeat patches on one sheet, largest difference", "ΔE00", "build",
+        blurb='How far apart the same colour landed where your chart asked for it more than once on one sheet. No profile and no aim value is in this number: the patches were asked for the same thing, so what separates them is the printer and the instrument together.',
+        detect=_D_REPEAT_WITHIN,
+        remedy=_R_REPEAT_WITHIN),
+    Row("repeat_measurement_de00_max", "repeatability",
+        "The same chart measured again, largest difference", "ΔE00", "build",
+        blurb='Whether the same file prints the same colour on another sheet and on another day. This is the question behind asking whether a printer is steady, and it is answered by measuring one verification chart more than once.',
+        detect=_D_REPEAT_ACROSS,
+        remedy=_R_REPEAT_ACROSS),
     # -- Not evaluated by ChromIQ (✕ rows; notes in the report)
     Row("uniformity_sd", "not_evaluated",
         "Evenness across the sheet, nine locations (spread of L*, a*, b*)", "",
@@ -746,6 +820,16 @@ _CHROMIQ_FACTORY: "dict[str, dict[str, Limit]]" = {
         "all_de00_p95": Limit.value(3.0),
         "grey_balance_neutral_ramp_avg": Limit.value(1.5),
         "grey_balance_neutral_ramp_max": Limit.value(3.0),
+        # ChromIQ's own two repeatability rows. Row A takes the number default
+        # already puts on an AVERAGE and Row B the one it puts on a MAXIMUM,
+        # and the order between them is the point: Row B's population contains
+        # Row A's entirely and adds a second print and a second day, so its
+        # limit cannot be the tighter of the two. Checked against measurement,
+        # not chosen to be tidy: 21 sheets on this machine that a real
+        # instrument read and that carry repeat patches have within-sheet
+        # maxima from 0.32 to 1.999, median 0.698.
+        "repeat_patches_de00_max": Limit.value(2.0),
+        "repeat_measurement_de00_max": Limit.value(3.0),
     },
     "chromiq_tight": {
         "all_de00_avg": Limit.value(1.0), "best95_de00_avg": Limit.value(1.0),
@@ -753,6 +837,8 @@ _CHROMIQ_FACTORY: "dict[str, dict[str, Limit]]" = {
         "all_de00_p95": Limit.value(1.5),
         "grey_balance_neutral_ramp_avg": Limit.value(1.0),
         "grey_balance_neutral_ramp_max": Limit.value(2.0),
+        "repeat_patches_de00_max": Limit.value(1.0),
+        "repeat_measurement_de00_max": Limit.value(1.5),
     },
     "chromiq_quick": {
         "all_de00_avg": Limit.value(4.0), "best95_de00_avg": Limit.value(4.0),
@@ -760,6 +846,8 @@ _CHROMIQ_FACTORY: "dict[str, dict[str, Limit]]" = {
         "all_de00_p95": Limit.value(6.0),
         "grey_balance_neutral_ramp_avg": Limit.value(3.0),
         "grey_balance_neutral_ramp_max": Limit.value(7.0),
+        "repeat_patches_de00_max": Limit.value(4.0),
+        "repeat_measurement_de00_max": Limit.value(6.0),
     },
 }
 
@@ -870,6 +958,15 @@ _CUSTOM_PLACEHOLDER: "dict[str, Limit]" = {
     "control_strip_de00_p95": Limit.value(3.0),      # ΔE00
     "outer_gamut_226_de00_avg": Limit.value(2.0),    # ΔE00
     "surface_gamut_de00_avg": Limit.value(2.0),      # ΔE00
+    # CHROMIQ'S OWN TWO REPEATABILITY ROWS, by the same rule as everything
+    # above: exactly what ChromIQ default puts on them, so a Custom column
+    # arrives with a limit on every metric ChromIQ can check. Nothing here was
+    # looked up in either standard. Neither standard writes a limit over
+    # either row, so both read "–" in the two read-only ISO columns, and that
+    # is the honest cell: those columns hold a standard's published values and
+    # no standard published these.
+    "repeat_patches_de00_max": Limit.value(2.0),      # ΔE00
+    "repeat_measurement_de00_max": Limit.value(3.0),  # ΔE00
 }
 
 #: What went wrong with the file the ENVIRONMENT VARIABLE names, as
@@ -1419,12 +1516,47 @@ def reason_needs_the_footnote(reason: str) -> bool:
     return reason in tuple(SUMMARY_REASONS[k] for k in _FOOTNOTE_REASONS)
 
 
-def set_summary(rows: "list[tuple[Limit, str | None]]", *, set_is_iso: bool,
+#: **ROWS WHOSE POPULATION MAY HONESTLY NOT EXIST, so an N-A on them is not a
+#: gap in what was checked.**
+#:
+#: `set_summary` demotes a column to COND when a REQUIRED row reads N-A, on the
+#: reading that the set asked for something and did not get it. That is right
+#: for every row the rule was written for: a chart either has a grey ramp or
+#: the user can go and get one, so a missing answer is a shortfall.
+#:
+#: It is NOT right for ChromIQ's own two repeatability rows, and measuring it
+#: is how that was found. Row B compares a measurement with the one before it,
+#: so it is N-A on every FIRST measurement of a chart, which is the ordinary
+#: state of most reports anybody has. Left in the general rule, a user who
+#: measured a verification sheet once would read COND instead of PASS purely
+#: because ChromIQ cannot yet say whether the printer repeats, and a clean
+#: report would have been demoted by the arrival of a row that asks a question
+#: no single sheet can answer. Row A is the same shape: roughly half the
+#: charts ChromIQ ships repeat a colour and half do not.
+#:
+#: So these two rows declare that their population is conditional. The row is
+#: still shown, still reads N-A, and still carries its own reason sentence;
+#: only the COLUMN's completeness arithmetic leaves it out. Nothing else about
+#: the summary changes, and no other row may be added here without the same
+#: argument being made and confirmed: see
+#: `docs/design/measurement_report_limits.md` §15, which is awaiting
+#: confirmation.
+POPULATION_MAY_BE_ABSENT: "frozenset[str]" = frozenset({
+    "repeat_patches_de00_max",
+    "repeat_measurement_de00_max",
+})
+
+
+def set_summary(rows: "list[tuple]", *, set_is_iso: bool,
                 graded: bool, ungraded_reason: str = "") -> Summary:
     """The column's one word, with the numbers a reader needs beside it.
 
     *rows* is ``[(limit, word)]`` for every row of the column, words from
-    :func:`row_verdict`. Rules (CS §3.3 as amended by CH-9, CH-21, CH-22):
+    :func:`row_verdict`, or ``[(limit, word, row_id)]`` where the caller knows
+    which row each pair came from. The id is optional and only ever used to
+    apply :data:`POPULATION_MAY_BE_ABSENT`; a caller that passes pairs gets
+    exactly the behaviour it always got. Rules (CS §3.3 as amended by CH-9,
+    CH-21, CH-22, and §15):
 
     * no limit-bearing row → N-A ("this limit set defines no limits");
     * a sheet that is not graded (drift check, profiling measurement) → INFO;
@@ -1439,7 +1571,8 @@ def set_summary(rows: "list[tuple[Limit, str | None]]", *, set_is_iso: bool,
       still carry the word;
     * else PASS.
     """
-    bearing = [(lim, w) for lim, w in rows if lim.is_numeric]
+    bearing = [(r[0], r[1], (r[2] if len(r) > 2 else None))
+               for r in rows if r[0].is_numeric]
     total = len(bearing)
     R = SUMMARY_REASONS
     # "NOTHING WAS JUDGED" OUTRANKS "THERE WERE NO LIMITS", and the two used to
@@ -1449,10 +1582,10 @@ def set_summary(rows: "list[tuple[Limit, str | None]]", *, set_is_iso: bool,
     # somebody who chose a report that judges nothing. The `not graded` clause
     # now comes first and the empty-set clause sits below it, where it still
     # answers every graded column exactly as before.
-    failed = sum(1 for _l, w in bearing if w == FAIL)
-    cond = sum(1 for _l, w in bearing if w == COND)
-    not_computed = sum(1 for _l, w in bearing if w == N_A)
-    checked = sum(1 for _l, w in bearing if w in (PASS, FAIL, COND))
+    failed = sum(1 for _l, w, _r in bearing if w == FAIL)
+    cond = sum(1 for _l, w, _r in bearing if w == COND)
+    not_computed = sum(1 for _l, w, _r in bearing if w == N_A)
+    checked = sum(1 for _l, w, _r in bearing if w in (PASS, FAIL, COND))
     if not graded:
         return Summary(INFO, checked, total, failed, cond, not_computed,
                        ungraded_reason or R["not_graded"])
@@ -1472,8 +1605,12 @@ def set_summary(rows: "list[tuple[Limit, str | None]]", *, set_is_iso: bool,
                        else R["nothing_graded"])
     if failed:
         return Summary(FAIL, checked, total, failed, cond, not_computed, R["fail"])
-    required_missing = sum(1 for lim, w in bearing
-                           if w == N_A and not lim.is_should)
+    # …and a row whose POPULATION may honestly not exist is not a gap in what
+    # was checked. See `POPULATION_MAY_BE_ABSENT` for why exactly two rows are
+    # in that set and what was measured to put them there.
+    required_missing = sum(1 for lim, w, rid in bearing
+                           if w == N_A and not lim.is_should
+                           and rid not in POPULATION_MAY_BE_ABSENT)
     if set_is_iso:
         return Summary(COND, checked, total, failed, cond, not_computed, R["iso"])
     if cond or required_missing:

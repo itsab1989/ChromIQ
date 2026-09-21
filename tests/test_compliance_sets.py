@@ -249,7 +249,12 @@ def test_overrides_apply_to_editable_sets_only_and_keep_a_should_a_should():
 def test_limit_bearing_rows_are_numeric_and_computable():
     lb = limit_bearing(factory_limits("chromiq_default"))
     assert set(lb) == set(cs.OLD_AVG_ROWS) | set(cs.OLD_MAX_ROWS) | {
-        "grey_balance_neutral_ramp_avg", "grey_balance_neutral_ramp_max"}
+        "grey_balance_neutral_ramp_avg", "grey_balance_neutral_ramp_max",
+        # ChromIQ's own two repeatability rows. They are named here rather
+        # than the set being loosened, because this assertion is the record of
+        # exactly what ChromIQ default judges, and a row joining that list is
+        # a deliberate act each time.
+        "repeat_patches_de00_max", "repeat_measurement_de00_max"}
     # an unmeasurable row with a value must never be judged
     assert not limit_bearing({"uniformity_sd": Limit.value(0.5)})
 

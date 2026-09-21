@@ -2384,7 +2384,12 @@ def _crossed_rows(report, limits, row_values, row_verdict, set_summary,
         val = info.get("value")
         graded = graded_sheet if info.get("graded") is None else bool(info["graded"])
         word = row_verdict(lim, val, graded and not ungraded_by_type)
-        rows.append((lim, word))
+        # The row id travels with the pair, as it does in the two production
+        # callers: the column's completeness arithmetic needs to know which
+        # row an N-A came from (`compliance_sets.POPULATION_MAY_BE_ABSENT`).
+        # Without it the demo pack would compute a different Overall from the
+        # window it is meant to be a picture of.
+        rows.append((lim, word, rid))
         if lim.is_numeric and val is not None:
             values[rid] = round(float(val), 3)
         if word in (FAIL, COND):

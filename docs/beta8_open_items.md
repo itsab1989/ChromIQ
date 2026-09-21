@@ -22017,3 +22017,121 @@ would reach.
 - this also clears the residue B8-556 recorded as unfixable: at 0.25 mm the
   line no longer touches the hexagon apex points at all.
 - evidence: test_the_freed_paper_is_spent_as_white_and_not_as_type, test_an_absurd_gap_cannot_push_the_note_off_the_sheet, test_the_sheets_that_already_had_room_are_not_touched, test_only_the_charts_that_needed_it_moved.
+
+### B8-660 · FIXED · Repeat patches on one sheet were measured and thrown away
+- status: FIXED
+- blocks release: no
+- Knut approved the design; Sebastian posted it to issue #182 on 2026-09-22 and
+  he answered *"Do as you recommend and we can review the result implemented on
+  a release."*
+- `ti3_analysis._duplicate_scatter` has always computed the largest difference
+  between patches that share the same device values on one measured sheet. The
+  Ti3 Info window showed it; the Measurement Report never asked, so the one
+  number in the whole application that reads the instrument and the print
+  together, with no profile and no aim values in it, reached no verdict.
+- **THIS ROW IS CHROMIQ'S OWN AND SAYS SO.** Every other numeric row in that
+  table comes from somebody else's document. This one is computed from the
+  user's own measurements of the user's own prints, no standard defines it,
+  nobody licenses it, and it can be judged for a printer user who holds no
+  document at all. The group heading is "Repeatability, measured by ChromIQ",
+  the help text says *"This row is ChromIQ's own. No standard defines it"*, and
+  both read-only ISO columns show `–` because no standard published it.
+- **the minimum is 2 groups, derived and not chosen.** A group is one device
+  colour asked for twice, so a maximum over one group is a reading of one
+  colour. Measured: where a chart repeats anything it repeats the two ENDS, and
+  the demo chart's two groups are exactly RGB 0,0,0 and RGB 100,100,100, so a
+  one-group reading would be a reading of one extreme. Two is the least that
+  can disagree. It refuses nothing real: of **101 measured sheets on this
+  machine that carry repeats at all, none carries fewer than two groups.**
+- **the limit is 2.0 in ChromIQ default**, ChromIQ default's own average
+  number, checked against measurement rather than picked to be tidy: **21
+  sheets that a real instrument read** and that carry repeat patches have
+  within-sheet maxima from **0.32 to 1.999, median 0.698**. Tight is 1.0 and
+  Quick 4.0, the half and double the table already uses. The three sheets above
+  it (7.50, 7.50, 12.93) are a scanner target, a different workflow.
+- the statistic is ΔE00, beside thirty other ΔE00 rows; the Ti3 Info window
+  keeps its long-standing ΔEab figure unchanged. The two share
+  `ti3_analysis.device_repeat_groups` and nothing else, so there is ONE
+  definition of a repeat patch in the application. That refactor is
+  bit-identical: the old implementation was re-derived inline and compared over
+  **188 .ti3 files, 0 mismatches**.
+- evidence: test_row_a_is_judged_when_the_sheet_repeats_two_colours,
+  test_row_a_is_refused_when_the_chart_repeats_nothing,
+  test_row_a_is_refused_when_the_sheet_repeats_only_one_colour,
+  test_row_a_needs_no_reference_values_at_all,
+  test_the_report_and_the_ti3_info_window_group_repeats_the_same_way,
+  `~/Desktop/ChromIQ-beta30-proof/repeatability/FINDINGS.md`
+### B8-661 · FIXED · Nothing asked whether the same chart printed the same twice
+- status: FIXED
+- blocks release: no
+- the other half of B8-660's design, and the question a printer user actually
+  asks: is my printer steady. `run.verifications()` has always held dated
+  measurements of the same patch set, so print-to-print and day-to-day were
+  sitting on disk with nothing reading them.
+- judged from the SECOND measurement onward, refused before that with a reason
+  that says so. Each dated verification is compared with the one IMMEDIATELY
+  BEFORE it, not with the first: repeatability is the scatter between repeats,
+  and a worst-over-all-history would grow for ever and leave one bad day
+  condemning every measurement after it.
+- **a patch counts only when both files agree what colour it was asked for**,
+  within the report's own `PATCH_IDENTITY_TOL`, so a chart rebuilt between the
+  two dates drops out instead of being read as the printer moving. Measured:
+  two of the demo pack's eleven consecutive pairs are chart changes and fall
+  from 105 shared patches to 4.
+- **the floor is 14 shared patches, derived**: the chance that none of *n*
+  patches falls in the chart's worst twentieth is `0.95 ** n`, and
+  `0.95 ** n <= 0.5` first holds at `ceil(ln 0.5 / ln 0.95) = 14`. That is the
+  same five per cent the best-95, worst-5 and 95th-percentile rows are cut at,
+  and it separates the demo pack's genuine re-measurements (105 and 108 shared)
+  from its two chart changes (4) cleanly.
+- **the limit is 3.0 in ChromIQ default**, the number the table already puts on
+  a maximum, and it may not be tighter than B8-660's: this row's population
+  contains that one's entirely and adds a second print and a second day. Tight
+  1.5, Quick 6.0. Checked against the only repeat-measurement series available,
+  the demo pack's dated verifications: nine consecutive pairs, maxima 0.0 to
+  4.49, median 1.75.
+- **there is no genuine print-to-print repeatability series on this machine**
+  and that is said rather than papered over. `printer-test` has five dated
+  verifications, but they are a developer poking at the app (one pair is a
+  byte-identical copy reading 0.00, another shares 15 patches of 105), not a
+  repeatability study.
+- evidence: test_row_b_is_refused_on_the_first_measurement,
+  test_row_b_is_judged_from_the_second_measurement_onward,
+  test_row_b_compares_with_the_measurement_immediately_before_it,
+  test_row_b_refuses_a_chart_that_was_rebuilt_between_the_two_dates,
+  test_the_shared_patch_floor_is_the_five_per_cent_the_table_is_cut_at
+### B8-662 · OPEN · Two judged rows that a sheet cannot always answer demote a clean column, and the demo pack cannot see it
+- status: OPEN
+- **needs Knut's ruling** (it amends CS §3.3, his rule)
+- blocks release: no
+- **found by the suite, not by the diff that was asked for.** The brief for
+  B8-660/661 required that neither new row change an existing verdict, proved
+  by generating reports on the demo projects before and after. That diff is
+  clean: **3,564 row/column cells compared, 0 moved**, and 0 column summaries
+  moved. It is also **incapable of detecting this**, because not one of the
+  demo pack's 60 measurements reads PASS overall under any set (38 FAIL, 22
+  INFO). `tests/test_report_judging.py` caught it within a minute of the rows
+  existing.
+- `compliance_sets.set_summary` demotes a column to COND when a REQUIRED row
+  reads N-A. Row B is N-A on every FIRST measurement of a chart, which is the
+  ordinary state of most reports anybody has, so a user who measured a
+  verification sheet once and passed every accuracy limit would have read
+  **COND instead of PASS** because ChromIQ cannot yet say whether the printer
+  repeats. Row A is the same shape: counted over the ColorMunki charts ChromIQ
+  ships, **roughly half carry two repeat groups and half carry none.**
+- what was built: `compliance_sets.POPULATION_MAY_BE_ABSENT`, a frozenset of
+  exactly those two row ids, which `set_summary` leaves out of the completeness
+  arithmetic only. The row is still shown, still reads N-A, and still carries
+  its own reason sentence. Every other row behaves exactly as before, and a
+  caller passing the old `(limit, word)` pairs gets the old behaviour.
+- **this is an amendment to a rule Knut owns**, so it is written up in
+  `docs/design/measurement_report_limits.md` §15 as ⏳ Awaiting confirmation
+  and named here rather than treated as settled. The question for him: is
+  "a row whose population may honestly not exist is not a gap in what was
+  checked" the right carve-out, and are these the right two rows for it?
+- evidence: none yet, for the RULING. The behaviour has guards
+  (test_a_first_measurement_still_reads_pass_overall,
+  test_an_ordinary_row_that_reads_na_still_demotes_the_column,
+  test_the_carve_out_is_exactly_two_rows_and_no_more) and eight mutations
+  proven to land in
+  `~/Desktop/ChromIQ-beta30-proof/repeatability/mutations.txt`.

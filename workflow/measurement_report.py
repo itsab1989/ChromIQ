@@ -1067,6 +1067,17 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
         report["gamut_populations"] = gamut_populations_block(
             rgb100, lab, ref, data.sample_ids)
 
+    # ChromIQ'S OWN TWO REPEATABILITY ROWS, and neither asks for a reference.
+    # Row A compares the sheet's repeated patches WITH EACH OTHER, and Row B
+    # compares this measurement with the one before it, so both are answerable
+    # on a chart that carries no aim values at all. That is the point of them:
+    # they work for a user who holds no document and whose chart was never
+    # built from a profile. Written with their reason when they cannot be
+    # answered, as every block above is.
+    report["repeat_within_sheet"] = repeat_within_sheet_block(rgb100, lab)
+    report["repeat_across_sheets"] = repeat_across_sheets_block(
+        ti3_path, lab, data.sample_ids, rgb100)
+
     # …and the control strip, which is a DECLARATION rather than a measurement:
     # it needs the chart file, not the device values, so it is written whether
     # or not the measurement carries device columns.
@@ -2296,6 +2307,59 @@ OUTER_GAMUT_FRACTION = 0.25
 #: the chart.
 OUTER_GAMUT_MIN = 20
 
+# ---------------------------------------------------------------------------
+# The two repeatability populations, which are CHROMIQ'S OWN
+# ---------------------------------------------------------------------------
+#: **These two rows are not anybody's published criterion, and the whole point
+#: of them is that they are not.** Every other numeric row in the table comes
+#: from a document somebody else wrote. These are computed from the user's own
+#: measurements of the user's own prints; no standard defines them, nobody
+#: licenses them, and they work for a printer user who holds no document at
+#: all. Nothing here was looked up in, derived from, or checked against any
+#: standard, and the row labels and help text say ChromIQ's name for that
+#: reason.
+#:
+#: `compliance_sets.repeatability_de00_max` is a DIFFERENT row and stays
+#: exactly as it is, `unmeasurable`: it is a standard's criterion over that
+#: standard's own timed protocol, and pointing it at a number ChromIQ can
+#: compute would be the false attribution this file already records being
+#: made twice.
+
+#: **Row A, repeat patches within one sheet.** The least number of repeat
+#: GROUPS below which the largest difference is not worth reporting.
+#:
+#: DERIVED, not chosen. A group is one device colour asked for more than once,
+#: so the maximum over a single group is a statement about that one colour,
+#: while the row is offered as a property of the SHEET. Measured on the charts
+#: on this machine: where a chart repeats anything at all it repeats the two
+#: ENDS, bare paper and solid black (the demo chart's two groups are exactly
+#: RGB 0,0,0 and RGB 100,100,100), so a one-group reading would be a reading
+#: of one extreme and would stand for nothing else on the sheet. Two is the
+#: least that can disagree, so it is the least a sheet-level worst case can be
+#: read from.
+#:
+#: And it refuses nothing a real chart offers: of 101 measured sheets on this
+#: machine that carry repeats at all, not one carries fewer than two groups.
+#: The floor exists to stop a hand-built chart being judged on a single
+#: colour, not to withhold the row from ordinary work.
+REPEAT_WITHIN_MIN_GROUPS = 2
+
+#: **Row B, the same chart measured again.** The least number of patches the
+#: two measurements must still share.
+#:
+#: DERIVED from the same five per cent the rest of the table is cut at. The
+#: row is a maximum, and a maximum over *n* patches is worth reporting when it
+#: has a fair chance of having touched the worst twentieth of the chart: the
+#: chance that none of *n* patches falls in the worst 5 % is ``0.95 ** n``, and
+#: ``0.95 ** n <= 0.5`` first holds at ``n = ceil(ln 0.5 / ln 0.95) = 14``.
+#: Below that the largest of what was read says more about which patches
+#: happened to match than about the printer.
+#:
+#: Measured against the demo pack's dated series: a genuine re-measurement of
+#: the same chart shares 105 or 108 patches, and the two pairs where the chart
+#: itself had been changed share 4. Fourteen separates those cleanly.
+REPEAT_ACROSS_MIN_PATCHES = 14
+
 #: Reason codes for a row that could not be computed. The report window turns
 #: them into sentences through tr(); the JSON keeps the code.
 REASON_NO_GREYS = "no_greys"
@@ -2328,6 +2392,24 @@ REASON_CONTROL_STRIP_TOO_SMALL = "control_strip_too_small"
 #: Chart.
 REASON_TOO_FEW_SURFACE_PATCHES = "too_few_surface_patches"
 REASON_TOO_FEW_OUTER_PATCHES = "too_few_outer_patches"
+#: …and two per repeatability row, for the same reason again: each sends a
+#: reader somewhere different. A chart with no repeated colour at all and a
+#: chart that repeats one colour are different situations; so are a chart that
+#: has never been measured twice and a pair of measurements that turn out not
+#: to be of the same chart.
+REASON_NO_REPEAT_PATCHES = "no_repeat_patches"
+REASON_TOO_FEW_REPEAT_GROUPS = "too_few_repeat_groups"
+REASON_NO_EARLIER_MEASUREMENT = "no_earlier_measurement"
+REASON_TOO_FEW_SHARED_PATCHES = "too_few_shared_patches"
+#: …and these four are the ONLY codes that never reach the preset window,
+#: because `preset_eligibility.rows_asked` does not ask the two rows that
+#: produce them (`compliance_sets.POPULATION_MAY_BE_ABSENT`). Named here, and
+#: not spelled out again in the guard that sweeps this module, so the two
+#: cannot drift apart.
+REPEATABILITY_REASONS: "tuple[str, ...]" = (
+    REASON_NO_REPEAT_PATCHES, REASON_TOO_FEW_REPEAT_GROUPS,
+    REASON_NO_EARLIER_MEASUREMENT, REASON_TOO_FEW_SHARED_PATCHES,
+)
 
 # ---------------------------------------------------------------------------
 # Notes: a comment ON a verdict, which is not a reason for withholding one
@@ -2683,6 +2765,145 @@ def gamut_populations_block(rgb100, lab, ref: "dict[str, tuple]",
     return {"surface": surface, "outer": outer}
 
 
+# ---------------------------------------------------------------------------
+# The two repeatability populations ChromIQ defines for itself
+# ---------------------------------------------------------------------------
+def repeat_within_sheet_block(rgb100, lab) -> dict:
+    """Row A: how far apart the repeats of one colour landed on ONE sheet.
+
+    A chart that asks for the same device colour more than once gives a direct
+    read on the instrument and the print together, with no profile, no aim
+    values and no second sheet in it: the two patches were asked for the same
+    thing, so everything between them is the printer and the reader.
+
+    The grouping is :func:`ti3_analysis.device_repeat_groups`, the same
+    function the Ti3 Info window's own duplicate figure uses, so the two
+    windows cannot disagree about which patches are repeats. The STATISTIC is
+    ΔE00 here and ΔEab there, deliberately: this row stands beside thirty
+    other ΔE00 rows and is judged against a ΔE00 limit, and the Ti3 Info
+    window's long-standing number is not changed to suit it.
+
+    Written even when the sheet cannot supply it, with the reason, exactly as
+    the blocks above are.
+    """
+    from workflow.ti3_analysis import device_repeat_groups
+    block: dict = {"n_groups": 0, "n_comparisons": 0, "eligible": False,
+                   "reason": REASON_NO_REPEAT_PATCHES, "max": None}
+    if rgb100 is None or not len(rgb100):
+        return block
+    groups = device_repeat_groups(np.asarray(rgb100, dtype=float))
+    block["n_groups"] = len(groups)
+    if not groups:
+        return block
+    des: "list[float]" = []
+    for members in groups:
+        for a in range(len(members)):
+            for b in range(a + 1, len(members)):
+                des.append(ciede2000(tuple(lab[members[a]]),
+                                     tuple(lab[members[b]])))
+    block["n_comparisons"] = len(des)
+    if len(groups) < REPEAT_WITHIN_MIN_GROUPS:
+        block["reason"] = REASON_TOO_FEW_REPEAT_GROUPS
+        return block
+    block["eligible"] = True
+    block["reason"] = None
+    block["max"] = round(float(max(des)), 3)
+    return block
+
+
+def _earlier_measurements_of(ti3_path: Path) -> "list[Path]":
+    """Every dated measurement of this chart taken BEFORE *ti3_path*, newest
+    first, or ``[]`` when this file is not a dated verification at all.
+
+    A verification lives in ``runs/runN/verifications/<date>/`` and the folder
+    id IS the timestamp, so "before" is the folder ordering `Run.verifications`
+    already relies on. Nothing else in the run is considered: the run's own
+    profiling chart is a different sheet printed a different way, and reading
+    it as an earlier print of this chart is exactly the mispairing that
+    produced a trend point of ΔE 41 once before.
+    """
+    from core.file_manager import VERIFICATIONS_DIRNAME
+    d = ti3_path.parent
+    if d.parent.name != VERIFICATIONS_DIRNAME:
+        return []
+    mine = d.name
+    out: "list[Path]" = []
+    try:
+        siblings = sorted(p for p in d.parent.iterdir() if p.is_dir())
+    except OSError:
+        return []
+    for sib in siblings:
+        if sib.name >= mine:
+            continue
+        for cand in sorted(sib.glob("*.ti3")):
+            out.append(cand)
+            break
+    out.reverse()                       # newest of the earlier ones first
+    return out
+
+
+def repeat_across_sheets_block(ti3_path: "str | Path", lab,
+                               sample_ids: "list[str]", rgb100) -> dict:
+    """Row B: this measurement against the one before it, patch for patch.
+
+    Print-to-print and day-to-day, which is what a printer user means by "is
+    my printer steady" and the population ISO 12647-8 treats separately from
+    anything read off a single sheet. ChromIQ computes it from the user's own
+    dated verifications and claims nothing about that or any other standard.
+
+    **The comparison is with the measurement IMMEDIATELY BEFORE this one**, not
+    with the first of the series. Repeatability is the scatter between
+    repeats; distance from a baseline is a different question, and a
+    worst-over-all-history would grow for ever and leave one bad day condemning
+    every measurement after it.
+
+    **And it must really be the same chart.** Patches are paired by SAMPLE_ID,
+    as the rest of the report pairs them, and a pair is then kept only when the
+    two files agree about the device values that patch was asked for, within
+    the report's own :data:`PATCH_IDENTITY_TOL`. A chart that was regenerated
+    between the two dates therefore drops out of the population instead of
+    being read as printer drift, which is measured behaviour: two of the demo
+    pack's eleven consecutive pairs are chart changes and fall from 105 shared
+    patches to 4.
+    """
+    ti3_path = Path(ti3_path)
+    block: dict = {"n_shared": 0, "eligible": False,
+                   "reason": REASON_NO_EARLIER_MEASUREMENT, "max": None,
+                   "compared_with": None}
+    earlier = _earlier_measurements_of(ti3_path)
+    if not earlier:
+        return block
+    prev = earlier[0]
+    try:
+        pdata = parse_ti3(prev)
+    except (Ti3ParseError, OSError):
+        return block
+    block["compared_with"] = prev.parent.name
+    plab = {sid: xyz_to_lab((x / 100.0, y / 100.0, z / 100.0))
+            for sid, (x, y, z) in zip(pdata.sample_ids, pdata.xyz)}
+    prgb = (dict(zip(pdata.sample_ids,
+                     _rgb_to_0_100(np.asarray(pdata.rgb, dtype=float))))
+            if pdata.rgb is not None and len(pdata.rgb) else {})
+    mine_rgb = (dict(zip(sample_ids, np.asarray(rgb100, dtype=float)))
+                if rgb100 is not None and len(rgb100) else {})
+    des: "list[float]" = []
+    for i, sid in enumerate(sample_ids):
+        if sid not in plab:
+            continue
+        if prgb and mine_rgb and sid in prgb and sid in mine_rgb:
+            if float(np.abs(prgb[sid] - mine_rgb[sid]).max()) > PATCH_IDENTITY_TOL:
+                continue                # a different colour under the same id
+        des.append(ciede2000(tuple(plab[sid]), tuple(lab[i])))
+    block["n_shared"] = len(des)
+    if len(des) < REPEAT_ACROSS_MIN_PATCHES:
+        block["reason"] = REASON_TOO_FEW_SHARED_PATCHES
+        return block
+    block["eligible"] = True
+    block["reason"] = None
+    block["max"] = round(float(max(des)), 3)
+    return block
+
+
 def is_graded_sheet(report: dict) -> bool:
     """Whether a measurement is judged against limits at all.
 
@@ -2867,6 +3088,30 @@ def row_values(report: dict) -> "dict[str, dict]":
         else:
             put("outer_gamut_226_de00_avg", None,
                 outr.get("reason") or REASON_TOO_FEW_OUTER_PATCHES)
+
+    # -- ChromIQ's own two repeatability rows.
+    #
+    # A report saved before these existed carries no block, which is not the
+    # same thing as "this sheet has no repeats" and not the same thing as
+    # "this chart has never been measured twice" -- the same N9 distinction the
+    # grey rows and the control strip draw above.
+    rw = report.get("repeat_within_sheet")
+    if not isinstance(rw, dict):
+        put("repeat_patches_de00_max", None, REASON_NOT_COMPUTED)
+    elif rw.get("eligible") and rw.get("max") is not None:
+        put("repeat_patches_de00_max", rw["max"])
+    else:
+        put("repeat_patches_de00_max", None,
+            rw.get("reason") or REASON_NO_REPEAT_PATCHES)
+
+    ra = report.get("repeat_across_sheets")
+    if not isinstance(ra, dict):
+        put("repeat_measurement_de00_max", None, REASON_NOT_COMPUTED)
+    elif ra.get("eligible") and ra.get("max") is not None:
+        put("repeat_measurement_de00_max", ra["max"])
+    else:
+        put("repeat_measurement_de00_max", None,
+            ra.get("reason") or REASON_NO_EARLIER_MEASUREMENT)
     return out
 
 
@@ -2997,7 +3242,13 @@ def summarise(report: dict, limits: "dict", rows: "list[dict]", set_id: str,
     pairs = []
     for row in rows:
         lim = limits.get(row["row_id"])
-        pairs.append((lim if isinstance(lim, Limit) else Limit.none(), row["word"]))
+        # THE ROW ID TRAVELS WITH THE PAIR, because the column's completeness
+        # arithmetic has to know which row an N-A came from: a row whose
+        # population may honestly not exist is not a gap (`compliance_sets.
+        # POPULATION_MAY_BE_ABSENT`). Dropping it here is how a first
+        # verification measurement would read COND instead of PASS.
+        pairs.append((lim if isinstance(lim, Limit) else Limit.none(),
+                      row["word"], row["row_id"]))
     # THE RAW ID, NOT THE RESOLVED SET'S. `getattr(s, "id", None)` is None for
     # a set this ChromIQ no longer defines, which threw away the only evidence
     # left about what the run was judged against.

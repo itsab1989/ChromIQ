@@ -494,23 +494,49 @@ def _neutral_non_monotonic(rgb: np.ndarray, lab: np.ndarray,
     return int(np.sum(drops < -1.0))
 
 
+#: How many decimals of a device value two patches must agree on to count as
+#: the same colour asked for twice. Two hundredths of a device unit is finer
+#: than any chart writes and far finer than any printer resolves, so this
+#: groups the patches a chart deliberately repeats and nothing else.
+REPEAT_DEVICE_DECIMALS = 2
+
+
+def device_repeat_groups(rgb: np.ndarray) -> "list[list[int]]":
+    """The row indices of patches that ask for the SAME device colour, grouped.
+
+    One definition of "a repeat patch" for the whole application. It was
+    written inside :func:`_duplicate_scatter`, which the Ti3 Info window reads;
+    the Measurement Report's within-sheet repeatability row asks the same
+    question and must not answer it a second way, because two definitions of
+    the same population are two numbers that can disagree on screen.
+
+    Singletons are dropped: a colour asked for once is not a repeat of
+    anything. Groups come back in the order the chart first mentions them, so
+    the same chart gives the same grouping every time it is read.
+    """
+    keys: "dict[tuple, list[int]]" = {}
+    for i, c in enumerate(rgb):
+        keys.setdefault(tuple(np.round(c, REPEAT_DEVICE_DECIMALS)), []).append(i)
+    return [m for m in keys.values() if len(m) >= 2]
+
+
 def _duplicate_scatter(rgb: np.ndarray, lab: np.ndarray) -> tuple[float | None, int]:
     """Max ΔEab between patches that share the same device RGB (repeat patches),
-    a direct read on measurement repeatability. Returns (max_de, n_groups)."""
-    keys: dict[tuple, list[int]] = {}
-    for i, c in enumerate(rgb):
-        keys.setdefault(tuple(np.round(c, 2)), []).append(i)
+    a direct read on measurement repeatability. Returns (max_de, n_groups).
+
+    ΔEab, and deliberately still ΔEab: this is what the Ti3 Info window has
+    always shown, and the Measurement Report's row is a separate number in
+    ΔE00 beside thirty other ΔE00 rows. The two share
+    :func:`device_repeat_groups` and nothing else.
+    """
+    groups = device_repeat_groups(rgb)
     worst = 0.0
-    groups = 0
-    for members in keys.values():
-        if len(members) < 2:
-            continue
-        groups += 1
+    for members in groups:
         sub = lab[members]
         for a in range(len(sub)):
             for b in range(a + 1, len(sub)):
                 worst = max(worst, float(np.linalg.norm(sub[a] - sub[b])))
-    return (worst if groups else None), groups
+    return (worst if groups else None), len(groups)
 
 
 def _add_spectral(res: Ti3Analysis, data: Ti3Data, wi: int, bi: int) -> None:

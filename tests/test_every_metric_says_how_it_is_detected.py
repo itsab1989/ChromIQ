@@ -37,7 +37,10 @@ from workflow import compliance_sets as cs                      # noqa: E402
 
 # ------------------------------------------------------------- the data
 def test_every_row_says_what_it_measures():
-    assert len(cs.ROWS) == 30, "the table changed size; check the help text too"
+    # THIRTY UNTIL 2026-09-22, thirty-two since: ChromIQ's own two
+    # repeatability rows, which are the only numeric rows in this table that
+    # come from nobody's published document.
+    assert len(cs.ROWS) == 32, "the table changed size; check the help text too"
     for row in cs.ROWS:
         assert row.blurb, row.id
         assert row.blurb[0].isupper(), row.id
@@ -422,8 +425,9 @@ def test_every_judgeable_row_names_a_lever():
                  if r.status not in ("unmeasurable", "unknown")]
     # ELEVEN UNTIL 2026-09-18, sixteen since: B8-397 built the detection for
     # the three control-strip rows and the two gamut populations, so five rows
-    # that had nothing to advise now do.
-    assert len(judgeable) == 16, len(judgeable)
+    # that had nothing to advise now do. EIGHTEEN since 2026-09-22, for
+    # ChromIQ's own two repeatability rows (B8-660, B8-661).
+    assert len(judgeable) == 18, len(judgeable)
     for row in judgeable:
         assert row.remedy, f"{row.id} tells the reader nothing to do"
         assert len(row.remedy.split()) >= 25, (

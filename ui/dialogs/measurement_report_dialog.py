@@ -462,6 +462,48 @@ def _surface_gamut_sentence(r: "dict | None") -> str:
                             k=SURFACE_GAMUT_MIN)
 
 
+def _repeat_groups_sentence(r: "dict | None") -> str:
+    """Why the within-sheet repeatability row was withheld: the sheet repeats
+    one colour, and one colour is not the sheet.
+
+    Names the count it found, as every sentence in this family does, because
+    *"at least 2 are needed"* beside a chart that has 2 is the shape that was
+    measured on screen once and is not repeated here.
+    """
+    from workflow.measurement_report import REPEAT_WITHIN_MIN_GROUPS
+    block = (r or {}).get("repeat_within_sheet") or {}
+    n = block.get("n_groups")
+    n = n if isinstance(n, int) else 0
+    if n == 1:
+        counted = tr("this sheet repeats one colour")
+    else:
+        counted = tr("this sheet repeats {n} colours").format(n=n)
+    return counted + tr("; at least {k} are needed, because a reading taken "
+                        "from a single colour stands for nothing else on the "
+                        "sheet. Use a chart that repeats more than one").format(
+                            k=REPEAT_WITHIN_MIN_GROUPS)
+
+
+def _repeat_shared_sentence(r: "dict | None") -> str:
+    """Why the measured-again row was withheld: the two measurements are not
+    of the same chart any more."""
+    from workflow.measurement_report import REPEAT_ACROSS_MIN_PATCHES
+    block = (r or {}).get("repeat_across_sheets") or {}
+    n = block.get("n_shared")
+    n = n if isinstance(n, int) else 0
+    if n == 1:
+        counted = tr("one patch of this chart is also in the measurement "
+                     "before it, asked for the same colour")
+    else:
+        counted = tr("{n} patches of this chart are also in the measurement "
+                     "before it, asked for the same colour").format(n=n)
+    return counted + tr("; at least {k} are needed. The chart was rebuilt "
+                        "between the two measurements, so most of it is no "
+                        "longer the same patch set and what changed cannot be "
+                        "read as the printer moving").format(
+                            k=REPEAT_ACROSS_MIN_PATCHES)
+
+
 def _outer_gamut_sentence(r: "dict | None") -> str:
     """Why the outer-gamut row was withheld: the top quarter is too small."""
     from workflow.measurement_report import OUTER_GAMUT_MIN
@@ -6866,6 +6908,22 @@ class MeasurementReportDialog(QDialog):
             "control_strip_too_small": _control_strip_sentence(r),
             "too_few_surface_patches": _surface_gamut_sentence(r),
             "too_few_outer_patches": _outer_gamut_sentence(r),
+            # ChromIQ's own two repeatability rows. FOUR codes for two rows,
+            # by the same rule the pairs above follow: each sends a reader
+            # somewhere different, and a reason nobody can act on is not a
+            # reason. Neither sentence mentions a standard, because no
+            # standard defines either row.
+            "no_repeat_patches": tr(
+                "this chart never asks for the same colour twice, so there is "
+                "nothing on the sheet to compare with itself; a chart that "
+                "repeats a colour at two places can be judged on this row "
+                "without any reference values at all"),
+            "too_few_repeat_groups": _repeat_groups_sentence(r),
+            "no_earlier_measurement": tr(
+                "this is the first measurement of this chart, so there is "
+                "nothing to compare it with; the row is judged from the "
+                "second measurement onward"),
+            "too_few_shared_patches": _repeat_shared_sentence(r),
         }
         return texts.get(code or "", "")
 
@@ -6990,11 +7048,23 @@ class MeasurementReportDialog(QDialog):
         r = self._report
         if not r or self._ungraded_by_type():
             return ""
-        from workflow.compliance_sets import N_A
+        from workflow.compliance_sets import N_A, POPULATION_MAY_BE_ABSENT
         rows, _rec = self._verdict_rows(r)
         missing = [(row.get("row_id") or row.get("key"), row.get("reason"))
                    for row in rows if row.get("word") == N_A
-                   and row.get("reason") not in (None, "printing_unrecorded")]
+                   and row.get("reason") not in (None, "printing_unrecorded")
+                   # …AND THIS STRIP IS ABOUT THE CHART. Its message tells the
+                   # reader to add patches in Create Chart, print the chart
+                   # again and measure it, so naming a row whose population
+                   # may honestly not exist makes that sentence false: nothing
+                   # can be added to a chart to answer whether it has been
+                   # measured twice. The row still reads N-A in the table and
+                   # still carries its own reason; it is this promise about
+                   # the CHART that it may not appear under. The same two rows
+                   # as `set_summary`'s completeness arithmetic, from the same
+                   # set, so the strip and the column word cannot drift.
+                   and (row.get("row_id") or row.get("key"))
+                   not in POPULATION_MAY_BE_ABSENT]
         if not missing:
             return ""
         from workflow.compliance_sets import ROW_BY_ID
@@ -7179,9 +7249,12 @@ class MeasurementReportDialog(QDialog):
         else:
             lim = self._limits_for(r)
             limits, set_id = lim.limits, lim.set_id
+        # The row id travels with the pair: see `measurement_report.summarise`
+        # for why the column's completeness arithmetic needs it.
         pairs = [(limits.get(row.get("row_id"), Limit.none())
                   if isinstance(limits.get(row.get("row_id")), Limit)
-                  else Limit.none(), row.get("word")) for row in rows]
+                  else Limit.none(), row.get("word"), row.get("row_id"))
+                 for row in rows]
         graded = (bool(rec.get("graded")) if rec is not None
                   else is_graded_sheet(r))
         # THE RAW ID AND THE STORED LABEL, not the resolved set: both are None

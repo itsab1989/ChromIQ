@@ -300,10 +300,19 @@ def test_every_reason_the_report_can_produce_is_classified():
     #: A NOTE, not a reason: it comments a verdict that WAS given, and
     #: `row_values` passes it in `notes`, never in `reason`.
     notes = {MR.NOTE_PRINTING_UNRECORDED, MR.REASON_PRINTING_UNRECORDED}
+    #: …and the four codes this window never sees, because `rows_asked` does
+    #: not ask the two rows that produce them: ChromIQ's own repeatability
+    #: pair (`compliance_sets.POPULATION_MAY_BE_ABSENT`). Taken from
+    #: `measurement_report`'s own tuple rather than listed again here, so a
+    #: fifth code added to that pair is either classified or excluded on
+    #: purpose, never by this test quietly widening.
+    never_asked = set(MR.REPEATABILITY_REASONS)
     produced = {v for k, v in vars(MR).items()
                 if k.startswith("REASON_") and isinstance(v, str)}
-    assert produced - notes <= PE.classified_reasons(), \
-        sorted(produced - notes - PE.classified_reasons())
+    assert not (never_asked & PE.classified_reasons()), (
+        "a code this window cannot produce is classified in it")
+    assert produced - notes - never_asked <= PE.classified_reasons(), \
+        sorted(produced - notes - never_asked - PE.classified_reasons())
 
 
 def test_a_missing_row_shows_the_metrics_own_lever(qapp, rows):

@@ -1497,3 +1497,140 @@ lists *"what each run type offers in 'Report type'"* as not built. Which types
 each run type offers, and what a Profiling run's default becomes when the
 current default is withdrawn from it, is his decision. B8-598.
 
+
+## 15. ChromIQ's own two repeatability rows (#182, 2026-09-22)
+
+**⏳ AWAITING CONFIRMATION.** **Ruled by:** Knut, 2026-09-22, on issue #182:
+*"Do as you recommend and we can review the result implemented on a release."*
+**Confirmed by:** *nobody yet.* This section records a design he approved and
+what was built from it. Nobody has confirmed that what the app now does is what
+it should do.
+
+### 15.1 Why these two rows are different from every other row here
+
+Every other numeric row in this table comes from a document somebody else
+wrote. These two do not. They are computed from the user's own measurements of
+the user's own prints, no standard defines them, nobody licenses them, and they
+can be judged for a printer user who holds no document at all.
+
+That shapes every decision about them:
+
+* the group heading is **"Repeatability, measured by ChromIQ"**, the only
+  heading in the table that names its own author, because a row here is read
+  against the column it sits under and two of those columns are named after a
+  standard;
+* each row's help text says, in as many words, *"This row is ChromIQ's own. No
+  standard defines it"*;
+* both read `–` in the two read-only ISO columns. Those columns hold a
+  standard's published values, and no standard published these.
+
+`repeatability_de00_max` is a DIFFERENT row and is deliberately untouched. It
+stays `unmeasurable` under "Not evaluated by ChromIQ": it is a standard's
+criterion over that standard's own timed protocol, and repointing it at a
+number ChromIQ can compute would be the false attribution this record already
+describes being removed from this window more than once.
+
+### 15.2 Row A, repeat patches within one sheet
+
+`repeat_patches_de00_max`, ΔE00, status `build`. The largest ΔE00 between
+patches of one measured sheet that ask for the SAME device colour.
+
+* **The population.** Patches whose device values agree to two decimal places
+  are one group; groups of one are not repeats of anything. The grouping is
+  `ti3_analysis.device_repeat_groups`, shared with the Ti3 Info window's own
+  duplicate figure, so the application holds one definition of a repeat patch.
+  That window keeps its long-standing ΔEab statistic; this row is ΔE00 because
+  it stands beside thirty other ΔE00 rows and is judged against a ΔE00 limit.
+* **Judged** when the sheet carries at least **2** groups
+  (`REPEAT_WITHIN_MIN_GROUPS`). One group is one colour, and where a chart
+  repeats anything it repeats the two ends, so a one-group reading would stand
+  for nothing else on the sheet. Of 101 measured sheets on this machine that
+  carry repeats at all, none carries fewer than two.
+* **Refused** with `no_repeat_patches` when the chart never asks for the same
+  colour twice, and with `too_few_repeat_groups` when it asks twice for one
+  colour only. Two codes, because the two send a reader to different places.
+* **It needs no reference values and no second print**, which is the point of
+  it: it is answerable where every reference row is not.
+
+### 15.3 Row B, the same chart measured again
+
+`repeat_measurement_de00_max`, ΔE00, status `build`. The largest ΔE00 between
+this measurement and the one before it, patch for patch.
+
+* **The population.** Each dated verification of a run is compared with the one
+  **immediately before it**, never with the first of the series: repeatability
+  is the scatter between repeats, and a worst-over-all-history would grow for
+  ever and leave one bad day condemning every measurement after it.
+* Patches are paired by `SAMPLE_ID`, as the rest of the report pairs them, and
+  a pair is kept only when both files agree about the device values that patch
+  was asked for, within `PATCH_IDENTITY_TOL`. A chart rebuilt between the two
+  dates therefore drops out instead of being read as the printer moving.
+* **Judged** from the second measurement onward, when at least **14** patches
+  survive that test (`REPEAT_ACROSS_MIN_PATCHES`). Fourteen is
+  `ceil(ln 0.5 / ln 0.95)`: the count at which the largest of what was read
+  first has an even chance of having touched the worst twentieth of the chart,
+  which is the same five per cent the best-95, worst-5 and 95th-percentile rows
+  are already cut at.
+* **Refused** with `no_earlier_measurement` before the second measurement, and
+  with `too_few_shared_patches` when the two measurements turn out not to be of
+  the same chart.
+
+### 15.4 The limits, and what they were derived from
+
+| set | Row A | Row B |
+|---|---|---|
+| ChromIQ default | 2.0 | 3.0 |
+| ChromIQ tight | 1.0 | 1.5 |
+| Quick check | 4.0 | 6.0 |
+| Custom ISO 12647-7 / -8 | 2.0 | 3.0 |
+| ISO 12647-7 / -8 (read-only) | `–` | `–` |
+
+Nothing here was looked up in, derived from, or checked against any standard.
+Every number is one ChromIQ default already uses, and the measurements each was
+checked against are:
+
+* **Row A.** Twenty-one sheets on this machine that a real instrument read and
+  that carry repeat patches: within-sheet maxima from **0.32 to 1.999**, median
+  **0.698**. The worst is the sheet with by far the most comparisons (1,168
+  patches, 110 groups, 192 pairs) and on it 95 % of pairs are under 0.724, so
+  that maximum is a single-patch defect rather than the sheet's repeatability.
+* **Row B.** The demo pack's dated series, nine consecutive pairs: maxima
+  **0.0 to 4.49**, median **1.75**. There is no genuine print-to-print
+  repeatability series on this machine to check it against, and that is stated
+  rather than papered over.
+
+**Row B's limit may never be tighter than Row A's.** Row B's population
+contains Row A's entirely and adds a second print and a second day.
+
+**The demo pack's WITHIN-sheet numbers are not evidence for Row A.**
+`scripts/make_demo_projects.py` synthesises each reading as the chart value
+plus `drift` plus `random.uniform(-0.35, 0.35)`, and `drift` shifts every patch
+of a sheet equally, so it cancels in a within-sheet difference. What is left is
+the jitter generator reseeded per date. The dated series IS evidence for Row B,
+where the drift between dates is real and intended.
+
+### 15.5 The amendment to §3.3, which is the part that needs a ruling
+
+`set_summary` demotes a column to COND when a REQUIRED row reads N-A, on the
+reading that the set asked for something and did not get it. That is right for
+every row the rule was written for: a chart either has a grey ramp or the user
+can go and get one.
+
+It is not right for these two. Row B is N-A on every FIRST measurement of a
+chart, which is the ordinary state of most reports anybody has, so under the
+unamended rule a user who measured a verification sheet once and passed every
+accuracy limit would read **COND instead of PASS**, because ChromIQ cannot yet
+say whether the printer repeats. Row A is the same shape: roughly half the
+charts ChromIQ ships repeat a colour and half do not.
+
+So `compliance_sets.POPULATION_MAY_BE_ABSENT` names exactly these two rows, and
+`set_summary` leaves them out of the **completeness arithmetic only**. The row
+is still shown, still reads N-A, and still carries its own reason sentence.
+Nothing else about the summary changes.
+
+**The question for Knut:** is *"a row whose population may honestly not exist
+is not a gap in what was checked"* the right carve-out, and are these the right
+two rows for it? No other row may join that set without the same argument being
+made and confirmed.
+
+**These specifications are binding.**

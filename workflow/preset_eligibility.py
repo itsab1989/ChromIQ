@@ -146,6 +146,14 @@ OTHER_SHORTFALL_REASONS: "frozenset[str]" = frozenset({
     MR.REASON_NOT_COMPUTED,              # the block is absent (old report)
 })
 
+#: **CHROMIQ'S OWN TWO REPEATABILITY ROWS ARE NOT IN EITHER SET ABOVE, because
+#: this window never asks them.** `rows_asked` filters them out through
+#: `compliance_sets.POPULATION_MAY_BE_ABSENT`, so their four reason codes
+#: cannot reach this module and must not be classified here: a code in
+#: `classified_reasons` that nothing can produce is a sentence nobody will
+#: ever read, and the pack's own coverage guard would then demand a preset
+#: pair demonstrating a boundary no preset can cross.
+
 
 def classified_reasons() -> "frozenset[str]":
     """Every reason this module knows how to file. The guard's subject."""
@@ -411,7 +419,19 @@ def rows_asked(type_id: str, set_id: str,
     limited = CS.limit_bearing(CS.effective_limits(set_id, overrides))
     only = MR.rows_for_report_type(type_id)
     return tuple(r.id for r in CS.ROWS
-                 if r.id in limited and (only is None or r.id in only))
+                 if r.id in limited and (only is None or r.id in only)
+                 # …and a THIRD filter, the same set that governs the column
+                 # summary and the mismatch strip
+                 # (`compliance_sets.POPULATION_MAY_BE_ABSENT`). This window
+                 # exists to help a user CHOOSE between charts, and neither of
+                 # ChromIQ's two repeatability rows can do that: "has this
+                 # chart been measured before" is not a property of a chart at
+                 # all, and a chart that repeats no colour is short of nothing
+                 # a preset advertises. Listing them would mark every preset
+                 # down for the same two rows, which is the shape this
+                 # module's two reason sets already exist to avoid. ONE set,
+                 # three consumers, so the three cannot drift.
+                 and r.id not in CS.POPULATION_MAY_BE_ABSENT)
 
 
 #: The rows a chart's own PATCHES decide, whatever is selected above: every

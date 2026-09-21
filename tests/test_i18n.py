@@ -1174,19 +1174,24 @@ _IDENTICAL_TO_KEY = {
     # forward: every round that lands moves these files, so any figure written
     # before the last merge is stale by construction. COUNTED with this file's
     # own helper on the tree this commit leaves behind, never adjusted upward.
+    # RE-MEASURED 2026-09-22 on the COMBINED tree, after merging eight rounds
+    # and adding Ukrainian. No agent's numbers and none of my own earlier ones
+    # were carried forward: every round that lands moves these files, so any
+    # figure written before the last merge is stale by construction. COUNTED
+    # with this file's own helper on the tree this commit leaves behind.
     "de": 146,
-    "es": 898,
-    "fr": 920,
-    "it": 909,
-    "ja": 884,
-    "nl": 925,
-    "no": 910,
-    "pl": 902,
-    "pt": 900,
-    "ru": 873,
-    "sv": 911,
-    "zh_CN": 878,
-    "uk": 1142,
+    "es": 915,
+    "fr": 937,
+    "it": 926,
+    "ja": 901,
+    "nl": 942,
+    "no": 927,
+    "pl": 919,
+    "pt": 917,
+    "ru": 890,
+    "sv": 928,
+    "zh_CN": 895,
+    "uk": 1159,
 }
 
 
