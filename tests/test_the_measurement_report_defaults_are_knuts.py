@@ -57,6 +57,26 @@ and the naming rules of B8-392::
 is the constraint the whole of B8-380 to B8-384 was built under. The document
 block the measurement-time record now carries is additive and `REPORT_SCHEMA`
 stays 7.
+
+**AND ONE OF THE THREE DEFAULTS WAS WITHDRAWN TWO DAYS LATER (B8-590).** Knut,
+2026-09-20, on the box his point 3 asked for a default for::
+
+    I realise now this checkbox is not a reasonable feature to have (and has
+    evolved to something that it was not originally used) and should be
+    removed ... The feature that actually is desired here is a button "Select
+    All" ... and a button "Deselect All" ... Remove the feature "Show all
+    measurement runs" totally from the design, and any feature that belongs to
+    that button ... only the selected/ticked measurements shall be part of the
+    report when created/updated (always).
+
+So "Show all measurement runs, by default" is gone from Preferences ▸ Reports,
+the key `report_default_show_all_runs` is gone from `core/settings.py`, and the
+B8-392 rule that turned the box off and greyed it on a one-measurement list has
+nothing left to turn off. Everything else below is unchanged: the other two
+defaults, the naming flags, and where a new report's settings come from. What
+"the whole history" means is now a LIST state, reached with the "Select all"
+button he asked for, and each check that used to set or read the box says so
+where it does it.
 """
 from __future__ import annotations
 
@@ -86,6 +106,45 @@ def _settings(tmp_path, **kw) -> AppSettings:
     return s
 
 
+def _only_this_measurement(dlg, qapp):
+    """Untick every row but the one the window was opened on.
+
+    What `dlg._all_runs_check.setChecked(False)` used to mean, in the
+    vocabulary that is left: a report covers the measurements that are ticked
+    (B8-590), so "one measurement" is a state of the LIST now.
+
+    **THE OTHER ROWS ARE UNTICKED ONE BY ONE, AND NOT THROUGH "Deselect
+    all".** Both reach the same ticks, but the button passes through a state
+    where NOTHING is ticked, and a repaint taken there re-stamps
+    `_doc_built_with` from it: putting the last tick back then leaves the
+    window saying the settings have moved when they are exactly where the
+    document was built, and Generate asks "Update or Create New?" about a
+    document nobody changed. That is a fault in its own right and is reported
+    separately; it is not what these checks are about, and unticking the rows
+    you do not want is what a reader does anyway.
+    """
+    from PyQt6.QtCore import Qt
+    here = dlg._run_key(dlg._report)
+    found = False
+    for i, (kind, _si, key) in enumerate(dlg._list_rows):
+        if kind != "run" or key is None:
+            continue
+        if key == here:
+            found = True
+            continue
+        dlg._profile_list.item(i).setCheckState(Qt.CheckState.Unchecked)
+    qapp.processEvents()
+    assert found, f"the window's measurement has no row: {here!r}"
+    assert [dlg._run_key(r) for r in dlg._runs_for_report()] == [here]
+
+
+def _every_measurement(dlg, qapp):
+    """Tick them all, which is what the removed box ON used to mean."""
+    dlg._select_all_btn.click()
+    qapp.processEvents()
+    assert dlg._hidden_runs == set(), dlg._hidden_runs
+
+
 # ---------------------------------------------------------------------------
 # 1. Preferences ▸ Reports
 # ---------------------------------------------------------------------------
@@ -108,19 +167,29 @@ def test_the_frame_is_named_measurement_report_defaults(tmp_path, qapp):
         d.deleteLater()
 
 
-def test_the_three_defaults_are_on_screen_and_default_on(tmp_path, qapp):
-    """His points 2 and 3: a "Report type, default" pulldown under the Report
-    limits button, and two tick boxes, **both default ON**.
+def test_the_two_defaults_that_are_left_are_on_screen_and_default_on(tmp_path,
+                                                                     qapp):
+    """His points 2 and 3, **minus the box he withdrew (B8-590)**: a "Report
+    type, default" pulldown under the Report limits button, and the ONE tick
+    box that is left, default ON.
 
-    MUTATION: flip either `report_default_*` default in `core/settings.py` to
-    False, or drop a control from `_build_reports_tab`, and this goes red.
+    It used to be two boxes. "Show all measurement runs, by default" set the
+    starting state of a control that no longer exists, so a preference for it
+    has nothing to start; Knut, 2026-09-20: *"Remove the feature 'Show all
+    measurement runs' totally from the design, and any feature that belongs to
+    that button"*. Its absence is asserted here rather than left unwatched.
+
+    MUTATION: flip the `report_default_show_details` default in
+    `core/settings.py` to False, drop a control from `_build_reports_tab`, or
+    build the removed box again, and this goes red.
     """
     from workflow.measurement_report import REPORT_TYPE_FULL
     d = _prefs(_settings(tmp_path), qapp)
     try:
         assert d._report_type_default_combo.currentData() == REPORT_TYPE_FULL, (
             "the default report type is not Full colour check")
-        assert d._report_all_runs_default_check.isChecked()
+        assert getattr(d, "_report_all_runs_default_check", None) is None, (
+            "“Show all measurement runs, by default” is still built")
         assert d._report_details_default_check.isChecked()
         # …and the two ISO types are offered and refused, exactly as the report
         # window offers them: shown, so the reason can be read; disabled, so
@@ -170,18 +239,20 @@ def test_the_defaults_are_written_and_read_back(tmp_path, qapp):
     try:
         d._report_type_default_combo.setCurrentIndex(
             d._report_type_default_combo.findData(REPORT_TYPE_RECORD))
-        d._report_all_runs_default_check.setChecked(False)
         d._report_details_default_check.setChecked(False)
         d._save_and_close()
     finally:
         d.deleteLater()
     assert s.get("report_default_type") == REPORT_TYPE_RECORD
-    assert bool(s.get("report_default_show_all_runs")) is False
     assert bool(s.get("report_default_show_details")) is False
+    # …and the withdrawn one is not written either (B8-590). A Save that still
+    # stored `report_default_show_all_runs` would keep a dead key alive in
+    # every user's settings file and invite the next reader to honour it.
+    assert s.get("report_default_show_all_runs") is None, (
+        "Save still writes the preference of the removed box")
     again = _prefs(s, qapp)
     try:
         assert again._report_type_default_combo.currentData() == REPORT_TYPE_RECORD
-        assert not again._report_all_runs_default_check.isChecked()
         assert not again._report_details_default_check.isChecked()
     finally:
         again.deleteLater()
@@ -510,7 +581,9 @@ def test_the_window_opens_on_the_latest_report_created(tmp_path, qapp):
     first = _report_window(s, vs[0].measurement_ti3, qapp)
     try:
         first._say_generated = lambda saved, failed: None
-        first._all_runs_check.setChecked(False)
+        # ONE MEASUREMENT TICKED — it used to be `_all_runs_check` OFF, which
+        # is the same document said in the vocabulary that is left (B8-590).
+        _only_this_measurement(first, qapp)
         first._detail_check.setChecked(True)
         qapp.processEvents()
         first._on_generate_report()
@@ -530,7 +603,14 @@ def test_the_window_opens_on_the_latest_report_created(tmp_path, qapp):
         assert dlg._saved_combo.currentIndex() != 0
         # …and with its settings, which is the other half of his sentence.
         assert dlg._loaded_doc is not None
-        assert dlg._all_runs_check.isChecked() is False
+        assert dlg._hidden_runs == (
+            {dlg._run_key(r) for r in dlg._history}
+            - {str(m.get("key") or "")
+               for m in (dlg._loaded_doc.get("measurements") or [])}), (
+            "the document's own measurements did not come back ticked: "
+            f"hidden={dlg._hidden_runs!r}")
+        assert len(dlg._runs_for_report()) == 1, (
+            "the report covers more than the one measurement it was made from")
         assert dlg._detail_check.isChecked() is True
     finally:
         dlg.close()
@@ -547,20 +627,25 @@ def test_choosing_new_report_loads_the_preferences_defaults(tmp_path, qapp):
     from ui.dialogs.measurement_report_dialog import NEW_REPORT_KEY
     from workflow.measurement_report import REPORT_TYPE_RECORD
     s, _fm, _run, vs = _generated_project(tmp_path, qapp)
-    s.set("report_default_show_all_runs", True)
     s.set("report_default_show_details", True)
     s.set("report_default_type", REPORT_TYPE_RECORD)
     dlg = _report_window(s, vs[-1].measurement_ti3, qapp)
     try:
-        # the window opened on a document that was made with both boxes off
-        dlg._all_runs_check.setChecked(False)
+        # the window opened on a document made with the box off and a narrowed
+        # list; both are moved away from the defaults before they are asked for
+        _only_this_measurement(dlg, qapp)
         dlg._detail_check.setChecked(False)
         qapp.processEvents()
         dlg._saved_combo.setCurrentIndex(0)      # "New report…"
         qapp.processEvents()
         assert dlg._loaded_doc_id == NEW_REPORT_KEY
-        assert dlg._all_runs_check.isChecked(), (
-            "“Show all measurement runs” did not come from Preferences")
+        # THE LIST IS PART OF WHAT "New report…" LOADS (B8-590). The starting
+        # state that used to be "Show all measurement runs, by default: on" is
+        # now simply every measurement ticked, which is what `_start_new_report`
+        # clears `_hidden_runs` for.
+        assert dlg._hidden_runs == set(), (
+            "“New report…” kept the previous document's narrowing: "
+            f"{dlg._hidden_runs!r}")
         assert dlg._detail_check.isChecked(), (
             "“Show detailed data for each run” did not come from Preferences")
         assert dlg._report_type_now() == REPORT_TYPE_RECORD, (
@@ -629,26 +714,43 @@ def test_the_defaults_do_not_override_a_run_that_chose_its_type(tmp_path,
 # ---------------------------------------------------------------------------
 # 5. B8-392 — one measurement in the list
 # ---------------------------------------------------------------------------
-def test_one_measurement_turns_show_all_off_and_greys_it(tmp_path, qapp):
-    """*"If the list of measurement dates to be included only holds one
-    measurement, then the 'Show all measurement runs' is automatically set to
-    OFF"*, and it beats the Preferences default, which is ON.
+def test_one_measurement_needs_no_box_turned_off_for_it(tmp_path, qapp):
+    """**THE RULE THIS PINNED HAS NOTHING LEFT TO ACT ON (B8-590).**
 
-    MUTATION, to be proved to land: remove the `alone` branch from
-    `_sync_limit_controls` and this goes red.
+    B8-392 said: *"If the list of measurement dates to be included only holds
+    one measurement, then the 'Show all measurement runs' is automatically set
+    to OFF, and the report name should include the flag 'One date'."* The first
+    half was a rule about a control, and this test pinned it: the box off, the
+    box greyed, and a tooltip saying why, beating the Preferences default.
+
+    Knut removed the control and the feature behind it on 2026-09-20, so there
+    is no box to force off and no default to beat. The SECOND half of his
+    sentence is about the report and survives untouched, so that is what is
+    checked here now: one measurement in the list, that measurement ticked,
+    and a report that says "One date".
+
+    MUTATION, proved to land: build `_all_runs_check` again (the first
+    assertion), or return anything but the one-member scope from
+    `_document_scope` (the last).
     """
     from tests.test_a_generated_report_is_one_document import _messy_project
     s, _fm, _run, vs = _messy_project(tmp_path, dates=1)
-    s.set("report_default_show_all_runs", True)
     dlg = _report_window(s, vs[0].measurement_ti3, qapp)
     try:
         assert len(dlg._history) == 1, [r.get("created") for r in dlg._history]
-        assert not dlg._all_runs_check.isChecked(), (
-            "one measurement in the list and the box is still ticked")
-        assert not dlg._all_runs_check.isEnabled(), (
-            "a control that can do nothing is offered as if it could")
-        assert dlg._all_runs_check.toolTip(), (
-            "it is greyed with no word about why")
+        assert getattr(dlg, "_all_runs_check", None) is None, (
+            "“Show all measurement runs” is still built")
+        assert dlg._profile_list.isEnabled(), (
+            "the one control that decides what a report covers is disabled")
+        assert dlg._hidden_runs == set()
+        assert len(dlg._runs_for_report()) == 1
+        dlg._say_generated = lambda saved, failed: None
+        dlg._saved_combo.setCurrentIndex(0)      # "New report…"
+        qapp.processEvents()
+        dlg._on_generate_report()
+        qapp.processEvents()
+        name = dlg._saved_combo.itemText(1)
+        assert "One date" in name, name
     finally:
         dlg.close()
 
@@ -671,7 +773,12 @@ def test_the_name_carries_knuts_flags(tmp_path, qapp):
         # every report in this fixture is about one date.
         dlg._saved_combo.setCurrentIndex(0)
         qapp.processEvents()
-        dlg._all_runs_check.setChecked(True)
+        # "ALL DATES" IS EVERY MEASUREMENT TICKED and "One date" is one of
+        # them, said through the buttons and the list: the box these two used
+        # to set was removed on 2026-09-20 (B8-590), and the flag was already
+        # derived from the document's own member list (B8-522), so the words
+        # this checks are unchanged.
+        _every_measurement(dlg, qapp)
         dlg._detail_check.setChecked(True)
         qapp.processEvents()
         dlg._on_generate_report()
@@ -680,7 +787,7 @@ def test_the_name_carries_knuts_flags(tmp_path, qapp):
         assert "All dates" in all_dates, all_dates
         assert "Detailed" in all_dates, all_dates
 
-        dlg._all_runs_check.setChecked(False)
+        _only_this_measurement(dlg, qapp)
         dlg._detail_check.setChecked(False)
         qapp.processEvents()
         dlg._on_generate_report()
@@ -710,8 +817,7 @@ def test_the_flag_words_are_translated_at_display_and_not_stored(tmp_path,
     dlg = _report_window(s, vs[-1].measurement_ti3, qapp)
     try:
         dlg._say_generated = lambda saved, failed: None
-        dlg._all_runs_check.setChecked(True)
-        qapp.processEvents()
+        _every_measurement(dlg, qapp)
         dlg._on_generate_report()
         qapp.processEvents()
     finally:
@@ -832,7 +938,6 @@ def test_a_window_that_lands_on_new_report_holds_its_defaults(tmp_path, qapp):
     from ui.dialogs.measurement_report_dialog import NEW_REPORT_KEY
 
     s, _fm, _run, vs = _a_run_whose_newest_sheet_has_no_report(tmp_path)
-    s.set("report_default_show_all_runs", True)
     s.set("report_default_show_details", True)
     dlg = _report_window(s, vs[-1].measurement_ti3, qapp)
     try:
@@ -848,8 +953,10 @@ def test_a_window_that_lands_on_new_report_holds_its_defaults(tmp_path, qapp):
             "“Show detailed data for each run” did not come from Preferences: "
             "the window opened on a run with saved reports, so the defaults "
             "never reached it")
-        assert dlg._all_runs_check.isChecked(), (
-            "“Show all measurement runs” did not come from Preferences")
+        # The other box this used to check went with the feature behind it
+        # (B8-590); what a "New report…" state means for the LIST is every
+        # measurement ticked, and that is asserted here in its place.
+        assert dlg._hidden_runs == set(), dlg._hidden_runs
         # …and the pulldown's claim and the window's state are the same thing
         assert dlg._loaded_doc_id == NEW_REPORT_KEY
         assert dlg._saved_combo.currentData() == NEW_REPORT_KEY, (
@@ -863,35 +970,34 @@ def test_that_opening_state_is_preferences_and_not_a_constant(tmp_path, qapp):
     """The other direction, which is what makes the test above mean something:
     with the Preferences defaults OFF the same window opens with both off."""
     s, _fm, _run, vs = _a_run_whose_newest_sheet_has_no_report(tmp_path)
-    s.set("report_default_show_all_runs", False)
     s.set("report_default_show_details", False)
     dlg = _report_window(s, vs[-1].measurement_ti3, qapp)
     try:
         assert not dlg._detail_check.isChecked(), (
             "the detail box is on with the Preferences default off")
-        assert not dlg._all_runs_check.isChecked(), (
-            "the all-runs box is on with the Preferences default off")
     finally:
         dlg.close()
 
 
-def test_the_tick_boxes_are_built_from_the_preferences_defaults(tmp_path,
-                                                                qapp):
-    """One question, one answer. They were built from `report_show_details` /
-    `report_show_all_runs`, the last-used pair, so a window that never reached
-    `_defaults_document()` at all showed a third state.
+def test_the_tick_box_is_built_from_the_preferences_default(tmp_path, qapp):
+    """One question, one answer. It was built from `report_show_details` (and,
+    while it existed, `report_show_all_runs`) — the last-used values — so a
+    window that never reached `_defaults_document()` at all showed a third
+    state.
+
+    It was a pair until B8-590 took the other box away; the remaining half is
+    the whole of the rule now, and the dead last-used key is left in the
+    settings file below to prove nothing reads it any more.
 
     MUTATION: read `report_show_details` again in `__init__` and this goes red.
     """
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
 
-    s = _settings(tmp_path, report_default_show_all_runs=True,
-                  report_default_show_details=True,
+    s = _settings(tmp_path, report_default_show_details=True,
                   report_show_all_runs="false", report_show_details="false")
     dlg = MeasurementReportDialog(s, None)
     try:
-        assert dlg._all_runs_check.isChecked(), (
-            "the box was built from the last-used value, not from Preferences")
+        assert getattr(dlg, "_all_runs_check", None) is None
         assert dlg._detail_check.isChecked(), (
             "the box was built from the last-used value, not from Preferences")
     finally:
@@ -911,13 +1017,14 @@ def test_picking_new_report_again_still_loads_the_defaults(tmp_path, qapp):
     from ui.dialogs.measurement_report_dialog import NEW_REPORT_KEY
 
     s, _fm, _run, vs = _a_run_whose_newest_sheet_has_no_report(tmp_path)
-    s.set("report_default_show_all_runs", True)
     s.set("report_default_show_details", True)
     dlg = _report_window(s, vs[-1].measurement_ti3, qapp)
     try:
         assert dlg._saved_combo.currentData() == NEW_REPORT_KEY
-        # the user has since changed both, and now wants the defaults back
-        dlg._all_runs_check.setChecked(False)
+        # the user has since changed both, and now wants the defaults back.
+        # "Both" is the detail box and the LIST since B8-590: the second box
+        # is gone and the ticks are what a report covers.
+        _only_this_measurement(dlg, qapp)
         dlg._detail_check.setChecked(False)
         qapp.processEvents()
         assert dlg._saved_combo.currentIndex() == 0, (
@@ -926,9 +1033,9 @@ def test_picking_new_report_again_still_loads_the_defaults(tmp_path, qapp):
 
         _pick_the_row_the_list_is_on(dlg._saved_combo, qapp)
 
-        assert dlg._all_runs_check.isChecked(), (
+        assert dlg._hidden_runs == set(), (
             "choosing “New report…” did nothing, because it was already the "
-            "current entry")
+            f"current entry: {dlg._hidden_runs!r}")
         assert dlg._detail_check.isChecked(), (
             "choosing “New report…” did nothing, because it was already the "
             "current entry")

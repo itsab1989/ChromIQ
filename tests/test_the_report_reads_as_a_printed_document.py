@@ -1452,7 +1452,13 @@ def test_the_pdfs_trend_charts_are_drawn_with_the_documents_own_limits(
     dlg = _dialog(_settings(tmp_path), ti3)
     try:
         monkeypatch.setattr(type(dlg), "_confirm", lambda self, t, x: True)
-        dlg._all_runs_check.setChecked(True)
+        # EVERY MEASUREMENT TICKED, so the trend has points to draw. It was
+        # `_all_runs_check.setChecked(True)` until that box and the feature
+        # behind it were removed (B8-590, Knut 2026-09-20: *"only the
+        # selected/ticked measurements shall be part of the report when
+        # created/updated (always)"*); "Select all" is the button he asked for
+        # in its place.
+        dlg._select_all_btn.click()
         qapp.processEvents()
         dlg._render()
         qapp.processEvents()

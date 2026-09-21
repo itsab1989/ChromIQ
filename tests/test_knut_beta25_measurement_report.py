@@ -181,23 +181,56 @@ def test_the_created_line_is_the_reports_own_creation_time(a_saved_report, qapp)
     (recommended) · saved 2026-11-16 10:00:00"*, body *"Created: 2026-09-19
     22:07:08"*.
 
+    **WHAT THE STAMP IS COMPARED AGAINST MOVED (B8-594).** This used to read
+    the entry's TRAILING stamp, after the word "saved", and check the body
+    against it. Knut, 2026-09-20, on the eleven reports the demo pack ships:
+    *"each are showing both the created date in front, and the saved date at
+    the end. Only the create date should be included for reports creation, and
+    the trailing ' - Updated date time' should be added only upon update of a
+    report."* A report that has never been updated carries no trailing stamp
+    any more, so the name cannot be the yardstick here: for a report that
+    records no document block, what leads the name is the MEASUREMENT's date,
+    which is not the report file's own.
+
+    The subject is unchanged, and it was never the name: the "Created:" line is
+    the REPORT's creation time and not the window's clock. So it is checked
+    against the file's own stamp, which is where that time really lives, and
+    against the clock it must not be.
+
     MUTATION (run 2026-09-19, seen red, restored): in `_report_body_html` put
     `when` back to `(created or self._created)`::
 
         E  AssertionError: the name says '2026-11-17 11:30' and the report
            text says '2026-09-19 22:40'
     """
+    from pathlib import Path
     dlg, _run, _path = a_saved_report
     name = _select_the_saved_report(dlg, qapp)
     body = _plain(dlg)
     m = re.search(r"Created: (\d{4}-\d{2}-\d{2} \d{2}:\d{2})", body)
     assert m, f"the report text has no Created line:\n{body[:200]}"
-    # the name carries the same stamp after "saved"
-    n = re.search(r"saved (\d{4}-\d{2}-\d{2} \d{2}:\d{2})", name)
-    assert n, f"the entry name carries no saved stamp: {name!r}"
-    assert m.group(1) == n.group(1), (
-        f"the name says {n.group(1)!r} and the report text says "
+
+    # the file the entry names, and the second it was written
+    key = str(dlg._saved_combo.currentData() or "")
+    assert key.startswith("file:"), (
+        f"this fixture's reports record no document, so the entry should be a "
+        f"file: {key!r}")
+    stem = Path(key[len("file:"):]).stem          # report_2026-11-17_11-30-00
+    f = re.match(r"report_(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})-\d{2}$", stem)
+    assert f, f"the fixture's file is not stamped as the app stamps one: {stem}"
+    saved = f"{f.group(1)} {f.group(2)}:{f.group(3)}"
+    assert m.group(1) == saved, (
+        f"the file was written at {saved!r} and the report text says "
         f"{m.group(1)!r}")
+
+    # …and it is not the second this window opened, which is the fault itself
+    assert m.group(1) != str(dlg._created).replace("T", " ")[:16], (
+        f"the report announces the window's own clock: {dlg._created!r}")
+
+    # …and the name carries no trailing stamp, because this report has never
+    # been updated (B8-594)
+    assert "saved" not in name, (
+        f"a report created the first time still says “saved”: {name!r}")
 
 
 def test_a_new_report_still_shows_this_windows_own_clock(a_saved_report, qapp):

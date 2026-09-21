@@ -260,7 +260,9 @@ DEFAULTS: dict[str, Any] = {
     # Report Limits button contain the Judged Against default chosen, so no
     # separate selection box is needed"* — it is `compliance_default_set`.
     "report_default_type":       "t2_full_colour_check",
-    "report_default_show_all_runs": True,
+    # "report_default_show_all_runs" was removed with the box it defaulted
+    # (B8-590, Knut 2026-09-20). A settings file written before that keeps the
+    # key; nothing reads it, and `AppSettings` does not mind an extra one.
     "report_default_show_details":  True,
     # Measurement Report title/filename prefixes (#130, Knut). The report picks
     # the profiling or verification prefix from whether its measurements carry

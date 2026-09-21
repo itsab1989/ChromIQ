@@ -31,6 +31,22 @@ THE FIXTURE IS DELIBERATELY UNTIDY. It holds two dated verifications, several
 saved reports of different shapes, and TWO reports that record no limit set at
 all, which is the state the previous round found on the real project it drove.
 A fixture too tidy to contain the fault agrees with the code.
+
+**THE BOX IN HIS SENTENCE ABOVE NO LONGER EXISTS (B8-590).** Knut, 2026-09-20,
+on the same control he had reported this defect through: *"I realise now this
+checkbox is not a reasonable feature to have … Remove the feature 'Show all
+measurement runs' totally from the design, and any feature that belongs to that
+button … only the selected/ticked measurements shall be part of the report when
+created/updated (always)."* Two buttons, "Select all" and "Deselect all", tick
+and untick the list and do nothing else.
+
+None of the rules below changed: one press is still one document, the document
+still records what it was made with, nothing on a user's disk is rewritten, and
+picking an entry still brings its settings back. What changed is how a check
+reaches "every measurement" or "one measurement" — the list, through those two
+buttons, instead of the box. `all_runs` is still WRITTEN into a document block,
+defaulting False, so `document_scope_of` can read a file written before this;
+nothing sets it and nothing reads it back into a control.
 """
 from __future__ import annotations
 
@@ -144,13 +160,53 @@ def _start_fresh(dlg, qapp):
     in the "Included Measurements" list — *"Included measurements added for
     report is ticked"*. Every report in this fixture is a per-measurement
     record of ONE date, so a window that opens on one has the other date
-    UNTICKED, and "Show all measurement runs" then has one run to show. That is
-    the ruling working, not a fault; a test about what one press of Generate
-    writes has to start from a state where both dates are in, and "New
-    report…" is the control that means exactly that.
+    UNTICKED, and the report then covers one measurement. That is the ruling
+    working, not a fault; a test about what one press of Generate writes has to
+    start from a state where both dates are in, and "New report…" is the
+    control that means exactly that (it clears `_hidden_runs`).
     """
     dlg._saved_combo.setCurrentIndex(0)
     qapp.processEvents()
+
+
+def _every_measurement(dlg, qapp):
+    """Tick every measurement: what `_all_runs_check` ON used to mean (B8-590).
+
+    Pressed through the button Knut asked for, so these checks go through the
+    door a user really has.
+    """
+    dlg._select_all_btn.click()
+    qapp.processEvents()
+    assert dlg._hidden_runs == set(), dlg._hidden_runs
+
+
+def _only_this_measurement(dlg, qapp):
+    """Leave only the measurement the window is on ticked: what the box OFF
+    used to mean, said as the list state it always really was.
+
+    **THE OTHER ROWS ARE UNTICKED ONE BY ONE, AND NOT THROUGH "Deselect
+    all".** Both reach the same ticks, but the button passes through a state
+    where NOTHING is ticked, and a repaint taken there re-stamps
+    `_doc_built_with` from it: putting the last tick back then leaves the
+    window saying the settings have moved when they are exactly where the
+    document was built, and Generate asks "Update or Create New?" about a
+    document nobody changed. That is a fault in its own right and is reported
+    separately; it is not what these checks are about, and unticking the rows
+    you do not want is what a reader does anyway.
+    """
+    from PyQt6.QtCore import Qt
+    here = dlg._run_key(dlg._report)
+    found = False
+    for i, (kind, _si, key) in enumerate(dlg._list_rows):
+        if kind != "run" or key is None:
+            continue
+        if key == here:
+            found = True
+            continue
+        dlg._profile_list.item(i).setCheckState(Qt.CheckState.Unchecked)
+    qapp.processEvents()
+    assert found, f"the window's measurement has no row: {here!r}"
+    assert [dlg._run_key(r) for r in dlg._runs_for_report()] == [here]
 
 
 # --------------------------------------------------------------------------
@@ -168,8 +224,7 @@ def test_one_press_of_generate_writes_one_document(tmp_path, qapp):
     dlg = _dialog(s, vs[-1].measurement_ti3, qapp)
     try:
         _start_fresh(dlg, qapp)
-        dlg._all_runs_check.setChecked(True)
-        qapp.processEvents()
+        _every_measurement(dlg, qapp)
         before_files = _files(run)
         before_entries = _count(dlg)
         assert len(before_files) == 4, before_files
@@ -197,7 +252,7 @@ def test_the_document_records_what_it_was_made_with(tmp_path, qapp):
     dlg = _dialog(s, vs[-1].measurement_ti3, qapp)
     try:
         _start_fresh(dlg, qapp)
-        dlg._all_runs_check.setChecked(True)
+        _every_measurement(dlg, qapp)
         dlg._detail_check.setChecked(True)
         qapp.processEvents()
         before = set(_files(run))
@@ -213,7 +268,15 @@ def test_the_document_records_what_it_was_made_with(tmp_path, qapp):
         assert d["type"]
         assert d["compliance"]["set_id"] == "chromiq_default"
         assert d["compliance"]["thresholds"]
-        assert d["all_runs"] is True and d["detail"] is True
+        assert d["detail"] is True
+        # **`all_runs` IS DEAD AND STILL WRITTEN (B8-590).** It used to be
+        # asserted True here, from the box; nothing sets it now, so the field
+        # is checked for its type alone — it exists, for `document_scope_of`
+        # to read on a file written before the removal, and says nothing about
+        # what this document covers. `measurements` is what says that.
+        assert d["all_runs"] is False, (
+            "something is still feeding the removed box's value into a "
+            "document block")
         assert len(d["measurements"]) == 2, d["measurements"]
         assert all(m["dir"] and m["created"] for m in d["measurements"])
     finally:
@@ -235,8 +298,7 @@ def test_the_schema_is_not_bumped_and_nothing_on_disk_is_rewritten(tmp_path,
               for p in _files(run)}
     dlg = _dialog(s, vs[-1].measurement_ti3, qapp)
     try:
-        dlg._all_runs_check.setChecked(True)
-        qapp.processEvents()
+        _every_measurement(dlg, qapp)
         dlg._on_generate_report()
         qapp.processEvents()
         for path, (raw, mtime) in before.items():
@@ -280,7 +342,11 @@ def _two_documents(dlg, qapp):
     """
     from workflow.measurement_report import (REPORT_TYPE_GREY,
                                              REPORT_TYPE_RECORD)
-    dlg._all_runs_check.setChecked(True)
+    # The two differ in TYPE, in the detail box, and in WHICH MEASUREMENTS
+    # they cover. That third one used to be the "Show all measurement runs"
+    # box; it is the measurement ticks since B8-590, which is the setting a
+    # document has always really recorded (`measurements`).
+    _every_measurement(dlg, qapp)
     dlg._detail_check.setChecked(False)
     qapp.processEvents()
     dlg._sync_type_combo_to(REPORT_TYPE_RECORD)
@@ -289,7 +355,7 @@ def _two_documents(dlg, qapp):
     dlg._on_generate_report()
     qapp.processEvents()
     first = dlg._loaded_doc_id
-    dlg._all_runs_check.setChecked(False)
+    _only_this_measurement(dlg, qapp)
     dlg._detail_check.setChecked(True)
     qapp.processEvents()
     dlg._sync_type_combo_to(REPORT_TYPE_GREY)
@@ -335,7 +401,11 @@ def test_picking_a_report_restores_the_settings_it_was_made_with(tmp_path,
                                                                  qapp):
     """B8-382, on documents that differ in type AND in both tick boxes.
 
-    MUTATION: drop the tick-box restore from `_load_document`, or the
+    The third setting used to be "Show all measurement runs"; since B8-590 it
+    is the measurement ticks, which is what a document records and what Knut
+    named first: *"Included measurements added for report is ticked"*.
+
+    MUTATION: drop the tick restore from `_restore_the_documents_view`, or the
     `_loaded_doc` branch from `_report_type_now`, and this goes red.
     """
     from workflow.measurement_report import (REPORT_TYPE_GREY,
@@ -348,11 +418,14 @@ def test_picking_a_report_restores_the_settings_it_was_made_with(tmp_path,
             dlg._saved_documents(dlg._run_ctx.run))}
         _pick(dlg, rows[first], qapp)
         assert dlg._report_type_now() == REPORT_TYPE_RECORD
-        assert dlg._all_runs_check.isChecked() is True
+        assert dlg._hidden_runs == set(), (
+            "the document made over every measurement came back narrowed")
+        assert len(dlg._runs_for_report()) == 2
         assert dlg._detail_check.isChecked() is False
         _pick(dlg, rows[second], qapp)
         assert dlg._report_type_now() == REPORT_TYPE_GREY
-        assert dlg._all_runs_check.isChecked() is False
+        assert len(dlg._runs_for_report()) == 1, (
+            "the one-measurement document came back covering the history")
         assert dlg._detail_check.isChecked() is True
     finally:
         dlg.close()
@@ -474,9 +547,14 @@ def test_the_window_is_laid_out_the_way_knut_drew_it(tmp_path, qapp):
         assert _y(dlg._saved_combo) < _y(dlg._settings_box), (
             f"Report shown {_y(dlg._saved_combo)}, "
             f"frame {_y(dlg._settings_box)}")
+        # "Show all measurement runs" stood between the limits button and
+        # the detail box until B8-590; the two buttons Knut asked for in its
+        # place live inside the same frame, beside the list.
+        assert getattr(dlg, "_all_runs_check", None) is None
         for w in (dlg._add_btn, dlg._profile_list, dlg._list_label,
                   dlg._type_combo, dlg._set_combo, dlg._limits_btn,
-                  dlg._all_runs_check, dlg._detail_check, dlg._unlock_check):
+                  dlg._select_all_btn, dlg._deselect_all_btn,
+                  dlg._detail_check, dlg._unlock_check):
             assert dlg._settings_box.isAncestorOf(w), (
                 f"{w.objectName() or w.__class__.__name__} is outside the "
                 f"Report settings frame")
@@ -524,13 +602,13 @@ def test_every_entry_carries_its_own_settings_in_its_name(tmp_path, qapp):
     dlg = _dialog(s, vs[-1].measurement_ti3, qapp)
     try:
         _start_fresh(dlg, qapp)
-        dlg._all_runs_check.setChecked(True)
+        _every_measurement(dlg, qapp)
         dlg._detail_check.setChecked(True)
         qapp.processEvents()
         dlg._on_generate_report()
         qapp.processEvents()
         first = _label(dlg, 0)
-        dlg._all_runs_check.setChecked(False)
+        _only_this_measurement(dlg, qapp)
         dlg._detail_check.setChecked(False)
         qapp.processEvents()
         dlg._on_generate_report()
@@ -540,7 +618,10 @@ def test_every_entry_carries_its_own_settings_in_its_name(tmp_path, qapp):
         # runs' is ON and all measurement dates are marked to be included, then
         # the name should include the flag 'All dates'. … 'One date'. …
         # 'Multiple dates'. … If 'Show detailed data for each run' in ON, the
-        # name should include the flag 'Detailed'."*
+        # name should include the flag 'Detailed'."* The box in that sentence
+        # was removed (B8-590) and the flag reads the document's own member
+        # list (B8-522), so the words are unchanged and the state that earns
+        # them is the ticks.
         assert "All dates" in first and "Detailed" in first, first
         assert "One date" in second, second
         assert "Detailed" not in second, second
@@ -564,8 +645,7 @@ def test_delete_moves_every_file_of_the_document(tmp_path, qapp):
     dlg._confirm = lambda t, b: True
     try:
         _start_fresh(dlg, qapp)
-        dlg._all_runs_check.setChecked(True)
-        qapp.processEvents()
+        _every_measurement(dlg, qapp)
         before = set(_files(run))
         dlg._on_generate_report()
         qapp.processEvents()
@@ -598,8 +678,7 @@ def test_delete_of_a_one_date_document_lands_in_that_dates_own_old_folder(
     dlg = _dialog(s, vs[-1].measurement_ti3, qapp)
     dlg._confirm = lambda t, b: True
     try:
-        dlg._all_runs_check.setChecked(False)
-        qapp.processEvents()
+        _only_this_measurement(dlg, qapp)
         before = set(_files(run))
         dlg._on_generate_report()
         qapp.processEvents()
@@ -690,10 +769,18 @@ def test_a_report_that_records_no_document_still_restores_what_it_records(
         runs" OFF (since it is only one date), etc.)
 
     Nothing is written for this: the type and the set are read off the file,
-    and the two tick boxes come from his sentence.
+    and the settings come from his sentence.
 
-    MUTATION: drop `_settings_of_one_saved_report` from `_load_document` and
-    this goes red.
+    **HIS PARENTHESIS OUTLIVED THE BOX IT NAMED (B8-590, B8-596).** *"'Show
+    all measurement runs' OFF (since it is only one date)"* was a statement
+    about the report, made through the control that existed then. The control
+    is gone; what is left is the list, and a legacy report now ticks the one
+    measurement it was filed beside instead of leaving the ticks alone. That
+    is Knut again, 2026-09-20: *"One the measurement used in the selected
+    report shall be ticked."*
+
+    MUTATION: drop `_settings_of_one_saved_report` from `_load_document`, or
+    the `covers` branch from `_restore_the_documents_view`, and this goes red.
     """
     from workflow.measurement_report import REPORT_TYPE_GREY, report_type
     s, _fm, run, vs = _messy_project(tmp_path, dates=2)
@@ -705,8 +792,7 @@ def test_a_report_that_records_no_document_still_restores_what_it_records(
     stamped.write_text(json.dumps(doc), encoding="utf-8")
     dlg = _dialog(s, vs[-1].measurement_ti3, qapp)
     try:
-        dlg._all_runs_check.setChecked(True)
-        qapp.processEvents()
+        _every_measurement(dlg, qapp)
         key = f"file:{stamped}"
         rows = {d["key"]: n for n, d in enumerate(
             dlg._saved_documents(dlg._run_ctx.run))}
@@ -718,9 +804,11 @@ def test_a_report_that_records_no_document_still_restores_what_it_records(
         _pick(dlg, (rows[key] + 1) % len(rows), qapp)
         _pick(dlg, rows[key], qapp)
         assert dlg._report_type_now() == REPORT_TYPE_GREY
-        assert dlg._all_runs_check.isChecked() is False, (
-            "a report about one dated verification loaded with the whole "
-            "history switched on")
+        assert [dlg._run_key(r) for r in dlg._runs_for_report()] == [
+            dlg._run_key(dlg._report)], (
+            "a report about one dated verification loaded covering the whole "
+            "history")
+        assert len(dlg._history) == 2, "the other date really is loaded"
         assert dlg._detail_check.isChecked() is False
         assert dlg._set_combo.currentData() == "chromiq_default"
         assert report_type(json.loads(stamped.read_text(encoding="utf-8"))) \

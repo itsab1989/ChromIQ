@@ -1169,6 +1169,11 @@ _IDENTICAL_TO_KEY = {
     # forward: every round that lands moves these files, so any figure written
     # before the last merge is stale by construction. COUNTED with this file's
     # own helper on the tree this commit leaves behind, never adjusted upward.
+    # RE-MEASURED 2026-09-22 on the COMBINED tree, after merging six parallel
+    # rounds. No agent's numbers and none of my own earlier ones were carried
+    # forward: every round that lands moves these files, so any figure written
+    # before the last merge is stale by construction. COUNTED with this file's
+    # own helper on the tree this commit leaves behind, never adjusted upward.
     "de": 146,
     "es": 898,
     "fr": 920,

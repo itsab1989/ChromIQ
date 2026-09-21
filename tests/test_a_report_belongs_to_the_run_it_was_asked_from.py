@@ -235,7 +235,12 @@ def test_generate_never_crosses_a_run_boundary(tmp_path, qapp, monkeypatch):
 
     dlg = _window_on(s, run2.measurement_ti3, qapp)
     try:
-        assert dlg._all_runs_check.isChecked(), "the control assumes the tick"
+        # The window opens with every measurement ticked, which is what this
+        # check assumes; it used to ask "Show all measurement runs", removed
+        # with the feature behind it (B8-590, Knut 2026-09-20).
+        dlg._select_all_btn.click()
+        qapp.processEvents()
+        assert dlg._hidden_runs == set(), "the premise: the history is in"
         assert len(dlg._runs_for_document()) == 2, "the document lost the history"
         targets = dlg._reports_to_generate()
         assert [r["_origin_dir"] for r in targets] == [str(run2.dir)], targets

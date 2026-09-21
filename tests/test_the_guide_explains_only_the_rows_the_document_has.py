@@ -1,76 +1,127 @@
-"""A report must not explain rows it deliberately left out.
+"""The guide is ONE list, and every name in it is a real metric's own name.
 
-"Grey and tone check" is the neutral axis and the mid-tone ramps, on their own:
-the five colour-accuracy rows are dropped from the document rather than shown as
-not applicable, because a report whose subject is the neutral axis does not gain
-by listing the colour rows it left out.
+**Knut, 2026-09-20 (B8-592).** *"The report text section 'How to read this
+report' lists all the metrics that a report uses, but it is not ONE list, but
+split into TWO. Why? … Should this not be re-written to be ONE bullet list? Do
+that.... Make sure all the correct names for each metric is used in the
+description."*
 
-The guide above those rows went on saying "Colour accuracy: the ΔE00 across the
-patches, split so you can see the bulk of the chart (all patches and the best
-95 %) apart from the few hardest patches (the worst 5 %). Each row is judged
-against the run's limit set." A reader looks for those rows and there are none.
+What he was reading was four hand-written bullets, the line "Every metric this
+report judges, and what it means:", and then one bullet per judged row. The
+first four were not a second view of the other list:
 
-This is the third time the same shape has been found in this window: a sentence
-that was true of the full report, left standing over a document that is not the
-full report. The note that told a user to add patches to a chart that already
-had them was the first, one line lower was the second.
+* "Colour accuracy" and "Grey balance" are row GROUPS. Five rows stand behind
+  the first and two behind the second, and all seven were already in the
+  second list under their real names, so the same numbers were explained twice
+  under two vocabularies.
+* "Paper white & darkest black" and "Cube corners" are report SECTION
+  headings, and neither is a row in `compliance_sets.ROWS` at all. They were
+  written with no row group, so they survived every filter: a "Grey and tone
+  check", which judges three grey and ramp rows and prints neither section,
+  explained both of them.
 
-Bullets about data every type carries — paper white and the darkest black, the
-cube corners — are not row-gated and must survive.
+This file used to pin that shape, including a test named
+`test_the_bullets_about_data_every_type_carries_always_survive` which asserted
+the last point as a FEATURE. It is retargeted rather than deleted, because the
+thing worth guarding is unchanged and older than the fault: **a report must not
+explain rows it deliberately left out.** "Grey and tone check" drops the five
+colour-accuracy rows from the document, and the guide must drop them too.
 """
 from __future__ import annotations
 
 import re
-import tempfile
 from pathlib import Path
 
 import pytest
 
 import workflow.measurement_report as mr
 
-_COLOUR = "Colour accuracy: the"
-_GREY = "Grey balance: how far"
-_WHITE = "brightest and deepest"
-_CORNERS = "composite black and the six primary"
+#: A group name, not a metric. Must never appear as a bullet lead-in again.
+_GROUP_NAMES = ("Colour accuracy: the", "Grey balance: how far")
+#: Section headings that are not rows. Same.
+_SECTION_NAMES = ("brightest and deepest",
+                  "composite black and the six primary")
 
 
 def _text(dlg) -> str:
     return " ".join(re.sub("<[^>]+>", " ", dlg._view.toHtml()).split())
 
 
-def test_grey_and_tone_stops_explaining_the_colour_rows(a_run, qapp):
-    dlg, run = a_run
-    _set(dlg, run, mr.REPORT_TYPE_GREY)
-    t = _text(dlg)
-    assert _COLOUR not in t
-    assert _GREY in t, "the rows it DOES show are still explained"
+def _guide(dlg) -> str:
+    """The guide section's own HTML, so a phrase found in the results table
+    cannot be counted as an explanation."""
+    return dlg._how_to_read_html(
+        dlg._rows_the_results_show(dlg._runs_for_report()))
 
 
-def test_the_full_report_explains_everything(a_run, qapp):
-    dlg, run = a_run
-    _set(dlg, run, mr.REPORT_TYPE_FULL)
-    t = _text(dlg)
-    assert _COLOUR in t and _GREY in t
+def _metric_bullets(html: str) -> "list[str]":
+    """The bullets of the METRICS list, which is the first <ul> in the guide.
 
-
-def test_the_printing_record_explains_everything_because_it_shows_everything(
-        a_run, qapp):
-    """T4 judges nothing, but it drops no row: every figure is there, reading
-    INFO. Gating the guide on the VERDICT rather than on the rows would empty
-    this one out."""
-    dlg, run = a_run
-    _set(dlg, run, mr.REPORT_TYPE_RECORD)
-    t = _text(dlg)
-    assert _COLOUR in t and _GREY in t
+    Scoped deliberately. The guide carries a second, unrelated list after it:
+    one bullet per verdict word (PASS, FAIL, COND, INFO, N-A), which Knut did
+    not object to and which is not a list of metrics. The first cut of this
+    file asked "is every bullet named after a row?" of the whole section and
+    failed on "PASS", which is a fact about the test and not about the guide.
+    """
+    first = re.search(r"<ul>(.*?)</ul>", html, re.S)
+    if first is None:
+        return []
+    return [" ".join(re.sub("<[^>]+>", " ", b).split())
+            for b in re.findall(r"<li>(.*?)</li>", first.group(1), re.S)]
 
 
 @pytest.mark.parametrize("tid", [mr.REPORT_TYPE_FULL, mr.REPORT_TYPE_GREY,
                                  mr.REPORT_TYPE_RECORD])
-def test_the_bullets_about_data_every_type_carries_always_survive(a_run, qapp, tid):
+def test_the_divider_between_the_two_lists_is_gone(a_run, qapp, tid):
+    dlg, run = a_run
+    _set(dlg, run, tid)
+    assert "Every metric this report judges" not in _text(dlg), (
+        "the line that divided the two lists is still there, so there are "
+        "still two")
+
+
+@pytest.mark.parametrize("tid", [mr.REPORT_TYPE_FULL, mr.REPORT_TYPE_GREY,
+                                 mr.REPORT_TYPE_RECORD])
+def test_no_bullet_names_a_group_or_a_section(a_run, qapp, tid):
     dlg, run = a_run
     _set(dlg, run, tid)
     t = _text(dlg)
-    assert _WHITE in t and _CORNERS in t
+    for bad in _GROUP_NAMES + _SECTION_NAMES:
+        assert bad not in t, (
+            f"the guide still explains {bad!r}, which is not a metric")
+
+
+@pytest.mark.parametrize("tid", [mr.REPORT_TYPE_FULL, mr.REPORT_TYPE_GREY,
+                                 mr.REPORT_TYPE_RECORD])
+def test_every_bullet_is_named_after_a_real_row(a_run, qapp, tid):
+    """*"Make sure all the correct names for each metric is used."* Each
+    bullet's lead-in, up to its colon, must be the `label` of a row in the
+    canonical table, and a row this document actually judges."""
+    from workflow.compliance_sets import ROW_BY_ID
+    dlg, run = a_run
+    _set(dlg, run, tid)
+    shown = dlg._rows_the_results_show(dlg._runs_for_report())
+    labels = {ROW_BY_ID[r].label for r in shown if r in ROW_BY_ID}
+    bullets = _metric_bullets(_guide(dlg))
+    assert bullets, "no bullets at all"
+    for b in bullets:
+        lead = b.split(":")[0].strip()
+        assert lead in labels, (
+            f"{lead!r} is not the label of a row this report judges; "
+            f"judged rows are {sorted(labels)}")
+
+
+def test_grey_and_tone_stops_explaining_the_colour_rows(a_run, qapp):
+    """The rule that predates the fault and outlives it."""
+    from workflow.compliance_sets import ROW_BY_ID
+    dlg, run = a_run
+    _set(dlg, run, mr.REPORT_TYPE_GREY)
+    leads = {b.split(":")[0].strip() for b in _metric_bullets(_guide(dlg))}
+    colour_rows = {ROW_BY_ID[r].label for r in ROW_BY_ID
+                   if ROW_BY_ID[r].group == "all_patches"}
+    assert not (leads & colour_rows), (
+        "a grey and tone check explains colour-accuracy rows it does not show")
+    assert leads, "the rows it DOES show are still explained"
 
 
 def test_the_gate_is_the_row_filter_and_nothing_else(a_run, qapp):

@@ -1327,8 +1327,9 @@ def document_updated_stamps(doc: "dict | None") -> "list[str]":
 
 
 def stamp_document(report: dict, *, doc_id: str, created: str, type_id: str,
-                   compliance: "dict | None", all_runs: bool, detail: bool,
+                   compliance: "dict | None", detail: bool,
                    measurements: "list[dict]", scope: str = "",
+                   all_runs: bool = False,
                    updated: "list[str] | None" = None) -> dict:
     """Record, on one file, which DOCUMENT it belongs to and how that document
     was made. Returns *report*, stamped in place.
@@ -1345,6 +1346,13 @@ def stamp_document(report: dict, *, doc_id: str, created: str, type_id: str,
         "created": str(created),
         "type": str(type_id or ""),
         "compliance": dict(compliance) if isinstance(compliance, dict) else None,
+        # **`all_runs` IS DEAD AND IS STILL WRITTEN (B8-590).** The box it
+        # recorded was removed from the window with the feature behind it, so
+        # nothing sets it and nothing in this build reads it back for a new
+        # document. It stays in the block, and the parameter stays with a
+        # default, because `document_scope_of` falls back to it for a document
+        # written BEFORE `scope` was recorded, and dropping the key would
+        # re-label every one of those. New documents always carry `scope`.
         "all_runs": bool(all_runs),
         "detail": bool(detail),
         "measurements": [dict(m) for m in (measurements or [])],
@@ -1560,13 +1568,44 @@ def generated_report_types(run) -> "dict[str, int]":
     except Exception as exc:                     # noqa: BLE001
         log.warning("could not list the reports of a run: %s", exc)
         return out
+    # **IT COUNTS REPORTS, NOT FILES (B8-593).** Knut, 2026-09-20: *"The Text
+    # 'Already generated for this run: Full colour check (11), Printing Record
+    # (not graded)(1)', while the pulldown for Run shown only has one
+    # report"*, and later *"(32) … while the pulldown … only has 13 reports"*.
+    #
+    # Both numbers were right about what they counted, and that was the fault.
+    # ONE press of Generate writes ONE FILE PER TICKED MEASUREMENT, all
+    # carrying the same document id (`_write_the_document` decides the id once
+    # before its loop). Twelve dated measurements therefore leave twelve files
+    # and ONE report. This line counted the files; "Report shown" lists the
+    # documents, de-duplicated by that id. A line above a pulldown that
+    # contradicts the pulldown is telling the user one of them is broken.
+    #
+    # So a report with a document id is counted ONCE, under the type of its
+    # document block, and a legacy file with no document block still counts as
+    # itself, because for those a file IS a report.
+    seen: "set[str]" = set()
     for d in dirs:
         for path in list_reports(d):
             try:
                 doc = json.loads(path.read_text(encoding="utf-8"))
             except (OSError, ValueError):
                 continue
-            tid = report_type(doc)
+            block = recorded_document(doc)
+            doc_id = str((block or {}).get("id") or "")
+            if doc_id:
+                if doc_id in seen:
+                    continue
+                seen.add(doc_id)
+                # THE DOCUMENT BLOCK'S OWN TYPE, NOT THE FILE'S. A press that
+                # narrows a document re-types the files it writes and leaves
+                # the ones it no longer covers with their old top-level type,
+                # which is how one report came to be counted under two names
+                # ("Full colour check (11), Printing Record (not graded)(1)"
+                # for a single document of twelve files).
+                tid = str(block.get("type") or "") or report_type(doc)
+            else:
+                tid = report_type(doc)
             out[tid] = out.get(tid, 0) + 1
     return out
 

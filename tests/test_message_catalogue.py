@@ -443,12 +443,31 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # built from, in silence. The guard is
                                  # new and so is the WORDING.
                                  "M-IMPORT-NOT-A-CHART",
+
                                  # #182, 2026-09-21. The note a bracketed
                                  # limit points at, asked for by Knut in the
                                  # message that retired COND as a row word.
                                  # The WORDING is new and unreviewed; what he
                                  # ruled on is that such a note must exist.
-                                 "M-LIMIT-RECOMMENDED"}
+                                 "M-LIMIT-RECOMMENDED",
+                                 # 2026-09-20, #182 (B8-591). Knut removed
+                                 # "Show all measurement runs" from the design
+                                 # with the feature behind it, and most of the
+                                 # conflicts between that box and the ticked
+                                 # measurements went with it. ONE survives,
+                                 # because it belongs to the report TYPE: a
+                                 # one-page colour summary is a page about one
+                                 # measurement. He reported the silent
+                                 # correction from both ends -- "This
+                                 # unselected all but the last measurement
+                                 # without a warning" and "the measurement I
+                                 # had ticked was unticked and the last
+                                 # measurement in the list was automatically
+                                 # ticked (I did not ask for that)" -- so
+                                 # Generate now stops and says so and moves no
+                                 # tick. The BEHAVIOUR is his ruling; the
+                                 # WORDING is new and waits here.
+                                 "M-REPORT-ONE-PAGE-ONE-DATE"}
 # Round 2 of the import-door review added four and Basti approved all four on
 # 2026-09-02, so they never sat in this set for longer than one branch:
 # M-IMPORT-NOT-OPENED, M-IMPORT-FOLDER-EXISTS, M-IMPORT-REPLACE-FOLDER-CONFIRM

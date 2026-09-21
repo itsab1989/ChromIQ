@@ -86,33 +86,58 @@ def test_a_fresh_window_says_nothing(tmp_path, qapp):
         dlg.close()
 
 
-@pytest.mark.parametrize("setting", ["all_runs", "detail"])
-def test_the_two_tick_boxes_wait_and_say_so(tmp_path, qapp, setting):
-    """MUTATION: connect either box back to `_refresh` and this goes red on
-    the first assertion, because the document rebuilds itself.
+def _toggle_a_measurement_tick(dlg):
+    """Untick (or re-tick) the FIRST measurement row, the way a click does.
 
-    TWO DATES, because of B8-392: a window whose list holds ONE measurement
-    turns "Show all measurement runs" off and greys it (Knut, 2026-09-18), so
-    on a one-date project that box could not be moved at all and this test
-    would be measuring nothing for half its parameters.
+    It replaces the "Show all measurement runs" half of the parametrisation
+    below: the box was removed with the feature behind it on Knut's 2026-09-20
+    ruling (B8-590), and what decides the measurements a report covers is the
+    list. A row tick defers exactly as the box did — `_on_run_row_toggled`
+    calls `_settings_touched` — so the rule under test is unchanged.
+    """
+    from PyQt6.QtCore import Qt
+    row = next(i for i, (kind, _si, key) in enumerate(dlg._list_rows)
+               if kind == "run" and key)
+    item = dlg._profile_list.item(row)
+    item.setCheckState(Qt.CheckState.Unchecked
+                       if item.checkState() == Qt.CheckState.Checked
+                       else Qt.CheckState.Checked)
+    return "a measurement tick"
+
+
+@pytest.mark.parametrize("setting", ["ticks", "detail"])
+def test_the_deferred_settings_wait_and_say_so(tmp_path, qapp, setting):
+    """MUTATION: connect the detail box, or `_on_run_row_toggled`, back to
+    `_refresh` and this goes red on the first assertion, because the document
+    rebuilds itself.
+
+    TWO DATES. It used to be because of B8-392 — a window whose list held ONE
+    measurement turned "Show all measurement runs" off and greyed it, so that
+    box could not be moved at all on a one-date project. That box and that rule
+    are gone (B8-590), and two dates are still what this needs: unticking the
+    only measurement leaves nothing to generate, which is a different state
+    (`test_the_last_measurement_unticked_leaves_nothing_to_generate`).
     """
     dlg, _run, _fm = _dialog(tmp_path, qapp, dates=2)
     try:
-        box = (dlg._all_runs_check if setting == "all_runs"
-               else dlg._detail_check)
+        def _move():
+            if setting == "detail":
+                dlg._detail_check.setChecked(not dlg._detail_check.isChecked())
+                return f"“{dlg._detail_check.text()}”"
+            return _toggle_a_measurement_tick(dlg)
+
         before = dlg._view.toHtml()
-        box.setChecked(not box.isChecked())
+        what = _move()
         qapp.processEvents()
         assert dlg._view.toHtml() == before, (
-            f"“{box.text()}” rebuilt the document instead of waiting")
+            f"{what} rebuilt the document instead of waiting")
         assert dlg._stale_label.isVisible(), (
-            f"“{box.text()}” moved and nothing on screen says the report "
-            "has not")
+            f"{what} moved and nothing on screen says the report has not")
         # …and putting it back takes the warning away, with no press needed.
-        box.setChecked(not box.isChecked())
+        _move()
         qapp.processEvents()
         assert not dlg._stale_label.isVisible(), (
-            "the box is back where the document was built from and the "
+            "the setting is back where the document was built from and the "
             "window still says the report is out of date")
     finally:
         dlg.close()
@@ -234,14 +259,19 @@ def test_the_banner_is_a_comparison_and_not_a_flag(tmp_path, qapp):
 
     MUTATION: return a constant from `_doc_settings` and this goes red.
 
-    TWO DATES (B8-392): the box it moves is greyed and off on a window holding
-    one measurement.
+    TWO DATES, so that a row can be unticked with one measurement still left
+    to generate. The setting this moves used to be "Show all measurement
+    runs", which was greyed and off on a window holding one measurement; it is
+    the measurement ticks since B8-590, and `_doc_settings` is a four-tuple
+    rather than a five-tuple for the same reason.
     """
     dlg, _run, _fm = _dialog(tmp_path, qapp, dates=2)
     try:
         first = dlg._doc_settings()
+        assert len(first) == 4, (
+            "“Show all measurement runs” is back in the snapshot: " + repr(first))
         assert dlg._doc_built_with == first
-        dlg._all_runs_check.setChecked(not dlg._all_runs_check.isChecked())
+        _toggle_a_measurement_tick(dlg)
         qapp.processEvents()
         assert dlg._doc_settings() != first, \
             "the snapshot cannot tell the two states apart"
@@ -347,10 +377,12 @@ def test_the_last_measurement_unticked_leaves_nothing_to_generate(tmp_path, qapp
     """The third state the button dies in, and the one a reader reaches by
     accident: untick every measurement and there is no report to build.
 
-    TWO DATES (B8-392). The row ticks only decide what the document covers
-    while "Show all measurement runs" is ON, and a window holding ONE
-    measurement now turns that box off and greys it, so a single-date project
-    cannot reach this state at all any more.
+    TWO DATES, which used to be forced by B8-392: the row ticks only decided
+    what the document covered while "Show all measurement runs" was ON, and a
+    window holding ONE measurement turned that box off and greyed it. Since
+    B8-590 the ticks decide it always, so a one-date project could reach this
+    state too; two dates are kept because unticking two rows one at a time is
+    the way a reader really arrives here by accident.
     """
     from PyQt6.QtCore import Qt
     dlg, _run, _fm = _dialog(tmp_path, qapp, dates=2)
@@ -358,7 +390,7 @@ def test_the_last_measurement_unticked_leaves_nothing_to_generate(tmp_path, qapp
         rows = [i for i, (kind, _si, key) in enumerate(dlg._list_rows)
                 if kind == "run" and key]
         assert len(rows) == 2, rows
-        assert dlg._all_runs_check.isChecked()
+        assert dlg._hidden_runs == set(), "every row starts ticked"
         for i in rows:
             dlg._profile_list.item(i).setCheckState(Qt.CheckState.Unchecked)
         qapp.processEvents()

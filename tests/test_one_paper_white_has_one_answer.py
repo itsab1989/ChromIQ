@@ -82,17 +82,25 @@ def _window(s, ti3, qapp):
     dlg.show()
     qapp.processEvents()
     # **FROM "New report…" (B8-490).** Since Knut's beta-25 ruling a window
-    # that opens showing a saved report brings that report's own two tick
-    # boxes with it, and a per-measurement record is about ONE date, so "Show
-    # all measurement runs" comes up OFF where the Preferences default used to
-    # leave it ON. "New report…" is the control that means "start from the
-    # defaults with everything loaded", which is the state these checks are
-    # about, and it repaints, which a tick box deliberately does not.
+    # that opens showing a saved report brings that report's own settings and
+    # its own measurement ticks with it, and a per-measurement record is about
+    # ONE date, so the window comes up covering one measurement where these
+    # checks need the history. "New report…" is the control that means "start
+    # from the defaults with everything loaded" (it clears `_hidden_runs`),
+    # which is the state these checks are about, and it repaints, which a
+    # setting deliberately does not.
+    #
+    # It used to tick "Show all measurement runs" here as well. That box was
+    # removed with the feature behind it (B8-590, Knut 2026-09-20: *"only the
+    # selected/ticked measurements shall be part of the report when
+    # created/updated (always)"*), so covering the whole history is the
+    # "Select all" button he asked for in its place.
     dlg._saved_combo.setCurrentIndex(0)
     qapp.processEvents()
-    dlg._all_runs_check.setChecked(True)
+    dlg._select_all_btn.click()
     dlg._detail_check.setChecked(True)
     qapp.processEvents()
+    assert dlg._hidden_runs == set(), dlg._hidden_runs
     dlg._render()
     qapp.processEvents()
     return dlg

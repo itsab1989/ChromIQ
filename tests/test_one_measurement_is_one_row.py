@@ -141,9 +141,13 @@ def test_hiding_one_row_never_hides_another(tmp_path, qapp, monkeypatch):
         dlg2.close()
     dlg = _window_on(s, run.measurement_ti3, qapp)
     try:
-        dlg._all_runs_check.setChecked(True)
+        # EVERY MEASUREMENT TICKED. It was `_all_runs_check`, removed with
+        # the feature behind it on Knut's 2026-09-20 ruling (B8-590); what
+        # decides the measurements a report covers is the list, and "Select
+        # all" is the button he asked for.
+        dlg._select_all_btn.click()
         qapp.processEvents()
-        assert dlg._all_runs_check.isChecked(), (
+        assert len(dlg._runs_for_report()) > 1, (
             "the window still holds one measurement, so the ticks decide "
             "nothing and this test would prove nothing")
         rows = dlg._runs_for_document()
@@ -239,10 +243,12 @@ def test_several_runs_still_each_get_their_own_row(tmp_path, qapp, monkeypatch):
         # …and since B8-490 that report brings its own MEASUREMENT ticks with
         # it too, and it was generated while only run1 was loaded, so run2's
         # row comes back unticked. "New report…" is the control that means
-        # "start from everything loaded", which is the state this is about.
+        # "start from everything loaded", which is the state this is about,
+        # and "Select all" (B8-590, in place of the removed "Show all
+        # measurement runs" box) says the same thing about the list.
         dlg._saved_combo.setCurrentIndex(0)
         qapp.processEvents()
-        dlg._all_runs_check.setChecked(True)
+        dlg._select_all_btn.click()
         qapp.processEvents()
         rows = dlg._runs_for_document()
         origins = {str(r.get("_origin_dir") or "") for r in rows}

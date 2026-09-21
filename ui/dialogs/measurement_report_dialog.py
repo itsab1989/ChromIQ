@@ -712,10 +712,10 @@ class _TrendChart(QWidget):
             p.drawText(
                 QRectF(L + 10, T, w - 20, h),
                 Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap,
-                tr("A trend graph needs at least two measurement runs. Add "
-                   "another measurement — or, if the profile you have loaded "
-                   "already holds more than one run, tick “Show all "
-                   "measurement runs” above."))
+                tr("A trend graph needs at least two measurement runs. "
+                   "Add another measurement, or tick more of the measurements "
+                   "in the list above. “Select all” ticks every one of "
+                   "them."))
             p.end()
             return
         vals = [v for pt in pts for _, _, acc in self._metrics
@@ -1107,8 +1107,9 @@ class MeasurementReportDialog(QDialog):
             "list box. Use “Add Profile's Measurements…” to add a profile (pick "
             "any of its .ti3 files and ChromIQ gathers all its runs), and "
             "“Remove Profile's Measurements…” / “Clear List” to take profiles out. "
-            "“Show all measurement runs” switches between the single loaded "
-            "measurement and every run of every listed profile. The trend graphs "
+            "Tick the measurements the report is to cover: it covers exactly "
+            "those, and nothing else. “Select all” and “Deselect all” beside "
+            "the list tick and untick every row at once. The trend graphs "
             "need at least two runs; with a single run each graph is drawn empty "
             "and says so. Only combine profiles from the SAME printer (see "
             "below).\n\n"
@@ -1148,8 +1149,8 @@ class MeasurementReportDialog(QDialog):
             "comparable. Open the limits table with “Show limits…” to see every "
             "set side by side; edit the sets in Preferences → Reports.\n\n"
             "Options\n"
-            "  • Show all measurement runs: the whole printer's history, not just "
-            "the loaded one.\n"
+            "  • Select all / Deselect all: tick or untick every measurement "
+            "in the list at once. They change nothing else.\n"
             "  • Show detailed data for each run: add the per-run breakdown.\n"
             "  • Save report as PDF: a ChromIQ-styled PDF you can keep or share; "
             "it opens automatically. Reveal folder opens where it was saved.\n\n"
@@ -1380,7 +1381,50 @@ class MeasurementReportDialog(QDialog):
         self._list_rows: "list[tuple]" = []
         self._building_list = False
         self._profile_list.itemChanged.connect(self._on_run_row_toggled)
-        box_v.addWidget(self._profile_list)
+
+        #: **"SELECT ALL" AND "DESELECT ALL", BESIDE THE LIST (B8-590).**
+        #: Knut, 2026-09-20, ruling "Show all measurement runs" out of the
+        #: design and naming what replaces it: *"The feature that actually is
+        #: desired here is a button 'Select All' that helps the user to tick
+        #: all measurement dates in the 'included measurements in report'
+        #: list, so the user does not need to manually click all of them, and
+        #: a button 'Deselect All' that unticks all measurements … These
+        #: should be placed to the right side of the 'included measurements in
+        #: report' input selection box, since the … input box has too much
+        #: available space compared to the width of its content. These two
+        #: buttons then ONLY select or clear the selection of the listed
+        #: measurements."*
+        #:
+        #: ONLY. They tick and untick; they change no other setting, they do
+        #: not generate, and they are the only control besides a click in the
+        #: list and a report selection that may move a tick.
+        list_row = QHBoxLayout()
+        list_row.setContentsMargins(0, 0, 0, 0)
+        list_row.setSpacing(10)
+        list_row.addWidget(self._profile_list, 1)
+        tick_col = QVBoxLayout()
+        tick_col.setContentsMargins(0, 0, 0, 0)
+        tick_col.setSpacing(6)
+        self._select_all_btn = QPushButton(tr("Select all"), self)
+        self._select_all_btn.setStyleSheet(_compact_btn)
+        self._select_all_btn.clicked.connect(self._on_select_all_measurements)
+        self._select_all_btn.setToolTip(tr(
+            "Tick every measurement in the list. It changes nothing else: the "
+            "report covers exactly the measurements that are ticked when you "
+            "click Generate report."))
+        tick_col.addWidget(self._select_all_btn)
+        self._deselect_all_btn = QPushButton(tr("Deselect all"), self)
+        self._deselect_all_btn.setStyleSheet(_compact_btn)
+        self._deselect_all_btn.clicked.connect(
+            self._on_deselect_all_measurements)
+        self._deselect_all_btn.setToolTip(tr(
+            "Untick every measurement in the list. It changes nothing else: "
+            "the report covers exactly the measurements that are ticked when "
+            "you click Generate report."))
+        tick_col.addWidget(self._deselect_all_btn)
+        tick_col.addStretch(1)
+        list_row.addLayout(tick_col)
+        box_v.addLayout(list_row)
 
         out_row = type_tail
         # KNUT, 2026-09-11: *"A user should be allowed to print several report
@@ -1418,17 +1462,16 @@ class MeasurementReportDialog(QDialog):
         actions_row.addWidget(self._reveal_btn)
         actions_row.addWidget(TooltipButton(
             tr("Saving and finding the report"),
-            tr("Save report as PDF… — writes the whole report (this window's "
+            tr("Save report as PDF…: writes the whole report (this window's "
                "contents, laid out for print with the ChromIQ heading and page "
                "numbers) to a PDF and opens it. The trend graphs are included only "
                "when the report has two or more runs.\n\n"
-               "Where it is saved: when “Show all measurement runs” is on, the PDF "
-               "belongs to the whole printer profile and goes in a reports folder "
-               "next to the profile's runs; when it is off, it goes in the loaded "
-               "run's "
-               "own reports folder. You choose the exact place and name in the "
-               "save dialog.\n\n"
-               "Reveal folder — opens that profile folder in your file manager so "
+               "Where it is saved: a report covering more than one of the "
+               "profile's runs belongs to the whole printer profile and goes "
+               "in a reports folder next to the profile's runs; a report of a "
+               "single run goes in that run's own reports folder. You choose "
+               "the exact place and name in the save dialog.\n\n"
+               "Reveal folder: opens that profile folder in your file manager so "
                "you can browse to the reports folder and open any PDF you saved "
                "earlier."),
             self, color=SPEC_GREEN))
@@ -1441,47 +1484,27 @@ class MeasurementReportDialog(QDialog):
         # the setting they qualify.
         out_row.addSpacing(18)
 
-        self._all_runs_check = QCheckBox(tr("Show all measurement runs"), self)
-        # **THE TWO BOXES START FROM PREFERENCES ▸ REPORTS, AND FROM NOTHING
-        # ELSE (R24-F1).** They were built from `report_show_all_runs` /
-        # `report_show_details`, the last-used pair Sebastian asked for on
-        # 2026-08-10 (*"so I don't have to select it every time again"*), and
-        # B8-388 then made Preferences the source of the opening state without
-        # moving these two lines. So Preferences said "Show detailed data for
-        # each run, by default" was ON, and every window that did not go
-        # through `_defaults_document()` opened with it OFF: measured on a
-        # fresh settings file, which is every new installation. One question,
-        # one answer -- and the last-used pair is still written below, so
-        # restoring that behaviour is still the one line B8-388 promised.
-        self._all_runs_check.setChecked(
-            bool(settings.get("report_default_show_all_runs", True)))
-        self._all_runs_check.toggled.connect(
-            lambda on: (settings.set("report_show_all_runs",
-                                     "true" if on else "false"),
-                        self._settings_touched()))
-        out_row.addWidget(self._all_runs_check)
-        out_row.addWidget(TooltipButton(
-            tr("Show all measurement runs"),
-            tr("The report can look at one measurement, or at your whole "
-               "history.\n\n"
-               "With this ticked, every dated run in the list above is part "
-               # The second em dash of a string this round touched, and the
-               # same rule: it was joining two complete statements, so it
-               # becomes a full stop.
-               "of the report: the trend graphs, Report Scope, Report Results "
-               "and the tables compare them side by side. Any run you have "
-               "unticked in the list stays out.\n\n"
-               # The em dash goes with the edit, which is the rule for a
-               # string touched for any reason (CLAUDE.md, 2026-09-06). A
-               # colon is what the break was doing here: what follows explains
-               # what came before.
-               "With it off, the report shows only the measurement it was "
-               "opened on: one run, in full, with no comparison.\n\n"
-               "Where a new report starts is yours to set, in Preferences ▸ "
-               "Reports ▸ Measurement Report Defaults. A report you pick in "
-               "“Report shown” brings its own setting with it.\n\n"
-               "The saved PDF always matches what you see here."),
-            self, min_width=440, color=SPEC_GREEN))
+        #: **"SHOW ALL MEASUREMENT RUNS" IS GONE, WITH THE FEATURE BEHIND IT
+        #: (B8-590).** Knut, 2026-09-20, having watched it mean two different
+        #: things in one window: *"Note that the 'Show all...' check mark does
+        #: not mean show all measurements existing in the 'included
+        #: measurements in report' list. No... It means show all measurement
+        #: runs that was ticked (selected) … The help text for 'Show all
+        #: measurement runs' describes that either ONE or ALL measurements are
+        #: included depending on the state is OFF or ON. This description
+        #: basically makes it impossible to show multiple measurement dates
+        #: (neither one or all) and cannot be correct. I realise now this
+        #: checkbox is not a reasonable feature to have (and has evolved to
+        #: something that it was not originally used) and should be removed …
+        #: Remove the feature 'Show all measurement runs' totally from the
+        #: design, and any feature that belongs to that button."*
+        #:
+        #: So the box, its Preferences default, its tooltip, the rule that
+        #: forced it off on a one-measurement list, and every conflict rule
+        #: built around it are all gone. What replaces it is not another
+        #: setting: **a report covers exactly the measurements that are ticked,
+        #: always** (`_runs_for_report`), and the two buttons beside the list
+        #: are the convenience that ticking eleven rows needed.
         # His mockup leaves clear air between the two tick boxes; without it
         # the first one's info icon reads as belonging to the second.
         out_row.addSpacing(14)
@@ -3017,6 +3040,33 @@ class MeasurementReportDialog(QDialog):
         h = sum(heights) + frame
         self._profile_list.setMinimumHeight(h)
         self._profile_list.setMaximumHeight(h)
+        # **AND THE TWO BUTTONS BESIDE IT MUST NOT MAKE THE ROW TALLER
+        # (B8-590).** They sit in a column to the right of the list, so the
+        # row is as tall as the taller of the two, and stacked at their
+        # natural height they outgrew a list compacted to two rows. Measured
+        # by `tests/test_install_rename_and_run_filter.py`: the window's
+        # minimum went from 780 to 782 and stopped fitting an 800 px screen,
+        # which is the whole point of `compact`. Capped to the list's own
+        # height, minus the spacing between them, so the column can never be
+        # the thing that decides.
+        # A MAXIMUM ALONE DOES NOTHING: measured, the two buttons stayed 30 px
+        # tall under `setMaximumHeight(16)`, because a QPushButton's
+        # `minimumSizeHint` is 30 and a minimum beats a maximum. So the floor
+        # is dropped as well, and only while the cap is actually tighter than
+        # the button's own idea of itself, which is the compact case and
+        # nothing else.
+        room = max(16, (h - 6) // 2)
+        for b in (getattr(self, "_select_all_btn", None),
+                  getattr(self, "_deselect_all_btn", None)):
+            if b is None:
+                continue
+            natural = b.sizeHint().height()
+            if room < natural:
+                b.setMinimumHeight(0)
+                b.setMaximumHeight(room)
+            else:
+                b.setMinimumHeight(0)
+                b.setMaximumHeight(16777215)
 
     def _compact_the_settings_frame(self) -> None:
         """Take the air out of the "Report settings" frame and the row above it.
@@ -3098,25 +3148,29 @@ class MeasurementReportDialog(QDialog):
         date' … the 'Included Measurements in report' box only had one (the
         last one) ticked"*, after he had ticked all eleven himself.
 
-        It is a DRAWING rule and not a narrowing: `_hidden_runs` is left
-        exactly as the user set it, so the trend charts, the tables and the
-        other report types keep the whole history, and choosing T1 and
-        choosing away from it again gives the ticks back untouched. The list
-        is disabled while T1 is chosen, so nothing a user can press disagrees
-        with it.
+        **AND IT IS NOW `_hidden_runs` AND NOTHING ELSE (B8-591).** The rule
+        above rested on one sentence, which used to be in this docstring: *"The
+        list is disabled while T1 is chosen, so nothing a user can press
+        disagrees with it."* The list is no longer disabled, because that was
+        the freeze Knut reported, so the premise is gone and with it the rule.
+
+        What it did while it stood was worse than the fault it replaced. It
+        drew ten rows unticked while `_hidden_runs` kept them ticked, so the
+        ticks a reader could see were not the ticks the report would use:
+        measured on screen with three measurements and Select all pressed, the
+        list showed **1** ticked while `_runs_for_report` returned **3**. That
+        is the other half of what Knut reported in the same breath as the
+        freeze, *"the 'included measurements in report' became unticked for
+        all measurements"* — they had not been unticked, they had been drawn
+        that way. And a real click on such a row toggled the item and was
+        immediately painted back, which is indistinguishable from a dead list.
+
+        A one-page summary still covers one measurement. It says so when
+        Generate is pressed (`_one_page_wants_one_measurement`) instead of
+        quietly drawing a different answer, so the list can go on telling the
+        truth about itself.
         """
-        from workflow.measurement_report import (REPORT_TYPE_SUMMARY,
-                                                 report_type_is_built)
-        base = set(self._hidden_runs)
-        try:
-            tid = self._report_type_now()
-        except Exception:                                  # noqa: BLE001
-            return base
-        if tid != REPORT_TYPE_SUMMARY or not report_type_is_built(tid):
-            return base
-        keys = {k for kind, _si, k in self._list_rows if kind == "run" and k}
-        subject = self._run_key(self._report) if self._report else ""
-        return (keys - {subject}) if subject in keys else base
+        return set(self._hidden_runs)
 
     def _update_source_buttons(self) -> None:
         self._remove_btn.setEnabled(bool(self._profile_list.selectedItems()))
@@ -3137,6 +3191,41 @@ class MeasurementReportDialog(QDialog):
             self._hidden_runs.discard(key)
         # WHICH MEASUREMENTS THE REPORT IS ABOUT is one of the five settings he
         # named, so the document waits for Generate like the other four.
+        self._settings_touched()
+
+    def _on_select_all_measurements(self) -> None:
+        """Tick every measurement row. Nothing else (B8-590)."""
+        self._set_every_run_row(True)
+
+    def _on_deselect_all_measurements(self) -> None:
+        """Untick every measurement row. Nothing else (B8-590)."""
+        self._set_every_run_row(False)
+
+    def _set_every_run_row(self, ticked: bool) -> None:
+        """The one body behind both buttons.
+
+        It writes `_hidden_runs` and the item check states TOGETHER, in one
+        pass with `itemChanged` blocked, and then touches the settings ONCE.
+        Letting the per-item signal run would call `_settings_touched` eleven
+        times for one click and, on a list whose rows are rebuilt while it is
+        walked, would leave the set and the ticks disagreeing.
+        """
+        was, self._building_list = self._building_list, True
+        try:
+            for i, (kind, _si, key) in enumerate(self._list_rows):
+                if kind != "run" or key is None:
+                    continue
+                item = self._profile_list.item(i)
+                if item is None:
+                    continue
+                item.setCheckState(Qt.CheckState.Checked if ticked
+                                   else Qt.CheckState.Unchecked)
+                if ticked:
+                    self._hidden_runs.discard(key)
+                else:
+                    self._hidden_runs.add(key)
+        finally:
+            self._building_list = was
         self._settings_touched()
 
     def _load(self, path: Path) -> None:
@@ -3248,11 +3337,13 @@ class MeasurementReportDialog(QDialog):
                 return str(combo.currentData() or "")
             except RuntimeError:          # the window is going away
                 return ""
+        # FOUR, NOT FIVE, SINCE B8-590: "Show all measurement runs" is gone
+        # and with it the setting that used to sit between the set id and the
+        # detail box. The tuple is compared and restored, never unpacked
+        # outside `_as_the_document_was_built._put`.
         return (
             _data("_type_combo"),
             _data("_set_combo"),
-            bool(getattr(self, "_all_runs_check", None) is not None
-                 and self._all_runs_check.isChecked()),
             bool(getattr(self, "_detail_check", None) is not None
                  and self._detail_check.isChecked()),
             tuple(sorted(getattr(self, "_hidden_runs", ()) or ())),
@@ -3363,7 +3454,20 @@ class MeasurementReportDialog(QDialog):
     def _show_stale_banner(self) -> None:
         if getattr(self, "_stale_label", None) is None:
             return
-        self._stale_label.setVisible(self._settings_were_modified())
+        # **AND IT NEVER ASKS FOR A PRESS THAT CANNOT HAPPEN (B8-601).** The
+        # line reads *"Settings changed. Click 'Generate report' to build the
+        # report with them, or put the setting back."* With every measurement
+        # unticked the settings HAVE changed, and Generate is disabled (B8-600,
+        # because a press would write a measurement the user unticked), so the
+        # line was telling a reader to press a button that refuses them. A
+        # message is a promise; this one could not be kept.
+        #
+        # The second half of its own sentence is what is left, and it is the
+        # honest instruction here: put the setting back. Ticking a measurement
+        # brings the line, and the button, straight back.
+        self._stale_label.setVisible(
+            self._settings_were_modified()
+            and not self._nothing_is_ticked())
         # **THE PDF DOOR STAYS OPEN, AND THE PDF IS WHAT IS ON SCREEN
         # (B8-364).** Round 21 measured the fault: with the pulldown on `Colour
         # summary (one page)`, the red line up and the document still reading
@@ -3407,7 +3511,29 @@ class MeasurementReportDialog(QDialog):
         # THE DOCUMENT IS ABOUT TO MATCH THE CONTROLS, so this is the one place
         # that may record what it was built from. Anything that repaints goes
         # through here, so nothing else has to remember to clear the banner.
-        self._doc_built_with = self._doc_settings()
+        #
+        # **EXCEPT WHEN NOTHING IS TICKED, WHICH IS NOT A DOCUMENT (B8-601).**
+        # A state that Generate refuses to write (B8-600) cannot be the state a
+        # document "was built with", and stamping it made the red line lie in
+        # the ordinary way round: press "Deselect all", change your mind, tick
+        # the row back, and the baseline has moved to the empty list while the
+        # ticks have come back exactly where the document was built. Measured
+        # on three measurements, one ticked:
+        #
+        #     open    hidden 2   built 2   modified False
+        #     Deselect all      hidden 3   built 3   modified False
+        #     tick one back     hidden 2   built 3   modified True
+        #
+        # …so the window asks "Update or Create New?" about a document nobody
+        # changed. That is the exact invariant the banner exists for, Knut's
+        # *"a chance to undo a changed field, if not wanting to regenerate the
+        # report"*, and undoing the change is what triggered it.
+        #
+        # Found by the adversary pass over B8-590, in this round's own work:
+        # "Deselect all" is what makes the transient empty list easy to reach,
+        # and it is a button this round added.
+        if not self._nothing_is_ticked():
+            self._doc_built_with = self._doc_settings()
         self._show_stale_banner()
         if not self._sources:
             self._view.setHtml(self._empty_html())
@@ -3603,6 +3729,11 @@ class MeasurementReportDialog(QDialog):
         the user described a different sheet. So the row the window is ON wins,
         and where the window is on neither, the later measurement does.
         """
+        # NOTHING TICKED, NOTHING TO WRITE (B8-600). See `_nothing_is_ticked`:
+        # `_runs_for_report`'s fallback keeps the page readable and must not
+        # decide what a press of Generate puts on disk.
+        if self._nothing_is_ticked():
+            return []
         runs = self._runs_for_document()
         ctx = self._run_ctx
         mine: "set[str] | None" = None
@@ -3705,6 +3836,16 @@ class MeasurementReportDialog(QDialog):
         reports = self._reports_to_generate()
         if ctx is None or not reports:
             return
+        # **IT SAYS SO INSTEAD OF CORRECTING THE TICKS (B8-591).** Knut,
+        # 2026-09-20, reporting the same silence from both ends: *"This
+        # unselected all but the last measurement without a warning"* and *"the
+        # measurement I had ticked was unticked and the last measurement in the
+        # list was automatically ticked (I did not ask for that)"*. His rule for
+        # what replaces it: *"the user should be informed … Then the user can
+        # close that message and do the changes, and then click generate report
+        # again."* So the press STOPS; nothing is written and no tick is moved.
+        if self._one_page_wants_one_measurement():
+            return
         # **AND IT MAY UPDATE THE SELECTED REPORT INSTEAD (B8-491).** Knut,
         # 2026-09-19, overruling his own K.1: *"When a report from 'Report
         # shown' is selected … If any of the settings are changed, a red text
@@ -3724,6 +3865,36 @@ class MeasurementReportDialog(QDialog):
                                             # same function as if 'New report…'
                                             # option is selected."*
         self._write_the_document(ctx, reports, updating)
+
+    def _one_page_wants_one_measurement(self) -> bool:
+        """True when the press was refused and the user was told why (B8-591).
+
+        The one-page colour summary is a page about a single measurement, and
+        it always was: `_one_page_html` renders one sheet. What changed is what
+        happens when more than one is ticked. It used to narrow the list in
+        `_runs_for_document` and write a document of one, which is what
+        produced a report named "One date" out of eleven ticked rows, and a
+        report about a measurement the user had not chosen.
+        """
+        from workflow.measurement_report import REPORT_TYPE_SUMMARY
+        if self._report_type_now() != REPORT_TYPE_SUMMARY:
+            return False
+        # **IT COUNTS THE TICKS, NOT THE FILES THE PRESS WOULD WRITE.** The
+        # first cut of this asked `_reports_to_generate`, which is already
+        # narrowed: with eleven measurements ticked it answered ONE, so the
+        # question "are several ticked?" was being put to a list that had
+        # stopped being the ticks. Measured on screen, eleven ticked:
+        # `_runs_for_report` 11, `_reports_to_generate` 1. `_runs_for_report`
+        # IS the ticked set since B8-590, and it is what the user sees.
+        ticked = self._runs_for_report()
+        if len(ticked) <= 1:
+            return False
+        from ui.warning_sign import inform
+        from workflow import measurement_messages as M
+        title, body = M.CATALOGUE["M-REPORT-ONE-PAGE-ONE-DATE"].render(
+            count=len(ticked))
+        inform(self, title, body)
+        return True
 
     def _document_being_updated(self) -> "dict | None":
         """The selected document Generate report would ask about, or None.
@@ -3879,7 +4050,7 @@ class MeasurementReportDialog(QDialog):
                         r.get("_origin_dir") or "", str(r.get("created") or ""),
                         str(r.get("ti3") or ""))}
                    for r in self._runs_for_document() if r.get("_origin_dir")]
-        all_runs, detail = self._tick_state()
+        detail = self._tick_state()
         scope = self._document_scope(members)
         saved, failed = [], []
         #: WHAT THE RED LINE WAS COMPARING AGAINST BEFORE THIS PRESS (R29-F2).
@@ -3920,7 +4091,7 @@ class MeasurementReportDialog(QDialog):
                 stamp_document(rep, doc_id=doc_id, created=doc_created,
                                type_id=report_type(rep),
                                compliance=rep.get("compliance"),
-                               all_runs=all_runs, detail=detail,
+                               detail=detail,
                                measurements=members, scope=scope,
                                updated=updated)
                 if here is not None and here.exists():
@@ -3953,7 +4124,7 @@ class MeasurementReportDialog(QDialog):
             stamp_document(leftover, doc_id=doc_id, created=doc_created,
                            type_id=_tid_for_block,
                            compliance=leftover.get("compliance"),
-                           all_runs=all_runs, detail=detail,
+                           detail=detail,
                            measurements=members, scope=scope, updated=updated)
             try:
                 rewrite_report(path, leftover)
@@ -4083,20 +4254,17 @@ class MeasurementReportDialog(QDialog):
             return
         w_type = getattr(self, "_type_combo", None)
         w_set = getattr(self, "_set_combo", None)
-        w_all = getattr(self, "_all_runs_check", None)
         w_det = getattr(self, "_detail_check", None)
-        widgets = [w for w in (w_type, w_set, w_all, w_det) if w is not None]
+        widgets = [w for w in (w_type, w_set, w_det) if w is not None]
         before = self._doc_settings()
         blocked = [(w, w.blockSignals(True)) for w in widgets]
 
         def _put(vals):
-            t, st, allr, det, hidden = vals
+            t, st, det, hidden = vals
             if w_type is not None and w_type.findData(t) >= 0:
                 w_type.setCurrentIndex(w_type.findData(t))
             if w_set is not None and w_set.findData(st) >= 0:
                 w_set.setCurrentIndex(w_set.findData(st))
-            if w_all is not None:
-                w_all.setChecked(bool(allr))
             if w_det is not None:
                 w_det.setChecked(bool(det))
             self._hidden_runs = set(hidden)
@@ -4784,8 +4952,9 @@ class MeasurementReportDialog(QDialog):
         self._loaded_doc = (entry["doc"]
                             or self._settings_of_one_saved_report(entry))
         self._doc_created = self._document_created_stamp(entry)
-        self._restore_the_documents_view(self._loaded_doc,
-                                         recorded=bool(entry["doc"]))
+        self._restore_the_documents_view(
+            self._loaded_doc, recorded=bool(entry["doc"]),
+            covers={self._run_key(r) for r, _n in (entry["members"] or [])})
 
     def _saved_documents(self, run) -> list:
         """The generated reports of *run*, as DOCUMENTS, newest first.
@@ -4844,6 +5013,31 @@ class MeasurementReportDialog(QDialog):
         out = [docs[k] for k in order]
         for entry in out:
             entry["label"] = self._document_label(entry)
+        # **THE SAVED STAMP IS A TIE-BREAK, NOT A SECOND DATE ON EVERY LINE
+        # (B8-594).** Knut, 2026-09-20, on the eleven reports the demo pack
+        # ships: *"each are showing both the created date in front, and the
+        # saved date at the end. Only the create date should be included for
+        # reports creation, and the trailing ' - Updated date time' should be
+        # added only upon update of a report."*
+        #
+        # It was appended to every legacy entry unconditionally, and the
+        # paragraph in `_saved_report_label` says why it was put there: a
+        # tester's run held fifty reports of one measurement and forty-eight
+        # of them drew the identical line. Both are true, and neither needs
+        # the other's cost. The stamp is what tells two entries apart, so it
+        # is added where there ARE two to tell apart and nowhere else.
+        seen: "dict[str, list]" = {}
+        for entry in out:
+            seen.setdefault(entry["label"], []).append(entry)
+        for label, group in seen.items():
+            if len(group) < 2:
+                continue
+            for entry in group:
+                if entry.get("doc") or not entry.get("members"):
+                    continue                 # a document names its own updates
+                r, name = entry["members"][0]
+                entry["label"] = self._saved_report_label(
+                    r, name, with_stamp=True)
         # Newest first: the one a reader is most likely to want is at the top,
         # and `_report_order` is this window's one answer to "which of these
         # was written last".
@@ -5005,12 +5199,15 @@ class MeasurementReportDialog(QDialog):
             return here
         return NEW_REPORT_KEY
 
-    def _tick_state(self) -> "tuple[bool, bool]":
-        """(Show all measurement runs, Show detailed data), as they stand."""
-        return (bool(getattr(self, "_all_runs_check", None) is not None
-                     and self._all_runs_check.isChecked()),
-                bool(getattr(self, "_detail_check", None) is not None
-                     and self._detail_check.isChecked()))
+    def _tick_state(self) -> bool:
+        """"Show detailed data for each run", as it stands.
+
+        It used to be a pair. "Show all measurement runs" was removed with the
+        feature behind it (B8-590), so one box is left and the document no
+        longer records the other.
+        """
+        return bool(getattr(self, "_detail_check", None) is not None
+                    and self._detail_check.isChecked())
 
     def _settings_of_one_saved_report(self, entry: dict) -> "dict | None":
         """The settings to restore for a report that records no document.
@@ -5057,7 +5254,6 @@ class MeasurementReportDialog(QDialog):
             # the RUN, and "" is what lets `_report_type_now` do that.
             "type": recorded_report_type(rep),
             "compliance": recorded_compliance(rep),
-            "all_runs": False,
             "detail": False,
             "measurements": [{
                 "dir": str(r.get("_origin_dir") or ""),
@@ -5195,7 +5391,8 @@ class MeasurementReportDialog(QDialog):
                 return why
         return ""
 
-    def _saved_report_label(self, r: dict, name: str) -> str:
+    def _saved_report_label(self, r: dict, name: str,
+                            with_stamp: bool = False) -> str:
         """How one saved report is named in the selector.
 
         The measurement's date, then what the FILE says it is: its own report
@@ -5230,7 +5427,7 @@ class MeasurementReportDialog(QDialog):
             stamp = path.stat().st_mtime_ns
         except OSError:
             stamp = 0
-        hit = cache.get(str(path))
+        hit = cache.get((str(path), bool(with_stamp)))
         if hit is not None and hit[0] == stamp:
             return hit[1]
         rep = r
@@ -5249,16 +5446,45 @@ class MeasurementReportDialog(QDialog):
             from workflow.compliance_sets import set_label
             bits.append(set_label(str(comp.get("set_id", "")),
                                   str(comp.get("set_label", ""))))
+        # **A REPORT THAT HAS NEVER BEEN UPDATED CARRIES NO SECOND DATE
+        # (B8-594).** Knut, 2026-09-20, on the eleven reports the demo pack
+        # ships: *"each are showing both the created date in front, and the
+        # saved date at the end. Only the create date should be included for
+        # reports creation, and the trailing ' - Updated date time' should be
+        # added only upon update of a report."*
+        #
+        # It is the rule he had already given for a report WITH a document
+        # block (K.7d, §13.8: *"when a report created the first time the
+        # trailing ' - saved <date> <time>' should not be added (created time
+        # stamp already part of the beginning of the name)"*), and this branch
+        # never got it, because a legacy file has no document block to record
+        # an `updated` list in. So the question is asked of the two stamps the
+        # file itself carries: a file whose name stamp is its creation stamp
+        # has been written once and never rewritten.
+        #
+        # The stamp is NOT dropped outright, because the paragraph above is
+        # still true: fifty reports of one measurement drew forty-eight
+        # identical lines without it. It is dropped only where it says nothing
+        # a reader does not already have on the front of the line.
         _rank, _when_saved, _n = _report_file_order(name)
-        if _rank:
+        if _rank and with_stamp:
             # the stamp is `%Y-%m-%d_%H-%M-%S`; a person reads the date with
             # hyphens and the clock with colons
             day, _, clock = str(_when_saved).partition("_")
             saved = tr("saved {when}").format(
                 when=f"{day} {clock.replace('-', ':')}")
             bits.append(saved if _n <= 1 else f"{saved} ({_n})")
+        # **AND IT CARRIES ITS DATE FLAG LIKE EVERY OTHER REPORT (B8-595).**
+        # Knut: *"non of the pre-created reports have the tag '(one date)',
+        # which they should."* The modern branch of `_document_label` appends
+        # one; this one never did, so the eleven reports the demo pack ships
+        # were the only entries in the pulldown with no flag at all. A legacy
+        # file is one file about one measurement, so the flag is a fact here
+        # and not a guess, exactly as it is for the automatic measurement-time
+        # report (§13.7 F.4).
+        bits.append(tr("One date"))
         label = " · ".join(bits)
-        cache[str(path)] = (stamp, label)
+        cache[(str(path), bool(with_stamp))] = (stamp, label)
         return label
 
     def _saved_delete_refusal(self, r: dict, name: str) -> str:
@@ -5662,7 +5888,6 @@ class MeasurementReportDialog(QDialog):
             # the only one that stays true.
             "type": "",
             "compliance": None,
-            "all_runs": bool(s.get("report_default_show_all_runs", True)),
             "detail": bool(s.get("report_default_show_details", True)),
             "measurements": [],
         }
@@ -5704,14 +5929,10 @@ class MeasurementReportDialog(QDialog):
         # and the controls answer for themselves again (B8-461, B8-462).
         self._doc_created = ""
         self._forget_sticky_settings()
-        for chk, val in ((getattr(self, "_all_runs_check", None),
-                          bool(doc.get("all_runs"))),
-                         (getattr(self, "_detail_check", None),
-                          bool(doc.get("detail")))):
-            if chk is None:
-                continue
+        chk = getattr(self, "_detail_check", None)
+        if chk is not None:
             chk.blockSignals(True)
-            chk.setChecked(val)
+            chk.setChecked(bool(doc.get("detail")))
             chk.blockSignals(False)
 
     def _open_on_the_latest_report(self) -> None:
@@ -5832,14 +6053,17 @@ class MeasurementReportDialog(QDialog):
         if entry["members"]:
             self._report = max((r for r, _n in entry["members"]),
                                key=lambda r: str(r.get("created") or ""))
-        self._restore_the_documents_view(doc, recorded=bool(entry.get("doc")))
+        self._restore_the_documents_view(
+            doc, recorded=bool(entry.get("doc")),
+            covers={self._run_key(r) for r, _n in entry["members"]})
         # The type and the limit set follow from `_loaded_doc`: they are read
         # back by `_report_type_now` and `_sync_limit_controls`, which the
         # repaint the caller runs. Setting the two combos here as well would be
         # two answers to one question, and this window has paid for that before.
 
     def _restore_the_documents_view(self, doc: "dict | None", *,
-                                    recorded: bool = True) -> None:
+                                    recorded: bool = True,
+                                    covers: "set[str] | None" = None) -> None:
         """Put *doc*'s two tick boxes and its measurement ticks on screen.
 
         **THIS IS KNUT'S BETA-25 RULING, AND IT OVERRULES B8-388 (B8-490).**
@@ -5885,16 +6109,37 @@ class MeasurementReportDialog(QDialog):
         """
         if not doc:
             return
-        for chk, val in ((getattr(self, "_all_runs_check", None),
-                          bool(doc.get("all_runs"))),
-                         (getattr(self, "_detail_check", None),
-                          bool(doc.get("detail")))):
-            if chk is None:
-                continue
+        chk = getattr(self, "_detail_check", None)
+        if chk is not None:
             chk.blockSignals(True)
-            chk.setChecked(val)
+            chk.setChecked(bool(doc.get("detail")))
             chk.blockSignals(False)
         if not recorded:
+            # **A LEGACY REPORT NOW TICKS ITS OWN MEASUREMENT TOO (B8-596).**
+            # Knut, 2026-09-20: *"when ever I select any of the reports in the
+            # drop down, the 'included measurements in report' always have all
+            # measurements ticked. This is wrong. … only one measurement date
+            # should be showing then I select one of the reports … One the
+            # measurement used in the selected report shall be ticked."*
+            #
+            # This branch used to return here and leave the ticks alone, and
+            # the paragraph above says why: a report with no document block
+            # does not LIST its measurements, and inferring one was judged
+            # sound enough to decide two tick boxes but not to untick rows,
+            # because unticking would have left "Show all measurement runs"
+            # with one run to show on every project made before beta 22.
+            #
+            # That argument died with the box (B8-590). A report now covers
+            # exactly what is ticked, so a selected report whose ticks say
+            # something else is lying about itself. And the list is not
+            # inferred here: `entry["members"]` is which measurements this
+            # pulldown entry was built from, gathered by `_saved_documents`
+            # from the files on disk, so it is a fact about the report and not
+            # a guess about the folder it sits in.
+            if covers:
+                here = {self._run_key(r) for r in self._history}
+                if covers & here:
+                    self._hidden_runs = here - covers
             return
         keys = {str(m.get("key") or "")
                 for m in (doc.get("measurements") or [])}
@@ -6232,53 +6477,17 @@ class MeasurementReportDialog(QDialog):
         self._generate_btn.setEnabled(
             run is not None and not several
             and bool(self._reports_to_generate()))
-        # A ONE-PAGE SUMMARY IS ABOUT ONE SHEET, so the tick that widens every
-        # other report to the whole history is disabled rather than left to do
-        # nothing visible. See `_one_measurement` for what it was doing before.
+        # **THE BOX THAT WIDENED THE REPORT IS GONE (B8-590), AND SO IS THE
+        # RULE THAT FORCED IT OFF.** A one-measurement list needed "Show all
+        # measurement runs" turned off and greyed (B8-392); a one-page summary
+        # needed it disabled as well. Neither rule has anything left to act
+        # on: the report covers the ticked rows and nothing else. What the
+        # one-page type still constrains is how MANY rows it can cover, and
+        # that is now said at Generate rather than enforced behind the user's
+        # back.
         from workflow.measurement_report import REPORT_TYPE_SUMMARY
-        if getattr(self, "_all_runs_check", None) is not None:
-            one_page = current == REPORT_TYPE_SUMMARY
-            # **ONE MEASUREMENT IN THE LIST TURNS IT OFF, AND THAT BEATS THE
-            # PREFERENCES DEFAULT (B8-392).** Knut, 2026-09-18: *"If the list
-            # of measurement dates to be included only holds one measurement,
-            # then the 'Show all measurement runs' is automatically set to OFF,
-            # and the report name should include the flag 'One date'."*
-            #
-            # It is a rule about the list, not about the user, so it is applied
-            # wherever the list is drawn rather than only where the default is
-            # read: B8-388 makes that box default ON, and without this the
-            # default would tick it on a window that has one measurement to
-            # show. It changes nothing a reader can see either way — with one
-            # measurement loaded, "all of them" and "this one" are the same
-            # page — so turning it off is the honest state rather than a
-            # setting that claims to do something.
-            # **AND IT IS GIVEN BACK WHEN THE LIST GROWS.** The rule is about
-            # a list holding one measurement, not about the user: opening a
-            # window on one sheet and then adding a project must widen the
-            # report exactly as it did before, or a one-measurement window
-            # would quietly switch the setting off for the rest of the session.
-            # The box is DISABLED while it is alone, so nothing a user does can
-            # be mistaken for this.
-            alone = len(getattr(self, "_history", []) or []) <= 1
-            if alone and self._all_runs_check.isChecked():
-                self._all_runs_forced_off = True
-                self._all_runs_check.blockSignals(True)
-                self._all_runs_check.setChecked(False)
-                self._all_runs_check.blockSignals(False)
-            elif not alone and getattr(self, "_all_runs_forced_off", False):
-                self._all_runs_forced_off = False
-                self._all_runs_check.blockSignals(True)
-                self._all_runs_check.setChecked(True)
-                self._all_runs_check.blockSignals(False)
-            self._all_runs_check.setEnabled(not one_page and not alone)
-            self._all_runs_check.setToolTip(tr(
-                "The one-page colour summary is about the single measurement "
-                "you are looking at, so it does not widen to the whole "
-                "history.") if one_page else tr(
-                "There is one measurement in the list, so there is no history "
-                "to widen to. Add another measurement, or open the report on a "
-                "run with more dated verifications.") if alone else "")
-            self._show_that_a_one_page_summary_is_one_sheet(one_page)
+        one_page = current == REPORT_TYPE_SUMMARY
+        self._show_that_a_one_page_summary_is_one_sheet(one_page)
 
     def _show_that_a_one_page_summary_is_one_sheet(self, one_page: bool) -> None:
         """Make the window SAY that the one-page summary is about one sheet.
@@ -6327,17 +6536,35 @@ class MeasurementReportDialog(QDialog):
         lst = getattr(self, "_profile_list", None)
         if lst is None:
             return
-        if one_page:
-            lst.setEnabled(False)
-            lst.setToolTip(tr(
-                "A one-page colour summary describes the single measurement "
-                "this window is open on, so the list shows that one sheet and "
-                "cannot be changed while the type is chosen. Choose another "
-                "report type to include more measurements; the ticks you had "
-                "come straight back."))
-        else:
-            lst.setEnabled(True)
-            lst.setToolTip(self._list_tooltip)
+        # **THE LIST IS NEVER DISABLED. THAT WAS THE FREEZE (B8-591).**
+        # Knut, 2026-09-20: *"Now I tried selecting report type Colour summary.
+        # Then the 'included measurements in report' became unticked for all
+        # measurements and it froze, so I cannot scroll or select."* And again,
+        # further down, when he left it: *"when selecting 'New report...' in
+        # Report shown field, then the 'included measurements in report' input
+        # box is frozen again."*
+        #
+        # It was `lst.setEnabled(False)`, put there for B8-523 so that a
+        # one-page summary would SHOW the single sheet it covers. A disabled
+        # QListWidget does not scroll, does not take a click and gives no
+        # reason, so what it looked like from the outside was a hung window:
+        # eleven rows, a live scrollbar with somewhere to go, and nothing
+        # responding. The measured state, on screen: enabled=False,
+        # viewport_enabled=False, a real mouse click on row 0 changed no tick,
+        # and Key_Down moved a scrollbar whose range was 0..7 by nothing.
+        #
+        # A one-page summary really does cover one measurement, and that is
+        # still true. It is no longer enforced by taking the control away: the
+        # user picks WHICH sheet, and a press of Generate with more than one
+        # ticked says so and asks (`_conflicts_with_the_ticks`). Taking the
+        # control away also made the choice impossible, which is the part that
+        # made it a fault rather than a restriction.
+        lst.setEnabled(True)
+        lst.setToolTip(tr(
+            "A one-page colour summary is about ONE measurement. Tick the one "
+            "you want the page to be about; if more than one is ticked when "
+            "you click Generate report, ChromIQ says so and asks you to "
+            "choose.") if one_page else self._list_tooltip)
 
     def _generated_types_line(self, run) -> str:
         """Which report types this run has already produced, or "".
@@ -8807,16 +9034,59 @@ class MeasurementReportDialog(QDialog):
                  "\n\n".join(_parts))
 
     def _runs_for_report(self) -> list:
-        """Every saved run of the loaded printer(s) when 'Show all measurement
-        runs' is on, else just the loaded one. The same list drives the window
-        and the PDF, so they always match (worst-patch count included, Knut)."""
-        if (getattr(self, "_all_runs_check", None) is not None
-                and self._all_runs_check.isChecked() and self._history):
-            # Minus the runs the user unticked in the list — session-only,
-            # and the Report Scope says how many are hidden.
-            return [r for r in self._history
-                    if self._run_key(r) not in self._hidden_runs]
+        """**THE MEASUREMENTS THAT ARE TICKED. ALWAYS (B8-590).**
+
+        Knut, 2026-09-20, removing "Show all measurement runs" and everything
+        built on it: *"only the selected/ticked measurements shall be part of
+        the report when created/updated (always)."*
+
+        It used to read the tick box first and the list second: ON meant the
+        whole history minus what was unticked, OFF meant the one measurement
+        the window was opened on **and the ticks were not consulted at all**.
+        That second branch is the fault he reported twice from the other end:
+        several rows ticked and a report of one, and one row ticked and a
+        report of a different one. Neither was a conflict rule misfiring; the
+        ticks were simply never read.
+
+        The same list drives the window and the PDF, so they always match
+        (worst-patch count included, Knut).
+        """
+        ticked = [r for r in (self._history or [])
+                  if self._run_key(r) not in self._hidden_runs]
+        if ticked:
+            return ticked
+        # NOTHING TICKED IS NOT "EVERYTHING", and it is not "nothing" either:
+        # the PAGE a reader is looking at falls back to the measurement the
+        # window was opened on rather than going blank underneath them.
+        #
+        # **THIS FALLBACK IS FOR THE VIEW AND MUST NOT REACH THE WRITER
+        # (B8-600).** It did, and an adversary round caught it: this method
+        # feeds `_runs_for_document` and so `_reports_to_generate`, which
+        # decides both what Generate writes AND whether its button is enabled.
+        # So with every row unticked the button stayed live and a press would
+        # have written a report covering a measurement the user had explicitly
+        # unticked, which is the exact opposite of Knut's rule that *"only the
+        # selected/ticked measurements shall be part of the report when
+        # created/updated (always)"*. `_reports_to_generate` now asks
+        # `_nothing_is_ticked` first, so the two questions are answered
+        # separately: "what does this page show" and "what would a press
+        # write".
         return [self._report] if self._report else []
+
+    def _nothing_is_ticked(self) -> bool:
+        """True when the user has unticked every measurement there is.
+
+        Asked of the LIST, not of `_runs_for_report`, because that method
+        deliberately falls back to the loaded measurement so the page is not
+        blank. A window with no measurements at all is not "nothing ticked" —
+        there is nothing to tick — so it answers False and the ordinary
+        emptiness checks handle it.
+        """
+        keys = [k for kind, _si, k in getattr(self, "_list_rows", [])
+                if kind == "run" and k]
+        if not keys:
+            return False
+        return all(k in self._hidden_runs for k in keys)
 
     def _metric_table(self, dates: list, data_rows: list) -> str:
         """One metric×run table: a wide, no-wrap Metric column, dated run columns,
@@ -9350,17 +9620,19 @@ class MeasurementReportDialog(QDialog):
         caller with no runs to hand gets.
         """
         from workflow.compliance_sets import ROW_BY_ID
-        groups = self._explained_row_groups()
-
-        def _for(group: "str | None", text: str) -> str:
-            # A bullet about data the document always carries (paper white, the
-            # cube corners) has no row group and is never dropped.
-            if group is not None and groups is not None and group not in groups:
-                return ""
-            return "<li>" + html.escape(text) + "</li>"
+        # `_explained_row_groups` is no longer consulted HERE: the four
+        # hand-written bullets it filtered are gone (B8-592), and the metric
+        # bullets that replaced them are already exactly the rows the results
+        # table shows, so there is nothing left to filter by group. It is kept
+        # because it is the honest answer to "which groups can this type
+        # contain" and `tests/test_the_guide_explains_only_the_rows_the_
+        # document_has.py` asks it that question directly.
 
         def _metrics() -> str:
-            """One bullet per metric row the results table lists."""
+            """One bullet per metric row the results table lists, named by the
+            row's OWN label and described by its own one-line blurb, so a
+            metric is described in one place and reads the same wherever it
+            appears."""
             out = []
             for rid in (present or []):
                 row = ROW_BY_ID.get(rid)
@@ -9376,45 +9648,38 @@ class MeasurementReportDialog(QDialog):
             "<p>" + html.escape(tr(
                 "This report compares what your instrument measured against the "
                 "chart's design colours (the reference values the chart was built "
-                "from). Every number is a colour difference (ΔE00): 0 is a perfect "
-                "match, 1–2 is barely visible, and 10 or more is clearly "
+                "from). Every number is a colour difference (\u0394E00): 0 is a perfect "
+                "match, 1\u20132 is barely visible, and 10 or more is clearly "
                 "different.")) + "</p>"
-            "<ul>"
-            + _for("all_patches", tr(
-                "Colour accuracy: the ΔE00 across the patches, split so you can "
-                "see the bulk of the chart (all patches and the best 95 %) apart "
-                "from the few hardest patches (the worst 5 %). Each row is judged "
-                "against the run's limit set."))
-            + _for("grey_ramp", tr(
-                "Grey balance: how far each grey patch (R = G = B) sits from a "
-                "neutral grey, ignoring lightness. ΔCh is the distance in a* and "
-                "b* only. Computed from the chart's grey ramp when it has at "
-                "least 8 steps from white to black."))
-            + _for(None, tr(
-                "Paper white & darkest black — the brightest and deepest patches "
-                "(L*), a quick health check of your paper and maximum ink."))
-            + _for(None, tr(
-                "Cube corners — paper white, composite black and the six primary "
-                "and secondary inks. These say as much about your inks as about "
-                "the instrument."))
-            + "</ul>"
-            # **AND THEN EVERY METRIC THE RESULTS TABLE JUDGES, BY NAME
-            # (B8-463).** The four bullets above are about the report's
-            # sections; Knut's beta-25 note is about its METRICS: *"Whatever
-            # metrics are shown in Report Results: each metric used in the
-            # report shall have a corresponding explanation of each metric in
-            # the 'How to read this report' section … The bullet list of
-            # parameters explained is then changing with which metrics the
-            # report contains."* Measured before this, on his own demo project
-            # and every type crossed with every limit set: 13 metrics judged,
-            # 0 of them named here, in all 20 combinations.
+            # **ONE LIST, AND EVERY NAME IN IT IS A REAL METRIC'S OWN NAME
+            # (B8-592).** Knut, 2026-09-20: *"The report text section 'How to
+            # read this report' lists all the metrics that a report uses, but
+            # it is not ONE list, but split into TWO. Why? … Should this not
+            # be re-written to be ONE bullet list? Do that.... Make sure all
+            # the correct names for each metric is used in the description."*
             #
-            # The words are the rows' own one-line descriptions, the same ones
-            # the Report limits window shows against each row, so a metric is
-            # described in one place and reads the same wherever it appears.
-            + (("<p>" + html.escape(tr(
-                "Every metric this report judges, and what it means:"))
-                + "</p><ul>" + _metrics() + "</ul>") if _metrics() else "")
+            # It was two: four hand-written bullets, then the line "Every
+            # metric this report judges, and what it means:", then one bullet
+            # per judged row. The first list was not a second view of the
+            # second one. Measured against `compliance_sets.ROWS`:
+            #
+            # * "Colour accuracy" and "Grey balance" name row GROUPS, not
+            #   metrics. Behind the first stand five rows and behind the
+            #   second two, and every one of them was already in the second
+            #   list under its real name, so the reader met the same numbers
+            #   twice under two different vocabularies.
+            # * "Paper white & darkest black" and "Cube corners" are REPORT
+            #   SECTION headings. Neither is a row in `ROWS` at all: there is
+            #   no "darkest black" metric and no "Cube corners" metric. Worse,
+            #   both were written with no row group, which meant they survived
+            #   every filter: a "Grey and tone check", which judges three grey
+            #   and ramp rows and prints neither section, explained both.
+            #
+            # So the hand-written four are gone and what is left is the list
+            # that was always correct: the rows the results table actually
+            # judges, each under the label the table, the limits window and
+            # the PDF all use for it.
+            + ("<ul>" + _metrics() + "</ul>" if _metrics() else "")
             # ONE WORD PER BULLET. Knut, 2026-09-11: *"This paragraph must
             # describe each 5 words, one at a time in a bullet list, organised
             # and orderly, not in a messy bulk."* Every clause of the

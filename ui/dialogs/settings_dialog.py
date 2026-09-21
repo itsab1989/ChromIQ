@@ -4181,25 +4181,14 @@ class SettingsDialog(QDialog):
                "Default: Full colour check"),
             self))
         gl.addLayout(_type_row)
-        _all_row = QHBoxLayout()
-        self._report_all_runs_default_check = QCheckBox(
-            tr("Show all measurement runs, by default"), self)
-        _all_row.addWidget(self._report_all_runs_default_check)
-        _all_row.addStretch()
-        _all_row.addWidget(TooltipButton(
-            tr("Show all measurement runs, by default"),
-            tr("How the Measurement Report window starts a NEW report: with "
-               "every dated measurement of the run in it, or with only the "
-               "one it was opened on.\n\n"
-               "It is a starting point and nothing more. A report you load "
-               "from “Report shown” comes back with the setting it was made "
-               "with, and you can change it in the window whenever you "
-               "like.\n\n"
-               "The report ChromIQ writes by itself after a measurement is "
-               "always about that one measurement, so it ignores this.\n\n"
-               "Default: on"),
-            self))
-        gl.addLayout(_all_row)
+        # **"SHOW ALL MEASUREMENT RUNS, BY DEFAULT" IS GONE (B8-590).** The
+        # box it set a default for was removed from the Measurement Report
+        # with the feature behind it (Knut, 2026-09-20: *"Remove the feature
+        # 'Show all measurement runs' totally from the design, and any feature
+        # that belongs to that button"*), so a preference for its starting
+        # state has nothing left to start. A report covers the measurements
+        # that are ticked, and the two buttons beside the list are how they
+        # get ticked.
         _det_row = QHBoxLayout()
         self._report_details_default_check = QCheckBox(
             tr("Show detailed data for each run, by default"), self)
@@ -5019,8 +5008,6 @@ class SettingsDialog(QDialog):
             _i = max(0, self._report_type_default_combo.findData(
                 "t2_full_colour_check"))
         self._report_type_default_combo.setCurrentIndex(_i)
-        self._report_all_runs_default_check.setChecked(
-            bool(s.get("report_default_show_all_runs", True)))
         self._report_details_default_check.setChecked(
             bool(s.get("report_default_show_details", True)))
         self._report_title_prof_edit.setText(
@@ -6135,8 +6122,6 @@ class SettingsDialog(QDialog):
         _tid = str(self._report_type_default_combo.currentData() or "")
         if _tid:
             s.set("report_default_type", _tid)
-        s.set("report_default_show_all_runs",
-              bool(self._report_all_runs_default_check.isChecked()))
         s.set("report_default_show_details",
               bool(self._report_details_default_check.isChecked()))
         s.set("report_title_profiling",

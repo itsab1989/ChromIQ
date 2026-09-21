@@ -21707,3 +21707,307 @@ would reach.
   `B8-556-AFTER/`, each with `driver-report.json` and its photographs, taken by
   `scripts/drive_b8570_the_verdict_ruling.py`.
 
+### B8-590 · FIXED · "Show all measurement runs" is removed from the design, with the feature behind it
+- status: FIXED
+- blocks release: no
+- **Knut ruled this in writing**, beta 29 review, 2026-09-20: *"I realise now
+  this checkbox is not a reasonable feature to have (and has evolved to
+  something that it was not originally used) and should be removed … Remove
+  the feature 'Show all measurement runs' totally from the design, and any
+  feature that belongs to that button … only the selected/ticked measurements
+  shall be part of the report when created/updated (always)."*
+- his reasoning is that it had come to mean two things at once: *"the 'Show
+  all...' check mark does not mean show all measurements existing in the
+  'included measurements in report' list. No... It means show all measurement
+  runs that was ticked"*, while its own help text described ONE or ALL, *"which
+  basically makes it impossible to show multiple measurement dates (neither one
+  or all) and cannot be correct."*
+- gone: the box, `report_default_show_all_runs` and its Preferences row, the
+  rule that forced the box off on a one-measurement list (B8-392 F.4), the
+  tooltip, and the `all_runs` element of `_doc_settings`. `stamp_document`
+  still WRITES the key with a default, because `document_scope_of` falls back
+  to it for a document written before `scope` was recorded.
+- in its place, to the RIGHT of the list, which he noted *"has too much
+  available space compared to the width of its content"*: **Select all** and
+  **Deselect all**, which *"ONLY select or clear the selection"*.
+- `_runs_for_report` is now the ticked measurements and nothing else. It used
+  to read the box first: ON meant the history minus what was unticked, OFF
+  meant the measurement the window was opened on **and the ticks were not read
+  at all**. That second branch is what he reported from both ends, *"This
+  unselected all but the last measurement without a warning"* and *"the
+  measurement I had ticked was unticked and the last measurement in the list
+  was automatically ticked (I did not ask for that)"*.
+- the two buttons are capped to the list's own height in compact mode. A
+  QPushButton's `minimumSizeHint` is 30 px and beats a maximum, so stacked at
+  their natural height they pushed the window's minimum from 753 to 780 and it
+  stopped fitting an 800 px screen.
+- evidence: test_the_show_all_box_is_gone_from_the_window, test_the_show_all_default_is_gone_from_preferences, test_the_two_buttons_tick_and_untick_every_measurement, test_the_two_buttons_change_nothing_but_the_ticks, test_the_report_covers_exactly_what_is_ticked
+### B8-591 · FIXED · The included-measurements list FROZE on "Colour summary", and stayed frozen
+- status: FIXED
+- blocks release: no
+- **The severe one.** Knut, 2026-09-20: *"Now I tried selecting report type
+  Colour summary. Then the 'included measurements in report' became unticked
+  for all measurements and it froze, so I cannot scroll or select. Selecting
+  report type 'Grey and tone check' did not freeze the included list."* And
+  again further down: *"when selecting 'New report...' in Report shown field,
+  then the 'included measurements in report' input box is frozen again"*.
+- reproduced on screen before anything was changed, on his own project
+  (`Report-Limits-Threshold-Series` run1, 11 dated verifications):
+  `enabled=False`, `viewport_enabled=False`, a real mouse click on a
+  measurement row toggled no tick, and Key_End moved a scrollbar whose range
+  was 0..7 by nothing.
+- **and it was worse than he reported: the window OPENED that way.** The run's
+  latest report is a Colour summary, so the type combo opened on it and the
+  list was dead before he touched anything.
+- two mechanisms, both deliberate, both from B8-523. `lst.setEnabled(False)`
+  in `_show_that_a_one_page_summary_is_one_sheet`, and `_rows_drawn_unticked`,
+  which DREW every row but one as unticked while `_hidden_runs` kept them.
+  The second is the other half of his sentence: they had not been unticked,
+  they had been drawn that way. Measured with three measurements and Select
+  all pressed: the list showed 1 ticked while `_runs_for_report` returned 3.
+  A real click on such a row toggled the item and was painted straight back,
+  which is indistinguishable from a dead list.
+- the docstring of `_rows_drawn_unticked` rested on one sentence, *"The list is
+  disabled while T1 is chosen, so nothing a user can press disagrees with
+  it."* Removing the freeze removed its premise.
+- a one-page summary still covers ONE measurement. It now SAYS so when
+  Generate is pressed and moves no tick, which is his rule: *"the user should
+  be informed … Then the user can close that message and do the changes, and
+  then click generate report again."* The wording is M-REPORT-ONE-PAGE-ONE-DATE
+  in §M-PROPOSED, **not approved**.
+- evidence: test_the_measurement_list_is_never_disabled, test_a_click_still_toggles_a_row_under_the_one_page_type, test_the_list_still_works_after_moving_to_new_report, test_generate_refuses_a_one_page_summary_of_several
+### B8-592 · FIXED · "How to read this report" was two bullet lists, and half the names in it were not metrics
+- status: FIXED
+- blocks release: no
+- Knut, 2026-09-20: *"The report text section 'How to read this report' lists
+  all the metrics that a report uses, but it is not ONE list, but split into
+  TWO. Why? … Should this not be re-written to be ONE bullet list? Do that....
+  Make sure all the correct names for each metric is used in the description."*
+- four hand-written bullets, then the line *"Every metric this report judges,
+  and what it means:"*, then one bullet per judged row. The first four were not
+  a second view of the second list:
+  - "Colour accuracy" and "Grey balance" name row GROUPS. Five rows stand
+    behind the first and two behind the second, and all seven were already in
+    the second list under their real names.
+  - "Paper white & darkest black" and "Cube corners" are report SECTION
+    headings, and neither is a row in `compliance_sets.ROWS` at all. Both were
+    written with no row group, so they survived every filter: a "Grey and tone
+    check", which judges three grey and ramp rows and prints neither section,
+    explained both.
+- one list now, and every bullet is a row the results table judges, under the
+  label the table, the limits window and the PDF all use.
+- **left for Knut:** the detail section still PRINTS the headings "Paper white
+  & darkest black" and "Cube corners" with no explanation anywhere. Adding one
+  means deciding whether a section that judges nothing belongs in a list of
+  metrics; that is his call, not this round's.
+- evidence: test_the_divider_between_the_two_lists_is_gone, test_no_bullet_names_a_group_or_a_section, test_every_bullet_is_named_after_a_real_row
+### B8-593 · FIXED · "Already generated for this run" counted FILES and the pulldown counts REPORTS
+- status: FIXED
+- blocks release: no
+- Knut, 2026-09-20: *"The Text 'Already generated for this run: Full colour
+  check (11), Printing Record (not graded)(1)', while the pulldown for Run
+  shown only has one report, because I pressed Update every time I made a
+  change."* And later: *"Full colour check (32), while the pulldown for Run
+  shown only has 13 reports."*
+- both numbers were right about what they counted, and that was the fault. ONE
+  press of Generate writes ONE FILE PER TICKED MEASUREMENT, all carrying one
+  document id. Twelve measurements leave twelve files and one report. Update
+  adds no file at all (`rewrite_report` writes back in place), so his *"because
+  I pressed Update every time"* was not the cause: the fan-out of the FIRST
+  Generate was.
+- the two-type split came from the leftover branch of `_write_the_document`,
+  which re-stamps the document block of files the document no longer covers but
+  never their top-level `report_type`. One document, two names.
+- `generated_report_types` now counts a document once, under its document
+  block's type. A legacy file with no document block still counts as itself,
+  because for those a file IS a report.
+- measured on screen, 11 ticked, one press of Generate: files on disk 12 to 23,
+  the counter 12 to **13**, the pulldown 11 to **12**. Both move by one.
+- **residual, and it is honest:** the counter is the RUN's total and the
+  pulldown lists the reports of the LOADED measurements, so a run whose
+  profiling measurement is not loaded shows 12 against 11. Narrowing the
+  pulldown's scope, or the line's, is a design question and is left open.
+- evidence: test_one_document_of_many_files_counts_once, test_a_leftover_file_cannot_split_one_document_in_two
+### B8-594 · FIXED · A report that was never updated showed a created date AND a saved date
+- status: FIXED
+- blocks release: no
+- Knut, 2026-09-20, of the eleven reports the demo pack ships: *"each are
+  showing both the created date in front, and the saved date at the end. Only
+  the create date should be included for reports creation, and the trailing
+  ' - Updated date time' should be added only upon update of a report."*
+- it is K.7d (§13.8), which a report WITH a document block already obeyed. This
+  branch never got it, because a legacy file has no block to record an
+  `updated` list in, so `_saved_report_label` parsed a stamp out of the file
+  NAME and appended it to every entry.
+- the stamp is not dropped outright. The paragraph that put it there is still
+  true: a tester's run held fifty reports of one measurement and forty-eight
+  drew the identical line. It is what tells two entries apart, so it is added
+  where there ARE two to tell apart, in `_saved_documents`, and nowhere else.
+- evidence: test_a_report_never_updated_shows_one_date_and_no_saved_stamp
+### B8-595 · FIXED · The pre-created demo reports carried no date flag
+- status: FIXED
+- blocks release: no
+- Knut, 2026-09-20: *"non of the pre-created reports have the tag '(one date)',
+  which they should."*
+- the flag is appended in the modern branch of `_document_label` and the legacy
+  branch never had one, so the eleven entries the demo pack ships were the only
+  rows in the pulldown with nothing. A legacy file is one file about one
+  measurement, so "One date" is a fact there and not a guess, exactly as it is
+  for the automatic measurement-time report (§13.7 F.4).
+- evidence: test_a_report_never_updated_shows_one_date_and_no_saved_stamp
+### B8-596 · FIXED · Selecting any report ticked EVERY measurement
+- status: FIXED
+- blocks release: no
+- Knut, 2026-09-20: *"when ever I select any of the reports in the drop down,
+  the 'included measurements in report' always have all measurements ticked.
+  This is wrong. … only one measurement date should be showing then I select
+  one of the reports … One the measurement used in the selected report shall
+  be ticked."*
+- `_restore_the_documents_view` returned early for a report with no document
+  block, leaving the ticks alone. Its docstring says why: inferring which
+  measurement such a report is about was judged sound enough to decide two tick
+  boxes but not to UNTICK rows, because unticking would have left "Show all
+  measurement runs" with one run to show on every project made before beta 22.
+- that argument died with the box (B8-590). And nothing is inferred now:
+  `entry["members"]` is which measurements the pulldown entry was built from,
+  gathered by `_saved_documents` from the files on disk.
+- measured on screen: selecting `2026-05-25 10:00 · Full colour check · ChromIQ
+  default (recommended) · One date` left **1** of 12 rows ticked, where before
+  it left 11.
+- evidence: test_selecting_a_report_ticks_only_its_own_measurement
+### B8-597 · FIXED · A demo verification preset was not recognised as made for verification
+- status: FIXED
+- blocks release: no
+- Knut, 2026-09-20, of *"Verify R11 FAIL, 12 candidates, every one 2.1 from the
+  nearest face"*: *"ChromIQ cannot tell how many pages this preset lays out
+  until its chart is generated, so it is not marked as made for verification."
+  So it seems the check fails. This should be corrected so that a check using a
+  demo profile actually successfully does the intended check."*
+- the sentence is TRUE, so the CHECK was fixed and not the message.
+  `verification_preset_rows` hard-coded `pages=0` for every user preset, with a
+  docstring claiming *"A USER preset has none and none can be derived"*. The
+  app's own `data/patch_db.query_patches` and `chart_creator._lookup_patches`
+  answer exactly that question, from keys the preset already stores.
+- `made_for_verification` refuses `pages < 1` before it looks at the chart at
+  all, so the star could never be earned and the honest sentence fired instead.
+- the stored `"pages"` key is only believed when `auto_patches` is on, because
+  that is the only state in which the Pages spin box is enabled; otherwise the
+  count is derived. Where `query_patches` cannot answer (an unsupported
+  combination, or a stored `layout_recipe`), it stays 0 and the sentence still
+  shows, which is exactly today's behaviour.
+- all 29 demo presets that ship a readable `.ti1` now count 1 page (78 patches
+  on an i1Pro/A4 sheet that holds 504). R11 PASS is starred; R11 FAIL is still
+  unstarred, which is the point of the pair, and now for its real reason.
+- evidence: test_the_r11_preset_is_counted_at_one_page, test_the_page_count_is_what_decides_the_star, test_every_demo_preset_that_ships_a_chart_is_counted
+### B8-598 · OPEN · Full Colour Check is offered when the run type is Profiling
+- status: OPEN
+- **needs Knut's decision**
+- blocks release: no
+- Knut, 2026-09-20, first item of the beta 29 review: *"Report type is already
+  set to Full Colour Check (however, this option should not be available when
+  run type is Profiling)."*
+- measured: **there is no run-type gating of the report-type pulldown at all.**
+  `_sync_type_combo` greys an entry only when the type is not BUILT
+  (`REPORT_TYPE_MENU`'s `built` flag), and nothing anywhere asks what kind of
+  run the window is on.
+- §13.8 of `docs/design/measurement_report_limits.md` lists *"what each run
+  type offers in 'Report type'"* under **NOT IN THIS SECTION, AND NOT BUILT**.
+  So this is an unbuilt item he is now asking for, not a fault against the
+  record, and building it is more than the one rule he named: Full colour check
+  is also the shipped default (`report_default_type`), so a Profiling run that
+  may not have it needs a decided replacement.
+- **the question for him:** which types may a Profiling run offer, and which is
+  its default? The same answer is wanted for Calibration.
+- evidence: none; the absence was measured by reading `_sync_type_combo` and by
+  driving the window.
+### B8-599 · OPEN · The Colour summary Result sentence still claims ChromIQ holds a standard's published values
+- status: OPEN
+- **routed to another worktree**
+- blocks release: no
+- Knut, 2026-09-20: *"The report text for Colour summary report type still
+  holds the wrong text under Result: '13 of 16 values checked, all within this
+  limit set's values. This limit set holds a standard's published values
+  applied to your chart; it is not a test against that standard, and the values
+  not checked are listed below.' I commented what was wrong in this text
+  earlier, and it is not corrected."* He is right that it is still open.
+- located: `workflow/compliance_sets.py`, `SUMMARY_REASONS["iso"]`, and the
+  same claim twice more, in `STANDARD_CAVEAT` in the same file and in the
+  Report limits window's tooltip in `ui/dialogs/thresholds_dialog.py`.
+- **not fixed here: both files are owned by a parallel worktree this round was
+  told not to touch.** Routed rather than edited.
+- the claim is false in BOTH directions, and measurably so rather than as a
+  matter of wording. Measured with the repository's own data file: the two
+  read-only ISO columns carry **0** limit-bearing rows, and the two Custom ISO
+  columns carry **16** each, filled from ChromIQ's own placeholder numbers and
+  not from any standard.
+- three places already say the true, CONDITIONAL thing
+  (`M_THRESHOLDS_NOT_CERTIFICATION`, the "How to read" paragraph, and §11 of
+  the design record, which states the rule: *"None of these strings is
+  state-aware, so each is now a condition rather than a state."*). Those three
+  passes reached none of these three strings.
+- **the guard must compare the sentence against the limits actually in force,**
+  not pin an expected wording. This is the third time this class of claim has
+  had to be corrected in this file, and each previous fix was pinned by its
+  words and drifted.
+- evidence: none yet.
+### B8-600 · FIXED · With every measurement unticked, Generate stayed enabled and would have written one anyway
+- status: FIXED
+- blocks release: no
+- **Found by the adversary pass over B8-590, in freshly written work of my
+  own, hours old.** It is a fault introduced by the fix for B8-590 and not
+  something Knut reported.
+- `_runs_for_report` ends with a fallback: with nothing ticked it returns the
+  measurement the window was opened on, so the PAGE a reader is looking at
+  does not go blank underneath them. That part is right.
+- it leaked. `_runs_for_report` feeds `_runs_for_document`, which feeds
+  `_reports_to_generate`, which decides BOTH what a press of Generate writes
+  and whether the button is enabled at all. So with every row unticked the
+  button stayed live, and a press would have written a report covering a
+  measurement the user had explicitly unticked. That is the exact opposite of
+  the rule the whole change set exists to serve, Knut 2026-09-20: *"only the
+  selected/ticked measurements shall be part of the report when
+  created/updated (always)."*
+- **and two comments in the product asserted the opposite, in the same commit
+  that made them false.** `_runs_for_report`: *"Generate is disabled on an
+  empty list (`_reports_to_generate`)"*. `_sync_limit_controls`: *"The
+  all-unticked case already disabled it"*. Both were true before B8-590 and
+  neither was re-checked.
+- fixed at `_reports_to_generate` rather than by dropping the fallback, so the
+  two questions are answered separately: "what does this page show" keeps its
+  fallback, "what would a press write" asks the ticks. `_nothing_is_ticked`
+  reads the LIST, and answers False for a window with no measurements at all,
+  because that is not "nothing ticked" and the ordinary emptiness checks
+  already handle it.
+- evidence: test_the_last_measurement_unticked_leaves_nothing_to_generate
+### B8-601 · FIXED · "Deselect all", then change your mind, and the window says you changed something
+- status: FIXED
+- blocks release: no
+- **Found by the adversary pass over B8-590**, in this round's own work, and
+  reachable only because this round added the button that makes the empty list
+  easy to reach.
+- press **Deselect all**, tick the row back, and the red line stays up and
+  Generate asks *"Update or Create New?"* about a document nobody changed.
+  Measured on three measurements with one ticked:
+
+      open              hidden 2   built 2   modified False
+      Deselect all      hidden 3   built 3   modified False
+      tick one back     hidden 2   built 3   modified True
+
+  The ticks came back EXACTLY where the document was built. It was the
+  BASELINE that had moved: `_render` stamps `_doc_built_with` from the
+  controls on every repaint, and a repaint taken while everything was unticked
+  adopted the empty list as the state the document was built with.
+- that is the precise invariant the banner exists for, Knut: *"a chance to
+  undo a changed field, if not wanting to regenerate the report"*. Undoing the
+  change is what triggered it.
+- the rule that fixes it is the one B8-600 already established: **a state
+  Generate refuses to write cannot be a state a document was built with.** So
+  `_render` stamps the baseline unless `_nothing_is_ticked()`.
+- after the fix the two answers are both right: unticking everything reports a
+  change (it IS one), and putting the ticks back reports none.
+- the four "one measurement ticked" helpers in
+  `tests/test_the_one_page_summary_is_about_one_sheet.py` were written to
+  untick rows one at a time rather than to press Deselect all, to steer around
+  this while it stood. That is no longer necessary but is harmless, and each
+  docstring names what it was steering around.
+- evidence: test_undoing_deselect_all_puts_the_red_line_back_down, test_nothing_ticked_leaves_nothing_to_generate

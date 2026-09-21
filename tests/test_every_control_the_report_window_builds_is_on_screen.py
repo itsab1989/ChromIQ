@@ -309,9 +309,22 @@ def test_the_one_page_summary_disables_the_detail_box_and_says_why(
     It has never been allowed: `_report_body_html` has returned
     `_one_page_html` before the detail section since T1 was built.
 
+    **AND THE LIST IS NOT DISABLED WITH IT (B8-591).** This used to assert
+    `not dlg._profile_list.isEnabled()` as well, from the same rule: a one-page
+    summary is about one sheet, so the list was greyed to show it. Knut,
+    2026-09-20, on what that looked like from the outside: *"Now I tried
+    selecting report type Colour summary. Then the 'included measurements in
+    report' became unticked for all measurements and it froze, so I cannot
+    scroll or select."* A disabled QListWidget does not scroll, does not take a
+    click and gives no reason. The detail box is a different case and keeps its
+    disabling: there is nothing to choose behind it, and it says so.
+
+    So the list stays live and carries the sentence instead, and a press with
+    more than one measurement ticked is refused at Generate.
+
     MUTATION PROVEN: `det.setEnabled(True)` unconditionally in
     `_show_that_a_one_page_summary_is_one_sheet` and the first assertion goes
-    red.
+    red; `lst.setEnabled(False)` there and the third does.
     """
     from workflow.run_compliance import set_run_report_type
 
@@ -323,8 +336,11 @@ def test_the_one_page_summary_disables_the_detail_box_and_says_why(
         "a tick box that changes nothing is still offered")
     assert "no per-run detail section" in dlg._detail_check.toolTip(), \
         dlg._detail_check.toolTip()
-    assert not dlg._profile_list.isEnabled()
-    assert "single measurement" in dlg._profile_list.toolTip(), \
+    assert dlg._profile_list.isEnabled(), (
+        "the measurement list is frozen under “Colour summary”, which is the "
+        "fault Knut reported")
+    assert dlg._profile_list.viewport().isEnabled()
+    assert "ONE measurement" in dlg._profile_list.toolTip(), \
         dlg._profile_list.toolTip()
 
     set_run_report_type(dlg._run_ctx.run, mr.REPORT_TYPE_FULL)

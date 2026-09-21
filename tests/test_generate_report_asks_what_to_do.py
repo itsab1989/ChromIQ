@@ -18,6 +18,27 @@ not: both tick boxes came from Preferences at the OPEN door, and the
 measurement list was re-ticked only when "Show all measurement runs" happened
 to be ON.
 
+**AND THEN FIVE BECAME FOUR (B8-590, and this file is retargeted to it).**
+Knut, 2026-09-20, on the same window:
+
+    I realise now this checkbox is not a reasonable feature to have (and has
+    evolved to something that it was not originally used) and should be
+    removed … The feature that actually is desired here is a button "Select
+    All" … and a button "Deselect All" … These two buttons then ONLY select or
+    clear the selection of the listed measurements … Remove the feature "Show
+    all measurement runs" totally from the design, and any feature that
+    belongs to that button … only the selected/ticked measurements shall be
+    part of the report when created/updated (always).
+
+So the fifth item of his beta-25 list, and the preference behind it, are gone.
+Nothing else in either ruling moved: a selected report still restores every
+setting that belongs to it, and the four that are left are the report type,
+the limit set, "Show detailed data for each run", and the measurement TICKS —
+which are now the whole of what a report covers, and so carry the meaning the
+removed box used to carry. Every check below that used to set or read that box
+says the same thing about the list instead; the one whose subject was the box
+itself is `test_the_box_that_was_the_fifth_setting_is_gone`.
+
 **RULING TWO — Generate report asks what to do.**
 
     When a report from "Report shown" is selected, as we know, all settings are
@@ -158,17 +179,65 @@ def two_dates(tmp_path):
     return _messy_project(tmp_path, dates=2)
 
 
-def _a_real_document(dlg, qapp, *, type_id, all_runs, detail):
+def _tick_every_measurement(dlg, qapp):
+    """Press "Select all", which is what "the whole history" means now."""
+    dlg._select_all_btn.click()
+    qapp.processEvents()
+
+
+def _tick_only_this_measurement(dlg, qapp):
+    """Untick every row but the measurement the window was opened on.
+
+    This is what `dlg._all_runs_check.setChecked(False)` used to mean, said in
+    the vocabulary that is left: the box is gone (B8-590) and the report covers
+    the ticked rows, so "one measurement" is a LIST state now, not a box state.
+    Pressed through the list items, the way a user reaches it.
+
+    **THE OTHER ROWS ARE UNTICKED ONE BY ONE, AND NOT THROUGH "Deselect
+    all".** Both reach the same ticks, but the button passes through a state
+    where NOTHING is ticked, and a repaint taken there re-stamps
+    `_doc_built_with` from it: putting the last tick back then leaves the
+    window saying the settings have moved when they are exactly where the
+    document was built, and Generate asks "Update or Create New?" about a
+    document nobody changed. That is a fault in its own right and is reported
+    separately; it is not what these checks are about, and unticking the rows
+    you do not want is what a reader does anyway.
+    """
+    from PyQt6.QtCore import Qt
+    here = dlg._run_key(dlg._report)
+    found = False
+    for i, (kind, _si, key) in enumerate(dlg._list_rows):
+        if kind != "run" or key is None:
+            continue
+        if key == here:
+            found = True
+            continue
+        dlg._profile_list.item(i).setCheckState(Qt.CheckState.Unchecked)
+    qapp.processEvents()
+    assert found, f"the window's measurement has no row: {here!r}"
+    assert [dlg._run_key(r) for r in dlg._runs_for_report()] == [here]
+
+
+def _a_real_document(dlg, qapp, *, type_id, every_measurement, detail):
     """Press Generate once, from "New report…", with those settings on screen.
 
     Returns the document's key. Starting from "New report…" is what a user does
     and is also what keeps the fixture honest: a window that opens on a saved
     report now brings that report's measurement ticks with it (B8-490), so a
     press made without this would cover whatever the last report covered.
+
+    **`every_measurement` REPLACED `all_runs` (B8-590, Knut 2026-09-20.)** It
+    used to set "Show all measurement runs", which is gone with the feature
+    behind it; what it names now is the state of the LIST, which is the only
+    thing that decides what a report covers: True presses "Select all", False
+    leaves the window's own measurement ticked and nothing else.
     """
     _new_report(dlg, qapp)
     dlg._say_generated = lambda saved, failed: None
-    dlg._all_runs_check.setChecked(all_runs)
+    if every_measurement:
+        _tick_every_measurement(dlg, qapp)
+    else:
+        _tick_only_this_measurement(dlg, qapp)
     dlg._detail_check.setChecked(detail)
     qapp.processEvents()
     dlg._sync_type_combo_to(type_id)
@@ -185,8 +254,18 @@ def _a_real_document(dlg, qapp, *, type_id, all_runs, detail):
 # ---------------------------------------------------------------------------
 # RULING ONE — all five settings come back
 # ---------------------------------------------------------------------------
-def test_a_selected_report_restores_all_five_of_its_settings(two_dates, qapp):
+def test_a_selected_report_restores_all_four_of_its_settings(two_dates, qapp):
     """His sentence, item by item, on a document that records every one.
+
+    **IT WAS FIVE AND IT IS FOUR (B8-590).** Knut, 2026-09-20, removed one of
+    the five he had listed here: *"Remove the feature 'Show all measurement
+    runs' totally from the design, and any feature that belongs to that
+    button"*. So the box that used to be checked on both documents below is
+    gone, and what is left is the type, the limit set, the detail box, and the
+    measurement ticks. The ticks are the item that now carries the meaning the
+    removed box used to carry, and they are asserted here in its place: the
+    wide document covers both of the run's measurements, the narrow one covers
+    the single sheet the window is on.
 
     MUTATION, proved to land: delete the `_restore_the_documents_view` call
     from `_apply_document`.
@@ -197,29 +276,84 @@ def test_a_selected_report_restores_all_five_of_its_settings(two_dates, qapp):
     dlg = _window(s, vs[-1].measurement_ti3, qapp)
     try:
         wide = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_RECORD,
-                                all_runs=True, detail=True)
+                                every_measurement=True, detail=True)
         narrow = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_GREY,
-                                  all_runs=False, detail=False)
+                                  every_measurement=False, detail=False)
         assert wide != narrow
+        loaded = {dlg._run_key(r) for r in dlg._history}
+        assert len(loaded) == 2, f"the fixture loaded {len(loaded)} rows"
+        here = dlg._run_key(dlg._report)
 
         _pick_key(dlg, wide, qapp)
         assert dlg._report_type_now() == REPORT_TYPE_RECORD
-        assert dlg._all_runs_check.isChecked() is True
+        assert dlg._hidden_runs == set(), (
+            "the document covering every measurement came back narrowed")
         assert dlg._detail_check.isChecked() is True
 
         _pick_key(dlg, narrow, qapp)
         assert dlg._report_type_now() == REPORT_TYPE_GREY, (
             "the report TYPE did not come back")
-        assert dlg._all_runs_check.isChecked() is False, (
-            "“Show all measurement runs” did not come back")
+        assert dlg._hidden_runs == loaded - {here}, (
+            "the measurements the report was built from did not come back: "
+            f"hidden={dlg._hidden_runs!r}")
         assert dlg._detail_check.isChecked() is False, (
             "“Show detailed data for each run” did not come back")
 
         # …and back again, so this is a restore and not a one-way drift
         _pick_key(dlg, wide, qapp)
-        assert (dlg._report_type_now(), dlg._all_runs_check.isChecked(),
+        assert (dlg._report_type_now(), set(dlg._hidden_runs),
                 dlg._detail_check.isChecked()) == (REPORT_TYPE_RECORD,
-                                                   True, True)
+                                                   set(), True)
+    finally:
+        dlg.close()
+
+
+def test_the_box_that_was_the_fifth_setting_is_gone(two_dates, qapp):
+    """**B8-590.** *"Remove the feature 'Show all measurement runs' totally
+    from the design, and any feature that belongs to that button … The feature
+    that actually is desired here is a button 'Select All' … and a button
+    'Deselect All' … These two buttons then ONLY select or clear the selection
+    of the listed measurements."* (Knut, 2026-09-20.)
+
+    The premise of the fifth item in the ruling above is genuinely gone, so
+    what is guarded here is the removal itself and the two buttons that
+    replaced it. They ONLY move ticks: the report type, the limit set and the
+    detail box are read before and after each press and must not have moved.
+
+    MUTATION, proved to land: build `_all_runs_check` again, or make either
+    button touch anything besides the ticks.
+    """
+    s, _fm, _run, vs = two_dates
+    dlg = _window(s, vs[-1].measurement_ti3, qapp)
+    try:
+        assert getattr(dlg, "_all_runs_check", None) is None, (
+            "“Show all measurement runs” is still built")
+        assert dlg._select_all_btn is not None
+        assert dlg._deselect_all_btn is not None
+        loaded = {dlg._run_key(r) for r in dlg._history}
+        assert len(loaded) == 2, f"the fixture loaded {len(loaded)} rows"
+
+        def _everything_else():
+            return (dlg._report_type_now(),
+                    str(dlg._set_combo.currentData() or ""),
+                    dlg._detail_check.isChecked())
+
+        dlg._deselect_all_btn.click()
+        qapp.processEvents()
+        before = _everything_else()
+        assert dlg._hidden_runs == loaded, (
+            f"“Deselect all” left rows ticked: {dlg._hidden_runs!r}")
+
+        dlg._select_all_btn.click()
+        qapp.processEvents()
+        assert dlg._hidden_runs == set(), (
+            f"“Select all” left rows unticked: {dlg._hidden_runs!r}")
+        assert {dlg._run_key(r) for r in dlg._runs_for_report()} == loaded, (
+            "the report does not cover every measurement the list shows "
+            "ticked")
+        assert _everything_else() == before, (
+            "a tick button moved a setting that is not a tick: "
+            f"{before!r} -> {_everything_else()!r}")
     finally:
         dlg.close()
 
@@ -241,7 +375,7 @@ def test_the_included_measurements_list_is_reticked_to_the_reports_own_set(
     dlg = _window(s, vs[-1].measurement_ti3, qapp)
     try:
         one = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_GREY,
-                               all_runs=False, detail=False)
+                               every_measurement=False, detail=False)
         doc = next(d["doc"] for d in dlg._saved_documents(dlg._run_ctx.run)
                    if d["key"] == one)
         covered = {str(m.get("key") or "") for m in doc["measurements"]}
@@ -263,7 +397,7 @@ def test_the_included_measurements_list_is_reticked_to_the_reports_own_set(
         dlg.close()
 
 
-def test_opening_the_window_restores_the_tick_boxes_of_a_pre_182_report(
+def test_opening_the_window_restores_the_tick_box_of_a_pre_182_report(
         two_dates, qapp):
     """B8-432, which is the question he was answering.
 
@@ -273,53 +407,73 @@ def test_opening_the_window_restores_the_tick_boxes_of_a_pre_182_report(
     from Preferences at this door, so a window opened on a ONE-DATE report
     saying "2 verification runs".
 
+    **ONE BOX, NOT TWO, SINCE B8-590.** "Show all measurement runs" and the
+    preference behind it (`report_default_show_all_runs`) were removed on
+    Knut's 2026-09-20 ruling, so the half of this that watched Preferences
+    reach past a one-date report into that box has nothing to watch. The other
+    half is unchanged and is what is left here; the list's own answer for such
+    a report is the subject of
+    `test_a_report_that_records_no_measurements_ticks_its_own_measurement`.
+
     MUTATION, proved to land: delete the `_restore_the_documents_view` call
     from `_adopt_visible_document`.
     """
     s, _fm, _run, vs = two_dates
-    s.set("report_default_show_all_runs", True)
     s.set("report_default_show_details", True)
     dlg = _window(s, vs[-1].measurement_ti3, qapp)
     try:
         assert dlg._loaded_doc_id.startswith("file:"), (
             "the window did not open on a report that records no document, "
             f"so this proves nothing: {dlg._loaded_doc_id!r}")
-        assert dlg._all_runs_check.isChecked() is False, (
-            "“Show all measurement runs” came from Preferences, not from the "
-            "one-date report the window is showing")
         assert dlg._detail_check.isChecked() is False, (
             "“Show detailed data for each run” came from Preferences")
     finally:
         dlg.close()
 
 
-def test_a_report_that_records_no_measurements_leaves_the_rows_alone(
+def test_a_report_that_records_no_measurements_ticks_its_own_measurement(
         two_dates, qapp):
-    """THE ONE NARROWING, and it is deliberate.
+    """THE NARROWING THAT USED TO BE REFUSED, AND NOW HAPPENS (B8-596).
 
     A pre-#182 report lists no measurements; `_settings_of_one_saved_report`
-    INFERS that it is about the one it was filed beside. That inference decides
-    two tick boxes, which are a view. It must not untick rows, which is a
-    filter that survives the view: every project made before this beta would
-    open with its history narrowed to one sheet and "Show all measurement runs"
-    would have one run to show.
+    INFERS that it is about the one it was filed beside. This test used to pin
+    the opposite of what it pins now, and the reason it did is recorded so a
+    reader does not read the old rule as current: the inference was judged
+    sound enough to decide two tick boxes, which are a view, and not sound
+    enough to UNTICK rows, because unticking would have left "Show all
+    measurement runs" with a single run to show on every project made before
+    beta 22.
 
-    MUTATION, proved to land: drop the `if not recorded: return` guard from
-    `_restore_the_documents_view`.
+    That argument died with the box. Knut, 2026-09-20, on what he saw instead
+    (B8-590/B8-596): *"when ever I select any of the reports in the drop down,
+    the 'included measurements in report' always have all measurements ticked.
+    This is wrong. … One the measurement used in the selected report shall be
+    ticked."* A report now covers exactly what is ticked, so ticks that say
+    something else are the report lying about itself.
+
+    And it is not the inference that decides it: `entry["members"]` is which
+    measurements the pulldown entry was gathered from on disk.
+
+    MUTATION, proved to land: drop the `covers` branch from the `if not
+    recorded:` arm of `_restore_the_documents_view`, and the window opens with
+    both rows ticked again.
     """
     s, _fm, _run, vs = two_dates
     dlg = _window(s, vs[-1].measurement_ti3, qapp)
     try:
         assert dlg._loaded_doc_id.startswith("file:"), dlg._loaded_doc_id
-        assert len({dlg._run_key(r) for r in dlg._history}) == 2
-        assert dlg._hidden_runs == set(), (
-            "a report that records no measurement list unticked rows anyway: "
-            f"{dlg._hidden_runs!r}")
-        # and the whole history is still reachable from here
-        dlg._all_runs_check.setChecked(True)
+        loaded = {dlg._run_key(r) for r in dlg._history}
+        assert len(loaded) == 2
+        here = dlg._run_key(dlg._report)
+        assert dlg._hidden_runs == loaded - {here}, (
+            "a report that records no measurement list came back covering "
+            f"measurements it was not built from: hidden={dlg._hidden_runs!r}")
+        assert [dlg._run_key(r) for r in dlg._runs_for_report()] == [here]
+        # and the whole history is still one press away
+        dlg._select_all_btn.click()
         qapp.processEvents()
         assert len(dlg._runs_for_report()) == 2, (
-            "“Show all measurement runs” has nothing left to show")
+            "“Select all” has nothing left to show")
     finally:
         dlg.close()
 
@@ -349,7 +503,7 @@ def test_a_report_created_the_first_time_carries_no_trailing_saved_stamp(
     dlg = _window(s, vs[-1].measurement_ti3, qapp)
     try:
         key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_RECORD,
-                               all_runs=True, detail=True)
+                               every_measurement=True, detail=True)
         label = next(lab for lab, k in _entries(dlg) if k == key)
         assert "saved" not in label, (
             f"a report created the first time still says “saved”: {label!r}")
@@ -427,7 +581,7 @@ def test_the_question_is_asked_only_when_both_halves_of_his_sentence_hold(
     dlg = _window(s, vs[-1].measurement_ti3, qapp)
     try:
         key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_RECORD,
-                               all_runs=True, detail=True)
+                               every_measurement=True, detail=True)
         _pick_key(dlg, key, qapp)
         assert dlg._document_being_updated() is None, (
             "nothing has moved, so there is nothing to ask about")
@@ -463,7 +617,7 @@ def test_cancel_aborts_the_generate_report_function(two_dates, qapp,
     dlg = _window(s, vs[-1].measurement_ti3, qapp)
     try:
         key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_RECORD,
-                               all_runs=True, detail=True)
+                               every_measurement=True, detail=True)
         _pick_key(dlg, key, qapp)
         before = {p: p.read_bytes() for p in _files(run)}
         n_entries = len(_entries(dlg))
@@ -498,7 +652,7 @@ def test_create_new_writes_a_new_report_and_leaves_the_selected_one_alone(
     dlg = _window(s, vs[-1].measurement_ti3, qapp)
     try:
         key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_RECORD,
-                               all_runs=True, detail=True)
+                               every_measurement=True, detail=True)
         _pick_key(dlg, key, qapp)
         before = {p: p.read_bytes() for p in _files(run)}
         n_entries = len(_entries(dlg))
@@ -542,7 +696,7 @@ def test_update_keeps_the_selected_report_and_recalculates_it(
     dlg = _window(s, vs[-1].measurement_ti3, qapp)
     try:
         key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_RECORD,
-                               all_runs=True, detail=True)
+                               every_measurement=True, detail=True)
         _pick_key(dlg, key, qapp)
         entry = next(d for d in dlg._saved_documents(dlg._run_ctx.run)
                      if d["key"] == key)
@@ -602,7 +756,7 @@ def test_a_second_update_replaces_the_first_stamp_in_the_name(
     dlg = _window(s, vs[-1].measurement_ti3, qapp)
     try:
         key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_RECORD,
-                               all_runs=True, detail=True)
+                               every_measurement=True, detail=True)
         _pick_key(dlg, key, qapp)
         del dlg._ask_update_or_create_new
         monkeypatch.setattr(QMessageBox, "exec", _press("Update"))
@@ -652,7 +806,7 @@ def test_update_writes_the_same_kind_of_document_create_new_writes(
     moving = {"id", "created", "updated"}
     try:
         key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_RECORD,
-                               all_runs=True, detail=True)
+                               every_measurement=True, detail=True)
         _pick_key(dlg, key, qapp)
         entry = next(d for d in dlg._saved_documents(dlg._run_ctx.run)
                      if d["key"] == key)
@@ -682,7 +836,7 @@ def test_update_writes_the_same_kind_of_document_create_new_writes(
 
         # the same settings again, as a NEW report
         fresh = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_GREY,
-                                 all_runs=True, detail=False)
+                                 every_measurement=True, detail=False)
         entry2 = next(d for d in dlg._saved_documents(dlg._run_ctx.run)
                       if d["key"] == fresh)
         twin = next(Path(str(r.get("_origin_dir"))) / "reports" / n
@@ -719,7 +873,7 @@ def test_update_never_leaves_two_live_reports_of_one_date(two_dates, qapp,
     dlg = _window(s, vs[-1].measurement_ti3, qapp)
     try:
         key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_RECORD,
-                               all_runs=True, detail=True)
+                               every_measurement=True, detail=True)
         _pick_key(dlg, key, qapp)
         before = {str(p) for p in _files(run)}
         del dlg._ask_update_or_create_new
@@ -758,7 +912,7 @@ def test_a_member_the_update_drops_still_agrees_with_its_document(
     dlg = _window(s, vs[-1].measurement_ti3, qapp)
     try:
         key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_RECORD,
-                               all_runs=True, detail=True)
+                               every_measurement=True, detail=True)
         _pick_key(dlg, key, qapp)
         entry = next(d for d in dlg._saved_documents(dlg._run_ctx.run)
                      if d["key"] == key)
@@ -824,7 +978,7 @@ def test_a_press_that_wrote_nothing_leaves_the_red_line_up(two_dates, qapp,
     dlg = _window(s, vs[-1].measurement_ti3, qapp)
     try:
         key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_SUMMARY,
-                               all_runs=False, detail=False)
+                               every_measurement=False, detail=False)
         _pick_key(dlg, key, qapp)
         before = {p: p.read_bytes() for p in _files(run)}
         chosen_before = dict(dlg._chosen_reports)
@@ -903,8 +1057,13 @@ def test_a_report_whose_measurements_are_all_absent_leaves_the_rows_alone(
     s, _fm, run, vs = two_dates
     dlg = _window(s, vs[-1].measurement_ti3, qapp)
     try:
+        # ONE MEASUREMENT TICKED, because that is what a one-page summary
+        # covers and, since B8-591, a press with more than one ticked is
+        # refused rather than narrowed behind the user's back. The document
+        # this writes covers 1 of the run's 2 rows either way, which is what
+        # the moved copy below needs.
         key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_SUMMARY,
-                               all_runs=True, detail=False)
+                               every_measurement=False, detail=False)
         _pick_key(dlg, key, qapp)
         in_place = (len(dlg._history), len(dlg._hidden_runs),
                     len(dlg._runs_for_report()))

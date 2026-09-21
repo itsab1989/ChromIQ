@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import shlex
 import shutil
@@ -3740,6 +3741,90 @@ def comparable_presets(settings) -> list[tuple[str, list[tuple[str, "Path"]]]]:
     return groups
 
 
+def _preset_sheet_count(data: dict, chart: "Path | None", settings) -> int:
+    """How many sheets a USER preset's attached patch set lays out on, or 0
+    when ChromIQ genuinely cannot say (#182).
+
+    **THE WINDOW USED TO WRITE 0 HERE AND THEN EXPLAIN THE 0.** Knut, beta 29:
+    every one of the thirteen FAIL/PASS demo presets built FOR the "Which
+    presets can be used for verification" window was told *"ChromIQ cannot tell
+    how many pages this preset lays out until its chart is generated"* and was
+    refused the star for it, because :func:`verification_preset_rows` hard-coded
+    ``pages=0`` for a user preset. The sentence was true of the code and false
+    of the app: the Create Chart tab answers exactly this question on every
+    Generate click, out of the measured table in :mod:`data.patch_db`, and the
+    preset has already stored every knob that table asks for.
+
+    So it is derived the same way ``ChartCreator._lookup_patches`` derives it,
+    from the same call, with the same defaults ``ChartParams`` uses (margin 6,
+    patch scale 1.0, -L on, -h/-P off):
+
+    * ``auto_patches`` ON means the person typed a SHEET count and let ChromIQ
+      pick the patches, so the stored ``pages`` is their answer and is used;
+    * ``auto_patches`` OFF means the Pages spin box is disabled (see
+      :meth:`TabChart._on_auto_patches_toggled`) and its stored value is a
+      greyed-out default that must NOT be believed. The count is
+      ``ceil(patches / per_sheet)`` instead.
+
+    0 is still returned, and the window's honest sentence still shown, whenever
+    the fast table cannot answer: an unsupported instrument/paper/margin/scale
+    combination, a ChromIQ layout-engine recipe (which lays the sheet out by
+    its own geometry, not printtarg's), or a spacer override (``-n``, ``-A``
+    at anything but 1.0) that moves the capacity. Those are precisely the cases
+    ``_lookup_patches`` answers with a live printtarg binary search, and a
+    dialog that lists every preset may not shell out once per row.
+    """
+    from workflow.preset_eligibility import patch_count
+
+    if chart is None or not isinstance(data, dict):
+        return 0
+    # The layout engine places patches by its own recipe; patch_db's tables
+    # were measured on printtarg's layout and say nothing about it.
+    if data.get("layout_recipe"):
+        return 0
+    if bool(data.get("auto_patches", False)):
+        try:
+            return max(0, int(data.get("pages", 1) or 0))
+        except (TypeError, ValueError):
+            return 0
+    try:
+        instrument  = str(data.get("printtarg_-i", "i1") or "i1")
+        paper       = str(data.get("printtarg_-p", "A4") or "A4")
+        patch_scale = float(data.get("printtarg_-a", 1.0) or 1.0)
+        margin_mm   = int(data.get("printtarg_-m", 6) or 6)
+        spacer_scale = float(data.get("printtarg_-A", 1.0) or 1.0)
+    except (TypeError, ValueError):
+        return 0
+    if bool(data.get("printtarg_-n", False)) or abs(spacer_scale - 1.0) > 0.01:
+        return 0
+    double_density      = bool(data.get("printtarg_-h", False))
+    no_strip_limit      = bool(data.get("printtarg_-P", False))
+    disable_left_border = bool(data.get("printtarg_-L", True))
+    triple = bool(data.get("triple_density", False)) and instrument == "CM"
+
+    # The -L state the LAYOUT really gets, not the tick box: the ChromIQ clip
+    # style and triple density both force -L internally
+    # (chart_creator._effective_suppress_lb).
+    from workflow.tiff_metadata import ALLOWED_LEFT_CLIP_PAPERS
+    clip_style = (bool(settings.get("i1pro_chromiq_clip_style", False))
+                  and not disable_left_border
+                  and instrument in {"i1", "p3"}
+                  and paper in ALLOWED_LEFT_CLIP_PAPERS)
+
+    per_sheet = query_patches(instrument, paper, double_density,
+                              suppress_lb=disable_left_border or clip_style or triple,
+                              margin_mm=margin_mm,
+                              patch_scale=patch_scale,
+                              triple_density=triple,
+                              no_strip_limit=no_strip_limit)
+    if not per_sheet or per_sheet < 1:
+        return 0
+    patches = patch_count(chart)
+    if patches < 1:
+        return 0
+    return math.ceil(patches / per_sheet)
+
+
 def verification_preset_rows(settings) -> list:
     """Every preset the "Which presets can be used for verification" window
     lists (#182).
@@ -3752,11 +3837,15 @@ def verification_preset_rows(settings) -> list:
 
     The page count is the shipped one for a built-in (`_Ti1Preset.pages`, the
     number in the preset's own name; the eleven prebuilt bundles are counted
-    from the page TIFFs beside their `.ti1`). A USER preset has none and none
-    can be derived: how many sheets a patch set lays out depends on the
-    instrument, the paper and the patch width, and answering it honestly means
-    laying the chart out. It is left at 0, which reads as "?" and withholds the
-    star rather than guessing at it.
+    from the page TIFFs beside their `.ti1`). A USER preset stores no page
+    number worth believing — the Pages spin box is disabled unless "Auto" is
+    on, so the value in the file is a greyed-out default — but the count is
+    DERIVED rather than guessed: how many sheets a patch set lays out depends
+    on the instrument, the paper and the patch width, and the preset stores all
+    three, so :func:`_preset_sheet_count` asks the same measured table
+    (`data.patch_db.query_patches`) the Create Chart tab asks on every Generate
+    click. It is left at 0 only where that table cannot answer, which reads as
+    "?" and withholds the star rather than guessing at it.
     """
     from ui.dialogs.preset_verification_dialog import PresetRow
     from workflow.preset_eligibility import patch_count
@@ -3797,7 +3886,8 @@ def verification_preset_rows(settings) -> list:
         own.append(PresetRow(
             group=tr("Custom presets"), label=str(name), chart=chart,
             patches=patch_count(chart) if chart else 0,
-            pages=0, builtin=False, key=str(name)))
+            pages=_preset_sheet_count(data, chart, settings),
+            builtin=False, key=str(name)))
     return rows + sorted(own, key=lambda r: r.label.lower())
 
 

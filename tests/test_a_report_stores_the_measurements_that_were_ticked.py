@@ -33,6 +33,22 @@ before a line was changed (`scripts/drive_k26_included_measurements.py`,
    self._hidden_runs` is a second answer to a question the member list already
    answers, and it disagreed with it in both directions.
 
+**AND THE BOX ITSELF WENT, TWO DAYS LATER (B8-590, B8-591).** Knut, 2026-09-20,
+on the same window: *"I realise now this checkbox is not a reasonable feature
+to have … Remove the feature 'Show all measurement runs' totally from the
+design, and any feature that belongs to that button … only the selected/ticked
+measurements shall be part of the report when created/updated (always)."*
+
+That is this file's sentence made unconditional, so nothing below it changed
+its subject: what is ticked at the press is what the report holds. Two things
+did change, and both are marked where they are checked. The fixture reaches
+"everything ticked" through the "Select all" button he asked for. And the
+one-page summary no longer DRAWS a narrowing the set behind it does not hold:
+that was the second half of B8-591, *"the 'included measurements in report'
+became unticked for all measurements and it froze"* — the rows had not been
+unticked, they had been drawn that way over a live set, so the list and the
+report disagreed and a click on such a row was painted straight back.
+
 His log of the session confirms the first and rules out a third theory: the
 eleven files a press wrote went to eleven DIFFERENT dated folders, one each
 (`report_2026-09-20_02-28-56.json` in each of `2026-01-05_100000` …
@@ -310,16 +326,30 @@ def test_a_stale_untick_no_longer_mislabels_every_later_report(three_dated,
 # --------------------------------------------------------------------------
 # the one-page summary DRAWS what it will store, and narrows nothing
 # --------------------------------------------------------------------------
-def test_the_one_page_summary_draws_one_tick_without_hiding_anything(
-        three_dated):
-    """Knut ticked eleven, pressed Generate, and got a document of one named
-    "One date". T1 is about one sheet, so the list has to say so BEFORE the
-    press -- and it must do it by DRAWING, or picking T1 would silently throw
-    away the ticks the next report needs and take the history off the trend
-    charts.
+def test_the_one_page_summary_draws_the_ticks_it_really_holds(three_dated):
+    """**THE DRAWING RULE WAS THE NEXT FAULT, AND IT IS GONE (B8-591).**
 
-    MUTATION PROVEN: `return set(self._hidden_runs)` from
-    `_rows_drawn_unticked` and the first assertion goes red.
+    This used to pin the opposite: picking T1 was expected to DRAW one tick of
+    three over an untouched `_hidden_runs`, so that a user who had ticked
+    eleven could see, before pressing anything, that the page covers one sheet.
+    The idea was to say the true thing without throwing the ticks away.
+
+    What it did instead is what Knut reported on 2026-09-20: *"Then the
+    'included measurements in report' became unticked for all measurements and
+    it froze, so I cannot scroll or select."* They had not been unticked; they
+    had been DRAWN unticked over a set that still held them, so the list showed
+    1 where `_runs_for_report` returned 3 -- the visible ticks were not the
+    ticks the report would use -- and a real click on such a row toggled the
+    item and was immediately painted back, which from the outside is a dead
+    list. The list was disabled as well, which is the freeze itself.
+
+    So the list now tells the truth about itself under every type, and the
+    one-page limit is said at Generate instead
+    (`test_a_one_page_summary_refuses_a_press_that_covers_several`).
+
+    MUTATION PROVEN: any `_rows_drawn_unticked` that answers something other
+    than `_hidden_runs`, or an `lst.setEnabled(False)` under T1, and this goes
+    red.
     """
     dlg = three_dated
     keys = _run_keys(dlg)
@@ -328,30 +358,71 @@ def test_the_one_page_summary_draws_one_tick_without_hiding_anything(
     _generate_new(dlg)
     _keep_only(dlg, keys)
     _choose_type(dlg, mr.REPORT_TYPE_SUMMARY)
-    assert _ticked(dlg) == [dlg._run_key(dlg._report)], _ticked(dlg)
-    assert not dlg._profile_list.isEnabled()
+    assert set(_ticked(dlg)) == set(keys), (
+        "the list draws a narrowing the set behind it does not hold: "
+        f"drawn={_ticked(dlg)!r} hidden={dlg._hidden_runs!r}")
+    assert dlg._profile_list.isEnabled(), "the list is frozen under T1"
     assert dlg._hidden_runs == set(), (
         "the ticks the user set were thrown away, so the trend charts and the "
         "next report type lost the history")
+    assert {dlg._run_key(r) for r in dlg._runs_for_report()} == set(keys), (
+        "what is drawn and what the report would cover disagree")
 
     _choose_type(dlg, mr.REPORT_TYPE_FULL)
     assert set(_ticked(dlg)) == set(keys), "the ticks did not come back"
 
 
-def test_a_one_page_summary_is_named_one_date_and_stores_one(three_dated):
-    """The other half: what it draws is what it stores, so the name agrees
-    with the list the user was looking at.
+def test_a_one_page_summary_refuses_a_press_that_covers_several(three_dated,
+                                                                monkeypatch):
+    """The limit is now SAID, at the press, and no tick moves (B8-591).
 
-    MUTATION PROVEN: `return set(self._hidden_runs)` from
-    `_rows_drawn_unticked` and the list shows three ticks over a document of
-    one, which is exactly what he photographed.
+    Knut asked for exactly this in place of the silent narrowing: *"the user
+    should be informed … Then the user can close that message and do the
+    changes, and then click generate report again."*
+
+    MUTATION PROVEN: delete the `_one_page_wants_one_measurement()` guard from
+    `_on_generate_report` and a document of one is written out of three ticks,
+    which is the report named "One date" he photographed.
     """
+    import ui.warning_sign as WS
+    from workflow import measurement_messages as M
     dlg = three_dated
     keys = _run_keys(dlg)
     _generate_new(dlg)
     _keep_only(dlg, keys)
     _choose_type(dlg, mr.REPORT_TYPE_SUMMARY)
+    said: list = []
+    monkeypatch.setattr(WS, "inform",
+                        lambda parent, title, text, *a, **k: said.append(
+                            (title, text)))
+    root = dlg._run_ctx.run.dir
+    before = sorted(q.name for q in root.rglob("report_*.json"))
+    dlg._on_generate_report()
+    assert said == [M.CATALOGUE["M-REPORT-ONE-PAGE-ONE-DATE"].render(count=3)]
+    assert sorted(q.name for q in root.rglob("report_*.json")) == before, (
+        "a refused press still wrote a report")
+    assert set(_ticked(dlg)) == set(keys), "the refusal moved a tick"
+    assert dlg._hidden_runs == set()
+
+
+def test_a_one_page_summary_is_named_one_date_and_stores_one(three_dated):
+    """The other half: with ONE measurement ticked, what the list shows is what
+    the document holds, so the name agrees with what the user was looking at.
+
+    It used to reach the one-measurement state by letting the window draw it
+    (`_rows_drawn_unticked`); the user ticks it now, which is the whole of
+    B8-591. The assertion is unchanged, because the rule it guards is.
+
+    MUTATION PROVEN: make `_runs_for_document` ignore `_runs_for_report` and
+    the stored members stop matching the ticks on screen.
+    """
+    dlg = three_dated
+    keys = _run_keys(dlg)
+    _generate_new(dlg)
+    _keep_only(dlg, keys[-1:])
+    _choose_type(dlg, mr.REPORT_TYPE_SUMMARY)
     drawn = _ticked(dlg)
+    assert drawn == [dlg._run_key(dlg._report)], drawn
     dlg._on_generate_report()
     doc = _latest_document(dlg)
     assert {str(m["key"]) for m in doc["measurements"]} == set(drawn)
@@ -424,7 +495,11 @@ def three_dated(tmp_path, qapp):
     dlg.resize(1400, 900)
     dlg.show()
     qapp.processEvents()
-    dlg._all_runs_check.setChecked(True)
+    # EVERY MEASUREMENT TICKED, which is the state these checks start from.
+    # It used to be `dlg._all_runs_check.setChecked(True)`; the box and the
+    # feature behind it were removed on Knut's 2026-09-20 ruling (B8-590) and
+    # "Select all" is the button he asked for in its place.
+    dlg._select_all_btn.click()
     dlg._refresh()
     yield dlg
     dlg.close()

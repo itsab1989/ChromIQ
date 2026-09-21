@@ -768,18 +768,23 @@ _BUDGET = {
     # forward: every round that lands moves these files, so any figure written
     # before the last merge is stale by construction. COUNTED with this file's
     # own helper on the tree this commit leaves behind, never adjusted upward.
+    # RE-MEASURED 2026-09-22 on the COMBINED tree, after merging six parallel
+    # rounds. No agent's numbers and none of my own earlier ones were carried
+    # forward: every round that lands moves these files, so any figure written
+    # before the last merge is stale by construction. COUNTED with this file's
+    # own helper on the tree this commit leaves behind, never adjusted upward.
     "de": 22,
-    "es": 641,
-    "fr": 642,
-    "it": 641,
-    "ja": 641,
-    "nl": 641,
-    "no": 641,
-    "pl": 641,
-    "pt": 641,
-    "ru": 640,
-    "sv": 641,
-    "zh_CN": 640,
+    "es": 639,
+    "fr": 640,
+    "it": 639,
+    "ja": 639,
+    "nl": 639,
+    "no": 639,
+    "pl": 639,
+    "pt": 639,
+    "ru": 638,
+    "sv": 639,
+    "zh_CN": 638,
 }
 
 

@@ -14992,7 +14992,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 created=when.isoformat(timespec="seconds"),
                 type_id=report_type(report),
                 compliance=report.get("compliance"),
-                all_runs=False, detail=False,
+                detail=False,
                 # **"One date", ALWAYS** (B8-392, Knut 2026-09-18): *"If the
                 # list of measurement dates to be included only holds one
                 # measurement … the report name should include the flag 'One

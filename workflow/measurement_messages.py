@@ -2606,10 +2606,38 @@ M_LIMIT_RECOMMENDED = _m(
     "here, and the result is reported the same way as every other row.",
     approved=False)
 
+# --- PROPOSED (#182, Knut B8-591): the one-page summary covers ONE
+# measurement, and a user who has ticked several must be TOLD rather than
+# corrected behind his back.
+#
+# Knut, 2026-09-20, in the same comment that removed "Show all measurement
+# runs": *"color summary only allows one measurement date ticked, and if
+# several is selected, user must be informed as mentioned above, and make a
+# choice which to include"* — and, of the general shape: *"Upon generate
+# report clicked, the user should be informed … Then the user can close that
+# message and do the changes, and then click generate report again."*
+#
+# So it INFORMS and stops. It does not choose a measurement, and it does not
+# untick anything: correcting the ticks silently is the fault he reported
+# twice ("This unselected all but the last measurement without a warning" and
+# "the measurement I had ticked was unticked and the last measurement in the
+# list was automatically ticked (I did not ask for that)").
+M_REPORT_ONE_PAGE_ONE_DATE = _m(
+    "M-REPORT-ONE-PAGE-ONE-DATE",
+    "A colour summary is one page about one measurement",
+    "{count} measurements are ticked in “Included Measurements in report”, "
+    "and this report type has room for one.\n\n"
+    "Close this, untick the measurements you do not want on the page, and "
+    "click “Generate report” again. “Deselect all” clears them all if that is "
+    "quicker. To keep every measurement you have ticked, choose another "
+    "report type instead.",
+    approved=False)
+
 CATALOGUE = {m.id: m for m in (
     M_LIMIT_RECOMMENDED,
     M_REPORT_CHART_MISMATCH, M_THRESHOLDS_NOT_CERTIFICATION, M_REPORT_DELETE,
     M_REPORT_UPDATE_OR_NEW,
+    M_REPORT_ONE_PAGE_ONE_DATE,
     M_REPLACE_PARTIAL, M_REPLACE_COMPLETE, M_TI3_MISMATCH,
     M_REPLACE_UNCOUNTABLE,
     M_IMPORT_REPLACE_CONFIRM, M_IMPORT_REPLACE_PROJECT_CONFIRM,

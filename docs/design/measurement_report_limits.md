@@ -1296,7 +1296,6 @@ The popup's wording is **M-REPORT-UPDATE-OR-NEW**, in §M-PROPOSED of
 Delete moving a report to `reports/old/date_ReportId`. All of it is from the
 same comment and all of it moves files a user already has.
 
-
 ## 14. The verdict ruling of 2026-09-21: COND retired, and the metric note
 
 **⏳ Awaiting confirmation.** **Confirmed by:** *nobody yet.*
@@ -1385,4 +1384,116 @@ defined and still explained in the report's own guide, which now says it is an
 Overall word, that rows do not use it, and what it meant on a row in a report
 saved before ChromIQ 4.3.0. Generating the report again judges it by today's
 rule.
+
+### 13.9 "Show all measurement runs" is REMOVED, and the ticks decide (Knut, 2026-09-20)
+
+**⏳ AWAITING CONFIRMATION.** **Ruled by:** Knut, 2026-09-20, in his beta 29
+review on issue #182. **Confirmed by:** *nobody yet.*
+
+This section records a ruling and what was built from it. Nobody has confirmed
+that what the app now does is what it should do.
+
+**What he ruled, and why.** He began by correcting the record on what the box
+meant:
+
+> *"Note that the 'Show all...' check mark does not mean show all measurements
+> existing in the 'included measurements in report' list. No... It means show
+> all measurement runs that was ticked (selected) in the 'included measurements
+> in report' list at the time the report was created/updated. So if a report
+> was created with 5 out of 11 measurements ticked/selected, then selecting
+> 'Show all measurement runs' will show all of those in the report. Thus, the
+> checkbox should actually be named 'Show all measurements selected'. The help
+> text for 'Show all measurement runs' describes that either ONE or ALL
+> measurements are included depending on the state is OFF or ON. This
+> description basically makes it impossible to show multiple measurement dates
+> (neither one or all) and cannot be correct."*
+
+…and then ruled the box out rather than renaming it:
+
+> *"I realise now this checkbox is not a reasonable feature to have (and has
+> evolved to something that it was not originally used) and should be removed,
+> as any report created should show in the report the selected/ticked
+> measurements a user chose. The feature that actually is desired here is a
+> button 'Select All' that helps the user to tick all measurement dates in the
+> 'included measurements in report' list, so the user does not need to manually
+> click all of them, and a button 'Deselect All' that unticks all measurements
+> in the 'included measurements in report' list. These to buttons should be
+> placed to the right side of the 'included measurements in report' input
+> selection box, since the 'included measurements in report' input box has too
+> much available space compared to the width of its content. These tow buttons
+> then ONLY select or clear the selection of the listed measurements to be
+> included, and the user must manually select which measurement to include if
+> he wants ONE or multiple measurements to be part of the report. Remove the
+> feature 'Show all measurement runs' totally from the design, and any feature
+> that belongs to that button. The conflicts described above, between 'Show all
+> ...' checkbox and the selected measurements are then not relevant, and only
+> the selected/ticked measurements shall be part of the report when
+> created/updated (always)."*
+
+| # | Rule |
+|---|---|
+| R.1 | **"Show all measurement runs" does not exist**, in the report window or in Preferences, and neither does anything built on it. |
+| R.2 | **Select all** and **Deselect all** sit to the RIGHT of the included-measurements list. They tick and untick every measurement row and **change nothing else**. |
+| R.3 | **A report covers exactly the measurements that are ticked. Always**, at creation and at update. |
+| R.4 | The included-measurements list is **never disabled**, under any report type. |
+| R.5 | A one-page **Colour summary** covers ONE measurement. With more than one ticked, Generate report **says so and stops**, moving no tick (M-REPORT-ONE-PAGE-ONE-DATE, §M-PROPOSED, **not approved**). |
+| R.6 | **Selecting a report ticks the measurements that report was built from**, and nothing else, whether or not it records a document block. |
+
+**What R.1 removed from this document.** These rules are superseded and are
+recorded here rather than deleted, so a reader of §13.6 and §13.7 is not left
+following a rule about a control that is gone:
+
+* **P.3** (§13.6): the two Preferences tick boxes. One is left, "Show detailed
+  data for each run, by default".
+* **F.1** (§13.7): *"'Show all measurement runs' ON and every date included →
+  'All dates'"*. The flag was already decided from what the document COVERS
+  rather than from the box, so the wording changes and the behaviour does not:
+  **every loaded measurement covered → "All dates"**.
+* **F.4** (§13.7): the rule that a one-measurement list turns the box off
+  automatically and greys it. There is no box to turn off. The naming half of
+  F.4 stands: one measurement is still **"One date"**.
+* **F.3's caveat** (§13.7): *"F.3's state cannot be reached from the window as
+  it is built"*, because `_runs_for_report` returned the single loaded
+  measurement when the box was off and never read the ticks. It is reachable
+  now, and it is the ordinary case: tick some but not all and the flag is
+  **"Multiple dates"**.
+* **K.8** (§13.8): still stands, minus one of its five. **Four settings** are
+  restored when a report is selected: the included-measurements ticks, Report
+  type, Judged against, and "Show detailed data for each run".
+
+**What R.3 fixed, which is the reason he wanted the box gone.** `_runs_for_report`
+read the box FIRST and the list second. With the box ON it was the history
+minus what was unticked; with it OFF it was the measurement the window was
+opened on, **and the ticks were not consulted at all**. That second branch is
+what he met from both directions:
+
+> *"Selecting report type 'Grey and tone check' with 'Show all...' OFF and many
+> measurements included (ticked), the generate report. This unselected all but
+> the last measurement without a warning."*
+
+> *"If I try this again, but now only with one measurement ticked, the
+> measurement I had ticked was unticked and the last measurement in the list
+> was automatically ticked (I did not ask for that). This is also wrong."*
+
+Neither was a conflict rule misfiring. The ticks were never read.
+
+**R.4 and the freeze.** The list was disabled under the one-page type, and a
+second rule drew every row but one as unticked while the model kept them. He
+met both at once:
+
+> *"Now I tried selecting report type Colour summary. Then the 'included
+> measurements in report' became unticked for all measurements and it froze, so
+> I cannot scroll or select."*
+
+They had not been unticked; they had been drawn that way. Both rules came from
+B8-523, whose stated justification was that the list is disabled and so nothing
+a user can press could disagree with the drawing. Removing the freeze removed
+the justification. B8-590 and B8-591 carry what was measured.
+
+**Still open, and NOT decided by this ruling.** He asked, in the same comment,
+that Full Colour Check not be offered when the run type is Profiling. There is
+no run-type gating of the report-type pulldown at all today, and §13.8 already
+lists *"what each run type offers in 'Report type'"* as not built. Which types
+each run type offers, and what a Profiling run's default becomes when the
+current default is withdrawn from it, is his decision. B8-598.
 

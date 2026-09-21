@@ -163,11 +163,15 @@ def test_report_options_open_on_the_preferences_defaults(qapp, tmp_path):
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
     dlg = MeasurementReportDialog(s, None, initial_ti3=v2.measurement_ti3)
     try:
-        # BOTH DEFAULT ON (Knut, B8-388), where "detailed" used to start off.
-        assert dlg._all_runs_check.isChecked()
+        # DEFAULT ON (Knut, B8-388), where "detailed" used to start off.
+        # It was a pair until B8-590 removed "Show all measurement runs" and
+        # the feature behind it (Knut, 2026-09-20); what a new report covers
+        # is every ticked measurement, so that half is asked of the list.
+        assert getattr(dlg, "_all_runs_check", None) is None
         assert dlg._detail_check.isChecked()
+        assert dlg._hidden_runs == set()
         dlg._detail_check.setChecked(False)
-        dlg._all_runs_check.setChecked(False)
+        dlg._deselect_all_btn.click()
         # #182: the limit set is the RUN's, stored in its meta.json
         idx = dlg._set_combo.findData("chromiq_tight")
         dlg._set_combo.setCurrentIndex(idx)
@@ -180,8 +184,9 @@ def test_report_options_open_on_the_preferences_defaults(qapp, tmp_path):
         # THE DEFAULTS, not the last-used values (B8-388).
         assert dlg2._detail_check.isChecked() is bool(
             s.get("report_default_show_details", True))
-        assert dlg2._all_runs_check.isChecked() is bool(
-            s.get("report_default_show_all_runs", True))
+        # …and the ticks are back too: the previous window unticked every
+        # measurement and that must not carry into a new one.
+        assert dlg2._hidden_runs == set(), dlg2._hidden_runs
         assert dlg2._window_limits().set_id == "chromiq_tight"
         assert run.load_meta().compliance_set_id == "chromiq_tight"
     finally:

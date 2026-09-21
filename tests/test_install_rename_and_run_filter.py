@@ -199,7 +199,11 @@ def test_pdf_default_location_follows_the_four_tier_design(qapp, tmp_path):
     dlg = MeasurementReportDialog(s, None, initial_ti3=first)
     try:
         # Several dated checks of ONE run selected → verifications/reports.
-        assert dlg._all_runs_check.isChecked()
+        # The window opens with every measurement ticked; it used to be asked
+        # of "Show all measurement runs", removed with the feature behind it
+        # on Knut's 2026-09-20 ruling (B8-590), and what a report covers is
+        # the ticks.
+        assert dlg._hidden_runs == set()
         assert len(dlg._runs_for_report()) == 3
         assert dlg._report_dir() == run.verifications_dir / "reports"
 
@@ -214,11 +218,29 @@ def test_pdf_default_location_follows_the_four_tier_design(qapp, tmp_path):
         assert kept.name.startswith("2026-")          # a dated folder
         assert dlg._report_dir() == kept / "reports"
 
-        # All-runs OFF → the single shown measurement's own dated folder
-        # (the dialog anchors the newest date; tier 1 follows what is shown).
-        dlg._all_runs_check.setChecked(False)
+        # ONLY THE MEASUREMENT ON SCREEN TICKED → its own dated folder
+        # (tier 1 follows what the report covers).
+        #
+        # This used to be `_all_runs_check.setChecked(False)`, which made
+        # `_runs_for_report` return the one measurement the window was opened
+        # on and ignore the ticks entirely. Knut removed the box and that
+        # second answer with it (B8-590): *"only the selected/ticked
+        # measurements shall be part of the report when created/updated
+        # (always)"*. So the state is reached the one way that is left, and
+        # the tier it lands in is unchanged.
         shown = Path(dlg._report["_origin_dir"])
         assert shown.parent == run.verifications_dir
+        for idx, (_k, _s, key) in enumerate(dlg._list_rows):
+            if _k != "run" or not key:
+                continue
+            row = next((r for r in dlg._history if dlg._run_key(r) == key),
+                       None)
+            want = (row is not None
+                    and Path(str(row.get("_origin_dir") or "")) == shown)
+            dlg._profile_list.item(idx).setCheckState(
+                Qt.CheckState.Checked if want else Qt.CheckState.Unchecked)
+        assert [Path(r["_origin_dir"]) for r in dlg._runs_for_report()] == \
+            [shown], dlg._runs_for_report()
         assert dlg._report_dir() == shown / "reports"
     finally:
         dlg.deleteLater()

@@ -116,21 +116,23 @@ def test_report_dir_places_by_least_common_ancestor(tmp_path):
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
     vti3 = _verification_project(tmp_path)
     dlg = MeasurementReportDialog(_Settings(), initial_ti3=vti3)
-    # **B8-392: this window holds ONE measurement, so "Show all measurement
-    # runs" is off and greyed** (Knut, 2026-09-18: *"If the list of measurement
-    # dates to be included only holds one measurement, then the 'Show all
-    # measurement runs' is automatically set to OFF"*). It used to open ticked,
-    # and the folder this test is about is the same either way, which is the
-    # point of the second half below.
-    assert not dlg._all_runs_check.isChecked()
-    assert not dlg._all_runs_check.isEnabled()
+    # **THIS WINDOW HOLDS ONE MEASUREMENT.** B8-392 used to answer that by
+    # turning "Show all measurement runs" off and greying it (Knut,
+    # 2026-09-18), and this checked both. He removed that box and the feature
+    # behind it on 2026-09-20 (B8-590): *"only the selected/ticked
+    # measurements shall be part of the report when created/updated
+    # (always)"*, so there is nothing left to force off — one measurement is
+    # simply one ticked row. The folder this test is about was the same either
+    # way, which was already the point of the second half below.
+    assert getattr(dlg, "_all_runs_check", None) is None
+    assert len(dlg._runs_for_report()) == 1
     # One dated verification is all the report covers → its own reports/.
     rd = dlg._report_dir()
     assert rd == vti3.parent / "reports"
     assert "verifications" in rd.parts
-    # …and with the box ticked, however it got there: same single dataset,
+    # …and with every row ticked, however it got there: same single dataset,
     # same tier.
-    dlg._all_runs_check.setChecked(True)
+    dlg._select_all_btn.click()
     assert dlg._report_dir() == vti3.parent / "reports"
     dlg.deleteLater()
 
@@ -141,9 +143,9 @@ def test_report_dir_places_by_least_common_ancestor(tmp_path):
     (run.dir / "Q.ti2").write_text(_TI2, encoding="utf-8")
     ti3 = run.measurement_ti3; ti3.write_text(_TI3, encoding="utf-8")
     dlg2 = MeasurementReportDialog(_Settings(), initial_ti3=ti3)
-    dlg2._all_runs_check.setChecked(False)
+    dlg2._deselect_all_btn.click()
     assert dlg2._report_dir() == run.dir / "reports"     # run root
-    dlg2._all_runs_check.setChecked(True)
+    dlg2._select_all_btn.click()
     assert dlg2._report_dir() == run.dir / "reports"
     dlg2.deleteLater()
 

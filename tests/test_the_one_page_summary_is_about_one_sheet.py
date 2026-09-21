@@ -16,8 +16,26 @@ Two rules now, and this file holds both:
 
 * the page describes the measurement the window is ON, and the Report Scope is
   given that same single item, so the heading and the numbers agree;
-* the tick box that widens every other report is disabled while T1 is chosen,
-  rather than left on screen doing nothing.
+* a press of "Generate report" with more than one measurement ticked is
+  REFUSED, with M-REPORT-ONE-PAGE-ONE-DATE saying why and no tick moved.
+
+**THE SECOND RULE USED TO BE A DISABLED CONTROL, AND THAT WAS THE FAULT
+(B8-590/B8-591).** It read: *"the tick box that widens every other report is
+disabled while T1 is chosen, rather than left on screen doing nothing"*. That
+box was "Show all measurement runs", and Knut removed it and the feature behind
+it on 2026-09-20: *"Remove the feature 'Show all measurement runs' totally from
+the design, and any feature that belongs to that button … only the
+selected/ticked measurements shall be part of the report when created/updated
+(always)."* Its replacement, a disabled measurement LIST, is what he reported
+next, in the same batch: *"Then the 'included measurements in report' became
+unticked for all measurements and it froze, so I cannot scroll or select."*
+
+So nothing is taken away from the user here any more. The list stays live, it
+keeps showing the ticks it really holds, and the one-page summary says at
+Generate what it can carry: *"the user should be informed … Then the user can
+close that message and do the changes, and then click generate report again."*
+Every check below that used to tick "Show all measurement runs" presses
+"Select all" instead, which is what covering the whole history means now.
 
 And the sentence that owns up to a filtered report counts what the USER
 unticked. It was `len(history) - len(shown)`, which is the same number only
@@ -39,10 +57,53 @@ def _text(html: str) -> str:
     return " ".join(re.sub("<[^>]+>", " ", html).split())
 
 
+def _cover_only_the_sheet_on_screen(dlg, qapp):
+    """Untick every row EXCEPT the measurement the window is on.
+
+    The one-page summary is about one sheet, and since B8-591 that is a state
+    the USER puts the list in rather than one the window imposes.
+
+    **THE OTHER ROWS ARE UNTICKED ONE BY ONE, AND NOT THROUGH "Deselect
+    all".** Both reach the same ticks, but the button passes through a state
+    where NOTHING is ticked, and a repaint taken there re-stamps
+    `_doc_built_with` from it: putting the last tick back then leaves the
+    window saying the settings have moved when they are exactly where the
+    document was built, and Generate asks "Update or Create New?" about a
+    document nobody changed. That is a fault in its own right and is reported
+    separately; it is not what these checks are about, and unticking the rows
+    you do not want is what a reader does anyway.
+    """
+    from PyQt6.QtCore import Qt
+    here = dlg._run_key(dlg._report)
+    found = False
+    for i, (kind, _si, key) in enumerate(dlg._list_rows):
+        if kind != "run" or key is None:
+            continue
+        if key == here:
+            found = True
+            continue
+        dlg._profile_list.item(i).setCheckState(Qt.CheckState.Unchecked)
+    qapp.processEvents()
+    assert found, f"the window's measurement has no row: {here!r}"
+    assert [dlg._run_key(r) for r in dlg._runs_for_report()] == [here]
+
+
+def _cover_the_whole_history(dlg):
+    """Tick every measurement, which is what "Show all measurement runs" ON
+    used to mean before it was removed (B8-590).
+
+    It is pressed through the button Knut asked for, so this also keeps the
+    checks below honest about the door a user really has.
+    """
+    dlg._select_all_btn.click()
+    dlg._refresh()
+    assert dlg._hidden_runs == set(), (
+        f"“Select all” left rows unticked: {dlg._hidden_runs!r}")
+
+
 def test_the_page_and_its_heading_are_about_the_same_sheet(two_dated, qapp):
     dlg, older, newer = two_dated
-    dlg._all_runs_check.setChecked(True)
-    dlg._refresh()
+    _cover_the_whole_history(dlg)
     assert len(dlg._runs_for_report()) == 2, "the history really is loaded"
     txt = _text(dlg._view.toHtml())
     assert "1 verification run" in txt
@@ -51,8 +112,7 @@ def test_the_page_and_its_heading_are_about_the_same_sheet(two_dated, qapp):
 
 def test_it_is_the_measurement_the_window_is_on_not_the_oldest(two_dated, qapp):
     dlg, older, newer = two_dated
-    dlg._all_runs_check.setChecked(True)
-    dlg._refresh()
+    _cover_the_whole_history(dlg)
     chosen = dlg._one_measurement(dlg._runs_for_report())
     assert len(chosen) == 1
     assert dlg._run_key(chosen[0]) == dlg._run_key(dlg._report)
@@ -62,33 +122,69 @@ def test_with_no_match_it_takes_the_newest_never_the_first(two_dated, qapp):
     """The history is oldest-first, so a fallback to `runs[0]` is a fallback to
     the sheet furthest from the one in hand."""
     dlg, older, newer = two_dated
-    dlg._all_runs_check.setChecked(True)
-    dlg._refresh()
+    _cover_the_whole_history(dlg)
     runs = dlg._runs_for_report()
     dlg._report = None
     assert dlg._one_measurement(runs) == runs[-1:]
 
 
-def test_the_tick_that_widens_a_report_is_disabled_on_the_one_page(two_dated, qapp):
+def test_nothing_is_disabled_on_the_one_page_and_the_list_says_why(two_dated,
+                                                                  qapp):
+    """**KNUT'S FREEZE, FROM BOTH ENDS (B8-590, B8-591).**
+
+    This used to read `assert dlg._all_runs_check.isEnabled() is False` — the
+    one-page summary proved it was about one sheet by taking a control away.
+    The box is gone with the feature behind it (B8-590), and what took its
+    place, `lst.setEnabled(False)`, is what Knut reported on 2026-09-20: *"Now
+    I tried selecting report type Colour summary. Then the 'included
+    measurements in report' became unticked for all measurements and it froze,
+    so I cannot scroll or select."* A disabled QListWidget does not scroll,
+    does not take a click and gives no reason, so from the outside it is a hung
+    window.
+
+    The same fact is still told, and in a way that leaves the choice with the
+    user: the list stays live, it keeps its ticks, and it carries the sentence
+    saying the page is about ONE measurement.
+    """
     dlg, older, newer = two_dated
-    assert dlg._all_runs_check.isEnabled() is False
-    assert "single measurement" in dlg._all_runs_check.toolTip()
+    assert getattr(dlg, "_all_runs_check", None) is None, (
+        "“Show all measurement runs” is still built")
+    assert dlg._profile_list.isEnabled() is True, (
+        "the measurement list is disabled under “Colour summary”, which is "
+        "the freeze Knut reported")
+    assert dlg._profile_list.viewport().isEnabled() is True
+    assert "ONE measurement" in dlg._profile_list.toolTip(), \
+        dlg._profile_list.toolTip()
+    assert dlg._detail_check.isEnabled() is False, (
+        "the one-page summary has no detail section, so its box stays "
+        "disabled with a tooltip: that half of B8-523 is unchanged")
+    assert "one page about one measurement" in dlg._detail_check.toolTip()
+    # and a tick still moves, which is the whole of what "frozen" meant
+    before = set(dlg._hidden_runs)
+    dlg._deselect_all_btn.click()
+    qapp.processEvents()
+    assert dlg._hidden_runs != before and dlg._hidden_runs == {
+        dlg._run_key(r) for r in dlg._history}
 
 
-def test_and_comes_back_when_another_type_is_chosen(two_dated, qapp):
+def test_and_the_list_gets_its_own_sentence_back_when_another_type_is_chosen(
+        two_dated, qapp):
+    """The one-page sentence is put in FRONT of the list's own and given back,
+    which is what it used to do for the removed box's tooltip."""
     from workflow.run_compliance import set_run_report_type
     dlg, older, newer = two_dated
     set_run_report_type(dlg._run_ctx.run, mr.REPORT_TYPE_FULL)
     dlg._forget_limits()
     dlg._sync_limit_controls()
-    assert dlg._all_runs_check.isEnabled() is True
-    assert dlg._all_runs_check.toolTip() == ""
+    assert dlg._profile_list.isEnabled() is True
+    assert dlg._profile_list.toolTip() == dlg._list_tooltip
+    assert dlg._detail_check.isEnabled() is True
+    assert dlg._detail_check.toolTip() == ""
 
 
 def test_nobody_is_accused_of_hiding_a_run_they_did_not_hide(two_dated, qapp):
     dlg, older, newer = two_dated
-    dlg._all_runs_check.setChecked(True)
-    dlg._refresh()
+    _cover_the_whole_history(dlg)
     txt = _text(dlg._view.toHtml())
     assert "hidden by you" not in txt
 
@@ -106,8 +202,7 @@ def test_but_a_run_the_user_really_unticked_is_still_owned_up_to(two_dated, qapp
     set_run_report_type(dlg._run_ctx.run, mr.REPORT_TYPE_FULL)
     dlg._forget_limits()
     dlg._sync_limit_controls()
-    dlg._all_runs_check.setChecked(True)
-    dlg._refresh()
+    _cover_the_whole_history(dlg)
     dlg._hidden_runs.add(dlg._run_key(dlg._history[0]))
     dlg._refresh()
     txt = _text(dlg._view.toHtml())
@@ -192,8 +287,7 @@ def test_the_fixture_itself_holds_two_tellable_apart_measurements(two_dated, qap
     because every candidate matched. Each verification now carries its own
     saved report with its own measured date, as a real one does."""
     dlg, older, newer = two_dated
-    dlg._all_runs_check.setChecked(True)
-    dlg._refresh()
+    _cover_the_whole_history(dlg)
     keys = [dlg._run_key(r) for r in dlg._history]
     assert len(set(keys)) == len(keys) == 2, keys
     assert dlg._run_key(dlg._report) == keys[-1], \
@@ -201,14 +295,14 @@ def test_the_fixture_itself_holds_two_tellable_apart_measurements(two_dated, qap
 
 
 def test_the_pdf_title_is_about_the_same_sheet_as_the_page(two_dated, qapp):
-    """Disabling the tick box does not UNTICK it, so a user who ticked "Show
-    all measurement runs" under another type and then chose the one-page
-    summary still arrives here with the whole history. The title, the PDF file
-    name and `_report_kind` are all worked out from the run list, so the list
-    is narrowed before any of them, not only before the body."""
+    """A user can reach this page with the whole history ticked — nothing
+    unticks rows for them any more (B8-591), and nothing should: "Select all"
+    under another type and then the one-page summary is exactly that state.
+    The title, the PDF file name and `_report_kind` are all worked out from the
+    run list, so the list is narrowed before any of them, not only before the
+    body."""
     dlg, older, newer = two_dated
-    dlg._all_runs_check.setChecked(True)
-    dlg._refresh()
+    _cover_the_whole_history(dlg)
     runs = dlg._runs_for_report()
     assert len(runs) == 2
     assert dlg._report_title(runs).endswith("Alpha"), \
@@ -220,16 +314,62 @@ def test_the_pdf_title_is_about_the_same_sheet_as_the_page(two_dated, qapp):
     assert "Alpha" not in pdf
 
 
+def test_generate_with_the_history_ticked_is_refused_and_says_why(two_dated,
+                                                                 qapp,
+                                                                 monkeypatch):
+    """**THE PRESS STOPS. IT DOES NOT NARROW (B8-591).**
+
+    This used to pin the narrowing: with the whole history ticked, the button
+    was expected to write ONE file, into the folder of the sheet on screen, and
+    none into the other. The half about the other folder was right and is still
+    here; the half that let the press succeed silently is what Knut reported on
+    2026-09-20, from the user's side: *"This unselected all but the last
+    measurement without a warning"*, and *"the measurement I had ticked was
+    unticked and the last measurement in the list was automatically ticked (I
+    did not ask for that)"*.
+
+    His rule for what replaces it, in the same message: *"the user should be
+    informed … Then the user can close that message and do the changes, and
+    then click generate report again."* So nothing is written, and no tick is
+    moved: the user still has the eleven ticks they made, and the message names
+    the two ways out.
+    """
+    import ui.warning_sign as WS
+    import workflow.measurement_report as mr
+    from workflow import measurement_messages as M
+    dlg, older, newer = two_dated
+    _cover_the_whole_history(dlg)
+    assert len(dlg._runs_for_report()) == 2
+    said: list = []
+    monkeypatch.setattr(WS, "inform",
+                        lambda parent, title, text, *a, **k: said.append(
+                            (title, text)))
+    before = {p: len(mr.list_reports(p.parent)) for p in (older, newer)}
+    ticks_before = set(dlg._hidden_runs)
+    dlg._on_generate_report()
+    after = {p: len(mr.list_reports(p.parent)) for p in (older, newer)}
+    assert after == before, ("a press that was refused still wrote a report: "
+                             f"{before!r} -> {after!r}")
+    assert said, "the press was refused with nothing said"
+    assert said[0] == M.CATALOGUE["M-REPORT-ONE-PAGE-ONE-DATE"].render(count=2)
+    assert set(dlg._hidden_runs) == ticks_before, (
+        "the refusal moved a tick, which is the half he reported twice")
+
+
 def test_generate_writes_the_one_report_the_page_is_about(two_dated, qapp):
-    """The button iterated `_runs_for_report`, which is what is LOADED, while
-    the page in front of the user described one sheet. With the history ticked
-    on it wrote a file into every dated verification folder, and
-    `_say_generated` is deliberately quiet on success, so nothing said so."""
+    """With ONE measurement ticked, which is what the page can carry, the sheet
+    on screen gets its report and the other folder is not written to.
+
+    The button used to iterate `_runs_for_report`, which is what is LOADED,
+    while the page in front of the user described one sheet: it wrote a file
+    into every dated verification folder, and `_say_generated` is deliberately
+    quiet on success, so nothing said so. That is still the subject here; the
+    fixture reaches the one-measurement state through the ticks now, because
+    the ticks are the whole of what a report covers (B8-590)."""
     import workflow.measurement_report as mr
     dlg, older, newer = two_dated
-    dlg._all_runs_check.setChecked(True)
-    dlg._refresh()
-    assert len(dlg._runs_for_report()) == 2
+    _cover_only_the_sheet_on_screen(dlg, qapp)
+    assert len(dlg._runs_for_report()) == 1
     before = {p: len(mr.list_reports(p.parent)) for p in (older, newer)}
     dlg._on_generate_report()
     after = {p: len(mr.list_reports(p.parent)) for p in (older, newer)}
@@ -246,8 +386,7 @@ def test_and_the_other_types_still_write_every_loaded_run(two_dated, qapp):
     set_run_report_type(dlg._run_ctx.run, mr.REPORT_TYPE_FULL)
     dlg._forget_limits()
     dlg._sync_limit_controls()
-    dlg._all_runs_check.setChecked(True)
-    dlg._refresh()
+    _cover_the_whole_history(dlg)
     before = {p: len(mr.list_reports(p.parent)) for p in (older, newer)}
     dlg._on_generate_report()
     after = {p: len(mr.list_reports(p.parent)) for p in (older, newer)}
@@ -268,8 +407,7 @@ def test_the_suggested_pdf_name_matches_the_page_it_saves(two_dated, qapp,
     """
     import ui.widgets as W
     dlg, older, newer = two_dated
-    dlg._all_runs_check.setChecked(True)
-    dlg._refresh()
+    _cover_the_whole_history(dlg)
     assert len(dlg._runs_for_report()) == 2, "the history really is loaded"
     assert dlg._report_filename(dlg._runs_for_report()) != \
         dlg._report_filename(dlg._runs_for_document()), \
