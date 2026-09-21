@@ -1574,6 +1574,35 @@ SUMMARY_REASONS: "dict[str, str]" = {
     "cond_recommended": "{checked} of {total} values checked, none over a "
                         "required limit; {cond} over a recommended value.",
     "pass": "Every value this limit set requires was checked and is within its limit.",
+    # …AND THAT SENTENCE WAS FALSE WHENEVER A COLUMN REACHED PASS WITH A ROW
+    # UNCHECKED. Driven end to end on a first verification: "overall PASS,
+    # checked 7, total 9, not_computed 2" printed under "Every value this
+    # limit set requires was checked". It contradicted itself inside one
+    # dict, on report type T1, which carries no row table and so could not be
+    # corrected by anything else on the page, and it went to disk with every
+    # report saved.
+    #
+    # KNUT WIDENED WHEN THAT HAPPENS, 2026-09-21, amending §15.5: *"Not
+    # Applicable must not be counted as a fail, so the overall verdict should
+    # show PASS, not COND, if all others pass … When all other metrics PASS,
+    # that N-A is not applicable, thus not relevant for the verdict, thus
+    # overall verdict becomes PASS (or FAIL if some metric fails)."* So an
+    # N-A row of ANY kind now reaches this branch, not just the two
+    # repeatability rows a carve-out had exempted, and the sentence cannot
+    # say anything about WHICH rows were left over. It says the count, and it
+    # says the thing Knut's ruling turns on: an unanswerable row is not a
+    # failure. Which rows, and why, is the numbered note on each N-A cell.
+    #
+    # Singular and plural in full, never "(s)" (CLAUDE.md). The WORDING is
+    # proposed, not settled: §15.5 is Knut's.
+    "pass_partial": "{checked} of {total} values checked, all within this "
+                    "limit set's limits. The other {not_computed} could not "
+                    "be worked out from this measurement, and a value that "
+                    "could not be worked out is not counted as a failure.",
+    "pass_partial_one": "{checked} of {total} values checked, all within this "
+                        "limit set's limits. The one other value could not be "
+                        "worked out from this measurement, and a value that "
+                        "could not be worked out is not counted as a failure.",
 }
 
 
@@ -1619,13 +1648,25 @@ def reason_needs_the_footnote(reason: str) -> bool:
     return reason in tuple(SUMMARY_REASONS[k] for k in _FOOTNOTE_REASONS)
 
 
-#: **ROWS WHOSE POPULATION MAY HONESTLY NOT EXIST, so an N-A on them is not a
-#: gap in what was checked.**
+#: **ROWS WHOSE N-A IS NOT A SHORTFALL IN THE CHART.**
 #:
-#: `set_summary` demotes a column to COND when a REQUIRED row reads N-A, on the
-#: reading that the set asked for something and did not get it. That is right
-#: for every row the rule was written for: a chart either has a grey ramp or
-#: the user can go and get one, so a missing answer is a shortfall.
+#: **THIS SET NO LONGER TOUCHES ANY VERDICT.** It was built to exempt two rows
+#: from `set_summary`'s completeness arithmetic. Knut then ruled the general
+#: case on 2026-09-21 -- an N-A never demotes a column, whatever row it is on
+#: -- so the arithmetic it was carved out of is gone and the carve-out with
+#: it. What is left is the job the set turned out to be doing all along, which
+#: is not about verdicts at all: deciding which of two MESSAGES a row may
+#: appear under. Both of those messages promise something about the CHART
+#: ("add those patches in Create Chart", "Not computed on this chart"), and
+#: nothing can be added to a chart to answer whether it has been measured
+#: twice. `_mismatch_text` and `_not_computed` are the two callers.
+#:
+#: The original reasoning, kept because it is what put these two rows here:
+#:
+#: `set_summary` used to demote a column to COND when a REQUIRED row read N-A,
+#: on the reading that the set asked for something and did not get it. That is
+#: right for every row the rule was written for: a chart either has a grey ramp
+#: or the user can go and get one, so a missing answer is a shortfall.
 #:
 #: It is NOT right for ChromIQ's own two repeatability rows, and measuring it
 #: is how that was found. Row B compares a measurement with the one before it,
@@ -1639,10 +1680,9 @@ def reason_needs_the_footnote(reason: str) -> bool:
 #:
 #: So these two rows declare that their population is conditional. The row is
 #: still shown, still reads N-A, and still carries its own reason sentence;
-#: only the COLUMN's completeness arithmetic leaves it out. Nothing else about
-#: the summary changes, and no other row may be added here without the same
-#: argument being made and confirmed: see
-#: `docs/design/measurement_report_limits.md` §15, which is awaiting
+#: only the COLUMN's completeness arithmetic left it out. That arithmetic is
+#: gone; see the head of this comment for what the set still decides, and
+#: `docs/design/measurement_report_limits.md` §15.5, which is awaiting
 #: confirmation.
 POPULATION_MAY_BE_ABSENT: "frozenset[str]" = frozenset({
     "repeat_patches_de00_max",
@@ -1667,11 +1707,15 @@ def set_summary(rows: "list[tuple]", *, set_is_iso: bool,
     * an ISO column is COND at best: its values are applied to a chart that is
       not the standard's chart (footnote 1), so the set was never fully
       tested;
-    * any COND, or an N-A on a REQUIRED row → COND (an N-A on a should-row
-      does not demote the column). Since 2026-09-21 no LIVE row can read COND
-      -- `row_verdict` never returns it -- so the first half of this clause
-      now fires only for a report saved before that day, whose stored rows
-      still carry the word;
+    * any COND → COND. Since 2026-09-21 no LIVE row can read COND --
+      `row_verdict` never returns it -- so this clause now fires only for a
+      report saved before that day, whose stored rows still carry the word;
+    * **an N-A NEVER demotes a column, whatever row it is on.** Knut,
+      2026-09-21, amending §15.5: *"Not Applicable must not be counted as a
+      fail, so the overall verdict should show PASS, not COND, if all others
+      pass. I say, a metric that is not applicable should not have verdict
+      conditional because COND does not indicate which of the verdicts cause
+      the COND."* See `POPULATION_MAY_BE_ABSENT` for what this replaced;
     * else PASS.
     """
     bearing = [(r[0], r[1], (r[2] if len(r) > 2 else None))
@@ -1708,19 +1752,29 @@ def set_summary(rows: "list[tuple]", *, set_is_iso: bool,
                        else R["nothing_graded"])
     if failed:
         return Summary(FAIL, checked, total, failed, cond, not_computed, R["fail"])
-    # …and a row whose POPULATION may honestly not exist is not a gap in what
-    # was checked. See `POPULATION_MAY_BE_ABSENT` for why exactly two rows are
-    # in that set and what was measured to put them there.
-    required_missing = sum(1 for lim, w, rid in bearing
-                           if w == N_A and not lim.is_should
-                           and rid not in POPULATION_MAY_BE_ABSENT)
+    # **AN N-A NEVER DEMOTES A COLUMN.** This used to count the REQUIRED rows
+    # that read N-A and turn the column COND for them, with two rows exempted
+    # by name. Knut generalised it on 2026-09-21: *"a metric that is not
+    # applicable should not have verdict conditional because COND does not
+    # indicate which of the verdicts cause the COND … When all other metrics
+    # PASS, that N-A is not applicable, thus not relevant for the verdict,
+    # thus overall verdict becomes PASS (or FAIL if some metric fails)."*
+    # So there is no arithmetic here at all any more, and no list of rows to
+    # keep in step with one: the count is reported beside the word and the
+    # cell carries a numbered note saying why it could not be worked out.
     if set_is_iso:
         return Summary(COND, checked, total, failed, cond, not_computed, R["iso"])
-    if cond or required_missing:
+    if cond:
         # no "0 over a recommended value" clauses (text review)
         key = ("cond_both" if (cond and not_computed)
                else "cond_missing" if not_computed else "cond_recommended")
         return Summary(COND, checked, total, failed, cond, not_computed, R[key])
+    if not_computed:
+        # PASS, and not a claim that everything was checked. See the two
+        # `pass_partial` sentences for what reaches this line and why.
+        return Summary(PASS, checked, total, failed, cond, not_computed,
+                       R["pass_partial_one"] if not_computed == 1
+                       else R["pass_partial"])
     return Summary(PASS, checked, total, failed, cond, not_computed, R["pass"])
 
 

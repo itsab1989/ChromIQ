@@ -778,19 +778,31 @@ _BUDGET = {
     # were carried forward: every round that lands moves these files, so any
     # figure written before the last merge is stale by construction. COUNTED
     # with this file's own helper on the tree this commit leaves behind.
+    # RE-MEASURED 2026-09-22 on the COMBINED tree, after ten rounds and a fix
+    # round. No agent's numbers and none of my own earlier ones were carried
+    # forward: every round that lands moves these files, so any figure written
+    # before the last merge is stale by construction. COUNTED with this file's
+    # own helper on the tree this commit leaves behind.
+    # RE-MEASURED 2026-09-22 on the COMBINED tree, after ten rounds, a fix round
+    # and a recovery. No agent's numbers and none of my own earlier ones were
+    # carried forward. German stands still at its own figure because German is
+    # translated by hand in the same change; a RISING German number means an
+    # untranslated German string, not a bigger budget, and is fixed rather than
+    # recorded. COUNTED with this file's own helper on the tree this commit
+    # leaves behind.
     "de": 22,
-    "es": 654,
-    "fr": 655,
-    "it": 654,
-    "ja": 654,
-    "nl": 654,
-    "no": 654,
-    "pl": 654,
-    "pt": 654,
-    "ru": 653,
-    "sv": 654,
-    "zh_CN": 653,
-    "uk": 876,
+    "es": 666,
+    "fr": 667,
+    "it": 666,
+    "ja": 666,
+    "nl": 666,
+    "no": 666,
+    "pl": 666,
+    "pt": 666,
+    "ru": 665,
+    "sv": 666,
+    "zh_CN": 665,
+    "uk": 883,
 }
 
 

@@ -22237,3 +22237,321 @@ would reach.
 - evidence: `/tmp/chromiq-cust/demo-build.log` and
   `/tmp/chromiq-cust/demo-build-base.log` (identical), reproduced in
   `~/Desktop/ChromIQ-beta30-proof/custom-defaults/FINDINGS.md`
+
+### B8-690 · FIXED · The one-page summary claimed a completeness it did not have, and Knut widened the rule behind it
+- blocks release: yes
+- status: FIXED
+- found by: challenge round 32, driving the report end to end.
+- detail: §15's carve-out made two REQUIRED rows exempt from a column's
+  completeness arithmetic so a first measurement would not be demoted. The
+  arithmetic was told and the PASS sentence was not, so the verdict read
+  `overall PASS, checked 7, total 9, not_computed 2` beside *"Every value this
+  limit set requires was checked and is within its limit."* It contradicted
+  itself inside one dict, on report type T1, which carries no row table and
+  never prints the not-computed note, so nothing on the page could correct it,
+  and `save_report` wrote it to disk on every report saved.
+- **KNUT'S RULING, 2026-09-21, is broader than the carve-out** (see B8-662):
+  *"Not Applicable must not be counted as a fail … a metric that is not
+  applicable should not have verdict conditional because COND does not
+  indicate which of the verdicts cause the COND. I would say that the N-A …
+  instead should have a super-script number, pointing to a note, where the
+  note explains why it is N-A."*
+- fix, both halves: `set_summary` no longer counts required N-A rows at all
+  and consults no row list; and `_note_the_absences` turns each N-A row's
+  existing refusal reason into a numbered note, through the same
+  `numbered_notes` the §12 notes use, so the marker on the cell and the item
+  in the list cannot disagree. The note code carries its own sentence, because
+  several reasons count something and two runs can give one code two texts.
+  Silent on a report type that judges nothing, like its three neighbours.
+- **the PASS sentence still needed rewriting, and that is worth saying plainly
+  because the ruling does not do it**: PASS is now the right VERDICT, and
+  "every value was checked" is a claim about what was CHECKED, which a value
+  that could not be worked out was not. A column reaching PASS with anything
+  left over reports the count instead. **The wording is proposed, not
+  settled**; §15.6 carries it for Knut.
+- measured beyond the two repeatability rows, one N-A row per distinct cause
+  an ordinary chart produces: a required grey row on a chart with no ramp, a
+  required paper-white row on a chart with no white, a required control-strip
+  row on a chart declaring no strip. Every one used to read COND on an
+  otherwise clean column and now reads PASS.
+- photographed on screen, English and German, in
+  `~/Desktop/ChromIQ-beta30-proof/fix-round-32/shots/`.
+- evidence: test_a_pass_never_claims_everything_was_checked_when_it_was_not,
+  test_the_unqualified_pass_sentence_survives_where_it_is_true,
+  test_one_left_over_is_said_in_the_singular,
+  test_an_n_a_never_demotes_whatever_row_it_is_on,
+  test_the_population_can_express_the_movement,
+  test_the_exempt_set_no_longer_touches_any_verdict
+### B8-691 · FIXED · The Report type help named a control that no longer exists and promised a freeze that was removed
+- blocks release: yes
+- status: FIXED
+- found by: challenge round 32, photographing the real help window in English
+  and German.
+- detail: B8-590 removed "Show all measurement runs" AND the freeze in one
+  commit, reset the measurement list's own tooltip, and missed this string:
+  *"While it is chosen, 'Show all measurement runs' and the list of included
+  measurements are fixed to that sheet."* Both halves false. The key is in all
+  thirteen catalogues and German is translated, so German readers were given a
+  false sentence in German.
+- **the guard could not have caught it**: it asserted `_all_runs_check is
+  None`, i.e. that the WIDGET is gone, and never that the app had stopped
+  talking about it.
+- fix: the sentence now says what the window does, in the words the list's own
+  tooltip already uses, and the guard reads the app's user-facing text as well
+  as its widget tree.
+- evidence: test_no_user_facing_string_names_the_removed_box,
+  test_the_type_help_says_what_the_window_really_does,
+  test_nothing_is_disabled_on_the_one_page_and_the_list_says_why
+### B8-692 · FIXED · The report body called a row "not computed on this chart" when the chart was not what was missing
+- blocks release: yes
+- status: FIXED
+- found by: challenge round 32.
+- detail: `_mismatch_text` had been corrected to leave out the rows whose
+  population may honestly not exist, because its sentence is a promise about
+  the CHART and nothing can be added to a chart to answer whether it has been
+  measured twice. `_not_computed`, which feeds the same claim into the report
+  BODY and therefore into every PDF, was not. Every clean first verification
+  of every chart ended under "Not computed on this chart:" naming "The same
+  chart measured again".
+- fix: the prose block is gone, replaced by Knut's numbered note on the cell
+  itself (B8-690), so the explanation sits beside the row it is about instead
+  of under a heading that has to be true of all of them at once. The closing
+  sentence it carried moved under the note list and was reworded to the
+  ruling.
+- evidence: test_the_strip_names_what_the_chart_cannot_supply,
+  test_a_type_that_judges_nothing_does_not_tell_you_what_to_add,
+  test_the_closing_note_does_not_name_one_remedy_for_every_reason
+### B8-693 · FIXED · Four help-card sentences still taught COND as a row word, in thirteen languages
+- blocks release: yes
+- status: FIXED
+- found by: challenge round 32.
+- detail: Knut retired COND as a ROW word on 2026-09-21 and `row_verdict` has
+  returned PASS or FAIL ever since. The report window's own guide was
+  rewritten that day; the Getting Started glossary, its result-words card and
+  the report window's Help were not, so the app went on teaching the retired
+  meaning as the only meaning.
+- fix: four strings rewritten, German by hand. COND survives where it is still
+  true: an ISO-named column's Overall, and a report saved before 4.3.0.
+- **the guard is a REGISTER, not a detector, and that is measured rather than
+  preferred**: the false sentences and the true ones are not separable by any
+  rule over the prose. *"a required row your chart could not answer makes it
+  COND"* appears verbatim in one of the false strings AND in the corrected
+  one, because that clause was never the fault. So the code-side truth is
+  pinned against the code and the prose by a complete register.
+- evidence: test_a_row_can_never_read_cond,
+  test_a_missed_recommendation_reads_fail_not_cond,
+  test_cond_is_still_an_overall_word,
+  test_the_register_of_cond_strings_is_complete,
+  test_every_pinned_cond_string_is_still_the_shipped_one
+### B8-694 · FIXED · Ukrainian Getting Started silently showed the English workflow diagram
+- blocks release: no
+- status: FIXED
+- detail: `assets/help/workflow/uk.svg` did not exist, and both consumers fall
+  back to `en.svg` without a word. The generator and its guard both hard-coded
+  the old twelve.
+- fix: both now read the catalogue directory, and `uk.svg` is generated. The
+  guard was proven by moving the file aside: RED naming `uk`, GREEN restored.
+- **one label is deliberately left in English**, measured rather than guessed:
+  at 3x the Print-Chart box is 96 px (x 645..741) and `Роздрукувати` inked
+  634..757, overhanging 11 px left and 16 px right against en +26/+32, and the
+  gap to the "raw, no profile" note collapsed from 46 px to 1 px, so the two
+  read as one run. LackiUA's catalogue offers no short form honestly, and
+  composing one would be inventing Ukrainian. See B8-703.
+- evidence: test_workflow_diagram_chapter_sits_between_tour_and_steps
+  (it is the guard that now reads the catalogue directory, and moving
+  `uk.svg` aside turns it RED naming `uk`)
+### B8-695 · FIXED · The legal conformance guard left the largest catalogue unswept
+- blocks release: yes
+- status: FIXED
+- detail: ChromIQ promised a rights holder in writing that it never claims a
+  print conforms to a standard, and `tests/test_chromiq_never_claims_
+  conformance.py` enforces it. It derived the languages it sweeps from its own
+  pattern tables rather than from the catalogues, so Ukrainian -- 6,008 rows
+  from an outside contributor, the largest catalogue ChromIQ ships -- was
+  swept by nothing at all and no test said so. The file's own docstring
+  already warned: *"a language whose row is empty is not proven clean, it is
+  unswept."*
+- content was clean; the GAP was the fault.
+- fix: Ukrainian patterns in all four tables, and the parametrize now reads
+  the catalogue directory with an explicit completeness assertion, so a
+  fourteenth language cannot arrive unswept and silent. Proven by planting a
+  catalogue (the completeness test names it in all four tables) and by
+  blinding the Ukrainian pattern (the net's self-check fails, quoting the
+  planted claim).
+- evidence: test_every_shipped_catalogue_has_a_pattern_row,
+  test_no_translation_invents_a_claim,
+  test_the_net_catches_a_real_claim_in_that_language,
+  test_the_net_leaves_an_innocent_sentence_alone
+### B8-696 · FIXED · Eight "every shipped language" sweeps enumerated twelve
+- blocks release: no
+- status: FIXED
+- detail: eight files carried a literal list of language codes, several under
+  a comment claiming it was "every shipped language". One
+  (`test_a_long_label_is_not_clipped_by_its_indent.py`) was stale in two
+  directions: eleven codes, missing `ja` and `zh_CN` as well as `uk`.
+- fix: one shared helper, `tests/helpers/languages.py`, read by all eight.
+- no Ukrainian layout failure anywhere; the widest-language control was
+  re-measured over the three languages that had never been swept there and
+  Italian still holds it at +33 px.
+- **worth knowing when reading any "uk passed" result**: 1,161 of Ukrainian's
+  6,010 rows (19.3 %) are byte-identical to their English key, against 2.4 %
+  for German, so some of those cases measure English.
+- evidence: test_no_label_in_the_layout_section_is_clipped,
+  test_the_panel_still_fits_the_pane_it_is_given (both now parametrized off
+  `tests/helpers/languages.py`, which all eight files import; each file's own
+  cases were re-run and Ukrainian added no failure)
+### B8-697 · FIXED · The corner guard had three holes and a neutral-only regression walked through all of them
+- blocks release: no
+- status: FIXED
+- detail: `tests/test_bare_styled_panels_get_rounded_corners.py` parametrized
+  two appearances of the three ChromIQ ships, so `panel_border_qss`'s Neutral
+  branch was never rendered; it sampled the TOP-LEFT corner only; and its
+  "no blanket QFrame rule" check was a substring search for two spellings, so
+  `QFrame, QLabel { border-radius }` evaded it while flattening every HLine
+  divider in the app.
+- fix: the parametrize reads `ui.theme.CONCRETE_APPEARANCES`; all four corners
+  are sampled, each against its own adjacent edge, indexed off the image so
+  the device pixel ratio cannot cause an off-by-one; and the substring search
+  is replaced by a selector parse over every stylesheet constant in the three
+  modules, not the one an `or` chain short-circuited to.
+- mutations, each reverted and the product file verified byte-identical:
+  neutral-only square corners RED in the two neutral cases that did not exist
+  before; top-left-only rounding RED naming the three corners the old sample
+  could not see; and a 31-row table in which the old predicate got 8 rows
+  wrong, including a false positive on a commented-out rule.
+- evidence: test_every_bare_styled_panel_is_rounded_not_square,
+  test_the_app_still_has_no_blanket_qframe_rule,
+  test_this_file_leaves_the_application_as_it_found_it
+### B8-698 · FIXED · The hexagon cost guard cleared its own floor without the code under test running
+- blocks release: no
+- status: FIXED
+- found by: challenge round 32, re-measuring a fix of mine from the night
+  before and finding it half wrong with a commit message to match.
+- detail: three things, measured. The ceiling is **135**, and the commit
+  message that added the floor said 180, a number that does not exist in this
+  fixture. The floor, `calls >= unread` = 27, is **exactly** what the
+  grid-outline loop in `_draw_cq_overlay` asks for on its own, so it was
+  cleared in full without the blanking half running at all. And the carrier of
+  the flake is not a queued paint event: it is `TiffPreview._refresh_timer`, a
+  single-shot 80 ms debounce wired to `_update_display`, delivered into the
+  measured window by the trailing `processEvents` -- which the fix deleted and
+  the message never mentioned.
+- reproduced deterministically on an idle machine: 99 calls with no trailing
+  pump, **198 = 2x99** with the pump after a 100 ms stall, 99 again with the
+  debounce stopped first, the doubling landing on both call sites (72->144,
+  27->54).
+- fix: the debounce is STOPPED inside the measured window rather than
+  out-waited, and the floor is asserted PER CALL SITE, so the blanking loop
+  has to run for its own minimum.
+- mutations: skipping the blanking loop is RED naming the missing call site
+  (the old floor passed it); leaving the debounce armed is RED at 54 on 27
+  unread patches.
+- evidence: test_the_blank_asks_for_each_hexagon_once_per_strip
+### B8-699 · FIXED · B8-639 and B8-614 are one fault registered twice
+- blocks release: no
+- status: FIXED
+- detail: both describe the register-citation sweep matching its skip list
+  against an ABSOLUTE path, so a checkout under `.claude/worktrees/` skipped
+  every one of its own files; both name the same fix and cite the same test.
+- fix: folded per this file's own precedent (B8-49 "superseded by B8-58").
+  B8-614 is the lower number and the first record, so the two facts only
+  B8-639 carried were moved into it, and B8-639 now points there. Neither
+  number is removed: a register number that disappears is a dangling
+  `B8-NNN` citation waiting to happen, and this file's own sweep is what
+  would find it.
+- evidence: test_every_b8_citation_names_an_entry_that_exists,
+  test_the_sweep_is_not_vacuous
+### B8-700 · FIXED · Ukrainian shipped and was announced nowhere, and the person who wrote it was credited nowhere
+- blocks release: no
+- status: FIXED
+- detail: the commit that brought `data/i18n/uk.json` touched the catalogue
+  and its parameters overlay and nothing else. `grep -i ukrain` over the
+  CHANGELOG, the README and the site returned zero hits; the README said
+  "Twelve languages", the site said "Thirteen" (counting English), and
+  **LackiUA, who contributed 5,425 rows on issue #198, was named in no file a
+  user or a reader of the repository would open.**
+- fix: a CHANGELOG entry, the README list and Acknowledgements, the site's
+  four counts and its feature card, and a credit line in Preferences. The
+  credit is a NEW tr() key rather than an edit to the existing credit line,
+  so thirteen catalogues keep the translation they already have.
+- **the two counts disagreed and the guard is what found it**: the README
+  counted translations and the site counted languages. The README now counts
+  English and names it, which is the site's rule and the app's own.
+- mutations: a fourteenth catalogue turns every count RED; the pre-round
+  README line is RED; a credit line without the name is RED.
+- evidence: test_the_readme_states_the_right_number_and_names_every_language,
+  test_the_site_states_the_right_number_everywhere_it_states_one,
+  test_every_shipped_language_is_announced_in_the_changelog,
+  test_a_contributed_translation_is_credited_in_the_app
+### B8-701 · FIXED · Help cards printed a trailing sheet with nothing on it at all
+- blocks release: no
+- status: FIXED
+- found by: the Swedish glossary card, while fixing B8-693. The text change
+  was the trigger; the mechanism is older and general.
+- detail: `pageCount()` is derived from the document's HEIGHT, which includes
+  the trailing space under the last block, so a document whose content ends
+  inside page N can still report N+1. Measured at US Letter: body 886.6 px,
+  eleven pages end at 9752.8, the colophon (the last block) runs 9738.1 to
+  **9752.1** and fits by 0.7 px, and the document's height is **9774.7**.
+  ChromIQ printed a twelfth sheet carrying the header, the centred page
+  number and a 0.7 px sliver, and a PDF text extractor reads the colophon on
+  it because the block's BOX crosses the boundary even though its glyphs do
+  not. `drop_orphan_tail` cannot reach it: it moves a BLOCK off a sheet, and
+  no block was on the sheet.
+- fix: `pdf_layout.pages_that_carry_something` clamps the painted total. It
+  can only ever REMOVE a page no block reaches, which is the one direction
+  that cannot lose content, and every block is measured rather than only the
+  ones with text so an image-only block still counts.
+- **the first version of the guard was vacuous and the mutation is what said
+  so**: it rendered every card and asserted the rule, and removing the fix
+  left it GREEN, because the card that lands on the boundary is the SWEDISH
+  one and the suite renders in English. The geometry is now built in the test.
+- evidence: test_no_page_is_painted_that_no_block_reaches,
+  test_the_clamp_can_only_ever_remove_an_empty_sheet,
+  test_no_language_prints_a_sheet_carrying_only_the_colophon
+### B8-702 · FIXED · A test that switched appearance and did not switch back made four gate runs in seven red
+- blocks release: yes
+- status: FIXED
+- found by: running the everyday tier repeatedly on this change set, after the
+  base tree ran green twice.
+- detail: `ui.theme.apply_appearance` ends in `app.setPalette` and
+  `app.setStyleSheet`, there is ONE QApplication per worker, and
+  `active_mode` reads the LIVE palette, so the whole `by_mode` colour system
+  follows whatever the last test left. B8-697 widened one such test from two
+  appearances to three, which changed what it leaked from `dark` -- which most
+  of the suite tolerates -- to **neutral**, which it does not.
+- measured: base green 2/2; this change set RED in **4 runs of 7**, with a
+  different victim every time and never one in the file that caused it
+  (`test_verify_profile_dialog`, `test_button_text_fits`,
+  `test_chart_layout_info_panel`, `test_layout_options_panel`,
+  `test_the_preset_button_is_small_fast_and_where_it_belongs`,
+  `test_the_suite_paints_with_the_shipped_style` reading the style as `''`).
+  Every one passes alone. Proven in-process: with the restore the next test on
+  that worker inherits the empty stylesheet it started with, without it,
+  NEUTRAL.
+- fix, both ends. The test puts the appearance back; and
+  `tests/conftest.py` gains an autouse fixture that restores the application's
+  stylesheet and palette after any test that changed them, so no future test
+  can leak one either. It compares first and writes only on a mismatch, so it
+  costs one string comparison per test: measured over four runs after it,
+  137-152 s, against 134-152 s before, and 17,401 passed on every one.
+- evidence: test_this_file_leaves_the_application_as_it_found_it,
+  test_the_running_suite_is_on_fusion
+### B8-703 · DEFERRED · The Ukrainian workflow diagram says "Print Chart" in English
+- blocks release: no
+- status: DEFERRED
+- decided by: orchestrator, 2026-09-22 (raised for Basti to route)
+- because: the fix needs a short label from a native Ukrainian speaker, and
+  there is not one to ask. Inventing one is out, and the alternative available
+  today is worse than the English fallback: a label that overruns its box and
+  touches the note beside it so the two read as one word.
+- detail: LackiUA's `Роздрукувати` inks 634..757 at 3x in a 96 px box
+  (645..741), overhanging 11 px left and 16 px right, and the gap to the
+  "raw, no profile" note collapses from 46 px (English) to 1 px, so the two
+  read as `Роздрукувати"raw, no`. Widening the box would rewrite all fourteen
+  SVGs; composing a short form from the catalogue's own `Друк` would be
+  inventing Ukrainian.
+- what is wanted: a short native label, three or four characters longer than
+  "Друк" at most, from someone who speaks the language.
+- the generator carries the measurements at the dropped row so nobody
+  "fixes" it by pasting the long word back.

@@ -67,9 +67,12 @@ import pytest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 #: Every shipped language, English included — English has the most room and is
-#: exactly why this went unseen for four reports.
-_LANGS = ["en", "de", "es", "fr", "it", "ja", "nl", "no", "pl", "pt", "ru",
-          "sv", "zh_CN"]
+#: exactly why this went unseen for four reports. Read off `data/i18n/` rather
+#: than listed: a literal list is a fifth way for the same defect to go unseen,
+#: because a language that is not in it is not rendered at all.
+from tests.helpers.languages import shipped_languages   # noqa: E402
+
+_LANGS = shipped_languages()
 
 #: SpectroScan with the clip border on is the widest state the panel has: it
 #: was 34 px over on the pre-fix build where the other instruments were 25.

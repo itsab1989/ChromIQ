@@ -240,3 +240,141 @@ def test_the_colophon_is_still_printed_once(qapp, tmp_path):
             flat = " ".join(text.split())
             assert f"ChromIQ {APP_VERSION}" in flat, (
                 f"{key}/{size}: the colophon is missing from the last sheet")
+
+
+# ---------------------------------------------------------------------------
+# …AND A SHEET NO BLOCK REACHES AT ALL, which is the other half of the same
+# complaint and which `drop_orphan_tail` cannot answer
+# ---------------------------------------------------------------------------
+def _painted_vs_reached(wf_key, size, tmp_path):
+    """``(sheets painted, sheets any block reaches)`` for one real card.
+
+    Measured by watching `render_paged` do the real print, not by rebuilding
+    the document beside it: a reconstruction that laid the page out slightly
+    differently would be measuring its own arithmetic.
+    """
+    import ui.help_card_print as hcp
+    from ui.pdf_layout import pages_that_carry_something
+    real = hcp.render_paged
+    seen = {}
+
+    def spy(doc, device, **kw):
+        n = real(doc, device, **kw)
+        body_h = kw["page_h"] - kw["header_h"] - kw["footer_h"]
+        seen["painted"] = n
+        seen["reached"] = pages_that_carry_something(doc, body_h)
+        return n
+
+    hcp.render_paged = spy
+    try:
+        _print_card(wf_key, size, tmp_path)
+    finally:
+        hcp.render_paged = real
+    return seen["painted"], seen["reached"]
+
+
+def test_no_page_is_painted_that_no_block_reaches(qapp, tmp_path):
+    """**FOUND ON THE SWEDISH GLOSSARY CARD, 2026-09-21.**
+
+    `pageCount()` is derived from the document's HEIGHT, which includes the
+    trailing space under the last block, so a document whose content ends
+    inside page N can still report N+1. Measured: body 886.6 px, eleven pages
+    end at 9752.8, the colophon (the document's last block) runs 9738.1 to
+    9752.1 and fits by 0.7 px, and the document's height is 9774.7. ChromIQ
+    painted a twelfth sheet carrying the header, the centred page number and a
+    0.7 px sliver of a line box. A PDF text extractor reads the colophon on
+    it, because the block's BOX crosses the boundary even though its glyphs do
+    not, which is how `test_helpcard_sheets_in_every_language` caught it as a
+    colophon-only sheet.
+
+    `drop_orphan_tail` is the right answer to the neighbouring fault and
+    cannot reach this one: it moves a BLOCK off a sheet, and no block was on
+    the sheet to move.
+
+    **THE GEOMETRY IS BUILT HERE RATHER THAN BORROWED FROM A CARD, because no
+    card expresses it in English.** A first version of this test rendered
+    every card at both page sizes and asserted the same thing; removing the
+    fix left it GREEN, because the card that lands on the boundary is the
+    SWEDISH glossary and the suite renders in English. A clean result over a
+    population that cannot show the movement is not evidence. So the document
+    is made to sit in exactly that bind: blocks that end just inside a page,
+    and a bottom margin that pushes the document's height past it.
+
+    MUTATION: drop the `pages_that_carry_something` clamp from `render_paged`
+    and this goes red, and so does
+    `test_helpcard_sheets_in_every_language::…[sv]`.
+    """
+    from PyQt6.QtCore import QSizeF
+    from PyQt6.QtGui import QPdfWriter, QTextDocument
+    from ui.pdf_layout import (pages_that_carry_something, render_paged,
+                               settled_layout)
+
+    page_w, page_h, header_h, footer_h = 600.0, 400.0, 40.0, 22.0
+    body_h = page_h - header_h - footer_h            # 338.0
+
+    def _doc(margin: float, lines: int):
+        d = QTextDocument()
+        d.setDocumentMargin(margin)
+        d.setPageSize(QSizeF(page_w, body_h))
+        d.setDefaultStyleSheet("p{margin:0;padding:0;font-size:14px}")
+        d.setHtml("".join(f"<p>line {i}</p>" for i in range(lines)))
+        settled_layout(d)
+        return d
+
+    # Find the line count whose content ends INSIDE page 2 while the
+    # document's own height, margin included, runs past the end of page 2.
+    # Measured rather than assumed: the search reports what it found.
+    found = None
+    for lines in range(2, 120):
+        d = _doc(30.0, lines)
+        lay = settled_layout(d)
+        bottom = 0.0
+        b = d.begin()
+        while b.isValid():
+            bottom = max(bottom, lay.blockBoundingRect(b).bottom())
+            b = b.next()
+        height = lay.documentSize().height()
+        if bottom <= 2 * body_h and height > 2 * body_h and d.pageCount() > 2:
+            found = (lines, round(bottom, 1), round(height, 1))
+            break
+    assert found, (
+        "no line count put the content inside page 2 with the document taller "
+        "than page 2, so this test cannot express the fault it guards")
+    lines, bottom, height = found
+
+    doc = _doc(30.0, lines)
+    assert doc.pageCount() == 3, doc.pageCount()
+    assert pages_that_carry_something(doc, body_h) == 2, (
+        f"content ends at {bottom} and two pages end at {2 * body_h}")
+
+    out = tmp_path / "trailing.pdf"
+    w = QPdfWriter(str(out))
+    w.setResolution(96)
+    painted = render_paged(doc, w, page_w=page_w, page_h=page_h,
+                           header_h=header_h, footer_h=footer_h)
+    del w
+    assert painted == 2, (
+        f"{painted} sheets painted for content that ends at {bottom}, inside "
+        f"page 2 (which ends at {2 * body_h}); the document's own height is "
+        f"{height}, and that is the trailing margin, not content")
+
+
+def test_the_clamp_can_only_ever_remove_an_empty_sheet(qapp, tmp_path):
+    """THE CONTROL, and the one that matters: this clamp lowers a page count,
+    and a page count lowered too far loses content silently. A card once
+    printed four sheets with three sheets' worth of it missing.
+
+    So every real card is asked the other way round: the sheets painted must
+    still cover every block the document holds. This one is meaningful in any
+    language, because it fails the moment the clamp is too eager anywhere.
+    """
+    from ui.dialogs.welcome_dialog import WORKFLOWS
+    checked = 0
+    for wf in WORKFLOWS:
+        for size in _SIZES:
+            painted, reached = _painted_vs_reached(wf["key"], size, tmp_path)
+            assert painted >= reached, (
+                f"{wf['key']}/{size}: content reaches {reached} sheets and "
+                f"only {painted} were painted, so part of the card is gone")
+            checked += 1
+    assert checked >= 20, f"only {checked} card/size pairs measured"

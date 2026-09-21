@@ -149,6 +149,7 @@ def test_nothing_is_disabled_on_the_one_page_and_the_list_says_why(two_dated,
     dlg, older, newer = two_dated
     assert getattr(dlg, "_all_runs_check", None) is None, (
         "“Show all measurement runs” is still built")
+    _no_string_still_names_the_removed_box()
     assert dlg._profile_list.isEnabled() is True, (
         "the measurement list is disabled under “Colour summary”, which is "
         "the freeze Knut reported")
@@ -423,3 +424,59 @@ def test_the_suggested_pdf_name_matches_the_page_it_saves(two_dated, qapp,
     dlg._export_pdf()
     assert seen, "the export never reached the save dialog"
     assert "Bravo" in seen[0] and "Alpha" not in seen[0], seen[0]
+
+
+# ---------------------------------------------------------------------------
+# …AND THE APP MUST STOP NAMING IT, WHICH THE GUARD ABOVE NEVER ASKED
+# ---------------------------------------------------------------------------
+def _no_string_still_names_the_removed_box() -> None:
+    """**THE HOLE THIS FILE HAD, FOUND BY CHALLENGE ROUND 32.** Every check
+    above asserts the WIDGET is gone. None of them asked whether the app had
+    stopped talking about it, and it had not: the Report type help went on
+    saying *"While it is chosen, “Show all measurement runs” and the list of
+    included measurements are fixed to that sheet"* for both a control that
+    is not built and a freeze that was removed in the same commit. The key is
+    in all thirteen catalogues and German is translated, so the false
+    sentence was shipped in German too.
+
+    A widget assertion cannot see that. This one reads the text.
+    """
+    import re
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+    from i18n_extract import extract_keys
+    named = sorted(k for k in extract_keys()
+                   if re.search(r"Show all measurement runs", k))
+    assert not named, (
+        "a user-facing string still names \u201cShow all measurement runs\u201d, "
+        "which Knut removed from the design on 2026-09-20 along with the "
+        "feature behind it:\n\n"
+        + "\n\n".join(repr(k[:400]) for k in named))
+
+
+def test_no_user_facing_string_names_the_removed_box():
+    _no_string_still_names_the_removed_box()
+
+
+def test_the_type_help_says_what_the_window_really_does(two_dated, qapp):
+    """The sentence that replaced it is the list's own tooltip, in the help.
+
+    It has to be TRUE of the window beside it, so it is checked against that
+    window and not only against itself: the list is live, a press of Generate
+    with more than one ticked asks rather than corrects, and there is no
+    detailed section.
+    """
+    from ui.dialogs.measurement_report_dialog import _types_and_pairing_help
+    help_text = _types_and_pairing_help()
+    assert "Show all measurement runs" not in help_text, help_text
+    assert "are fixed to that sheet" not in help_text, help_text
+    assert "Tick the one you want the page to be about" in help_text
+    assert "asks you to choose" in help_text
+    assert "no detailed section" in help_text
+
+    dlg, older, newer = two_dated
+    assert dlg._profile_list.isEnabled() is True, (
+        "the help says the user picks the sheet; the list is disabled")
+    assert dlg._detail_check.isEnabled() is False, (
+        "the help says there is no detailed section; the box is live")

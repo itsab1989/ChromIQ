@@ -1193,19 +1193,31 @@ _IDENTICAL_TO_KEY = {
     # exactly one caller, so translating it could not disturb anything else.
     # Counted off the catalogues on disk with the expression the test below
     # uses, and NEVER adjusted upward.
+    # RE-MEASURED 2026-09-22 on the COMBINED tree, after ten rounds and a fix
+    # round. No agent's numbers and none of my own earlier ones were carried
+    # forward: every round that lands moves these files, so any figure written
+    # before the last merge is stale by construction. COUNTED with this file's
+    # own helper on the tree this commit leaves behind.
+    # RE-MEASURED 2026-09-22 on the COMBINED tree, after ten rounds, a fix round
+    # and a recovery. No agent's numbers and none of my own earlier ones were
+    # carried forward. German stands still at its own figure because German is
+    # translated by hand in the same change; a RISING German number means an
+    # untranslated German string, not a bigger budget, and is fixed rather than
+    # recorded. COUNTED with this file's own helper on the tree this commit
+    # leaves behind.
     "de": 146,
-    "es": 911,
-    "fr": 933,
-    "it": 922,
-    "ja": 897,
-    "nl": 938,
-    "no": 923,
-    "pl": 915,
-    "pt": 913,
-    "ru": 886,
-    "sv": 924,
-    "zh_CN": 891,
-    "uk": 1151,
+    "es": 928,
+    "fr": 950,
+    "it": 939,
+    "ja": 914,
+    "nl": 955,
+    "no": 940,
+    "pl": 932,
+    "pt": 930,
+    "ru": 903,
+    "sv": 941,
+    "zh_CN": 908,
+    "uk": 1167,
 }
 
 

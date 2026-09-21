@@ -33,8 +33,11 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-LANGS = ("en", "de", "fr", "es", "it", "nl", "no", "pl", "pt", "ru", "sv",
-         "ja", "zh_CN")
+#: Every shipped language, English included, read off `data/i18n/` — a
+#: literal list only ever sweeps the languages that existed when it was typed.
+from tests.helpers.languages import shipped_languages   # noqa: E402
+
+LANGS = tuple(shipped_languages())
 
 #: What the Create Chart pane gives the panel at the app's smallest window,
 #: measured by driving it. The floor must stay under this.

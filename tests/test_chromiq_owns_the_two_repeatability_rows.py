@@ -422,22 +422,50 @@ def test_the_carve_out_is_exactly_two_rows_and_no_more():
     assert cs.POPULATION_MAY_BE_ABSENT == {ROW_A, ROW_B}
 
 
-def test_an_ordinary_row_that_reads_na_still_demotes_the_column():
-    """The carve-out is narrow. Everything it does not name behaves exactly as
-    it did, and this is the half of the rule that must not have moved."""
+def test_no_row_that_reads_na_demotes_the_column_any_more():
+    """**THE CARVE-OUT IS GONE, BECAUSE KNUT MADE THE RULE GENERAL.**
+
+    This test used to be the other half of the carve-out: it asked that an
+    ORDINARY required row reading N-A still took the column to COND, so that
+    the exemption for these two rows could be seen to be narrow. Asked the
+    §15.5 question, Knut answered it on 2026-09-21 by widening it instead:
+
+    > *"Not Applicable must not be counted as a fail, so the overall verdict
+    > should show PASS, not COND, if all others pass. I say, a metric that is
+    > not applicable should not have verdict conditional because COND does not
+    > indicate which of the verdicts cause the COND … When all other metrics
+    > PASS, that N-A is not applicable, thus not relevant for the verdict,
+    > thus overall verdict becomes PASS (or FAIL if some metric fails)."*
+
+    So the narrowness this guarded no longer exists to guard, and the test is
+    turned round rather than deleted: the same three cases are asked for the
+    answer the ruling gives. §15.6 of docs/design/measurement_report_limits.md
+    records it, and the exempt set survives for two MESSAGES only (see
+    `test_the_mismatch_strip_leaves_both_rows_out` below), never for a word.
+    """
     v = cs.Limit.value(2.0)
-    demoted = cs.set_summary(
+    ordinary = cs.set_summary(
         [(v, cs.PASS, "all_de00_avg"), (v, cs.N_A, "grey_balance_neutral_ramp_avg")],
         set_is_iso=False, graded=True)
-    assert demoted.word == cs.COND
+    assert ordinary.word == cs.PASS, (
+        "an ordinary required row reading N-A demoted a clean column, which "
+        "Knut ruled out on 2026-09-21")
+    assert ordinary.not_computed == 1, "and the count is still reported"
     spared = cs.set_summary(
         [(v, cs.PASS, "all_de00_avg"), (v, cs.N_A, ROW_B)],
         set_is_iso=False, graded=True)
     assert spared.word == cs.PASS
-    # a caller that passes plain pairs gets exactly what it always got
+    # a caller that passes plain pairs, with no row id to consult at all,
+    # reaches the same answer: there is no row list left to consult.
     old_shape = cs.set_summary([(v, cs.PASS), (v, cs.N_A)],
                                set_is_iso=False, graded=True)
-    assert old_shape.word == cs.COND
+    assert old_shape.word == cs.PASS
+    # …AND A FAIL STILL FAILS, which is the half of his ruling that is easy to
+    # drop: "or FAIL if some metric fails".
+    failed = cs.set_summary(
+        [(v, cs.PASS, "all_de00_avg"), (v, cs.N_A, ROW_B),
+         (v, cs.FAIL, "all_de00_max")], set_is_iso=False, graded=True)
+    assert failed.word == cs.FAIL
 
 
 def test_the_preset_window_does_not_ask_either_row():

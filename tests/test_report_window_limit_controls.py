@@ -211,9 +211,18 @@ def test_the_strip_names_what_the_chart_cannot_supply(qapp, tmp_path):
         full = dlg._mismatch.toolTip()
         assert "grey" in full.lower() and "at least 20" in full
         assert "Neutral grey ramp" in full            # what to add to the chart
-        # …and the report text repeats it
+        # …AND THE REPORT TEXT REPEATS IT, which since 2026-09-21 it does
+        # through the numbered notes rather than a "Not computed on this
+        # chart" block: Knut ruled that an N-A cell carries a raised number
+        # pointing at a note that says why. The claim is the same one, so
+        # this asks for the same fact in the place the ruling put it.
         html = dlg._report_results_html(dlg._runs_for_report())
-        assert "Not computed on this chart" in html
+        assert "Notes on the verdicts above" in html
+        # the same two facts the strip carries, each numbered and pointed at
+        # by the cell it explains, and the two grey rows sharing one number
+        assert "the chart has no grey patches" in html
+        assert "at least 20" in html
+        assert "Grey balance of the grey ramp, average" in html
     finally:
         dlg.deleteLater()
 

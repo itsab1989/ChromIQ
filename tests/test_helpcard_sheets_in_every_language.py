@@ -1,9 +1,9 @@
-"""No help card wastes a sheet — in any of the thirteen languages.
+"""No help card wastes a sheet — in any language ChromIQ ships.
 
 `tests/test_helpcard_blank_letter_sheet.py` asserts this in English. It was
 written for a real defect (beta.15: three cards printed a sheet carrying only
 the running header, the page number and the colophon) and it locked that defect
-down — in one language out of thirteen.
+down — in one language out of the fourteen shipped.
 
 German runs 122 % of English's length, Dutch and Italian 114 %, so a card that
 just fits in English need not fit anywhere else. This module asks the same
@@ -40,9 +40,15 @@ from pathlib import Path
 
 import pytest
 
+from tests.helpers.languages import shipped_languages
+
 _ROOT = Path(__file__).resolve().parent.parent
-_LANGS = ("en", "de", "fr", "sv", "ja", "nl", "es",
-          "it", "pt", "no", "pl", "ru", "zh_CN")
+
+#: Every shipped language, English included, read off `data/i18n/`. It was a
+#: literal until 2026-09-21, which meant the count in this file's own first
+#: line ("the thirteen languages") and the set it actually rendered were two
+#: separate facts that had already drifted apart once.
+_LANGS = tuple(shipped_languages())
 
 #: Rendered in a child process, one language at a time. Prints one JSON line.
 _CHILD = r'''
@@ -91,9 +97,10 @@ def _render(lang: str, *, disable_rule: bool = False) -> dict:
     return json.loads(line[2:])
 
 
-# ONE TEST PER LANGUAGE, NOT ONE TEST OVER THIRTEEN. Rendering all thirteen in
-# a single test takes ~2 minutes, and `pytest.ini` sets `faulthandler_timeout =
-# 90`: the run dumps every thread's traceback to stderr and prints
+# ONE TEST PER LANGUAGE, NOT ONE TEST OVER ALL OF THEM. Rendering every
+# language in a single test takes ~2 minutes, and `pytest.ini` sets
+# `faulthandler_timeout = 90`:
+# the run dumps every thread's traceback to stderr and prints
 # "Timeout (0:01:30)!" while nothing is wrong — the test is simply inside
 # `subprocess.run`. A release-gate log that says "Timeout!" invites exactly the
 # wrong conclusion. Split, each case is ~12 s, and a failure names its language
@@ -129,7 +136,7 @@ def test_the_orphan_rule_is_what_keeps_that_true_in_other_languages():
     not — which is exactly how a sibling test in this project stayed green for
     weeks while the behaviour it named was broken.
 
-    Two languages, not thirteen: running the whole matrix twice costs four
+    Two languages, not every one: running the whole matrix twice costs four
     minutes and proves nothing the pair does not.
     """
     for lang in _MUTATION_LANDS_IN:

@@ -34,6 +34,9 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import em_dash_check as E                                        # noqa: E402
 
+from tests.helpers.languages import (                            # noqa: E402
+    catalogue_languages as _catalogue_languages)
+
 
 #: The conformance sense only. `certificate`, `certlm.msc` and `certificates`
 #: are Windows driver vocabulary and have nothing to do with this promise; a
@@ -207,6 +210,14 @@ CLAIM_ALWAYS = {
     "pl": r"spełnia\s+norm|zgodn\w*\s+z\s+norm",
     "pt": r"cumpre\s+(?:a\s+)?norma|conforme\s+(?:a|com)\s+(?:a\s+)?norma|satisfaz\s+(?:a\s+)?norma",
     "ru": r"соответству\w*\s+(?:требованиям\s+)?станд|отвечает\s+требованиям\s+станд",
+    # Ukrainian, modelled on the Russian row above (the closest Slavic
+    # analogue already here): "відповідає стандарту" and "відповідає
+    # вимогам стандарту" are what a translator writes for "conforms to the
+    # standard", and "задовольняє вимоги стандарту" for "satisfies" it. The
+    # bare verb "відповідати" is the everyday "corresponds to" and is NOT
+    # claimed here — it only counts next to "станд", which covers every
+    # declension (стандарт/стандарту/стандарта/стандартам).
+    "uk": r"відповіда\w*\s+(?:вимогам\s+)?станд|задовольня\w*\s+вимог\w*\s+станд",
     "sv": r"uppfyller\s+standard|överensstämmer\s+med\s+standard",
     # Japanese and Chinese say it with the standard's NAME, not a generic word,
     # so requiring 規格 / 标准 nearby let "ISO 12647-8に適合" straight through.
@@ -231,6 +242,10 @@ CLAIM_IN_DOMAIN = {
     "pl": r"certyfikowan",
     "pt": r"conformidade",
     "ru": r"сертифицир",
+    # Ukrainian "сертифікований"/"сертифікація" is the same shape as the
+    # Russian row, and the same reason it is tier TWO: it is also how the
+    # driver help spells a Windows CERTIFICATE.
+    "uk": r"сертифіков|сертифікаці",
     "sv": r"överensstämm|certifierad",
     "ja": r"適合|認証",
     # 符合 on its own is the everyday "matches" and appears in a paragraph about
@@ -240,10 +255,42 @@ CLAIM_IN_DOMAIN = {
     "zh_CN": r"认证",
 }
 
-CLAIM_BY_LANGUAGE = CLAIM_ALWAYS          # the languages this test covers
+#: THE SWEEP IS DRIVEN BY THE CATALOGUE DIRECTORY, NOT BY THE TABLES ABOVE.
+#: Parametrising over `CLAIM_ALWAYS` made the test's coverage exactly equal to
+#: its own pattern table, which means a language with no row was not merely
+#: unproven, it was INVISIBLE: no case, no skip, no mention in the summary.
+#: Ukrainian arrived in 2026-09 as the largest catalogue in the tree (6,008
+#: rows, from an outside contributor) and this file swept none of it while
+#: reporting twelve green languages. Reading `data/i18n/` instead means the
+#: next contributor's catalogue creates its own case on the day it lands, and
+#: `test_every_shipped_catalogue_has_a_pattern_row` fails until somebody
+#: writes the patterns for it.
+CATALOGUE_CODES = _catalogue_languages()
+
+CLAIM_BY_LANGUAGE = CLAIM_ALWAYS          # kept: the pattern table itself
 
 
-@pytest.mark.parametrize("code", sorted(CLAIM_BY_LANGUAGE))
+def test_every_shipped_catalogue_has_a_pattern_row():
+    """A catalogue with no row is unswept, and the docstring at the top of
+    this file says so: "a language whose row is empty is not proven clean, it
+    is unswept." Until 2026-09-21 nothing enforced that sentence."""
+    tables = {"CLAIM_ALWAYS": CLAIM_ALWAYS,
+              "CLAIM_IN_DOMAIN": CLAIM_IN_DOMAIN,
+              "_REAL_CLAIMS": _REAL_CLAIMS,
+              "_INNOCENT": _INNOCENT}
+    missing = {name: [c for c in CATALOGUE_CODES if c not in table]
+               for name, table in tables.items()}
+    missing = {k: v for k, v in missing.items() if v}
+    assert not missing, (
+        "a shipped catalogue has no conformance pattern, so it is swept by "
+        "nothing and this file would report green over it:\n  "
+        + "\n  ".join(f"{name}: {codes}" for name, codes in missing.items())
+        + "\n\nThis promise was made to a rights holder in writing. Write "
+          "the patterns (model them on a related language's row) rather "
+          "than narrowing the sweep.")
+
+
+@pytest.mark.parametrize("code", CATALOGUE_CODES)
 def test_no_translation_invents_a_claim(code: str):
     """A translation may carry the word only where its English source does.
 
@@ -251,9 +298,12 @@ def test_no_translation_invents_a_claim(code: str):
     a translator who writes "conforms to the standard" has made ChromIQ break a
     promise in a language nobody on this project reads.
     """
+    # No existence guard any more: `code` came OUT of this directory listing,
+    # so the file is there by construction. The old `pytest.skip` was the
+    # other half of the table-driven parametrize — it let a code that had a
+    # pattern but no catalogue vanish quietly, which is the same silence in
+    # the opposite direction.
     path = ROOT / "data" / "i18n" / f"{code}.json"
-    if not path.exists():                       # a language may be removed
-        pytest.skip(f"no catalogue for {code}")
     data = json.loads(path.read_text(encoding="utf-8"))
     always = re.compile(CLAIM_ALWAYS[code], re.I)
     in_domain = re.compile(CLAIM_IN_DOMAIN[code], re.I)
@@ -291,13 +341,36 @@ _REAL_CLAIMS = {
     "pl": "Ten wydruk spełnia normę ISO 12647-8.",
     "pt": "Esta impressão cumpre a norma ISO 12647-8.",
     "ru": "Этот отпечаток соответствует требованиям стандарта ISO 12647-8.",
+    "uk": "Цей відбиток відповідає вимогам стандарту ISO 12647-8.",
     "sv": "Den här utskriften uppfyller standarden ISO 12647-8.",
     "ja": "この印刷は ISO 12647-8 に適合しています。",
     "zh_CN": "此打印符合 ISO 12647-8 标准。",
 }
 
+#: The other half of the self-check, hoisted out of the test body so
+#: `test_every_shipped_catalogue_has_a_pattern_row` can see it: a language
+#: with a claim planted but no innocent control is only half proven.
+_INNOCENT = {
+    "de": "Das Zertifikat wird in zwei Listen von Windows eingetragen.",
+    "es": "El certificado se coloca en dos listas de Windows.",
+    "fr": "Le certificat est placé dans deux listes de Windows.",
+    "it": "Il certificato viene messo in due elenchi di Windows.",
+    "nl": "Het certificaat komt in twee lijsten van Windows.",
+    "no": "Profilen passer godt til sine egne målinger.",
+    "pl": "Certyfikat trafia do dwóch list systemu Windows.",
+    "pt": "O certificado é colocado em duas listas do Windows.",
+    "ru": "Профиль хорошо описывает собственные измерения.",
+    # Deliberately the HARD case for Ukrainian: "відповідає" is right there,
+    # in its everyday "corresponds to" sense, with no standard in sight. If
+    # the tier-one pattern is ever loosened to the bare verb, this fails.
+    "uk": "Профіль добре відповідає власним вимірюванням.",
+    "sv": "Profilen stämmer väl med sina egna mätningar.",
+    "ja": "プロファイルは自身の測定値によく適合しています。",
+    "zh_CN": "该特性文件与自身的测量值符合得很好。",
+}
 
-@pytest.mark.parametrize("code", sorted(_REAL_CLAIMS))
+
+@pytest.mark.parametrize("code", CATALOGUE_CODES)
 def test_the_net_catches_a_real_claim_in_that_language(code: str):
     """A pattern that catches nothing is a green test guarding a bug."""
     rx = re.compile(CLAIM_ALWAYS[code], re.I)
@@ -306,24 +379,11 @@ def test_the_net_catches_a_real_claim_in_that_language(code: str):
         "claim. That is the sentence a translator actually writes.")
 
 
-@pytest.mark.parametrize("code", sorted(_REAL_CLAIMS))
+@pytest.mark.parametrize("code", CATALOGUE_CODES)
 def test_the_net_leaves_an_innocent_sentence_alone(code: str):
     """The other half. A net that matches everything is no better than one
     that matches nothing, and the first draft flagged 66 innocent strings."""
-    innocent = {
-        "de": "Das Zertifikat wird in zwei Listen von Windows eingetragen.",
-        "es": "El certificado se coloca en dos listas de Windows.",
-        "fr": "Le certificat est placé dans deux listes de Windows.",
-        "it": "Il certificato viene messo in due elenchi di Windows.",
-        "nl": "Het certificaat komt in twee lijsten van Windows.",
-        "no": "Profilen passer godt til sine egne målinger.",
-        "pl": "Certyfikat trafia do dwóch list systemu Windows.",
-        "pt": "O certificado é colocado em duas listas do Windows.",
-        "ru": "Профиль хорошо описывает собственные измерения.",
-        "sv": "Profilen stämmer väl med sina egna mätningar.",
-        "ja": "プロファイルは自身の測定値によく適合しています。",
-        "zh_CN": "该特性文件与自身的测量值符合得很好。",
-    }[code]
+    innocent = _INNOCENT[code]
     rx = re.compile(CLAIM_ALWAYS[code], re.I)
     assert not rx.search(innocent), (
         f"[{code}] the sweep calls an innocent sentence a claim: {innocent!r}")

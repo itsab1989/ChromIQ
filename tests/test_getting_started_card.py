@@ -213,8 +213,15 @@ def test_workflow_diagram_chapter_sits_between_tour_and_steps():
     # One diagram per language (scripts/make_workflow_diagram.py), English
     # as the fallback — every catalogue language must have its file, valid
     # and translated (spot-checked: no untranslated tab label left behind).
-    langs = ["en", "de", "es", "fr", "it", "ja", "nl", "no", "pl", "pt",
-             "ru", "sv", "zh_CN"]
+    #
+    # DRIVEN OFF `data/i18n/`, NOT A LIST. `welcome_dialog` and
+    # `help_card_print` both fall back to `en.svg` when `<lang>.svg` is
+    # absent, so a missing diagram is INVISIBLE at runtime: the reader gets
+    # an English picture and no error. A literal list here made that silent
+    # at test time too — Ukrainian shipped a 6,008-row catalogue and no
+    # diagram, and this guard stayed green.
+    from tests.helpers.languages import shipped_languages
+    langs = shipped_languages()
     for lang in langs:
         svg = Path(resource_path(f"assets/help/workflow/{lang}.svg"))
         assert svg.is_file() and svg.stat().st_size > 10_000, lang

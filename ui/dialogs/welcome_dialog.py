@@ -822,13 +822,13 @@ WORKFLOWS: list[dict] = [
                   "reports in Preferences → Reports.")),
               (tr("How to read the result words"),
                tr("Each row reads PASS when it is inside its limit and FAIL "
-                  "when it is not, COND when it missed a limit the set only "
-                  "recommends, INFO when the set puts no limit on that row, "
-                  "and N-A when your chart carries nothing that could answer "
-                  "it. “Overall” is the one word for a whole dated check. A "
-                  "profiling measurement is never graded at all: it is "
-                  "expected to fall outside accuracy limits, and saying so "
-                  "would be noise rather than news.")),
+                  "when it is not, INFO when the set puts no limit on that "
+                  "row, and N-A when your chart carries nothing that could "
+                  "answer it. “Overall” is the one word for a whole dated "
+                  "check, and the only place COND appears. A profiling "
+                  "measurement is never graded at all: it is expected to "
+                  "fall outside accuracy limits, and saying so would be "
+                  "noise rather than news.")),
               (tr("The limits belong to the run, and they lock"),
                tr("The first verification measurement BINDS a copy of the "
                   "limits to that run, so every later check of the same "
@@ -1529,20 +1529,28 @@ GLOSSARY += [
         "patch. The rows are grouped by population: Paper, Solid colours, "
         "Control strip, the grey ramp, all patches, selected patches, and the "
         "ones ChromIQ does not evaluate.")),
+    # COND IS NOT A ROW WORD ANY MORE, since Knut retired it as one on
+    # 2026-09-21 (#182): `compliance_sets.row_verdict` returns PASS or FAIL
+    # and never COND. The report window's own guide was rewritten that day
+    # and these four help-card sentences were missed, so the Getting Started
+    # card went on teaching the retired meaning as the only meaning, in
+    # thirteen languages.
     (tr("PASS, FAIL, COND, INFO, N-A (the verdict words)"),
      tr("What a row of a report says about itself. PASS is inside its limit "
-        "and FAIL is outside it. COND means the row missed a limit the set "
-        "only RECOMMENDS rather than requires. INFO means the set puts no "
-        "limit on that row, so the number is shown and not graded. N-A means "
-        "your chart carries nothing that could answer the row at all. A row "
-        "the set cannot express gets no word.")),
+        "and FAIL is outside it. INFO means the set puts no limit on that "
+        "row, so the number is shown and not graded. N-A means your chart "
+        "carries nothing that could answer the row at all. A row the set "
+        "cannot express gets no word. COND is not a row word: it belongs to "
+        "the column's Overall, below. A report saved before ChromIQ 4.3.0 "
+        "may still show COND on a row, where it meant a value over a limit "
+        "the set only recommended; such a row reads FAIL today.")),
     (tr("Overall (verdict)"),
      tr("The one word for a whole dated check, worked out from its rows: any "
-        "FAIL makes it FAIL; a recommendation missed, or a required row your "
-        "chart could not answer, makes it COND; an ungraded sheet is INFO; "
-        "otherwise PASS. A column judged against one of the ISO-named sets "
-        "can never read better than COND, because those numbers are being "
-        "applied to your chart rather than to the standard's own.")),
+        "FAIL makes it FAIL; a required row your chart could not answer "
+        "makes it COND; an ungraded sheet is INFO; otherwise PASS. A column "
+        "judged against one of the ISO-named sets can never read better than "
+        "COND, because those numbers are being applied to your chart rather "
+        "than to the standard's own.")),
     (tr("Graded / not graded"),
      tr("Whether a sheet's numbers are compared with limits at all. A "
         "verification sheet printed through the profile is graded. A "
@@ -1568,11 +1576,12 @@ GLOSSARY += [
     (tr("Required limit and recommendation (the brackets)"),
      tr("In the Report limits table a plain number is a limit the set "
         "REQUIRES; a number in brackets, such as (2.0), is one it only "
-        "recommends. Missing a required limit reads FAIL and missing a "
-        "recommended one reads COND. Three other marks appear in the same "
-        "column: “–” means the set puts no limit on that row, “?” means the "
-        "number lives in a document ChromIQ does not hold, and “✕” means "
-        "ChromIQ cannot measure that row at all.")),
+        "recommends. Missing either reads FAIL, and a row over a recommended "
+        "limit carries a note saying the limit was a recommendation. Three "
+        "other marks appear in the same column: “–” means the set puts no "
+        "limit on that row, “?” means the number lives in a document ChromIQ "
+        "does not hold, and “✕” means ChromIQ cannot measure that row at "
+        "all.")),
     (tr("Report type"),
      tr("Which document the report is. “Colour summary (one page)” is a "
         "single sheet about a single measurement. “Full colour check” is the "

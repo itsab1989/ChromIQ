@@ -468,17 +468,60 @@ def test_the_blank_asks_for_each_hexagon_once_per_strip(qapp, tmp_path,
 
     A stopwatch in the suite would be flaky on a loaded gate; the number of
     hexagons the blank asks for is the same fact and is exact.
+
+    **WHAT MADE IT FLAKY, MEASURED RATHER THAN REASONED (round 32).** It went
+    red at 198 against a ceiling of 135 on a full parallel run while passing
+    alone. 198 is exactly 2x99, and 99 is what one repaint costs here. The
+    carrier is not a queued paint event: it is `TiffPreview._refresh_timer`, a
+    SINGLE-SHOT 80 ms debounce whose `timeout` is connected to
+    `_update_display`. A setter arms it; `processEvents` does not advance a
+    timer that has not expired, so draining before the counter goes in does
+    nothing for it; and the `processEvents` that used to follow the measured
+    `_update_display` is what delivered its timeout into the measured window,
+    running the whole repaint a second time.
+
+    Reproduced deterministically on an idle machine, offscreen, same fixture,
+    with the timer armed in all three states:
+
+    ===================================================  =====  ============
+    state                                                calls  by call site
+    ===================================================  =====  ============
+    no trailing `processEvents` (what ships)                99  72 + 27
+    trailing `processEvents` after a 100 ms stall          198  144 + 54
+    the same, with `_refresh_timer` stopped first           99  72 + 27
+    ===================================================  =====  ============
+
+    So the window is closed at the source: the debounce is STOPPED before the
+    measured repaint, which holds however long this machine takes and whether
+    or not anything pumps afterwards.
+
+    **AND THE FLOOR IS PER CALL SITE, because a total cannot express it.** The
+    previous floor was `calls >= unread`, i.e. 27. Measured, the grid-outline
+    loop in `_draw_cq_overlay` asks for exactly `unread` hexagons on its own,
+    so that floor was cleared in full without the blanking half running at all
+    and defended nothing. The two loops are counted separately and each is
+    asked for its own minimum.
     """
+    import sys as _sys
+
     from ui import tiff_preview as tp
     boxes = _hex_boxes(flat_top)
     read_ix = {i for i in range(len(boxes)) if (i // ROWS) % 2 == 0}
     page = _ink_hex_page(tmp_path, boxes, flat_top,
                          f"cost-{flat_top}.tif", ring=9, read=read_ix)
     calls = {"n": 0}
+    #: calls per ENCLOSING FUNCTION of the call site. `_pts` is the closure the
+    #: blanking loop builds its region and its holes with; `_draw_cq_overlay`
+    #: is the grid-outline loop that draws each unread patch's own hexagon. A
+    #: rename breaks the assertion below loudly rather than quietly zeroing a
+    #: floor, which is the failure this replaces.
+    where: "dict[str, int]" = {}
     real = tp.TiffPreview._patch_hexagon
 
     def counting(*a, **k):
         calls["n"] += 1
+        name = _sys._getframe(1).f_code.co_name
+        where[name] = where.get(name, 0) + 1
         return real(*a, **k)
 
     p = tp.TiffPreview()
@@ -500,18 +543,16 @@ def test_the_blank_asks_for_each_hexagon_once_per_strip(qapp, tmp_path,
         # several times over, so counting across all of that measures Qt's
         # scheduling rather than this code's shape.
         #
-        # AND DRAIN FIRST, OR THE SETUP LEAKS INTO THE COUNT. A paint event
-        # queued before the counter was installed is delivered after it, and
-        # is then counted as if this repaint had asked for those hexagons:
-        # measured on a loaded parallel run, 198 against a ceiling of 180,
-        # while the same test passed alone and under two workers every time.
-        # That is Qt's scheduling under load, which is exactly what the
-        # paragraph above says this test must not measure.
-        for _ in range(8):
-            qapp.processEvents()
+        # THE DEBOUNCE IS THE THING THAT CAN STILL FIRE INSIDE THE WINDOW, so
+        # it is stopped rather than out-waited. See the docstring's table.
         monkeypatch.setattr(tp.TiffPreview, "_patch_hexagon",
                             staticmethod(counting))
+        p._refresh_timer.stop()
+        assert not p._refresh_timer.isActive()
         p._update_display()
+        assert not p._refresh_timer.isActive(), (
+            "the repaint re-armed the debounce, so stopping it once is no "
+            "longer enough to keep a second repaint out of this count")
     finally:
         p.close()
     unread = len(boxes) - len(read_ix)
@@ -519,14 +560,19 @@ def test_the_blank_asks_for_each_hexagon_once_per_strip(qapp, tmp_path,
     # STRIP. The product form would be `unread * read_in_reach`, which is an
     # order of magnitude more on this fixture and two on a real A3 honeycomb.
     ceiling = unread + len(read_ix) * (COLS // 2 + 1)
-    # AND IT MUST STILL SEE THE WORK. Draining before the counter is installed
-    # could just as easily have measured nothing at all, which would pass this
-    # ceiling for the wrong reason, so the floor is asserted too: one repaint
-    # of a sheet with this many unread patches cannot ask for fewer than the
-    # unread patches themselves.
-    assert calls["n"] >= unread, (
-        f"the blank asked for only {calls['n']} hexagons on {unread} unread "
-        "patches, so this repaint was not measured at all")
+    assert set(where) == {"_pts", "_draw_cq_overlay"}, (
+        f"the hexagon call sites have moved: {where}. The per-site floors "
+        "below name them, so re-measure which loop is which before adjusting "
+        "anything")
+    # THE BLANKING HALF RAN. It builds at least one hexagon per unread patch
+    # for the region, so this floor cannot be cleared by any other loop.
+    assert where.get("_pts", 0) >= unread, (
+        f"the blanking loop asked for {where.get('_pts', 0)} hexagons on "
+        f"{unread} unread patches, so it did not run in the measured repaint")
+    # …AND THE OUTLINE HALF RAN, exactly once per unread patch.
+    assert where.get("_draw_cq_overlay", 0) == unread, (
+        f"the grid outline asked for {where.get('_draw_cq_overlay', 0)} "
+        f"hexagons on {unread} unread patches")
     assert calls["n"] <= ceiling, (
         f"the blank asked for {calls['n']} hexagons; one pass per strip is at "
         f"most {ceiling}, so it is doing the product again")

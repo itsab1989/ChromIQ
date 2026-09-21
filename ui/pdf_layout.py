@@ -540,6 +540,46 @@ def _first_orphan_heading(doc, body_h: float, skip: "set | None" = None):
     return None
 
 
+def pages_that_carry_something(doc, body_h: float) -> int:
+    """How many pages any of *doc*'s content actually reaches, at least 1.
+
+    **A SHEET NO BLOCK REACHES IS A BLANK SHEET, and `pageCount()` cannot see
+    that.** It is derived from the document's HEIGHT, which includes whatever
+    trailing space sits below the last block, so a document whose content ends
+    inside page N can still report N+1 and be painted onto N+1 sheets.
+
+    Measured on the Swedish glossary card at US Letter, which is how this was
+    found: body 886.6 px, so eleven pages end at 9752.8. The colophon, the
+    document's last block, runs 9738.1 to **9752.1** -- it fits, by 0.7 px --
+    and the document's own height is **9774.7**. `pageCount()` answered 12,
+    ChromIQ printed a twelfth sheet carrying the header, the page number and a
+    0.7 px sliver of a line, and a PDF text extractor reads the colophon on it
+    because the block's box crosses the boundary even though its glyphs do not.
+
+    `drop_orphan_tail` is the right answer to the neighbouring fault and cannot
+    reach this one: it moves a BLOCK off a sheet, and here no block is on the
+    sheet to move.
+
+    **IT CAN ONLY EVER REMOVE A SHEET THAT IS EMPTY**, which is why it is safe
+    where trusting `pageCount()` downward would not be (see `settled_layout`,
+    and the card that once printed four sheets with three sheets' worth
+    missing). Every block is measured, not only the ones with text, so a block
+    holding nothing but an image still counts.
+    """
+    if body_h <= 0.0:
+        return 1
+    lay = settled_layout(doc)
+    bottom = 0.0
+    block = doc.begin()
+    while block.isValid():
+        bottom = max(bottom, lay.blockBoundingRect(block).bottom())
+        block = block.next()
+    if bottom <= 0.0:
+        return 1
+    # A block ending exactly on a boundary belongs to the page above it.
+    return max(1, int((bottom - 0.5) // body_h) + 1)
+
+
 def drop_orphan_tail(doc, body_h: float, footer_h: float) -> "str | None":
     """Take a lone trailing line off its own sheet, and hand it to the footer.
 
@@ -694,7 +734,13 @@ def render_paged(doc, device, *, page_w: float, page_h: float,
         # document that has been ruined, which is how a card once printed on
         # four sheets with three sheets' worth of it missing. See
         # :func:`settled_layout`.
+        # …AND NEVER A TRAILING SHEET NOTHING REACHES. `pageCount()` is the
+        # ceiling and stays the ceiling; `pages_that_carry_something` can only
+        # lower it past pages that hold no block at all, which is the one
+        # direction that cannot lose content. See its docstring for the
+        # Swedish glossary card this was measured on.
         total = max(1, doc.pageCount())
+        total = max(1, min(total, pages_that_carry_something(doc, body_h)))
         foot_font = QFont()
         foot_font.setPixelSize(10)
         for pg in range(total):

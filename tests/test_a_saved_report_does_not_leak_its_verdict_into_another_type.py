@@ -210,13 +210,25 @@ def test_the_full_report_still_shows_its_saved_word(tmp_path, qapp):
         # same rows, which is also the real case the rule exists for: Knut
         # ruled that a run keeps the verdict it was given even after the rules
         # around it move.
-        assert live.word != PASS, "the live word already agrees; nothing is proved"
+        #
+        # **IT USED TO MOVE THE SAVED WORD TO PASS, and that stopped telling
+        # the two apart on 2026-09-21.** These rows carry N-A, so the live
+        # word was COND and PASS was the impossible one; Knut then ruled that
+        # an N-A never demotes a column, so the live word is PASS and the
+        # saved word had to move the other way. COND is now the word a
+        # non-ISO column can never be recomputed into, and a report saved
+        # before that day carrying it is the exact case his rule about a run
+        # keeping its verdicts is for.
+        assert live.word == PASS, (
+            "these rows no longer recompute to PASS, so COND is not "
+            "necessarily the impossible word; re-measure before trusting "
+            f"this test (live={live.word})")
         moved = dict(reps[0])
-        moved["verdict"] = dict(moved["verdict"], overall=PASS)
+        moved["verdict"] = dict(moved["verdict"], overall=COND)
         moved["verdict"]["summary"] = dict(moved["verdict"]["summary"],
-                                           reason=SUMMARY_REASONS["pass"])
+                                           reason=SUMMARY_REASONS["cond_missing"])
         again = dlg._column_summary(moved)
-        assert again.word == PASS, \
+        assert again.word == COND, \
             "the saved verdict was recomputed instead of shown"
     finally:
         dlg.close()
@@ -327,7 +339,7 @@ def test_a_graded_row_with_a_note_says_so_on_paper(tmp_path, qapp):
     from core.i18n import tr
     from tests.test_import_measurement_module import _verify_env
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
-    from workflow.compliance_sets import COND, FAIL, PASS, ROW_BY_ID
+    from workflow.compliance_sets import COND, FAIL, N_A, PASS, ROW_BY_ID
     from workflow.run_compliance import set_run_report_type
     s, _fm, _ctl, run = _verify_env(tmp_path)
     v = run.new_verification()
@@ -347,9 +359,23 @@ def test_a_graded_row_with_a_note_says_so_on_paper(tmp_path, qapp):
             "this chart carries no noted row, so the case is not exercised; "
             "`_grey_ramp_ti3` on a sheet with no printing record is supposed "
             "to produce two")
+        # A NOTE NOW COMMENTS AN ABSENCE TOO, since Knut's ruling of
+        # 2026-09-21: *"the N-A … should have a super-script number, pointing
+        # to a note, where the note explains why it is N-A."* This used to
+        # read `in (PASS, FAIL, COND)`; N_A joins it because that is the
+        # second half of his ruling and not a leak. INFO does not: a row shown
+        # for information carries its own note list already
+        # (`_measured_not_graded`) and the guard above keeps both off a type
+        # that judges nothing.
         for x in noted:
-            assert x["word"] in (PASS, FAIL, COND), (
-                f"{x['row_id']} carries a note and has no verdict to comment")
+            assert x["word"] in (PASS, FAIL, COND, N_A), (
+                f"{x['row_id']} carries a note and is neither judged nor N-A")
+        assert any(x["word"] in (PASS, FAIL, COND) for x in noted), (
+            "every noted row is an N-A, so the note-on-a-verdict half of "
+            "Knut's 2026-09-13 ruling is not exercised here")
+        assert any(x["word"] == N_A for x in noted), (
+            "no noted row is an N-A, so the raised-number half of his "
+            "2026-09-21 ruling is not exercised here")
 
         numbered = dlg._numbered_notes(reps)
         assert numbered, "the rows carry notes and the page numbers none"

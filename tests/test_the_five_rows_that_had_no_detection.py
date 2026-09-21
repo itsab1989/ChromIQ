@@ -586,6 +586,11 @@ def test_the_closing_note_does_not_name_one_remedy_for_every_reason():
     assert dead not in src, (
         "the closing note still names one remedy for every reason")
     assert dead not in M_REPORT_CHART_MISMATCH.body
-    # …and it points at the reasons, which each carry their own lever.
-    assert "each reason above names what that row needs" in src.lower()
+    # …and it points at the reasons, which each carry their own lever. The
+    # word was "reason" until 2026-09-21, when Knut's ruling turned each of
+    # those reasons into a numbered NOTE beside the cell it explains; the
+    # closing sentence moved under that list and says "note" for the thing
+    # the reader is now looking at. What it must not do, and the whole point
+    # of this test, is name one remedy for all of them.
+    assert "each note above names what that row needs" in src.lower()
     assert "names what that row needs" in M_REPORT_CHART_MISMATCH.body.lower()

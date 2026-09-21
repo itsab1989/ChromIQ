@@ -49,8 +49,15 @@ SMALLEST_SCREEN_H = 720
 TASKBAR_H = 48
 TITLEBAR_H = 32
 SMALLEST_CLIENT_H = SMALLEST_SCREEN_H - TASKBAR_H - TITLEBAR_H
-LANGUAGES = ["en", "de", "fr", "es", "it", "nl", "no", "pl", "pt", "ru", "sv",
-             "ja", "zh_CN"]
+#: Every shipped language, English included, read off `data/i18n/`. The
+#: docstring above says a sweep that measures English twelve times is not
+#: measuring twelve languages; a literal list is the same failure a step
+#: earlier, measuring twelve of thirteen and calling it all of them. The
+#: import works in both modes: as a module (`tests.scanner_floor_probe`) and
+#: as the script above, which puts the repo root on `sys.path` first.
+from tests.helpers.languages import shipped_languages         # noqa: E402
+
+LANGUAGES = shipped_languages()
 
 
 class FakeSettings:

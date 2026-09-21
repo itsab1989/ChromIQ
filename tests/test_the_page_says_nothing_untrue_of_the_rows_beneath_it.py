@@ -57,7 +57,14 @@ def test_a_type_that_judges_nothing_does_not_tell_you_what_to_add(tmp_path,
     "Not computed on this chart: … add the missing patches to the chart in
     Create Chart to have it checked." Under a type that checks nothing.
 
-    MUTATION: drop the `_ungraded_by_type` guard from the not-computed note
+    **THE NOTE IT WAS WRITTEN FOR IS GONE, and the rule outlived it.** That
+    block was removed on 2026-09-21: Knut ruled that an N-A cell carries a
+    raised number pointing at a note instead, so the explanation is now an
+    item in the numbered list. The thing this test guards is unchanged, and
+    it is retargeted rather than deleted: whatever explains an unanswerable
+    row must stay silent on a type that answers nothing.
+
+    MUTATION: drop the `_ungraded_by_type` guard from `_note_the_absences`
     and this goes red.
     """
     from core.i18n import tr
@@ -65,14 +72,16 @@ def test_a_type_that_judges_nothing_does_not_tell_you_what_to_add(tmp_path,
     try:
         full = _as(dlg, run, REPORT_TYPE_FULL)
         body = dlg._report_body_html(full, for_pdf=True)
-        head = _html.escape(tr("Not computed on this chart:"))
+        head = _html.escape(tr("Notes on the verdicts above:"))
         assert head in body, "this chart computes everything, so nothing is proved"
+        assert dlg._numbered_notes(full), "and the list really has items in it"
 
         rec = _as(dlg, run, REPORT_TYPE_RECORD)
         body = dlg._report_body_html(rec, for_pdf=True)
         assert head not in body, (
             "a report that judges nothing told the reader what to add to have "
             "it checked")
+        assert not dlg._numbered_notes(rec)
         assert "Create Chart" not in body
     finally:
         dlg.close()

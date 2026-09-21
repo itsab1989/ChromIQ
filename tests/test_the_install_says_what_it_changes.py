@@ -30,8 +30,12 @@ import pytest
 
 from ui.dialogs import settings_dialog as sd
 
-ALL_CODES = ["de", "es", "fr", "it", "ja", "nl", "no", "pl", "pt", "ru", "sv",
-             "zh_CN"]
+#: Every catalogue, read off `data/i18n/`. English is NOT here on purpose:
+#: it is the source language and ships no JSON, so there is no translation to
+#: check. A literal list went stale the day Ukrainian landed.
+from tests.helpers.languages import catalogue_languages   # noqa: E402
+
+ALL_CODES = catalogue_languages()
 
 #: How many `tr()` keys `_english_keys()` must recover. Seven of the feature's
 #: eight; the notice window's TITLE is written at the call site and is checked

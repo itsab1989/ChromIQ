@@ -108,6 +108,68 @@ def _no_modal_may_hang_the_suite(request):
 
 
 
+#: The application-wide appearance as the worker starts, kept so
+#: `_no_test_repaints_the_whole_application` can put it back.
+_CLEAN_APPEARANCE: "tuple | None" = None
+
+
+@pytest.fixture(autouse=True)
+def _no_test_repaints_the_whole_application():
+    """**AN APPEARANCE A TEST APPLIES BELONGS TO THAT TEST.**
+
+    `ui.theme.apply_appearance` ends in ``app.setPalette(...)`` and
+    ``app.setStyleSheet(...)``, and there is ONE QApplication per worker, so a
+    test that switches appearance and does not switch back hands its
+    appearance to every test that runs after it on that worker. `active_mode`
+    reads the LIVE palette, so the whole `by_mode` colour system follows it.
+
+    MEASURED, 2026-09-22, while a change set widened one such test from two
+    appearances to three. The everyday tier went from green on two runs out of
+    two to RED on four runs out of seven, and no failure was ever in the file
+    that caused it:
+
+    * `test_verify_profile_dialog::test_neutral_controls_qss_uses_given_colour`
+      -- neutral colours where light was expected;
+    * `test_button_text_fits`, `test_chart_layout_info_panel` -- accent hex
+      missing from a stylesheet built over a `#101010` dark ground;
+    * `test_layout_options_panel` -- the red conflict outline absent;
+    * `test_the_suite_paints_with_the_shipped_style` -- the style read as ''.
+
+    Every one of them passes alone. That is the shape CLAUDE.md already
+    records for this suite ("a different victim each run, every one passing
+    alone"), and the fix there was the same idea: take the shared state out of
+    any individual test's hands.
+
+    **IT ONLY PAYS WHEN A TEST ACTUALLY DIRTIED SOMETHING.** CLAUDE.md is
+    explicit that `qapp.setStyleSheet` re-polishes every live widget and that
+    two tests which cost 0.2 s alone cost 29 s inside a full run, so restoring
+    unconditionally would be worse than the leak. This compares first and
+    writes only on a mismatch: one string comparison per test, and a repaint
+    only for the handful that change the appearance.
+
+    A test that WANTS to leave an appearance behind cannot, and should not: if
+    two tests must share one, they share a fixture.
+    """
+    global _CLEAN_APPEARANCE
+    from PyQt6.QtWidgets import QApplication
+    app = QApplication.instance()
+    if app is None:
+        yield
+        return
+    if _CLEAN_APPEARANCE is None:
+        from PyQt6.QtGui import QPalette
+        _CLEAN_APPEARANCE = (app.styleSheet(), QPalette(app.palette()))
+    yield
+    app = QApplication.instance()
+    if app is None:                       # a test dropped it; nothing to fix
+        return
+    sheet, palette = _CLEAN_APPEARANCE
+    if app.styleSheet() != sheet:
+        app.setStyleSheet(sheet)
+    if app.palette() != palette:
+        app.setPalette(palette)
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _one_qapplication_per_worker():
     """Create the QApplication once, ON THE STYLE THE APP SHIPS, and keep it

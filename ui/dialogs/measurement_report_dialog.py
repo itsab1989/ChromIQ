@@ -1032,12 +1032,21 @@ def _types_and_pairing_help() -> str:
     """
     from workflow.measurement_report import (REPORT_TYPE_MENU,
                                              REPORT_TYPE_SUMMARY)
+    # …AND BOTH HALVES OF THAT SENTENCE WERE MADE FALSE BY B8-590, which
+    # removed "Show all measurement runs" AND the freeze the sentence
+    # promised. The commit reset the list's own tooltip and missed this one,
+    # so the Report type help went on naming a control the window no longer
+    # builds and a restriction it no longer applies, in all thirteen
+    # languages: German readers got a false sentence in German. What the
+    # window really does is `_sync_type_combo`'s live list plus
+    # `_conflicts_with_the_ticks`, and this now says exactly that, in the
+    # words the list's own tooltip already uses.
     one_page = tr("This one is about a single measurement: the sheet this "
-                  "window is open on. While it is chosen, “Show all "
-                  "measurement runs” and the list of included measurements "
-                  "are fixed to that sheet, and there is no detailed section, "
-                  "because the whole report is one page to print and hand "
-                  "over with a job.")
+                  "window is open on. Tick the one you want the page to be "
+                  "about; if more than one is ticked when you click Generate "
+                  "report, ChromIQ says so and asks you to choose. There is "
+                  "no detailed section, because the whole report is one page "
+                  "to print and hand over with a job.")
     lines = []
     for tid, name, blurb, _built in REPORT_TYPE_MENU:
         line = "\u2022 " + f"{tr(name)}: {tr(blurb)}"
@@ -1166,9 +1175,9 @@ class MeasurementReportDialog(QDialog):
             "the report still warns you if the runs you loaded use different "
             "instruments, or if a chart is missing any of the eight cube corners "
             "(which would make its cube-corner figures unreliable).\n"
-            "  • Report Results: one of five words per row and run (PASS, FAIL, "
-            "COND, INFO, N-A), with the column's Overall word and what it was "
-            "judged against.\n"
+            "  • Report Results: a word per row and run (PASS, FAIL, INFO or "
+            "N-A), with the column's Overall word, which may also read COND, "
+            "and what it was judged against.\n"
             "  • Colour accuracy: the ΔE00 (colour difference) figures, split so "
             "the bulk of the chart (all patches, and the best 95 %) is separated "
             "from the few hardest patches (the worst 5 %). Each is judged against "
@@ -6935,7 +6944,15 @@ class MeasurementReportDialog(QDialog):
         ruling of 2026-09-13 made the two different things, and the example he
         gave is this one, *"regarding the tint of a paper and profile
         combination"*.
+
+        **…AND SINCE 2026-09-21 A NOTE MAY ALSO EXPLAIN AN ABSENCE**, which
+        Knut asked for in as many words: an N-A cell carries a raised number
+        pointing at a note saying why. `_note_the_absences` builds those
+        codes, and they carry their own sentence after `_NOTE_TEXT_SEP`,
+        because several of the reasons are computed from the measurement.
         """
+        if code and self._NOTE_TEXT_SEP in code:
+            return code.split(self._NOTE_TEXT_SEP, 1)[1]
         return {
             "printing_unrecorded": tr(
                 "How this sheet was printed is not recorded, so the grey rows "
@@ -6979,6 +6996,18 @@ class MeasurementReportDialog(QDialog):
             out.append((n, ", ".join(labels), sentence))
         return out
 
+    def _has_an_absence(self, runs: list) -> bool:
+        """Whether any row shown reads N-A, so the closing sentence under the
+        numbered notes is about something that is on the page."""
+        from workflow.compliance_sets import N_A
+        for r in runs or ():
+            if _is_raw_drift(r):
+                continue
+            rows, _rec = self._verdict_rows(r)
+            if any(x.get("word") == N_A for x in rows):
+                return True
+        return False
+
     def _note_numbering(self, runs: list):
         """The raw numbering the verdict cells mark themselves from."""
         from workflow.measurement_report import numbered_notes
@@ -6993,14 +7022,16 @@ class MeasurementReportDialog(QDialog):
     def _measured_not_graded(self, r: dict) -> "list[tuple[str, str]]":
         """``[(row label, why)]`` for rows that HAVE a number nobody graded.
 
-        A DIFFERENT LIST FROM `_not_computed`, AND IT HAS TO BE. These rows
-        were added to that one for a round, and that note is headed "Not
-        computed on this chart" and ends "add the missing patches to the chart
-        in Create Chart to have it checked" — so a grey row carrying 1.341, on
-        a chart with a nine-step ramp, was called not computed and its reader
-        was sent to add patches that are already there. That is the exact
-        falsehood the round before had just removed from the sentence above
-        it, reinstated one line below.
+        A DIFFERENT LIST FROM THE N-A ROWS, AND IT HAS TO BE. These rows were
+        added to that one for a round, and the note it fed was headed "Not
+        computed on this chart" and ended "add the missing patches to the
+        chart in Create Chart to have it checked" — so a grey row carrying
+        1.341, on a chart with a nine-step ramp, was called not computed and
+        its reader was sent to add patches that are already there. That is the
+        exact falsehood the round before had just removed from the sentence
+        above it, reinstated one line below. (That note is itself gone since
+        2026-09-21: an N-A now carries a numbered note of its own. This list
+        is about rows that HAVE a number, which is why it survives it.)
         """
         # NOT ON A TYPE THAT JUDGES NOTHING. On the Printing record every row
         # is INFO because the TYPE says so, and this note would then single out
@@ -7016,20 +7047,6 @@ class MeasurementReportDialog(QDialog):
         out = []
         for row in rows:
             if row.get("word") != INFO or not row.get("reason"):
-                continue
-            rid = row.get("row_id") or row.get("key")
-            label = tr(ROW_BY_ID[rid].label) if rid in ROW_BY_ID else str(rid)
-            out.append((label, self._reason_sentence(row.get("reason"), r)))
-        return out
-
-    def _not_computed(self, r: dict) -> "list[tuple[str, str]]":
-        """``[(row label, reason sentence)]`` for the rows of *r*'s verdict
-        that read N-A because the chart or the reference cannot supply them."""
-        from workflow.compliance_sets import N_A, ROW_BY_ID
-        rows, _rec = self._verdict_rows(r)
-        out = []
-        for row in rows:
-            if row.get("word") != N_A:
                 continue
             rid = row.get("row_id") or row.get("key")
             label = tr(ROW_BY_ID[rid].label) if rid in ROW_BY_ID else str(rid)
@@ -7106,10 +7123,64 @@ class MeasurementReportDialog(QDialog):
                         row["word"] = FAIL
                     else:
                         row["word"] = INFO if rec.get("graded") is False else N_A
-            return self._ungrade(self._keep_rows_for_type(rows)), True
+            return self._note_the_absences(
+                self._ungrade(self._keep_rows_for_type(rows)), r), True
         from workflow.measurement_report import judge
-        return self._ungrade(self._keep_rows_for_type(
-            judge(r, self._limits_for(r).limits))), False
+        return self._note_the_absences(self._ungrade(self._keep_rows_for_type(
+            judge(r, self._limits_for(r).limits))), r), False
+
+    #: Separator inside a note code that carries its own sentence. A unit
+    #: separator, because it can never occur in prose or in a reason code.
+    _NOTE_TEXT_SEP = "\x1f"
+
+    def _note_the_absences(self, rows: list, r: dict) -> list:
+        """**KNUT'S RULING OF 2026-09-21: AN N-A CELL GETS A NUMBERED NOTE.**
+
+        > *"I would say that the N-A for the first measurement instead should
+        > have a super-script number, pointing to a note, where the note
+        > explains why it is N-A for the first measurement."*
+
+        `judge` deliberately gave an N-A row no notes -- *"a note beside an
+        N-A would be a footnote on an absence, which is what `reason` is
+        already for"* -- and that was right while the reason reached the
+        reader some other way. It is the mechanism Knut has now asked for, so
+        the reason becomes a note and travels through the numbering every
+        other note uses: one number per distinct sentence, shared by every row
+        that carries it, the same number on the cell and in the list.
+
+        **THE SENTENCE TRAVELS WITH THE CODE, and it has to.** Several reasons
+        are computed from the measurement (`_control_strip_sentence` counts
+        the strip's patches, `_repeat_groups_sentence` counts the groups), so
+        two runs in one report can carry one reason code and two different
+        sentences. Numbering on the code alone would print one run's count
+        beside both rows. Numbering on the code AND its sentence gives them
+        separate numbers when they differ and one number when they do not.
+
+        **SILENT ON A TYPE THAT JUDGES NOTHING**, like every other explanation
+        under this table. On the Printing record the summary says the report
+        judges none of it; a numbered note under the heading "Notes on the
+        verdicts above" would comment verdicts that were never given, and the
+        closing sentence under it says an unanswered row "is not counted as a
+        failure" on a document that counts nothing. `_ungrade` leaves an N-A
+        an N-A (there is no number to show for it), so without this guard the
+        notes and the raised markers arrive on T4 as well. That is the same
+        fault shape three neighbours in this file already record.
+        """
+        if self._ungraded_by_type():
+            return rows
+        from workflow.compliance_sets import N_A
+        for row in rows or ():
+            if row.get("word") != N_A or not row.get("reason"):
+                continue
+            said = self._reason_sentence(row.get("reason"), r)
+            if not said:
+                continue
+            code = str(row.get("reason")) + self._NOTE_TEXT_SEP + said
+            notes = list(row.get("notes") or ())
+            if code not in notes:
+                notes.append(code)
+            row["notes"] = notes
+        return rows
 
     def _keep_rows_for_type(self, rows: list) -> list:
         """Only the rows the chosen type is ABOUT.
@@ -9822,12 +9893,21 @@ class MeasurementReportDialog(QDialog):
             # different class and are untouched: Fogra's "It is not a
             # certification, approval or endorsement by …" beside every
             # reference set, and Idealliance's trademark line.
+            # …AND THE SECOND SENTENCE WAS MADE FALSE BY KNUT'S RULING OF
+            # 2026-09-21, which is why it is not the one that was there. It
+            # said the Overall reads PASS "only when every row the set
+            # requires was checked and passed", and since that day a row the
+            # chart cannot answer does not stop a column reading PASS. Found
+            # by PHOTOGRAPHING the guide after changing four sentences beside
+            # it: the picture had this one in frame and nothing had flagged
+            # it, because nothing in the suite reads this paragraph.
             "<p>" + html.escape(tr(
                 "A column read as a drift check shows the word “drift” in "
                 "every cell instead: it compares one measurement with another "
                 "rather than with a limit. A column's Overall word is PASS "
-                "only when every row the set requires was checked and "
-                "passed.")) + "</p>"
+                "when every row that could be checked passed; a row this "
+                "chart could not answer is not counted as a failure, and the "
+                "sentence under the word says how many there were.")) + "</p>"
             # A COLUMN'S NAME IS NOT ITS CONTENTS. The sentence this replaces
             # read "The columns named after a standard hold that standard's
             # published tolerance values", and for the two Custom columns that
@@ -10167,38 +10247,26 @@ class MeasurementReportDialog(QDialog):
         for line in _said:
             notes += (f"<div style='{note_css}'>"
                       + html.escape(line) + "</div>")
-        # D25: what was not computed, and why, repeated in the report text.
-        # …AND NEITHER OF THESE MAY SPEAK ON A TYPE THAT JUDGES NOTHING.
-        # One note was guarded by type and the two beside it were not, which is
-        # the first fault shape yet again. On a Printing record a chart with no
-        # grey ramp printed, on one page: "You chose the Printing record, which
-        # judges none of it", and under it "Not computed on this chart: … add
-        # the missing patches to the chart in Create Chart to have it checked."
-        # Under a type that checks nothing. The amber strip above the report
-        # said the same, naming a limit set the document applies to nothing.
-        seen: dict = {}
-        if not self._ungraded_by_type():
-            for r in runs:
-                if _is_raw_drift(r):
-                    continue
-                for label, why in self._not_computed(r):
-                    seen.setdefault((label, why), True)
-        if seen:
-            notes += (f"<div style='{note_css}'><b>" + html.escape(tr(
-                "Not computed on this chart:")) + "</b> " + html.escape("; ".join(
-                    f"{label} ({why})" for (label, why) in seen)) + " " + html.escape(tr(
-                    # ONE REMEDY FOR EVERY REASON WAS TRUE UNTIL B8-397, AND IS
-                    # NOT ANY MORE. The three control-strip rows are missing a
-                    # DECLARATION, not patches, and this sentence told a reader
-                    # to go and add patches that are already on the sheet, one
-                    # line under a reason that had just said "declare a longer
-                    # strip". Photographed on screen, 2026-09-18. Each reason
-                    # now carries its own lever, so the closing sentence points
-                    # at them instead of naming one of them for all.
-                    "A row that was not computed says nothing about the "
-                    "printer; each reason above names what that row needs, so "
-                    "make that change, print the chart again and measure "
-                    "it.")) + "</div>")
+        # **THE "Not computed on this chart" BLOCK USED TO BE HERE, AND IT IS
+        # GONE BECAUSE KNUT REPLACED THE MECHANISM.** It printed every N-A row
+        # and its reason as prose under the heading "Not computed on this
+        # chart:", which challenge round 32 found false on its face: "The same
+        # chart measured again" is not a property of a chart, so every clean
+        # first verification ended under a heading that did not describe what
+        # it listed. `_mismatch_text` had been corrected for exactly that and
+        # this, which feeds the same claim into the report BODY and therefore
+        # into every PDF, had not.
+        #
+        # Knut then ruled the mechanism on 2026-09-21: *"the N-A … should have
+        # a super-script number, pointing to a note, where the note explains
+        # why it is N-A."* `_note_the_absences` does that, through the same
+        # numbering every other note uses, so the explanation now sits beside
+        # the cell it is about instead of in a list under a heading that has
+        # to be true of all of them at once. Printing both would say the same
+        # thing twice on one page under two headings.
+        #
+        # What the prose block carried and the notes do not is the closing
+        # sentence, so that moves to the notes list below.
         # …AND THE ROWS THAT WERE MEASURED AND NOT GRADED, WHICH ARE NOT THE
         # SAME THING AND MAY NOT SHARE THAT SENTENCE. The chart has these
         # patches; what it lacks is whatever the grading needed. The heading
@@ -10219,11 +10287,11 @@ class MeasurementReportDialog(QDialog):
                     "The measurement is there; it is shown for information "
                     "because the report cannot judge it under these "
                     "conditions.")) + "</div>")
-        # …AND THE NOTES ON VERDICTS THAT WERE GIVEN, which is a different list
-        # again and is the second half of Knut's ruling of 2026-09-13. The two
-        # above are about rows with NO verdict. These comment a verdict that
-        # stands: the number is judged, and the note says what to know when
-        # weighing it. Numbered, because the verdict cell points at the number.
+        # …AND THE NUMBERED NOTES, which is Knut's ruling of 2026-09-13 and,
+        # since 2026-09-21, his ruling on N-A as well. A note either comments
+        # a verdict that stands (what to know when weighing it) or explains
+        # one that could not be given at all. Numbered either way, because the
+        # cell points at the number, which is what he asked for both times.
         numbered = self._numbered_notes(runs)
         if numbered:
             from workflow.measurement_report import note_label
@@ -10235,7 +10303,18 @@ class MeasurementReportDialog(QDialog):
             notes += (f"<div style='{note_css}'><b>" + html.escape(tr(
                 "Notes on the verdicts above:")) + "</b>"
                 + f"<ol style='margin:2px 0 0 16px;padding:0;"
-                f"list-style:none'>{items}</ol></div>")
+                f"list-style:none'>{items}</ol>"
+                # THE CLOSING SENTENCE THE PROSE BLOCK USED TO CARRY, kept
+                # because it answers the question a reader of an N-A actually
+                # has, and reworded to Knut's ruling: an unanswerable row is
+                # not a failure. It does not name one remedy for every reason
+                # (B8-397); each note above carries its own.
+                + ("<div style='margin-top:4px'>" + html.escape(tr(
+                    "A row that could not be worked out says nothing about"
+                    " the printer and is not counted as a failure;"
+                    " each note above names what that row needs.")) + "</div>"
+                   if self._has_an_absence(runs) else "")
+                + "</div>")
         return (_h2(tr("Report Results"), page_break=True) + _gap()
                 + f"<div style='color:{_C['dim']};margin-bottom:4px'>" + html.escape(intro)
                 + "</div>" + _gap()

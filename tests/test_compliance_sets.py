@@ -368,8 +368,18 @@ def test_summary_words_in_order_of_precedence():
     assert set_summary(_rows((v, PASS), (v, FAIL)), set_is_iso=False, graded=False).word == INFO
     assert set_summary(_rows((v, PASS), (v, PASS)), set_is_iso=True, graded=True).word == COND
     assert set_summary(_rows((v, PASS), (sh, COND)), set_is_iso=False, graded=True).word == COND
-    assert set_summary(_rows((v, PASS), (v, N_A)), set_is_iso=False, graded=True).word == COND
-    # an N-A on a SHOULD row does not demote a ChromIQ set (CH-9)
+    # **AN N-A NEVER DEMOTES, WHATEVER ROW IT IS ON.** This line used to read
+    # `== COND` for a REQUIRED row, which is the rule Knut replaced on
+    # 2026-09-21: *"Not Applicable must not be counted as a fail, so the
+    # overall verdict should show PASS, not COND, if all others pass … a
+    # metric that is not applicable should not have verdict conditional
+    # because COND does not indicate which of the verdicts cause the COND."*
+    # See §15.6 of docs/design/measurement_report_limits.md.
+    r = set_summary(_rows((v, PASS), (v, N_A)), set_is_iso=False, graded=True)
+    assert r.word == PASS and r.not_computed == 1
+    # …and the count is still reported beside the word, so nothing is hidden
+    assert r.checked == 1 and r.total == 2
+    # an N-A on a SHOULD row never demoted a ChromIQ set either (CH-9)
     s = set_summary(_rows((v, PASS), (v, PASS), (sh, N_A)), set_is_iso=False, graded=True)
     assert s.word == PASS and s.not_computed == 1 and s.checked == 2 and s.total == 3
 

@@ -508,15 +508,6 @@ def _has_bg_rule(w) -> bool:
 
 
 def _has_conflict(w) -> bool:
-    """True when the widget currently carries the red conflict outline (#125).
-
-    This file used to define this helper TWICE, at line 283 and again here,
-    with different predicates: the earlier one matched ``"d9534f"`` and this
-    one ``"#d9534f"``. Python keeps the last, so this one always governed every
-    caller in the file, including the ones written above the first copy. The
-    dead copy was removed by challenge round 32 and its docstring kept here;
-    nothing about what is asserted changed.
-    """
     return "#d9534f" in w.styleSheet()
 
 

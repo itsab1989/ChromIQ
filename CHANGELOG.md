@@ -1,5 +1,17 @@
 # Changelog
 
+## v4.3.0-beta.30
+
+**A fourteenth language, and four sentences that had stopped being true.**
+
+### Added
+
+- **Ukrainian.** ChromIQ now speaks fourteen languages. The complete Ukrainian
+  translation was contributed by **LackiUA** on issue #198: 5,425 rows, with
+  the keys added since their export deliberately left in English rather than
+  invented. Pick it under **Preferences -> General -> Language**; the Getting
+  Started workflow diagram is drawn in Ukrainian too.
+
 ## v4.3.0-beta.29
 
 **Fogra's reference data, and a way to use a newer version of it without

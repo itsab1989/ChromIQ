@@ -1698,4 +1698,80 @@ is not a gap in what was checked"* the right carve-out, and are these the right
 two rows for it? No other row may join that set without the same argument being
 made and confirmed.
 
+---
+
+### 15.6 ⏳ Awaiting confirmation: Knut ANSWERED, and his rule is broader
+
+**Confirmed by:** *nobody yet.*
+
+He was asked the question in §15.5 and answered it on 2026-09-21 by widening
+it. His words:
+
+> *"'Row B is N-A on every first measurement' should not influence the overall
+> verdict, as Not Applicable must not be counted as a fail, so the overall
+> verdict should show PASS, not COND, if all others pass. I say, a metric that
+> is not applicable should not have verdict conditional because COND does not
+> indicate which of the verdicts cause the COND. I would say that the N-A for
+> the first measurement instead should have a super-script number, pointing to
+> a note, where the note explains why it is N-A for the first measurement. When
+> all other metrics PASS, that N-A is not applicable, thus not relevant for the
+> verdict, thus overall verdict becomes PASS (or FAIL if some metric fails)."*
+
+Two rules, and the first replaces §15.5 rather than amending it.
+
+**R1. An N-A never demotes a column, whatever row it is on.** Not a carve-out
+for two rows: a general rule about the word. `set_summary` no longer counts
+required N-A rows at all, and there is no list of exempt rows for it to
+consult. COND survives as an Overall word only for an ISO-named column (whose
+values are applied to a chart that is not the standard's) and for a report
+saved before 2026-09-21, whose stored rows still carry it.
+
+*What this changes beyond the two repeatability rows,* measured over one N-A
+row per distinct cause an ordinary chart can produce: a required grey row on a
+chart with no grey ramp, a required paper-white row on a chart with no white,
+a required control-strip row on a chart that declares no strip, and both
+repeatability rows. Every one of those used to read COND on an otherwise clean
+column and now reads PASS. A recommended row reading N-A never demoted a
+column and is unchanged.
+
+**R2. An N-A cell carries a raised number pointing to a note saying why.** The
+numbered-note mechanism already built for §12 is reused rather than a second
+one written, so the marker on the cell and the item in the list come from one
+numbering and cannot disagree about which note is note 1. The note's sentence
+is the row's existing refusal reason, which already names what that row needs
+(*"this is the first measurement of this chart, so there is nothing to compare
+it with; the row is judged from the second measurement onward"*), so no new
+wording was invented for it.
+
+`judge` had deliberately given an N-A row no notes, on the reading that *"a
+note beside an N-A would be a footnote on an absence, which is what `reason`
+is already for"*. R2 overrules that reading. Where two measurements in one
+report give one reason code two different sentences (several reasons count
+something, such as how many patches a control strip declares), they take two
+numbers rather than sharing one and printing one run's count beside both.
+
+**What `POPULATION_MAY_BE_ABSENT` still does.** The set is not deleted, and it
+no longer touches any verdict. What is left is a question R1 does not answer:
+two MESSAGES promise something about the **chart** (*"add those patches to the
+chart in Create Chart"*, and the note formerly headed *"Not computed on this
+chart"*), and nothing can be added to a chart to answer whether it has been
+measured twice. The set decides which rows may appear under such a promise. If
+that is the wrong place for it, say so; it governs wording, not verdicts.
+
+**One thing R1 does NOT make true.** The unqualified PASS sentence, *"Every
+value this limit set requires was checked and is within its limit"*, is still
+false whenever a required row reads N-A: the verdict is now rightly PASS, but
+the sentence is a claim about what was **checked**, and a value that could not
+be worked out was not checked. So a column reaching PASS with anything left
+over says the count instead:
+
+> *"{checked} of {total} values checked, all within this limit set's limits.
+> The other {not_computed} could not be worked out from this measurement, and
+> a value that could not be worked out is not counted as a failure."*
+
+with a singular form for one. **This wording is proposed, not settled.** It
+matters most on report type T1, the one-page colour summary, which carries no
+row table and no notes, so that sentence is the only thing on the page that
+can say a row was left unanswered.
+
 **These specifications are binding.**

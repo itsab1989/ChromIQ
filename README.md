@@ -507,9 +507,10 @@ on their own, outside the five-step flow:
 - **Sounds during measurement** — a strip accepted, a patch misread, a session
   finished. Choose a pack or your own files under **Preferences → Sounds**, so
   you can keep your eyes on the chart instead of the screen.
-- **Twelve languages, complete** — German, Spanish, French, Italian, Dutch,
-  Portuguese, Swedish, Norwegian, Polish, Russian, Japanese and Chinese. Every
-  button, message, tooltip and help text, not just the menus.
+- **Fourteen languages, complete**: English plus German, Spanish, French,
+  Italian, Dutch, Portuguese, Swedish, Norwegian, Polish, Russian, Ukrainian,
+  Japanese and Chinese. Every button, message, tooltip and help text, not just
+  the menus.
 - **Per-tab onboarding tooltips**, **live command preview**, and a **zoomable
   multi-channel TIFF preview** (RGB, CMYK, extended-gamut).
 - **Session restore**, **rotating log file**, and a built-in **update checker**.
@@ -713,6 +714,11 @@ plotly bundle, sounds, the test image — is listed with its terms in
 ChromIQ stands on the shoulders of [**ArgyllCMS**](https://www.argyllcms.com/) by
 Graeme Gill — an outstanding open-source colour management system that does all
 the real colour science here. ChromIQ is purely a friendly front-end to it.
+
+A heartfelt thanks to **LackiUA** for the complete Ukrainian translation,
+contributed on [issue #198](https://github.com/itsab1989/ChromIQ/issues/198):
+5,425 rows, every placeholder intact, and the keys their export did not cover
+left in English rather than guessed at.
 
 A heartfelt thanks to **soul-traveller** for
 [Argyll_Printer_Profiler](https://github.com/soul-traveller/Argyll_Printer_Profiler)

@@ -28,10 +28,20 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-#: Every language the app ships, longest-first by this label. Russian needs
-#: 331 px against English's 225 — a 47 % spread, which is why English alone
-#: never caught it.
-_LANGS = ["ru", "de", "nl", "fr", "it", "pt", "pl", "es", "sv", "no", "en"]
+#: Every language the app ships, read off `data/i18n/`. Russian needs 331 px
+#: against English's 225 — a 47 % spread, which is why English alone never
+#: caught it.
+#:
+#: THE LITERAL THIS REPLACES WAS STALE IN TWO DIRECTIONS AT ONCE. It listed
+#: eleven codes: it never gained `ja` or `zh_CN`, and it never gained `uk`.
+#: Nothing said so, because a language that is not in the list is not
+#: rendered, and a case that does not exist cannot go red. The order is no
+#: longer "longest-first" either — that was a measurement of a label text
+#: that has since been renamed (see the control's docstring), kept in the
+#: shape of a list long after it stopped being true.
+from tests.helpers.languages import shipped_languages   # noqa: E402
+
+_LANGS = shipped_languages()
 
 #: The language whose version of THIS label is widest, measured against the
 #: pinned indent row. It changes when the label's English text changes, so the
