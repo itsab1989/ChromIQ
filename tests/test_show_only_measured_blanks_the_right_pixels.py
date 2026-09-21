@@ -499,10 +499,19 @@ def test_the_blank_asks_for_each_hexagon_once_per_strip(qapp, tmp_path,
         # COUNT ONE REPAINT, NOT THE SETUP. Showing the widget repaints it
         # several times over, so counting across all of that measures Qt's
         # scheduling rather than this code's shape.
+        #
+        # AND DRAIN FIRST, OR THE SETUP LEAKS INTO THE COUNT. A paint event
+        # queued before the counter was installed is delivered after it, and
+        # is then counted as if this repaint had asked for those hexagons:
+        # measured on a loaded parallel run, 198 against a ceiling of 180,
+        # while the same test passed alone and under two workers every time.
+        # That is Qt's scheduling under load, which is exactly what the
+        # paragraph above says this test must not measure.
+        for _ in range(8):
+            qapp.processEvents()
         monkeypatch.setattr(tp.TiffPreview, "_patch_hexagon",
                             staticmethod(counting))
         p._update_display()
-        qapp.processEvents()
     finally:
         p.close()
     unread = len(boxes) - len(read_ix)
@@ -510,6 +519,14 @@ def test_the_blank_asks_for_each_hexagon_once_per_strip(qapp, tmp_path,
     # STRIP. The product form would be `unread * read_in_reach`, which is an
     # order of magnitude more on this fixture and two on a real A3 honeycomb.
     ceiling = unread + len(read_ix) * (COLS // 2 + 1)
+    # AND IT MUST STILL SEE THE WORK. Draining before the counter is installed
+    # could just as easily have measured nothing at all, which would pass this
+    # ceiling for the wrong reason, so the floor is asserted too: one repaint
+    # of a sheet with this many unread patches cannot ask for fewer than the
+    # unread patches themselves.
+    assert calls["n"] >= unread, (
+        f"the blank asked for only {calls['n']} hexagons on {unread} unread "
+        "patches, so this repaint was not measured at all")
     assert calls["n"] <= ceiling, (
         f"the blank asked for {calls['n']} hexagons; one pass per strip is at "
         f"most {ceiling}, so it is doing the product again")
