@@ -73,6 +73,11 @@ class PreflightDialog(QDialog):
 
         form_frame = QFrame(self)
         form_frame.setFrameShape(QFrame.Shape.StyledPanel)
+        # Fusion draws a bare StyledPanel square; every other panel in ChromIQ
+        # opts into a rounded one explicitly (B8-650) — see
+        # `ui.theme.panel_border_qss`.
+        from ui.theme import panel_border_qss
+        form_frame.setStyleSheet(panel_border_qss())
         form = QFormLayout(form_frame)
         form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
         form.setContentsMargins(14, 10, 14, 10)

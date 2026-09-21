@@ -20969,3 +20969,60 @@ would reach.
 - evidence: none; measured by building locally, then by downloading and
   launching the release asset.
 
+
+### B8-650 · FIXED · Section frames in the Reference values window drew square corners while every other panel is rounded
+- status: FIXED
+- blocks release: no
+- Sebastian photographed it: `~/Desktop/ChromIQ-knut-beta29-batch/basti-square-corners-2026-09-20.png`,
+  the Reference values window's two per-source section frames, in Light.
+- the cause was already found and only needed verifying: `QFrame.setFrameShape(QFrame.Shape.StyledPanel)`
+  with no stylesheet, three times in the whole app --
+  `ui/dialogs/reference_values_dialog.py:554`, `ui/dialogs/preflight_dialog.py:75`,
+  `ui/dialogs/ti2_relayout_dialog.py:4606` (the Add patches single-colour
+  swatch). `ui/styles.py` has, and always had, no `QFrame` rule at all, so
+  Fusion draws its native square bevel on a bare `StyledPanel`; every other
+  rounded panel in ChromIQ opts in with its own explicit stylesheet.
+- fixed all three, not only the one photographed -- the other two carried the
+  same square corners for the same reason (measured on screen below).
+- considered a blanket `QFrame { border-radius: ... }` rule in
+  `ui/styles.py`/`ui/light_styles.py`/`ui/neutral_styles.py` first, because it
+  is tidier and reaches every frame at once. Rejected: roughly a dozen other
+  `QFrame` instances in the app (`ui/main_window.py`, `ui/tab_header.py`,
+  `ui/dialogs/profile_info_dialog.py`, `ui/dialogs/target_change_dialog.py`
+  (x2), `ui/tabs/tab_measure.py` (x6), `ui/dialogs/translation_dialog.py`,
+  `ui/tabs/tab_chart.py`, `ui/tabs/tab_print.py`, `ui/dialogs/spot_read_dialog.py`,
+  `ui/dialogs/tools_dialogs.py`, `ui/dialogs/ti3_info_dialog.py`,
+  `ui/dialogs/softproof_dialog.py`, `ui/dialogs/ti2_relayout_dialog.py`'s own
+  `_hline`) are `HLine`/`VLine` dividers or fixed-colour accent bars that
+  either paint no stylesheet of their own or set only `background`/`border:
+  none`. The instant a stylesheet rule matches `QFrame`, Qt stops drawing a
+  divider's native sunken bevel in favour of the stylesheet's box model, which
+  specifies no border for those -- every horizontal rule in the app would go
+  blank. This is exactly the `QPushButton { min-height }` trap this file's
+  CLAUDE.md already tells the story of (B8-510), one level up. So: three
+  per-widget stylesheets, via a new shared helper,
+  `ui.theme.panel_border_qss()`, not a blanket rule.
+- radius and border colour were MEASURED against the nearest comparable
+  section, not copied from whichever value is commonest in the file (the file
+  has none at all -- no `border-radius` literal existed in
+  `reference_values_dialog.py` before this). Sebastian's own screenshot shows
+  a plain outline with no background tint, which is `QGroupBox`'s shape in all
+  three appearance stylesheets (`border: 1px solid <BORDER>; border-radius:
+  4px`), not the tinted "info box" family's 6px card (`info_box_qss`,
+  `#scannerTargetRow`, `tab_measure.py`'s `_frame_style`) -- those carry a
+  background wash a plain categorising section never had, so copying their
+  radius would have been a small redesign, not a corner fix.
+- driven on screen, real window, `scripts/onscreen_capture.py::capture_window`,
+  both Light and Dark, `ui.theme.apply_appearance` applied before each capture:
+  `scripts/drive_square_corners_b8_650.py`. Before/after pairs for all three
+  windows in both appearances are in
+  `~/Desktop/ChromIQ-beta30-proof/square-corners/`.
+- guarded by `tests/test_bare_styled_panels_get_rounded_corners.py`, which
+  reads the PAINTED corner pixel of each frame (not the stylesheet string):
+  for any radius, the exact corner pixel lies inside the clipped-away arc and
+  shows the background, while the same frame's edge pixel shows the border --
+  identical colours means square. Mutation-proven: reverting the fix (with
+  `__pycache__` purged) turns all six per-window/appearance cases red; the fix
+  turns them green again. A second test pins the chosen approach by asserting
+  no `QFrame {` rule exists in any of the three appearance stylesheets.
+- evidence: `~/Desktop/ChromIQ-beta30-proof/square-corners/FINDINGS.md`.

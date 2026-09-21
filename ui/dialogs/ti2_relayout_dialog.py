@@ -4758,8 +4758,14 @@ class _AddPatchesDialog(_NewChartDialog):
     def _paint_single_swatch(self) -> None:
         r, g, b = (max(0, min(255, round(c / 100 * 255)))
                    for c in self._single_rgb)
+        # Fusion draws a bare StyledPanel square; every other panel in ChromIQ
+        # opts into a rounded one explicitly (B8-650) — see
+        # `ui.theme.panel_border_qss`. This swatch keeps its own fixed border
+        # colour (it is a colour chip, not a themed section) and only gains
+        # the radius.
         self._single_swatch.setStyleSheet(
-            f"background:#{r:02x}{g:02x}{b:02x}; border:1px solid #888;")
+            f"background:#{r:02x}{g:02x}{b:02x}; border:1px solid #888;"
+            " border-radius: 4px;")
 
     def _pick_single_colour(self) -> None:
         r, g, b = (max(0, min(255, round(c / 100 * 255)))

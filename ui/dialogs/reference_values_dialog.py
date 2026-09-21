@@ -45,6 +45,7 @@ from PyQt6.QtWidgets import (QApplication, QDialog, QFrame, QHBoxLayout,
 
 from core.i18n import tr
 from ui.styles import SPEC_GREEN
+from ui.theme import panel_border_qss
 from ui.tooltip_button import TooltipButton
 
 #: How a control in here is made short, and it is NOT ``setFixedHeight``.
@@ -552,6 +553,10 @@ class ReferenceValuesDialog(QDialog):
     def _section(self, src: Source) -> QFrame:
         box = QFrame(self)
         box.setFrameShape(QFrame.Shape.StyledPanel)
+        # Fusion draws a bare StyledPanel square; every other panel in ChromIQ
+        # opts into a rounded one explicitly (B8-650) — see
+        # `ui.theme.panel_border_qss`.
+        box.setStyleSheet(panel_border_qss())
         col = QVBoxLayout(box)
         col.setContentsMargins(12, 10, 12, 10)
         col.setSpacing(6)

@@ -389,3 +389,34 @@ def by_mode(light, dark, neutral, mode: "str | None" = None):
     return {APPEARANCE_LIGHT: light,
             APPEARANCE_DARK: dark,
             APPEARANCE_NEUTRAL: neutral}.get(mode or active_mode(), dark)
+
+
+def panel_border_qss(*, radius: int = 4, mode: "str | None" = None) -> str:
+    """The plain, colourless rounded outline for a bare ``QFrame(StyledPanel)``.
+
+    Sebastian photographed square corners on the section frames in the
+    Reference values window (2026-09-20) while every other panel in ChromIQ is
+    rounded. The cause: three ``QFrame`` instances call
+    ``setFrameShape(QFrame.Shape.StyledPanel)`` and never set a stylesheet, so
+    Fusion draws its native square bevel, while every rounded panel in the app
+    gets its radius from an explicit per-widget rule. There is no app-wide
+    ``QFrame`` rule to fall back on, and adding one is not the fix: roughly a
+    dozen other ``QFrame`` instances in the app are ``HLine``/``VLine``
+    separators, which Qt draws with a native sunken bevel that a stylesheet
+    rule on ``QFrame`` overrides the instant it matches, with no equivalent
+    rule of its own — every divider in the app would flatten. So this is
+    reached explicitly, per affected frame, not injected globally.
+
+    The values are measured against the nearest comparable section, not
+    guessed: a bare ``StyledPanel`` here is an outline with no tint, the same
+    shape ``QGroupBox`` already draws in all three appearance stylesheets
+    (``ui/styles.py``, ``ui/light_styles.py``, ``ui/neutral_styles.py``) at
+    ``border: 1px solid <BORDER>; border-radius: 4px``, which is why those are
+    this function's defaults. The tinted "info box" family
+    (:func:`info_box_qss`) was considered and rejected: those cards carry a
+    background wash that a plain categorising section never had, and adding
+    one here would be a redesign, not a corner fix.
+    """
+    border = by_mode(light_styles.LM_BORDER, styles.BORDER,
+                     neutral_styles.NM_BORDER, mode)
+    return f"QFrame {{ border: 1px solid {border}; border-radius: {radius}px; }}"
