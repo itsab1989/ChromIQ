@@ -978,6 +978,66 @@ M_VERIFY_NO_CONTROL_STRIP = _m(
     approved=True)   # Knut, 2026-09-19: "Yes, message text approved."
 
 
+# --- PROPOSED: the verification pre-flight, before a single patch is read --
+#: #182, Knut, 2026-09-21. Arriving on the Measure tab with a verification run
+#: whose chart is built and whose measurement has not started, the reader is
+#: told what the Measurement Report will be able to judge on THIS chart, while
+#: changing the chart still costs nothing. His words: *"The user is thus
+#: informed of both the existence of the measurement report and important info
+#: for a verification chart, as well as the need for the 'From Profile Gamut'
+#: feature and how to see which profiles are usable for verification with the
+#: 'Which presets can be used for verification?' feature, before any
+#: verification is started, so that the user can make an informed decision and
+#: make changes to the chart before measurement is started."*
+#:
+#: **WHAT IS AND IS NOT IN THIS BODY.** The list of metrics is NOT: it is
+#: built for the chart in front of the reader by
+#: `ui.dialogs.preset_verification_dialog.summary_lines`, which is the same
+#: function the presets window's own pane uses, because Knut asked for *"the
+#: same detailed information"* and two copies of that answer is exactly the
+#: fault this project keeps finding. This body is the frame around it.
+#:
+#: He asked for the wording to be shipped so he can review it as a working
+#: example, so it goes in a window while it waits: see the log-rule amendment
+#: in §M-PROPOSED.
+M_VERIFY_PREFLIGHT = _m(
+    "M-VERIFY-PREFLIGHT",
+    "Before you measure this verification chart",
+    "This run is a verification, so what you read here will be judged by the "
+    "Measurement Report: a table of metrics, each with a limit, saying "
+    "whether the print is inside it.\n\n"
+    "Not every chart can answer every metric. Which ones this chart can is "
+    "listed below, worked out from its patch set before anything is printed, "
+    "so you can still change the chart. A metric the chart cannot supply is "
+    "left out of the report and nothing else is affected, so falling short "
+    "does not make the chart wrong.\n\n"
+    "To compare patch sets before you settle on one, open “Which presets "
+    "can be used for verification” under the preset pulldown in Create "
+    "Chart. It judges every preset ChromIQ ships and every one of your own "
+    "against these same metrics, and its first line is the chart you have "
+    "now.\n\n"
+    "For the verification workflow end to end, see the help card “Check a "
+    "finished profile (verification run)” behind the question mark at the "
+    "top right of the window.",
+    approved=False)
+
+#: The paragraph M-VERIFY-PREFLIGHT carries only when a metric is missing that
+#: nothing but FROM PROFILE GAMUT can supply. Knut asked the reader to be
+#: *"instructed that some of the metrics' requirements can only be met using
+#: the 'From Profile Gamut' feature on a chart in Create Chart tab"* and, in
+#: the same breath, said he was *"not sure about all the required conditions
+#: for 'From Profile Gamut' feature to be visible"*. They were measured for
+#: B8-613 and this says what they are.
+M_VERIFY_PREFLIGHT_GAMUT = (
+    "Some of the metrics listed above can be met in only one way: they are "
+    "judged against a colorimetric reference, and ChromIQ writes one only "
+    "beside a chart built with FROM PROFILE GAMUT in the Create Chart tab.\n\n"
+    "That button sits beside GUIDED and MANUAL whenever Run type is "
+    "Verification. Before it can choose any colours the run must already hold "
+    "a built profile, and it lays the sheet out again from scratch, so a "
+    "preset that arrives as finished page images cannot be converted.")
+
+
 # --- PROPOSED: the how-was-this-sheet-printed question ---------------------
 # Asked once, at measure time, ONLY for a verification sheet that has no
 # print record — i.e. a sheet ChromIQ did not print itself. The answer decides
@@ -2545,7 +2605,7 @@ CATALOGUE = {m.id: m for m in (
     M_OVERLAY_NO_MEASUREMENT, M_ALL_STRIPS_PATCHES_LEFT,
     M_ENGINE_FELL_BACK,
     M_PATCHSET_MISSING,
-    M_VERIFY_NO_CONTROL_STRIP,
+    M_VERIFY_NO_CONTROL_STRIP, M_VERIFY_PREFLIGHT,
     M_PROJECT_EXISTS,
     M_PROJECT_REPLACE_CONFIRM,
     M_PROJECT_REPLACE_FAILED,

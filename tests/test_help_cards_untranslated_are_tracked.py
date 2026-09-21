@@ -755,18 +755,26 @@ _BUDGET = {
     # move (21)** and each of the eleven others rises by exactly 2. COUNTED
     # with this file's own `_english_echoes` on the catalogues this change
     # leaves behind, never adjusted upward.
+    # RE-MEASURED 2026-09-22 on the COMBINED tree, after merging four parallel
+    # rounds (the help-card rework, the verification pre-flight popup, the
+    # guided stamp and the rounded frames). Neither agent's numbers were taken:
+    # both rounds moved these files, so either set alone would have been stale
+    # the moment the other landed. COUNTED with this file's own helper on the
+    # tree this commit leaves behind, never adjusted upward. German is
+    # translated by hand in the same change and so moves only by strings that
+    # are identical in every language.
     "de": 22,
-    "es": 622,
-    "fr": 623,
-    "it": 622,
-    "ja": 622,
-    "nl": 622,
-    "no": 622,
-    "pl": 622,
-    "pt": 622,
-    "ru": 621,
-    "sv": 622,
-    "zh_CN": 621,
+    "es": 635,
+    "fr": 636,
+    "it": 635,
+    "ja": 635,
+    "nl": 635,
+    "no": 635,
+    "pl": 635,
+    "pt": 635,
+    "ru": 634,
+    "sv": 635,
+    "zh_CN": 634,
 }
 
 

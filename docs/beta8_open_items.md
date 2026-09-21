@@ -21291,3 +21291,265 @@ would reach.
 - found while validating this batch's own register entries, not by looking for
   it.
 - evidence: test_the_sweep_is_not_vacuous
+### B8-610 · FIXED · Nothing told a user what a verification chart could measure until after it was measured
+- blocks release: no
+- status: FIXED
+- asked for by: Knut, #182, 2026-09-21 (comment 5755696709, edited 07:30:45):
+  *"I see that there is one popup-message that is missing, that would help a
+  user in the process of verification."*
+- detail: a verification run's chart decides which metrics of the Measurement
+  Report can be judged at all, and a chart that cannot supply one is not wrong,
+  it is simply silent about it. The only place that was ever said was the
+  Measurement Report, which is produced after the sheet has been printed and
+  read. By then the cheap fix, a different patch set, costs a sheet and a
+  strip-reading session.
+- fix: `TabMeasure._show_verification_preflight_now`, a modal shown on entering
+  the Measure tab when, and only when, all four of Knut's conditions hold
+  together. They are one predicate, `_verification_preflight_due`: Run type is
+  Verification; the chart handed to the tab is a file that parses as a patch
+  set; there is no measurement, by the tab's own validity test; and no
+  measurement is running. One OK button, Escape closes it, and a tick keyed on
+  the profile run that lives in a set on the tab and is never written to disk.
+- **both of his triggers, and the second is the one he said would be missed.**
+  `showEvent` covers clicking the tab. Standing on the tab and switching
+  Profile run does not fire `showEvent` at all, so the tab also connects to the
+  measurement target bar's `changed`. Both queue through one `singleShot(0)`,
+  which is what makes them one window rather than two and what lets the chart
+  finish arriving: a run switch re-points it through Create Chart, in another
+  handler of the same signal.
+- the text is **§M-PROPOSED M-VERIFY-PREFLIGHT, `approved=False`**, shown in
+  the window under the log-rule amendment because Knut asked for it to be
+  shipped so that he could review it as a working example. The metric list in
+  it is not text at all: it is
+  `ui.dialogs.preset_verification_dialog.summary_lines`, the presets window's
+  own pane in short form, because he asked for *"the same detailed
+  information"* and *"a summary of that info […] so that the text does not
+  become too long"*.
+- **two faults were found by these guards rather than by reading**: the
+  measurement test asked `_measurement_at_risk` only, which returns None for a
+  verification with no dated folder yet and so could never see a `.ti3` sitting
+  beside the shared verification chart; and the summary's counted sentence went
+  through `count_phrase`, which formats `{n}` and hands the string back, so the
+  second placeholder died with `KeyError: 'total'`.
+- **and a third by MUTATING the guards.** The `.ti3` validity rule on the
+  DATED verification branch could be deleted with every test still green: no
+  test had a dated verification selected, so `_measurement_at_risk` returned
+  None throughout and that branch was never reached. Two tests were added that
+  do select one, with an empty file and with a real one, and the mutation now
+  lands both ways. The same round turned the "entering the tab" guard from a
+  source grep into a driven `showEvent`: the grep stayed green under a
+  mutation that deleted the call, because the COMMENT above it names the
+  method too.
+- 28 mutations were applied, `__pycache__` purged between each revert and
+  re-run. **26 land.** The two that do not are the same shape and were
+  measured rather than waved at: the behaviour is covered twice, so no
+  single-line mutation can expose it. `patch_count` of a path that is not
+  there returns 0, so the final `> 0` already refuses a chart whose file has
+  gone even with the `is_file()` early-out removed; and
+  `read_colorimetric_reference` of a file that is not there returns None, so
+  `if not blob` already refuses a chart whose reference was deleted even with
+  the `chart_conversion_state` check bypassed. Each cover is mutated
+  separately and each of those lands.
+- the guards live in
+  `tests/test_the_verification_preflight_fires_for_its_preconditions.py` and
+  in the message-catalogue suite.
+- evidence: test_the_window_is_owed_when_every_precondition_holds,
+  test_not_owed_when_the_run_type_is_not_verification,
+  test_not_owed_when_no_chart_has_been_generated,
+  test_not_owed_when_the_chart_file_has_gone,
+  test_not_owed_when_the_chart_holds_no_patch_set,
+  test_not_owed_when_a_measurement_already_exists,
+  test_still_owed_when_the_measurement_file_is_empty,
+  test_still_owed_when_a_dated_verifications_measurement_is_empty,
+  test_not_owed_when_a_dated_verification_holds_real_readings,
+  test_not_owed_while_a_measurement_is_running,
+  test_not_owed_once_the_tick_has_silenced_this_run,
+  test_the_tick_is_remembered_against_the_profile_run_and_nothing_finer,
+  test_the_pre_flight_tick_has_its_own_set,
+  test_the_tick_is_never_written_to_disk,
+  test_the_tick_uses_knuts_own_wording,
+  test_entering_the_tab_asks_for_the_window,
+  test_switching_profile_run_while_standing_here_asks_for_it,
+  test_the_window_says_what_the_presets_window_says,
+  test_the_window_frames_it_with_the_catalogue,
+  test_the_gamut_paragraph_is_shown_only_when_it_is_the_lever,
+  test_nothing_is_quietly_proposed,
+  test_the_awaiting_review_section_holds_exactly_the_proposed_messages,
+  test_the_window_takes_its_text_from_the_catalogue,
+  test_the_window_writes_no_prose_of_its_own
+
+### B8-611 · FIXED · The presets window judged 177 charts and never the one the user had
+- blocks release: no
+- status: FIXED
+- asked for by: Knut, #182, 2026-09-21 07:47: *"the first line should be a
+  separate line not part of the presets list, but representing the current
+  layout defined in Create Chart […] shown as 'Current chart layout in Create
+  Chart tab'."*
+- detail: "Which presets can be used for verification" answered the question
+  about every chart except the one on screen. A reader could see that some
+  preset answers fourteen metrics and still not know what their own chart
+  answers.
+- fix: `TabChart.current_chart_row` builds a `PresetRow` for the chart the tab
+  is showing and `PresetVerificationDialog` lists it as top-level row 0, above
+  a `QFrame` rule whose item carries `Qt.ItemFlag.NoItemFlags` so neither a
+  click nor the keyboard can land on it. The star filter cannot remove it. A
+  double-click is refused on the row itself rather than on a missing key. With
+  no chart, the pane says so and says a chart must be created first, in its own
+  words: the preset sentence ("This preset stores settings only") is false of
+  it.
+- **he asked us to check the preconditions rather than assume them**, and they
+  are: a patch set exists = the chart the tab shows is a file on disk
+  (`_shown_chart_ti2`, the handle `_target_holds_a_chart` already used); the
+  page count is COUNTED from the sheets beside it rather than declared, which
+  is why this row never reaches the "ChromIQ cannot tell how many pages this
+  preset lays out" sentence that a user preset does; and whether FROM PROFILE
+  GAMUT was applied is `chart_conversion_state`, the Print tab's own predicate.
+- the pane's content moved out of `_show_detail` into `detail_lines`, so
+  B8-610's window shows the same sentences from the same function.
+- **AND THE WINDOW NOW OPENS ON THAT LINE when the pulldown names no preset**,
+  which is a small thing Knut did not ask for and may wave away. Photographed
+  before it: the window opened with the new line at the top, 177 rows under it
+  and a detail pane reading "Select a preset on the left to see what it can
+  answer" — the same emptiness B8-423 fixed for the preset case, on a window
+  that now has the reader's own chart in it. A preset named by the caller
+  still wins.
+- the guards live in
+  `tests/test_the_presets_window_lists_the_current_chart_first.py`.
+- evidence: test_the_current_chart_is_the_first_line_and_is_not_in_a_group,
+  test_a_separator_under_it_takes_no_click,
+  test_the_tick_box_cannot_hide_the_current_chart,
+  test_a_double_click_on_it_loads_nothing,
+  test_a_double_click_on_a_real_preset_still_loads_it,
+  test_with_no_chart_the_pane_says_one_must_be_created,
+  test_the_window_opens_on_the_current_chart_when_no_preset_is_named,
+  test_a_named_preset_still_wins_over_the_current_chart,
+  test_the_pane_renders_detail_lines_and_decides_nothing_itself,
+  test_the_summary_is_shorter_than_the_pane_and_says_the_same_things
+
+### B8-612 · FIXED · The eligibility check could not see a FROM PROFILE GAMUT chart at all
+- blocks release: no
+- status: FIXED
+- detail: `preset_eligibility._perfect_print` set `reference_source` to the
+  constant `"design"`, which is right about every preset ChromIQ ships and
+  wrong about the one chart that can be otherwise. So the three metrics judged
+  against a colorimetric reference read `needs_reference_file` even on a chart
+  built FROM PROFILE GAMUT, which is the only way a chart ever acquires one.
+  Knut asked for exactly this difference: *"including if the current chart has
+  applied the 'From Profile Gamut' feature"*, and *"If the current chart has
+  been applied with the 'From Profile Gamut' feature, then those metrics that
+  require this can also be verified."*
+- fix: the state is READ OFF THE FILE, by `chart_conversion_state`, never
+  passed in as a claim, so no window can promise a reference a chart has not
+  got. A converted chart is modelled with the corners its own reference
+  declares, and the three rows are then answered by the report's own code.
+- **and the corner block is the report's, not a copy of it.**
+  `measurement_report.corners_block` was lifted out of `analyse` unchanged and
+  is now called from both places. Writing a second "is there a patch at this
+  corner" test is precisely the fault that module's docstring exists to
+  prevent.
+- the assessment cache is keyed on the reference file's own mtime and size as
+  well as the chart's, because the reference is written AFTER the sheet is laid
+  out: keyed on the chart alone, the first assessment of a freshly built gamut
+  chart is the wrong one and stays wrong for the session.
+- a chart whose sidecar claims a reference that is gone
+  (`converted-reference-missing`) is not believed, and the rows fall back to
+  `needs_reference_file`, whose remedy (build it FROM PROFILE GAMUT) is the
+  right instruction for that sheet.
+- the guards live in
+  `tests/test_the_presets_window_lists_the_current_chart_first.py`.
+- evidence: test_an_ordinary_chart_cannot_answer_the_reference_metrics,
+  test_a_from_profile_gamut_chart_answers_them,
+  test_the_answer_is_not_served_from_a_stale_cache,
+  test_a_reference_that_has_gone_is_not_believed,
+  test_the_pane_says_which_of_the_two_this_chart_is,
+  test_the_corner_chart_still_holds_every_corner
+
+### B8-613 · FIXED · The conditions for FROM PROFILE GAMUT's visibility, measured
+- blocks release: no
+- status: FIXED
+- Knut asked the question himself, 2026-09-21: the pre-flight should name the
+  feature, *"(only visible while run type=verification and a profile on the run
+  exists (not sure about all the required conditions for 'From Profile Gamut'
+  feature to be visible?))"*.
+- **measured in the code rather than guessed, and his guess is half right.**
+  `TabChart._refresh_gamut_visibility` is the single authority, and the BUTTON
+  is governed by one condition only: `self._gamut_btn.setVisible(is_verif)`,
+  where `is_verif` is `ctl.target.is_verification()`. A built profile is NOT
+  required for the button to appear.
+- what the profile decides is what the module can do once it is chosen.
+  `_refresh_gamut_state`: `has = self._gamut_profile() is not None` shows the
+  options group and hides the empty-state label, and `_generate_btn` is enabled
+  only `has and not self._runner.is_running`. `_gamut_profile()` is the run's
+  `built_profile_icc()` and returns None unless the file exists. The module is
+  also SELECTED by itself, rather than merely shown, when a profile exists and
+  the user has not chosen a module by hand.
+- one further condition nobody had written down: with calibration options on in
+  Preferences, the whole mode row is hidden unless the run is a verification
+  (`_mode_row_widget.setVisible(is_verif)`), so on a calibration-mode install
+  the three buttons appear and disappear together.
+- the button is never `setEnabled(False)`; it is only shown, hidden and
+  checked.
+- **this is a measurement, not a ruling.** M-VERIFY-PREFLIGHT's gamut
+  paragraph says these conditions in the user's words and, like the rest of
+  that message, waits for Knut.
+- the visibility predicates themselves are pinned by the existing Create Chart
+  batch suite, `tests/test_knut_beta25_create_chart_batch.py`; the guard below
+  pins that the pre-flight names the feature when, and only when, it is the
+  lever.
+- evidence: test_the_gamut_paragraph_is_shown_only_when_it_is_the_lever
+
+### B8-614 · FIXED · The register-citation sweep read nothing at all in a git worktree
+- blocks release: no
+- status: FIXED
+- found by: running the everyday tier from `.claude/worktrees/agent-<id>/`,
+  which is where every agent on this project works.
+  `test_the_sweep_is_not_vacuous` failed with *"only 0 citations found; the
+  sweep is broken"* on an unmodified tree.
+- detail: `_files()` skipped a path when `_SKIP_DIRS.intersection(p.parts)` was
+  non-empty, and `p` is ABSOLUTE. `.claude` is in the skip list, so a checkout
+  living under `.claude/worktrees/` had every one of its own files skipped and
+  the sweep checked nothing. The guard that guards the guard is what caught it,
+  which is what it is for.
+- this is the exact hole the file's own next test warns about in prose ("it
+  matches the NAME wherever it appears"), and that test already asks the
+  question RELATIVELY, against `git ls-files`. The two now agree.
+- fix: `_SKIP_DIRS.intersection(p.relative_to(ROOT).parts)`. In an ordinary
+  checkout nothing changes; in a worktree the sweep reads the tree again. With
+  it applied the sweep immediately went red on this round's own five new B8
+  citations, which is the behaviour it had lost.
+- the guards are the file's own, in
+  `tests/test_every_register_citation_names_a_real_entry.py`.
+- evidence: test_the_sweep_is_not_vacuous,
+  test_the_skip_list_hides_nothing_that_is_IN_the_tree,
+  test_every_b8_citation_names_an_entry_that_exists
+
+### B8-615 · FIXED · A §M headline set with setWindowTitle is not drawn at all on macOS
+- blocks release: no
+- status: FIXED
+- found by: photographing the pre-flight in a REAL window. The picture shows a
+  title bar with the three traffic lights and **no text in it**, and the
+  window opening straight into its second sentence: "This run is a
+  verification, so what you read here…". §M's headline, "Before you measure
+  this verification chart", was set on the window and was nowhere on screen.
+- detail: the house pattern for a catalogued window is
+  `box.setWindowTitle(title); box.setText(body)` (see
+  `TabMeasure._cr30_stock_reader_window`). macOS does not draw a title on a
+  `QMessageBox`, so on this platform the pattern puts the headline where
+  nobody can read it. Every §M message carries a headline AND a body, and
+  `test_every_message_has_a_headline_and_a_body` insists on it, so the
+  headline is meant to be read.
+- fix, **for this window only**: `_verification_preflight_message` returns the
+  headline as the first paragraph of the text, and the window title is still
+  set for the platforms that draw one. Nothing else is touched.
+- **the same shape is very likely true of the other catalogued
+  QMessageBox windows on this platform** (M-CR30-STOCK-READER and its
+  siblings). That is a LEAD, not a finding: it has not been photographed, and
+  changing those windows is a change to text that is already approved, so it
+  wants Knut or Basti rather than a sweep. Recorded here so the next round
+  does not have to find it again.
+- and the same blindness cost this driver a whole run before it cost the user
+  anything: it identified the pre-flight by `windowTitle()` and reported "the
+  pre-flight did not appear" beside a photograph of the pre-flight. It now
+  identifies the window by what it says.
+- evidence: test_the_headline_is_in_the_text_and_not_only_in_the_title_bar
+

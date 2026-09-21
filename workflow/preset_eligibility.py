@@ -45,13 +45,17 @@ keeps finding.
 
 * ``sheet_kind`` is ``"verification"``: the question is what the chart can do
   *when used as a verification sheet*, which is the question asked.
-* ``reference_source`` is ``"design"``, which is what a preset chart really
-  gets. A colorimetric reference is written only beside a chart built FROM
-  PROFILE GAMUT (:func:`workflow.verification_print.chart_conversion_state`),
-  and no preset ships one, so the three reference rows read
-  ``needs_reference_file`` here for every preset on the list. That is not a
-  pessimistic guess, it is the state, and the row's own remedy text already
-  says what to do about it.
+* ``reference_source`` is **read off the chart**, not assumed. A colorimetric
+  reference is written only beside a chart built FROM PROFILE GAMUT
+  (:func:`workflow.verification_print.chart_conversion_state`), and no preset
+  ships one, so the three reference rows read ``needs_reference_file`` for
+  every preset on the list. That is not a pessimistic guess, it is the state,
+  and the row's own remedy text already says what to do about it. The CURRENT
+  chart in Create Chart is the case where the answer differs, and B8-612 is
+  where that was built: Knut asked the same check to run against it
+  *"including if the current chart has applied the 'From Profile Gamut'
+  feature"*, so a converted chart is modelled with its own declared corners
+  and those three rows are answered.
 * the measured colours are the chart's own aim values, so every ΔE00 is zero.
   Nothing in this module reads a number out of the stand-in report; only the
   reasons are read.
@@ -198,14 +202,24 @@ def _perfect_print(chart: Path) -> dict:
     ref = {sid: tuple(lab[i]) for i, sid in enumerate(data.sample_ids)}
     n = len(data.sample_ids)
 
+    # **DOES THIS CHART CARRY THE PROFILE'S OWN CONVERSION?** (B8-612.)
+    # A preset never does, which is why this used to be the constant
+    # "design" -- see the module docstring. The CURRENT chart in Create Chart
+    # can, and Knut asked for that difference to be honoured: *"the check if
+    # the current chart fulfils all the metric requirements, including if the
+    # current chart has applied the 'From Profile Gamut' feature"*.
+    #
+    # ASKED OF THE FILE, never of a flag a caller passes in, so no window can
+    # claim a reference a chart does not have. `chart_conversion_state` is the
+    # Print tab's own predicate (§3.1a), so there is one answer to "is this a
+    # converted chart" in the application, not two.
+    corner_ids, corner_devices = _declared_corners(chart)
+    colorimetric = corner_ids is not None
     report: dict = {
         "patches": n,
         "sheet_kind": "verification",
         "is_verification": True,
-        # See the module docstring: a preset chart never carries a colorimetric
-        # reference, and claiming one here would promise three rows it cannot
-        # answer.
-        "reference_source": "design",
+        "reference_source": "colorimetric" if colorimetric else "design",
         "de00": MR._stats([0.0] * n),
         "grey_balance": MR.grey_balance_block(rgb100, lab, ref, data.sample_ids),
         "ramps_30_70": MR.ramps_block(rgb100, lab, ref, data.sample_ids),
@@ -214,7 +228,52 @@ def _perfect_print(chart: Path) -> dict:
         "control_strip": MR.control_strip_block(
             lab, ref, data.sample_ids, _declaration_it_would_get(chart)),
     }
+    if colorimetric:
+        # The three reference rows are computed from this block and nothing
+        # else, so it is built by the report's OWN `corners_block` rather than
+        # by a second reading of what a corner is.
+        report["corners"] = MR.corners_block(rgb100, lab, ref, data,
+                                             corner_ids, corner_devices)
     return report
+
+
+def _declared_corners(chart: Path) -> "tuple[list | None, dict | None]":
+    """``(corner sample ids, {id: device})`` for a FROM PROFILE GAMUT chart.
+
+    ``(None, None)`` for every other chart, which is every preset ChromIQ
+    ships and every chart laid out the ordinary way.
+
+    A chart built FROM PROFILE GAMUT is printed in the profile's own numbers,
+    so what comes off the press IS the aim, and the sheet carries that aim
+    beside it as ``<stem>-reference.ti3`` with ``CHROMIQ_CORNER_IDS`` naming
+    the eight patches printed at exact cube corners
+    (:func:`workflow.gamut_target.write_colorimetric_reference`).
+
+    **A CHART WHOSE REFERENCE HAS GONE IS NOT TREATED AS CONVERTED.**
+    `chart_conversion_state` answers ``converted-reference-missing`` when the
+    sidecar claims one and the file is not there; there is then nothing to
+    read the corners out of, so the three rows fall back to
+    ``needs_reference_file`` and the remedy that reason carries -- build it
+    FROM PROFILE GAMUT -- is the right instruction for a sheet whose reference
+    has been deleted.
+    """
+    from workflow.verification_print import (STATE_CONVERTED,
+                                             chart_conversion_state,
+                                             colorimetric_reference_for)
+    if chart_conversion_state(chart) != STATE_CONVERTED:
+        return None, None
+    from workflow.gamut_target import read_colorimetric_reference
+    try:
+        blob = read_colorimetric_reference(colorimetric_reference_for(chart))
+    except (OSError, ValueError):
+        return None, None
+    if not blob:
+        return None, None
+    ids = list(blob.get("corner_ids") or [])
+    devices = dict(blob.get("devices") or {})
+    if not ids or not devices:
+        return None, None
+    return ids, devices
 
 
 def _declaration_it_would_get(chart: Path) -> "dict | None":
@@ -288,7 +347,8 @@ def chart_row_values(chart: "str | Path") -> "dict[str, dict]":
     p = Path(chart)
     try:
         st = p.stat()
-        key = (str(p.resolve()), st.st_mtime_ns, st.st_size)
+        key = (str(p.resolve()), st.st_mtime_ns, st.st_size,
+               _reference_stamp(p))
     except OSError as exc:
         raise Ti3ParseError(str(exc)) from exc
     hit = _CACHE.get(key)
@@ -296,6 +356,25 @@ def chart_row_values(chart: "str | Path") -> "dict[str, dict]":
         hit = MR.row_values(_perfect_print(p))
         _CACHE[key] = hit
     return hit
+
+
+def _reference_stamp(chart: Path) -> tuple:
+    """The colorimetric reference's own (mtime, size), or ``()``.
+
+    **PART OF THE CACHE KEY, because the answer depends on a SECOND file.**
+    Since B8-612 a chart built FROM PROFILE GAMUT answers three rows a chart
+    without a reference cannot, and the chart file itself does not change when
+    that reference is written beside it: `_write_gamut_reference_after_adopt`
+    runs after the sheet has been laid out. Keyed on the chart alone, the very
+    first assessment of a freshly built gamut chart would be the one that is
+    wrong, and it would stay wrong for the rest of the session.
+    """
+    from workflow.verification_print import colorimetric_reference_for
+    try:
+        st = colorimetric_reference_for(chart).stat()
+    except OSError:
+        return ()
+    return (st.st_mtime_ns, st.st_size)
 
 
 def clear_cache() -> None:
@@ -371,6 +450,10 @@ class Assessment:
     @property
     def answers_everything(self) -> bool:
         return self.checked and not self.missing
+
+    def missing_ids(self) -> "tuple[str, ...]":
+        """Just the row ids of :attr:`missing`, without their reasons."""
+        return tuple(rid for rid, _why in self.missing)
 
     @property
     def patch_shortfalls(self) -> "tuple[tuple[str, str], ...]":

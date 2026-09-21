@@ -1156,18 +1156,26 @@ _IDENTICAL_TO_KEY = {
     # exactly 2, which is the two new keys carrying their English source under
     # the beta rule. COUNTED off the catalogues this change leaves behind,
     # never adjusted upward.
+    # RE-MEASURED 2026-09-22 on the COMBINED tree, after merging four parallel
+    # rounds (the help-card rework, the verification pre-flight popup, the
+    # guided stamp and the rounded frames). Neither agent's numbers were taken:
+    # both rounds moved these files, so either set alone would have been stale
+    # the moment the other landed. COUNTED with this file's own helper on the
+    # tree this commit leaves behind, never adjusted upward. German is
+    # translated by hand in the same change and so moves only by strings that
+    # are identical in every language.
     "de": 146,
-    "es": 876,
-    "fr": 898,
-    "it": 887,
-    "ja": 862,
-    "nl": 903,
-    "no": 888,
-    "pl": 880,
-    "pt": 878,
-    "ru": 851,
-    "sv": 889,
-    "zh_CN": 856,
+    "es": 891,
+    "fr": 913,
+    "it": 902,
+    "ja": 877,
+    "nl": 918,
+    "no": 903,
+    "pl": 895,
+    "pt": 893,
+    "ru": 866,
+    "sv": 904,
+    "zh_CN": 871,
 }
 
 

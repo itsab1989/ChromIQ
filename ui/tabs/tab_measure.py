@@ -1222,6 +1222,20 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # silence the other — they say different things and one of them is the
         # last guard before readings are overwritten.
         self._offer_silenced: set = set()
+        # …and the third, for the verification pre-flight (#182, Knut,
+        # 2026-09-21). A SEPARATE set again, for the same reason: its tick
+        # says "do not show this message again", about this message. Keys come
+        # from `_preflight_scope`, which is NOT `_replace_warning_scope` --
+        # see the note there. IN MEMORY ONLY: *"until I restart ChromIQ"*, so
+        # nothing about it is written into the project on disk.
+        self._preflight_silenced: set = set()
+        #: True only while the pre-flight is on screen, so two queued triggers
+        #: cannot stack two windows.
+        self._preflight_open: bool = False
+        #: True between asking for the pre-flight and the event loop getting
+        #: round to it; coalesces the show-event and the run-switch triggers,
+        #: which arrive together whenever a run switch brings the tab forward.
+        self._preflight_queued: bool = False
         # A chart was loaded while another tab was on screen and still owes the
         # user the "this chart already has a measurement" offer — made when this
         # tab is next shown. See set_ti1_path / showEvent. (Since #130
@@ -1508,6 +1522,18 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # button follows the bar — and the destination line inside the module
         # follows the selected run / verification date.
         controller.changed.connect(self._refresh_import_visibility)
+        # **KNUT'S SECOND TRIGGER, AND THE ONE HE SAID WOULD BE MISSED**
+        # (#182, 2026-09-21): *"by standing on Measure tab on a different
+        # 'Profile run' and then changing 'Profile run' to the run that has
+        # the above preconditions fulfilled, thus entering the Measure tab"*.
+        # `showEvent` does not fire for that, because the tab never leaves the
+        # screen. `changed` is the bar's one signal for a new selection, and
+        # it carries a run-type change too, which is the same arrival by
+        # another door.
+        #
+        # A BOUND METHOD, never a self-capturing lambda on a signal
+        # (CLAUDE.md, the fade-scroll SIGSEGV).
+        controller.changed.connect(self._queue_verification_preflight)
         self._refresh_import_visibility()
 
     # ------------------------------------------------------------------
@@ -3966,6 +3992,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # paint completely first, and the window then opens over a finished
         # screen.
         self._queue_overlay_offer()
+        # KNUT'S FIRST TRIGGER for the verification pre-flight (#182,
+        # 2026-09-21): *"entering the Measure tab […] by clicking on Measure
+        # tab"*. The second, the run switch made while already standing here,
+        # is on the target controller's `changed` — see
+        # `_queue_verification_preflight` and `set_target_controller`.
+        self._queue_verification_preflight()
 
     def _queue_overlay_offer(self) -> None:
         """Ask for the existing-measurement offer on the next turn of the event
@@ -13878,6 +13910,286 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         except Exception:      # noqa: BLE001
             pass
         return tr("Don't ask again for this profile run, until I close ChromIQ")
+
+    # -- the verification pre-flight (#182, Knut, 2026-09-21) -------------
+    #
+    # "There is one popup-message that is missing, that would help a user in
+    # the process of verification." Arriving on this tab with a verification
+    # run whose chart is built and whose measurement has not begun, the reader
+    # is told what the Measurement Report will be able to judge on THAT chart,
+    # at the last moment when changing the chart is still free.
+    #
+    # **FOUR PRECONDITIONS, AND HE IS EXPLICIT THAT IT MUST FIRE ON NONE
+    # OTHER**: *"test that this popup-window only comes for the defined
+    # preconditions"*. They are one predicate, `_verification_preflight_due`,
+    # so there is one place to read them and one place to test them.
+
+    def _verification_preflight_due(self) -> bool:
+        """Whether the pre-flight window is owed, right now.
+
+        1. **Run type is Verification** — `_is_verification_run`, the tab's own
+           accessor, which asks the shared Run type and nothing else.
+        2. **A chart with a patch set exists.** Knut: *"Either made manually,
+           or imported as ti2 file, or loaded a preset etc. Whatever method
+           that was used is not relevant, only that a chart with a patch set
+           exists"*, and *"a chart needs to have been generated with a layout
+           that has a given patch set, as a minimum"*. So: the chart handed to
+           this tab is a file on disk and it parses as a patch set. HOW it got
+           there is never asked.
+        3. **No measurement yet.** He named the rule himself: *"the criteria
+           used for checking if a ti3 is valid is used by other checks in the
+           Measure tab, f.ex. when clicking Start Measurement"*. That is
+           `_measurement_at_risk` (which knows a verification's readings live
+           in its dated folder, not beside the shared chart) put through
+           `_cgats_has_no_readings` (which is what "empty or invalid" means
+           everywhere else on this tab). **No second definition is written
+           here**; both halves are the ones Start Measurement already uses.
+        4. **Measurement not yet initiated** — `a_measurement_is_running`,
+           the tab's combined session-and-process answer.
+
+        …and the tick, which is not one of his four but is the fifth thing
+        that can withhold the window: a run the reader has silenced for this
+        session.
+        """
+        if not self._is_verification_run():
+            return False
+        if self.a_measurement_is_running() or self._runner.is_running:
+            return False
+        chart = getattr(self, "_ti1_path", None)
+        if chart is None or not Path(chart).is_file():
+            return False
+        # **BOTH OF THE TAB'S OWN ANSWERS, BECAUSE A VERIFICATION KEEPS ITS
+        # READINGS SOMEWHERE ELSE.** `_measurement_at_risk` looks in the dated
+        # verification folder, which is where a verification's `.ti3` really
+        # goes and which `_existing_ti3_for_chart` cannot see (#131:
+        # "keying on the chart-adjacent .ti3 meant the warning could never
+        # fire for a verification at all"). `_existing_ti3_for_chart` looks
+        # beside the chart, which the other one skips entirely for a
+        # verification. Asking only one of them left a hole a guard walked
+        # straight into. Neither defines validity for itself: both are
+        # `_cgats_has_no_readings`, the tab's one test for "empty or invalid".
+        if self._existing_ti3_for_chart() is not None:
+            return False
+        ti3 = self._measurement_at_risk()
+        if ti3 is not None and not _cgats_has_no_readings(ti3):
+            return False
+        scope = self._preflight_scope()
+        if scope is not None and scope in self._preflight_silenced:
+            return False
+        # LAST, because it reads and parses the chart. Everything cheap that
+        # can say "no" has said it by now.
+        from workflow.preset_eligibility import patch_count
+        return patch_count(chart) > 0
+
+    def _preflight_scope(self) -> "tuple | None":
+        """What the pre-flight's tick is remembered against, or None.
+
+        **NOT `_replace_warning_scope`, and the difference is the whole
+        point.** That one returns None for a verification whose dated folder
+        holds no measurement, which is *precisely* the state this window fires
+        in, so keying on it would mean the tick could never be honoured. It is
+        right for its own window, whose subject is a measurement that exists.
+
+        Knut's tick says *"for this profile run"*, so the key is the profile
+        run: the project root and the run id, and nothing finer. Keying on the
+        dated verification as well would ask again inside the same profile run
+        and break the promise the label makes.
+        """
+        ctl = getattr(self, "_target_ctl", None)
+        if ctl is None:
+            return None
+        try:
+            proj = ctl.project_or_none()
+            if proj is None:
+                return None
+            run_id = ctl.target.profile_run
+            if not run_id or not proj.has_run(run_id):
+                return None            # "New run" names nothing to key on
+            return (str(proj.root), run_id)
+        except Exception:      # noqa: BLE001 — a scope is a convenience
+            return None
+
+    def _preflight_silence_label(self) -> str:
+        """Knut's own words for the tick, 2026-09-21."""
+        return tr("Do not show this message again for this profile run, "
+                  "until I close ChromIQ")
+
+    def _preflight_chart_row(self):
+        """The chart this tab holds, as the presets window's own row type.
+
+        The SAME row the presets window's first line is built from, so the two
+        windows judge one chart with one piece of code. `TabChart` builds it
+        for its own window; this tab has the chart path already (the Create
+        Chart tab hands it over through `set_ti1_path`), so it builds the row
+        from that rather than reaching across into another tab.
+        """
+        from ui.dialogs.preset_verification_dialog import PresetRow
+        from workflow.preset_eligibility import patch_count
+        from workflow.verification_print import (STATE_CONVERTED,
+                                                 chart_conversion_state)
+        chart = Path(self._ti1_path)
+        return PresetRow(
+            group="", label="", chart=chart, patches=patch_count(chart),
+            pages=len(list(chart.parent.glob(chart.stem + "_*.tif"))),
+            builtin=False, key=None, is_current_chart=True,
+            from_profile_gamut=chart_conversion_state(chart) == STATE_CONVERTED)
+
+    def _preflight_selection(self) -> "tuple[str, str, dict | None]":
+        """The report type and limit set this run will really be judged by.
+
+        The presets window asks the reader to choose both, because it is
+        comparing 177 charts and the answer moves with the choice. This window
+        is about ONE chart, the reader's own, and guessing would make it
+        describe a report they are not going to produce: so it asks the RUN,
+        through the same two accessors the Measurement Report asks
+        (`run_report_type` and `run_limits`), and falls back to the
+        application defaults only when there is no run to ask.
+        """
+        from core.settings import compliance_overrides_of
+        from workflow.measurement_report import REPORT_TYPE_DEFAULT
+        overrides = compliance_overrides_of(self._settings)
+        type_id, set_id = REPORT_TYPE_DEFAULT, ""
+        try:
+            from workflow.compliance_sets import DEFAULT_SET_ID
+            from workflow.run_compliance import run_limits, run_report_type
+            ctl = self._target_ctl
+            proj = ctl.project_or_none()
+            run = proj.run(ctl.target.profile_run) if proj is not None else None
+            type_id = run_report_type(run) or REPORT_TYPE_DEFAULT
+            set_id = run_limits(
+                run, overrides,
+                str(self._settings.get("compliance_default_set",
+                                       DEFAULT_SET_ID) or DEFAULT_SET_ID)).set_id
+        except Exception:      # noqa: BLE001 — the defaults are a fair answer
+            log.debug("could not read the run's report settings", exc_info=True)
+            if not set_id:
+                from workflow.compliance_sets import DEFAULT_SET_ID
+                set_id = DEFAULT_SET_ID
+        return type_id, set_id, overrides
+
+    def _verification_preflight_message(self, row) -> "tuple[str, str]":
+        """§M's frame, with this chart's own answer set into it.
+
+        The frame is **M-VERIFY-PREFLIGHT** and nothing else in here writes a
+        sentence. The metric list is
+        `ui.dialogs.preset_verification_dialog.summary_lines`, which is the
+        presets window's own pane in short form, because Knut asked this
+        window to *"initiate the same function used inside 'Which presets can
+        be used for verification?' window"* and to show *"a summary of that
+        info […] so that the text does not become too long"*.
+
+        The FROM PROFILE GAMUT paragraph is appended only when a metric is
+        missing that nothing else can supply, so a reader whose chart already
+        carries the reference is not sent after a feature they have used.
+        """
+        from ui.dialogs.preset_verification_dialog import (gamut_only_shortfalls,
+                                                           summary_lines)
+        from workflow import measurement_messages as M
+        title, body = M.M_VERIFY_PREFLIGHT.render()
+        # **THE HEADLINE IS IN THE TEXT, NOT ONLY IN THE TITLE BAR** (B8-615).
+        # Photographed on screen: macOS draws no title on a `QMessageBox`, so
+        # `setWindowTitle` put §M's headline somewhere nobody can read it and
+        # the window opened straight into its second sentence. It is still set
+        # on the window as well, for the platforms that do draw one.
+        # A BLANK LINE BETWEEN THE TOP-LEVEL SENTENCES AND NONE UNDER A METRIC.
+        # Photographed before this: the gamut note, the count and "Nothing is
+        # missing" arrived as three lines of one solid block, which reads as a
+        # paragraph and is three separate statements. A metric and the reason
+        # under it are the opposite case and stay tight together, which is what
+        # the indent is already saying.
+        block: "list[str]" = []
+        for line in summary_lines(row):
+            if block and not line.indent:
+                block.append("")
+            block.append(" " * line.indent + line.text)
+        parts = [title, body, "\n".join(block)]
+        if gamut_only_shortfalls(row):
+            parts.append(tr(M.M_VERIFY_PREFLIGHT_GAMUT))
+        return title, "\n\n".join(parts)
+
+    def _queue_verification_preflight(self) -> None:
+        """Ask for the pre-flight on the next turn of the event loop, once.
+
+        **BOTH OF KNUT'S TRIGGERS ARRIVE HERE**, and the second is the one he
+        warned would be missed: *"either by clicking on Measure tab or by
+        standing on Measure tab on a different 'Profile run' and then changing
+        'Profile run' to the run that has the above preconditions fulfilled"*.
+        The first is `showEvent`; the second is the target controller's
+        `changed`, which `set_target_controller` connects.
+
+        Deferred for the same two reasons `_queue_overlay_offer` is. A modal
+        opened inside `showEvent` comes up over a half-painted tab (Knut,
+        #130 2026-07-28), and on a run switch the chart itself does not arrive
+        until Create Chart has re-pointed it through `main_window`, which
+        happens in another handler of the same signal: asked synchronously,
+        this would read the OLD run's chart or no chart at all.
+        """
+        if getattr(self, "_preflight_queued", False):
+            return
+        self._preflight_queued = True
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(0, self._show_verification_preflight_now)
+
+    def _show_verification_preflight_now(self) -> None:
+        """Show it, if it is still owed once the tab has painted."""
+        self._preflight_queued = False
+        if not self.isVisible():
+            return
+        # NEVER TWO AT ONCE, and never over the existing-measurement offer:
+        # both are queued on the same turn when a run switch lands, and two
+        # modals stacked on one another is how a reader loses track of which
+        # question they are answering. They cannot both be due in practice
+        # (this one needs no measurement, that one needs one), but a guard
+        # that depends on that staying true is a guard waiting to fail.
+        if getattr(self, "_preflight_open", False) or \
+                getattr(self, "_offer_open", False):
+            return
+        try:
+            if not self._verification_preflight_due():
+                return
+            row = self._preflight_chart_row()
+            type_id, set_id, overrides = self._preflight_selection()
+            from workflow import preset_eligibility as PE
+            row.assessment = PE.assess(row.chart, type_id, set_id, overrides)
+        except Exception:      # noqa: BLE001 — an advisory window, never a gate
+            log.warning("could not prepare the verification pre-flight",
+                        exc_info=True)
+            return
+        from PyQt6.QtWidgets import QCheckBox, QMessageBox
+        title, text = self._verification_preflight_message(row)
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Icon.NoIcon)
+        box.setWindowTitle(title)
+        box.setText(text)
+        # ONE BUTTON, AND ESCAPE CLOSES IT. Knut: *"The pop-up window only
+        # needs one button saying 'OK', which closes the window (ESC button
+        # also closes window, as per standard behaviour of popup windows)."*
+        # A QMessageBox with a single button routes Escape to it, so the
+        # standard behaviour is the behaviour without a second code path.
+        ok = box.addButton(QMessageBox.StandardButton.Ok)
+        box.setDefaultButton(ok)
+        box.setEscapeButton(ok)
+        scope = self._preflight_scope()
+        cb = None
+        if scope is not None:
+            cb = QCheckBox(self._preflight_silence_label(), box)
+            box.setCheckBox(cb)
+        from ui.widgets import fit_message_box_buttons
+        fit_message_box_buttons(box)
+        self._preflight_open = True
+        try:
+            box.exec()
+        finally:
+            self._preflight_open = False
+        # **REMEMBERED IN THIS PROCESS AND NOWHERE ELSE.** Knut: *"this window
+        # will not come again for this run until I restart ChromIQ"*. A set on
+        # the tab dies with the tab, so there is nothing on disk to forget to
+        # clear and no project file that could carry the answer to another
+        # machine.
+        if cb is not None and cb.isChecked():
+            self._preflight_silenced.add(scope)
+            log.info("Verification pre-flight silenced for %s (this session)",
+                     scope)
 
     def _measurement_at_risk(self) -> "Path | None":
         """The measurement a plain re-read would overwrite, or None.

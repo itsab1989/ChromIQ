@@ -139,6 +139,13 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # (Knut D25) and the not-certification note at
                                  # the foot of the Report limits window (D11,
                                  # D24); the wording waits for Knut (K-g).
+                                 # #182, 2026-09-21: the verification
+                                 # pre-flight. Knut specified the WINDOW and
+                                 # asked for the text to be drafted and
+                                 # shipped so he can review it as a working
+                                 # example, so it is a proposal for him and
+                                 # not settled wording.
+                                 "M-VERIFY-PREFLIGHT",
                                  "M-REPORT-CHART-MISMATCH",
                                  "M-THRESHOLDS-NOT-CERTIFICATION",
                                  # #182, 2026-09-16: the design authority asked
@@ -541,6 +548,10 @@ WINDOW_SOURCES = [
     ("ui.tabs.tab_chart", "TabChart", "_patchset_missing_message"),
     ("ui.tabs.tab_chart", "TabChart", "_project_exists_message"),
     ("ui.tabs.tab_measure", "TabMeasure", "_cr30_stock_reader_window"),
+    # The verification pre-flight (#182, Knut, 2026-09-21). Its frame is
+    # M-VERIFY-PREFLIGHT; the metric list under it is the presets window's own
+    # `summary_lines`, which is not prose this method writes.
+    ("ui.tabs.tab_measure", "TabMeasure", "_verification_preflight_message"),
     ("ui.tabs.tab_chart", "TabChart", "_calibration_replace_message"),
     ("ui.dialogs.spot_read_dialog", "SpotReadDialog", "_confirm_clear"),
     ("ui.dialogs.spot_read_dialog", "SpotReadDialog", "_may_close"),

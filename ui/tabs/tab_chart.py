@@ -9838,6 +9838,59 @@ class TabChart(QWidget):
             "preset, switch to GUIDED or MANUAL first.")
             if gamut else self._builtin_preset_tip)
 
+    def current_chart_row(self):
+        """The chart THIS TAB currently holds, as a row the window can list.
+
+        Knut, 2026-09-21: the presets window gains a first line *"representing
+        the current layout defined in Create Chart"*, and selecting it *"then
+        performs the check if the current chart fulfils all the metric
+        requirements, including if the current chart has applied the 'From
+        Profile Gamut' feature"*.
+
+        **A ROW IS ALWAYS RETURNED, EVEN WHEN THERE IS NO CHART**, because
+        "there is none, make one first" is an answer the window owes the
+        reader and a missing row cannot give it.
+
+        He asked us to *"check and verify if these are the correct
+        preconditions"* rather than assume them, so they are named here and
+        each is read off the app rather than guessed:
+
+        * **a patch set exists** = the chart the tab is showing is a file on
+          disk (`_shown_chart_ti2`, the same handle `_target_holds_a_chart`
+          uses). A run whose chart has not been generated has none, and so
+          does a preset that has been chosen but not built.
+        * **how many pages it lays out** is COUNTED, from the sheets beside
+          it, not declared. This is the one thing a preset cannot know about
+          itself until it is built, which is why a preset row says so and this
+          row never has to.
+        * **whether From Profile Gamut was applied** is
+          `chart_conversion_state`, the Print tab's own predicate: the
+          colorimetric reference sits beside the chart or it does not.
+        * **relayoutable** is True, always. The eleven prebuilt presets are
+          the only sheets that cannot be laid out again, and by the time a
+          chart is in a run folder it has been laid out by printtarg.
+        """
+        from ui.dialogs.preset_verification_dialog import PresetRow
+        from workflow.preset_eligibility import patch_count
+        from workflow.verification_print import (STATE_CONVERTED,
+                                                 chart_conversion_state)
+        chart = getattr(self, "_shown_chart_ti2", None)
+        try:
+            chart = Path(chart) if chart is not None and Path(chart).is_file() \
+                else None
+        except OSError:
+            chart = None
+        pages = 0
+        gamut = False
+        if chart is not None:
+            pages = len(list(chart.parent.glob(chart.stem + "_*.tif")))
+            gamut = chart_conversion_state(chart) == STATE_CONVERTED
+        return PresetRow(
+            group="", label="", chart=chart,
+            patches=patch_count(chart) if chart is not None else 0,
+            pages=pages, builtin=False, key=None,
+            is_current_chart=True, from_profile_gamut=gamut)
+
     def _open_preset_verification_window(self) -> None:
         """Open "Which presets can be used for verification" (#182, beta 22).
 
@@ -9872,7 +9925,8 @@ class TabChart(QWidget):
             rows = verification_preset_rows(self._settings)
             dlg = PresetVerificationDialog(
                 rows, compliance_overrides_of(self._settings), self,
-                select=self._chosen_preset_label())
+                select=self._chosen_preset_label(),
+                current=self.current_chart_row())
         finally:
             _QGA.restoreOverrideCursor()
         dlg.exec()

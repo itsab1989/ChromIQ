@@ -134,6 +134,71 @@ def _declared_corner_rows(sample_ids, corner_ids, ref_devices) -> "dict[str, int
     return out
 
 
+def corners_block(rgb100, lab, ref, data,
+                  corner_ids=None, corner_devices=None) -> "list[dict]":
+    """The eight cube corners of one chart, measured or modelled.
+
+    Paper white, composite black and the six ink primaries and secondaries:
+    the patch the chart DECLARES as each corner where it declares one, else
+    the nearest patch to it by device RGB. Each carries its colour and, when
+    a reference exists, its expected colour and ΔE00, so the report says
+    something about the inks and not only about the instrument (Knut).
+    *rgb100* is device 0..100.
+
+    **A FUNCTION RATHER THAN A PARAGRAPH INSIDE `analyse`, since B8-612.**
+    The three rows judged against a colorimetric reference
+    (``substrate_de00_max``, ``solids_de00_max``, ``cmy_solids_dhab_max``)
+    are computed from this block and from nothing else, so
+    `workflow.preset_eligibility` cannot say whether a FROM PROFILE GAMUT
+    chart could answer them without building one. It builds it by calling
+    THIS, which is what keeps the two windows from acquiring a second opinion
+    about which corners a chart has.
+    """
+    out: "list[dict]" = []
+    if rgb100 is None:
+        return out
+    rgb = rgb100
+    declared_rows = _declared_corner_rows(data.sample_ids, corner_ids,
+                                          corner_devices)
+    for name, target in CUBE_CORNERS:
+        ci = declared_rows.get(name)
+        declared = ci is not None
+        if declared:
+            # The chart says this patch IS the corner, so it is present —
+            # it was printed at the corner's own ink amount whatever the
+            # measurement's device column has since been normalised to.
+            present = True
+        else:
+            diffs = np.abs(rgb - np.array(target))
+            ci = int((diffs ** 2).sum(axis=1).argmin())
+            # "present" = the chart actually has a patch AT this corner, not
+            # just a nearest neighbour miles away. A minimal verification chart
+            # may omit some corners; the report flags that (Knut).
+            present = bool(float(diffs[ci].max()) <= CORNER_PRESENT_TOL)
+        entry: dict = {
+            "name": name,
+            "loc": data.sample_locs[ci] if data.sample_locs else data.sample_ids[ci],
+            # WHICH PATCH THIS IS, unambiguously. `loc` is the sheet
+            # position and is the right thing to print, but it cannot be
+            # paired back with the chart's own files, so establishing that
+            # a corner had been read off the wrong patch took a separate
+            # probe (B8-393).
+            "sample": data.sample_ids[ci],
+            "rgb": [round(v, 1) for v in rgb[ci]],
+            "lab": [round(v, 2) for v in lab[ci]],
+            "hex": _srgb_hex(tuple(data.xyz[ci])),
+            "present": present,
+            "declared": declared,
+        }
+        r = ref.get(data.sample_ids[ci]) if ref else None
+        if r is not None:
+            entry["expected_lab"] = [round(v, 2) for v in r]
+            entry["expected_hex"] = _srgb_hex(ref_xyz(ref, data, ci))
+            entry["de"] = round(ciede2000(tuple(lab[ci]), r), 2)
+        out.append(entry)
+    return out
+
+
 def _srgb_hex(xyz100: "tuple[float, float, float]") -> str:
     """D50 XYZ (0..100) → #rrggbb for display (Bradford to D65, sRGB gamma)."""
     x, y, z = (v / 100.0 for v in xyz100)
@@ -897,47 +962,8 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
     # carries its measured colour and, when a reference exists, its expected
     # colour and ΔE00, so the report says something about the inks, not only the
     # instrument (Knut). rgb is device 0..100.
-    report["corners"] = []
-    if rgb100 is not None:
-        rgb = rgb100
-        declared_rows = _declared_corner_rows(data.sample_ids, corner_ids,
-                                              corner_devices)
-        for name, target in CUBE_CORNERS:
-            ci = declared_rows.get(name)
-            declared = ci is not None
-            if declared:
-                # The chart says this patch IS the corner, so it is present —
-                # it was printed at the corner's own ink amount whatever the
-                # measurement's device column has since been normalised to.
-                present = True
-            else:
-                diffs = np.abs(rgb - np.array(target))
-                ci = int((diffs ** 2).sum(axis=1).argmin())
-                # "present" = the chart actually has a patch AT this corner, not
-                # just a nearest neighbour miles away. A minimal verification chart
-                # may omit some corners; the report flags that (Knut).
-                present = bool(float(diffs[ci].max()) <= CORNER_PRESENT_TOL)
-            entry: dict = {
-                "name": name,
-                "loc": data.sample_locs[ci] if data.sample_locs else data.sample_ids[ci],
-                # WHICH PATCH THIS IS, unambiguously. `loc` is the sheet
-                # position and is the right thing to print, but it cannot be
-                # paired back with the chart's own files, so establishing that
-                # a corner had been read off the wrong patch took a separate
-                # probe (B8-393).
-                "sample": data.sample_ids[ci],
-                "rgb": [round(v, 1) for v in rgb[ci]],
-                "lab": [round(v, 2) for v in lab[ci]],
-                "hex": _srgb_hex(tuple(data.xyz[ci])),
-                "present": present,
-                "declared": declared,
-            }
-            r = ref.get(data.sample_ids[ci]) if ref else None
-            if r is not None:
-                entry["expected_lab"] = [round(v, 2) for v in r]
-                entry["expected_hex"] = _srgb_hex(ref_xyz(ref, data, ci))
-                entry["de"] = round(ciede2000(tuple(lab[ci]), r), 2)
-            report["corners"].append(entry)
+    report["corners"] = corners_block(rgb100, lab, ref, data,
+                                      corner_ids, corner_devices)
 
     if ref:
         des: list[tuple[float, int]] = []
