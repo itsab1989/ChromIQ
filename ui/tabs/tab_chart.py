@@ -21594,6 +21594,25 @@ class TabChart(QWidget):
                     _kw_notes = dict(_kw_notes, area_target_count=_n)
             except Exception:      # noqa: BLE001 — a count, never a blocker
                 pass
+            # **AND WITH THE ANSWER TO "IS ANYTHING STAMPED DOWN THAT EDGE?"**
+            # `build_kwargs()` cannot carry it: the right-edge stamp is the
+            # "Stamp settings down the right edge" tick plus the run's chart
+            # notes, and neither is a layout option (the recipe's own
+            # `stamp_command` is the BOTTOM summary line, a different control).
+            # §R9 shrinks the automatic row labels to keep the patch block out
+            # of that strip, so a geometry built without this answer is not the
+            # one the sheet is laid out to -- which is exactly the way the
+            # margin inspector's copy came to disagree with the stamper.
+            # `chart_creator._engine_kwargs` answers the same question with the
+            # same two terms.
+            try:
+                _e = getattr(self, "_manual_chart_notes_edit", None)
+                _c = getattr(self, "_manual_stamp_cmd_check", None)
+                _kw_notes = dict(_kw_notes, side_stamp=bool(
+                    (_c is not None and _c.isChecked())
+                    or (_e is not None and (_e.text() or "").strip())))
+            except Exception:      # noqa: BLE001 — never a blocker
+                pass
             geom = instruments.geom_from_build_kwargs(_kw_notes)
             # ---- THE FOUR EDGES, MEASURED OFF THE SHEET IN THE PREVIEW -----
             #

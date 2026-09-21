@@ -1298,6 +1298,13 @@ class ChartCreator:
             sscale=float(params.spacer_scale or 1.0),
             border=float(params.margin_mm),
             nolimit=bool(params.no_strip_limit),
+            # WILL ANYTHING BE STAMPED DOWN THE RIGHT EDGE? The layout has to
+            # know, because it leaves the strip clear (§R9,
+            # `raster._clear_the_side_stamp`). Exactly the test `stamp_lines`
+            # makes: notes, or the settings line, or both. Guided never clears
+            # `stamp_commands`, so this is True for every Guided chart.
+            side_stamp=bool(params.stamp_commands
+                            or (params.chart_notes or "").strip()),
             # Empty for a new chart (the engine stamps today); set only when a
             # stored chart is being rebuilt and must keep its original date.
             chart_date=str(params.chart_date or ""),
@@ -1416,6 +1423,14 @@ class ChartCreator:
             kw = params.layout_recipe.build_kwargs()
             kw["instrument"] = params.instrument
             kw["paper"] = params.paper
+            # THE SAME QUESTION THE GUIDED BRANCH ANSWERS, AND IT IS NOT ON THE
+            # RECIPE. The right-edge stamp is the "Stamp settings down the
+            # right edge" tick plus the run's chart notes, neither of which is
+            # a layout option; the recipe's own `stamp_command` is the BOTTOM
+            # summary line and a different control. Without this the layout
+            # would reserve the strip for a Manual chart that stamps nothing.
+            kw["side_stamp"] = bool(params.stamp_commands
+                                    or (params.chart_notes or "").strip())
             kw["project"] = params.target_name   # {project} → profile name
             # {rundescription} → the run's own description, or the
             # calibration's when this is a calibration chart (Knut, R2: it must

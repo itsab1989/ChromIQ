@@ -235,6 +235,18 @@ def build_chart(
     text_edge_clip: float = 4.0,
     use_instrument_margins: bool = False,
     stamp_command: bool = False,
+    #: Whether anything will be stamped down the RIGHT page edge afterwards --
+    #: the run's chart notes, the "Stamp settings down the right edge" line, or
+    #: both. Not drawn here: `workflow/tiff_metadata.py::stamp_chart_metadata`
+    #: paints it onto the finished raster. The layout is told because it has to
+    #: leave the strip clear -- see `raster._clear_the_side_stamp` (§R9).
+    #:
+    #: **THE DEFAULT IS True BECAUSE THE APP'S IS.** `ChartParams.stamp_
+    #: commands` ships True and Guided has no control for it, so a caller that
+    #: does not know reserves the strip rather than laying patches under it.
+    #: `stamp_command` above is a DIFFERENT control (the layout summary along
+    #: the BOTTOM); the two have been confused before.
+    side_stamp: bool = True,
     project: str = "",
     # #130: the run's own description (or the calibration's), for the
     # {rundescription} placeholder in sheet text and the clip border. Empty
@@ -364,6 +376,8 @@ def build_chart(
         # `raster._furniture_reserves_mm` alone, so no other layout moves.
         "strip_label_offset_mm": strip_label_offset_mm,
         "chart_text": chart_text, "stamp_command": stamp_command,
+        "side_stamp": side_stamp,
+        "chart_text_size_mm": chart_text_size_mm,
         "text_edge": text_edge})
     w_mm, h_mm = papers.dimensions_mm(paper)
     layout = geometry.compute(geom, w_mm, h_mm, len(target.patches))

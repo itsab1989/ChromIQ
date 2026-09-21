@@ -1264,10 +1264,37 @@ def chart_note_overlap(side: str, margin_mm: float, text_edge_clip_mm: float,
     of his two right margins is set, the patch block ends at 32.0 mm, and
     ``32.0 - max(4.0, 24.0) - 0.34`` is the 7.66 mm that are really there.
     """
+    need = note_min_width_mm(dpi, size_pt)
+    # `reserve - need` is exactly `max(clip, band) + SAFETY_PAD_MM`, which is
+    # what this subtraction used to spell out for itself. Written through
+    # :func:`side_stamp_reserve_mm` so the layout's question and the panel's
+    # question cannot answer differently.
     avail = (float(margin_mm or 0.0)
-             - max(float(text_edge_clip_mm or 0.0), float(clip_band_mm or 0.0))
-             - SAFETY_PAD_MM)
-    return _overlap(side, avail, note_min_width_mm(dpi, size_pt), tol_mm)
+             - (side_stamp_reserve_mm(text_edge_clip_mm, clip_band_mm, size_pt)
+                - need))
+    return _overlap(side, avail, need, tol_mm)
+
+
+def side_stamp_reserve_mm(text_edge_clip_mm: float, clip_band_mm: float = 0.0,
+                          size_pt: float = 0.0) -> float:
+    """The paper the side stamp wants, measured IN from the page edge.
+
+    The same three terms :func:`chart_note_overlap` subtracts, added up
+    instead: the page-edge reserve (the "Clip" distance, or the clip band when
+    one is on this edge and reaches further in), the line's own width at its
+    floor, and the guard the stamper keeps between its ink and the patch block.
+    A margin at least this wide is a margin the stamp fits into.
+
+    **IT IS THE SAME FUNCTION ASKED THE OTHER WAY ROUND, AND THAT IS THE
+    POINT.** The layout now has to answer "how much room does this need?"
+    before a page exists (`raster.apply_row_label_geometry` §R9), and the panel
+    still asks "does what exists suffice?" afterwards. Two derivations of one
+    reserve is how the margin inspector's copy drifted from the stamper's, so
+    there is one derivation and `chart_note_overlap` is written in terms of it.
+    """
+    return (max(float(text_edge_clip_mm or 0.0), float(clip_band_mm or 0.0))
+            + note_min_width_mm(0.0, size_pt)
+            + SAFETY_PAD_MM)
 
 
 #: Clear paper between a ruler helper marker's inner tip and any text on that

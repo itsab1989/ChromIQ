@@ -1171,8 +1171,153 @@ def apply_row_label_geometry(geom, kw: dict):
                 break
     needed = floor + measured + 1.0
     margin_l = max(asked_l, needed)
-    return replace(geom, rlwi=measured, margin_l=margin_l,
-                   row_label_floor=floor, row_label_size_mm=settled)
+    out = replace(geom, rlwi=measured, margin_l=margin_l,
+                  row_label_floor=floor, row_label_size_mm=settled)
+    return _clear_the_side_stamp(out, kw, asked_l=asked_l, floor=floor,
+                                 typed_size=typed_size)
+
+
+def _clear_the_side_stamp(geom, kw: dict, *, asked_l: float, floor: float,
+                          typed_size: float):
+    """§R9 — the stamp down the right edge is furniture too, and the automatic
+    row-label size pays for it before the patches do.
+
+    **THE LEFT MARGIN IS WIDENED FOR ITS TEXT AND THE RIGHT ONE NEVER WAS.**
+    `apply_row_label_geometry` above raises `margin_l` to hold the row
+    indicators (§R1.5). The settings stamp down the right edge is the same kind
+    of thing -- text the app puts in a margin -- but it is painted onto the
+    finished raster by `workflow/tiff_metadata.py::_stamp_one`, which can move
+    nothing, so when the paper is too thin it prints ACROSS the patches instead
+    (Knut's ruling: the user must be able to see that something is wrong).
+    Manual mode then says so in red and names four levers. Guided has no
+    levers, no boxes and no warning, and shipped the overlapping sheet in
+    silence -- Sebastian, 2026-09-20: *"guided module should just work for the
+    user without causing issues for the user"*.
+
+    Measured on the sheet he sent (`test.tif`, CR30 / A4 / hexagon / 396
+    patches), 300 dpi, the stamp applied to a copy of the very same raster and
+    the two differenced: the stamp's ink runs **8 px, 0.677 mm** into the block
+    and 190 of its pixels land on patch ink. `_stamp_one` has 28 px of paper
+    where a line at the 7 pt floor needs 32, so its own `_overlaps` fires.
+
+    **HIS FIX, AND IT IS HIS.** *"another thought would be to reduce the size
+    of the font for the row label very slightly"* -- and *"the text size
+    reductions ... should only be as much as really needed to avoid overlap,
+    not more"*. Measured in patch-first, on the rendered sheet, the left band
+    and the right gap move one for one: taking 1.108 mm off the band moves the
+    block 1.108 mm left and hands the right edge exactly that. The row labels
+    are already the app's to size when the box says "auto" (§R8), so this is
+    one more reason to walk the same half-point grid, not a new mechanism.
+
+    Three properties, all of them §R8's and for §R8's reasons:
+
+      * **A TYPED SIZE IS NEVER TOUCHED.** A number somebody chose is not the
+        app's to spend, so a Manual user who typed one keeps their size and
+        keeps the red warning that names their levers.
+      * **NOTHING IS COMMITTED UNLESS IT CLEARS.** No rung down to the 7 pt
+        floor clears some charts; those keep the size they had rather than
+        losing legibility AND the overlap.
+      * **AND NOTHING IS COMMITTED THAT MOVES THE PATCH COUNT**, in either
+        direction. Sebastian: *"if the guided modes chart would fit fewer
+        patches because of this (especially on A4 paper) i would consider it a
+        regression"*. A rung that changes `patches_per_page` at all is refused
+        -- fewer is his regression, and more would put the Guided capacity
+        estimate (`ui/tabs/tab_chart.py::_engine_capacity`, which builds its
+        own kwargs) out of step with the build.
+
+    **AREA-FIRST IS EXCLUDED, BECAUSE THERE THE LEVER DOES NOTHING.** Under
+    "Prioritise chart area, then fit patches to it" the margins are the law and
+    the block fills the box exactly, so freeing width on the left makes the
+    PATCHES wider and hands the right edge nothing. Measured over the whole
+    half-point grid on the same chart: the right gap stayed between 5.01 and
+    5.18 mm at every size from 20.0 pt down to 7.0 pt, against a 7.06 mm
+    reserve. Running the walk there could only cost a `geometry.compute` per
+    rung and commit nothing -- and `area_fit` builds a geometry thousands of
+    times inside one column search.
+    """
+    if typed_size:
+        return geom
+    band = float(getattr(geom, "rlwi", 0.0) or 0.0)
+    if band <= 0:
+        return geom                       # no labels: no lever
+    if not kw.get("side_stamp", True):
+        return geom                       # nothing is stamped on that edge
+    if str(kw.get("layout_mode") or "patch_first") == "area_first":
+        return geom                       # see the docstring
+    from workflow import text_edge_fit as _tef
+    from . import papers
+    try:
+        w_mm, h_mm = papers.dimensions_mm(kw.get("paper") or "A4")
+    except Exception:                     # noqa: BLE001 — unknown paper, no fix
+        return geom
+    if str(kw.get("orientation") or "").lower().startswith("land"):
+        w_mm, h_mm = h_mm, w_mm
+    dpi = int(kw.get("dpi") or 300)
+    # WHAT THE STAMP ASKS FOR, FROM THE ONE FUNCTION THAT ANSWERS IT. The
+    # page-edge reserve is the side text-edge (the "Clip" box, pushed further
+    # in by the ruler helper markers when they are on for the sides), and a
+    # clip band on the RIGHT is counted instead when it reaches further.
+    edge = _tef.side_text_edge_mm(
+        float(_DEFAULT_TEXT_EDGE_CLIP_MM if kw.get("text_edge_clip") is None
+              else (kw.get("text_edge_clip") or 0.0)),
+        helper_markers=bool(kw.get("helper_markers")),
+        marker_edge_mm=float(kw.get("helper_marker_edge") or 0.0),
+        marker_len_mm=float(kw.get("helper_marker_len") or 0.0),
+        marker_sides=bool(kw.get("helper_markers_sides", True)))
+    right_band = (float(kw.get("clip_border_width") or 0.0)
+                  if (str(kw.get("clip_side") or "left") == "right"
+                      and bool(getattr(geom, "has_clip_border", False))) else 0.0)
+    size_pt = float(kw.get("chart_text_size_mm") or 0.0) * 72.0 / 25.4
+    tol = _tef.edge_tolerance_mm(dpi)
+
+    from . import geometry as _geom
+
+    def _judge(g):
+        """(does the stamp still run over the patches, patches per page)."""
+        lay = _geom.compute(g, w_mm, h_mm, 100_000)
+        gap = _geom.patch_block_right_ink_gap_mm(g, w_mm, h_mm, lay)
+        over = _tef.chart_note_overlap("right", gap, edge, dpi, right_band,
+                                       size_pt, tol_mm=tol)
+        return over is not None, lay.patches_per_page
+
+    try:
+        was_over, cap0 = _judge(geom)
+    except _geom.LayoutError:
+        return geom
+    if not was_over:
+        return geom                       # the stamp already fits
+
+    size_pt_now = effective_row_label_size_mm(
+        geom, dpi, kw.get("indicator_font") or DEFAULT_INDICATOR_FONT,
+        0.0) * 72.0 / 25.4
+    font = kw.get("indicator_font") or DEFAULT_INDICATOR_FONT
+    while True:
+        size_pt_now = _tef.next_size_down_pt(size_pt_now)
+        if size_pt_now < _tef.AUTO_SHRINK_FLOOR_PT:
+            return geom                   # nothing clears: leave it alone
+        cand_mm = _tef.pt_to_mm(size_pt_now)
+        cand = replace(geom, row_label_size_mm=cand_mm)
+        # The band at the candidate size, asked through the settled channel so
+        # `effective_row_label_size_mm` returns the candidate and nothing here
+        # has to pretend the size was typed.
+        cand_band = row_label_band_mm(
+            cand, dpi=dpi, indicator_font=font, indicator_size_mm=0.0,
+            indicator_bold=bool(kw.get("indicator_bold")),
+            indicator_italic=bool(kw.get("indicator_italic")),
+            patch_pattern=kw.get("patch_pattern") or "")
+        if cand_band <= 0:
+            return geom
+        cand = replace(cand, rlwi=cand_band,
+                       margin_l=max(asked_l, floor + cand_band + 1.0))
+        try:
+            still_over, cap = _judge(cand)
+        except _geom.LayoutError:
+            return geom
+        if still_over:
+            continue
+        if cap != cap0:
+            return geom                   # not at the cost of one patch
+        return cand
 
 
 def _rows_that_fit(geom, kw: dict) -> int:

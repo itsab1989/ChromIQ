@@ -604,6 +604,32 @@ def realized_margins_mm(geom: Geom, paper_w_mm: float, paper_h_mm: float,
     return (max(0.0, left), max(0.0, right), max(0.0, top), max(0.0, bottom))
 
 
+def patch_block_right_ink_gap_mm(geom: Geom, paper_w_mm: float,
+                                 paper_h_mm: float, layout: Layout) -> float:
+    """White paper between the block's RIGHT-MOST INK and the right page edge.
+
+    **NOT `realized_margins_mm()[1]`, AND THE DIFFERENCE IS THE APEX.** That
+    function measures to the patch RECTANGLE, which is what a margin threshold
+    is about; a flat-top honeycomb's points stick out past that rectangle by
+    ``hxew`` on each side, so on a CR30 A4 hexagon it reports 7.69 mm of white
+    where the raster has 5.84. Measured on the rendered sheet, 300 dpi: the
+    right-most inked column is x = 2410, which is 204.131 mm, and this
+    expression gives 204.045 — one pixel, the raster's own rounding. The
+    rectangle ends at 202.31.
+
+    The stamp down the right edge is placed against INK (the stamper detects a
+    writable band on the finished raster), so this is the number it has to be
+    judged against.
+    """
+    place = placement(geom, paper_w_mm, paper_h_mm, layout)
+    steps = layout.steps_in_pass
+    n_first = min(layout.total_patches, layout.patches_per_page)
+    n_passes = (n_first + steps - 1) // steps if steps else 0
+    right_ink = (place.x_of(max(0, n_passes - 1)) + geom.pwid
+                 + float(getattr(geom, "hxew", 0.0) or 0.0))
+    return max(0.0, paper_w_mm - right_ink)
+
+
 # Printer-safe inset for clip-strip content (mm). The clip strip is white space
 # the scanner clip grips, so its content can sit closer to the page edge than the
 # patch margin — we keep a small safety inset. This makes the clip content (e.g.

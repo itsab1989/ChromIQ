@@ -479,3 +479,113 @@ preset changes that remove the cost rather than accepting it, and with those in
 place every one of the eight upright hexagonal CR30 charts prints the patch
 count and page count its own name states. See `docs/beta8_open_items.md`
 B8-265 for the ruling and B8-280 for the presets.
+
+---
+
+## §R9 · The stamp down the right edge is furniture too — ⏳ AWAITING CONFIRMATION
+
+**Confirmed by:** *nobody yet.*
+
+**The left margin is widened for its text and the right one never was.** §R1.5
+raises `margin_l` to hold the row indicators. The settings stamp down the right
+edge is the same kind of thing, text the app puts in a margin, but it is not
+laid out by the engine at all: `workflow/tiff_metadata.py::_stamp_one` paints
+it onto the finished raster, so it can move nothing, and when the paper is too
+thin it is printed ACROSS the patches rather than dropped. That last part is
+Knut's ruling of 2026-09-10 and it is right: *"the text must still be visible,
+even if the patch area overlaps … the user must be given the chance to see that
+something is wrong, and then adjust the margins"*.
+
+Manual mode does give the user that chance, in red, with four levers. **Guided
+has no margin boxes, no levers and no warning**, and shipped the overlapping
+sheet in silence. Sebastian, 2026-09-20, on a Guided CR30 / A4 / hexagon chart:
+
+> *"if i create the same thing in manual mode the warning gives hints how to
+> solve this. but guided module should just work for the user without causing
+> issues for the user"*
+
+and, proposing the remedy himself:
+
+> *"another thought would be to reduce the size of the font for the row label
+> very slightly"* … *"the text size reductions, if you choose them as solution,
+> should only be as much as really needed to avoid overlap, not more"*
+
+with one condition on it:
+
+> *"if the guided modes chart would fit fewer patches because of this
+> (especially on A4 paper) i would consider it a regression"*
+
+### §R9.1 · The rule
+
+**When something will be stamped down the right edge, and the patch block would
+be laid under it, and the row labels are drawn at an AUTOMATIC size, that size
+walks down the same half-point grid §R8 uses until the block clears the stamp,
+and no further.**
+
+The reserve is one derivation, `text_edge_fit.side_stamp_reserve_mm`: the
+page-edge distance ("Clip", pushed further in by the ruler helper markers, or a
+clip band on that edge when it reaches further), plus the line's own width at
+its floor, plus the guard the stamper keeps off the patches.
+`chart_note_overlap` — the function that draws Manual's red warning — is
+written in terms of it, so the layout's question and the panel's question
+cannot be answered differently.
+
+Four properties, three of them §R8's and for §R8's reasons:
+
+1. **A typed size is never touched.** A Manual user who typed one keeps their
+   size and keeps the red warning naming their own levers.
+2. **Nothing is committed unless it clears.** Where no rung down to the 7 pt
+   floor clears the stamp, the size stays where it was: losing legibility AND
+   keeping the overlap is worse than keeping the overlap.
+3. **Nothing is committed that moves the patch count**, in either direction.
+   Fewer is Sebastian's regression; more would put the Guided capacity estimate
+   (`ui/tabs/tab_chart.py::_engine_capacity`, which assembles its own kwargs and
+   does not know whether a chart is stamped) out of step with the build.
+4. **Area-first is excluded, because there the lever does nothing.** Under
+   "Prioritise chart area, then fit patches to it" the margins are the law and
+   the block fills the box exactly, so width freed on the left makes the
+   PATCHES wider and hands the right edge nothing. Measured over the whole
+   half-point grid on the reported chart: the right gap stayed between 5.01 and
+   5.18 mm at every size from 20.0 pt to 7.0 pt, against a 7.06 mm reserve.
+
+### §R9.2 · What it costs, measured
+
+Over all **120 Guided instrument × paper × hexagon combinations**:
+
+| | before | after |
+|---|---|---|
+| combinations whose stamp runs over the patches | **12** | **0** |
+| combinations whose patch count changes | — | **0** |
+| combinations whose row-label size changes | — | **12** |
+
+The reported chart, CR30 / A4 / hexagon: **396 patches before and 396 after**,
+row labels 17.79 pt to 15.50 pt. The reductions across the twelve run from
+**0.84 pt (4.2 %)** to **3.29 pt (18.5 %)**, each one the first rung on the
+half-point grid at which the app's own overlap check goes quiet. Of 164
+built-in preset recipes, 188 geometry builds reached the walk and **none was
+changed**: every eligible built-in already had room.
+
+On the rendered sheet at 300 dpi, the stamp applied to a copy of the very same
+raster and the two differenced — CR30 / A4 / hexagon:
+
+| | before | after |
+|---|---|---|
+| stamp pixels laid on patch ink | **206** | **22** |
+| paper the stamper finds for its line | **28 px** | **39 px** |
+| what a line at the 7 pt floor needs | 32 px | 32 px |
+
+The walk costs **+0.17 ms** on the geometry build it walks furthest on, and
+nothing at all on a chart it does not touch.
+
+### §R9.3 · What it does NOT fix
+
+A flat-top honeycomb's points reach past the block's own rectangle, and
+`tiff_metadata._detect_writable_band` finds its band by column DENSITY, so the
+sparse apex columns are not counted as patch area. The stamp is therefore
+placed a few pixels inside the outermost points on every honeycomb sheet,
+whether or not it had room. Measured on the reported chart at every half-point
+size from 17.5 pt down to 12.5 pt, the residue never falls below about 16
+pixels and never rises above about 113 — it is a graze on the apexes, it does
+not follow the label size, and no amount of walking removes it. It is a
+separate, much smaller thing than the fault this section is about and it is
+recorded rather than fixed.

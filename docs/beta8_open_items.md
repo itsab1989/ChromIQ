@@ -21026,3 +21026,64 @@ would reach.
   turns them green again. A second test pins the chosen approach by asserting
   no `QFrame {` rule exists in any of the three appearance stylesheets.
 - evidence: `~/Desktop/ChromIQ-beta30-proof/square-corners/FINDINGS.md`.
+### B8-556 · FIXED · Guided printed its own settings stamp over the patches and said nothing
+- status: FIXED
+- blocks release: no
+- Sebastian, 2026-09-20, photographing a Guided / CR30 / A4 Portrait / Hexagon
+  chart: the settings stamp down the right edge is printed across the patches.
+  *"if i create the same thing in manual mode the warning gives hints how to
+  solve this. but guided module should just work for the user without causing
+  issues for the user"*.
+- **the app had already measured it.** Manual's own red notice on the same
+  chart: the stamp *"needs 2.7 mm at 7 pt and the right margin leaves 1.7 mm,
+  so it is printed over them"*, and separately that the left margin *"was
+  widened from 6.0 mm to 13.5 mm"* for row indicators whose text needs 8.5 mm.
+  **Guided calls none of that**: `TabChart._engine_text_notes` returns an empty
+  pair unless the mode is Manual (`ui/tabs/tab_chart.py:21556`).
+- the asymmetry is structural. §R1.5 raises the LEFT margin to hold the row
+  labels; nothing raises the right one for the stamp, because the stamp is not
+  laid out by the engine at all -- `tiff_metadata._stamp_one` paints it onto
+  the finished raster and, by Knut's 2026-09-10 ruling, prints it ACROSS the
+  patches rather than dropping it when the paper is thin.
+- **his own lever, and it is the one that works.** *"another thought would be to
+  reduce the size of the font for the row label very slightly"*. MEASURED on
+  the rendered sheet: in patch-first the left band and the right gap move one
+  for one, so taking 0.92 mm off the band hands the right edge 0.92 mm. In
+  area-first it buys nothing at all (the block fills the box; the gap stayed
+  between 5.01 and 5.18 mm at every size from 20.0 pt to 7.0 pt), so that mode
+  is excluded.
+- `raster._clear_the_side_stamp` walks the AUTOMATIC row-label size down the
+  same half-point grid §R8 uses, stops at the first rung where the app's own
+  `chart_note_overlap` goes quiet, and commits nothing unless it clears, never
+  touches a typed size, and refuses any rung that moves the patch count.
+  `docs/design/row_label_geometry.md` §R9, ⏳ awaiting confirmation.
+- **HIS GATE, MEASURED.** Over all 120 Guided instrument x paper x hexagon
+  combinations: 12 had the stamp over the patches, 0 do now, the row-label size
+  moved on those 12 and on nothing else, and **the patch count moved on none**.
+  The reported chart is **396 patches before and 396 after** (22 per strip x 18
+  strips), confirmed by driving the real app on screen twice and reading the
+  `.ti2` each run wrote. Of 164 built-in preset recipes, 188 geometry builds
+  reached the walk and none was changed.
+- on the rendered sheet, 300 dpi, the stamp applied to a copy of the same
+  raster and the two differenced: stamp pixels on patch ink **206 -> 22**, and
+  the paper `_stamp_one` finds for its line **28 px -> 39 px** against a 32 px
+  floor, so its own overlap path is no longer taken.
+- the reduction is derived, not chosen: 0.84 pt (4.2 %) to 3.29 pt (18.5 %)
+  across the twelve, 17.79 pt to 15.50 pt on the reported chart, each the first
+  half-point rung that clears. A guard checks that putting the next rung back
+  leaves the check firing.
+- **what it does NOT fix, measured and left alone.** A flat-top honeycomb's
+  points reach past the block's rectangle and `_detect_writable_band` finds its
+  band by column density, so the sparse apex columns are not counted as patch
+  area and the line is placed a few pixels inside the outermost points on every
+  honeycomb sheet. The residue sits between about 16 and 113 pixels at every
+  label size from 17.5 pt to 12.5 pt, does not follow the size, and no amount
+  of walking removes it. Separate and much smaller; recorded, not chased.
+- printtarg-laid charts are untouched: the engine geometry ran **0 times** on
+  that path, and one printtarg raster stamped twice is bit-identical. (Two
+  printtarg RUNS are not comparable at all -- identical commands differ in 276
+  pixels inside its own right-margin date line.)
+- evidence: test_the_guided_stamp_keeps_off_the_patches,
+  test_the_row_labels_pay_for_the_stamp_not_the_patches,
+  `scripts/drive_b8556_guided_stamp.py`,
+  `~/Desktop/ChromIQ-beta30-proof/guided-stamp/`
