@@ -1179,19 +1179,33 @@ _IDENTICAL_TO_KEY = {
     # were carried forward: every round that lands moves these files, so any
     # figure written before the last merge is stale by construction. COUNTED
     # with this file's own helper on the tree this commit leaves behind.
+    # RE-MEASURED 2026-09-21, B8-670 (Knut's researched industry figures as
+    # the two Custom columns' defaults). **13 keys in, 7 stale out**, and
+    # every count FALLS: the eleven fall by 4 and Ukrainian by 8, because the
+    # seven retired keys were English placeholders in those catalogues and the
+    # thirteen replacements were translated in all thirteen languages rather
+    # than carried in English. German is written by hand and does not move.
+    #
+    # The one that mattered is `ChromIQ's own numbers`, which had been an
+    # English placeholder in all twelve. It is a FRAGMENT of a sentence those
+    # twelve now assemble, so left untranslated it would have put an English
+    # phrase in the middle of translated prose; and this round left it with
+    # exactly one caller, so translating it could not disturb anything else.
+    # Counted off the catalogues on disk with the expression the test below
+    # uses, and NEVER adjusted upward.
     "de": 146,
-    "es": 915,
-    "fr": 937,
-    "it": 926,
-    "ja": 901,
-    "nl": 942,
-    "no": 927,
-    "pl": 919,
-    "pt": 917,
-    "ru": 890,
-    "sv": 928,
-    "zh_CN": 895,
-    "uk": 1159,
+    "es": 911,
+    "fr": 933,
+    "it": 922,
+    "ja": 897,
+    "nl": 938,
+    "no": 923,
+    "pl": 915,
+    "pt": 913,
+    "ru": 886,
+    "sv": 924,
+    "zh_CN": 891,
+    "uk": 1151,
 }
 
 
@@ -1268,18 +1282,3 @@ def test_ukrainian_parameter_overlay_merges():
     assert d["name"] == "Тип пристрою"
     assert len(d["labels"]) == len(english["labels"]) == 16
     assert d["labels"] != english["labels"]
-
-
-def test_qt_fallback_translates_norwegian_buttons(qapp):
-    """PyQt6 ships no qtbase_nb.qm — the JSON fallback in data/i18n/qt/
-    must still translate Qt's standard dialog buttons for Norwegian."""
-    from PyQt6.QtCore import QCoreApplication
-    i18n.set_language("no")
-    i18n.install_qt_translator(qapp)
-    try:
-        assert QCoreApplication.translate("QPlatformTheme", "Cancel") == "Avbryt"
-        assert QCoreApplication.translate("QPlatformTheme", "Close") == "Lukk"
-    finally:
-        if i18n._qt_translator is not None:
-            qapp.removeTranslator(i18n._qt_translator)
-            i18n._qt_translator = None

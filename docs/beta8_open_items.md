@@ -22135,3 +22135,105 @@ would reach.
   test_the_carve_out_is_exactly_two_rows_and_no_more) and eight mutations
   proven to land in
   `~/Desktop/ChromIQ-beta30-proof/repeatability/mutations.txt`.
+
+### B8-670 · FIXED · The two Custom ISO columns started from ChromIQ's own numbers, and Knut had researched better ones
+- status: FIXED
+- blocks release: no
+- Knut, #182, 2026-09-21: *"I have filled in the json file with the threshold
+  limits I have manually set, based on findings from research online of
+  industry practice and reasoned limits from the industry, which are
+  independently set by various actors in the industry, companies or
+  communities, not based on ISO standard values. I would like these to be set
+  as default for the two Custom ISO 12647 columns."*
+- His figures are now those columns' starting values. Before this they were one
+  shared table of ChromIQ's own 1.5 / 2.0 / 3.0, chosen in September only so
+  that every measurable row had *something* to be judged against.
+- **the split, counted.** Custom ISO 12647-7 carries **10** researched figures
+  and **8** ChromIQ numbers; Custom ISO 12647-8 carries **9** and **9**. Both
+  still carry **18** limits, one on every row ChromIQ can measure, so Knut's
+  2026-09-11 rule is unbroken. His file follows each standard's own structure,
+  so the researched figures are stored **per column**
+  (`compliance_sets::_CUSTOM_INDUSTRY`) and ChromIQ's own numbers stay on the
+  rows his research does not cover (`_CUSTOM_CHROMIQ_FILL`).
+- **the rows he filled that ChromIQ cannot judge are deliberately NOT
+  defaults**: 7 of them for 12647-7 and 9 for 12647-8. A number on a row
+  nothing is ever compared with is the shape of "a column that checked nothing
+  said PASS", and `factory_limits` already refused it. They arrive with the
+  detection that makes each row computable.
+- **10 cells moved and verdicts moved with them**, which is the point of the
+  change: 6 in Custom ISO 12647-7, 4 in Custom ISO 12647-8, 8 looser and 2
+  tighter. Measured on a population built to express it, five measured values
+  per moved cell spanning both limits: **10 of 10 row verdicts moved in the
+  band between the old limit and the new, and 0 of 40 outside it.** A whole
+  sheet in that band moves the column's own word FAIL to COND in both columns.
+  The same diff over a population that cannot express the change reports 0 of
+  36 and proves nothing, which is the shape the round before this one took.
+- **the two columns are no longer identical.** Six numbered rows differ between
+  them, so the demo pack's README now names them and says a reader can compare
+  one run with the other. It previously said, correctly for the time, that they
+  could not.
+- **a limit the user set is not moved by one we ship.** A per-user override in
+  Preferences and a run's own bound copy in `meta.json` both survive; a row
+  nobody has set takes the new number. There was no guard for this at all
+  before: no test anywhere changed a shipped factory figure and then checked a
+  stored value. There is one now, and it asserts the defaults actually MOVED
+  before it asserts anything survived them.
+- **there is one hole and it is not this change's.** `_on_cell_changed` drops
+  an override whose value equals the CURRENT factory number, by the design
+  stated at `core/settings.py:230`, so a user who deliberately typed the old
+  default on one of the 10 moved rows stored nothing and their value moves with
+  ours. The UI cannot tell "I chose 3.0" from "I left it at 3.0". Not changed
+  here: the behaviour is deliberate, documented and pinned by
+  `test_the_report_door_writes_overrides_as_they_are_edited`, so it is
+  Knut's or Basti's call, not a round's. Reported, not fixed.
+- **the help text is GENERATED, not written.** The Report limits window's
+  description of its columns is built from
+  `compliance_sets::custom_default_counts`: it names exactly the sources that
+  have a limit behind them, in both the shipping state and the state where a
+  licence holder has supplied figures. A source with nothing behind it is not
+  named, so the sentence cannot go on claiming one. Four other places made the
+  same "ChromIQ's own numbers" claim and were corrected with it: the Report
+  limits window's own Custom-columns tooltip, the grey label beside "Reference
+  values…", the report guide's paragraph, and M-THRESHOLDS-NOT-CERTIFICATION
+  (PROPOSED, so its §M entry was revised in step). That is the attribution this
+  area has now been corrected for five times.
+- i18n: 13 new keys, 7 retired, in all **thirteen** languages.
+- evidence: test_the_researched_industry_figures_are_exactly_what_knut_delivered,
+  test_every_custom_default_comes_from_one_of_the_two_named_sources,
+  test_a_custom_columns_counts_add_up_to_what_it_judges,
+  test_chromiqs_own_half_of_the_defaults_is_anybody_elses_published_figure,
+  test_a_default_never_reaches_a_row_chromiq_cannot_measure,
+  test_the_paragraph_names_every_source_the_custom_columns_draw_on,
+  test_the_industry_research_is_actually_behind_the_custom_columns,
+  test_the_defaults_really_did_move_on_the_rows_this_is_proved_on,
+  test_a_stored_override_survives_a_change_of_the_shipped_default,
+  test_a_run_bound_before_the_change_keeps_the_numbers_it_was_bound_with,
+  test_a_run_bound_after_the_change_gets_the_new_numbers,
+  test_a_users_no_limit_survives_too,
+  test_the_two_custom_columns_cover_the_same_rows_and_no_longer_the_same_numbers,
+  test_the_two_custom_columns_are_compared_on_their_NUMBERS,
+  `~/Desktop/ChromIQ-beta30-proof/custom-defaults/FINDINGS.md`
+### B8-671 · OPEN · The demo pack has not built at its own base commit since the repeatability rows landed
+- status: OPEN
+- blocks release: no
+- found while verifying B8-670: `scripts/make_report_limit_demos.py` stops
+  partway through `Report-Limits-Threshold-Series` with
+  *"run1/2026-02-02_100000: the story says ['PASS'] and the report's word for
+  the column is FAIL"*, two lines after an unintended crossing of
+  `repeat_measurement_de00_max` on 2026-01-19.
+- **it is not B8-670's.** The same tree exported at `d3ebca06` and built with
+  the same command produces a log that is byte-identical, `diff` clean. So the
+  break arrived with B8-660/661/662, which added the two repeatability rows,
+  and the pack has not been rebuilt since.
+- the consequence for B8-670 is that its own change to the pack, giving the two
+  Custom columns their own matrix designs so that the "everything over" date
+  still crosses `outer_gamut_226_de00_avg` and `surface_gamut_de00_avg` now
+  that both sit at 4.0, is reasoned and not yet measured end to end. The
+  generator's intended-against-actual check is the only thing that can measure
+  it and it cannot run.
+- for whoever takes it: the two Threshold-Series dates need a design that
+  accounts for the repeat rows, exactly as every other series in that file
+  accounts for the rows its chart can answer.
+- evidence: `/tmp/chromiq-cust/demo-build.log` and
+  `/tmp/chromiq-cust/demo-build-base.log` (identical), reproduced in
+  `~/Desktop/ChromIQ-beta30-proof/custom-defaults/FINDINGS.md`

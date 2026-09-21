@@ -953,35 +953,57 @@ def test_the_two_custom_columns_are_compared_on_their_NUMBERS(gen):
     """AND THE FIRST VERSION OF THIS COMPARISON GOT IT BACKWARDS.
 
     Compared cell for cell over all thirty rows the two columns "differ", and
-    the README said so. Every one of those differences is on a row carrying NO
-    number, where one column shows ? or the cross and the other shows the dash,
-    because the two standards write limits over different rows. On every row
-    that carries a number they are identical, and it is the numbers that decide
-    a verdict, so the README was telling a reader they could read one run
-    against the other and learn something about the two standards. They cannot.
+    the README said so. Every one of those differences was on a row carrying
+    NO number, where one column shows ? or the cross and the other shows the
+    dash, because the two standards write limits over different rows. On every
+    row that carried a number they were identical, and it is the numbers that
+    decide a verdict, so the README was telling a reader they could read one
+    run against the other and learn something about the two standards. They
+    could not.
+
+    **AND ON 2026-09-21 THEY STOPPED BEING IDENTICAL.** Knut's researched
+    industry figures (#182) became the two columns' starting values and are
+    given PER COLUMN, following each standard's own structure, so six numbered
+    rows now hold a different figure in each column. The README's paragraph
+    for that case is the one that prints, and it names those six rows. Both
+    halves are still asked here, because getting either backwards is the
+    fault this test exists for: a SHAPE difference may never carry a number,
+    and a NUMBER difference must.
 
     MUTATION: compare `kind` as well as the number in `custom_column_facts`
-    and this goes red.
+    and the shape/number split collapses, so `custom_number_differs` picks up
+    rows carrying no number and the last loop goes red.
     """
     facts = gen.custom_column_facts()
     if len(facts["custom_ids"]) < 2:
         pytest.skip("this ChromIQ does not offer both Custom columns")
-    assert facts["custom_same_numbers"], (
-        "the two Custom columns hold different numbers; the README's second "
-        "fact about them is written for the case where they do not")
     assert facts["custom_shape_differs"], (
-        "the two columns no longer differ in shape either, so the paragraph "
-        "naming the rows they differ on has nothing to name")
-    # every row they differ on must be one that cannot carry a verdict
+        "the two columns no longer differ in shape, so the paragraph naming "
+        "the rows they differ on has nothing to name")
     from workflow.compliance_sets import ROW_BY_ID, effective_limits
     a_ = effective_limits(facts["custom_ids"][0], {})
     b_ = effective_limits(facts["custom_ids"][1], {})
     by_label = {r.label: rid for rid, r in ROW_BY_ID.items()}
+    # A SHAPE difference may never carry a number in either column.
     for label in facts["custom_shape_differs"]:
         rid = by_label[label]
         assert a_[rid].number is None and b_[rid].number is None, (
             f"{label} is named as a shape difference but one of the columns "
             f"puts a number on it, so it CAN change a verdict")
+    # …and the two facts are each other's opposite.
+    assert facts["custom_same_numbers"] == (not facts["custom_number_differs"])
+    assert not facts["custom_same_numbers"], (
+        "the two Custom columns hold the same number on every row again. "
+        "Knut's researched figures are given per column and differ between "
+        "them (#182, 2026-09-21), so this means they stopped being applied "
+        "per column")
+    # A NUMBER difference must carry one in BOTH, or it is not a comparison.
+    for label in facts["custom_number_differs"]:
+        rid = by_label[label]
+        assert a_[rid].is_numeric and b_[rid].is_numeric, (
+            f"{label} is named as a number difference but one of the columns "
+            f"puts no number on it")
+        assert a_[rid] != b_[rid], label
 
 
 def test_the_unfillable_rows_are_asked_of_the_row_not_listed_here(gen):

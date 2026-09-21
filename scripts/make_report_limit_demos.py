@@ -1837,20 +1837,23 @@ BORDER_RAW_DRIFT: "list[Date]" = [
 #: so the window offers them and a run can be bound to either.
 #:
 #: **THE NUMBERS IN THOSE TWO COLUMNS ARE NOT TOUCHED BY THIS GENERATOR AND MAY
-#: NOT BE.** They are placeholders governed by a permission condition, they are
-#: deliberately not either standard's published tolerances, and a test pins
-#: where each one came from. The designs below were worked out against the
-#: columns AS THEY ARE, the same way every other series in this file is, and
-#: the intended/actual check at the end of a build is what proves it rather
-#: than the fact that the numbers happen to match ChromIQ default's.
+#: NOT BE.** Since 2026-09-21 they are Knut's researched industry figures where
+#: his research covers a row and ChromIQ's own numbers where it does not
+#: (#182); they are deliberately not either standard's published tolerances,
+#: and a test pins where each one came from. The designs below were worked out
+#: against the columns AS THEY ARE, the same way every other series in this
+#: file is, and the intended/actual check at the end of a build is what proves
+#: it. They can no longer be assumed to match ChromIQ default's, and the two
+#: columns can no longer be assumed to match each other.
 #:
 #: TWO THINGS A READER OF THESE TWO RUNS HAS TO KNOW, and both are properties
 #: of the columns rather than of the data:
 #:
 #: * **A Custom column can never read PASS on a ChromIQ chart.** Three of its
-#:   eleven limit-bearing rows (paper white against the reference paper, solid
-#:   colours, CMY hue difference) need a reference measurement of the printing
-#:   condition, which ChromIQ cannot read yet, so they are N-A on every date.
+#:   eighteen limit-bearing rows (paper white against the reference paper,
+#:   solid colours, CMY hue difference) need a reference measurement of the
+#:   printing condition, which ChromIQ cannot read yet, so they are N-A on
+#:   every date.
 #:   A required row that could not be checked makes the column COND at best.
 #: * **Every column named after a standard reads COND even when nothing is
 #:   over.** That is the caveat doing its job: the numbers are applied to the
@@ -1880,15 +1883,17 @@ CUSTOM_7_SERIES: "list[Date]" = [
 #: The other Custom column, crossing a DIFFERENT row, and one that no ChromIQ
 #: set judges at all: the 30 to 70 % tone ramp. Elsewhere in this package that
 #: row can only be exercised by typing a limit into a run's own edited column;
-#: here a shipped set puts one on it, as a recommendation, so it reads COND.
+#: here a shipped set puts one on it, and it is a requirement like any other.
+#: It carried a bracket until Knut retired it on 2026-09-21: *"the thresholds
+#: that use a bracket, ex. '(3,00)', should not have a bracket, since it is
+#: not a 'recommended'/'should' type metric."*
 CUSTOM_8_SERIES: "list[Date]" = [
     _d("2027-02-02_100000", "2027-02-02T10:00:00",
        "The hardest colours drift, and one ramp step goes dark",
        "The worst 5 % of patches average about 2.7, over their 2.0, and the "
        "middle step of the grey tone ramp is 3.0 too dark, over the 2.0 this "
-       "column recommends. TWO rows cross, which is the most this design "
-       "allows, and they carry different words: one is a requirement and the "
-       "other a recommendation.",
+       "column puts on it. TWO rows cross, which is the most this design "
+       "allows, and neither is a recommendation: this column requires both.",
        Design(bulk=0.80, shoulder=1.40, peak=2.75, tail=2.65, grey_dch=0.50,
               ramp_dl=3.0),
        ["worst5_de00_avg", "ramps_30_70_dl_max"]),
@@ -2435,11 +2440,20 @@ def _crossed_rows(report, limits, row_values, row_verdict, set_summary,
 #: ``meta.json::compliance_thresholds`` is where it lives on disk. These runs
 #: ship in exactly that state.
 #:
-#: The numbers are ChromIQ default's own placeholders scaled by the ratio the
-#: set already uses on the five colour-difference rows it DOES ship: tight is
-#: half of default (1.0 against 2.0, 1.5 against 3.0) and Quick check is
+#: The numbers are ChromIQ's own (``_CUSTOM_CHROMIQ_FILL``) scaled by the ratio
+#: the set already uses on the five colour-difference rows it DOES ship: tight
+#: is half of default (1.0 against 2.0, 1.5 against 3.0) and Quick check is
 #: double it. Nothing here was looked up in any standard, and no row the set
 #: already numbers is touched.
+#:
+#: **DELIBERATELY NOT KNUT'S RESEARCHED FIGURES**, which became the two Custom
+#: columns' starting values on 2026-09-21 (#182). These runs are bound to
+#: ChromIQ's OWN sets, whose numbers are ChromIQ's; filling their unnumbered
+#: rows from a researched industry limit would put a figure into a ChromIQ
+#: column that ChromIQ did not choose, and would move every demo design that
+#: was built against these numbers. The Custom columns' own demo runs carry
+#: ``edited_limits=None`` and are judged against whatever `factory_limits`
+#: gives them, which is where the researched figures are seen.
 SET_SCALE = {"chromiq_default": 1.0, "chromiq_tight": 0.5, "chromiq_quick": 2.0}
 
 
@@ -2452,11 +2466,12 @@ def fill_limits(set_id: str, relax: "dict[str, float] | None" = None,
     single crossing stands alone). *keep* names rows that must survive *relax*,
     which is what makes an isolation run isolate the row it says it does.
     """
-    from workflow.compliance_sets import ROW_BY_ID, _CUSTOM_PLACEHOLDER, factory_limits
+    from workflow.compliance_sets import (ROW_BY_ID, _CUSTOM_CHROMIQ_FILL,
+                                          factory_limits)
     scale = SET_SCALE.get(set_id, 1.0)
     factory = factory_limits(set_id)
     out: "dict[str, float]" = {}
-    for rid, lim in _CUSTOM_PLACEHOLDER.items():
+    for rid, lim in _CUSTOM_CHROMIQ_FILL.items():
         row = ROW_BY_ID.get(rid)
         if row is None or row.status not in ("now", "build", "ref"):
             continue
@@ -2536,8 +2551,28 @@ MATRIX = {
                white_de=1.5, solid_de=1.5, cmy_dh=1.0),
     ),
 }
-MATRIX["custom_iso_12647_7"] = MATRIX["chromiq_default"]
-MATRIX["custom_iso_12647_8"] = MATRIX["chromiq_default"]
+# THE TWO CUSTOM COLUMNS GOT THEIR OWN DESIGNS ON 2026-09-21, and the reason
+# is the whole point of the matrix runs. They used to reuse ChromIQ default's,
+# which worked while both columns held ChromIQ default's own numbers. Knut's
+# researched industry figures (#182) moved two of them onto the design's own
+# value: Custom ISO 12647-7 puts 4.0 on the outer-gamut average and Custom ISO
+# 12647-8 puts 4.0 on the surface-gamut average, and the "everything over"
+# date used 4.0 for both. A value EQUAL to its limit is inside it, so those
+# rows would have stopped crossing and the date would have stopped meaning
+# what its story says.
+#
+# 5.0 clears both, and the "everything in" date is untouched: its 0.5 is under
+# the tightest number either column puts on those rows. Raised by hand and
+# checked against the shipped limits, not derived from them, because a design
+# derived from the numbers it is meant to cross proves only that division
+# works.
+from dataclasses import replace as _replace_design
+
+_CUSTOM_OVER, _CUSTOM_IN = MATRIX["chromiq_default"]
+MATRIX["custom_iso_12647_7"] = (
+    _replace_design(_CUSTOM_OVER, outer_de=5.0, surface_de=5.0), _CUSTOM_IN)
+MATRIX["custom_iso_12647_8"] = (
+    _replace_design(_CUSTOM_OVER, outer_de=5.0, surface_de=5.0), _CUSTOM_IN)
 
 MATRIX_SETS = ("chromiq_default", "chromiq_tight", "chromiq_quick",
                "custom_iso_12647_7", "custom_iso_12647_8")
@@ -3746,7 +3781,7 @@ def custom_column_facts() -> dict:
 
     ids = [sid for sid in selectable_set_ids({}) if sid.startswith("custom_")]
     facts: dict = {"custom_ids": ids, "custom_same_numbers": False,
-                   "custom_shape_differs": [],
+                   "custom_shape_differs": [], "custom_number_differs": [],
                    "custom_total": 0, "custom_fillable": 0,
                    "custom_unfillable": []}
     if not ids:
@@ -3779,6 +3814,15 @@ def custom_column_facts() -> dict:
         facts["custom_shape_differs"] = sorted(
             ROW_BY_ID[r].label for r in set(a_) | set(b_)
             if a_[r].kind != b_[r].kind)
+        # …AND THE ROWS THAT NOW DIFFER IN THE NUMBER ITSELF, which is the
+        # half that can change a verdict. Empty until 2026-09-21: one table
+        # put the same figure on both columns. Knut's researched figures are
+        # given per column, following each standard's own structure, so the
+        # two columns stopped being interchangeable and a reader CAN now read
+        # one run against the other on these rows.
+        facts["custom_number_differs"] = sorted(
+            ROW_BY_ID[r].label for r in limit_bearing(a_)
+            if r in limit_bearing(b_) and a_[r] != b_[r])
     return facts
 
 
@@ -4731,6 +4775,18 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
         else:
             a("SECOND: the two columns hold DIFFERENT numbers from each other,")
             a("so the two runs can be read against one another.")
+            a("")
+            a("  Neither column's numbers are a standard's. They start from")
+            a("  limits researched from industry practice, given per column,")
+            a("  and from ChromIQ's own numbers on the rows that research does")
+            a("  not cover. The rows the two columns put DIFFERENT numbers on")
+            a("  are the ones a reader can compare:")
+            for _lbl in _cov.get("custom_number_differs") or []:
+                a(f"      {_lbl}")
+            a("")
+            a("  A licence holder who points ChromIQ at their own figures file")
+            a("  gets different numbers again, and then these same two runs")
+            a("  start saying different things without being rebuilt.")
         a("")
     sys.path.insert(0, str(_HERE))
     import make_verification_preset_demos as _PRESETS

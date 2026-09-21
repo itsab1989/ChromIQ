@@ -221,11 +221,6 @@ def _welcome_dialog():
     return WelcomeDialog(AppSettings(), None, "dark"), "set_appearance"
 
 
-def _tooltip_button():
-    from ui.tooltip_button import TooltipButton
-    return TooltipButton("t", "b"), "set_appearance"
-
-
 def _tab_chart():
     from core.argyll_runner import ArgyllRunner
     from core.file_manager import FileManager

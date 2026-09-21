@@ -12,13 +12,14 @@ empty:
 
     iso_12647_7          0 limit-bearing rows
     iso_12647_8          0 limit-bearing rows
-    custom_iso_12647_7  16 limit-bearing rows
-    custom_iso_12647_8  16 limit-bearing rows
+    custom_iso_12647_7  18 limit-bearing rows
+    custom_iso_12647_8  18 limit-bearing rows
 
-The sixteen come from `compliance_sets._CUSTOM_PLACEHOLDER`, which is ChromIQ's
-own figures chosen so that every measurable row has something to be judged
-against. So the reader was told the empty columns were full, and that the full
-ones carried a standard's numbers.
+Not one of those eighteen is a standard's figure. They come from
+`compliance_sets.custom_defaults`, which merges Knut's researched industry
+figures (#182, 2026-09-21) over ChromIQ's own numbers so that every measurable
+row has something to be judged against. So the reader was told the empty
+columns were full, and that the full ones carried a standard's numbers.
 
 **This is the fourth time this exact claim has had to be removed.** The `SetDef`
 blurbs were corrected for it three times and the report guide's own paragraph
@@ -105,9 +106,70 @@ def test_the_shipping_state_is_not_described_as_full(iso_file):
                 "the two Custom columns start from them"):
         assert bad not in text, text
     # …and what has to be there instead: the ISO columns said to be empty, and
-    # the Custom ones said to hold ChromIQ's own numbers.
+    # the Custom ones said to hold NO published value of either standard.
     assert "empty here" in text, text
-    assert "ChromIQ's own numbers rather than from theirs" in text, text
+    assert "hold none of their published values" in text, text
+
+
+def test_the_paragraph_names_every_source_the_custom_columns_draw_on(iso_file):
+    """A source with limits behind it is NAMED; one without is not.
+
+    Knut's researched industry figures became the Custom columns' starting
+    values on 2026-09-21 (#182). A column named after a standard that holds
+    numbers which are not that standard's has to say where they came from, and
+    a sentence that names one of two sources is as wrong as one that names a
+    standard: eight of Custom ISO 12647-7's eighteen limits, and nine of
+    Custom ISO 12647-8's, are still ChromIQ's own.
+
+    Phrased as the implication rather than as fixed wording, and driven in
+    three states, so the sentence is pinned to what the module actually holds.
+
+    MUTATION PROVEN TO LAND: empty `_CUSTOM_INDUSTRY` and the "industry
+    practice" clause disappears with the count, so the *seen* half of each
+    assertion moves with the *counted* half and the test stays green -- which
+    is why the count is also asserted to be non-zero as shipped, below.
+    Hard-code the sentence to always name industry practice, and the
+    `_CUSTOM_INDUSTRY = {}` leg goes red.
+    """
+    from ui.dialogs.thresholds_dialog import _custom_columns_sentence
+
+    for payload in (None,
+                    {"iso_12647_7": {"all_de00_avg": 1.0}},
+                    {"iso_12647_7": {"all_de00_avg": 1.0},
+                     "iso_12647_8": {"all_de00_avg": 1.0}}):
+        iso_file(payload)
+        totals = {"supplied": 0, "industry": 0, "chromiq": 0}
+        for sid in CUSTOM_SETS:
+            counts = cs.custom_default_counts(sid)
+            for key in totals:
+                totals[key] += counts[key]
+        text = _custom_columns_sentence()
+        for key, phrase in (("supplied", "the figures you supplied"),
+                            ("industry",
+                             "limits researched from industry practice"),
+                            ("chromiq", "ChromIQ's own numbers")):
+            assert (phrase in text) == bool(totals[key]), (
+                f"{key}: {totals[key]} limits behind it, and the window "
+                f"{'names' if phrase in text else 'does not name'} it -- {text}")
+
+
+def test_the_industry_research_is_actually_behind_the_custom_columns(iso_file):
+    """The half the test above cannot prove on its own.
+
+    That test says "named when counted", which an empty `_CUSTOM_INDUSTRY`
+    satisfies vacuously. This one says the count is not zero as ChromIQ ships:
+    Knut asked for his researched figures to be the starting values of BOTH
+    Custom columns, so both must draw on them.
+    """
+    iso_file(None)
+    for sid in CUSTOM_SETS:
+        counts = cs.custom_default_counts(sid)
+        assert counts["industry"] > 0, (
+            f"{sid} starts from no researched figure at all; Knut asked for "
+            f"them to be its defaults (#182, 2026-09-21)")
+        assert counts["supplied"] == 0, (
+            f"{sid} took a figure from a values file; the repository's own "
+            f"file is empty, so this test is measuring the wrong machine")
 
 
 def test_supplied_values_are_not_described_as_absent(iso_file):

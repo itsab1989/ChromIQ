@@ -45,9 +45,17 @@ def test_the_guide_separates_a_published_column_from_a_custom_one(tmp_path,
     g = _guide(tmp_path)
     assert "read-only column named after a standard holds that standard's " \
            "published tolerance values and nothing else" in g
+    # …AND THE EDITABLE HALF NAMES BOTH OF ITS SOURCES SINCE 2026-09-21.
+    # Knut's researched industry figures became those columns' starting values
+    # (#182) and ChromIQ's own numbers stayed on the rows his research does not
+    # cover, so a guide naming one of the two is the same half-truth the three
+    # corrections above were for.
     assert "An editable column named after a standard starts from those " \
-           "supplied figures where there are any and from ChromIQ's own " \
-           "numbers where there are none" in g
+           "supplied figures where there are any, and where there are none, " \
+           "from limits researched from industry practice and from ChromIQ's " \
+           "own numbers" in g
+    # and it says whose neither of those two is
+    assert "neither of which is that standard's" in g
 
 
 def test_every_clause_of_the_guide_survives_a_licence_holder(tmp_path, qapp):
@@ -160,13 +168,20 @@ def test_both_kinds_still_count_as_applying_a_standard():
     assert not applies_a_standard("chromiq_default")
 
 
-def test_the_custom_blurbs_name_both_places_the_numbers_come_from():
+def test_the_custom_blurbs_name_every_place_the_numbers_come_from():
     """The blurb said "The starting numbers are ChromIQ's own, not ISO
     12647-7:2016's" and "The two editable columns start from the same
     numbers". Both are true only while the data file is empty.
-    `factory_limits` takes ChromIQ's placeholders only where the file supplied
+    `factory_limits` takes ChromIQ's own defaults only where the file supplied
     no number, so with figures supplied custom-7 starts from the 12647-7 block
     and custom-8 from the 12647-8 block, and the two are not the same numbers.
+
+    **AND THERE ARE THREE SOURCES NOW, NOT TWO.** Knut's researched industry
+    figures became the Custom columns' starting values on 2026-09-21 (#182),
+    and ChromIQ's own numbers stayed on the rows his research does not cover.
+    A blurb naming two of the three is the same shape of half-truth the
+    earlier three corrections were for, so all three are named and the
+    sentence says plainly that neither of ours is the standard's.
     """
     from workflow.compliance_sets import SET_BY_ID
     for sid, std in (("custom_iso_12647_7", "ISO 12647-7:2016"),
@@ -174,7 +189,11 @@ def test_the_custom_blurbs_name_both_places_the_numbers_come_from():
         blurb = SET_BY_ID[sid].blurb
         assert f"published figures of {std}" in blurb, sid
         assert "where a licence holder has supplied them" in blurb, sid
-        assert "ChromIQ's own numbers where nobody has" in blurb, sid
+        assert "where nobody has" in blurb, sid
+        assert "researched from industry practice" in blurb, sid
+        assert "ChromIQ's own" in blurb, sid
+        # …and it says whose those two are NOT
+        assert "neither of which is that standard's" in blurb, sid
         assert "yours to change" in blurb, sid
         # the two claims that were false in the supplied state
         assert "not " + std + "'s" not in blurb, sid
@@ -199,11 +218,28 @@ def test_the_custom_blurbs_claim_nothing_about_which_rows_a_standard_limits():
         assert "The rows ISO" not in blurb, sid
 
 
-def test_the_two_custom_columns_start_identical_only_while_the_file_is_empty():
-    """They do, as ChromIQ ships, and the blurb no longer says so BECAUSE that
-    stops being true the moment a licence holder supplies figures. Pinned here
-    as the fact it is, not as a promise the text makes."""
+def test_the_two_custom_columns_cover_the_same_rows_and_no_longer_the_same_numbers():
+    """THEY WERE IDENTICAL AS ChromIQ SHIPPED, AND THEY ARE NOT ANY MORE.
+
+    This test used to be called "start identical only while the file is
+    empty", and with an empty file they did: one shared table put the same
+    number on the same eighteen rows in both columns. Knut's researched
+    figures (#182, 2026-09-21) are given PER COLUMN, following each standard's
+    own structure, so the two columns now differ on some rows with the
+    repository's own empty file in place, before any licence holder supplies
+    anything.
+
+    What is still true, and is the invariant worth pinning, is that both
+    columns cover the same rows: Knut's 2026-09-11 ruling was that every
+    metric ChromIQ can measure carries a limit in a Custom column, and that
+    does not become "every metric one of the standards happens to limit".
+    """
     from workflow.compliance_sets import effective_limits, limit_bearing
     a = limit_bearing(effective_limits("custom_iso_12647_7", None))
     b = limit_bearing(effective_limits("custom_iso_12647_8", None))
     assert set(a) == set(b)
+    differing = sorted(rid for rid in a if a[rid] != b[rid])
+    assert differing, (
+        "the two Custom columns hold identical numbers on every row. Knut's "
+        "researched figures are per column and differ between them, so this "
+        "means they stopped being applied per column.")

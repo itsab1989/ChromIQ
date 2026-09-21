@@ -334,7 +334,8 @@ def test_the_standards_own_repeatability_row_is_untouched():
     for sid in cs.SET_IDS:
         lim = cs.factory_limits(sid)["repeatability_de00_max"]
         assert not lim.is_numeric, (sid, lim)
-    assert "repeatability_de00_max" not in cs._CUSTOM_PLACEHOLDER
+    for parent in cs.ISO_SET_IDS:
+        assert "repeatability_de00_max" not in cs.custom_defaults(parent)
 
 
 def test_neither_new_row_steals_one_of_the_five_old_metric_keys():

@@ -716,17 +716,21 @@ SETS: "tuple[SetDef, ...]" = (
            blurb="Every metric ChromIQ can measure, for judging against "
                  "figures you set yourself. It starts from the published "
                  "figures of ISO 12647-7:2016 where a licence holder has "
-                 "supplied them, and from ChromIQ's own numbers where "
-                 "nobody has, and every limit in it is yours to change, "
-                 "the rows that start empty included."),
+                 "supplied them, and where nobody has, from limits "
+                 "researched from industry practice and from ChromIQ's own "
+                 "numbers, neither of which is that standard's. Every limit "
+                 "in it is yours to change, the rows that start empty "
+                 "included."),
     SetDef("custom_iso_12647_8", "Custom ISO 12647-8", "custom", True,
            parent="iso_12647_8",
            blurb="Every metric ChromIQ can measure, for judging against "
                  "figures you set yourself. It starts from the published "
                  "figures of ISO 12647-8:2021 where a licence holder has "
-                 "supplied them, and from ChromIQ's own numbers where "
-                 "nobody has, and every limit in it is yours to change, "
-                 "the rows that start empty included."),
+                 "supplied them, and where nobody has, from limits "
+                 "researched from industry practice and from ChromIQ's own "
+                 "numbers, neither of which is that standard's. Every limit "
+                 "in it is yours to change, the rows that start empty "
+                 "included."),
 )
 SET_BY_ID: "dict[str, SetDef]" = {s.id: s for s in SETS}
 
@@ -890,40 +894,86 @@ ISO_DATA_FILE = "data/compliance_sets/iso12647.json"
 ISO_DATA_ENV = "CHROMIQ_COMPLIANCE_ISO_FILE"
 _iso_cache: "dict[str, dict[str, Limit]] | None" = None
 
-#: ChromIQ's OWN starting numbers for the two Custom sets, and they are not
-#: anybody's published tolerances.
+#: THE TWO CUSTOM COLUMNS' STARTING NUMBERS, AND WHERE EACH ONE COMES FROM.
 #:
-#: Knut, 2026-09-11: *"the table columns for 'Custom ISO 12647-7' and 'Custom
-#: ISO 12647-8' should have selection boxes for all metrics that ChromIQ can
-#: check, because it is a custom threshold set. […] For testing purposes you
-#: can set a reasonable value, such as for the ChromIQ default, but those
-#: thresholds that are not part of ChromIQ default must have set a reasonable
-#: value […] even if they are not same as those standards (that is not relevant
-#: for testing the metrics). Thus make sure the metrics have a value that can be
-#: tested against."*
+#: There are two sources, and the difference between them is the whole point
+#: of this section:
 #:
-#: Every cell of the two Custom columns read ``?`` or ``–`` before this, so the
-#: columns judged nothing and no metric could be exercised through them. The
-#: rule that produced the numbers below, and it is the whole rule:
+#: * :data:`_CUSTOM_INDUSTRY` — Knut's own researched figures, per column.
+#:   Knut, #182, 2026-09-21: *"I have filled in the json file with the
+#:   threshold limits I have manually set, based on findings from research
+#:   online of industry practice and reasoned limits from the industry, which
+#:   are independently set by various actors in the industry, companies or
+#:   communities, not based on ISO standard values. I would like these to be
+#:   set as default for the two Custom ISO 12647 columns."*
+#: * :data:`_CUSTOM_CHROMIQ_FILL` — ChromIQ's own numbers, kept for the rows
+#:   his research puts no figure on for that column, so that the invariant he
+#:   asked for on 2026-09-11 still holds: every metric ChromIQ can measure
+#:   arrives with a limit to be judged against.
+#:
+#: **NEITHER SOURCE IS A STANDARD'S PUBLISHED VALUE, AND NEITHER MAY BECOME
+#: ONE.** No value of ISO 12647-7 or ISO 12647-8 is in this file and none may
+#: be (`docs/design/issue_182_answers.md`, the owner's standing rule). A
+#: licence holder supplies the real figures through the file
+#: ``CHROMIQ_COMPLIANCE_ISO_FILE`` names, and where that file HAS a number for
+#: a row, the Custom set takes it and none of this is used
+#: (:func:`factory_limits`). That a column is NAMED after a standard while
+#: holding numbers that are not that standard's is exactly the attribution the
+#: window's own description has had to be corrected for four times, so
+#: :func:`custom_default_counts` exists to let that description be GENERATED
+#: from what is actually loaded rather than asserted by hand.
+#:
+#: A row appears in either table only when ChromIQ can actually measure it,
+#: ``now`` / ``build`` / ``ref``. A number on a row ChromIQ cannot compute is a
+#: limit nothing is ever judged against, which is the shape of "a column that
+#: checked nothing said PASS"; :func:`factory_limits` enforces it and a test
+#: pins it. Knut's file carries figures on rows ChromIQ cannot judge today as
+#: well; those are deliberately NOT here, and belong with the detection that
+#: makes each of those rows computable.
+
+#: Knut's researched industry figures, keyed by the PARENT ISO set id, so each
+#: Custom column starts from the block he filled in for it. His file gives a
+#: figure per standard's own structure, so a row one column carries and the
+#: other does not is his structure, not an omission.
+_CUSTOM_INDUSTRY: "dict[str, dict[str, Limit]]" = {
+    "iso_12647_7": {
+        "substrate_de00_max": Limit.value(2.0),          # ΔE00
+        "solids_de00_max": Limit.value(2.0),             # ΔE00
+        "cmy_solids_dhab_max": Limit.value(2.5),         # ΔH*ab
+        "control_strip_de00_avg": Limit.value(2.0),      # ΔE00
+        "control_strip_de00_max": Limit.value(4.0),      # ΔE00
+        "grey_balance_neutral_ramp_avg": Limit.value(1.5),   # ΔCh
+        "grey_balance_neutral_ramp_max": Limit.value(3.0),   # ΔCh
+        "all_de00_avg": Limit.value(2.0),                # ΔE00
+        "all_de00_p95": Limit.value(4.0),                # ΔE00
+        "outer_gamut_226_de00_avg": Limit.value(4.0),    # ΔE00
+    },
+    "iso_12647_8": {
+        "substrate_de00_max": Limit.value(2.0),          # ΔE00
+        "control_strip_de00_avg": Limit.value(2.0),      # ΔE00
+        "control_strip_de00_p95": Limit.value(4.0),      # ΔE00
+        "grey_balance_neutral_ramp_avg": Limit.value(1.5),   # ΔCh
+        "grey_balance_neutral_ramp_max": Limit.value(3.0),   # ΔCh
+        "all_de00_avg": Limit.value(2.0),                # ΔE00
+        "all_de00_p95": Limit.value(4.0),                # ΔE00
+        "surface_gamut_de00_avg": Limit.value(4.0),      # ΔE00
+        "ramps_30_70_dl_max": Limit.value(2.0),          # ΔL*
+    },
+}
+
+#: ChromIQ's own numbers, for the rows Knut's research leaves to us. Shared by
+#: both columns, because these are not a standard's structure but ChromIQ's own
+#: statistics and the rows the other column's block covers.
 #:
 #: > **Only ChromIQ default's own three numbers are used: 1.5, 2.0 and 3.0.**
 #: > The five all-patch rows and the two grey rows take exactly what ChromIQ
-#: > default puts on them. Every other measurable row takes 2.0 or 3.0, reused
+#: > default puts on them. Every other row here takes 2.0 or 3.0, reused
 #: > because it is the right order of magnitude for a ΔE00, a ΔCh, a ΔH*ab or a
 #: > ΔL* and for no other reason.
 #:
-#: Nothing here was looked up, derived from, or checked against ISO 12647-7 or
-#: ISO 12647-8. **No value from either standard is in this file, and none may
-#: be** (`docs/design/issue_182_answers.md`, the owner's standing rule): a
-#: licence holder supplies the real figures through the file
-#: ``CHROMIQ_COMPLIANCE_ISO_FILE`` names, and where that file HAS a number for a
-#: row, the Custom set takes it and none of this is used (:func:`factory_limits`).
-#:
-#: A row is here only when ChromIQ can actually measure it, ``now`` / ``build`` /
-#: ``ref``. A number on a row ChromIQ cannot compute is a limit nothing is ever
-#: judged against, which is the shape of "a column that checked nothing said
-#: PASS"; :func:`factory_limits` enforces it and a test pins it.
-_CUSTOM_PLACEHOLDER: "dict[str, Limit]" = {
+#: That rule still governs THIS table and a test still pins it. It does not
+#: govern :data:`_CUSTOM_INDUSTRY`, whose numbers are Knut's and are researched.
+_CUSTOM_CHROMIQ_FILL: "dict[str, Limit]" = {
     # the five ChromIQ statistics, exactly ChromIQ default's numbers
     "all_de00_avg": Limit.value(2.0),
     "best95_de00_avg": Limit.value(2.0),
@@ -940,34 +990,83 @@ _CUSTOM_PLACEHOLDER: "dict[str, Limit]" = {
     # A BRACKET IN A COLUMN NAMED AFTER A STANDARD CLAIMED SOMETHING ChromIQ
     # does not know. This row was marked a recommendation on the reading that
     # ISO 12647-8:2021 4.2.7 is a *should*; the number beside it is ChromIQ's
-    # own placeholder, not the standard's, so the bracket said "ISO 12647-8
+    # own figure, not the standard's, so the bracket said "ISO 12647-8
     # calls this a recommendation" over a figure ISO never wrote. Knut,
     # 2026-09-21: *"Then the thresholds that use a bracket, ex. '(3,00)',
     # should not have a bracket, since it is not a 'recommended'/'should' type
     # metric."* A licence holder's own file may still mark it "should".
     "ramps_30_70_dl_max": Limit.value(2.0),          # ΔL*
-    # THE FIVE ROWS S2w MADE COMPUTABLE (Knut, 2026-09-18). They arrive here
-    # by the same rule as everything above and for the same reason: Knut asked
-    # the two Custom columns to carry *"a value that can be tested against"*
-    # for every metric ChromIQ can check, and as of this release ChromIQ can
-    # check these. The numbers are ChromIQ default's own 2.0 and 3.0, an
-    # average taking the average's number and a maximum the maximum's; nothing
-    # here was looked up in either standard.
+    # THE FIVE ROWS S2w MADE COMPUTABLE (Knut, 2026-09-18).
     "control_strip_de00_avg": Limit.value(2.0),      # ΔE00
     "control_strip_de00_max": Limit.value(3.0),      # ΔE00
     "control_strip_de00_p95": Limit.value(3.0),      # ΔE00
     "outer_gamut_226_de00_avg": Limit.value(2.0),    # ΔE00
     "surface_gamut_de00_avg": Limit.value(2.0),      # ΔE00
-    # CHROMIQ'S OWN TWO REPEATABILITY ROWS, by the same rule as everything
-    # above: exactly what ChromIQ default puts on them, so a Custom column
-    # arrives with a limit on every metric ChromIQ can check. Nothing here was
-    # looked up in either standard. Neither standard writes a limit over
-    # either row, so both read "–" in the two read-only ISO columns, and that
-    # is the honest cell: those columns hold a standard's published values and
-    # no standard published these.
+    # CHROMIQ'S OWN TWO REPEATABILITY ROWS. Neither standard writes a limit
+    # over either row, so both read "–" in the two read-only ISO columns, and
+    # that is the honest cell: those columns hold a standard's published values
+    # and no standard published these. Knut's research puts no figure on them
+    # either, so ChromIQ's own numbers stand.
     "repeat_patches_de00_max": Limit.value(2.0),      # ΔE00
     "repeat_measurement_de00_max": Limit.value(3.0),  # ΔE00
 }
+
+
+def custom_defaults(parent_set_id: str) -> "dict[str, Limit]":
+    """The starting numbers of the Custom column whose parent is *parent_set_id*.
+
+    Knut's researched figure for a row where he set one, ChromIQ's own number
+    where he did not. Merged here rather than stored merged, so that
+    :func:`custom_default_sources` cannot drift from what this returns.
+    """
+    out = dict(_CUSTOM_CHROMIQ_FILL)
+    out.update(_CUSTOM_INDUSTRY.get(parent_set_id, {}))
+    return out
+
+
+def custom_default_sources(parent_set_id: str) -> "dict[str, str]":
+    """Where each starting number of that Custom column came from.
+
+    ``"industry"`` for one of Knut's researched figures, ``"chromiq"`` for one
+    of ChromIQ's own. Same keys as :func:`custom_defaults`, always.
+    """
+    industry = _CUSTOM_INDUSTRY.get(parent_set_id, {})
+    return {rid: ("industry" if rid in industry else "chromiq")
+            for rid in custom_defaults(parent_set_id)}
+
+
+def custom_default_counts(set_id: str) -> "dict[str, int]":
+    """How many of a Custom column's limits come from where, COUNTED.
+
+    Keys: ``industry`` (Knut's researched figures), ``chromiq`` (ChromIQ's own
+    numbers), ``supplied`` (a licence holder's own values file answered the
+    row, so neither default is used), ``total`` (limit-bearing rows).
+
+    This is what lets the Report limits window's description of its columns be
+    generated instead of written: a sentence built from these counts cannot go
+    on saying "starts from ChromIQ's own numbers" after the numbers changed,
+    nor claim a standard's figures for a column that holds none. Returns all
+    zeroes for a set that is not a Custom one.
+    """
+    s = SET_BY_ID.get(set_id)
+    zero = {"industry": 0, "chromiq": 0, "supplied": 0, "total": 0}
+    if s is None or s.kind != "custom" or not s.parent:
+        return zero
+    sources = custom_default_sources(s.parent)
+    # ASK THE FILE, DO NOT INFER FROM THE NUMBER. Deciding "supplied" by
+    # comparing the limit with the default would miscount the one case that
+    # matters most: a licence holder whose own figure happens to EQUAL a
+    # default would be reported as not having supplied it, and the window
+    # would then name our sources and not theirs.
+    supplied = _load_iso_numbers().get(s.parent, {})
+    out = dict(zero)
+    for rid in limit_bearing(factory_limits(set_id)):
+        out["total"] += 1
+        if rid in supplied:
+            out["supplied"] += 1
+        else:
+            out[sources.get(rid, "chromiq")] += 1
+    return out
 
 #: What went wrong with the file the ENVIRONMENT VARIABLE names, as
 #: ``(kind, detail)`` pairs. See :func:`iso_data_problems`.
@@ -1245,16 +1344,20 @@ def factory_limits(set_id: str) -> "dict[str, Limit]":
         # Knut, 2026-09-11, asked for the two Custom columns to be usable:
         # every cell of both read ``?`` or ``–``, so the columns judged nothing.
         # The read-only ISO columns keep exactly what the data file gives them,
-        # which is nothing today; only the Custom sets take the placeholders,
-        # and only where the data file supplied no real number, so a licence
+        # which is nothing today; only the Custom sets take the defaults, and
+        # only where the data file supplied no real number, so a licence
         # holder who points ChromIQ at their own file still starts from theirs.
         #
-        # `_CUSTOM_PLACEHOLDER` holds only measurable rows, and the status test
+        # THE DEFAULTS ARE PER COLUMN, because Knut's researched figures are.
+        # `source` is the PARENT id here, which is exactly the key his file
+        # and `_CUSTOM_INDUSTRY` are written against.
+        #
+        # `custom_defaults` holds only measurable rows, and the status test
         # below is the second lock on the same door: a ``?`` on an ``unknown``
         # row means ChromIQ does not know WHICH patches the row is about, so a
         # number there would be a limit nothing is ever compared with.
         if s.kind == "custom":
-            for rid, lim in _CUSTOM_PLACEHOLDER.items():
+            for rid, lim in custom_defaults(source).items():
                 row = ROW_BY_ID.get(rid)
                 if row is None or row.status not in ("now", "build", "ref"):
                     continue

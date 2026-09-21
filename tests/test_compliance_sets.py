@@ -135,9 +135,10 @@ def test_the_shipped_iso_data_file_is_empty_so_every_iso_cell_reads_a_question_m
     # for 'Custom ISO 12647-7' and 'Custom ISO 12647-8' should have selection
     # boxes for all metrics that ChromIQ can check, because it is a custom
     # threshold set […] make sure the metrics have a value that can be tested
-    # against."* They now start from ChromIQ's OWN numbers
-    # (`_CUSTOM_PLACEHOLDER`), which is why they are selectable; no ISO figure
-    # is involved, and the two read-only columns are unchanged.
+    # against."* They now start from Knut's researched industry figures and
+    # ChromIQ's own numbers (`custom_defaults`), which is why they are
+    # selectable; no ISO figure is involved, and the two read-only columns
+    # are unchanged.
     assert selectable_set_ids({}) == ["chromiq_default", "chromiq_tight",
                                       "chromiq_quick", "custom_iso_12647_7",
                                       "custom_iso_12647_8"]
@@ -409,16 +410,23 @@ def test_every_measurable_row_of_a_custom_set_can_be_judged():
         assert cs.limit_bearing(f)
 
 
-def test_a_placeholder_never_reaches_a_row_chromiq_cannot_measure():
+def test_a_default_never_reaches_a_row_chromiq_cannot_measure():
     """The guarded-write check on the door this opens.
 
     A number on an `unmeasurable` row would claim ChromIQ tests something it
     cannot; a number on an `unknown` row would be a limit nothing is ever
     compared with, because ChromIQ does not know which patches that row is
     about. Both stay exactly as they were.
+
+    AND KNUT'S OWN FILE IS THE REASON THIS MATTERS NOW. The figures he
+    researched (#182, 2026-09-21) cover rows ChromIQ cannot judge today as
+    well as rows it can; only the judgeable ones became defaults. A later
+    round that sweeps the rest in "because they are in his file" is exactly
+    what this stops.
     """
-    for rid in cs._CUSTOM_PLACEHOLDER:
-        assert cs.ROW_BY_ID[rid].status in ("now", "build", "ref"), rid
+    for parent in cs.ISO_SET_IDS:
+        for rid in cs.custom_defaults(parent):
+            assert cs.ROW_BY_ID[rid].status in ("now", "build", "ref"), rid
     cs.reset_iso_cache()
     for sid in CUSTOM_SETS:
         f = factory_limits(sid)
@@ -429,26 +437,33 @@ def test_a_placeholder_never_reaches_a_row_chromiq_cannot_measure():
                 assert f[row.id].kind in ("unknown", "none"), row.id
 
 
-def test_no_placeholder_is_anybody_elses_published_figure():
-    """The numbers are ChromIQ default's own, and only those.
+def test_chromiqs_own_half_of_the_defaults_is_anybody_elses_published_figure():
+    """The numbers ChromIQ supplies are ChromIQ default's own, and only those.
 
     The owner's standing rule on #182 is that no value of ISO 12647-7 or
-    ISO 12647-8 goes into the code, and Knut agreed the placeholders need not
-    resemble them: *"even if they are not same as those standards (that is not
-    relevant for testing the metrics)"*. Pinning the SOURCE of every number,
-    rather than the numbers themselves, is what stops one drifting toward a
-    real tolerance later because it "looks more realistic".
+    ISO 12647-8 goes into the code, and Knut agreed ChromIQ's own numbers need
+    not resemble them: *"even if they are not same as those standards (that is
+    not relevant for testing the metrics)"*. Pinning the SOURCE of every
+    number, rather than the numbers themselves, is what stops one drifting
+    toward a real tolerance later because it "looks more realistic".
 
     **AND THE ALLOWLIST HAD TO BE THE ONE THE RULE NAMES.** It was built from
     ALL THREE ChromIQ tables, so it admitted 1.0, 4.0, 6.0 and 7.0 as well: seven
-    numbers where the rule beside `_CUSTOM_PLACEHOLDER` says *"Only ChromIQ
-    default's own three numbers are used: 1.5, 2.0 and 3.0"*. A placeholder
+    numbers where the rule beside `_CUSTOM_CHROMIQ_FILL` says *"Only ChromIQ
+    default's own three numbers are used: 1.5, 2.0 and 3.0"*. A number
     could be moved from 3.0 to 1.0 or from 2.0 to 4.0 and this test would not
     notice, which is precisely the drift it exists to stop, and the grip was
     loose in the direction that matters: a number nobody can trace back to a
     ChromIQ figure is a number somebody has to argue is not a standard's.
     Tight and Quick are HALF and DOUBLE of default, derived from it and not
     limits anybody would reach for on another row.
+
+    **IT GOVERNS `_CUSTOM_CHROMIQ_FILL` AND NOT THE WHOLE TABLE ANY MORE.**
+    Knut's researched industry figures became the Custom columns' other half
+    on 2026-09-21 and are deliberately NOT ChromIQ's three numbers; the test
+    below is their guard. Widening this allowlist to admit them would have
+    retired the rule for both halves at once, which is why there are two
+    tests.
 
     MUTATION: set `cmy_solids_dhab_max` to 4.0 (a Quick check number) or
     `substrate_de00_max` to 1.0 (a tight one) and this goes red. Both passed
@@ -458,12 +473,129 @@ def test_no_placeholder_is_anybody_elses_published_figure():
                for lim in cs._CHROMIQ_FACTORY["chromiq_default"].values()
                if lim.is_numeric}
     assert allowed, "ChromIQ default's own factory numbers could not be read"
-    for rid, lim in cs._CUSTOM_PLACEHOLDER.items():
+    for rid, lim in cs._CUSTOM_CHROMIQ_FILL.items():
         assert lim.is_numeric, rid
         assert round(float(lim.number), 6) in allowed, (
             f"{rid} = {lim.number} is not one of ChromIQ default's own numbers "
-            f"{sorted(allowed)}. Every placeholder must be traceable to a "
-            "ChromIQ figure, never to a standard's.")
+            f"{sorted(allowed)}. Every number ChromIQ itself puts on a Custom "
+            "column must be traceable to a ChromIQ figure, never to a "
+            "standard's.")
+
+
+#: The shape and contents of Knut's researched block, as delivered.
+#:
+#: A DIGEST, NOT THE NUMBERS. Restating nineteen figures here would make the
+#: test a second copy that drifts from the first; a digest goes red on any
+#: change to any of them and says so. If you changed them deliberately, print
+#: the new digest with the snippet in the failure message and put it here in
+#: the same commit that changes the table.
+_INDUSTRY_DIGEST = \
+    "0b25b5f204508717fd553e800cf3cfad0f61f10a64a401d86a5a47864d3630d4"
+
+#: Which rows Knut's research covers per column, from his file of 2026-09-21.
+#: They differ between the columns because his file follows each standard's
+#: own structure, and that difference is the thing a merge is most likely to
+#: flatten by accident.
+_INDUSTRY_ROWS = {
+    "iso_12647_7": (
+        "all_de00_avg", "all_de00_p95", "cmy_solids_dhab_max",
+        "control_strip_de00_avg", "control_strip_de00_max",
+        "grey_balance_neutral_ramp_avg", "grey_balance_neutral_ramp_max",
+        "outer_gamut_226_de00_avg", "solids_de00_max", "substrate_de00_max"),
+    "iso_12647_8": (
+        "all_de00_avg", "all_de00_p95", "control_strip_de00_avg",
+        "control_strip_de00_p95", "grey_balance_neutral_ramp_avg",
+        "grey_balance_neutral_ramp_max", "ramps_30_70_dl_max",
+        "substrate_de00_max", "surface_gamut_de00_avg"),
+}
+
+
+def test_the_researched_industry_figures_are_exactly_what_knut_delivered():
+    """Knut's own figures, unchanged, and nobody else's.
+
+    Knut, #182, 2026-09-21: *"I have filled in the json file with the
+    threshold limits I have manually set, based on findings from research
+    online of industry practice and reasoned limits from the industry, which
+    are independently set by various actors in the industry, companies or
+    communities, not based on ISO standard values. I would like these to be
+    set as default for the two Custom ISO 12647 columns."*
+
+    Two things are pinned, because two different accidents are possible. The
+    ROW SETS, because the two columns take different rows and a careless merge
+    would give both columns the same ones. The CONTENTS, by digest, because a
+    value edited by hand in this table is a value nobody researched.
+
+    The digest deliberately does not restate the figures: they are in
+    `compliance_sets` and a second copy here would be a second thing to keep
+    right.
+
+    MUTATION PROVEN TO LAND: change any one figure and the digest assertion
+    goes red; move a row from one column to the other and the row-set
+    assertion goes red first.
+    """
+    import hashlib
+    import json as _json
+
+    for parent, rows in _INDUSTRY_ROWS.items():
+        assert tuple(sorted(cs._CUSTOM_INDUSTRY[parent])) == tuple(sorted(rows)), (
+            f"{parent}: the rows Knut's research covers changed. His file "
+            "gives a figure per standard's own structure, so the two columns "
+            "are not interchangeable.")
+    assert set(cs._CUSTOM_INDUSTRY) == set(cs.ISO_SET_IDS)
+
+    blob = _json.dumps(
+        {p: {rid: [lim.kind, lim.number] for rid, lim in sorted(b.items())}
+         for p, b in sorted(cs._CUSTOM_INDUSTRY.items())},
+        sort_keys=True, separators=(",", ":"))
+    got = hashlib.sha256(blob.encode()).hexdigest()
+    assert got == _INDUSTRY_DIGEST, (
+        f"the researched figures changed (digest {got}). They are Knut's, "
+        "delivered on 2026-09-21; if you changed them on his instruction, "
+        "put the new digest here in the same commit.")
+
+
+def test_every_custom_default_comes_from_one_of_the_two_named_sources():
+    """No third source can appear without a name.
+
+    `custom_default_sources` is what the Report limits window's description is
+    generated from, so a row that is in neither table, or in both under two
+    names, would make that sentence wrong rather than merely incomplete.
+    """
+    for parent in cs.ISO_SET_IDS:
+        defaults = cs.custom_defaults(parent)
+        sources = cs.custom_default_sources(parent)
+        assert set(defaults) == set(sources)
+        assert set(sources.values()) <= {"industry", "chromiq"}
+        for rid, src in sources.items():
+            in_industry = rid in cs._CUSTOM_INDUSTRY[parent]
+            assert (src == "industry") == in_industry, rid
+            expect = (cs._CUSTOM_INDUSTRY[parent][rid] if in_industry
+                      else cs._CUSTOM_CHROMIQ_FILL[rid])
+            assert defaults[rid] == expect, rid
+        # every measurable row still has a limit, whichever source gave it
+        assert set(defaults) == set(MEASURABLE)
+
+
+def test_a_custom_columns_counts_add_up_to_what_it_judges():
+    """The counts the window's sentence is built from are the table's own.
+
+    `custom_default_counts` is the only thing standing between "this column
+    holds researched figures" and a sentence nobody re-measured, so it may not
+    be a tally kept by hand: industry + chromiq + supplied has to equal the
+    rows the column is actually judged on.
+    """
+    cs.reset_iso_cache()
+    for sid in CUSTOM_SETS:
+        c = cs.custom_default_counts(sid)
+        assert c["industry"] + c["chromiq"] + c["supplied"] == c["total"]
+        assert c["total"] == len(cs.limit_bearing(factory_limits(sid)))
+        assert c["industry"] > 0, (
+            f"{sid} starts from no researched figure; Knut asked for them to "
+            "be the defaults of BOTH Custom columns")
+    # a set that is not a Custom one has nothing to attribute
+    for sid in ("chromiq_default", "iso_12647_7"):
+        assert cs.custom_default_counts(sid) == {
+            "industry": 0, "chromiq": 0, "supplied": 0, "total": 0}
 
 
 def test_the_read_only_iso_columns_are_untouched_by_the_placeholders():
@@ -488,7 +620,8 @@ def test_a_licence_holders_own_file_wins_over_the_placeholder(tmp_path, monkeypa
         assert f["all_de00_avg"] == Limit.value(9.9), \
             "the placeholder overwrote a number the user's own file supplied"
         # a row their file did not answer still gets ChromIQ's own number
-        assert f["all_de00_p95"] == cs._CUSTOM_PLACEHOLDER["all_de00_p95"]
+        assert f["all_de00_p95"] == \
+            cs.custom_defaults("iso_12647_8")["all_de00_p95"]
     finally:
         monkeypatch.delenv(cs.ISO_DATA_ENV, raising=False)
         cs.reset_iso_cache()
@@ -515,10 +648,10 @@ def test_factory_limits_refuses_a_placeholder_on_an_unmeasurable_row(monkeypatch
     monkeypatch.setattr(cs, "ROWS", cs.ROWS + (ghost,))
     monkeypatch.setitem(cs._ISO_ROWS, "iso_12647_7",
                         cs._ISO_ROWS["iso_12647_7"] + (ghost.id,))
-    bad = dict(cs._CUSTOM_PLACEHOLDER)
+    bad = dict(cs._CUSTOM_CHROMIQ_FILL)
     bad[ghost.id] = Limit.value(3.0)                     # status "unknown"
     bad["light_fastness"] = Limit.value(3.0)             # status "unmeasurable"
-    monkeypatch.setattr(cs, "_CUSTOM_PLACEHOLDER", bad)
+    monkeypatch.setattr(cs, "_CUSTOM_CHROMIQ_FILL", bad)
     cs.reset_iso_cache()
     f = factory_limits("custom_iso_12647_7")
     assert f[ghost.id].kind == "unknown", (

@@ -112,41 +112,94 @@ def _columns_paragraph() -> str:
     the two Custom columns start from them and are yours to change", and
     measured against the repository's own data file the two read-only ISO
     columns carry ZERO limit-bearing rows while Custom ISO 12647-7 and Custom
-    ISO 12647-8 carry sixteen each, every one of them from
-    `compliance_sets._CUSTOM_PLACEHOLDER`, which is ChromIQ's own numbers. So
-    it told a reader that the empty columns were full and that the full ones
-    came from a standard.
+    ISO 12647-8 carry eighteen each, none of them a standard's figure. So it
+    told a reader that the empty columns were full and that the full ones came
+    from a standard.
 
     THE SAME CLASS OF FALSE SENTENCE AS THE `SetDef` BLURBS, which were
     corrected three times for it, and as the report guide's own paragraph. What
     those corrections settled is that a column's NAME is not its CONTENTS, and
     that a sentence here has to be true both of a build as it ships and of one
-    a licence holder has pointed at their own file. This paragraph is built
-    from `factory_limits`, so it cannot drift from what the table draws: the
-    two states are distinguished by counting, not by a flag somebody has to
-    remember to set.
+    a licence holder has pointed at their own file.
+
+    AND THE CUSTOM COLUMNS NOW HOLD NUMBERS FROM TWO SOURCES, not one. Knut's
+    researched industry figures became their starting values on 2026-09-21, and
+    ChromIQ's own numbers stayed on the rows his research does not cover, so a
+    sentence naming one source would be false about the other. This paragraph
+    NAMES THE SOURCES IT COUNTS: `custom_default_counts` says how many limits
+    of each column came from the user's own values file, from Knut's research
+    and from ChromIQ, and only a source with at least one limit behind it is
+    mentioned. Drop a source from `compliance_sets` and the sentence stops
+    claiming it, without anybody editing this function.
     """
-    from workflow.compliance_sets import factory_limits, limit_bearing
+    from workflow.compliance_sets import (custom_default_counts,
+                                          factory_limits, limit_bearing)
     supplied = any(limit_bearing(factory_limits(sid))
                    for sid in ("iso_12647_7", "iso_12647_8"))
     own = tr("ChromIQ default, ChromIQ tight and Quick check are ChromIQ's "
              "own sets and can be edited here.")
     if supplied:
-        return own + " " + tr(
-            "The two ISO columns are read-only and hold the published values "
-            "you supplied from your own copy of each standard. The two Custom "
-            "columns start from those figures, and every limit in them is "
-            "yours to change.")
-    # THE SHIPPING STATE, and the one the old sentence described wrongly.
-    return own + " " + tr(
-        "The two ISO columns are read-only and hold a standard's published "
-        "values, which ChromIQ has no permission to include: they are empty "
-        "here, and every cell in them reads ? or ✕, until you supply that "
-        "standard's figures with \u201cReference values…\u201d below. The two "
-        "Custom columns are named after the same standards and start from "
-        "ChromIQ's own numbers rather than from theirs, so that every row "
-        "ChromIQ can measure has a limit to be judged against; every limit in "
-        "them is yours to change.")
+        iso = tr("The two ISO columns are read-only and hold the published "
+                 "values you supplied from your own copy of each standard.")
+    else:
+        # THE SHIPPING STATE, and the one the old sentence described wrongly.
+        iso = tr(
+            "The two ISO columns are read-only and hold a standard's "
+            "published values, which ChromIQ has no permission to include: "
+            "they are empty here, and every cell in them reads ? or ✕, until "
+            "you supply that standard's figures with “Reference "
+            "values…” below.")
+    return own + " " + iso + " " + _custom_columns_sentence()
+
+
+def _custom_columns_sentence() -> str:
+    """Where the two Custom columns' numbers come from, counted.
+
+    Knut, #182, 2026-09-21, on the figures that are now their starting values:
+    *"based on findings from research online of industry practice and reasoned
+    limits from the industry […] not based on ISO standard values"*. A column
+    named after a standard that holds numbers which are not that standard's
+    has to say so, and this is where it says it.
+    """
+    from workflow.compliance_sets import custom_default_counts
+    totals = {"supplied": 0, "industry": 0, "chromiq": 0}
+    for sid in ("custom_iso_12647_7", "custom_iso_12647_8"):
+        counts = custom_default_counts(sid)
+        for key in totals:
+            totals[key] += counts.get(key, 0)
+    # Only a source with a limit actually behind it is named, and in the order
+    # a reader cares about: what they supplied, then what was researched, then
+    # what is ours.
+    names = {
+        "supplied": tr("the figures you supplied"),
+        "industry": tr("limits researched from industry practice"),
+        "chromiq": tr("ChromIQ's own numbers"),
+    }
+    parts = [names[key] for key in ("supplied", "industry", "chromiq")
+             if totals[key]]
+    if not parts:
+        # No Custom column carries a limit at all. Nothing to attribute, and
+        # the window already says a column with no limits is not a choice.
+        return tr("The two Custom columns are named after the same standards "
+                  "and carry no limits at all.")
+    if totals["supplied"]:
+        lead = tr("The two Custom columns are named after the same standards "
+                  "and hold their published values only where you supplied "
+                  "them: they start from {sources}, and every limit in them "
+                  "is yours to change.")
+    else:
+        lead = tr("The two Custom columns are named after the same standards "
+                  "and hold none of their published values: they start from "
+                  "{sources}, and every limit in them is yours to change.")
+    return lead.format(sources=_join_sources(parts))
+
+
+def _join_sources(items: "list[str]") -> str:
+    """"a, b and c" — real prose, and correct for one item."""
+    if len(items) == 1:
+        return items[0]
+    return tr("{first} and {last}").format(
+        first=", ".join(items[:-1]), last=items[-1])
 
 
 def _recommended_note_text() -> str:
@@ -332,7 +385,7 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                    for sid in ("iso_12647_7", "iso_12647_8")):
             # …AND IT NO LONGER SAYS THE CUSTOM SETS ARE EMPTY, because as of
             # 2026-09-12 they are not. Knut asked for a value on every metric
-            # ChromIQ can measure, `_CUSTOM_PLACEHOLDER` supplies eleven, and
+            # ChromIQ can measure, `custom_defaults` supplies eighteen, and
             # both Custom sets became selectable the same day. This sentence's
             # own guard is "neither ISO set is selectable", so it was shown
             # ONLY in the state where its second clause had become false, with
@@ -527,9 +580,16 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         if getattr(self, "_iso_state_lbl", None) is None:
             return
         where = iso_data_path_text()
+        # NOT "ChromIQ's own numbers" ANY MORE. This label says which STATE
+        # the window is in, and that spelling stopped being true of the state
+        # on 2026-09-21: the Custom columns start from Knut's researched
+        # industry figures where his research covers a row, and only from
+        # ChromIQ's numbers where it does not. A label naming one of two
+        # sources is the same half-truth as a column naming a standard it does
+        # not hold, so it names the CONDITION the button controls instead.
         self._iso_state_lbl.setText(
             tr("using your own values") if where
-            else tr("ChromIQ's own numbers"))
+            else tr("no reference values supplied"))
 
     def _on_reference_values(self) -> None:
         from ui.dialogs.reference_values_dialog import ReferenceValuesDialog
@@ -993,16 +1053,22 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         # the standard's. Required by the owner's standing rule on #182: no
         # value from ISO 12647-7 or ISO 12647-8 is in ChromIQ, and a column
         # bearing those names must not be allowed to imply otherwise.
+        # AND IT NAMES BOTH SOURCES, because since 2026-09-21 there are two.
+        # It also stopped sending a user to a terminal: a shipped ChromIQ
+        # carries no `scripts/` folder, and an environment variable exported in
+        # a shell never reaches an app launched from the Dock, so the route
+        # this sentence gave was one nobody outside a checkout could take. The
+        # button two rows below does the same job.
         custom = tr(
-            "The two Custom columns start from ChromIQ's own numbers, chosen "
-            "so that every row ChromIQ can measure has a limit to be judged "
-            "against. They are not the published tolerances of ISO 12647-7 or "
-            "ISO 12647-8, which ChromIQ does not hold. If you hold either "
-            "standard, run \"python scripts/iso_values_template.py\" for a "
-            "file listing every row these sets use, fill in your own copy's "
-            "numbers, point CHROMIQ_COMPLIANCE_ISO_FILE at it, and the Custom "
-            "column starts from those instead. Every limit here is yours to "
-            "change.")
+            "The two Custom columns start from limits researched from "
+            "industry practice, and from ChromIQ's own numbers on the rows "
+            "that research does not cover, so that every row ChromIQ can "
+            "measure has a limit to be judged against. Neither source is the "
+            "published tolerances of ISO 12647-7 or ISO 12647-8, which "
+            "ChromIQ does not hold. If you hold either standard, use "
+            "\u201cReference values\u2026\u201d below to supply its figures "
+            "from your own copy, and the Custom column starts from those "
+            "instead. Every limit here is yours to change.")
         cannot = [tr(r.label) for r in ROWS if r.status == "unmeasurable"]
         title, body = M_THRESHOLDS_NOT_CERTIFICATION.render(rows=", ".join(cannot))
         return legend + "\n" + foot + "\n\n" + custom + "\n\n" + title + "\n" + body

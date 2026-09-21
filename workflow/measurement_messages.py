@@ -2569,9 +2569,15 @@ M_THRESHOLDS_NOT_CERTIFICATION = _m(
     # guide was corrected for each half in turn; this copy was corrected
     # neither time, and `_notes_text` prints it two lines below its own correct
     # sentence, so one panel said both things at once.
+    # …AND THE CORRECTION ITSELF WENT HALF-STALE ON 2026-09-21, when Knut's
+    # researched industry figures became the two Custom columns' starting
+    # values (#182). "ChromIQ's own numbers" then described nineteen of the
+    # thirty-six cells and not the other seventeen. Both sources are named.
     "A column named after a standard is judged against that standard's "
     "published tolerance values where a licence holder has supplied them, and "
-    "against ChromIQ's own numbers where nobody has. Either way the values are "
+    "where nobody has, against limits researched from industry practice and "
+    "ChromIQ's own numbers, neither of which is that standard's. "
+    "Either way the values are "
     "applied to the chart you printed and not to that standard's own control "
     "strip and chart, so a report can never say that a print conforms to a "
     "standard. What ChromIQ does is measure as many of the standard's values "

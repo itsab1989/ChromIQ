@@ -93,21 +93,24 @@ Custom ISO 12647-7 · Custom ISO 12647-8.
 > can be tested against."*
 >
 > **So a Custom set starts from its parent's value where the parent HAS one,
-> and from ChromIQ's own number everywhere else.** Today the parent has none,
-> so every row ChromIQ can measure carries a ChromIQ number
-> (`compliance_sets.py::_CUSTOM_PLACEHOLDER`); a licence holder who points
+> and from a ChromIQ default everywhere else.** Today the parent has none, so
+> every row ChromIQ can measure carries one of those defaults
+> (`compliance_sets.py::custom_defaults`); a licence holder who points
 > `CHROMIQ_COMPLIANCE_ISO_FILE` at their own copy still starts from theirs, row
 > by row. The two read-only ISO columns are unchanged and still hold nothing.
 >
-> **No value of either standard is involved, and the numbers say so.** Every
-> placeholder is one of ChromIQ default's own figures, 1.5, 2.0 or 3.0, reused
-> on the rows ChromIQ default does not limit because it is the right order of
-> magnitude for a ΔE00, a ΔCh, a ΔH\*ab or a ΔL\* and for no other reason. A
-> test pins the *source* of every number rather than the numbers themselves, so
-> one cannot later drift toward a real tolerance for looking more realistic.
-> The note under the limits table says whose numbers these are, in both
-> windows. The owner's standing rule
-> (`docs/design/issue_182_answers.md`) is unchanged and unbroken.
+> **No value of either standard is involved, and the numbers say so.** A test
+> pins the *source* of every number rather than the numbers themselves, so one
+> cannot later drift toward a real tolerance for looking more realistic. The
+> note under the limits table says whose numbers these are, in both windows.
+> The owner's standing rule (`docs/design/issue_182_answers.md`) is unchanged
+> and unbroken.
+>
+> **WHAT THOSE DEFAULTS ARE CHANGED AGAIN ON 2026-09-21.** Until that day they
+> were one shared table of ChromIQ's own figures, 1.5, 2.0 and 3.0, and this
+> paragraph said so. They are now Knut's researched industry figures where his
+> research covers a row and ChromIQ's own numbers where it does not. See
+> §2a.
 >
 > **Only rows ChromIQ can measure get one.** The five rows whose status is
 > `unknown`, the three control-strip rows and the two selected-patch rows,
@@ -118,6 +121,68 @@ Custom ISO 12647-7 · Custom ISO 12647-8.
 > it is an open question rather than an omission: see §11.
 >
 > Knut has not seen any of this yet.
+
+### §2a · Where the two Custom columns' starting numbers come from
+
+**⏳ Awaiting confirmation.** **Confirmed by:** *nobody yet.*
+
+Knut, #182, 2026-09-21:
+
+> *"I have filled in the json file with the threshold limits I have manually
+> set, based on findings from research online of industry practice and
+> reasoned limits from the industry, which are independently set by various
+> actors in the industry, companies or communities, not based on ISO standard
+> values. I would like these to be set as default for the two Custom ISO
+> 12647 columns."*
+
+**A Custom column now draws its starting numbers from three places, in this
+order of precedence.** Where more than one could answer a row, the earlier one
+wins.
+
+1. **A licence holder's own values file**, for the rows their copy of the
+   standard answers. Unchanged.
+2. **Knut's researched industry figures** (`compliance_sets::_CUSTOM_INDUSTRY`),
+   given PER COLUMN because his file follows each standard's own structure.
+3. **ChromIQ's own numbers** (`compliance_sets::_CUSTOM_CHROMIQ_FILL`), for
+   the rows his research does not cover, so that Knut's 2026-09-11 rule still
+   holds: every metric ChromIQ can measure arrives with a limit to be judged
+   against.
+
+Measured against the repository's own empty values file, Custom ISO 12647-7
+carries 10 researched figures and 8 ChromIQ numbers; Custom ISO 12647-8
+carries 9 and 9. Both columns carry 18 limits, one on every measurable row.
+
+**NEITHER SOURCE 2 NOR SOURCE 3 IS A STANDARD'S PUBLISHED VALUE, AND THE APP
+SAYS SO.** The Report limits window's description of its columns is generated
+from `compliance_sets::custom_default_counts`, so it names exactly the sources
+that have a limit behind them and cannot go on claiming one that does not. The
+two `SetDef` blurbs, the report guide's own paragraph and
+M-THRESHOLDS-NOT-CERTIFICATION say the same thing in their own words. That a
+column NAMED after a standard while holding numbers that are not that
+standard's must say so is the attribution this file has had to correct four
+times.
+
+**Knut's file also fills rows ChromIQ cannot judge today.** Seven of them for
+12647-7 and nine for 12647-8. Those are deliberately NOT defaults: a number on
+a row nothing is ever compared with is the shape of "a column that checked
+nothing said PASS". They arrive with the detection that makes each row
+computable.
+
+**The two columns are no longer identical.** They held the same number on
+every row while one table served both. Six numbered rows now differ between
+them, so a reader CAN read one Custom run against the other, which the demo
+pack's README previously said they could not.
+
+**AND A NUMBER THE USER SET IS NOT MOVED BY ONE WE SHIP.** A per-user override
+in Preferences and a run's own bound copy in `meta.json` both survive a change
+of the shipped defaults; a row nobody has set takes the new number. Proved by
+`tests/test_a_users_own_limit_survives_a_new_default.py`, which asserts the
+defaults actually moved before it asserts anything survived them.
+
+**OPEN, PUT TO KNUT AND NOT ANSWERED HERE.** In the ISO values file he sent two
+days earlier, two of the six rows the two sets share were looser in 12647-8
+than in 12647-7. In this file all six are identical across the two sets. He has
+been asked whether that is deliberate; what he sent is what is built.
 
 Factory values (Knut K4/Q1): ChromIQ default 2.0 / 2.0 / 2.0 / 3.0 / 3.0 on
 the five ΔE00 rows; tight 1.0 / 1.0 / 1.0 / 1.5 / 1.5; quick 4.0 / 4.0 / 4.0 /
