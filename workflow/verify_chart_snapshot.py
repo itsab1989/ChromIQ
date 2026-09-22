@@ -420,8 +420,25 @@ def restore_slot(slot) -> "RestoreResult":
     # One is replaced only when the snapshot carries a counterpart, and the
     # replaced file is archived into old/ first.
     displaced = [p for p in all_live if p.name not in CHART_SIDE_FILES]
-    side_replaced = [p for p in all_live
-                     if p.name in CHART_SIDE_FILES and p.name in snap_names]
+    # ARCHIVE A SIDE FILE THE SNAPSHOT WILL OVERWRITE, WHATEVER THE SLOT.
+    #
+    # `live_files()` is suffix-filtered on a profiling run's slot and on a
+    # calibration's (`PROFILING_CHART_SUFFIXES`, which holds no `meta.json`),
+    # so this list was ALWAYS EMPTY on those two: nothing was archived, and
+    # the copy loop below still wrote the snapshot's `meta.json` over the live
+    # one. Measured, challenge round 36: a profiling run lost all 34 fields on
+    # the file and a calibration all 7, with no archive and no undo, from one
+    # press of "Restore Used Chart" (B8-740).
+    #
+    # This does NOT decide which of those fields belong to the chart. That is
+    # a ruling and it is Knut's, because #182 added seven compliance fields to
+    # a file whose snapshot rule was written for `editor_recipe` and the
+    # printtarg knobs. What it restores is the guarantee this function's own
+    # docstring already makes: a replaced side file is archived into `old/`
+    # first, so the loss is recoverable instead of silent and final.
+    side_replaced = [slot.live_dir / name for name in CHART_SIDE_FILES
+                     if name in snap_names
+                     and (slot.live_dir / name).is_file()]
     side_archive = None
     stash = slot.snapshot_dir.parent / f".restore-stash-{slot.snapshot_dir.name}"
     # Set before the try: the `finally` reads it on EVERY path.

@@ -22984,3 +22984,132 @@ would reach.
 - not fixed with B8-730 because the recipe travels through a UI panel rather
   than through one load/save pair; carrying it needs the panel to hold the
   unknown fields across a round trip.
+
+### B8-740 · OPEN · "Restore Used Chart" reverts the run's WHOLE meta.json, the #182 limit binding included, with no archive and no undo
+- blocks release: yes
+- status: OPEN
+- whose call: **Knut's.** It destroys a run's frozen limit set, which is the
+  thing D20 exists to protect, and there is no way back. The repair is a field
+  partition, which is a ruling, not a guess.
+- found by: challenge round 36, 2026-09-22.
+- detail: `workflow/verify_chart_snapshot.py:414-441` archives a side file before
+  replacing it, but only one that is in `slot.live_files()`. For `slot_for_run`
+  and `slot_for_calibration` that list is filtered by `PROFILING_CHART_SUFFIXES`
+  (`workflow/chart_slot.py:59-63`), which does **not** contain `meta.json`, so
+  `side_replaced` is always empty on those two slots: nothing is archived,
+  nothing is stashed, and the closing `shutil.copy2` loop writes the snapshot's
+  `meta.json` straight over the live one. `slot_for_verification` escapes only
+  because its `live_dir` is `verifications/`, which holds no `meta.json`.
+- MEASURED, real functions, real files
+  (`probe-restore-enumerate.txt`, `probe-restore-eats-meta.txt`):
+  * profiling run: **34 fields on the file, 34 reverted**, archive NONE
+  * calibration: **7 fields on the file, 7 reverted**, archive NONE
+  * on a realistic sequence, a run bound at its first verification reads, one
+    press later, `bound: False`, `0 rows`, `compliance_bound_at: ''`,
+    `report_type: ''`.
+- DRIVEN ON SCREEN (`scripts/drive_chal36_restore_reverts_the_whole_meta.py`,
+  real window, `capture_window`, two pixel-identical frames each, a COPY of
+  Demo-Full-RGB, sandboxed settings and output path). **The window and the file
+  disagree**: after the press the Description box still reads *"Canson Baryta
+  310 … THIS IS THE KEEPER"* while `meta.json` reads *"Hahnemuehle Photo Rag, as
+  the chart was measured"*, and the run is unbound. The fields reverted on that
+  run were `compliance_bound_at`, `compliance_set_id`, `compliance_set_label`,
+  `compliance_thresholds`, `create_chart_settings`, `create_chart_ui`,
+  `description`.
+- WHICH RULE IT BREAKS: `docs/design/per_run_description.md` §4 — "Restore Used
+  Chart, the rules, exactly as specified" — says the **Description field is
+  untouched** in all four of T4.1-T4.4, and T4.6 is an on-screen test of it. The
+  §4 rule is met on screen only, until the next target switch or restart.
+  `core/file_manager.py:1460-1469` `Calibration.KEPT_ACROSS_ARCHIVE` exists
+  because Knut reported this precise loss on the ARCHIVE path (beta.147: *"the
+  text in the two fields dissappeared"*); the restore path never got the rule.
+- WHY IT WAS MISSED: Knut's #130 2026-07-27 ruling that put `meta.json` in the
+  snapshot is about the CHART's record — `CHART_SIDE_FILES`' own docstring names
+  `editor_recipe` and "the printtarg knobs". #182 later added seven compliance
+  fields to the same file and nobody revisited what "restore the chart" reverts.
+  Same loss as B8-730, from a button inside one build.
+- proposed repair, NEEDS KNUT / SEBASTIAN: restore `meta.json` per FIELD, the way
+  `DUPLICATE_META_FRESH` / `DUPLICATE_META_CARRY` already partition the same
+  dataclass. From the snapshot: `chart_notes` (K8), `create_chart_settings`,
+  `create_chart_ui`, `editor_layout`, `editor_basename`, `editor_recipe`
+  (2026-07-27 + `per_target_settings.md` L5). Kept live: everything else,
+  `description` first and the seven #182 compliance fields.
+  `tests/test_chart_slot.py:48-60` pins only `editor_recipe`, so such a rule
+  keeps it green.
+- evidence: `~/Desktop/ChromIQ-beta30-proof/challenge-round-36/chal36-01-before-restore.png`,
+  `chal36-02-after-restore.png`, `driver-restore-reverts-meta.txt`
+### B8-741 · FIXED · The scanner-target tool wrote a fresh `{"layout": …}` over a chart's own sidecar, destroying seven keys
+- blocks release: no
+- status: FIXED
+- fixed in: challenge round 36, with a guard and a proven mutation.
+- found by: challenge round 36, 2026-09-22.
+- detail: `workflow/scanin_target.py` `build_scanin_target_from_render` ended with
+  `channels.write_text(json.dumps({"layout": layout}, indent=2))`. `out_base` is
+  `_chart_base(self._meas_path)` (`ui/dialogs/scanin_target_dialog.py:520`),
+  which is `ti3.with_name(ti3.stem)` and nothing more — so choosing a ChromIQ
+  run's own `.ti3` in Tools -> Create scanner target -> i1Profiler aimed the
+  write at that chart's own `<stem>.channels.json`.
+- MEASURED (`probe_scanin_clobbers.py`): seven keys destroyed in one press —
+  `ink_channels`, `chart_notes`, `run_description`, `stamp_commands`,
+  `create_chart_settings`, `printtarg_fields`, `colorimetric_reference` — and the
+  chart's own `chromiq` layout, seed and recipe replaced by a derived block.
+  `colorimetric_reference` is the worst: `verification_print.
+  chart_conversion_state` reads it to REFUSE to print a colorimetric chart
+  through a profile, so losing it re-offers the conversion that flag forbids.
+  `create_chart_settings` is Knut's K2 registry, which is what Create Chart
+  restores a chart from.
+- fix: read, set `layout`, write back — what every other writer of the file
+  already does (`chart_creator._embed_layout_geometry`, `_capture_printtarg_cht`,
+  `gamut_target.mark_chart_as_colorimetric`).
+- evidence: `test_the_charts_own_keys_all_survive`,
+  `test_a_chart_with_no_sidecar_still_gets_one`,
+  `test_a_sidecar_that_cannot_be_merged_is_replaced_not_fatal`,
+  `test_the_write_is_a_read_modify_write` and
+  `test_the_two_workflow_writers_of_this_sidecar_stay_read_modify_writers`,
+  8 cases in all.
+  Mutation: putting the one-line fresh write back turns 3 of the 8 red.
+- the guard deliberately does NOT sit behind the probe-TIFF skipif that covers
+  the end-to-end render tests — those TIFFs are absent on this machine, so a
+  test written that way would have watched this fault ship.
+- measurement: `~/Desktop/ChromIQ-beta30-proof/challenge-round-36/probe_scanin_clobbers.py`
+  and `probe-scanin-after-fix.txt`.
+### B8-742 · OPEN · Beta 30's startup migration deletes the user's Report thresholds out from under the shipped stable build
+- blocks release: no
+- status: OPEN
+- whose call: **Sebastian's.** It cannot be repaired in v4.2.7, which has
+  shipped; what is open is whether beta 30 should stop causing it. The change
+  contradicts a written (though unconfirmed) spec line, so this round held it.
+- found by: challenge round 36, 2026-09-22.
+- detail: `SETTINGS_SCHEMA` is **22 in v4.2.7** and **24 in beta 30**, and
+  `AppSettings.migrate()` returns early on `stored >= SETTINGS_SCHEMA`, so the
+  older build skips its own migration and warns nothing. Both builds share ONE
+  store (same organisation, same application), which is the owner's own setup.
+  `_migrate_report_thresholds_to_sets` converts a moved
+  `report_pass_threshold_avg` / `_max` into `compliance_set_overrides` and then
+  removes both keys **unconditionally** (`core/settings.py:1114-1115`). v4.2.7
+  reads them at `ui/dialogs/measurement_report_dialog.py:795`,
+  `ui/tabs/tab_measure.py:12950` and `ui/dialogs/settings_dialog.py:4883`, with
+  factory fallbacks 2.0 / 3.0.
+- MEASURED with BOTH builds' real `AppSettings` over one sandboxed store
+  (`probe_settings_downgrade.py`, v4.2.7 exported from 92e6ead0):
+  * v4.2.7, user moves both: `avg=4.0 max=5.0`, store stamped 22
+  * beta 30, ordinary startup: both keys **gone**, store stamped 24
+  * v4.2.7 again: `avg` reads **2.0**, `max` reads **3.0** — silently
+  The dangerous direction is a user who TIGHTENED: set 1.5 and v4.2.7 afterwards
+  judges at 2.0, so a sheet that failed yesterday passes today, in the window, in
+  the PDF and in the verdict the Measure tab stamps.
+- it is the ONLY unconditional removal of a user-chosen value in the whole
+  migration ladder — enumerated (`enum_dropped_keys.py`): every other removal is
+  gated on the value echoing a superseded default, so the older build falls back
+  to the same number.
+- WHICH RULE IT TOUCHES: `docs/design/measurement_report_limits.md` §7 says *"The
+  two keys are then removed and never re-created"*. That section is
+  **⏳ Awaiting confirmation. Confirmed by: nobody yet**, so it is a draft, not a
+  ruling — but it is written down, so this round did not change it unilaterally.
+- proposed repair (one condition, no new behaviour): keep exactly those keys whose
+  value became an override, drop the rest. Beta 30 has no reader and no writer for
+  either key outside this method, so keeping one is inert here; an echo of the
+  factory pair and rubbish that yielded no override are still dropped, because
+  v4.2.7 falls back to the very numbers they encode. The migration still runs once
+  — the schema gate is what makes that true, not the removal. The existing
+  `tests/test_settings_compliance_migration.py` keeps every assertion it has.
