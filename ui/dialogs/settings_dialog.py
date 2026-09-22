@@ -4172,6 +4172,16 @@ class SettingsDialog(QDialog):
                 if _it is not None:
                     _it.setEnabled(False)
             self._report_type_default_combo.addItem(tr(name), tid)
+            if tid == "t4_printing_record":
+                # K13 (Knut, beta 34): this default is for VERIFICATION
+                # measurements, and a verification is never a Printing record;
+                # a profiling measurement's report is always one, whatever
+                # this says. Shown and refused, like the unbuilt types.
+                _row = self._report_type_default_combo.count() - 1
+                _m = self._report_type_default_combo.model()
+                _it = _m.item(_row) if hasattr(_m, "item") else None
+                if _it is not None:
+                    _it.setEnabled(False)
             if not built:
                 # SHOWN AND REFUSED, exactly as the report window shows them:
                 # the two ISO types cannot be produced, and hiding them would
@@ -4192,6 +4202,9 @@ class SettingsDialog(QDialog):
                "A profile run that HAS a report type of its own keeps it. The "
                "type belongs to the run, so this is the starting point for a "
                "run that has not chosen, not an override of one that has.\n\n"
+               "It applies to verification measurements. A profiling "
+               "measurement's report is always the Printing record, so that "
+               "type cannot be chosen here.\n\n"
                "The two ISO entries are shown and cannot be chosen: the "
                "figures they judge against are behind a paywall and ChromIQ "
                "has no permission to ship them.\n\n"
@@ -5018,6 +5031,8 @@ class SettingsDialog(QDialog):
         _rt = str(s.get("report_default_type", "t2_full_colour_check")
                   or "t2_full_colour_check")
         _i = self._report_type_default_combo.findData(_rt)
+        if _rt == "t4_printing_record":
+            _i = -1          # legal until beta 35; refused for verification now
         if _i < 0:
             # A stored id this build cannot produce (a later ChromIQ's, or an
             # ISO type) falls back to the one type that is always there rather

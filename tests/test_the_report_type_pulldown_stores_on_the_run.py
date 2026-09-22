@@ -26,6 +26,7 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PyQt6.QtCore import Qt  # noqa: E402
 from workflow.measurement_report import (  # noqa: E402
     REPORT_TYPE_FULL, REPORT_TYPE_GREY, REPORT_TYPE_ISO_7, REPORT_TYPE_ISO_8,
     REPORT_TYPE_MENU, REPORT_TYPE_MENU_HEADING, REPORT_TYPE_RECORD,
@@ -114,7 +115,10 @@ def test_only_the_types_chromiq_can_produce_may_be_picked(tmp_path, qapp):
             if tid == "":
                 assert not _enabled(dlg, i), "the heading is selectable"
             else:
-                assert _enabled(dlg, i) is (tid in built), tid
+                # K13: this window is on a VERIFICATION, which is never a
+                # Printing record, so that one is greyed as well.
+                assert _enabled(dlg, i) is (
+                    tid in built and tid != REPORT_TYPE_RECORD), tid
     finally:
         dlg.close()
 
@@ -336,7 +340,8 @@ def test_an_unbuilt_type_still_renders_todays_report(tmp_path, qapp, tid):
         dlg.close()
 
 
-def test_a_type_the_menu_calls_BUILT_produces_a_different_document(tmp_path, qapp):
+def test_a_type_the_menu_calls_BUILT_produces_a_different_document(tmp_path, qapp,
+                                                                  monkeypatch):
     """THE CLAIM HAS TO BE TRUE, and the ratchet above cannot check it.
 
     `REPORT_TYPE_MENU`'s `built` flag is what un-greys an entry, and the test
@@ -354,6 +359,13 @@ def test_a_type_the_menu_calls_BUILT_produces_a_different_document(tmp_path, qap
     """
     from workflow.run_compliance import set_run_report_type
     dlg, run = _dialog(tmp_path, qapp)
+    # THE FLAG, NOT THE KIND. Since K13 a verification may not be a Printing
+    # record, so on this fixture T4 would fall back to T2 and "differ" would
+    # be asked of the fallback. What this checks is whether each BUILT type
+    # renders a document of its own, which has nothing to do with which kind
+    # may choose it, so the window is told it has no kind: every type, as
+    # for a measurement outside any project.
+    monkeypatch.setattr(dlg, "_window_kind", lambda: None)
     try:
         set_run_report_type(run, REPORT_TYPE_FULL)
         dlg._forget_limits()
@@ -487,7 +499,7 @@ def test_one_runs_choice_is_not_applied_to_another_runs_data(tmp_path, qapp):
     dlg, run1, run2 = _two_runs(tmp_path, qapp)
     try:
         assert len(dlg._distinct_run_dirs()) == 2, "the second run did not load"
-        set_run_report_type(run1, REPORT_TYPE_RECORD)
+        set_run_report_type(run1, REPORT_TYPE_GREY)
         set_run_report_type(run2, REPORT_TYPE_FULL)
         dlg._forget_limits()
         dlg._sync_limit_controls()
@@ -510,11 +522,11 @@ def test_when_the_runs_AGREE_their_type_is_used(tmp_path, qapp):
     from workflow.run_compliance import set_run_report_type
     dlg, run1, run2 = _two_runs(tmp_path, qapp)
     try:
-        set_run_report_type(run1, REPORT_TYPE_RECORD)
-        set_run_report_type(run2, REPORT_TYPE_RECORD)
+        set_run_report_type(run1, REPORT_TYPE_GREY)
+        set_run_report_type(run2, REPORT_TYPE_GREY)
         dlg._forget_limits()
         dlg._sync_limit_controls()
-        assert dlg._report_type_now() == REPORT_TYPE_RECORD
+        assert dlg._report_type_now() == REPORT_TYPE_GREY
     finally:
         dlg.close()
 
@@ -528,7 +540,7 @@ def test_the_window_says_why_it_ignored_both_choices(tmp_path, qapp):
     from workflow.run_compliance import set_run_report_type
     dlg, run1, run2 = _two_runs(tmp_path, qapp)
     try:
-        set_run_report_type(run1, REPORT_TYPE_RECORD)
+        set_run_report_type(run1, REPORT_TYPE_GREY)
         set_run_report_type(run2, REPORT_TYPE_FULL)
         dlg._forget_limits()
         dlg._sync_limit_controls()
@@ -551,11 +563,11 @@ def test_the_type_cache_does_not_outlive_the_read_it_was_taken_for(tmp_path, qap
     from workflow.run_compliance import set_run_report_type
     dlg, run1, run2 = _two_runs(tmp_path, qapp)
     try:
-        set_run_report_type(run1, REPORT_TYPE_RECORD)
-        set_run_report_type(run2, REPORT_TYPE_RECORD)
+        set_run_report_type(run1, REPORT_TYPE_GREY)
+        set_run_report_type(run2, REPORT_TYPE_GREY)
         dlg._forget_limits()
         dlg._sync_limit_controls()
-        assert dlg._report_type_now() == REPORT_TYPE_RECORD
+        assert dlg._report_type_now() == REPORT_TYPE_GREY
         set_run_report_type(run2, REPORT_TYPE_FULL)
         dlg._forget_limits()
         dlg._sync_limit_controls()
@@ -617,3 +629,119 @@ def test_a_greyed_generate_says_why_when_two_runs_are_ticked(tmp_path, qapp):
         assert "more than one profile run" in tip, tip
     finally:
         dlg.close()
+
+
+# ---------------------------------------------------------------------------
+# K13, Knut on beta 34: which types each kind of measurement may be
+# ---------------------------------------------------------------------------
+def _profiling_dialog(tmp_path, qapp):
+    """A window on a run's OWN sheet: a profiling measurement."""
+    from tests.test_import_measurement_module import _cgats, _PATCHES, _verify_env
+    s, _fm, _ctl, run = _verify_env(tmp_path)
+    ti3 = run.dir / "sheet.ti3"
+    ti3.write_text(_cgats("CTI3", _PATCHES), encoding="utf-8")
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    dlg = MeasurementReportDialog(s, None, initial_ti3=ti3)
+    dlg.show()
+    qapp.processEvents()
+    return dlg, run
+
+
+def _enabled_texts(dlg):
+    c = dlg._type_combo
+    return [c.itemText(i) for i in range(c.count())
+            if c.itemData(i) and _enabled(dlg, i)]
+
+
+def test_a_profiling_measurement_offers_only_the_printing_record(tmp_path, qapp):
+    """*"when run type is Profiling, all report types are still available, but
+    only 'Printing record' should be available."* The others are shown greyed
+    with the reason, and the window is on the Printing record.
+
+    MUTATION: make `report_types_for_kind` return every type for profiling
+    and this goes red.
+    """
+    dlg, _run = _profiling_dialog(tmp_path, qapp)
+    try:
+        assert dlg._window_kind() == "profiling"
+        assert _enabled_texts(dlg) == ["Printing record (not graded)"], \
+            _enabled_texts(dlg)
+        assert dlg._report_type_now() == REPORT_TYPE_RECORD
+        i = dlg._type_combo.findData(REPORT_TYPE_FULL)
+        tip = dlg._type_combo.itemData(i, Qt.ItemDataRole.ToolTipRole)
+        assert "its only report is the Printing record" in tip, tip
+    finally:
+        dlg.close()
+
+
+def test_a_verification_never_offers_the_printing_record(tmp_path, qapp):
+    """*"The report type 'Printing record' is still available when run type is
+    verification, but should not be available."* Greyed, with the reason.
+
+    MUTATION: drop the `elif tid not in allowed` branch in `_sync_type_combo`
+    and this goes red.
+    """
+    dlg, _run = _dialog(tmp_path, qapp)
+    try:
+        assert dlg._window_kind() == "verification"
+        assert "Printing record (not graded)" not in _enabled_texts(dlg)
+        assert _enabled_texts(dlg) == ["Colour summary (one page)",
+                                       "Full colour check",
+                                       "Grey and tone check"], _enabled_texts(dlg)
+        i = dlg._type_combo.findData(REPORT_TYPE_RECORD)
+        tip = dlg._type_combo.itemData(i, Qt.ItemDataRole.ToolTipRole)
+        assert "report of a profiling measurement" in tip, tip
+    finally:
+        dlg.close()
+
+
+def test_a_forced_printing_record_on_a_verification_is_refused_and_writes_nothing(
+        tmp_path, qapp):
+    """A keyboard or a style that ignores the grey must not be able to store
+    it. MUTATION: drop the kind half of the refusal in `_on_type_chosen` and
+    run.meta changes."""
+    dlg, run = _dialog(tmp_path, qapp)
+    try:
+        before = {p: p.read_bytes() for p in run.dir.glob("*.json")}
+        i = dlg._type_combo.findData(REPORT_TYPE_RECORD)
+        dlg._type_combo.blockSignals(True)
+        dlg._type_combo.setCurrentIndex(i)
+        dlg._type_combo.blockSignals(False)
+        dlg._on_type_chosen(i)
+        qapp.processEvents()
+        assert dlg._report_type_now() != REPORT_TYPE_RECORD
+        assert {p: p.read_bytes() for p in run.dir.glob("*.json")} == before
+    finally:
+        dlg.close()
+
+
+def test_the_automatic_report_of_a_profiling_measurement_is_a_printing_record(
+        tmp_path, qapp):
+    """*"When run type is Profiling, and measurement reports are generated
+    after a finished measurement, only the 'Printing record' type should be
+    created"*, whatever Preferences say.
+
+    MUTATION: pass kind None from `_stamp_the_automatic_document` and this
+    goes red (the Preferences type is written).
+    """
+    import json
+    from pathlib import Path
+    from tests.test_import_measurement_module import _cgats, _PATCHES, _verify_env
+    from workflow.measurement_report import (list_reports, recorded_document,
+                                             REPORT_TYPE_GREY)
+    s, _fm, _ctl, run = _verify_env(tmp_path)
+    s.set("report_default_type", REPORT_TYPE_GREY)
+    ti3 = run.dir / "sheet.ti3"
+    ti3.write_text(_cgats("CTI3", _PATCHES), encoding="utf-8")
+    from core.argyll_runner import ArgyllRunner
+    from ui.tabs.tab_measure import TabMeasure
+    tab = TabMeasure(ArgyllRunner(s), s)
+    try:
+        tab._maybe_save_measurement_report(ti3)
+        paths = list_reports(run.dir)
+        assert paths, "no automatic report was written"
+        doc = recorded_document(json.loads(
+            Path(paths[-1]).read_text(encoding="utf-8")))
+        assert doc["type"] == REPORT_TYPE_RECORD, doc["type"]
+    finally:
+        tab.deleteLater()

@@ -539,6 +539,13 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-22, K13 (Knut on beta 34: which report types each
+    # run type may have). Four keys in (the two greyed-entry tooltips, the
+    # Report type help paragraph saying which types are available when, and
+    # the Preferences "Report type, default" text with its new paragraph) and
+    # one out (that text's previous version, translated in every language).
+    # German by hand, so it does not move; all twelve others, uk included,
+    # rise by exactly 3. COUNTED off the tree, BOTH ledgers in one commit.
     # RE-MEASURED 2026-09-22, K17 (Knut on beta 34: two runs ticked and the
     # report type could not be chosen). One key out (the type pulldown's
     # "Several measurement runs are loaded" tooltip, retired with the grey)
@@ -853,18 +860,18 @@ _BUDGET = {
     # recorded. COUNTED with this file's own helper on the tree this commit
     # leaves behind.
     "de": 22,
-    "es": 680,
-    "fr": 681,
-    "it": 680,
-    "ja": 680,
-    "nl": 680,
-    "no": 680,
-    "pl": 680,
-    "pt": 680,
-    "ru": 679,
-    "sv": 680,
-    "zh_CN": 679,
-    "uk": 894,
+    "es": 683,
+    "fr": 684,
+    "it": 683,
+    "ja": 683,
+    "nl": 683,
+    "no": 683,
+    "pl": 683,
+    "pt": 683,
+    "ru": 682,
+    "sv": 683,
+    "zh_CN": 682,
+    "uk": 897,
 }
 
 

@@ -225,3 +225,19 @@ def test_nothing_on_disk_moved_and_the_words_come_back(tmp_path, qapp):
             json.loads(text)
     finally:
         dlg.close()
+
+
+@pytest.fixture(autouse=True)
+def _every_type_as_for_a_measurement_in_no_run(monkeypatch):
+    """**K13 (Knut, beta 34) made the Printing record a profiling-only type**,
+    and these checks drive every type on a VERIFICATION fixture, where T4
+    would now fall back to T2 and each check would be asked of the fallback.
+    What they test is how each type RENDERS, which is still reachable: a saved
+    beta-34 Printing record of a verification is shown as recorded, and a
+    measurement outside any project keeps every type. So the window is told
+    it has no kind. K13's own rule is guarded in
+    `tests/test_the_report_type_pulldown_stores_on_the_run.py`.
+    """
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    monkeypatch.setattr(MeasurementReportDialog, "_window_kind",
+                        lambda self: None)

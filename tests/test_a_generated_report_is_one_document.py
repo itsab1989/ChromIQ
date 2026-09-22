@@ -341,7 +341,7 @@ def _two_documents(dlg, qapp):
     with the defect rather than decisive. So the two here are made to differ.
     """
     from workflow.measurement_report import (REPORT_TYPE_GREY,
-                                             REPORT_TYPE_RECORD)
+                                             REPORT_TYPE_FULL)
     # The two differ in TYPE, in the detail box, and in WHICH MEASUREMENTS
     # they cover. That third one used to be the "Show all measurement runs"
     # box; it is the measurement ticks since B8-590, which is the setting a
@@ -349,7 +349,7 @@ def _two_documents(dlg, qapp):
     _every_measurement(dlg, qapp)
     dlg._detail_check.setChecked(False)
     qapp.processEvents()
-    dlg._sync_type_combo_to(REPORT_TYPE_RECORD)
+    dlg._sync_type_combo_to(REPORT_TYPE_FULL)
     dlg._on_type_chosen(dlg._type_combo.currentIndex())
     qapp.processEvents()
     dlg._on_generate_report()
@@ -409,7 +409,7 @@ def test_picking_a_report_restores_the_settings_it_was_made_with(tmp_path,
     `_loaded_doc` branch from `_report_type_now`, and this goes red.
     """
     from workflow.measurement_report import (REPORT_TYPE_GREY,
-                                             REPORT_TYPE_RECORD)
+                                             REPORT_TYPE_FULL)
     s, _fm, _run, vs = _messy_project(tmp_path, dates=2)
     dlg = _dialog(s, vs[-1].measurement_ti3, qapp)
     try:
@@ -417,7 +417,7 @@ def test_picking_a_report_restores_the_settings_it_was_made_with(tmp_path,
         rows = {d["key"]: n for n, d in enumerate(
             dlg._saved_documents(dlg._run_ctx.run))}
         _pick(dlg, rows[first], qapp)
-        assert dlg._report_type_now() == REPORT_TYPE_RECORD
+        assert dlg._report_type_now() == REPORT_TYPE_FULL
         assert dlg._hidden_runs == set(), (
             "the document made over every measurement came back narrowed")
         assert len(dlg._runs_for_report()) == 2
@@ -482,11 +482,11 @@ def test_moving_a_control_stops_the_document_speaking_for_it(tmp_path, qapp):
     MUTATION: drop `self._loaded_doc = None` from `_settings_touched` and this
     goes red.
     """
-    from workflow.measurement_report import REPORT_TYPE_RECORD
+    from workflow.measurement_report import REPORT_TYPE_FULL
     s, _fm, _run, vs = _messy_project(tmp_path, dates=1)
     dlg = _dialog(s, vs[0].measurement_ti3, qapp)
     try:
-        dlg._sync_type_combo_to(REPORT_TYPE_RECORD)
+        dlg._sync_type_combo_to(REPORT_TYPE_FULL)
         dlg._on_type_chosen(dlg._type_combo.currentIndex())
         qapp.processEvents()
         dlg._on_generate_report()

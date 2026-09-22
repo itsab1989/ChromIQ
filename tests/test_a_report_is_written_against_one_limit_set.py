@@ -571,6 +571,10 @@ def test_a_printing_record_keeps_every_ticked_measurement(tmp_path, qapp):
     """
     from workflow.measurement_report import REPORT_TYPE_RECORD
     dlg, _run, fm = _dialog(tmp_path, qapp)
+    # Since K13 a verification may not be a Printing record, so the state this
+    # guards (verification rows under T4) is reached only by a window with no
+    # kind: a measurement outside any project. The window is told so.
+    dlg._window_kind = lambda: None
     try:
         _second_run(tmp_path, fm, dlg, qapp)
         rows = dlg._runs_for_report()

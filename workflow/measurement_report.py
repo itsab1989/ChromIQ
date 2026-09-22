@@ -1963,6 +1963,33 @@ def report_type_is_built(type_id: str) -> bool:
     return False
 
 
+#: The two kinds of measurement a report can be about (K13).
+KIND_PROFILING = "profiling"
+KIND_VERIFICATION = "verification"
+
+
+def report_types_for_kind(kind: "str | None") -> "tuple[str, ...]":
+    """Which report types a measurement of *kind* may be made into.
+
+    **KNUT, ON BETA 34 (K13):** *"The report type 'Printing record' is still
+    available when run type is verification, but should not be available.
+    And, when run type is Profiling, all report types are still available,
+    but only 'Printing record' should be available."* A profiling measurement
+    is the sheet a profile was BUILT from, so nothing on it is judged and the
+    Printing record is its report; a verification is judged, so it gets every
+    other type. ``None`` (a measurement in no project, which has no run type)
+    keeps every type, as it always has.
+
+    Built or not is a separate question (`report_type_is_built`): this says
+    what a kind ALLOWS, and the menu still shows an unbuilt type greyed.
+    """
+    if kind == KIND_PROFILING:
+        return (REPORT_TYPE_RECORD,)
+    if kind == KIND_VERIFICATION:
+        return tuple(t for t in REPORT_TYPES if t != REPORT_TYPE_RECORD)
+    return tuple(REPORT_TYPES)
+
+
 def report_type_name(type_id: str) -> str:
     """The English name. The window translates it."""
     for tid, name, _blurb, _built in REPORT_TYPE_MENU:

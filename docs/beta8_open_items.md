@@ -24415,3 +24415,48 @@ would reach.
 - evidence:
   test_a_printing_record_keeps_every_ticked_measurement
   test_profiling_sheets_are_not_narrowed_under_any_type
+
+### B8-787 · FIXED · Every report type was offered for every run type, and the automatic report ignored the run type
+- blocks release: no
+- status: FIXED
+- found by: Knut on beta 34 (K13 of B8-778); the ruling is recorded in
+  `docs/design/measurement_report_limits.md` §13.10, awaiting confirmation.
+- `workflow.measurement_report.report_types_for_kind` is the rule: a
+  profiling measurement's only report is the Printing record, a verification
+  may have every buildable type but the Printing record, and a measurement
+  with no run (outside any project, or a calibration) keeps every type.
+  `report_type_default_for` takes the kind, so the report window, "New
+  report...", the automatic report after a measurement and the Preferences
+  default all answer the same way; a stored run or Preferences value of
+  Printing record is refused for a verification at read time, nothing on disk
+  rewritten. The report window greys the disallowed types with a sentence
+  saying why and refuses them at the door; Preferences greys Printing record;
+  the Report type help says which types are available when.
+- a saved report of a type its kind no longer allows is shown as recorded
+  (assumption, put to Knut).
+- test fixtures that ran graded types on a PROFILING sheet (the one-page page
+  fit among them) were moved to a verification, which is the only place such
+  a report can now exist; checks of how each type RENDERS run with no kind.
+- driven on screen as a user (`scripts/drive_k13_types_by_run_type.py`, proof
+  `~/Desktop/ChromIQ-beta36-proof/K13-types-by-run-type/`): Profiling run1
+  offers only "Printing record (not graded)"; Verification run1 offers the
+  three graded types and greys the Printing record, each with its reason.
+- evidence:
+  test_a_profiling_measurement_offers_only_the_printing_record
+  test_a_verification_never_offers_the_printing_record
+  test_a_forced_printing_record_on_a_verification_is_refused_and_writes_nothing
+  test_the_automatic_report_of_a_profiling_measurement_is_a_printing_record
+  test_a_printing_record_default_is_refused_for_a_verification
+
+### B8-788 · OPEN · A demo-preset test can remove a user preset another file's cached rows still name
+- blocks release: no
+- status: OPEN
+- found by: running the report-related test files together, 2026-09-22.
+  `test_the_star_means_one_page_and_a_few_hundred_patches` and
+  `test_the_window_opens_on_the_preset_the_pulldown_is_on` fail after the
+  demo-preset tests (which install presets such as "Verify 00 control, every
+  row answered" into the worker's shared presets folder) and pass alone: the
+  log shows the preset's `.ti1` gone when it is assessed. Pre-existing, not
+  caused by K13; whether the gate's `--dist loadfile` can put those files on
+  one worker is to be measured.
+- evidence: test_the_star_means_one_page_and_a_few_hundred_patches

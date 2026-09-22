@@ -1587,7 +1587,46 @@ that Full Colour Check not be offered when the run type is Profiling. There is
 no run-type gating of the report-type pulldown at all today, and §13.8 already
 lists *"what each run type offers in 'Report type'"* as not built. Which types
 each run type offers, and what a Profiling run's default becomes when the
-current default is withdrawn from it, is his decision. B8-598.
+current default is withdrawn from it, is his decision. B8-598. **He decided it
+on 2026-09-22: see §13.10.**
+
+### 13.10 Which report types each run type offers (Knut, 2026-09-22)
+
+**⏳ AWAITING CONFIRMATION.** **Ruled by:** Knut, #182 comment 5781159382,
+against beta 34. **Confirmed by:** *nobody yet.* This records his ruling and
+what was built from it (B8-778 K13); nobody has confirmed the built behaviour.
+
+> *"The report type 'Printing record' is still available when run type is
+> verification, but should not be available. And, when run type is Profiling,
+> all report types are still available, but only 'Printing record' should be
+> available. When run type is Profiling, and measurement reports are generated
+> after a finished measurement, only the 'Printing record' type should be
+> created, as this is the only report type relevant for when profiling. When
+> run type is verification, the current default in preferences -> report is
+> used (unless another default was chosen for the run). The help text for the
+> report type needs to explain when which report types are available."*
+
+What was built, and the assumptions it rests on (each is his to overturn):
+
+* **The measurement decides, not the bar.** The report window has no run type
+  of its own; it is opened on a measurement, so that measurement's kind is
+  used: a run's own sheet is profiling, a dated verification is verification.
+  The automatic report asks the same question the same way.
+* **Profiling: Printing record only. Verification: every buildable type but
+  the Printing record.** The others are shown greyed with a sentence saying
+  why, as an unbuilt type is (§10), not hidden.
+* **A measurement with no run** (a file outside any project, and a
+  calibration) keeps every type, as before. *Assumption:* a calibration is not
+  a profile run, so the rule is not applied to it.
+* **Preferences "Report type, default" applies to verification**, so the
+  Printing record is greyed there, and a stored Printing record default (legal
+  until beta 35) is read as Full colour check. Nothing on disk is rewritten.
+* **A saved report of a type its kind no longer allows** (a beta-34 Full colour
+  check of a profiling sheet, a Printing record of a verification) is shown as
+  recorded. *Assumption:* what a document IS is not changed by opening it.
+* This amends §10 ("T2 ... is the default for every report written before this
+  existed and every run nobody has chosen for") and §13.6 P.2 and P.6, which
+  now hold for verification measurements only.
 
 
 ## 15. ChromIQ's own two repeatability rows (#182, 2026-09-22)

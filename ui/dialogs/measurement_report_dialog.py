@@ -1076,8 +1076,20 @@ def _types_and_pairing_help() -> str:
         if tid == REPORT_TYPE_SUMMARY:
             line += " " + one_page
         lines.append(line)
+    # WHICH ONES YOU CAN CHOOSE, AND WHEN (K13, Knut on beta 34): *"The help
+    # text for the report type needs to explain when which report types are
+    # available."*
+    when_available = tr(
+        "Which of them you can choose depends on the measurement the window is "
+        "open on. A profiling measurement is the sheet a profile was built "
+        "from, so its only report is the Printing record. A verification "
+        "measurement is judged, so it can have every other type, and the "
+        "Printing record is not offered for it. A measurement outside any "
+        "project, or a calibration, can have any of them. The report ChromIQ "
+        "writes by itself after a measurement follows the same rule.")
     return ("\n\n" + tr("What each one is for") + "\n\n"
             + "\n\n".join(lines)
+            + "\n\n" + when_available
             + "\n\n" + tr(_WHEN_HELP)
             + "\n\n" + tr(_PAIRING_HELP) + "\n\n" + tr(_CHART_HELP))
 
@@ -6389,6 +6401,39 @@ class MeasurementReportDialog(QDialog):
             self._doc_created = ""
         self._reload_sources()
 
+    def _window_kind(self) -> "str | None":
+        """What kind of measurement this window is about, for K13.
+
+        The SUBJECT decides (the measurement the window was opened on), and
+        it is asked the same way the automatic report asks: its run context.
+        A dated verification is "verification", a run's own sheet is
+        "profiling", and anything with no run (a file outside any project, a
+        calibration) is None, which keeps every type.
+        """
+        from workflow.measurement_report import (KIND_PROFILING,
+                                                 KIND_VERIFICATION)
+        from workflow.run_compliance import run_context_for
+        r = getattr(self, "_report", None) or {}
+        origin, ti3 = r.get("_origin_dir"), r.get("ti3")
+        if not origin or not ti3:
+            return None
+        ctx = run_context_for(Path(origin) / str(ti3))
+        if ctx is None:
+            return None
+        return KIND_VERIFICATION if ctx.verification is not None \
+            else KIND_PROFILING
+
+    def _fit_to_kind(self, tid: str) -> str:
+        """*tid*, or the kind's own default when the kind does not allow it."""
+        from workflow.measurement_report import report_types_for_kind
+        kind = self._window_kind()
+        if tid in report_types_for_kind(kind):
+            return tid
+        from workflow.run_compliance import report_type_default_for
+        return report_type_default_for(
+            None, str(self._settings.get("report_default_type", "") or ""),
+            kind)
+
     def _report_type_now(self) -> str:
         """Which kind of document this window is producing.
 
@@ -6440,12 +6485,17 @@ class MeasurementReportDialog(QDialog):
         # parameter shall not ever alter report type."* `_settings_touched`
         # pins the widget's own value first, so the fall-through below is
         # reached only when no document was speaking at all.
+        # **EVERYTHING BELOW IS FITTED TO THE MEASUREMENT'S KIND (K13).** A
+        # loaded document above answers for itself, so a saved report keeps
+        # the type it was written as and is shown as recorded; every answer
+        # from here on is what a NEW document would be, and a profiling
+        # measurement's is the Printing record, a verification's never is.
         sticky = str(getattr(self, "_sticky_type", "") or "")
         if sticky in REPORT_TYPES:
-            return sticky
+            return self._fit_to_kind(sticky)
         types = self._types_of_loaded_runs()
         if len(types) > 1:
-            return REPORT_TYPE_DEFAULT
+            return self._fit_to_kind(REPORT_TYPE_DEFAULT)
         ctx = self._run_ctx
         if ctx is not None:
             # **THE RUN FIRST, THE PREFERENCES DEFAULT BEHIND IT (B8-388).**
@@ -6457,11 +6507,13 @@ class MeasurementReportDialog(QDialog):
             from workflow.run_compliance import report_type_default_for
             return report_type_default_for(
                 ctx.run,
-                str(self._settings.get("report_default_type", "") or ""))
+                str(self._settings.get("report_default_type", "") or ""),
+                self._window_kind())
         if self._session_type:
-            return self._session_type
+            return self._fit_to_kind(self._session_type)
         reports = self._runs_for_report()
-        return report_type(reports[0]) if reports else REPORT_TYPE_DEFAULT
+        return self._fit_to_kind(
+            report_type(reports[0]) if reports else REPORT_TYPE_DEFAULT)
 
     def _types_of_loaded_runs(self) -> "set[str]":
         """The distinct report types of every RUN this window holds.
@@ -6528,6 +6580,10 @@ class MeasurementReportDialog(QDialog):
                                                  REPORT_TYPE_MENU_HEADING,
                                                  REPORT_TYPE_MENU_SPLIT)
         current = self._report_type_now()
+        from workflow.measurement_report import (KIND_PROFILING,
+                                                 report_types_for_kind)
+        kind = self._window_kind()
+        allowed = report_types_for_kind(kind)
         self._type_combo.clear()
         model = self._type_combo.model()
         for tid, name, blurb, built in REPORT_TYPE_MENU:
@@ -6555,6 +6611,17 @@ class MeasurementReportDialog(QDialog):
                 Qt.ItemDataRole.ToolTipRole)
             if not built:
                 self._disable_item(model, i)
+            elif tid not in allowed:
+                # SHOWN AND REFUSED, like an unbuilt type, and it says why.
+                self._disable_item(model, i)
+                self._type_combo.setItemData(
+                    i, tr("A profiling measurement is the sheet a profile was "
+                          "built from, so its only report is the Printing "
+                          "record.") if kind == KIND_PROFILING else
+                    tr("The Printing record is the report of a profiling "
+                       "measurement. A verification is judged, so it uses "
+                       "one of the other types."),
+                    Qt.ItemDataRole.ToolTipRole)
         idx = self._type_combo.findData(current)
         self._type_combo.setCurrentIndex(max(0, idx))
         # **ENABLED WITH SEVERAL RUNS TOO (K17, Knut on beta 34):** *"I select
@@ -6836,11 +6903,14 @@ class MeasurementReportDialog(QDialog):
         current = self._report_type_now()
         if not type_id or type_id == current:
             return
-        if not report_type_is_built(type_id):
+        from workflow.measurement_report import report_types_for_kind
+        if not report_type_is_built(type_id) or \
+                type_id not in report_types_for_kind(self._window_kind()):
             # Belt and braces: the entry is greyed, and a keyboard or a style
             # that ignores the flag must not be able to store it anyway. A
             # guarded write behind an unguarded control is the shape that came
-            # back in three separate rounds.
+            # back in three separate rounds. (K13's refusal rides the same
+            # door: a type the measurement's kind does not allow.)
             self._sync_type_combo_to(current)
             return
         ctx = self._run_ctx

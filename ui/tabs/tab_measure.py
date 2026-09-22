@@ -15065,8 +15065,19 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                                                      stamp_document)
             from workflow.run_compliance import report_type_default_for
             run = ctx.run if ctx is not None else None
+            # WHICH KIND OF MEASUREMENT THIS IS decides which types it may be
+            # (K13): a profiling sheet's automatic report is the Printing
+            # record, a verification's follows the run and Preferences.
+            from workflow.measurement_report import (KIND_PROFILING,
+                                                     KIND_VERIFICATION)
+            kind = None
+            if ctx is not None:
+                kind = (KIND_VERIFICATION
+                        if getattr(ctx, "verification", None) is not None
+                        else KIND_PROFILING)
             tid = report_type_default_for(
-                run, str(self._settings.get("report_default_type", "") or ""))
+                run, str(self._settings.get("report_default_type", "") or ""),
+                kind)
             if tid and tid != report_type(report):
                 set_report_type(report, tid)
             when = _dt.now()

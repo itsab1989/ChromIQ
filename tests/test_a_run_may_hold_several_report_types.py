@@ -14,6 +14,8 @@ why several views of one measurement can coexist without disagreeing.
 """
 from __future__ import annotations
 
+import pytest
+
 import json
 import os
 
@@ -272,3 +274,19 @@ def test_which_types_exist_is_the_half_that_survives_elision(tmp_path, qapp,
         assert dlg._type_combo.toolTip() == blurb
     finally:
         dlg.close()
+
+
+@pytest.fixture(autouse=True)
+def _every_type_as_for_a_measurement_in_no_run(monkeypatch):
+    """**K13 (Knut, beta 34) made the Printing record a profiling-only type**,
+    and these checks drive every type on a VERIFICATION fixture, where T4
+    would now fall back to T2 and each check would be asked of the fallback.
+    What they test is how each type RENDERS, which is still reachable: a saved
+    beta-34 Printing record of a verification is shown as recorded, and a
+    measurement outside any project keeps every type. So the window is told
+    it has no kind. K13's own rule is guarded in
+    `tests/test_the_report_type_pulldown_stores_on_the_run.py`.
+    """
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    monkeypatch.setattr(MeasurementReportDialog, "_window_kind",
+                        lambda self: None)

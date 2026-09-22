@@ -275,7 +275,8 @@ def run_report_type(run: "Run | None") -> str:
         return REPORT_TYPE_DEFAULT
 
 
-def report_type_default_for(run: "Run | None", preferred: str) -> str:
+def report_type_default_for(run: "Run | None", preferred: str,
+                            kind: "str | None" = None) -> str:
     """The type a NEW document of *run* is made as: D9 first, Preferences second.
 
     Knut, 2026-09-18 (B8-388): *"Regarding 'the report type': The type belongs
@@ -292,12 +293,26 @@ def report_type_default_for(run: "Run | None", preferred: str) -> str:
     An id this build cannot PRODUCE is refused from either source, for the
     reason :func:`workflow.measurement_report.report_type` gives: what this
     build renders is what it must say it rendered.
+
+    **AND AN ID THE MEASUREMENT'S KIND DOES NOT ALLOW (K13, Knut on beta 34).**
+    A profiling measurement's report is always the Printing record, whatever
+    the run or Preferences say; a verification never is, so a run or a
+    Preferences value of Printing record (both legal until beta 35) is refused
+    for it at READ time and nothing on disk is rewritten. ``kind`` None keeps
+    the old answer, for a caller that has no measurement to ask about.
     """
-    from workflow.measurement_report import (REPORT_TYPE_DEFAULT, REPORT_TYPES,
-                                             report_type_is_built)
+    from workflow.measurement_report import (KIND_PROFILING,
+                                             REPORT_TYPE_DEFAULT,
+                                             REPORT_TYPE_RECORD, REPORT_TYPES,
+                                             report_type_is_built,
+                                             report_types_for_kind)
+    if kind == KIND_PROFILING:
+        return REPORT_TYPE_RECORD
+    allowed = report_types_for_kind(kind)
 
     def _usable(tid: str) -> bool:
-        return tid in REPORT_TYPES and report_type_is_built(tid)
+        return (tid in REPORT_TYPES and report_type_is_built(tid)
+                and tid in allowed)
 
     stored = ""
     if run is not None:

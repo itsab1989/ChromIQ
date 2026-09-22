@@ -190,7 +190,14 @@ def a_run(tmp_path, qapp):
     meta = run.load_meta()
     meta.description = "Hahnemuhle Photo Rag 308, job 4471"
     run.save_meta(meta)
-    ti3 = run.dir / "G.ti3"
+    # A DATED VERIFICATION, not the run's own sheet. Since K13 (Knut, beta
+    # 34) a profiling measurement's only report is the Printing record, so
+    # the one-page summary exists only for a verification, and this fixture
+    # measured a page no user can make any more: it was the run's own sheet
+    # until 2026-09-22.
+    v = run.new_verification()
+    v.ensure_dir()
+    ti3 = v.measurement_ti3
     _measurement_ti3(ti3)
     dlg = MeasurementReportDialog(st, None, initial_ti3=ti3)
     yield dlg, run

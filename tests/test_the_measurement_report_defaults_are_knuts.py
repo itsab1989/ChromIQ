@@ -233,17 +233,17 @@ def test_the_defaults_are_written_and_read_back(tmp_path, qapp):
     MUTATION: drop either `s.set("report_default_…")` line from
     `_save_and_close` and this goes red.
     """
-    from workflow.measurement_report import REPORT_TYPE_RECORD
+    from workflow.measurement_report import REPORT_TYPE_GREY
     s = _settings(tmp_path)
     d = _prefs(s, qapp)
     try:
         d._report_type_default_combo.setCurrentIndex(
-            d._report_type_default_combo.findData(REPORT_TYPE_RECORD))
+            d._report_type_default_combo.findData(REPORT_TYPE_GREY))
         d._report_details_default_check.setChecked(False)
         d._save_and_close()
     finally:
         d.deleteLater()
-    assert s.get("report_default_type") == REPORT_TYPE_RECORD
+    assert s.get("report_default_type") == REPORT_TYPE_GREY
     assert bool(s.get("report_default_show_details")) is False
     # …and the withdrawn one is not written either (B8-590). A Save that still
     # stored `report_default_show_all_runs` would keep a dead key alive in
@@ -252,7 +252,7 @@ def test_the_defaults_are_written_and_read_back(tmp_path, qapp):
         "Save still writes the preference of the removed box")
     again = _prefs(s, qapp)
     try:
-        assert again._report_type_default_combo.currentData() == REPORT_TYPE_RECORD
+        assert again._report_type_default_combo.currentData() == REPORT_TYPE_GREY
         assert not again._report_details_default_check.isChecked()
     finally:
         again.deleteLater()
@@ -324,17 +324,17 @@ def test_the_automatic_records_type_follows_the_run_then_preferences(tmp_path,
     half of this goes red either way.
     """
     from workflow.measurement_report import (REPORT_TYPE_GREY,
-                                             REPORT_TYPE_RECORD, list_reports,
+                                             REPORT_TYPE_SUMMARY, list_reports,
                                              recorded_document)
     from workflow.run_compliance import set_run_report_type
     s, _fm, _ctl, run, v = _a_measured_run(tmp_path)
-    s.set("report_default_type", REPORT_TYPE_RECORD)
+    s.set("report_default_type", REPORT_TYPE_SUMMARY)
     tab = _measure_tab(s, qapp)
     try:
         tab._maybe_save_measurement_report(v.measurement_ti3)
         first = recorded_document(json.loads(
             Path(list_reports(v.dir)[-1]).read_text(encoding="utf-8")))
-        assert first["type"] == REPORT_TYPE_RECORD, (
+        assert first["type"] == REPORT_TYPE_SUMMARY, (
             "a run that never chose a type ignored the Preferences default")
         set_run_report_type(run, REPORT_TYPE_GREY)
         tab._maybe_save_measurement_report(v.measurement_ti3)
@@ -625,10 +625,10 @@ def test_choosing_new_report_loads_the_preferences_defaults(tmp_path, qapp):
     boxes alone and this goes red.
     """
     from ui.dialogs.measurement_report_dialog import NEW_REPORT_KEY
-    from workflow.measurement_report import REPORT_TYPE_RECORD
+    from workflow.measurement_report import REPORT_TYPE_GREY
     s, _fm, _run, vs = _generated_project(tmp_path, qapp)
     s.set("report_default_show_details", True)
-    s.set("report_default_type", REPORT_TYPE_RECORD)
+    s.set("report_default_type", REPORT_TYPE_GREY)
     dlg = _report_window(s, vs[-1].measurement_ti3, qapp)
     try:
         # the window opened on a document made with the box off and a narrowed
@@ -648,7 +648,7 @@ def test_choosing_new_report_loads_the_preferences_defaults(tmp_path, qapp):
             f"{dlg._hidden_runs!r}")
         assert dlg._detail_check.isChecked(), (
             "“Show detailed data for each run” did not come from Preferences")
-        assert dlg._report_type_now() == REPORT_TYPE_RECORD, (
+        assert dlg._report_type_now() == REPORT_TYPE_GREY, (
             "the report type did not come from Preferences")
     finally:
         dlg.close()
@@ -1041,3 +1041,38 @@ def test_picking_new_report_again_still_loads_the_defaults(tmp_path, qapp):
             "current entry")
     finally:
         dlg.close()
+
+
+
+def test_a_printing_record_default_is_refused_for_a_verification(tmp_path, qapp):
+    """K13 (Knut, beta 34): a verification is never a Printing record. A
+    Preferences default of Printing record, legal until beta 35, is refused
+    at read time for the automatic report of a verification measurement, and
+    the Preferences pulldown no longer offers it.
+
+    MUTATION: drop `and tid in allowed` from `report_type_default_for` and the
+    first assert goes red; drop the T4 disable in the Preferences builder and
+    the second does.
+    """
+    from workflow.measurement_report import (REPORT_TYPE_FULL,
+                                             REPORT_TYPE_RECORD, list_reports,
+                                             recorded_document)
+    s, _fm, _ctl, _run, v = _a_measured_run(tmp_path)
+    s.set("report_default_type", REPORT_TYPE_RECORD)
+    tab = _measure_tab(s, qapp)
+    try:
+        tab._maybe_save_measurement_report(v.measurement_ti3)
+        doc = recorded_document(json.loads(
+            Path(list_reports(v.dir)[-1]).read_text(encoding="utf-8")))
+        assert doc["type"] == REPORT_TYPE_FULL, doc["type"]
+    finally:
+        tab.deleteLater()
+    d = _prefs(s, qapp)
+    try:
+        combo = d._report_type_default_combo
+        i = combo.findData(REPORT_TYPE_RECORD)
+        assert i >= 0 and not combo.model().item(i).isEnabled(), (
+            "Preferences still offers Printing record as the default type")
+        assert combo.currentData() != REPORT_TYPE_RECORD
+    finally:
+        d.deleteLater()

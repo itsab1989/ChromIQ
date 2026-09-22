@@ -271,11 +271,11 @@ def test_a_selected_report_restores_all_four_of_its_settings(two_dates, qapp):
     from `_apply_document`.
     """
     from workflow.measurement_report import (REPORT_TYPE_GREY,
-                                             REPORT_TYPE_RECORD)
+                                             REPORT_TYPE_FULL)
     s, _fm, run, vs = two_dates
     dlg = _window(s, vs[-1].measurement_ti3, qapp)
     try:
-        wide = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_RECORD,
+        wide = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_FULL,
                                 every_measurement=True, detail=True)
         narrow = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_GREY,
                                   every_measurement=False, detail=False)
@@ -285,7 +285,7 @@ def test_a_selected_report_restores_all_four_of_its_settings(two_dates, qapp):
         here = dlg._run_key(dlg._report)
 
         _pick_key(dlg, wide, qapp)
-        assert dlg._report_type_now() == REPORT_TYPE_RECORD
+        assert dlg._report_type_now() == REPORT_TYPE_FULL
         assert dlg._hidden_runs == set(), (
             "the document covering every measurement came back narrowed")
         assert dlg._detail_check.isChecked() is True
@@ -302,7 +302,7 @@ def test_a_selected_report_restores_all_four_of_its_settings(two_dates, qapp):
         # …and back again, so this is a restore and not a one-way drift
         _pick_key(dlg, wide, qapp)
         assert (dlg._report_type_now(), set(dlg._hidden_runs),
-                dlg._detail_check.isChecked()) == (REPORT_TYPE_RECORD,
+                dlg._detail_check.isChecked()) == (REPORT_TYPE_FULL,
                                                    set(), True)
     finally:
         dlg.close()
@@ -498,11 +498,11 @@ def test_a_report_created_the_first_time_carries_no_trailing_saved_stamp(
     then carries no creation stamp at all).
     """
     import re
-    from workflow.measurement_report import REPORT_TYPE_RECORD
+    from workflow.measurement_report import REPORT_TYPE_FULL
     s, _fm, _run, vs = two_dates
     dlg = _window(s, vs[-1].measurement_ti3, qapp)
     try:
-        key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_RECORD,
+        key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_FULL,
                                every_measurement=True, detail=True)
         label = next(lab for lab, k in _entries(dlg) if k == key)
         assert "saved" not in label, (
@@ -576,11 +576,11 @@ def test_the_question_is_asked_only_when_both_halves_of_his_sentence_hold(
     returns None. The line stays as the explicit statement of the rule, but it
     is not what this check can see.
     """
-    from workflow.measurement_report import REPORT_TYPE_RECORD
+    from workflow.measurement_report import REPORT_TYPE_FULL
     s, _fm, _run, vs = two_dates
     dlg = _window(s, vs[-1].measurement_ti3, qapp)
     try:
-        key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_RECORD,
+        key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_FULL,
                                every_measurement=True, detail=True)
         _pick_key(dlg, key, qapp)
         assert dlg._document_being_updated() is None, (
@@ -612,11 +612,11 @@ def test_cancel_aborts_the_generate_report_function(two_dates, qapp,
     `_write_the_document` on "cancel".
     """
     from PyQt6.QtWidgets import QMessageBox
-    from workflow.measurement_report import REPORT_TYPE_RECORD
+    from workflow.measurement_report import REPORT_TYPE_FULL
     s, _fm, run, vs = two_dates
     dlg = _window(s, vs[-1].measurement_ti3, qapp)
     try:
-        key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_RECORD,
+        key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_FULL,
                                every_measurement=True, detail=True)
         _pick_key(dlg, key, qapp)
         before = {p: p.read_bytes() for p in _files(run)}
@@ -647,11 +647,11 @@ def test_create_new_writes_a_new_report_and_leaves_the_selected_one_alone(
     the answer is "new".
     """
     from PyQt6.QtWidgets import QMessageBox
-    from workflow.measurement_report import REPORT_TYPE_RECORD
+    from workflow.measurement_report import REPORT_TYPE_FULL
     s, _fm, run, vs = two_dates
     dlg = _window(s, vs[-1].measurement_ti3, qapp)
     try:
-        key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_RECORD,
+        key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_FULL,
                                every_measurement=True, detail=True)
         _pick_key(dlg, key, qapp)
         before = {p: p.read_bytes() for p in _files(run)}
@@ -691,11 +691,11 @@ def test_update_keeps_the_selected_report_and_recalculates_it(
     stamp).
     """
     from PyQt6.QtWidgets import QMessageBox
-    from workflow.measurement_report import REPORT_TYPE_RECORD
+    from workflow.measurement_report import REPORT_TYPE_FULL
     s, _fm, run, vs = two_dates
     dlg = _window(s, vs[-1].measurement_ti3, qapp)
     try:
-        key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_RECORD,
+        key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_FULL,
                                every_measurement=True, detail=True)
         _pick_key(dlg, key, qapp)
         entry = next(d for d in dlg._saved_documents(dlg._run_ctx.run)
@@ -751,11 +751,11 @@ def test_a_second_update_replaces_the_first_stamp_in_the_name(
     MUTATION, proved to land: flip `NAME_SHOWS_EVERY_UPDATE` to True.
     """
     from PyQt6.QtWidgets import QMessageBox
-    from workflow.measurement_report import REPORT_TYPE_RECORD
+    from workflow.measurement_report import REPORT_TYPE_FULL
     s, _fm, run, vs = two_dates
     dlg = _window(s, vs[-1].measurement_ti3, qapp)
     try:
-        key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_RECORD,
+        key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_FULL,
                                every_measurement=True, detail=True)
         _pick_key(dlg, key, qapp)
         del dlg._ask_update_or_create_new
@@ -800,12 +800,12 @@ def test_update_writes_the_same_kind_of_document_create_new_writes(
     from PyQt6.QtWidgets import QMessageBox
     from tests.test_a_generated_report_is_one_document import _messy_project
     from workflow.measurement_report import (REPORT_TYPE_GREY,
-                                             REPORT_TYPE_RECORD)
+                                             REPORT_TYPE_FULL)
     s, _fm, run, vs = _messy_project(tmp_path, dates=1)
     dlg = _window(s, vs[-1].measurement_ti3, qapp)
     moving = {"id", "created", "updated"}
     try:
-        key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_RECORD,
+        key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_FULL,
                                every_measurement=True, detail=True)
         _pick_key(dlg, key, qapp)
         entry = next(d for d in dlg._saved_documents(dlg._run_ctx.run)
@@ -868,11 +868,11 @@ def test_update_never_leaves_two_live_reports_of_one_date(two_dates, qapp,
     `save_report(rep, Path(origin))`.
     """
     from PyQt6.QtWidgets import QMessageBox
-    from workflow.measurement_report import REPORT_TYPE_RECORD
+    from workflow.measurement_report import REPORT_TYPE_FULL
     s, _fm, run, vs = two_dates
     dlg = _window(s, vs[-1].measurement_ti3, qapp)
     try:
-        key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_RECORD,
+        key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_FULL,
                                every_measurement=True, detail=True)
         _pick_key(dlg, key, qapp)
         before = {str(p) for p in _files(run)}
@@ -907,11 +907,11 @@ def test_a_member_the_update_drops_still_agrees_with_its_document(
     leftover members.
     """
     from PyQt6.QtWidgets import QMessageBox
-    from workflow.measurement_report import REPORT_TYPE_RECORD
+    from workflow.measurement_report import REPORT_TYPE_FULL
     s, _fm, run, vs = two_dates
     dlg = _window(s, vs[-1].measurement_ti3, qapp)
     try:
-        key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_RECORD,
+        key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_FULL,
                                every_measurement=True, detail=True)
         _pick_key(dlg, key, qapp)
         entry = next(d for d in dlg._saved_documents(dlg._run_ctx.run)
@@ -1116,11 +1116,11 @@ def test_update_copies_every_file_it_rewrites_into_old_first(
     `_write_the_document` and the first assert goes red.
     """
     from PyQt6.QtWidgets import QMessageBox
-    from workflow.measurement_report import REPORT_TYPE_RECORD
+    from workflow.measurement_report import REPORT_TYPE_FULL
     s, _fm, run, vs = two_dates
     dlg = _window(s, vs[-1].measurement_ti3, qapp)
     try:
-        key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_RECORD,
+        key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_FULL,
                                every_measurement=True, detail=True)
         _pick_key(dlg, key, qapp)
         entry = next(d for d in dlg._saved_documents(dlg._run_ctx.run)
@@ -1154,11 +1154,11 @@ def test_a_file_whose_archive_fails_is_not_rewritten(two_dates, qapp,
     (`_say_generated` is the window's existing failure message)."""
     from PyQt6.QtWidgets import QMessageBox
     import core.file_manager as FM
-    from workflow.measurement_report import REPORT_TYPE_RECORD
+    from workflow.measurement_report import REPORT_TYPE_FULL
     s, _fm, run, vs = two_dates
     dlg = _window(s, vs[-1].measurement_ti3, qapp)
     try:
-        key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_RECORD,
+        key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_FULL,
                                every_measurement=True, detail=True)
         _pick_key(dlg, key, qapp)
         entry = next(d for d in dlg._saved_documents(dlg._run_ctx.run)
