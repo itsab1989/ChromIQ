@@ -427,3 +427,145 @@ def test_clear_list_also_forgets_the_cleared_reports_settings(tmp_path, qapp):
             "the cleared report's settings still speak for the window")
     finally:
         dlg.close()
+
+
+# ---------------------------------------------------------------------------
+# K3's reader: an id this build does not know keeps what it was given
+# ---------------------------------------------------------------------------
+def test_a_set_id_this_build_does_not_know_keeps_its_recommendation():
+    """`set_marks_recommendations`: *"every other set, and an id this build
+    does not know, keeps what it was given"* (a report from a newer ChromIQ,
+    CH-20). The K3 test covers a ChromIQ set, a standard's set and no id.
+
+    MUTANT C02: `return d is not None and d.kind != "chromiq"`.
+    """
+    from workflow.compliance_sets import (limits_from_json,
+                                          set_marks_recommendations)
+    stored = {"grey_balance_neutral_ramp_avg": [3.0, "should"]}
+    assert set_marks_recommendations("a_set_from_a_newer_chromiq")
+    lim = limits_from_json(stored, "a_set_from_a_newer_chromiq")[
+        "grey_balance_neutral_ramp_avg"]
+    assert lim.is_should and lim.number == 3.0
+
+
+# ---------------------------------------------------------------------------
+# B8-740: Restore Used Chart takes EVERY chart field, and only those
+# ---------------------------------------------------------------------------
+def _restore_slot_with(tmp_path, live: dict, snap: dict) -> dict:
+    import json
+    from tests.test_a_restore_archives_the_side_file_it_overwrites import \
+        _slot
+    from workflow import verify_chart_snapshot as VS
+    slot = _slot(tmp_path, live, snap)
+    VS.restore_slot(slot)
+    return json.loads((slot.live_dir / "meta.json").read_text(
+        encoding="utf-8"))
+
+
+def test_restore_takes_every_one_of_the_charts_fields(tmp_path):
+    """Knut's ruling names the run's fields; `CHART_META_KEYS` names the
+    chart's eleven, and the B8-740 test sets two of them. Each of the eleven
+    is set differently live and in the snapshot here, and each must come back
+    from the snapshot, spelled out rather than read off the tuple (a test
+    that iterates the constant it guards cannot see a key leave it).
+
+    MUTANTS V03 (drop "instrument", "paper"), V04 ("print_settings"), V08
+    ("chart_notes"), V09 ("create_chart_ui").
+    """
+    chart_fields = ("instrument", "paper", "scanner_target_enabled",
+                    "chart_notes", "verify_chart_notes",
+                    "create_chart_settings", "create_chart_ui",
+                    "print_settings", "editor_layout", "editor_basename",
+                    "editor_recipe")
+    live = {k: f"live {k}" for k in chart_fields}
+    live["description"] = "the run's"
+    snap = {k: f"snapshot {k}" for k in chart_fields}
+    got = _restore_slot_with(tmp_path, live, snap)
+    wrong = {k: got.get(k) for k in chart_fields if got.get(k) != snap[k]}
+    assert not wrong, f"chart fields not restored from the snapshot: {wrong}"
+    assert got["description"] == "the run's"
+
+
+def test_a_chart_field_the_snapshot_never_had_is_not_kept_from_live(
+        tmp_path):
+    """A chart field that is live but absent from the snapshot belongs to the
+    chart that is being REPLACED, so it goes: keeping it would pin the new
+    chart's notes (or recipe) onto the chart the user restored.
+
+    MUTANT V06: drop the `out.pop(key, None)` branch of `merge_restored_meta`.
+    """
+    got = _restore_slot_with(
+        tmp_path,
+        {"description": "keep", "chart_notes": "about the chart being replaced",
+         "create_chart_settings": {"targen_-f": 400}},
+        {"create_chart_settings": {"targen_-f": 210}})
+    assert "chart_notes" not in got, got
+    assert got["create_chart_settings"] == {"targen_-f": 210}
+    assert got["description"] == "keep"
+
+
+# ---------------------------------------------------------------------------
+# K1 and B8-800 on the Create Chart tab
+# ---------------------------------------------------------------------------
+def test_the_importer_checks_the_maximised_family_against_its_own_base():
+    """`import_knut_presets._shipped_base` is what makes a drifting batch fail
+    to validate; the existing guard lists cm/p3/i1/i175 only, so the K1 entry
+    for i175max could vanish and the importer would check that family against
+    nothing (an empty base: *"a brand-new one has nothing to disagree
+    with"*).
+
+    MUTANT T09: delete `"i175max": "_I1_75_MAX_BASE"` from the map.
+    """
+    import importlib.util
+    from pathlib import Path
+    from ui.tabs.tab_chart import _I1_75_MAX_BASE
+    spec = importlib.util.spec_from_file_location(
+        "_imp_r3c", Path(__file__).resolve().parent.parent / "scripts"
+        / "import_knut_presets.py")
+    mod = importlib.util.module_from_spec(spec)
+    import sys
+    sys.modules[spec.name] = mod          # its dataclasses look themselves up
+    try:
+        spec.loader.exec_module(mod)
+    finally:
+        sys.modules.pop(spec.name, None)
+    assert mod._shipped_base(mod.FAMILIES["i175max"]) == _I1_75_MAX_BASE
+
+
+def _verification_tab(qapp, tmp_path):
+    from tests.test_the_preset_button_is_small_fast_and_where_it_belongs \
+        import _env, _tab
+    from core.measurement_target import RUN_TYPE_VERIFICATION
+    settings, fm, ctl = _env(tmp_path)
+    tab = _tab(settings, fm, ctl)
+    ctl.set_run_type(RUN_TYPE_VERIFICATION)
+    tab.show()
+    qapp.processEvents()
+    tab._manual_btn.click()
+    qapp.processEvents()
+    tab._sync_preset_verify_visibility()
+    qapp.processEvents()
+    return tab, ctl
+
+
+def test_the_buttons_row_is_hidden_with_the_button(qapp, tmp_path):
+    """The row container is in `_sync_preset_verify_visibility`'s list since
+    B8-800; with it left out, a profiling run keeps an empty row in the
+    Presets group, whose layout still reserves it.
+
+    MUTANT T04: drop "_preset_verify_row" from that list.
+    """
+    from core.measurement_target import RUN_TYPE_PROFILING
+    tab, ctl = _verification_tab(qapp, tmp_path)
+    try:
+        assert tab._preset_verify_row.isVisibleTo(tab)
+        ctl.set_run_type(RUN_TYPE_PROFILING)
+        tab._sync_preset_verify_visibility()
+        qapp.processEvents()
+        assert not tab._preset_verify_btn.isVisibleTo(tab)
+        assert tab._preset_verify_row.isHidden(), (
+            "the button is hidden and its row is still shown")
+    finally:
+        tab.close()
+        tab.deleteLater()
+        qapp.processEvents()
