@@ -46,10 +46,15 @@ _REPO = Path(__file__).resolve().parents[1]
 #: ONE requirement (its surface candidates sit 2.1 device units off the nearest
 #: cube face, where the rule is 2.0), so it is the PASS half that must carry
 #: the star once the page count is right.
+#: The names carry the limit set that shows the pair since K15: ChromIQ's own
+#: sets ask nothing about the surface of the device cube, so the window shows
+#: this pair only under the set the tag names.
 R11_FAIL = ("Verify R11 FAIL, 12 candidates, "
-            "every one 2.1 from the nearest face")
+            "every one 2.1 from the nearest face "
+            "[judge with Custom ISO 12647-7]")
 R11_PASS = ("Verify R11 PASS, the same 12, "
-            "every one exactly 2.0 from the nearest face")
+            "every one exactly 2.0 from the nearest face "
+            "[judge with Custom ISO 12647-7]")
 
 
 @pytest.fixture(scope="module")

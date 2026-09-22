@@ -316,6 +316,10 @@ def dialog(qapp, installed):
         PVD.PresetVerificationDialog.exec = real_exec
     assert opened, "clicking the real button opened no window"
     dlg = opened[0]
+    # WHAT A USER SEES FIRST, kept before the fixture moves anything: this
+    # file judged every pair under STRICT and never looked at the choice the
+    # window opens on, which is where Knut looked (K15).
+    dlg._k15_opened_on = (dlg.current_type(), dlg.current_set())
     dlg._type_combo.setCurrentIndex(dlg._type_combo.findData(STRICT[0]))
     dlg._set_combo.setCurrentIndex(dlg._set_combo.findData(STRICT[1]))
     qapp.processEvents()
@@ -448,6 +452,71 @@ def test_the_window_says_what_is_missing_in_its_own_words(dialog, req, fail,
         remedy = PE.row_remedy(rid)
         if remedy:
             assert remedy in shown, (req.key, rid)
+
+
+# ---------------------------------------------------------------------------
+# 2b. where a reader has to look (K15, Knut on beta 34)
+# ---------------------------------------------------------------------------
+def _choose(dlg, choice) -> None:
+    dlg._type_combo.setCurrentIndex(dlg._type_combo.findData(choice[0]))
+    dlg._set_combo.setCurrentIndex(dlg._set_combo.findData(choice[1]))
+    QApplication.instance().processEvents()
+
+
+def test_the_pack_knows_which_choice_the_window_opens_on(dialog):
+    """The tags are decided against the window's opening choice, so that
+    choice is asked of the WINDOW here, not only of the lists it is built
+    from."""
+    assert dialog._k15_opened_on == GEN.opening_choice()
+
+
+@pytest.mark.parametrize("req,fail,ok", _PAIRS, ids=_IDS)
+def test_each_pair_shows_under_the_choice_its_name_gives(dialog, req, fail,
+                                                         ok):
+    """Knut: the verification demos *"seamed not to trigger FAIL properly on
+    many of the demo presets"*. Measured: under the choice the window opens
+    on, eight of thirteen pairs read identically, because ChromIQ's own sets
+    ask nothing about the control strip, the tone ramps, the surface or the
+    outer gamut. Every assertion above ran under STRICT, which no user lands
+    on by opening the window.
+
+    So each pair names the choice that shows it, and here the window is put
+    on exactly that choice and must show FAIL on one side and not the other.
+
+    MUTATION, proved to land: make `shown_under` return the opening choice
+    unconditionally and the eight tagged pairs go red here.
+    """
+    choice = GEN.shown_under(req)
+    try:
+        _choose(dialog, choice)
+        got_f, got_p = _withheld(dialog, fail), _withheld(dialog, ok)
+        for rid in req.rows:
+            assert got_f.get(rid) == req.reason, (req.key, choice, rid, got_f)
+            assert rid not in got_p, (req.key, choice, rid, got_p)
+    finally:
+        _choose(dialog, STRICT)
+
+
+@pytest.mark.parametrize("req,fail,ok", _PAIRS, ids=_IDS)
+def test_a_pair_is_tagged_exactly_when_the_opening_choice_hides_it(
+        dialog, req, fail, ok):
+    """The tag is the fix, so it must be neither missing nor gratuitous: a
+    pair the opening choice already shows carries none, and a pair that
+    carries one really does read the same on both presets there."""
+    tagged = "[judge with " in fail.name
+    assert tagged == ("[judge with " in ok.name)
+    opening = dialog._k15_opened_on
+    try:
+        _choose(dialog, opening)
+        got_f = _withheld(dialog, fail)
+        shows_at_opening = all(got_f.get(rid) == req.reason
+                               for rid in req.rows)
+    finally:
+        _choose(dialog, STRICT)
+    assert tagged == (not shows_at_opening), (
+        f"{req.key}: tagged={tagged} but at the opening choice the FAIL "
+        f"preset {'shows' if shows_at_opening else 'does not show'} its "
+        f"shortfall ({got_f})")
 
 
 # ---------------------------------------------------------------------------

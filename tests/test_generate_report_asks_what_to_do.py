@@ -1111,6 +1111,56 @@ def test_a_report_whose_measurements_are_all_absent_leaves_the_rows_alone(
         dlg2.close()
 
 
+def test_a_moved_report_still_ticks_exactly_the_measurements_it_covers(
+        two_dates, qapp, tmp_path):
+    """K15. The half R29-F3 left: a MOVED document ticks its own rows again.
+
+    R29-F3 stopped a moved project emptying the window, and did it by ticking
+    EVERY row: a "One date" report then said, in its own list, that it covered
+    the whole history. That is the fault B8-596 fixed for a report with no
+    block, back again for every report WITH one, and every project a user
+    downloads has moved: the whole demo pack opened that way.
+
+    The document's own files are on disk wherever the project is, and each
+    sits in the folder of a measurement it covers, so the window knows the
+    answer without the recorded keys.
+
+    MUTATION, proved to land: delete the `covers` fallback in
+    `_restore_the_documents_view` and the moved copy ticks 2 of 2.
+    """
+    import shutil
+    from core.file_manager import Project
+    from workflow.measurement_report import REPORT_TYPE_SUMMARY
+
+    s, _fm, run, vs = two_dates
+    dlg = _window(s, vs[-1].measurement_ti3, qapp)
+    try:
+        key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_SUMMARY,
+                               every_measurement=False, detail=False)
+        _pick_key(dlg, key, qapp)
+        in_place = sorted(r.get("created") for r in dlg._runs_for_report())
+        project_dir = run.dir.parent.parent
+    finally:
+        dlg.close()
+    assert len(in_place) == 1, in_place
+
+    moved_root = tmp_path / "moved-again"
+    moved_root.mkdir()
+    shutil.copytree(project_dir, moved_root / project_dir.name)
+    s.set("custom_output_path", str(moved_root))
+    moved = Project.load(moved_root / project_dir.name)
+    r2 = moved.all_runs()[0]
+    dlg2 = _window(s, r2.verifications()[-1].measurement_ti3, qapp)
+    try:
+        _pick_key(dlg2, key, qapp)
+        ticked = sorted(r.get("created") for r in dlg2._runs_for_report())
+        assert ticked == in_place, (
+            f"the moved copy ticks {ticked!r}; the report covers {in_place!r}")
+        assert dlg2._generate_btn.isEnabled()
+    finally:
+        dlg2.close()
+
+
 def test_update_copies_every_file_it_rewrites_into_old_first(
         two_dates, qapp, monkeypatch):
     """**D23: NOTHING IS DELETED, and Update deleted the previous content.**

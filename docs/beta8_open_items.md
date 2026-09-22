@@ -24837,3 +24837,82 @@ would reach.
   allowed types follow the measurement the window was OPENED on. What a
   window holding both kinds may produce is Knut's (question 10 of 5784140521).
 - evidence: test_a_stale_saved_report_is_shown_as_the_type_its_file_records
+### B8-804 · FIXED · The demo pack brought in line with every rule (K15 of B8-778, B8-764)
+- blocks release: no
+- status: FIXED
+- scope: the pack's data and both generators; two findings at the end are
+  open questions for Knut and are not claimed as fixed.
+- found by: Knut on beta 34 (K15): *"The demo projects package must be updated
+  to follow all the rules"*, and on 09-22: *"the detailed Create Chart presets
+  (verification demos) that seamed not to trigger FAIL properly on many of the
+  demo presets."*
+- MEASURED BEFORE: the generator at f19e9ca2 did not build at all (its second
+  date crossed `repeat_measurement_de00_max`, a row added after the pack was
+  designed, and the next story claimed PASS). The last built pack
+  (`/private/tmp/chromiq-k3/...`): paper white Lab 100.0 / -2.3 / -19.4 on 66
+  of 93 dated reports; 38 of 39 profiling reports stamped a graded type; 3
+  Printing records of VERIFICATIONS; 64 "should" flags in ChromIQ-bound
+  meta.json and 222 in saved records; no report carried a document block.
+- the paper (B8-779's data half): the profiling read is `fakeread -I r`, then
+  every reading is scaled onto a paper of Lab 95.5 / 0.2 / 1.4, and the
+  profiling .ti3 is re-classed OUTPUT so colprof builds a printer cLUT. It was
+  a DISPLAY profile, which normalises its white to Y = 1: that, and not only
+  the absolute mode, is why every sheet read L* 100.
+- every report is filed by `file_report`, the automatic report's own steps:
+  the type through `report_type_default_for(run, "", kind)` (a profiling
+  sheet's is the Printing record, K13), a document block, One date, ticks off.
+  Report-Types run1/run3 no longer hold a verification Printing record.
+  Stories no longer say "recommended" / "reads COND" under ChromIQ sets.
+- the two repeatability rows now have designs: `repeat_split` makes Row A
+  cross, Row B is expected on the date after a matrix swing and a third
+  "measured again" date shows it inside; isolation runs relax both.
+- AFTER, measured: 102 dated verifications, 102 matching their design; the
+  limit-set matrix 90 of 90 cells over AND inside across 7 sets; 39 profiling
+  reports all Printing record, 104 verification reports none; every report
+  has a document block; 0 "should" flags under ChromIQ sets; paper white
+  95.5 / 0.2 / 1.4 on every ordinary sheet (From Profile Gamut sheets carry a
+  paper designed against the ideal white, see below).
+- TWO APP FAULTS found through the pack, both fixed:
+  * Row B compared THIS sheet in the media-relative yardstick with the EARLIER
+    one in absolute Lab; on an L* 95.5 paper identical sheets read 2.954
+    apart. Both are absolute now (`workflow/measurement_report.py`).
+  * a saved report of a project that has MOVED (every download) ticked every
+    measurement, because its recorded keys carry the old folder (R29-F3's
+    fallback). It now ticks the measurements that carry its own files.
+- the demo presets: under the choice the presets window OPENS on (Colour
+  summary, ChromIQ default) 8 of 13 pairs read the same on both presets,
+  because ChromIQ's own sets ask nothing about the control strip, the tone
+  ramps, the surface or the outer gamut; the guard test set the window to
+  Custom ISO 12647-7 first. Those 8 pairs now carry
+  "[judge with Custom ISO 12647-7]" in their names, their blurb and the
+  README; `--check` judges each pair in the window under that choice, and no
+  longer counts the two repeatability rows the window never asks (HEAD: 16 of
+  31 "not doing what they claim"; now 0).
+- driven on screen (`scripts/drive_k15_demo_pack.py`, proof
+  `~/Desktop/ChromIQ-beta36-proof/K15-demo-pack/`, old pack and new pack):
+  Threshold-Series run1 reads PASS on 2026-01-05, FAIL on 2026-01-19, PASS on
+  2026-02-02, each selecting exactly its own measurement; "White (1) - L*
+  95.5, a* 0.2, b* 1.4" (old: 100.0, -2.3, -19.4); Profiling run1 offers only
+  the Printing record and its saved report is one (old: "Full colour check");
+  run3 (Quick check) prints no note about a standard; the R11 presets read
+  the same at the opening choice and FAIL / PASS under the named one; all
+  nine projects open through Load.
+- OPEN, for Knut: (1) on a From Profile Gamut chart "Paper white, difference
+  from the reference paper" is judged against the IDEAL white 100 / 0 / 0, so
+  a real paper of L* 95.5 would fail it on every sheet; the pack designs that
+  paper against the ideal white (a yellowed paper where it crosses) so the row
+  can show both words. (2) whether the presets window should open on a choice
+  that asks every metric, rather than the pack naming one.
+- the built pack: `/tmp/claude-k15/pack/ChromIQ-Report-Limit-Demos` and
+  `.zip` (28.6 MB).
+- evidence:
+  test_row_b_reads_both_sheets_in_one_yardstick
+  test_a_moved_report_still_ticks_exactly_the_measurements_it_covers
+  test_each_pair_shows_under_the_choice_its_name_gives
+  test_a_pair_is_tagged_exactly_when_the_opening_choice_hides_it
+  test_the_pack_knows_which_choice_the_window_opens_on
+  test_no_plan_gives_a_verification_a_type_its_kind_refuses
+  test_a_profiling_report_is_filed_as_the_app_files_it
+  test_file_report_refuses_a_printing_record_of_a_verification
+  test_the_pack_prints_on_paper_and_not_on_the_d65_white
+  test_the_profiling_sheet_is_read_relative_and_profiled_as_a_printer

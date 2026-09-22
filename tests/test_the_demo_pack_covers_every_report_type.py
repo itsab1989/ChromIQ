@@ -73,9 +73,18 @@ def test_every_report_type_chromiq_can_produce_has_a_run(gen):
 
     MUTATION: delete the Grey and tone plans from PROJECTS and this goes red.
     """
-    from workflow.measurement_report import REPORT_TYPE_MENU
+    from workflow.measurement_report import (KIND_PROFILING, REPORT_TYPE_MENU,
+                                             report_types_for_kind)
+    from workflow.run_compliance import report_type_default_for
 
     chosen = {plan.report_type for _rid, plan in _plans(gen)}
+    # THE PRINTING RECORD IS NO RUN'S VERIFICATION TYPE ANY MORE (K13): it is
+    # the report of every run's own PROFILING measurement, which `build_run`
+    # files through `file_report` with the profiling kind. So it is covered
+    # by every run, and it is asked of the rule `file_report` uses rather than
+    # typed here.
+    chosen |= {report_type_default_for(None, "", KIND_PROFILING)}
+    assert set(report_types_for_kind(KIND_PROFILING)) <= chosen
     missing = [name for tid, name, _b, built in REPORT_TYPE_MENU
                if built and tid not in chosen]
     assert not missing, (
@@ -125,6 +134,111 @@ def test_every_limit_set_the_window_offers_is_some_run_s_set(gen):
                if sid not in used]
     assert not missing, (
         "no run is judged against: " + ", ".join(missing))
+
+
+# ---------------------------------------------------------------------------
+# K15: the pack follows the rules the app follows today
+# ---------------------------------------------------------------------------
+def test_no_plan_gives_a_verification_a_type_its_kind_refuses(gen):
+    """K13 (B8-787): a verification never has a Printing record. The pack
+    shipped two: Report-Types/run3 was a Printing record of dated
+    verifications, and run1 generated one beside its graded reports.
+
+    MUTATION: put REPORT_TYPE_RECORD back in run1's `also_generate` and this
+    goes red (and the build refuses it in `file_report`).
+    """
+    from workflow.measurement_report import (KIND_VERIFICATION,
+                                             report_types_for_kind)
+    allowed = set(report_types_for_kind(KIND_VERIFICATION))
+    for rid, plan in _plans(gen):
+        for tid in (plan.report_type,) + tuple(plan.also_generate):
+            assert tid in allowed, (
+                f"{rid}: a verification of this run would be saved as "
+                f"{tid!r}, which a verification may not have")
+
+
+def _one_measurement(tmp_path, where: str):
+    ti3 = tmp_path / where / "Chart.ti3"
+    ti3.parent.mkdir(parents=True)
+    ti3.write_text("CTI3\n", encoding="utf-8")
+    return ti3
+
+
+def test_a_profiling_report_is_filed_as_the_app_files_it(gen, tmp_path):
+    """The run's own measurement: a Printing record, with a document block
+    that says One date, both ticks off, and names the measurement it covers.
+    That is `TabMeasure._maybe_save_measurement_report` step for step, and
+    it is what the pack had not got: its profiling reports were stamped Full
+    colour check (K13) and no report in it carried a document block.
+
+    MUTATION: drop the `stamp_document` call from `file_report` and the
+    block assertions go red; stamp the run's graded type and the first does.
+    """
+    from workflow.measurement_report import (KIND_PROFILING, REPORT_TYPE_RECORD,
+                                             SCOPE_ONE_DATE, recorded_document,
+                                             report_type)
+    ti3 = _one_measurement(tmp_path, "runs/run1")
+    rep = {"created": "2026-01-01T10:00:00", "ti3": ti3.name,
+           "report_type": "t2_full_colour_check"}
+    path = gen.file_report(rep, ti3, None, KIND_PROFILING,
+                           "2026-01-01T10:00:00")
+    assert path == ti3.parent / "reports" / "report_2026-01-01_10-00-00.json"
+    saved = json.loads(path.read_text(encoding="utf-8"))
+    assert report_type(saved) == REPORT_TYPE_RECORD
+    doc = recorded_document(saved)
+    assert doc is not None and doc["scope"] == SCOPE_ONE_DATE
+    assert doc["type"] == REPORT_TYPE_RECORD
+    assert doc["detail"] is False and doc["all_runs"] is False
+    assert [m["ti3"] for m in doc["measurements"]] == ["Chart.ti3"]
+    assert doc["created"] == "2026-01-01T10:00:00"
+
+
+def test_file_report_refuses_a_printing_record_of_a_verification(gen,
+                                                                 tmp_path):
+    from workflow.measurement_report import (KIND_VERIFICATION,
+                                             REPORT_TYPE_RECORD)
+    ti3 = _one_measurement(tmp_path, "runs/run1/verifications/2026-01-01_1")
+    with pytest.raises(SystemExit):
+        gen.file_report({"created": "2026-01-01T10:00:00"}, ti3, None,
+                        KIND_VERIFICATION, "2026-01-01T10:00:00",
+                        type_id=REPORT_TYPE_RECORD)
+    assert not (ti3.parent / "reports").exists()
+
+
+def test_the_pack_prints_on_paper_and_not_on_the_d65_white(gen, tmp_path):
+    """B8-779 / K5: every sheet's white was the D65 white, Lab about
+    100 / -2.3 / -19.4 under D50, which the report drew as a light blue
+    swatch. `lay_paper` puts a relative (D50-white) reading onto the pack's
+    paper, and that paper must be a paper: neutral, and below L* 100.
+
+    MUTATION: set PAPER_LAB to the D65 white's Lab and this goes red.
+    """
+    from workflow.icc_info import xyz_to_lab
+    L, a, b = gen.PAPER_LAB
+    assert 90.0 <= L < 99.0, gen.PAPER_LAB
+    assert abs(a) <= 2.0 and abs(b) <= 3.0, gen.PAPER_LAB
+    ti3 = tmp_path / "p.ti3"
+    ti3.write_text(
+        "CTI3\n\nNUMBER_OF_FIELDS 7\nBEGIN_DATA_FORMAT\n"
+        "SAMPLE_ID RGB_R RGB_G RGB_B XYZ_X XYZ_Y XYZ_Z\nEND_DATA_FORMAT\n\n"
+        "NUMBER_OF_SETS 2\nBEGIN_DATA\n"
+        "1 100 100 100 96.42 100.0 82.49\n"
+        "2 0 0 0 1.0 1.0 1.0\nEND_DATA\n", encoding="utf-8")
+    gen.lay_paper(ti3)
+    from workflow.ti3_analysis import parse_ti3
+    x, y, z = parse_ti3(ti3).xyz[0]
+    got = xyz_to_lab((x / 100.0, y / 100.0, z / 100.0))
+    assert all(abs(g - w) < 0.05 for g, w in zip(got, gen.PAPER_LAB)), got
+
+
+def test_the_profiling_sheet_is_read_relative_and_profiled_as_a_printer(gen):
+    """The two lines that give the pack a paper at all. Absolute mode through
+    ArgyllCMS's sRGB profile is the D65 white; a DISPLAY profile normalises
+    whatever paper there is back to Y = 1."""
+    src = inspect.getsource(gen.build_profile)
+    assert '"-I", "r"' in src
+    assert 'DEVICE_CLASS "OUTPUT"' in src
+    assert '"-aG"' not in src
 
 
 def test_a_run_holds_reports_of_several_types(gen):

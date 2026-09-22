@@ -828,6 +828,9 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
     ti3_path = Path(ti3_path)
     data = parse_ti3(ti3_path)
     lab = [xyz_to_lab((x / 100.0, y / 100.0, z / 100.0)) for x, y, z in data.xyz]
+    # The readings as MEASURED, kept because `lab` may be re-read below in the
+    # media-relative yardstick, and one row must not see both (K15).
+    absolute_lab = lab
 
     _created = created_stamp_for(ti3_path, keywords=data.keywords)
     report: dict = {
@@ -1097,8 +1100,21 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
     # built from a profile. Written with their reason when they cannot be
     # answered, as every block above is.
     report["repeat_within_sheet"] = repeat_within_sheet_block(rgb100, lab)
+    #
+    # **ROW B COMPARES TWO MEASUREMENTS, SO BOTH ARE READ THE SAME WAY (K15).**
+    # It reads the EARLIER sheet straight off its XYZ, which is absolute Lab,
+    # and it was handed THIS sheet's `lab`, which is media-relative whenever
+    # the sheet was printed through its profile with a white-mapping intent.
+    # On a paper whose white is not exactly the D50 white that is not a
+    # comparison at all: measured on the rebuilt demo pack (paper L* 95.5),
+    # two sheets designed 2.6 apart read 3.53, and two IDENTICAL sheets read
+    # far from zero. It went unseen because every simulated sheet in the pack
+    # had a paper of L* 100, where the two yardsticks nearly coincide. The
+    # measurement against the measurement is a physical question, so both are
+    # absolute; a paper that changed between the two sheets is part of the
+    # answer, not an error in it.
     report["repeat_across_sheets"] = repeat_across_sheets_block(
-        ti3_path, lab, data.sample_ids, rgb100)
+        ti3_path, absolute_lab, data.sample_ids, rgb100)
 
     # …and the control strip, which is a DECLARATION rather than a measurement:
     # it needs the chart file, not the device values, so it is written whether

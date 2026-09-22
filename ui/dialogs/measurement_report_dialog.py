@@ -6480,6 +6480,18 @@ class MeasurementReportDialog(QDialog):
         # empty window, so the same rule as the empty list applies: a document
         # that names no row that is here cannot say which rows were ticked.
         # A document that names SOME of them still narrows to those.
+        #
+        # **AND A MOVED DOCUMENT STILL KNOWS ITS OWN FILES (K15).** The rule
+        # above stopped the empty window and left a moved report with every
+        # row ticked, which is the fault B8-596 fixed for a report with no
+        # block: a "One date" report whose list says eleven. Every project a
+        # user downloads has moved, the demo pack first among them, so this
+        # was the state every one of its saved reports opened in. `covers` is
+        # which measurements carry a FILE of this document, read off the disk
+        # by `_saved_documents`, so it is right wherever the project now lives
+        # and is the same set the recorded keys named before the move.
+        if not (keys & here) and covers and (covers & here):
+            keys = set(covers)
         self._hidden_runs = (here - keys) if (keys & here) else set()
         # The caller repaints, and `_refresh` is what draws the rows (B8-521).
 

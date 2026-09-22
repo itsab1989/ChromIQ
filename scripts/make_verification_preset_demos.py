@@ -589,6 +589,82 @@ class Demo:
     no_chart: bool = False
 
 
+def opening_choice() -> "tuple[str, str]":
+    """The (report type, limit set) the presets window OPENS on.
+
+    Asked of the two lists the window fills its pulldowns from, in the order
+    it fills them (`PresetVerificationDialog.__init__`: the built types of
+    `REPORT_TYPE_MENU`, then `selectable_set_ids`), so a change to either
+    moves this with it.
+    """
+    from workflow import compliance_sets as CS
+    from workflow import measurement_report as MR
+    tid = next(t for t, _n, _b, built in MR.REPORT_TYPE_MENU if built)
+    return tid, CS.selectable_set_ids({})[0]
+
+
+def shown_under(r: "Requirement") -> "tuple[str, str]":
+    """Where the window ASKS every row requirement *r* decides.
+
+    **KNUT'S "NOT TRIGGERING FAIL", MEASURED (K15, 2026-09-22).** The window
+    judges a chart only against the metrics the chosen report type and limit
+    set ask, and it opens on ChromIQ's own default set, which puts a number on
+    the grey pair and the five colour-difference rows and on nothing else. So
+    eight of the thirteen pairs (the control strip, the tone ramps, the
+    surface and the outer gamut) showed BOTH presets as answering everything,
+    and a FAIL preset that reads the same as its PASS proves nothing. The test
+    that guarded the pack set the window to Custom ISO 12647-7 before it
+    looked, which is why it never saw it.
+
+    The rule is the window's, not the pack's, and it is right: a limit set
+    that judges nothing about the control strip should not mark a chart down
+    for lacking one. So each pair now SAYS where it shows, and this is the
+    one place that decides it: the opening choice when that already asks the
+    rows, otherwise the first limit set, in the window's own order, that does
+    under the same report type.
+    """
+    from workflow import compliance_sets as CS
+    from workflow import measurement_report as MR
+    from workflow import preset_eligibility as PE
+    opening = opening_choice()
+    types = [opening[0]] + [t for t, _n, _b, built in MR.REPORT_TYPE_MENU
+                            if built and t != opening[0]]
+    # After the opening set, the set that asks the MOST, so every tagged pair
+    # names the same one and a reader changes the pulldown once, not three
+    # times. `sorted` is stable, so a tie keeps the window's own order.
+    for tid in types:
+        sets = sorted(CS.selectable_set_ids({}),
+                      key=lambda sid: -len(PE.rows_asked(tid, sid)))
+        for sid in ([opening[1]] if tid == opening[0] else []) + sets:
+            asked = PE.rows_asked(tid, sid)
+            if all(rid in asked for rid in r.rows):
+                return tid, sid
+    raise SystemExit(f"{r.key}: no report type and limit set asks "
+                     f"{', '.join(r.rows)}, so no window can show this pair")
+
+
+def where_words(r: "Requirement") -> str:
+    """The choice to make in the window for requirement *r*'s pair to show,
+    in the window's own words, or "" when the window opens on it."""
+    from workflow.compliance_sets import SET_BY_ID
+    from workflow.measurement_report import report_type_name
+    tid, sid = shown_under(r)
+    if (tid, sid) == opening_choice():
+        return ""
+    words = SET_BY_ID[sid].label
+    if tid != opening_choice()[0]:
+        words = f"{report_type_name(tid)}, {words}"
+    return words
+
+
+def where_label(r: "Requirement") -> str:
+    """The tag a preset NAME carries when its pair does not show under the
+    window's opening choice, or "". In the name, because the name is the one
+    thing the window's list shows before anything is clicked."""
+    words = where_words(r)
+    return f" [judge with {words}]" if words else ""
+
+
 def _build_demos() -> "tuple[Demo, ...]":
     out = [Demo(0, "Verify 00 control, every row answered",
                 "The control. Every row a patch set can decide is answered, "
@@ -597,19 +673,26 @@ def _build_demos() -> "tuple[Demo, ...]":
                 kind="control", chart=chart_control, keywords=strip_ids(20))]
     n = 1
     for r in REQUIREMENTS:
+        where = where_label(r)
+        look = ""
+        if where:
+            look = (f" ChromIQ's own limit sets put no number on this "
+                    f"metric, so the window asks about it only when "
+                    f"'Judged against' is {where_words(r)}; under the choice "
+                    f"it opens on, this preset and its pair read the same.")
         out.append(Demo(
-            n, f"Verify {r.key} FAIL, {r.fail_label}",
+            n, f"Verify {r.key} FAIL, {r.fail_label}{where}",
             f"{r.metric}. {r.text} This preset is one notch outside that "
-            f"line: {r.fail_label}.",
+            f"line: {r.fail_label}.{look}",
             kind="FAIL", key=r.key, reason=r.reason, rows=r.rows, also=r.also,
             comparison=r.comparison, source=r.source,
             chart=r.fail_chart, keywords=dict(r.fail_keywords)))
         n += 1
         out.append(Demo(
-            n, f"Verify {r.key} PASS, {r.pass_label}",
+            n, f"Verify {r.key} PASS, {r.pass_label}{where}",
             f"{r.metric}. The same chart exactly on the line: "
             f"{r.pass_label}. The rows the preset above withholds are "
-            f"answered here, and nothing else changes.",
+            f"answered here, and nothing else changes.{look}",
             kind="PASS", key=r.key, reason="", rows=r.rows, also=r.also,
             comparison=r.comparison, source=r.source,
             chart=r.pass_chart, keywords=dict(r.pass_keywords)))
@@ -773,9 +856,29 @@ def assess(chart: "Path | None") -> "dict[str, str]":
 
 
 def withheld(chart: "Path | None") -> "dict[str, str]":
-    """The same, without the code every preset carries."""
+    """The same, without the code every preset carries, and only over the
+    metrics the window can ever ASK.
+
+    ChromIQ's two repeatability rows are computed for every chart and asked by
+    no combination in the window (`preset_eligibility.rows_asked` leaves out
+    `POPULATION_MAY_BE_ABSENT`: "has this chart been measured before" is not
+    a property of a chart). Counting them here made `--check` report sixteen
+    of thirty-one presets as not doing what they claim, about two rows no
+    reader of the window ever sees.
+    """
+    from workflow import preset_eligibility as PE
+    askable = set(PE.rows_any_report_can_ask())
     return {rid: why for rid, why in assess(chart).items()
-            if why != CONSTANT}
+            if why != CONSTANT and (rid in askable or rid == "")}
+
+
+def in_the_window(chart: "Path | None", r: "Requirement") -> "dict[str, str]":
+    """What the WINDOW withholds from *chart*, under the choice requirement
+    *r*'s pair names: `preset_eligibility.assess`, the window's own call."""
+    from workflow import preset_eligibility as PE
+    tid, sid = shown_under(r)
+    a = PE.assess(chart, tid, sid)
+    return {rid: why for rid, why in a.missing if why != CONSTANT}
 
 
 def check(dest: Path) -> int:
@@ -814,6 +917,23 @@ def check(dest: Path) -> int:
         constant = sorted({c for rid, c in got_f.items() if rid not in r.rows})
         if constant != sorted(set(r.also)):
             problems.append(f"also: want {sorted(set(r.also))}, got {constant}")
+        # AND IN THE WINDOW, under the choice the preset's own name gives
+        # (K15). A pair that differs only on rows the window is not asking
+        # shows nothing, which is what Knut saw.
+        win_f = in_the_window(chart_of(f), r)
+        win_p = in_the_window(chart_of(p), r)
+        for rid in r.rows:
+            if win_f.get(rid) != r.reason:
+                problems.append(f"WINDOW FAIL {rid}: want {r.reason} under "
+                                f"{shown_under(r)}, got "
+                                f"{win_f.get(rid) or 'answered'}")
+            if rid in win_p:
+                problems.append(f"WINDOW PASS {rid}: withheld under "
+                                f"{shown_under(r)} ({win_p[rid]})")
+        tag = where_label(r)
+        print(f"       shows under {shown_under(r)}"
+              + (f" (named in the preset:{tag})" if tag
+                 else " (the choice the window opens on)"))
         bad += 1 if problems else 0
         print(f"{'ok ' if not problems else 'BAD'} {r.key}  {r.metric}")
         print(f"       {r.comparison}")
@@ -882,6 +1002,19 @@ def readme() -> str:
         "and the .ti1 is the patch set the window reads. ChromIQ reads the "
         "folder once at start-up, so RESTART THE APP after copying. Delete "
         "them the same way, or from the minus button beside the dropdown.", 76)
+    lines += ["", "WHICH LIMIT SET TO CHOOSE IN THE WINDOW", "-" * 39, ""]
+    tagged = sorted({where_words(r) for r in REQUIREMENTS if where_words(r)})
+    lines += _wrap(
+        "The window judges a chart only against the metrics the chosen report "
+        "type and limit set ask for. It opens on ChromIQ's own default set, "
+        "which asks about the grey balance and the colour differences and "
+        "nothing else, so a pair about any other metric reads the SAME on both "
+        "presets there: nothing is missing because nothing is asked. Those "
+        "presets carry the choice that shows them in their names, in square "
+        "brackets: set 'Judged against' to "
+        + (" or ".join(tagged) if tagged else "the set named")
+        + " and the FAIL preset of each pair names what it lacks while its "
+        "PASS preset does not.", 76)
     lines += ["", "THE REQUIREMENTS, AND WHERE EACH LINE IS DRAWN", "-" * 46,
               ""]
     lines += _wrap(
@@ -900,6 +1033,10 @@ def readme() -> str:
         lines.append(f"      PASS       {p.name}")
         lines.append(f"      the rows it decides: "
                      f"{', '.join(r.rows)}")
+        words = where_words(r)
+        lines.append("      shows with: "
+                     + (f"'Judged against' set to {words}" if words
+                        else "the choice the window opens on"))
         if r.also:
             for ln in _wrap("and on BOTH sides of this pair, unavoidably: "
                             + ", ".join(sorted(set(r.also))) + ". "

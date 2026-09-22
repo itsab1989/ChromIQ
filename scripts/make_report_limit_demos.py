@@ -399,11 +399,57 @@ def fakeread(into: Path, stem: str, profile: Path) -> Path:
     return into / f"{stem}.ti3"
 
 
+#: THE PAPER EVERY SIMULATED PRINTER IN THE PACK PRINTS ON (K15, B8-779).
+#:
+#: A neutral, slightly warm matte paper a little below L* 100, judged under
+#: D50 as every reading in ChromIQ is. Until 2026-09-22 there was no paper at
+#: all: `fakeread` ran through ArgyllCMS's sRGB profile in its DEFAULT mode,
+#: which is ABSOLUTE colorimetric, so every sheet's white came out at the D65
+#: white point, XYZ 95.05 / 100 / 108.9. Read against D50 that is Lab about
+#: 100 / -2.3 / -19.4: a blue paper no printer prints on, and Knut's report
+#: drew it as a light blue swatch beside "White L* 100.0".
+#:
+#: Now the profiling read is RELATIVE (`fakeread -I r`), which puts the white
+#: on D50 exactly, and :func:`lay_paper` then scales every reading by this
+#: paper's reflectance, channel by channel, which is what paper does to ink
+#: printed on it: what comes back is the ink's transmission times the paper's
+#: own reflectance. The run's profile is built from that sheet, so its media
+#: white IS this paper, and every dated verification read through it in
+#: absolute mode carries the same paper without being told.
+PAPER_LAB = (95.5, 0.2, 1.4)
+
+
+def lay_paper(ti3: Path, paper_lab=PAPER_LAB) -> "tuple[float, float, float]":
+    """Scale a relative (D50-white) measurement onto :data:`PAPER_LAB`.
+
+    Returns the per-channel factors. The sheet's own white patches land on
+    the paper exactly, and every other reading keeps its ratio to them.
+    """
+    from workflow.ti3_analysis import parse_ti3
+    white = _lab_to_xyz100(paper_lab)
+    k = tuple(white[i] / _D50[i] for i in range(3))
+    data = parse_ti3(ti3)
+    _rewrite_xyz(ti3, {i: (x * k[0], y * k[1], z * k[2])
+                       for i, (x, y, z) in enumerate(data.xyz)})
+    return k
+
+
 def build_profile(run_dir: Path, stem: str) -> None:
-    """fakeread through sRGB plays the bare printer; colprof makes the run's
-    own profile from that measurement."""
-    fakeread(run_dir, stem, SRGB)
-    run([ARGYLL / "colprof", "-v0", "-ql", "-aG", stem], run_dir, TIMEOUT_COLPROF)
+    """fakeread through sRGB plays the bare printer, on :data:`PAPER_LAB`;
+    colprof makes the run's own profile from that measurement."""
+    run([ARGYLL / "fakeread", "-I", "r", SRGB, stem], run_dir, TIMEOUT_FAKEREAD)
+    lay_paper(run_dir / f"{stem}.ti3")
+    # A PRINTER PROFILE, NOT A DISPLAY ONE. fakeread copies the class of the
+    # profile it read through, which is ArgyllCMS's sRGB DISPLAY profile, and
+    # colprof normalises a display's white to Y = 1: every run in the pack was
+    # a display profile, and it threw the paper's lightness away, so every
+    # sheet read through it came back at L* 100 whatever paper it was printed
+    # on. An OUTPUT profile keeps its media white, and ArgyllCMS builds one
+    # only as a cLUT, which is what a printer profile is anyway.
+    ti3 = run_dir / f"{stem}.ti3"
+    ti3.write_text(ti3.read_text(encoding="utf-8").replace(
+        'DEVICE_CLASS "DISPLAY"', 'DEVICE_CLASS "OUTPUT"'), encoding="utf-8")
+    run([ARGYLL / "colprof", "-v0", "-ql", stem], run_dir, TIMEOUT_COLPROF)
 
 
 # ---------------------------------------------------------------------------
@@ -607,6 +653,10 @@ class Design:
     surface_de: "float | None" = None
     #:  the top quarter by the chroma of the reference
     outer_de: "float | None" = None
+
+    # -- CHROMIQ'S OWN ROW A (B8-660): the ΔE00 between two readings of one
+    #    repeated colour on the same sheet. See the block in `apply_design`.
+    repeat_split: "float | None" = None
 
 
 #: Device values at or above this on Argyll's 0..100 scale are the bare paper.
@@ -971,7 +1021,17 @@ def apply_design(ti3: Path, ti2: Path, design: Design,
                 continue
             corner_read.add(ci)
             if name == "W" and design.white_de is not None:
-                new_lab[ci] = _place(r, measured[ci], design.white_de)
+                # A PAPER OFF ITS REFERENCE IS A YELLOWED PAPER, and it stays
+                # the lightest reading on the sheet, because paper always is.
+                # `_place` along fakeread's own direction moved it in L*
+                # (the pack's paper is L* 95.5 and this reference white is
+                # the ideal 100), which on a 5.0 date put the paper at L* 92.7
+                # BELOW the ideal yellow corner (L* 97) and the report called
+                # the yellow patch "Paper white"; on a 0.5 date `_place`'s
+                # anti-anchor flip put it at L* 100.8, whiter than white.
+                # Measured on the first build on the new paper (K15).
+                s = _solve_scale(r, [-0.3, 0.1, 1.0], design.white_de)
+                new_lab[ci] = (r[0] - 0.3 * s, r[1] + 0.1 * s, r[2] + 1.0 * s)
             elif name in ("C", "M", "Y") and design.cmy_dh is not None:
                 new_lab[ci] = _rotate_hue(r, design.cmy_dh)
             elif name == "K" and design.solid_de is not None:
@@ -1048,7 +1108,42 @@ def apply_design(ti3: Path, ti2: Path, design: Design,
         for i, target in zip(free, plan):
             _set_de(i, target)
 
+    # -- CHROMIQ'S OWN ROW A: two readings of ONE repeated colour pulled apart.
+    #    Every patch above is placed along the direction fakeread's own error
+    #    took, and fakeread gives identical device values identical readings,
+    #    so every repeat group on the sheet lands on one point and Row A reads
+    #    0.0 on every date of the package: judged everywhere, crossed nowhere.
+    #    This takes the first repeat group the report will see that is not the
+    #    bare paper (the paper is the media-relative anchor and must not move),
+    #    and sets its first two members either side of where they were, in
+    #    chroma only and at the SAME distance from the reference, so the
+    #    colour-difference rows see the pair once each and Row A sees the gap.
+    if design.repeat_split is not None:
+        from workflow.ti3_analysis import device_repeat_groups
+        groups = [g for g in device_repeat_groups(rgb)
+                  if len(g) >= 2 and not (set(g) & (white_set | anchor_free))
+                  and all(data.sample_ids[i] in ref for i in g[:2])]
+        if not groups:
+            raise SystemExit(f"{ti3}: repeat_split asked for, and the chart "
+                             f"repeats no colour the design may move")
+        a_i, b_i = groups[0][0], groups[0][1]
+        base = new_lab.get(a_i, measured[a_i])
+        lo, hi = 0.0, 40.0
+        for _ in range(50):
+            t = 0.5 * (lo + hi)
+            pa = (base[0], base[1] + t, base[2])
+            pb = (base[0], base[1] - t, base[2])
+            if _de(pa, pb) < design.repeat_split:
+                lo = t
+            else:
+                hi = t
+        t = 0.5 * (lo + hi)
+        new_lab[a_i] = (base[0], base[1] + t, base[2])
+        new_lab[b_i] = (base[0], base[1] - t, base[2])
+
     predicted = _predict_from(new_lab, ref, data.sample_ids, judged)
+    if design.repeat_split is not None:
+        predicted["repeat_patches_de00_max"] = float(design.repeat_split)
     if design.ramp_dl is not None:
         predicted["ramps_30_70_dl_max"] = float(design.ramp_dl)
     dchs = [math.hypot(new_lab[i][1] - ref[data.sample_ids[i]][1],
@@ -1306,9 +1401,12 @@ def _d(vid, when, title, story, design, expect) -> Date:
 
 
 #: THE CENTREPIECE. Judged with ChromIQ default: 2.0 on the three averages,
-#: 3.0 on the two maxima, and the grey pair as recommended values of 1.5 and
-#: 3.0 (exceeding a recommended value reads COND, never FAIL). Every date that
-#: crosses is followed by one that recovers.
+#: 3.0 on the two maxima, and 1.5 and 3.0 on the grey pair. The grey pair was
+#: a pair of RECOMMENDED values in every ChromIQ set until Knut removed that on
+#: 2026-09-21 (a set of ChromIQ's own is no standard and carries requirements
+#: only), and COND was retired as a row word the same day, so a grey row over
+#: its limit reads FAIL like any other. Every date that crosses is followed by
+#: one that recovers.
 SERIES_DEFAULT: "list[Date]" = [
     _d("2026-01-05_100000", "2026-01-05T10:00:00",
        "Everything inside its limit",
@@ -1320,7 +1418,7 @@ SERIES_DEFAULT: "list[Date]" = [
        "A single patch at 4.5 pushes 'All patches, largest' over 3.0. The "
        "worst-5 % average stays under 2.0 because the other patches in that "
        "band did not move. ONE row crosses.",
-       Design(bulk=0.80, shoulder=1.40, peak=4.50, tail=1.50, grey_dch=0.50),
+       Design(bulk=0.80, shoulder=1.40, peak=4.50, tail=1.20, grey_dch=0.50),
        ["all_de00_max"]),
     _d("2026-02-02_100000", "2026-02-02T10:00:00",
        "The bad patch is gone again",
@@ -1355,8 +1453,8 @@ SERIES_DEFAULT: "list[Date]" = [
        []),
     _d("2026-04-13_100000", "2026-04-13T10:00:00",
        "The greys pick up a cast",
-       "Every grey on the ramp is 1.8 off in chroma, over the recommended 1.5, "
-       "which reads COND rather than FAIL. The worst-5 % average goes with it "
+       "Every grey on the ramp is 1.8 off in chroma, over the 1.5 this set "
+       "puts on the grey average. The worst-5 % average goes with it "
        "and cannot be held back: 1.8 of chroma error on a neutral IS a colour "
        "difference of 2.55, the grey ramp is most of the worst 5 % of this "
        "chart, and their limit is 2.0. TWO rows cross. Isolated-Rows run 4 "
@@ -1365,24 +1463,33 @@ SERIES_DEFAULT: "list[Date]" = [
        Design(bulk=0.80, shoulder=1.00, tail=1.00, grey_dch=1.80),
        ["grey_balance_neutral_ramp_avg", "worst5_de00_avg"]),
     _d("2026-04-27_100000", "2026-04-27T10:00:00",
-       "The cast is corrected",
-       "The grey ramp is back to 0.5 and the recommended value is met again.",
-       Design(bulk=0.80, shoulder=1.40, peak=2.20, tail=1.60, grey_dch=0.50),
+       "The cast is corrected, nearly",
+       "The grey ramp is back to 0.5 and inside its limit again, except the "
+       "step in the middle of the ramp, which keeps 1.8 of the cast. That is "
+       "inside the 3.0 on the grey maximum, so nothing crosses.",
+       Design(bulk=0.80, shoulder=1.40, peak=2.20, tail=1.60, grey_dch=0.50,
+              grey_spike=1.80),
        []),
     _d("2026-05-11_100000", "2026-05-11T10:00:00",
        "One grey step is badly wrong",
-       "A single grey step is 3.6 off in chroma. That crosses the recommended "
-       "3.0 on the grey maximum, and the same patch is far enough out to carry "
+       "The step in the middle of the grey ramp goes from 1.8 to 3.6 off in "
+       "chroma. That crosses the 3.0 this set puts on the grey maximum, and "
+       "the same patch is far enough out to carry "
        "'All patches, largest' over 3.0 with it. TWO rows cross, and this pair "
        "cannot be separated: a grey cast this size along a* is over 2.0 as a "
-       "colour difference too, which the note further down works out.",
+       "colour difference too, which the note further down works out. The "
+       "step moved 1.8 since the date before, which is inside the 3.0 on "
+       "'The same chart measured again', so the printer is not blamed for "
+       "moving.",
        Design(bulk=0.80, shoulder=1.10, peak=1.50, tail=1.40,
               grey_dch=0.40, grey_spike=3.60),
        ["grey_balance_neutral_ramp_max", "all_de00_max"]),
     _d("2026-05-25_100000", "2026-05-25T10:00:00",
-       "The grey step is fixed",
-       "The spike is gone. Both rows recover on the same date.",
-       Design(bulk=0.80, shoulder=1.40, peak=2.20, tail=1.60, grey_dch=0.50),
+       "The grey step comes back",
+       "The step is back to 1.8. Both rows recover on the same date, and the "
+       "move back is inside the repeat row's limit as the move out was.",
+       Design(bulk=0.80, shoulder=1.40, peak=2.20, tail=1.60, grey_dch=0.50,
+              grey_spike=1.80),
        []),
 ]
 
@@ -1408,7 +1515,7 @@ SERIES_TIGHT: "list[Date]" = [
        "One patch out, tight column",
        "A single patch at 2.4 crosses 'All patches, largest' (1.5) on its own, "
        "with the worst-5 % average held just under 1.0. ONE row crosses.",
-       Design(bulk=0.40, shoulder=0.70, peak=2.40, tail=0.75, grey_dch=0.30),
+       Design(bulk=0.40, shoulder=0.45, peak=2.40, tail=0.45, grey_dch=0.30),
        ["all_de00_max"]),
 ]
 
@@ -1419,9 +1526,9 @@ SERIES_ONE_DATE: "list[Date]" = [
     _d("2026-06-01_090000", "2026-06-01T09:00:00",
        "The only measurement this run has",
        "One dated verification and nothing else, judged by Quick check "
-       "(4 on the three averages, 6 on the two maxima, and the grey pair as "
-       "recommended values of 3 and 7: seven rows, not the five this line "
-       "used to name). The report window still offers the limit set, "
+       "(4 on the three averages, 6 on the two maxima, 3 and 7 on the grey "
+       "pair, and 4 and 6 on its own two repeatability rows). The report "
+       "window still offers the limit set, "
        "because one measurement is not yet a history to keep comparable.",
        Design(bulk=1.10, shoulder=2.20, peak=3.60, tail=3.00, grey_dch=0.70),
        []),
@@ -1433,16 +1540,18 @@ SERIES_ONE_DATE: "list[Date]" = [
 SERIES_TWO_DATES_UNLOCKED: "list[Date]" = [
     _d("2026-06-02_090000", "2026-06-02T09:00:00",
        "One patch out, and the lock lifted by hand",
-       "A single patch at 1.9 crosses 'All patches, largest' (1.5) on its own, "
-       "with the worst-5 % average held at 0.96, just under its limit of 1.0.",
-       Design(bulk=0.40, shoulder=0.55, peak=1.90, tail=0.65, grey_dch=0.30),
+       "A single patch at 1.55 crosses 'All patches, largest' (1.5) on its "
+       "own. This small chart judges 56 patches, so its worst 5 % is only "
+       "two of them, and the second is held at 0.42 to keep their average "
+       "just under 1.0.",
+       Design(bulk=0.35, shoulder=0.40, peak=1.55, tail=0.40, grey_dch=0.25),
        ["all_de00_max"]),
     _d("2026-06-16_090000", "2026-06-16T09:00:00",
        "The second date, which is what would normally lock the run",
        "The patch comes back to 1.2 and nothing crosses. This is the date that "
        "gives the run a history: without the hand-lifted lock the limit set "
        "would be fixed from here on, exactly as Threshold-Series/run2's is.",
-       Design(bulk=0.40, shoulder=0.55, peak=1.20, tail=0.65, grey_dch=0.30),
+       Design(bulk=0.35, shoulder=0.40, peak=1.20, tail=0.40, grey_dch=0.25),
        []),
 ]
 
@@ -1513,7 +1622,7 @@ SERIES_P95: "list[Date]" = [
 ]
 
 #: run4 of the second project: the grey-balance AVERAGE on its own. A grey
-#: cast big enough to cross the recommended 1.5 also lifts the worst-5 %
+#: cast big enough to cross the grey average's 1.5 also lifts the worst-5 %
 #: average past 2.0 under a stock column, because ΔE00 near a neutral is about
 #: 1.41 times the plain chroma difference (measured: ΔCh 1.8 gives ΔE00 2.55,
 #: ΔCh 3.6 gives 4.82) and the grey ramp is most of this chart's worst 5 %.
@@ -1521,15 +1630,15 @@ SERIES_P95: "list[Date]" = [
 SERIES_GREY_AVG: "list[Date]" = [
     _d("2026-08-31_150000", "2026-08-31T15:00:00",
        "A grey cast, and only the grey row says so",
-       "The grey ramp is 1.9 off in chroma, over the recommended 1.5. This "
-       "run's own column relaxes the colour-difference rows to 6 and 9 so the "
-       "cast is not counted twice. ONE row crosses, and it reads COND because "
-       "it is a recommendation, not a requirement.",
+       "The grey ramp is 1.9 off in chroma, over the 1.5 ChromIQ default "
+       "puts on the grey average. This run's own column relaxes the "
+       "colour-difference rows to 6 and 9 so the cast is not counted twice. "
+       "ONE row crosses.",
        Design(bulk=0.80, shoulder=1.00, tail=1.00, grey_dch=1.90),
        ["grey_balance_neutral_ramp_avg"]),
     _d("2026-09-14_150000", "2026-09-14T15:00:00",
        "The cast is corrected",
-       "The grey ramp is back to 0.6 and the recommendation is met again.",
+       "The grey ramp is back to 0.6 and inside its limit again.",
        Design(bulk=0.80, shoulder=1.00, tail=1.00, grey_dch=0.60),
        []),
 ]
@@ -1561,7 +1670,7 @@ SERIES_COMPARE_TIGHT: "list[Date]" = [
     _d(*_C2, COMPARE_DRIFTED,
        ["all_de00_avg", "best95_de00_avg", "worst5_de00_avg",
         "all_de00_max", "all_de00_p95",
-        # tight recommends 1.0 on the grey average, not the default's 1.5
+        # tight puts 1.0 on the grey average, not the default's 1.5
         "grey_balance_neutral_ramp_avg"]),
 ]
 SERIES_COMPARE_QUICK: "list[Date]" = [
@@ -1604,7 +1713,7 @@ TYPES_DE_DEFAULT: "list[Date]" = [
        "default's 3.0, with the worst-5 % average held under 2.0. ONE row "
        "crosses, and it is the row the one-page summary prints beside its "
        "word.",
-       Design(bulk=0.90, shoulder=1.50, peak=4.50, tail=1.60, grey_dch=0.50),
+       Design(bulk=0.90, shoulder=1.50, peak=4.50, tail=1.20, grey_dch=0.50),
        ["all_de00_max"]),
     _d("2026-11-16_100000", "2026-11-16T10:00:00",
        "The bad patch is gone again",
@@ -1619,7 +1728,7 @@ TYPES_DE_TIGHT: "list[Date]" = [
        "One patch out, tight column",
        "A single patch at 2.4 crosses 'All patches, largest' (1.5) on its own, "
        "with the worst-5 % average held just under 1.0. ONE row crosses.",
-       Design(bulk=0.40, shoulder=0.70, peak=2.40, tail=0.75, grey_dch=0.30),
+       Design(bulk=0.40, shoulder=0.70, peak=2.40, tail=0.55, grey_dch=0.30),
        ["all_de00_max"]),
     _d("2026-11-17_100000", "2026-11-17T10:00:00",
        "Tightened up until this column is happy",
@@ -1628,39 +1737,38 @@ TYPES_DE_TIGHT: "list[Date]" = [
        []),
 ]
 
-#: The Printing record's own date pair. Its `expect` is empty on BOTH dates and
-#: that is the whole point: the numbers are the numbers, and the document
-#: withholds every word. The README prints what the SAME figures do under Full
-#: colour check beside them, computed rather than described, so the difference
-#: between the two documents is a fact on the page.
+#: The one-page summary again, against Quick check. Until beta 36 this pair was
+#: a PRINTING RECORD of a verification, and that document is no longer a
+#: verification's to have (K13, B8-787: a profiling measurement's only report
+#: is the Printing record, a verification never has one). Every run's own
+#: profiling measurement in this package now carries the Printing record, so
+#: the document is still in front of a reader, on the sheet it belongs to.
 TYPES_DE_QUICK: "list[Date]" = [
     _d("2026-11-04_100000", "2026-11-04T10:00:00",
        "A patch far enough out to fail Quick check",
        "A single patch at 7.5, over Quick check's 6.0 on 'All patches, "
-       "largest'. Nothing crosses here, because the Printing record judges "
-       "nothing. The line below says what the same measurement does in the "
-       "graded document, so the two can be read against each other.",
+       "largest', with every average well inside 4.0. ONE row crosses, and it "
+       "is the row the one-page summary prints beside its word.",
        Design(bulk=1.10, shoulder=2.50, peak=7.50, tail=3.00, grey_dch=0.70),
-       []),
+       ["all_de00_max"]),
     _d("2026-11-18_100000", "2026-11-18T10:00:00",
        "The patch comes back inside Quick check",
-       "The outlier drops to 4.5, inside 6.0. Nothing crosses under either "
-       "document now, which is what makes the pair readable: only one date "
-       "changes when the type does.",
+       "The outlier drops to 4.5, inside 6.0, and the summary goes back to "
+       "PASS.",
        Design(bulk=1.10, shoulder=2.20, peak=4.50, tail=3.00, grey_dch=0.70),
        []),
 ]
 
-#: T3 keeps three rows and drops the rest. Two of the three are recommendations
-#: in every ChromIQ set, so they read COND rather than FAIL; the third, the
+#: T3 keeps three rows and drops the rest. Two of the three, the grey pair, are
+#: limits in every ChromIQ set and read FAIL over them; the third, the
 #: 30 to 70 % tone ramp, is judged by NO shipped set, so it can only be made to
 #: say something by a run's own edited column. One run here does that, and the
 #: other two leave it alone so a reader sees both states.
 TYPES_GREY_DEFAULT: "list[Date]" = [
     _d("2026-11-05_100000", "2026-11-05T10:00:00",
        "A grey cast and a dark ramp step, together",
-       "The grey ramp is 1.9 off in chroma, over ChromIQ default's recommended "
-       "1.5, and the middle step of the tone ramp is 3.0 too dark, over the "
+       "The grey ramp is 1.9 off in chroma, over the 1.5 ChromIQ default puts "
+       "on it, and the middle step of the tone ramp is 3.0 too dark, over the "
        "2.0 this run's own column asks for. TWO rows cross, which is the most "
        "this design allows, and they are the two rows a Grey and tone check "
        "exists to show.",
@@ -1678,7 +1786,7 @@ TYPES_GREY_TIGHT: "list[Date]" = [
     _d("2026-11-06_100000", "2026-11-06T10:00:00",
        "Both grey rows cross at once",
        "The ramp carries 1.4 of chroma error and one step carries 2.4, which "
-       "puts the average over ChromIQ tight's recommended 1.0 and the largest "
+       "puts the average over ChromIQ tight's 1.0 and the largest "
        "over its 2.0. TWO rows cross. The tone-ramp row shows its number and "
        "no word, because no shipped limit set puts a limit on it.",
        Design(bulk=0.40, shoulder=0.60, tail=0.70, grey_dch=1.40,
@@ -1694,15 +1802,14 @@ TYPES_GREY_TIGHT: "list[Date]" = [
 TYPES_GREY_QUICK: "list[Date]" = [
     _d("2026-11-07_100000", "2026-11-07T10:00:00",
        "A cast big enough for even Quick check to mention",
-       "The grey ramp is 3.5 off in chroma, over Quick check's recommended "
-       "3.0. ONE row crosses, and it reads COND because it is a "
-       "recommendation, not a requirement.",
+       "The grey ramp is 3.5 off in chroma, over the 3.0 Quick check puts on "
+       "the grey average. ONE row crosses.",
        Design(bulk=0.80, shoulder=1.00, tail=1.00, grey_dch=3.50),
        ["grey_balance_neutral_ramp_avg"]),
     _d("2026-11-21_100000", "2026-11-21T10:00:00",
        "The cast is corrected",
        "The ramp is back to 1.0, comfortably inside even this column's "
-       "recommendation.",
+       "limit.",
        Design(bulk=0.80, shoulder=1.00, tail=1.00, grey_dch=1.00),
        []),
 ]
@@ -1752,19 +1859,19 @@ TYPES_GREY_NOTHING: "list[Date]" = [
 #: FEWER THAN TWENTY PATCHES. The worst-5 % row reads N-A with `small_sample`,
 #: and that is a REQUIRED row going missing, which is what turns the column's
 #: sentence from "pass" into one of the two that count what was not computed.
-#: With a grey cast on top, a recommended row is over its limit at the same
-#: time, which is the other of the two.
+#: With a grey cast on top, a row that WAS computed is over its limit at the
+#: same time, which is the other of the two.
 BORDER_SMALL_SAMPLE: "list[Date]" = [
     _d("2026-12-01_100000", "2026-12-01T10:00:00",
        "Too few patches to have a worst 5 per cent, and a grey cast as well",
        "Twenty patches, so the worst 5 % of the sheet is the empty set and "
        "that row cannot be computed at all; the best 95 % and the 95th "
-       "percentile become every patch. The grey ramp is 1.8 off in chroma at "
-       "the same time, over the recommended 1.5. The column therefore has "
-       "both a required row nobody could compute and a recommended row over "
+       "percentile become every patch. The grey ramp is 1.55 off in chroma at "
+       "the same time, over the 1.5 this set puts on the grey average. The "
+       "column therefore has both a row nobody could compute and a row over "
        "its limit, which is the only way to reach the sentence that counts "
        "them both.",
-       Design(bulk=0.80, shoulder=1.10, tail=1.10, grey_dch=1.80),
+       Design(bulk=0.40, shoulder=0.60, tail=0.60, grey_dch=1.55),
        ["grey_balance_neutral_ramp_avg"]),
     _d("2026-12-15_100000", "2026-12-15T10:00:00",
        "The cast is corrected, and the chart is still too small",
@@ -1869,7 +1976,7 @@ CUSTOM_7_SERIES: "list[Date]" = [
        "A single patch at 4.5, over the 3.0 this column puts on 'All patches, "
        "largest', with the worst-5 % average held under its own 2.0. ONE row "
        "crosses.",
-       Design(bulk=0.90, shoulder=1.50, peak=4.50, tail=1.60, grey_dch=0.50),
+       Design(bulk=0.90, shoulder=1.50, peak=4.50, tail=1.20, grey_dch=0.50),
        ["all_de00_max"]),
     _d("2027-01-19_100000", "2027-01-19T10:00:00",
        "The bad patch is gone again",
@@ -2045,6 +2152,73 @@ class RunPlan:
         return ""
 
 
+from workflow.measurement_report import (KIND_PROFILING,     # noqa: E402
+                                         KIND_VERIFICATION)
+
+
+def file_report(rep: dict, ti3: Path, run, kind: str, when: str, *,
+                type_id: str = "", n: int = 1) -> Path:
+    """Save *rep* beside *ti3* exactly as the app saves its automatic report.
+
+    `TabMeasure._maybe_save_measurement_report` is the model, step for step:
+    the verdict is already stamped by the caller; the type is the run's,
+    through the one rule that knows which types a kind of measurement may
+    have (`report_type_default_for`, K13: a profiling sheet's report is the
+    Printing record, a verification's never is); and the file carries a
+    DOCUMENT BLOCK of its own, "One date", both tick boxes off (B8-388,
+    B8-392), which is what makes the report window name it
+    "<created> · <type> · <set> · One date" and restore its settings from the
+    file rather than guess them.
+
+    Two things differ from a live measurement, both on purpose. The file is
+    named after the MEASUREMENT's date, not the second this script ran, so the
+    list reads as a history; and *type_id* lets a run hold a second document
+    of another type of the same sheet, which in the app is a second press of
+    Generate. A type the kind may not have is refused here, before anything is
+    written, rather than shipped for a reader to find.
+    """
+    from core.file_manager import reports_subdir
+    from workflow.measurement_report import (SCOPE_ONE_DATE,
+                                             document_measurement_key,
+                                             new_document_id, report_type,
+                                             report_types_for_kind,
+                                             rewrite_report, set_report_type,
+                                             stamp_document,
+                                             stamp_report_type)
+    from workflow.run_compliance import report_type_default_for
+    stamp_report_type(rep, run)
+    tid = type_id or report_type_default_for(run, "", kind)
+    if tid not in report_types_for_kind(kind):
+        raise SystemExit(
+            f"{run.id if run is not None else ti3}: a {kind} measurement may "
+            f"not have a {tid!r} report (K13). Change the plan.")
+    if tid != report_type(rep):
+        set_report_type(rep, tid)
+    when_dt = datetime.fromisoformat(when)
+    created = str(rep.get("created") or "")
+    stamp_document(
+        rep, doc_id=new_document_id(when_dt + timedelta(seconds=n - 1)),
+        created=(when_dt + timedelta(seconds=n - 1)).isoformat(
+            timespec="seconds"),
+        type_id=report_type(rep), compliance=rep.get("compliance"),
+        detail=False, scope=SCOPE_ONE_DATE,
+        measurements=[{"dir": str(ti3.parent), "created": created,
+                       "ti3": ti3.name,
+                       "key": document_measurement_key(ti3.parent, created,
+                                                       ti3.name)}])
+    reports = reports_subdir(ti3.parent)
+    reports.mkdir(parents=True, exist_ok=True)
+    for old in (reports.glob("report_*.json") if n <= 1 else ()):
+        old.unlink()
+    name = f"report_{when_dt:%Y-%m-%d_%H-%M-%S}" + ("" if n <= 1 else f"_{n}")
+    return rewrite_report(reports / f"{name}.json", rep)
+
+
+#: See `--survey` in `main`.
+SURVEY = False
+SURVEY_FAULTS: "list[str]" = []
+
+
 def build_run(proj, run, plan: RunPlan, cache_root: Path,
               results: list) -> None:
     from workflow.compliance_sets import Limit, row_verdict, set_summary
@@ -2169,14 +2343,11 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
     prof_rep = build_report(prof_ti3, argyll_bin=ARGYLL)
     stamp_verdict(prof_rep, limits_rec.limits, set_id=limits_rec.set_id,
                   set_label=limits_rec.label_en, edited=limits_rec.edited)
-    set_report_type(prof_rep, plan.report_type)
-    save_report(prof_rep, run.dir)
-    for old_rep in sorted(run.reports_dir.glob("report_*.json")):
-        old_rep.unlink()
-    rewrite_report(
-        run.reports_dir /
-        f"report_{datetime.fromisoformat(prof_when):%Y-%m-%d_%H-%M-%S}.json",
-        prof_rep)
+    # A PROFILING MEASUREMENT'S ONLY REPORT IS THE PRINTING RECORD (K13,
+    # B8-787). Until beta 36 this sheet was stamped with the run's own graded
+    # type, which is the verification's, and Knut opened a profiling run and
+    # found a Full colour check where the app now offers only the record.
+    file_report(prof_rep, prof_ti3, run, KIND_PROFILING, prof_when)
 
     vstem = run.verify_stem
     if cref_labs is None:
@@ -2235,23 +2406,22 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
         stamp_verdict(rep, limits_rec.limits, set_id=limits_rec.set_id,
                       set_label=limits_rec.label_en, edited=limits_rec.edited)
         set_report_type(rep, plan.report_type)
-        save_report(rep, v.dir)
-        for old in sorted(v.reports_dir.glob("report_*.json")):
-            old.unlink()
-        when_dt = datetime.fromisoformat(date.when)
-        stamped = f"{when_dt:%Y-%m-%d_%H-%M-%S}"
-        rewrite_report(v.reports_dir / f"report_{stamped}.json", rep)
+        file_report(rep, v.measurement_ti3, run, KIND_VERIFICATION, date.when)
 
         # A RUN MAY HOLD REPORTS OF SEVERAL TYPES, and one in the package has
         # to, or the window's "Already generated for this run" line has nothing
         # to count. The suffix is `save_report`'s own, so `list_reports` and
         # `generated_report_types` see these exactly as they see a second click
         # of Generate report.
+        #
+        # EACH IS ITS OWN DOCUMENT, because each is its own press of Generate
+        # in the app, and each is a type a verification may have (K13).
         extras = plan.also_generate if date is plan.dates[0] else ()
         for n, extra in enumerate(extras, start=2):
             other = json.loads(json.dumps(rep))
-            set_report_type(other, extra)
-            rewrite_report(v.reports_dir / f"report_{stamped}_{n}.json", other)
+            other.pop("document", None)
+            file_report(other, v.measurement_ti3, run, KIND_VERIFICATION,
+                        date.when, type_id=extra, n=n)
 
         actual = _crossed_rows(rep, limits_rec.limits, row_values, row_verdict,
                                set_summary, plan.report_type, limits_rec.set_id)
@@ -2297,16 +2467,30 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
         # Found writing this project: one story said a row "reads FAIL" on a
         # run whose document withholds every word, so the README would have
         # printed the claim two lines above the computed word that denied it.
+        flag = "OK " if sorted(actual["crossed"]) == sorted(date.expect) else "!! "
+        if flag != "OK ":
+            print(f"    !! {date.vid} values: " + ", ".join(
+                f"{rid}={actual['values'].get(rid)}"
+                for rid in sorted(set(actual["crossed"]) ^ set(date.expect))))
         said = story_verdicts(date.story)
         if said and actual["overall"] not in said:
-            raise SystemExit(
-                f"{run.id}/{date.vid}: the story says {sorted(said)} and the "
-                f"report's word for the column is {actual['overall']}. A "
-                f"verdict word in a story is a claim about THIS document; say "
-                f"what another document does by pointing at the computed line, "
-                f"never by typing its word.")
+            # --survey lists every such fault in one build instead of stopping
+            # at the first, for the round that redesigns the dates; a pack
+            # built that way is never shipped (main refuses to finish it).
+            if SURVEY:
+                SURVEY_FAULTS.append(
+                    f"{run.id}/{date.vid}: story says {sorted(said)}, report "
+                    f"says {actual['overall']}, crossed {actual['crossed']}")
+                print(f"    !! STORY {SURVEY_FAULTS[-1]}")
+            else:
+                raise SystemExit(
+                    f"{run.id}/{date.vid}: the story says {sorted(said)} and "
+                    f"the report's word for the column is {actual['overall']}. "
+                    f"A verdict word in a story is a claim about THIS "
+                    f"document; say what another document does by pointing at "
+                    f"the computed line, never by typing its word. It crossed "
+                    f"{actual['crossed']}.")
 
-        flag = "OK " if sorted(actual["crossed"]) == sorted(date.expect) else "!! "
         print(f"    {flag}{date.vid}  {actual['overall']:<5} "
               f"intended={date.expect} actual={actual['crossed']}")
 
@@ -2498,6 +2682,11 @@ ROWS_ORDINARY = (
     "control_strip_de00_avg", "control_strip_de00_max",
     "control_strip_de00_p95", "surface_gamut_de00_avg",
     "outer_gamut_226_de00_avg",
+    # ChromIQ's own Row A (B8-660): an ordinary targen chart repeats its
+    # paper and its black, so it answers the row, and `repeat_split` is what
+    # makes it cross. Row B is not in this list: it is about the date BEFORE,
+    # so it is expected on the date after a swing, never on a first date.
+    "repeat_patches_de00_max",
 )
 #: **AND THE 95TH-PERCENTILE CONTROL-STRIP ROW IS NOT IN THE SECOND LIST.**
 #: ChromIQ's ladder has 29 rungs and a FROM PROFILE GAMUT chart fills 17 of
@@ -2510,11 +2699,25 @@ ROWS_ORDINARY = (
 #: ORDINARY run of the same set, which is the pair each set has.
 ROWS_GAMUT = (
     "all_de00_avg", "best95_de00_avg", "worst5_de00_avg", "all_de00_max",
-    "all_de00_p95", "substrate_de00_max", "solids_de00_max",
+    "all_de00_p95",
+    # THE GREY PAIR IS ON THIS CHART NOW. The selection keeps the neutrals of
+    # the profile's own gamut, and since the pack prints on a paper (L* 95.5,
+    # K15) and not on the D65 white it used to, those neutrals span the eight
+    # distinct steps from black to white the grey rows need. Measured on the
+    # first build on that paper: both rows answered on every gamut date.
+    "grey_balance_neutral_ramp_avg", "grey_balance_neutral_ramp_max",
+    "substrate_de00_max", "solids_de00_max",
     "cmy_solids_dhab_max", "control_strip_de00_avg", "control_strip_de00_max",
     "surface_gamut_de00_avg", "outer_gamut_226_de00_avg",
 )
-RELAX_ALL = {rid: 9.0 for rid in set(ROWS_ORDINARY) | set(ROWS_GAMUT)}
+#: Every row an isolation run is NOT about, relaxed so the one it is about
+#: crosses alone. The two repeatability rows are in it: Row B reads the swing
+#: between two consecutive dates, and an isolation series swings one row out
+#: and back by design, so without this every recovery date would cross Row B
+#: as well as the row it recovers.
+RELAX_ALL = {rid: 9.0 for rid in (set(ROWS_ORDINARY) | set(ROWS_GAMUT)
+                                   | {"repeat_patches_de00_max",
+                                      "repeat_measurement_de00_max"})}
 
 #: The designs the matrix uses, one pair per set. Everything over, then
 #: everything inside. Written out per set rather than scaled in code, because a
@@ -2526,7 +2729,7 @@ MATRIX = {
         Design(bulk=4.0, shoulder=5.0, peak=6.0, tail=5.0, grey_dch=4.0,
                ramp_dl=3.0, strip_bulk=4.0, strip_shoulder=5.0,
                strip_peak=6.0, surface_de=4.0, outer_de=4.0,
-               white_de=5.0, solid_de=5.0, cmy_dh=3.5),
+               white_de=5.0, solid_de=5.0, cmy_dh=3.5, repeat_split=3.0),
         Design(bulk=0.5, shoulder=0.8, peak=1.2, tail=0.9, grey_dch=0.4,
                ramp_dl=0.5, strip_bulk=0.5, strip_shoulder=0.8,
                strip_peak=1.2, surface_de=0.5, outer_de=0.5,
@@ -2536,7 +2739,7 @@ MATRIX = {
         Design(bulk=2.0, shoulder=2.5, peak=3.0, tail=2.5, grey_dch=2.5,
                ramp_dl=1.5, strip_bulk=2.0, strip_shoulder=2.5,
                strip_peak=3.0, surface_de=2.0, outer_de=2.0,
-               white_de=3.0, solid_de=3.0, cmy_dh=2.0),
+               white_de=3.0, solid_de=3.0, cmy_dh=2.0, repeat_split=1.6),
         Design(bulk=0.3, shoulder=0.45, peak=0.7, tail=0.5, grey_dch=0.3,
                ramp_dl=0.3, strip_bulk=0.3, strip_shoulder=0.45,
                strip_peak=0.7, surface_de=0.3, outer_de=0.3,
@@ -2546,7 +2749,7 @@ MATRIX = {
         Design(bulk=8.0, shoulder=9.0, peak=10.0, tail=9.0, grey_dch=8.0,
                ramp_dl=6.0, strip_bulk=8.0, strip_shoulder=9.0,
                strip_peak=10.0, surface_de=8.0, outer_de=8.0,
-               white_de=9.0, solid_de=9.0, cmy_dh=6.0),
+               white_de=9.0, solid_de=9.0, cmy_dh=6.0, repeat_split=6.0),
         Design(bulk=1.0, shoulder=1.5, peak=2.5, tail=2.0, grey_dch=1.0,
                ramp_dl=1.0, strip_bulk=1.0, strip_shoulder=1.5,
                strip_peak=2.5, surface_de=1.0, outer_de=1.0,
@@ -2605,19 +2808,26 @@ def matrix_dates(set_id: str, kind: str) -> "list[Date]":
         # A CHART SELECTED FROM THE PROFILE'S GAMUT HAS NO TONE RAMP, measured:
         # one step on the grey axis and none on R, G or B. `ramp_dl` has
         # nothing to move there and the generator refuses rather than pretending.
+        #
+        # AND IT REPEATS NO COLOUR, so ChromIQ's Row A has no pair to read and
+        # `repeat_split` has nothing to pull apart; the ordinary chart of the
+        # same column is where that row crosses.
         from dataclasses import replace as _replace
-        over, inside = _replace(over, ramp_dl=None), _replace(inside, ramp_dl=None)
+        over = _replace(over, ramp_dl=None, repeat_split=None)
+        inside = _replace(inside, ramp_dl=None, repeat_split=None)
     rows = list(ROWS_ORDINARY if kind == "ordinary" else ROWS_GAMUT)
     m = _MATRIX_MONTH[set_id]
     d = "05" if kind == "ordinary" else "12"
     d2 = "19" if kind == "ordinary" else "26"
+    d3 = "22" if kind == "ordinary" else "29"
     what = ("an ordinary ChromIQ chart" if kind == "ordinary"
             else "a chart built from the profile's own gamut")
-    missing = ("The two grey-balance rows and the tone-ramp row are not on "
-               "this sheet at all: a chart selected from the profile's gamut "
-               "has no grey ramp and no single-ink ramp, so those three have "
-               "no value to judge here and are exercised on the ordinary "
-               "charts instead. The 95th-percentile control-strip row is "
+    missing = ("The tone-ramp row is not on this sheet at all: a chart "
+               "selected from the profile's gamut has no single-ink ramp, so "
+               "it has no value to judge here and is exercised on the "
+               "ordinary charts instead, and neither is ChromIQ's row for "
+               "repeat patches on one sheet, because this chart repeats no "
+               "colour. The 95th-percentile control-strip row is "
                "withheld too, and for a reason this chart shows better than "
                "any other: ChromIQ declares a control strip on it, of "
                "seventeen of the twenty-nine rungs it looks for, and the "
@@ -2638,12 +2848,26 @@ def matrix_dates(set_id: str, kind: str) -> "list[Date]":
            f"column puts on it, so every cell of the column that can carry a "
            f"word carries one. {missing}",
            over, rows),
+        # ROW B IS THE ONE ROW THIS DATE CANNOT BRING BACK, and says so.
+        # "The same chart measured again, largest difference" compares a sheet
+        # with the one before it, and the one before it was over every limit:
+        # bringing every value back is a swing of several ΔE00 on every patch,
+        # which is exactly what that row exists to report. So it crosses here,
+        # on the date every other row recovers, and recovers on the third.
         _d(f"2028-{m}-{d2}_100000", f"2028-{m}-{d2}T10:00:00",
-           "The same sheet, every row back inside",
+           "The same sheet, every row back inside but one",
            f"The same chart and the same column, with every value brought "
            f"back under its limit. Read against the date before it, this pair "
            f"is what shows each of the {len(rows)} thresholds releasing as "
-           f"well as triggering.",
+           f"well as triggering. The one row over is 'The same chart measured "
+           f"again, largest difference': it compares this sheet with the one "
+           f"before it, and getting back from there moved every patch.",
+           inside, ["repeat_measurement_de00_max"]),
+        _d(f"2028-{m}-{d3}_100000", f"2028-{m}-{d3}T10:00:00",
+           "Measured again, and steady",
+           "The same sheet as the date before, measured again. Every row is "
+           "inside its limit, the repeat row included, because nothing moved "
+           "between the two.",
            inside, []),
     ]
 
@@ -2882,18 +3106,20 @@ PROJECTS = [
     ]),
     ("Report-Limits-Report-Types", [
         RunPlan("Colour summary, ChromIQ default. The run also holds a Full "
-                "colour check and a Printing record of its first date, so the "
-                "window's 'Already generated' line has three types to count.",
+                "colour check and a Grey and tone check of its first date, so "
+                "the window's 'Already generated' line has three types to "
+                "count.",
                 CHART_SMALL, CHART_MEDIUM, "chromiq_default", TYPES_DE_DEFAULT,
                 report_type=REPORT_TYPE_SUMMARY, unlocked=True, lock="unlocked",
-                also_generate=(REPORT_TYPE_FULL, REPORT_TYPE_RECORD)),
+                also_generate=(REPORT_TYPE_FULL, REPORT_TYPE_GREY)),
         RunPlan("Full colour check, ChromIQ tight.",
                 CHART_SMALL, CHART_MEDIUM, "chromiq_tight", TYPES_DE_TIGHT,
                 report_type=REPORT_TYPE_FULL, unlocked=True, lock="unlocked"),
-        RunPlan("Printing record, Quick check. The same figures as a graded "
-                "report, with every word withheld by the user's own choice.",
+        RunPlan("Colour summary, Quick check. The Printing record is the "
+                "report of this run's own profiling measurement, as it is of "
+                "every run's: a verification does not have one.",
                 CHART_SMALL, CHART_MEDIUM, "chromiq_quick", TYPES_DE_QUICK,
-                report_type=REPORT_TYPE_RECORD, unlocked=True, lock="unlocked"),
+                report_type=REPORT_TYPE_SUMMARY, unlocked=True, lock="unlocked"),
         RunPlan("Grey and tone check, ChromIQ default, with a limit typed into "
                 "the tone-ramp row so all three of its rows carry a word.",
                 CHART_MEDIUM, CHART_MEDIUM, "chromiq_default",
@@ -3399,6 +3625,15 @@ def main(argv=None) -> int:
                     help="also write <dest>.zip beside the folder")
     ap.add_argument("--report", default="",
                     help="write the intended/actual table as JSON to this path")
+    ap.add_argument("--survey", action="store_true",
+                    help="report every story that claims the wrong verdict "
+                         "instead of stopping at the first; the build then "
+                         "exits non-zero and is not a pack")
+    ap.add_argument("--only", action="append", default=[],
+                    help="build only this project (repeatable). For working "
+                         "on one design: the coverage checks need the whole "
+                         "pack and are skipped, so such a build is never a "
+                         "pack to ship")
     args = ap.parse_args(argv)
 
     if args.verify:
@@ -3453,7 +3688,15 @@ def main(argv=None) -> int:
 
     results: list = []
     lock_rows: list = []
+    global SURVEY
+    SURVEY = bool(args.survey)
+    unknown = [n for n in args.only if n not in dict(PROJECTS)]
+    if unknown:
+        print(f"no such project: {', '.join(unknown)}")
+        return 2
     for name, plans in PROJECTS:
+        if args.only and name not in args.only:
+            continue
         build_project(dest, name, plans, cache_root, results, lock_rows)
     shutil.rmtree(cache_root, ignore_errors=True)
 
@@ -3468,6 +3711,17 @@ def main(argv=None) -> int:
     _PRESETS.build(dest / _PRESETS.FOLDER)
     print(f"\ndemo presets: {len(_PRESETS.DEMOS)} written to "
           f"{dest / _PRESETS.FOLDER}")
+
+    if args.only:
+        bad = [r for r in results
+               if sorted(r["intended"]) != sorted(r["actual"])]
+        print(f"\n--only: {len(results)} dated verifications, "
+              f"{len(results) - len(bad)} matching their design. No README, "
+              f"no coverage: this is not a pack.")
+        for r in bad:
+            print(f"  MISMATCH {r['project']}/{r['run']}/{r['date']}: "
+                  f"intended {r['intended']} actual {r['actual']}")
+        return 1 if (bad or SURVEY_FAULTS) else 0
 
     cov = coverage(dest, results)
     (dest / "README.txt").write_text(readme(results, lock_rows, cov, dest),
@@ -3525,7 +3779,9 @@ def main(argv=None) -> int:
         size = Path(made).stat().st_size
         print(f"archive: {made}  ({size / 1e6:.1f} MB)")
     print(f"written to {dest}")
-    return 1 if (bad or sfaults) else 0
+    for f in SURVEY_FAULTS:
+        print(f"  STORY: {f}")
+    return 1 if (bad or sfaults or SURVEY_FAULTS) else 0
 
 
 def _selectable() -> "set[str]":
@@ -4436,6 +4692,40 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("is why the table below matches. Random noise cannot do that: it moves")
     a("every statistic at once.")
     a("")
+    a("THE PAPER. Every simulated printer prints on the same paper, Lab")
+    a(f"{PAPER_LAB[0]:.1f} / {PAPER_LAB[1]:.1f} / {PAPER_LAB[2]:.1f} under D50: "
+      f"a neutral, slightly warm")
+    a("matte, a little below L* 100 as real paper is. Each run's profiling")
+    a("sheet is read RELATIVE to the white (fakeread -I r) and then scaled onto")
+    a("that paper, and its profile is a printer (OUTPUT) profile, so the paper")
+    a("travels into every dated verification read through it. Packages built")
+    a("before beta 36 read through ArgyllCMS's sRGB display profile in its")
+    a("absolute mode: every sheet's white was the D65 white, which is a light")
+    a("BLUE paper (b* about -19) when ChromIQ reads it under D50.")
+    a("")
+    a("THE SAVED REPORTS, AND HOW THE WINDOW NAMES THEM")
+    a("-----------------------------------------------")
+    a("")
+    a("Every measurement in this package carries the report ChromIQ saves")
+    a("automatically after a measurement, written by the same steps:")
+    a("")
+    a("  the run's own PROFILING measurement (runs/runN/reports/)")
+    a("      a Printing record, the only report a profiling measurement has")
+    a("  every DATED VERIFICATION (runs/runN/verifications/<date>/reports/)")
+    a("      the run's own report type, or Full colour check when the run")
+    a("      never chose one; never a Printing record")
+    a("")
+    a("Each file carries a document block, as every report ChromIQ writes")
+    a("does, with both tick boxes off and the date flag \"One date\", so the")
+    a("'Report shown' list names it")
+    a("")
+    a("  <created date and time> · <report type> · <limit set> · One date")
+    a("")
+    a("and selecting it ticks exactly the measurement it is about. A report")
+    a("you generate yourself from several ticked measurements is named")
+    a("\"Multiple dates\", or \"All dates\" when none is left out, and an")
+    a("Update adds \"updated <date> <time>\" to its name.")
+    a("")
     a("WHICH ROWS ARE COVERED, AND WHICH CANNOT BE")
     a("-------------------------------------------")
     a("")
@@ -4463,8 +4753,8 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("under those three columns that row prints a number nothing can cross;")
     a("Isolated-Rows/run5 gives it a limit in the run's own edited column,")
     a("which is the only way a user of those columns can have it judged. The")
-    a("two Custom columns DO put a recommended value on it, and")
-    a("Custom-Columns/run2 crosses it there.")
+    a("two Custom columns DO put a limit on it, and Custom-Columns/run2")
+    a("crosses it there.")
     a("")
     a("EVERY JUDGEABLE ROW AGAINST EVERY LIMIT SET")
     a("-------------------------------------------")
@@ -4506,10 +4796,14 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("HOW THE THREE CHROMIQ COLUMNS COME TO JUDGE SIXTEEN ROWS")
     a("-------------------------------------------------------")
     a("")
+    from workflow.compliance_sets import (effective_limits as _eff,
+                                          limit_bearing as _lb)
+    _n_chromiq = len(_lb(_eff("chromiq_default", {})))
+    _n_custom = len(_lb(_eff("custom_iso_12647_7", {})))
     a("As shipped, ChromIQ default, ChromIQ tight and Quick check put a number")
-    a("on SEVEN of the sixteen judgeable rows: the five colour-difference rows")
-    a("and the two grey-balance recommendations. The two Custom columns put one")
-    a("on all sixteen.")
+    a(f"on {_n_chromiq} of the {_n_custom} judgeable rows: the five")
+    a("colour-difference rows, the grey pair, and ChromIQ's own two")
+    a("repeatability rows. The two Custom columns put one on all of them.")
     a("")
     a("The runs of Report-Limits-Every-Limit-Set that are bound to a ChromIQ")
     a("column carry the other nine in the RUN'S OWN COPY of the limits, in")
@@ -4530,9 +4824,11 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("WHICH DATE CROSSES WHICH LIMIT")
     a("------------------------------")
     a("")
-    a("'Crossed' means the report gave that row FAIL (over a required limit)")
-    a("or COND (over a recommended one). Intended is what the design asked")
-    a("for; actual is what the report read back after it was built.")
+    a("'Crossed' means the report gave that row FAIL: it is over its limit.")
+    a("No row reads COND any more (Knut retired it as a row word on")
+    a("2026-09-21), and none of ChromIQ's own sets marks a row 'recommended'.")
+    a("Intended is what the design asked for; actual is what the report read")
+    a("back after it was built.")
     a("")
     cur = None
     for r in results:
@@ -4666,8 +4962,10 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("here rather than quietly deleted, because anybody holding an older copy")
     a("of this file is being told something false by it.")
     a("")
-    a("The pulldown offers six documents. FOUR CAN BE PRODUCED and each has a")
-    a("run of its own in Report-Limits-Report-Types:")
+    a("The pulldown offers six documents. FOUR CAN BE PRODUCED. The Printing")
+    a("record is the report of every run's own profiling measurement; the")
+    a("other three are a verification's, and each has a run of its own in")
+    a("Report-Limits-Report-Types:")
     a("")
     for tid, name, blurb, built in REPORT_TYPE_MENU:
         if built:
@@ -4955,9 +5253,9 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("")
     a("  the run's own profiling measurement, which is never graded: open the")
     a("      .ti3 sitting directly in any runs/runN/ folder. It carries a")
-    a("      SAVED report of its own, like every other measurement in here,")
-    a("      so its column shows the verdict it was given rather than one")
-    a("      worked out when you open it")
+    a("      SAVED report of its own, a Printing record, like every other")
+    a("      measurement in here, so its column shows what was recorded")
+    a("      rather than something worked out when you open it")
     a("  a sheet printed raw and read as a drift check, whose column says")
     a("      'drift' and carries no verdict at all: Border-Conditions, run3")
     a("")
@@ -4982,7 +5280,6 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("  one measurement judged three ways .......... Set-Compare, all runs")
     a("  the grey AVERAGE crossing on its own ...... Isolated-Rows, run4")
     a("  a row no shipped set judges at all ......... Isolated-Rows, run5")
-    a("  a recommended value (COND, not FAIL) ....... Isolated-Rows, run4")
     for _what, _where in _type_index(_cov.get("type_set_rows", []),
                                      _cov.get("multi_type_runs", [])):
         a(f"  {(_what + ' '):.<44} {_where}")

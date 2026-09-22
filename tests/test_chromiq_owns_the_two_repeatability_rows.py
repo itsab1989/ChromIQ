@@ -200,6 +200,49 @@ def test_row_b_refuses_a_chart_that_was_rebuilt_between_the_two_dates(tmp_path):
     assert cell["reason"] == mr.REASON_TOO_FEW_SHARED_PATCHES
 
 
+def test_row_b_reads_both_sheets_in_one_yardstick(tmp_path, monkeypatch):
+    """K15. Two IDENTICAL sheets printed through the profile read 0.0 apart.
+
+    Row B read the EARLIER sheet straight off its XYZ, which is absolute Lab,
+    and THIS sheet through `build_report`'s `lab`, which is media-relative for
+    a sheet printed through its profile with a white-mapping intent. On a
+    paper whose white is not the D50 white itself the two are different
+    numbers for the same reading. Found rebuilding the demo pack on a paper of
+    L* 95.5: two sheets designed 2.6 apart read 3.53, over ChromIQ default's
+    3.0, on a date designed to cross nothing.
+
+    MUTATION, proved to land: hand `repeat_across_sheets_block` the `lab` of
+    `build_report` again, and this reads 2.954 instead of 0.0.
+    """
+    from workflow import verification_print as vp
+    monkeypatch.setattr(vp, "read_print_record", lambda _p: {
+        "colour": "through-profile", "intent": "relative",
+        "route": "chromiq", "profile": "Chart.icc"})
+
+    def paper_rows():
+        rows = []
+        for i in range(40):
+            v = 5.0 + (i * 90.0) / 39.0
+            y = v * 0.888
+            rows.append((f"P{i + 1}", (v, v, v),
+                         (y * 0.9656, y, y * 0.807)))
+        # the bare paper, L* about 95.5 and a little warm
+        rows.append(("P41", (100.0, 100.0, 100.0), (85.77, 88.84, 71.72)))
+        return rows
+
+    _verification(tmp_path, "2026-01-01_100000", paper_rows())
+    second = _verification(tmp_path, "2026-02-01_100000", paper_rows())
+    rep = mr.build_report(second)
+    assert rep["yardstick"] == "media-relative", (
+        "the fixture never reached the media-relative yardstick, so it proves "
+        "nothing about mixing the two")
+    block = rep["repeat_across_sheets"]
+    assert block["eligible"] is True
+    assert block["max"] == 0.0, (
+        f"two identical sheets read {block['max']} apart: this sheet was "
+        f"read media-relative and the earlier one absolute")
+
+
 def test_row_b_is_refused_on_a_sheet_that_is_in_no_dated_folder(tmp_path):
     """A file in Downloads has no series to be the second of."""
     t3 = _write(tmp_path / "loose.ti3", _plain_rows(40))
