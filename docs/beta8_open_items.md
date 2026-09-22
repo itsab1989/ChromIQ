@@ -22930,9 +22930,20 @@ would reach.
   `test_the_three_classes_all_go_through_the_one_rule`.
 - NOT repaired: v4.2.7 has shipped. A user who has already opened a beta project
   in it has lost those fields and the run must be re-bound by hand.
-### B8-731 · OPEN · A chart snapshot taken before 2026-09-19 makes Restore DELETE the control-strip declaration
+### B8-731 · DEFERRED · A chart snapshot taken before 2026-09-19 makes Restore DELETE the control-strip declaration
 - blocks release: no
-- status: OPEN
+- status: DEFERRED
+- decided by: Knut
+- because: he restated the scenario in his own words and ruled the current
+  behaviour CORRECT, so there is nothing to fix. Recorded as a decision rather
+  than closed silently, and not marked SUPERSEDED because no other item
+  replaced it: the fault simply was not one.
+- **RULED NOT A FAULT BY KNUT, 2026-09-22.** He restated the scenario himself
+  and then settled it: *"The restore shall restore what existed at the time
+  when the chart was backed up, and if that chart did not have a control-strip
+  declaration, then the restored chart in verifications/ folder should not have
+  it either."* So a chart snapshot that predates the declaration correctly
+  restores without one. Nothing to fix; closed as specified behaviour.
 - needs Knut: the repair collides with one of his own rulings, see below.
 - found by: challenge round 35.
 - detail: `CONTROL_STRIP_SIDECAR` joined `PROFILING_CHART_SUFFIXES` in `60edfbd4`
@@ -22961,9 +22972,22 @@ would reach.
   remove a declaration it cannot put back, which is the shape he already agreed
   for page images (`restore_would_lose_pages`), or (b) treat a live-only file as
   not-a-difference. Both are his to choose.
-### B8-732 · OPEN · A per-target row the stored blob predates takes the value of the target just LEFT
+### B8-732 · OPEN · Switching to an older target leaves a newly added option showing the PREVIOUS target's value
 - blocks release: no
 - status: OPEN
+- **RE-WRITTEN 2026-09-22 because Knut could not read the first version**:
+  *"this text is gibberish and is not understandable. Be clear in describing
+  what you want me to understand."* He was right. In plain words:
+  ChromIQ stores each target's Create Chart settings as a block of key/value
+  pairs, and when you switch targets it writes back only the keys that block
+  actually contains. Add a NEW option to ChromIQ, and every target saved before
+  that day has a block with no entry for it, so switching to one of those
+  targets leaves the new option's control showing whatever the PREVIOUS target
+  put in it. Every project on disk is in that state the day any new option
+  ships.
+- the driven example below is the same thing with numbers: run2's block is
+  missing one key, run1's 777 is left standing in the control when run2 is
+  opened, and the next ordinary save writes 777 into run2's file.
 - needs Knut / Sebastian: the repair meets their per-target rules, see below.
 - found by: challenge round 35, ON SCREEN.
 - detail: `workflow/per_target_settings.apply` writes only the keys the stored
@@ -23015,6 +23039,23 @@ would reach.
 ### B8-740 · DEFERRED · "Restore Used Chart" reverts the run's WHOLE meta.json, the #182 limit binding included, with no archive and no undo
 - blocks release: no
 - status: DEFERRED
+- **2026-09-22, KNUT ASKED WHY THIS IS A QUESTION AT ALL**, and the first
+  description of it was too thin to answer: *"Is not the whole meta.json copied
+  to chart/ folder when a measurement is started? and why should Restore Used
+  Chart restore only parts of that meta.json?"*
+- **THE ANSWER IS IN HIS OWN SPEC, and it is the decisive argument nobody had
+  made.** `docs/design/per_run_description.md` §4, T4.1 through T4.4, says the
+  **Description field is untouched** by Restore Used Chart, in all four cases.
+  The Description lives in `meta.json`. So a wholesale restore of that file is
+  ALREADY forbidden by a confirmed rule, and the code does it anyway. The
+  question was never "why only parts"; it is which fields join the Description
+  on the surviving side.
+- the file holds three kinds of thing: the CHART's (`create_chart_settings`,
+  `create_chart_ui`, `editor_recipe`, `editor_layout`, the printtarg knobs, the
+  chart notes), the RUN's (the Description and the seven #182 compliance
+  fields), and bookkeeping belonging to neither. A restore reverts all three.
+- proposal put to him 2026-09-22: the Description and the seven compliance
+  fields stay live, everything the chart owns is restored. Awaiting his word.
 - whose call: **Knut's.** It destroys a run's frozen limit set, which is the
   thing D20 exists to protect, and there is no way back. The repair is a field
   partition, which is a ruling, not a guess.
