@@ -786,6 +786,14 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-22, K10 (Knut on beta 34: the one-page summary's
+    # numbers carried no unit). Two keys in ("Average difference {v} ΔE00",
+    # "Largest {v} ΔE00") and their two unit-less predecessors out. German by
+    # hand, so it does not move. The identical-to-key count rises by 2 in the
+    # eleven languages that had translated the old keys and not at all in
+    # `uk`, which had not; the echo budget rises by 1 everywhere, because the
+    # "Largest" key is too short for that detector. COUNTED off the tree,
+    # BOTH ledgers in the same commit.
     # RE-MEASURED 2026-09-22, K4 (Knut on beta 34: Generate on a selected
     # report with nothing changed made a new report without asking). Two keys
     # in, none out: M-REPORT-UNCHANGED-UPDATE-OR-NEW's headline and body.
@@ -1296,17 +1304,17 @@ _IDENTICAL_TO_KEY = {
     # recorded. COUNTED with this file's own helper on the tree this commit
     # leaves behind.
     "de": 141,
-    "es": 951,
-    "fr": 973,
-    "it": 962,
-    "ja": 937,
-    "nl": 978,
-    "no": 963,
-    "pl": 955,
-    "pt": 953,
-    "ru": 926,
-    "sv": 964,
-    "zh_CN": 931,
+    "es": 953,
+    "fr": 975,
+    "it": 964,
+    "ja": 939,
+    "nl": 980,
+    "no": 965,
+    "pl": 957,
+    "pt": 955,
+    "ru": 928,
+    "sv": 966,
+    "zh_CN": 933,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which

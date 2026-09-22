@@ -11472,11 +11472,15 @@ class MeasurementReportDialog(QDialog):
         de = r.get("de00") or {}
         sm = self._column_summary(r)
         bits = []
+        # WITH THE UNIT (K10, Knut on beta 34): *"The results does not say the
+        # normal proper units or ΔE00. These things do not take much space and
+        # should always be present when presenting numbers."*
         if de.get("avg_all") is not None:
-            bits.append(tr("Average difference {v}").format(
+            bits.append(tr("Average difference {v} ΔE00").format(
                 v=_fmt(de.get("avg_all"), 2)))
         if de.get("max_all") is not None:
-            bits.append(tr("Largest {v}").format(v=_fmt(de.get("max_all"), 2)))
+            bits.append(tr("Largest {v} ΔE00").format(
+                v=_fmt(de.get("max_all"), 2)))
         if de.get("n"):
             n = int(de["n"])
             # Singular and plural in full, never "(s)" (CLAUDE.md).

@@ -24649,3 +24649,14 @@ would reach.
   test_a_set_derived_from_a_standard_keeps_its_note
   test_the_runs_own_copy_is_read_without_the_relic
   test_the_loaded_quick_check_documents_limits_carry_no_recommendation
+
+### B8-796 · FIXED · The one-page summary gave its numbers without a unit
+- blocks release: no
+- status: FIXED
+- found by: Knut on beta 34 (K10 of B8-778): *"FAIL · Average difference
+  0.87; Largest 2.75; 210 patches"*, and *"These things do not take much
+  space and should always be present when presenting numbers."*
+- the result line now reads "Average difference 0.87 ΔE00; Largest 2.75
+  ΔE00", in the app's own spelling of the unit, German by hand. The one-page
+  headroom guard still passes, so the page keeps its 60 px margin.
+- evidence: test_the_result_line_gives_its_numbers_with_their_unit

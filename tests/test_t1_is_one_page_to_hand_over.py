@@ -176,3 +176,22 @@ def test_a_report_saved_before_the_colours_existed_says_so(tmp_path, qapp):
         assert "saved before ChromIQ chose example colours" in one
     finally:
         dlg.close()
+
+
+def test_the_result_line_gives_its_numbers_with_their_unit(tmp_path, qapp):
+    """K10 (Knut on beta 34): *"FAIL · Average difference 0.87; Largest 2.75;
+    210 patches"* with no unit. *"These things do not take much space and
+    should always be present when presenting numbers."*
+
+    MUTATION: drop " ΔE00" from either format string and this goes red.
+    """
+    import re
+    from workflow.measurement_report import REPORT_TYPE_SUMMARY
+    dlg, run = _dialog(tmp_path, qapp)
+    try:
+        runs = _as(dlg, run, REPORT_TYPE_SUMMARY)
+        text = _text(dlg._report_body_html(runs, for_pdf=True))
+        assert re.search(r"Average difference \d+\.\d\d ΔE00", text), text[:800]
+        assert re.search(r"Largest \d+\.\d\d ΔE00", text), text[:800]
+    finally:
+        dlg.close()

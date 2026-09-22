@@ -539,6 +539,14 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-22, K10 (Knut on beta 34: the one-page summary's
+    # numbers carried no unit). Two keys in ("Average difference {v} ΔE00",
+    # "Largest {v} ΔE00") and their two unit-less predecessors out. German by
+    # hand, so it does not move. The identical-to-key count rises by 2 in the
+    # eleven languages that had translated the old keys and not at all in
+    # `uk`, which had not; the echo budget rises by 1 everywhere, because the
+    # "Largest" key is too short for that detector. COUNTED off the tree,
+    # BOTH ledgers in the same commit.
     # RE-MEASURED 2026-09-22, K4 (Knut on beta 34: Generate on a selected
     # report with nothing changed made a new report without asking). Two keys
     # in, none out: M-REPORT-UNCHANGED-UPDATE-OR-NEW's headline and body.
@@ -879,18 +887,18 @@ _BUDGET = {
     # recorded. COUNTED with this file's own helper on the tree this commit
     # leaves behind.
     "de": 17,
-    "es": 690,
-    "fr": 691,
-    "it": 690,
-    "ja": 690,
-    "nl": 690,
-    "no": 690,
-    "pl": 690,
-    "pt": 690,
-    "ru": 689,
-    "sv": 690,
-    "zh_CN": 689,
-    "uk": 904,
+    "es": 691,
+    "fr": 692,
+    "it": 691,
+    "ja": 691,
+    "nl": 691,
+    "no": 691,
+    "pl": 691,
+    "pt": 691,
+    "ru": 690,
+    "sv": 691,
+    "zh_CN": 690,
+    "uk": 905,
 }
 
 
