@@ -1,5 +1,43 @@
 # Changelog
 
+## v4.3.0-beta.32
+
+**Ukrainian, corrected.**
+
+### Fixed
+
+- **632 Ukrainian strings said something other than what the English meant.**
+  The contributed catalogue was an automated translation, and it named the
+  wrong thing often enough to mislead rather than merely read oddly. The right
+  page margin was labelled "correctly". The space bar was labelled "outer
+  space", and the shortcuts card named a key that is not on the keyboard,
+  because the Latin R had been turned into a Cyrillic letter. A measurement
+  strip was "gauze", the fabric. "Lab", the colour space, was "laboratory", and
+  the control that decides what kind of profile gets built offered a
+  **laboratory bench**. The estimate column was headed with a builder's cost
+  estimate. The two mode buttons read "a manager" and "an instruction booklet".
+
+- **The app's central noun was spelled eleven ways.** A patch was variously a
+  cloth patch, a stain, an area, a sewn-on badge, a sticking plaster, an
+  overlay, a fragment and a software patch. It is now one word everywhere the
+  English means the colour square, and still the right word in the handful of
+  places where the English really does mean a stain or a correction.
+
+- **Some sentences pointed at controls that no longer read that way**, so a
+  user could not follow them. The Tools menu was written in four styles at
+  once, and one entry had the wrong part of speech altogether.
+
+- **A welcome message addressed the user as a woman.** It was the only string
+  of 6,016 using the informal register, and it carried a feminine verb.
+
+- **Four languages assumed the user is a man** on the same button. Fixed in
+  Ukrainian, Russian, Spanish and Italian.
+
+None of this was the contributor's fault to carry alone: they gave ChromIQ a
+whole language for free, and their file exposed faults of ours that thirteen
+other languages were a few pixels away from.
+
+
 ## v4.3.0-beta.31
 
 **Help buttons that were cut in half, found by checking the beta 30 download
