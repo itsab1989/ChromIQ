@@ -22555,3 +22555,171 @@ would reach.
   "Друк" at most, from someone who speaks the language.
 - the generator carries the measurements at the dropped row so nobody
   "fixes" it by pasting the long word back.
+
+### B8-710 · FIXED · A report saved by beta 29 still prints B8-690's false sentence, in the window and in the PDF
+- blocks release: yes
+- status: FIXED
+- found by: challenge round 33, driving the real window.
+- detail: B8-690 corrected the LIVE path. `stamp_verdict` writes
+  `verdict.summary.reason` to disk and `_column_summary` replays a recorded
+  summary verbatim, so every report beta 29 saved on a clean first
+  verification carries *"Every value this limit set requires was checked and
+  is within its limit."* beside a recorded `not_computed` of 2, and beta 30
+  prints it again. `REPORT_SCHEMA` did not move for #182, so such a file is
+  not stale and is never re-derived.
+- measured: the same chart B8-690 was found on, judged by beta 29's
+  `set_summary` at `d5d77305` and by beta 30's at `d2b7618f`. Both answer
+  **PASS, checked 7, total 9, not_computed 2**; only the sentence differs. The
+  two N-A rows are `repeat_patches_de00_max` and
+  `repeat_measurement_de00_max`, which beta 29 exempted by name.
+- **worst on T1**, the page that goes out with a job: `_type_changes_the_
+  document()` is False for the one-page summary, so the early return fires and
+  the sentence is printed in the BODY, where the page carries no row table to
+  contradict it, and in the PDF. Photographed:
+  `scene1b-beta29-t1-false-sentence.png`.
+- fix: `compliance_sets.recorded_reason`. The word and the counts are the
+  record and are untouched; a recorded REASON that claims a completeness its
+  own recorded counts deny is replaced by the sentence today's code would have
+  written for those counts. Every other saved reason is returned as it was
+  saved.
+- evidence: test_a_recorded_completeness_claim_is_not_replayed_over_its_own_counts,
+  test_the_report_window_does_not_print_a_saved_completeness_claim,
+  test_the_false_sentence_is_still_a_live_string;
+  `~/Desktop/ChromIQ-beta30-proof/challenge-round-33/report2.json`
+### B8-711 · OPEN · The one-page summary says the unchecked values "are listed below" and lists nothing
+- blocks release: no
+- status: OPEN
+- found by: challenge round 33, driving the real window.
+- detail: `SUMMARY_REASONS["iso"]` ends *"and the values not checked are
+  listed below."* On the full report that is satisfied by the numbered notes
+  under the results table. On **T1, the Colour summary**, there is no row
+  table, no note list and no N-A row named anywhere: `_one_page_html` prints
+  the sentence and then goes straight to Example colours. Measured on a run
+  bound to Custom ISO 12647-7: **COND, 8 of 18 values checked**, ten rows
+  unchecked, none of them named on the page or in the PDF. Photographed:
+  `scene3-t1-custom-iso-listed-below.png`.
+- **and it also names an empty set.** The clause is unconditional, so a column
+  where nothing was left unchecked prints it too: measured on T3 with the same
+  run, *"3 of 3 values checked … and the values not checked are listed
+  below."*
+- not this week's: the sentence dates from `2f0ca861` (2026-09-08). Left OPEN
+  rather than reworded because the right answer is a choice between two: put
+  the unchecked rows on the one-page summary, or make the clause conditional
+  on `not_computed` and on the document having a list. That is Knut's call.
+- for whoever takes it: the window's D25 mismatch strip does name nine of the
+  ten rows, but it is window chrome and reaches no PDF, so it cannot be what
+  the sentence means by "below".
+### B8-712 · FIXED · Two user-facing sentences still taught the COND rule Knut's N-A ruling deleted
+- blocks release: yes
+- status: FIXED
+- found by: challenge round 33, photographing both in real windows, English
+  and German.
+- detail: B8-690 implemented Knut's ruling of 2026-09-21 that an N-A never
+  demotes a column, and deleted the arithmetic that did. Two strings went on
+  stating it:
+  1. the Getting Started glossary, **Overall (verdict)**: *"a required row
+     your chart could not answer makes it COND"*. Thirteen languages, German
+     translated: *"eine verlangte Zeile, die dein Chart nicht beantworten
+     konnte, macht sie zu COND"*.
+  2. the report window's own guide, **rewritten on the day of the ruling**:
+     *"the set was only partly checked, either because it holds rows this
+     chart could not supply"* — four lines above its own paragraph saying *"a
+     row this chart could not answer is not counted as a failure"*. One
+     document, two rules, both in the PDF.
+- **B8-693's register pinned the first of these as innocent**, recording that
+  the clause *"was never the fault"*. It was not the fault B8-693 was hunting;
+  it became one the moment the general ruling landed, in the same round.
+- measured, not argued: over every combination of up to three rows, both ISO
+  flags, both graded states, `set_summary` reaches COND **8,476 times, every
+  one of them from an ISO-named set or from a row a pre-4.3.0 report saved
+  with the word**, and not once from an N-A. Over the same sweep with beta 29,
+  the Overall word moves in exactly 118 cases, all COND to PASS.
+- fix: both sentences rewritten to what the code does, German by hand, all
+  thirteen catalogues synced. The COND register is updated with the corrected
+  strings, and a new guard sweeps every extracted key and every catalogue for
+  the two clauses the ruling killed.
+- evidence: test_no_absence_anywhere_makes_a_column_conditional,
+  test_and_the_two_causes_that_do_remain_still_reach_it,
+  test_no_user_facing_string_teaches_the_deleted_rule,
+  test_no_catalogue_still_carries_the_deleted_rule;
+  `glossary-overall-en.png`, `glossary-overall-de.png`,
+  `report-guide-cond.png`
+### B8-713 · OPEN · `workflow/compliance_sets.py` carries four statements the merge left untrue
+- blocks release: no
+- status: OPEN
+- found by: challenge round 33, reading the file as `d2b7618f` asked.
+- detail, all four in the file the three-way merge of two rounds touched:
+  1. `POPULATION_MAY_BE_ABSENT`'s comment says *"`_mismatch_text` and
+     `_not_computed` are the two callers"*. `_not_computed` does not exist
+     anywhere in the product any more (only `scripts/drive_182_the_five_rows.py`
+     still calls it, and would raise), and the real second caller,
+     `workflow/preset_eligibility.py`, is not named.
+  2. `set_summary`'s docstring says the row id is *"only ever used to apply
+     POPULATION_MAY_BE_ABSENT"*. It is used for nothing at all: `_r` is bound
+     and never read. `test_the_exempt_set_no_longer_touches_any_verdict`
+     strips the docstring before checking, so it passes over the stale line.
+  3. `measurement_report.summarise`'s comment says the id travels *"because
+     the column's completeness arithmetic has to know which row an N-A came
+     from … Dropping it here is how a first verification would read COND
+     instead of PASS"*. That arithmetic is gone.
+  4. `SUMMARY_REASONS["cond_missing"]` is unreachable. The branch that chose
+     it is now inside `if cond:`, so `not_computed` without `cond` cannot get
+     there. It is translated into German and can never be shown.
+- and two names nothing reads: `LIMIT_KINDS` and `EDITABLE_SET_IDS` are
+  defined here and referenced in no module, no test and no script.
+- next door, `measurement_report.REASON_PRINTING_UNRECORDED` is defined and
+  assigned to no row's `reason` anywhere, so the collision its twin
+  `NOTE_PRINTING_UNRECORDED` would cause (one page, two numbered notes both
+  about an unrecorded printing condition) is unreachable today. Worth knowing
+  before somebody starts using it.
+- `scripts/drive_182_the_five_rows.py` still calls `dlg._not_computed(rep)` and
+  would raise `AttributeError` if anybody ran it.
+- none of it changes what a user sees; all of it will mislead the next reader,
+  which is what 1 to 3 already describe happening once.
+### B8-714 · OPEN · The demo pack cannot express either word Knut's ruling moves
+- blocks release: no
+- status: OPEN
+- sharpens B8-671, which stays open.
+- found by: challenge round 33.
+- detail: `demo-projects/Demo-Report-Matrix` is the pack on disk. Judging every
+  one of its thirteen dated measurements against `chromiq_default` and against
+  `custom_iso_12647_7` produces **FAIL (9) and INFO (4), and nothing else**.
+  PASS and COND never occur. The only word the ruling can move is COND to
+  PASS, so **no claim of the form "no verdict moved" that rests on this pack
+  is evidence**: the population cannot express the movement.
+- what was measured instead, and is: beta 29's `set_summary` against beta
+  30's over every combination of up to three bearing rows, both ISO flags,
+  both graded states, and both an exempt and an ordinary row id — 14,460
+  comparisons. The word moves in **118**, every one COND to PASS. The sentence
+  moves in a further 106, every one the `"pass"` claim to `"pass_partial"`.
+  Nothing else moved, which is Knut's ruling exactly and is the statement the
+  pack was being asked for.
+- for whoever takes B8-671: the rebuild is still wanted, and a series that
+  reaches PASS and COND is what would make the pack able to answer this
+  question at all.
+### B8-715 · OPEN · A note code this build has no sentence for consumes a number and prints no note
+- blocks release: no
+- status: OPEN
+- found by: challenge round 33, attacking the numbered-note mechanism.
+- detail: the verdict CELLS mark themselves from `_note_numbering`, which
+  numbers every code it finds. The LIST comes from `_numbered_notes`, which
+  drops a code whose `_note_sentence` is empty and keeps the numbers of the
+  ones it keeps. So a code this build cannot render takes a number out of the
+  sequence and prints no item: the cell shows a raised `2)` pointing at
+  nothing and the list reads `1)` then `3)`. Measured on three rows, one of
+  them carrying `a_note_a_later_chromiq_wrote`: markers `1) 2) 3)`, list
+  `[1, 3]`, orphan `2`.
+- **not reachable from anything this build writes.** `judge` emits exactly two
+  note codes, `printing_unrecorded` and `recommended_limit`, and both have
+  sentences; `_note_the_absences` carries its own sentence inside the code and
+  refuses a code whose sentence is empty. The way in is a report saved by a
+  LATER ChromIQ that adds a note code, which this file plans for elsewhere
+  (CH-20 keeps a row id it does not know; `report_type` falls back for a
+  seventh type it cannot draw), or a hand-edited file.
+- fix, when somebody takes it: number AFTER filtering, or filter before
+  numbering. One function should do both, the way `numbered_notes` was written
+  to be the single source of the numbering.
+- left OPEN rather than fixed here because there is no reachable fault to
+  prove a mutation against, and the mechanism is four days old.
+- evidence: `~/Desktop/ChromIQ-beta30-proof/challenge-round-33/probes/chal33-probe6.py`
+  and its `.out.txt`

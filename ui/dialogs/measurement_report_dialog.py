@@ -7300,7 +7300,16 @@ class MeasurementReportDialog(QDialog):
             # reason, so an already-translated caveat glued onto an English key
             # produced a lookup that misses and a sentence half in each
             # language, proved in German.
-            _reason = str(sm.get("reason", ""))
+            # …AND A RECORDED SENTENCE THAT ITS OWN RECORDED COUNTS DENY IS
+            # NOT REPLAYED. See `compliance_sets.recorded_reason`: beta 29
+            # wrote "Every value this limit set requires was checked" beside a
+            # not_computed of 2, and this early return printed it again, in the
+            # window and in every PDF, on the one page that carries no table to
+            # contradict it. The word and the counts are still the record.
+            from workflow.compliance_sets import recorded_reason
+            _reason = recorded_reason(
+                str(sm.get("reason", "")), int(sm.get("checked", 0)),
+                int(sm.get("total", 0)), int(sm.get("not_computed", 0)))
             return Summary(rec["overall"], int(sm.get("checked", 0)),
                            int(sm.get("total", 0)), int(sm.get("failed", 0)),
                            int(sm.get("cond", 0)), int(sm.get("not_computed", 0)),
@@ -9851,12 +9860,20 @@ class MeasurementReportDialog(QDialog):
             # the word on rows, so the bullet stays: a reader opening one needs
             # it explained, and the last sentence says so rather than leaving a
             # word on screen the guide no longer covers.
+            # …AND THE FIRST HALF OF IT WAS THE DELETED RULE. "only partly
+            # checked, either because it holds rows this chart could not
+            # supply" is the arithmetic Knut's N-A ruling removed on the same
+            # day this bullet was written, and the paragraph four lines below
+            # it already says the opposite: "a row this chart could not answer
+            # is not counted as a failure". One page, two rules. What is left
+            # is the clause that is still true, plus the one that says so.
             "<li>" + html.escape(tr(
                 "COND (short for conditional): a column's Overall word when "
-                "nothing failed but the set was only partly checked, either "
-                "because it holds rows this chart could not supply or because "
-                "its values are a standard's applied to your chart rather than "
-                "to that standard's own. Rows do not use this word. A report "
+                "nothing failed but the column's values are a standard's "
+                "applied to your chart rather than to that standard's own. A "
+                "row this chart could not answer does not make a column COND: "
+                "it is not counted as a failure. Rows do not use this word. A "
+                "report "
                 "saved before ChromIQ 4.3.0 may still show it on a row, where "
                 "it meant a value over a limit the set recommended rather than "
                 "required; such a row reads FAIL today and carries a numbered "

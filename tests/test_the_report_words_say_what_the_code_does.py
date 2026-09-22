@@ -271,13 +271,16 @@ COND_IS_ALLOWED_TO_APPEAR_HERE: "dict[str, str]" = {
         "the column's Overall, below. A report saved before ChromIQ 4.3.0 "
         "may still show COND on a row, where it meant a value over a limit "
         "the set only recommended; such a row reads FAIL today.",
+    # CORRECTED BY CHALLENGE ROUND 33 (B8-712). This entry stated the
+    # arithmetic Knut's N-A ruling deleted, and the round that fixed the other
+    # four COND strings pinned it here as innocent.
     "the glossary entry for Overall, where the word does belong":
         "The one word for a whole dated check, worked out from its rows: any "
-        "FAIL makes it FAIL; a required row your chart could not answer "
-        "makes it COND; an ungraded sheet is INFO; otherwise PASS. A column "
-        "judged against one of the ISO-named sets can never read better than "
-        "COND, because those numbers are being applied to your chart rather "
-        "than to the standard's own.",
+        "FAIL makes it FAIL; an ungraded sheet is INFO; a row your chart "
+        "could not answer is not counted as a failure; otherwise PASS. A "
+        "column judged against one of the ISO-named sets can never read "
+        "better than COND, because those numbers are being applied to your "
+        "chart rather than to the standard's own.",
     "the Getting Started card's result words":
         "Each row reads PASS when it is inside its limit and FAIL when it is "
         "not, INFO when the set puts no limit on that row, and N-A when your "
@@ -286,15 +289,19 @@ COND_IS_ALLOWED_TO_APPEAR_HERE: "dict[str, str]" = {
         "appears. A profiling measurement is never graded at all: it is "
         "expected to fall outside accuracy limits, and saying so would be "
         "noise rather than news.",
+    # CORRECTED BY CHALLENGE ROUND 33 (B8-712). Its first half said a column
+    # is COND when "it holds rows this chart could not supply", four lines
+    # above the paragraph that says such a row "is not counted as a failure".
     "the report window's own guide, rewritten 2026-09-21":
         "COND (short for conditional): a column's Overall word when nothing "
-        "failed but the set was only partly checked, either because it holds "
-        "rows this chart could not supply or because its values are a "
-        "standard's applied to your chart rather than to that standard's "
-        "own. Rows do not use this word. A report saved before ChromIQ 4.3.0 "
-        "may still show it on a row, where it meant a value over a limit the "
-        "set recommended rather than required; such a row reads FAIL today "
-        "and carries a numbered note saying the metric is a recommendation.",
+        "failed but the column's values are a standard's applied to your "
+        "chart rather than to that standard's own. A row this chart could "
+        "not answer does not make a column COND: it is not counted as a "
+        "failure. Rows do not use this word. A report saved before ChromIQ "
+        "4.3.0 may still show it on a row, where it meant a value over a "
+        "limit the set recommended rather than required; such a row reads "
+        "FAIL today and carries a numbered note saying the metric is a "
+        "recommendation.",
     "the tooltip on a COND cell a saved report still carries":
         "CONDITIONAL: this report was saved by an earlier ChromIQ, where a "
         "value over a limit the set recommended rather than required read "

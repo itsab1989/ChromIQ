@@ -1606,6 +1606,38 @@ SUMMARY_REASONS: "dict[str, str]" = {
 }
 
 
+def recorded_reason(reason: str, checked: int, total: int,
+                    not_computed: int) -> str:
+    """The sentence to print for a summary READ BACK OFF DISK.
+
+    **A SAVED VERDICT IS THE RECORD. A SAVED SENTENCE IS A RENDERING.** Knut's
+    rule is that a run keeps its values and its verdicts, so the word and the
+    counts a report was saved with are never recomputed. The REASON is not one
+    of those: it is prose generated from the counts at the moment of saving,
+    and a build that generated it wrongly wrote the wrong prose into every file
+    it saved.
+
+    That happened, and this is the residue of B8-690. Up to 4.3.0-beta.29 a
+    column whose only unanswered rows were the two repeatability rows reached
+    PASS carrying ``"pass"`` -- *"Every value this limit set requires was
+    checked and is within its limit."* -- beside a recorded ``not_computed``
+    of 2. The live path was corrected; the files already on disk were not, and
+    `_column_summary` replays a recorded summary verbatim. Measured on a clean
+    first verification saved the way the app saves one: the one-page summary
+    printed that sentence in the window and in the PDF under ``checked 7,
+    total 9, not_computed 2``.
+
+    So a recorded reason that claims completeness its own recorded counts deny
+    is replaced by the sentence today's code would have written for those
+    counts. Nothing else is touched: the word, the counts and the file are the
+    record. Any other reason is returned exactly as it was saved.
+    """
+    if reason != SUMMARY_REASONS["pass"] or int(not_computed) <= 0:
+        return reason
+    return (SUMMARY_REASONS["pass_partial_one"] if int(not_computed) == 1
+            else SUMMARY_REASONS["pass_partial"])
+
+
 @dataclass(frozen=True)
 class Summary:
     word: str

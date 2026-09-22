@@ -1544,13 +1544,22 @@ GLOSSARY += [
         "the column's Overall, below. A report saved before ChromIQ 4.3.0 "
         "may still show COND on a row, where it meant a value over a limit "
         "the set only recommended; such a row reads FAIL today.")),
+    # **AN N-A NEVER DEMOTES A COLUMN**, since Knut widened the rule on
+    # 2026-09-21: *"a metric that is not applicable should not have verdict
+    # conditional … When all other metrics PASS, that N-A is not applicable,
+    # thus not relevant for the verdict, thus overall verdict becomes PASS."*
+    # This entry went on teaching the arithmetic that ruling deleted, in
+    # thirteen languages and translated into German, and the register that
+    # pinned it recorded the clause as innocent. Measured over every
+    # combination of up to three rows: COND arrives from an ISO-named set or
+    # from a row a pre-4.3.0 report saved with the word, and from nothing else.
     (tr("Overall (verdict)"),
      tr("The one word for a whole dated check, worked out from its rows: any "
-        "FAIL makes it FAIL; a required row your chart could not answer "
-        "makes it COND; an ungraded sheet is INFO; otherwise PASS. A column "
-        "judged against one of the ISO-named sets can never read better than "
-        "COND, because those numbers are being applied to your chart rather "
-        "than to the standard's own.")),
+        "FAIL makes it FAIL; an ungraded sheet is INFO; a row your chart "
+        "could not answer is not counted as a failure; otherwise PASS. A "
+        "column judged against one of the ISO-named sets can never read "
+        "better than COND, because those numbers are being applied to your "
+        "chart rather than to the standard's own.")),
     (tr("Graded / not graded"),
      tr("Whether a sheet's numbers are compared with limits at all. A "
         "verification sheet printed through the profile is graded. A "
