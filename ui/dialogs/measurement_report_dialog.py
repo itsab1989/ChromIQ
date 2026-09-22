@@ -333,8 +333,31 @@ def _report_needs_rebuilding(rep: dict) -> bool:
 #: been added since the schema stopped being bumped for them, and two of the
 #: three had to be found by a user reading a report that told him to measure
 #: his chart again for a number that was already on his disk.
-ALWAYS_BUILT_BLOCKS: "tuple[str, ...]" = ("grey_balance", "ramps_30_70",
-                                          "summary_patches")
+#:
+#: **AND THE INSTRUCTION ABOVE WAS NOT FOLLOWED, FOUR BLOCKS RUNNING.**
+#: Measured 2026-09-22 on a report this branch's own demo builder saved:
+#: schema 7, `avg_all` present, all three listed blocks present, so
+#: :func:`_report_needs_rebuilding` answered **False** -- while
+#: `repeat_within_sheet` and `repeat_across_sheets` were absent, and
+#: `row_values` answered both of ChromIQ's own repeatability rows
+#: ``value=None, reason='not_computed'``: *"this value is not in this saved
+#: report; it was not one of the values ChromIQ kept when the report was
+#: saved"*, with the `.ti3` that answers them in the same folder. That is
+#: word for word the fault this tuple exists to stop, for a fourth, fifth,
+#: sixth and seventh block.
+#:
+#: SO IT IS NOT MAINTAINED BY HAND ANY MORE. The list is now every block
+#: `row_values` reads that `build_report` writes on an ordinary measurement,
+#: plus `summary_patches`, which no row reads and the one-page summary does.
+#: `tests/test_a_row_that_was_never_computed_is_rebuilt.py` DERIVES that set
+#: from the two functions and fails on anything missing from here, so a block
+#: added to the builder cannot be forgotten an eighth time.
+ALWAYS_BUILT_BLOCKS: "tuple[str, ...]" = (
+    "grey_balance", "ramps_30_70", "summary_patches",
+    # S2w (2026-09-18) and the two repeatability rows (2026-09-21)
+    "corners", "control_strip", "gamut_populations",
+    "repeat_within_sheet", "repeat_across_sheets",
+)
 
 
 def _h2(text: str, *, page_break: bool = False) -> str:
@@ -8986,7 +9009,8 @@ class MeasurementReportDialog(QDialog):
             return
         from datetime import datetime as _dt
         from PyQt6.QtGui import QCursor
-        from workflow.measurement_report import (list_reports,
+        from workflow.measurement_report import (build_report, facts_disagree,
+                                                 list_reports,
                                                  recorded_document,
                                                  rewrite_report,
                                                  stamp_report_type,
@@ -9065,6 +9089,55 @@ class MeasurementReportDialog(QDialog):
                         log.info("left alone (it is a generated document): %s",
                                  path)
                         continue
+                    # **A ROW THAT WAS NEVER COMPUTED MUST NOT BE JUDGED N-A
+                    # AND WRITTEN TO DISK.** `stamp_verdict` judges the blocks
+                    # the FILE carries, so a report saved before a block
+                    # existed is re-judged without it and the new row is
+                    # stamped "not computed, it was not one of the values
+                    # ChromIQ kept when the report was saved" -- into the file,
+                    # permanently, with the measurement that answers it in the
+                    # same folder. Measured 2026-09-22 on a report saved by the
+                    # build before this one: a recalculation turned 13 recorded
+                    # rows into 15 and both of the two new ones read N-A with
+                    # that reason.
+                    #
+                    # The reading loop already refuses to show such a report
+                    # without rebuilding it (`_report_needs_rebuilding`); this
+                    # is the same rule at the door that WRITES. A dated
+                    # verification folder holds exactly one measurement, so
+                    # "the file in the folder" is the right sheet here -- the
+                    # ambiguity `_measurement_for` exists for is the RUN
+                    # folder's, not this one's.
+                    #
+                    # It recomputes statistics and grades nothing: the verdict
+                    # is stamped below, from the run's current limits, exactly
+                    # as before. `created` is the report's own date and is
+                    # carried across untouched.
+                    #
+                    # AND THE FILE IS ASKED FIRST, as `_measurement_for` asks
+                    # it: `facts_disagree` is one-sided, so a sheet that
+                    # contradicts the report's own recorded patch count or its
+                    # lightest and darkest patch is not this report's
+                    # measurement and nothing is rebuilt from it. Agreement is
+                    # not proof; disagreement is.
+                    if _report_needs_rebuilding(rep):
+                        src = v.measurement_ti3
+                        if src.is_file() and not facts_disagree(rep, src):
+                            try:
+                                _created = rep.get("created")
+                                _kept = {k: rep[k] for k in
+                                         ("pass_thresholds", "verdict",
+                                          "compliance", "report_type",
+                                          "document")
+                                         if k in rep}
+                                rep = build_report(
+                                    src, argyll_bin=self._argyll_bin())
+                                if _created:
+                                    rep["created"] = _created
+                                rep.update(_kept)
+                            except Exception:   # noqa: BLE001 — never a blocker
+                                log.warning("could not rebuild %s before "
+                                            "recalculating it", path)
                     stamp_verdict(rep, lim.limits, set_id=lim.set_id,
                                   set_label=lim.label_en, edited=lim.edited)
                     # …AND THE TYPE, BUT ONLY ONTO A REPORT THAT HAS NONE.

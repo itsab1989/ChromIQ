@@ -22723,3 +22723,135 @@ would reach.
   prove a mutation against, and the mechanism is four days old.
 - evidence: `~/Desktop/ChromIQ-beta30-proof/challenge-round-33/probes/chal33-probe6.py`
   and its `.out.txt`
+
+### B8-720 · FIXED · A report saved by an older ChromIQ never gets its new rows computed
+- blocks release: no
+- status: FIXED
+- fixed here, with a derived guard and a proven mutation.
+- found by: challenge round 34b, hunting "a stored value a new row silently
+  changed the meaning of".
+- detail: `ui/dialogs/measurement_report_dialog.ALWAYS_BUILT_BLOCKS` carries the
+  instruction "ADD TO THIS TUPLE WHEN YOU ADD A BLOCK TO THE BUILDER" directly
+  above it, and it was not followed four blocks running: `corners`,
+  `control_strip`, `gamut_populations`, `repeat_within_sheet` and
+  `repeat_across_sheets` are all written by `build_report` and were not in it.
+  Measured 2026-09-22 on a report this branch's own demo builder saved: schema
+  7, `avg_all` present, all three listed blocks present, so
+  `_report_needs_rebuilding` answered **False** and the report is never rebuilt,
+  while `repeat_within_sheet` and `repeat_across_sheets` were absent and
+  `row_values` answered both of ChromIQ's own repeatability rows `value=None,
+  reason='not_computed'`, *"this value is not in this saved report; it was not
+  one of the values ChromIQ kept when the report was saved"*, with the `.ti3`
+  that answers them in the same folder. That is word for word the fault the
+  function's own docstring records being found and fixed twice before.
+- fix: the tuple holds all eight blocks, and
+  `tests/test_a_row_that_was_never_computed_is_rebuilt.py::
+  test_every_block_a_row_is_read_from_is_in_the_list` now DERIVES the set it must
+  contain from `row_values`'s own source and from a report the real builder has
+  just written, so a ninth block cannot be forgotten. Mutation proved: removing
+  any one name turns that test red naming it.
+- evidence: `test_every_block_a_row_is_read_from_is_in_the_list` and
+  `test_a_report_from_beta_29_is_rebuilt_for_the_repeatability_rows`, both
+  in the row-rebuild guard file named under `fix` above. Pictures and
+  probes in `~/Desktop/ChromIQ-beta30-proof/challenge-round-34b/`.
+### B8-721 · FIXED · A recalculation writes "not computed" over a number it can compute
+- blocks release: no
+- status: FIXED
+- fixed here, with a guard and a proven mutation.
+- found by: challenge round 34b, following B8-720 to the door that WRITES.
+- detail: `_recalculate_run` reads each dated report off disk and re-stamps it
+  with the run's current limits. It never rebuilds it, so `_report_needs_
+  rebuilding` cannot help there, and `stamp_verdict` judges only the blocks the
+  FILE carries. Measured 2026-09-22 on a report saved by the build before this
+  one: a recalculation turned 13 recorded rows into 15, and both new
+  repeatability rows came out `N-A` with `reason='not_computed'`, and
+  `rewrite_report` puts that on disk. The two doors that reach it are "Unlock
+  this run's limits" and the Report limits window's Save, so it is a routine
+  act. Once written it is the record and is replayed for ever.
+- fix: a stale report is rebuilt from its own dated verification's measurement
+  before the verdict is stamped (`Verification.measurement_ti3`: a dated folder
+  holds exactly one measurement, which is the case `_measurement_for`'s own
+  docstring says is unambiguous). `created`, the saved verdict, the compliance
+  block, the report type and the document block are all carried across, so
+  nothing is re-graded and nothing is re-dated by the rebuild.
+- guard file: `tests/`, the recalculation file added by this round.
+- evidence: `test_the_window_really_rebuilds_before_it_stamps`,
+  `test_rebuilding_first_answers_the_rows`,
+  `test_the_measured_fault_without_the_rebuild` and
+  `test_the_rebuild_keeps_the_reports_own_date`. Mutation proved:
+  deleting the rebuild from `_recalculate_run` turns the first red. The
+  measurement is in
+  `~/Desktop/ChromIQ-beta30-proof/challenge-round-34b/probes/measurements.txt`.
+### B8-722 · OPEN · `yardstick_key` is `is_edited`'s twin and did not get its fix
+- blocks release: no
+- status: OPEN
+- not fixed here: the right answer is a design question, see "needs a
+  ruling" below. A release can ship with it; a project holding runs bound on
+  both sides of 2026-09-21 will silently get half a document until it is ruled.
+- found by: challenge round 34b, looking for the other places that compare a
+  stored limit copy against a live one.
+- detail: `db6030ec` fixed `compliance_sets.is_edited` so that a row ABSENT from
+  one of two limit copies is not an edit. `measurement_report.yardstick_key`
+  asks the same question, are these two copies the same yardstick, over the
+  whole stored dict through `_comparable`, so one extra row id changes the key.
+  Its own docstring ties itself to the other predicate: *"The window derives
+  '(edited)' from exactly that difference and shows it beside the name."* Since
+  `db6030ec` it does not.
+- measured, on screen, 2026-09-22: one project, two profile runs, both bound to
+  **ChromIQ default (recommended)**, one bound before 2026-09-21 and one after.
+  `is_edited` says neither is edited and the window prints the same name for
+  both, with no "(edited)" on either. `yardstick_key` calls them two sets, so
+  `_one_limit_set` **kept 11 measurements and left 11 out**, and the document
+  printed *"This report covers 11 of the 30 measurements recorded for this
+  project."* with nothing on the page saying why.
+- there are TWO differences behind it and only one is about absent rows:
+  * the two repeatability rows of 2026-09-21 are absent from the older copy;
+  * `grey_balance_neutral_ramp_avg` and `…_max` are stored as
+    `[1.5, "should"]` in the older copy and as `1.5` today, because Knut
+    retired the bracket from ChromIQ's own sets on 2026-09-21. Same number,
+    different kind. `is_edited` compares only `is_numeric` and the number, so it
+    (correctly) calls this no edit; `_comparable` sees a list against a float.
+- needs a ruling (Knut): are two copies that differ only by rows and kinds
+  ChromIQ itself changed under the user ONE yardstick or two? If one, the fix is
+  to compare the way `is_edited` does. If two, the document has to SAY so -
+  today the two halves are named identically and the split is invisible.
+- and a second consequence of the same stored `should`: a run bound before
+  2026-09-21 still carries the grey pair as a recommendation, so its report
+  prints `(1.5)` in brackets with the "this is a recommendation" note, inside
+  **ChromIQ default**, which is exactly what Knut asked be removed. D9 says a
+  run keeps its values, so this may be correct; it is his call.
+- evidence: `scripts/drive_chal34b_the_yardstick_split.py` and
+  `~/Desktop/ChromIQ-beta30-proof/challenge-round-34b/02_full_colour_check_two_runs.png`
+### B8-723 · OPEN · A false `"edited": true` saved to disk is replayed for ever
+- blocks release: no
+- status: OPEN
+- no shipped beta wrote it (`APP_VERSION` is still 4.3.0-beta.29 and the rows
+  arrived after that tag), so only reports generated by the development builds
+  of 2026-09-21/22 carry it.
+- found by: challenge round 34b.
+- detail: `stamp_verdict` writes `compliance["edited"]` at save time, and both
+  readers trust the stored boolean verbatim
+  (`measurement_report_dialog.py`, `_document_limits` and `_judged_label_for`).
+  `db6030ec` fixed the LIVE predicate; it does not reach a file already written.
+  Any report saved between the two repeatability rows arriving and that fix says
+  "ChromIQ default (recommended) (edited)" in the window and in the PDF for a set
+  nobody edited. `compliance_sets.recorded_reason` is the precedent for a
+  carve-out on a stored field a later build knows to be wrong; `edited` has none.
+### B8-724 · OPEN · Two summary sentences point at parts the one-page report has not got
+- blocks release: no
+- status: OPEN
+- reachability NOT established, see below.
+- found by: challenge round 34b (same family as B8-711).
+- detail: T1 prints `summary_text(sm)` as visible body text under "Result"
+  (`_one_page_html`) and the page carries no row table and no note list.
+  Two `SUMMARY_REASONS` sentences describe both:
+  * `nothing_checked`: *"The rows above say what is missing…"*
+  * `nothing_graded`: *"The note below says why each was left ungraded."*
+- what was measured, and what was not: a three-patch verification sheet was
+  driven on screen against ChromIQ default and reached `pass_partial`
+  (checked 4 of 9), NOT `nothing_checked`, so the comment in `compliance_sets`
+  saying "a 3-patch measurement reaches it in the full report too" was not
+  reproduced. The sentences are false OF the page; whether a user can reach
+  either state on T1 is unproven, and this entry says so rather than claiming a
+  fault nobody can see.
+- evidence: `~/Desktop/ChromIQ-beta30-proof/challenge-round-34b/04_one_page_summary_three_patches.png`

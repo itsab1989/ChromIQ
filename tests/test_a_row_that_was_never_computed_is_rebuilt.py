@@ -104,8 +104,7 @@ def test_the_rule_enumerates_nothing_it_can_list():
     import inspect
 
     from ui.dialogs.measurement_report_dialog import ALWAYS_BUILT_BLOCKS
-    assert set(ALWAYS_BUILT_BLOCKS) == {"grey_balance", "ramps_30_70",
-                                        "summary_patches"}
+    assert "grey_balance" in ALWAYS_BUILT_BLOCKS
     src = inspect.getsource(_stale)
     assert "ALWAYS_BUILT_BLOCKS" in src, (
         "the rule no longer reads the shared list, so a block added to the "
@@ -152,12 +151,89 @@ def test_every_block_in_the_list_really_is_always_built(tmp_path):
         "rebuild on every open of the window")
 
 
+def test_every_block_a_row_is_read_from_is_in_the_list(tmp_path):
+    """THE OTHER DIRECTION, AND THE ONE NOTHING WAS ASKING.
+
+    The test above proves every NAME in the tuple is a block the builder really
+    always writes. Nothing proved the converse: that every block a ROW is read
+    from is in the tuple. So the tuple went on naming three blocks while the
+    builder grew four more, and the instruction written directly above it --
+    "ADD TO THIS TUPLE WHEN YOU ADD A BLOCK TO THE BUILDER" -- was not followed
+    once.
+
+    Measured 2026-09-22 on a report this branch's own demo builder saved:
+    schema 7, `avg_all` present, the three listed blocks present, so the rule
+    answered "not stale"; `repeat_within_sheet` and `repeat_across_sheets` were
+    absent, and `row_values` answered both of ChromIQ's own repeatability rows
+    `value=None, reason='not_computed'` -- *"this value is not in this saved
+    report"* -- with the .ti3 that answers them in the same folder. That is the
+    fault the first three clauses of this file were each written for, arriving
+    a fourth time and for four blocks at once.
+
+    DERIVED, NOT LISTED. The blocks come from `row_values`'s own source and
+    from a report the real builder has just written, so a block added to the
+    builder and read by a row arrives here without anybody remembering to.
+
+    MUTATION: take "repeat_within_sheet" (or any of the other six) out of
+    ALWAYS_BUILT_BLOCKS and this goes red naming it.
+    """
+    import inspect
+    import re
+
+    from ui.dialogs.measurement_report_dialog import ALWAYS_BUILT_BLOCKS
+    from workflow import measurement_report as mr
+    from tests.test_report_judging import _colours, _ramp, _write_ti3
+
+    read_by_a_row = set(re.findall(r'report\.get\("([a-z_0-9]+)"\)',
+                                   inspect.getsource(mr.row_values)))
+    assert "grey_balance" in read_by_a_row, (
+        "row_values no longer reads its blocks through report.get(\"…\"), so "
+        "this test is deriving nothing and must be rewritten")
+
+    p = tmp_path / "m.ti3"
+    _write_ti3(p, _ramp(16) + _colours(), verification=False)
+    rep = mr.build_report(p)
+    assert (rep.get("de00") or {}).get("avg_all") is not None, \
+        "the fixture produced no statistics, so this proves nothing"
+
+    # A BLOCK IS A STRUCTURE, and two of the things `row_values` reads are not
+    # blocks at all. `printing` is a field the builder writes only sometimes,
+    # so naming it here would make every report without it stale for ever;
+    # `reference_source` is a scalar string that says where the aim values came
+    # from, which no row is computed FROM. A block is what a row's number comes
+    # out of: a dict or a list the builder always writes.
+    always_built = {k for k in read_by_a_row
+                    if isinstance(rep.get(k), (dict, list))}
+    missing = sorted(always_built - set(ALWAYS_BUILT_BLOCKS))
+    assert not missing, (
+        f"{missing} are blocks a report row is read from and the builder "
+        f"always writes, and they are not in ALWAYS_BUILT_BLOCKS. Every "
+        f"report saved before each of them existed is therefore treated as "
+        f"current, is never rebuilt, and shows those rows as 'not computed' "
+        f"for ever, with the measurement that answers them in the same folder")
+
+
+def test_a_report_from_beta_29_is_rebuilt_for_the_repeatability_rows():
+    """The measured case, as a fixture: exactly what 4.3.0-beta.29 wrote.
+
+    Everything the old rule looked at is present and current; the two blocks
+    of 2026-09-21 are not.
+    """
+    rep = {"schema": REPORT_SCHEMA, "de00": {"avg_all": 1.2},
+           "grey_balance": {"avg": 1.4}, "ramps_30_70": {"max": 0.8},
+           "summary_patches": [{"de": 1.0}], "corners": [],
+           "control_strip": {}, "gamut_populations": {}}
+    assert _stale(rep), (
+        "a report saved before ChromIQ's two repeatability rows existed is "
+        "treated as current, so both rows read 'not computed' for ever")
+
+
 def test_a_current_report_is_left_alone():
     """The other half. Rebuilding a report that has everything would re-read
     the measurement on every open for nothing."""
-    rep = {"schema": REPORT_SCHEMA, "de00": {"avg_all": 1.2},
-           "grey_balance": {"avg": 1.4}, "ramps_30_70": {"max": 0.8},
-           "summary_patches": [{"de": 1.0}]}
+    from ui.dialogs.measurement_report_dialog import ALWAYS_BUILT_BLOCKS
+    rep = {"schema": REPORT_SCHEMA, "de00": {"avg_all": 1.2}}
+    rep.update({k: {} for k in ALWAYS_BUILT_BLOCKS})
     assert not _stale(rep)
 
 
