@@ -2316,8 +2316,14 @@ class MeasurementReportDialog(QDialog):
                         # statistics from the same measurement, and must carry
                         # the old judgement across untouched or the rebuild
                         # becomes the very re-grading #182 is about.
+                        # …AND WHAT THE FILE SAYS IT IS (round 2A, R2A-1): its
+                        # recorded type and its document block. They were
+                        # dropped here, so an older Colour summary was shown,
+                        # counted and then UPDATED as whatever the run's type
+                        # happened to be, and its own creation stamp went too.
                         kept = {k: rep[k] for k in
-                                ("pass_thresholds", "verdict", "compliance")
+                                ("pass_thresholds", "verdict", "compliance",
+                                 "report_type", "document")
                                 if k in rep}
                         rep = build_report(run_ti3, argyll_bin=self._argyll_bin())
                         if created:
@@ -3392,6 +3398,15 @@ class MeasurementReportDialog(QDialog):
     def _on_clear_list(self) -> None:
         self._sources = []
         self._report, self._ti3 = None, None
+        # **NO SAVED REPORT SURVIVES THE CLEAR (round 2A, R2A-6).** The
+        # cleared report stayed selected: the page went on printing its
+        # "Created:" time and offering its PDF name after other measurements
+        # were added, and Generate asked "Nothing was changed for the selected
+        # report" and Update rewrote a report that was no longer in the list.
+        self._loaded_doc_id = NEW_REPORT_KEY
+        self._loaded_doc = None
+        self._doc_created = ""
+        self._doc_sources = None
         self._rebuild_from_sources()
 
     #: The five controls that describe WHAT REPORT TO MAKE, as opposed to which
@@ -4226,36 +4241,49 @@ class MeasurementReportDialog(QDialog):
         # the failure list the window already reports, and are left exactly
         # as they were.
         from core.file_manager import archive_report_files
+        # **ALL OR NOTHING (round A, A-1; round 2A, R2A-3/R2A-4).** A folder
+        # that could not be archived or written used to be skipped while the
+        # rest of the document was rewritten, so one document said two things
+        # about itself. An Update now writes nothing unless it can write
+        # everything, and that is decided BEFORE anything is archived:
+        #
+        # * every file the press REWRITES must be writable in a writable
+        #   folder, and every folder a NEW file goes into must be writable (or
+        #   creatable): the first cut checked only the files the document
+        #   already had, so an Update that ADDED a date whose folder was
+        #   read-only wrote the other ten and left the document listing a date
+        #   with no file (R2A-3);
+        # * only then is anything copied into old/: the first cut archived
+        #   first, so a refused press still left an old/ folder in every date
+        #   for a rewrite that never happened (R2A-4).
+        _stuck: "set[Path]" = set()
+        for _p in existing.values():
+            if _p.exists() and not (os.access(_p, os.W_OK)
+                                    and os.access(_p.parent, os.W_OK)):
+                _stuck.add(_p.parent.resolve())
+        for r in reports:
+            origin = r.get("_origin_dir")
+            if not origin or self._run_key(r) in existing:
+                continue
+            _rdir = Path(str(origin)) / "reports"
+            _ok = (os.access(_rdir, os.W_OK) if _rdir.exists()
+                   else os.access(Path(str(origin)), os.W_OK))
+            if not _ok:
+                _stuck.add(_rdir.resolve() if _rdir.exists()
+                           else Path(str(origin)).resolve())
         _unarchived: "set[Path]" = set()
-        if existing:
+        if existing and not _stuck:
             _archived, _unarchived = archive_report_files(
                 [p for p in existing.values() if p.exists()], when)
             for _rdir, _to in _archived.items():
                 log.info("archived the reports in %s to %s before updating",
                          _rdir, _to)
-            for _rdir in _unarchived:
-                log.warning("could not archive the reports in %s, so they are "
-                            "not updated", _rdir)
-        # **ALL OR NOTHING (round A, A-1).** A folder that could not be
-        # archived, or a file that cannot be written, used to be skipped while
-        # the rest of the document was rewritten: 10 of 11 files carried the
-        # new settings and one the old, so one document said two things about
-        # itself and the window kept reading the old one. An Update now writes
-        # nothing unless it can write everything, and the log names every
-        # folder that stopped it; the window's own failure line reports it.
-        _blocked = False
-        if existing:
-            _stuck = set(_unarchived)
-            for _p in existing.values():
-                if _p.exists() and not (os.access(_p, os.W_OK)
-                                        and os.access(_p.parent, os.W_OK)):
-                    _stuck.add(_p.parent.resolve())
-            if _stuck:
-                _blocked = True
-                for _rdir in sorted(_stuck):
-                    log.warning("the report update was not written: %s cannot "
-                                "be archived or written, and a document is "
-                                "rewritten whole or not at all", _rdir)
+            _stuck |= set(_unarchived)
+        _blocked = bool(_stuck)
+        for _rdir in sorted(_stuck):
+            log.warning("the report was not written: %s cannot be archived "
+                        "or written, and a document is written whole or not "
+                        "at all", _rdir)
 
         def _archive_failed(path: "Path | None") -> bool:
             return _blocked or (path is not None and path.exists() and

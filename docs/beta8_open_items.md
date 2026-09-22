@@ -24799,3 +24799,41 @@ would reach.
   test_they_are_offered_in_the_verification_window
   test_every_chart_switches_the_settings_stamp_off
   test_only_the_photo_cards_have_an_opinion_on_the_stamp
+
+### B8-802 · FIXED · Round 2A: an older report's type lost on rebuild, and Update half-writing a new date
+- blocks release: yes
+- status: FIXED
+- found by: adversary round 2A (features, on screen), 2026-09-22. Report:
+  `~/Desktop/ChromIQ-beta36-proof/round2-A-features/REPORT.md`; its tests
+  (worktree 703869b1) brought in as
+  `tests/test_round2_a_features_since_beta35.py`, strict xfails removed.
+- R2A-1 (HIGH): a saved report written before document blocks, when the
+  window recomputed it from its measurement, kept only its verdict and limit
+  set and dropped its recorded type and document block. An older Colour
+  summary was shown and counted as the run's type and could be UPDATED into
+  it. The rebuild now carries `report_type` and `document` across, as the
+  recalculation path already did.
+- R2A-2: Create New on a saved type its kind no longer allows wrote that type
+  again; fixed by B8-799's fit of what is written.
+- R2A-3: an Update that ADDED a date whose reports folder was read-only wrote
+  the other ten and left the document naming a date with no file; the
+  all-or-nothing check now covers every folder a new file goes into.
+- R2A-4: a refused Update still made an old/ folder in every date; the check
+  now comes before anything is archived.
+- R2A-6: Clear list left the cleared report selected, so its "Created:" time
+  and PDF name stayed, and Update could rewrite it; Clear list now forgets it.
+- evidence:
+  test_a_stale_saved_report_is_shown_as_the_type_its_file_records
+  test_create_new_on_a_disallowed_saved_type_writes_the_kinds_type
+  test_an_update_that_adds_an_unwritable_date_writes_nothing
+  test_a_refused_update_leaves_no_archive_behind
+  test_clear_list_forgets_the_selected_report
+
+### B8-803 · OPEN · A Profiling window can write Printing records into dated verification folders
+- blocks release: no
+- status: OPEN
+- found by: round 2A (R2A-5): a Profiling window with a verification added
+  and Select all writes a Printing record for each verification, because the
+  allowed types follow the measurement the window was OPENED on. What a
+  window holding both kinds may produce is Knut's (question 10 of 5784140521).
+- evidence: test_a_stale_saved_report_is_shown_as_the_type_its_file_records
