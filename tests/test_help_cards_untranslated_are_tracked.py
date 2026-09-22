@@ -539,6 +539,23 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-22, and this ledger was MISSED when its twin was
+    # updated earlier the same day. Three gate runs came back red identically,
+    # twelve failures each, which is what a deterministic miss looks like:
+    # `tests/test_i18n.py::_IDENTICAL_TO_KEY` had been re-measured for Knut's
+    # beta 32 batch and this one had not. The two are named together in the
+    # project's own rules for exactly this reason, and updating one of them is
+    # not updating the ledgers.
+    #
+    # The batch: the Report limits button renamed "Restore defaults", the
+    # Measurement Report saying which metrics a report type judges, and the
+    # verification pre-flight corrected to ask the generic question. German is
+    # written by hand and moves by nothing; the twelve others carry the English
+    # source under the beta rule.
+    #
+    # COUNTED with this file's own `_english_echoes`, off the tree, never
+    # adjusted upward to make a run pass.
+
     # RE-MEASURED 2026-09-21, Knut's help-card batch (issue #182, 2026-09-20
     # 20:58): the workflow steps of twelve cards rewritten into his
     # to-do-steps-first shape with the reasoning in collapsible notes, the
@@ -791,18 +808,18 @@ _BUDGET = {
     # recorded. COUNTED with this file's own helper on the tree this commit
     # leaves behind.
     "de": 22,
-    "es": 666,
-    "fr": 667,
-    "it": 666,
-    "ja": 666,
-    "nl": 666,
-    "no": 666,
-    "pl": 666,
-    "pt": 666,
-    "ru": 665,
-    "sv": 666,
-    "zh_CN": 665,
-    "uk": 883,
+    "es": 670,
+    "fr": 671,
+    "it": 670,
+    "ja": 670,
+    "nl": 670,
+    "no": 670,
+    "pl": 670,
+    "pt": 670,
+    "ru": 669,
+    "sv": 670,
+    "zh_CN": 669,
+    "uk": 886,
 }
 
 
