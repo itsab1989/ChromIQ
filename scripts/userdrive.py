@@ -148,10 +148,28 @@ class Drive:
         return self.win._tab_measure._target_ctl
 
     def open_project(self, name: str) -> None:
-        # The project picker is a native file dialog, which no driver can
-        # operate; this is the call its accept handler makes.
-        self.win._file_mgr.set_target_name(name)
+        """Open a project the way Load does: `TabChart.open_project_manifest`,
+        the WHOLE open (schema announcement, state resets, chart display),
+        which is what the masthead's Load button calls once its file dialog
+        has a project.json. The first cut of this set the target name only,
+        which is not what the app does: the bar's run pulldown never filled
+        and a drive standing on Profiling found no runs at all (K16).
+
+        Queued, so a question the open asks runs as a real modal."""
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(0, lambda: self.win._tab_chart.open_project_manifest(
+            self.work / name / "project.json"))
         self.pump(900)
+        # WAIT FOR THE BAR TO SHOW THE PROJECT'S RUNS. Measured: straight after
+        # the name is set the run pulldown can still hold only "New run", and
+        # a drive that picks a run then finds nothing (K16's first drive).
+        combo = self.bar._run_combo
+        t0 = time.monotonic()
+        while time.monotonic() - t0 < 10 and combo.count() <= 1:
+            self.pump(200)
+        self.note(f"project {name!r} open; run pulldown after "
+                  f"{time.monotonic() - t0:.1f} s: "
+                  f"{[combo.itemText(i) for i in range(combo.count())]}")
 
     @staticmethod
     def pick(combo, text: str) -> bool:
@@ -171,8 +189,16 @@ class Drive:
             assert self.pick(b._type_combo, run_type), f"no run type {run_type}"
             self.pump(700)
         if run is not None:
-            label = run.replace("run", "Run ") if run.startswith("run") else run
-            assert self.pick(b._run_combo, label), f"no profile run {run}"
+            combo = b._run_combo
+            for _ in range(20):                 # the bar refills after a type
+                idx = combo.findData(run)       # change; wait for the run
+                if idx >= 0:
+                    break
+                self.pump(150)
+            assert idx >= 0, (f"no profile run {run}: "
+                              f"{[combo.itemText(i) for i in range(combo.count())]}")
+            combo.setCurrentIndex(idx)
+            combo.activated.emit(idx)
             self.pump(700)
         if verification is not None:
             assert self.pick(b._verify_combo, verification), \
@@ -200,6 +226,9 @@ class Drive:
         from PyQt6.QtWidgets import QApplication
         for w in QApplication.topLevelWidgets():
             if type(w).__name__ == cls_name and w.isVisible():
+                # a window the drive is working IN is never a question
+                self._known_windows = getattr(self, "_known_windows", set())
+                self._known_windows.add(id(w))
                 return w
         return None
 
@@ -224,13 +253,21 @@ class Drive:
         """Wait for a modal, photograph it, record what it says, and click the
         button whose text contains `button_text`. Returns its text, or None if
         no modal came (which is recorded too)."""
-        from PyQt6.QtWidgets import QAbstractButton
+        from PyQt6.QtWidgets import QAbstractButton, QApplication
+        # ONLY A WINDOW THAT WAS NOT ALREADY UP. The report window is itself a
+        # modal dialog, so "the active modal" is IT whenever no question
+        # comes: the first cut took the report window for the question, found
+        # no such button and rejected it (K16's drive). Whatever was visible
+        # before this call is excluded, and nothing is ever rejected.
+        already = {id(w) for w in QApplication.topLevelWidgets()
+                   if w.isVisible() and w is not self.modal()} | set(
+            getattr(self, "_known_windows", set()))
         end = time.monotonic() + within_ms / 1000.0
         w = None
         while time.monotonic() < end:
             self.pump(100)
             w = self.modal()
-            if w is not None and w.isVisible():
+            if w is not None and w.isVisible() and id(w) not in already:
                 break
             w = None
         if w is None:
@@ -255,9 +292,7 @@ class Drive:
         self.note(f"   [modal] {type(w).__name__}: "
                   f"{said[:160].replace(chr(10), ' / ')!r} -> "
                   f"{choice.text() if choice else 'NO SUCH BUTTON'}")
-        if choice is None:
-            w.reject() if hasattr(w, "reject") else w.close()
-        else:
+        if choice is not None:
             choice.click()
         self.pump(600)
         return said

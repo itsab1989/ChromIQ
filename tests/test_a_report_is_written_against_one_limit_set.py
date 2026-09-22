@@ -554,3 +554,50 @@ def test_the_limit_split_survives_the_window_repainting_itself(tmp_path, qapp):
         assert len(dropped_after) == len(dropped_before)
     finally:
         dlg.close()
+
+
+# ---------------------------------------------------------------------------
+# K16, Knut on beta 34: nothing is judged, so nothing may be narrowed
+# ---------------------------------------------------------------------------
+def test_a_printing_record_keeps_every_ticked_measurement(tmp_path, qapp):
+    """*"I then tried to select 2 of the three measurements and generate
+    report ... the report is named with flag 'One date', and the 2 selected
+    measurements were automatically changed to one selection."* A Printing
+    record judges nothing, so two limit sets have no verdicts to be kept apart
+    and R.3 holds: the report covers what is ticked.
+
+    MUTATION: drop the `_ungraded_by_type()` half of the early return in
+    `_one_limit_set` and this goes red (one of the two is dropped).
+    """
+    from workflow.measurement_report import REPORT_TYPE_RECORD
+    dlg, _run, fm = _dialog(tmp_path, qapp)
+    try:
+        _second_run(tmp_path, fm, dlg, qapp)
+        rows = dlg._runs_for_report()
+        assert len(rows) == 2
+        assert len(dlg._one_limit_set(rows)[1]) == 1, (
+            "the fixture no longer has two sets, so this proves nothing")
+        dlg._sync_type_combo_to(REPORT_TYPE_RECORD)
+        dlg._on_type_chosen(dlg._type_combo.currentIndex())
+        qapp.processEvents()
+        assert dlg._report_type_now() == REPORT_TYPE_RECORD
+        kept, dropped = dlg._one_limit_set(rows)
+        assert (len(kept), len(dropped)) == (2, 0), (
+            "a Printing record dropped a ticked measurement")
+    finally:
+        dlg.close()
+
+
+def test_profiling_sheets_are_not_narrowed_under_any_type(tmp_path, qapp):
+    """A profiling sheet is not graded under any type (§3), so the same holds
+    for it under Full colour check. MUTATION: drop the `is_verification` half
+    of the early return and this goes red."""
+    dlg, _run, fm = _dialog(tmp_path, qapp)
+    try:
+        _second_run(tmp_path, fm, dlg, qapp)
+        rows = [dict(r, is_verification=False) for r in dlg._runs_for_report()]
+        kept, dropped = dlg._one_limit_set(rows)
+        assert (len(kept), len(dropped)) == (2, 0), (
+            "two profiling sheets were split by a set that judges neither")
+    finally:
+        dlg.close()

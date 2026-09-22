@@ -24375,9 +24375,11 @@ would reach.
   a choice was stored on one run. §10 asks only for the Full colour check
   fallback when the runs disagree; the blanket grey was code-only (CH-13).
   Now: the pulldown stays live; with several runs the choice is the window's,
-  kept for the session and written to neither run; "several" counts the runs
-  of the TICKED rows, so a run added and then unticked no longer greys
-  anything; Generate, still unavailable across runs, says why in its tooltip.
+  kept for the session and written to neither run; Generate, still
+  unavailable across runs, says why in its tooltip. ("Several" was briefly
+  made to count the runs of the TICKED rows and was reverted the same day: a
+  window's history spans its whole project, so every ordinary profiling
+  window became "several" and lost Generate; an existing guard caught it.)
   The old "several runs" tooltip was being overwritten by the type's
   description whenever the runs agreed, so no reason was ever on screen.
 - NOT changed, and put to Knut: whether Generate may write a report spanning
@@ -24388,5 +24390,28 @@ would reach.
   tone check chosen, page built as t3_grey_and_tone, no meta.json changed.
 - evidence:
   test_with_two_runs_ticked_the_type_can_be_chosen_and_neither_run_is_written
-  test_a_second_run_with_nothing_ticked_does_not_count_as_a_second_run
   test_a_greyed_generate_says_why_when_two_runs_are_ticked
+
+### B8-786 · FIXED · Two of three measurements ticked became a "One date" report and the ticks collapsed
+- blocks release: no
+- status: FIXED
+- found by: Knut on beta 34 (K16 of B8-778), "as reported before".
+- `_one_limit_set` keeps one limit set per document (his ruling of
+  2026-09-16), and the demo project's three profiling runs are each judged
+  against a different set, so every ticked row but the anchor was dropped,
+  the document was "One date", and R.6 re-ticked the list from its one member.
+  That ruling is about VERDICTS; a Printing record judges nothing, and a
+  profiling sheet is not graded under any type (§3). With nothing judged
+  there is nothing to keep apart, so nothing is narrowed and R.3 holds: the
+  report covers exactly the ticked measurements.
+- NOT decided here, and put to Knut: verification measurements judged against
+  DIFFERENT sets and ticked together, where his 2026-09-16 ruling and R.3
+  still conflict (critic Q11). Those are still narrowed as before.
+- driven on screen as a user (`scripts/drive_k16_two_of_three.py`, proof
+  `~/Desktop/ChromIQ-beta36-proof/K16-two-of-three/`): Profiling, run1, New
+  report, untick one of three, Generate. beta 35: scope one_date, 1 member,
+  ticks collapsed to one. Fixed: scope multiple_dates, 2 members, both ticks
+  kept, entry named "Multiple dates".
+- evidence:
+  test_a_printing_record_keeps_every_ticked_measurement
+  test_profiling_sheets_are_not_narrowed_under_any_type

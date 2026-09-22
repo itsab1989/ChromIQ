@@ -603,29 +603,6 @@ def test_with_two_runs_ticked_the_type_can_be_chosen_and_neither_run_is_written(
         dlg.close()
 
 
-def test_a_second_run_with_nothing_ticked_does_not_count_as_a_second_run(
-        tmp_path, qapp):
-    """The document is built from the TICKED rows, so a run that was added and
-    then unticked is not part of it, and does not grey what one run may do.
-
-    MUTATION: make `_several_runs` count `_distinct_run_dirs()` again -> red.
-    """
-    from PyQt6.QtCore import Qt
-    dlg, run1, run2 = _two_runs(tmp_path, qapp)
-    try:
-        for i, (kind, _si, key) in enumerate(dlg._list_rows):
-            if kind == "run" and key is not None and str(run2.dir) in str(key):
-                dlg._profile_list.item(i).setCheckState(Qt.CheckState.Unchecked)
-        qapp.processEvents()
-        dlg._sync_limit_controls()
-        assert len(dlg._distinct_run_dirs()) == 2, "run2 is no longer loaded"
-        assert not dlg._several_runs(), (
-            "a run with nothing ticked still counts as part of the report")
-        assert dlg._generate_btn.isEnabled()
-    finally:
-        dlg.close()
-
-
 def test_a_greyed_generate_says_why_when_two_runs_are_ticked(tmp_path, qapp):
     """A greyed control says why. The old sentence was set on the type
     pulldown and then overwritten by the type's description whenever the runs

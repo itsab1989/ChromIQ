@@ -4688,27 +4688,21 @@ class MeasurementReportDialog(QDialog):
         return dirs
 
     def _several_runs(self) -> bool:
-        """Does the DOCUMENT span more than one profile run?
+        """Does the window hold measurements ADDED from more than one profile
+        run (CH-13)? One name for the question `_sync_limit_controls` and
+        `_on_type_chosen` both ask, so the two cannot drift apart.
 
-        **THE TICKED ROWS, NOT THE LOADED SOURCES (K17, Knut on beta 34).**
-        This was `len(_distinct_run_dirs()) > 1`, which counts what was ADDED:
-        a second run added and every one of its rows unticked still greyed the
-        report type, the limit set and Generate, although the report on screen
-        covered one run. The rows the document is built from are the rows that
-        are ticked, so those are what is counted; with nothing ticked the
-        loaded sources answer, as before.
+        **SOURCES, NOT TICKED ROWS, and the ticked-rows version was tried and
+        reverted the same day.** A window's history spans every run of its
+        project, so an ordinary profiling window on run 2 ticks run 1's sheet
+        as well by default: counting the runs of the ticked rows made every
+        such window "several" and killed its Generate button, which the
+        existing guard
+        `test_the_button_refuses_when_its_own_run_is_unticked` caught. What
+        makes a window span runs in the sense that matters here is a second
+        profile ADDED through "Add profile's measurements...".
         """
-        from workflow.run_compliance import run_context_for
-        rows = self._runs_for_report()
-        if not rows:
-            return len(self._distinct_run_dirs()) > 1
-        dirs: set = set()
-        for r in rows:
-            origin, ti3 = r.get("_origin_dir"), r.get("ti3")
-            ctx = (run_context_for(Path(origin) / str(ti3))
-                   if origin and ti3 else None)
-            dirs.add(str(ctx.run.dir) if ctx else f"external:{origin}")
-        return len(dirs) > 1
+        return len(self._distinct_run_dirs()) > 1
 
     def _window_limits(self):
         """The RunLimits the window's own controls act on (the first run's)."""
@@ -7584,6 +7578,20 @@ class MeasurementReportDialog(QDialog):
             return list(runs), []
         judged = [r for r in runs if not _is_raw_drift(r)]
         if not judged:
+            return list(runs), []
+        # **NOTHING IS JUDGED, SO NOTHING IS NARROWED (K16, Knut on beta 34).**
+        # *"I then tried to select 2 of the three measurements and generate
+        # report ... the report is named with flag 'One date', and the 2
+        # selected measurements were automatically changed to one selection.
+        # This is wrong, as reported before."* His three profiling runs are
+        # each judged against a different set, so this dropped every ticked
+        # row but the anchor. The ruling this method serves is about VERDICTS
+        # ("Not mix them together in the report output"), and a Printing
+        # record judges nothing, nor does a profiling sheet under any type
+        # (§3), so there is nothing to keep apart. His later R.3 is then what
+        # holds: *"A report covers exactly the measurements that are ticked."*
+        if self._ungraded_by_type() or not any(
+                r.get("is_verification") for r in judged):
             return list(runs), []
         want = None
         key = self._run_key(self._report) if self._report else None
