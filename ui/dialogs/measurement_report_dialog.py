@@ -11768,7 +11768,7 @@ class MeasurementReportDialog(QDialog):
             # was a local `_lightness`, which is how the window came to print
             # one paper white three ways: right here, a dash in the Overview
             # table, and no point at all on the trend.
-            from workflow.measurement_report import point_lightness
+            from workflow.measurement_report import point_lab, point_lightness
 
             def _line(pt: dict, label: str) -> str:
                 bits = []
@@ -11777,8 +11777,15 @@ class MeasurementReportDialog(QDialog):
                 bits.append(html.escape(label))
                 if pt.get("loc"):
                     bits.append(f"({html.escape(str(pt['loc']))})")
+                # ALL THREE, WHEN THE RECORD HAS THEM (K5): the swatch is drawn
+                # from a* and b* as well, and a page printing only L* beside a
+                # blue swatch gave the reader no way to see why it was blue.
+                lab = point_lab(pt)
                 lv = point_lightness(pt)
-                if lv is not None:
+                if lab is not None:
+                    bits.append(f"- L* {lab[0]:.1f}, a* {lab[1]:.1f}, "
+                                f"b* {lab[2]:.1f}")
+                elif lv is not None:
                     bits.append(f"- L* {lv:.1f}")
                 return "<div>" + " ".join(bits) + "</div>"
 

@@ -191,3 +191,23 @@ def test_the_detailed_section_and_the_table_say_the_same_number(tmp_path,
             "paper white, in one document")
     finally:
         dlg.close()
+
+
+def test_the_swatch_line_prints_a_and_b_as_well_as_l(tmp_path, qapp):
+    """K5, Knut on beta 34: *"White (1) - L* 100.0"* beside a LIGHT BLUE
+    swatch. The swatch was right (the demo's white was Lab 100 / -2.4 / -19.4)
+    and the line printed only L*, so nothing on the page said why it was blue.
+    Both record shapes carry a* and b*, so both print them."""
+    from workflow.measurement_report import point_lab
+    assert point_lab({"lab": [100.0, -2.39, -19.38]}) == (100.0, -2.39, -19.38)
+    assert point_lab({"L": 95.4, "a": -0.3, "b": 2.1}) == (95.4, -0.3, 2.1)
+    assert point_lab({"L": 95.4}) is None
+    assert point_lab(None) is None
+    s, _fm, _run, vs = _a_project_holding_both_shapes(tmp_path)
+    dlg = _window(s, vs[-1].measurement_ti3, qapp)
+    try:
+        html = dlg._report_body_html(dlg._runs_for_report(), for_pdf=True)
+        assert "L* 95.4, a* -0.3, b* 2.1" in html
+        assert "L* 6.2, a* 0.2, b* -1.4" in html
+    finally:
+        dlg.close()

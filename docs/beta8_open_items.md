@@ -24230,3 +24230,52 @@ would reach.
   and collapses the selection to one.
 - K17 Verification, measurements from two runs selected: the report type
   cannot be chosen at all.
+
+### B8-779 · FIXED · The paper white line printed L* only, beside a swatch drawn from all three
+- blocks release: no
+- status: FIXED
+- found by: Knut on beta 34, 2026-09-22 (K5 of B8-778): *"White (1) - L*
+  100.0"* beside a light blue swatch.
+- the swatch was right. Every simulated measurement in the limit-demo pack has
+  a paper white of XYZ 95.05 / 100 / 108.9, the D65 white point, because the
+  generator runs `fakeread` through ArgyllCMS's sRGB profile in its default
+  absolute colorimetric mode. Judged against D50 that is Lab 100.0 / -2.4 /
+  -19.4, a blue paper. The demo data half belongs to the pack rebuild (K15,
+  B8-764): `fakeread -I r` gives a neutral D50 paper, and every designed
+  threshold crossing must be re-verified after it.
+- the report half is fixed: "Paper white & darkest black" prints L*, a* and
+  b* whenever the record carries them (`point_lab`), so a swatch can always be
+  read against its numbers. Driven on screen through Tools > Measurement
+  Report on Threshold-Series run1 (`scripts/drive_k5_paper_white_line.py`,
+  proof `~/Desktop/ChromIQ-beta36-proof/K5-paper-white/`): *"White (1) - L*
+  100.0, a* -2.3, b* -19.4"*.
+- evidence: test_the_swatch_line_prints_a_and_b_as_well_as_l
+
+### B8-780 · OPEN · Audit of 2026-09-22: Knut's requests since 09-19 that nobody answered or registered
+- blocks release: no
+- status: OPEN
+- found by: a read-only audit agent, every soul-traveller comment on #182
+  created or edited since 2026-09-19 against every reply and this register.
+  Full report: `~/Desktop/ChromIQ-beta36-proof/audit-knut-comments/REPORT.md`.
+- NEITHER ANSWERED NOR REGISTERED:
+  - F1 evenness threshold (comment 5745765820): *"is one bit of 256 bits small
+    enough?"*, analyse the grey scale for non-identical device values. An
+    answer was promised twice ("It is next") and never given.
+  - F2 his four evenness rulings in the same comment: the remainder goes to
+    the middle section; pairwise max for one metric and mean-relative for the
+    other; more than 75 % of the page area; minimum 1 per area across all
+    specified pages.
+  - F3 the splash-screen donation text (5775644076).
+  - F4 his answers to the three FOGRA questions (5748616462): add the corners;
+    the report says which metric cannot be done; 72 patches at 10 mm is
+    "Acceptable". B8-536 still lists all three as open.
+  - F5 From Profile Gamut demo projects that show both PASS and FAIL
+    (5757141076); only the "current chart" half is in B8-611.
+  - F6 SWOP / GRACoL limit sets (4 September): said to be "recorded in full",
+    no entry found.
+- ANSWERED BUT STALE HERE: B8-740 (he said "Agreed", 5775260868), B8-731 (he
+  ruled "it is correct"), B8-732 (his "seems reasonable"); spec §13.8 point 1,
+  B8-491 and B8-492 still wait on answers he gave on 09-19.
+- COMMITMENTS THAT EXIST ONLY IN COMMENTS: sweep report text for anything
+  explaining how to use ChromIQ; notes in the Printing record's detailed
+  sections; drive all 19 absence notes on screen.

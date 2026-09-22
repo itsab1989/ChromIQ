@@ -699,6 +699,27 @@ def point_lightness(point) -> "float | None":
         return None
 
 
+def point_lab(point) -> "tuple[float, float, float] | None":
+    """All three of L*, a*, b* of a ``paper_white`` / ``max_black``, or None.
+
+    The same two shapes :func:`point_lightness` reads. **For the line under
+    the swatch, and the reason it exists is K5** (Knut, beta 34): a paper
+    white of *L* 100.0* beside a light blue swatch reads as a fault, and the
+    swatch was right. The demo pack's white was Lab 100.0 / -2.4 / -19.4, and
+    only the L* was printed, so nothing on the page explained the colour.
+    """
+    if not isinstance(point, dict):
+        return None
+    try:
+        if isinstance(point.get("lab"), (list, tuple)):
+            vals = [float(v) for v in point["lab"][:3]]
+        else:
+            vals = [float(point["L"]), float(point["a"]), float(point["b"])]
+    except (KeyError, TypeError, ValueError):
+        return None
+    return tuple(vals) if len(vals) == 3 else None
+
+
 def facts_disagree(rep: dict, ti3_path: "str | Path") -> bool:
     """True when a saved report CANNOT be about the file standing here.
 
