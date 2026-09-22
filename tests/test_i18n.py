@@ -1217,7 +1217,21 @@ _IDENTICAL_TO_KEY = {
     "ru": 903,
     "sv": 941,
     "zh_CN": 908,
-    "uk": 1167,
+    # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
+    # one direction this ledger is not normally allowed to move. The three are
+    # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
+    # the contributed catalogue had translated into `діаграма` ("chart"),
+    # `кольпроф` (a transliteration) and `сканування` ("scanning"). A user
+    # types those names, reads them in a log and sees them in Finder, so they
+    # must stay in English, and all twelve other catalogues leave them alone.
+    # Restoring them therefore ADDS three values identical to their key.
+    #
+    # This is the one shape of rise that is not translation rot, and it is
+    # spelled out here because the rule everywhere else in this project is that
+    # a rising number means an untranslated string and the budget is never
+    # nudged to admit it. COUNTED off the catalogue on disk: 1166 before the
+    # restoration, 1169 after, nothing else changed.
+    "uk": 1169,
 }
 
 

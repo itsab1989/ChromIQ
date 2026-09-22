@@ -23509,3 +23509,82 @@ would reach.
     using `ти`.
 - raised with LackiUA on #198 with this evidence, as a question and not a
   correction.
+
+### B8-760 · OPEN · Dropping the ISO COND cap removes the mechanism that kept a licensing promise
+- blocks release: no
+- status: OPEN
+- **RULED BY KNUT 2026-09-22: the cap goes.** *"Implement this. The note is
+  sufficient. Most users are just interested in knowing if the measurements
+  passed against the criteria set, and we do not supply charts that are defined
+  by a standard, do we? Not even the metrics we define are 'the standard's
+  metrics', because they are our own design ... so ChromIQ's results are only
+  indications that results that PASS likely fulfil the standard ... It is not
+  proof that results fulfil the standard. The report text notes should explain
+  this detail."*
+- **WHAT HE IS CHANGING IS LOAD-BEARING, and he should know it before it
+  lands.** `set_summary`'s `if set_is_iso: return Summary(COND, ...)` is not
+  only a colour-science nicety. `tests/test_a_custom_iso_column_carries_the_same_caveat.py`
+  exists because a challenge round found a saved **green PASS, unqualified,
+  under a column named "Custom ISO 12647-7"**, in the window and in the PDF.
+  Its own words: *"No string claimed anything ... the claim was made by
+  JUXTAPOSITION: a column named after a standard, a green PASS, and no
+  caveat. That is precisely what ChromIQ promised a rights holder in writing it
+  would never do."*
+- so the cap was the thing preventing that juxtaposition, and removing it puts
+  the whole weight on the note. That is exactly what Knut asked for, and it is
+  safe ONLY if the caveat is unmissable rather than optional.
+- design, to be built and challenged:
+  * remove the cap so an ISO column reads PASS or FAIL for the metrics that ran
+  * `STANDARD_CAVEAT` already exists for SAVED verdicts under a standard's
+    name; extend it to live ones, and widen it to carry Knut's fuller
+    statement: the charts are not the standard's charts, the metrics are
+    ChromIQ's own rather than the standard's methods, and a result inside these
+    limits is an indication that the print would likely meet the standard and
+    not proof that it does
+  * rewrite the caveat test to pin the CAVEAT rather than the word COND, with
+    the same strictness, so the promise is still guarded after the word moves
+  * new user-facing text, so it goes to §M-PROPOSED with `approved=False` first
+- and it must obey his other ruling of the same day: **no report text explains
+  how to use ChromIQ.** The caveat says what a result means, not what to press,
+  so it is within the rule.
+- NOT started here: beta 32 is the translation sweep, and a verdict change that
+  touches a licensing promise does not belong in the same change set as a
+  language pass. It is the next stream, with its own rounds.
+
+### B8-761 · VERIFIED · Manual already reaches the Guided stamp result on a CR30, and needs no new options
+- blocks release: no
+- status: VERIFIED
+- asked by Sebastian, 2026-09-22: *"for create chart guided tab cr30 chart you
+  adjusted the stamp so it does not overlap with the patches. can the same
+  settings be done in the manual module as well to reach the exact same result
+  or would this require additional options that are not available yet (like
+  font size for strip and row labels independently)?"*
+- **ANSWER: no new options are needed, and for a CR30 nothing needs doing at
+  all.** B8-560's clearance comes from `Geom.side_stamp_freed_mm`, which
+  records what ChromIQ's own row-label walk gave up and is handed to the
+  stamper as a minimum patch-side gap. It is computed `if engine_chart`, and a
+  CR30 is **always** an engine chart: `ENGINE_ONLY_INSTRUMENTS = {"CR30"}` is
+  tested ahead of the mode and ahead of the Manual engine toggle, because
+  printtarg cannot lay a CR30 out at all.
+- MEASURED, the real `_should_use_engine` and the real geometry, same params in
+  both modes:
+  * CR30, Guided and Manual, engine setting ON **and** OFF: uses the engine in
+    all four
+  * the gap itself, A3: Guided **0.40481250000000024 mm**, Manual
+    **0.40481250000000024 mm**, identical
+  * A4 at bare defaults: 0.0 in both, because the walk gave nothing up on that
+    page; the A3 figure is what shows the mechanism is live in Manual
+- the ONE case that differs is a non-CR30 instrument in Manual with "use the
+  ChromIQ layout engine" switched OFF. printtarg lays that page out, so
+  ChromIQ never ran the row-label walk and cannot know what it freed; the gap
+  is 0.0 by construction, and `chart_creator` says so in a comment rather than
+  guessing a number about a page it did not draw.
+- so there is nothing to save as a default and nothing to add to a preset,
+  because no new setting exists. The only user-facing gap is that somebody in
+  Manual on an i1 with the engine off does not get the clearance and is not
+  told why.
+- PROPOSED, small: say it in the existing "use the ChromIQ layout engine"
+  tooltip rather than adding a control. Sebastian's own words allow for it:
+  *"or be mentioned in an existing tooltip"*. Not written yet; it is new
+  user-facing text and goes to §M-PROPOSED first.
+- evidence: test_a_cr30_is_always_an_engine_chart
