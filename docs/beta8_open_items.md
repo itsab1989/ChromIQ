@@ -21624,7 +21624,10 @@ would reach.
 ### B8-572 · FIXED · Read-only cells in the Report limits table sat one row high
 - status: FIXED
 - blocks release: no
-- not committed and not gated: the change sits on a branch.
+- committed in `0699b0e5` and shipped in 4.3.0-beta.30. (This line read "not
+  committed and not gated: the change sits on a branch" until 2026-09-22, when
+  the open-items queue was re-read and the claim measured: the flag is in
+  HEAD, its three guards pass, and the commit is named above.)
 - carried in as B8-556. `ThresholdsDialog._make_cell`, the non-editable branch,
   called `lab.setAlignment(Qt.AlignmentFlag.AlignRight)`. `setAlignment`
   REPLACES the whole alignment rather than adding to it, and `AlignRight`
