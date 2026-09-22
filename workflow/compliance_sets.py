@@ -1424,13 +1424,38 @@ def limits_to_json(limits: "dict[str, Limit]") -> "dict[str, Any]":
     return {rid: lim.to_json() for rid, lim in limits.items()}
 
 
-def limits_from_json(doc: "dict | None") -> "dict[str, Limit]":
+def set_marks_recommendations(set_id: "str | None") -> bool:
+    """Whether a limit of *set_id* may be a RECOMMENDATION ("should").
+
+    **K3 (Knut on beta 34).** "Recommended rather than required" is a
+    standard's distinction, and the note that explains it says "The standard
+    calls this metric recommended". ChromIQ's own sets are no standard and
+    mark no row that way any more, but copies bound while they still did keep
+    the flag: Knut's run on "Quick check" printed that note about a standard
+    nobody had chosen. So a set of the ``chromiq`` family never carries one,
+    whatever an older copy says; every other set, and an id this build does
+    not know, keeps what it was given.
+    """
+    d = SET_BY_ID.get(str(set_id or ""))
+    return d is None or d.kind != "chromiq"
+
+
+def limits_from_json(doc: "dict | None",
+                     set_id: "str | None" = None) -> "dict[str, Limit]":
     """A run's or a report's stored copy back into limits. Unknown row ids are
-    KEPT (a report from a newer ChromIQ must not lose them; CH-20)."""
+    KEPT (a report from a newer ChromIQ must not lose them; CH-20).
+
+    With *set_id*, a "should" the set may not carry (see
+    `set_marks_recommendations`) is read as the plain limit it is. The number
+    is untouched and nothing on disk is rewritten."""
     out: "dict[str, Limit]" = {}
+    plain = set_id is not None and not set_marks_recommendations(set_id)
     if isinstance(doc, dict):
         for rid, v in doc.items():
-            out[str(rid)] = Limit.from_json(v)
+            lim = Limit.from_json(v)
+            if plain and lim.is_should and lim.is_numeric:
+                lim = Limit.value(lim.number)
+            out[str(rid)] = lim
     return out
 
 

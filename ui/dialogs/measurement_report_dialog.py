@@ -5574,7 +5574,7 @@ class MeasurementReportDialog(QDialog):
         from workflow.run_compliance import RunLimits
         known = is_known_set(sid)
         stored = str(comp.get("set_label") or "")
-        return RunLimits(sid, set_label(sid, stored), limits_from_json(thr),
+        return RunLimits(sid, set_label(sid, stored), limits_from_json(thr, sid),
                          label_en=(SET_BY_ID[sid].label if known
                                    else (stored or sid)),
                          bound=True, edited=bool(comp.get("edited")),
@@ -7385,7 +7385,19 @@ class MeasurementReportDialog(QDialog):
         rec = self._recorded(r)
         if rec is not None:
             rows = [dict(x) for x in rec["rows"]]
+            # A SAVED "should" UNDER ONE OF CHROMIQ'S OWN SETS IS A RELIC (K3):
+            # no bracket and no note about "the standard" for a set that is
+            # none. The record on disk is not rewritten.
+            from workflow.compliance_sets import set_marks_recommendations
+            from workflow.measurement_report import (NOTE_RECOMMENDED_LIMIT,
+                                                     recorded_compliance)
+            _sid = str((recorded_compliance(r) or {}).get("set_id") or "")
+            _plain = bool(_sid) and not set_marks_recommendations(_sid)
             for row in rows:
+                if _plain:
+                    row["should"] = False
+                    row["notes"] = [n for n in (row.get("notes") or [])
+                                    if n != NOTE_RECOMMENDED_LIMIT]
                 row.setdefault("row_id", _ROW_ID_OF.get(row.get("key"), row.get("key")))
                 if "word" not in row:
                     if row.get("pass") is True:
@@ -7652,8 +7664,9 @@ class MeasurementReportDialog(QDialog):
         if recorded:
             comp = recorded_compliance(r) or {}
             from workflow.compliance_sets import limits_from_json
-            limits = limits_from_json(comp.get("thresholds")) if comp else {}
             set_id = str(comp.get("set_id", "")) if comp else ""
+            limits = (limits_from_json(comp.get("thresholds"), set_id)
+                      if comp else {})
             if not limits:
                 # an older record: two numbers, all-patch rows
                 from workflow.measurement_report import (limits_from_pair,

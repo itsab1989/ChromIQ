@@ -24622,3 +24622,30 @@ would reach.
 - NOT verified: the OS-native save dialog (Preferences "use native file
   dialogs"), which no driver can operate; ChromIQ hands it the same folder.
 - evidence: test_a_report_of_several_profiling_runs_is_saved_in_the_projects_reports
+
+### B8-795 · FIXED · A note about "the standard" under ChromIQ's own Quick check set
+- blocks release: no
+- status: FIXED
+- found by: Knut on beta 34 (K3 of B8-778): Threshold-Series run 3, Full
+  colour check against Quick check, note 1) *"The standard calls this metric
+  recommended rather than required"* on the two grey balance rows.
+- cause: the run's stored copy of Quick check (bound when the demo pack was
+  built) and the records saved from it still marked those rows "should",
+  from a time the set did; the set no longer does, and a set of ChromIQ's own
+  is no standard. `set_marks_recommendations` is the rule: a `chromiq`-family
+  set never carries a recommendation, whatever an older copy says, and every
+  reader of a stored copy (`limits_from_json(doc, set_id)` in `run_limits`,
+  `_document_limits` and `_column_summary`; the recorded-row strip in
+  `_verdict_rows`) reads such a "should" as the plain limit it is. Nothing on
+  disk is rewritten. Standard-derived sets keep the distinction.
+- driven on screen (`scripts/drive_k3_standard_note.py`, proof
+  `~/Desktop/ChromIQ-beta36-proof/K3-standard-note/`): run3, Generate,
+  Create New. beta 35: the page carries the note and the new record stores
+  `[3.0, "should"]` with `recommended_limit`; fixed: no note, the record
+  stores plain 3.0 / 7.0 and no note.
+- evidence:
+  test_a_chromiq_set_never_carries_a_recommendation
+  test_the_quick_check_page_says_nothing_about_a_standard
+  test_a_set_derived_from_a_standard_keeps_its_note
+  test_the_runs_own_copy_is_read_without_the_relic
+  test_the_loaded_quick_check_documents_limits_carry_no_recommendation

@@ -184,7 +184,8 @@ def run_limits(run: "Run | None", overrides: "dict | None",
                          label_en=SET_BY_ID[preferred].label, bound=False,
                          unlocked=bool(meta.compliance_unlocked) if meta else False,
                          columns=list(meta.compliance_columns or []) if meta else [])
-    limits = limits_from_json(meta.compliance_thresholds)
+    limits = limits_from_json(meta.compliance_thresholds,
+                              meta.compliance_set_id)
     known = is_known_set(meta.compliance_set_id)
     return RunLimits(
         meta.compliance_set_id,
