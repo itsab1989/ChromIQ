@@ -22789,9 +22789,21 @@ would reach.
   deleting the rebuild from `_recalculate_run` turns the first red. The
   measurement is in
   `~/Desktop/ChromIQ-beta30-proof/challenge-round-34b/probes/measurements.txt`.
-### B8-722 · OPEN · `yardstick_key` is `is_edited`'s twin and did not get its fix
+### B8-722 · FIXED · `yardstick_key` is `is_edited`'s twin and did not get its fix
 - blocks release: no
-- status: OPEN
+- status: FIXED
+- FIXED 2026-09-22 on Knut's ruling. `compliance_sets.same_limits` is the
+  copy-to-copy sibling of `is_edited`, with the same three rules and for the
+  same written reasons: a row absent from either side is not a difference, a
+  stored `?` is not a difference, and should-versus-shall is not a difference.
+  `_one_limit_set` now compares rather than testing key equality, so two copies
+  of one set that differ only where ChromIQ changed itself stay in one
+  document. Genuinely different SETS still separate, which is his ruling of
+  2026-09-16 and the reason the split exists.
+- evidence: test_a_row_the_older_copy_never_had_is_not_a_difference,
+  test_should_versus_shall_is_not_a_difference,
+  test_a_different_NUMBER_really_is_a_different_yardstick,
+  test_a_row_present_on_both_sides_but_removed_on_one_is_a_difference
 - **RULED BY KNUT 2026-09-22, and his answer is larger than the question.**
   *"I would say one and the same yardstick."* But the model he gives goes past
   leniency: **a report owns ONE limit set.** *"Each report have their own

@@ -7449,11 +7449,63 @@ class MeasurementReportDialog(QDialog):
             want = self._yardstick_of(judged[-1])
         keep, out = [], []
         for r in runs:
-            if _is_raw_drift(r) or self._yardstick_of(r) == want:
+            if _is_raw_drift(r) or self._same_yardstick(self._yardstick_of(r),
+                                                        want):
                 keep.append(r)
             else:
                 out.append(r)
         return keep, out
+
+    @staticmethod
+    def _same_yardstick(a, b) -> bool:
+        """Two yardsticks are the same when a USER would call them the same.
+
+        **KEY EQUALITY WAS THE FAULT.** `yardstick_key` packs the whole stored
+        threshold block into a tuple, so ONE extra row, or one row stored as a
+        recommendation rather than a plain limit, made two copies of the SAME
+        set compare unequal. Measured 2026-09-22: one project, two profile runs,
+        both bound to ChromIQ default, neither marked "(edited)", and the
+        document kept 11 measurements and dropped 11, printing "This report
+        covers 11 of the 30 measurements recorded for this project" with
+        nothing on the page saying why. The two copies differed only where
+        ChromIQ had changed itself underneath the user the day before.
+
+        Knut, 2026-09-22: *"I would say one and the same yardstick ... It does
+        not matter if one report uses a metric as recommendation ('should') and
+        the other report uses required ('shall')."*
+
+        `compliance_sets.same_limits` holds the rules, and they are deliberately
+        `is_edited`'s: a row absent from either side is not a difference, a
+        stored `?` is not a difference, and should-versus-shall is not a
+        difference. Genuinely different SETS still separate, which is his
+        earlier ruling of 2026-09-16 and the reason this function exists at
+        all: the set id is compared first and nothing below it can rescue a
+        mismatch.
+        """
+        if a is None or b is None:
+            return a is b
+        from workflow.compliance_sets import Limit, same_limits
+        (sid_a, thr_a), (sid_b, thr_b) = a, b
+        if sid_a != sid_b:
+            return False
+        if thr_a == thr_b:
+            return True
+        # `yardstick_key` packs the thresholds through `_comparable`, which
+        # turns the stored JSON into nested tuples so the key can be hashed.
+        # `Limit.from_json` is tolerant by design, so a value it cannot read
+        # becomes `unknown` and `same_limits` then ignores that row, which is
+        # the same treatment a stored `?` already gets.
+        def _limits(packed) -> dict:
+            out = {}
+            for item in packed or ():
+                try:
+                    rid, raw = item
+                except (TypeError, ValueError):
+                    continue
+                out[rid] = Limit.from_json(
+                    list(raw) if isinstance(raw, tuple) else raw)
+            return out
+        return same_limits(_limits(thr_a), _limits(thr_b))
 
     def _judged_label_for(self, r: dict, *, mark_unsaved: bool = True) -> str:
         """What a column was judged against, for the grid and the provenance."""

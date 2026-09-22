@@ -1479,6 +1479,55 @@ def is_edited(values: "dict[str, Limit]", set_id: str,
 # ---------------------------------------------------------------------------
 # The two decision rules
 # ---------------------------------------------------------------------------
+def same_limits(a: "dict[str, Limit]", b: "dict[str, Limit]") -> bool:
+    """True when two stored copies are the SAME yardstick.
+
+    **`is_edited`'S TWIN, AND IT EXISTS BECAUSE THE TWO DISAGREED.** That
+    predicate asks whether a run's copy differs from its set; this one asks
+    whether two copies differ from each other. They must answer the same
+    question the same way, because the window derives "(edited)" from one and
+    decides which measurements share a document from the other, and a user who
+    is told two runs are not edited and then sees half their measurements
+    silently dropped has been told two different things about one fact.
+
+    MEASURED, 2026-09-22, one project, two profile runs, both bound to ChromIQ
+    default, neither showing "(edited)": the document kept **11 measurements
+    and left 11 out**, and printed *"This report covers 11 of the 30
+    measurements recorded for this project"* with nothing on the page saying
+    why. The two copies differed only in ways ChromIQ itself had changed
+    underneath the user, on 2026-09-21: the two repeatability rows did not
+    exist in the older copy, and the grey balance pair was stored there as a
+    recommendation and here as a plain limit.
+
+    Knut ruled on it the same day: *"I would say one and the same yardstick ...
+    It does not matter if one report uses a metric as recommendation ('should')
+    and the other report uses required ('shall')."*
+
+    So the rules are `is_edited`'s, for the same reasons written out there:
+
+    * **a row ABSENT from either side is not a difference.** `limits_to_json`
+      writes every row of a column, a removed limit included, so a row the user
+      took away is PRESENT and reads ``none``; a row that is absent was never
+      defined by the build that bound that copy.
+    * **a stored ``?`` is not a difference**, because nothing a user can do
+      produces one: it is what the set gave that row on the day it was bound.
+    * **``should`` versus ``shall`` is not a difference**, only the number is.
+      That is Knut's sentence above, and it is why this compares `is_numeric`
+      and the value rather than the kind.
+    """
+    for rid in set(a) | set(b):
+        if rid not in a or rid not in b:
+            continue
+        x, y = a[rid], b[rid]
+        if x.kind == "unknown" or y.kind == "unknown":
+            continue
+        if x.is_numeric != y.is_numeric:
+            return False
+        if x.is_numeric and y.is_numeric and abs(x.number - y.number) > 1e-9:
+            return False
+    return True
+
+
 def row_verdict(limit: Limit, value: "float | None", graded: bool) -> "str | None":
     """The word for one row of one column, or None when the cell is not a
     verdict at all (a ``?`` or ``✕`` limit, or a ``–`` limit with no value).
