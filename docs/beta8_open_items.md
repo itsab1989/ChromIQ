@@ -22855,3 +22855,132 @@ would reach.
   either state on T1 is unproven, and this entry says so rather than claiming a
   fault nobody can see.
 - evidence: `~/Desktop/ChromIQ-beta30-proof/challenge-round-34b/04_one_page_summary_three_patches.png`
+
+### B8-730 · FIXED · An older ChromIQ ERASES every field a newer one wrote, and the schema number never moved
+- blocks release: no
+- the fix cannot repair v4.2.7, which has shipped; it stops the class from here on.
+- status: FIXED
+- found by: challenge round 35, hunting the stored-value class B8-722/723 belong
+  to. This is the same shape one level up: not a stored VALUE whose meaning
+  changed, but a stored FIELD an older build does not have a name for.
+- detail: `ProjectManifest.from_dict`, `RunMeta.from_dict` and
+  `CalibrationMeta.from_dict` each filtered a stored dict down to their own
+  field names, and `Run.save_meta` / `Calibration.save_meta` /
+  `Project.save_manifest` then wrote `asdict(meta)` back over the file. So every
+  field a newer ChromIQ had written was silently erased by the first ordinary
+  save an older one did.
+- **`SCHEMA_VERSION` is 3 in v4.2.7 and 3 in 4.3.0-beta.30.** It did not move
+  across the whole of #182, so `Project.schema_too_new` cannot fire and nothing
+  warns the user, the log or the screen.
+- MEASURED 2026-09-22, both builds' real code, v4.2.7 exported from `92e6ead0`
+  (`/tmp/chal35_downgrade.py`): beta 30 bound `runs/run1` to ChromIQ default and
+  wrote 34 fields including `compliance_thresholds` with **32 rows of limits**.
+  v4.2.7 then did nothing but `Run.for_dir(...).load_meta()` followed by
+  `.save_meta(meta)` - the ordinary read and write every screen does - and all
+  seven #182 fields were gone: `compliance_set_id`, `compliance_set_label`,
+  `compliance_thresholds`, `compliance_bound_at`, `compliance_unlocked`,
+  `compliance_columns`, `report_type`. Back in beta 30 the run read
+  `bound=False`.
+- why it is reachable: the owner ships a stable build and a beta side by side
+  over one `~/ChromIQ` folder. Opening one project in the older of the two once
+  is enough. The same holds between any two betas that differ by a field.
+- what it destroys: the run's FROZEN copy of its limits, which is the thing
+  Knut's D20 exists to protect - *"so a later change to the set in Preferences
+  never re-grades a run that was already judged"* - plus the report type and the
+  unlock flag. Unrecoverable; the run falls back to the LIVE Preferences default.
+- fix: `core/file_manager.py` gains `split_known_fields` and `meta_to_json`. Each
+  of the three classes carries what it cannot read in an `unknown_fields` member
+  and folds it back out at write time, at the top level, where it came from. The
+  carrier never reaches disk under that name and the build's own fields always
+  win. `unknown_fields` is classified FRESH in `DUPLICATE_META_FRESH`: this build
+  cannot tell whether one of those values is an identity, a binding moment or a
+  signature, which are exactly the kinds of value already listed as fresh.
+- guard: `tests/test_a_meta_written_by_a_newer_chromiq_survives.py`, 15 tests.
+  MUTATIONS PROVEN: putting the old filter back in `RunMeta.from_dict` turns 3
+  red; putting `asdict(meta)` back in `save_meta` turns 2 red.
+- evidence: `test_a_runs_meta_json_survives_the_ordinary_read_and_write`,
+  `test_a_project_json_survives_the_ordinary_read_and_write`,
+  `test_the_three_classes_all_go_through_the_one_rule`.
+- NOT repaired: v4.2.7 has shipped. A user who has already opened a beta project
+  in it has lost those fields and the run must be re-bound by hand.
+### B8-731 · OPEN · A chart snapshot taken before 2026-09-19 makes Restore DELETE the control-strip declaration
+- blocks release: no
+- status: OPEN
+- needs Knut: the repair collides with one of his own rulings, see below.
+- found by: challenge round 35.
+- detail: `CONTROL_STRIP_SIDECAR` joined `PROFILING_CHART_SUFFIXES` in `60edfbd4`
+  (2026-09-19 03:39), on his ruling that the declaration is tied to the CHART and
+  *"if the Restore Used Chart button is pressed, the control strip declaration
+  shall also be restored with the other chart files"*. Every profiling-run and
+  calibration snapshot taken before that commit holds no declaration, while the
+  live chart beside it does.
+- MEASURED (`/tmp/chal35_snapshot.py`, the real functions, real files):
+  * `snapshot_matches_live(slot)` -> **False**, so "Restore Used Chart" is offered
+  * `slot_live_differs(slot)`     -> **False**, so NO "Stored chart differs" warning
+  * `restore_would_lose_pages`    -> `[]`, so no warning of any kind
+  * declaration on disk before the restore: True.  After: **False.**
+- the two surfaces contradict each other on the same pair, and the disagreement
+  is structural: `slot_live_differs` iterates the SNAPSHOT only, so a live-only
+  file is invisible to it, although its own docstring says *"A missing
+  counterpart on either side counts as a difference."* `snapshot_matches_live`
+  compares name SETS and sees it.
+- consequence: the three control-strip rows of the Measurement Report
+  (`control_strip_de00_avg` / `_max` / `_p95`) stop being computable for that
+  chart for ever, and Knut's own 2026-09-19 ruling is inverted - the restore
+  removes the declaration instead of restoring it.
+- NOT fixed here: the repair collides with his #130 2026-07-31 ruling, *"All old
+  files must be replaced with the new files. None of the old files must
+  survive."* The two candidate routes are (a) warn before a restore that would
+  remove a declaration it cannot put back, which is the shape he already agreed
+  for page images (`restore_would_lose_pages`), or (b) treat a live-only file as
+  not-a-difference. Both are his to choose.
+### B8-732 · OPEN · A per-target row the stored blob predates takes the value of the target just LEFT
+- blocks release: no
+- status: OPEN
+- needs Knut / Sebastian: the repair meets their per-target rules, see below.
+- found by: challenge round 35, ON SCREEN.
+- detail: `workflow/per_target_settings.apply` writes only the keys the stored
+  blob HAS. `docs/design/per_target_settings.md` §7 names the risk in ONE
+  direction, *"A. A stored setting that no longer exists"*, and the code follows
+  it. The mirror has no rule and no code: a parameter added to
+  `data/parameters.yaml` AFTER a target was written is absent from that target's
+  blob, so nothing writes it, and the widget keeps whatever the OUTGOING target
+  put there. `ui/tabs/tab_chart.py` handles only the EMPTY blob
+  (`if not stored: _open_this_target_on_its_defaults()`), and its own comment
+  names this very leak for that case - *"the calibration's patch count followed
+  the user into the next run they visited"*. A PARTIAL blob skips that branch.
+- every project on disk was written before the next parameter is added, so this
+  is the state of every existing project on the day any parameter is added.
+- DRIVEN ON SCREEN, real window, `capture_window`, two pixel-identical frames,
+  `scripts/drive_chal35_a_newer_row_leaks_between_targets.py`, subject
+  `Demo-Full-RGB`, settings and output path sandboxed:
+  * CONTROL: run1 stores 111, run2 stores 222, both blobs complete; run1 -> 111,
+    run2 -> 222. The control PASSES, so the harness can tell the two apart.
+  * `targen-f` is then removed from run2's blob (40 keys -> 39), which is exactly
+    what a build written before that parameter existed left on disk.
+  * run1 is set to 777 and stored. Switching to run2 shows **777**.
+  * the ordinary next write files `targen-f = {"enabled": true, "value": 777}`
+    into run2's `meta.json`.
+- so run1's patch count becomes run2's, on screen and then on disk, silently.
+  The log pane says at that moment *"Restored the chart's own layout settings -
+  patch size, spacers, margins, seed and patch count now show the values this
+  chart was made with"*, which is false for that row.
+- NOT fixed here: the repair is a per-row fallback to §4 S4/S5 defaults, and it
+  meets Sebastian's calibration-knob rules on the six `_CAL_VALUES` rows. Their
+  call.
+- evidence: `~/Desktop/ChromIQ-beta30-proof/challenge-round-35/chal35-01-per-target-leak.png`
+### B8-733 · OPEN · A layout recipe loses a field a newer build added, and the chart is redrawn without it
+- blocks release: no
+- status: OPEN
+- found by: challenge round 35, sweeping the same class as B8-730.
+- detail: `workflow/layout_engine/presets.py` `LayoutRecipe.from_dict` filters a
+  stored dict to its own field names and `to_dict()` writes the class back, so a
+  recipe field a newer ChromIQ added is dropped on load and never written again.
+  The recipe is the chart's own definition: it lives in `<stem>.channels.json`
+  (a member of `PROFILING_CHART_SUFFIXES`) and in every user preset, and the
+  page images are REDRAWN from it, so the loss changes what gets printed.
+  `PresetStore.VERSION` and `core.preset_store.CHROMIQ_PRESET_VERSION` are both
+  written and never read, so no version signal exists there either.
+- not fixed with B8-730 because the recipe travels through a UI panel rather
+  than through one load/save pair; carrying it needs the panel to hold the
+  unknown fields across a round trip.

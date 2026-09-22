@@ -833,6 +833,63 @@ def write_json_atomically(path: Path, payload: dict) -> None:
 # Manifest dataclasses
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# A manifest written by a NEWER ChromIQ must survive being read by this one
+# ---------------------------------------------------------------------------
+#: The field every manifest dataclass carries for the keys THIS build does not
+#: recognise. It never reaches disk under this name: :func:`meta_to_json` folds
+#: it back out at the top level, where it came from.
+UNKNOWN_FIELDS_ATTR = "unknown_fields"
+
+
+def split_known_fields(cls, d: "dict | None") -> "tuple[dict, dict]":
+    """``(the fields *cls* declares, everything else)`` out of a stored dict.
+
+    **A FIELD THIS BUILD HAS NEVER HEARD OF IS NOT A FIELD TO BE DELETED.**
+    Every manifest dataclass here filtered a stored dict down to its own field
+    names and every ``save_meta`` then wrote ``asdict(meta)`` back over the
+    file, so anything a newer ChromIQ had written was silently erased by the
+    first ordinary save an older one did.
+
+    MEASURED, 2026-09-22, with both builds' real code: ``SCHEMA_VERSION`` is 3
+    in v4.2.7 and 3 in 4.3.0-beta.30 -- it did not move across the whole of
+    #182 -- so ``schema_too_new`` cannot fire and nothing warns. v4.2.7 doing
+    nothing but ``Run.for_dir(...).load_meta()`` then ``.save_meta(meta)``
+    erased all seven of the run's #182 fields: ``compliance_set_id``,
+    ``compliance_set_label``, ``compliance_thresholds`` (32 rows),
+    ``compliance_bound_at``, ``compliance_unlocked``, ``compliance_columns``
+    and ``report_type``. The run's frozen copy of its limits -- the thing
+    Knut's D20 exists to protect, *"so a later change to the set in
+    Preferences never re-grades a run that was already judged"* -- was gone,
+    and the run read ``bound=False`` again.
+
+    The owner ships a stable build and a beta side by side over one
+    ``~/ChromIQ`` folder, so opening one project in the older of the two once
+    was enough. Nothing can repair a build that has already shipped; this stops
+    the class, so that from here on an older ChromIQ CARRIES what it cannot
+    read instead of destroying it.
+    """
+    known = {f.name for f in fields(cls)} - {UNKNOWN_FIELDS_ATTR}
+    mine, rest = {}, {}
+    for k, v in (d or {}).items():
+        (mine if k in known else rest)[k] = v
+    return mine, rest
+
+
+def meta_to_json(meta) -> dict:
+    """*meta* as the dict to write, with the carried-through fields folded back.
+
+    The build's OWN fields always win: a key it recognises is written from the
+    dataclass, never from the carried set, which cannot hold one anyway.
+    """
+    d = asdict(meta)
+    extra = d.pop(UNKNOWN_FIELDS_ATTR, None) or {}
+    out = {k: v for k, v in extra.items() if k not in d}
+    out.update(d)
+    return out
+
+
+
 @dataclass
 class ProjectManifest:
     """The contents of ``project.json``."""
@@ -852,10 +909,14 @@ class ProjectManifest:
             runs=["run1"],
         )
 
+    #: Keys a NEWER ChromIQ wrote that this build does not declare. Carried,
+    #: never written under this name — see :func:`split_known_fields`.
+    unknown_fields: dict = field(default_factory=dict, repr=False, compare=False)
+
     @classmethod
     def from_dict(cls, d: dict) -> "ProjectManifest":
-        known = {f.name for f in fields(cls)}
-        return cls(**{k: v for k, v in d.items() if k in known})
+        mine, rest = split_known_fields(cls, d)
+        return cls(**mine, unknown_fields=rest)
 
 
 @dataclass
@@ -1014,10 +1075,14 @@ class RunMeta:
             parent_run=parent,
         )
 
+    #: Keys a NEWER ChromIQ wrote that this build does not declare. Carried,
+    #: never written under this name — see :func:`split_known_fields`.
+    unknown_fields: dict = field(default_factory=dict, repr=False, compare=False)
+
     @classmethod
     def from_dict(cls, d: dict) -> "RunMeta":
-        known = {f.name for f in fields(cls)}
-        return cls(**{k: v for k, v in d.items() if k in known})
+        mine, rest = split_known_fields(cls, d)
+        return cls(**mine, unknown_fields=rest)
 
 
 # ---------------------------------------------------------------------------
@@ -1279,10 +1344,14 @@ class CalibrationMeta:
     profile_settings: dict = field(default_factory=dict)
 
 
+    #: Keys a NEWER ChromIQ wrote that this build does not declare. Carried,
+    #: never written under this name — see :func:`split_known_fields`.
+    unknown_fields: dict = field(default_factory=dict, repr=False, compare=False)
+
     @classmethod
     def from_dict(cls, data: dict) -> "CalibrationMeta":
-        known = {f.name for f in fields(cls)}
-        return cls(**{k: v for k, v in (data or {}).items() if k in known})
+        mine, rest = split_known_fields(cls, data)
+        return cls(**mine, unknown_fields=rest)
 
 
 class Calibration:
@@ -1342,7 +1411,7 @@ class Calibration:
         return CalibrationMeta.from_dict(raw)
 
     def save_meta(self, meta: "CalibrationMeta") -> None:
-        write_json_atomically(self.meta_path, asdict(meta))
+        write_json_atomically(self.meta_path, meta_to_json(meta))
 
     # ---- v2 sub-folders (#127)
     @property
@@ -2315,7 +2384,7 @@ class Run:
         return RunMeta.from_dict(raw)
 
     def save_meta(self, meta: RunMeta) -> None:
-        write_json_atomically(self.meta_path, asdict(meta))
+        write_json_atomically(self.meta_path, meta_to_json(meta))
 
     # ---- lifecycle
     def ensure_dir(self) -> Path:
@@ -2718,6 +2787,14 @@ DUPLICATE_META_FRESH: frozenset = frozenset({
     # …and the COPY of the limits: the duplicate is bound afresh, to the set
     # it carries, at its own first verification (review F13).
     "compliance_thresholds",
+    # The fields a NEWER ChromIQ wrote that this build cannot read. Carried
+    # through a save so they are never destroyed (`split_known_fields`), and
+    # deliberately NOT carried into a DUPLICATE: this build cannot tell whether
+    # any of them is an identity, a binding moment or a signature, and those are
+    # exactly the kinds of value already listed above as fresh. The source run
+    # keeps every one of them; the copy simply starts without them, and the
+    # ChromIQ that understands them fills in what it wants.
+    "unknown_fields",
 })
 
 DUPLICATE_META_CARRY: frozenset = frozenset({
@@ -3129,7 +3206,7 @@ class Project:
         ``write_text`` is not something this round could drive.
         """
         self._root.mkdir(parents=True, exist_ok=True)
-        write_json_atomically(self.manifest_path, asdict(self._manifest))
+        write_json_atomically(self.manifest_path, meta_to_json(self._manifest))
 
     def write_readme(self) -> None:
         """Write a user-facing "Where are my files.txt" at the project root.
