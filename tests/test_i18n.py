@@ -1226,12 +1226,20 @@ _IDENTICAL_TO_KEY = {
     # must stay in English, and all twelve other catalogues leave them alone.
     # Restoring them therefore ADDS three values identical to their key.
     #
+    # A FOURTH followed the same day and for the same reason: `Lab (CIELAB)`.
+    # The catalogue had rendered Lab, the colour space, as "Лабораторія", a
+    # LABORATORY, and once as "Лабораторний стіл", a laboratory BENCH, on the
+    # profile-type control. Every one of the twelve other catalogues keeps
+    # `Lab`, so Ukrainian does too, and `Lab (CIELAB)` is then identical to its
+    # key.
+    #
     # This is the one shape of rise that is not translation rot, and it is
     # spelled out here because the rule everywhere else in this project is that
     # a rising number means an untranslated string and the budget is never
     # nudged to admit it. COUNTED off the catalogue on disk: 1166 before the
-    # restoration, 1169 after, nothing else changed.
-    "uk": 1169,
+    # restorations, 1169 after the three tool names, 1170 with `Lab (CIELAB)`.
+    # Nothing else changed.
+    "uk": 1170,
 }
 
 
