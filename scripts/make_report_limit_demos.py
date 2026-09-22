@@ -225,8 +225,8 @@ def make_grid_chart(into: Path, stem: str, recipe: GridChartRecipe) -> None:
                for r in recipe.levels for g in recipe.levels
                for b in recipe.levels]
     write_ti1(patches, into / f"{stem}.ti1")
-    run([ARGYLL / "printtarg", "-iCM", f"-p{recipe.paper}", "-t150", "-L",
-         stem], into, TIMEOUT_PRINTTARG)
+    run([ARGYLL / "printtarg"] + printtarg_args(recipe.paper) + [stem],
+         into, TIMEOUT_PRINTTARG)
 
 
 @dataclass(frozen=True)
@@ -316,8 +316,8 @@ def make_gamut_chart(into: Path, stem: str, recipe: GamutChartRecipe,
     into.mkdir(parents=True, exist_ok=True)
     write_gamut_ti1(sel, into / f"{stem}.ti1")
     write_colorimetric_reference(sel, into / f"{stem}-reference.ti3")
-    run([ARGYLL / "printtarg", "-iCM", f"-p{recipe.paper}", "-t150", "-L",
-         stem], into, TIMEOUT_PRINTTARG)
+    run([ARGYLL / "printtarg"] + printtarg_args(recipe.paper) + [stem],
+         into, TIMEOUT_PRINTTARG)
     return sel
 
 
@@ -384,12 +384,89 @@ def make_chart(into: Path, stem: str, recipe: ChartRecipe, cache_root: Path) -> 
         src.mkdir(parents=True, exist_ok=True)
         run([ARGYLL / "targen"] + recipe.targen_args + ["chart"],
             src, TIMEOUT_TARGEN)
-        run([ARGYLL / "printtarg", "-iCM", f"-p{recipe.paper}", "-t150", "-L",
-             "chart"], src, TIMEOUT_PRINTTARG)
+        run([ARGYLL / "printtarg"] + printtarg_args(recipe.paper) + ["chart"],
+             src, TIMEOUT_PRINTTARG)
         _chart_cache[key] = src
     for p in sorted(src.iterdir()):
         if p.is_file() and p.name.startswith("chart"):
             shutil.copy2(p, into / (stem + p.name[len("chart"):]))
+
+
+#: HOW EVERY CHART IN THE PACK IS LAID OUT, in one place (B8-807, round 3B
+#: F12). ``-M6`` is what the app passes to printtarg for every chart it lays
+#: out (`chart_creator._build_printtarg_args`), so the page TIFF spans the
+#: whole sheet. Without it the raster is cropped to the imageable area and the
+#: Create Chart tab measured the patches 0.0 mm from the left paper edge.
+#: ``-L`` is a no-op for the ColorMunki and is kept so the recorded command
+#: stays the one earlier packs were built with.
+PRINTTARG_INSTRUMENT = "CM"
+PRINTTARG_DPI = 150
+PRINTTARG_MARGIN_MM = 6
+
+
+def _targen_settings(recipe) -> "dict[str, object]":
+    """targen's rows as the Create Chart tab stores them, for a chart targen
+    designed (`ChartRecipe.targen_args`); none for a chart written by hand."""
+    if not isinstance(recipe, ChartRecipe):
+        return {}
+    return {"d": "2", "e": 4, "B": 4, "g": recipe.grey, "s": recipe.single,
+            "f": recipe.patches}
+
+
+def printtarg_args(paper: str) -> list:
+    return [f"-i{PRINTTARG_INSTRUMENT}", f"-p{paper}", f"-t{PRINTTARG_DPI}",
+            "-L", f"-M{PRINTTARG_MARGIN_MM}"]
+
+
+def record_chart_settings(folder: Path, paper: str,
+                          targen: "dict[str, object] | None" = None,
+                          mode: str = "manual") -> None:
+    """Write the Create Chart settings the app would have stored for a chart
+    it laid out this way, into the chart's own settings store.
+
+    **WITHOUT THIS THE PACK'S CHARTS OPENED ON SOMEBODY ELSE'S SETTINGS
+    (round 3B, F12).** The store was empty, so Create Chart opened the chart
+    on the app's defaults: an i1Pro, the ChromIQ layout engine, and the
+    engine's clip border with its notes in it. That engine layout was then
+    judged against the printtarg sheet on screen and the tab warned in red
+    that a 22 mm clip band "runs over the patches on the left" of a chart that
+    has no clip band at all. What is recorded here is what the chart IS:
+    printtarg, a ColorMunki, this paper, 150 dpi, and no clip border content.
+
+    *folder* is the run folder for the profiling chart and the run's
+    ``verifications/`` folder for the verification chart, which is where
+    `per_target_settings.store_for_target` looks for each.
+    """
+    from core.file_manager import Run
+    from workflow.layout_engine.presets import LayoutRecipe
+    settings = {
+        "printtarg-i": {"enabled": True, "value": PRINTTARG_INSTRUMENT},
+        "printtarg-p": {"enabled": True, "value": paper},
+        "printtarg-t": {"enabled": True, "value": PRINTTARG_DPI},
+        "printtarg-L": {"enabled": True, "value": True},
+        "printtarg-m": {"enabled": False, "value": PRINTTARG_MARGIN_MM},
+    }
+    for flag, value in (targen or {}).items():
+        settings[f"targen-{flag}"] = {"enabled": True, "value": value}
+    recipe = LayoutRecipe(instrument=PRINTTARG_INSTRUMENT, paper=paper,
+                          clip_content_mode="off")
+    store = Run.for_dir(folder)
+    meta = store.load_meta()
+    meta.create_chart_settings = settings
+    # THE GUIDED ROW TOO: an absent "guided" bucket opens on the saved default
+    # instrument (an i1Pro on a fresh install), and its instrument is mirrored
+    # into Manual's -i, so the chart was then judged against the i1Pro's 26 mm
+    # left minimum instead of the ColorMunki's 6 mm (measured on screen).
+    meta.create_chart_ui = {"mode": mode, "engine_on": False,
+                            "guided": {"instrument": PRINTTARG_INSTRUMENT,
+                                       "paper": paper, "pages": 1,
+                                       "double_density": False,
+                                       "triple_density": False,
+                                       "left_border": False,
+                                       "no_strip_limit": False,
+                                       "precond": ""},
+                            "engine_recipe": recipe.to_dict()}
+    store.save_meta(meta)
 
 
 def fakeread(into: Path, stem: str, profile: Path) -> Path:
@@ -508,6 +585,11 @@ def not_built_line() -> str:
 
 def _de(lab_a, lab_b) -> float:
     return float(ciede2000(tuple(lab_a), tuple(lab_b)))
+
+
+#: The direction a paper moves in when a date designs it off its reference:
+#: toward yellow, at constant lightness. See the W corner in `apply_design`.
+_PAPER_DRIFT = (0.0, 0.1, 1.0)
 
 
 def _solve_scale(ref, direction, target_de: float) -> float:
@@ -1030,8 +1112,19 @@ def apply_design(ti3: Path, ti2: Path, design: Design,
                 # the yellow patch "Paper white"; on a 0.5 date `_place`'s
                 # anti-anchor flip put it at L* 100.8, whiter than white.
                 # Measured on the first build on the new paper (K15).
-                s = _solve_scale(r, [-0.3, 0.1, 1.0], design.white_de)
-                new_lab[ci] = (r[0] - 0.3 * s, r[1] + 0.1 * s, r[2] + 1.0 * s)
+                #
+                # AND THE K15 FIX STILL LOWERED L*, by 0.3 per unit of b*.
+                # That is harmless at 5.0 and not at 9.0: Quick check's
+                # "everything over" date (Every-Limit-Set/run6, 2028-05-12)
+                # put the paper at L* 96.75, under a saturated yellow of the
+                # same sheet at 97.14 (patch 208), and the report's
+                # "lightest patch is the paper" rule recorded the YELLOW as
+                # paper white (round 3B, F13). A paper that yellows keeps its
+                # lightness, so the drift is now in b* (and a trace of a*)
+                # only, and `_paper_white_fault` refuses any date on which the
+                # report's paper white is not the chart's white patch.
+                s = _solve_scale(r, _PAPER_DRIFT, design.white_de)
+                new_lab[ci] = tuple(r[k] + _PAPER_DRIFT[k] * s for k in range(3))
             elif name in ("C", "M", "Y") and design.cmy_dh is not None:
                 new_lab[ci] = _rotate_hue(r, design.cmy_dh)
             elif name == "K" and design.solid_de is not None:
@@ -2246,6 +2339,12 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
         make_grid_chart(run.verifications_dir, vstem_, plan.verify_chart)
     else:
         make_chart(run.verifications_dir, vstem_, plan.verify_chart, cache_root)
+    # EACH CHART'S OWN CREATE CHART SETTINGS, where the app keeps them (F12).
+    record_chart_settings(run.dir, plan.profile_chart.paper,
+                          _targen_settings(plan.profile_chart))
+    record_chart_settings(run.verifications_dir, plan.verify_chart.paper,
+                          _targen_settings(plan.verify_chart),
+                          mode=("gamut" if gsel is not None else "manual"))
 
     # WHAT THE REPORT WILL USE AS THE REFERENCE, decided once, here, from the
     # same fact the report decides it from: a `<stem>-reference.ti3` beside the
@@ -2290,7 +2389,14 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
             f"{'available' if decl.selection.p95_ready else 'withheld'}.")
 
     meta = run.load_meta()
-    meta.description = plan.full_description
+    # THE DESCRIPTION IS THE STORY AND NOTHING ELSE (B8-807, round 3B F30).
+    # It used to end with the run's lock state, frozen in English at build
+    # time: a German UI printed it untranslated under "Run description", and it
+    # went false the moment a reader did what the README invites (choose
+    # another set on an open run, lift a lock). The window states the LIVE
+    # state; `full_description` stays only as the README's and the tests'
+    # statement of what each plan declares.
+    meta.description = plan.description
     meta.instrument = INSTRUMENT
     meta.paper = "Demo matte 200 g"
     meta.status = "complete"
@@ -2341,6 +2447,9 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
     prof_ti3 = run.dir / f"{stem}.ti3"
     stamp_profiling(prof_ti3, prof_when)
     prof_rep = build_report(prof_ti3, argyll_bin=ARGYLL)
+    pw_fault = _paper_white_fault(prof_ti3, prof_rep)
+    if pw_fault:
+        raise SystemExit(pw_fault)
     stamp_verdict(prof_rep, limits_rec.limits, set_id=limits_rec.set_id,
                   set_label=limits_rec.label_en, edited=limits_rec.edited)
     # A PROFILING MEASUREMENT'S ONLY REPORT IS THE PRINTING RECORD (K13,
@@ -2403,6 +2512,10 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
         # The report, built by the app's own code, saved under the measurement
         # date rather than the moment this script ran.
         rep = build_report(v.measurement_ti3, argyll_bin=ARGYLL)
+        # THE PAPER WHITE IS THE CHART'S PAPER, on every date (B8-807).
+        pw_fault = _paper_white_fault(v.measurement_ti3, rep)
+        if pw_fault:
+            raise SystemExit(pw_fault)
         stamp_verdict(rep, limits_rec.limits, set_id=limits_rec.set_id,
                       set_label=limits_rec.label_en, edited=limits_rec.edited)
         set_report_type(rep, plan.report_type)
@@ -2461,6 +2574,11 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
             # prints the sentence this names.
             "shown_reasons": actual["shown_reasons"],
             "predicted": predicted,
+            # What the report took as paper white, and whether the chart has a
+            # paper patch at all, for the README's paper section.
+            "print": plan.print_colour,
+            "paper_white": dict(rep.get("paper_white") or {}),
+            "has_paper_patch": bool(chart_white_locs(v.measurement_ti3, rep)),
         })
         # A STORY MAY NOT NAME A VERDICT THE REPORT DID NOT GIVE. The same
         # shape as the lock guard above, in the other field a reader trusts.
@@ -2506,6 +2624,51 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
             f"but the app reads bound={is_bound(run)}, "
             f"dates={measured_dates(run)}, locked={really}. Fix the plan or "
             f"the sentence, never the description alone.")
+
+
+def chart_white_locs(ti3: Path, rep: dict) -> "set[str]":
+    """The patches of this sheet that ARE its paper, by the id the report
+    records a paper white under (``SAMPLE_LOC`` when the file has one).
+
+    A patch is paper when every device channel is at least `DEVICE_WHITE_MIN`,
+    which is the same test `apply_design` uses to find the bare paper. On a
+    From Profile Gamut chart the white CUBE CORNER the report reads is paper
+    too, whatever device value the profile gave it. An empty answer means the
+    chart has no paper patch at all (Strip-And-Gamut/run4's mid-tone grid),
+    and then the report's "lightest patch" is simply the lightest colour.
+    """
+    from workflow.ti3_analysis import parse_ti3
+    data = parse_ti3(ti3)
+    ids = data.sample_locs or data.sample_ids
+    out = {str(ids[i]) for i, px in enumerate(data.rgb)
+           if min(float(v) for v in px) >= DEVICE_WHITE_MIN}
+    if rep.get("reference_source") == "colorimetric":
+        for c in rep.get("corners") or []:
+            if c.get("name") == "W" and c.get("present") and c.get("loc"):
+                out.add(str(c["loc"]))
+    return out
+
+
+def _paper_white_fault(ti3: Path, rep: dict) -> str:
+    """Why the report's paper white on this sheet is NOT the chart's paper, or
+    "" when it is (or when the chart has no paper patch to be).
+
+    Round 3B, F13: Every-Limit-Set/run6's 2028-05-12 date designed the paper
+    9.0 off its reference by lowering its L*, the paper fell under a saturated
+    yellow of the same sheet, and the report recorded patch 208 (Lab
+    97.14 / -27.36 / 92.98) as "paper white". The FAIL it proved was a
+    detection artefact. Every date of every run is asked this now, and the
+    build stops on the first that answers.
+    """
+    whites = chart_white_locs(ti3, rep)
+    pw = rep.get("paper_white") or {}
+    loc = str(pw.get("loc", ""))
+    if not whites or loc in whites:
+        return ""
+    return (f"{ti3}: the report records patch {loc} (Lab "
+            f"{pw.get('lab')}) as paper white, and the chart's paper is "
+            f"{sorted(whites)}. A date that moves the paper must keep it the "
+            f"lightest reading on the sheet.")
 
 
 def story_verdicts(story: str) -> "set[str]":
@@ -3107,8 +3270,8 @@ PROJECTS = [
     ("Report-Limits-Report-Types", [
         RunPlan("Colour summary, ChromIQ default. The run also holds a Full "
                 "colour check and a Grey and tone check of its first date, so "
-                "the window's 'Already generated' line has three types to "
-                "count.",
+                "the window's 'Already generated' line has four types to "
+                "count, the profiling sheet's Printing record among them.",
                 CHART_SMALL, CHART_MEDIUM, "chromiq_default", TYPES_DE_DEFAULT,
                 report_type=REPORT_TYPE_SUMMARY, unlocked=True, lock="unlocked",
                 also_generate=(REPORT_TYPE_FULL, REPORT_TYPE_GREY)),
@@ -3252,9 +3415,8 @@ PROJECTS = [
                      "ordinary chart: the colorimetric reference beside it is "
                      "the only thing that makes three of this package's rows "
                      "computable."),
-        RunPlan("The same kind of chart under Custom ISO 12647-7, which is "
-                "the one shipped column that already puts a number on all "
-                "sixteen judgeable rows.",
+        RunPlan("The same kind of chart under Custom ISO 12647-7, which "
+                "already puts a number on every judgeable row.",
                 CHART_MEDIUM, CHART_GAMUT, "custom_iso_12647_7",
                 matrix_dates("custom_iso_12647_7", "gamut"),
                 unlocked=True, lock="unlocked", expect_strip_p95=False,
@@ -3963,9 +4125,84 @@ def _type_index(type_set_rows: "list[dict]",
         if hits:
             out.append((f"the {name} document", hits[0]["run"].replace("/", ", ")))
     if multi:
+        # THE RUN HOLDING THE MOST TYPES (round 3B, F25). Every run holds two,
+        # its profiling sheet's Printing record and its verifications' type,
+        # so the first in name order (Border-Conditions/run1) showed nothing a
+        # reader came for.
+        best = _richest_multi_type_run(multi)
         out.append(("a run holding reports of several types",
-                    multi[0].split(":")[0].replace("/", ", ")))
+                    best.replace("/", ", ")))
     return out
+
+
+def paper_white_lines(results: list) -> "list[str]":
+    """The README's account of the paper white each report RECORDS, read off
+    the built reports (round 3B, F13).
+
+    The pack said "95.5 / 0.2 / 1.4 on every ordinary sheet", and three kinds
+    of run record another: a sheet judged in absolute Lab (raw, or nobody
+    wrote the printing down), where nothing pins the paper patch; a From
+    Profile Gamut chart, whose paper is its white cube corner; and a chart
+    with no paper patch at all, where the report's "lightest patch" is simply
+    the lightest colour. Each is named with the numbers it recorded.
+    """
+    runs: "dict[str, dict]" = {}
+    for r in results:
+        pw = r.get("paper_white") or {}
+        lab = pw.get("lab")
+        if not isinstance(lab, (list, tuple)) or len(lab) != 3:
+            continue
+        key = f"{r['project'].replace('Report-Limits-', '')}/{r['run']}"
+        e = runs.setdefault(key, {"r": r, "labs": {}})
+        e["labs"].setdefault(tuple(round(float(v), 2) for v in lab),
+                             []).append(str(r["date"])[:10])
+    same = 0
+    out: "list[str]" = []
+    for key in sorted(runs, key=lambda k: (k.split("/")[0],
+                                           int(k.split("run")[-1] or 0))):
+        e = runs[key]
+        r, labs = e["r"], e["labs"]
+        seen = "; ".join(f"{L:.2f} / {a:.2f} / {b:.2f} on "
+                         + ", ".join(ds) for (L, a, b), ds in labs.items())
+        if not r.get("has_paper_patch", True):
+            (L, a, b), = list(labs)[:1] or [(0.0, 0.0, 0.0)]
+            kind = "grey" if math.hypot(a, b) < 2.0 else "colour"
+            out.append(f"{key}: this chart has no paper patch, so its 'paper "
+                       f"white' is the lightest patch, an L* {L:.0f} {kind} "
+                       f"({seen}).")
+        elif r.get("chart") == "gamut":
+            out.append(f"{key}: a From Profile Gamut chart. Its paper is the "
+                       f"chart's white cube corner, put on the chart's own aim "
+                       f"and moved toward yellow by the date's designed paper "
+                       f"difference: {seen}.")
+        elif all(max(abs(x - p) for x, p in zip(k, PAPER_LAB)) <= 0.1
+                 for k in labs):
+            same += 1
+        elif r.get("print") in ("raw", "none"):
+            why = ("printed raw" if r.get("print") == "raw"
+                   else "nobody recorded how it was printed")
+            out.append(f"{key}: {why}, so it is judged in absolute Lab and "
+                       f"nothing pins the paper patch; it carries the date's "
+                       f"designed difference like every other patch: {seen}.")
+        else:
+            out.append(f"{key}: {seen}.")
+    head = (f"The paper as printed, {PAPER_LAB[0]:.1f} / {PAPER_LAB[1]:.1f} / "
+            f"{PAPER_LAB[2]:.1f} (within 0.1), on every date of {same} "
+            f"{'run' if same == 1 else 'runs'}. "
+            f"The others, and why:")
+    return [head] + out
+
+
+def _multi_type_count(line: str) -> int:
+    """How many report types one `multi_type_runs` line names."""
+    return len(line.split(": ", 1)[1].split("), ")) if ": " in line else 0
+
+
+def _richest_multi_type_run(multi: "list[str]") -> str:
+    """The run name of the `multi_type_runs` line naming the most types."""
+    best = max(multi, key=lambda ln: (_multi_type_count(ln),
+                                      -multi.index(ln)))
+    return best.split(": ", 1)[0]
 
 
 def coverage(dest: Path, results: list) -> dict:
@@ -4112,18 +4349,34 @@ UNREACHABLE_BY_DATA = {
     "no_reference": "A measurement with no reference at all, which a chart "
                     "built by ChromIQ always has. It is the state of a loose "
                     "file whose chart nobody can find.",
-    "no_corners": "The paper and solid rows are computable only against a "
-                  "colorimetric reference, which is the same unbuilt reader "
-                  "as above.",
+    # Round 3B, F22: this said "the same unbuilt reader as above", and the
+    # reader is built (a From Profile Gamut chart's colorimetric reference).
+    "no_corners": "A chart with a colorimetric reference that lacks one of "
+                  "the eight cube corners. Every From Profile Gamut chart "
+                  "ChromIQ builds declares all eight, and an ordinary chart "
+                  "gives needs_reference_file instead, so no project here "
+                  "reaches it.",
     "no_greys": "A chart with no neutral patch at all. Every chart targen "
                 "builds has white and black, which are neutral, so this "
                 "cannot be produced by asking for fewer grey steps; it would "
                 "need a chart edited by hand into something no printer "
                 "workflow makes.",
+    # Round 3B, F22/F27: "the same again" pointed at an entry printed BELOW it
+    # (the list is alphabetical), and the pack's own demo presets reach both.
     "no_white": "A grey ramp whose lightest step is below 90. targen always "
-                "puts paper white in the chart, so the same applies.",
-    "no_black": "A grey ramp whose darkest step is above 10. The same again, "
-                "from the other end.",
+                "puts paper white in a chart, so no project here reaches it; "
+                "the R06 FAIL demo preset (the lightest neutral at 89.9) "
+                "builds a chart that does.",
+    "no_black": "A grey ramp whose darkest step is above 10. targen always "
+                "puts black in a chart, so no project here reaches it; the "
+                "R07 FAIL demo preset (the darkest neutral at 10.1) builds a "
+                "chart that does.",
+    # Round 3B, F26: credited to a verification date, where the window greys
+    # the Printing record out.
+    "record_type": "A verification may not be a Printing record, and a "
+                   "profiling sheet's own Printing record says not_graded "
+                   "instead, so nowhere in this package shows it. Open a "
+                   "loose .ti3 or a calibration and choose Printing record.",
     "not_computed": "A saved report with no grey block at all, which is what "
                     "a ChromIQ older than those rows wrote. This package "
                     "cannot carry one on purpose: such a report is now "
@@ -4486,10 +4739,11 @@ def message_coverage(dest: Path) -> dict:
     from workflow.compliance_sets import (SUMMARY_REASONS, row_verdict,
                                           set_summary)
     from workflow import measurement_report as _mr
-    from workflow.measurement_report import (REPORT_TYPE_MENU, row_values)
+    from workflow.measurement_report import (REPORT_TYPE_MENU,
+                                             report_types_for_kind, row_values)
     from workflow.run_compliance import run_limits
 
-    builts = [tid for tid, _n, _b, built in REPORT_TYPE_MENU if built]
+    builts =[tid for tid, _n, _b, built in REPORT_TYPE_MENU if built]
     where_sentence: "dict[str, str]" = {}
     where_reason: "dict[str, str]" = {}
     for pd in sorted(dest.glob("Report-Limits-*")):
@@ -4508,7 +4762,13 @@ def message_coverage(dest: Path) -> dict:
                 date = (rep_path.parent.parent.name
                         if rep_path.parent.parent != rd else "profiling")
                 at = f"{short}/{rd.name}/{date}"
-                for tid in builts:
+                # ONLY THE TYPES THIS MEASUREMENT'S KIND MAY HAVE (round 3B,
+                # F26). Every built type used to be tried on every report, so
+                # the Printing record's own sentence was credited to a
+                # verification date, where the window greys that type out.
+                kind = KIND_PROFILING if date == "profiling" else KIND_VERIFICATION
+                allowed = set(report_types_for_kind(kind))
+                for tid in (t for t in builts if t in allowed):
                     got = _crossed_rows(rep, limits, row_values, row_verdict,
                                         set_summary, tid, set_id)
                     where_sentence.setdefault(got["reason"], at)
@@ -4573,6 +4833,11 @@ def type_set_coverage(dest: Path) -> dict:
             seen_types.add(tid)
             seen_sets.add(lim.set_id)
             counts = generated_report_types(run)
+            # A TYPE A RUN HOLDS ON DISK IS PRODUCED, whether or not it is the
+            # run's standing choice (round 3B, F21): every run's profiling
+            # sheet holds a Printing record, and this table said "no run
+            # produces it" because it looked only at the verification type.
+            seen_types.update(counts)
             if len(counts) > 1:
                 multi.append(name + ": " + ", ".join(
                     f"{report_type_name(t)} ({n})"
@@ -4602,9 +4867,12 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("TWO WAYS IN, AND THE FIRST IS USUALLY THE RIGHT ONE")
     a("---------------------------------------------------")
     a("")
+    # THE APP'S OWN LABELS, not a paraphrase (round 3B, F28): the window is
+    # "ChromIQ Preferences", the tab "Paths", the field "Default output folder".
     a("1. DOWNLOAD this folder as the zip attached to the beta release, unzip")
-    a("   it anywhere, and point ChromIQ at it: Settings, output folder, pick")
-    a(f"   the unzipped folder. All {_WORDS.get(len(PROJECTS), len(PROJECTS))} "
+    a("   it anywhere, and point ChromIQ at it: open ChromIQ Preferences,")
+    a("   Paths, and set 'Default output folder' to the unzipped folder.")
+    a(f"   All {_WORDS.get(len(PROJECTS), len(PROJECTS))} "
       f"projects then appear in the project")
     a("   list. Nothing inside a project names a folder on the machine that")
     a("   built it, so it opens the same wherever it lands.")
@@ -4658,7 +4926,10 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("once two conditions are both true: the set has been copied onto the run")
     a("by a first verification measurement, and the run has at least TWO dated")
     a("verifications. One measurement is not yet a history, so at that point")
-    a("the set can still be chosen. The lock can also be lifted by hand.")
+    a("the set can still be chosen. The lock can also be lifted by hand, once")
+    a("ChromIQ Preferences, Reports, 'Allow editing of thresholds after the")
+    a("first verification measurement' is ticked; on a fresh install it is")
+    a("not, and the report window's 'Unlock this run's limits' is greyed.")
     a("")
     a("Every line below was read back from the built projects with the app's")
     a("own is_locked(), not copied from the plan that asked for it.")
@@ -4702,6 +4973,14 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("before beta 36 read through ArgyllCMS's sRGB display profile in its")
     a("absolute mode: every sheet's white was the D65 white, which is a light")
     a("BLUE paper (b* about -19) when ChromIQ reads it under D50.")
+    a("")
+    a("THE PAPER WHITE EACH REPORT RECORDS is the lightest patch on the")
+    a("sheet. On a chart that has a paper patch, that patch is the one it")
+    a("takes on every date: the build refuses a date on which it is not.")
+    a("")
+    for _line in paper_white_lines(results):
+        for _i, chunk in enumerate(_wrap(_line, 68)):
+            a(("  " if _i == 0 else "      ") + chunk)
     a("")
     a("THE SAVED REPORTS, AND HOW THE WINDOW NAMES THEM")
     a("-----------------------------------------------")
@@ -4777,8 +5056,9 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("THE TWO READ-ONLY ISO COLUMNS ARE NOT IN THIS TABLE AND CANNOT BE. The")
     a("tolerance values of ISO 12647-7:2016 and ISO 12647-8:2021 are not in")
     a("ChromIQ, so every cell of both columns reads '?', neither column has a")
-    a("limit-bearing row, and the report window does not offer either. No")
-    a("measurement can make it offer them.")
+    a("limit-bearing row, and, unless you have pointed ChromIQ at your own")
+    a("figures file, the report window does not offer either. No measurement")
+    a("can make it offer them.")
     a("")
     _by_set: dict = {}
     for c in _cells:
@@ -4789,24 +5069,31 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
         a(f"{_SBI[sid].label}  ({len(_rows)} judged rows)")
         for c in sorted(_rows, key=lambda x: x["row"]):
             _mark = "  " if c["complete"] else "!!"
-            a(f"  {_mark} {ROW_TITLES.get(c['row'], c['row'])[:60]}")
+            # THE WHOLE NAME (round 3B, F2): a `[:60]` here printed
+            # "largest lightness differen" five times.
+            a(f"  {_mark} {ROW_TITLES.get(c['row'], c['row'])}")
             a(f"        over   {c['over'] or '(never)'}")
             a(f"        inside {c['inside'] or '(never)'}")
         a("")
-    a("HOW THE THREE CHROMIQ COLUMNS COME TO JUDGE SIXTEEN ROWS")
-    a("-------------------------------------------------------")
-    a("")
     from workflow.compliance_sets import (effective_limits as _eff,
                                           limit_bearing as _lb)
     _n_chromiq = len(_lb(_eff("chromiq_default", {})))
     _n_custom = len(_lb(_eff("custom_iso_12647_7", {})))
+    # THE NUMBER IN THE HEADING IS THE ONE THE PARAGRAPH UNDER IT COMPUTES
+    # (round 3B, F1): it was typed as SIXTEEN above a paragraph saying 18.
+    _head = (f"HOW THE THREE CHROMIQ COLUMNS COME TO JUDGE ALL {_n_custom} "
+             f"ROWS")
+    a(_head)
+    a("-" * len(_head))
+    a("")
     a("As shipped, ChromIQ default, ChromIQ tight and Quick check put a number")
     a(f"on {_n_chromiq} of the {_n_custom} judgeable rows: the five")
     a("colour-difference rows, the grey pair, and ChromIQ's own two")
     a("repeatability rows. The two Custom columns put one on all of them.")
     a("")
     a("The runs of Report-Limits-Every-Limit-Set that are bound to a ChromIQ")
-    a("column carry the other nine in the RUN'S OWN COPY of the limits, in")
+    a(f"column carry the other {_n_custom - _n_chromiq} in the RUN'S OWN COPY "
+      f"of the limits, in")
     a("runs/runN/meta.json, which is exactly the state a user is in after")
     a("typing them into the Report limits window. Nothing was invented for it:")
     a("effective_limits() accepts an override on any row whose status is not")
@@ -4817,7 +5104,8 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("")
     a("If you pick a different set in the 'Judged against' pulldown on one of")
     a("those runs, ChromIQ re-binds the run to that set's own numbers and the")
-    a("nine typed-in limits are gone. That is correct behaviour and not a")
+    a(f"{_n_custom - _n_chromiq} typed-in limits are gone. That is correct "
+      f"behaviour and not a")
     a("fault in the package; regenerate it, or unzip a fresh copy, to get them")
     a("back.")
     a("")
@@ -4869,33 +5157,35 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("WHAT A CLEAN VERDICT HERE DOES NOT PROVE")
     a("----------------------------------------")
     a("")
-    a(f"{str(_WORDS.get(len(_cov['shipped_judged']), len(_cov['shipped_judged']))).capitalize()} "
-      f"rows of the report can be judged by a SHIPPED limit set")
-    a("today: the five all-patch colour differences and the two grey-balance")
-    a("rows. An edited column can judge one more, which is what")
-    a("Isolated-Rows/run5 is for, and that is why the count below is larger.")
-    a("")
-    a("The other rows in the table are there and are honest, but no limit set")
-    a("this ChromIQ ships puts a number on them, so they never carry a verdict")
-    a("and this data cannot make them cross:")
-    a("")
-    for rid, row in ROW_BY_ID.items():
-        if rid in ROW_TITLES:
-            continue
-        why = {"ref": "needs a reference file for the printing condition",
-               "unknown": "the limit is in a clause ChromIQ does not hold",
-               "unmeasurable": row.note or "ChromIQ cannot measure it",
-               "build": "computed, but no shipped set puts a limit on it",
-               "now": "computed, but no shipped set puts a limit on it",
-               }.get(row.status, row.status)
-        a(f"  {row.label}: {why}")
-    a("")
-    a(f"So a green column in these projects means the "
-      f"{_WORDS.get(len(_cov['judged']), len(_cov['judged']))} judged rows")
-    a("passed, counting the row an edited column adds. Both numbers in this")
-    a("section are computed from the sets themselves; one of them used to be")
-    a("typed, and the two disagreed.")
-    a("It does not mean the rest were checked.")
+    # REWRITTEN FROM THE SETS (round 3B, F24). It named seven rows under a
+    # count of nine, promised a list of rows "no shipped set puts a number on"
+    # and printed none (the two Custom columns number every one), and ended
+    # "the 18 judged rows passed, counting the row an edited column adds".
+    from workflow.compliance_sets import (SET_BY_ID as _SBI2,
+                                          effective_limits as _eff2,
+                                          limit_bearing as _lb2)
+    _ship = _cov.get("shipped_judged") or []
+    _n_ship = _WORDS.get(len(_ship), len(_ship))
+    _n_cust = len(_lb2(_eff2("custom_iso_12647_7", {})))
+    _chromiq_labels = ", ".join(_SBI2[s].label.split(" (")[0]
+                                for s in ("chromiq_default", "chromiq_tight",
+                                          "chromiq_quick"))
+    for chunk in _wrap(
+            f"{str(_n_ship).capitalize()} rows can be judged by "
+            f"{_chromiq_labels} as they ship: the five all-patch colour "
+            f"differences, the two grey-balance rows and ChromIQ's two "
+            f"repeatability rows. The two Custom columns judge all "
+            f"{_n_cust}. A green column means the rows its own set judges "
+            f"passed; it does not mean the rest were checked.", 70):
+        a(chunk)
+    _never = [row.label for rid, row in ROW_BY_ID.items()
+              if not any(rid in _lb2(_eff2(sid, {})) for sid in _selectable())]
+    if _never:
+        a("")
+        a("These rows carry a number in no limit set ChromIQ offers, so they")
+        a("never carry a verdict and no data can make them cross:")
+        for _lbl in _never:
+            a(f"  {_lbl}")
     a("")
     _forced = _forced_pairs()
     _n = _WORDS.get(len(_forced), str(len(_forced)))
@@ -5013,8 +5303,13 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
         for what in missing:
             a(f"  {what}")
     else:
-        a("Every document ChromIQ can produce, and every limit set it offers,")
-        a("is the standing choice of at least one run above.")
+        # A TYPE IS COVERED WHEN A RUN HOLDS ONE (F21), and the Printing
+        # record is held by every run's profiling sheet while being no run's
+        # standing choice, so the sentence says the two things apart.
+        a("Every document ChromIQ can produce is held by at least one run, and")
+        a("every limit set it offers is the standing choice of at least one run")
+        a("above. The Printing record is every run's PROFILING report and no")
+        a("run's standing choice, because a verification may not have one.")
     a("")
     _cids = _cov.get("custom_ids") or []
     if _cids:
@@ -5033,19 +5328,36 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
         a("")
         _tot = _cov.get("custom_total", 0)
         _fill = _cov.get("custom_fillable", 0)
-        a(f"  Each column puts a limit on {_tot} rows. A ChromIQ verification")
-        a(f"  chart can fill {_fill} of them. The other {_tot - _fill} need a")
-        a("  reference measurement of the printing condition, which ChromIQ")
-        a("  cannot read yet, so they are N-A on every date:")
+        # WHERE THE OTHER ROWS ARE JUDGED, read off the results (round 3B,
+        # F22): this said "N-A on every date" while the same README showed
+        # them crossing on the From Profile Gamut charts under both columns.
+        _gamut_custom = sorted(
+            {f"{r['project'].replace('Report-Limits-', '')}/{r['run']}"
+             for r in results
+             if str(r.get("set_id", "")).startswith("custom_")
+             and r.get("chart") == "gamut"},
+            key=lambda x: (x.split("/")[0], int(x.split("run")[-1] or 0)))
+        _where = (", ".join(_gamut_custom[:-1]) + " and " + _gamut_custom[-1]
+                  if len(_gamut_custom) > 1 else
+                  (_gamut_custom[0] if _gamut_custom else ""))
+        a(f"  Each column puts a limit on {_tot} rows. On an ordinary")
+        a(f"  verification chart {_fill} of them can be filled; the other")
+        a(f"  {_tot - _fill} need the aim values a From Profile Gamut chart")
+        a("  carries, so they are N-A on both runs of this project:")
         for _lbl in _cov.get("custom_unfillable", []):
             a(f"      {_lbl}")
+        if _where:
+            for chunk in _wrap(f"They are judged, over and inside, under the "
+                               f"same columns on a From Profile Gamut chart: "
+                               f"{_where}.", 64):
+                a(f"  {chunk}")
         a("")
         a("  A row that could not be checked does not count against the")
         a("  column, so the word moves FAIL to PASS across these runs while")
         a("  those rows stay N-A. What qualifies that PASS is the NOTE beside")
-        a("  it: the figures are a standard's applied to the chart YOU")
-        a("  printed, so a result inside them is an indication that the print")
-        a("  would likely meet the standard and not proof that it does.")
+        a("  it: the figures are ChromIQ's placeholders under a standard's")
+        a("  name, applied to the chart YOU printed, so a result inside them")
+        a("  says nothing about the standard.")
         a("")
         if _cov.get("custom_same_numbers"):
             a("SECOND: on every row that carries a NUMBER, the two columns are")
@@ -5228,7 +5540,7 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
         if e["at"]:
             a(f"      seen at: {e['at']}")
         elif e["why_not"]:
-            a("      NOT REACHABLE BY ANY DEMO DATA:")
+            a("      NOT REACHED BY ANY PROJECT HERE:")
             for chunk in _wrap(e["why_not"], 62):
                 a(f"        {chunk}")
         else:
@@ -5241,7 +5553,7 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
         if e["at"]:
             a(f"  {e['code']:<24} seen at: {e['at']}")
         elif e["why_not"]:
-            a(f"  {e['code']:<24} NOT REACHABLE BY ANY DEMO DATA")
+            a(f"  {e['code']:<24} NOT REACHED BY ANY PROJECT HERE")
             for chunk in _wrap(e["why_not"], 62):
                 a(f"      {chunk}")
         else:
@@ -5259,9 +5571,22 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("  a sheet printed raw and read as a drift check, whose column says")
     a("      'drift' and carries no verdict at all: Border-Conditions, run3")
     a("")
-    a("One run also holds saved reports of more than one type, because a user")
-    a("may want more than one document from one measurement, and the window")
-    a("counts them off the disk:")
+    _multi = _cov.get("multi_type_runs", []) or []
+    _all_runs = len(_cov.get("type_set_rows", []) or [])
+    if _multi and len(_multi) == _all_runs:
+        _rich = _richest_multi_type_run(_multi)
+        _nrich = next(_multi_type_count(ln) for ln in _multi
+                      if ln.startswith(_rich + ": "))
+        a("Every run holds saved reports of more than one type: its profiling")
+        a("measurement's Printing record and its verifications' type. "
+          f"{_rich}")
+        a(f"holds {_WORDS.get(_nrich, _nrich)}, because a user may want more "
+          f"than one document from one")
+        a("measurement. The window counts them off the disk:")
+    else:
+        a("These runs hold saved reports of more than one type, because a")
+        a("user may want more than one document from one measurement, and the")
+        a("window counts them off the disk:")
     a("")
     for line in _cov.get("multi_type_runs", []) or ["  (none)"]:
         a(f"  {line}")

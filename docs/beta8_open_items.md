@@ -24988,8 +24988,56 @@ would reach.
 - F4 German names one thing three ways in one group box ("Vorgaben",
   "Voreinstellungen:", "Presets"): Basti's call.
 - F30 the demo runs' descriptions state the lock state in English at build
-  time, and go stale when a user lifts a lock (demo pack).
+  time, and go stale when a user lifts a lock (demo pack). FIXED in B8-807.
 - evidence: none yet, it is open. Photographs in the round's report folder.
+
+### B8-807 · FIXED · Round 3B: the demo pack proved a paper-white FAIL on a yellow patch, and its README contradicted itself
+- blocks release: no
+- status: FIXED
+- found by: adversary round 3B, 2026-09-23 (report as B8-805). Fixed in the
+  generator, `scripts/make_report_limit_demos.py`; the README is generated.
+  Rebuilt pack and on-screen proof: `~/Desktop/ChromIQ-beta36-proof/demo-pack-r3b/`
+  and `~/Desktop/ChromIQ-beta36-proof/B8-807-demo-pack/`.
+- F13 Every-Limit-Set/run6 2028-05-12 designed the paper 9.0 off its reference
+  by lowering L* (0.3 per unit of b*), the paper fell under a saturated yellow
+  (patch 208, L* 97.14), and the report recorded the yellow as paper white.
+  The paper now drifts toward yellow at constant L*, and the build refuses any
+  date, and any profiling sheet, whose recorded paper white is not the chart's
+  paper patch. The README names every run whose recorded paper is not the
+  pack's paper and why: absolute-Lab sheets (Border-Conditions run2, run3),
+  From Profile Gamut charts (the white corner), and Strip-And-Gamut run4,
+  which has no paper patch, so its "paper white" is an L* 82 grey.
+- F12 the pack's charts carried no Create Chart settings, so the verification
+  chart opened on the app's defaults (i1Pro, the layout engine, its clip
+  border) and the tab warned that a 22 mm clip band runs over a printtarg
+  sheet that has none. Each chart's store now records how it was made
+  (printtarg, ColorMunki, its paper, 150 dpi, no clip content), and printtarg
+  gets -M6 as the app passes it, so the page spans the sheet.
+- F1 heading "JUDGE SIXTEEN ROWS" over a paragraph saying 18: computed. F2 row
+  names were cut at 60 characters. F24 the clean-verdict section named seven
+  rows under a count of nine and printed an empty list. F21 "Printing record:
+  no run produces it" (every run's profiling sheet has one). F22 the Custom
+  columns' reference rows were "N-A on every date" while the same README
+  shows them judged on From Profile Gamut charts; no_corners blamed an
+  "unbuilt reader". F23 "the figures are a standard's". F25/F14 the several-
+  types line and index pointed at a run holding two types; Report-Types run1
+  holds four. F26 record_type was credited to a verification date. F27
+  no_white/no_black "not reachable" while the R06/R07 FAIL presets reach them.
+  F28 "Settings, output folder" and a lock "lifted by hand" named without the
+  Preference that allows it. F29 the ISO columns sentence held only without a
+  user's own figures file. F30 run descriptions keep only the story.
+- not changed: the app's own Overall sentence for a Custom column ("This limit
+  set holds a standard's published values...") is Knut's §M text (F23), and a
+  chart with no paper patch still records its lightest patch as paper white
+  (B8-806, app side).
+- evidence:
+  test_a_paper_white_on_a_colour_patch_stops_the_build
+  test_the_paper_moves_toward_yellow_and_keeps_its_lightness
+  test_the_readme_explains_every_paper_that_is_not_the_pack_s
+  test_a_pack_chart_records_the_settings_it_was_made_with
+  test_the_judge_all_heading_is_computed
+  test_a_row_name_is_printed_whole
+  test_a_run_description_carries_the_story_only
 
 ### B8-808 · FIXED · K18: report text spoke to a ChromIQ user, and explained ChromIQ's past, to a reader who may be a customer
 - blocks release: no
