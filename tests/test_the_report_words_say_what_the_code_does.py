@@ -242,10 +242,17 @@ def test_a_missed_recommendation_reads_fail_not_cond():
 
 def test_cond_is_still_an_overall_word():
     """It is retired as a ROW word and nothing else, so a guard that simply
-    banned it would be wrong. An ISO-named column is COND at best."""
-    from workflow.compliance_sets import COND, Limit, PASS, set_summary
-    s = set_summary([(Limit.value(2.0), PASS, "row0")],
-                    set_is_iso=True, graded=True)
+    banned it would be wrong.
+
+    The example used to be an ISO-named column, which was capped at COND.
+    Knut retired that cap on 2026-09-22, so the one way in that is left is a
+    report saved before 4.3.0 whose rows still carry the word: `set_summary`
+    reports the column it sits in as COND, which is what an old report has
+    always shown and what the app still has to explain.
+    """
+    from workflow.compliance_sets import COND, Limit, set_summary
+    s = set_summary([(Limit.should(1.5), COND, "row0")],
+                    set_is_iso=False, graded=True)
     assert s.word == COND
 
 
@@ -274,13 +281,14 @@ COND_IS_ALLOWED_TO_APPEAR_HERE: "dict[str, str]" = {
     # CORRECTED BY CHALLENGE ROUND 33 (B8-712). This entry stated the
     # arithmetic Knut's N-A ruling deleted, and the round that fixed the other
     # four COND strings pinned it here as innocent.
-    "the glossary entry for Overall, where the word does belong":
-        "The one word for a whole dated check, worked out from its rows: any "
-        "FAIL makes it FAIL; an ungraded sheet is INFO; a row your chart "
-        "could not answer is not counted as a failure; otherwise PASS. A "
-        "column judged against one of the ISO-named sets can never read "
-        "better than COND, because those numbers are being applied to your "
-        "chart rather than to the standard's own.",
+    # THE GLOSSARY'S "Overall" ENTRY IS NO LONGER IN THIS REGISTER, and its
+    # absence is the record of a change rather than an oversight. It was here
+    # because it said an ISO-named column "can never read better than COND".
+    # Knut retired that cap on 2026-09-22, the sentence was rewritten to say
+    # such a column reads PASS or FAIL like any other, and the entry stopped
+    # naming COND at all -- so `_cond_keys()` no longer returns it and a
+    # register of COND strings is the wrong place to pin it. What it says now
+    # is guarded by `test_a_custom_iso_column_carries_the_same_caveat.py`.
     "the Getting Started card's result words":
         "Each row reads PASS when it is inside its limit and FAIL when it is "
         "not, INFO when the set puts no limit on that row, and N-A when your "
@@ -292,16 +300,16 @@ COND_IS_ALLOWED_TO_APPEAR_HERE: "dict[str, str]" = {
     # CORRECTED BY CHALLENGE ROUND 33 (B8-712). Its first half said a column
     # is COND when "it holds rows this chart could not supply", four lines
     # above the paragraph that says such a row "is not counted as a failure".
-    "the report window's own guide, rewritten 2026-09-21":
-        "COND (short for conditional): a column's Overall word when nothing "
-        "failed but the column's values are a standard's applied to your "
-        "chart rather than to that standard's own. A row this chart could "
-        "not answer does not make a column COND: it is not counted as a "
-        "failure. Rows do not use this word. A report saved before ChromIQ "
-        "4.3.0 may still show it on a row, where it meant a value over a "
-        "limit the set recommended rather than required; such a row reads "
-        "FAIL today and carries a numbered note saying the metric is a "
-        "recommendation.",
+    "the report window's own guide, rewritten 2026-09-22":
+        "COND (short for conditional): a column's Overall word, and one only "
+        "a report saved before ChromIQ 4.3.0 can still reach. Such a report "
+        "may hold COND on a row, where it meant a value over a limit the set "
+        "recommended rather than required, and a column holding such a row "
+        "reads COND too. Nothing measured today is judged that way: the "
+        "value reads FAIL and carries a numbered note saying the metric is a "
+        "recommendation. Rows do not use this word, and a row this chart "
+        "could not answer does not make a column COND either: it is not "
+        "counted as a failure.",
     "the tooltip on a COND cell a saved report still carries":
         "CONDITIONAL: this report was saved by an earlier ChromIQ, where a "
         "value over a limit the set recommended rather than required read "
@@ -316,8 +324,10 @@ COND_IS_ALLOWED_TO_APPEAR_HERE: "dict[str, str]" = {
 COND_INSIDE_A_LONG_HELP_TEXT: "dict[str, str]" = {
     "the Measurement Report window's Help":
         "with the column's Overall word, which may also read COND",
-    "the limits window on what an ISO-named column can read":
-        "so their Overall reads COND at best",
+    # THE ISO CAP IS RETIRED, so the clause that named it is gone from the
+    # paragraph entirely and there is no COND left in it to pin. What the
+    # paragraph now says instead is guarded by
+    # `tests/test_a_custom_iso_column_carries_the_same_caveat.py`.
 }
 
 

@@ -22664,7 +22664,7 @@ would reach.
   strings, and a new guard sweeps every extracted key and every catalogue for
   the two clauses the ruling killed.
 - evidence: test_no_absence_anywhere_makes_a_column_conditional,
-  test_and_the_two_causes_that_do_remain_still_reach_it,
+  test_and_the_one_cause_that_does_remain_still_reaches_it,
   test_no_user_facing_string_teaches_the_deleted_rule,
   test_no_catalogue_still_carries_the_deleted_rule;
   `glossary-overall-en.png`, `glossary-overall-de.png`,
@@ -23540,9 +23540,9 @@ would reach.
 - raised with LackiUA on #198 with this evidence, as a question and not a
   correction.
 
-### B8-760 · OPEN · Dropping the ISO COND cap removes the mechanism that kept a licensing promise
+### B8-760 · FIXED · The ISO COND cap is retired, and the caveat now carries the whole promise
 - blocks release: no
-- status: OPEN
+- status: FIXED
 - **RULED BY KNUT 2026-09-22: the cap goes.** *"Implement this. The note is
   sufficient. Most users are just interested in knowing if the measurements
   passed against the criteria set, and we do not supply charts that are defined
@@ -23577,9 +23577,103 @@ would reach.
 - and it must obey his other ruling of the same day: **no report text explains
   how to use ChromIQ.** The caveat says what a result means, not what to press,
   so it is within the rule.
-- NOT started here: beta 32 is the translation sweep, and a verdict change that
+- was NOT started in beta 32: beta 32 is the translation sweep, and a verdict change that
   touches a licensing promise does not belong in the same change set as a
   language pass. It is the next stream, with its own rounds.
+- **FIXED 2026-09-22.** `set_summary`'s `if set_is_iso: return Summary(COND,
+  ...)` is gone; such a column now reads PASS or FAIL for the metrics that
+  ran, and `STANDARD_CAVEAT` carries what the word used to. Verified by
+  measurement, not by reading: ISO column all pass -> PASS; pass plus N-A ->
+  PASS with the "values not checked are listed below" sentence; a FAIL -> FAIL.
+- **the caveat is widened to Knut's own three statements**: the chart is not
+  the standard's chart, the metrics are ChromIQ's own rather than the
+  standard's methods, and a result inside the limits is an indication that the
+  print would likely meet the standard and **not proof that it does**. It is
+  printed below the results table for EVERY column applying a standard,
+  whatever its word, live or saved, and it reaches the PDF as well as the
+  window (the two places this project has already got that wrong).
+- **FOUR user-facing strings taught the cap and all four are rewritten**: the
+  report window's guide (its COND bullet and its standards paragraph), the
+  Getting Started glossary's "Overall (verdict)" entry, and the caveat itself.
+  Swept with the extractor rather than fixed one at a time, because the last
+  time this class of string was corrected, three of four were found and the
+  fourth was pinned in a register as innocent.
+- **AND THE COND CLAUSE HAD TO MOVE ABOVE THE ISO ONE.** Found by reading the
+  branch after the cap came out: every `iso*` sentence ends "all within this
+  limit set's values", so an ISO column holding a row that a pre-4.3.0 report
+  saved as COND would have been handed PASS under a sentence denying that row
+  exists. The cap had been hiding it. `set_summary` now answers the cond case
+  first, which is what the non-ISO branch always did.
+- evidence: test_every_row_within_its_limit_reads_PASS_and_still_carries_the_caveat,
+  test_the_caveat_says_it_is_not_proof,
+  test_no_user_facing_string_still_teaches_the_retired_cap,
+  test_the_glossary_says_what_replaced_it,
+  test_and_the_one_cause_that_does_remain_still_reaches_it,
+  test_the_caveat_is_in_the_report_body_and_the_pdf
+- mutation-proved, three of them, each red alone and the file green again
+  after: strip the caveat clause from the `iso` reason (8 failed); put "reads
+  COND at best" back into the report guide (1 failed, naming the string); delete
+  the glossary's replacement clause (1 failed).
+- the binding spec is updated with his ruling quoted:
+  `docs/design/measurement_report_limits.md`, the paragraph that used to end
+  "so their Overall reads COND at best".
+
+### B8-767 · FIXED · Before printing, nothing said what the report does with a metric the chart cannot answer
+- blocks release: no
+- status: FIXED
+- asked by Knut, 2026-09-22, in the same conversation as B8-760: a report that
+  judges metrics which cannot be calculated carries a warning for each of
+  them, and the reader should be told, before anything is printed, that those
+  metrics can be switched off in Report limits by setting the threshold to
+  "-", so that what is handed to a customer holds only the metrics that were
+  actually checked.
+- new user-facing text, so it is **M-VERIFY-UNCHECKED-METRICS**, §M-PROPOSED,
+  `approved=False`, named in `AWAITING_APPROVAL` and in the document's
+  revision note. His request; not his wording.
+- shown in the two windows he named, and in both only where the chart really
+  is short of something: the verification pre-flight (under its metric list)
+  and "Which presets can be used for verification" (under the "This chart
+  cannot answer" list). A paragraph about rows that will read N-A, on a chart
+  where none will, would sit directly under this window's own sentence saying
+  the chart answers everything.
+- **it may name a control, and report text may not.** Knut's other ruling of
+  the same day is that no report text explains how to use ChromIQ. Neither of
+  these windows is report text: both exist to help somebody decide what to
+  print, which is the whole reason they name the lever.
+- **THE LEVER HAS TWO OUTCOMES AND THE FIRST DRAFT PROMISED ONE.** Measured on
+  the real `row_verdict`, one row, both states: a metric the chart cannot
+  answer reads N-A with a numbered note while its threshold is a number and
+  gets **no word at all** once it is "-", so its row is not drawn; a metric the
+  chart CAN answer reads INFO with "-", so its row IS drawn, with the number
+  and no verdict. "-" removes the row only in the case Knut is asking about.
+  The text says both, and the guard measures both rather than trusting it.
+- evidence: test_the_lever_really_does_what_the_message_promises,
+  test_the_message_states_both_outcomes_and_names_the_window,
+  test_the_preset_window_prints_it_under_a_chart_that_falls_short,
+  test_and_never_under_a_chart_that_falls_short_of_nothing
+
+### B8-768 · FIXED · A report can mix sheets with different patch counts and said nothing about it
+- blocks release: no
+- status: FIXED
+- asked by Knut, 2026-09-22: where the selected measurements come from charts
+  with different patch counts, the report carries a plain warning that judged
+  metrics may differ slightly for that reason and that it shows in the trend
+  graphs. **"Not an error"** are his words.
+- new user-facing text, so it is **M-REPORT-PATCH-COUNTS-DIFFER**,
+  §M-PROPOSED, `approved=False`.
+- `report_scope` returns it under a new `notes` key rather than appending it to
+  `warnings`, and that is the whole design decision: `_scope_warnings_html`
+  paints everything it is handed in the report's FAIL colour under the word
+  "Warning". A note about a legitimate mixture of charts, printed red, would
+  say the opposite of what he asked for, and nothing in the rendering would
+  have had to change for that to happen.
+- the counts are named in COLUMN order and de-duplicated, so the sentence
+  matches what a reader meets across the table, and a sheet with no recorded
+  count (a report saved before ChromIQ recorded one) is not a second count.
+- evidence: test_two_patch_counts_make_one_note_in_column_order,
+  test_a_sheet_with_no_recorded_count_is_not_a_second_count,
+  test_the_note_is_never_appended_to_the_red_warning_block,
+  test_the_rendered_note_carries_the_counts_and_is_not_the_fail_colour
 
 ### B8-761 · VERIFIED · Manual already reaches the Guided stamp result on a CR30, and needs no new options
 - blocks release: no

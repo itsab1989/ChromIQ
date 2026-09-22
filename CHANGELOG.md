@@ -1,5 +1,43 @@
 # Changelog
 
+## v4.3.0-beta.35
+
+**A column named after a standard now reads PASS or FAIL, and the note says
+what that PASS is.**
+
+### Changed
+
+- **An ISO-named column is no longer held at COND.** It reads PASS or FAIL for
+  the metrics that ran, like every other column. Knut's ruling: most people
+  want to know whether the measurements passed the criteria they chose, and
+  the note is sufficient to say the rest.
+
+- **That note now says the rest, in full.** A limit set named after a standard
+  holds that standard's published values applied to *your* chart: the chart is
+  not the standard's chart, the metrics are ChromIQ's own rather than the
+  standard's methods, and a result inside the limits is an indication that the
+  print would likely meet the standard, not proof that it does. It is printed
+  under the results for every such column, in the window and in the PDF.
+
+  *(COND is still a column's word where a report saved before ChromIQ 4.3.0
+  holds it on a row. That is the only way left to it.)*
+
+### Added
+
+- **Before you print, the verification pre-flight and "Which presets can be
+  used for verification" now say what the report does with a metric your chart
+  cannot answer**: it appears reading N-A with a note, it is never judged, and
+  it can be taken out altogether by setting that metric's threshold to "-" in
+  Report limits. A row your chart cannot answer then leaves the report
+  entirely; one it can answer is shown with its number and no verdict.
+
+- **A report whose sheets do not all carry the same number of patches says
+  so.** A metric worked out over more patches is not worked out over quite the
+  same colours as the same metric over fewer, so the two can differ a little
+  for that reason alone, and it shows in the trend graphs. This is a plain
+  note, not a warning: nothing is wrong.
+
+
 ## v4.3.0-beta.34
 
 **Four faults Knut found in the pre-flight window, and a report that could
@@ -179,7 +217,9 @@ Report saying only things that are true.**
   *(Corrected 2026-09-22. This bullet first read "it remains a column's
   overall word where a set was only partly checked", which suggests that any
   metric a chart cannot answer demotes the whole result. It does not: a column
-  with one metric checked and eight not applicable still reads PASS.)*
+  with one metric checked and eight not applicable still reads PASS. Later the
+  same day Knut retired the ISO cap as well, so the one place described above
+  is gone too. See 4.3.0-beta.35.)*
 
 - **A metric that does not apply never counts against your result.** If every
   applicable metric passes, the overall word is PASS. An N-A cell carries a

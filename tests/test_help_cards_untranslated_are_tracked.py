@@ -539,6 +539,24 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-22, for Knut's retirement of the ISO COND cap and
+    # the two pieces of text he asked for in the same conversation. FOUR keys
+    # out (the report guide's COND bullet, its standards paragraph, the
+    # Getting Started glossary's Overall entry, and STANDARD_CAVEAT, all four
+    # of which taught or carried the cap) and EIGHT in (their replacements
+    # plus M-VERIFY-UNCHECKED-METRICS and M-REPORT-PATCH-COUNTS-DIFFER, a
+    # title and a body each). German is written by hand and does not move: 22
+    # before and 22 after, which is the check that the hand translation really
+    # landed rather than falling back to the English.
+    #
+    # **UKRAINIAN MOVES BY 4 AND THE OTHER ELEVEN BY 5, AND THAT IS NOT AN
+    # INCONSISTENCY.** Measured per language rather than assumed: all four
+    # departing keys were English echoes in `uk`, and only three of the four
+    # were in the others, because one of them was genuinely translated there.
+    # 8 in minus 4 counted out is +4; 8 minus 3 is +5.
+    #
+    # COUNTED with this file's own `_english_echoes`, off the tree, never the
+    # old number plus a guess, and BOTH ledgers in the same commit.
     # RE-MEASURED 2026-09-22, for Knut's ruling that the unchecked values
     # shall be listed. The ISO summary sentence is now three sentences, one
     # per case, because the promise was unconditional and a column with
@@ -815,18 +833,18 @@ _BUDGET = {
     # recorded. COUNTED with this file's own helper on the tree this commit
     # leaves behind.
     "de": 22,
-    "es": 672,
-    "fr": 673,
-    "it": 672,
-    "ja": 672,
-    "nl": 672,
-    "no": 672,
-    "pl": 672,
-    "pt": 672,
-    "ru": 671,
-    "sv": 672,
-    "zh_CN": 671,
-    "uk": 888,
+    "es": 677,
+    "fr": 678,
+    "it": 677,
+    "ja": 677,
+    "nl": 677,
+    "no": 677,
+    "pl": 677,
+    "pt": 677,
+    "ru": 676,
+    "sv": 677,
+    "zh_CN": 676,
+    "uk": 892,
 }
 
 

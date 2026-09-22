@@ -9827,7 +9827,40 @@ class MeasurementReportDialog(QDialog):
                     ).format(n=covered, total=total_known)
             out += (f"<div style='color:{_C['dim']};margin-top:6px'>"
                     + html.escape(note) + "</div>")
-        return out + self._scope_warnings_html(sc["warnings"])
+        return (out + self._scope_warnings_html(sc["warnings"])
+                + self._scope_notes_html(sc.get("notes") or []))
+
+    def _scope_notes_html(self, notes: list) -> str:
+        """Report Scope's PLAIN notes, in the dim note colour.
+
+        Separate from `_scope_warnings_html` because that method paints its
+        whole block in the FAIL colour under the word "Warning", and Knut was
+        explicit that the one note here is *"not an error"*. Keeping them in
+        two methods means a note cannot become red by being appended to the
+        wrong list.
+        """
+        if not notes:
+            return ""
+        blocks = []
+        for n in notes:
+            if n["kind"] != "patch_counts":
+                continue
+            from workflow.measurement_messages import (
+                M_REPORT_PATCH_COUNTS_DIFFER)
+            # THE COUNTS AS A SENTENCE, NOT AS A PYTHON LIST. `str(list)`
+            # would put "[1617, 918]" into a document. Plain ", " is what every
+            # other list in this file joins with (the cube-corner names, the
+            # instrument list), so it stays the same here.
+            counts = ", ".join(str(c) for c in n["counts"])
+            title, body = M_REPORT_PATCH_COUNTS_DIFFER.render(counts=counts)
+            paras = "".join("<div style='margin-top:4px'>" + html.escape(para)
+                            + "</div>" for para in body.split("\n\n"))
+            blocks.append("<div><b>" + html.escape(title) + "</b></div>"
+                          + paras)
+        if not blocks:
+            return ""
+        return (f"<div style='color:{_C['dim']};margin-top:10px'>"
+                + "".join(blocks) + "</div>")
 
     @staticmethod
     def _measurements_recorded_in(project_dir: str) -> int:
@@ -10106,17 +10139,24 @@ class MeasurementReportDialog(QDialog):
             # it already says the opposite: "a row this chart could not answer
             # is not counted as a failure". One page, two rules. What is left
             # is the clause that is still true, plus the one that says so.
+            # …AND THE SECOND HALF WENT THE SAME WAY ONE DAY LATER. The
+            # clause left standing, "the column's values are a standard's
+            # applied to your chart rather than to that standard's own", was
+            # the ISO cap, which Knut retired on 2026-09-22: such a column
+            # reads PASS or FAIL like any other now and carries the caveat as
+            # a note instead. What is left is the one cause that survives,
+            # which is a report saved before 4.3.0 holding the word on a row.
             "<li>" + html.escape(tr(
-                "COND (short for conditional): a column's Overall word when "
-                "nothing failed but the column's values are a standard's "
-                "applied to your chart rather than to that standard's own. A "
-                "row this chart could not answer does not make a column COND: "
-                "it is not counted as a failure. Rows do not use this word. A "
-                "report "
-                "saved before ChromIQ 4.3.0 may still show it on a row, where "
-                "it meant a value over a limit the set recommended rather than "
-                "required; such a row reads FAIL today and carries a numbered "
-                "note saying the metric is a recommendation.")) + "</li>"
+                "COND (short for conditional): a column's Overall word, and "
+                "one only a report saved before ChromIQ 4.3.0 can still "
+                "reach. Such a report may hold COND on a row, where it meant "
+                "a value over a limit the set recommended rather than "
+                "required, and a column holding such a row reads COND too. "
+                "Nothing measured today is judged that way: the value reads "
+                "FAIL and carries a numbered note saying the metric is a "
+                "recommendation. Rows do not use this word, and a row this "
+                "chart could not answer does not make a column COND either: "
+                "it is not counted as a failure.")) + "</li>"
             "<li>" + html.escape(tr(
                 "INFO: the number is shown for your information and nothing "
                 "was judged from it. That happens when this limit set puts no "
@@ -10217,8 +10257,10 @@ class MeasurementReportDialog(QDialog):
                 "neither of which is that standard's; every limit in it is "
                 "yours to change. Either way the values "
                 "are applied to the chart you printed rather than to that "
-                "standard's own chart and control strip, so their Overall "
-                "reads COND at best.")) + "</p>"
+                "standard's own chart and control strip. Such a column reads "
+                "PASS or FAIL like any other, and the note under the results "
+                "says what that PASS is: an indication that the print would "
+                "likely meet the standard, and not proof that it does.")) + "</p>"
             # BOUND AND LOCKED, in the report that uses both words. Knut,
             # 2026-09-11: *"what is the difference between bound and locked? Be
             # specific in the explanation, so that user understands that chosen

@@ -816,8 +816,14 @@ def test_a_column_that_applies_a_standard_is_worded_as_one(gen):
     held no numbers and could not be a run's set. The moment they could, the
     README printed "none over a required limit; 3 not computed" for a column
     the WINDOW words differently, because a set that applies a standard's
-    figures reads COND with the sentence saying those figures are applied to
-    the chart YOU printed and not to that standard's own chart.
+    figures carries a sentence saying those figures are applied to the chart
+    YOU printed and not to that standard's own chart.
+
+    **WHAT THIS TEST WATCHES MOVED ON 2026-09-22.** Such a column also read
+    COND, and the word was the loud half of the difference. Knut retired that
+    cap, so both columns now read PASS on these numbers and the SENTENCE is
+    the whole of it: `SUMMARY_REASONS["iso"]` against `["pass"]`. The
+    mutation below still goes red, on the reason rather than the word.
 
     A README describing a column named after a standard, without that sentence,
     is the fault `applies_a_standard` exists to have stopped, arriving in the
@@ -842,10 +848,11 @@ def test_a_column_that_applies_a_standard_is_worded_as_one(gen):
     named = gen._crossed_rows(clean, _limits(), row_values, row_verdict,
                               set_summary, REPORT_TYPE_FULL,
                               "custom_iso_12647_7")
-    assert named["overall"] == "COND", (
-        "a column holding a standard's name read the same word as ChromIQ's "
-        "own, on the same numbers")
-    assert named["reason"] == SUMMARY_REASONS["iso"], named["reason"]
+    assert named["overall"] == "PASS", named["overall"]
+    assert named["reason"] == SUMMARY_REASONS["iso"], (
+        "a column holding a standard's name was worded exactly like "
+        "ChromIQ's own, on the same numbers")
+    assert named["reason"] != plain["reason"]
 
 
 def test_the_generator_never_edits_the_two_custom_columns(gen):

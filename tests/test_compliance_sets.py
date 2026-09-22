@@ -366,7 +366,13 @@ def test_summary_words_in_order_of_precedence():
     v = Limit.value(2.0); sh = Limit.should(1.5)
     assert set_summary(_rows((v, PASS), (v, FAIL)), set_is_iso=False, graded=True).word == FAIL
     assert set_summary(_rows((v, PASS), (v, FAIL)), set_is_iso=False, graded=False).word == INFO
-    assert set_summary(_rows((v, PASS), (v, PASS)), set_is_iso=True, graded=True).word == COND
+    # THE ISO CAP IS RETIRED (Knut, 2026-09-22): this line read `== COND`
+    # until that day. The caveat it used to carry is now a note, and the
+    # sentence beside the word still says the figures are applied to your
+    # chart, which is asserted below rather than left to the word.
+    _iso = set_summary(_rows((v, PASS), (v, PASS)), set_is_iso=True, graded=True)
+    assert _iso.word == PASS
+    assert _iso.reason == cs.SUMMARY_REASONS["iso"]
     assert set_summary(_rows((v, PASS), (sh, COND)), set_is_iso=False, graded=True).word == COND
     # **AN N-A NEVER DEMOTES, WHATEVER ROW IT IS ON.** This line used to read
     # `== COND` for a REQUIRED row, which is the rule Knut replaced on

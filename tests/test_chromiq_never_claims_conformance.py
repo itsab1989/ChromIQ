@@ -157,18 +157,26 @@ def test_the_report_still_states_what_an_iso_named_column_is():
     """The removed denial's FACT is still printed, positively.
 
     Knut struck *"this report never says that anything conforms to a
-    standard"*. What it was protecting is a real property of the measurement, a
-    standard's figures being written for that standard's own chart and control
-    strip, and that has to stay or the COND cap on those columns is unexplained.
-    Without this test the rewrite would be indistinguishable from a deletion.
+    standard"*. What it was protecting is a real property of the measurement,
+    a standard's figures being written for that standard's own chart and
+    control strip, and that has to stay or such a column's green PASS is
+    unqualified. Without this test the rewrite would be indistinguishable from
+    a deletion.
+
+    **THE SECOND PHRASE USED TO BE THE COND CAP**, "so their Overall reads
+    COND at best", and that is what carried the qualification until Knut
+    retired the cap on 2026-09-22. The word cannot do it any more, so what is
+    checked here is the clause that took its job: the paragraph says in the
+    report's own text what a PASS under a standard's name is and is not.
     """
     english = E.english_strings()
     for phrase in ("rather than to that standard's own chart and control strip",
-                   "so their Overall reads COND at best"):
+                   "an indication that the print would likely meet the "
+                   "standard, and not proof that it does"):
         assert any(phrase in s for s in english), (
             f"{phrase!r} has gone from the report. The paragraph explaining "
-            "what a column named after a standard holds is the reason its "
-            "Overall can never be better than COND.")
+            "what a column named after a standard holds is the only thing "
+            "qualifying its PASS now that the COND cap is retired.")
 
 
 def test_the_denials_are_still_there():

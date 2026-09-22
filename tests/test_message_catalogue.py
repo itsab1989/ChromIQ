@@ -146,6 +146,17 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # example, so it is a proposal for him and
                                  # not settled wording.
                                  "M-VERIFY-PREFLIGHT",
+                                 # #182, 2026-09-22, the same conversation.
+                                 # Knut asked for two more pieces of text: one
+                                 # telling a reader BEFORE printing that a
+                                 # metric the chart cannot answer still appears
+                                 # in the report and how to take it out, and
+                                 # one telling a reader of a report that its
+                                 # sheets do not all carry the same number of
+                                 # patches. Both are his request and neither is
+                                 # his wording, so both wait here.
+                                 "M-VERIFY-UNCHECKED-METRICS",
+                                 "M-REPORT-PATCH-COUNTS-DIFFER",
                                  "M-REPORT-CHART-MISMATCH",
                                  "M-THRESHOLDS-NOT-CERTIFICATION",
                                  # #182, 2026-09-16: the design authority asked

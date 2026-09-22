@@ -92,14 +92,29 @@ def test_no_absence_anywhere_makes_a_column_conditional():
         "N-A never demotes a column, whatever row it is on")
 
 
-def test_and_the_two_causes_that_do_remain_still_reach_it():
-    """The control for the sweep above: COND is still reachable, twice."""
+def test_and_the_one_cause_that_does_remain_still_reaches_it():
+    """The control for the sweep above: COND is still reachable, once.
+
+    It was twice until 2026-09-22, when Knut retired the ISO cap. An
+    ISO-named column now reads PASS or FAIL like any other and carries
+    `STANDARD_CAVEAT` as a note instead, so a guard that banned COND outright
+    would still be wrong, and for one reason rather than two.
+    """
     iso = set_summary([(Limit.value(2.0), PASS, "row0")],
                       set_is_iso=True, graded=True)
-    assert iso.word == COND, "an ISO-named column is COND at best"
+    assert iso.word == PASS, "the ISO cap is retired; the note carries it now"
     saved = set_summary([(Limit.value(2.0), COND, "row0")],
                         set_is_iso=False, graded=True)
     assert saved.word == COND, "a row a pre-4.3.0 report saved with the word"
+    # …and an ISO column holding such a row is COND too, with the sentence
+    # that names the recommended value, not the `iso*` one that would have
+    # said "all within this limit set's values" over the top of it.
+    from workflow.compliance_sets import SUMMARY_REASONS
+    both = set_summary([(Limit.value(2.0), PASS, "row0"),
+                        (Limit.should(1.5), COND, "row1")],
+                       set_is_iso=True, graded=True)
+    assert both.word == COND, both
+    assert both.reason == SUMMARY_REASONS["cond_recommended"], both.reason
 
 
 # ===========================================================================

@@ -14152,6 +14152,16 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 block.append("")
             block.append(" " * line.indent + line.text)
         parts = [title, body, "\n".join(block)]
+        # **WHAT HAPPENS TO A METRIC THE CHART CANNOT ANSWER, AND THE LEVER.**
+        # M-VERIFY-UNCHECKED-METRICS, asked for by Knut on 2026-09-22. Shown
+        # ONLY when this chart really is short of something: a paragraph about
+        # rows that will read N-A, on a chart where none will, is noise, and it
+        # would also be the second sentence of this window contradicting the
+        # first, which says "Nothing is missing".
+        _short = (row is not None and row.assessment.checked
+                  and row.assessment.missing)
+        if _short:
+            parts.append(M.M_VERIFY_UNCHECKED_METRICS.render()[1])
         if gamut_only_shortfalls(row):
             parts.append(tr(M.M_VERIFY_PREFLIGHT_GAMUT))
         return title, "\n\n".join(parts)

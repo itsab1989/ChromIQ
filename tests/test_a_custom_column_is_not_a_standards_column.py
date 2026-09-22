@@ -10,10 +10,15 @@ figures behind it came from ISO. It is the same fault shape as a column that
 checked nothing and said PASS: nothing claimed anything, the claim was made by
 the arrangement.
 
-What must survive the correction is the cap. Both kinds of column are applied
-to the chart the user printed rather than to the standard's own chart and
-control strip, so the Overall of either reads COND at best, and
-`applies_a_standard` answers True for both.
+What must survive the correction is the CAVEAT. Both kinds of column are
+applied to the chart the user printed rather than to the standard's own chart
+and control strip, and `applies_a_standard` answers True for both.
+
+It was the CAP until 2026-09-22: such a column's Overall read COND at best, and
+that word was half of what stopped a green PASS under a standard's name
+standing unqualified. Knut retired it that day, so the sentence about what the
+values are applied to is now the whole of it, and this file asks for that
+sentence where it used to ask for the word.
 """
 from __future__ import annotations
 
@@ -151,16 +156,28 @@ def test_the_guide_never_says_a_custom_column_holds_published_values(tmp_path,
     assert "The columns named after a standard hold that standard's" not in g
 
 
-def test_the_cap_survives_the_correction(tmp_path, qapp):
+def test_the_caveat_survives_the_correction(tmp_path, qapp):
+    """It was `test_the_cap_survives_the_correction` until 2026-09-22.
+
+    The correction this file is about rewrote where a Custom column's numbers
+    come FROM. What it must not quietly take with it is the sentence about
+    what they are applied TO, which was the reason the column was capped at
+    COND. Knut retired the cap that day and the sentence is now the whole of
+    the qualification, so the third assertion follows it rather than the word.
+    """
     g = _guide(tmp_path)
     assert "chart you printed" in g
     assert "control strip" in g
-    assert "their Overall reads COND at best" in g
+    assert "not proof that it does" in g
+    assert "COND at best" not in g, (
+        "the retired ISO cap is being taught again by the report's guide")
 
 
 def test_both_kinds_still_count_as_applying_a_standard():
-    """The correction is about where the numbers came FROM. What caps the
-    verdict is what they are applied TO, and that is unchanged for all four."""
+    """The correction is about where the numbers came FROM. What earns the
+    caveat is what they are applied TO, and that is unchanged for all four.
+    Since the cap was retired this predicate decides whether the caveat note
+    is printed at all, so it carries the whole promise rather than half."""
     from workflow.compliance_sets import applies_a_standard
     for sid in ("iso_12647_7", "iso_12647_8",
                 "custom_iso_12647_7", "custom_iso_12647_8"):

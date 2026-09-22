@@ -858,8 +858,25 @@ such a column is empty unless a licence holder has supplied its figures, and
 that an editable column starts from those supplied figures where there are any
 and from ChromIQ's own numbers where there are none. Either way the values are
 applied to the chart you printed rather than to that standard's own chart and
-control strip, so their Overall reads COND at best. Same fact, stated
-positively, and the COND cap is no longer unexplained.
+control strip. Same fact, stated positively.
+
+**AND THE CAP IT USED TO EXPLAIN IS GONE, ON KNUT'S RULING OF 2026-09-22.** The
+paragraph ended "so their Overall reads COND at best" until that day. He struck
+it: *"Implement this. The note is sufficient. Most users are just interested in
+knowing if the measurements passed against the criteria set, and we do not
+supply charts that are defined by a standard, do we? Not even the metrics we
+define are 'the standard's metrics', because they are our own design ... so
+ChromIQ's results are only indications that results that PASS likely fulfil the
+standard ... It is not proof that results fulfil the standard. The report text
+notes should explain this detail."* Such a column now reads PASS or FAIL like
+any other, and the paragraph ends instead with what that PASS is: an indication
+that the print would likely meet the standard, and not proof that it does.
+
+**The whole weight of the promise is now on that note**, which was true of the
+word before and is worth stating plainly. `applies_a_standard` decides whether
+it is printed, `STANDARD_CAVEAT` is what it says, and
+`tests/test_a_custom_iso_column_carries_the_same_caveat.py` asks for it with
+exactly the strictness it used to ask for the word.
 
 *(The sentence recorded here until 2026-09-12 was "a column named after a
 standard holds that standard's published tolerance values", which took three

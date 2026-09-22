@@ -1551,15 +1551,19 @@ GLOSSARY += [
     # This entry went on teaching the arithmetic that ruling deleted, in
     # thirteen languages and translated into German, and the register that
     # pinned it recorded the clause as innocent. Measured over every
-    # combination of up to three rows: COND arrives from an ISO-named set or
+    # combination of up to three rows: COND arrived from an ISO-named set or
     # from a row a pre-4.3.0 report saved with the word, and from nothing else.
+    # **AND THEN THE FIRST OF THE TWO WENT**, on Knut's ruling of 2026-09-22
+    # retiring the ISO cap, so one cause is left and this entry named the
+    # deleted one.
     (tr("Overall (verdict)"),
      tr("The one word for a whole dated check, worked out from its rows: any "
         "FAIL makes it FAIL; an ungraded sheet is INFO; a row your chart "
         "could not answer is not counted as a failure; otherwise PASS. A "
-        "column judged against one of the ISO-named sets can never read "
-        "better than COND, because those numbers are being applied to your "
-        "chart rather than to the standard's own.")),
+        "column judged against one of the ISO-named sets reads PASS or FAIL "
+        "like any other, and carries a note saying that its values are a "
+        "standard's applied to your chart rather than a test against that "
+        "standard.")),
     (tr("Graded / not graded"),
      tr("Whether a sheet's numbers are compared with limits at all. A "
         "verification sheet printed through the profile is graded. A "

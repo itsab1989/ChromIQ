@@ -2220,8 +2220,33 @@ def report_scope(runs: "list[dict]") -> dict:
                      for r in runs if recorded_compliance(r)],
         })
 
+    # **A PLAIN NOTE, AND DELIBERATELY NOT A WARNING** (#182, Knut,
+    # 2026-09-22): *"where selected measurements come from charts with
+    # different patch counts, the report carries a plain warning that judged
+    # metrics may differ slightly for that reason and that it shows in the
+    # trend graphs. Not an error."*
+    #
+    # It is returned under `notes` rather than appended to `warnings` because
+    # `_scope_warnings_html` paints everything it is given in the report's FAIL
+    # colour. A note about a legitimate mixture of charts, printed in red under
+    # the heading "Warning", would say the opposite of what he asked for, and
+    # nothing in the rendering would have to change for that to happen: it
+    # would simply be the colour the block already is.
+    notes: "list[dict]" = []
+    counts = [r.get("patches") for r in runs
+              if isinstance(r.get("patches"), int) and r["patches"] > 0]
+    # ORDERED BY THE COLUMNS, NOT SORTED, and duplicates dropped: the sentence
+    # names the distinct counts in the order a reader meets them across the
+    # table, so "1617 and 918" matches what is on the page.
+    distinct: "list[int]" = []
+    for n in counts:
+        if n not in distinct:
+            distinct.append(n)
+    if len(distinct) > 1:
+        notes.append({"kind": "patch_counts", "counts": distinct})
+
     return {"profiles": prof_list, "total": len(runs),
-            "date_range": date_range, "warnings": warnings}
+            "date_range": date_range, "warnings": warnings, "notes": notes}
 
 
 # ---------------------------------------------------------------------------

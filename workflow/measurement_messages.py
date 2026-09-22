@@ -1038,6 +1038,64 @@ M_VERIFY_PREFLIGHT_GAMUT = (
     "a built profile, and it lays the sheet out again from scratch.")
 
 
+# --- PROPOSED: a metric the chart cannot answer, and the lever for it ------
+# Knut, 2026-09-22, on #182: a report that judges metrics the chart cannot
+# calculate carries a warning for each of them, and he asked that the reader
+# be told, before printing, that those metrics can be turned off in Report
+# limits by setting the threshold to "-", so that what is handed to a customer
+# holds only the metrics that were actually checked.
+#
+# **THIS IS NOT REPORT TEXT, WHICH IS WHY IT MAY NAME A CONTROL.** His other
+# ruling of the same day is that no report text explains how to use ChromIQ.
+# This paragraph is shown in the pre-flight popup and in the "Which presets can
+# be used for verification" window, both of which exist to help somebody decide
+# what to print, so naming the lever is the whole point of them.
+#
+# **AND THE TWO OUTCOMES ARE NOT THE SAME, WHICH THE FIRST DRAFT PROMISED THEY
+# WERE.** Measured, on the real `row_verdict`, both states of one row:
+#
+#   chart cannot answer it,  threshold 1.5  ->  N-A  (row drawn, with a note)
+#   chart cannot answer it,  threshold "-"  ->  no word at all, row not drawn
+#   chart CAN answer it,     threshold "-"  ->  INFO (row drawn, not graded)
+#
+# So "-" removes the row only in the case Knut is asking about, and shows it
+# ungraded in the other. A sentence promising it disappears either way would be
+# false on half the rows the reader might try it on, so the text says both.
+M_VERIFY_UNCHECKED_METRICS = _m(
+    "M-VERIFY-UNCHECKED-METRICS",
+    "A metric this chart cannot answer still appears in the report",
+    "A metric this chart cannot supply is listed in the report all the same, "
+    "reading N-A with a numbered note saying what it would have needed. "
+    "Nothing is judged from it and it can never make the report fail.\n\n"
+    "If you would rather it was not there at all, open Report limits and set "
+    "that metric's threshold to “-”. The metric then leaves the limit set: a "
+    "row your chart cannot answer disappears from the report entirely, and one "
+    "it can answer is shown with its number and no verdict. Either way what "
+    "you hand a customer holds only the metrics you chose to have checked.",
+    approved=False)
+
+
+# --- PROPOSED: one report, sheets with different numbers of patches --------
+# Knut, 2026-09-22, on #182. Not an error and it must not read as one: a
+# report is allowed to hold measurements of charts with different patch
+# counts, and the only honest thing to say is that a metric worked out over
+# more patches is not worked out over quite the same population as the same
+# metric over fewer, so small differences between the columns, and steps in
+# the trend graphs, can come from the charts rather than from the printer.
+M_REPORT_PATCH_COUNTS_DIFFER = _m(
+    "M-REPORT-PATCH-COUNTS-DIFFER",
+    "These measurements were taken from charts with different numbers of patches",
+    "The sheets in this report do not all carry the same number of patches "
+    "({counts}). Every metric is worked out over the patches the sheet "
+    "actually holds, so a figure taken over more of them is not measured over "
+    "quite the same set of colours as the same figure taken over fewer, and "
+    "the two can differ a little for that reason alone. It shows in the trend "
+    "graphs as well as in the table.\n\n"
+    "This is not a fault and nothing here is wrong. It is worth knowing before "
+    "you read a small change as a change in the printer.",
+    approved=False)
+
+
 # --- PROPOSED: the how-was-this-sheet-printed question ---------------------
 # Asked once, at measure time, ONLY for a verification sheet that has no
 # print record — i.e. a sheet ChromIQ did not print itself. The answer decides
@@ -2666,6 +2724,7 @@ CATALOGUE = {m.id: m for m in (
     M_ENGINE_FELL_BACK,
     M_PATCHSET_MISSING,
     M_VERIFY_NO_CONTROL_STRIP, M_VERIFY_PREFLIGHT,
+    M_VERIFY_UNCHECKED_METRICS, M_REPORT_PATCH_COUNTS_DIFFER,
     M_PROJECT_EXISTS,
     M_PROJECT_REPLACE_CONFIRM,
     M_PROJECT_REPLACE_FAILED,

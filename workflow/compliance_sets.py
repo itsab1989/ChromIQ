@@ -758,11 +758,18 @@ def applies_a_standard(set_id: "str | None",
     the claim was made by JUXTAPOSITION, a column named after a standard beside
     a green PASS with no caveat.
 
-    The cap on an ISO column is not about licensing and never was. It is that a
-    standard's figures are written for that standard's own control strip on that
-    standard's own chart, and ChromIQ measures the chart YOU printed. Typing the
-    numbers in by hand does not change what they are being applied to, so a set
-    derived from one carries exactly the same caveat.
+    The caveat on an ISO column is not about licensing and never was. It is
+    that a standard's figures are written for that standard's own control strip
+    on that standard's own chart, and ChromIQ measures the chart YOU printed.
+    Typing the numbers in by hand does not change what they are being applied
+    to, so a set derived from one carries exactly the same caveat.
+
+    Until 2026-09-22 that caveat was ALSO carried by the verdict word: such a
+    column was capped at COND however well it read. Knut retired the cap that
+    day -- *"Most users are just interested in knowing if the measurements
+    passed against the criteria set"* -- so the word is now PASS or FAIL and
+    this function's answer is what decides whether :data:`STANDARD_CAVEAT` is
+    printed. It went from shaping a word to being the whole promise.
     """
     s = SET_BY_ID.get(set_id or "")
     if s is not None:
@@ -1570,9 +1577,11 @@ def row_verdict(limit: Limit, value: "float | None", graded: bool) -> "str | Non
     # the bracket in the table cell, and the per-metric NOTE -- see
     # `measurement_report.NOTE_RECOMMENDED_LIMIT`. Only the word goes.
     #
-    # COND itself is NOT deleted: it is still an Overall word (an ISO column's
-    # values are applied to a chart that is not the standard's chart, so such a
-    # column is COND at best), and reports saved before today carry it on rows.
+    # COND itself is NOT deleted: it is still an Overall word, because a
+    # report saved before 4.3.0 carries it on rows and `set_summary` reports
+    # a column holding such a row as COND. That is the ONLY way left in: the
+    # other one, an ISO column capped at COND, went on 2026-09-22 when Knut
+    # retired the cap in favour of the note. See `STANDARD_CAVEAT`.
     return FAIL
 
 
@@ -1584,7 +1593,11 @@ def row_verdict(limit: Limit, value: "float | None", graded: bool) -> "str | Non
 #: challenge round found a saved PASS printed green and unqualified under
 #: "Custom ISO 12647-7", in the window and in the PDF.
 STANDARD_CAVEAT = ("This limit set holds a standard's published values applied "
-                   "to your chart. It is not a test against that standard.")
+                   "to your chart. It is not a test against that standard: "
+                   "the chart is not the standard's chart, and the metrics are "
+                   "ChromIQ's own rather than the standard's methods. A result "
+                   "inside these limits is an indication that the print would "
+                   "likely meet the standard, not proof that it does.")
 
 
 #: The column summary's sentences (English source; the extractor sweeps this
@@ -1825,9 +1838,12 @@ def set_summary(rows: "list[tuple]", *, set_is_iso: bool,
     * no limit-bearing row → N-A ("this limit set defines no limits");
     * a sheet that is not graded (drift check, profiling measurement) → INFO;
     * any FAIL → FAIL;
-    * an ISO column is COND at best: its values are applied to a chart that is
-      not the standard's chart (footnote 1), so the set was never fully
-      tested;
+    * an ISO column reads PASS or FAIL like any other. It was capped at COND
+      until 2026-09-22, when Knut retired the cap and moved what it carried
+      into :data:`STANDARD_CAVEAT`, which is printed below the table for
+      every column applying a standard. Its summary sentence still says the
+      values are applied to your chart rather than tested against the
+      standard;
     * any COND → COND. Since 2026-09-21 no LIVE row can read COND --
       `row_verdict` never returns it -- so this clause now fires only for a
       report saved before that day, whose stored rows still carry the word;
@@ -1883,16 +1899,50 @@ def set_summary(rows: "list[tuple]", *, set_is_iso: bool,
     # So there is no arithmetic here at all any more, and no list of rows to
     # keep in step with one: the count is reported beside the word and the
     # cell carries a numbered note saying why it could not be worked out.
-    if set_is_iso:
-        key = ("iso" if not not_computed
-               else "iso_with_one_unchecked" if not_computed == 1
-               else "iso_with_unchecked")
-        return Summary(COND, checked, total, failed, cond, not_computed, R[key])
+    # **THE ISO CAP IS GONE, ON KNUT'S RULING OF 2026-09-22**, and what it used
+    # to carry now lives in the note. He asked for it in these words: *"The
+    # note is sufficient. Most users are just interested in knowing if the
+    # measurements passed against the criteria set, and we do not supply
+    # charts that are defined by a standard ... ChromIQ's results are only
+    # indications that results that PASS likely fulfil the standard ... It is
+    # not proof that results fulfil the standard. The report text notes should
+    # explain this detail."*
+    #
+    # **WHAT THE CAP WAS ALSO DOING, so nobody removes the replacement by
+    # accident.** `tests/test_a_custom_iso_column_carries_the_same_caveat.py`
+    # exists because a challenge round found a saved green PASS, unqualified,
+    # under a column named "Custom ISO 12647-7". Its own words: *"the claim was
+    # made by JUXTAPOSITION: a column named after a standard, a green PASS, and
+    # no caveat. That is precisely what ChromIQ promised a rights holder in
+    # writing it would never do."* The cap was what prevented that
+    # juxtaposition. `STANDARD_CAVEAT` now prevents it instead, and
+    # `measurement_report_dialog` already prints that note for EVERY column
+    # applying a standard, live or saved, which is why the word could go
+    # without the promise going with it.
+    #
+    # **THE COND CLAUSE STAYS ABOVE THE ISO ONE**, and it was below it for the
+    # first hour of this change. Every `iso*` sentence ends "all within this
+    # limit set's values", so an ISO column holding a row that reads COND --
+    # over a RECOMMENDED value, which only a report saved before 2026-09-21
+    # can still carry -- would have been handed PASS under a sentence that
+    # denies the row exists. The cap used to hide that: it returned COND for
+    # the whole column whatever the rows said. Removing it exposed the
+    # ordering, so the ISO branch now answers only what the non-ISO branch
+    # would have answered PASS.
     if cond:
         # no "0 over a recommended value" clauses (text review)
         key = ("cond_both" if (cond and not_computed)
                else "cond_missing" if not_computed else "cond_recommended")
         return Summary(COND, checked, total, failed, cond, not_computed, R[key])
+    # `failed` is 0 on this line -- the FAIL clause above returns -- so the
+    # word here is PASS and not a choice. A FAIL under a standard's name keeps
+    # `R["fail"]`, which claims nothing, and the caveat note below the table
+    # is printed for EVERY column applying a standard whatever its word.
+    if set_is_iso:
+        key = ("iso" if not not_computed
+               else "iso_with_one_unchecked" if not_computed == 1
+               else "iso_with_unchecked")
+        return Summary(PASS, checked, total, failed, cond, not_computed, R[key])
     if not_computed:
         # PASS, and not a claim that everything was checked. See the two
         # `pass_partial` sentences for what reaches this line and why.

@@ -160,9 +160,20 @@ def test_the_caveat_is_in_the_report_body_and_the_pdf(qapp, tmp_path,
     try:
         runs = dlg._runs_for_report()
         body = dlg._report_body_html(runs, for_pdf=True)
-        assert "not a test against that standard" in _visible(body), (
+        seen = _visible(body)
+        assert "not a test against that standard" in seen, (
             f"the caveat for {label!r} is not in the rendered report. If it is "
             "only in a tooltip it is not in the PDF and a reader never sees it.")
+        # …AND THE CLAUSE KNUT ASKED FOR WHEN HE RETIRED THE CAP, 2026-09-22:
+        # *"ChromIQ's results are only indications that results that PASS
+        # likely fulfil the standard ... It is not proof that results fulfil
+        # the standard. The report text notes should explain this detail."*
+        # With the word no longer capped, this sentence is what qualifies a
+        # green PASS under a standard's name, so it is checked in the RENDERED
+        # output rather than in the constant.
+        assert "not proof that it does" in seen, (
+            f"the report for {label!r} prints the caveat without the clause "
+            "saying a pass is an indication and not proof")
     finally:
         dlg.deleteLater()
 

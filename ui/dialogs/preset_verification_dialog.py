@@ -319,6 +319,19 @@ def detail_lines(row: "PresetRow | None") -> "list[Line]":
             remedy = PE.row_remedy(rid)
             if remedy:
                 out.append(Line(tr(remedy), info=True, indent=22))
+        # **WHAT THE REPORT DOES WITH THESE ROWS, AND THE ONE LEVER OVER IT.**
+        # M-VERIFY-UNCHECKED-METRICS, asked for by Knut on 2026-09-22. Every
+        # line above says what a row is short of; none of them said what the
+        # reader will actually see in the finished document, which is an N-A
+        # and a numbered note rather than nothing at all. Knut's point is that
+        # a document handed to a customer can be made to hold only the metrics
+        # that were checked, and that the control for it is in Report limits.
+        #
+        # Under the list and not above it: the list is the answer to the
+        # question this window is opened with, and this is what to do about it.
+        from workflow.measurement_messages import M_VERIFY_UNCHECKED_METRICS
+        for para in M_VERIFY_UNCHECKED_METRICS.render()[1].split("\n\n"):
+            out.append(Line(para, info=True))
     else:
         out.append(Line(tr("This chart answers every metric this report type "
                            "and limit set ask of it.")))

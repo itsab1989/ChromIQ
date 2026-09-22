@@ -786,6 +786,24 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-22, the ISO COND cap round, and **BOTH LEDGERS IN
+    # THE SAME COMMIT**: its twin is `_BUDGET` in
+    # `tests/test_help_cards_untranslated_are_tracked.py`. Updating one of
+    # them is not updating the ledgers, which was learned the hard way on
+    # 2026-09-22 itself: three gate runs came back red identically, twelve
+    # failures each, because the other ledger had been missed.
+    #
+    # The change: four keys out (the report guide's COND bullet, its standards
+    # paragraph, the Getting Started glossary's Overall entry, and
+    # STANDARD_CAVEAT) and eight in (their replacements, plus a title and a
+    # body each for M-VERIFY-UNCHECKED-METRICS and
+    # M-REPORT-PATCH-COUNTS-DIFFER). German is written by hand and does not
+    # move at all, which is how a hand translation that quietly fell back to
+    # the English would show up here.
+    #
+    # Ukrainian rises by 4 and the other eleven by 5, measured per language:
+    # all four departing keys were untranslated in `uk`, and one of the four
+    # was genuinely translated in the others.
     # RE-MEASURED 2026-09-22, for Knut's ruling that the unchecked values
     # shall be listed. The ISO summary sentence is now three sentences, one
     # per case, because the promise was unconditional and a column with
@@ -1232,17 +1250,17 @@ _IDENTICAL_TO_KEY = {
     # recorded. COUNTED with this file's own helper on the tree this commit
     # leaves behind.
     "de": 146,
-    "es": 933,
-    "fr": 955,
-    "it": 944,
-    "ja": 919,
-    "nl": 960,
-    "no": 945,
-    "pl": 937,
-    "pt": 935,
-    "ru": 908,
-    "sv": 946,
-    "zh_CN": 913,
+    "es": 938,
+    "fr": 960,
+    "it": 949,
+    "ja": 924,
+    "nl": 965,
+    "no": 950,
+    "pl": 942,
+    "pt": 940,
+    "ru": 913,
+    "sv": 951,
+    "zh_CN": 918,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1269,7 +1287,7 @@ _IDENTICAL_TO_KEY = {
     # in Ukrainian, so the pointer could not match whatever the user read.
     # Nothing else changed. The ceiling is re-measured DOWN here rather than
     # left where it was, so the next rise still has to justify itself.
-    "uk": 1174,
+    "uk": 1178,
 }
 
 
