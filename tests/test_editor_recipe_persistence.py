@@ -231,8 +231,9 @@ def test_builtin_fulllayout_recipes_appear_starred(qapp):
     # (#164, 2026-08-23), his 26 CR30 charts (20 of 2026-09-06 plus the six
     # straight-strip ones of 2026-09-12) and his nineteen i1Pro photo cards
     # (two of 2026-09-09, thirteen of 2026-09-17 and four of 2026-09-18,
-    # issue #182).
-    assert len(starred) == 2 + 6 + 45 + 24 + 19 + 19 + 26 + 19
+    # issue #182), and his eight 7.5 mm "Maximised - No Clip-border" i1Pro
+    # charts on A4 and Letter (2026-09-22, issue #182).
+    assert len(starred) == 2 + 6 + 45 + 24 + 19 + 19 + 26 + 19 + 8
     assert sum(1 for n in starred if n.startswith("★ ColorMunki")) == 45
     assert sum(1 for n in starred if n.startswith("★ i1Pro 3 Plus")) == 24
     assert sum(1 for n in starred if n.startswith("★ CR30 ")) == 26

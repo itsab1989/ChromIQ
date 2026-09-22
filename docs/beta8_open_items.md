@@ -24739,3 +24739,33 @@ would reach.
   measured room gives (English is 44 characters in 325 px); a real
   translation that does not fit fails the suite instead of reaching a screen.
 - evidence: test_the_label_fits_beside_its_help_icon_in_every_language
+### B8-801 · FIXED · Knut's eight 7.5 mm i1Pro "Maximised - No Clip-border" presets were not built in
+- blocks release: no
+- status: FIXED
+- found by: Knut on beta 34 (K1, #182 comment 5781159382): *"I have created
+  yet more presets for the i1Pro, to be added as built-in like the others."*
+- added as kind-3 built-ins under the i1Pro heading: A4 837/1674/2511/3348p
+  and Letter 783/1566/2349/3132p, 1 to 4 sheets. They move eight fields away
+  from `_I1_75_BASE` identically, so they have their own base
+  (`_I1_75_MAX_BASE`, `_i1_75_max_preset`, importer family `i175max`, assets
+  `assets/charts/knut/rgb/i1pro75max/`). His exports carry the settings stamp
+  OFF; with the app default ON the panel warned the stamp runs over the
+  patches (5 mm right margin), so the rows carry `stamp_settings=False`.
+- flagged for Knut, carried as exported: ruler marks 2 per patch / 4 mm (the
+  i1Pro families use 5); A4 strip 249.8 mm long against the 240 mm i1Pro
+  ruler travel the standard cut keeps to; Letter patches print 7.62 mm under
+  "w7.5mm"; every export said `pages: 3` and `targen -f 1944`, and five
+  Set B recipes pointed at a ColorMunki / A3 / A4 (re-pointed by the importer).
+- driven on screen (`scripts/drive_k1_i1pro_maximised_presets.py`, proof
+  `~/Desktop/ChromIQ-beta36-proof/K1-i1pro-presets/`): all eight picked from
+  the Presets pulldown and built with the paper, patches and sheets their
+  names promise, 0 layout warnings, all eight in "Which presets can be used
+  for verification", 0 log warnings.
+- evidence:
+  test_every_chart_registered
+  test_the_base_moves_exactly_eight_fields_away_from_the_75mm_one
+  test_name_matches_the_bundled_patch_set_and_the_grid
+  test_chart_builds_with_the_sheet_pages_and_patches_its_name_promises
+  test_they_are_offered_in_the_verification_window
+  test_every_chart_switches_the_settings_stamp_off
+  test_only_the_photo_cards_have_an_opinion_on_the_stamp

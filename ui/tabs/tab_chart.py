@@ -1498,7 +1498,9 @@ class _Ti1Preset:
     # "STAMP SETTINGS DOWN THE RIGHT EDGE", when the preset has an opinion.
     #
     # `None` means "leave the checkbox alone", which is every family but the
-    # photo cards and is what the app did before this field existed.
+    # photo cards and the 7.5 mm "Maximised" A4/Letter charts (whose 5 mm
+    # right margin has no room for the stamp either, see
+    # `_i1_75_max_preset`), and is what the app did before this field existed.
     #
     # WHY THE PHOTO CARDS HAVE AN OPINION, and it is measured rather than
     # assumed. All twenty of Knut's photo-card exports carry it OFF; the app's
@@ -1793,6 +1795,73 @@ def _i1_75_preset(slug: str, name: str, paper: str, cols: int, rows: int,
                               if margin_right is not None else {}),
                            **({"margin_bottom": margin_bottom}
                               if margin_bottom is not None else {}),
+                           area_rows=rows),
+    )
+
+
+_I1_W75_MAX_DIR = "assets/charts/knut/rgb/i1pro75max"
+
+#: Knut's 7.5 mm i1Pro charts in their "Maximised - No Clip-border" CUT, on A4
+#: and US Letter (2026-09-22, issue #182, beta-34 batch K1: *"I have created
+#: yet more presets for the i1Pro, to be added as built-in like the others."*).
+#:
+#: A BASE OF ITS OWN, FOR THE REASON `_I1_75_BASE` AND `_I1_PHOTO_BASE` ARE.
+#: Measured against the shipped `_I1_75_BASE`, all eight of his exports move
+#: the same eight fields, identically on both papers:
+#:
+#:   clip_border        False  (True)     clip_content_mode   "off" ("notes")
+#:   margin_left        5.0    (26.0)     margin_right        5.0   (4.0)
+#:   margin_bottom      9.0    (19.0)     text_edge_top_mm    4.0   (8.0)
+#:   helper_marker_len_mm 4.0  (2.0)      helper_marker_per_patch 2 (5)
+#:
+#: None of them is in the 7.5 mm family's `varying` set, so folding these into
+#: `_I1_75_BASE` would have re-cut its nineteen charts at once. Eight shared
+#: fields is a design, so it gets a base, and a row carries only its sheet and
+#: its grid (27 x 31 on A4, 27 x 29 on Letter).
+#:
+#: WHAT THE CUT BUYS. With the clip band off and the side margins at 5 mm the
+#: patch area is 200 mm wide instead of 180, so the same 7.5 mm patch fits 27
+#: columns where the standard cut fits 24; the lower bottom margin buys the
+#: extra rows. The margins are the same on both papers, unlike the standard
+#: cut's per-paper right and bottom margins, so nothing here is per chart.
+#:
+#: TWO THINGS HIS FILES SAY THAT THE NAME DOES NOT, carried as exported and
+#: flagged for him: the ruler marks are 2 per patch and 4 mm long where #164
+#: set 5 per patch for the i1Pro families, and 38 + 9 mm of margin on an A4
+#: leaves 250 mm between them, where `_i1_preset` records 240 mm as the i1Pro
+#: ruler's travel.
+_I1_75_MAX_BASE: dict = dict(
+    _I1_75_BASE, clip_border=False, clip_content_mode="off",
+    margin_left=5.0, margin_right=5.0, margin_bottom=9.0,
+    text_edge_top_mm=4.0, helper_marker_len_mm=4.0,
+    helper_marker_per_patch=2)
+
+
+def _i1_75_max_preset(slug: str, name: str, paper: str, cols: int, rows: int,
+                      patches: int, pages: int, white: int,
+                      black: int) -> "_Ti1Preset":
+    """One chart of Knut's maximised 7.5 mm i1Pro cut (see
+    :data:`_I1_75_MAX_BASE`).
+
+    Shaped like :func:`_i1_75_preset` but with no per-paper margin arguments:
+    all eight of his exports carry the same margins on A4 and on Letter, so a
+    row states only its sheet and its grid.
+    """
+    return _Ti1Preset(
+        slug, name, _KNUT_I1, paper,
+        1.0,        # printtarg -a: unused, the engine lays this family out
+        6,          # printtarg -m: likewise unused (margins live in the recipe)
+        pages,
+        ti1_asset=f"{_I1_W75_MAX_DIR}/{slug}/chart.ti1",
+        patches=patches, white=white, black=black,
+        tiff_16bit=False, suffix="",
+        # THE STAMP IS OFF, AS IN ALL EIGHT OF HIS EXPORTS, and it is measured
+        # rather than copied: with the app's default (on) and a 5 mm right
+        # margin, the command line down the right edge runs over the patches
+        # and the Create Chart panel warns on every chart (driven on screen,
+        # 2026-09-22). Same field, same reason as the photo cards.
+        stamp_settings=False,
+        layout_recipe=dict(_I1_75_MAX_BASE, paper=paper, area_cols=cols,
                            area_rows=rows),
     )
 
@@ -2366,6 +2435,38 @@ KNUT_PRESETS: list[_Ti1Preset] = [
     _i1_75_preset("i1_w75_a3_4212p_3pages_landscape_w7_5mm",
                   "A3-4212p-3pages-Landscape-w7.5mm",
                   "420x297", 52, 27, 4212, 3, 1, 1),
+    # ---- The 7.5 mm "Maximised - No Clip-border" cut (Knut, 2026-09-22) ----
+    # *"I have created yet more presets for the i1Pro, to be added as built-in
+    # like the others."* (#182, beta-34 batch K1). The clip band off and the
+    # side margins at 5 mm: 27 columns of 7.5 mm patches where the standard
+    # cut above fits 24. See _I1_75_MAX_BASE for the eight fields the cut
+    # shares, and for two things his files say that the names do not. Rows
+    # generated by
+    #   python scripts/import_knut_presets.py i175max <folder> --write
+    _i1_75_max_preset("i1_w75max_a4_837p_1page_portrait_w7_5mm_maximised_no_clip_border",
+                      "A4-837p-1page-Portrait-w7.5mm-Maximised-No Clip-border",
+                      "A4", 27, 31, 837, 1, 2, 2),
+    _i1_75_max_preset("i1_w75max_a4_1674p_2pages_portrait_w7_5mm_maximised_no_clip_border",
+                      "A4-1674p-2pages-Portrait-w7.5mm-Maximised-No Clip-border",
+                      "A4", 27, 31, 1674, 2, 2, 2),
+    _i1_75_max_preset("i1_w75max_a4_2511p_3pages_portrait_w7_5mm_maximised_no_clip_border",
+                      "A4-2511p-3pages-Portrait-w7.5mm-Maximised-No Clip-border",
+                      "A4", 27, 31, 2511, 3, 2, 2),
+    _i1_75_max_preset("i1_w75max_a4_3348p_4pages_portrait_w7_5mm_maximised_no_clip_border",
+                      "A4-3348p-4pages-Portrait-w7.5mm-Maximised-No Clip-border",
+                      "A4", 27, 31, 3348, 4, 2, 2),
+    _i1_75_max_preset("i1_w75max_letter_783p_1page_portrait_w7_5mm_maximised_no_clip_border",
+                      "Letter-783p-1page-Portrait-w7.5mm-Maximised-No Clip-border",
+                      "Letter", 27, 29, 783, 1, 2, 2),
+    _i1_75_max_preset("i1_w75max_letter_1566p_2pages_portrait_w7_5mm_maximised_no_clip_border",
+                      "Letter-1566p-2pages-Portrait-w7.5mm-Maximised-No Clip-border",
+                      "Letter", 27, 29, 1566, 2, 2, 2),
+    _i1_75_max_preset("i1_w75max_letter_2349p_3pages_portrait_w7_5mm_maximised_no_clip_border",
+                      "Letter-2349p-3pages-Portrait-w7.5mm-Maximised-No Clip-border",
+                      "Letter", 27, 29, 2349, 3, 2, 2),
+    _i1_75_max_preset("i1_w75max_letter_3132p_4pages_portrait_w7_5mm_maximised_no_clip_border",
+                      "Letter-3132p-4pages-Portrait-w7.5mm-Maximised-No Clip-border",
+                      "Letter", 27, 29, 3132, 4, 2, 2),
     # The two A4-924p "Full layout setup" charts were WITHDRAWN by Knut
     # (4.1.3-beta.13) and replaced by the fuller w7.5mm series. They were
     # the last printtarg-path rows in this table; the branch itself stays

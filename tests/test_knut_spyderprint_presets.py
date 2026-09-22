@@ -95,9 +95,11 @@ def test_registry_shape():
     # 2026-09-12 — see test_cr30_builtin_presets.py), and
     # his nineteen i1Pro photo cards (two of 2026-09-09, thirteen of
     # 2026-09-17 and four of 2026-09-18, issue #182 — see
-    # test_i1pro_photocard_builtin_presets.py).
-    assert len(KNUT_PRESETS) == 166      # 121 + 26 CR30 + 19 photo cards
-    assert len(KNUT_PRESET_KEYS) == 166  # all keys unique
+    # test_i1pro_photocard_builtin_presets.py), and his eight 7.5 mm
+    # "Maximised - No Clip-border" i1Pro charts on A4 and Letter (2026-09-22,
+    # issue #182 — see test_i1pro75_maximised_builtin_presets.py).
+    assert len(KNUT_PRESETS) == 174      # 121 + 26 CR30 + 19 photo + 8 max
+    assert len(KNUT_PRESET_KEYS) == 174  # all keys unique
     # Four Full-layout-setup charts: the A4 495p landscape one was withdrawn at
     # Knut's request (#164, 2026-08-23).
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("fls_")) == 2
@@ -108,6 +110,7 @@ def test_registry_shape():
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("p3_")) == 24
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("cr30_")) == 26
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("i1_photo_")) == 19
+    assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("i1_w75max_")) == 8
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("scanner_")) == 6
     assert sum(1 for p in KNUT_PRESETS if p.slug.startswith("redriver_")) == 6
     assert KNUT_PRESET_KEYS <= BUILTIN_PRESET_KEYS

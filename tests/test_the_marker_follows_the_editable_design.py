@@ -34,10 +34,13 @@ def test_the_marker_counts_are_what_the_registry_holds():
     # patch counts on the same two cards plus the "Maximised - No Clip-border"
     # cut; each ships a recipe.json sidecar, so only the marked count moves.
     # 2026-09-18: +4 more of the same family, one sheet each.
-    assert len(tc.BUILTIN_PRESET_KEYS) == 177
+    # 2026-09-22 (issue #182, K1): +8 of Knut's 7.5 mm i1Pro "Maximised - No
+    # Clip-border" charts on A4 and Letter; each ships a recipe.json sidecar,
+    # so only the marked count moves.
+    assert len(tc.BUILTIN_PRESET_KEYS) == 185
     assert len(tc.PREBUILT_PRESETS) == 11       # the "by Pharmacist" rows
-    assert (len(marked), len(unmarked)) == (160, 6)
-    assert len(marked) + len(unmarked) + len(tc.PREBUILT_PRESETS) == 177
+    assert (len(marked), len(unmarked)) == (168, 6)
+    assert len(marked) + len(unmarked) + len(tc.PREBUILT_PRESETS) == 185
 
 
 def test_no_red_river_row_carries_the_marker():

@@ -36,7 +36,8 @@ Usage::
     python scripts/import_knut_presets.py <family> <export-folder> [--write]
 
     family: cm  (ColorMunki)  |  p3  (i1Pro 3 Plus)  |  i1  (i1Pro, 8 mm)
-            i175 (i1Pro, 7.5 mm)  |  i1photo (i1Pro, photo cards)
+            i175 (i1Pro, 7.5 mm)  |  i175max (i1Pro, 7.5 mm, maximised)
+            i1photo (i1Pro, photo cards)
             cr30 (ChnSpec CR30)
 
 Without ``--write`` it only validates and prints, so you can see what would
@@ -172,6 +173,21 @@ FAMILIES: dict[str, Family] = {
         varying=frozenset({"paper", "area_cols", "area_rows",
                            "margin_right", "margin_bottom"}),
         helper="_i1_75_preset",
+    ),
+    # THE 7.5 mm "MAXIMISED - NO CLIP-BORDER" CUT ON A4 AND LETTER (Knut,
+    # 2026-09-22, issue #182, beta-34 batch K1): eight charts, one to four
+    # sheets. Measured against the shipped `_I1_75_BASE` all eight move the
+    # same EIGHT fields: the clip band off (two fields), the left, right and
+    # bottom margins (5 / 5 / 9 on both papers), the ruler marks (2 per patch,
+    # 4 mm long) and the top text distance (4 mm). None of them is in the
+    # `i175` `varying` set and none differs between the eight, so they are a
+    # design with a base of its own, exactly the call `i175` and `i1photo`
+    # were added for. Only the sheet and the grid are a chart's own.
+    "i175max": Family(
+        key="i175max", label="i1Pro (7.5 mm, maximised)", prefix="i1Pro-",
+        slug_prefix="i1_w75max_", instrument="i1", dest=ASSETS / "i1pro75max",
+        varying=frozenset({"paper", "area_cols", "area_rows"}),
+        helper="_i1_75_max_preset",
     ),
     # A THIRD i1Pro FAMILY: the two photo-card charts (Knut, 2026-09-09).
     #
@@ -321,6 +337,7 @@ def _shipped_base(fam: Family) -> dict:
                              # the very family it was written for: a drifting
                              # 7.5 mm batch validated rc=0.
                              "i175": "_I1_75_BASE",
+                             "i175max": "_I1_75_MAX_BASE",
                              "i1photo": "_I1_PHOTO_BASE",
                              "cr30": "_CR30_BASE"}.get(fam.key, ""), None) or {})
 
@@ -568,7 +585,7 @@ def main() -> int:
     ap.add_argument("family", choices=sorted(FAMILIES),
                     help="which line-up these exports belong to "
                          "(cm = ColorMunki, p3 = i1Pro 3 Plus, "
-                         "i1 / i175 / i1photo = i1Pro, "
+                         "i1 / i175 / i175max / i1photo = i1Pro, "
                          "cr30 = ChnSpec CR30)")
     ap.add_argument("src", type=Path, help="folder of <name>.ti1 + <name>.json")
     ap.add_argument("--write", action="store_true",

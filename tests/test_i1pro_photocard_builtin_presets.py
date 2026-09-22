@@ -517,10 +517,18 @@ def test_a_preset_with_no_opinion_leaves_the_stamp_box_alone(tab):
 
 def test_only_the_photo_cards_have_an_opinion_on_the_stamp():
     """Stated so that giving another family one is a decision, not a side
-    effect of editing a shared helper."""
+    effect of editing a shared helper.
+
+    The second decision was taken on 2026-09-22 (K1): Knut's eight 7.5 mm
+    "Maximised - No Clip-border" A4/Letter charts carry the stamp OFF too,
+    for the same measured reason (a 5 mm right margin, the command line over
+    the patches with it on). See test_i1pro75_maximised_builtin_presets.py."""
     from ui.tabs.tab_chart import KNUT_PRESETS
     opinionated = {q.slug for q in KNUT_PRESETS if q.stamp_settings is not None}
-    assert opinionated == {q.slug for q in PHOTO}
+    maximised_a4_letter = {q.slug for q in KNUT_PRESETS
+                           if q.slug.startswith("i1_w75max_")}
+    assert len(maximised_a4_letter) == 8
+    assert opinionated == {q.slug for q in PHOTO} | maximised_a4_letter
 
 
 def test_a_builtin_preset_gives_its_text_a_home_in_the_project_it_creates():

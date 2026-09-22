@@ -674,6 +674,64 @@ holds them to each other.
 nineteen, photographs the listing and the panel each one fills in, and reports
 the layout notices with the stamp both on and off.
 
+### The 7.5 mm i1Pro "Maximised - No Clip-border" cut (Knut, 2026-09-22) — eight charts
+
+*"I have created yet more presets for the i1Pro, to be added as built-in like
+the others."* (#182, beta-34 batch K1.) Four on A4 (837, 1674, 2511, 3348
+patches) and four on US Letter (783, 1566, 2349, 3132), one to four sheets,
+portrait. Kind 3 (`_I1_75_MAX_BASE` + `_i1_75_max_preset()`, assets at
+`assets/charts/knut/rgb/i1pro75max/<slug>/chart.ti1` with the usual
+`recipe.json`, slug prefix `i1_w75max_`), imported by the same script:
+
+```bash
+python scripts/import_knut_presets.py i175max <folder-of-exports> --write
+```
+
+**A FOURTH i1Pro BASE, NOT AN OVERLAY ON THE 7.5 mm ONE.** The photo cards'
+"Maximised" cut is an overlay (`_I1_PHOTO_MAXIMISED`) because it moves two
+fields and every other difference is already a per-card field. Here, measured
+against `_I1_75_BASE`, all eight charts move the same **eight** fields on both
+papers: `clip_border` False, `clip_content_mode` "off", `margin_left` 5,
+`margin_right` 5, `margin_bottom` 9, `text_edge_top_mm` 4,
+`helper_marker_len_mm` 4 and `helper_marker_per_patch` 2. None is in the
+`i175` `varying` set, and the importer's drift guard refuses a batch that
+moves a non-varying field, so an overlay would have meant loosening the 7.5 mm
+family's `varying` set for nineteen charts that never move them. Eight shared
+fields is a design, so it gets a base, and a row carries only its sheet and
+its grid (27 x 31 on A4, 27 x 29 on Letter). The slug prefix is distinct from
+`i1_w75_` because `tests/test_i1pro75_family.py` counts that family by prefix
+and pins its 24-column grid.
+
+**THE STAMP IS OFF, MEASURED ON SCREEN.** All eight exports carry "Stamp
+settings down the right edge" OFF; the app's default is ON. Driven in the real
+window with it on, the A4-837p chart came up with *"The settings stamp down the
+right edge runs over the patches"*: the right margin is 5 mm. So the rows carry
+`stamp_settings=False`, the field the photo cards added for the same reason,
+and `test_only_the_photo_cards_have_an_opinion_on_the_stamp` names this as the
+second family with an opinion.
+
+They sit under the existing i1Pro heading and sort by the i1Pro rule (paper,
+then patch width, then patch count), so on each paper they interleave with the
+standard 7.5 mm charts by count.
+
+> **What his files say that the names do not**, carried as exported and
+> flagged for Knut rather than corrected: the ruler marks are 2 per patch and
+> 4 mm long where #164 set 5 per patch for the i1Pro families; the A4 patch
+> block runs 248 mm from the first patch to the last (38 mm top, 9 mm bottom)
+> where the standard A4 cut keeps to 240 mm for the i1Pro ruler; and the
+> Letter charts print **7.62 mm** patches under a name that says 7.5 (the
+> Letter sheet is 5.9 mm wider than A4 and the grid is the same 27 columns).
+> The A4 charts print 7.49 mm. His exports also carried `pages: 3` and
+> `targen -f 1944` on all eight, and five Set B recipes pointed at a
+> ColorMunki, an A3 sheet or A4 beside a Letter chart; the importer re-points
+> Set B as for every family, and the rows carry the page count of the name.
+
+`tests/test_i1pro75_maximised_builtin_presets.py` pins the base against
+`_I1_75_BASE` in each of the eight fields, checks every name against its patch
+set, sheet, grid and page count, builds all eight on the engine (widths pinned
+at what they measure), and checks the eight are offered in "Which presets can
+be used for verification".
+
 ### Rename or re-file an existing preset
 
 - **Rename (label only):** change `*_PRESET_LABEL` and update
@@ -737,6 +795,8 @@ Run the full suite (`QT_QPA_PLATFORM=offscreen pytest`) after any change here.
 `tests/test_knut_spyderprint_presets.py` pins the registry's shape and every
 bundled asset; the per-family files
 (`tests/test_colormunki_builtin_presets.py`, `test_i1pro3_builtin_presets.py`,
-`test_i1pro_w8_builtin_presets.py`) check each family's shared recipe, its
+`test_i1pro_w8_builtin_presets.py`, `test_i1pro75_family.py`,
+`test_i1pro_photocard_builtin_presets.py`,
+`test_i1pro75_maximised_builtin_presets.py`) check each family's shared recipe, its
 names against its patch sets, its Set B sidecars, and actually build every
 chart; `tests/test_chart_tab.py` covers the copy-into-run flow.
