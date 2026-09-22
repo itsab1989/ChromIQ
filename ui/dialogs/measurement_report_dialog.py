@@ -999,9 +999,9 @@ _WHEN_HELP = (
     "summary is the page you hand over with the job, one sheet somebody can "
     "read without knowing the vocabulary. Grey and tone check is for chasing "
     "a neutral problem, when greys go warm or the mid-tones sit heavy and the "
-    "colour rows are only noise. Printing record is for a job you have to "
-    "document without grading, a print you were asked to record rather than "
-    "to approve. The two ISO types are for a print that has to answer to a "
+    "colour rows are only noise. Printing record is the report of a "
+    "profiling measurement: the sheet a profile was built from, recorded and "
+    "not graded. The two ISO types are for a print that has to answer to a "
     "printing condition somebody else supplied; they are greyed today, and "
     "pointing at the greyed entry says why.")
 _PAIRING_HELP = (
@@ -1087,8 +1087,8 @@ def _types_and_pairing_help() -> str:
         "Printing record is not offered for it. A measurement outside any "
         "project, or a calibration, can have any of them. The report ChromIQ "
         "writes by itself after a measurement follows the same rule. With "
-        "measurements from more than one profile run loaded, the type you "
-        "choose applies to this window only and is not stored on either run.")
+        "measurements from more than one place loaded, the type you choose "
+        "applies to this window only and is not stored on any run.")
     return ("\n\n" + tr("What each one is for") + "\n\n"
             + "\n\n".join(lines)
             + "\n\n" + when_available
@@ -1919,15 +1919,19 @@ class MeasurementReportDialog(QDialog):
         settings_grid.addWidget(self._type_combo, 0, 1)
         type_tail.insertWidget(0, TooltipButton(
             tr("Report type"),
-            tr("Which kind of document this run's verifications produce. The "
+            # K13 (round 2B, #2): these three sentences predated the rule
+            # that a profiling measurement's only report is the Printing
+            # record, and contradicted the paragraph appended below.
+            tr("Which kind of document a measurement is made into. The "
                "measurement is the same either way; the type decides what is "
                "put in front of a reader, and how much of it.\n\n"
-               "Like the limit set, the type belongs to the profile run, so "
-               "every dated verification of the run produces the same kind of "
-               "document and the dates can be compared. Another run in the "
-               "project may use a different one.\n\n"
-               "A type shown greyed is one ChromIQ cannot produce yet. The "
-               "line under it says what is missing.")
+               "For verifications, like the limit set, the type belongs to the "
+               "profile run, so every dated verification of the run produces "
+               "the same kind of document and the dates can be compared. "
+               "Another run in the project may use a different one.\n\n"
+               "A type shown greyed cannot be chosen here: either ChromIQ "
+               "cannot produce it yet, or the kind of measurement does not "
+               "allow it. Pointing at the greyed entry says which.")
             + _types_and_pairing_help(),
             self, min_width=460, color=SPEC_GREEN))
         #: What the chosen type is for, or, on a type that cannot be produced,
@@ -3632,6 +3636,11 @@ class MeasurementReportDialog(QDialog):
             self._report_body_html(self._runs_for_report(), for_pdf=False))
         self._remember_how_it_was_built()
 
+    def _source_signature(self) -> tuple:
+        """Which measurements are loaded, as a comparable value (round 2B)."""
+        return tuple(sorted(str(src.get("origin") or "")
+                            for src in (self._sources or [])))
+
     def _note_which_document_the_page_is(self) -> None:
         """Record, as the page is drawn, which saved document it shows.
 
@@ -3653,8 +3662,14 @@ class MeasurementReportDialog(QDialog):
         """
         from workflow.measurement_report import document_updated_stamps
         key = str(getattr(self, "_loaded_doc_id", "") or "")
+        # …AND NOT ONCE THE LIST OF MEASUREMENTS HAS CHANGED UNDER IT (round
+        # 2B, #6): adding or removing a profile's measurements redraws the page
+        # at once, so it is no longer the saved document, and it kept printing
+        # that document's "Created:" time.
         speaks = (bool(key) and key != NEW_REPORT_KEY
-                  and not getattr(self, "_doc_settings_moved", False))
+                  and not getattr(self, "_doc_settings_moved", False)
+                  and getattr(self, "_doc_sources", None)
+                  in (None, self._source_signature()))
         self._page_doc_created = (str(getattr(self, "_doc_created", "") or "")
                                   if speaks else "")
         updated = ""
@@ -4077,7 +4092,12 @@ class MeasurementReportDialog(QDialog):
         # false, and the buttons are the same three either way. Worked out
         # here, not passed in, so every existing answerer of this one method
         # keeps working.
-        modified = self._settings_were_modified()
+        # A recorded type the kind no longer allows is a change the press
+        # WILL make (round 2B, #8), so the headline may not say nothing
+        # changed over it.
+        modified = (self._settings_were_modified()
+                    or self._fit_to_kind(self._report_type_now())
+                    != self._report_type_now())
         title, body = M.CATALOGUE[
             "M-REPORT-UPDATE-OR-NEW" if modified
             else "M-REPORT-UNCHANGED-UPDATE-OR-NEW"].render()
@@ -4248,7 +4268,10 @@ class MeasurementReportDialog(QDialog):
         #: page stays on the document's own files rather than on whatever the
         #: newest file of each measurement happens to be.
         written: "list[tuple[str, str]]" = []
-        _tid_for_block = self._report_type_now()
+        # A TYPE THE KIND ALLOWS (round 2B, #8): a saved report shown as
+        # recorded may carry a type its kind no longer allows (a beta-34
+        # Printing record of a verification); what is WRITTEN is fitted.
+        _tid_for_block = self._fit_to_kind(self._report_type_now())
         for r in reports:
             origin = r.get("_origin_dir")
             if not origin:
@@ -4275,7 +4298,7 @@ class MeasurementReportDialog(QDialog):
                 # the type on the run and that is untouched; what this refuses
                 # to do is write a document of a kind the reader was not
                 # looking at.
-                _tid = self._report_type_now()
+                _tid = self._fit_to_kind(self._report_type_now())
                 if _tid and _tid != report_type(rep):
                     set_report_type(rep, _tid)
                 stamp_document(rep, doc_id=doc_id, created=doc_created,
@@ -4363,6 +4386,7 @@ class MeasurementReportDialog(QDialog):
             self._loaded_doc = None          # read back off the file it wrote
             self._doc_settings_moved = False
             self._doc_created = doc_created
+            self._doc_sources = self._source_signature()
             self._forget_sticky_settings()
             self._reload_sources()
         else:
@@ -4999,10 +5023,11 @@ class MeasurementReportDialog(QDialog):
             self._limits_btn.setEnabled(not several)
             if several:
                 self._judged_label.setText(tr("Judged against:"))
-                tip = tr("Measurements from more than one profile run are "
-                         "loaded, and each run keeps its own limits. To change "
-                         "them, select the other profile in the list and click "
-                         "Remove Profile's Measurements….")
+                tip = tr("Measurements from more than one place are loaded, so "
+                         "there is no one set of limits to change here. To "
+                         "change a profile run's limits, select every other "
+                         "entry in the list and click Remove Profile's "
+                         "Measurements….")
             elif run is not None:
                 self._judged_label.setText(
                     tr("Judged against ({run}):").format(run=run.dir.name))
@@ -5188,6 +5213,7 @@ class MeasurementReportDialog(QDialog):
         self._loaded_doc = (entry["doc"]
                             or self._settings_of_one_saved_report(entry))
         self._doc_created = self._document_created_stamp(entry)
+        self._doc_sources = self._source_signature()
         self._restore_the_documents_view(
             self._loaded_doc, recorded=bool(entry["doc"]),
             covers={self._run_key(r) for r, _n in (entry["members"] or [])})
@@ -5627,6 +5653,35 @@ class MeasurementReportDialog(QDialog):
                 return why
         return ""
 
+    def _type_a_file_renders_as(self, rep: dict, r: dict) -> str:
+        """The type a saved report is SHOWN as, for its entry's label.
+
+        **ROUND 2B (2026-09-22), #1.** The label read `report_type(rep)`, which
+        answers Full colour check for a file that records no type, while the
+        page follows the RUN for such a file (§10) and, since K13, a profiling
+        sheet's run type is the Printing record. So "Report shown" said Full
+        colour check over a page and a pulldown saying Printing record. A file
+        that records a type is labelled with it, as recorded; one that records
+        none is labelled with what the page draws for it.
+        """
+        from workflow.measurement_report import (KIND_PROFILING,
+                                                 KIND_VERIFICATION,
+                                                 recorded_report_type)
+        from workflow.run_compliance import (report_type_default_for,
+                                             run_context_for)
+        rec = recorded_report_type(rep)
+        if rec:
+            return rec
+        origin, ti3 = r.get("_origin_dir"), r.get("ti3")
+        ctx = (run_context_for(Path(str(origin)) / str(ti3))
+               if origin and ti3 else None)
+        kind = (None if ctx is None else
+                KIND_VERIFICATION if ctx.verification is not None
+                else KIND_PROFILING)
+        return report_type_default_for(
+            ctx.run if ctx is not None else None,
+            str(self._settings.get("report_default_type", "") or ""), kind)
+
     def _saved_report_label(self, r: dict, name: str,
                             with_stamp: bool = False) -> str:
         """How one saved report is named in the selector.
@@ -5674,7 +5729,7 @@ class MeasurementReportDialog(QDialog):
                 rep = {}
         bits = [when]
         try:
-            bits.append(tr(report_type_name(report_type(rep))))
+            bits.append(tr(report_type_name(self._type_a_file_renders_as(rep, r))))
         except Exception:                            # noqa: BLE001
             pass
         comp = recorded_compliance(rep)
@@ -6277,6 +6332,7 @@ class MeasurementReportDialog(QDialog):
         self._loaded_doc = doc
         self._doc_settings_moved = False
         self._doc_created = self._document_created_stamp(entry)
+        self._doc_sources = self._source_signature()
         self._forget_sticky_settings()
         # WHICH FILE OF EACH MEASUREMENT THE PAGE IS DRAWN FROM. Only the
         # document's own measurements are touched: a row belonging to another
@@ -6769,11 +6825,24 @@ class MeasurementReportDialog(QDialog):
             # report "covers" both runs, which the page may not (rows judged
             # against another limit set are left out of it). The advice is
             # now the one control that really gives Generate back.
+            # ROUND 2B (#5, #7): "another profile run" was false when the
+            # other entry is a file outside any project, and the advice did
+            # nothing when the window's own measurement is in no run at all
+            # (handled below). "Every other entry", because there can be two.
             self._generate_btn.setToolTip(tr(
-                "Measurements from more than one profile run are loaded. "
-                "Generate report saves a report into one run: select the other "
-                "profile in the list and click Remove Profile's Measurements… "
-                "to save it. Save report as PDF… saves the report shown here."))
+                "Measurements from more than one place are loaded: another "
+                "profile run, or a file outside this project. Generate report "
+                "saves a report into one profile run, so select every other "
+                "entry in the list and click Remove Profile's Measurements… to "
+                "save it. Save report as PDF… saves the report shown here."))
+        if run is None and self._sources:
+            # NO RUN TO SAVE INTO, and removing entries cannot change that
+            # (round 2B, #7): the window's own measurement is outside any
+            # profile run. Said, rather than a greyed button with no reason.
+            self._generate_btn.setToolTip(tr(
+                "This measurement is not part of a profile run, so there is no "
+                "run to save a report into. Save report as PDF… saves the "
+                "report shown here."))
         # The button writes a report for the run the window is on. With no run,
         # or with several loaded, there is no single place for it to go.
         #
@@ -8776,10 +8845,10 @@ class MeasurementReportDialog(QDialog):
         if self._unlock_check.isEnabled():
             return ""
         if several:
-            return tr("Measurements from more than one profile run are "
-                      "loaded, and each run keeps its own limits. To unlock "
-                      "a run's limits, select the other profile in the list "
-                      "and click Remove Profile's Measurements….")
+            return tr("Measurements from more than one place are loaded, so "
+                      "there is no one run to unlock here. To unlock a profile "
+                      "run's limits, select every other entry in the list and "
+                      "click Remove Profile's Measurements….")
         if run is None:
             return tr("This measurement does not belong to a profile run, so "
                       "there are no stored limits to unlock.")
@@ -10155,21 +10224,29 @@ class MeasurementReportDialog(QDialog):
                            "recorded for the profile runs of the projects it is "
                            "drawn from."))
             elif _kind == "verification" and len(_mine) == 1:
+                # "PROFILE RUN", AND A COUNT RATHER THAN "these runs" (round
+                # 2B, #4/#10): on the same page "1 verification run" means a
+                # date, so a bare "run" was ambiguous, and "these runs" named
+                # runs the PDF never lists.
+                _nr = len(_run_names or ())
                 note = (tr("This report covers {n} of the {total} measurements "
-                           "recorded for this run.")
-                        if len(_run_names or ()) <= 1 else
+                           "recorded for this profile run.")
+                        if _nr <= 1 else
                         tr("This report covers {n} of the {total} measurements "
-                           "recorded for these runs."))
+                           "recorded for the {runs} profile runs it was chosen "
+                           "from."))
             elif _kind == "verification":
                 note = tr("This report covers {n} of the {total} measurements "
-                          "recorded for the runs it is drawn from.")
+                          "recorded for the profile runs of the projects it is "
+                          "drawn from.")
             else:
                 note = (tr("This report covers {n} of the {total} measurements "
                            "recorded for this project.")
                         if len(_mine) == 1 else
                         tr("This report covers {n} of the {total} measurements "
                            "recorded for the projects it is drawn from."))
-            note = note.format(n=covered, total=total_known)
+            note = note.format(n=covered, total=total_known,
+                               runs=len(_run_names or ()))
             out += (f"<div style='color:{_C['dim']};margin-top:6px'>"
                     + html.escape(note) + "</div>")
         return (out + self._scope_warnings_html(sc["warnings"])

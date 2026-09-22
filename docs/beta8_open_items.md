@@ -24688,3 +24688,36 @@ would reach.
   Which description belongs on a many-run document (none, each run's, or the
   window's run labelled as such) is Knut's call.
 - evidence: test_the_note_is_set_apart_from_body_text
+
+### B8-799 · FIXED · Round 2B on K13/K14/K4: a label, three help lines and four tooltips that said something false
+- blocks release: no
+- status: FIXED
+- found by: adversary round 2B (user-facing text), on screen in English and
+  German, 2026-09-22. Report: `~/Desktop/ChromIQ-beta36-proof/round2-B-text/REPORT.md`.
+- #1 an older saved report that records no type was LABELLED Full colour
+  check in "Report shown" while the page and pulldown followed the run
+  (§10), which is the Printing record on a profiling sheet; the label now
+  names what the page draws (`_type_a_file_renders_as`).
+- #8 a saved report of a type its kind no longer allows (a beta-34 Printing
+  record of a verification) was asked about as "Nothing was changed" though
+  Update would change its type; that now counts as a change, and what Update
+  and Create New WRITE is fitted to the kind.
+- #2 three lines of the Report type help predated K13 and contradicted the
+  paragraph added for it; reworded. #3/#9 the Preferences default and §13.10
+  now say it applies to every measurement that is not a profiling one.
+- #4/#10 the coverage sentence says "profile run" (on the same page "1
+  verification run" is a date) and gives a count instead of "these runs",
+  which named runs the PDF never lists.
+- #5/#7 the several-runs tooltips said "another profile run" when the other
+  entry was a file outside any project, and their advice could not help a
+  window whose own measurement is in no run; there is now a no-run reason, and
+  the advice names every other entry.
+- #6 adding or removing measurements redraws the page at once, and it kept
+  printing the saved document's "Created:" time; a page stops speaking for a
+  document once the loaded measurements change.
+- NOT guarded: the fitted type on a LEFTOVER member's re-stamp, which no
+  fixture here reaches (its mutant stays green; said in the test).
+- evidence:
+  test_an_untyped_saved_report_on_a_profiling_sheet_is_labelled_as_drawn
+  test_a_measurement_in_no_run_says_why_generate_is_grey
+  test_a_saved_type_the_kind_no_longer_allows_is_a_change

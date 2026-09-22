@@ -227,7 +227,7 @@ def test_the_box_is_still_offered_when_two_runs_are_loaded(report_window,
     assert dlg._unlock_check.isVisible(), (
         "the box vanished the moment a second run was added, which is exactly "
         "what he reported")
-    assert "more than one profile run" in dlg._unlock_check.toolTip(), \
+    assert "more than one place" in dlg._unlock_check.toolTip(), \
         dlg._unlock_check.toolTip()
 
 

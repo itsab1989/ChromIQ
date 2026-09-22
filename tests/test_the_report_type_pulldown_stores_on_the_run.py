@@ -655,7 +655,7 @@ def test_a_greyed_generate_says_why_when_two_runs_are_ticked(tmp_path, qapp):
     try:
         assert not dlg._generate_btn.isEnabled()
         tip = dlg._generate_btn.toolTip()
-        assert "more than one profile run" in tip, tip
+        assert "more than one place" in tip, tip
     finally:
         dlg.close()
 

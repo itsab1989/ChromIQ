@@ -245,7 +245,7 @@ def test_two_runs_loaded_disable_the_controls(qapp, tmp_path):
         assert len(dlg._distinct_run_dirs()) == 2
         assert not dlg._set_combo.isEnabled()
         assert not dlg._limits_btn.isEnabled()
-        assert "more than one profile run" in dlg._set_combo.toolTip()
+        assert "more than one place" in dlg._set_combo.toolTip()
     finally:
         dlg.deleteLater()
 

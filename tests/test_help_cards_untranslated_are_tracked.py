@@ -539,6 +539,13 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-22, round 2B's text findings on K13/K14: the
+    # several-runs tooltips, the Report type help, the Preferences default
+    # text and the coverage sentences reworded, one no-run tooltip added.
+    # German by hand, so it does not move; `uk` does not move because the
+    # departing keys were English echoes in it already; the eleven others rise
+    # by exactly 2 in both ledgers. COUNTED off the tree, BOTH ledgers in the
+    # same commit.
     # RE-MEASURED 2026-09-22, K10 (Knut on beta 34: the one-page summary's
     # numbers carried no unit). Two keys in ("Average difference {v} ΔE00",
     # "Largest {v} ΔE00") and their two unit-less predecessors out. German by
@@ -887,17 +894,17 @@ _BUDGET = {
     # recorded. COUNTED with this file's own helper on the tree this commit
     # leaves behind.
     "de": 17,
-    "es": 691,
-    "fr": 692,
-    "it": 691,
-    "ja": 691,
-    "nl": 691,
-    "no": 691,
-    "pl": 691,
-    "pt": 691,
-    "ru": 690,
-    "sv": 691,
-    "zh_CN": 690,
+    "es": 693,
+    "fr": 694,
+    "it": 693,
+    "ja": 693,
+    "nl": 693,
+    "no": 693,
+    "pl": 693,
+    "pt": 693,
+    "ru": 692,
+    "sv": 693,
+    "zh_CN": 692,
     "uk": 905,
 }
 

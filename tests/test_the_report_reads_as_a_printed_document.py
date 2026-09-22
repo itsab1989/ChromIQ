@@ -225,13 +225,15 @@ def test_the_total_is_what_the_project_records_not_what_is_loaded(tmp_path,
             body = _plain(dlg._report_body_html(dlg._runs_for_report(),
                                                 for_pdf=False))
             m = re.search(r"covers (\d+) of the (\d+) measurements recorded "
-                          r"for (this run|these runs)", body)
+                          r"for (this profile run|the \d+ profile runs it was "
+                          r"chosen from)", body)
             said.append((int(m.group(1)), int(m.group(2)), m.group(3))
                         if m else None)
         # which ticked rows the document KEEPS is the limit-set rule's
         # business, not this test's: the totals and the wording are.
         assert [x if x is None else x[1:] for x in said] == [
-            None, (2, "these runs"), (3, "these runs")], said
+            None, (2, "the 2 profile runs it was chosen from"),
+            (3, "the 3 profile runs it was chosen from")], said
     finally:
         dlg.close()
 
@@ -510,12 +512,14 @@ def test_a_renamed_project_is_still_ONE_project(tmp_path, qapp):
         for where, text in (("before the rename", before), ("after it", body)):
             m = re.search(r"covers (\d+) of the (\d+) measurements recorded "
                           r"for (this project|the projects it is drawn from|"
-                          r"this run|these runs|the runs it is drawn from)",
+                          r"this profile run|the \d+ profile runs it was "
+                          r"chosen from|the profile runs of the projects it "
+                          r"is drawn from)",
                           text)
             if m is None:
                 continue
             seen += 1
-            assert m.group(3) in ("this project", "this run", "these runs"), (
+            assert not m.group(3).endswith("projects it is drawn from"), (
                 f'one project reached two ways, and {where} the document says '
                 f'"{m.group(0)}"')
             assert int(m.group(2)) == on_disk, (

@@ -159,7 +159,9 @@ def test_the_help_says_the_things_a_reader_came_for():
                  "Custom ISO", "not rules"),
         # when a reader reaches for each type
         "when": ("you keep", "hand over with the job", "neutral problem",
-                 "document without grading",
+                 # K13: the Printing record is a profiling measurement's
+                 # report now, not a job documented without grading
+                 "report of a profiling measurement",
                  # …and where the reason for the greyed ISO rows really lives.
                  # Measured on screen across all six demo projects, in both
                  # states: the line under the pulldown says "Already generated

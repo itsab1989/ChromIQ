@@ -1630,12 +1630,18 @@ What was built, and the assumptions it rests on (each is his to overturn):
 * **A measurement with no run** (a file outside any project, and a
   calibration) keeps every type, as before. *Assumption:* a calibration is not
   a profile run, so the rule is not applied to it.
-* **Preferences "Report type, default" applies to verification**, so the
-  Printing record is greyed there, and a stored Printing record default (legal
-  until beta 35) is read as Full colour check. Nothing on disk is rewritten.
-* **A saved report of a type its kind no longer allows** (a beta-34 Full colour
-  check of a profiling sheet, a Printing record of a verification) is shown as
-  recorded. *Assumption:* what a document IS is not changed by opening it.
+* **Preferences "Report type, default" applies to every measurement that is
+  not a profiling measurement** (verifications, calibrations and files outside
+  a project), so the Printing record is greyed there, and a stored Printing
+  record default (legal until beta 35) is read as Full colour check. Nothing
+  on disk is rewritten.
+* **A saved report of a type its kind no longer allows** (a Printing record
+  of a verification saved by beta 34) is shown as recorded, and Update or
+  Create New writes the type the kind allows; the question then says the
+  settings were modified, because they will be. A saved report that records
+  NO type follows its run (§10), so a profiling sheet's is labelled and drawn
+  as a Printing record. *Assumption:* what a document IS is not changed by
+  opening it.
 * This amends §10 ("T2 ... is the default for every report written before this
   existed and every run nobody has chosen for") and §13.6 P.2 and P.6, which
   now hold for verification measurements only.

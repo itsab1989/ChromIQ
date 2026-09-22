@@ -267,10 +267,10 @@ def test_the_several_runs_reason_goes_when_the_second_run_is_removed(
     from tests.test_the_report_type_pulldown_stores_on_the_run import _two_runs
     dlg, _run1, run2 = _two_runs(tmp_path, qapp)
     try:
-        assert "more than one profile run" in dlg._generate_btn.toolTip()
+        assert "more than one place" in dlg._generate_btn.toolTip()
         _remove_source_of(dlg, run2, qapp)
         assert not dlg._several_runs(), "the second run is still loaded"
-        assert "more than one profile run" not in dlg._generate_btn.toolTip(), (
+        assert "more than one place" not in dlg._generate_btn.toolTip(), (
             "the several-runs reason outlived the second run")
     finally:
         dlg.close()
