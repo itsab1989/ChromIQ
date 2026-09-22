@@ -1,5 +1,28 @@
 # Changelog
 
+## v4.3.0-beta.33
+
+**Two faults Knut reported, and a report that was quietly leaving
+measurements out.**
+
+### Fixed
+
+- **A report could drop measurements without saying why.** With two profile
+  runs bound to the same limit set, and neither marked as edited, a report
+  over the project kept 11 of 22 ticked measurements and printed "This report
+  covers 11 of the 30 measurements recorded for this project" with nothing on
+  the page explaining it. The two stored copies differed only where ChromIQ
+  itself had changed between them: two rows that did not exist before, and one
+  row stored as a recommendation rather than a plain limit. Those are now
+  recognised as the same limit set, exactly as the "(edited)" mark already
+  did. Genuinely different limits still keep their measurements apart.
+
+- **The update window could open too short to read its own text**, so the
+  version information was cut off and you had to drag the window taller. A
+  longer version string pushed the text onto another line and the window's
+  minimum height did not follow it.
+
+
 ## v4.3.0-beta.32
 
 **Ukrainian, corrected.**
