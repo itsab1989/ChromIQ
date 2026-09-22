@@ -23587,4 +23587,43 @@ would reach.
   tooltip rather than adding a control. Sebastian's own words allow for it:
   *"or be mentioned in an existing tooltip"*. Not written yet; it is new
   user-facing text and goes to §M-PROPOSED first.
-- evidence: test_a_cr30_is_always_an_engine_chart
+- evidence: test_a_cr30_is_always_an_engine_chart,
+  test_the_clearance_is_the_same_in_both_modes_on_a_cr30, run with
+  `QT_QPA_PLATFORM=offscreen python -m pytest
+  tests/test_a_cr30_is_always_an_engine_chart.py tests/test_i18n.py
+  tests/test_no_new_em_dash_in_user_facing_text.py
+  tests/test_a_long_language_does_not_push_a_control_off.py
+  tests/test_the_option_pair_row_places_what_it_holds.py
+  tests/test_the_density_tick_belongs_to_one_instrument.py -q`
+  which came back **211 passed**, exit 0, on 2026-09-22.
+
+### B8-762 · OPEN · Ukrainian calls a printed test chart a "diagram", and that is a terminology decision rather than a typo
+- blocks release: no
+- status: OPEN
+- found by: the gamut and target sweep, 2026-09-22, which reported it as the
+  finding that mattered most rather than as a by-product.
+- detail: the contributed catalogue renders **chart** as `діаграма`, which
+  means a GRAPH, in **842** strings. It is the wrong word for a sheet of
+  printed colour patches. Russian, the closest reviewed catalogue, uses
+  `мишень` for both *Chart* and *Target*, deliberately, because in this
+  application they are the same physical object.
+- and the catalogue was ALREADY inconsistent before any of today's work: 28
+  strings whose English says "chart" said `мішень`, including the two main tab
+  labels. **`1. Create Chart` read «1. Створити мішень» while the panel
+  directly beneath it read «Створіть тестову діаграму», and the same action
+  elsewhere read «Створити діаграму».** One app, one action, two words.
+- done here, and only this: the two tab labels now match the panel beneath
+  them and the 842. That removes the visible contradiction without pretending
+  the terminology question is settled.
+- **the question, and it is a decision rather than a sweep**: should a printed
+  chart be `мішень` (correct, matches Russian, collapses chart and target into
+  one word as the English arguably already does) or stay `діаграма` (wrong but
+  established and understood)? Changing it means 842 strings.
+- **MEASURED, and it makes the sweep safer than it sounds**: exactly ONE string
+  in the whole catalogue has an English source that really says "diagram" (the
+  3D profile visualisation). So `діаграма` is not carrying a second meaning
+  that a sweep would destroy; there is one exception to hold out, not hundreds.
+- my recommendation: `мішень` for the printed sheet, as its own pass with its
+  own round, after beta 32. Not done here because a sweep of that size does not
+  belong in the same change set as the wrong-sense corrections it would sit on
+  top of.
