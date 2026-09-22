@@ -172,40 +172,67 @@ def window_id_for(win) -> "int | None":
         # 2026-09-13, two of five captures in one run were lost that way, the
         # same two on a re-run. `CGWindowListCreateImage` does not need the
         # window to be composited, so the id is worth having either way.
-        cands = _own(Quartz.kCGWindowListOptionOnScreenOnly) \
-            or _own(Quartz.kCGWindowListOptionAll)
-        if not cands:
-            return None
-        # The biggest window this process owns, preferring an exact title
-        # match: a Qt app also owns tiny helper windows (tooltips, shadows).
-        named = [w for w in cands if str(w.get("kCGWindowName") or "") == title]
-        # THE GEOMETRY DECIDES BEFORE THE SIZE DOES, AND "biggest" ALONE
-        # PHOTOGRAPHED THE WRONG WINDOW FOR AS LONG AS THIS HELPER HAS EXISTED.
-        #
-        # `ui.tooltip_button.InfoDialog` takes its PARENT's title, so a message
-        # box over the Reference values window is also called "Reference
-        # values". Both then land in `named`, `max(..., area)` picks the parent
-        # because a message box is smaller than the window it covers, and the
-        # capture comes back as the window BEHIND the thing it is filed as.
-        # Measured on challenge round 31 against the pictures of round 30:
-        # `C-said-en-1.png`, `E-stop-said-en-1.png` and `G-zip-said-en-1.png`
-        # are all photographs of the parent, greyed out, with the sentence they
-        # are named for nowhere in them. Nothing was faked; the helper simply
-        # answered a different question.
-        #
-        # A widget knows where it is, so ask. `frameGeometry` is in logical
-        # points and `kCGWindowBounds` is too (both are in the display's
-        # points, not device pixels), so they compare directly, with a few
-        # points of slack for the shadow and for a window the server has just
-        # moved. Falling back to the old rule keeps every existing caller
-        # working when the match fails.
-        exact = _by_geometry(win, named or cands)
-        pick = exact or max(named or cands,
-                            key=lambda w: (w["kCGWindowBounds"]["Width"]
-                                           * w["kCGWindowBounds"]["Height"]))
-        return int(pick["kCGWindowNumber"])
+        import time as _time
+        # **A WINDOW JUST SHOWN IS NOT YET WHERE QT SAYS IT IS.** Measured on
+        # K2's driver, 2026-09-22: a message box `show()`n 900 ms earlier had
+        # no title the window server knew and bounds that did not yet match
+        # its `frameGeometry`, so the old fallback took the biggest window this
+        # process owns and filed a photograph of the MAIN WINDOW under the
+        # popup's name, 3 of 4 times on one run and 0 of 4 on the next. So ask
+        # again for up to a second, and then give up rather than guess.
+        pick = None
+        for _attempt in range(10):
+            cands = _own(Quartz.kCGWindowListOptionOnScreenOnly) \
+                or _own(Quartz.kCGWindowListOptionAll)
+            pick = _pick_window(win, cands, title)
+            if pick is not None:
+                break
+            _time.sleep(0.1)
+        return None if pick is None else int(pick["kCGWindowNumber"])
     except Exception:                                      # noqa: BLE001
         return None
+
+
+def _pick_window(win, cands: list, title: str):
+    """Which of this process's windows is *win*, or None when it cannot tell.
+
+    A title the window server knows is trusted, and among several windows
+    carrying it the geometry decides, then the size. **With no title match,
+    only the geometry may answer.** The old rule fell back to the biggest
+    window, which is right for a main window and wrong for every popup whose
+    title the server has not been told (macOS gives a `QMessageBox` none), and
+    a wrong id photographs a real window, so nothing downstream can see it.
+    """
+    if not cands:
+        return None
+    # A Qt app also owns tiny helper windows (tooltips, shadows), so a title
+    # match is preferred over the whole list.
+    named = [w for w in cands if str(w.get("kCGWindowName") or "") == title]
+    # THE GEOMETRY DECIDES BEFORE THE SIZE DOES, AND "biggest" ALONE
+    # PHOTOGRAPHED THE WRONG WINDOW FOR AS LONG AS THIS HELPER HAS EXISTED.
+    #
+    # `ui.tooltip_button.InfoDialog` takes its PARENT's title, so a message
+    # box over the Reference values window is also called "Reference
+    # values". Both then land in `named`, `max(..., area)` picks the parent
+    # because a message box is smaller than the window it covers, and the
+    # capture comes back as the window BEHIND the thing it is filed as.
+    # Measured on challenge round 31 against the pictures of round 30:
+    # `C-said-en-1.png`, `E-stop-said-en-1.png` and `G-zip-said-en-1.png`
+    # are all photographs of the parent, greyed out, with the sentence they
+    # are named for nowhere in them. Nothing was faked; the helper simply
+    # answered a different question.
+    #
+    # A widget knows where it is, so ask. `frameGeometry` is in logical
+    # points and `kCGWindowBounds` is too (both are in the display's
+    # points, not device pixels), so they compare directly, with a few
+    # points of slack for the shadow and for a window the server has just
+    # moved. Only a TITLE match may fall back to the size rule; see the
+    # docstring for why no title and no geometry is None.
+    exact = _by_geometry(win, named or cands)
+    if exact is not None or not named:
+        return exact
+    return max(named, key=lambda w: (w["kCGWindowBounds"]["Width"]
+                                     * w["kCGWindowBounds"]["Height"]))
 
 
 def _grab_window_id(wid: int, path: Path) -> bool:

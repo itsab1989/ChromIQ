@@ -24148,3 +24148,85 @@ would reach.
   default once TWO OR MORE dated verifications exist, to stop different limit
   sets being used across a series that must be comparable.
 - NOT started: it arrived while the pre-flight batch was being gated.
+
+### B8-776 · FIXED · The pre-flight still opened on a run with a history of measured verifications
+- blocks release: yes
+- status: FIXED
+- found by: Knut on beta 34, 2026-09-22 (#182, comment 5781159382): *"The
+  'Before you measure this verification chart' window still occurs if a
+  verification run has several dated measurements and always seem to pop up
+  when entering Measure tab."* Beta 34's changelog said this was fixed.
+- his hypothesis was the right neighbourhood: the check never found the dated
+  folder's `.ti3`. `_run_has_a_measured_verification` asked each
+  `Verification` for `.ti3` through `getattr(v, "ti3", None)`; the attribute
+  is `measurement_ti3`, so every run answered "no history" and the beta-34 fix
+  had never done anything. No test put an earlier measured verification
+  beside the new, empty one that starting the next date selects.
+- now asks `measurement_ti3` directly with no default, and the swallowed
+  exception is logged as a warning instead of at debug.
+- measured ON SCREEN on his own demo project, Report-Limits-Threshold-Series,
+  against the beta-35 tree and the fixed tree
+  (`scripts/drive_k2_preflight_with_history.py`, proof in
+  `~/Desktop/ChromIQ-beta36-proof/K2-preflight-history/`): run1 (11 measured
+  dates), run3 (1) and run2 (3) opened the pre-flight on beta 35 and do not
+  now; the control, run1 with its dated `.ti3` files moved aside, opens it on
+  both trees, so the driver can see the window when it is there.
+- evidence: test_not_owed_on_a_new_dated_verification_once_the_run_has_history
+
+### B8-777 · FIXED · The window photograph helper filed the MAIN window under a popup's name
+- blocks release: no
+- status: FIXED
+- found by: driving B8-776, 2026-09-22. The driver recorded the pre-flight's
+  text while the photograph filed under its name was the main window: 2 of 5
+  captures on one run, 3 of 4 on the next, 0 of 4 with a diagnostic wrapper
+  that only added delay.
+- `window_id_for` fell back to the biggest window this process owns whenever
+  neither a title nor the geometry matched. macOS gives a `QMessageBox` no
+  title the window server knows, and just after `show()` its bounds do not yet
+  match `frameGeometry`, so the fallback was the main window. It now asks again
+  for up to a second, and with no title match only the geometry may answer;
+  otherwise it returns None and the caller's checked rectangle route decides.
+  Re-driven twice afterwards: every photograph is the window it is named for.
+- any proof photograph of a popup taken before this date may show the window
+  behind it; check the picture, not the file name.
+- evidence:
+  test_an_untitled_popup_the_server_has_not_placed_yet_is_not_the_main_window
+
+### B8-778 · OPEN · Knut's beta 34 batch of 2026-09-22: seventeen items
+- blocks release: no
+- status: OPEN
+- found by: Knut, #182 comments 5781159382 and 5781197240, against beta 34,
+  posted minutes before beta 35 was tagged. Each item gets its own entry when
+  it is worked; this one keeps the list so none is lost.
+- K1 add "New presets i1Pro-maximised.zip" (8 charts) as built-in presets.
+- K2 the pre-flight on a run with history: B8-776.
+- K3 NOTE_RECOMMENDED_LIMIT says "The standard calls this metric
+  recommended" under a set that is not a standard (Threshold-Series run3,
+  quick-check set).
+- K4 Generate Report with no setting changed made a NEW report without the
+  M-REPORT-UPDATE-OR-NEW question.
+- K5 "Paper white & darkest black": the swatch before White (L* 100.0) is
+  light blue.
+- K6 metric names differ between the Colour accuracy graph, "Overview of
+  Measurement Metrics" and Report limits; he prefers the i1Profiler-style
+  names and asks whether "Maximum ΔE, lowest 95%" is "All patches, 95th
+  percentile".
+- K7 a metric whose threshold is "-" must disappear from every section and
+  from the graph.
+- K8 report rows with no Report limits row: Paper white L*, Black L*, the nine
+  per-colour ΔE00 rows, Spread (std. dev.).
+- K9 Save Report as PDF opened at the wrong reports/ folder; test every level
+  on screen.
+- K10 the one-page summary gives numbers without units (ΔE00).
+- K11 the one-page summary's last sentence; re-read against beta 35.
+- K12 a new report's PDF pre-fills the PREVIOUS PDF's name and timestamp.
+- K13 report types by run type: Profiling offers only Printing record,
+  Verification never offers it; the automatic report follows the same rule;
+  the help text says which types are available when.
+- K14 "covers 1 of the 18 measurements recorded for this project" on a
+  Printing record: the count is not scoped to the run type or the selection.
+- K15 bring the demo pack in line with every rule (see B8-764).
+- K16 selecting 2 of 3 measurements and Create New makes a "One date" report
+  and collapses the selection to one.
+- K17 Verification, measurements from two runs selected: the report type
+  cannot be chosen at all.

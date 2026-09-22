@@ -780,3 +780,29 @@ def test_the_geometry_match_gives_up_rather_than_guessing():
     # a candidate whose bounds the window server did not give us
     assert _by_geometry(_FakeWin(100, 100, 820, 654),
                         [{"kCGWindowNumber": 9}]) is None
+
+
+def test_an_untitled_popup_the_server_has_not_placed_yet_is_not_the_main_window():
+    """**K2's proof, 2026-09-22: a photograph of the MAIN WINDOW filed under
+    the pre-flight's name.** macOS tells the window server no title for a
+    `QMessageBox`, so nothing in the list carries its title, and just after
+    `show()` its bounds did not yet match `frameGeometry` either. The old rule
+    then fell back to the biggest window this process owns, which is the main
+    window, on 3 of 4 captures in one run.
+
+    With no title match only the geometry may answer; otherwise it is None and
+    `window_id_for` asks again, then the caller's checked rectangle route
+    decides. MUTATION, run: put back `max(named or cands, ...)` in
+    `_pick_window` and the first assert goes red.
+    """
+    pick = _helper()._pick_window
+    main = _cg(0, 89, 1500, 1028, "ChromIQ — Printer Profiling", 11)
+    popup_not_yet_placed = _cg(0, 0, 500, 500, "", 22)
+    box = _FakeWin(482, 120, 516, 902)
+    assert pick(box, [main, popup_not_yet_placed], "Before you measure") is None
+    # once the server has it where Qt says, the geometry answers
+    placed = _cg(482, 120, 516, 902, "", 22)
+    assert pick(box, [main, placed], "Before you measure") is placed
+    # and a TITLED window still falls back to the size rule among its namesakes
+    assert pick(_FakeWin(5, 5, 10, 10), [main], "ChromIQ — Printer Profiling") \
+        is main

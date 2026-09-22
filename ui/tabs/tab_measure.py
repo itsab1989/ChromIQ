@@ -14022,12 +14022,18 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             if proj is None:
                 return False
             run = proj.run(ctl.target.profile_run)
+            # `measurement_ti3`, ASKED DIRECTLY. Until beta 36 this read
+            # `getattr(v, "ti3", None)`: `Verification` has no `ti3`, so every
+            # run answered "no history" and Knut's beta-32 report survived the
+            # fix that claimed it. No default here, so a renamed attribute is
+            # an AttributeError in the log and not a silent "no".
             for v in run.verifications():
-                ti3 = getattr(v, "ti3", None)
-                if ti3 and Path(ti3).is_file() and not _cgats_has_no_readings(ti3):
+                ti3 = v.measurement_ti3
+                if ti3.is_file() and not _cgats_has_no_readings(ti3):
                     return True
         except Exception:      # noqa: BLE001 — advisory, never a gate
-            log.debug("could not count this run's verifications", exc_info=True)
+            log.warning("could not count this run's verifications",
+                        exc_info=True)
         return False
 
     def _preflight_scope(self) -> "tuple | None":

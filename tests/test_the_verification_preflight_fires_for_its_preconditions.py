@@ -197,6 +197,43 @@ def test_not_owed_when_a_dated_verification_holds_real_readings(qapp, tmp_path):
     assert tab._verification_preflight_due() is False
 
 
+def test_not_owed_on_a_new_dated_verification_once_the_run_has_history(
+        qapp, tmp_path):
+    """**KNUT, ON BETA 34, AND THE STATE BETA 34 CLAIMED TO HAVE FIXED.**
+    *"The 'Before you measure this verification chart' window still occurs if
+    a verification run has several dated measurements and always seem to pop
+    up when entering Measure tab."*
+
+    The run has an EARLIER dated verification that was measured, and the one
+    selected now is new and empty, which is exactly what starting the next
+    verification of a series looks like. Every check that asks about the
+    selected verification says "owed"; only the run's history can say no.
+
+    It never did: `_run_has_a_measured_verification` asked each verification
+    for `.ti3`, an attribute `Verification` has never had, through a
+    `getattr(..., None)` that turned the mistake into "no history" for every
+    run. No test put an earlier measured verification beside an empty one."""
+    tab, ctl, chart = _ready_tab(tmp_path, qapp)
+    run = ctl.project_or_none().run("run1")
+    old = run.new_verification()
+    old.dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(_corner_chart(), old.dir / f"{old.stem}.ti3")
+    new = run.new_verification()
+    assert new.id != old.id, "the fixture made one verification, not two"
+    new.dir.mkdir(parents=True, exist_ok=True)
+    ctl.set_verification_id(new.id)
+    ti3 = tab._measurement_at_risk()
+    assert ti3 is None or _cgats_empty(ti3), (
+        "the SELECTED verification holds readings, so this test would pass "
+        "on the per-verification check and never reach the history")
+    assert tab._verification_preflight_due() is False
+
+
+def _cgats_empty(path) -> bool:
+    from ui.tabs.tab_measure import _cgats_has_no_readings
+    return _cgats_has_no_readings(path)
+
+
 def test_not_owed_while_a_measurement_is_running(qapp, tmp_path, monkeypatch):
     tab, _ctl, _chart = _ready_tab(tmp_path, qapp)
     monkeypatch.setattr(type(tab), "a_measurement_is_running",
