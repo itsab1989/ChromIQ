@@ -2,6 +2,101 @@
 
 ## v4.3.0-beta.30
 
+**Ukrainian, a verification check before you measure, and the Measurement
+Report saying only things that are true.**
+
+### Added
+
+- **Ukrainian.** ChromIQ speaks thirteen languages. The translation was
+  contributed by **LackiUA** on issue #198: 5,425 rows, and an unusually clean
+  file. Some newer text is still English and is listed for them.
+
+- **ChromIQ tells you what a verification chart can answer, before you print
+  it.** Entering the Measure tab on a verification run with a chart and no
+  measurement now opens a short summary: which metrics this chart can serve,
+  which it cannot, and what to change if you want the ones it cannot. It can be
+  switched off per run until you restart ChromIQ.
+
+- **"Which presets can be used for verification?" lists your current chart
+  first**, above the presets, so you can check the chart you already have
+  against the same requirements.
+
+- **Two repeatability rows that are ChromIQ's own.** How far apart the same
+  colour landed where your chart asks for it twice on one sheet, and how far
+  the same chart moved when you measured it again. No standard defines these
+  and nobody licenses them: they are computed from your own measurements of
+  your own prints.
+
+- **Select all and Deselect all** beside the measurement list.
+
+### Changed
+
+- **"Show all measurement runs" is gone**, with the behaviour behind it. A
+  report now covers exactly the measurements that are ticked when you press
+  Generate, and nothing else.
+
+- **Every row reads PASS or FAIL.** COND is retired as a row word; it remains
+  a column's overall word where a set was only partly checked. A metric a
+  standard recommends rather than requires now carries a small raised number
+  pointing to a note that says so, in the window and in the report.
+
+- **A metric that does not apply never counts against your result.** If every
+  applicable metric passes, the overall word is PASS. An N-A cell carries a
+  numbered note saying why it does not apply.
+
+- **The two Custom ISO columns start from limits researched from industry
+  practice**, with ChromIQ's own numbers on the rows that research does not
+  cover. Neither is the published tolerances of either standard, and the window
+  says so. Limits you have changed yourself are untouched.
+
+- **Help cards lead with the steps.** Each workflow card now opens with the
+  actions to take, with the explanations folded underneath for when you want
+  them. A folded section always prints open.
+
+### Fixed
+
+- **Guided printed ChromIQ's own settings stamp across the patches.** On a
+  CR30 A4 honeycomb it crossed 206 pixels of ink. The row labels now give up a
+  little width so the stamp clears the patches, and **no chart loses a single
+  patch**: 396 before and after, across all 120 Guided combinations.
+
+- **A chart heading could lose the last pixel or two of its final letter.** It
+  affected fourteen of fifteen headings in English and German as well, and
+  showed up first in Ukrainian only because those headings are longest.
+
+- **The list of measurements could freeze**, unscrollable and unclickable, and
+  the window opened that way whenever the run's most recent report was a one
+  page colour summary.
+
+- **Selecting a saved report now restores that report's own measurements**,
+  rather than ticking every measurement in the list.
+
+- **Generate no longer silently changes what you ticked.** Where a report type
+  has room for one measurement and several are ticked, it says so and asks.
+
+- **A report saved by an older ChromIQ keeps its own words and gains the new
+  rows**, instead of being displayed with a sentence that is no longer true.
+
+- **Runs bound by an earlier ChromIQ no longer read "(edited)"** when nothing
+  was edited.
+
+- Several help and report sentences that described behaviour ChromIQ no longer
+  has, in every language.
+
+- The section frames in the Reference values window are rounded, like every
+  other panel.
+
+### Please read this if you run 4.2.7 alongside a beta
+
+**Do not open a beta project in ChromIQ 4.2.7.** Its manifest format number is
+the same as the beta's, so it cannot tell that a project is newer, and loading
+and saving one **erases that run's bound limit set**: the set, all of its
+limits, and when it was bound. Beta 30 now preserves anything a newer ChromIQ
+wrote, but 4.2.7 has already shipped and cannot be repaired from here. If it
+has already happened, the run must be bound again by hand.
+
+## v4.3.0-beta.30
+
 **A fourteenth language, and four sentences that had stopped being true.**
 
 ### Added
