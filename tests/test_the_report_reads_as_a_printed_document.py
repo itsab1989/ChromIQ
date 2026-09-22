@@ -346,10 +346,24 @@ def test_a_document_drawn_from_two_projects_does_not_call_them_one(tmp_path,
         qapp.processEvents()
         body = _plain(dlg._report_body_html(dlg._runs_for_report(),
                                             for_pdf=False))
+        # ROUND 3-C (2026-09-22): THIS WAS THEATRE. Since K14 a verification
+        # document's sentence says "the profile runs of the projects it is
+        # drawn from" / "this profile run" / "the N profile runs it was chosen
+        # from", none of which the old pattern knew, and a miss was a silent
+        # `return`: the test was green whatever wording the page printed.
+        # Measured: the page says "covers 3 of the 4 measurements recorded for
+        # the profile runs of the projects it is drawn from". A row IS left
+        # out here, so the sentence must be there, and it must be plural.
         m = re.search(r"covers (\d+) of the (\d+) measurements recorded for "
-                      r"(this project|the projects it is drawn from)", body)
-        if m is None:
-            return          # nothing is being left out; nothing to claim
+                      r"(this project|the projects it is drawn from|"
+                      r"this profile run|the \d+ profile runs it was chosen "
+                      r"from|the profile runs of the projects it is drawn "
+                      r"from)", body)
+        assert m is not None, (
+            "a measurement is left out of a two-project document and the page "
+            "says nothing about it\n" + body[-400:])
+        assert m.group(3).endswith("projects it is drawn from"), (
+            f'two projects, and the document says "{m.group(0)}"')
         if int(m.group(2)) > 0 and m.group(3) == "this project":
             # then it really must be ONE project's own count
             from ui.dialogs.measurement_report_dialog import (
@@ -404,19 +418,37 @@ def test_two_spellings_of_one_folder_are_one_project(tmp_path, qapp):
             if through_alias.is_file():
                 dlg._add_source(through_alias)
                 qapp.processEvents()
+        # ROUND 3-C (2026-09-22): THIS WAS THEATRE. Nothing was left out, so
+        # the page (rightly) printed no sentence at all, and a miss was a
+        # silent `return`: measured, every run of it ended there, and the
+        # pattern did not know the verification wordings either. One run's
+        # rows, BOTH spellings, are now hidden (hiding one of a pair leaves its
+        # twin in), so the sentence has a reason to exist and must be there.
+        _hide_run = made[-1].parent.parent.parent.name
+        hide = {dlg._run_key(r) for r in dlg._history
+                if Path(str(r.get("_origin_dir") or "")).parent.parent.name
+                == _hide_run}
+        assert hide and len(hide) < len(dlg._history), (len(hide),
+                                                        len(dlg._history))
+        dlg._hidden_runs = hide
+        qapp.processEvents()
         body = _plain(dlg._report_body_html(dlg._runs_for_report(),
                                             for_pdf=False))
         m = re.search(r"covers (\d+) of the (\d+) measurements recorded for "
-                      r"(this project|the projects it is drawn from)", body)
-        if m is None:
-            return
+                      r"(this project|the projects it is drawn from|"
+                      r"this profile run|the \d+ profile runs it was chosen "
+                      r"from|the profile runs of the projects it is drawn "
+                      r"from)", body)
+        assert m is not None, (
+            "a run is hidden and the page says nothing about it\n"
+            + body[-400:])
         from ui.dialogs.measurement_report_dialog import (
             MeasurementReportDialog as _MD)
-        on_disk = _MD._measurements_recorded_in(str(proj.root))
+        on_disk = _MD._measurements_recorded_in(str(proj.root), "verification")
         assert int(m.group(2)) == on_disk, (
             f'the document says "{m.group(0)}" where the one project records '
             f'{on_disk}')
-        assert m.group(3) == "this project", (
+        assert not m.group(3).endswith("projects it is drawn from"), (
             f'one project, and the document calls it "{m.group(3)}"')
     finally:
         dlg.close()
@@ -630,14 +662,24 @@ def test_two_cases_of_one_name_are_one_project(tmp_path, qapp):
         qapp.processEvents()
         body = _plain(dlg._report_body_html(dlg._runs_for_report(),
                                             for_pdf=False))
+        # ROUND 3-C (2026-09-22): THIS WAS THEATRE. The page says "covers 2 of
+        # the 3 measurements recorded for the 3 profile runs it was chosen
+        # from" (measured) and the pattern knew only the project wordings, so
+        # every run ended in a silent `return`. The verification wordings are
+        # added, a miss is a failure (a row IS hidden), and the total is the
+        # verification count of the runs in the list, as K14 defines it.
         m = re.search(r"covers (\d+) of the (\d+) measurements recorded for "
-                      r"(this project|the projects it is drawn from)", body)
-        if m is None:
-            return
+                      r"(this project|the projects it is drawn from|"
+                      r"this profile run|the \d+ profile runs it was chosen "
+                      r"from|the profile runs of the projects it is drawn "
+                      r"from)", body)
+        assert m is not None, (
+            "a measurement is hidden and the page says nothing about it\n"
+            + body[-400:])
         from ui.dialogs.measurement_report_dialog import (
             MeasurementReportDialog as _MD)
-        on_disk = _MD._measurements_recorded_in(str(root))
-        assert m.group(3) == "this project", (
+        on_disk = _MD._measurements_recorded_in(str(root), "verification")
+        assert not m.group(3).endswith("projects it is drawn from"), (
             f'one project under two spellings of its own name, and the '
             f'document says "{m.group(0)}"')
         assert int(m.group(2)) == on_disk, (
