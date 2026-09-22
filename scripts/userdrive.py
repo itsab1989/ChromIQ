@@ -348,6 +348,37 @@ class Drive:
         self.pump(600)
         return str(p) in chosen
 
+    def read_file_dialog(self, name: str | None = None,
+                         within_ms: int = 6000) -> "dict | None":
+        """Wait for ChromIQ's own file dialog, record the folder it OPENED in
+        and the name it offers, photograph it, and cancel it (as a user who
+        only looks). Returns {"dir", "selected", "title"} or None."""
+        from PyQt6.QtWidgets import QFileDialog, QLineEdit
+        end = time.monotonic() + within_ms / 1000.0
+        w = None
+        while time.monotonic() < end:
+            self.pump(100)
+            m = self.modal()
+            if isinstance(m, QFileDialog):
+                w = m
+                break
+        if w is None:
+            self.note("   [file dialog] none appeared")
+            return None
+        self.pump(700)
+        box = w.findChild(QLineEdit, "fileNameEdit")
+        info = {"dir": w.directory().absolutePath(),
+                "selected": list(w.selectedFiles()),
+                "name_box": box.text() if box is not None else None,
+                "title": w.windowTitle()}
+        if name:
+            self.shot(w, name)
+        self.note(f"   [file dialog] {info['title']!r} opened in "
+                  f"{info['dir']} offering {info['name_box']!r}")
+        w.reject()
+        self.pump(500)
+        return info
+
     # -- running -----------------------------------------------------------
     def run(self, script) -> int:
         """Step the generator from the event loop until it ends."""

@@ -24603,3 +24603,22 @@ would reach.
   test_after_an_update_the_pdf_is_not_offered_the_earlier_pdfs_name
   test_a_page_that_is_no_longer_the_saved_document_takes_neither_its_time_nor_its_name
   test_the_line_never_prints_nan_or_minus_zero
+
+### B8-794 · FIXED · Save report as PDF opened at the wrong reports/ folder for a report of several profile runs
+- blocks release: no
+- status: FIXED
+- found by: Knut on beta 34 (K9 of B8-778), who asked for every level to be
+  tested on screen.
+- driven on screen as a user at all four levels of `_report_dir`
+  (`scripts/drive_k9_pdf_folder.py`, proof
+  `~/Desktop/ChromIQ-beta36-proof/K9-pdf-folder/`), reading the folder
+  ChromIQ's save dialog actually opened in. beta 35: one dated verification,
+  all checks of one run and one profiling run were right; SEVERAL PROFILING
+  RUNS opened in `runs/run1/reports` instead of the project's `reports/`,
+  because the document had collapsed to one run (K16, B8-786) and the folder
+  follows the document. With B8-786 the fixed tree opens all four correctly.
+- the export wrote nothing to the log, so his log could not say where the
+  dialog or the file had been; it now logs both.
+- NOT verified: the OS-native save dialog (Preferences "use native file
+  dialogs"), which no driver can operate; ChromIQ hands it the same folder.
+- evidence: test_a_report_of_several_profiling_runs_is_saved_in_the_projects_reports

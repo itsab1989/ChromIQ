@@ -4685,6 +4685,12 @@ class MeasurementReportDialog(QDialog):
             painter.restore()
         painter.end()
 
+        # WHERE IT WENT, AND WHERE IT WAS OFFERED (K9). Knut reported the save
+        # dialog opening in the wrong reports/ folder and his log could not
+        # say where either the dialog or the file had been: the export wrote
+        # nothing to it. Both are logged now, so the next report is checkable.
+        log.info("measurement report PDF saved: %s (the dialog offered %s)",
+                 path, default)
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
 
     def _scope_header_units(self, runs: list) -> list:

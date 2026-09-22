@@ -1657,3 +1657,45 @@ def test_a_verification_report_of_every_date_of_its_run_says_nothing(
         assert not _COVERS_NOTE.search(body), _COVERS_NOTE.search(body).group(0)
     finally:
         dlg.close()
+
+
+def test_a_report_of_several_profiling_runs_is_saved_in_the_projects_reports(
+        tmp_path, qapp):
+    """K9 (Knut, beta 34): Save report as PDF opened at the wrong reports/
+    folder. Driven on screen at all four levels, beta 35 got one wrong: a
+    report of SEVERAL profiling runs offered `runs/run1/reports`, because the
+    document had collapsed to one run (K16) and the folder follows it.
+
+    MUTATION: put back the narrowing K16 removed (drop the early return in
+    `_one_limit_set`) and this goes red.
+    """
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    from workflow.measurement_report import (build_report, save_report,
+                                             stamp_verdict)
+    from workflow.run_compliance import bind_run, run_limits
+    s, proj, runs = _three_profiled_runs(tmp_path, qapp)
+    # EACH SHEET WITH A SAVED REPORT, JUDGED AGAINST ITS OWN SET: the list is
+    # built from saved reports, and the demo project's three profiling
+    # reports are on three different sets, which is what made K16 collapse.
+    for run, sid in zip(runs, ("chromiq_default", "chromiq_tight",
+                               "chromiq_quick")):
+        bind_run(run, sid, None)
+        lim = run_limits(run, None)
+        rep = build_report(run.dir / f"{proj.root.name}.ti3")
+        stamp_verdict(rep, lim.limits, set_id=lim.set_id,
+                      set_label=lim.label_en, edited=lim.edited)
+        save_report(rep, run.dir)
+    dlg = MeasurementReportDialog(
+        s, None, initial_ti3=runs[0].dir / f"{proj.root.name}.ti3")
+    dlg.show()
+    qapp.processEvents()
+    try:
+        dlg._select_all_btn.click()
+        qapp.processEvents()
+        profiling = [r for r in dlg._runs_for_report()
+                     if not r.get("is_verification")]
+        assert len(profiling) == 3, len(profiling)
+        got = dlg._report_dir()
+        assert got.resolve() == (Path(str(proj.root)) / "reports").resolve(), got
+    finally:
+        dlg.close()
