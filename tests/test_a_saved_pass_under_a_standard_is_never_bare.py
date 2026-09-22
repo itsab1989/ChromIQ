@@ -98,6 +98,11 @@ _STANDARD_SETS = [
     ("custom_iso_12647_7_v1", "Custom ISO 12647-7"),    # an id this build forgot
     ("custom_iso_12647_7", "Custom ISO 12647-7"),       # a live custom column
     ("iso_12647_7", "ISO 12647-7:2016 values"),         # the read-only column
+    # …AND THE OTHER STANDARD. Round 40c pointed out that all three shapes
+    # above are 12647-7, so a change that recognised one standard's name and
+    # not the other's would have passed the whole file.
+    ("custom_iso_12647_8", "Custom ISO 12647-8"),
+    ("iso_12647_8", "ISO 12647-8:2021 values"),
 ]
 
 
@@ -168,12 +173,32 @@ def test_the_caveat_is_in_the_report_body_and_the_pdf(qapp, tmp_path,
         # *"ChromIQ's results are only indications that results that PASS
         # likely fulfil the standard ... It is not proof that results fulfil
         # the standard. The report text notes should explain this detail."*
-        # With the word no longer capped, this sentence is what qualifies a
-        # green PASS under a standard's name, so it is checked in the RENDERED
-        # output rather than in the constant.
-        assert "not proof that it does" in seen, (
-            f"the report for {label!r} prints the caveat without the clause "
-            "saying a pass is an indication and not proof")
+        #
+        # **CHECKED AS THE WHOLE CAVEAT, AND WRITTEN OUT HERE** (adversary
+        # round 40c, finding 5, and then again on the first attempt at fixing
+        # it). Two things were wrong. Looking for "not proof that it does"
+        # alone was satisfied by a paragraph of `_how_to_read_html`, which
+        # every multi-section report prints whatever it is judged against. And
+        # the first correction built the expected string out of
+        # `STANDARD_CAVEAT_APPLIED + STANDARD_CAVEAT_PROOF`, which is a test
+        # reading the constant it checks: gutting the second sentence changed
+        # both sides of the comparison and it stayed green.
+        #
+        # So the sentence is TYPED HERE. That is the cost of guarding a
+        # promise made to a rights holder: a change to the wording has to be
+        # made in two places, and the second place is a test that says why.
+        _CAVEAT = (
+            "This limit set holds a standard's published values applied to "
+            "your chart. It is not a test against that standard: the chart is "
+            "not the standard's chart, and the metrics are ChromIQ's own "
+            "rather than the standard's methods. A result inside these limits "
+            "is an indication that the print would likely meet the standard, "
+            "not proof that it does.")
+        assert _CAVEAT in " ".join(seen.split()), (
+            f"the report for {label!r} does not carry the caveat whole. The "
+            "clause saying a pass is an indication and not proof is the half "
+            "Knut asked for when he retired the cap, and the rest is the "
+            "promise this file exists for.")
     finally:
         dlg.deleteLater()
 

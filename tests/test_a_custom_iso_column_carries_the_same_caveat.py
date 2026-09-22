@@ -91,14 +91,34 @@ def test_every_row_within_its_limit_reads_PASS_and_still_carries_the_caveat(set_
     for every ISO-derived set, which is the state the challenge round found in
     the first place.
     """
-    rows = [(Limit.value(2.0), PASS), (Limit.value(3.0), PASS)]
-    sm = set_summary(rows, set_is_iso=applies_a_standard(set_id), graded=True)
-    assert sm.word == PASS, (set_id, sm)
-    assert "not a test against that standard" in sm.reason, (
-        f"{set_id}: an ISO column reads PASS with no caveat in its own "
-        f"sentence, which is the claim-by-juxtaposition this file exists to "
-        f"prevent"
-    )
+    # **ALL THREE `iso*` SENTENCES, NOT THE ONE THE FIRST DRAFT REACHED**
+    # (adversary round 40c, M2b and M2c). Only `R["iso"]` was exercised here,
+    # so deleting the caveat clause from `iso_with_unchecked` or
+    # `iso_with_one_unchecked` left all 297 guards green. Those two are the
+    # ORDINARY case, not the exotic one: they are reached whenever an ISO
+    # column has any N-A row, which is every first verification.
+    from workflow.compliance_sets import N_A
+    cases = {
+        "nothing unchecked": [(Limit.value(2.0), PASS), (Limit.value(3.0), PASS)],
+        "one unchecked": [(Limit.value(2.0), PASS), (Limit.value(3.0), N_A)],
+        "two unchecked": [(Limit.value(2.0), PASS), (Limit.value(3.0), N_A),
+                          (Limit.value(4.0), N_A)],
+    }
+    seen = set()
+    for why, rows in cases.items():
+        sm = set_summary(rows, set_is_iso=applies_a_standard(set_id),
+                         graded=True)
+        seen.add(sm.reason)
+        assert sm.word == PASS, (set_id, why, sm)
+        assert "not a test against that standard" in sm.reason, (
+            f"{set_id}, {why}: an ISO column reads PASS with no caveat in its "
+            f"own sentence, which is the claim-by-juxtaposition this file "
+            f"exists to prevent"
+        )
+    assert len(seen) == 3, (
+        "the three cases no longer produce three different sentences, so two "
+        "of them are being guarded by accident rather than on purpose: "
+        f"{sorted(seen)}")
 
 
 def test_the_caveat_says_it_is_not_proof():
@@ -289,3 +309,78 @@ def test_that_sweep_can_actually_see_those_files():
         assert "COND" in text or "standard" in text, (
             f"{rel} no longer discusses the subject, so its place in this "
             "sweep is stale")
+
+
+# ===========================================================================
+# A TRANSLATOR CAN DELETE THE PROMISE, AND NOTHING NOTICED
+# ===========================================================================
+# **FOUND BY ADVERSARY ROUND 40c.** Removing "; er ist keine Prüfung gegen
+# diese Norm." from the German value of the `iso` sentence left every guard in
+# this file, `test_i18n.py`, `test_chromiq_never_claims_conformance.py`, the
+# untranslated ledgers and the em-dash test all green. A German reader would
+# then see a column named "Custom ISO 12647-7", a green PASS, and a sentence
+# ending "…angewendet auf dein Chart." with the denial gone.
+#
+# The conformance sweep cannot catch it: it hunts claim words a translation
+# ADDS and has nothing to say about a denial a translation REMOVES. And this
+# project's record says the class has already been found twice in German.
+#
+# **HOW THIS IS CHECKED WITHOUT KNOWING THIRTEEN LANGUAGES.** A catalogue
+# entry is in one of two states. Either the value equals the key, which is the
+# beta rule (that language carries the English source, denial included), or
+# somebody translated it, and then that language must have a pinned denial
+# phrase here and the value must contain it. German is translated by hand and
+# is the only one pinned today; a language that gets translated adds its
+# phrase in the same commit, which is the point at which a human is looking at
+# the sentence anyway.
+_DENIAL_BY_LANGUAGE: "dict[str, str]" = {
+    # "it is not a test against that standard"
+    "de": "keine Prüfung gegen diese Norm",
+}
+
+#: Every sentence whose job includes the denial. Taken from the module rather
+#: than retyped, so a rename cannot leave this list pointing at nothing, and
+#: `test_the_denial_bearing_sentences_are_the_ones_we_think` proves each one
+#: really carries it in English.
+def _denial_bearing_english() -> "list[str]":
+    from workflow.compliance_sets import (STANDARD_CAVEAT_APPLIED,
+                                          SUMMARY_REASONS)
+    return [SUMMARY_REASONS["iso"],
+            SUMMARY_REASONS["iso_with_unchecked"],
+            SUMMARY_REASONS["iso_with_one_unchecked"],
+            STANDARD_CAVEAT_APPLIED]
+
+
+def test_the_denial_bearing_sentences_are_the_ones_we_think():
+    """The control for the sweep below: each English source really does carry
+    the denial, so a sweep finding it in a translation is finding something."""
+    for en in _denial_bearing_english():
+        assert "not a test against that standard" in en, en[:120]
+
+
+@pytest.mark.parametrize("code", ("de", "es", "fr", "it", "ja", "nl", "no",
+                                  "pl", "pt", "ru", "sv", "uk", "zh_CN"))
+def test_no_translation_drops_the_denial(code):
+    """MUTATION: delete "keine Prüfung gegen diese Norm" from any of the four
+    German values in `data/i18n/de.json` and this goes red for `de`."""
+    import json
+    root = Path(__file__).resolve().parents[1]
+    cat = json.loads((root / "data" / "i18n" / f"{code}.json")
+                     .read_text(encoding="utf-8"))
+    for en in _denial_bearing_english():
+        val = cat.get(en)
+        assert val is not None, (
+            f"{code} has no entry for a denial-bearing sentence, so the "
+            f"catalogue is out of sync: {en[:80]!r}")
+        if val == en:
+            continue                      # carries the English source, denial included
+        phrase = _DENIAL_BY_LANGUAGE.get(code)
+        assert phrase, (
+            f"{code} has translated a sentence that carries ChromIQ's denial "
+            f"to a rights holder, and no phrase is pinned for {code} in "
+            f"_DENIAL_BY_LANGUAGE, so nothing checks the denial survived. "
+            f"Add it in the same commit as the translation.")
+        assert phrase in val, (
+            f"{code}: the translation of a denial-bearing sentence no longer "
+            f"contains {phrase!r}. A reader of {code} would see a column "
+            f"named after a standard, a verdict, and no denial:\n  {val!r}")

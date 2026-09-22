@@ -178,10 +178,17 @@ def test_one_patch_count_makes_no_note():
 
 def test_two_patch_counts_make_one_note_in_column_order():
     """Column order, not sorted: the sentence names the counts in the order a
-    reader meets them across the table."""
-    sc = report_scope([_run(1617), _run(918), _run(1617), _run(400)])
+    reader meets them across the table.
+
+    **THE FIXTURE USED TO BE ALREADY DESCENDING** (adversary round 40c,
+    finding 6): 1617, 918, 1617, 400 is what a reverse sort produces too, so
+    `sorted(distinct, reverse=True)` left this green and only an ascending
+    sort was caught. The order here is non-monotonic, so neither sort matches
+    it.
+    """
+    sc = report_scope([_run(918), _run(1617), _run(918), _run(400)])
     assert sc["notes"] == [{"kind": "patch_counts",
-                            "counts": [1617, 918, 400]}], sc["notes"]
+                            "counts": [918, 1617, 400]}], sc["notes"]
 
 
 def test_a_sheet_with_no_recorded_count_is_not_a_second_count():
@@ -216,10 +223,25 @@ def test_the_rendered_note_carries_the_counts_and_is_not_the_fail_colour(qapp):
     assert "1617, 918" in html_out, html_out
     assert "trend graphs" in html_out
     assert "not a fault" in html_out
-    assert _C["dim"] in html_out, html_out[:200]
     assert _C["fail"] not in html_out, (
         "the plain note is painted in the report's FAIL colour, which is the "
         "one thing Knut said it must not be")
+    # **AND NOT ANY OTHER RED EITHER** (adversary round 40c, finding 7).
+    # This used to assert `_C["dim"] in html_out`, which reads the constant it
+    # is checking: setting `_C["dim"]` to #cc0000 rendered the "not an error"
+    # note in a red and the test passed. What the guard is actually about is
+    # that the note does not READ as an error, so the colour is parsed out and
+    # measured. A neutral or dim grey has no dominant red channel; the report's
+    # own FAIL colour does, and that is the measurement rather than a guess.
+    import re
+    colours = re.findall(r"color:(#[0-9a-fA-F]{6})", html_out)
+    assert colours, html_out[:200]
+    for c in colours:
+        r, g, b = (int(c[i:i + 2], 16) for i in (1, 3, 5))
+        assert r <= max(g, b) + 24, (
+            f"the plain note is painted {c}, whose red channel dominates by "
+            f"{r - max(g, b)}; that reads as an error, which Knut said this "
+            f"note is not")
 
 
 def test_an_empty_or_unknown_note_renders_nothing(qapp):
@@ -233,3 +255,127 @@ def test_an_empty_or_unknown_note_renders_nothing(qapp):
 def qapp():
     from PyQt6.QtWidgets import QApplication
     return QApplication.instance() or QApplication([])
+
+
+# ===========================================================================
+# 4. THE PRE-FLIGHT HALF, WHICH HAD NO GUARD AT ALL
+# ===========================================================================
+# **FOUND BY ADVERSARY ROUND 40c (M6a, M7a).** `ui/tabs/tab_measure.py`'s
+# append was referenced by no test in the tree: deleting it left the whole
+# everyday tier green, 17,569 passed exit 0, and making it unconditional did
+# too. The commit message said "the verification pre-flight AND the preset
+# window say what the report does"; only the preset window was guarded, and
+# the two use DIFFERENT expressions for the same condition, so even the
+# condition was untested.
+#
+# `_verification_preflight_message` is the method that builds what the popup
+# shows, so that is what is measured, not the window it is shown in.
+def _preflight_body(row):
+    """What the pre-flight popup would say about *row*, through the tab's own
+    builder. A `__new__` instance: the method reads nothing but its argument
+    and the two module functions it imports."""
+    from ui.tabs.tab_measure import TabMeasure
+    tab = TabMeasure.__new__(TabMeasure)
+    return TabMeasure._verification_preflight_message(tab, row)[1]
+
+
+def test_the_preflight_says_it_too_when_the_chart_falls_short(a_real_chart):
+    """MUTATION: delete the append in `tab_measure._verification_preflight_
+    message` and this goes red."""
+    import dataclasses
+    from workflow import measurement_report as MR
+    row = dataclasses.replace(
+        a_real_chart,
+        assessment=_assessed(a_real_chart.chart, MR.REPORT_TYPE_FULL,
+                             "custom_iso_12647_7"))
+    assert row.assessment.checked and row.assessment.missing
+    body = _preflight_body(row)
+    assert "Report limits" in body, body[-600:]
+    assert "disappears from the report entirely" in body
+
+
+def test_and_the_preflight_leaves_it_out_when_the_chart_does_not(qapp):
+    """The other direction, which M7a proved nothing was checking. The
+    paragraph would otherwise sit directly under this window's own line
+    "Nothing is missing: every metric this chart is asked for can be measured
+    on it.", which is the same sentence contradicting itself."""
+    import dataclasses
+    from core.settings import AppSettings
+    from ui.tabs.tab_chart import verification_preset_rows
+    from workflow import measurement_report as MR
+    whole = None
+    for r in verification_preset_rows(AppSettings()):
+        if not r.builtin or r.chart is None:
+            continue
+        a = _assessed(r.chart, MR.REPORT_TYPE_FULL, "chromiq_default")
+        if a.checked and a.asked and not a.missing:
+            whole = dataclasses.replace(r, assessment=a)
+            break
+    assert whole is not None, (
+        "no shipped preset answers every metric of the everyday combination, "
+        "so this guard would prove nothing")
+    body = _preflight_body(whole)
+    assert "Report limits" not in body, body[-600:]
+    assert "Nothing is missing" in body, (
+        "the fixture no longer reaches the state this guard is about")
+
+
+def test_the_two_windows_agree_about_when_to_say_it(a_real_chart):
+    """They are two expressions of one rule, written in different files, and
+    round 40c pointed out that nothing held them together. Measured over both
+    combinations rather than asserted on one."""
+    import dataclasses
+
+    import ui.dialogs.preset_verification_dialog as PV
+    from workflow import measurement_report as MR
+    for set_id in ("custom_iso_12647_7", "chromiq_default"):
+        row = dataclasses.replace(
+            a_real_chart,
+            assessment=_assessed(a_real_chart.chart, MR.REPORT_TYPE_FULL,
+                                 set_id))
+        in_popup = "Report limits" in _preflight_body(row)
+        in_window = "Report limits" in " ".join(
+            l.text for l in PV.detail_lines(row))
+        assert in_popup == in_window, (
+            f"{set_id}: the pre-flight says it {in_popup} and the preset "
+            f"window says it {in_window}, so one of them is wrong")
+
+
+# ===========================================================================
+# 5. …AND THE PATCH-COUNT NOTE HAS TO REACH A RENDERED REPORT
+# ===========================================================================
+# **FOUND BY ADVERSARY ROUND 40c (M12).** `_scope_html` is the only caller of
+# `_scope_notes_html`, and deleting that one call left the ENTIRE everyday
+# tier green: 17,569 passed, exit 0. Every guard above stops either at
+# `report_scope()` returning a dict or at `_scope_notes_html()` called
+# directly. Nothing asserted the sentence reaches a page. That is the exact
+# fault shape `test_a_saved_pass_under_a_standard_is_never_bare.py` exists
+# for: a sentence a reader cannot read explains nothing.
+def test_the_note_reaches_the_rendered_report_and_the_pdf(qapp, tmp_path):
+    """MUTATION: drop `+ self._scope_notes_html(...)` from `_scope_html`'s
+    return and this goes red, where nothing in the suite did."""
+    import html as _html
+    import re
+
+    from tests.test_a_saved_pass_under_a_standard_is_never_bare import (
+        _dialog, _saved_run, _settings)
+    proj, run, ti3 = _saved_run(tmp_path, "chromiq_default",
+                                "ChromIQ default (recommended)")
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        runs = dlg._runs_for_report()
+        assert runs
+        # Two columns of the same measurement with different counts on them:
+        # what the note is about, made without needing two real charts.
+        pair = [dict(runs[0]), dict(runs[0])]
+        pair[0]["patches"] = 1617
+        pair[1]["patches"] = 918
+        body = dlg._report_body_html(pair, for_pdf=True)
+        seen = _html.unescape(re.sub(r"<[^>]+>", " ", body))
+        seen = " ".join(seen.split())
+        assert "1617, 918" in seen, (
+            "the patch-count note does not reach the rendered report. If it "
+            "is only in a dict it is in no document and no reader sees it.")
+        assert "trend graphs" in seen
+    finally:
+        dlg.deleteLater()

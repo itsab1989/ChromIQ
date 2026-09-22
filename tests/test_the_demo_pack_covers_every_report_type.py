@@ -849,10 +849,18 @@ def test_a_column_that_applies_a_standard_is_worded_as_one(gen):
                               set_summary, REPORT_TYPE_FULL,
                               "custom_iso_12647_7")
     assert named["overall"] == "PASS", named["overall"]
-    assert named["reason"] == SUMMARY_REASONS["iso"], (
-        "a column holding a standard's name was worded exactly like "
-        "ChromIQ's own, on the same numbers")
-    assert named["reason"] != plain["reason"]
+    # **THE CLAUSE, NOT THE DICT ENTRY** (adversary round 40c, finding 7). The
+    # comment on these lines claimed the mutation "still goes red, on the
+    # reason rather than the word"; measured, it did not, because comparing
+    # the returned string to the entry it came from is satisfied by whatever
+    # that entry says. And `!= plain["reason"]` is satisfied by any two
+    # distinct entries.
+    assert "not a test against that standard" in named["reason"], (
+        "the README describes a column holding a standard's name without the "
+        "sentence saying those figures are applied to the chart YOU printed")
+    assert "not a test against that standard" not in plain["reason"], (
+        "ChromIQ's own set has gained a caveat about standards")
+    assert named["reason"] is SUMMARY_REASONS["iso"], "wrong branch taken"
 
 
 def test_the_generator_never_edits_the_two_custom_columns(gen):

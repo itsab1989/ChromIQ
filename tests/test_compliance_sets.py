@@ -372,7 +372,15 @@ def test_summary_words_in_order_of_precedence():
     # chart, which is asserted below rather than left to the word.
     _iso = set_summary(_rows((v, PASS), (v, PASS)), set_is_iso=True, graded=True)
     assert _iso.word == PASS
-    assert _iso.reason == cs.SUMMARY_REASONS["iso"]
+    # **A LITERAL, NOT THE DICT ENTRY** (adversary round 40c, finding 7). This
+    # line read `== cs.SUMMARY_REASONS["iso"]` under a comment claiming it
+    # asserted the sentence still says the figures are applied to your chart.
+    # It asserted no such thing: it compared the returned string to the same
+    # entry it came from, so deleting that clause from the sentence left it
+    # green. A test that reads the constant it checks agrees with whatever the
+    # code says.
+    assert "not a test against that standard" in _iso.reason, _iso.reason
+    assert _iso.reason is cs.SUMMARY_REASONS["iso"], "wrong branch taken"
     assert set_summary(_rows((v, PASS), (sh, COND)), set_is_iso=False, graded=True).word == COND
     # **AN N-A NEVER DEMOTES, WHATEVER ROW IT IS ON.** This line used to read
     # `== COND` for a REQUIRED row, which is the rule Knut replaced on

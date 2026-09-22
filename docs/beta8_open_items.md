@@ -23723,6 +23723,64 @@ would reach.
   read correctly.
 - evidence: test_catalog_is_complete, test_untranslated_values_do_not_creep_in_unseen
 
+### B8-772 · FIXED · Round 40c: eight of my own guards were theatre, and it mutation-proved every one
+- blocks release: no
+- status: FIXED
+- found by: adversary round 40c, 2026-09-22. It mutated the production code
+  under all 297 guards of the change set, one mutation at a time, and recorded
+  which went red. The ledger audit in the same round re-counted both untranslated
+  ledgers from scratch and confirmed every number is the real count, with the
+  stated Ukrainian-versus-the-rest reason true key by key.
+- **a sentence nobody could read.** `_scope_html` is the only caller of
+  `_scope_notes_html`, and deleting that one call left the ENTIRE everyday
+  tier green: 17,569 passed, exit 0. Every guard of B8-768 stopped at
+  `report_scope()` returning a dict or at `_scope_notes_html()` called on a
+  bare instance. That is the fault shape
+  `test_a_saved_pass_under_a_standard_is_never_bare.py` was written for, in a
+  feature shipped the same day.
+- **half of B8-767 had no guard at all.** `tab_measure.py`'s append was named
+  by no test in the tree: deleting it and making it unconditional both left
+  the tier green. The commit said the pre-flight AND the preset window say it;
+  only the window was guarded, and the two use different expressions of one
+  rule, so even the condition was unchecked. There is now a guard on each
+  direction and a third holding the two windows to the same answer.
+- **a translator could delete the promise.** Removing the denial clause from
+  the German value of the ISO sentence left every guard, both ledgers, the
+  conformance sweep and the em-dash test green. That sweep hunts claim words a
+  translation ADDS and has nothing to say about a denial one REMOVES. Now:
+  every catalogue, every denial-bearing sentence, either carries the English
+  source verbatim (the beta rule) or the language has a pinned denial phrase
+  and the value contains it.
+- **two of the three `iso*` sentences were unguarded**, and they are the
+  ORDINARY case: they are reached whenever an ISO column has an N-A row, which
+  is every first verification. The caveat could be deleted from either with a
+  green gate.
+- **FOUR TESTS READ THE CONSTANT THEY CHECKED**, two of them added by this
+  change set under comments claiming the opposite. `assert reason ==
+  SUMMARY_REASONS["iso"]` is satisfied by whatever that entry says; `assert
+  _C["dim"] in html_out` passed with `_C["dim"]` set to a red. All replaced by
+  literals or by measurements.
+- **AND I DID IT AGAIN WHILE FIXING IT.** The first correction to the PDF
+  guard built the expected string from `STANDARD_CAVEAT_APPLIED +
+  STANDARD_CAVEAT_PROOF`, so gutting the second sentence changed both sides of
+  the comparison and it stayed green. The caveat is now TYPED OUT in the
+  guard. That is the cost of guarding a promise made to a rights holder: the
+  wording changes in two places, and the second is a test that says why.
+- also fixed: the column-order fixture was already descending, so a reverse
+  sort matched it; and the saved-report parametrisation covered three shapes
+  of 12647-7 and neither 12647-8 id.
+- evidence: test_the_note_reaches_the_rendered_report_and_the_pdf,
+  test_the_preflight_says_it_too_when_the_chart_falls_short,
+  test_and_the_preflight_leaves_it_out_when_the_chart_does_not,
+  test_the_two_windows_agree_about_when_to_say_it,
+  test_no_translation_drops_the_denial,
+  test_the_denial_bearing_sentences_are_the_ones_we_think,
+  test_two_patch_counts_make_one_note_in_column_order
+- every one of them mutation-proved against the mutation that used to pass:
+  M6a and M7a (2 red each), M12 (1), M2b and M2c (18 each), the German denial
+  (1), M16 descending (1), M20 red note (3), and the caveat gutted from either
+  half (5 each). Control green after each.
+
 ### B8-767 · FIXED · Before printing, nothing said what the report does with a metric the chart cannot answer
 - blocks release: no
 - status: FIXED
