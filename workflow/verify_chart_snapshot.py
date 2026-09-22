@@ -392,6 +392,34 @@ def restore_would_lose_pages(slot) -> "list[Path]":
     return [p for p in live if _is_image(p)]
 
 
+#: THE FIELDS OF A RUN'S `meta.json` THAT BELONG TO THE CHART (B8-740, Knut
+#: 2026-09-22, #182 comment 5775260868: *"Agreed. The Description and the
+#: seven compliance fields are the run's and stay"*, and of everything else that
+#: is neither the chart's nor the run's Description: *"It sounds like they
+#: should survive too."*). So Restore Used Chart takes ONLY these from the
+#: snapshot, and every other field (the Description, the limit binding and
+#: report type, and the run's own record: status, what its profile was built
+#: from, its measure and profile settings, averaging, lineage) stays as it is
+#: live. Named once, here: a field added later is the run's until it is listed.
+CHART_META_KEYS: "tuple[str, ...]" = (
+    "instrument", "paper", "scanner_target_enabled",
+    "chart_notes", "verify_chart_notes",
+    "create_chart_settings", "create_chart_ui", "print_settings",
+    "editor_layout", "editor_basename", "editor_recipe",
+)
+
+
+def merge_restored_meta(live: dict, snapshot: dict) -> dict:
+    """The live `meta.json` with the CHART's fields taken from the snapshot."""
+    out = dict(live)
+    for key in CHART_META_KEYS:
+        if key in snapshot:
+            out[key] = snapshot[key]
+        else:
+            out.pop(key, None)
+    return out
+
+
 def restore_slot(slot) -> "RestoreResult":
     """Put *slot*'s copy back as the live chart.
 
@@ -441,6 +469,18 @@ def restore_slot(slot) -> "RestoreResult":
                      and (slot.live_dir / name).is_file()]
     side_archive = None
     stash = slot.snapshot_dir.parent / f".restore-stash-{slot.snapshot_dir.name}"
+    # THE LIVE meta.json, READ BEFORE ANYTHING MOVES (B8-740): only the chart's
+    # fields are restored from the snapshot, so the rest must come from here.
+    import json as _json
+    live_meta: "dict | None" = None
+    _live_meta_path = slot.live_dir / "meta.json"
+    if _live_meta_path.is_file():
+        try:
+            live_meta = _json.loads(_live_meta_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            log.warning("could not read the live meta.json before restoring: "
+                        "%s", exc)
+            live_meta = None
     # Set before the try: the `finally` reads it on EVERY path.
     _rollback_ok = True
     try:
@@ -454,7 +494,23 @@ def restore_slot(slot) -> "RestoreResult":
                 shutil.move(str(p), str(stash / p.name))
         for s in snap:
             target = slot.live_dir / s.name
-            shutil.copy2(s, target)
+            if s.name == "meta.json" and isinstance(live_meta, dict):
+                # THE CHART'S FIELDS FROM THE SNAPSHOT, EVERYTHING ELSE LIVE.
+                try:
+                    snap_meta = _json.loads(s.read_text(encoding="utf-8"))
+                except ValueError as exc:
+                    # a snapshot we cannot read restores NO field: the live
+                    # settings stay exactly as they were (the rollback below
+                    # only handles OSError, so this must not escape)
+                    log.warning("snapshot meta.json unreadable, live settings "
+                                "kept: %s", exc)
+                    snap_meta = {k: live_meta[k] for k in CHART_META_KEYS
+                                 if k in live_meta}
+                target.write_text(_json.dumps(
+                    merge_restored_meta(live_meta, snap_meta), indent=2),
+                    encoding="utf-8")
+            else:
+                shutil.copy2(s, target)
             result.restored.append(target)
         result.images_restored = any(_is_image(p) for p in result.restored)
         result.needs_regeneration = not result.images_restored and \

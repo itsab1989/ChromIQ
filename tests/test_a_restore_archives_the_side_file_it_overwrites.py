@@ -100,3 +100,59 @@ def test_nothing_is_archived_when_the_snapshot_carries_no_side_file(tmp_path):
     assert _archived(live) is None
     assert json.loads((live / "meta.json").read_text(encoding="utf-8")) == {"a": 1}, \
         "a snapshot with no side file must leave the live one alone"
+
+
+# ---------------------------------------------------------------------------
+# Knut's ruling, 2026-09-22 (#182 comment 5775260868): only the CHART's fields
+# ---------------------------------------------------------------------------
+def test_restore_takes_only_the_charts_fields_from_the_snapshot(tmp_path):
+    """*"Agreed. The Description and the seven compliance fields are the run's
+    and stay."* and, of the rest: *"It sounds like they should survive too."*
+
+    MUTATION: write the snapshot's meta.json over the live one again (the
+    `shutil.copy2` for it) and every assert below on a live field goes red.
+    """
+    live = {"description": "what the user has now",
+            "compliance_set_id": "chromiq_default",
+            "compliance_set_label": "ChromIQ default (recommended)",
+            "compliance_thresholds": {"all_de00_avg": 2.0},
+            "compliance_bound_at": "2026-09-01T10:00:00",
+            "compliance_unlocked": False,
+            "compliance_columns": ["x"],
+            "report_type": "t2_full_colour_check",
+            "status": "complete",
+            "profile_built_from": "run1/P.ti3",
+            "create_chart_settings": {"targen_-f": 400},
+            "editor_recipe": {"patches": 400}}
+    snap = {"description": "what it was at measurement time",
+            "status": "in_progress",
+            "create_chart_settings": {"targen_-f": 210},
+            "editor_recipe": {"patches": 210}}
+    slot = _slot(tmp_path, live, snap)
+    VS.restore_slot(slot)
+    got = json.loads((slot.live_dir / "meta.json").read_text(encoding="utf-8"))
+    # the chart's fields come from the snapshot...
+    assert got["create_chart_settings"] == {"targen_-f": 210}
+    assert got["editor_recipe"] == {"patches": 210}
+    # ...the run's stay live
+    assert got["description"] == "what the user has now"
+    for k in ("compliance_set_id", "compliance_set_label",
+              "compliance_thresholds", "compliance_bound_at",
+              "compliance_unlocked", "compliance_columns", "report_type"):
+        assert got[k] == live[k], k
+    # ...and so does the run's own record
+    assert got["status"] == "complete"
+    assert got["profile_built_from"] == "run1/P.ti3"
+    # the whole previous file is still archived, as before
+    assert _archived(slot.live_dir)["create_chart_settings"] == {"targen_-f": 400}
+
+
+def test_a_snapshot_meta_that_cannot_be_read_changes_no_live_field(tmp_path):
+    """A broken snapshot restores no field, and the restore still completes
+    (the rollback handles OSError only, so a ValueError must not escape)."""
+    live = {"description": "keep", "create_chart_settings": {"targen_-f": 400}}
+    slot = _slot(tmp_path, live, {})
+    (slot.snapshot_dir / "meta.json").write_text("{not json", encoding="utf-8")
+    VS.restore_slot(slot)
+    got = json.loads((slot.live_dir / "meta.json").read_text(encoding="utf-8"))
+    assert got == live

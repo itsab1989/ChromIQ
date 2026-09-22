@@ -20516,6 +20516,15 @@ would reach.
   * **A 72-patch chart at 10 mm uses three strips of a sheet 18 columns wide**,
     which is a quarter of the paper. Measured and photographed; it is what the
     spec asks for, and Knut may want bigger patches instead.
+- **HIS ANSWERS (#182 comment 5748616462), recorded 2026-09-22 after the
+  audit (B8-780 F4) found them unacknowledged:** (1) yes, a FOGRA chart
+  carries the eight cube corners, "all report types uses the cube corners as a
+  test", so 72 becomes 80; (2) he read "an aim the profile cannot reach" as a
+  metric the chart cannot answer, and answered that the report must say which
+  metric cannot be done; the question was about a Fogra AIM COLOUR outside
+  the profile's gamut (dropped, or kept and printed clipped), so it goes back
+  to him in those words; (3) 72 patches at 10 mm on a quarter of the sheet is
+  "Acceptable".
 - evidence: none yet. Nothing is built, and the two missing mechanisms are
   quoted above from the code that lacks them.
 
@@ -23069,9 +23078,30 @@ would reach.
   than through one load/save pair; carrying it needs the panel to hold the
   unknown fields across a round trip.
 
-### B8-740 · DEFERRED · "Restore Used Chart" reverts the run's WHOLE meta.json, the #182 limit binding included, with no archive and no undo
+### B8-740 · FIXED · "Restore Used Chart" reverts the run's WHOLE meta.json, the #182 limit binding included, with no archive and no undo
 - blocks release: no
-- status: DEFERRED
+- status: FIXED
+- **FIXED 2026-09-22 on Knut's ruling** (#182 comment 5775260868): *"Agreed.
+  The Description and the seven compliance fields are the run's and stay"*,
+  and of the rest, *"It sounds like they should survive too."* So Restore Used
+  Chart now takes ONLY the chart's fields from the snapshot
+  (`verify_chart_snapshot.CHART_META_KEYS`: instrument, paper, scanner target,
+  the two chart-notes fields, create-chart settings and UI, print settings, and
+  the editor's layout, basename and recipe) and keeps every other field live:
+  the Description, the limit binding and report type, and the run's own
+  record (status, what its profile was built from, measure and profile
+  settings, averaging, lineage). The previous file is still archived first. A
+  snapshot meta.json that cannot be read restores no field.
+- driven on screen (`scripts/drive_chal36_restore_reverts_the_whole_meta.py`,
+  proof `~/Desktop/ChromIQ-beta36-proof/B8-740-restore/`): the press reverted
+  `create_chart_settings` and `create_chart_ui` only; Description, the bound
+  set (32 rows) and its bound time unchanged on disk and on screen; the old
+  file in `old/`.
+- his two follow-up questions in the same comment ("bookkeeping" and what
+  "binding" means) are answered on #182.
+- evidence:
+  test_restore_takes_only_the_charts_fields_from_the_snapshot
+  test_a_snapshot_meta_that_cannot_be_read_changes_no_live_field
 - **2026-09-22, KNUT ASKED WHY THIS IS A QUESTION AT ALL**, and the first
   description of it was too thin to answer: *"Is not the whole meta.json copied
   to chart/ folder when a measurement is started? and why should Restore Used
