@@ -262,6 +262,48 @@ class Drive:
         self.pump(600)
         return said
 
+    def answer_file(self, path, name: str | None = None,
+                    within_ms: int = 6000) -> bool:
+        """Wait for ChromIQ's own file dialog and pick *path* in it, the way a
+        user types a name into its box and presses Open. (The OS-native
+        dialog cannot be driven; ChromIQ uses its own unless Preferences say
+        otherwise, and a sandboxed settings file does not say so.)"""
+        from PyQt6.QtWidgets import QFileDialog
+        end = time.monotonic() + within_ms / 1000.0
+        w = None
+        while time.monotonic() < end:
+            self.pump(100)
+            m = self.modal()
+            if isinstance(m, QFileDialog):
+                w = m
+                break
+        if w is None:
+            self.note(f"   [file dialog] none appeared (wanted {path})")
+            return False
+        self.pump(500)
+        if name:
+            self.shot(w, name)
+        from PyQt6.QtWidgets import QLineEdit
+        p = Path(path)
+        # TYPED INTO THE NAME BOX, the way a user pastes a path. The first cut
+        # called `setDirectory` + `selectFile(name)`; the directory listing
+        # arrives asynchronously, `selectedFiles()` came back without the file,
+        # and the app was handed nothing (K17's first drive: "loaded runs: 1").
+        w.setDirectory(str(p.parent))
+        self.pump(800)
+        box = w.findChild(QLineEdit, "fileNameEdit")
+        if box is not None:
+            box.setText(str(p))
+        else:
+            w.selectFile(str(p))
+        self.pump(400)
+        chosen = list(w.selectedFiles())
+        self.note(f"   [file dialog] {w.windowTitle()!r} -> {p}; the dialog "
+                  f"reports selected: {chosen}")
+        w.accept()
+        self.pump(600)
+        return str(p) in chosen
+
     # -- running -----------------------------------------------------------
     def run(self, script) -> int:
         """Step the generator from the event loop until it ends."""
@@ -299,9 +341,10 @@ class Drive:
             text = f"(could not read {self._log}: {exc})"
         (self.out / "chromiq-log-during-drive.txt").write_text(
             text, encoding="utf-8")
+        # The sandbox notice is this harness announcing itself, not a fault.
         bad = [ln for ln in text.splitlines()
-               if "[WARNING]" in ln or "[ERROR]" in ln or "[CRITICAL]" in ln
-               or "Traceback" in ln]
+               if ("[WARNING]" in ln or "[ERROR]" in ln or "[CRITICAL]" in ln
+                   or "Traceback" in ln) and "Settings SANDBOXED" not in ln]
         self.record["log_lines"] = len(text.splitlines())
         self.record["log_warnings_and_errors"] = bad
         self.note(f"log: {len(text.splitlines())} lines during the drive, "

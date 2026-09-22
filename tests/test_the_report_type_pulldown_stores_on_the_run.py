@@ -534,7 +534,9 @@ def test_the_window_says_why_it_ignored_both_choices(tmp_path, qapp):
         dlg._sync_limit_controls()
         said = dlg._type_blurb_full
         assert "different report types" in said, said
-        assert not dlg._type_combo.isEnabled()
+        # ENABLED since K17 (Knut, beta 34): a choice across runs is the
+        # window's, for the session, and written to neither run.
+        assert dlg._type_combo.isEnabled()
     finally:
         dlg.close()
 
@@ -559,5 +561,82 @@ def test_the_type_cache_does_not_outlive_the_read_it_was_taken_for(tmp_path, qap
         dlg._sync_limit_controls()
         assert dlg._report_type_now() == REPORT_TYPE_FULL, \
             "the window answered from a cache taken before the run moved"
+    finally:
+        dlg.close()
+
+
+# ---------------------------------------------------------------------------
+# K17, Knut on beta 34: two runs ticked, and the type could not be chosen
+# ---------------------------------------------------------------------------
+def _meta_bytes(*runs):
+    out = {}
+    for run in runs:
+        for p in sorted(run.dir.glob("*.json")):
+            out[str(p)] = p.read_bytes()
+    return out
+
+
+def test_with_two_runs_ticked_the_type_can_be_chosen_and_neither_run_is_written(
+        tmp_path, qapp):
+    """*"I select some measurements from both sets, but now I am not allowed
+    to select report type at all."* The pulldown is live; the choice is the
+    window's, for the session; neither run's stored type moves, because with
+    two runs there is no one run it belongs to.
+
+    MUTATION: put back `setEnabled(not several)` -> the first assert is red;
+    drop `or self._several_runs()` in `_on_type_chosen` -> run1's meta.json
+    changes and the byte comparison is red.
+    """
+    dlg, run1, run2 = _two_runs(tmp_path, qapp)
+    try:
+        assert dlg._several_runs(), "the fixture no longer ticks two runs"
+        assert dlg._type_combo.isEnabled(), (
+            "the report type is greyed with two runs ticked")
+        before = _meta_bytes(run1, run2)
+        dlg._sync_type_combo_to(REPORT_TYPE_GREY)
+        dlg._on_type_chosen(dlg._type_combo.currentIndex())
+        qapp.processEvents()
+        assert dlg._report_type_now() == REPORT_TYPE_GREY
+        assert _meta_bytes(run1, run2) == before, (
+            "a choice made across two runs was written onto a run")
+    finally:
+        dlg.close()
+
+
+def test_a_second_run_with_nothing_ticked_does_not_count_as_a_second_run(
+        tmp_path, qapp):
+    """The document is built from the TICKED rows, so a run that was added and
+    then unticked is not part of it, and does not grey what one run may do.
+
+    MUTATION: make `_several_runs` count `_distinct_run_dirs()` again -> red.
+    """
+    from PyQt6.QtCore import Qt
+    dlg, run1, run2 = _two_runs(tmp_path, qapp)
+    try:
+        for i, (kind, _si, key) in enumerate(dlg._list_rows):
+            if kind == "run" and key is not None and str(run2.dir) in str(key):
+                dlg._profile_list.item(i).setCheckState(Qt.CheckState.Unchecked)
+        qapp.processEvents()
+        dlg._sync_limit_controls()
+        assert len(dlg._distinct_run_dirs()) == 2, "run2 is no longer loaded"
+        assert not dlg._several_runs(), (
+            "a run with nothing ticked still counts as part of the report")
+        assert dlg._generate_btn.isEnabled()
+    finally:
+        dlg.close()
+
+
+def test_a_greyed_generate_says_why_when_two_runs_are_ticked(tmp_path, qapp):
+    """A greyed control says why. The old sentence was set on the type
+    pulldown and then overwritten by the type's description whenever the runs
+    agreed, so nothing on screen explained the dead Generate button.
+
+    MUTATION: delete the `if several:` tooltip block -> red.
+    """
+    dlg, _run1, _run2 = _two_runs(tmp_path, qapp)
+    try:
+        assert not dlg._generate_btn.isEnabled()
+        tip = dlg._generate_btn.toolTip()
+        assert "more than one profile run" in tip, tip
     finally:
         dlg.close()

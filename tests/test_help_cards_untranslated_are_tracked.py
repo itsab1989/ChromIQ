@@ -539,6 +539,13 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-22, K17 (Knut on beta 34: two runs ticked and the
+    # report type could not be chosen). One key out (the type pulldown's
+    # "Several measurement runs are loaded" tooltip, retired with the grey)
+    # and one in (Generate's reason with several runs). German by hand, so it
+    # does not move; `uk` does not move because the departing key was already
+    # English there; the eleven others rise by exactly 1. COUNTED off the
+    # tree with each file's own helper, BOTH ledgers in the same commit.
     # RE-MEASURED a third time on 2026-09-22, after adversary round 40b drove
     # both new messages in the real app and found the first one false in most
     # states. The texts were rewritten, so six keys changed: German is written
@@ -846,17 +853,17 @@ _BUDGET = {
     # recorded. COUNTED with this file's own helper on the tree this commit
     # leaves behind.
     "de": 22,
-    "es": 679,
-    "fr": 680,
-    "it": 679,
-    "ja": 679,
-    "nl": 679,
-    "no": 679,
-    "pl": 679,
-    "pt": 679,
-    "ru": 678,
-    "sv": 679,
-    "zh_CN": 678,
+    "es": 680,
+    "fr": 681,
+    "it": 680,
+    "ja": 680,
+    "nl": 680,
+    "no": 680,
+    "pl": 680,
+    "pt": 680,
+    "ru": 679,
+    "sv": 680,
+    "zh_CN": 679,
     "uk": 894,
 }
 

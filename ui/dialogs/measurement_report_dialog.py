@@ -4687,6 +4687,29 @@ class MeasurementReportDialog(QDialog):
             dirs.add(str(ctx.run.dir) if ctx else f"external:{src['origin']}")
         return dirs
 
+    def _several_runs(self) -> bool:
+        """Does the DOCUMENT span more than one profile run?
+
+        **THE TICKED ROWS, NOT THE LOADED SOURCES (K17, Knut on beta 34).**
+        This was `len(_distinct_run_dirs()) > 1`, which counts what was ADDED:
+        a second run added and every one of its rows unticked still greyed the
+        report type, the limit set and Generate, although the report on screen
+        covered one run. The rows the document is built from are the rows that
+        are ticked, so those are what is counted; with nothing ticked the
+        loaded sources answer, as before.
+        """
+        from workflow.run_compliance import run_context_for
+        rows = self._runs_for_report()
+        if not rows:
+            return len(self._distinct_run_dirs()) > 1
+        dirs: set = set()
+        for r in rows:
+            origin, ti3 = r.get("_origin_dir"), r.get("ti3")
+            ctx = (run_context_for(Path(origin) / str(ti3))
+                   if origin and ti3 else None)
+            dirs.add(str(ctx.run.dir) if ctx else f"external:{origin}")
+        return len(dirs) > 1
+
     def _window_limits(self):
         """The RunLimits the window's own controls act on (the first run's)."""
         if self._limits is None:
@@ -4814,7 +4837,7 @@ class MeasurementReportDialog(QDialog):
                     Qt.ItemDataRole.ToolTipRole)
             idx = self._set_combo.findData(shown.set_id)
             self._set_combo.setCurrentIndex(max(0, idx))
-            several = len(self._distinct_run_dirs()) > 1
+            several = self._several_runs()
             # A run THIS WINDOW bound a moment ago keeps its controls: binding
             # is what locks a run with a history, so without this the act of
             # choosing a limit set greys the pulldown that chose it.
@@ -6540,16 +6563,19 @@ class MeasurementReportDialog(QDialog):
                 self._disable_item(model, i)
         idx = self._type_combo.findData(current)
         self._type_combo.setCurrentIndex(max(0, idx))
-        self._type_combo.setEnabled(not several)
+        # **ENABLED WITH SEVERAL RUNS TOO (K17, Knut on beta 34):** *"I select
+        # some measurements from both sets, but now I am not allowed to select
+        # report type at all."* The type was greyed because a choice was
+        # stored on ONE run, and with two there is no one run to store it on.
+        # That reason went when the type became the DOCUMENT's (K.7, K.8): with
+        # several runs the choice is this window's, kept for the session and
+        # written to neither run (`_on_type_chosen`). §10 only ever asked for
+        # the fallback below when the runs DISAGREE.
+        self._type_combo.setEnabled(True)
         self._type_label.setText(
             tr("Report type ({run}):").format(run=run.dir.name)
             if run is not None and not several else tr("Report type:"))
-        # …and when several runs are loaded that sentence replaces it, below.
         self._type_combo.setToolTip("")
-        if several:
-            self._type_combo.setToolTip(
-                tr("Several measurement runs are loaded. Open the report on "
-                   "one run to change its type."))
         # WHEN THEY DISAGREE, SAY SO WHERE THE PULLDOWN IS. A greyed control
         # over a value that is nobody's choice explains nothing, and this is
         # the one state where the line beside it has something more useful to
@@ -6579,6 +6605,18 @@ class MeasurementReportDialog(QDialog):
             self._generated_full = self._generated_types_detail(run)
             self._set_type_blurb(already or blurb)
             self._type_combo.setToolTip(blurb)
+        self._generate_btn.setToolTip("")
+        if several:
+            # AFTER the blurb, so nothing overwrites it: the old "several
+            # runs" sentence was set first and replaced by the type's
+            # description whenever the runs agreed, so the greyed Generate
+            # button had no reason anywhere on screen (critic round,
+            # 2026-09-22).
+            self._generate_btn.setToolTip(tr(
+                "This report covers measurements from more than one profile "
+                "run. Generate report saves a report into one run, so untick "
+                "the other run's measurements to save it. Save report as PDF "
+                "works as it is."))
         # The button writes a report for the run the window is on. With no run,
         # or with several loaded, there is no single place for it to go.
         #
@@ -6812,8 +6850,11 @@ class MeasurementReportDialog(QDialog):
             self._sync_type_combo_to(current)
             return
         ctx = self._run_ctx
-        if ctx is None:
-            # Not in a run: a session-only choice, nothing stored (CH-14).
+        if ctx is None or self._several_runs():
+            # Not in a run, OR ACROSS SEVERAL (K17): a session-only choice,
+            # nothing stored (CH-14). With two runs ticked there is no one run
+            # the choice belongs to, and writing it onto the window's own run
+            # would change the default of every later report of that run.
             #
             # THROUGH THE ONE DOOR, like every other setting. This branch kept
             # calling `_refresh` after the other four learned to wait, so on a

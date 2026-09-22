@@ -24364,3 +24364,29 @@ would reach.
   test_GAP_history_is_read_from_the_SELECTED_profile_run_not_the_current_one
   test_GAP_an_empty_first_date_does_not_hide_a_measured_later_one
   test_window_id_for_asks_again_until_the_server_has_placed_the_popup
+
+### B8-785 · FIXED · With two runs ticked the report type could not be chosen, and nothing said why Generate was dead
+- blocks release: no
+- status: FIXED
+- found by: Knut on beta 34 (K17 of B8-778): *"I select some measurements
+  from both sets, but now I am not allowed to select report type at all."*
+  Reproduced on screen by the critic round.
+- the type pulldown was greyed whenever more than one run was LOADED, because
+  a choice was stored on one run. §10 asks only for the Full colour check
+  fallback when the runs disagree; the blanket grey was code-only (CH-13).
+  Now: the pulldown stays live; with several runs the choice is the window's,
+  kept for the session and written to neither run; "several" counts the runs
+  of the TICKED rows, so a run added and then unticked no longer greys
+  anything; Generate, still unavailable across runs, says why in its tooltip.
+  The old "several runs" tooltip was being overwritten by the type's
+  description whenever the runs agreed, so no reason was ever on screen.
+- NOT changed, and put to Knut: whether Generate may write a report spanning
+  two runs, and where it is filed (L.7's project-level folder is not built).
+- driven on screen as a user (`scripts/drive_k17_two_runs_type.py`, proof
+  `~/Desktop/ChromIQ-beta36-proof/K17-two-runs-type/`): run1 plus one of
+  run2's dated measurements through "Add profile's measurements...", Grey and
+  tone check chosen, page built as t3_grey_and_tone, no meta.json changed.
+- evidence:
+  test_with_two_runs_ticked_the_type_can_be_chosen_and_neither_run_is_written
+  test_a_second_run_with_nothing_ticked_does_not_count_as_a_second_run
+  test_a_greyed_generate_says_why_when_two_runs_are_ticked
