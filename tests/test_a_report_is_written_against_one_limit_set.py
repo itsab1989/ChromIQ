@@ -605,3 +605,38 @@ def test_profiling_sheets_are_not_narrowed_under_any_type(tmp_path, qapp):
             "two profiling sheets were split by a set that judges neither")
     finally:
         dlg.close()
+
+
+def test_the_pdf_page_header_describes_the_rows_the_body_describes(
+        tmp_path, qapp, monkeypatch):
+    """ROUND B, 2026-09-22: a two-run PDF said "2 measurement runs (2026-04-10
+    - 2026-05-25)" in the header of every page over a body about ONE
+    measurement, because the header was built from every ticked row and the
+    body from the document (one limit set per document leaves the other out).
+
+    The real export runs; only the save dialog and the viewer are answered.
+    MUTATION: build the header from `runs` again and this goes red.
+    """
+    from PyQt6.QtGui import QDesktopServices
+    import ui.widgets as W
+    dlg, _run, fm = _dialog(tmp_path, qapp)
+    try:
+        _second_run(tmp_path, fm, dlg, qapp)
+        body_rows = dlg._runs_for_document()
+        assert len(dlg._runs_for_report()) == 2 and len(body_rows) == 1, (
+            "the fixture no longer narrows two ticked rows to one document")
+        out = tmp_path / "r.pdf"
+        monkeypatch.setattr(W, "save_file_dialog", lambda *a, **k: str(out))
+        monkeypatch.setattr(QDesktopServices, "openUrl",
+                            staticmethod(lambda url: True))
+        seen = {}
+        real = dlg._scope_header_units
+        dlg._scope_header_units = lambda runs: seen.setdefault(
+            "n", len(runs)) and real(runs)
+        dlg._export_pdf()
+        assert out.is_file(), "no PDF was written"
+        assert seen.get("n") == len(body_rows), (
+            f"the page header describes {seen.get('n')} rows and the body "
+            f"{len(body_rows)}")
+    finally:
+        dlg.close()

@@ -92,6 +92,15 @@ class Drive:
         self.settings.set("custom_output_path", str(self.work))
         self.settings.set("argyll_bin_path", "/Applications/Argyll/bin")
         self.settings.set("language", language)
+        # THE SETTING ALONE TRANSLATES NOTHING (round B, 2026-09-22): main.py
+        # loads the catalogue and Qt's own translator at start-up, so a drive
+        # asked for "de" came out in English until this did the same.
+        try:
+            from core.i18n import install_qt_translator, set_language
+            set_language(language)
+            install_qt_translator(self.app)
+        except Exception as exc:                          # noqa: BLE001
+            print(f"could not switch the UI language to {language}: {exc}")
         assert self.settings.get("custom_output_path", "") == str(self.work), \
             "SANDBOX FAILED"
 

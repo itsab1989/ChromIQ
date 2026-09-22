@@ -1325,8 +1325,8 @@ now selected is new and empty. Beta 34 shipped this rule and it never took
 effect (B8-776); it does from beta 36. Two edges are his to rule on: a dated
 folder holding only `reads/readN.ti3` (averaging stopped after one read) does
 not count as measured, and neither does a measurement Replace has moved to
-`verifications/old/`, so in both cases the window opens again.
-**Confirmed by:** *nobody yet.**
+`verifications/old/`, so in both cases the window opens again.*
+**Confirmed by:** *nobody yet.*
 
 *The metric list is not in this text. It is built for the chart in front of the
 reader by the same code the "Which presets can be used for verification" window

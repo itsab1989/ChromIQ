@@ -786,6 +786,12 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-22, round B's text findings: German loses one English
+    # echo (the N-A note, translated by hand) and gains none, because the
+    # three rewritten "more than one profile run" tooltips and the extended
+    # Report type help are translated by hand in the same change; the twelve
+    # others do not move, because the departing keys were English echoes in
+    # them already. COUNTED off the tree, BOTH ledgers in the same commit.
     # RE-MEASURED 2026-09-22, K13 (Knut on beta 34: which report types each
     # run type may have). Four keys in (the two greyed-entry tooltips, the
     # Report type help paragraph saying which types are available when, and
@@ -1276,7 +1282,7 @@ _IDENTICAL_TO_KEY = {
     # untranslated German string, not a bigger budget, and is fixed rather than
     # recorded. COUNTED with this file's own helper on the tree this commit
     # leaves behind.
-    "de": 146,
+    "de": 145,
     "es": 944,
     "fr": 966,
     "it": 955,

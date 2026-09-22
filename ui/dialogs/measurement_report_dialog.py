@@ -1086,7 +1086,9 @@ def _types_and_pairing_help() -> str:
         "measurement is judged, so it can have every other type, and the "
         "Printing record is not offered for it. A measurement outside any "
         "project, or a calibration, can have any of them. The report ChromIQ "
-        "writes by itself after a measurement follows the same rule.")
+        "writes by itself after a measurement follows the same rule. With "
+        "measurements from more than one profile run loaded, the type you "
+        "choose applies to this window only and is not stored on either run.")
     return ("\n\n" + tr("What each one is for") + "\n\n"
             + "\n\n".join(lines)
             + "\n\n" + when_available
@@ -4503,6 +4505,12 @@ class MeasurementReportDialog(QDialog):
                         f"<img src='chart://{i}' width='600'>" + _gap())
             runs = self._runs_for_report()
             doc.setHtml(self._pdf_html(runs, charts_html))
+            # THE HEADER DESCRIBES THE SAME ROWS AS THE BODY (round B,
+            # 2026-09-22): it was built from every TICKED row, so a two-run
+            # PDF said "2 measurement runs (2026-04-10 - 2026-05-25)" on every
+            # page over a body about one measurement of one date. Read inside
+            # this snapshot, as the body is.
+            doc_runs = self._runs_for_document()
 
         from PyQt6.QtGui import QFontMetricsF
 
@@ -4524,7 +4532,7 @@ class MeasurementReportDialog(QDialog):
 
         _paginate_tables(doc, body_h)
 
-        units = self._scope_header_units(runs)   # profile names + measurements/date
+        units = self._scope_header_units(doc_runs)   # profile names + measurements/date
         head_font = QFont(); head_font.setPixelSize(8)
         foot_font = QFont(); foot_font.setPixelSize(10)
         # The ChromIQ wordmark, exactly as the app masthead draws it: "Chrom" in
@@ -4911,8 +4919,10 @@ class MeasurementReportDialog(QDialog):
             self._limits_btn.setEnabled(not several)
             if several:
                 self._judged_label.setText(tr("Judged against:"))
-                tip = tr("Several measurement runs are loaded. Open the report "
-                         "on one run to change its limits.")
+                tip = tr("Measurements from more than one profile run are "
+                         "loaded, and each run keeps its own limits. To change "
+                         "them, select the other profile in the list and click "
+                         "Remove Profile's Measurements….")
             elif run is not None:
                 self._judged_label.setText(
                     tr("Judged against ({run}):").format(run=run.dir.name))
@@ -6673,11 +6683,17 @@ class MeasurementReportDialog(QDialog):
             # description whenever the runs agreed, so the greyed Generate
             # button had no reason anywhere on screen (critic round,
             # 2026-09-22).
+            # ROUND B (2026-09-22) caught the first wording twice over: it
+            # said "untick the other run's measurements", which does nothing
+            # because "several" counts the profiles ADDED, and it said the
+            # report "covers" both runs, which the page may not (rows judged
+            # against another limit set are left out of it). The advice is
+            # now the one control that really gives Generate back.
             self._generate_btn.setToolTip(tr(
-                "This report covers measurements from more than one profile "
-                "run. Generate report saves a report into one run, so untick "
-                "the other run's measurements to save it. Save report as PDF "
-                "works as it is."))
+                "Measurements from more than one profile run are loaded. "
+                "Generate report saves a report into one run: select the other "
+                "profile in the list and click Remove Profile's Measurements… "
+                "to save it. Save report as PDF… saves the report shown here."))
         # The button writes a report for the run the window is on. With no run,
         # or with several loaded, there is no single place for it to go.
         #
@@ -8663,8 +8679,10 @@ class MeasurementReportDialog(QDialog):
         if self._unlock_check.isEnabled():
             return ""
         if several:
-            return tr("Several measurement runs are loaded. Open the report "
-                      "on one run to unlock that run's limits.")
+            return tr("Measurements from more than one profile run are "
+                      "loaded, and each run keeps its own limits. To unlock "
+                      "a run's limits, select the other profile in the list "
+                      "and click Remove Profile's Measurements….")
         if run is None:
             return tr("This measurement does not belong to a profile run, so "
                       "there are no stored limits to unlock.")

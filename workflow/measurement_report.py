@@ -705,8 +705,9 @@ def point_lab(point) -> "tuple[float, float, float] | None":
     The same two shapes :func:`point_lightness` reads. **For the line under
     the swatch, and the reason it exists is K5** (Knut, beta 34): a paper
     white of *L* 100.0* beside a light blue swatch reads as a fault, and the
-    swatch was right. The demo pack's white was Lab 100.0 / -2.4 / -19.4, and
-    only the L* was printed, so nothing on the page explained the colour.
+    swatch was right. The demo pack's white was Lab 100.0 / -2.3 / -19.4 (XYZ
+    95.08 / 100 / 108.93, close to D65), and only the L* was printed, so
+    nothing on the page explained the colour.
     """
     if not isinstance(point, dict):
         return None

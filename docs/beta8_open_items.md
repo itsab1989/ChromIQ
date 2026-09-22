@@ -24237,10 +24237,12 @@ would reach.
 - found by: Knut on beta 34, 2026-09-22 (K5 of B8-778): *"White (1) - L*
   100.0"* beside a light blue swatch.
 - the swatch was right. Every simulated measurement in the limit-demo pack has
-  a paper white of XYZ 95.05 / 100 / 108.9, the D65 white point, because the
-  generator runs `fakeread` through ArgyllCMS's sRGB profile in its default
-  absolute colorimetric mode. Judged against D50 that is Lab 100.0 / -2.4 /
-  -19.4, a blue paper. The demo data half belongs to the pack rebuild (K15,
+  a paper white close to the D65 white point (XYZ 95.08 / 100 / 108.93 in the
+  dated verifications, 95.05 / 100 / 108.9 in the profiling sheets), because
+  the generator runs `fakeread` through ArgyllCMS's sRGB profile in its
+  default absolute colorimetric mode. Judged against D50 that is about Lab
+  100.0 / -2.3 / -19.4, a blue paper (the report prints a* -2.3; round B
+  corrected an earlier -2.4 here). The demo data half belongs to the pack rebuild (K15,
   B8-764): `fakeread -I r` gives a neutral D50 paper, and every designed
   threshold crossing must be re-verified after it.
 - the report half is fixed: "Paper white & darkest black" prints L*, a* and
@@ -24365,7 +24367,7 @@ would reach.
   test_GAP_an_empty_first_date_does_not_hide_a_measured_later_one
   test_window_id_for_asks_again_until_the_server_has_placed_the_popup
 
-### B8-785 · FIXED · With two runs ticked the report type could not be chosen, and nothing said why Generate was dead
+### B8-785 · FIXED · With measurements of two profile runs added the report type could not be chosen, and nothing said why Generate was dead
 - blocks release: no
 - status: FIXED
 - found by: Knut on beta 34 (K17 of B8-778): *"I select some measurements
@@ -24460,3 +24462,38 @@ would reach.
   caused by K13; whether the gate's `--dist loadfile` can put those files on
   one worker is to be measured.
 - evidence: test_the_star_means_one_page_and_a_few_hundred_patches
+
+### B8-789 · FIXED · Round B on the report fixes: false advice in three tooltips, a PDF header about other rows, Sie-Form German
+- blocks release: no
+- status: FIXED
+- found by: adversary round B (user-facing text), 2026-09-22, on screen in
+  English, German and Japanese. Report:
+  `~/Desktop/ChromIQ-beta36-proof/round-B-text/REPORT.md`.
+- F1 (HIGH, mine): Generate's tooltip said "untick the other run's
+  measurements", which does nothing, because what greys Generate is a second
+  profile ADDED. It now names the control that gives Generate back, "Remove
+  Profile's Measurements…", and a test follows that advice through the
+  buttons. F2: it no longer claims the report "covers" both runs, which the
+  page may not.
+- F5: "Judged against", "Show limits…" and "Unlock this run's limits" gave the
+  same kind of advice ("Open the report on one run"); all three now say the
+  same true thing as Generate.
+- F3: the German says "Profillauf", the app's own word, and quotes the
+  buttons as de.json has them.
+- F6: the Report type help says a choice made with two runs loaded applies to
+  this window only.
+- F7: the PDF's page header was built from every ticked row while the body
+  describes the document, so a two-run PDF said "2 measurement runs" over a
+  body about one; the header now reads the document's rows.
+- F8: three German strings addressed the reader as "Sie" (two on the report
+  page, "Berichtsart" beside a control called "Berichtstyp"), and the N-A note
+  was untranslated; all Du-Form now. (The four "This report covers ..."
+  sentences are rewritten by K14 and translated there.)
+- F9, F10: the register and a docstring gave a* -2.4 where the page shows
+  -2.3; unbalanced Markdown in the M-VERIFY-PREFLIGHT note.
+- H1 (harness): `userdrive.Drive(language=...)` wrote the setting and
+  translated nothing; it now loads the catalogue and Qt's translator as
+  main.py does.
+- evidence:
+  test_the_advice_generates_tooltip_gives_really_brings_generate_back
+  test_the_pdf_page_header_describes_the_rows_the_body_describes

@@ -615,6 +615,35 @@ def test_with_two_runs_ticked_the_type_can_be_chosen_and_neither_run_is_written(
         dlg.close()
 
 
+def test_the_advice_generates_tooltip_gives_really_brings_generate_back(
+        tmp_path, qapp):
+    """ROUND B, 2026-09-22: the tooltip's first wording told the reader to
+    untick the other run's measurements, which does nothing, because what
+    greys Generate is a second profile ADDED. So the advice it gives now is
+    followed here, through the buttons: select the other profile's row and
+    click "Remove Profile's Measurements…", and Generate is live.
+
+    MUTATION: make the advice false again (Generate stays grey after the
+    removal) by counting a removed source, and this goes red.
+    """
+    dlg, _run1, _run2 = _two_runs(tmp_path, qapp)
+    try:
+        assert not dlg._generate_btn.isEnabled()
+        assert "Remove Profile's Measurements" in dlg._generate_btn.toolTip()
+        rows = [i for i, (_k, si, _key) in enumerate(dlg._list_rows) if si == 1]
+        assert rows, "the second profile has no row in the list"
+        dlg._profile_list.clearSelection()
+        dlg._profile_list.item(rows[0]).setSelected(True)
+        qapp.processEvents()
+        dlg._remove_btn.click()
+        qapp.processEvents()
+        assert len(dlg._distinct_run_dirs()) == 1
+        assert dlg._generate_btn.isEnabled(), (
+            "the tooltip's advice was followed and Generate stayed grey")
+    finally:
+        dlg.close()
+
+
 def test_a_greyed_generate_says_why_when_two_runs_are_ticked(tmp_path, qapp):
     """A greyed control says why. The old sentence was set on the type
     pulldown and then overwritten by the type's description whenever the runs

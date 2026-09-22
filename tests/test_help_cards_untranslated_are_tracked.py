@@ -539,6 +539,12 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-22, round B's text findings: German loses one English
+    # echo (the N-A note, translated by hand) and gains none, because the
+    # three rewritten "more than one profile run" tooltips and the extended
+    # Report type help are translated by hand in the same change; the twelve
+    # others do not move, because the departing keys were English echoes in
+    # them already. COUNTED off the tree, BOTH ledgers in the same commit.
     # RE-MEASURED 2026-09-22, K13 (Knut on beta 34: which report types each
     # run type may have). Four keys in (the two greyed-entry tooltips, the
     # Report type help paragraph saying which types are available when, and
@@ -859,7 +865,7 @@ _BUDGET = {
     # untranslated German string, not a bigger budget, and is fixed rather than
     # recorded. COUNTED with this file's own helper on the tree this commit
     # leaves behind.
-    "de": 22,
+    "de": 21,
     "es": 683,
     "fr": 684,
     "it": 683,
