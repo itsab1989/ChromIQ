@@ -23139,3 +23139,86 @@ would reach.
   v4.2.7 falls back to the very numbers they encode. The migration still runs once
   — the schema gate is what makes that true, not the removal. The existing
   `tests/test_settings_compliance_migration.py` keeps every assertion it has.
+
+### B8-750 · FIXED · Five of the six ⓘ buttons on Create Chart ▸ Guided are sliced in half in Ukrainian, and Swedish was 2 px behind
+- blocks release: no
+- status: FIXED
+- found by: verifying the DOWNLOADED v4.3.0-beta.30 arm64 dmg on screen before
+  announcing it, 2026-09-22. Not a test finding: the dmg was mounted, launched
+  sandboxed and photographed, and the clipped buttons are in the picture.
+- detail: `ui/tabs/tab_chart.py` built the "Chart Size" group's second row as
+  one `QHBoxLayout` — `-L`, its ⓘ, `addStretch()`, `-P`, its ⓘ. A box layout's
+  minimum is the SUM of its items, so that row demanded **527 px** however
+  narrow the pane became; the panel's minimum rose with it, and the panel lives
+  in a `FadeScrollArea` whose horizontal policy is `ScrollBarAlwaysOff` inside a
+  left column pinned by `left.setFixedWidth(580)`.
+- MEASURED on screen, real window, `capture_window`, two pixel-identical frames:
+  * Ukrainian: panel `minimumSizeHint` **569 px**, viewport **540**,
+    `horizontalScrollBar().maximum()` **29** with the bar off, so those 29 px
+    are unreachable by any means a user has
+  * **5 of 6** ⓘ buttons on the panel past the edge, worst 15 px over
+  * the `-P` button's right edge at **555** against a 540 viewport
+- NOT A UKRAINIAN FAULT, which is why the fix is structural. Every shipped
+  language measured on screen: thirteen fitted, and the margins say it was luck.
+  `minimumSizeHint` of that group at HEAD: **sv 534, fr 527, en 495** against a
+  540 pane — Swedish stood **2 px** from the same cliff on screen (538 against
+  540) and any string edit would have pushed it over silently.
+- fix: `ui/option_pair_row.py`. `OptionPairRow` lays the two options out on one
+  line exactly as the `QHBoxLayout` did while they fit, and drops `-P` to its
+  own line when they do not, so the row's minimum is the WIDER OF THE TWO
+  rather than their sum. The panel's minimum falls from 569 to 301 in Ukrainian
+  and from 494 to 282 in English.
+- NO REGRESSION, PROVED RATHER THAN ASSERTED: the four widgets' geometry was
+  measured in all fourteen languages against HEAD a083c6d6 in a separate
+  worktree. **Thirteen are identical to the pixel** (x/y/w/h and right edge);
+  Ukrainian's `-P` button moves from 555 to 526, which is where the five other
+  ⓘ buttons on that panel already sit.
+- TWO OF MY OWN MISTAKES WERE MEASURED OUT OF THE FIX, and both would have
+  shipped as new one-pixel faults:
+  * placing the button from `sizeHint()` (21 px) when it enforces a 22 px
+    minimum let Qt grow it rightward past the edge: 527 where every other ⓘ sat
+    at 526. A layout expands the hint against the minimum BEFORE positioning.
+  * the replaced row's gap was **16 px, not the 10 it spelled**: a
+    `QHBoxLayout` adds its own `spacing()` between every pair of items on top of
+    `addSpacing(10)`. Using 10 moved two widgets six pixels while the outer
+    edges still looked right.
+- evidence: test_the_chart_size_group_fits_the_pane_in_every_language,
+  test_no_guided_row_is_wider_than_the_pane_it_must_fit,
+  test_the_guided_combos_can_be_squeezed
+- pictures: `~/Desktop/ChromIQ-beta30-proof/asset-verification/b30-bundle-ukrainian.png`
+  (the shipped dmg, buttons sliced), `crop-uk-right-edge.png` against
+  `crop-en-right-edge.png`, and
+  `~/Desktop/ChromIQ-beta30-proof/panel-overflow/edge-after-fixed.png`
+- it had been SEEN AND MISDIAGNOSED, which is why it shipped: the docstring of
+  `tests/test_a_long_language_does_not_push_a_control_off.py` carried it as
+  "STILL OPEN" and said *"nothing in the panel asks for 565, the scroll area is
+  simply handing it a width the viewport no longer has"*. That came from asking
+  `minimumSizeHint` of the COMBO'S PARENT (260 px) instead of the widget the
+  scroll area holds (569 px). Corrected in place.
+
+### B8-751 · FIXED · A guard parametrised over fourteen languages measured English fourteen times
+- blocks release: no
+- status: FIXED
+- found by: the B8-750 fix failing its own mutation test, 2026-09-22 — the new
+  guard passed at HEAD, where the fault provably exists.
+- detail: `tests/test_a_long_language_does_not_push_a_control_off.py` built its
+  `TabChart` in a fixture and each test then called `i18n.set_language(code)`.
+  ChromIQ reads its catalogue when a string is CONSTRUCTED and applies a
+  language change by restarting, so a tab built in English keeps English labels
+  for ever. The parametrisation was decorative.
+- MEASURED at HEAD a083c6d6, the same group in the same process: built in
+  English and then switched to Ukrainian it reports **495 px and its title is
+  still "Chart Size"**; built in Ukrainian it reports **563 px** and is titled
+  "Розмір діаграми". The first number is what two parametrised guards in that
+  file were comparing against the pane.
+- fix: the `tab` fixture becomes `make_tab(code)`, which sets the language
+  BEFORE the constructor — the order the app itself uses — and destroys every
+  tab it made at teardown.
+- MUTATION, the whole file run offscreen in both trees: at HEAD it is now RED
+  for `uk` only (563 against 540) and green for the other thirteen; in the
+  fixed tree all 28 pass. Before this fix it was 28 green in both, which is the
+  definition of a guard that cannot express its own fault.
+- a second guard in the same file, `test_no_guided_row_is_wider_than_the_pane_
+  it_must_fit`, had the same defect and now builds per language too.
+- evidence: test_the_chart_size_group_fits_the_pane_in_every_language,
+  test_no_guided_row_is_wider_than_the_pane_it_must_fit

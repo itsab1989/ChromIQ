@@ -4,18 +4,32 @@ Two faults, both found by photographing the real app in Ukrainian on
 2026-09-21 (issue #198, LackiUA's contributed catalogue), and both OURS rather
 than the translation's — one of them visible in ENGLISH once it was looked for.
 
-* **Three ⓘ help buttons cut in half on Create Chart ▸ Guided.** STILL OPEN,
-  and said so here rather than left to be discovered. The rows themselves were
-  half of it and are fixed below: a `QComboBox` makes its longest item the
-  minimum width of its row, so the two Guided combos are `ElidingComboBox`
-  now and the instrument row's minimum fell from 415 px to 227. That did NOT
-  clear the overhang. Measured in a REAL window the same day: the panel is
-  **565 px inside a 540 px viewport**, while its own `minimumSizeHint` is 260
-  and its `sizeHint` 461 — so nothing in the panel asks for 565, the scroll
-  area is simply handing it a width the viewport no longer has, and horizontal
-  scrolling is off, so the last 25 px cannot be reached by any means. What
-  lands there in English is empty space; in Ukrainian it is the ⓘ button on
-  three rows. The row-minimum guard below holds the half that IS fixed.
+* **Five of the six ⓘ help buttons cut in half on Create Chart ▸ Guided.**
+  FIXED 2026-09-22, and the sentence that used to stand here was wrong about
+  why. It said *"nothing in the panel asks for 565, the scroll area is simply
+  handing it a width the viewport no longer has"*, and that reading came from
+  measuring the wrong object: `minimumSizeHint` was taken from the COMBO'S
+  PARENT (260 px) rather than from the widget the scroll area actually holds.
+  Asked of `sa.widget()`, that panel's minimum is **569 px against a 540 px
+  viewport** — so something in the panel did ask for it, and the fault was
+  ours to fix rather than the scroll area's to be blamed for.
+
+  What asked: the "Chart Size" group put `-L`, its ⓘ, a stretch, `-P` and its
+  ⓘ on ONE `QHBoxLayout`, and a box layout's minimum is the SUM of its items,
+  527 px here however narrow the pane gets. `ui/option_pair_row.py` replaces
+  that row with one that lays the same line out identically while it fits and
+  drops `-P` to its own line when it cannot, so the row's minimum is now the
+  WIDER OF THE TWO options rather than their sum, and the panel's fell from
+  569 to 301.
+
+  Measured on the downloaded v4.3.0-beta.30 arm64 dmg, driven on screen: the
+  scroll area's `horizontalScrollBar().maximum()` was 29 with the bar
+  `AlwaysOff`, so those 29 px could not be reached by any means a user has.
+  Thirteen languages fitted and Ukrainian did not, but this was never a
+  Ukrainian fault: Swedish stood **2 px** from the same cliff (538 against
+  540). After the fix every shipped language has at least 230 px of headroom,
+  and the geometry of all thirteen that already fitted is unchanged to the
+  pixel, verified against HEAD in a worktree.
 
 * **Two buttons on every help card losing characters off both ends.** The
   footer split itself into three equal cells and four buttons do not fit a
@@ -79,18 +93,47 @@ def _reset_language(qapp):
 
 
 @pytest.fixture()
-def tab(qapp, tmp_path):
-    s = AppSettings()
-    s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
-    s.set("custom_output_path", str(tmp_path / "out"))
-    return TabChart(ArgyllRunner(s), FileManager(s), s)
+def make_tab(qapp, tmp_path):
+    """Build the tab IN a language, because switching afterwards does nothing.
+
+    **THIS FIXTURE REPLACED ONE THAT MADE EVERY LANGUAGE MEASURE ENGLISH.** The
+    old `tab` fixture built the widget first and each test then called
+    `i18n.set_language(code)`, but ChromIQ's catalogue is read when a string is
+    constructed and the app applies a language change by restarting: a tab
+    built in English keeps its English labels for ever. Measured 2026-09-22 at
+    HEAD a083c6d6, the same group in the same process: built in English and
+    then switched to Ukrainian it reports **495 px and its title is still
+    "Chart Size"**; built in Ukrainian it reports **563 px** and is titled
+    "Розмір діаграми". The first number is the one the parametrised guards in
+    this file were comparing against the pane, fourteen times, in English.
+
+    So the language goes in BEFORE the constructor, which is also the order the
+    app itself uses.
+    """
+    made = []
+
+    def _make(code: str):
+        i18n.set_language(code)
+        s = AppSettings()
+        s._qs = QSettings(str(tmp_path / f"s-{code}.ini"),
+                          QSettings.Format.IniFormat)
+        s.set("custom_output_path", str(tmp_path / "out"))
+        t = TabChart(ArgyllRunner(s), FileManager(s), s)
+        made.append(t)
+        return t
+
+    yield _make
+    for t in made:
+        t.hide()
+        t.setParent(None)
+        t.deleteLater()
 
 
 # ---------------------------------------------------------------------------
 # Create Chart ▸ Guided: the ⓘ buttons stay inside the panel
 # ---------------------------------------------------------------------------
 
-def test_the_guided_combos_can_be_squeezed(tab):
+def test_the_guided_combos_can_be_squeezed(make_tab):
     """The two combos that set this pane's width must elide, not push.
 
     NOT THE WHOLE FIX, and it is worth being plain about that: the ⓘ buttons
@@ -103,6 +146,7 @@ def test_the_guided_combos_can_be_squeezed(tab):
     MUTATION: change either back to `NoScrollComboBox` in `ui/tabs/tab_chart.py`
     and this goes red naming it.
     """
+    tab = make_tab("en")
     for name, combo in (("instrument", tab._instr_combo),
                         ("paper size", tab._paper_combo)):
         assert isinstance(combo, ElidingComboBox), (
@@ -120,7 +164,8 @@ _VIEWPORT_W = 540
 
 
 @pytest.mark.parametrize("code", LANGS)
-def test_no_guided_row_is_wider_than_the_pane_it_must_fit(tab, qapp, code):
+def test_no_guided_row_is_wider_than_the_pane_it_must_fit(make_tab, qapp,
+                                                          code):
     """The Guided rows must be able to COMPRESS into the 580 px pane.
 
     Asked of the row's minimum rather than of the painted geometry, and that
@@ -136,7 +181,7 @@ def test_no_guided_row_is_wider_than_the_pane_it_must_fit(tab, qapp, code):
     MUTATION: change either Guided combo back to `NoScrollComboBox` and this
     goes red in both languages.
     """
-    i18n.set_language(code)
+    tab = make_tab(code)
     tab.resize(_PANE_W, 900)
     tab.show()
     qapp.processEvents()
@@ -154,6 +199,74 @@ def test_no_guided_row_is_wider_than_the_pane_it_must_fit(tab, qapp, code):
                         f"that is off the edge, the ⓘ button included")
     tab.hide()
     assert not wide, f"[{code}] " + "\n  ".join(wide)
+
+
+#: EVERY language ChromIQ ships, not the two that found the fault. Ukrainian
+#: was 29 px over and Swedish 2 px under, so a guard that only asked the
+#: language which happened to break would have called Swedish safe.
+def _all_shipped_languages() -> list:
+    return [code for code, _name in i18n.available_languages()]
+
+
+@pytest.mark.parametrize("code", _all_shipped_languages())
+def test_the_chart_size_group_fits_the_pane_in_every_language(make_tab, qapp,
+                                                              code):
+    """The "Chart Size" group may not demand more width than the pane has.
+
+    THE ROW THAT ACTUALLY BROKE, and the reason the two guards above did not
+    see it: they measure the instrument and paper rows, and the overhang came
+    from neither. `-L`, its ⓘ, a stretch, `-P` and its ⓘ shared one
+    `QHBoxLayout`, and a box layout's minimum is the SUM of its items, so that
+    row demanded 527 px however narrow the pane became.
+
+    Found on the downloaded v4.3.0-beta.30 arm64 dmg, driven on screen: the
+    panel wanted 569 px inside a 540 px viewport, the scroll area's horizontal
+    policy is `ScrollBarAlwaysOff` and its `horizontalScrollBar().maximum()`
+    was 29, so those pixels were unreachable, and five of the six ⓘ buttons on
+    the panel were sliced in half.
+
+    THE GROUP IS FOUND BY IDENTITY, not by searching for "the scroll area with
+    the most ⓘ buttons in it". The first version of this test did search, and
+    offscreen it found a container holding 122 of them with an 82 px viewport,
+    compared that against 540, and PASSED AT HEAD WITH THE FAULT PRESENT. A
+    probe that cannot express the fault is not evidence; `_pages_spin` is in
+    the group that broke and exists on both sides of the fix.
+
+    Asked of `minimumSizeHint` rather than painted geometry, for the reason the
+    row guard above gives: offscreen a panel is handed whatever width it asks
+    for, so nothing is ever pushed anywhere.
+
+    MUTATION, MEASURED 2026-09-22 against HEAD a083c6d6 in a worktree, the
+    whole file run offscreen in both trees: with the two options back on one
+    `QHBoxLayout` the group's minimum is **uk 563, sv 534, fr 527, en 495**, so
+    this goes RED for `uk` against the 540 pane and green for the other
+    thirteen. With `OptionPairRow` it is **uk 308, sv 292, fr 282, en 267**.
+    Swedish sitting 6 px under the line at HEAD is why this asks every
+    language and not the one that happened to break.
+    """
+    tab = make_tab(code)
+    tab.resize(_PANE_W, 900)
+    tab.show()
+    qapp.processEvents()
+
+    from PyQt6.QtWidgets import QGroupBox
+    group = tab._pages_spin.parentWidget()
+    while group is not None and not isinstance(group, QGroupBox):
+        group = group.parentWidget()
+    need = group.minimumSizeHint().width() if group is not None else None
+    title = group.title() if group is not None else None
+    tab.hide()
+
+    assert group is not None, (
+        "the page-count spin box is not inside a QGroupBox any more, so this "
+        "test measured nothing. Fix the search, do not delete the test."
+    )
+    assert need <= _VIEWPORT_W, (
+        f"[{code}] the {title!r} group cannot compress below {need} px and the "
+        f"pane's viewport is {_VIEWPORT_W}. The {need - _VIEWPORT_W} px past "
+        f"the edge cannot be scrolled to (the horizontal bar is off), and what "
+        f"sits at that edge is the column of \u24d8 help buttons."
+    )
 
 
 # ---------------------------------------------------------------------------

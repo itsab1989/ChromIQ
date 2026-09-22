@@ -66,6 +66,7 @@ from data.patch_db import (
 )
 from ui.dialogs.target_change_dialog import TargetChangeAction, TargetChangeDialog
 from ui.fade_scroll import FadeScrollArea
+from ui.option_pair_row import OptionPairRow
 from ui.parameter_widget import ParameterWidget
 from ui.styles import SPEC_AMBER, SPEC_CYAN, SPEC_GREEN, SPEC_MAGENTA, SPEC_VIOLET
 from ui.theme import accent_for
@@ -5464,7 +5465,6 @@ class TabChart(QWidget):
         ))
         pages_layout.addLayout(pages_row)
 
-        lb_row = QHBoxLayout()
         self._lb_check = QCheckBox(tr("Suppress left clip border (-L)"), inner)
         self._lb_check.setChecked(True)
         self._lb_check.toggled.connect(self._update_patch_count)
@@ -5498,16 +5498,23 @@ class TabChart(QWidget):
             inner,
             min_width=600,
         )
-        lb_row.addWidget(self._lb_check)
-        lb_row.addSpacing(10)
-        lb_row.addWidget(self._lb_tooltip)
-        # Push the -P option to the right edge so its tooltip icon lines up
-        # directly under the "Number of pages" tooltip in the row above.
-        lb_row.addStretch()
-        lb_row.addWidget(self._nsl_check)
-        lb_row.addSpacing(10)
-        lb_row.addWidget(self._nsl_tooltip)
-        pages_layout.addLayout(lb_row)
+        # ONE `QHBoxLayout` HERE DEMANDED THE SUM OF BOTH OPTIONS, AND THAT
+        # SUM IS WHAT PUSHED THE WHOLE PANEL PAST ITS VIEWPORT IN UKRAINIAN.
+        # Measured on the downloaded beta 30 dmg: panel 569 px, viewport 540,
+        # `horizontalScrollBar().maximum()` 29 with the bar `AlwaysOff`, five
+        # of six info buttons on this panel sliced in half. `OptionPairRow`
+        # lays the same line out identically while it fits, and drops the -P
+        # option to its own line only when it genuinely cannot.
+        #
+        # The right-edge alignment the old stretch existed for is kept by the
+        # widget on both paths: the -P button ends flush right, under the
+        # "Number of pages" button in the row above.
+        self._lb_nsl_row = OptionPairRow(
+            self._lb_check, self._lb_tooltip,
+            self._nsl_check, self._nsl_tooltip,
+            pages_grp, spacing=pages_layout.spacing(),
+        )
+        pages_layout.addWidget(self._lb_nsl_row)
         layout.addWidget(pages_grp)
 
         # Refinement / pre-conditioning (optional second-pass profile)
@@ -15273,6 +15280,10 @@ class TabChart(QWidget):
         nsl_visible = instr in {"i1", "p3"} and not self._td_check.isChecked()
         self._nsl_check.setVisible(nsl_visible)
         self._nsl_tooltip.setVisible(nsl_visible)
+        # The row places its children itself, so a change of visibility has to
+        # tell it: hiding -P frees the whole line for -L, and hiding both
+        # collapses the row rather than leaving a gap where it was.
+        self._lb_nsl_row.relayout()
         # Hidden, not cleared, for the same reason as triple density above.
         # -P belongs to the strip readers; it cannot reach printtarg for anyone
         # else, and a value the person ticked is theirs to keep.
