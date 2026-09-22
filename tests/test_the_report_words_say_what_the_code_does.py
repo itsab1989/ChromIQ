@@ -300,16 +300,16 @@ COND_IS_ALLOWED_TO_APPEAR_HERE: "dict[str, str]" = {
     # CORRECTED BY CHALLENGE ROUND 33 (B8-712). Its first half said a column
     # is COND when "it holds rows this chart could not supply", four lines
     # above the paragraph that says such a row "is not counted as a failure".
-    "the report window's own guide, rewritten 2026-09-22":
-        "COND (short for conditional): a column's Overall word, and one only "
-        "a report saved before ChromIQ 4.3.0 can still reach. Such a report "
-        "may hold COND on a row, where it meant a value over a limit the set "
-        "recommended rather than required, and a column holding such a row "
-        "reads COND too. Nothing measured today is judged that way: the "
-        "value reads FAIL and carries a numbered note saying the metric is a "
-        "recommendation. Rows do not use this word, and a row this chart "
-        "could not answer does not make a column COND either: it is not "
-        "counted as a failure.",
+    # REWRITTEN AGAIN 2026-09-23 (K18, Knut): *"A report text shall never
+    # explain something in the past, only the current functionality ... Only
+    # explain what the meaning of COND is and how to understand it when it
+    # occurs."* The history went; the column-only meaning stayed.
+    "the report window's own guide, rewritten 2026-09-23":
+        "COND (short for conditional): a column's Overall word when a value "
+        "in it is over a limit that is recommended rather than required. "
+        "Rows do not use this word, and a row the test chart used could not "
+        "answer does not make a column COND: it is not counted as a "
+        "failure.",
     "the tooltip on a COND cell a saved report still carries":
         "CONDITIONAL: this report was saved by an earlier ChromIQ, where a "
         "value over a limit the set recommended rather than required read "

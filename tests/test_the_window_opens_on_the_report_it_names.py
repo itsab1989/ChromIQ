@@ -59,7 +59,7 @@ def _run_with_three_types(tmp_path):
     """
     from tests.test_import_measurement_module import (_cgats, _PATCHES,
                                                       _verify_env)
-    from workflow.measurement_report import (REPORT_TYPE_RECORD,
+    from workflow.measurement_report import (REPORT_TYPE_GREY,
                                              REPORT_TYPE_SUMMARY, build_report,
                                              save_report, set_report_type,
                                              stamp_verdict)
@@ -71,8 +71,12 @@ def _run_with_three_types(tmp_path):
     v = run.new_verification()
     v.ensure_dir()
     v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES), encoding="utf-8")
+    # K19 (Knut, 2026-09-23): a verification's list offers only the types a
+    # verification can have, so the newest file is a Grey and tone check (it
+    # was a Printing record, which the list no longer offers here). What the
+    # fault needs is unchanged: the newest file and the run disagree.
     for tid in ("t1_colour_summary", "t2_full_colour_check",
-                REPORT_TYPE_RECORD):
+                REPORT_TYPE_GREY):
         rep = build_report(v.measurement_ti3)
         stamp_verdict(rep, lim.limits, set_id=lim.set_id,
                       set_label=lim.label_en, edited=lim.edited)
@@ -122,7 +126,7 @@ def test_the_window_opens_drawing_the_report_its_pulldown_names(tmp_path, qapp):
         named = dlg._saved_combo.currentText()
         assert named and named != "New report…", named
         # what the ENTRY says this document is
-        record = report_type_name("t4_printing_record")
+        record = report_type_name("t3_grey_and_tone")
         assert record in named, named
         # …and the two places that draw it
         assert dlg._type_combo.currentText() == record, (

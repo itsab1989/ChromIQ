@@ -786,6 +786,16 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-23, K18 (Knut: report text is for a customer; it
+    # never explains the past or how to use ChromIQ). Twelve report strings
+    # reworded: the COND, INFO and drift lines of the guide, the standard
+    # paragraph and its caveat, the three standard summaries, the Printing
+    # record and nothing-checked summaries, and the example-colours line; one
+    # key folded into the existing "not recorded". German by hand, so it does
+    # not move. The twelve others had TRANSLATED the old sentences, and a
+    # translation of the old text under the new key would say the old thing,
+    # so each is back to the English placeholder under the beta rule and the
+    # counts rise. COUNTED off the tree, BOTH ledgers in the same commit.
     # RE-MEASURED 2026-09-23, round 3B's text findings: three several-places
     # tooltips reworded (one entry at a time), the Report type help and the
     # Preferences default text corrected, "{type} ({count})" became
@@ -1318,17 +1328,17 @@ _IDENTICAL_TO_KEY = {
     # recorded. COUNTED with this file's own helper on the tree this commit
     # leaves behind.
     "de": 141,
-    "es": 956,
-    "fr": 978,
-    "it": 967,
-    "ja": 942,
-    "nl": 983,
-    "no": 968,
-    "pl": 960,
-    "pt": 958,
-    "ru": 931,
-    "sv": 969,
-    "zh_CN": 936,
+    "es": 959,
+    "fr": 981,
+    "it": 970,
+    "ja": 945,
+    "nl": 986,
+    "no": 971,
+    "pl": 963,
+    "pt": 961,
+    "ru": 934,
+    "sv": 972,
+    "zh_CN": 939,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which

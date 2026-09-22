@@ -1590,7 +1590,8 @@ def list_reports(run_dir: str | Path) -> list[Path]:
     return sorted(reports.glob("report_*.json"))
 
 
-def generated_report_types(run) -> "dict[str, int]":
+def generated_report_types(run, kind: "str | None" = None,
+                           default_type: str = "") -> "dict[str, int]":
     """``{type_id: how many}`` for the reports a RUN has already produced.
 
     **Knut, 2026-09-11:** *"A user should be allowed to print several report
@@ -1605,18 +1606,43 @@ def generated_report_types(run) -> "dict[str, int]":
     measurement the window was not open for, and another window may have
     generated one a moment ago.
 
-    A report saved before the type existed counts as what it renders as, which
-    is today's report, because that is what it IS. Never raises: a run whose
-    folder cannot be read has produced nothing this can promise.
+    Never raises: a run whose folder cannot be read has produced nothing this
+    can promise.
+
+    **AND ONLY WHAT THE RUN TYPE CAN HAVE (K19).** Knut, 2026-09-23, on a
+    Verification window: *"Already generated for this run: … Printing record
+    (not graded) (2)"* over a pulldown holding no Printing record, because
+    this counted the run's OWN folder, where its profiling reports live, as
+    well as the dated verifications. *"It has been specified that the
+    counting of reports when in run type verification shall only count
+    reports that can exist as report types for a verification run. Also, when
+    run type is profiling, then only reports that are of type 'Printing
+    record' shall be counted."* So *kind* chooses the folders (a profiling
+    sheet's reports live in the run's folder, a verification's in its dated
+    folders) and the types (`report_types_for_kind`); None keeps both, for a
+    caller with no run type.
+
+    A report that records no type is counted as what it renders as for its
+    folder's kind (`report_type_default_for`, the rule the list's label uses,
+    round 3A R3A-3), not as today's full report.
     """
     out: "dict[str, int]" = {}
     if run is None:
         return out
+    from workflow.run_compliance import report_type_default_for
     try:
-        dirs = [run.dir] + [v.dir for v in run.verifications() if v.exists()]
+        verifs = [v.dir for v in run.verifications() if v.exists()]
     except Exception as exc:                     # noqa: BLE001
         log.warning("could not list the reports of a run: %s", exc)
         return out
+    if kind == KIND_PROFILING:
+        dirs = [(run.dir, KIND_PROFILING)]
+    elif kind == KIND_VERIFICATION:
+        dirs = [(d, KIND_VERIFICATION) for d in verifs]
+    else:
+        dirs = ([(run.dir, KIND_PROFILING)]
+                + [(d, KIND_VERIFICATION) for d in verifs])
+    allowed = set(report_types_for_kind(kind))
     # **IT COUNTS REPORTS, NOT FILES (B8-593).** Knut, 2026-09-20: *"The Text
     # 'Already generated for this run: Full colour check (11), Printing Record
     # (not graded)(1)', while the pulldown for Run shown only has one
@@ -1634,7 +1660,7 @@ def generated_report_types(run) -> "dict[str, int]":
     # document block, and a legacy file with no document block still counts as
     # itself, because for those a file IS a report.
     seen: "set[str]" = set()
-    for d in dirs:
+    for d, dir_kind in dirs:
         for path in list_reports(d):
             try:
                 doc = json.loads(path.read_text(encoding="utf-8"))
@@ -1652,9 +1678,13 @@ def generated_report_types(run) -> "dict[str, int]":
                 # which is how one report came to be counted under two names
                 # ("Full colour check (11), Printing Record (not graded)(1)"
                 # for a single document of twelve files).
-                tid = str(block.get("type") or "") or report_type(doc)
+                tid = str(block.get("type") or "") or recorded_report_type(doc)
             else:
-                tid = report_type(doc)
+                tid = recorded_report_type(doc)
+            if not tid:
+                tid = report_type_default_for(run, default_type, dir_kind)
+            if tid not in allowed:
+                continue
             out[tid] = out.get(tid, 0) + 1
     return out
 

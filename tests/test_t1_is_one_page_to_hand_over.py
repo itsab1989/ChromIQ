@@ -173,7 +173,9 @@ def test_a_report_saved_before_the_colours_existed_says_so(tmp_path, qapp):
         old = dict(reps[0])
         old.pop("summary_patches", None)
         one = _text(dlg._report_body_html([old], for_pdf=True))
-        assert "saved before ChromIQ chose example colours" in one
+        # K18 (Knut, 2026-09-23): the page says what is there, not the
+        # history of ChromIQ that explains why it is not.
+        assert "No example colours were recorded with this measurement." in one
     finally:
         dlg.close()
 

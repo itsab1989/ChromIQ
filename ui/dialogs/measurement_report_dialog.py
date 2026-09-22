@@ -4112,7 +4112,15 @@ class MeasurementReportDialog(QDialog):
         # A recorded type the kind no longer allows is a change the press
         # WILL make (round 2B, #8), so the headline may not say nothing
         # changed over it.
+        # ROUND 3A (R3A-4): adding a measurement repaints and re-baselines
+        # the ticks, so `_settings_were_modified` saw nothing, and the box said
+        # "Nothing was changed" over a page that had stopped being the saved
+        # document (its "Created:" line already said so). The list of loaded
+        # measurements is the same test the page uses (`_doc_sources`).
+        sources_moved = (getattr(self, "_doc_sources", None)
+                         not in (None, self._source_signature()))
         modified = (self._settings_were_modified()
+                    or sources_moved
                     or self._fit_to_kind(self._report_type_now())
                     != self._report_type_now())
         title, body = M.CATALOGUE[
@@ -5283,13 +5291,29 @@ class MeasurementReportDialog(QDialog):
         `…/runs/run10` starts with `…/runs/run1`, so the folders are asked of
         the run rather than matched out of a string.
         """
-        from workflow.measurement_report import document_key_of
+        from workflow.measurement_report import (KIND_PROFILING,
+                                                 KIND_VERIFICATION,
+                                                 document_key_of,
+                                                 report_types_for_kind)
         if run is None:
             return []
+        # **ONLY WHAT THE RUN TYPE CAN HAVE (K19).** Knut, 2026-09-23: *"the
+        # listed reports in the pulldown and those counted in 'Already
+        # generated for this run:...' text, must only include the correct
+        # report type based on what the run type parameter is set to"*, and a
+        # user may load measurements from more than one place. The folders
+        # follow the window's kind (a profiling sheet's reports live in the
+        # run's own folder, a verification's in its dated folders), and so do
+        # the types; `generated_report_types` asks the same two questions.
+        kind = self._window_kind()
         try:
-            mine = {str(run.dir)} | {str(v.dir) for v in run.verifications()}
+            verifs = {str(v.dir) for v in run.verifications()}
         except Exception:                            # noqa: BLE001
-            mine = {str(run.dir)}
+            verifs = set()
+        mine = ({str(run.dir)} if kind == KIND_PROFILING
+                else verifs if kind == KIND_VERIFICATION
+                else {str(run.dir)} | verifs)
+        allowed = set(report_types_for_kind(kind))
         docs: "dict[str, dict]" = {}
         order: "list[str]" = []
         for r in self._history:
@@ -5308,7 +5332,8 @@ class MeasurementReportDialog(QDialog):
                 when = _report_order(origin, name)
                 if when > entry["order"]:
                     entry["order"] = when
-        out = [docs[k] for k in order]
+        out = [docs[k] for k in order
+               if self._entry_type(docs[k]) in allowed]
         for entry in out:
             entry["label"] = self._document_label(entry)
         # **THE SAVED STAMP IS A TIE-BREAK, NOT A SECOND DATE ON EVERY LINE
@@ -5341,6 +5366,25 @@ class MeasurementReportDialog(QDialog):
         # was written last".
         out.sort(key=lambda e: e["order"], reverse=True)
         return out
+
+    def _entry_type(self, entry: dict) -> str:
+        """The type one entry of "Report shown" is shown as: its document's
+        own type, or, for a file with no document block, what its label names
+        (`_type_a_file_renders_as`), so the list and its label agree."""
+        doc = entry.get("doc") or {}
+        tid = str(doc.get("type") or "")
+        if tid:
+            return tid
+        if not entry.get("members"):
+            return ""
+        r, name = entry["members"][0]
+        try:
+            rep = json.loads(read_text(
+                Path(str(r.get("_origin_dir") or "")) / "reports" / name))
+        except Exception:                            # noqa: BLE001
+            rep = {}
+        return self._type_a_file_renders_as(
+            rep if isinstance(rep, dict) else {}, r)
 
     def _document_of(self, origin, name: str, r: dict) -> "dict | None":
         """The document block of one saved report file, or None.
@@ -7011,7 +7055,9 @@ class MeasurementReportDialog(QDialog):
             return ""
         from workflow.measurement_report import (generated_report_types,
                                                  report_type_name)
-        counts = generated_report_types(run)
+        counts = generated_report_types(
+            run, self._window_kind(),
+            str(self._settings.get("report_default_type", "") or ""))
         if not counts:
             return tr("No report has been generated for this run yet.")
         names = ", ".join(
@@ -7056,7 +7102,9 @@ class MeasurementReportDialog(QDialog):
             return ""
         from workflow.measurement_report import (generated_report_types,
                                                  report_type_name)
-        counts = generated_report_types(run)
+        counts = generated_report_types(
+            run, self._window_kind(),
+            str(self._settings.get("report_default_type", "") or ""))
         if not counts:
             return ""
         return "\n".join(
@@ -10651,24 +10699,19 @@ class MeasurementReportDialog(QDialog):
             # a note instead. What is left is the one cause that survives,
             # which is a report saved before 4.3.0 holding the word on a row.
             "<li>" + html.escape(tr(
-                "COND (short for conditional): a column's Overall word, and "
-                "one only a report saved before ChromIQ 4.3.0 can still "
-                "reach. Such a report may hold COND on a row, where it meant "
-                "a value over a limit the set recommended rather than "
-                "required, and a column holding such a row reads COND too. "
-                "Nothing measured today is judged that way: the value reads "
-                "FAIL and carries a numbered note saying the metric is a "
-                "recommendation. Rows do not use this word, and a row this "
-                "chart could not answer does not make a column COND either: "
-                "it is not counted as a failure.")) + "</li>"
+                "COND (short for conditional): a column's Overall word when a "
+                "value in it is over a limit that is recommended rather than "
+                "required. Rows do not use this word, and a row the test chart "
+                "used could not answer does not make a column COND: it is not "
+                "counted as a failure.")) + "</li>"
             "<li>" + html.escape(tr(
                 "INFO: the number is shown for your information and nothing "
                 "was judged from it. That happens when this limit set puts no "
                 "limit on the row, when the sheet is a profiling measurement, "
                 "which is never graded, when the row needs something about the "
-                "print that was not recorded, and when you chose a report type "
-                "that judges nothing. The note under the results names the "
-                "rows in the last two cases.")) + "</li>"
+                "print that was not recorded, and when a report judges "
+                "nothing. The note under the results names the rows in the "
+                "last two cases.")) + "</li>"
             "<li>" + html.escape(tr(
                 "N-A (not applicable): the row does not apply here. The reason "
                 "is listed under the results, for example that the chart has "
@@ -10705,9 +10748,9 @@ class MeasurementReportDialog(QDialog):
                 "A column read as a drift check shows the word “drift” in "
                 "every cell instead: it compares one measurement with another "
                 "rather than with a limit. A column's Overall word is PASS "
-                "when every row that could be checked passed; a row this "
-                "chart could not answer is not counted as a failure, and the "
-                "sentence under the word says how many there were.")) + "</p>"
+                "when every row that could be checked passed; a row the test "
+                "chart used could not answer is not counted as a failure, and "
+                "the sentence under the word says how many there were.")) + "</p>"
             # A COLUMN'S NAME IS NOT ITS CONTENTS. The sentence this replaces
             # read "The columns named after a standard hold that standard's
             # published tolerance values", and for the two Custom columns that
@@ -10749,22 +10792,14 @@ class MeasurementReportDialog(QDialog):
             # true of a build that ships as this one does AND of one a licence
             # holder has pointed at their own file.
             "<p>" + html.escape(tr(
-                "Two kinds of column carry a standard's name. A read-only "
-                "column named after a standard holds that standard's "
-                "published tolerance values and nothing else, and ChromIQ "
-                "ships none of them, because it has no permission to include "
-                "them: such a column is empty unless a licence holder has "
-                "supplied its figures. An editable column named after a "
-                "standard starts from those supplied figures where there "
-                "are any, and where there are none, from limits researched "
-                "from industry practice and from ChromIQ's own numbers, "
-                "neither of which is that standard's; every limit in it is "
-                "yours to change. Either way the values "
-                "are applied to the chart you printed rather than to that "
-                "standard's own chart and control strip. Such a column reads "
-                "PASS or FAIL like any other, and the note under the results "
-                "says what that PASS is: an indication that the print would "
-                "likely meet the standard, and not proof that it does.")) + "</p>"
+                "A column named after a standard judges against limits set for "
+                "that standard's printing condition. Its limits may differ "
+                "from the standard's published values, and they are applied to "
+                "the printed test chart rather than to that standard's own "
+                "chart and control strip. Such a column reads PASS or FAIL "
+                "like any other, and the note under the results says what that "
+                "PASS is: an indication that the print would likely meet the "
+                "standard, and not proof that it does.")) + "</p>"
             # BOUND AND LOCKED, in the report that uses both words. Knut,
             # 2026-09-11: *"what is the difference between bound and locked? Be
             # specific in the explanation, so that user understands that chosen
@@ -11721,9 +11756,8 @@ class MeasurementReportDialog(QDialog):
             # and says so rather than showing an empty frame.
             out.append(_h2(tr("Example colours")) + _gap()
                        + f"<div style='color:{_C['dim']}'>" + html.escape(tr(
-                           "This measurement was saved before ChromIQ chose "
-                           "example colours. Measure the chart again to have "
-                           "them.")) + "</div>")
+                           "No example colours were recorded with this "
+                           "measurement.")) + "</div>")
 
         corners = [c for c in (r.get("corners") or []) if c.get("present")]
         if corners:
@@ -11938,9 +11972,7 @@ class MeasurementReportDialog(QDialog):
             rows.append((tr("Printed"), tr("raw — no profile applied"), False))
         else:
             rows.append((tr("Printed"), tr(
-                "not recorded — this sheet was printed before ChromIQ "
-                "recorded the method, or outside ChromIQ. Sheets ChromIQ "
-                "printed before it kept this record always went out raw."),
+                "not recorded"),
                 False))
         route = printing.get("route")
         if route == "chromiq":

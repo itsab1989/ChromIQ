@@ -309,7 +309,10 @@ def test_a_chart_that_DID_supply_the_values_is_not_told_to_add_them(tmp_path,
     # every bearing row N-A: the chart really did supply nothing
     missing = set_summary([(v, N_A), (v, N_A)], set_is_iso=False, graded=True)
     assert missing.reason == SUMMARY_REASONS["nothing_checked"]
-    assert "add those patches" in missing.reason
+    # K18 (Knut, 2026-09-23): a report may reach a customer, so it says what
+    # is missing and no longer how to add it in ChromIQ.
+    assert "say what is missing" in missing.reason
+    assert "Create Chart" not in missing.reason
 
     # every bearing row INFO: the values are there and nobody graded them
     ungraded = set_summary([(v, INFO), (v, INFO)], set_is_iso=False, graded=True)

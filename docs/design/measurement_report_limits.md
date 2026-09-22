@@ -1646,6 +1646,24 @@ What was built, and the assumptions it rests on (each is his to overturn):
   existed and every run nobody has chosen for") and §13.6 P.2 and P.6, which
   now hold for verification measurements only.
 
+**K19 (Knut, #182 comment 5785414710, 2026-09-23), ⏳ awaiting confirmation,
+Confirmed by: *nobody yet*.**
+
+> *"It has been specified that the counting of reports when in run type
+> verification shall only count reports that can exist as report types for a
+> verification run. Also, when run type is profiling, then only reports that
+> are of type 'Printing record' shall be counted. This also applies to the
+> population of the contents in the Report shows pulldown"*
+
+Built (B8-809): "Already generated for this run" and "Report shown" count and
+list only the types the window's kind allows, from the folders that kind lives
+in (a profiling sheet's reports in the run's folder, a verification's in its
+dated folders). This **narrows the bullet above**: a saved report of a type its
+kind no longer allows is no longer offered in the list at all (it stays on
+disk, untouched), where it was shown as recorded. *Assumption:* "run type" here
+is the window's measurement, as in the first bullet; adding a measurement of
+the other kind makes it the window's subject (B8-803 is open on that).
+
 
 ## 15. ChromIQ's own two repeatability rows (#182, 2026-09-22)
 

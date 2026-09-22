@@ -91,7 +91,9 @@ def test_the_already_generated_list_cannot_name_one(tmp_path, type_id, qapp):
         json.dumps({"report_type": type_id}), encoding="utf-8")
     counts = mr.generated_report_types(run)
     assert type_id not in counts
-    assert counts.get(mr.REPORT_TYPE_DEFAULT) == 1
+    # R3A-3 / K19: a file in the run's OWN folder is the profiling sheet's,
+    # and is counted as what it renders as there, the Printing record.
+    assert counts.get(mr.REPORT_TYPE_RECORD) == 1, counts
 
 
 def _a_run(tmp_path):

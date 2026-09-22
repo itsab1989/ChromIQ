@@ -103,6 +103,12 @@ def test_a_saved_type_the_kind_no_longer_allows_is_a_change(tmp_path, qapp,
                 doc["type"] = REPORT_TYPE_RECORD
                 p["report_type"] = REPORT_TYPE_RECORD
                 f.write_text(json.dumps(p), encoding="utf-8")
+        # K19 (Knut, 2026-09-23): the list no longer OFFERS a type the run type
+        # refuses, so a user cannot pick this document any more. The fit below is
+        # still the safety net for any other door (a stored key, a document the
+        # window opens on), so the entry is let through the filter here to reach
+        # it; that the list itself hides it is `test_round_k19...`.
+        dlg._entry_type = lambda e: REPORT_TYPE_FULL
         dlg._reload_sources()
         qapp.processEvents()
         # AWAY AND BACK, as a user reopening it: the window was still on this

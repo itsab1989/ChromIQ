@@ -72,6 +72,13 @@ def test_create_new_on_a_disallowed_saved_type_writes_the_kinds_type(
             p.write_text(json.dumps(rep), encoding="utf-8")
     dlg = _window(s, vs[-1].measurement_ti3, qapp)
     try:
+        # K19 (Knut, 2026-09-23): the list no longer OFFERS a type the run type
+        # refuses, so a user cannot pick this document any more. The fit below is
+        # still the safety net for any other door (a stored key, a document the
+        # window opens on), so the entry is let through the filter here to reach
+        # it; that the list itself hides it is `test_round_k19...`.
+        dlg._entry_type = lambda e: REPORT_TYPE_FULL
+        dlg._sync_saved_reports(dlg._run_ctx.run)
         _pick_key(dlg, key, qapp)
         before = _live_reports(run)
         dlg._say_generated = lambda saved, failed: None

@@ -1640,14 +1640,16 @@ def row_verdict(limit: Limit, value: "float | None", graded: bool) -> "str | Non
 #: only one to keep true. `tr()` is a whole-string lookup, so a sentence
 #: sliced out of a longer key at runtime would reach every language as
 #: English; each half is its own key.
-STANDARD_CAVEAT_APPLIED = ("This limit set holds a standard's published values "
-                           "applied to your chart. It is not a test against "
-                           "that standard: the chart is not the standard's "
+STANDARD_CAVEAT_APPLIED = ("This limit set is named after a standard, and its "
+                           "limits may differ from that standard's published "
+                           "values. It is not a test against that standard: "
+                           "the printed test chart is not the standard's "
                            "chart, and the metrics are ChromIQ's own rather "
                            "than the standard's methods.")
 STANDARD_CAVEAT_PROOF = ("A result inside these limits is an indication that "
                          "the print would likely meet the standard, not proof "
-                         "that it does.")
+                         "that it does, and only as far as these limits are "
+                         "within the standard's own.")
 #: The whole note, for the report types that have room for it. NOT a catalogue
 #: key itself: `tr()` is applied to each half and the two are joined, or the
 #: join would reach every language as English.
@@ -1673,10 +1675,9 @@ SUMMARY_REASONS: "dict[str, str]" = {
     # true of a PROFILING sheet, and T4 is a deliberate choice about a
     # verification measurement: telling such a reader the sheet "was measured
     # to build a profile" would be false. Same word, INFO, different reason.
-    "record_type": "You chose the Printing record, which sets down what was "
+    "record_type": "This is a Printing record, which sets down what was "
                    "printed and measured and judges none of it. The numbers "
-                   "are shown for information only. Choose Full colour check "
-                   "to have the same measurement graded.",
+                   "are shown for information only.",
     # FOUND BUILDING T3, AND REACHABLE TODAY. A column where NOTHING could be
     # checked, and where every row that is missing is a recommendation rather
     # than a requirement, fell through every clause to PASS — under a sentence
@@ -1684,10 +1685,9 @@ SUMMARY_REASONS: "dict[str, str]" = {
     # checked at all. T3 shows two bracketed grey rows and nothing else, so it
     # meets that state on the first chart without an 8-step grey ramp, which is
     # most of them; but a 3-patch measurement reaches it in the full report too.
-    "nothing_checked": "This chart supplied none of the values this limit set "
-                       "puts a limit on, so there is nothing to judge. The "
-                       "rows above say what is missing; add those patches to "
-                       "the chart in Create Chart to have them checked.",
+    "nothing_checked": "The test chart used supplied none of the values this "
+                       "limit set puts a limit on, so there is nothing to "
+                       "judge. The rows above say what is missing.",
     # …AND "NOTHING WAS CHECKED" HAS TWO CAUSES, WHICH THE FIRST SENTENCE
     # ANSWERED AS ONE. An adversarial round drove a chart WITH a nine-step grey
     # ramp: both grey rows carried real numbers, both over their limits, and
@@ -1711,17 +1711,18 @@ SUMMARY_REASONS: "dict[str, str]" = {
     # unchecked values were listed below: measured on T3, *"3 of 3 values
     # checked ... and the values not checked are listed below."*
     "iso": "{checked} of {total} values checked, all within this limit set's "
-           "values. This limit set holds a standard's published values applied "
-           "to your chart; it is not a test against that standard.",
+           "values. This limit set is named after a standard; it is not a test "
+           "against that standard.",
     "iso_with_unchecked": "{checked} of {total} values checked, all within "
-           "this limit set's values. This limit set holds a standard's "
-           "published values applied to your chart; it is not a test against "
-           "that standard. The {not_computed} values not checked are listed "
-           "below.",
+                          "this limit set's values. This limit set is named "
+                          "after a standard; it is not a test against that "
+                          "standard. The {not_computed} values not checked are "
+                          "listed below.",
     "iso_with_one_unchecked": "{checked} of {total} values checked, all within "
-           "this limit set's values. This limit set holds a standard's "
-           "published values applied to your chart; it is not a test against "
-           "that standard. The one value not checked is listed below.",
+                              "this limit set's values. This limit set is "
+                              "named after a standard; it is not a test "
+                              "against that standard. The one value not "
+                              "checked is listed below.",
     "cond_both": "{checked} of {total} values checked, none over a required "
                  "limit; {not_computed} not computed and {cond} over a "
                  "recommended value.",

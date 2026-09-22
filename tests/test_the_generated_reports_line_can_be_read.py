@@ -90,20 +90,22 @@ def test_a_list_too_long_for_the_line_opens_in_full(tmp_path, qapp):
     from workflow.measurement_report import (REPORT_TYPE_FULL, REPORT_TYPE_GREY,
                                              REPORT_TYPE_RECORD,
                                              REPORT_TYPE_SUMMARY)
+    # K19 (Knut, 2026-09-23): a verification's line counts only the types a
+    # verification can have, so the Printing record is not one of them.
     dlg = _dialog_with(tmp_path, qapp, [REPORT_TYPE_FULL, REPORT_TYPE_GREY,
-                                        REPORT_TYPE_RECORD, REPORT_TYPE_SUMMARY])
+                                        REPORT_TYPE_SUMMARY])
     try:
-        dlg.resize(700, dlg.height())          # a window too narrow for four
+        dlg.resize(560, dlg.height())          # a window too narrow for three
         dlg._sync_limit_controls()
         qapp.processEvents()
         text = dlg._type_blurb.text()
         assert "#generated" in text, (
             "the list is cut and there is no way to read the rest: " + text)
         detail = dlg._generated_full
-        assert len(detail.splitlines()) == 4, detail
+        assert len(detail.splitlines()) == 3, detail
         # Every type is in the long form, whatever the line could show.
         for word in ("Colour summary", "Full colour check",
-                     "Grey and tone check", "Printing record"):
+                     "Grey and tone check"):
             assert word in detail, f"{word} missing from the full list"
     finally:
         dlg.close()
@@ -122,7 +124,8 @@ def test_the_link_opens_a_window_naming_every_type(tmp_path, qapp, monkeypatch):
     try:
         dlg._show_generated_reports("#generated")
         assert seen.get("text"), "the link opened nothing"
-        assert len(seen["text"].splitlines()) == 3, seen["text"]
+        # K19: the Printing record saved in a DATED folder is not counted.
+        assert len(seen["text"].splitlines()) == 2, seen["text"]
     finally:
         dlg.close()
 

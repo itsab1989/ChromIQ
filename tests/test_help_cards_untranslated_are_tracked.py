@@ -539,6 +539,16 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-23, K18 (Knut: report text is for a customer; it
+    # never explains the past or how to use ChromIQ). Twelve report strings
+    # reworded: the COND, INFO and drift lines of the guide, the standard
+    # paragraph and its caveat, the three standard summaries, the Printing
+    # record and nothing-checked summaries, and the example-colours line; one
+    # key folded into the existing "not recorded". German by hand, so it does
+    # not move. The twelve others had TRANSLATED the old sentences, and a
+    # translation of the old text under the new key would say the old thing,
+    # so each is back to the English placeholder under the beta rule and the
+    # counts rise. COUNTED off the tree, BOTH ledgers in the same commit.
     # RE-MEASURED 2026-09-23, round 3B's text findings: three several-places
     # tooltips reworded (one entry at a time), the Report type help and the
     # Preferences default text corrected, "{type} ({count})" became
@@ -901,17 +911,17 @@ _BUDGET = {
     # recorded. COUNTED with this file's own helper on the tree this commit
     # leaves behind.
     "de": 17,
-    "es": 694,
-    "fr": 695,
-    "it": 694,
-    "ja": 694,
-    "nl": 694,
-    "no": 694,
-    "pl": 694,
-    "pt": 694,
-    "ru": 693,
-    "sv": 694,
-    "zh_CN": 693,
+    "es": 697,
+    "fr": 698,
+    "it": 697,
+    "ja": 697,
+    "nl": 697,
+    "no": 697,
+    "pl": 697,
+    "pt": 697,
+    "ru": 696,
+    "sv": 697,
+    "zh_CN": 696,
     "uk": 906,
 }
 

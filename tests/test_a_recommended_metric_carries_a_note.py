@@ -212,8 +212,13 @@ def test_a_stored_COND_verdict_is_still_a_word_the_app_defines():
     assert "COND (short for conditional)" in guide
     assert "Rows do not use this word" in guide, \
         "the guide must say the word is not a row verdict any more"
-    assert "saved before ChromIQ 4.3.0" in guide, \
-        "…and must tell the reader of an old report why they can still see it"
+    # K18 (Knut, 2026-09-23) OVERRULED the history this used to require: *"A
+    # report text shall never explain something in the past, only the current
+    # functionality ... Only explain what the meaning of COND is and how to
+    # understand it when it occurs."* The report may reach a customer, who
+    # has no use for which ChromIQ version wrote it.
+    assert "saved before ChromIQ 4.3.0" not in guide, \
+        "the guide explains ChromIQ's history to a report's reader"
     # THE CLAUSE THAT WAS TRUE UNTIL TODAY AND IS NOW THE ONE THING IT CANNOT
     # MEAN. It read "For a row it means the row is a recommendation rather than
     # a requirement and the value is over it."

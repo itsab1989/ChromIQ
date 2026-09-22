@@ -54,6 +54,13 @@ def test_a_saved_printing_record_of_a_verification_is_shown_as_one_and_a_new_rep
     dlg = _window(s, ti3, qapp)
     try:
         assert dlg._window_kind() == "verification"
+        # K19 (Knut, 2026-09-23): the list no longer OFFERS a type the run type
+        # refuses, so a user cannot pick this document any more. The fit below is
+        # still the safety net for any other door (a stored key, a document the
+        # window opens on), so the entry is let through the filter here to reach
+        # it; that the list itself hides it is `test_round_k19...`.
+        dlg._entry_type = lambda e: REPORT_TYPE_FULL
+        dlg._sync_saved_reports(dlg._run_ctx.run)
         _pick_key(dlg, key, qapp)
         assert dlg._report_type_now() == REPORT_TYPE_RECORD, (
             "a saved Printing record is not shown as recorded")

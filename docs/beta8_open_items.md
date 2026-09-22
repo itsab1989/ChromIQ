@@ -24990,3 +24990,70 @@ would reach.
 - F30 the demo runs' descriptions state the lock state in English at build
   time, and go stale when a user lifts a lock (demo pack).
 - evidence: none yet, it is open. Photographs in the round's report folder.
+
+### B8-808 · FIXED · K18: report text spoke to a ChromIQ user, and explained ChromIQ's past, to a reader who may be a customer
+- blocks release: no
+- status: FIXED
+- found by: Knut, #182 comment 5785414710, 2026-09-23: *"A report text shall
+  never explain something in the past, only the current functionality ...
+  the report text may be given to a customer, so the text shall never
+  explain any ChromIQ related functions or user related notes and tips for
+  ChromIQ."*
+- changed, as he asked: the COND bullet (its meaning only, no ChromIQ 4.3.0
+  history), the INFO bullet ("when a report judges nothing"), "a row this
+  chart could not answer" to "a row the test chart used could not answer",
+  "the chart you printed" to "the printed test chart", and the standard note
+  under the results, whose first sentence was false for a Custom set: it now
+  says the set is named after a standard and its limits may differ from the
+  published values, and that a PASS is an indication "only as far as these
+  limits are within the standard's own". The three "iso" column summaries
+  follow it.
+- changed by the same rule, found while doing it: the standard-names
+  paragraph of the guide (licensing and "yours to change" dropped), the
+  Printing record summary ("You chose ... Choose Full colour check"), the
+  nothing-checked summary ("in Create Chart"), the example-colours line
+  ("saved before ChromIQ chose ..."), and "Printed: not recorded" (its
+  history of ChromIQ versions dropped).
+- NOT changed, asked instead: the N-A reasons still name the remedy he
+  approved on 2026-09-18 (S2w, "each names the thing to change"), several of
+  them ChromIQ-specific ("in Create Chart", ".control-strip.json").
+- evidence:
+  test_a_stored_COND_verdict_is_still_a_word_the_app_defines
+  test_a_report_saved_before_the_colours_existed_says_so
+
+### B8-809 · FIXED · K19: "Already generated" and "Report shown" counted and listed report types the run type cannot have
+- blocks release: no
+- status: FIXED
+- found by: Knut, #182 comment 5785414710, 2026-09-23, on a Verification
+  window: "Printing record (not graded) (2)" in the line, none in the list;
+  the line counted the run's own folder (the profiling sheet's reports) with
+  the dated verifications. Also round 3A R3A-3 (an untyped report counted as a
+  Full colour check while labelled as its run's type) and R3A-4 (adding a
+  measurement under a selected report was asked about as "Nothing was
+  changed").
+- fix: `generated_report_types(run, kind, default)` and `_saved_documents`
+  take the folders and the types of the window's kind; an untyped report is
+  counted as `report_type_default_for` names it; a change in the loaded
+  measurements counts as modified. Spec §13.10 records the K19 narrowing.
+- evidence:
+  test_a_verification_counts_no_profiling_record
+  test_each_filter_holds_on_its_own
+  test_the_list_offers_only_the_kinds_types
+  test_an_untyped_report_is_counted_as_it_is_labelled
+  test_adding_a_measurement_is_a_change_to_the_selected_report
+
+### B8-810 · OPEN · Round 3A: a moved document re-ticks a date an Update took out, and a refused Update leaves archives
+- blocks release: no
+- status: OPEN
+- found by: adversary round 3A, on screen, 2026-09-23. Report:
+  `~/Desktop/ChromIQ-beta36-proof/round3-A-features/REPORT.md`.
+- R3A-2: an 11-date document narrowed to 10 by Update shows 10 ticked in
+  place, but 11 once the project is copied elsewhere (B8-804's moved-project
+  fallback reads the files an Update leaves behind); Update then silently puts
+  the date back. Only after narrowing a multi-date document AND moving the
+  project.
+- R3A-1: an Update refused because one date's reports/old is read-only has
+  already archived the other dates; nothing is lost (the files are copies),
+  and the failure box does not name the date.
+- evidence: none yet, it is open; both are strict xfails in
+  tests/test_round3_a_features_since_265216d5.py.

@@ -187,13 +187,18 @@ def test_the_caveat_is_in_the_report_body_and_the_pdf(qapp, tmp_path,
         # So the sentence is TYPED HERE. That is the cost of guarding a
         # promise made to a rights holder: a change to the wording has to be
         # made in two places, and the second place is a test that says why.
+        # K18 (Knut, 2026-09-23): the first sentence was false for a Custom
+        # set ("holds a standard's published values"), and the proof clause
+        # now carries his condition.
         _CAVEAT = (
-            "This limit set holds a standard's published values applied to "
-            "your chart. It is not a test against that standard: the chart is "
-            "not the standard's chart, and the metrics are ChromIQ's own "
-            "rather than the standard's methods. A result inside these limits "
-            "is an indication that the print would likely meet the standard, "
-            "not proof that it does.")
+            "This limit set is named after a standard, and its limits may "
+            "differ from that standard's published values. It is not a test "
+            "against that standard: the printed test chart is not the "
+            "standard's chart, and the metrics are ChromIQ's own rather than "
+            "the standard's methods. A result inside these limits is an "
+            "indication that the print would likely meet the standard, not "
+            "proof that it does, and only as far as these limits are within "
+            "the standard's own.")
         assert _CAVEAT in " ".join(seen.split()), (
             f"the report for {label!r} does not carry the caveat whole. The "
             "clause saying a pass is an indication and not proof is the half "

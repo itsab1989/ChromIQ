@@ -48,19 +48,13 @@ def _guide(tmp_path):
 def test_the_guide_separates_a_published_column_from_a_custom_one(tmp_path,
                                                                   qapp):
     g = _guide(tmp_path)
-    assert "read-only column named after a standard holds that standard's " \
-           "published tolerance values and nothing else" in g
-    # …AND THE EDITABLE HALF NAMES BOTH OF ITS SOURCES SINCE 2026-09-21.
-    # Knut's researched industry figures became those columns' starting values
-    # (#182) and ChromIQ's own numbers stayed on the rows his research does not
-    # cover, so a guide naming one of the two is the same half-truth the three
-    # corrections above were for.
-    assert "An editable column named after a standard starts from those " \
-           "supplied figures where there are any, and where there are none, " \
-           "from limits researched from industry practice and from ChromIQ's " \
-           "own numbers" in g
-    # and it says whose neither of those two is
-    assert "neither of which is that standard's" in g
+    # K18 (Knut, 2026-09-23): the report may reach a customer, so it no
+    # longer explains where ChromIQ gets a column's numbers (licensing,
+    # supplied figures, "yours to change"). What it keeps is the one claim
+    # true of both kinds in every state: a column named after a standard may
+    # not hold that standard's published values.
+    assert "Its limits may differ from the standard's published values" in g
+    assert "holds that standard's published tolerance values" not in g
 
 
 def test_every_clause_of_the_guide_survives_a_licence_holder(tmp_path, qapp):
@@ -89,9 +83,10 @@ def test_every_clause_of_the_guide_survives_a_licence_holder(tmp_path, qapp):
     # The two absolute claims, by their own words.
     assert "those columns are empty" not in g
     assert "cannot be chosen" not in g
-    # What replaced them: a condition, not a state.
-    assert "such a column is empty unless a licence holder has supplied its " \
-           "figures" in g
+    # What replaced them, since K18 (2026-09-23): a claim that is true
+    # whether or not figures were supplied, and names no ChromIQ mechanism.
+    assert "may differ from the standard's published values" in g
+    assert "licence holder" not in g
 
 
 def test_the_guide_is_true_whether_or_not_the_figures_are_supplied(tmp_path,
@@ -166,7 +161,7 @@ def test_the_caveat_survives_the_correction(tmp_path, qapp):
     the qualification, so the third assertion follows it rather than the word.
     """
     g = _guide(tmp_path)
-    assert "chart you printed" in g
+    assert "printed test chart" in g       # K18: was "chart you printed"
     assert "control strip" in g
     assert "not proof that it does" in g
     assert "COND at best" not in g, (
