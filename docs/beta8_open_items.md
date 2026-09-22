@@ -23014,9 +23014,19 @@ would reach.
   remove a declaration it cannot put back, which is the shape he already agreed
   for page images (`restore_would_lose_pages`), or (b) treat a live-only file as
   not-a-difference. Both are his to choose.
-### B8-732 · OPEN · Switching to an older target leaves a newly added option showing the PREVIOUS target's value
+### B8-732 · FIXED · Switching to an older target leaves a newly added option showing the PREVIOUS target's value
 - blocks release: no
-- status: OPEN
+- status: FIXED
+- fix (2026-09-22, Knut on #182: *"You fix seems reasonable"*):
+  `TabChart.load_target_settings` now puts every per-target row the stored
+  block has no entry for back on its default after `apply`. Two exceptions:
+  the calibration's own rows while the calibration is the selected target
+  (they belong to Run type = Calibration), and a build that owns the layout.
+- evidence: test_a_row_the_stored_block_lacks_opens_on_its_default
+  (mutation: disabling the reset leaves 777, red). DRIVEN ON SCREEN with
+  `scripts/drive_chal35_a_newer_row_leaks_between_targets.py`: run2, whose block
+  has no `targen-f`, now shows 0 (its default) and not run1's 777, and the next
+  save writes 0. Proof: `~/Desktop/ChromIQ-beta36-proof/B8-732-fixed/`.
 - **RE-WRITTEN 2026-09-22 because Knut could not read the first version**:
   *"this text is gibberish and is not understandable. Be clear in describing
   what you want me to understand."* He was right. In plain words:

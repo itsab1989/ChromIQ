@@ -17556,8 +17556,34 @@ class TabChart(QWidget):
         self._settings_store = store
         self._loading_target_settings = True
         try:
-            from workflow.per_target_settings import apply
+            from workflow.per_target_settings import apply, params_for
             unknown = apply(self, stored)
+            # **A ROW THE STORED BLOCK HAS NO ENTRY FOR OPENS ON ITS DEFAULT
+            # (B8-732, Knut 2026-09-22: "You fix seems reasonable").** `apply`
+            # writes only the keys the block holds, so a parameter added to
+            # ChromIQ AFTER this target was saved kept whatever the OUTGOING
+            # target had put in its control, and the next ordinary save filed
+            # that value into this target (driven on screen: run1's 777
+            # became run2's patch count). The same per-row rule the empty
+            # block already follows, including its one exception: the six rows
+            # Run type = Calibration owns stay as the calibration knobs set
+            # them while the calibration is the selected target (Sebastian's
+            # rule, 2026-08-05, and F3 of 2026-08-11).
+            _ctl = getattr(self, "_target_ctl", None)
+            _on_cal = bool(_ctl is not None and getattr(
+                _ctl.target, "is_calibration", bool)())
+            _cal_rows = ({(t, f) for t, f, _v in self._CAL_VALUES}
+                         if _on_cal else set())
+            _missing = [p for p in params_for(self)
+                        if p.key not in (stored or {})
+                        and (p.tool, p.flag) not in _cal_rows]
+            if _missing and not getattr(self, "_layout_owned_by_build", False):
+                for p in _missing:
+                    for w in p.widgets:
+                        w.reset_to_default()
+                log.info("opened %d setting(s) this target has no record of "
+                         "on their defaults: %s", len(_missing),
+                         ", ".join(p.key for p in _missing[:8]))
             if unknown:
                 # A chart made before a parameter was renamed or removed must
                 # still open (§7 A) — say so in the log, never refuse to load.
