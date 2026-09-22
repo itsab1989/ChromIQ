@@ -1,5 +1,35 @@
 # Changelog
 
+## v4.3.0-beta.31
+
+**Help buttons that were cut in half, found by checking the beta 30 download
+itself.**
+
+### Fixed
+
+- **Create Chart, Guided: five of the six ⓘ help buttons were sliced in half
+  in Ukrainian.** The "Chart Size" row held two options that together could
+  never be narrower than the pane, the pane is 540 pixels and does not scroll
+  sideways, so the last 29 pixels simply were not there. The second option now
+  moves to its own line when the line cannot hold both. Nothing else about the
+  panel changes: in the thirteen languages that already fitted, every widget on
+  that row is in exactly the same place, to the pixel.
+
+  This was not a Ukrainian problem. Thirteen languages fitted and **Swedish was
+  two pixels from the same edge**, so the next long word in any language would
+  have done the same thing. ChromIQ now checks every language it ships, on both
+  Create Chart panes.
+
+- **Create Chart, Manual: a Ukrainian option lost the end of its sentence.**
+  The auto-update-preview switch cut its label mid-word with no ellipsis,
+  66 pixels short. It now wraps to a second line when the sentence needs one.
+  German was 18 pixels from the same edge.
+
+- Choosing an instrument that has no use for the two Chart Size options no
+  longer leaves an empty band where they were, and the panel no longer reserves
+  twelve pixels of scrolling height that nothing ever uses.
+
+
 ## v4.3.0-beta.30
 
 **Ukrainian, a verification check before you measure, and the Measurement

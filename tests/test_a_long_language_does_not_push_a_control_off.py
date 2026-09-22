@@ -291,6 +291,52 @@ def test_a_create_chart_pane_fits_its_viewport_in_every_language(
     )
 
 
+@pytest.mark.parametrize("code", _all_shipped_languages())
+def test_the_auto_preview_option_can_wrap_instead_of_clipping(make_tab, qapp,
+                                                              code):
+    """A `QCheckBox` does not elide. It CUTS, mid-word, with no ellipsis.
+
+    The auto-update-preview option on Create Chart Manual was the one box on
+    that panel still built as a plain `QCheckBox`; every sibling is already a
+    `WrappingCheckBox`, the class written for this and whose docstring
+    describes it. Measured on screen at 1360x900: the Ukrainian label needs
+    **586 px**, the row can only ever offer **520** because the info button is
+    pinned at the right edge, and the sentence ended at `...налаштува`.
+
+    The same cliff as the Chart Size row one mode over, and the same shape:
+    thirteen languages fitted and GERMAN STOOD 18 PX AWAY.
+
+    Both halves are asked, because either alone can be satisfied while the
+    fault stands: a box that wraps but is still too wide would clip, and a box
+    that fits today in one language tells you nothing about the next string.
+
+    MUTATION: build it as a `QCheckBox` again in `ui/tabs/tab_chart.py`.
+    Measured in a worktree, offscreen, where this test runs: the minimum goes
+    **uk 118 -> 566, de 140 -> 486, en 104 -> 334**, so the class assertion
+    fails for all fourteen and the width assertion discriminates on `uk`
+    alone. The offscreen figures run a little under the on-screen ones (uk 566
+    here against 586 in a real window), which is why the claim above is the
+    on-screen number and this one is not.
+    """
+    from ui.widgets import WrappingCheckBox
+    tab = make_tab(code)
+    box = tab._auto_preview_check
+    need = box.minimumSizeHint().width()
+    tab.hide()
+
+    assert isinstance(box, WrappingCheckBox), (
+        f"the auto-update-preview option is a {type(box).__name__}, which has "
+        f"no word wrap and does not elide: it clips its label, mid-word and "
+        f"with no ellipsis, in any language whose sentence is longer than the "
+        f"room the row has"
+    )
+    assert need <= _VIEWPORT_W, (
+        f"[{code}] the auto-update-preview option cannot compress below "
+        f"{need} px and the pane's viewport is {_VIEWPORT_W}, so its label "
+        f"loses its end"
+    )
+
+
 # ---------------------------------------------------------------------------
 # The help card's footer
 # ---------------------------------------------------------------------------

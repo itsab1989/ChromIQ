@@ -74,7 +74,7 @@ from ui.tab_header import TabHeader
 from ui.builtin_preset_popup import BuiltinPresetButton, BuiltinPresetPopup
 from ui.tiff_preview import TiffPreview
 from ui.tooltip_button import InfoDialog, TooltipButton
-from ui.widgets import TailFollowLog, add_log_row, fit_log_height, CollapsibleGroupBox, ElidingComboBox, NoScrollComboBox, NoScrollSpinBox, PatchGridButton, PrefixLockedLineEdit, icc_profile_paths, load_magenta_folder_icon, make_browse_button, open_file_dialog, reapply_ink, set_folder_icon, set_ink, set_preset_icon
+from ui.widgets import TailFollowLog, add_log_row, fit_log_height, CollapsibleGroupBox, ElidingComboBox, NoScrollComboBox, NoScrollSpinBox, PatchGridButton, PrefixLockedLineEdit, WrappingCheckBox, icc_profile_paths, load_magenta_folder_icon, make_browse_button, open_file_dialog, reapply_ink, set_folder_icon, set_ink, set_preset_icon
 from ui.warning_sign import inform, set_information_icon, set_question_icon
 from core.i18n import count_phrase, tr
 from core.text_io import read_text
@@ -4815,7 +4815,21 @@ class TabChart(QWidget):
         self._auto_preview_row_w = QWidget(self)
         auto_row = QHBoxLayout(self._auto_preview_row_w)
         auto_row.setContentsMargins(0, 0, 0, 0)
-        self._auto_preview_check = QCheckBox(
+        # A WRAPPING BOX, NOT A PLAIN ONE, AND THE DIFFERENCE IS 66 PIXELS OF
+        # A UKRAINIAN SENTENCE CUT OFF MID-WORD. `QCheckBox` has no word wrap
+        # and does not elide: it simply clips whatever it is not given room
+        # for. Measured on screen, Create Chart Manual, 1360x900: this label
+        # needs 586 px, the row can only ever offer 520 because the info
+        # button is pinned at the right edge, and Ukrainian ended at
+        # "...налаштува" with no ellipsis. Thirteen languages fit and GERMAN
+        # STANDS 18 PX AWAY, which is the same cliff `OptionPairRow` was
+        # written for one mode over.
+        #
+        # Every sibling option on this panel is already a `WrappingCheckBox`;
+        # this one was missed. Wrapping rather than eliding is deliberate for
+        # an option label: dropping words leaves the user guessing what the
+        # option does.
+        self._auto_preview_check = WrappingCheckBox(
             tr("Auto-update preview when a layout setting changes"), self)
         self._auto_preview_check.setChecked(
             bool(self._settings.get("auto_update_preview", False)))

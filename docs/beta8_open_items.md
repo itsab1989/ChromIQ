@@ -22589,6 +22589,13 @@ would reach.
 ### B8-711 · OPEN · The one-page summary says the unchecked values "are listed below" and lists nothing
 - blocks release: no
 - status: OPEN
+- **RULED BY KNUT 2026-09-22:** *"it is obvious that the list is missing, and
+  thus shall be included, where there are metrics that are not checked against
+  the selected measurements to be included in the report."* So the page carries
+  the list, and the sentence appears only when there is something to list. The
+  clause is unconditional today, so a column where nothing was unchecked still
+  promises one.
+- NOT DONE HERE, for the same reason as B8-722: it is the next batch.
 - found by: challenge round 33, driving the real window.
 - detail: `SUMMARY_REASONS["iso"]` ends *"and the values not checked are
   listed below."* On the full report that is satisfied by the numbered notes
@@ -22785,6 +22792,26 @@ would reach.
 ### B8-722 · OPEN · `yardstick_key` is `is_edited`'s twin and did not get its fix
 - blocks release: no
 - status: OPEN
+- **RULED BY KNUT 2026-09-22, and his answer is larger than the question.**
+  *"I would say one and the same yardstick."* But the model he gives goes past
+  leniency: **a report owns ONE limit set.** *"Each report have their own
+  limitation set defined with metrics and settings, and where each report
+  define which measurements are included... The project across both profile
+  runs' verification measurements have only one defined limit set."* And:
+  *"The report over the project is creating a new report with the judged
+  against set to ChromIQ default, and it should not care what other reports had
+  set for its judged against."*
+  So the repair is NOT "compare the two stored copies the way `is_edited`
+  does". A project-wide report must not consult the runs' stored copies to
+  decide who is admitted at all: it defines the set once and judges every
+  selected measurement against it, whichever run the measurement came from.
+  He also ruled, unprompted, that measurements from charts with different patch
+  counts all belong in such a report and that a trend may shift for that reason
+  without it being an error; and that a report saved before 2026-09-21 keeps
+  its own words unless the user updates it, which confirms current behaviour.
+- NOT DONE HERE: beta 31 carries an unrelated layout fix and was already
+  gating when the ruling arrived. This is the next batch and goes through the
+  rounds before a beta carries it.
 - not fixed here: the right answer is a design question, see "needs a
   ruling" below. A release can ship with it; a project holding runs bound on
   both sides of 2026-09-21 will silently get half a document until it is ruled.
@@ -23325,3 +23352,119 @@ would reach.
   test_a_line_that_fits_puts_the_second_button_flush_to_the_right_edge,
   test_the_two_halves_never_touch_on_a_line_that_fits,
   test_the_minimum_width_is_the_wider_half_and_not_the_sum
+
+### B8-755 · FIXED · A plain QCheckBox cut 66 px off a Ukrainian sentence mid-word, one mode over from B8-750
+- blocks release: no
+- status: FIXED
+- found by: challenge round 37c, 2026-09-22, sweeping the rest of the app on
+  screen in Ukrainian after B8-750 was fixed.
+- detail: `ui/tabs/tab_chart.py` built the auto-update-preview option on Create
+  Chart **Manual** as a plain `QCheckBox`, which has no word wrap and does not
+  elide: it clips. Every sibling option on that panel is already a
+  `WrappingCheckBox`, the class written for this exact fault, whose docstring
+  describes it. This one was missed.
+- MEASURED on screen, 1360x900, light, Fusion: the label needs **586 px** and
+  the row can only ever offer **520**, because the info button is pinned at the
+  right edge. Ukrainian ended at `...налаштува`, mid-word, with no ellipsis.
+  Identical at 1280x800, because the pane is fixed.
+- the same cliff as B8-750 and the same shape: thirteen languages fit and
+  **German stands 18 px away** (502 needed against 520).
+- fix: `WrappingCheckBox`. Measured after, on screen: Ukrainian wraps to two
+  lines (height 18 -> 34) and the sentence reads to its end; its minimum falls
+  from **586 to 115**. German and English are unchanged at one line, 18 px.
+- evidence: test_the_auto_preview_option_can_wrap_instead_of_clipping
+- picture: `~/Desktop/ChromIQ-beta30-proof/panel-overflow/final/manual-uk-autopreview.png`
+
+### B8-756 · OPEN · Preferences opens too narrow for its own tab bar, in all fourteen languages including English
+- blocks release: no
+- status: OPEN
+- not fixed here: inherited, older than this change set, and it touches a
+  dialog nothing else in beta 31 goes near. Beta 31 is one layout fix and its
+  round; this is the next batch.
+- found by: challenge round 37c, 2026-09-22, on screen.
+- detail: `ui/dialogs/settings_dialog.py:1894` sets
+  `_w = max(1040, self.sizeHint().width())`, and the TAB BAR's own
+  `sizeHint().width()` is larger than that in every shipped language. The
+  window opens with scroll arrows and the last tab off the edge, on a screen
+  with 688 px going spare.
+- MEASURED, dialog width / tab bar sizeHint / tabs off the edge on open:
+  * en 1040 / **1089** / Beta
+  * de 1047 / 1165 / Lizenzen, Beta
+  * fr 1040 / 1189 / Licences, Bêta
+  * uk 1174 / 1172 / Бета  (the LEAST affected, because its longer strings
+    pushed the dialog past the 1040 floor)
+- **the Beta tab is where a user opts into betas, and it is never on screen
+  when the window opens, in any language.** In eight languages Licences goes
+  with it. Reachable by the arrows, so not a loss, but nobody finds it.
+- fix, when it is taken: let the floor account for the tab bar's own hint.
+
+### B8-757 · OPEN · Eight languages clip a button or label on Create Chart Manual, and Japanese gets worse on a small screen
+- blocks release: no
+- status: OPEN
+- not fixed here: each needs either a wrapping/eliding widget or a shorter
+  translation, and translations are swept once before a final, not during a
+  beta. Ukrainian is CLEAN on this list.
+- found by: challenge round 37c, 2026-09-22, on screen, all fourteen languages.
+- MEASURED, over the width the widget was given:
+  nl 40 px `Standaardwaarden bewerken…`; de 19 px `auf dem Bildschirm` and
+  13 px `Auf Vorgabe zurücksetzen`; sv 14 px `Redigera standardvärden…`;
+  fr 8 px `Réinitialiser au préréglage`; no 7 px `Rediger standardverdier…`;
+  ja 7 px; es 3 px `Editar predeterminados…`.
+- at **1280x800** every number is unchanged except Japanese, which gets WORSE:
+  47, 34 and 8 px on three `ChartLayoutInfoPanel` labels, because that panel
+  is in the resizable right pane.
+- clean at both sizes: en, it, pl, pt, ru, zh_CN, uk.
+
+### B8-758 · OPEN · `i18n_extract.py --missing uk` says "0 missing" while 1,079 strings render in English
+- blocks release: no
+- status: OPEN
+- found by: challenge round 37c, 2026-09-22.
+- detail: the tool counts ABSENT KEYS. Every key is present in
+  `data/i18n/uk.json`, many as a verbatim copy of the English source, which the
+  runtime lookup cannot tell from a translation. So the guard reports
+  `# 0 missing of 6016` for a catalogue where a large part of the reachable UI
+  is English.
+- MEASURED: values identical to their key, **uk 1,167** against de 146; keys
+  that are English in uk AND translated in de, **1,079**; `tr()` keys reachable
+  from `ui/`, `workflow/`, `core/` that render English in uk, **729 of 3,768**.
+  Whole windows: `reference_values_dialog.py` 20 of 21, `reference_sets.py`
+  26 of 26, `preset_verification_dialog.py` 49 of 56.
+- this is not a fault in LackiUA's contribution: their catalogue was made
+  against a string set older than #182, and the project's own rule is that the
+  eleven other languages carry the English source during a beta too. The fault
+  is that the TOOL cannot see it, so nobody is warned.
+- fix, when it is taken: make key == value count as a miss, and keep the
+  existing per-language ledgers as the budget.
+
+### B8-759 · OPEN · Twenty-three Ukrainian strings take the wrong sense of the English word
+- blocks release: no
+- status: OPEN
+- whose call: **LackiUA's**, the contributor. Nothing was changed by us: it is
+  their language and the project rule is to leave every language's register
+  alone.
+- found by: challenge round 37c, 2026-09-22, reading the UI on screen.
+- the ones that mislead rather than merely read oddly:
+  * `Right` -> `правильно` ("correct, that's right") on the **right page
+    margin** spin box; `Top` -> `Топ` ("top-rated"); `Bottom` -> `Дно` (the bed
+    of a sea); `Left` -> `Ліворуч` (the adverb)
+  * `Space · {enter}` -> `Космос · ⏎` — **outer space** for the space bar, and
+    the Latin key **R** rendered as Cyrillic `Р`, so the card tells the user to
+    press a key that is not on their keyboard. The row above gets it right.
+  * `Key` -> `ключ` (a door key), `Shortcut` -> `Ярлик` (a desktop icon), while
+    the same card's own title is correctly `Комбінації клавіш`
+  * `Which engine` -> `Який двигун` (a **motor**); `Gamut` -> `Гамма`
+    (**gamma**, which ChromIQ also has and which would collide); `Strip` ->
+    `Газа` (**gauze**); `Margin` -> `Маржа` (a profit margin) while `Margins`
+    -> `Поля` is right; `Run` -> `бігти` (to run on foot) for a noun
+  * `GUIDED` -> `КЕРІВНИК` (a manager, a person) and `MANUAL` ->
+    `ІНСТРУКЦІЯ` (an instruction booklet). Every other language uses an
+    adjective: ru ПОШАГОВЫЙ/РУЧНОЙ, pl PROWADZONY/RĘCZNY, de GEFÜHRT/MANUELL.
+  * `Patches` spelled two ways, `патчі` in most places and `латка` (a cloth
+    patch) in Chart Layout, for the app's central noun
+  * `Presets` -> `Предустановки`, which is **Russian** orthography
+  * `What would you like to do?` -> `Що б ти хотіла зробити?`: informal `ти`
+    AND a feminine past-tense verb, on the welcome screen's subtitle, so a male
+    user reads a sentence addressed to a woman. It is the ONLY string of 6,016
+    using `ти`.
+- raised with LackiUA on #198 with this evidence, as a question and not a
+  correction.
