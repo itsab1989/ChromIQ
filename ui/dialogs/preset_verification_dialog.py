@@ -344,7 +344,7 @@ def _gamut_state_line(row: PresetRow) -> str:
         "colorimetric reference.")
 
 
-def summary_lines(row: "PresetRow | None") -> "list[Line]":
+def summary_lines(row: "PresetRow | None", *, generic: bool = False) -> "list[Line]":
     """The same answer, short enough for a popup to carry it.
 
     Knut, on the pre-flight window: *"A summary of that info shall be shown in
@@ -370,10 +370,22 @@ def summary_lines(row: "PresetRow | None") -> "list[Line]":
     # says it fills in `{n}`, which is exactly one placeholder. Two sentences,
     # both formatted here, for the same house rule it exists to serve.
     n, total = len(a.answered), len(a.asked)
-    one = tr("This chart can answer 1 of the {total} metrics this report type "
-             "and limit set ask of it.")
-    many = tr("This chart can answer {n} of the {total} metrics this report "
-              "type and limit set ask of it.")
+    # GENERIC WHEN NOTHING HAS BEEN CHOSEN YET. Knut, on beta 32: the
+    # pre-flight named "this report type and limit set" at a moment when the
+    # user has opened no report and picked neither. That window now asks
+    # `assess_any`, which unions every combination, so the sentence has to say
+    # what it really counted: 16 rows across every type and set, against 7 for
+    # one pair on his own chart.
+    if generic:
+        one = tr("This chart can answer 1 of the {total} metrics that the "
+                 "available report types and limit sets can use.")
+        many = tr("This chart can answer {n} of the {total} metrics that the "
+                  "available report types and limit sets can use.")
+    else:
+        one = tr("This chart can answer 1 of the {total} metrics this report "
+                 "type and limit set ask of it.")
+        many = tr("This chart can answer {n} of the {total} metrics this "
+                  "report type and limit set ask of it.")
     out.append(Line((one if n == 1 else many).format(n=n, total=total),
                     bold=True))
     if not a.missing:

@@ -13985,10 +13985,50 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         scope = self._preflight_scope()
         if scope is not None and scope in self._preflight_silenced:
             return False
+        # **ONCE THE RUN HAS MEASURED VERIFICATIONS, IT IS TOO LATE TO SAY
+        # THIS.** Knut, on beta 32: *"The popup message happens every time I
+        # enter the Measure tab, while run type is verification, even when many
+        # dated verification runs exist ... It does not have value to show this
+        # when measurements have been performed, and especially when many dated
+        # verification runs already exist, because then it is a bit late to
+        # change the chart."*
+        #
+        # The checks above ask only about THIS dated verification, so starting
+        # a new one inside a run with a long history put the window back on
+        # screen with advice about changing a chart the history is already
+        # built on. The window exists to be read BEFORE the first measurement;
+        # after that the chart is settled by the comparability the series
+        # depends on.
+        if self._run_has_a_measured_verification():
+            return False
         # LAST, because it reads and parses the chart. Everything cheap that
         # can say "no" has said it by now.
         from workflow.preset_eligibility import patch_count
         return patch_count(chart) > 0
+
+    def _run_has_a_measured_verification(self) -> bool:
+        """Has this profile run any dated verification that was measured?
+
+        Not "does a dated folder exist": a folder is created when the sheet is
+        printed, before anything is read, and the pre-flight is exactly for
+        that moment. What settles the chart is a verification that carries
+        READINGS, judged by the tab's own one test for an empty or invalid
+        file so this cannot drift from what counts as a measurement anywhere
+        else.
+        """
+        try:
+            ctl = self._target_ctl
+            proj = ctl.project_or_none()
+            if proj is None:
+                return False
+            run = proj.run(ctl.target.profile_run)
+            for v in run.verifications():
+                ti3 = getattr(v, "ti3", None)
+                if ti3 and Path(ti3).is_file() and not _cgats_has_no_readings(ti3):
+                    return True
+        except Exception:      # noqa: BLE001 — advisory, never a gate
+            log.debug("could not count this run's verifications", exc_info=True)
+        return False
 
     def _preflight_scope(self) -> "tuple | None":
         """What the pre-flight's tick is remembered against, or None.
@@ -14107,7 +14147,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # under it are the opposite case and stay tight together, which is what
         # the indent is already saying.
         block: "list[str]" = []
-        for line in summary_lines(row):
+        for line in summary_lines(row, generic=True):
             if block and not line.indent:
                 block.append("")
             block.append(" " * line.indent + line.text)
@@ -14157,9 +14197,18 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             if not self._verification_preflight_due():
                 return
             row = self._preflight_chart_row()
-            type_id, set_id, overrides = self._preflight_selection()
+            # EVERY COMBINATION, NOT THE RUN'S CURRENT ONE. Knut, on beta 32:
+            # *"At the time of the popup message, when entering Measure tab,
+            # how do you know the report type and limit set asked for? We have
+            # not opened the Measurement Report yet ... So this message must be
+            # generic, giving a count based on the maximum of metrics a report
+            # can check."* Measured on his own chart: one type against one set
+            # asks 7 rows, and the union over every built type and every
+            # selectable set asks 16, so the window was describing less than
+            # half of what could matter and calling it the whole question.
+            _, _, overrides = self._preflight_selection()
             from workflow import preset_eligibility as PE
-            row.assessment = PE.assess(row.chart, type_id, set_id, overrides)
+            row.assessment = PE.assess_any(row.chart, overrides)
         except Exception:      # noqa: BLE001 — an advisory window, never a gate
             log.warning("could not prepare the verification pre-flight",
                         exc_info=True)

@@ -315,13 +315,26 @@ def test_the_window_says_what_the_presets_window_says(qapp, tmp_path):
     'Which presets can be used for verification?' window"* and to show *"the
     same detailed information"*. Same function, so the same sentences: every
     line of the summary must appear in the text the window puts on screen.
+
+    **SAME FUNCTION, DIFFERENT QUESTION, AND THAT IS HIS LATER RULING.** On
+    beta 32 he asked how this window could name a report type and a limit set
+    before the user has opened a report or chosen either: *"So this message
+    must be generic, giving a count based on the maximum of metrics a report
+    can check."* So the pre-flight asks `assess_any`, the union over every
+    built report type and every selectable set, where the presets window is
+    opened FROM a report and rightly asks about one pair. Measured on this
+    fixture's chart: one pair asks 7 rows, the union asks 16.
+
+    The shared function is still shared, which is what he asked for, and this
+    test now calls it the way the window does: the same rows and the same
+    `generic` wording.
     """
     tab, _ctl, _chart = _ready_tab(tmp_path, qapp)
     row = tab._preflight_chart_row()
-    type_id, set_id, overrides = tab._preflight_selection()
-    row.assessment = PE.assess(row.chart, type_id, set_id, overrides)
+    _type_id, _set_id, overrides = tab._preflight_selection()
+    row.assessment = PE.assess_any(row.chart, overrides)
     _title, text = tab._verification_preflight_message(row)
-    lines = PVD.summary_lines(row)
+    lines = PVD.summary_lines(row, generic=True)
     assert lines, "the summary said nothing at all about a real chart"
     for line in lines:
         assert line.text in text, f"the window drops {line.text!r}"
@@ -331,8 +344,7 @@ def test_the_window_frames_it_with_the_catalogue(qapp, tmp_path):
     from workflow import measurement_messages as M
     tab, _ctl, _chart = _ready_tab(tmp_path, qapp)
     row = tab._preflight_chart_row()
-    row.assessment = PE.assess(row.chart, *tab._preflight_selection()[:2],
-                               tab._preflight_selection()[2])
+    row.assessment = PE.assess_any(row.chart, tab._preflight_selection()[2])
     title, text = tab._verification_preflight_message(row)
     m_title, m_body = M.M_VERIFY_PREFLIGHT.render()
     assert title == m_title

@@ -23702,3 +23702,60 @@ would reach.
 - **the clipped "e" was seen on BETA 29**, which he confirmed, so it is the
   right-side-bearing fault fixed in beta 30 (`f3834ae8`). Asked him to re-check
   on 32; if it is still cut there it is a different cause.
+
+### B8-765 · FIXED · The verification pre-flight named a report type and a limit set the user had not chosen
+- blocks release: no
+- status: FIXED
+- found by: Knut on beta 32, 2026-09-22, four faults in one window.
+- **the one that matters is LOGIC, not wording.** The window said *"This chart
+  can answer 9 of the 10 metrics this report type and limit set ask of it"* at
+  the moment the Measure tab is entered. He asked the obvious question nobody
+  had: *"how do you know the report type and limit set asked for? We have not
+  opened the Measurement Report yet at this point in the workflow, and no
+  report exists. So this message must be generic, giving a count based on the
+  maximum of metrics a report can check."*
+- MEASURED, and the gap is not small: one report type against one limit set
+  asks **7 rows**; the union over every built type and every selectable set
+  asks **16**. The window was describing less than half of what could matter
+  and presenting it as the whole question.
+- fix: `preset_eligibility.rows_any_report_can_ask` unions the combinations and
+  `assess_any` judges the chart against that; `assess` is refactored so both go
+  through one `assess_rows` and cannot drift. The sentence has a `generic` form
+  saying "the metrics that the available report types and limit sets can use".
+- **the presets window still asks the narrow question, and should**: it is
+  opened FROM a report, where a type and a set really have been chosen. Knut's
+  earlier ask that both windows share one function is kept; what changed is the
+  ROWS each passes to it. The test that pinned "same sentences" now calls the
+  shared function the way each window does.
+- also fixed, from the same message:
+  * the opening sentence was ambiguous. *"a table of metrics, each with a
+    limit, saying whether the print is inside it"* reads as though the limits
+    say whether the print is inside the TABLE. Rewritten.
+  * **it fired on every entry to the Measure tab**, even with many dated
+    verifications already measured. The existing checks ask only about THIS
+    dated verification, so starting a new one inside a run with a history put
+    the window back on screen with advice about changing a chart the history is
+    already built on. It is now silent once the run holds a verification that
+    carries readings, judged by the tab's own one test for an empty file.
+  * the clause *"so a preset that arrives as finished page images cannot be
+    converted"* is dropped; the presets window covers it.
+- the message is still `approved=False` in §M-PROPOSED, which is what let him
+  review it as a working example, and that is where the corrected wording sits.
+- evidence: test_the_window_says_what_the_presets_window_says,
+  test_the_window_frames_it_with_the_catalogue
+
+### B8-766 · OPEN · "Unlock this run's limits" is offered when there is nothing to unlock
+- blocks release: no
+- status: OPEN
+- found by: Knut on beta 32, 2026-09-22, while testing the report window.
+- detail, in his words: with only ONE dated verification, the Judged against
+  box is already editable and Edit Limits is already enabled, *"However, the
+  checkbox 'Unlock this run's limits' is still clickable"*, and clicking it
+  asks whether to unlock something that is not locked. *"Since there is only
+  one dated verification, and the judged against selection box is editable, it
+  does not make sense to allow to unlock."*
+- what he asked for: the checkbox greyed out and not clickable in that state,
+  with a tooltip saying that the limit set and Edit Limits are locked by
+  default once TWO OR MORE dated verifications exist, to stop different limit
+  sets being used across a series that must be comparable.
+- NOT started: it arrived while the pre-flight batch was being gated.

@@ -786,6 +786,15 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-22 again, for Knut's four faults in the verification
+    # pre-flight. The biggest is a fault of LOGIC rather than wording: the
+    # window named "this report type and limit set" at a moment when the user
+    # has opened no report and chosen neither, so it now asks the union over
+    # every built type and every selectable set. Measured on his chart: one
+    # pair asks 7 rows, the union asks 16. Four keys in, two stale out; German
+    # written by hand, the twelve others carry the English source under the
+    # beta rule, so each rises by exactly TWO. COUNTED off the catalogues.
+
     # RE-MEASURED 2026-09-22, Knut's beta 32 batch: the Report limits button is
     # renamed "Restore defaults" on his word, and the Measurement Report now
     # says which metrics a report type actually judges, because Grey and tone
@@ -1216,17 +1225,17 @@ _IDENTICAL_TO_KEY = {
     # recorded. COUNTED with this file's own helper on the tree this commit
     # leaves behind.
     "de": 146,
-    "es": 929,
-    "fr": 951,
-    "it": 940,
-    "ja": 915,
-    "nl": 956,
-    "no": 941,
-    "pl": 933,
-    "pt": 931,
-    "ru": 904,
-    "sv": 942,
-    "zh_CN": 909,
+    "es": 931,
+    "fr": 953,
+    "it": 942,
+    "ja": 917,
+    "nl": 958,
+    "no": 943,
+    "pl": 935,
+    "pt": 933,
+    "ru": 906,
+    "sv": 944,
+    "zh_CN": 911,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1253,7 +1262,7 @@ _IDENTICAL_TO_KEY = {
     # in Ukrainian, so the pointer could not match whatever the user read.
     # Nothing else changed. The ceiling is re-measured DOWN here rather than
     # left where it was, so the next rise still has to justify itself.
-    "uk": 1170,
+    "uk": 1172,
 }
 
 

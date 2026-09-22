@@ -1004,8 +1004,9 @@ M_VERIFY_PREFLIGHT = _m(
     "M-VERIFY-PREFLIGHT",
     "Before you measure this verification chart",
     "This run is a verification, so what you read here will be judged by the "
-    "Measurement Report: a table of metrics, each with a limit, saying "
-    "whether the print is inside it.\n\n"
+    "Measurement Report. That report checks the print against a set of "
+    "metrics, and each metric has a limit the measurement has to stay "
+    "inside.\n\n"
     "Not every chart can answer every metric. Which ones this chart can is "
     "listed below, worked out from its patch set before anything is printed, "
     "so you can still change the chart. A metric the chart cannot supply is "
@@ -1034,8 +1035,7 @@ M_VERIFY_PREFLIGHT_GAMUT = (
     "beside a chart built with FROM PROFILE GAMUT in the Create Chart tab.\n\n"
     "That button sits beside GUIDED and MANUAL whenever Run type is "
     "Verification. Before it can choose any colours the run must already hold "
-    "a built profile, and it lays the sheet out again from scratch, so a "
-    "preset that arrives as finished page images cannot be converted.")
+    "a built profile, and it lays the sheet out again from scratch.")
 
 
 # --- PROPOSED: the how-was-this-sheet-printed question ---------------------

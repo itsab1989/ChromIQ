@@ -484,10 +484,59 @@ class Assessment:
 UNCHECKED = Assessment(asked=(), answered=(), missing=(), checked=False)
 
 
-def assess(chart: "str | Path | None", type_id: str, set_id: str,
-           overrides: "dict | None" = None) -> Assessment:
-    """One chart against one combination. Never raises."""
-    asked = rows_asked(type_id, set_id, overrides)
+def rows_any_report_can_ask(overrides: "dict | None" = None) -> "tuple[str, ...]":
+    """Every row that ANY available report type and limit set could ask for.
+
+    **THE PRE-FLIGHT CANNOT KNOW WHICH REPORT WILL BE MADE, AND SAID IT DID.**
+    Knut, on beta 32: *"At the time of the popup message, when entering Measure
+    tab, how do you know the report type and limit set asked for? We have not
+    opened the Measurement Report yet at this point in the workflow, and no
+    report exists. So this message must be generic, giving a count based on the
+    maximum of metrics a report can check."*
+
+    He is right, and it is a fault of logic rather than of wording: the window
+    named a report type and a limit set at a moment when the user has chosen
+    neither. `assess` against one pair is the correct question for the presets
+    window, which is opened from a report; it is the wrong question before any
+    report exists.
+
+    So this unions the rows over every report type ChromIQ can actually build
+    and every set a user can pick. The union is in table order, and a row asked
+    by one combination and not another is IN it, because the chart either can
+    or cannot supply that row whatever is chosen later.
+    """
+    from workflow.compliance_sets import SETS
+    from workflow.measurement_report import (REPORT_TYPE_MENU,
+                                             report_type_is_built)
+    seen: "set[str]" = set()
+    for tid, _name, _blurb, built in REPORT_TYPE_MENU:
+        if not built:
+            continue
+        for sd in SETS:
+            seen.update(rows_asked(tid, sd.id, overrides))
+    from workflow.compliance_sets import ROWS
+    return tuple(r.id for r in ROWS if r.id in seen)
+
+
+def assess_any(chart: "str | Path | None",
+               overrides: "dict | None" = None) -> Assessment:
+    """One chart against everything any report could ask of it.
+
+    The pre-flight's question, as opposed to the presets window's. See
+    :func:`rows_any_report_can_ask` for why the two differ.
+    """
+    return assess_rows(chart, rows_any_report_can_ask(overrides))
+
+
+def assess_rows(chart: "str | Path | None",
+                asked: "tuple[str, ...]") -> Assessment:
+    """One chart against a given set of rows. Never raises.
+
+    `assess` decides the rows from one report type and one limit set;
+    `assess_any` decides them from every combination there is. Both then ask
+    the same question of the chart, and that question lives here so the two
+    cannot drift apart.
+    """
     if chart is None:
         return Assessment(asked=asked, answered=(), missing=(), checked=False)
     try:
@@ -505,6 +554,12 @@ def assess(chart: "str | Path | None", type_id: str, set_id: str,
             missing.append((rid, v.get("reason") or MR.REASON_NOT_COMPUTED))
     return Assessment(asked=asked, answered=tuple(answered),
                       missing=tuple(missing))
+
+
+def assess(chart: "str | Path | None", type_id: str, set_id: str,
+           overrides: "dict | None" = None) -> Assessment:
+    """One chart against one combination. Never raises."""
+    return assess_rows(chart, rows_asked(type_id, set_id, overrides))
 
 
 # ---------------------------------------------------------------------------
