@@ -539,6 +539,13 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-22, for Knut's ruling that the unchecked values
+    # shall be listed. The ISO summary sentence is now three sentences, one
+    # per case, because the promise was unconditional and a column with
+    # nothing unchecked also said the unchecked values were listed below.
+    # German by hand; the twelve others carry the English under the beta
+    # rule. COUNTED off the tree, BOTH ledgers this time.
+
     # RE-MEASURED 2026-09-22, and this ledger was MISSED when its twin was
     # updated earlier the same day. Three gate runs came back red identically,
     # twelve failures each, which is what a deterministic miss looks like:
@@ -808,18 +815,18 @@ _BUDGET = {
     # recorded. COUNTED with this file's own helper on the tree this commit
     # leaves behind.
     "de": 22,
-    "es": 670,
-    "fr": 671,
-    "it": 670,
-    "ja": 670,
-    "nl": 670,
-    "no": 670,
-    "pl": 670,
-    "pt": 670,
-    "ru": 669,
-    "sv": 670,
-    "zh_CN": 669,
-    "uk": 886,
+    "es": 672,
+    "fr": 673,
+    "it": 672,
+    "ja": 672,
+    "nl": 672,
+    "no": 672,
+    "pl": 672,
+    "pt": 672,
+    "ru": 671,
+    "sv": 672,
+    "zh_CN": 671,
+    "uk": 888,
 }
 
 

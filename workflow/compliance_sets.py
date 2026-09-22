@@ -1636,10 +1636,25 @@ SUMMARY_REASONS: "dict[str, str]" = {
                       "graded on this sheet, so there is nothing to judge. "
                       "The note below says why each was left ungraded.",
     "fail": "{failed} of {checked} values checked are over this limit set's limits.",
+    # KNUT, 2026-09-22: *"it is obvious that the list is missing, and thus
+    # shall be included, where there are metrics that are not checked against
+    # the selected measurements to be included in the report."* So the promise
+    # is now CONDITIONAL and is kept where it is made. It used to be
+    # unconditional, which meant a column with nothing unchecked also said the
+    # unchecked values were listed below: measured on T3, *"3 of 3 values
+    # checked ... and the values not checked are listed below."*
     "iso": "{checked} of {total} values checked, all within this limit set's "
            "values. This limit set holds a standard's published values applied "
-           "to your chart; it is not a test against that standard, and the "
-           "values not checked are listed below.",
+           "to your chart; it is not a test against that standard.",
+    "iso_with_unchecked": "{checked} of {total} values checked, all within "
+           "this limit set's values. This limit set holds a standard's "
+           "published values applied to your chart; it is not a test against "
+           "that standard. The {not_computed} values not checked are listed "
+           "below.",
+    "iso_with_one_unchecked": "{checked} of {total} values checked, all within "
+           "this limit set's values. This limit set holds a standard's "
+           "published values applied to your chart; it is not a test against "
+           "that standard. The one value not checked is listed below.",
     "cond_both": "{checked} of {total} values checked, none over a required "
                  "limit; {not_computed} not computed and {cond} over a "
                  "recommended value.",
@@ -1869,7 +1884,10 @@ def set_summary(rows: "list[tuple]", *, set_is_iso: bool,
     # keep in step with one: the count is reported beside the word and the
     # cell carries a numbered note saying why it could not be worked out.
     if set_is_iso:
-        return Summary(COND, checked, total, failed, cond, not_computed, R["iso"])
+        key = ("iso" if not not_computed
+               else "iso_with_one_unchecked" if not_computed == 1
+               else "iso_with_unchecked")
+        return Summary(COND, checked, total, failed, cond, not_computed, R[key])
     if cond:
         # no "0 over a recommended value" clauses (text review)
         key = ("cond_both" if (cond and not_computed)

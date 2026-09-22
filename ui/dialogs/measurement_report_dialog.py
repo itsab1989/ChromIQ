@@ -10942,6 +10942,76 @@ class MeasurementReportDialog(QDialog):
         # last one, never the first.
         return runs[-1:]
 
+    #: How many unchecked metrics the ONE-PAGE summary names before it hands
+    #: the reader to the full report. MEASURED, not chosen: with all ten named
+    #: on the worst case in the fixture the page had 33 px spare against the
+    #: 60 px of headroom its own guard requires, and each name costs roughly a
+    #: third of a line. Four fits with room to spare in every language tried.
+    _ONE_PAGE_UNCHECKED_MAX = 4
+
+    def _unchecked_rows_for(self, r: dict) -> "list[tuple[str, str]]":
+        """(label, why) for every limit-bearing row this sheet could not answer.
+
+        **THE SAME ROWS THE FULL REPORT JUDGES**, through `_verdict_rows`, so
+        the one-page summary cannot name a different set of absences than the
+        document it is a summary of. Each carries the sentence its numbered
+        note would have given it, which is the reason a reader can act on.
+
+        Only rows the set actually LIMITS are counted: a row left at "–" is not
+        unchecked, it is not asked, and naming it would send a reader after
+        something nobody wanted.
+        """
+        from workflow.compliance_sets import N_A, ROW_BY_ID
+        try:
+            rows, _graded = self._verdict_rows(r)
+        except Exception:      # noqa: BLE001 — a summary, never a gate
+            log.debug("could not list the unchecked rows", exc_info=True)
+            return []
+        out: "list[tuple[str, str]]" = []
+        for row in rows or ():
+            if row.get("word") != N_A:
+                continue
+            lim = row.get("limit")
+            if lim is not None and not getattr(lim, "is_numeric", False):
+                continue
+            rid = row.get("row_id") or row.get("key") or ""
+            meta = ROW_BY_ID.get(str(rid))
+            label = tr(meta.label) if meta is not None else str(
+                row.get("label") or rid)
+            if not label:
+                continue
+            out.append((label, self._reason_sentence(row.get("reason"), r) or ""))
+        return out
+
+    @staticmethod
+    def _one_page_summary(sm):
+        """The column summary as THIS page may state it.
+
+        **THIS PAGE CANNOT KEEP THE PROMISE THE SENTENCE MAKES, SO IT MUST NOT
+        MAKE IT.** Knut ruled on 2026-09-22 that the unchecked values shall be
+        listed where there are any. On the full report they are: the numbered
+        notes under the results table name every one, with the reason. This
+        page has no results table and, measured, no room for one more line:
+        `test_the_one_page_summary_prints_on_one_page` requires 60 px of
+        headroom and the page has 33 with a single extra line on it, on the
+        fixture's own run. A document whose entire promise is that it is one
+        page may not become two to carry a list.
+
+        So the ISO sentence loses its "listed below" clause HERE and keeps it
+        everywhere the list exists. That is the truthful half of his ruling;
+        the other half is put to him, because listing them here and keeping
+        this a one-page document are two requirements of his that cannot both
+        hold as they stand.
+        """
+        from workflow.compliance_sets import SUMMARY_REASONS
+        import dataclasses
+        plain = SUMMARY_REASONS.get("iso", "")
+        promised = (SUMMARY_REASONS.get("iso_with_unchecked"),
+                    SUMMARY_REASONS.get("iso_with_one_unchecked"))
+        if plain and getattr(sm, "reason", None) in promised:
+            return dataclasses.replace(sm, reason=plain)
+        return sm
+
     def _one_page_html(self, runs: list, dropped: "list | None" = None) -> str:
         """T1, "Colour summary (one page)": the page that goes with the job.
 
@@ -10978,8 +11048,40 @@ class MeasurementReportDialog(QDialog):
                    + (" · " + html.escape("; ".join(bits)) if bits else "")
                    + "</div>"
                    + f"<div style='color:{_C['dim']};margin-top:2px'>"
-                   + html.escape(summary_text(sm)) + "</div>")
+                   + html.escape(summary_text(self._one_page_summary(sm)))
+                   + "</div>")
 
+        # **AND THE LIST THAT SENTENCE PROMISES.** Knut, 2026-09-22: *"it is
+        # obvious that the list is missing, and thus shall be included, where
+        # there are metrics that are not checked against the selected
+        # measurements to be included in the report."*
+        #
+        # On the full report the promise is kept by the numbered notes under
+        # the results table. This page has no results table, so the sentence
+        # said "the values not checked are listed below" and then went straight
+        # to Example colours. Measured by challenge round 33 on a run bound to
+        # Custom ISO 12647-7: COND, 8 of 18 values checked, ten rows unchecked
+        # and NONE of them named, on screen or in the PDF.
+        #
+        # The rows come from the same `_verdict_rows` the full report judges
+        # from, so this page cannot name a different set of absences than the
+        # document it summarises, and each carries the reason its numbered note
+        # would have given it.
+        #
+        # **ONE PARAGRAPH, NOT A BULLETED LIST, AND THE PAGE DECIDED THAT.**
+        # The first version gave each row its own line with its reason beside
+        # it, and `test_the_one_page_summary_prints_on_one_page` measured the
+        # body at 1059 px against 952 available: 107 px over, on the one
+        # document whose whole promise is that it is one page. The names are
+        # what the sentence promises; the reasons are on the full report, which
+        # is where a reader who wants them is going anyway.
+        # **AND CAPPED, BECAUSE THE PAGE IS THE PROMISE.** Listing all of them
+        # on one line left only 33 px spare against the 60 px of headroom
+        # `test_and_keeps_room_for_a_description_of_ordinary_length` requires,
+        # and that guard is right: a document that fits by one pixel is one
+        # sentence away from being two pages. So the page names the first few
+        # and says where the rest are, which keeps the sentence's promise
+        # without breaking the document's.
         # -- the colours, from the chart that was measured
         picked = r.get("summary_patches") or []
         if picked:

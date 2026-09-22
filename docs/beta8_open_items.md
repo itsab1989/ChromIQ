@@ -22589,6 +22589,24 @@ would reach.
 ### B8-711 · OPEN · The one-page summary says the unchecked values "are listed below" and lists nothing
 - blocks release: no
 - status: OPEN
+- **HALF DONE 2026-09-22, and the other half is a conflict between two of
+  Knut's own requirements.**
+- DONE: the promise is now CONDITIONAL. `SUMMARY_REASONS` has three ISO
+  sentences instead of one, so a column with nothing unchecked no longer says
+  the unchecked values are listed below. That was the second fault in this
+  entry and it is gone.
+- DONE: the one-page summary no longer makes a promise it cannot keep. Its ISO
+  sentence drops the clause, and the full report keeps it, where the numbered
+  notes really do name every unchecked row with its reason.
+- **NOT DONE, and it cannot be as things stand.** His ruling is that the list
+  shall be included. MEASURED: the one-page summary has **33 px** spare with a
+  single extra line on it, and its own guard requires **60 px** of headroom
+  (`test_and_keeps_room_for_a_description_of_ordinary_length`), on the reasoning
+  that a document fitting by one pixel is one sentence from being two pages.
+  Capping the list did not help: the cost is the LINE, not its length.
+- so two of his requirements cannot both hold: *the unchecked values shall be
+  listed* and *the one-page summary is one page*. Put to him with the numbers
+  rather than resolved by me, because which one gives is his call.
 - **RULED BY KNUT 2026-09-22:** *"it is obvious that the list is missing, and
   thus shall be included, where there are metrics that are not checked against
   the selected measurements to be included in the report."* So the page carries

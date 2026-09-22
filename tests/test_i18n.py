@@ -786,6 +786,13 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-22, for Knut's ruling that the unchecked values
+    # shall be listed. The ISO summary sentence is now three sentences, one
+    # per case, because the promise was unconditional and a column with
+    # nothing unchecked also said the unchecked values were listed below.
+    # German by hand; the twelve others carry the English under the beta
+    # rule. COUNTED off the tree, BOTH ledgers this time.
+
     # RE-MEASURED 2026-09-22 again, for Knut's four faults in the verification
     # pre-flight. The biggest is a fault of LOGIC rather than wording: the
     # window named "this report type and limit set" at a moment when the user
@@ -1225,17 +1232,17 @@ _IDENTICAL_TO_KEY = {
     # recorded. COUNTED with this file's own helper on the tree this commit
     # leaves behind.
     "de": 146,
-    "es": 931,
-    "fr": 953,
-    "it": 942,
-    "ja": 917,
-    "nl": 958,
-    "no": 943,
-    "pl": 935,
-    "pt": 933,
-    "ru": 906,
-    "sv": 944,
-    "zh_CN": 911,
+    "es": 933,
+    "fr": 955,
+    "it": 944,
+    "ja": 919,
+    "nl": 960,
+    "no": 945,
+    "pl": 937,
+    "pt": 935,
+    "ru": 908,
+    "sv": 946,
+    "zh_CN": 913,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1262,7 +1269,7 @@ _IDENTICAL_TO_KEY = {
     # in Ukrainian, so the pointer could not match whatever the user read.
     # Nothing else changed. The ceiling is re-measured DOWN here rather than
     # left where it was, so the next rise still has to justify itself.
-    "uk": 1172,
+    "uk": 1174,
 }
 
 
