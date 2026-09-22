@@ -147,6 +147,9 @@ def test_a_leftover_member_is_restamped_with_a_type_its_kind_allows(
                 doc["type"] = REPORT_TYPE_RECORD
                 p["report_type"] = REPORT_TYPE_RECORD
                 f.write_text(json.dumps(p), encoding="utf-8")
+        # K19 (Knut, 2026-09-23): the list no longer offers a type the kind
+        # refuses; the entry is let through to reach the fit it guards.
+        dlg._entry_type = lambda e: REPORT_TYPE_FULL
         dlg._reload_sources()
         qapp.processEvents()
         dlg._saved_combo.setCurrentIndex(0)

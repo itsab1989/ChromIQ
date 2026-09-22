@@ -24494,9 +24494,16 @@ would reach.
   test_the_automatic_report_of_a_profiling_measurement_is_a_printing_record
   test_a_printing_record_default_is_refused_for_a_verification
 
-### B8-788 · OPEN · A demo-preset test can remove a user preset another file's cached rows still name
+### B8-788 · FIXED · A demo-preset test can remove a user preset another file's cached rows still name
 - blocks release: no
-- status: OPEN
+- status: FIXED
+- fix (round 3C, F0, 2026-09-23): the cause was the suite, not the tests.
+  `tests/conftest.py::pytest_configure` used `os.environ.setdefault` for
+  `CHROMIQ_PRESETS_DIR` and `CHROMIQ_OUTPUT_ROOT`; under xdist the controller
+  sets them first and every worker inherits them, so all workers shared ONE
+  preset store. A worker now always takes its own. Measured on the four files
+  that collide, `-n 4 --dist loadfile`: 2 failed without the fix, 208 passed
+  twice with it.
 - found by: running the report-related test files together, 2026-09-22.
   `test_the_star_means_one_page_and_a_few_hundred_patches` and
   `test_the_window_opens_on_the_preset_the_pulldown_is_on` fail after the

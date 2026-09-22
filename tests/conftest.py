@@ -1191,8 +1191,16 @@ def pytest_configure(config):
     # ~/Library/Preferences/ChromIQ/presets, so any test reaching
     # `save_presets(...)` wrote into the developer's own preferences. Only one
     # test does today and it patches correctly, but nothing enforced that.
-    os.environ.setdefault(
-        "CHROMIQ_PRESETS_DIR", str(sandbox / "presets"))
+    #
+    # **ONE PER WORKER, NOT ONE PER RUN (round 3C, F0).** Under xdist the
+    # CONTROLLER runs this first and every worker inherits its environment,
+    # so `setdefault` kept the controller's folder and all twelve workers
+    # shared one preset store: a demo-preset fixture on one worker removed a
+    # preset another worker's test was about to assess (B8-788, three reds
+    # reproduced 2 of 2 on a subset). A worker always takes its own.
+    _set = (os.environ.__setitem__ if hasattr(config, "workerinput")
+            else os.environ.setdefault)
+    _set("CHROMIQ_PRESETS_DIR", str(sandbox / "presets"))
 
     # …AND THE FALLBACK ITSELF, which is the door the two fixes below could
     # never shut.
@@ -1212,8 +1220,7 @@ def pytest_configure(config):
     # A test that genuinely needs the real default asks for the
     # `the_real_default_output_root` fixture, which unsets it for that test
     # only. Nothing else should.
-    os.environ.setdefault(
-        "CHROMIQ_OUTPUT_ROOT", str(sandbox / "projects"))
+    _set("CHROMIQ_OUTPUT_ROOT", str(sandbox / "projects"))
 
     # …AND THE WORKING FOLDER ITSELF, which the QSettings sandbox alone does NOT
     # cover and which is the mechanism that has actually cost data.

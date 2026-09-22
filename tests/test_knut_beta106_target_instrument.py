@@ -231,7 +231,13 @@ def test_inspect_measurement_starts_in_the_configured_chromiq_folder(tmp_path):
     assert _chromiq_root(s) == custom
 
 
-def test_it_falls_back_to_the_default_folder_then_to_home(tmp_path):
+def test_it_falls_back_to_the_default_folder_then_to_home(
+        tmp_path, the_real_default_output_root):
+    """ABOUT the real default, so it asks for it (`the_real_default_output_root`).
+    It used to rely on the sandboxed output root not existing yet, which held
+    while every xdist worker shared one sandbox and stopped holding once each
+    worker had its own (round 3C, F0): another test on the same worker made
+    the folder, and the fallback answered it."""
     import pathlib
     s = AppSettings()
     s._qs = QSettings(str(tmp_path / "s.ini"), QSettings.Format.IniFormat)
