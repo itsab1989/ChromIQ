@@ -3623,6 +3623,7 @@ class MeasurementReportDialog(QDialog):
         if not self._nothing_is_ticked():
             self._doc_built_with = self._doc_settings()
         self._show_stale_banner()
+        self._note_which_document_the_page_is()
         if not self._sources:
             self._view.setHtml(self._empty_html())
             self._remember_how_it_was_built()
@@ -3630,6 +3631,45 @@ class MeasurementReportDialog(QDialog):
         self._view.setHtml(
             self._report_body_html(self._runs_for_report(), for_pdf=False))
         self._remember_how_it_was_built()
+
+    def _note_which_document_the_page_is(self) -> None:
+        """Record, as the page is drawn, which saved document it shows.
+
+        **ROUND A, 2026-09-22 (A-3, A-6).** The "Created:" line and the PDF's
+        file name read `_doc_created`, which says which document is SELECTED,
+        not which one the page is. With two runs loaded a type change repaints
+        at once (there is no Generate to wait for), so the page stopped being
+        the saved document and still printed its creation time, and Save as
+        PDF offered that document's exact file name: saving would have
+        overwritten another report's PDF. And after an Update the name did not
+        move at all, so the updated content was offered the earlier PDF's
+        name.
+
+        So the page records what it is when it is drawn: the selected
+        document's creation time and last update while that document still
+        speaks for the controls, and nothing when it no longer does. The
+        "Created:" line and `_report_filename` read this, so the screen, the
+        PDF body and the PDF's name cannot disagree.
+        """
+        from workflow.measurement_report import document_updated_stamps
+        key = str(getattr(self, "_loaded_doc_id", "") or "")
+        speaks = (bool(key) and key != NEW_REPORT_KEY
+                  and not getattr(self, "_doc_settings_moved", False))
+        self._page_doc_created = (str(getattr(self, "_doc_created", "") or "")
+                                  if speaks else "")
+        updated = ""
+        if speaks:
+            try:
+                ctx = self._run_ctx
+                entry = next((d for d in self._saved_documents(
+                    ctx.run if ctx is not None else None)
+                    if d["key"] == key), None)
+                stamps = document_updated_stamps((entry or {}).get("doc"))
+                updated = stamps[-1] if stamps else ""
+            except Exception:      # noqa: BLE001 — a name is never a blocker
+                log.debug("could not read the document's update stamps",
+                          exc_info=True)
+        self._page_doc_updated = updated
 
     def _remember_how_it_was_built(self) -> None:
         """The TYPE and the LIMITS the page was just drawn with (R23-F1).
@@ -3996,14 +4036,20 @@ class MeasurementReportDialog(QDialog):
           red line names, read through the one predicate that decides it, so
           the line and the question cannot disagree.
 
-        With nothing selected, or with nothing moved since the page was drawn,
-        Generate report writes a new report and asks nothing, as it always
-        has.
+        **AND WITH NOTHING CHANGED, IT ASKS TOO (K4, Knut on beta 34).** The
+        second half used to be a condition: nothing moved, so Generate wrote a
+        new report and asked nothing. Knut, wanting an old report's text
+        refreshed, pressed it on a selected report and got a new one instead;
+        his log shows four presses in nine seconds and 44 files, because the
+        silent success looked like nothing had happened. So a selected report
+        is always asked about, and the question says truthfully whether
+        anything was changed (`_ask_update_or_create_new` works that out).
+
+        With "New report…" selected, Generate writes a new report and asks
+        nothing, as it always has.
         """
         key = str(getattr(self, "_loaded_doc_id", "") or "")
         if not key or key == NEW_REPORT_KEY:
-            return None
-        if not self._settings_were_modified():
             return None
         ctx = self._run_ctx
         docs = self._saved_documents(ctx.run if ctx is not None else None)
@@ -4026,7 +4072,15 @@ class MeasurementReportDialog(QDialog):
         from ui.widgets import fit_message_box_buttons
         from ui.warning_sign import set_question_icon
         from workflow import measurement_messages as M
-        title, body = M.CATALOGUE["M-REPORT-UPDATE-OR-NEW"].render()
+        # THE HEADLINE IS A STATEMENT OF FACT, so the unchanged case has its
+        # own (K4): "Settings were modified" over a report nobody touched is
+        # false, and the buttons are the same three either way. Worked out
+        # here, not passed in, so every existing answerer of this one method
+        # keeps working.
+        modified = self._settings_were_modified()
+        title, body = M.CATALOGUE[
+            "M-REPORT-UPDATE-OR-NEW" if modified
+            else "M-REPORT-UNCHANGED-UPDATE-OR-NEW"].render()
         box = QMessageBox(self)
         set_question_icon(box)
         box.setWindowTitle(title)
@@ -4162,10 +4216,30 @@ class MeasurementReportDialog(QDialog):
             for _rdir in _unarchived:
                 log.warning("could not archive the reports in %s, so they are "
                             "not updated", _rdir)
+        # **ALL OR NOTHING (round A, A-1).** A folder that could not be
+        # archived, or a file that cannot be written, used to be skipped while
+        # the rest of the document was rewritten: 10 of 11 files carried the
+        # new settings and one the old, so one document said two things about
+        # itself and the window kept reading the old one. An Update now writes
+        # nothing unless it can write everything, and the log names every
+        # folder that stopped it; the window's own failure line reports it.
+        _blocked = False
+        if existing:
+            _stuck = set(_unarchived)
+            for _p in existing.values():
+                if _p.exists() and not (os.access(_p, os.W_OK)
+                                        and os.access(_p.parent, os.W_OK)):
+                    _stuck.add(_p.parent.resolve())
+            if _stuck:
+                _blocked = True
+                for _rdir in sorted(_stuck):
+                    log.warning("the report update was not written: %s cannot "
+                                "be archived or written, and a document is "
+                                "rewritten whole or not at all", _rdir)
 
         def _archive_failed(path: "Path | None") -> bool:
-            return path is not None and path.exists() and \
-                path.parent.resolve() in _unarchived
+            return _blocked or (path is not None and path.exists() and
+                                path.parent.resolve() in _unarchived)
         #: WHAT THE RED LINE WAS COMPARING AGAINST BEFORE THIS PRESS (R29-F2).
         #: A press that writes nothing must leave it exactly there: see the
         #: failure branch at the end of this method.
@@ -4185,7 +4259,7 @@ class MeasurementReportDialog(QDialog):
             # it, because the settings the user changed may be the tick that
             # brought it in.
             here = existing.pop(self._run_key(r), None)
-            if _archive_failed(here):
+            if _blocked or _archive_failed(here):
                 failed.append(str(origin))
                 continue
             try:
@@ -11072,8 +11146,17 @@ class MeasurementReportDialog(QDialog):
         already moved the page's own line to `_doc_created`; the file name was
         left behind on the window's clock."""
         import re
-        when = getattr(self, "_doc_created", "") or self._created
+        # WHAT THE PAGE IS, recorded when it was drawn (round A, A-3/A-6):
+        # the document's creation time while it still speaks, the window's
+        # clock when the page is no longer that document, and the last update
+        # appended, so an updated report is not offered the earlier PDF's name.
+        page = getattr(self, "_page_doc_created", None)
+        when = (page if page is not None
+                else getattr(self, "_doc_created", "")) or self._created
         dt = when.replace("T", "_").replace(":", "-")
+        upd = str(getattr(self, "_page_doc_updated", "") or "")
+        if page and upd:
+            dt += " - updated " + upd.replace("T", "_").replace(":", "-")
         return re.sub(r'[/\\:*?"<>|]', "_", f"{self._report_title(runs)} - {dt}") + ".pdf"
 
     def _report_body_html(self, runs: list, *, for_pdf: bool,
@@ -11101,7 +11184,9 @@ class MeasurementReportDialog(QDialog):
         # `_doc_created` is empty whenever no saved document is on the page
         # ("New report…", an unsaved measurement), and then the window's own
         # clock is the right answer and is what is used.
-        when = html.escape((created or getattr(self, "_doc_created", "")
+        _page = getattr(self, "_page_doc_created", None)
+        when = html.escape((created or (_page if _page is not None
+                                        else getattr(self, "_doc_created", ""))
                             or self._created).replace("T", " "))
         created_line = ("<div style='margin:2px 0 0'>"
                         + html.escape(tr("Created:")) + " " + when + "</div>")
@@ -12025,13 +12110,20 @@ class MeasurementReportDialog(QDialog):
                 # ALL THREE, WHEN THE RECORD HAS THEM (K5): the swatch is drawn
                 # from a* and b* as well, and a page printing only L* beside a
                 # blue swatch gave the reader no way to see why it was blue.
+                import math
+
+                def _n(v: float) -> str:
+                    # -0.04 is "0.0", not "-0.0" (round A, A-7)
+                    return f"{round(v, 1) + 0.0:.1f}"
                 lab = point_lab(pt)
                 lv = point_lightness(pt)
-                if lab is not None:
-                    bits.append(f"- L* {lab[0]:.1f}, a* {lab[1]:.1f}, "
-                                f"b* {lab[2]:.1f}")
-                elif lv is not None:
-                    bits.append(f"- L* {lv:.1f}")
+                if lab is not None and all(math.isfinite(v) for v in lab):
+                    bits.append(f"- L* {_n(lab[0])}, a* {_n(lab[1])}, "
+                                f"b* {_n(lab[2])}")
+                elif lv is not None and math.isfinite(lv):
+                    # a record with no usable a*/b* (or a NaN in them) still
+                    # prints the one number it has, never "nan" (A-7)
+                    bits.append(f"- L* {_n(lv)}")
                 return "<div>" + " ".join(bits) + "</div>"
 
             parts.append(_h3(tr("Paper white & darkest black")))

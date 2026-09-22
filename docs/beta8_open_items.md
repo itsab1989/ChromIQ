@@ -24547,3 +24547,59 @@ would reach.
   test_a_dropped_member_whose_archive_fails_is_not_rewritten
   test_the_tooltip_no_longer_offers_a_lever_that_does_nothing
   test_no_product_call_site_relies_on_the_platform_default
+
+### B8-792 · FIXED · Generate on a selected report with nothing changed made a new report without asking
+- blocks release: no
+- status: FIXED
+- found by: Knut on beta 34 (K4 of B8-778): *"I clicked Generate Report
+  button (without any settings having been changed.). This resulted in a new
+  report being created, without user being asked"*. His log: four presses in
+  nine seconds, 44 files, because a silent success looked like nothing.
+- `_document_being_updated` required a changed setting before the
+  M-REPORT-UPDATE-OR-NEW question was asked, and otherwise Generate created.
+  A selected report is now always asked about. The unchanged case has its own
+  headline, M-REPORT-UNCHANGED-UPDATE-OR-NEW ("Nothing was changed for the
+  selected report"), §M-PROPOSED and not approved, because his headline
+  ("Settings were modified") is false in that state; the three buttons are
+  his. Update archives first (B8-782). Put to Knut: whether an unchanged
+  Update may re-judge a dated record by today's rules.
+- driven on screen as a user (`scripts/drive_k4_generate_unchanged.py`, proof
+  `~/Desktop/ChromIQ-beta36-proof/K4-generate-unchanged/`): beta 35, no
+  question and a new report file; fixed, the question, Update, no new file, 1
+  rewritten and its previous content in old/.
+- evidence:
+  test_the_question_is_asked_only_when_both_halves_of_his_sentence_hold
+  test_the_unchanged_question_says_nothing_was_changed
+
+### B8-793 · FIXED · Round A on the report fixes: a split document, two PDF names that would overwrite, "nan" on the page
+- blocks release: no
+- status: FIXED
+- found by: adversary round A (features, on screen through userdrive),
+  2026-09-22. Report and drives: `~/Desktop/ChromIQ-beta36-proof/round-A-report-fixes/`.
+  No data was lost in any drive; the D23 archive held throughout.
+- A-1: an Update that could not archive or write one date's folder rewrote
+  the others, so 10 of 11 files carried the new settings and one the old. An
+  Update is now all or nothing: nothing is written unless everything can be,
+  the log names every folder that stopped it, and the window's failure line
+  says nothing could be written.
+- A-3: with two runs loaded a type change repaints at once, and the page still
+  printed the saved document's "Created:" time while Save as PDF offered that
+  document's exact file name (saving would overwrite another report's PDF).
+  A-6: after an Update the PDF was offered the name of the earlier content's
+  PDF. The page now records which document it shows as it is drawn
+  (`_note_which_document_the_page_is`); the "Created:" line and the PDF name
+  read that, and an updated document's name carries its last update.
+- A-7: the paper white line printed "nan" and "-0.0"; now it falls back to L*
+  and prints "0.0".
+- A-2 (the Generate tooltip's false advice) was already fixed by B8-789.
+- NOT changed, and put to Knut: A-4, verification measurements judged against
+  different limit sets are still narrowed to one set (his 2026-09-16 ruling)
+  against R.3; A-5, after the second run is removed the session's type choice
+  stays on screen under "Report type (run1)" though run1 stores none; an
+  Update can turn a date's only report into a many-date document that Delete
+  then refuses; "Multiple dates" for sheets from different profile runs.
+- evidence:
+  test_an_update_that_cannot_write_one_date_writes_none_of_them
+  test_after_an_update_the_pdf_is_not_offered_the_earlier_pdfs_name
+  test_a_page_that_is_no_longer_the_saved_document_takes_neither_its_time_nor_its_name
+  test_the_line_never_prints_nan_or_minus_zero

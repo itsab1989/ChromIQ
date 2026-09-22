@@ -48,6 +48,8 @@ The row the window is ON wins now.
 """
 from __future__ import annotations
 
+import pytest
+
 import inspect
 import json
 import os
@@ -290,3 +292,18 @@ def test_the_row_rule_and_the_run_identity_are_the_same_key(tmp_path):
         "`_one_row_per_measurement` no longer keys on `_run_key`, so what "
         "counts as one row and what counts as one run can disagree again:\n"
         + body)
+
+
+@pytest.fixture(autouse=True)
+def _each_press_answers_create_new(monkeypatch):
+    """**K4 (Knut on beta 34): Generate on a selected report now asks**,
+    whether or not a setting moved, because pressing it on a report with
+    nothing changed created a new one in silence. These checks press Generate
+    repeatedly to count what a CREATING press writes, which is what a user
+    reaches by answering "Create New"; so that is the answer, given through
+    the question's one method. The question itself is guarded in
+    `tests/test_generate_report_asks_what_to_do.py`.
+    """
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    monkeypatch.setattr(MeasurementReportDialog, "_ask_update_or_create_new",
+                        lambda self: "new")

@@ -539,6 +539,11 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-22, K4 (Knut on beta 34: Generate on a selected
+    # report with nothing changed made a new report without asking). Two keys
+    # in, none out: M-REPORT-UNCHANGED-UPDATE-OR-NEW's headline and body.
+    # German by hand, so it does not move; the twelve others rise by exactly
+    # 2. COUNTED off the tree, BOTH ledgers in the same commit.
     # RE-MEASURED 2026-09-22, K14 (Knut on beta 34: the Report Scope count
     # belongs to the run type and the listed measurements). Five keys in (the
     # coverage sentence for a profiling document, one project or several, and
@@ -874,18 +879,18 @@ _BUDGET = {
     # recorded. COUNTED with this file's own helper on the tree this commit
     # leaves behind.
     "de": 17,
-    "es": 688,
-    "fr": 689,
-    "it": 688,
-    "ja": 688,
-    "nl": 688,
-    "no": 688,
-    "pl": 688,
-    "pt": 688,
-    "ru": 687,
-    "sv": 688,
-    "zh_CN": 687,
-    "uk": 902,
+    "es": 690,
+    "fr": 691,
+    "it": 690,
+    "ja": 690,
+    "nl": 690,
+    "no": 690,
+    "pl": 690,
+    "pt": 690,
+    "ru": 689,
+    "sv": 690,
+    "zh_CN": 689,
+    "uk": 904,
 }
 
 

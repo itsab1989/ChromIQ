@@ -211,3 +211,29 @@ def test_the_swatch_line_prints_a_and_b_as_well_as_l(tmp_path, qapp):
         assert "L* 6.2, a* 0.2, b* -1.4" in html
     finally:
         dlg.close()
+
+
+def test_the_line_never_prints_nan_or_minus_zero(tmp_path, qapp):
+    """ROUND A (A-7), 2026-09-22: `point_lab` handed "b* nan" and "a* -0.0"
+    to the page. A NaN in a* or b* falls back to the one number the record
+    has; a value that rounds to zero prints "0.0".
+
+    MUTATION: drop the `math.isfinite` check, or the `+ 0.0`, and this goes
+    red.
+    """
+    s, _fm, _run, vs = _a_project_holding_both_shapes(tmp_path)
+    old = sorted((vs[0].dir / "reports").glob("report_*.json"))
+    for f in old:
+        p = json.loads(f.read_text(encoding="utf-8"))
+        p["paper_white"] = {"L": WHITE_L, "a": -0.04, "b": 2.1}
+        p["max_black"] = {"L": BLACK_L, "a": float("nan"), "b": -1.4}
+        f.write_text(json.dumps(p), encoding="utf-8")
+    dlg = _window(s, vs[-1].measurement_ti3, qapp)
+    try:
+        html = dlg._report_body_html(dlg._runs_for_report(), for_pdf=True)
+        assert "nan" not in html.lower()
+        assert "a* -0.0" not in html
+        assert "L* 95.4, a* 0.0, b* 2.1" in html
+        assert "L* 6.2" in html
+    finally:
+        dlg.close()

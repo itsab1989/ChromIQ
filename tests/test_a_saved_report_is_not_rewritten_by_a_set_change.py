@@ -416,3 +416,18 @@ def test_the_unlock_door_recalculates_nothing_either(qapp, tmp_path,
         assert not copies, f"unlocking archived {copies}"
     finally:
         dlg.close()
+
+
+@pytest.fixture(autouse=True)
+def _each_press_answers_create_new(monkeypatch):
+    """**K4 (Knut on beta 34): Generate on a selected report now asks**,
+    whether or not a setting moved, because pressing it on a report with
+    nothing changed created a new one in silence. These checks press Generate
+    repeatedly to count what a CREATING press writes, which is what a user
+    reaches by answering "Create New"; so that is the answer, given through
+    the question's one method. The question itself is guarded in
+    `tests/test_generate_report_asks_what_to_do.py`.
+    """
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    monkeypatch.setattr(MeasurementReportDialog, "_ask_update_or_create_new",
+                        lambda self: "new")

@@ -548,6 +548,10 @@ def test_the_question_is_the_catalogue_message_with_his_three_buttons(
             raise AssertionError(seen["buttons"])
 
         monkeypatch.setattr(QMessageBox, "exec", _look)
+        # HIS message is the MODIFIED case (K4 gave the unchanged case its own
+        # headline), so a setting is moved first, as his sentence requires.
+        dlg._detail_check.setChecked(not dlg._detail_check.isChecked())
+        qapp.processEvents()
         assert dlg._ask_update_or_create_new() == "cancel"
         title, body = M.CATALOGUE["M-REPORT-UPDATE-OR-NEW"].render()
         assert seen["title"] == title
@@ -561,14 +565,18 @@ def test_the_question_is_the_catalogue_message_with_his_three_buttons(
 
 def test_the_question_is_asked_only_when_both_halves_of_his_sentence_hold(
         two_dates, qapp):
-    """*"When a report … is selected … If any of the settings are changed"*.
+    """*"When a report … is selected … If any of the settings are changed"*,
+    and K4 (Knut on beta 34), which extends it: a selected report is asked
+    about whether or not anything moved, because pressing Generate on it with
+    nothing changed created reports in silence (four presses, 44 files).
 
-    Three states, one of which asks: "New report…" never does, a selected
-    report whose settings have not moved never does, and a selected report
-    whose settings have moved always does.
+    Three states: "New report…" never asks; a selected report asks with
+    nothing moved; a selected report asks with a setting moved. Which
+    HEADLINE it asks under is guarded by
+    `test_the_unchanged_question_says_nothing_was_changed`.
 
-    MUTATION, proved to land: drop the `_settings_were_modified()` test from
-    `_document_being_updated`, and the second case starts asking.
+    MUTATION, proved to land: put back the `_settings_were_modified()` early
+    return in `_document_being_updated`, and the first case stops asking.
 
     **AND ONE MUTATION THAT DOES NOT LAND, SAID OUT LOUD.** Dropping the
     `key == NEW_REPORT_KEY` test leaves this green, because "New report…" names
@@ -583,8 +591,10 @@ def test_the_question_is_asked_only_when_both_halves_of_his_sentence_hold(
         key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_FULL,
                                every_measurement=True, detail=True)
         _pick_key(dlg, key, qapp)
-        assert dlg._document_being_updated() is None, (
-            "nothing has moved, so there is nothing to ask about")
+        entry = dlg._document_being_updated()
+        assert entry is not None and entry["key"] == key, (
+            "K4: a selected report with nothing changed must still be asked "
+            "about, or Generate creates a new report in silence")
         assert not dlg._stale_label.isVisible()
 
         dlg._detail_check.setChecked(not dlg._detail_check.isChecked())
@@ -1185,4 +1195,162 @@ def test_a_file_whose_archive_fails_is_not_rewritten(two_dates, qapp,
         assert said.get("failed"), "the failure was not reported"
         assert not said.get("saved"), "a file was reported as saved"
     finally:
+        dlg.close()
+
+
+def test_the_unchanged_question_says_nothing_was_changed(two_dates, qapp,
+                                                         monkeypatch):
+    """K4 (Knut on beta 34): *"I clicked Generate Report button (without any
+    settings having been changed.). This resulted in a new report being
+    created, without user being asked"*. Now the real box comes up, under a
+    headline that is TRUE of that state, and Cancel writes nothing; with a
+    setting moved it is his own headline.
+
+    MUTATION: always render M-REPORT-UPDATE-OR-NEW, and the first headline
+    reads "Settings were modified": red.
+    """
+    from PyQt6.QtWidgets import QMessageBox
+    from workflow.measurement_report import REPORT_TYPE_FULL
+    s, _fm, run, vs = two_dates
+    dlg = _window(s, vs[-1].measurement_ti3, qapp)
+    try:
+        key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_FULL,
+                               every_measurement=True, detail=True)
+        _pick_key(dlg, key, qapp)
+        del dlg._ask_update_or_create_new
+        seen = []
+        cancel = _press("Cancel")
+
+        def _exec(box):
+            seen.append(box.text())
+            return cancel(box)
+        monkeypatch.setattr(QMessageBox, "exec", _exec)
+        n = len(_files(run))
+        dlg._on_generate_report()
+        qapp.processEvents()
+        assert seen == ["Nothing was changed for the selected report"], seen
+        assert len(_files(run)) == n, "Cancel wrote a report"
+        dlg._detail_check.setChecked(not dlg._detail_check.isChecked())
+        qapp.processEvents()
+        dlg._on_generate_report()
+        qapp.processEvents()
+        assert seen[-1] == "Settings were modified for the selected report", seen
+    finally:
+        dlg.close()
+
+
+def test_after_an_update_the_pdf_is_not_offered_the_earlier_pdfs_name(
+        two_dates, qapp, monkeypatch):
+    """ROUND A (A-6), 2026-09-22: after Update the suggested PDF name did not
+    move, so saving the updated content would overwrite the PDF of what it
+    said before. The name now carries the last update, as "Report shown"
+    does.
+
+    MUTATION: drop the "updated" suffix in `_report_filename` and this goes
+    red.
+    """
+    from PyQt6.QtWidgets import QMessageBox
+    from workflow.measurement_report import REPORT_TYPE_FULL
+    s, _fm, _run, vs = two_dates
+    dlg = _window(s, vs[-1].measurement_ti3, qapp)
+    try:
+        key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_FULL,
+                               every_measurement=True, detail=True)
+        _pick_key(dlg, key, qapp)
+        before = dlg._report_filename(dlg._runs_for_document())
+        dlg._detail_check.setChecked(False)
+        qapp.processEvents()
+        del dlg._ask_update_or_create_new
+        monkeypatch.setattr(QMessageBox, "exec", _press("Update"))
+        dlg._on_generate_report()
+        qapp.processEvents()
+        after = dlg._report_filename(dlg._runs_for_document())
+        assert after != before, (before, after)
+        assert " - updated " in after, after
+    finally:
+        dlg.close()
+
+
+def test_a_page_that_is_no_longer_the_saved_document_takes_neither_its_time_nor_its_name(
+        two_dates, qapp):
+    """ROUND A (A-3), 2026-09-22: with two runs loaded a type change repaints
+    at once, so the page stopped being the saved document and still printed
+    its "Created:" time, and Save as PDF offered its exact file name. When the
+    document no longer speaks for the controls, the page is the window's own.
+
+    MUTATION: make `_note_which_document_the_page_is` ignore
+    `_doc_settings_moved` and this goes red.
+    """
+    from workflow.measurement_report import REPORT_TYPE_FULL
+    s, _fm, _run, vs = two_dates
+    dlg = _window(s, vs[-1].measurement_ti3, qapp)
+    try:
+        key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_FULL,
+                               every_measurement=True, detail=True)
+        _pick_key(dlg, key, qapp)
+        doc_time = dlg._doc_created
+        # the window's clock, made distinguishable from a document written in
+        # the same second the window opened
+        dlg._created = "2020-01-01T00:00:00"
+        assert doc_time and doc_time != dlg._created
+        dlg._doc_settings_moved = True       # what a live repaint follows
+        dlg._render()
+        name = dlg._report_filename(dlg._runs_for_document())
+        stamp = doc_time.replace("T", "_").replace(":", "-")
+        assert stamp not in name, name
+        assert "2020-01-01_00-00-00" in name, name
+        assert doc_time.replace("T", " ") not in dlg._view.toPlainText()
+    finally:
+        dlg.close()
+
+
+def test_an_update_that_cannot_write_one_date_writes_none_of_them(
+        two_dates, qapp, monkeypatch):
+    """ROUND A (A-1), 2026-09-22, driven on screen: one date's reports folder
+    read-only, a setting changed, Update, and 10 of 11 files carried the new
+    settings while the locked one kept the old, so one document said two
+    things about itself. Now nothing is written unless everything can be.
+
+    A REAL read-only folder, not a patched function (round C's point about
+    the archive-failure guard above).
+
+    MUTATION: drop `_blocked` from the loop's skip and the writable date's
+    file changes: red.
+    """
+    import os
+    import stat
+    from PyQt6.QtWidgets import QMessageBox
+    from workflow.measurement_report import REPORT_TYPE_FULL
+    s, _fm, _run, vs = two_dates
+    dlg = _window(s, vs[-1].measurement_ti3, qapp)
+    locked = None
+    try:
+        key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_FULL,
+                               every_measurement=True, detail=True)
+        _pick_key(dlg, key, qapp)
+        entry = next(d for d in dlg._saved_documents(dlg._run_ctx.run)
+                     if d["key"] == key)
+        mine = sorted(Path(str(r.get("_origin_dir"))) / "reports" / n
+                      for r, n in entry["members"])
+        assert len({p.parent for p in mine}) >= 2, "needs two dated folders"
+        before = {p: p.read_bytes() for p in mine}
+        locked = mine[0].parent
+        os.chmod(locked, stat.S_IRUSR | stat.S_IXUSR)
+        if os.access(locked, os.W_OK):
+            pytest.skip("this user can write a read-only folder (root?)")
+        said = {}
+        dlg._say_generated = lambda saved, failed: said.update(
+            saved=list(saved), failed=list(failed))
+        dlg._detail_check.setChecked(False)
+        qapp.processEvents()
+        del dlg._ask_update_or_create_new
+        monkeypatch.setattr(QMessageBox, "exec", _press("Update"))
+        dlg._on_generate_report()
+        qapp.processEvents()
+        for p, b in before.items():
+            assert p.read_bytes() == b, f"{p} was rewritten by a blocked update"
+        assert not said.get("saved") and said.get("failed"), said
+    finally:
+        if locked is not None:
+            os.chmod(locked, stat.S_IRWXU)
         dlg.close()

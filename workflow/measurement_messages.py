@@ -2684,6 +2684,21 @@ M_REPORT_UPDATE_OR_NEW = _m(
     "3. Cancel",
     approved=False)
 
+# --- PROPOSED (#182, K4 of Knut's beta-34 batch, 2026-09-22) -----------------
+# Generate report pressed with a saved report selected and NOTHING changed. It
+# wrote a new report and asked nothing (four presses in nine seconds, 44 files,
+# in his log), because the question above is asked only when a setting moved.
+# His sentence for that one is a statement of fact ("Settings were modified"),
+# so the unchanged case cannot borrow it; the three buttons are the same.
+M_REPORT_UNCHANGED_UPDATE_OR_NEW = _m(
+    "M-REPORT-UNCHANGED-UPDATE-OR-NEW",
+    "Nothing was changed for the selected report",
+    "What do you want to do?\n\n"
+    "1. Update selected report, worked out again by this version of ChromIQ.\n"
+    "2. Create new report with the same settings.\n"
+    "3. Cancel",
+    approved=False)
+
 # --- PROPOSED (#182, Knut D11/D24): the note at the foot of the Report limits
 # window ----------------------------------------------------------------------
 M_THRESHOLDS_NOT_CERTIFICATION = _m(
@@ -2771,7 +2786,7 @@ M_REPORT_ONE_PAGE_ONE_DATE = _m(
 CATALOGUE = {m.id: m for m in (
     M_LIMIT_RECOMMENDED,
     M_REPORT_CHART_MISMATCH, M_THRESHOLDS_NOT_CERTIFICATION, M_REPORT_DELETE,
-    M_REPORT_UPDATE_OR_NEW,
+    M_REPORT_UPDATE_OR_NEW, M_REPORT_UNCHANGED_UPDATE_OR_NEW,
     M_REPORT_ONE_PAGE_ONE_DATE,
     M_REPLACE_PARTIAL, M_REPLACE_COMPLETE, M_TI3_MISMATCH,
     M_REPLACE_UNCOUNTABLE,

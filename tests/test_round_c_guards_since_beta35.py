@@ -189,7 +189,8 @@ def test_a_dropped_member_whose_archive_fails_is_not_rewritten(
     in the second loop of `_write_the_document`. That loop has its own
     `_archive_failed` guard and the archive-failure test never reaches it (it
     drops no member). Here the dropped member's folder cannot be archived, for
-    real (`reports/old` is a file), and the kept member's can.
+    real (`reports/old` is a file), and the kept member's can. Since round A
+    (A-1) that stops the whole update, so neither file moves.
 
     MUTATIONS survived: delete the leftover loop's `if _archive_failed(path)`
     block (the leftover is rewritten with no copy kept), or keep it but drop its
@@ -228,11 +229,16 @@ def test_a_dropped_member_whose_archive_fails_is_not_rewritten(
         dlg._on_generate_report()
         qapp.processEvents()
 
-        assert files[kept].read_bytes() != before[kept], (
-            "the kept member was not updated, so the press did not happen")
+        # ALL OR NOTHING since round A (A-1): a press that cannot archive one
+        # of the document's folders writes none of them, so the KEPT member
+        # is untouched as well, and the failure names the dropped one.
+        assert files[kept].read_bytes() == before[kept], (
+            "the kept member was rewritten by an update that could not write "
+            "the whole document")
         assert files[dropped].read_bytes() == before[dropped], (
             "the dropped member was rewritten although its archive failed")
         assert str(files[dropped]) in said.get("failed", []), said
+        assert not said.get("saved"), said
     finally:
         dlg.close()
 

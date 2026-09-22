@@ -173,6 +173,9 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # ended it "(or similar)", so the WORDING is
                                  # his and waits here for him to confirm it.
                                  "M-REPORT-UPDATE-OR-NEW",
+                                 # K4 (Knut, beta 34): the same question when
+                                 # NOTHING was changed; new wording, ours.
+                                 "M-REPORT-UNCHANGED-UPDATE-OR-NEW",
                                  "M-CM-NO-CCTIFF", "M-CM-CONVERT-FAILED",
                                  "M-CM-PROFCHECK-CONVERTED",
                                  # Feature B — wording agreed verbatim with
