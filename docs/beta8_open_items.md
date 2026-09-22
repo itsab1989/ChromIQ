@@ -23639,3 +23639,66 @@ would reach.
   own round, after beta 32. Not done here because a sweep of that size does not
   belong in the same change set as the wrong-sense corrections it would sit on
   top of.
+
+### B8-763 · OPEN · A report type silently shows fewer metrics than the limit set defines, and nothing says so
+- blocks release: no
+- status: OPEN
+- found by: Knut on beta 32, 2026-09-22: *"For a 'grey and tone check' report
+  type, the report output only shows [three rows] even when the judged against
+  limit set details that more metrics are defined with thresholds ... this is
+  not specified in help text or anywhere else. How will a user know which
+  metrics are reported on for a report type?"*
+- MEASURED in the code: `REPORT_TYPE_ROWS` filters exactly ONE type, Grey and
+  tone check, to exactly the three rows he names. Every other type shows every
+  row its limit set defines. So his reading is precisely right.
+- the filtering is DELIBERATE and its reasoning is sound: a document about the
+  neutral axis does not gain by listing what it leaves out, and a reader would
+  otherwise have to work out which N-A meant "not measured" and which meant
+  "not this report's subject". `_keep_rows_for_type` says so.
+- **the fault is that the reasoning lives only in the code.** A limit set
+  having a threshold for a row, and that row appearing in the document, are two
+  different things, and the app says so nowhere: not in the Report limits
+  window, not in the report, not in a help card.
+- SPLIT INTO TWO, because one half is true today and the other is a feature:
+  * **now**: say which rows the chosen type covers, in the window and in the
+    document, so a user reading three rows does not wonder whether ChromIQ
+    lost the rest. New user-facing text, so §M-PROPOSED first.
+  * **his proposal**: a per-report-type "This Report Type Checks" column in
+    Report limits, editable, remembered per type, with a restore button, and
+    one column per type in Preferences. Two decisions put to him before
+    building: does unticking a metric stop it being JUDGED or only stop it
+    being PRINTED (a PASS that did not look at everything, against a row that
+    failed silently), and does the choice live on the REPORT so a later change
+    cannot rewrite a document already saved. Recommended: not judged, and
+    stored on the report beside the limit set.
+  * also agreed: "Restore this column" becomes "Restore defaults" everywhere.
+- his verification requirement, recorded so it is not lost: every report type
+  against every metric selection, checking what actually reaches the document,
+  plus that the reset works and that the choice is remembered per type. Driven
+  on screen, because what reaches the document is the thing in question.
+
+### B8-764 · OPEN · Knut's beta 32 batch, and the demo pack he has asked for twice
+- blocks release: no
+- status: OPEN
+- **the demo projects, asked for AGAIN on 2026-09-22**: *"the demo projects
+  need a proper update taking into account all the changed, fixed naming of
+  reports, and the detailed Create Chart presets (verification demos) that
+  seamed not to trigger FAIL properly on many of the demo presets."* Two parts,
+  and the second is the one that matters: a demo preset that cannot fail proves
+  nothing when it passes. Data design rather than a code fix, so it queues
+  after the report rulings.
+- **B8-483 is now a rule with numbers**, after he corrected my reading of it.
+  His words: the patches between the outer two must NOT be cramped into lumps,
+  and the question to answer is how close two picked patches may come as a
+  percentage of the range. Proposed and awaiting his word: with 8 patches the
+  ideal gap is 14.3 % of the range, so **no gap under 8 % and none over 22 %**,
+  the floor being roughly half the ideal. One constant, and the help text reads
+  the number back out of it rather than repeating it by hand.
+- **B8-526 is settled**: *"so as you said and recommend"*, i.e. Preferences
+  supplies the default when the run has no bound set, and a bound run shows its
+  own with the window saying so.
+- **B8-356 closes as correct behaviour** under his rule that not clicking a
+  preset must never change the loaded chart layout.
+- **the clipped "e" was seen on BETA 29**, which he confirmed, so it is the
+  right-side-bearing fault fixed in beta 30 (`f3834ae8`). Asked him to re-check
+  on 32; if it is still cut there it is a different cause.
