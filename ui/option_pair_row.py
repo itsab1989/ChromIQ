@@ -39,10 +39,12 @@ from PyQt6.QtWidgets import QSizePolicy, QWidget
 #: widgets six pixels and left the outer edges looking right.
 BUTTON_GAP = 10
 
-#: Smallest gap tolerated between the two options before the row wraps. A row
-#: whose two halves touch reads as one control, so "it fits" has to mean "it
-#: fits with a gap you can see". Measured against the panel's own rhythm: the
-#: group box's layout spacing is 6, and this is the same value.
+#: Fallback for the smallest gap tolerated between the two options before the
+#: row wraps, used only when no spacing was passed. A row whose two halves
+#: touch reads as one control, so "it fits" has to mean "it fits with a gap you
+#: can see". The live value is the OWNING LAYOUT'S OWN SPACING (`self._spacing`,
+#: 6 in the Chart Size group): writing the number twice would let the wrap
+#: threshold drift away from the rhythm of the panel it wraps inside.
 MIN_SPREAD = 6
 
 
@@ -76,26 +78,46 @@ class OptionPairRow(QWidget):
     def _effective(widget) -> QSize:
         """The size a QLayout would give this widget, not its bare sizeHint.
 
-        **A ONE-PIXEL BUG LIVED HERE AND WAS MEASURED OUT OF IT.** The info
-        buttons report `sizeHint().width()` 21 and enforce a minimum of 22, so
-        placing one at `right - 21` and handing `setGeometry` a width of 21 let
-        Qt grow it back to 22 *keeping its left edge* — one pixel past the
-        right edge, while the five other info buttons on the panel sat at 526.
-        A layout expands the hint against the minimum BEFORE it positions
-        anything, which is what this does.
+        **TWO PLACEMENT BUGS LIVED HERE AND WERE MEASURED OUT OF IT**, and
+        both moved a button away from the column every other help button on
+        the panel sits in.
+
+        * The buttons report a `sizeHint().width()` of 21 and enforce a
+          minimum of 22, so placing one at `right - 21` and handing
+          `setGeometry` a width of 21 let Qt grow it back to 22 *keeping its
+          left edge*: one pixel past the right edge, while the five others sat
+          at 526.
+        * They also carry a MAXIMUM width of 22 against a `sizeHint` of 26 in
+          an unthemed window, so expanding without bounding placed one at
+          `right - 26`, Qt clamped the width back to 22, and the button ended
+          four pixels short of the edge.
+
+        A layout settles a widget's size against its minimum AND its maximum
+        before it positions anything, which is what this does.
         """
         return (widget.sizeHint()
                 .expandedTo(widget.minimumSizeHint())
                 .expandedTo(QSize(widget.minimumWidth(),
-                                  widget.minimumHeight())))
+                                  widget.minimumHeight()))
+                .boundedTo(QSize(widget.maximumWidth(),
+                                 widget.maximumHeight())))
 
     def _pair(self, widget, button) -> tuple:
-        """(visible, width, height) of one option and its button."""
-        if not widget.isVisibleTo(self) and not button.isVisibleTo(self):
+        """(visible, width, height) of one option and its button.
+
+        EACH WIDGET ANSWERS FOR ITSELF. The pair is hidden and shown together
+        by `tab_chart`'s instrument rule, so a half with only one of the two
+        showing is not reachable today; asking per widget costs nothing and
+        stops a hidden button from reserving width it will never paint.
+        """
+        w_on = widget.isVisibleTo(self)
+        b_on = button.isVisibleTo(self)
+        if not w_on and not b_on:
             return (False, 0, 0)
-        ws, bs = self._effective(widget), self._effective(button)
-        return (True, ws.width() + self._gap() + bs.width(),
-                max(ws.height(), bs.height()))
+        ws = self._effective(widget) if w_on else QSize(0, 0)
+        bs = self._effective(button) if b_on else QSize(0, 0)
+        width = ws.width() + bs.width() + (self._gap() if w_on and b_on else 0)
+        return (True, width, max(ws.height(), bs.height()))
 
     def _halves(self) -> tuple:
         return (self._pair(self._left, self._left_button),
@@ -104,7 +126,7 @@ class OptionPairRow(QWidget):
     def _one_line_width(self) -> int:
         (lv, lw, _), (rv, rw, _) = self._halves()
         if lv and rv:
-            return lw + MIN_SPREAD + rw
+            return lw + (self._spacing or MIN_SPREAD) + rw
         return lw if lv else rw
 
     # -- Qt size protocol ----------------------------------------------
@@ -124,13 +146,30 @@ class OptionPairRow(QWidget):
         return QSize(self._one_line_width(), max(lh, rh, 0))
 
     def minimumSizeHint(self) -> QSize:                       # noqa: D102
-        # THE WHOLE POINT. The sum of the two halves is what the QHBoxLayout
-        # demanded and what pushed the panel past its viewport; the wider
-        # single half is what this row actually cannot go below.
+        """The narrowest this row can be, and the SHORTEST it can be.
+
+        The width is the whole point of this class: the sum of the two halves
+        is what the `QHBoxLayout` demanded and what pushed the panel past its
+        viewport, and the wider single half is what this row truly cannot go
+        below.
+
+        **THE HEIGHT IS NOT `heightForWidth(that width)`, AND ASKING FOR IT
+        COST THE PANEL 12 PIXELS.** At the minimum width the two halves cannot
+        share a line, so that call answers with the STACKED height, 50 px, and
+        a `QVBoxLayout` then applies it as this row's floor whatever width the
+        row actually gets. Measured on screen in English, where the row is on
+        ONE line 22 px tall: the Chart Size group's minimum height went 94 ->
+        122, the panel 555 -> 567 and its scroll range 239 -> 251, all for a
+        line that was never stacked.
+
+        A widget with `hasHeightForWidth()` reports its unconstrained floor
+        here and lets `heightForWidth` ask for more when the width is genuinely
+        too small, which is what keeps the stacked case two lines tall.
+        """
         (lv, lw, lh), (rv, rw, rh) = self._halves()
         if not lv and not rv:
             return QSize(0, 0)
-        return QSize(max(lw, rw), self.heightForWidth(max(lw, rw)))
+        return QSize(max(lw, rw), max(lh, rh))
 
     # -- placement ------------------------------------------------------
     def resizeEvent(self, event) -> None:                     # noqa: D102
@@ -142,7 +181,19 @@ class OptionPairRow(QWidget):
         self._place()
 
     def relayout(self) -> None:
-        """Re-place after a caller changed which halves are visible."""
+        """Re-place after a caller changed which halves are visible.
+
+        **THE ROW ITSELF HAS TO GO WHEN BOTH HALVES GO.** Hiding the four child
+        widgets leaves this widget visible with a zero size hint, and a
+        `QVBoxLayout` still charges its `spacing()` for a visible zero-height
+        item, where the nested `QHBoxLayout` this replaced cost nothing once
+        all of its items were hidden. Measured on screen for every instrument
+        that hides both options (ColorMunki, SpectroScan, CR30, and ColorMunki
+        in triple density): the Chart Size group stood 66 -> 72 px, the panel
+        539 -> 545, and an empty band appeared under "Number of pages".
+        """
+        (lv, _lw, _lh), (rv, _rw, _rh) = self._halves()
+        self.setVisible(lv or rv)
         self.updateGeometry()
         self._place()
 

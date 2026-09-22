@@ -208,64 +208,86 @@ def _all_shipped_languages() -> list:
     return [code for code, _name in i18n.available_languages()]
 
 
+def _panel_behind(widget):
+    """The scrolling panel `widget` lives in, reached by walking UP.
+
+    Not by searching for "the scroll area with the most help buttons in it":
+    the first version of this did search, and offscreen it found a container
+    holding 122 of them with an 82 px viewport, compared that against 540 and
+    PASSED WITH THE FAULT PRESENT. A spin box the panel owns is an anchor a
+    rename cannot quietly redirect.
+    """
+    from PyQt6.QtWidgets import QScrollArea
+    w = widget
+    while w is not None and not isinstance(w, QScrollArea):
+        w = w.parentWidget()
+    return None if w is None else w.widget()
+
+
+#: The two panes of Create Chart, by an anchor widget each pane owns.
+_PANES = (("Guided", "_pages_spin"), ("Manual", "_manual_pages_spin"))
+
+
 @pytest.mark.parametrize("code", _all_shipped_languages())
-def test_the_chart_size_group_fits_the_pane_in_every_language(make_tab, qapp,
-                                                              code):
-    """The "Chart Size" group may not demand more width than the pane has.
+@pytest.mark.parametrize("pane,anchor", _PANES, ids=[p for p, _ in _PANES])
+def test_a_create_chart_pane_fits_its_viewport_in_every_language(
+        make_tab, qapp, code, pane, anchor):
+    """Neither Create Chart pane may demand more width than its viewport.
 
-    THE ROW THAT ACTUALLY BROKE, and the reason the two guards above did not
-    see it: they measure the instrument and paper rows, and the overhang came
-    from neither. `-L`, its ⓘ, a stretch, `-P` and its ⓘ shared one
-    `QHBoxLayout`, and a box layout's minimum is the SUM of its items, so that
-    row demanded 527 px however narrow the pane became.
+    THE WHOLE PANEL, NOT ONE GROUP, and that distinction is the finding of an
+    adversary round rather than a refinement. The first version of this guard
+    measured only the "Chart Size" group, and the panel holds five groups: a
+    long translated string in any of the other four reproduced the exact fault
+    this was written for while the guard stayed green. Measured by that round
+    with a lengthened string in the Refinement group: panel 706 px against a
+    540 px viewport, five of six help buttons clipped, guard 28/28 green.
 
-    Found on the downloaded v4.3.0-beta.30 arm64 dmg, driven on screen: the
-    panel wanted 569 px inside a 540 px viewport, the scroll area's horizontal
-    policy is `ScrollBarAlwaysOff` and its `horizontalScrollBar().maximum()`
-    was 29, so those pixels were unreachable, and five of the six ⓘ buttons on
-    the panel were sliced in half.
+    Measuring the group also left slack, because the group is narrower than the
+    panel. On screen, panel minimum minus group minimum ran sv +4, fr +5,
+    uk +6, pl +8, ja +24, so Swedish's real threshold was 544 rather than 540
+    and a 3 px longer Swedish string would have clipped with this green.
 
-    THE GROUP IS FOUND BY IDENTITY, not by searching for "the scroll area with
-    the most ⓘ buttons in it". The first version of this test did search, and
-    offscreen it found a container holding 122 of them with an 82 px viewport,
-    compared that against 540, and PASSED AT HEAD WITH THE FAULT PRESENT. A
-    probe that cannot express the fault is not evidence; `_pages_spin` is in
-    the group that broke and exists on both sides of the fix.
+    AND MANUAL IS COVERED NOW, because it is where the next one will happen.
+    The fix that prompted this guard touched Guided only, and Manual sits in
+    the same 540 px `ScrollBarAlwaysOff` viewport with, measured on screen,
+    **18 px of room in Portuguese and 19 in French**.
 
-    Asked of `minimumSizeHint` rather than painted geometry, for the reason the
-    row guard above gives: offscreen a panel is handed whatever width it asks
-    for, so nothing is ever pushed anywhere.
+    Asked of `minimumSizeHint` rather than painted geometry: offscreen a panel
+    is handed whatever width it asks for, so nothing is ever pushed anywhere
+    and a geometry check passes with the fault put back. The offscreen minimum
+    also runs a little UNDER the on-screen one (fr Manual 503 here against 521
+    on screen), so treat a small margin here as smaller still in a real window,
+    and measure the real one with
+    `scripts/drive_panel_overflow_per_language.py`.
 
-    MUTATION, MEASURED 2026-09-22 against HEAD a083c6d6 in a worktree, the
-    whole file run offscreen in both trees: with the two options back on one
-    `QHBoxLayout` the group's minimum is **uk 563, sv 534, fr 527, en 495**, so
-    this goes RED for `uk` against the 540 pane and green for the other
-    thirteen. With `OptionPairRow` it is **uk 308, sv 292, fr 282, en 267**.
-    Swedish sitting 6 px under the line at HEAD is why this asks every
-    language and not the one that happened to break.
+    MUTATION, measured against HEAD a083c6d6 in a worktree: put the two Chart
+    Size options back on one `QHBoxLayout` and the Guided case goes RED for
+    `uk` at 563 against 540, green for the other thirteen.
     """
     tab = make_tab(code)
     tab.resize(_PANE_W, 900)
     tab.show()
     qapp.processEvents()
 
-    from PyQt6.QtWidgets import QGroupBox
-    group = tab._pages_spin.parentWidget()
-    while group is not None and not isinstance(group, QGroupBox):
-        group = group.parentWidget()
-    need = group.minimumSizeHint().width() if group is not None else None
-    title = group.title() if group is not None else None
+    anchor_widget = getattr(tab, anchor, None)
+    panel = None if anchor_widget is None else _panel_behind(anchor_widget)
+    need = None if panel is None else panel.minimumSizeHint().width()
     tab.hide()
 
-    assert group is not None, (
-        "the page-count spin box is not inside a QGroupBox any more, so this "
-        "test measured nothing. Fix the search, do not delete the test."
+    assert anchor_widget is not None, (
+        f"TabChart has no {anchor!r} any more, so the {pane} pane was never "
+        f"measured. Fix the anchor, do not delete the test."
+    )
+    assert panel is not None, (
+        f"{anchor!r} is not inside a QScrollArea any more, so this measured "
+        f"nothing."
     )
     assert need <= _VIEWPORT_W, (
-        f"[{code}] the {title!r} group cannot compress below {need} px and the "
-        f"pane's viewport is {_VIEWPORT_W}. The {need - _VIEWPORT_W} px past "
-        f"the edge cannot be scrolled to (the horizontal bar is off), and what "
-        f"sits at that edge is the column of \u24d8 help buttons."
+        f"[{code}] the Create Chart {pane} pane cannot compress below {need} "
+        f"px and its viewport is {_VIEWPORT_W}. The {need - _VIEWPORT_W} px "
+        f"past the edge cannot be scrolled to, because that scroll area's "
+        f"horizontal bar is off, and what sits at that edge is the column of "
+        f"help buttons."
     )
 
 

@@ -23166,8 +23166,13 @@ would reach.
 - fix: `ui/option_pair_row.py`. `OptionPairRow` lays the two options out on one
   line exactly as the `QHBoxLayout` did while they fit, and drops `-P` to its
   own line when they do not, so the row's minimum is the WIDER OF THE TWO
-  rather than their sum. The panel's minimum falls from 569 to 301 in Ukrainian
-  and from 494 to 282 in English.
+  rather than their sum. The panel's minimum falls from 569 to **308** in
+  Ukrainian and from 494 to 282 in English.
+- CORRECTION, and it is mine: this entry and commit bf7f039a's message both
+  said the Ukrainian figure was **301**. It was 301 in an intermediate build,
+  before the gap and the effective-size faults below were measured out of the
+  placement; the shipped code measures 308, which challenge rounds 37a and 37b
+  reported independently and which the guard's own docstring already gave.
 - NO REGRESSION, PROVED RATHER THAN ASSERTED: the four widgets' geometry was
   measured in all fourteen languages against HEAD a083c6d6 in a separate
   worktree. **Thirteen are identical to the pixel** (x/y/w/h and right edge);
@@ -23182,7 +23187,7 @@ would reach.
     `QHBoxLayout` adds its own `spacing()` between every pair of items on top of
     `addSpacing(10)`. Using 10 moved two widgets six pixels while the outer
     edges still looked right.
-- evidence: test_the_chart_size_group_fits_the_pane_in_every_language,
+- evidence: test_a_create_chart_pane_fits_its_viewport_in_every_language,
   test_no_guided_row_is_wider_than_the_pane_it_must_fit,
   test_the_guided_combos_can_be_squeezed
 - pictures: `~/Desktop/ChromIQ-beta30-proof/asset-verification/b30-bundle-ukrainian.png`
@@ -23220,5 +23225,103 @@ would reach.
   definition of a guard that cannot express its own fault.
 - a second guard in the same file, `test_no_guided_row_is_wider_than_the_pane_
   it_must_fit`, had the same defect and now builds per language too.
-- evidence: test_the_chart_size_group_fits_the_pane_in_every_language,
+- evidence: test_a_create_chart_pane_fits_its_viewport_in_every_language,
   test_no_guided_row_is_wider_than_the_pane_it_must_fit
+
+### B8-752 · FIXED · Hiding both Chart Size options left their ROW in place, and the group stood 6 px taller
+- blocks release: no
+- status: FIXED
+- found by: challenge rounds 37a and 37d independently, 2026-09-22, both on
+  screen and with matching numbers.
+- detail: `OptionPairRow` replaced a NESTED LAYOUT with a WIDGET, and the two
+  are not equivalent when everything in them is hidden. A `QHBoxLayout` inside
+  a `QVBoxLayout` costs the parent nothing once all of its items are hidden;
+  a widget that stays shown at zero height is not empty as far as
+  `QWidgetItem::isEmpty()` is concerned, so the parent still charges its
+  `spacing()` before it. `relayout()` hid the four children and never the row.
+- the code comment asserted the opposite in so many words: *"hiding both
+  collapses the row rather than leaving a gap where it was"*. It did not.
+- MEASURED on screen, every instrument that hides both (ColorMunki,
+  SpectroScan, CR30, and ColorMunki in triple density):
+  * "Chart Size" group height **66 -> 72**
+  * last visible child's bottom inside the group **56 -> 62**
+  * panel height **539 -> 545**, vertical scroll range **223 -> 229**
+  * a visible empty band under "Number of pages" in the photograph
+- fix: `relayout()` now calls `setVisible(lv or rv)`, so the row goes when both
+  halves go and comes back when either returns. Restores 66 / 56 / 539 exactly.
+- evidence: test_an_instrument_that_hides_both_options_hides_their_ROW,
+  test_a_strip_reader_shows_that_row_again,
+  test_hiding_both_halves_takes_the_ROW_away_too
+
+### B8-753 · FIXED · The row reported the STACKED height as its floor, and every language paid 12 px for it
+- blocks release: no
+- status: FIXED
+- found by: challenge rounds 37a and 37d independently, 2026-09-22.
+- detail: `minimumSizeHint()` returned `heightForWidth(max(lw, rw))`. When both
+  halves are visible that width is ALWAYS below the one-line width, so the call
+  always answered with the stacked height, and a `QVBoxLayout` applies a
+  widget's `minimumSizeHint().height()` as its floor whatever width the widget
+  is actually given. English reported a 50 px floor for a row 22 px tall.
+- MEASURED on screen, English, i1Pro:
+  * Chart Size group `minimumSizeHint().height()` **94 -> 122**
+  * panel height **555 -> 567**, its own `sizeHint` still 555
+  * vertical scroll range **239 -> 251**
+  * the 114 differing pixels in the light-appearance crop are exactly this: the
+    guided panel's scrollbar handle, 6 px shorter
+- so the claim in B8-750 that "thirteen are identical to the pixel" was true of
+  the FOUR WIDGETS and not of the panel holding them. Both rounds said so.
+- fix: the floor is the one-line height, `max(lh, rh)`; `heightForWidth` is what
+  asks for the second line when the width really is too small. Ukrainian still
+  stacks and its second line is not clipped: row 50 px tall, lowest child bottom
+  50. English returns to 94 / 555 / baseline.
+- evidence: test_the_minimum_height_is_one_line_not_the_stacked_two,
+  test_a_line_too_narrow_stacks_without_overlapping
+
+### B8-754 · FIXED · The guard shipped with B8-750 caught one mutation in seven, and measured one group of five
+- blocks release: no
+- status: FIXED
+- found by: challenge rounds 37a and 37b, 2026-09-22, which mutated the widget
+  and the guard rather than reading them.
+- detail, and there were two holes:
+  * **It measured the "Chart Size" group; the panel holds five groups.** A long
+    translated string in any of the other four reproduces the shipped fault
+    with the guard green. Round 37b measured a lengthened Refinement string:
+    panel **706 px** against a 540 px viewport, five of six help buttons
+    clipped, guard 28/28 green. Measuring a group also left slack, because the
+    group is narrower than the panel: on screen the difference ran sv +4, fr +5,
+    uk +6, pl +8, ja +24, so Swedish's real threshold was 544 and not 540.
+  * **The placement path had no tests at all.** `OptionPairRow` is 185 lines and
+    its name appeared in `tests/` exactly once, inside a docstring. Round 37a's
+    mutation survey: of seven mutations only "minimum back to the sum" was
+    caught. Drawing both options on top of each other survived the WHOLE
+    everyday tier (17,491 passed, exit 0) while on screen the two labels
+    printed over each other as unreadable ink and `childAt` at the -L
+    checkbox's own centre returned -P, so clicking -L toggled -P.
+- fix:
+  * the guard now measures `sa.widget().minimumSizeHint()` for the scroll area
+    behind an anchor widget each pane owns, and covers **Create Chart Manual**
+    as well, which is the next cliff: 18 px of room in Portuguese and 19 in
+    French, in the same 540 px `ScrollBarAlwaysOff` viewport.
+  * `tests/test_the_option_pair_row_places_what_it_holds.py` is new and asks
+    where the four widgets actually are.
+- MUTATION, all eight now red, measured in a worktree: stacked lines collapsed,
+  wrap spread 0, button gap 0, minimum back to the sum, minimum height back to
+  the stacked one, the row never collapsing, the row collapsing for ever, and
+  the button placed 24 px right. The relayout CALL SITE is guarded separately in
+  `test_the_density_tick_belongs_to_one_instrument.py`: deleting it fails 4
+  tests, where round 37a proved it previously survived the entire tier.
+- two of my own faults were found by writing those tests rather than by reading
+  the code:
+  * `_effective()` expanded a widget against its minimum and never BOUNDED it
+    by its maximum. The help buttons report a `sizeHint` of 26 and a maximum of
+    22, so a button was placed at `right - 26`, Qt clamped the width back to 22
+    and it ended **four pixels short** of the column every other help button
+    sits in. A layout settles size against both bounds before positioning.
+  * the first version of the gap test asserted against `BUTTON_GAP + SPACING`,
+    the module's own constants, so setting `BUTTON_GAP = 0` moved two widgets
+    on screen and the test agreed with the new number. It now asserts the
+    MEASURED 16 px.
+- evidence: test_a_create_chart_pane_fits_its_viewport_in_every_language,
+  test_a_line_that_fits_puts_the_second_button_flush_to_the_right_edge,
+  test_the_two_halves_never_touch_on_a_line_that_fits,
+  test_the_minimum_width_is_the_wider_half_and_not_the_sum

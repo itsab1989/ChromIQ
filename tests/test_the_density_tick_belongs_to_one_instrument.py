@@ -269,6 +269,51 @@ def test_a_control_the_other_instrument_hides_keeps_its_value(
     )
 
 
+@pytest.mark.parametrize("code", ["CM", "SS", "CR30"])
+def test_an_instrument_that_hides_both_options_hides_their_ROW(tab, code):
+    """Not just the four widgets: the row they sit in.
+
+    `-L` and `-P` share an `OptionPairRow`, which places its children itself
+    and therefore has to be TOLD when their visibility changes. Hiding only the
+    four children leaves the row shown at zero height, and a `QVBoxLayout`
+    still charges its `spacing()` for a visible zero-height item where the
+    nested layout this replaced cost nothing. Measured on screen on ColorMunki,
+    SpectroScan and CR30: the "Chart Size" group stood 66 -> 72 px and an empty
+    band appeared under "Number of pages".
+
+    MUTATION: delete the `self._lb_nsl_row.relayout()` call in
+    `ui/tabs/tab_chart.py::_update_dd_visibility` and this goes red for all
+    three instruments. An adversary round proved that deletion survives the
+    entire everyday tier: 17,491 passed, exit 0, with a dead band on screen.
+
+    `isHidden()` and not `isVisible()`, for the reason `_state` gives above.
+    """
+    _pick(tab, code)
+    assert tab._lb_check.isHidden() and tab._nsl_check.isHidden(), (
+        f"{code} is supposed to hide both of these options; this test is "
+        f"asking the wrong instrument"
+    )
+    assert tab._lb_nsl_row.isHidden(), (
+        f"{code} hides -L and -P but their row is still shown, so the layout "
+        f"above it keeps paying spacing for a row with nothing in it"
+    )
+
+
+def test_a_strip_reader_shows_that_row_again(tab):
+    """The other direction, because a collapse that never re-opens is worse.
+
+    MUTATION: make `relayout()` call `setVisible(False)` unconditionally and
+    this goes red while the test above stays green.
+    """
+    _pick(tab, "CM")
+    assert tab._lb_nsl_row.isHidden()
+    _pick(tab, "i1")
+    assert not tab._lb_nsl_row.isHidden(), (
+        "an i1Pro shows -L and -P, but their row did not come back"
+    )
+    assert not tab._lb_check.isHidden() and not tab._nsl_check.isHidden()
+
+
 def test_the_density_box_is_the_deliberate_exception(tab):
     """It is not one option the instrument ignores, it is three options sharing
     a widget, so its tick must not survive a change of meaning."""

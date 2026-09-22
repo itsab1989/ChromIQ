@@ -15283,7 +15283,15 @@ class TabChart(QWidget):
         # The row places its children itself, so a change of visibility has to
         # tell it: hiding -P frees the whole line for -L, and hiding both
         # collapses the row rather than leaving a gap where it was.
-        self._lb_nsl_row.relayout()
+        #
+        # GUARDED, like `refresh_chromiq_clip_visibility` a few hundred lines
+        # down and unlike the rest of this method. Everything else here is
+        # built before the instrument combo is populated; this row is built 44
+        # lines AFTER it. No emitter reaches this method that early today, so
+        # the window is not open, but the sibling method guards for exactly
+        # this reason and an AttributeError here would take the tab down.
+        if hasattr(self, "_lb_nsl_row"):
+            self._lb_nsl_row.relayout()
         # Hidden, not cleared, for the same reason as triple density above.
         # -P belongs to the strip readers; it cannot reach printtarg for anyone
         # else, and a value the person ticked is theirs to keep.
