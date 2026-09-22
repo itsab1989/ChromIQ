@@ -24497,3 +24497,53 @@ would reach.
 - evidence:
   test_the_advice_generates_tooltip_gives_really_brings_generate_back
   test_the_pdf_page_header_describes_the_rows_the_body_describes
+
+### B8-790 · FIXED · "Covers 1 of the 18 measurements recorded for this project" on a three-run Printing record
+- blocks release: no
+- status: FIXED
+- found by: Knut on beta 34 (K14 of B8-778); the critic round measured it
+  worse: a verification report with every date of its run ticked said "covers
+  11 of the 18", telling a reader a complete report was filtered.
+- the count had drifted from the spec's sentence ("recorded for this run") to
+  every run's sheet plus every dated verification of the project. Now, on his
+  ruling that it relate to the run type and to "Included measurements": a
+  document of verifications is counted against the dated verifications of the
+  runs in that list ("for this run", "for these runs"), a document of
+  profiling sheets against the project's profiling measurements ("for this
+  project's profile runs"); mixed keeps the old count; still read off the
+  disk. Recorded in measurement_report_limits.md, awaiting confirmation.
+- the first cut counted only the DOCUMENT's runs, so a ticked measurement of
+  another run left out by one limit set per document also left its run out of
+  the total and the "filtered" sentence vanished; an existing guard caught it
+  the same hour and the list's runs are counted now.
+- driven on screen as a user (`scripts/drive_k14_coverage_count.py`, proof
+  `~/Desktop/ChromIQ-beta36-proof/K14-coverage-count/`): beta 35 "1 of the
+  18" and "11 of the 18"; fixed "1 of the 3 measurements recorded for this
+  project's profile runs" and no sentence on the complete verification report.
+- evidence:
+  test_a_printing_record_counts_the_projects_profiling_measurements
+  test_a_verification_report_of_every_date_of_its_run_says_nothing
+  test_the_total_is_what_the_project_records_not_what_is_loaded
+
+### B8-791 · FIXED · Round C: thirteen mutants every guard missed, and the everyday tier red since 528b7cfc
+- blocks release: yes
+- status: FIXED
+- found by: adversary round C (mutation testing), 2026-09-22, 78 mutants over
+  every production hunk since beta 35. Report and mutant logs:
+  `~/Desktop/ChromIQ-beta36-proof/round-C-guards/`. No guard was pure
+  theatre; 13 mutants survived the whole everyday tier (pre-flight is_file,
+  three in the window picker, four in the archive helper, two in the Update
+  leftover path, the Generate tooltip reset, three in point_lab). Their tests
+  (worktree commit 6f03e293) are brought in as
+  `tests/test_round_c_guards_since_beta35.py`.
+- THE EVERYDAY TIER WAS RED from 528b7cfc on: the K2 driver called
+  `subprocess.run(text=True)` with no `encoding=`, which
+  `test_no_product_call_site_relies_on_the_platform_default` refuses. My
+  commits were each run against a targeted subset that did not include it.
+  Fixed; the whole everyday tier is run before a commit from here on.
+- evidence:
+  test_a_dated_folder_printed_but_never_read_is_not_history
+  test_archive_reports_still_raises_when_the_copy_fails
+  test_a_dropped_member_whose_archive_fails_is_not_rewritten
+  test_the_tooltip_no_longer_offers_a_lever_that_does_nothing
+  test_no_product_call_site_relies_on_the_platform_default

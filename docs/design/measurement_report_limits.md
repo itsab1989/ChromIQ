@@ -955,6 +955,18 @@ saying who filtered it or why, *"This report covers {n} of the {total}
 measurements recorded for this run."* Unticked and judged-on-other-numbers are
 the same fact to the reader: not in here.
 
+*⏳ **What is counted, awaiting confirmation (2026-09-22, B8-778 K14).** The
+code had drifted from this sentence to "recorded for this project" and counted
+every run's sheet plus every dated verification, so Knut's Printing record of
+three profile runs said "1 of the 18". On his ruling that the count relate to
+the run type and to the measurements in "Included measurements": a document of
+verifications is counted against the dated verifications of the runs in that
+list ("recorded for this run", "for these runs"), and a document of profiling
+sheets against the project's profiling measurements ("recorded for this
+project's profile runs"). A document mixing both kinds keeps the old count.
+Whatever is counted is still read off the disk, never out of the window.*
+**Confirmed by:** *nobody yet.*
+
 **Still open, and it is Knut's:** a measurement left out is no longer named
 anywhere at all, including in the WINDOW. If he wants the window (not the
 document) to keep saying which measurements it dropped and why, that is a new

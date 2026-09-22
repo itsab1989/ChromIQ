@@ -86,11 +86,13 @@ def main(argv=None) -> int:
     record: dict = {
         "mode": "ON SCREEN", "tree": str(ROOT),
         "head": subprocess.run(["git", "-C", str(ROOT), "rev-parse", "HEAD"],
-                               capture_output=True, text=True, timeout=30
+                               capture_output=True, text=True, timeout=30,
+                               encoding="utf-8", errors="replace"
                                ).stdout.strip(),
         "dirty": subprocess.run(["git", "-C", str(ROOT), "status", "--short",
                                  "ui/tabs/tab_measure.py"],
-                                capture_output=True, text=True, timeout=30
+                                capture_output=True, text=True, timeout=30,
+                                encoding="utf-8", errors="replace"
                                 ).stdout.strip(),
         "steps": [],
     }

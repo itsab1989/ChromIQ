@@ -786,6 +786,14 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-22, K14 (Knut on beta 34: the Report Scope count
+    # belongs to the run type and the listed measurements). Five keys in (the
+    # coverage sentence for a profiling document, one project or several, and
+    # for a verification document, this run / these runs / several projects)
+    # and none out. German is translated by hand for all five AND for the four
+    # older coverage sentences round B found still in English, so German FALLS
+    # by 4; the twelve others rise by exactly 5. COUNTED off the tree, BOTH
+    # ledgers in the same commit.
     # RE-MEASURED 2026-09-22, round B's text findings: German loses one English
     # echo (the N-A note, translated by hand) and gains none, because the
     # three rewritten "more than one profile run" tooltips and the extended
@@ -1282,18 +1290,18 @@ _IDENTICAL_TO_KEY = {
     # untranslated German string, not a bigger budget, and is fixed rather than
     # recorded. COUNTED with this file's own helper on the tree this commit
     # leaves behind.
-    "de": 145,
-    "es": 944,
-    "fr": 966,
-    "it": 955,
-    "ja": 930,
-    "nl": 971,
-    "no": 956,
-    "pl": 948,
-    "pt": 946,
-    "ru": 919,
-    "sv": 957,
-    "zh_CN": 924,
+    "de": 141,
+    "es": 949,
+    "fr": 971,
+    "it": 960,
+    "ja": 935,
+    "nl": 976,
+    "no": 961,
+    "pl": 953,
+    "pt": 951,
+    "ru": 924,
+    "sv": 962,
+    "zh_CN": 929,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1320,7 +1328,7 @@ _IDENTICAL_TO_KEY = {
     # in Ukrainian, so the pointer could not match whatever the user read.
     # Nothing else changed. The ceiling is re-measured DOWN here rather than
     # left where it was, so the next rise still has to justify itself.
-    "uk": 1183,
+    "uk": 1188,
 }
 
 

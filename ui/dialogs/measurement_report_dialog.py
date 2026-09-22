@@ -6932,9 +6932,13 @@ class MeasurementReportDialog(QDialog):
         ctx = self._run_ctx
         if ctx is None or self._several_runs():
             # Not in a run, OR ACROSS SEVERAL (K17): a session-only choice,
-            # nothing stored (CH-14). With two runs ticked there is no one run
+            # nothing stored (CH-14). With two runs loaded there is no one run
             # the choice belongs to, and writing it onto the window's own run
             # would change the default of every later report of that run.
+            # WHERE THE CHOICE LIVES (round C): with a run context present,
+            # `_report_type_now` never reaches `_session_type`; it is the pin
+            # `_settings_touched` takes (`_sticky_type`) that carries it. The
+            # `_session_type` line below matters only with no run at all.
             #
             # THROUGH THE ONE DOOR, like every other setting. This branch kept
             # calling `_refresh` after the other four learned to wait, so on a
@@ -9988,7 +9992,35 @@ class MeasurementReportDialog(QDialog):
         # and the sentence carries numbers; any folder not, and it says the
         # same thing without them, which is still Sebastian's honesty rule and
         # claims nothing the app cannot stand behind.
-        _counts = [self._measurements_recorded_in(_p) for _p in _mine.values()]
+        # THE REPORT'S OWN KIND, AND A VERIFICATION'S OWN RUNS (K14): a
+        # profiling document is counted against the project's profiling
+        # measurements, a verification document against the dated
+        # verifications of the runs it is drawn from. A document mixing the
+        # two kinds keeps the old count of everything.
+        _kinds = {bool(r.get("is_verification")) for r in runs
+                  if not _is_raw_drift(r)}
+        _kind = ("verification" if _kinds == {True} else
+                 "profiling" if _kinds == {False} else None)
+        # THE RUNS OF EVERY ROW IN THE "INCLUDED MEASUREMENTS" LIST, not only
+        # of the rows the document kept. Knut's own scope: *"the measurements
+        # selected in included measurements input box"*. The first cut took
+        # the DOCUMENT's rows, so a ticked measurement of another run that one
+        # limit set per document leaves out also left its run out of the
+        # total, and the sentence saying the report is filtered vanished: an
+        # existing guard caught it the same hour.
+        _run_names: "set[str] | None" = None
+        if _kind == "verification":
+            from workflow.run_compliance import run_context_for as _rcf
+            _run_names = set()
+            for r in list(runs) + list(getattr(self, "_history", None) or []):
+                if not r.get("is_verification"):
+                    continue
+                _c = _rcf(str(r.get("_origin_dir") or ""))
+                if _c is not None:
+                    _run_names.add(_c.run.dir.name)
+            _run_names = _run_names or None
+        _counts = [self._measurements_recorded_in(_p, _kind, _run_names)
+                   for _p in _mine.values()]
         _all_known = bool(_counts) and all(n > 0 for n in _counts)
         # A measurement with no saved report beside it is still in this
         # document, so the total can never be smaller than what is covered.
@@ -10018,12 +10050,33 @@ class MeasurementReportDialog(QDialog):
             # covering a two-measurement project and a five-measurement one
             # said "2 of the 7 measurements recorded for this project", and no
             # project on the disk records seven (R13-3, photographed).
-            note = (tr("This report covers {n} of the {total} measurements "
-                       "recorded for this project.")
-                    if len(_mine) == 1 else
-                    tr("This report covers {n} of the {total} measurements "
-                       "recorded for the projects it is drawn from.")
-                    ).format(n=covered, total=total_known)
+            # SCOPED BY KIND (K14), so a reader of a Printing record is told
+            # "of the 3 measurements recorded for this project's profile runs"
+            # and not a number that counts every verification of every run as
+            # well; a verification's is the spec's own "for this run".
+            if _kind == "profiling":
+                note = (tr("This report covers {n} of the {total} measurements "
+                           "recorded for this project's profile runs.")
+                        if len(_mine) == 1 else
+                        tr("This report covers {n} of the {total} measurements "
+                           "recorded for the profile runs of the projects it is "
+                           "drawn from."))
+            elif _kind == "verification" and len(_mine) == 1:
+                note = (tr("This report covers {n} of the {total} measurements "
+                           "recorded for this run.")
+                        if len(_run_names or ()) <= 1 else
+                        tr("This report covers {n} of the {total} measurements "
+                           "recorded for these runs."))
+            elif _kind == "verification":
+                note = tr("This report covers {n} of the {total} measurements "
+                          "recorded for the runs it is drawn from.")
+            else:
+                note = (tr("This report covers {n} of the {total} measurements "
+                           "recorded for this project.")
+                        if len(_mine) == 1 else
+                        tr("This report covers {n} of the {total} measurements "
+                           "recorded for the projects it is drawn from."))
+            note = note.format(n=covered, total=total_known)
             out += (f"<div style='color:{_C['dim']};margin-top:6px'>"
                     + html.escape(note) + "</div>")
         return (out + self._scope_warnings_html(sc["warnings"])
@@ -10062,10 +10115,20 @@ class MeasurementReportDialog(QDialog):
                 + "".join(blocks) + "</div>")
 
     @staticmethod
-    def _measurements_recorded_in(project_dir: str) -> int:
+    def _measurements_recorded_in(project_dir: str, kind: "str | None" = None,
+                                  run_names: "set[str] | None" = None) -> int:
         """How many measurements a project's folder holds, read from the disk.
 
         Every run's own measurement plus every dated verification of every run.
+
+        **OF THE REPORT'S OWN KIND, AND FOR A VERIFICATION OF ITS OWN RUNS (K14,
+        Knut on beta 34).** *"This report covers 1 of the 18 measurements
+        recorded for this project" ... is wrong, as this demo project has 3
+        runs (profile runs, when run type is Profiling) ... it should only show
+        relating to run type is Profiling.* So ``kind="profiling"`` counts only
+        the runs' own sheets, and ``kind="verification"`` only the dated
+        verifications, of the runs in ``run_names`` when it is given. ``None``
+        is the old count of both.
         Role-named files (`preconditioning.ti3`, `merged.ti3`, the
         `reads/readN.ti3` snapshots that are averaged back into the run's own)
         are not measurements in this sense and are not counted: what is counted
@@ -10088,7 +10151,13 @@ class MeasurementReportDialog(QDialog):
             for d in sorted(root.iterdir()):
                 if not (d.is_dir() and d.name.startswith("run")):
                     continue
-                n += len([f for f in d.glob("*.ti3") if f.name not in roles])
+                if run_names is not None and d.name not in run_names:
+                    continue
+                if kind != "verification":
+                    n += len([f for f in d.glob("*.ti3")
+                              if f.name not in roles])
+                if kind == "profiling":
+                    continue
                 # A DATED VERIFICATION IS FOUND BY ITS FOLDER, NOT BY ITS NAME.
                 # `Verification.measurement_ti3` resolves `<the run's stem>.ti3`,
                 # so a verification measured from a different chart is invisible

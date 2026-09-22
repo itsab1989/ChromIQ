@@ -539,6 +539,14 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-22, K14 (Knut on beta 34: the Report Scope count
+    # belongs to the run type and the listed measurements). Five keys in (the
+    # coverage sentence for a profiling document, one project or several, and
+    # for a verification document, this run / these runs / several projects)
+    # and none out. German is translated by hand for all five AND for the four
+    # older coverage sentences round B found still in English, so German FALLS
+    # by 4; the twelve others rise by exactly 5. COUNTED off the tree, BOTH
+    # ledgers in the same commit.
     # RE-MEASURED 2026-09-22, round B's text findings: German loses one English
     # echo (the N-A note, translated by hand) and gains none, because the
     # three rewritten "more than one profile run" tooltips and the extended
@@ -865,19 +873,19 @@ _BUDGET = {
     # untranslated German string, not a bigger budget, and is fixed rather than
     # recorded. COUNTED with this file's own helper on the tree this commit
     # leaves behind.
-    "de": 21,
-    "es": 683,
-    "fr": 684,
-    "it": 683,
-    "ja": 683,
-    "nl": 683,
-    "no": 683,
-    "pl": 683,
-    "pt": 683,
-    "ru": 682,
-    "sv": 683,
-    "zh_CN": 682,
-    "uk": 897,
+    "de": 17,
+    "es": 688,
+    "fr": 689,
+    "it": 688,
+    "ja": 688,
+    "nl": 688,
+    "no": 688,
+    "pl": 688,
+    "pt": 688,
+    "ru": 687,
+    "sv": 688,
+    "zh_CN": 687,
+    "uk": 902,
 }
 
 

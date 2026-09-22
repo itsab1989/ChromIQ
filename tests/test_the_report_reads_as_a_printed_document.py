@@ -180,21 +180,31 @@ def test_the_count_is_this_projects_own_measurements(tmp_path, qapp):
 
 def test_the_total_is_what_the_project_records_not_what_is_loaded(tmp_path,
                                                                   qapp):
-    """B8-346 F5: "recorded for this project" is a fact about the project's
-    folder, and it was counted out of the window's own list.
+    """B8-346 F5, restated for K14 (Knut on beta 34). The denominator is read
+    off the DISK, never counted out of the window, so a run's total cannot
+    change with what is loaded. What K14 changed is WHICH runs it is about:
+    a verification document is counted against the dated verifications of the
+    runs in its list, *"relating to run type ... and the measurements selected
+    in included measurements input box"*, which is also the spec's own
+    wording, "recorded for this run".
 
-    Round 12 drove a project holding three measurements, loaded two of them,
-    and the document said "covers 1 of the 2"; loading the third made the same
-    document say "2 of the 3" with nothing else changed. The denominator is now
-    read off the disk, so loading a measurement cannot change what the project
-    is said to record.
+    Three runs, one dated verification each, the window on the first:
 
-    MUTATION, proven to land: count `self._history` again.
+    * nothing added: the report covers all of its run, so no sentence;
+    * run 2's added and left out (another limit set): "1 of the 2 ... for
+      these runs";
+    * run 3's too: "1 of the 3 ... for these runs".
+
+    And the disk half: a SECOND dated verification in run 1, never loaded,
+    is counted from the start.
+
+    MUTATION: count `self._history` again, or count the whole project again,
+    and this goes red.
     """
     from tests.test_a_report_says_what_it_is_and_what_judged_it import _dialog
     from tests.test_import_measurement_module import _cgats, _PATCHES
     from workflow.run_compliance import bind_run
-    dlg, _run, fm = _dialog(tmp_path, qapp)
+    dlg, run1, fm = _dialog(tmp_path, qapp)
     try:
         proj = fm.project()
         made = []
@@ -207,23 +217,23 @@ def test_the_total_is_what_the_project_records_not_what_is_loaded(tmp_path,
                 encoding="utf-8")
             bind_run(run, "chromiq_tight", None)
             made.append(v)
-        # THREE on disk, ONE loaded: the sentence must already say "of the 3".
-        totals = []
+        said = []
         for v in (None, made[0], made[1]):
             if v is not None:
                 dlg._add_source(v.measurement_ti3)
                 qapp.processEvents()
             body = _plain(dlg._report_body_html(dlg._runs_for_report(),
                                                 for_pdf=False))
-            m = re.search(r"covers (\d+) of the (\d+) measurements", body)
-            assert m, f"no scope sentence with {len(dlg._history)} loaded"
-            totals.append(int(m.group(2)))
-        assert totals == [3, 3, 3], (
-            f"the project records three measurements throughout and the "
-            f"document said {totals} as they were loaded one by one")
+            m = re.search(r"covers (\d+) of the (\d+) measurements recorded "
+                          r"for (this run|these runs)", body)
+            said.append((int(m.group(1)), int(m.group(2)), m.group(3))
+                        if m else None)
+        # which ticked rows the document KEEPS is the limit-set rule's
+        # business, not this test's: the totals and the wording are.
+        assert [x if x is None else x[1:] for x in said] == [
+            None, (2, "these runs"), (3, "these runs")], said
     finally:
         dlg.close()
-
 
 def test_a_file_from_outside_any_project_is_in_neither_number(tmp_path, qapp):
     """B8-346 F6: a colleague's `.ti3`, opened beside a project's own, was
@@ -426,8 +436,10 @@ def test_a_renamed_project_is_still_ONE_project(tmp_path, qapp):
         proj = fm.project()
         root = Path(str(proj.root))
         made = []
+        runs_made = []
         for scale in (0.5, 0.25):
             run = proj.new_run()
+            runs_made.append(run)
             v = run.new_verification()
             v.ensure_dir()
             v.measurement_ti3.write_text(
@@ -438,7 +450,12 @@ def test_a_renamed_project_is_still_ONE_project(tmp_path, qapp):
         # is covering less than the project records and the sentence has a
         # reason to exist at all. Without it both spellings of everything are
         # loaded, the report covers the lot, and silence is the right answer.
-        _un = proj.new_run().new_verification()
+        # IN A RUN THAT IS OPENED (K14): a verification's total is the dated
+        # verifications of the runs in the list, so an unopened measurement in
+        # a third run is no longer part of it and would give the sentence no
+        # reason to exist.
+        _un = runs_made[0].new_verification(
+            __import__("datetime").datetime(2020, 1, 1))
         _un.ensure_dir()
         _un.measurement_ti3.write_text(
             _cgats("CTI3", [(r * 0.1, g, b) for (r, g, b) in _PATCHES]),
@@ -485,16 +502,20 @@ def test_a_renamed_project_is_still_ONE_project(tmp_path, qapp):
         # never happen is one project being called several.
         from ui.dialogs.measurement_report_dialog import (
             MeasurementReportDialog as _MD)
-        on_disk = _MD._measurements_recorded_in(str(root))
+        # K14: a verification document is counted in verifications, and its
+        # one-project forms are "this run" / "these runs"; the several-project
+        # form is "the runs it is drawn from". Every run here is in the list.
+        on_disk = _MD._measurements_recorded_in(str(root), "verification")
         seen = 0
         for where, text in (("before the rename", before), ("after it", body)):
             m = re.search(r"covers (\d+) of the (\d+) measurements recorded "
-                          r"for (this project|the projects it is drawn from)",
+                          r"for (this project|the projects it is drawn from|"
+                          r"this run|these runs|the runs it is drawn from)",
                           text)
             if m is None:
                 continue
             seen += 1
-            assert m.group(3) == "this project", (
+            assert m.group(3) in ("this project", "this run", "these runs"), (
                 f'one project reached two ways, and {where} the document says '
                 f'"{m.group(0)}"')
             assert int(m.group(2)) == on_disk, (
@@ -1552,5 +1573,87 @@ def test_a_report_file_that_is_not_an_object_does_not_take_the_window_down(
         assert "Could not read this measurement" not in _plain(
             dlg._view.toHtml()), (
             f"a report file holding {junk} took the document down")
+    finally:
+        dlg.close()
+
+
+# ---------------------------------------------------------------------------
+# K14, Knut on beta 34: the count belongs to the run type and the list
+# ---------------------------------------------------------------------------
+def _three_profiled_runs(tmp_path, qapp, verifications_in_run1=2):
+    """Three profile runs, each with its own measured sheet, and dated
+    verifications in run 1: the shape of Report-Limits-Threshold-Series."""
+    from tests.test_import_measurement_module import (_cgats, _PATCHES,
+                                                      _verify_env)
+    s, fm, _ctl, run1 = _verify_env(tmp_path)
+    proj = fm.project()
+    runs = [run1, proj.new_run(), proj.new_run()]
+    for i, run in enumerate(runs):
+        run.ensure_dir()
+        (run.dir / f"{proj.root.name}.ti3").write_text(
+            _cgats("CTI3", [(r * (1 - 0.1 * i), g, b)
+                            for (r, g, b) in _PATCHES]), encoding="utf-8")
+    import datetime as _dt
+    for k in range(verifications_in_run1):
+        v = run1.new_verification(_dt.datetime(2026, 1, 1 + k))
+        v.ensure_dir()
+        v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES), encoding="utf-8")
+    return s, proj, runs
+
+
+def test_a_printing_record_counts_the_projects_profiling_measurements(
+        tmp_path, qapp):
+    """*"This report covers 1 of the 18 measurements recorded for this
+    project." This is wrong, as this demo project has 3 runs ... and the
+    measurements shown in the included measurements input box holds 3."*
+
+    MUTATION: pass `kind=None` to `_measurements_recorded_in` again and this
+    reads "1 of the 5" (three sheets and two verifications): red.
+    """
+    from PyQt6.QtCore import Qt
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    s, proj, runs = _three_profiled_runs(tmp_path, qapp)
+    dlg = MeasurementReportDialog(
+        s, None, initial_ti3=runs[0].dir / f"{proj.root.name}.ti3")
+    dlg.show()
+    qapp.processEvents()
+    try:
+        here = dlg._run_key(dlg._report)
+        for i, (kind, _si, key) in enumerate(dlg._list_rows):
+            if kind == "run" and key is not None and key != here:
+                dlg._profile_list.item(i).setCheckState(Qt.CheckState.Unchecked)
+        qapp.processEvents()
+        body = _plain(dlg._report_body_html(dlg._runs_for_report(),
+                                            for_pdf=False))
+        assert ("This report covers 1 of the 3 measurements recorded for this "
+                "project's profile runs.") in body, body[:2000]
+    finally:
+        dlg.close()
+
+
+def test_a_verification_report_of_every_date_of_its_run_says_nothing(
+        tmp_path, qapp):
+    """The complete report of a run's dates is not filtered, whatever else the
+    project holds: the critic round measured "covers 11 of the 18" on exactly
+    that, a sentence telling a customer the report left things out when it
+    left nothing out.
+
+    MUTATION: count the whole project again (drop `run_names`) and this goes
+    red with "2 of the 5".
+    """
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    s, _proj, runs = _three_profiled_runs(tmp_path, qapp)
+    v = runs[0].verifications()[-1]
+    dlg = MeasurementReportDialog(s, None, initial_ti3=v.measurement_ti3)
+    dlg.show()
+    qapp.processEvents()
+    try:
+        dlg._select_all_btn.click()
+        qapp.processEvents()
+        rows = dlg._runs_for_report()
+        assert len(rows) == 2 and all(r.get("is_verification") for r in rows), \
+            [r.get("is_verification") for r in rows]
+        body = _plain(dlg._report_body_html(rows, for_pdf=False))
+        assert not _COVERS_NOTE.search(body), _COVERS_NOTE.search(body).group(0)
     finally:
         dlg.close()
