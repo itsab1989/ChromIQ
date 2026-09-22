@@ -495,6 +495,50 @@ def test_a_run_bound_before_this_release_is_not_reported_as_edited():
     assert is_edited(limits_from_json(real), sid, None)
 
 
+def test_a_row_the_older_build_never_had_is_not_an_edit_either():
+    """**THE SAME FAULT, THROUGH THE OTHER DOOR, AND IT SHIPPED ONCE.**
+
+    The test above carved out a stored ``?``. A row that is simply ABSENT from
+    the stored copy was not carved out, and adding a row re-opens the hole: the
+    two repeatability rows landed on 2026-09-21, so every run bound by any
+    earlier ChromIQ held a 30-row copy against a 32-row set, `is_edited` read
+    each missing row as a limit the user had removed, and the run read
+    "(edited)" on screen, in the PDF, and in every report the build saved.
+
+    A row the user really did remove is NOT absent: `limits_to_json` writes
+    every row of the column, and a removed limit goes to disk as ``null``. So
+    absence and removal are distinguishable, and only removal is an edit.
+
+    MUTATION: drop the ``if rid not in ref or rid not in values: continue``
+    clause in `compliance_sets.is_edited` and this goes red on all five
+    editable sets.
+    """
+    from workflow.compliance_sets import (SETS, effective_limits, is_edited,
+                                          limits_from_json, limits_to_json)
+    new_rows = ("repeat_patches_de00_max", "repeat_measurement_de00_max")
+    editable = [s.id for s in SETS if s.editable]
+    assert editable, "no editable set to measure"
+    for sid in editable:
+        full = limits_to_json(effective_limits(sid, None))
+        older = {r: v for r, v in full.items() if r not in new_rows}
+        assert len(older) == len(full) - len(new_rows), sid
+        assert not is_edited(limits_from_json(older), sid, None), sid
+
+    # A REMOVED LIMIT IS STILL AN EDIT, which is what keeps this honest: the
+    # same row, present and null, must read the opposite way.
+    sid = "chromiq_default"
+    removed = limits_to_json(effective_limits(sid, None))
+    assert removed["repeat_patches_de00_max"] is not None
+    removed["repeat_patches_de00_max"] = None
+    assert is_edited(limits_from_json(removed), sid, None)
+
+    # …and a row a LATER ChromIQ wrote, which CH-20 keeps, is not an edit of a
+    # set that does not define it.
+    later = limits_to_json(effective_limits(sid, None))
+    later["a_row_a_later_chromiq_added"] = 2.5
+    assert not is_edited(limits_from_json(later), sid, None)
+
+
 def test_a_chart_with_no_declaration_behaves_exactly_as_it_did(tmp_path):
     """The other half of rule 1: a chart without a control strip must behave as
     it does today. Its three control-strip rows read N-A, as they did when the

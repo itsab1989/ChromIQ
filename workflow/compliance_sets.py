@@ -1435,6 +1435,25 @@ def is_edited(values: "dict[str, Limit]", set_id: str,
         return False
     ref = effective_limits(set_id, overrides)
     for rid in set(ref) | set(values):
+        # **A ROW ONE SIDE HAS NEVER HEARD OF IS NOT AN EDIT EITHER**, and
+        # this is the same fault as the ``?`` carve-out below, arriving
+        # through a different door. `limits_to_json` writes EVERY row of the
+        # column, a removed limit included (it goes to disk as ``null``), so a
+        # row the user took away is PRESENT and reads ``none``. A row that is
+        # ABSENT was never in the column at all: the build that bound the run
+        # did not define it.
+        #
+        # MEASURED, 2026-09-22: the two repeatability rows added on
+        # 2026-09-21 are absent from every copy bound before that day, so
+        # `a.is_numeric != b.is_numeric` fired on both and EVERY run bound by
+        # any earlier ChromIQ read "(edited)" -- on screen, in the PDF, and
+        # stamped into every report the build saved (`stamp_verdict(...,
+        # edited=lim.edited)`). Nobody had edited anything. The mirror case is
+        # covered by the same clause and for the same reason: CH-20 keeps a
+        # row id a LATER ChromIQ wrote, and a row this set does not define
+        # cannot be an edit OF this set.
+        if rid not in ref or rid not in values:
+            continue
         a, b = ref.get(rid, Limit.none()), values.get(rid, Limit.none())
         # A STORED ``?`` IS NOT AN EDIT, AND CANNOT BE ONE. Nothing a user can
         # do produces an ``unknown`` limit: the spin box writes a number or
