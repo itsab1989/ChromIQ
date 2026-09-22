@@ -24279,3 +24279,60 @@ would reach.
 - COMMITMENTS THAT EXIST ONLY IN COMMENTS: sweep report text for anything
   explaining how to use ChromIQ; notes in the Printing record's detailed
   sections; drive all 19 absence notes on screen.
+
+### B8-781 · OPEN · Knut's four rulings of 2026-09-22 18:17 on the beta 35 questions
+- blocks release: no
+- status: OPEN
+- found by: Knut, #182 comment 5781645939, answering the questions in
+  5781250403.
+- R1 (B8-711, the unchecked values on the one-page summary): *"keep 1"*
+  for now, and analyse option 3 ("name a few and point at the full report")
+  with the Run description limited to 2 lines on the one-page reports and the
+  Run description help text saying so; *"Analyse and check if that works for
+  A4 and Letter. If that does not work either, then option 1 is the only
+  way."* His example PDF shows a long Run description pushing the page over.
+- R2 (M-VERIFY-UNCHECKED-METRICS in the pre-flight): *"The popup window can
+  be made wider, so that it does not become as tall, and no scrolling is
+  needed in that window. The current text shown in beta 34 was ok."* So the
+  paragraph goes into the popup and the popup widens to keep its height.
+- R3 (open question 2): *"agreed, do that"*: the ISO-derived sets stop
+  showing rows nothing can answer, the same rule the other five sets follow.
+- R4 (M-REPORT-PATCH-COUNTS-DIFFER): the note must be a clear information
+  note, *"not the same font and colour as other bread-text, so that the note
+  is not hidden"*.
+
+### B8-782 · FIXED · Update rewrote a saved report without keeping its previous content (D23)
+- blocks release: yes
+- status: FIXED
+- found by: the critic round on Knut's report-generation batch, 2026-09-22,
+  driven on screen on Report-Limits-Threshold-Series: a changed setting and
+  Update rewrote all 11 member files in place with 0 copies in
+  `reports/old/`. `rewrite_report` says "The caller archives first"; the
+  Update path never did, and neither did the re-stamp of a member the update
+  drops. Breaks §5 D23 ("nothing is deleted"; K.2 "D23 stands").
+- fixed: `core.file_manager.archive_report_files` is the one archive rule,
+  keyed on each file's own reports folder so a profiling run's
+  `runs/runN/reports/` is covered as well as a dated verification's;
+  `Verification.archive_reports` now delegates to it. `_write_the_document`
+  archives every file the press will rewrite, once, before any write, and a
+  folder whose archive fails is not rewritten: its files stay as they were and
+  go on the failure list the window already reports.
+- driven on screen as a user (`scripts/drive_d23_update_archives.py`, proof
+  `~/Desktop/ChromIQ-beta36-proof/D23-update-archives/`): tick "Show detailed
+  data for each run", Generate, answer Update. beta 35: 1 file rewritten, 0
+  kept. Fixed: 1 rewritten, its previous bytes under
+  `reports/old/2026-09-22_<time>/`, and the log names the archive.
+- evidence:
+  test_update_copies_every_file_it_rewrites_into_old_first
+  test_a_file_whose_archive_fails_is_not_rewritten
+
+### B8-783 · FIXED · A new report's PDF was offered the previous PDF's name
+- blocks release: no
+- status: FIXED
+- found by: Knut on beta 34 (K12 of B8-778).
+- `_report_filename` stamped the name with `self._created`, the second the
+  WINDOW opened, so every PDF saved from one window carried one time. The
+  page's own "Created:" line had been moved to the document's time by B8-461;
+  the file name now reads the same `_doc_created`, and the window's clock only
+  when nothing saved is behind the page.
+- evidence: test_the_pdf_name_carries_the_documents_time_not_the_windows

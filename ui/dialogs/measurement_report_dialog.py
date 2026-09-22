@@ -4127,6 +4127,31 @@ class MeasurementReportDialog(QDialog):
         detail = self._tick_state()
         scope = self._document_scope(members)
         saved, failed = [], []
+        # **EVERY FILE THIS PRESS REWRITES IS COPIED INTO old/ FIRST (D23).**
+        # Update rewrites the document's files in place, and so does the
+        # leftover re-stamp further down; neither archived anything, so the
+        # previous content of a dated verification's record, the record the
+        # series is compared on, was simply gone (critic round, 2026-09-22:
+        # 11 files rewritten, 0 copies in reports/old/). Done ONCE, before any
+        # write, so one press makes one archive folder per reports folder. A
+        # folder whose archive fails is not rewritten at all: its files go on
+        # the failure list the window already reports, and are left exactly
+        # as they were.
+        from core.file_manager import archive_report_files
+        _unarchived: "set[Path]" = set()
+        if existing:
+            _archived, _unarchived = archive_report_files(
+                [p for p in existing.values() if p.exists()], when)
+            for _rdir, _to in _archived.items():
+                log.info("archived the reports in %s to %s before updating",
+                         _rdir, _to)
+            for _rdir in _unarchived:
+                log.warning("could not archive the reports in %s, so they are "
+                            "not updated", _rdir)
+
+        def _archive_failed(path: "Path | None") -> bool:
+            return path is not None and path.exists() and \
+                path.parent.resolve() in _unarchived
         #: WHAT THE RED LINE WAS COMPARING AGAINST BEFORE THIS PRESS (R29-F2).
         #: A press that writes nothing must leave it exactly there: see the
         #: failure branch at the end of this method.
@@ -4146,6 +4171,9 @@ class MeasurementReportDialog(QDialog):
             # it, because the settings the user changed may be the tick that
             # brought it in.
             here = existing.pop(self._run_key(r), None)
+            if _archive_failed(here):
+                failed.append(str(origin))
+                continue
             try:
                 rep = dict(r)
                 # The window's own bookkeeping keys are not part of a report.
@@ -4190,6 +4218,9 @@ class MeasurementReportDialog(QDialog):
         # measurement's own verdict is not re-judged: it was judged when it
         # was part of the document and that is a fact about that sheet.
         for path in existing.values():
+            if _archive_failed(path):
+                failed.append(str(path))
+                continue
             try:
                 leftover = json.loads(read_text(path))
             except Exception as exc:             # noqa: BLE001
@@ -10826,9 +10857,17 @@ class MeasurementReportDialog(QDialog):
     def _report_filename(self, runs: list) -> str:
         """Filesystem-safe PDF name = the title PLUS the date/time (which the
         title itself omits): "<title> - <date_time>.pdf" (#130, Knut).
-        self._created is ISO "YYYY-MM-DDTHH:MM:SS" → "YYYY-MM-DD_HH-MM-SS"."""
+        self._created is ISO "YYYY-MM-DDTHH:MM:SS" → "YYYY-MM-DD_HH-MM-SS".
+
+        **THE DOCUMENT'S TIME, THE SAME ONE ITS "Created:" LINE PRINTS (K12).**
+        This read `self._created`, the second the WINDOW opened, so every PDF
+        saved from one window carried the same stamp: Knut generated a new
+        report, saved it, and was offered the previous PDF's name. B8-461 had
+        already moved the page's own line to `_doc_created`; the file name was
+        left behind on the window's clock."""
         import re
-        dt = self._created.replace("T", "_").replace(":", "-")
+        when = getattr(self, "_doc_created", "") or self._created
+        dt = when.replace("T", "_").replace(":", "-")
         return re.sub(r'[/\\:*?"<>|]', "_", f"{self._report_title(runs)} - {dt}") + ".pdf"
 
     def _report_body_html(self, runs: list, *, for_pdf: bool,

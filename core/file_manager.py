@@ -2664,37 +2664,77 @@ class Verification:
         per date (CH-29/CH-30). ``list_reports`` looks only one level deep, so
         nothing under ``old/`` is ever listed as a run.
         """
-        import hashlib
-        import shutil
         live = sorted(self.reports_dir.glob("report_*.json")) \
             if self.reports_dir.is_dir() else []
-        if not live:
-            return None
-        old_root = self.reports_dir / "old"
-        # Only content that has no copy yet (review F11, N2): a second unlock,
-        # or a set change after the unlock, must not duplicate an identical
-        # archive, and a report stamped after the unlock must still get one.
-        have: set = set()
-        if old_root.is_dir():
-            for c in old_root.glob("*/report_*.json"):
-                try:
-                    have.add(hashlib.sha256(c.read_bytes()).hexdigest())
-                except OSError:
-                    continue
-        todo = [p for p in live
-                if hashlib.sha256(p.read_bytes()).hexdigest() not in have]
-        if not todo:
-            return None
-        stamp = (when or datetime.now()).strftime("%Y-%m-%d_%H%M%S")
-        target = old_root / stamp
-        n = 1
-        while target.exists():
-            n += 1
-            target = old_root / f"{stamp}_{n}"
-        target.mkdir(parents=True, exist_ok=True)
-        for p in todo:
-            shutil.copy2(p, target / p.name)
-        return target
+        done, _failed = archive_report_files(live, when, raise_errors=True)
+        return done.get(self.reports_dir.resolve())
+
+
+def archive_report_files(paths, when: "datetime | None" = None, *,
+                         raise_errors: bool = False
+                         ) -> "tuple[dict[Path, Path], set[Path]]":
+    """**Copy** saved report files into ``<their reports dir>/old/<stamp>/``
+    before something rewrites them, and say where each folder went.
+
+    Returns ``({reports_dir: archive_folder}, {reports_dir that failed})``.
+    A folder appears in neither when every one of its files already has an
+    identical copy under ``old/`` (the content is kept; nothing new to keep).
+
+    **ONE RULE FOR EVERY REWRITE (D23, "nothing is deleted").** This began as
+    `Verification.archive_reports`, used by the recalculation that unlocking a
+    run's limits triggers. The Measurement Report's Update rewrote the same
+    files in place with no archive at all (critic round, 2026-09-22: 11 files
+    rewritten, 0 copies in ``old/``), and a profiling run's own
+    ``runs/runN/reports/`` had no archive helper to call. So the rule lives
+    here, keyed on the files' own folder, and both callers use it.
+
+    A COPY, not a move: the live file is rewritten in place under its own name
+    so the history keeps one report per date (CH-29/CH-30). ``list_reports``
+    looks only one level deep, so nothing under ``old/`` is listed as a run.
+    Only content that has no copy yet is copied (review F11, N2), so a second
+    press does not duplicate an identical archive.
+    """
+    import hashlib
+    import shutil
+    by_dir: "dict[Path, list[Path]]" = {}
+    spelled: "dict[Path, Path]" = {}     # resolved -> the caller's own spelling
+    for p in paths:
+        p = Path(p)
+        if p.is_file():
+            key = p.parent.resolve()
+            spelled.setdefault(key, p.parent)
+            by_dir.setdefault(key, []).append(p)
+    done: "dict[Path, Path]" = {}
+    failed: "set[Path]" = set()
+    stamp = (when or datetime.now()).strftime("%Y-%m-%d_%H%M%S")
+    for rdir, files in by_dir.items():
+        try:
+            old_root = spelled[rdir] / "old"
+            have: set = set()
+            if old_root.is_dir():
+                for c in old_root.glob("*/report_*.json"):
+                    try:
+                        have.add(hashlib.sha256(c.read_bytes()).hexdigest())
+                    except OSError:
+                        continue
+            todo = [p for p in files
+                    if hashlib.sha256(p.read_bytes()).hexdigest() not in have]
+            if not todo:
+                continue
+            target = old_root / stamp
+            n = 1
+            while target.exists():
+                n += 1
+                target = old_root / f"{stamp}_{n}"
+            target.mkdir(parents=True, exist_ok=True)
+            for p in todo:
+                shutil.copy2(p, target / p.name)
+            done[rdir] = target
+        except OSError:
+            if raise_errors:
+                raise
+            failed.add(rdir)
+    return done, failed
 
 
 # ---------------------------------------------------------------------------

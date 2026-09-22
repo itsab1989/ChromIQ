@@ -1099,3 +1099,90 @@ def test_a_report_whose_measurements_are_all_absent_leaves_the_rows_alone(
             "'Generate report' is disabled because the window emptied itself")
     finally:
         dlg2.close()
+
+
+def test_update_copies_every_file_it_rewrites_into_old_first(
+        two_dates, qapp, monkeypatch):
+    """**D23: NOTHING IS DELETED, and Update deleted the previous content.**
+
+    Critic round, 2026-09-22, driven on Report-Limits-Threshold-Series: a
+    changed tick and Update rewrote all 11 member files in place, with 0 copies
+    in ``reports/old/``. The previous bytes of a dated verification's record,
+    the record the series is compared on, were gone. Now each file the press
+    rewrites has its PREVIOUS bytes under ``reports/old/<stamp>/`` under its own
+    name, and the live file is still the one updated in place.
+
+    MUTATION, proved to land: delete the `archive_report_files(...)` call in
+    `_write_the_document` and the first assert goes red.
+    """
+    from PyQt6.QtWidgets import QMessageBox
+    from workflow.measurement_report import REPORT_TYPE_RECORD
+    s, _fm, run, vs = two_dates
+    dlg = _window(s, vs[-1].measurement_ti3, qapp)
+    try:
+        key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_RECORD,
+                               every_measurement=True, detail=True)
+        _pick_key(dlg, key, qapp)
+        entry = next(d for d in dlg._saved_documents(dlg._run_ctx.run)
+                     if d["key"] == key)
+        mine = sorted(Path(str(r.get("_origin_dir"))) / "reports" / n
+                      for r, n in entry["members"])
+        assert len(mine) >= 2, "the fixture no longer has two dated records"
+        before = {p: p.read_bytes() for p in mine}
+
+        dlg._detail_check.setChecked(False)
+        qapp.processEvents()
+        del dlg._ask_update_or_create_new
+        monkeypatch.setattr(QMessageBox, "exec", _press("Update"))
+        dlg._on_generate_report()
+        qapp.processEvents()
+
+        for p, old_bytes in before.items():
+            copies = [c for c in (p.parent / "old").glob(f"*/{p.name}")
+                      if c.read_bytes() == old_bytes]
+            assert copies, f"the previous content of {p} was not kept in old/"
+            assert p.read_bytes() != old_bytes, (
+                f"{p} was not updated, so this proves nothing about it")
+    finally:
+        dlg.close()
+
+
+def test_a_file_whose_archive_fails_is_not_rewritten(two_dates, qapp,
+                                                     monkeypatch):
+    """…and the other half: no archive, no rewrite. A folder that could not be
+    copied keeps its files exactly as they were, and the press says it failed
+    (`_say_generated` is the window's existing failure message)."""
+    from PyQt6.QtWidgets import QMessageBox
+    import core.file_manager as FM
+    from workflow.measurement_report import REPORT_TYPE_RECORD
+    s, _fm, run, vs = two_dates
+    dlg = _window(s, vs[-1].measurement_ti3, qapp)
+    try:
+        key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_RECORD,
+                               every_measurement=True, detail=True)
+        _pick_key(dlg, key, qapp)
+        entry = next(d for d in dlg._saved_documents(dlg._run_ctx.run)
+                     if d["key"] == key)
+        mine = [Path(str(r.get("_origin_dir"))) / "reports" / n
+                for r, n in entry["members"]]
+        before = {p: p.read_bytes() for p in mine}
+        monkeypatch.setattr(
+            FM, "archive_report_files",
+            lambda paths, when=None, **k: (
+                {}, {Path(p).parent.resolve() for p in paths}))
+        said = {}
+        dlg._say_generated = lambda saved, failed: said.update(
+            saved=list(saved), failed=list(failed))
+        dlg._detail_check.setChecked(False)
+        qapp.processEvents()
+        del dlg._ask_update_or_create_new
+        monkeypatch.setattr(QMessageBox, "exec", _press("Update"))
+        dlg._on_generate_report()
+        qapp.processEvents()
+        for p, old_bytes in before.items():
+            assert p.read_bytes() == old_bytes, (
+                f"{p} was rewritten although its archive failed")
+        assert said.get("failed"), "the failure was not reported"
+        assert not said.get("saved"), "a file was reported as saved"
+    finally:
+        dlg.close()
