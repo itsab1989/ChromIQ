@@ -110,12 +110,17 @@ def test_the_button_sits_below_the_preset_dropdown(tab, qapp):
     btn.setVisible(True)
     if getattr(tab, "_preset_verify_help", None) is not None:
         tab._preset_verify_help.setVisible(True)
+    # the button and its ⓘ share one row since B8-800
+    if getattr(tab, "_preset_verify_row", None) is not None:
+        tab._preset_verify_row.setVisible(True)
     qapp.processEvents()
     top = btn.mapTo(tab, btn.rect().topLeft()).y()
     bottom = combo.mapTo(tab, combo.rect().bottomLeft()).y()
     assert top >= bottom, (
         f"the button's top is at y={top}, the dropdown's bottom at y={bottom}")
-    assert combo.parent() is btn.parent(), \
+    # INSIDE the Presets group, not necessarily its direct child: since
+    # B8-800 the button sits in a row it shares with its ⓘ.
+    assert combo.parentWidget().isAncestorOf(btn), \
         "the button left the Presets group box"
 
 

@@ -195,7 +195,19 @@ class Drive:
                 verification: "str | None" = None) -> None:
         b = self.bar
         if run_type is not None:
-            assert self.pick(b._type_combo, run_type), f"no run type {run_type}"
+            # BY ITS STORED VALUE, so a drive in German still finds
+            # "Verifizierung" (the first German drive failed on the label).
+            from core import measurement_target as MT
+            data = {"profiling": MT.RUN_TYPE_PROFILING,
+                    "verification": MT.RUN_TYPE_VERIFICATION}.get(
+                        run_type.lower())
+            idx = b._type_combo.findData(data) if data is not None else -1
+            if idx >= 0:
+                b._type_combo.setCurrentIndex(idx)
+                b._type_combo.activated.emit(idx)
+            else:
+                assert self.pick(b._type_combo, run_type), \
+                    f"no run type {run_type}"
             self.pump(700)
         if run is not None:
             combo = b._run_combo

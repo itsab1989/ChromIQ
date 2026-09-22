@@ -24721,3 +24721,21 @@ would reach.
   test_an_untyped_saved_report_on_a_profiling_sheet_is_labelled_as_drawn
   test_a_measurement_in_no_run_says_why_generate_is_grey
   test_a_saved_type_the_kind_no_longer_allows_is_a_change
+
+### B8-800 · FIXED · In German the "which presets" button drew over its own ⓘ
+- blocks release: no
+- status: FIXED
+- found by: Basti, 2026-09-22, a screenshot of Create Chart in German.
+- measured on screen (`scripts/drive_preset_button_overlap.py`, proof
+  `~/Desktop/ChromIQ-beta36-proof/preset-button-overlap/`): the Presets group
+  leaves 377 px for the label beside its ⓘ; "Welche Presets sind für die
+  Verifizierung verwendbar?" rendered 405 px, so the button ended 17 px past
+  the start of the ⓘ, on beta 35 and after a layout-only fix alike. The group
+  cannot grow for it, so the label has to fit: German now reads "Welche
+  Presets eignen sich zur Verifizierung?" (339 px, 7 px clear), everywhere it
+  is quoted. The button and its ⓘ now also share one row, so the ⓘ always
+  follows the button's real width.
+- every catalogue is held to 51 characters for this label, the ceiling the
+  measured room gives (English is 44 characters in 325 px); a real
+  translation that does not fit fails the suite instead of reaching a screen.
+- evidence: test_the_label_fits_beside_its_help_icon_in_every_language

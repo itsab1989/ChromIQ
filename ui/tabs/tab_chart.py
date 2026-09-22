@@ -6084,12 +6084,21 @@ class TabChart(QWidget):
         self._preset_verify_btn.clicked.connect(
             self._open_preset_verification_window)
         # Column 1 is the combo's column, so the button's left edge IS the
-        # combo's left edge; the span reaches the icon buttons' columns so a
-        # long label costs the combo's column nothing, and AlignLeft keeps the
-        # button its own width instead of stretching it across the frame.
-        presets_row.addWidget(
-            self._preset_verify_btn, 1, 1, 1, 4,
-            Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        # combo's left edge.
+        #
+        # **THE BUTTON AND ITS ⓘ SHARE ONE ROW, SO THE ⓘ SITS AFTER THE
+        # BUTTON'S REAL WIDTH (Basti, 2026-09-22, a screenshot in German).**
+        # They were two grid cells, the button spanning columns 1 to 4 at its
+        # own width and the ⓘ in column 5. "WELCHE PRESETS SIND FÜR DIE
+        # VERIFIZIERUNG VERWENDBAR?" is wider than those four columns, so the
+        # button drew into the ⓘ's cell and over it. In one row container
+        # spanning all five, the ⓘ follows the button whatever the language.
+        self._preset_verify_row = QWidget(w)
+        _pv = QHBoxLayout(self._preset_verify_row)
+        _pv.setContentsMargins(0, 0, 0, 0)
+        _pv.setSpacing(6)
+        _pv.addWidget(self._preset_verify_btn, 0,
+                      Qt.AlignmentFlag.AlignVCenter)
         self._preset_verify_help = TooltipButton(
             tr("Which presets can be used for verification?"),
             tr("Opens a list of every chart preset, marked against the "
@@ -6112,7 +6121,9 @@ class TabChart(QWidget):
             w,
             min_width=560,
         )
-        presets_row.addWidget(self._preset_verify_help, 1, 5)
+        _pv.addWidget(self._preset_verify_help, 0, Qt.AlignmentFlag.AlignVCenter)
+        _pv.addStretch(1)
+        presets_row.addWidget(self._preset_verify_row, 1, 1, 1, 5)
         # Knut's rule: this pair belongs to a verification run only.
         self._sync_preset_verify_visibility()
         layout.addWidget(presets_grp)
@@ -18487,7 +18498,8 @@ class TabChart(QWidget):
         not there is worse than neither.
         """
         show = self._is_verification_target()
-        for attr in ("_preset_verify_btn", "_preset_verify_help"):
+        for attr in ("_preset_verify_btn", "_preset_verify_help",
+                     "_preset_verify_row"):
             w = getattr(self, attr, None)
             if w is not None:
                 w.setVisible(show)

@@ -299,3 +299,32 @@ def test_an_unreadable_patch_set_is_not_blamed_on_the_page_count(qapp,
             f"at all: {shown}")
     finally:
         dlg.close()
+
+
+#: MEASURED ON SCREEN, 2026-09-22 (`scripts/drive_preset_button_overlap.py`,
+#: proof `~/Desktop/ChromIQ-beta36-proof/preset-button-overlap/`): the room the
+#: Presets group leaves for this button's label beside its ⓘ is 377 px, the
+#: English label in the button's own font and capitals is 325 px for 44
+#: characters. So a translation of more than 44 * 377 / 325 = 51 characters
+#: does not fit, and the button draws over its own ⓘ (German, 53 characters,
+#: 405 px: Basti's screenshot). A character count, because an offscreen font
+#: is not the app's font; the pixel figures come from the real window.
+_MAX_LABEL_CHARS = 51
+
+
+@pytest.mark.parametrize("code", sorted(
+    p.stem for p in (Path(__file__).resolve().parent.parent / "data" / "i18n")
+    .glob("*.json")))
+def test_the_label_fits_beside_its_help_icon_in_every_language(code):
+    """Basti, 2026-09-22, a German screenshot: "WELCHE PRESETS SIND FÜR DIE
+    VERIFIZIERUNG VERWENDBAR?" drew over its own ⓘ. The group cannot grow to
+    make room, so the label has to fit. MUTATION: put the old German back and
+    this goes red on `de`."""
+    import json
+    cat = json.loads((Path(__file__).resolve().parent.parent / "data" / "i18n"
+                      / f"{code}.json").read_text(encoding="utf-8"))
+    label = cat.get("Which presets can be used for verification?")
+    assert isinstance(label, str)
+    assert len(label) <= _MAX_LABEL_CHARS, (
+        f"[{code}] {label!r} is {len(label)} characters; more than "
+        f"{_MAX_LABEL_CHARS} does not fit beside the ⓘ")
