@@ -27,8 +27,52 @@ height it will need.
 from __future__ import annotations
 
 import pytest
+from PyQt6.QtCore import QEvent
+from PyQt6.QtWidgets import QApplication
 
 from ui.dialogs.update_dialog import UpdateAvailableDialog
+
+
+@pytest.fixture()
+def dialog(qapp):
+    """Build update dialogs and DESTROY them, not merely hide them.
+
+    **`close()` AND `deleteLater()` ARE NOT ENOUGH ON THEIR OWN.** A deferred
+    delete only happens when an event loop runs, so a dialog closed at the end
+    of a test can still be a live top-level widget while the next test runs.
+    `tests/conftest.py::_no_modal_may_hang_the_suite` sweeps every top-level
+    widget on a timer and blames whichever test is running when it fires, so a
+    survivor from here is reported against a stranger: the first gate run after
+    this file was added failed in
+    `test_update_check_survives_the_hourly_quota.py`, a file that opens no
+    dialog at all, naming this dialog's title.
+
+    Twelve gate runs before this file existed had none. That is not proof this
+    file caused it, and it was not reproducible in isolation over five runs,
+    but it is enough to make sure nothing built here can outlive the test that
+    built it.
+    """
+    made: list = []
+
+    def _make(latest: str) -> UpdateAvailableDialog:
+        d = UpdateAvailableDialog(latest, None)
+        made.append(d)
+        return d
+
+    yield _make
+
+    for d in made:
+        d.close()
+        d.setParent(None)
+        d.deleteLater()
+    qapp.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    qapp.processEvents()
+    alive = [w for w in QApplication.topLevelWidgets()
+             if isinstance(w, UpdateAvailableDialog)]
+    assert not alive, (
+        f"{len(alive)} update dialog(s) survived this test and would be swept "
+        f"by the modal guard during somebody else's"
+    )
 
 #: Short, ordinary, and long enough to push the body onto another line. The
 #: third is what a build-metadata version looks like, and it is the case that
@@ -41,45 +85,38 @@ VERSIONS = [
 
 
 @pytest.mark.parametrize("latest", VERSIONS)
-def test_the_window_cannot_be_shorter_than_the_text_it_holds(qapp, latest):
+def test_the_window_cannot_be_shorter_than_the_text_it_holds(qapp, dialog,
+                                                           latest):
     """MUTATION: delete the `setMinimumHeight(self.sizeHint().height())` line
     from `ui/dialogs/update_dialog.py` and the long-version case goes red at
     262 against 310, with the two shorter ones red at 262 against 294.
     """
-    dlg = UpdateAvailableDialog(latest, None)
-    try:
-        dlg.show()
-        qapp.processEvents()
-        need = dlg.sizeHint().height()
-        floor = dlg.minimumHeight()
-        assert floor >= need, (
-            f"the update window needs {need} px to show its text and can be "
-            f"dragged down to {floor}, so the text is cut and the user has to "
-            f"resize the window to read it"
-        )
-    finally:
-        dlg.close()
-        dlg.deleteLater()
+    dlg = dialog(latest)
+    dlg.show()
+    qapp.processEvents()
+    need = dlg.sizeHint().height()
+    floor = dlg.minimumHeight()
+    assert floor >= need, (
+        f"the update window needs {need} px to show its text and can be "
+        f"dragged down to {floor}, so the text is cut and the user has to "
+        f"resize the window to read it"
+    )
 
 
-def test_a_longer_version_string_raises_the_floor(qapp):
+def test_a_longer_version_string_raises_the_floor(qapp, dialog):
     """The floor must FOLLOW the content, not be one number for every case.
 
     A fixed floor that happened to be tall enough today would satisfy the test
     above and break again the moment a version string grew, which is the fault
     being fixed. So the long case must ask for more than the short one.
     """
-    short = UpdateAvailableDialog(VERSIONS[0], None)
-    long_ = UpdateAvailableDialog(VERSIONS[-1], None)
-    try:
-        for d in (short, long_):
-            d.show()
-        qapp.processEvents()
-        assert long_.minimumHeight() > short.minimumHeight(), (
-            f"the floor is {short.minimumHeight()} px for a short version and "
-            f"{long_.minimumHeight()} for one that wraps onto another line; it "
-            f"is not following the content"
-        )
-    finally:
-        for d in (short, long_):
-            d.close(); d.deleteLater()
+    short = dialog(VERSIONS[0])
+    long_ = dialog(VERSIONS[-1])
+    for d in (short, long_):
+        d.show()
+    qapp.processEvents()
+    assert long_.minimumHeight() > short.minimumHeight(), (
+        f"the floor is {short.minimumHeight()} px for a short version and "
+        f"{long_.minimumHeight()} for one that wraps onto another line; it "
+        f"is not following the content"
+    )
