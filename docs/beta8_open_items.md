@@ -23744,9 +23744,22 @@ would reach.
 - evidence: test_the_window_says_what_the_presets_window_says,
   test_the_window_frames_it_with_the_catalogue
 
-### B8-766 · OPEN · "Unlock this run's limits" is offered when there is nothing to unlock
+### B8-766 · FIXED · "Unlock this run's limits" is offered when there is nothing to unlock
 - blocks release: no
-- status: OPEN
+- status: FIXED
+- FIXED 2026-09-22, and it was one word. `is_locked` has answered
+  `measured_dates(run) < 2 -> not locked` since Knut's ruling of 2026-09-10;
+  the enable rule asked `has_measured_verification`, which is true of ONE, so
+  the box was live in exactly the state it should have been dim in. It now
+  follows `locked`, which the same method had already computed and was not
+  using.
+- **the tooltip he asked for was already written and had never been seen.**
+  *"This run's limits are not locked yet. A run is locked by its second dated
+  verification, and this box lifts that lock."* An ENABLED box returns no
+  reason, so the sentence existed, was translated into thirteen languages, and
+  was unreachable. The guard asserts the tooltip as well as the state, because
+  a dim control has to say why.
+- evidence: test_the_unlock_box_is_dead_while_there_is_nothing_to_unlock
 - found by: Knut on beta 32, 2026-09-22, while testing the report window.
 - detail, in his words: with only ONE dated verification, the Judged against
   box is already editable and Edit Limits is already enabled, *"However, the

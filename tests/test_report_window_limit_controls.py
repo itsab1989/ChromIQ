@@ -737,3 +737,47 @@ def test_a_file_outside_any_project_is_still_told_so(qapp, tmp_path):
         assert "not in a ChromIQ project" in tip, tip
     finally:
         dlg.deleteLater()
+
+
+def test_the_unlock_box_is_dead_while_there_is_nothing_to_unlock(qapp, tmp_path):
+    """One dated verification locks nothing, so the box must not offer to lift it.
+
+    Knut, on beta 32: with ONE dated verification the Judged against box is
+    already editable and Edit Limits already enabled, *"However, the checkbox
+    'Unlock this run's limits' is still clickable"*, and pressing it asked
+    whether to unlock something that is not locked.
+
+    `is_locked` has answered `measured_dates(run) < 2 -> not locked` since his
+    ruling of 2026-09-10, that *"when only one measurement is done, I should be
+    allowed to choose the type of report I want to print, and which limits to
+    judge against"*. The enable rule asked `has_measured_verification`, which
+    is true of ONE, so the box was live in exactly the state the window's own
+    tooltip describes.
+
+    **AND BECAUSE AN ENABLED BOX RETURNS NO REASON, THAT SENTENCE HAD NEVER
+    BEEN SHOWN TO ANYBODY.** It was written, translated into thirteen
+    languages, and unreachable. That is why this test asserts the tooltip as
+    well as the state: a dim control has to say why.
+
+    MUTATION: put `has_measured_verification(run)` back in place of `locked` in
+    `_sync_limit_controls` and both assertions go red.
+    """
+    _proj, _run, ti3s = _verified_run(tmp_path, dates=1)
+    s = _settings(tmp_path)
+    s.set("compliance_allow_edit_after_measurement", True)
+    dlg = _dialog(s, ti3s[-1])
+    try:
+        assert dlg._set_combo.isEnabled(), (
+            "with one dated verification the set is still the user's to "
+            "choose, which is the ruling this test depends on"
+        )
+        assert not dlg._unlock_check.isEnabled(), (
+            "the unlock box is live with one dated verification, where "
+            "nothing is locked, so pressing it asks to lift a lock that is "
+            "not there"
+        )
+        assert "not locked yet" in dlg._unlock_check.toolTip(), (
+            f"a dim box has to say why; it says {dlg._unlock_check.toolTip()!r}"
+        )
+    finally:
+        dlg.deleteLater()

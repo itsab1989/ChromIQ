@@ -4797,9 +4797,21 @@ class MeasurementReportDialog(QDialog):
             self._unlock_check.blockSignals(False)
             allow = bool(self._settings.get(
                 "compliance_allow_edit_after_measurement", False))
+            # **LOCKED, NOT MERELY MEASURED.** Knut, on beta 32: with ONE
+            # dated verification the Judged against box is already editable
+            # and Edit Limits already enabled, *"However, the checkbox 'Unlock
+            # this run's limits' is still clickable"*, and pressing it asked
+            # whether to unlock something that is not locked.
+            #
+            # `is_locked` has said `measured_dates(run) < 2 -> not locked`
+            # since his ruling of 2026-09-10, and this line asked
+            # `has_measured_verification`, which is true of ONE. So the box was
+            # live in precisely the state the window's own tooltip describes,
+            # and because an enabled box returns no reason, that sentence had
+            # never been shown to anybody.
             self._unlock_check.setEnabled(
                 run is not None and not several
-                and ((may_unlock(run, allow) and has_measured_verification(run))
+                and ((may_unlock(run, allow) and locked)
                      or bool(lim.unlocked)))     # F5: re-locking is always allowed
             # **KNUT PUT THIS CONTROL BACK, AND IT NEVER DISAPPEARS AGAIN
             # (B8-520).** 2026-09-20, reviewing beta 26: *"In the Measurement
