@@ -10204,8 +10204,22 @@ class MeasurementReportDialog(QDialog):
                           + paras)
         if not blocks:
             return ""
-        return (f"<div style='color:{_C['dim']};margin-top:10px'>"
-                + "".join(blocks) + "</div>")
+        # **A NOTE THAT LOOKS LIKE A NOTE (R4, Knut 2026-09-22):** *"different
+        # charts with different number of patches can still be a clear
+        # information note, not the same font and colour as other bread-text,
+        # so that the note is not hidden."* It was body text in the dim
+        # colour. It is now a tinted box with a full-ink bar down its left
+        # edge and full-ink text: set apart in colour and form, and in no hue
+        # that reads as a warning, because it is not one (adversary round 40c
+        # measured exactly that about this note). A one-row table, because
+        # Qt's rich text draws a table cell's background reliably in the
+        # window and in the PDF, and a div's border it does not.
+        return ("<table cellspacing='0' cellpadding='0' width='100%' "
+                "style='margin-top:10px'><tr>"
+                f"<td width='4' bgcolor='{_C['head']}'>&nbsp;</td>"
+                f"<td bgcolor='{_C['panel']}' style='padding:8px;"
+                f"color:{_C['head']}'>" + "".join(blocks) + "</td>"
+                "</tr></table>")
 
     @staticmethod
     def _measurements_recorded_in(project_dir: str, kind: "str | None" = None,

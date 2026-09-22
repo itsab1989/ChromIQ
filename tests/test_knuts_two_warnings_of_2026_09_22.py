@@ -282,7 +282,9 @@ def test_the_rendered_note_carries_the_counts_and_is_not_the_fail_colour(qapp):
     # measured. A neutral or dim grey has no dominant red channel; the report's
     # own FAIL colour does, and that is the measurement rather than a guess.
     import re
-    colours = re.findall(r"color:(#[0-9a-fA-F]{6})", html_out)
+    # TEXT AND BACKGROUND COLOURS BOTH (R4 made the note a tinted box; a
+    # `bgcolor` attribute is a colour on the page as much as `color:` is).
+    colours = re.findall(r"color[:=]'?(#[0-9a-fA-F]{6})", html_out)
     assert colours, html_out[:200]
     for c in colours:
         r, g, b = (int(c[i:i + 2], 16) for i in (1, 3, 5))
@@ -434,3 +436,21 @@ def test_the_note_reaches_the_rendered_report_and_the_pdf(qapp, tmp_path):
         assert "trend graphs" in seen
     finally:
         dlg.deleteLater()
+
+
+
+def test_the_note_is_set_apart_from_body_text(qapp):
+    """R4 (Knut, 2026-09-22): *"a clear information note, not the same font
+    and colour as other bread-text, so that the note is not hidden."* It is a
+    tinted box, not a paragraph in the body's dim grey.
+
+    MUTATION: return the old `<div style='color:dim'>` paragraph and this goes
+    red.
+    """
+    from ui.dialogs.measurement_report_dialog import (MeasurementReportDialog,
+                                                      _C)
+    dlg = MeasurementReportDialog.__new__(MeasurementReportDialog)
+    out = dlg._scope_notes_html([{"kind": "patch_counts", "counts": [1617, 918]}])
+    assert f"bgcolor='{_C['panel']}'" in out, out[:300]
+    assert f"color:{_C['dim']}" not in out, (
+        "the note is painted in the body text's dim colour again")

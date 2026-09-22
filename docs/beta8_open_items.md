@@ -24660,3 +24660,31 @@ would reach.
   ΔE00", in the app's own spelling of the unit, German by hand. The one-page
   headroom guard still passes, so the page keeps its 60 px margin.
 - evidence: test_the_result_line_gives_its_numbers_with_their_unit
+
+### B8-797 · FIXED · The "different numbers of readings" note read as ordinary body text
+- blocks release: no
+- status: FIXED
+- found by: Knut, 2026-09-22 (R4 of B8-781): *"a clear information note, not
+  the same font and colour as other bread-text, so that the note is not
+  hidden."*
+- it was a paragraph in the body's dim grey. It is now a tinted box with a
+  full-ink bar down its left edge and full-ink text, in no hue that reads as
+  a warning (round 40c's guard on this note is widened to background colours,
+  and an amber bar turns it red). A one-row table, because Qt's rich text
+  draws a cell background in the window and in the PDF alike.
+- driven on screen (`scripts/drive_r4_note_box.py`, proof
+  `~/Desktop/ChromIQ-beta36-proof/R4-note-box/`): a Printing record of the
+  three profiling runs of Threshold-Series (210, 400 and 105 readings).
+- evidence: test_the_note_is_set_apart_from_body_text
+
+### B8-798 · OPEN · A report of several profile runs prints one run's own description
+- blocks release: no
+- status: OPEN
+- found by: the R4 drive, 2026-09-22: a Printing record of Threshold-Series'
+  three profiling runs printed run1's "Run description" under Report Scope,
+  a paragraph about run1's dated verification series, as if it described
+  all three. `_run_description` suppresses the description only when several
+  SOURCES are loaded; a single project source spans every run of its project.
+  Which description belongs on a many-run document (none, each run's, or the
+  window's run labelled as such) is Knut's call.
+- evidence: test_the_note_is_set_apart_from_body_text
