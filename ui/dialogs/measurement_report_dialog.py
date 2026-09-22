@@ -10496,7 +10496,9 @@ class MeasurementReportDialog(QDialog):
         # graded path, which `_summary_cell` renders and the PDF does not carry.
         # A sentence a reader cannot read explains nothing, whichever branch
         # puts it there.
-        from workflow.compliance_sets import (SUMMARY_REASONS, STANDARD_CAVEAT,
+        from workflow.compliance_sets import (SUMMARY_REASONS,
+                                              STANDARD_CAVEAT_APPLIED,
+                                              STANDARD_CAVEAT_PROOF,
                                               applies_a_standard, summary_text)
         from workflow.measurement_report import recorded_compliance
         _standard_cols = [
@@ -10508,8 +10510,12 @@ class MeasurementReportDialog(QDialog):
                 str((recorded_compliance(r) or {}).get("set_label", "") or ""))
         ]
         if _standard_cols:
+            # TRANSLATED IN HALVES AND JOINED HERE. `tr()` is a whole-string
+            # lookup, so `tr(a + " " + b)` would miss every catalogue and
+            # print English in thirteen languages.
             notes += (f"<div style='{note_css}'>"
-                      + html.escape(tr(STANDARD_CAVEAT)) + "</div>")
+                      + html.escape(tr(STANDARD_CAVEAT_APPLIED) + " "
+                                    + tr(STANDARD_CAVEAT_PROOF)) + "</div>")
         # EVERY reason that has to be read, not the one that existed first.
         # This selection is by EXACT EQUALITY on the sentence, and the comment
         # in `_column_summary` records that a longer string silently dropped
@@ -11152,8 +11158,42 @@ class MeasurementReportDialog(QDialog):
             out.append(_h2(tr("Cube corners")) + _gap()
                        + self._swatch_table_html(corners))
 
+        # **T1 NEVER REACHES THE CAVEAT BLOCK, AND THE CAP USED TO COVER FOR
+        # THAT.** `_report_body_html` branches to this method before it builds
+        # `_report_results_html`, which is where `STANDARD_CAVEAT` is printed
+        # for every column applying a standard. While an ISO-named column was
+        # capped at COND the word itself carried the qualification here; Knut
+        # retired the cap on 2026-09-22 and this page would then have printed a
+        # bold green PASS under "Custom ISO 12647-7" with only the general
+        # not-certification line under it. That is the exact arrangement
+        # `tests/test_a_custom_iso_column_carries_the_same_caveat.py` exists to
+        # prevent, on the one report type designed to be handed to a customer.
+        #
+        # So the general line is REPLACED by the caveat here, not joined by it:
+        # the caveat says everything the general line says and more, and this
+        # is a page whose entire promise is that it is one page. The summary
+        # sentence above already carries the caveat's first clause, which is
+        # why the two together still read as one statement rather than a
+        # repetition.
+        # **AND THE SECOND HALF OF IT, NOT THE WHOLE.** Measured on this
+        # page's own A4 layout with a run bound to Custom ISO 12647-7: the
+        # whole caveat leaves 52 px spare against the 60 px
+        # `test_and_keeps_room_for_a_description_of_ordinary_length` requires,
+        # its second half leaves 82. And the trim is the right one rather than
+        # merely the short one: the Result sentence a few centimetres above
+        # already says this limit set holds a standard's published values
+        # applied to your chart and is not a test against that standard, which
+        # is the first half. The second half is what nothing else here says.
+        from workflow.compliance_sets import (STANDARD_CAVEAT_PROOF,
+                                              applies_a_standard)
+        from workflow.measurement_report import recorded_compliance
+        _rc = recorded_compliance(r) or {}
+        _standard = applies_a_standard(
+            str(_rc.get("set_id", "") or "")
+            or getattr(self._limits_for(r), "set_id", ""),
+            str(_rc.get("set_label", "") or ""))
         out.append(f"<div style='color:{_C['dim']};margin-top:10px'>"
-                   + html.escape(tr(
+                   + html.escape(tr(STANDARD_CAVEAT_PROOF) if _standard else tr(
                        "ChromIQ measures against published values; it does "
                        "not certify. This page says what was measured and "
                        "what it was compared against."))

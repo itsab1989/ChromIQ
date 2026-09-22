@@ -786,6 +786,13 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED AGAIN the same day, when `STANDARD_CAVEAT` was split into
+    # two keys. The one-page summary branches away before the block that
+    # prints the caveat, so T1 needed it too, and measured on that page's own
+    # A4 layout the whole caveat left 52 px spare against the 60 px its
+    # headroom guard requires. The second half leaves 82, so the note is
+    # translated in halves and joined where there is room for both. One key
+    # out, two in; German written by hand for both and unmoved.
     # RE-MEASURED 2026-09-22, the ISO COND cap round, and **BOTH LEDGERS IN
     # THE SAME COMMIT**: its twin is `_BUDGET` in
     # `tests/test_help_cards_untranslated_are_tracked.py`. Updating one of
@@ -1250,17 +1257,17 @@ _IDENTICAL_TO_KEY = {
     # recorded. COUNTED with this file's own helper on the tree this commit
     # leaves behind.
     "de": 146,
-    "es": 938,
-    "fr": 960,
-    "it": 949,
-    "ja": 924,
-    "nl": 965,
-    "no": 950,
-    "pl": 942,
-    "pt": 940,
-    "ru": 913,
-    "sv": 951,
-    "zh_CN": 918,
+    "es": 939,
+    "fr": 961,
+    "it": 950,
+    "ja": 925,
+    "nl": 966,
+    "no": 951,
+    "pl": 943,
+    "pt": 941,
+    "ru": 914,
+    "sv": 952,
+    "zh_CN": 919,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1287,7 +1294,7 @@ _IDENTICAL_TO_KEY = {
     # in Ukrainian, so the pointer could not match whatever the user read.
     # Nothing else changed. The ceiling is re-measured DOWN here rather than
     # left where it was, so the next rise still has to justify itself.
-    "uk": 1178,
+    "uk": 1179,
 }
 
 

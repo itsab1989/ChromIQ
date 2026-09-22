@@ -129,7 +129,11 @@ def _compliance_set_keys() -> set[str]:
     # Reached as `tr(STANDARD_CAVEAT)`, a tr() ON A VARIABLE, which this
     # extractor cannot see by design. Named here so the sentence is
     # translated rather than silently English in twelve languages.
-    out.add(cs.STANDARD_CAVEAT)
+    # TWO KEYS SINCE 2026-09-22. The caveat is printed whole where there
+    # is room and as its second half alone on the one-page summary, so
+    # each half is translated separately and the JOIN is not a key.
+    out.add(cs.STANDARD_CAVEAT_APPLIED)
+    out.add(cs.STANDARD_CAVEAT_PROOF)
     return out
 
 

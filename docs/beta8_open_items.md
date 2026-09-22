@@ -23617,6 +23617,28 @@ would reach.
 - the binding spec is updated with his ruling quoted:
   `docs/design/measurement_report_limits.md`, the paragraph that used to end
   "so their Overall reads COND at best".
+- **FOUND BY MY OWN REVIEW WHILE GATE 1 RAN, AND IT IS THE FAULT THIS ITEM
+  WARNED ABOUT.** `_report_body_html` branches to `_one_page_html` BEFORE it
+  builds `_report_results_html`, which is the only place `STANDARD_CAVEAT` was
+  printed. So report type T1, "Colour summary (one page)", the one document
+  Knut describes as *"printed out for every job"* and handed to a customer,
+  would have carried a bold green PASS under "Custom ISO 12647-7" with nothing
+  but the general not-certification line under it. The cap had been covering
+  for that branch, silently, since T1 was written.
+- **the caveat is now in two halves, and the split was measured rather than
+  guessed.** On T1's own A4 layout, the same maths its headroom guard uses,
+  with the run bound to Custom ISO 12647-7: whole caveat 900 px used and 52 px
+  spare, which is under the 60 px rule; first half 67 px spare; second half 82.
+  T1 takes the SECOND half, and that is the right trim rather than merely the
+  short one: its Result sentence a few centimetres above already carries the
+  first half almost verbatim. Split into two `tr()` keys rather than sliced at
+  runtime, because `tr()` is a whole-string lookup and a sliced sentence
+  reaches every language as English.
+- evidence: test_a_standard_named_column_gets_the_caveat_on_this_page,
+  test_and_chromiqs_own_set_keeps_the_short_line,
+  test_it_is_still_one_page_with_the_caveat_on_it
+- mutation-proved: make T1's footer unconditional again and the first of those
+  goes red naming the page; the file is green again after.
 
 ### B8-767 · FIXED · Before printing, nothing said what the report does with a metric the chart cannot answer
 - blocks release: no

@@ -539,6 +539,13 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED AGAIN the same day, when `STANDARD_CAVEAT` was split into
+    # two keys. The one-page summary branches away before the block that
+    # prints the caveat, so T1 needed it too, and measured on that page's own
+    # A4 layout the whole caveat left 52 px spare against the 60 px its
+    # headroom guard requires. The second half leaves 82, so the note is
+    # translated in halves and joined where there is room for both. One key
+    # out, two in; German written by hand for both and unmoved.
     # RE-MEASURED 2026-09-22, for Knut's retirement of the ISO COND cap and
     # the two pieces of text he asked for in the same conversation. FOUR keys
     # out (the report guide's COND bullet, its standards paragraph, the
@@ -833,18 +840,18 @@ _BUDGET = {
     # recorded. COUNTED with this file's own helper on the tree this commit
     # leaves behind.
     "de": 22,
-    "es": 677,
-    "fr": 678,
-    "it": 677,
-    "ja": 677,
-    "nl": 677,
-    "no": 677,
-    "pl": 677,
-    "pt": 677,
-    "ru": 676,
-    "sv": 677,
-    "zh_CN": 676,
-    "uk": 892,
+    "es": 678,
+    "fr": 679,
+    "it": 678,
+    "ja": 678,
+    "nl": 678,
+    "no": 678,
+    "pl": 678,
+    "pt": 678,
+    "ru": 677,
+    "sv": 678,
+    "zh_CN": 677,
+    "uk": 893,
 }
 
 

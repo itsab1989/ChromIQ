@@ -1592,12 +1592,41 @@ def row_verdict(limit: Limit, value: "float | None", graded: bool) -> "str | Non
 #: promised a rights holder in writing that it never claims conformance. A
 #: challenge round found a saved PASS printed green and unqualified under
 #: "Custom ISO 12647-7", in the window and in the PDF.
-STANDARD_CAVEAT = ("This limit set holds a standard's published values applied "
-                   "to your chart. It is not a test against that standard: "
-                   "the chart is not the standard's chart, and the metrics are "
-                   "ChromIQ's own rather than the standard's methods. A result "
-                   "inside these limits is an indication that the print would "
-                   "likely meet the standard, not proof that it does.")
+#: **IT IS IN TWO HALVES BECAUSE ONE PAGE COULD NOT CARRY BOTH.** The
+#: one-page summary (report type T1) branches away before the block that
+#: prints this note, so while an ISO-named column was capped at COND the WORD
+#: carried the qualification there. The cap went on 2026-09-22 and T1 needed
+#: the note instead. Measured on the PDF's own A4 layout, the same maths
+#: `test_the_one_page_summary_prints_on_one_page` uses, on a run bound to
+#: Custom ISO 12647-7:
+#:
+#:     whole caveat   900 px used, 52 px spare   <- under the 60 px rule
+#:     first half     885 px used, 67 px spare
+#:     second half    870 px used, 82 px spare
+#:     the general not-certification line it replaces   885 px, 67 px spare
+#:
+#: T1 takes the SECOND half, and that is not an arbitrary trim: its summary
+#: sentence one section above already says "This limit set holds a standard's
+#: published values applied to your chart; it is not a test against that
+#: standard", which is the first half. The second half is the part Knut asked
+#: for and the part nothing else on that page says.
+#:
+#: Split rather than paraphrased so there is only ONE wording to translate and
+#: only one to keep true. `tr()` is a whole-string lookup, so a sentence
+#: sliced out of a longer key at runtime would reach every language as
+#: English; each half is its own key.
+STANDARD_CAVEAT_APPLIED = ("This limit set holds a standard's published values "
+                           "applied to your chart. It is not a test against "
+                           "that standard: the chart is not the standard's "
+                           "chart, and the metrics are ChromIQ's own rather "
+                           "than the standard's methods.")
+STANDARD_CAVEAT_PROOF = ("A result inside these limits is an indication that "
+                         "the print would likely meet the standard, not proof "
+                         "that it does.")
+#: The whole note, for the report types that have room for it. NOT a catalogue
+#: key itself: `tr()` is applied to each half and the two are joined, or the
+#: join would reach every language as English.
+STANDARD_CAVEAT = STANDARD_CAVEAT_APPLIED + " " + STANDARD_CAVEAT_PROOF
 
 
 #: The column summary's sentences (English source; the extractor sweeps this

@@ -22,6 +22,11 @@ what that PASS is.**
   *(COND is still a column's word where a report saved before ChromIQ 4.3.0
   holds it on a row. That is the only way left to it.)*
 
+- **"Colour summary (one page)" carries that note too.** It is the page you
+  print with a job, and it is built separately from the full report, so it had
+  never reached the note at all. It now does, in the shorter of the note's two
+  halves, and it still prints on one page.
+
 ### Added
 
 - **Before you print, the verification pre-flight and "Which presets can be

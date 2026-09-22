@@ -100,6 +100,73 @@ def test_a_block_short_of_patches_keeps_the_rows_level(a_run, qapp):
     assert len(set(counts)) == 1, f"rows carry {sorted(set(counts))} cells"
 
 
+# ===========================================================================
+# …AND IT STILL FITS WITH THE STANDARD'S CAVEAT ON IT
+# ===========================================================================
+# **T1 NEVER REACHES THE CAVEAT BLOCK.** `_report_body_html` branches to
+# `_one_page_html` before `_report_results_html`, which is where
+# `STANDARD_CAVEAT` is printed for every column applying a standard. While an
+# ISO-named column was capped at COND the WORD carried the qualification here;
+# Knut retired that cap on 2026-09-22 and this page would then have printed a
+# bold green PASS under "Custom ISO 12647-7" with nothing but the general
+# not-certification line under it. So the general line is replaced by the
+# caveat on such a page, and that is a LONGER paragraph on the one document
+# whose whole promise is that it is one page.
+#
+# The fixture above binds no limit set, so neither guard above could have seen
+# either half of this. That is the recurring fault shape on this project: a
+# probe that cannot express the fault is not evidence.
+def _bound(dlg, run, set_id: str):
+    from workflow.run_compliance import bind_run
+    bind_run(run, set_id, {})
+    dlg._forget_limits()
+    dlg._sync_limit_controls()
+    dlg._refresh()
+
+
+def test_a_standard_named_column_gets_the_caveat_on_this_page(a_run, qapp):
+    """MUTATION: put the general not-certification line back unconditionally
+    in `_one_page_html` and this goes red."""
+    import html as _html
+    import re
+    dlg, run = a_run
+    _set(dlg, run, mr.REPORT_TYPE_SUMMARY)
+    _bound(dlg, run, "custom_iso_12647_7")
+    body = dlg._report_body_html(dlg._runs_for_document(), for_pdf=True)
+    text = _html.unescape(re.sub(r"<[^>]+>", " ", body))
+    assert "not proof that it does" in text, (
+        "the one-page summary prints a verdict under a column named after a "
+        "standard without the caveat that says what that verdict is and is "
+        "not. The COND cap used to carry this and was retired on 2026-09-22.")
+
+
+def test_and_chromiqs_own_set_keeps_the_short_line(a_run, qapp):
+    """The other half, or the guard above would pass on a caveat printed on
+    every report, which would teach the reader to skip it."""
+    import html as _html
+    import re
+    dlg, run = a_run
+    _set(dlg, run, mr.REPORT_TYPE_SUMMARY)
+    _bound(dlg, run, "chromiq_default")
+    body = dlg._report_body_html(dlg._runs_for_document(), for_pdf=True)
+    text = _html.unescape(re.sub(r"<[^>]+>", " ", body))
+    assert "not proof that it does" not in text
+    assert "it does not certify" in text
+
+
+def test_it_is_still_one_page_with_the_caveat_on_it(a_run, qapp):
+    """The caveat is four sentences where the line it replaces is two, so the
+    page is measured in that state and not only in the default one."""
+    dlg, run = a_run
+    _set(dlg, run, mr.REPORT_TYPE_SUMMARY)
+    _bound(dlg, run, "custom_iso_12647_7")
+    pages, used, avail = _laid_out(dlg, dlg._runs_for_document())
+    assert pages == 1, f"{used:.0f} px of body against {avail:.0f} available"
+    assert avail - used >= 60, (
+        f"only {avail - used:.0f} px spare with the standard's caveat on the "
+        "page; the one-page summary is one sentence away from being two pages")
+
+
 @pytest.fixture
 def a_run(tmp_path, qapp):
     import sys
