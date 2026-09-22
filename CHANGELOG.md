@@ -1,5 +1,46 @@
 # Changelog
 
+## v4.3.0-beta.34
+
+**Four faults Knut found in the pre-flight window, and a report that could
+have mixed two different sets of limits.**
+
+### Fixed
+
+- **A report could put two different limits in one document.** A run bound
+  before a metric existed matched a run limited at 2.0 and also one limited at
+  9.9, so all three could end up in one report, and which measurement you
+  opened it from decided what you got. Measurements are now admitted only when
+  they agree with everything already in the document.
+
+- **"Before you measure this verification chart" counted the wrong thing.** It
+  said how many metrics "this report type and limit set" ask of your chart, at
+  a moment when you have opened no report and chosen neither. It now counts
+  against everything any report could ask: 16 metrics rather than the 7 one
+  combination happens to use.
+
+- **That window also appeared every time you opened the Measure tab**, even on
+  a run with a long history of verification measurements, offering advice
+  about changing a chart that history is already built on. It now appears only
+  before the first measurement, which is while the advice is still useful.
+
+- Its opening sentence read as though the limits said whether the print was
+  inside the *table*. Rewritten.
+
+- **The report now says which metrics a report type judges**, and names only
+  the ones the chosen limit set actually limits.
+
+- The update window can no longer be made narrower than the width its text was
+  measured at, which brought back the cut-off text in four languages.
+
+- A German help text had been left mostly in English with one German sentence
+  in the middle.
+
+### Changed
+
+- "Restore this column" is now "Restore defaults".
+
+
 ## v4.3.0-beta.33
 
 **Two faults Knut reported, and a report that was quietly leaving
