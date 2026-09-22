@@ -30,7 +30,7 @@ over a fixed height.  So ``setFixedHeight`` is not merely ignored at some
 sizes: it cannot make ANY button in ChromIQ shorter than 42 px.
 
 The idiom that works is already in ``ui/dialogs/thresholds_dialog.py``, on its
-"Restore this column" button, and in three places in ``ui/styles.py``: a
+"Restore defaults" button, and in three places in ``ui/styles.py``: a
 per-widget stylesheet that puts ``min-height`` DOWN as well as capping
 ``max-height``.
 
@@ -66,7 +66,7 @@ DEFAULT_BUTTON_PX = 42
 
 #: The ceiling a control called small has to come in under, and it is NOT a
 #: number somebody liked the look of: 26 px is what the Report limits window's
-#: own "Restore this column" button has always measured on screen, five of them,
+#: own "Restore defaults" button has always measured on screen, five of them,
 #: built from `min-height: 22px; max-height: 22px` plus 1 px padding and 1 px
 #: border either side. `test_the_ceiling_is_the_windows_own_small_button`
 #: re-derives it from that button, so the day the house style moves this file
@@ -176,10 +176,18 @@ def test_the_reference_values_buttons_are_short_where_a_reader_sees_them(qapp):
 def test_the_ceiling_is_the_windows_own_small_button(qapp, tmp_path):
     """SMALL_CEILING_PX is re-derived, not remembered.
 
-    "Restore this column" predates all of this and is the Report limits
+    "Restore defaults" predates all of this and is the Report limits
     window's own footnote-sized button. If the house style moves, this fails
     here, naming the new number, rather than leaving the guards above
     measuring against a stale one.
+
+    It was called "Restore this column" until 2026-09-22. Knut: *"Since the
+    button exists for most of the columns it is understood that the button
+    restores defaults for the specific column the button belong to."* The
+    button sits under the column it acts on, so naming the column in the label
+    was spending width on what the position already says. The MATCH below is
+    on the new text, and this note is here so a reader of the old name in a
+    screenshot can find it.
     """
     from PyQt6.QtCore import QSettings
 
@@ -193,8 +201,8 @@ def test_the_ceiling_is_the_windows_own_small_button(qapp, tmp_path):
     try:
         _shown(dlg)
         restore = {b.height() for b in dlg.findChildren(QPushButton)
-                   if "Restore this column" in b.text()}
-        assert restore, "the Report limits window has no Restore this column button"
+                   if "Restore defaults" in b.text()}
+        assert restore, "the Report limits window has no Restore defaults button"
         assert restore == {SMALL_CEILING_PX}, (
             f"the window's own small button is {sorted(restore)} px, not "
             f"{SMALL_CEILING_PX}. Re-derive SMALL_CEILING_PX from it.")

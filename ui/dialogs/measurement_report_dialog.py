@@ -7205,6 +7205,48 @@ class MeasurementReportDialog(QDialog):
             row["notes"] = notes
         return rows
 
+    def _type_covers_sentence(self, type_id: "str | None" = None) -> str:
+        """Which metrics the chosen report type judges, or "" when it judges all.
+
+        **A LIMIT SET HAVING A THRESHOLD FOR A ROW, AND THAT ROW REACHING THE
+        DOCUMENT, ARE TWO DIFFERENT THINGS, AND THE APP SAID SO NOWHERE.**
+        Knut, on beta 32: *"For a 'grey and tone check' report type, the report
+        output only shows [three rows] even when the judged against limit set
+        details that more metrics are defined with thresholds ... this is not
+        specified in help text or anywhere else. How will a user know which
+        metrics are reported on for a report type?"*
+
+        He was exactly right. `REPORT_TYPE_ROWS` filters one type, to those
+        three rows, while the Report limits table shows thresholds for all
+        thirty. The filtering is deliberate and `_keep_rows_for_type` gives a
+        good reason for it; the reason lived only in the code.
+
+        **THE ROWS ARE READ OUT OF THE TABLE THAT DOES THE FILTERING**, never
+        repeated in prose. A sentence naming three metrics by hand goes stale
+        the day a fourth is added; this one cannot, because it is built from
+        the same constant the filter uses.
+
+        He cancelled the larger feature this came from, on 2026-09-22, to get
+        the report work finished: *"I think that these two things are
+        sufficient for now. cancel the design of making a checkmark for each
+        report type."*
+        """
+        from workflow.compliance_sets import ROW_BY_ID
+        from workflow.measurement_report import rows_for_report_type
+        keep = rows_for_report_type(type_id or self._report_type_now())
+        if not keep:
+            return ""
+        names = [tr(ROW_BY_ID[rid].label) for rid in keep if rid in ROW_BY_ID]
+        if not names:
+            return ""
+        if len(names) == 1:
+            return tr("This kind of report judges one metric: {only}. Any "
+                      "other limit the set defines is not part of it.").format(
+                          only=names[0])
+        return tr("This kind of report judges {count} metrics: {names}. Any "
+                  "other limit the set defines is not part of it.").format(
+                      count=len(names), names=", ".join(names))
+
     def _keep_rows_for_type(self, rows: list) -> list:
         """Only the rows the chosen type is ABOUT.
 
@@ -9514,6 +9556,15 @@ class MeasurementReportDialog(QDialog):
                + f"<div style='{ind}'>{sc['total']}</div>"
                + "<div><b>" + html.escape(tr("Date range:")) + "</b></div>"
                + f"<div style='{ind}'>{html.escape(d0)} – {html.escape(d1)}</div>")
+        # WHICH METRICS THIS KIND OF REPORT JUDGES, when it judges fewer than
+        # the limit set defines. Knut, on beta 32: the Grey and tone check
+        # showed three rows while the set had thresholds for far more, and
+        # nothing anywhere said that was deliberate. Silent on every type that
+        # judges everything, because there is nothing to explain there.
+        _covers = self._type_covers_sentence()
+        if _covers:
+            out += (f"<div style='color:{_C['faint']};margin:6px 0 0'>"
+                    + html.escape(_covers) + "</div>")
         # Honesty note: a filtered report must say it is filtered, so it can
         # never pass as the complete history (Sebastian, 2026-08-10).
         # COUNT WHAT THE USER UNTICKED, not what is missing from the list.

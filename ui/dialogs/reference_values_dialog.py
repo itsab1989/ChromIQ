@@ -62,7 +62,7 @@ from ui.tooltip_button import TooltipButton
 #:
 #: A per-widget stylesheet can, because it puts `min-height` DOWN as well as
 #: capping `max-height`. This is the declaration the Report limits window's own
-#: "Restore this column" button already uses, and it measures 22 px, which is
+#: "Restore defaults" button already uses, and it measures 22 px, which is
 #: what the preset window's button settled on (B8-420).
 #:
 #: Measured on screen, round 30, `scripts/adv30_eighteen_px_is_forty_two.py`;

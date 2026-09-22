@@ -17,7 +17,8 @@ Knut's rulings this window is built from (issue #182, 2026-09-05 to 07):
   ``✕`` ChromIQ cannot measure it (the row stays in the table so the user sees
   what a standard asks), ``?`` the number is in a clause ChromIQ does not hold
   or may not show.
-* **D21** "Restore this column" per editable column, kept apart from the
+* **D21** "Restore defaults" per editable column (named "Restore this
+  column" until 2026-09-22), kept apart from the
   Preferences window's global Restore Factory Defaults.
 * **D11 / D24** the note at the foot: what ChromIQ cannot evaluate, and that
   it does not certify anything.
@@ -367,7 +368,7 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                 "? means the number is in a part of the standard ChromIQ does "
                 "not hold or may not show.\n\n"
                 "Turn a spin box down to 0 to remove a limit (it shows “–”). "
-                "Restore this column puts a column back to its factory "
+                "Restore defaults puts a column back to its factory "
                 "values. Default for new runs marks the set a new profile run "
                 "is bound to at its first verification measurement."),
             accent=SPEC_GREEN)
@@ -432,7 +433,7 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         # honours that over a fixed height. A fixed 18 measured 42 px on
         # screen, exactly as beta 26's fixed 22 did, which is what Basti was
         # looking at when he asked a SECOND time for smaller. The same
-        # declaration as this window's own "Restore this column" button, which
+        # declaration as this window's own "Restore defaults" button, which
         # is 22 px and always has been.
         self._iso_values_btn.setStyleSheet(SMALL_BTN_QSS)
         self._iso_values_btn.setToolTip(tr(
@@ -703,7 +704,7 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
             hdr.setMinimumWidth(CELL_W + 20)
             g.addWidget(hdr, 0, ci)
             self._column_widgets.setdefault(col, []).append(hdr)
-            # row 1: the read-only mark / Restore this column / locked note
+            # row 1: the read-only mark / Restore defaults / locked note
             editable = self._column_editable(col)
             if col == RUN_COLUMN and not self._run_editable:
                 note = QLabel(tr("locked: tick “Unlock this run's limits” in "
@@ -715,7 +716,14 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                 g.addWidget(note, 1, ci)
                 self._column_widgets[col].append(note)
             elif editable:
-                btn = QPushButton(tr("Restore this column"), self)
+                # RENAMED ON KNUT'S WORD, 2026-09-22: *"I also think all the
+                # buttons called 'Restore this column' can be renamed to
+                # 'Restore Defaults'. Since the button exists for most of the
+                # columns it is understood that the button restores defaults
+                # for the specific column the button belong to."* The button
+                # sits under the column it acts on, so naming the column in
+                # the label was spending width on what the position says.
+                btn = QPushButton(tr("Restore defaults"), self)
                 btn.setProperty("set_id", col)
                 btn.setStyleSheet("QPushButton { padding: 1px 6px; font-size: 10px;"
                                   " min-height: 22px; max-height: 22px; }")
@@ -1333,7 +1341,7 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         two of them ask for.
 
         The head and the rows are different layouts now, so nothing makes
-        their columns agree by itself: left alone, a "Restore this column"
+        their columns agree by itself: left alone, a "Restore defaults"
         button wider than a cell (F6: German is longer) would push its heading
         off the column it names, and every heading after it with it. Each
         column is therefore given the SAME explicit minimum width in both
