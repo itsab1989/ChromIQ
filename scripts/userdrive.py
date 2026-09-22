@@ -47,8 +47,15 @@ ROOT = Path(os.environ.get("CHROMIQ_TREE")
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts"))
 
+#: The demo pack a drive copies its projects from. The pack rebuilt for K15
+#: (2026-09-22) is kept on the Desktop proof tree, because /private/tmp is
+#: swept nightly; the older build is the fallback.
+_NEW_PACK = (Path.home() / "Desktop" / "ChromIQ-beta36-proof" / "demo-pack"
+             / "ChromIQ-Report-Limit-Demos")
 DEMO_PACK = Path(os.environ.get(
-    "CHROMIQ_DEMO_PACK", "/private/tmp/chromiq-k3/ChromIQ-Report-Limit-Demos"))
+    "CHROMIQ_DEMO_PACK",
+    str(_NEW_PACK if _NEW_PACK.is_dir()
+        else Path("/private/tmp/chromiq-k3/ChromIQ-Report-Limit-Demos"))))
 
 
 def _sandbox(out: Path) -> None:
