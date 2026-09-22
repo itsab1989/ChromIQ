@@ -67,10 +67,17 @@ Report saying only things that are true.**
   report now covers exactly the measurements that are ticked when you press
   Generate, and nothing else.
 
-- **Every row reads PASS or FAIL.** COND is retired as a row word; it remains
-  a column's overall word where a set was only partly checked. A metric a
-  standard recommends rather than requires now carries a small raised number
+- **Every row reads PASS or FAIL.** COND is retired as a row word. It survives
+  as an overall word in one place only: an ISO column, whose values are a
+  standard's published tolerances applied to your chart rather than to the
+  standard's own chart, so it is never a test against that standard. A metric
+  a standard recommends rather than requires now carries a small raised number
   pointing to a note that says so, in the window and in the report.
+
+  *(Corrected 2026-09-22. This bullet first read "it remains a column's
+  overall word where a set was only partly checked", which suggests that any
+  metric a chart cannot answer demotes the whole result. It does not: a column
+  with one metric checked and eight not applicable still reads PASS.)*
 
 - **A metric that does not apply never counts against your result.** If every
   applicable metric passes, the overall word is PASS. An N-A cell carries a
