@@ -7,9 +7,11 @@ Report saying only things that are true.**
 
 ### Added
 
-- **Ukrainian.** ChromIQ speaks thirteen languages. The translation was
-  contributed by **LackiUA** on issue #198: 5,425 rows, and an unusually clean
-  file. Some newer text is still English and is listed for them.
+- **Ukrainian.** ChromIQ now speaks fourteen languages. The complete
+  translation was contributed by **LackiUA** on issue #198: 5,425 rows, with
+  the keys added since their export deliberately left in English rather than
+  invented. Pick it under Preferences, General, Language; the Getting Started
+  workflow diagram is drawn in Ukrainian too.
 
 - **ChromIQ tells you what a verification chart can answer, before you print
   it.** Entering the Measure tab on a verification run with a chart and no
@@ -94,18 +96,6 @@ and saving one **erases that run's bound limit set**: the set, all of its
 limits, and when it was bound. Beta 30 now preserves anything a newer ChromIQ
 wrote, but 4.2.7 has already shipped and cannot be repaired from here. If it
 has already happened, the run must be bound again by hand.
-
-## v4.3.0-beta.30
-
-**A fourteenth language, and four sentences that had stopped being true.**
-
-### Added
-
-- **Ukrainian.** ChromIQ now speaks fourteen languages. The complete Ukrainian
-  translation was contributed by **LackiUA** on issue #198: 5,425 rows, with
-  the keys added since their export deliberately left in English rather than
-  invented. Pick it under **Preferences -> General -> Language**; the Getting
-  Started workflow diagram is drawn in Ukrainian too.
 
 ## v4.3.0-beta.29
 

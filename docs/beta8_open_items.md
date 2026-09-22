@@ -22985,9 +22985,9 @@ would reach.
   than through one load/save pair; carrying it needs the panel to hold the
   unknown fields across a round trip.
 
-### B8-740 · OPEN · "Restore Used Chart" reverts the run's WHOLE meta.json, the #182 limit binding included, with no archive and no undo
-- blocks release: yes
-- status: OPEN
+### B8-740 · DEFERRED · "Restore Used Chart" reverts the run's WHOLE meta.json, the #182 limit binding included, with no archive and no undo
+- blocks release: no
+- status: DEFERRED
 - whose call: **Knut's.** It destroys a run's frozen limit set, which is the
   thing D20 exists to protect, and there is no way back. The repair is a field
   partition, which is a ruling, not a guess.
@@ -23038,6 +23038,32 @@ would reach.
   keeps it green.
 - evidence: `~/Desktop/ChromIQ-beta30-proof/challenge-round-36/chal36-01-before-restore.png`,
   `chal36-02-after-restore.png`, `driver-restore-reverts-meta.txt`
+- decided by: Knut
+- because: what remains is a ruling and not a guess anybody else may take.
+  Which fields on that file belong to the chart is his to say: the snapshot
+  rule was written on 2026-07-27 for `editor_recipe` and the printtarg knobs,
+  and #182 later added seven compliance fields to the same file without anyone
+  revisiting what "restore the chart" should revert. Deferred 2026-09-22 with
+  the loss MITIGATED rather than ignored, so nothing is unrecoverable while he
+  decides.
+- MITIGATED in beta 30: `restore_slot` now archives the live side file into
+  `old/` before the snapshot's copy is written, which is the guarantee that
+  function's own docstring already made and which the suffix filter on a
+  profiling run's and a calibration's `live_files()` had always defeated. The
+  fields a restore reverts are unchanged; **the loss is recoverable instead of
+  silent and final**, proven by the archived copy carrying `compliance_set_id`
+  and `compliance_bound_at`.
+- NOT decided, and this is what waits for him: WHICH fields belong to the
+  chart. The snapshot rule was written 2026-07-27 for `editor_recipe` and the
+  printtarg knobs; #182 later added seven compliance fields to the same file
+  and nobody revisited what "restore the chart" should revert. The round
+  proposed a split rather than taking one.
+- not a regression in beta 30: the suffix filter dates from `bc8c76a7`,
+  2026-08-05, so every beta since carries it.
+- evidence: test_the_replaced_side_file_is_archived_before_it_is_overwritten,
+  test_the_archive_holds_what_was_there_a_moment_before,
+  test_nothing_is_archived_when_the_snapshot_carries_no_side_file
+
 ### B8-741 · FIXED · The scanner-target tool wrote a fresh `{"layout": …}` over a chart's own sidecar, destroying seven keys
 - blocks release: no
 - status: FIXED
