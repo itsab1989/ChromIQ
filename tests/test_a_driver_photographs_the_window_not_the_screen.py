@@ -806,3 +806,43 @@ def test_an_untitled_popup_the_server_has_not_placed_yet_is_not_the_main_window(
     # and a TITLED window still falls back to the size rule among its namesakes
     assert pick(_FakeWin(5, 5, 10, 10), [main], "ChromIQ — Printer Profiling") \
         is main
+
+
+def test_window_id_for_asks_again_until_the_server_has_placed_the_popup(
+        monkeypatch):
+    """The retry in `window_id_for` is what B8-777 rests on: the window server
+    places a just-shown popup late. Adversary round on 528b7cfc: `range(10)`
+    cut to `range(1)`, or the break inverted, left every test green.
+
+    A fake `Quartz` whose list shows the popup unplaced until the Nth ask: the
+    id is found on exactly that ask, and a popup placed on the first ask is
+    found on the first, so a found window does not wait. MUTATIONS:
+    `range(1)` -> None in the first case; inverted break -> ten asks.
+    """
+    import os
+    import sys
+    import time
+    import types
+    mod = _helper()
+    monkeypatch.setattr(time, "sleep", lambda s: None)
+    box = _FakeWin(482, 120, 516, 902)
+    main = _cg(0, 89, 1500, 1028, "ChromIQ — Printer Profiling", 11)
+    unplaced = _cg(0, 0, 500, 500, "", 22)
+    placed = _cg(482, 120, 516, 902, "", 22)
+    calls = {"n": 0, "placed_on": 4}
+
+    def listing(option, relative):
+        calls["n"] += 1
+        pop = placed if calls["n"] >= calls["placed_on"] else unplaced
+        return [dict(w, kCGWindowOwnerPID=os.getpid()) for w in (main, pop)]
+
+    monkeypatch.setitem(sys.modules, "Quartz", types.SimpleNamespace(
+        CGWindowListCopyWindowInfo=listing, kCGWindowListOptionOnScreenOnly=1,
+        kCGWindowListOptionAll=0, kCGWindowListExcludeDesktopElements=16,
+        kCGNullWindowID=0))
+    # one listing per attempt, because the on-screen list is never empty here
+    assert mod.window_id_for(box) == 22
+    assert calls["n"] == 4
+    calls.update(n=0, placed_on=1)
+    assert mod.window_id_for(box) == 22
+    assert calls["n"] == 1

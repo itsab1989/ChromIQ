@@ -13956,9 +13956,12 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         4. **Measurement not yet initiated** — `a_measurement_is_running`,
            the tab's combined session-and-process answer.
 
-        …and the tick, which is not one of his four but is the fifth thing
-        that can withhold the window: a run the reader has silenced for this
-        session.
+        …and two more things that can withhold the window, neither of them one
+        of his four: a run the reader has silenced with the tick for this
+        session, and **a profile run that already has a measured dated
+        verification** (his beta-32 report, B8-776), however new and empty the
+        date now selected is. The second is recorded in the M-VERIFY-PREFLIGHT
+        entry as awaiting confirmation.
         """
         if not self._is_verification_run():
             return False

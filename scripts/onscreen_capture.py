@@ -207,7 +207,14 @@ def _pick_window(win, cands: list, title: str):
         return None
     # A Qt app also owns tiny helper windows (tooltips, shadows), so a title
     # match is preferred over the whole list.
-    named = [w for w in cands if str(w.get("kCGWindowName") or "") == title]
+    # **AN EMPTY TITLE MATCHES NOTHING (adversary round on 528b7cfc).** On
+    # macOS Qt compiles `QMessageBox::setWindowTitle` out, so every message
+    # box asks for title "", and "every window whose name is empty" is then
+    # every untitled window of the process: a message box behind the one
+    # asked for, a sheet, a helper. The size rule then answered for the wrong
+    # box, measured on screen. With no title only the geometry may answer.
+    named = [w for w in cands
+             if title and str(w.get("kCGWindowName") or "") == title]
     # THE GEOMETRY DECIDES BEFORE THE SIZE DOES, AND "biggest" ALONE
     # PHOTOGRAPHED THE WRONG WINDOW FOR AS LONG AS THIS HELPER HAS EXISTED.
     #

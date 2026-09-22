@@ -1316,6 +1316,18 @@ run while already standing on it. One OK button, Escape closes it, and a tick
 that silences it for that profile run until ChromIQ is restarted, held in memory
 only and never written to the project.*
 
+*⏳ **A fifth condition, awaiting confirmation (2026-09-22, B8-776).** Knut, on
+beta 32: "It does not have value to show this when measurements have been
+performed, and especially when many dated verification runs already exist". So
+the window is also withheld once ANY dated verification of the selected profile
+run carries readings (by the same empty-or-invalid test), even when the date
+now selected is new and empty. Beta 34 shipped this rule and it never took
+effect (B8-776); it does from beta 36. Two edges are his to rule on: a dated
+folder holding only `reads/readN.ti3` (averaging stopped after one read) does
+not count as measured, and neither does a measurement Replace has moved to
+`verifications/old/`, so in both cases the window opens again.
+**Confirmed by:** *nobody yet.**
+
 *The metric list is not in this text. It is built for the chart in front of the
 reader by the same code the "Which presets can be used for verification" window
 puts in its right-hand pane, in the short form Knut asked for: "A summary of

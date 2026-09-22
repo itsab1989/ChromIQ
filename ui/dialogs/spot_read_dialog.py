@@ -1271,10 +1271,11 @@ class SpotReadDialog(Cr30CalibrationMixin, QDialog):
             fm = getattr(self, "_file_mgr", None)
             if fm is not None and getattr(fm, "has_project", lambda: False)():
                 run = fm.project().current_run()
-                exports = getattr(run, "exports", None)
-                if exports is not None:
-                    return Path(exports) / name
-                return Path(run.dir) / name
+                # `exports_dir`, ASKED DIRECTLY (adversary round on 528b7cfc).
+                # This read `getattr(run, "exports", None)`; `Run` has no
+                # `exports`, so the default hid the mistake and every save was
+                # offered the run folder instead of its exports/ folder.
+                return Path(run.exports_dir) / name
         except Exception:      # noqa: BLE001 — a suggestion is never worth a crash
             pass
         return chromiq_root_dir() / name

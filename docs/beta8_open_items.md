@@ -24336,3 +24336,31 @@ would reach.
   the file name now reads the same `_doc_created`, and the window's clock only
   when nothing saved is behind the page.
 - evidence: test_the_pdf_name_carries_the_documents_time_not_the_windows
+
+### B8-784 · FIXED · Adversary round on the K2 fix: an untitled popup, a second wrong attribute, three guard gaps
+- blocks release: no
+- status: FIXED
+- found by: adversary round on 528b7cfc, 2026-09-22, on screen. Report:
+  `~/Desktop/ChromIQ-beta36-proof/adversary-k2/REPORT.md`; tests from its
+  worktree commit 358bc3f4, brought in as `tests/test_adversary_k2_528b7cfc.py`
+  with the strict xfail marks removed now that both faults are fixed.
+- B8-777 was still open for every message box on macOS: Qt compiles
+  `QMessageBox::setWindowTitle` out there, so the title asked for is "", and
+  "every window named ''" was every untitled window of the process. An empty
+  title now matches nothing and only the geometry may answer. Measured on
+  screen by the round: a box behind the one asked for was photographed.
+- the K2 shape in shipped code: `SpotReadDialog._suggested_save_path` read
+  `getattr(run, "exports", None)`; `Run` has `exports_dir`, so Tools > Read
+  single patches always offered the run folder instead of `exports/`.
+- guard gaps closed: history read from the SELECTED profile run, an empty
+  first date beside a measured later one, and the retry loop in
+  `window_id_for` (both of its mutations were green).
+- the history rule is now in `_verification_preflight_due`'s docstring and in
+  the M-VERIFY-PREFLIGHT entry, awaiting confirmation, with two edges put to
+  Knut: readings only in `reads/`, and a measurement Replace moved to `old/`.
+- evidence:
+  test_FAULT_an_untitled_popup_is_not_whichever_other_untitled_window_is_biggest
+  test_FAULT_spot_readings_are_suggested_into_the_runs_exports_folder
+  test_GAP_history_is_read_from_the_SELECTED_profile_run_not_the_current_one
+  test_GAP_an_empty_first_date_does_not_hide_a_measured_later_one
+  test_window_id_for_asks_again_until_the_server_has_placed_the_popup
