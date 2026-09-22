@@ -786,6 +786,13 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-23, round 3B's text findings: three several-places
+    # tooltips reworded (one entry at a time), the Report type help and the
+    # Preferences default text corrected, "{type} ({count})" became
+    # "{type}: {count}", and one key added ("No measurement is loaded yet.").
+    # German by hand, so it does not move; the placeholders follow their
+    # renamed keys, so only the new key moves the others. COUNTED off the
+    # tree, BOTH ledgers in the same commit.
     # RE-MEASURED 2026-09-22, round 2B's text findings on K13/K14: the
     # several-runs tooltips, the Report type help, the Preferences default
     # text and the coverage sentences reworded, one no-run tooltip added.
@@ -1311,17 +1318,17 @@ _IDENTICAL_TO_KEY = {
     # recorded. COUNTED with this file's own helper on the tree this commit
     # leaves behind.
     "de": 141,
-    "es": 955,
-    "fr": 977,
-    "it": 966,
-    "ja": 941,
-    "nl": 982,
-    "no": 967,
-    "pl": 959,
-    "pt": 957,
-    "ru": 930,
-    "sv": 968,
-    "zh_CN": 935,
+    "es": 956,
+    "fr": 978,
+    "it": 967,
+    "ja": 942,
+    "nl": 983,
+    "no": 968,
+    "pl": 960,
+    "pt": 958,
+    "ru": 931,
+    "sv": 969,
+    "zh_CN": 936,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1348,7 +1355,7 @@ _IDENTICAL_TO_KEY = {
     # in Ukrainian, so the pointer could not match whatever the user read.
     # Nothing else changed. The ceiling is re-measured DOWN here rather than
     # left where it was, so the next rise still has to justify itself.
-    "uk": 1190,
+    "uk": 1191,
 }
 
 

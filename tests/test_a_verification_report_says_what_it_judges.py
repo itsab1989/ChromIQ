@@ -35,9 +35,16 @@ pytest.importorskip("PyQt6")
 from ui.dialogs.measurement_report_dialog import MeasurementReportDialog as M  # noqa: E402
 
 
-def _runs(*, verification: bool, path: str = "/p/Demo-Paper/runs/run3/x.ti3"):
-    return [{"chart": "Demo-Paper", "is_verification": verification,
-             "ti3": path, "created": "2026-11-16T10:00:00"}]
+def _runs(*, verification: bool,
+          origin: str = "/p/Demo-Paper/runs/run3/verifications/2026-11-16_100000"):
+    """THE SHAPE A REPORT REALLY HAS (round 3B, F5). This fixture used to put
+    a whole path in ``ti3``, which `build_report` never does (it writes the
+    file NAME), so every test here passed while every real report said "built
+    in <chart stem>" and named no run. The folder is in ``_origin_dir``, and
+    ``chart`` is the verification chart's stem, not the project."""
+    return [{"chart": "Demo-Paper-verify", "is_verification": verification,
+             "ti3": "Demo-Paper-verify.ti3", "_origin_dir": origin,
+             "created": "2026-11-16T10:00:00"}]
 
 
 def _host():
@@ -45,6 +52,7 @@ def _host():
     host._report_kind = types.MethodType(M._report_kind, host)
     host._report_profile_name = types.MethodType(M._report_profile_name, host)
     host._run_number_for = M._run_number_for
+    host._project_name_for = M._project_name_for
     host._what_this_report_judges = types.MethodType(
         M._what_this_report_judges, host)
     return host
@@ -69,12 +77,22 @@ def test_a_profiling_report_says_nothing_of_the_kind():
     assert _host()._what_this_report_judges(_runs(verification=False)) == ""
 
 
-def test_a_run_it_cannot_place_is_named_without_a_run_number():
-    """Better silent than "run 1" by default: a wrong run number in a document
-    handed to somebody else is worse than an absent one."""
+def test_a_measurement_in_no_project_names_nothing():
+    """Better silent than wrong (round 3B, F5): a loose file said "the profile
+    built in loose-measurement", a file that holds no profile.
+
+    MUTATION: fall back to `_report_profile_name` and this names the file.
+    """
     said = _host()._what_this_report_judges(
-        _runs(verification=True, path="/p/loose/measurement.ti3"))
-    assert "Demo-Paper" in said and "run" not in said.split(".")[0]
+        _runs(verification=True, origin="/p/loose"))
+    assert said == ""
+
+
+def test_it_names_the_project_not_the_chart_stem():
+    """MUTATION: read the project from `_report_profile_name` again and this
+    says "Demo-Paper-verify"."""
+    said = _host()._what_this_report_judges(_runs(verification=True))
+    assert "built in Demo-Paper, run 3." in said, said
 
 
 def test_the_run_number_survives_a_windows_path():
@@ -84,3 +102,6 @@ def test_the_run_number_survives_a_windows_path():
     win = "C:" + chr(92) + "Users" + chr(92) + "k" + chr(92) + "runs" \
         + chr(92) + "run12" + chr(92) + "x.ti3"
     assert M._run_number_for([{"ti3": win}]) == "12"
+    assert M._run_number_for([{"_origin_dir": win.rsplit(chr(92), 1)[0]}]) == "12"
+    assert M._project_name_for(
+        [{"_origin_dir": win.rsplit(chr(92), 1)[0]}]) == "k"

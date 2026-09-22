@@ -23112,6 +23112,10 @@ would reach.
 - evidence:
   test_restore_takes_only_the_charts_fields_from_the_snapshot
   test_a_snapshot_meta_that_cannot_be_read_changes_no_live_field
+- **HISTORY, BEFORE THE RULING (round 3B, F18).** Everything below this line
+  was written while the question was open, and "awaiting his word", "NOT
+  decided" and "needs Knut / Sebastian" in it are past tense: the ruling and
+  the fix are the lines above.
 - **2026-09-22, KNUT ASKED WHY THIS IS A QUESTION AT ALL**, and the first
   description of it was too thin to answer: *"Is not the whole meta.json copied
   to chart/ folder when a measurement is started? and why should Restore Used
@@ -24727,7 +24731,9 @@ would reach.
   SOURCES are loaded; a single project source spans every run of its project.
   Which description belongs on a many-run document (none, each run's, or the
   window's run labelled as such) is Knut's call.
-- evidence: test_the_note_is_set_apart_from_body_text
+- evidence: none yet, it is open (round 3B, F19: this line used to name a
+  test about the note box, B8-797, which proves nothing here). The fault is in
+  the R4 drive's photographs, `~/Desktop/ChromIQ-beta36-proof/`.
 
 ### B8-799 · FIXED · Round 2B on K13/K14/K4: a label, three help lines and four tooltips that said something false
 - blocks release: no
@@ -24773,7 +24779,8 @@ would reach.
   the start of the ⓘ, on beta 35 and after a layout-only fix alike. The group
   cannot grow for it, so the label has to fit: German now reads "Welche
   Presets eignen sich zur Verifizierung?" (339 px, 7 px clear), everywhere it
-  is quoted. The button and its ⓘ now also share one row, so the ⓘ always
+  is quoted. (Round 3B, F20: one quote was missed, in the German of the
+  verification pre-flight message; corrected with B8-805.) The button and its ⓘ now also share one row, so the ⓘ always
   follows the button's real width.
 - every catalogue is held to 51 characters for this label, the ceiling the
   measured room gives (English is 44 characters in 325 px); a real
@@ -24926,3 +24933,60 @@ would reach.
   test_file_report_refuses_a_printing_record_of_a_verification
   test_the_pack_prints_on_paper_and_not_on_the_d65_white
   test_the_profiling_sheet_is_read_relative_and_profiled_as_a_printer
+
+### B8-805 · FIXED · Round 3B: a report that named the chart as the project, and seven sentences that said something false
+- blocks release: no
+- status: FIXED
+- found by: adversary round 3B (user-facing text and the demo pack), on screen
+  in English and German, 2026-09-23. Report:
+  `~/Desktop/ChromIQ-beta36-proof/round3-B-text-and-pack/REPORT.md`.
+- F5 every verification report said "This report judges the profile built in
+  Report-Limits-Threshold-Series-verify" (the verification CHART's file stem)
+  and named no run, because the run was searched for in keys that hold a bare
+  file name and its test fixture put a whole path there. The project and run
+  are read off the folder the measurement was loaded from now; a measurement
+  in no project says nothing rather than "built in loose-measurement".
+- F9 Generate's no-run tooltip replaced the several-places one when a profile
+  run was loaded beside a loose file, and said removing entries could not
+  help, when removing the loose entry is what does. Now only when the loose
+  file is the only place loaded.
+- F11 after Clear List the limit controls spoke of "this measurement"; they
+  say "No measurement is loaded yet." now.
+- F7 the three several-places tooltips said "select every other entry", in a
+  list that takes one selection; they say one entry at a time.
+- F15 "Printing record (not graded) (1)": the count is "{type}: {count}" now.
+- F16 Preferences refused the Printing record for the wrong reason (it is a
+  verification that can never have one); F17 the Report type help said a
+  calibration or a loose file "can have any of them", two of which are greyed.
+- F3 the German verification pre-flight message quoted the "which presets"
+  button by an old name and called a verification run a "Prüfdurchgang".
+- evidence:
+  test_it_names_the_project_not_the_chart_stem
+  test_a_measurement_in_no_project_names_nothing
+  test_a_loose_file_beside_a_run_gives_the_several_places_reason
+  test_with_nothing_loaded_the_limit_controls_say_so
+
+### B8-806 · OPEN · Round 3B: what a window says about measurements it leaves off the page, and three wording calls
+- blocks release: no
+- status: OPEN
+- found by: adversary round 3B, 2026-09-23 (report as B8-805).
+- F6/F10 a loose file loaded beside a profile run: the coverage sentence
+  counts the run's dates and not the loose file ("1 of the 14 ... for the 2
+  profile runs" over a page listing 2 measurements), and ticked measurements
+  judged against another limit set are left off the page with no word about
+  why ("No. of Measurements: 1" with four ticked). Which sentence belongs on
+  such a page is Knut's call; related to B8-803.
+- F8 after the list changes, "Report shown" still names the saved report
+  while the page has stopped speaking for it (B8-799 #6). Whether the pulldown
+  should fall back to "New report…", as Clear List does, is a behaviour change
+  for Knut.
+- F13 (app side) paper white is the lightest measured patch. On a chart with
+  no white patch (Strip-And-Gamut run4) that is an L* 82 grey, recorded as
+  "paper white" and drawn in the Paper white trend. Whether ChromIQ should
+  prefer the chart's device-white patch, or say "this chart has no paper
+  patch", is a design question (the media-relative yardstick divides by it).
+- F4 German names one thing three ways in one group box ("Vorgaben",
+  "Voreinstellungen:", "Presets"): Basti's call.
+- F30 the demo runs' descriptions state the lock state in English at build
+  time, and go stale when a user lifts a lock (demo pack).
+- evidence: none yet, it is open. Photographs in the round's report folder.

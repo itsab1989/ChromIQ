@@ -1001,7 +1001,8 @@ _WHEN_HELP = (
     "a neutral problem, when greys go warm or the mid-tones sit heavy and the "
     "colour rows are only noise. Printing record is the report of a "
     "profiling measurement: the sheet a profile was built from, recorded and "
-    "not graded. The two ISO types are for a print that has to answer to a "
+    "not graded. A calibration or a file outside a project can have it too. "
+    "The two ISO types are for a print that has to answer to a "
     "printing condition somebody else supplied; they are greyed today, and "
     "pointing at the greyed entry says why.")
 _PAIRING_HELP = (
@@ -1085,7 +1086,8 @@ def _types_and_pairing_help() -> str:
         "from, so its only report is the Printing record. A verification "
         "measurement is judged, so it can have every other type, and the "
         "Printing record is not offered for it. A measurement outside any "
-        "project, or a calibration, can have any of them. The report ChromIQ "
+        "project, or a calibration, can have any type ChromIQ can produce. "
+        "The report ChromIQ "
         "writes by itself after a measurement follows the same rule. With "
         "measurements from more than one place loaded, the type you choose "
         "applies to this window only and is not stored on any run.")
@@ -5051,11 +5053,13 @@ class MeasurementReportDialog(QDialog):
             self._limits_btn.setEnabled(not several)
             if several:
                 self._judged_label.setText(tr("Judged against:"))
+                # ROUND 3B (F7): "select every other entry" in a list that
+                # takes ONE selection; the advice is one entry at a time.
                 tip = tr("Measurements from more than one place are loaded, so "
                          "there is no one set of limits to change here. To "
-                         "change a profile run's limits, select every other "
-                         "entry in the list and click Remove Profile's "
-                         "Measurements….")
+                         "change a profile run's limits, remove every other "
+                         "entry from the list, one at a time, with Remove "
+                         "Profile's Measurements….")
             elif run is not None:
                 self._judged_label.setText(
                     tr("Judged against ({run}):").format(run=run.dir.name))
@@ -5072,7 +5076,11 @@ class MeasurementReportDialog(QDialog):
                 # on. That half was true in both states and is all that is
                 # claimed now.
                 self._judged_label.setText(tr("Judged against:"))
-                tip = (tr("This measurement does not belong to a profile run, "
+                # ROUND 3B (F11): after Clear List there is no measurement
+                # for "this measurement" to be.
+                tip = (tr("No measurement is loaded yet.")
+                       if not self._sources else
+                       tr("This measurement does not belong to a profile run, "
                           "so the choice is not stored anywhere.")
                        if self._inside_a_project() else
                        tr("This measurement is not in a ChromIQ project, so "
@@ -6872,10 +6880,14 @@ class MeasurementReportDialog(QDialog):
             self._generate_btn.setToolTip(tr(
                 "Measurements from more than one place are loaded: another "
                 "profile run, or a file outside this project. Generate report "
-                "saves a report into one profile run, so select every other "
-                "entry in the list and click Remove Profile's Measurements… to "
-                "save it. Save report as PDF… saves the report shown here."))
-        if run is None and self._sources:
+                "saves a report into one profile run, so remove every other "
+                "entry from the list, one at a time, with Remove Profile's "
+                "Measurements… to save it. Save report as PDF… saves the "
+                "report shown here."))
+        # ROUND 3B (F9): only when this is the ONLY place loaded. With a
+        # profile run beside it, removing the loose entry DOES give Generate
+        # back, and the several-places sentence above is the true one.
+        if run is None and self._sources and not several:
             # NO RUN TO SAVE INTO, and removing entries cannot change that
             # (round 2B, #7): the window's own measurement is outside any
             # profile run. Said, rather than a greyed button with no reason.
@@ -7003,7 +7015,7 @@ class MeasurementReportDialog(QDialog):
         if not counts:
             return tr("No report has been generated for this run yet.")
         names = ", ".join(
-            tr("{type} ({count})").format(type=tr(report_type_name(tid)),
+            tr("{type}: {count}").format(type=tr(report_type_name(tid)),
                                           count=n)
             for tid, n in sorted(counts.items()))
         return tr("Already generated for this run: {names}").format(names=names)
@@ -7048,7 +7060,7 @@ class MeasurementReportDialog(QDialog):
         if not counts:
             return ""
         return "\n".join(
-            tr("{type} ({count})").format(type=tr(report_type_name(tid)), count=n)
+            tr("{type}: {count}").format(type=tr(report_type_name(tid)), count=n)
             for tid, n in sorted(counts.items()))
 
     def _show_generated_reports(self, _href: str = "") -> None:
@@ -8887,8 +8899,8 @@ class MeasurementReportDialog(QDialog):
         if several:
             return tr("Measurements from more than one place are loaded, so "
                       "there is no one run to unlock here. To unlock a profile "
-                      "run's limits, select every other entry in the list and "
-                      "click Remove Profile's Measurements….")
+                      "run's limits, remove every other entry from the list, "
+                      "one at a time, with Remove Profile's Measurements….")
         if run is None:
             return tr("This measurement does not belong to a profile run, so "
                       "there are no stored limits to unlock.")
@@ -11225,7 +11237,14 @@ class MeasurementReportDialog(QDialog):
         """
         if self._report_kind(runs) != "verification":
             return ""
-        project = self._report_profile_name(runs)
+        # ROUND 3B (F5): the project came from `_report_profile_name`, which
+        # is the CHART's file stem ("…-verify"), and the run from keys that
+        # hold a bare file name, so every verification report said "built in
+        # <chart stem>" and named no run; a loose file said "built in
+        # loose-measurement", a file that holds no profile. Both are read off
+        # the folder the measurement was loaded from now, and a measurement in
+        # no project says nothing rather than name a file.
+        project = self._project_name_for(runs)
         if not project:
             return ""
         run = self._run_number_for(runs)
@@ -11249,13 +11268,40 @@ class MeasurementReportDialog(QDialog):
         import re as _re
 
         for r in runs:
-            for key in ("ti3", "path", "source"):
+            for key in ("_origin_dir", "ti3", "path", "source"):
                 v = r.get(key)
                 if not v:
                     continue
-                m = _re.search(r"runs/run(\d+)\b", str(v).replace("\\", "/"))
+                m = _re.search(r"runs/run(\d+)(?:/|$)",
+                               str(v).replace("\\", "/"))
                 if m:
                     return m.group(1)
+        return ""
+
+    @staticmethod
+    def _project_name_for(runs: list) -> str:
+        """The project a report's measurements were loaded from: the folder
+        that holds ``runs/runN``, by its ``project.json`` target name when that
+        can be read. Empty for a measurement in no project."""
+        for r in runs:
+            v = r.get("_origin_dir")
+            if not v:
+                continue
+            import re as _re
+            from pathlib import PurePosixPath
+            posix = str(v).replace("\\", "/")
+            parts = PurePosixPath(posix).parts
+            for i in range(len(parts) - 2, 0, -1):
+                if (parts[i] == "runs"
+                        and _re.fullmatch(r"run\d+", parts[i + 1])):
+                    root = Path("/".join(parts[:i]) or "/")
+                    try:
+                        doc = json.loads((root / "project.json").read_text(
+                            encoding="utf-8"))
+                        name = str(doc.get("target_name") or "").strip()
+                    except (OSError, ValueError, AttributeError):
+                        name = ""
+                    return name or root.name
         return ""
 
     def _report_profile_name(self, runs: list) -> str:
