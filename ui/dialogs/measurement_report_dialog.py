@@ -7612,6 +7612,37 @@ class MeasurementReportDialog(QDialog):
             return out
         return same_limits(_limits(thr_a), _limits(thr_b))
 
+    def _names_a_standard(self, r: dict) -> bool:
+        """Whether this column is judged against a standard's published
+        figures, and therefore must carry the caveat.
+
+        **ONE PREDICATE, BECAUSE A SECOND COPY OF IT WENT WRONG.** The notes
+        block under the results table and the one-page summary both ask this,
+        and the version in the notes block dropped `applies_a_standard`'s
+        second argument on the live path: for a column with no saved report it
+        passed "" for the stored label and asked the id alone. A run whose
+        meta holds a set id this build no longer knows, with a standard's name
+        recorded beside it, then printed a green PASS under "ISO 12647-7:2028
+        (historical)" with no caveat in the window or the PDF. Found by
+        adversary round 40a (F6), driven on screen. Pressing Generate closed
+        it, because saving writes the label into the compliance block, so the
+        hole was open exactly while the column was live.
+
+        `label_en`, never `set_label`: the latter is translated, and whether a
+        promise made to a rights holder is kept must not depend on the
+        interface language. `run_limits` fills `label_en` from the run's stored
+        label when the id is unknown, which is the case this closes.
+        """
+        from workflow.compliance_sets import applies_a_standard
+        from workflow.measurement_report import recorded_compliance
+        comp = recorded_compliance(r) or {}
+        lim = self._limits_for(r)
+        return applies_a_standard(
+            str(comp.get("set_id", "") or "") or getattr(lim, "set_id", ""),
+            str(comp.get("set_label", "") or "")
+            or getattr(lim, "label_en", "")
+            or getattr(lim, "set_label", ""))
+
     def _judged_label_for(self, r: dict, *, mark_unsaved: bool = True) -> str:
         """What a column was judged against, for the grid and the provenance."""
         from workflow.measurement_report import (recorded_compliance,
@@ -10501,14 +10532,25 @@ class MeasurementReportDialog(QDialog):
                                               STANDARD_CAVEAT_PROOF,
                                               applies_a_standard, summary_text)
         from workflow.measurement_report import recorded_compliance
-        _standard_cols = [
-            r for r in runs
-            if not _is_raw_drift(r)
-            and applies_a_standard(
-                str((recorded_compliance(r) or {}).get("set_id", "") or "")
-                or getattr(self._limits_for(r), "set_id", ""),
-                str((recorded_compliance(r) or {}).get("set_label", "") or ""))
-        ]
+        # **THE STORED LABEL IS THE SECOND HALF OF THE QUESTION, AND THE LIVE
+        # PATH WAS DROPPING IT** (adversary round 40a, F6). `applies_a_standard`
+        # takes an id AND the label a run recorded, because a set id this build
+        # no longer knows leaves nothing but that label behind, and a column
+        # headed "ISO 12647-7:2028 (historical)" is named after a standard
+        # whatever its id spells. For a SAVED column the label came from the
+        # compliance block; for a live one this passed "" and asked the id
+        # alone. Driven on screen on a run whose meta holds a forgotten id with
+        # a standard's name stored beside it: green PASS, the standard's name
+        # in the column head, and no caveat in the window or the PDF. Pressing
+        # Generate closed it, because saving writes the label into the block,
+        # so the hole was open exactly while the column was live.
+        #
+        # `label_en`, not `set_label`: the latter is translated, and whether a
+        # promise to a rights holder is kept must not depend on the interface
+        # language. `run_limits` fills `label_en` from the stored label when
+        # the id is unknown, which is precisely the case this closes.
+        _standard_cols = [r for r in runs
+                          if not _is_raw_drift(r) and self._names_a_standard(r)]
         if _standard_cols:
             # TRANSLATED IN HALVES AND JOINED HERE. `tr()` is a whole-string
             # lookup, so `tr(a + " " + b)` would miss every catalogue and
@@ -11184,14 +11226,11 @@ class MeasurementReportDialog(QDialog):
         # already says this limit set holds a standard's published values
         # applied to your chart and is not a test against that standard, which
         # is the first half. The second half is what nothing else here says.
-        from workflow.compliance_sets import (STANDARD_CAVEAT_PROOF,
-                                              applies_a_standard)
-        from workflow.measurement_report import recorded_compliance
-        _rc = recorded_compliance(r) or {}
-        _standard = applies_a_standard(
-            str(_rc.get("set_id", "") or "")
-            or getattr(self._limits_for(r), "set_id", ""),
-            str(_rc.get("set_label", "") or ""))
+        # ONE QUESTION, ASKED ONCE. `_names_a_standard` is the full test,
+        # including the stored label a live column used to drop (round 40a F6),
+        # and this page must not ask a narrower version of it.
+        from workflow.compliance_sets import STANDARD_CAVEAT_PROOF
+        _standard = self._names_a_standard(r)
         out.append(f"<div style='color:{_C['dim']};margin-top:10px'>"
                    + html.escape(tr(STANDARD_CAVEAT_PROOF) if _standard else tr(
                        "ChromIQ measures against published values; it does "

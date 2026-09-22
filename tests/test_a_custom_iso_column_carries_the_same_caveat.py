@@ -182,7 +182,45 @@ _THE_CAP_IN_PROSE: "tuple[str, ...]" = (
     "reads COND at best",
     "is COND at best",
     "Overall can never be better than COND",
+    # **THE CAP CAN BE TAUGHT WITHOUT THE WORD COND IN THE SENTENCE**, and
+    # that is how three documents kept teaching it through a sweep that
+    # thought it was complete (adversary round 40a, F5). The four clauses
+    # above all name the word; these do not, and they say the same thing.
+    "can never read PASS overall",
+    "never reads PASS here",
+    "can never read PASS",
+    "never read PASS",
+    "does not go green",
+    "reads COND anyway",
+    "COND for every ISO column",
 )
+
+#: **AND `extract_keys()` CANNOT SEE PROSE THAT IS NOT A `tr()` LITERAL.**
+#: Measured by round 40a: the extractor saw 6,025 strings and none of the four
+#: live cap sentences was among them, because they live in a Markdown file
+#: that ships inside the app bundle, in a script that writes a README a user
+#: reads, and in a binding design document. A sweep of `tr()` keys is the
+#: right sweep for the app's windows and the wrong one for these, so they are
+#: read off disk.
+#:
+#: `data/compliance_sets/README.md` is bundled by all three PyInstaller specs
+#: and is the document a licence holder is pointed at;
+#: `scripts/make_report_limit_demos.py` writes the demo pack's README, which
+#: MEMORY records as being driven in the real app before every beta; the two
+#: design documents are binding on the next reader under CLAUDE.md.
+_PROSE_FILES: "tuple[str, ...]" = (
+    "data/compliance_sets/README.md",
+    "scripts/make_report_limit_demos.py",
+    "docs/design/measurement_report_limits.md",
+    "docs/design/unified_measurement_management.md",
+)
+
+#: A paragraph may QUOTE a retired rule while saying it is retired, and this
+#: file's own history notes do exactly that. The rule is stateable: the
+#: paragraph has to say so in the same breath. A bare clause with no such
+#: marker anywhere near it is the thing being hunted.
+_SAYS_IT_IS_RETIRED: "tuple[str, ...]" = ("retired", "2026-09-22", "used to",
+                                          "until that day", "struck")
 
 
 def test_no_user_facing_string_still_teaches_the_retired_cap():
@@ -211,3 +249,43 @@ def test_the_glossary_says_what_replaced_it():
         "Overall reads. It used to say COND at best; if that clause is gone "
         "and nothing replaced it, the entry is silent on the one column a "
         "reader is most likely to look it up for.")
+
+
+def test_no_shipped_or_binding_prose_still_teaches_the_cap():
+    """The half of the sweep `extract_keys()` cannot do.
+
+    MUTATION: put "a column named after a standard never reads PASS here"
+    back into `scripts/make_report_limit_demos.py`, or restore the struck
+    sentence in `data/compliance_sets/README.md`, and this goes red naming the
+    file and the line. Proved both ways round 40a found them.
+    """
+    root = Path(__file__).resolve().parents[1]
+    hits = []
+    for rel in _PROSE_FILES:
+        text = (root / rel).read_text(encoding="utf-8")
+        for para in text.split("\n\n"):
+            if any(m in para for m in _SAYS_IT_IS_RETIRED):
+                continue
+            for clause in _THE_CAP_IN_PROSE:
+                if clause in para:
+                    line = text[:text.index(para)].count("\n") + 1
+                    hits.append(f"{rel}:{line}  {clause!r}")
+    assert not hits, (
+        "prose that ships with ChromIQ, or that binds the next reader, still "
+        "teaches the ISO cap Knut retired on 2026-09-22. A paragraph may "
+        "quote a retired rule only while saying it is retired:\n  "
+        + "\n  ".join(hits))
+
+
+def test_that_sweep_can_actually_see_those_files():
+    """**A PROBE THAT CANNOT EXPRESS THE FAULT IS NOT EVIDENCE**, and the
+    sweep above reads four paths that a rename would turn into a silent pass.
+    So the files are asserted to exist and to contain the subject at all."""
+    root = Path(__file__).resolve().parents[1]
+    for rel in _PROSE_FILES:
+        f = root / rel
+        assert f.exists(), f"{rel} has moved; the sweep above reads nothing"
+        text = f.read_text(encoding="utf-8")
+        assert "COND" in text or "standard" in text, (
+            f"{rel} no longer discusses the subject, so its place in this "
+            "sweep is stale")

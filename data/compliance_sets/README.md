@@ -79,6 +79,18 @@ permanently, in every language ChromIQ speaks.
 A limit set named after a standard means *the numbers in this column are that
 standard's published figures, applied to the chart you printed*. It does not
 mean the chart is that standard's control strip, and ChromIQ cannot make it one.
-That is why a report judged against an ISO column can never read PASS overall.
 It is a limit of what is being measured, not of what has been licensed, and it
 will not change when a licence arrives.
+
+Such a column reads PASS or FAIL like any other, for the metrics that were
+checked, and every report carrying one prints a note beside the result saying
+what that PASS is: **an indication that the print would likely meet the
+standard, and not proof that it does.** The note is the promise; the verdict
+word is not.
+
+*(Until 2026-09-22 the word carried it instead: a column named after a standard
+was held at COND however well it read, and this paragraph said a report judged
+against one "can never read PASS overall". Knut retired that cap, on the
+reasoning that most people want to know whether the measurements passed the
+criteria they chose, and that the note is where the rest belongs. Nothing about
+the promise above changed with it.)*

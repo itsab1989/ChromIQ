@@ -1849,17 +1849,19 @@ BORDER_RAW_DRIFT: "list[Date]" = [
 #: TWO THINGS A READER OF THESE TWO RUNS HAS TO KNOW, and both are properties
 #: of the columns rather than of the data:
 #:
-#: * **A Custom column can never read PASS on a ChromIQ chart.** Three of its
-#:   eighteen limit-bearing rows (paper white against the reference paper,
-#:   solid colours, CMY hue difference) need a reference measurement of the
-#:   printing condition, which ChromIQ cannot read yet, so they are N-A on
-#:   every date.
-#:   A required row that could not be checked makes the column COND at best.
-#: * **Every column named after a standard reads COND even when nothing is
-#:   over.** That is the caveat doing its job: the numbers are applied to the
-#:   chart YOU printed, not to that standard's own chart, and the sentence
-#:   under the word says so. So the word moves FAIL to COND across these two
-#:   dates, not FAIL to PASS, and the SENTENCE is where the recovery shows.
+#: * **A Custom column cannot check everything it limits on a ChromIQ chart.**
+#:   Three of its eighteen limit-bearing rows (paper white against the
+#:   reference paper, solid colours, CMY hue difference) need a reference
+#:   measurement of the printing condition, which ChromIQ cannot read yet, so
+#:   they are N-A on every date.
+#: * **BOTH OF THE RULES THIS BLOCK USED TO STATE ARE RETIRED**, and it said
+#:   them for a day after they were. An unanswered row demoted a column until
+#:   Knut's N-A ruling of 2026-09-21; a column named after a standard was
+#:   capped at COND until he retired that on 2026-09-22. So the word moves
+#:   FAIL to PASS across these two dates, with three rows still N-A, and the
+#:   NOTE beside it is what qualifies the PASS: the numbers are applied to the
+#:   chart YOU printed, not to that standard's own chart, so a result inside
+#:   them is an indication and not proof.
 
 CUSTOM_7_SERIES: "list[Date]" = [
     _d("2027-01-05_100000", "2027-01-05T10:00:00",
@@ -1871,11 +1873,11 @@ CUSTOM_7_SERIES: "list[Date]" = [
        ["all_de00_max"]),
     _d("2027-01-19_100000", "2027-01-19T10:00:00",
        "The bad patch is gone again",
-       "The same sheet without the outlier. Nothing is over a limit. The "
-       "column does not go green: three of its rows still need a reference "
-       "measurement this chart cannot supply, and a column named after a "
-       "standard carries its caveat whatever the numbers do. The sentence "
-       "under the word is where the recovery shows.",
+       "The same sheet without the outlier. Nothing is over a limit, so the "
+       "column goes green, while three of its rows still need a reference "
+       "measurement this chart cannot supply and stay N-A. A column named "
+       "after a standard carries its caveat whatever the numbers do, and "
+       "that note is what says the PASS is an indication and not proof.",
        Design(bulk=0.80, shoulder=1.40, peak=2.20, tail=1.60, grey_dch=0.50),
        []),
 ]
@@ -4728,8 +4730,8 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
         a("placeholders under a permission condition and a test in ChromIQ")
         a("pins where every one of them came from.")
         a("")
-        a("FIRST: a column named after a standard never reads PASS here, and")
-        a("not because anything is wrong with the print.")
+        a("FIRST: a column named after a standard cannot check everything it")
+        a("puts a limit on, and not because anything is wrong with the print.")
         a("")
         _tot = _cov.get("custom_total", 0)
         _fill = _cov.get("custom_fillable", 0)
@@ -4740,12 +4742,12 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
         for _lbl in _cov.get("custom_unfillable", []):
             a(f"      {_lbl}")
         a("")
-        a("  A required row that could not be checked makes the column COND at")
-        a("  best, and every column applying a standard's figures reads COND")
-        a("  anyway, with the sentence saying those figures are applied to the")
-        a("  chart YOU printed. So across these runs the word moves FAIL to")
-        a("  COND, not FAIL to PASS, and the SENTENCE under it is where the")
-        a("  recovery shows.")
+        a("  A row that could not be checked does not count against the")
+        a("  column, so the word moves FAIL to PASS across these runs while")
+        a("  those rows stay N-A. What qualifies that PASS is the NOTE beside")
+        a("  it: the figures are a standard's applied to the chart YOU")
+        a("  printed, so a result inside them is an indication that the print")
+        a("  would likely meet the standard and not proof that it does.")
         a("")
         if _cov.get("custom_same_numbers"):
             a("SECOND: on every row that carries a NUMBER, the two columns are")

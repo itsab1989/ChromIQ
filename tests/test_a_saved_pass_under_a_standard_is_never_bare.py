@@ -188,3 +188,83 @@ def test_chromiqs_own_set_gets_no_such_sentence(qapp, tmp_path):
         assert "not a test against that standard" not in _visible(body)
     finally:
         dlg.deleteLater()
+
+
+# ===========================================================================
+# …AND A LIVE COLUMN IS ASKED THE SAME QUESTION AS A SAVED ONE
+# ===========================================================================
+# **FOUND BY ADVERSARY ROUND 40a (F6), DRIVEN ON SCREEN.** Every test above
+# goes through `_saved_run`, so every one of them hands the dialog a column
+# whose compliance block holds both the set id and the label. The notes block
+# read the stored label from that block and passed "" for a column that has no
+# saved report, asking `applies_a_standard` about the id alone. A run bound to
+# a set id this build no longer knows, with a standard's name stored beside it
+# (which is what today's files look like to a future ChromIQ), then printed a
+# green PASS under "ISO 12647-7:2028 (historical)" with no caveat anywhere.
+# Pressing Generate closed it, because saving writes the label into the block:
+# the hole was open exactly while the column was live.
+def _live_run(tmp_path, set_id: str, set_label: str):
+    """A run BOUND to a set and never reported on: no compliance block, so the
+    only record of what it is judged against is the run's own meta.json."""
+    from datetime import datetime
+    proj = Project.create(tmp_path / "L", "L")
+    run = proj.current_run(); run.ensure_dir()
+    v = run.new_verification(datetime(2026, 1, 1, 10, 0, 0))
+    v.ensure_dir()
+    raw = v.dir / "L.ti3"
+    _write_ti3(raw, _ramp(16) + _colours(), verification=False)
+    mark_verification_ti3(raw).rename(v.dir / f"{run.verify_stem}.ti3")
+    target = v.dir / f"{run.verify_stem}.ti3"
+    meta = run.load_meta()
+    # Written the way `bind_run` writes it, then the id is replaced by one this
+    # build does not define, which is what a future ChromIQ reads here.
+    rc.bind_run(run, "custom_iso_12647_7", {})
+    meta = run.load_meta()
+    meta.compliance_set_id = set_id
+    meta.compliance_set_label = set_label
+    run.save_meta(meta)
+    return proj, run, target
+
+
+#: An id with no standard's name in it, beside a stored label that has one.
+#: The two halves of `applies_a_standard`'s question, pulled apart.
+_FORGOTTEN = ("contract_proof_2028", "ISO 12647-7:2028")
+
+
+def test_a_live_column_under_a_forgotten_standard_still_gets_the_caveat(
+        qapp, tmp_path):
+    """MUTATION: drop the stored-label fallback from
+    `MeasurementReportDialog._names_a_standard` and this goes red, in the
+    window and in the PDF."""
+    proj, run, ti3 = _live_run(tmp_path, *_FORGOTTEN)
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        runs = dlg._runs_for_report()
+        assert runs, "the bound run produced no column"
+        assert dlg._names_a_standard(runs[0]), (
+            "a column headed with a standard's name is not recognised as one, "
+            "so nothing will make it carry the caveat")
+        label = dlg._judged_label_for(runs[0])
+        assert "ISO 12647-7:2028" in label, label
+        body = dlg._report_body_html(runs, for_pdf=True)
+        assert "not a test against that standard" in _visible(body), (
+            "a live column named after a standard prints its verdict with no "
+            "caveat. This is the claim-by-juxtaposition the caveat exists to "
+            "prevent, on the one path where the label is all there is.")
+    finally:
+        dlg.deleteLater()
+
+
+def test_and_a_live_column_under_chromiqs_own_set_still_gets_none(qapp,
+                                                                  tmp_path):
+    """The other half, or the guard above would pass on a caveat printed on
+    every live column whatever it is judged against."""
+    proj, run, ti3 = _live_run(tmp_path, "house_rules_2028", "House rules")
+    dlg = _dialog(_settings(tmp_path), ti3)
+    try:
+        runs = dlg._runs_for_report()
+        assert not dlg._names_a_standard(runs[0])
+        body = dlg._report_body_html(runs, for_pdf=True)
+        assert "not a test against that standard" not in _visible(body)
+    finally:
+        dlg.deleteLater()

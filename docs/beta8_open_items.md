@@ -23640,6 +23640,89 @@ would reach.
 - mutation-proved: make T1's footer unconditional again and the first of those
   goes red naming the page; the file is green again after.
 
+### B8-769 · FIXED · Round 40a: four documents still taught the retired cap, and one of them ships
+- blocks release: no
+- status: FIXED
+- found by: adversary round 40a, 2026-09-22, on screen and off. It confirmed
+  the T1 fault of B8-760 independently and then found four more places the
+  cap survived in prose, all of them mine and hours old.
+- **the one that ships.** `data/compliance_sets/README.md`, under the heading
+  "The promise that governs all of it", said *"That is why a report judged
+  against an ISO column can never read PASS overall ... and it will not change
+  when a licence arrives."* It changed the same day. That file is bundled by
+  all three PyInstaller specs and is the document a licence holder is pointed
+  at. Rewritten: such a column reads PASS or FAIL, and the note beside the
+  result is what qualifies it. The retirement is recorded in a parenthesis so
+  a reader who remembers the old sentence learns what replaced it.
+- **the demo pack's README generator**, `scripts/make_report_limit_demos.py`,
+  wrote *"a column named after a standard never reads PASS here"* and *"every
+  column applying a standard's figures reads COND anyway ... the word moves
+  FAIL to COND, not FAIL to PASS"*. Both dead, one since 2026-09-21 and one
+  since 2026-09-22, and the pack is driven in the real app before every beta.
+  Its own `story_verdicts` guard could not catch them: it fires on a literal
+  verdict WORD and one of the sentences types none.
+- **the binding spec's rule statement.** `measurement_report_limits.md` §"Per
+  column (Overall)" still listed *"COND for every ISO column"* AND the N-A
+  clause Knut deleted on 2026-09-21. The change set had edited exactly one
+  paragraph of that file and left the normative list, which is the paragraph
+  the next reader consults before touching `set_summary`.
+- **AND MY OWN SWEEP COULD NOT SEE ANY OF THEM, ON TWO AXES.** It used
+  `i18n_extract.extract_keys()`, which sees `tr()` literals and nothing else:
+  round 40a measured 6,025 strings and not one of the live sentences was
+  among them. And its phrase list named only clauses containing the word
+  COND, while two of the live sentences teach the cap without it: *"never
+  reads PASS"*. Both halves are fixed: seven more clauses, and a second sweep
+  that reads four files off disk. A paragraph may quote a retired rule only
+  while saying in the same paragraph that it is retired.
+- evidence: test_no_shipped_or_binding_prose_still_teaches_the_cap,
+  test_that_sweep_can_actually_see_those_files
+- mutation-proved: restore either struck sentence and the sweep goes red
+  naming the file and the line number.
+
+### B8-770 · FIXED · Round 40a: a LIVE column asked a narrower question than a saved one, and could print a bare PASS
+- blocks release: no
+- status: FIXED
+- found by: adversary round 40a (F6), 2026-09-22, driven on screen.
+- `applies_a_standard` takes an id AND the label a run recorded, because a set
+  id this build no longer knows leaves nothing but that label behind. The
+  notes block read that label from the SAVED compliance block and passed ""
+  for a column with no saved report, so the live path asked about the id
+  alone. Round 40a drove a run whose `meta.json` holds a forgotten id with a
+  standard's name stored beside it, which is what today's files look like to a
+  future ChromIQ: **green PASS, "ISO 12647-7:2028 (historical)" in the column
+  head, no caveat in the window and none in the PDF**, with "Save report as
+  PDF" enabled in that state. Pressing Generate closed it, because saving
+  writes the label into the block, so the hole was open exactly while the
+  column was live.
+- measured both directions: `applies_a_standard(id, "")` False,
+  `applies_a_standard(id, stored_label)` True.
+- fixed by making it ONE predicate, `_names_a_standard`, used by the notes
+  block and by the one-page summary, falling back to the run's own
+  `label_en`. **`label_en` and never `set_label`**: the latter is translated,
+  and whether a promise made to a rights holder is kept must not depend on
+  the interface language.
+- not reachable with any set id ChromIQ ships today, since every one contains
+  "iso", so it was latent. It is the exact hole the function's second
+  parameter exists for.
+- evidence: test_a_live_column_under_a_forgotten_standard_still_gets_the_caveat,
+  test_and_a_live_column_under_chromiqs_own_set_still_gets_none
+- mutation-proved: drop the stored-label fallback and the first goes red.
+
+### B8-771 · FIXED · Round 40a: my German for the patch-count note was not German
+- blocks release: no
+- status: FIXED
+- found by: adversary round 40a (F7), 2026-09-22, reading all eight hand
+  written German strings against their English.
+- "This is not a fault and nothing here is wrong" was translated *"Das ist
+  kein Fehler, und hier stimmt nichts nicht."* The idiom is *"hier stimmt
+  etwas nicht"* (something IS wrong); negating the subject instead of the verb
+  gives a double negative that reads as "nothing here is not wrong", in the
+  one sentence Knut asked to be a reassurance rather than an error. Now *"und
+  hier ist nichts falsch."*
+- the other seven were checked against their English in the same pass and
+  read correctly.
+- evidence: test_catalog_is_complete, test_untranslated_values_do_not_creep_in_unseen
+
 ### B8-767 · FIXED · Before printing, nothing said what the report does with a metric the chart cannot answer
 - blocks release: no
 - status: FIXED

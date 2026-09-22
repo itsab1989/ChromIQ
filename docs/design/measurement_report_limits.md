@@ -296,11 +296,21 @@ design.
 
 Per column (Overall): N-A when the set has no limit-bearing row; INFO when the
 sheet is not graded; **N-A when the set has limit-bearing rows but NONE of them
-could be checked**; FAIL when any row fails; COND for every ISO column (its
-values are applied to a chart that is not the standard's chart, footnote ¹);
-COND when any row is COND or a required row is N-A; PASS otherwise. The
+could be checked**; FAIL when any row fails; COND when any row carries the word
+COND, which only a report saved before 2026-09-21 can; PASS otherwise. The
 Overall cell carries its reason as text. The report never prints the word
 "conforms" and never puts a standard's name in a verdict sentence.
+
+> **TWO CLAUSES WERE STRUCK FROM THAT SENTENCE AND THE DATES MATTER.** It read
+> "COND for every ISO column (its values are applied to a chart that is not the
+> standard's chart, footnote ¹); COND when any row is COND **or a required row
+> is N-A**". The second clause went on 2026-09-21 with Knut's N-A ruling (R1 in
+> §14). The first went on 2026-09-22 when he retired the ISO cap itself:
+> *"Implement this. The note is sufficient ... ChromIQ's results are only
+> indications that results that PASS likely fulfil the standard ... It is not
+> proof that results fulfil the standard. The report text notes should explain
+> this detail."* Footnote ¹ is still the reason such a column carries its
+> caveat; it is no longer a reason the word is capped.
 
 > **THE THIRD CLAUSE IS NEW, 2026-09-11, AND IT CORRECTS A FAULT RATHER THAN A
 > RULE.** Without it a column whose limit-bearing rows are all N-A, and where
@@ -1739,9 +1749,10 @@ Two rules, and the first replaces §15.5 rather than amending it.
 **R1. An N-A never demotes a column, whatever row it is on.** Not a carve-out
 for two rows: a general rule about the word. `set_summary` no longer counts
 required N-A rows at all, and there is no list of exempt rows for it to
-consult. COND survives as an Overall word only for an ISO-named column (whose
-values are applied to a chart that is not the standard's) and for a report
-saved before 2026-09-21, whose stored rows still carry it.
+consult. COND survives as an Overall word for a report saved before
+2026-09-21, whose stored rows still carry it, and for nothing else: the
+ISO-named column was the other way in until Knut retired that cap on
+2026-09-22.
 
 *What this changes beyond the two repeatability rows,* measured over one N-A
 row per distinct cause an ordinary chart can produce: a required grey row on a
