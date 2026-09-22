@@ -1364,8 +1364,11 @@ def test_an_update_that_cannot_write_one_date_writes_none_of_them(
     A REAL read-only folder, not a patched function (round C's point about
     the archive-failure guard above).
 
-    MUTATION: drop `_blocked` from the loop's skip and the writable date's
-    file changes: red.
+    NOT A MUTATION GUARD (round 2C): dropping `_blocked` from the loop's
+    skip changes nothing, because `_archive_failed` already returns
+    `_blocked or ...`, and this folder fails the archive step itself, so the
+    write-access probe is never needed here. Those two mutants (A-09, A-12)
+    are pinned in `test_round2c_guards_since_8ae07e4f.py`.
     """
     import os
     import stat

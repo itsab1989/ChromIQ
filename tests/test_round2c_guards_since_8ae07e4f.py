@@ -145,16 +145,11 @@ def _report_type_help_body(dlg) -> str:
                 if b._title == "Report type")
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "FINDING, round 2-C: the Report type help still says a greyed type is one "
-    "ChromIQ cannot produce yet, and since K13 a profiling window greys the "
-    "three BUILT types (Colour summary, Full colour check, Grey and tone "
-    "check) because the kind refuses them. Wording is Knut's / the spec's "
-    "call, so it is reported, not fixed."))
 def test_the_help_does_not_say_every_greyed_type_is_unbuilt(tmp_path, qapp):
     """On a PROFILING window Full colour check is greyed (K13) and ChromIQ can
     produce it; the first paragraph of the Report type help says *"A type
-    shown greyed is one ChromIQ cannot produce yet."*"""
+    shown greyed is one ChromIQ cannot produce yet."*. Round 2B reworded it
+    (02e9e0e4, B8-799); this was a strict xfail and is now the guard."""
     from tests.test_import_measurement_module import _verify_env
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
     s, _fm, _ctl, run1 = _verify_env(tmp_path)
@@ -207,7 +202,8 @@ def test_one_date_of_a_two_date_run_is_counted_for_this_run(tmp_path, qapp):
         qapp.processEvents()
         assert len(dlg._runs_for_report()) == 1
         assert _scope_note(dlg) == (
-            "This report covers 1 of the 2 measurements recorded for this run.")
+            "This report covers 1 of the 2 measurements recorded for this "
+            "profile run.")
     finally:
         dlg.close()
 
@@ -256,8 +252,8 @@ def test_a_verification_document_of_two_projects_says_the_runs_it_is_drawn_from(
         dlg._hidden_runs = {dlg._run_key(dlg._history[0])}
         qapp.processEvents()
         assert _scope_note(dlg) == (
-            "This report covers 3 of the 4 measurements recorded for the runs "
-            "it is drawn from.")
+            "This report covers 3 of the 4 measurements recorded for the "
+            "profile runs of the projects it is drawn from.")
     finally:
         dlg.close()
 
