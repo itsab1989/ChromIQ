@@ -38,7 +38,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from workflow import measurement_messages as M        # noqa: E402
 from workflow.compliance_sets import (INFO, Limit, N_A,  # noqa: E402
-                                      limit_bearing, ROWS, row_verdict)
+                                      applies_a_standard, limit_bearing,
+                                      ROWS, row_verdict)
 from workflow.measurement_report import report_scope  # noqa: E402
 
 
@@ -51,33 +52,80 @@ def _a_real_row_id() -> str:
     return live[0]
 
 
-def test_the_lever_really_does_what_the_message_promises():
-    """MUTATION: make `row_verdict` return N-A for a "-" limit with no value
-    and the first assertion goes red, which is the state in which the
-    message's "disappears from the report entirely" would be false."""
+def test_the_set_really_decides_whether_such_a_row_is_shown():
+    """The message's middle paragraph, measured rather than asserted.
+
+    *"Where the set puts a real limit on the metric, the row is shown reading
+    N-A ... Where the set puts no limit on it, the row is left out."*
+
+    MUTATION: make `row_verdict` return N-A for a limit of kind `none` with no
+    value and the second assertion goes red, which is the state in which "the
+    row is left out" would be false.
+    """
     rid = _a_real_row_id()
-    # the half Knut is asking about: a metric this chart cannot answer
-    assert row_verdict(Limit.value(1.5), None, True) == N_A
+    assert row_verdict(Limit.value(1.5), None, True) == N_A, (
+        "a set that puts a real limit on a row the chart cannot answer no "
+        "longer shows it reading N-A")
     assert row_verdict(Limit.none(), None, True) is None, (
-        "a '-' threshold no longer removes a row the chart cannot answer, so "
-        "the message's promise that it 'disappears from the report entirely' "
-        "is false")
-    # the other half, which the message states rather than glossing over
-    assert row_verdict(Limit.none(), 0.9, True) == INFO, (
-        "a '-' threshold on a row the chart CAN answer no longer shows the "
-        "number ungraded, so the message's second half is false")
-    # and the row really does leave the limit set
+        "a set that puts NO limit on a row the chart cannot answer no longer "
+        "leaves that row out")
+    # and it really is the SET, not the row: the same row, two limits.
     assert limit_bearing({rid: Limit.value(1.5)}) == {rid: Limit.value(1.5)}
     assert limit_bearing({rid: Limit.none()}) == {}
 
 
-def test_the_message_states_both_outcomes_and_names_the_window():
+def test_which_shipped_sets_put_a_real_limit_on_an_unanswerable_row():
+    """**THE SENTENCE NAMES ChromIQ'S OWN SETS, SO THE CLAIM IS MEASURED.**
+
+    Adversary round 40b drove this end to end: only the two ISO-derived sets
+    put a real limit on the rows a ChromIQ verification chart cannot answer,
+    and the ChromIQ sets put none, which is why the message says "that is what
+    ChromIQ's own sets do with the metrics above" rather than describing one
+    behaviour as though it were universal.
+
+    MUTATION: give a ChromIQ set a real limit on one of these rows and this
+    goes red naming it, which is the state in which that clause is false.
+    """
+    from workflow.compliance_sets import SETS, effective_limits
+    # The three rows a ChromIQ verification chart cannot answer, which are
+    # what the pre-flight lists and what the paragraph sits under.
+    unanswerable = ("substrate_de00_max", "solids_de00_max",
+                    "cmy_solids_dhab_max")
+    own, derived = [], []
+    for st in SETS:
+        lims = effective_limits(st.id, None)
+        real = [r for r in unanswerable
+                if (lims.get(r) is not None and lims[r].is_numeric)]
+        (derived if applies_a_standard(st.id) else own).append((st.id, real))
+    assert own, "no ChromIQ set found"
+    for sid, real in own:
+        assert not real, (
+            f"{sid} is one of ChromIQ's own sets and now puts a real limit on "
+            f"{real}, so the message's clause about what ChromIQ's own sets "
+            f"do is false")
+
+
+def test_the_message_says_what_decides_it_and_qualifies_the_lever():
+    """**EVERY CLAUSE ROUND 40b MEASURED FALSE IS GONE, AND ITS REPLACEMENT
+    IS HERE.** The first version said the row "is listed in the report all the
+    same, reading N-A with a numbered note", and that the threshold is set to
+    "-". Measured: that describes 2 of 7 selectable sets and 1 of 4 buildable
+    report types, "-" cannot be typed into the box at all, and on a locked run
+    or an ISO column the control does not exist.
+    """
     body = M.M_VERIFY_UNCHECKED_METRICS.render()[1]
-    for phrase in ("Report limits",          # the lever, by the name on screen
-                   "disappears from the report entirely",
-                   "shown with its number and no verdict",
-                   "N-A"):
+    for phrase in ("is decided by the limit set",      # F2: the set decides
+                   "on a report type that carries notes",   # F3: so does the type
+                   "threshold to zero",                # F4: not "-"
+                   "\u201c\u2013\u201d",                      # F4: the en dash it shows
+                   "where those limits can still be edited"):   # F5: not always
         assert phrase in body, (phrase, body)
+    for gone in ("is listed in the report all the same",
+                 "disappears from the report entirely",
+                 "threshold to \u201c-\u201d",
+                 "open Report limits"):
+        assert gone not in body, (
+            f"{gone!r} is back in the message, and round 40b measured it false")
 
 
 def test_both_messages_are_proposed_and_not_approved():
@@ -131,8 +179,8 @@ def test_the_preset_window_prints_it_under_a_chart_that_falls_short(
         "the strictest combination no longer leaves this chart short of "
         "anything, so this test would prove nothing")
     text = " ".join(l.text for l in PV.detail_lines(row))
-    assert "Report limits" in text, text[-500:]
-    assert "disappears from the report entirely" in text
+    assert "is decided by the limit set" in text, text[-500:]
+    assert "threshold to zero" in text
 
 
 def test_and_never_under_a_chart_that_falls_short_of_nothing(a_real_chart):
@@ -158,7 +206,7 @@ def test_and_never_under_a_chart_that_falls_short_of_nothing(a_real_chart):
         pytest.skip("no shipped preset answers every metric of the everyday "
                     "combination")
     text = " ".join(l.text for l in PV.detail_lines(whole))
-    assert "Report limits" not in text, text[-500:]
+    assert "is decided by the limit set" not in text, text[-500:]
 
 
 # ===========================================================================
@@ -290,8 +338,13 @@ def test_the_preflight_says_it_too_when_the_chart_falls_short(a_real_chart):
                              "custom_iso_12647_7"))
     assert row.assessment.checked and row.assessment.missing
     body = _preflight_body(row)
-    assert "Report limits" in body, body[-600:]
-    assert "disappears from the report entirely" in body
+    # **ONE LINE HERE, THE PARAGRAPH IN THE PRESETS WINDOW**, because the
+    # paragraph takes this popup's minimum height past a 13-inch screen.
+    assert "is decided by the limit set" in body, body[-600:]
+    assert "never judged and can never make the report fail" in body
+    assert "threshold to zero" not in body, (
+        "the full paragraph is back in the pre-flight; measured on screen it "
+        "costs this popup 208 px of minimum height where the line costs 96")
 
 
 def test_and_the_preflight_leaves_it_out_when_the_chart_does_not(qapp):
@@ -315,7 +368,7 @@ def test_and_the_preflight_leaves_it_out_when_the_chart_does_not(qapp):
         "no shipped preset answers every metric of the everyday combination, "
         "so this guard would prove nothing")
     body = _preflight_body(whole)
-    assert "Report limits" not in body, body[-600:]
+    assert "is decided by the limit set" not in body, body[-600:]
     assert "Nothing is missing" in body, (
         "the fixture no longer reaches the state this guard is about")
 
@@ -333,8 +386,10 @@ def test_the_two_windows_agree_about_when_to_say_it(a_real_chart):
             a_real_chart,
             assessment=_assessed(a_real_chart.chart, MR.REPORT_TYPE_FULL,
                                  set_id))
-        in_popup = "Report limits" in _preflight_body(row)
-        in_window = "Report limits" in " ".join(
+        # The two windows say DIFFERENT text on purpose (one line against the
+        # paragraph); what has to agree is WHEN they say anything at all.
+        in_popup = "is decided by the limit set" in _preflight_body(row)
+        in_window = "is decided by the limit set" in " ".join(
             l.text for l in PV.detail_lines(row))
         assert in_popup == in_window, (
             f"{set_id}: the pre-flight says it {in_popup} and the preset "

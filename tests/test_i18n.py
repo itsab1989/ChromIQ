@@ -786,6 +786,12 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED a third time on 2026-09-22, after adversary round 40b drove
+    # both new messages in the real app and found the first one false in most
+    # states. The texts were rewritten, so six keys changed: German is written
+    # by hand and stays at its number, which is how a hand translation that
+    # quietly fell back to English would show up here. Counted off the tree
+    # with this file's own helper, BOTH ledgers in the same commit.
     # RE-MEASURED AGAIN the same day, when `STANDARD_CAVEAT` was split into
     # two keys. The one-page summary branches away before the block that
     # prints the caveat, so T1 needed it too, and measured on that page's own
@@ -1257,17 +1263,17 @@ _IDENTICAL_TO_KEY = {
     # recorded. COUNTED with this file's own helper on the tree this commit
     # leaves behind.
     "de": 146,
-    "es": 939,
-    "fr": 961,
-    "it": 950,
-    "ja": 925,
-    "nl": 966,
-    "no": 951,
-    "pl": 943,
-    "pt": 941,
-    "ru": 914,
-    "sv": 952,
-    "zh_CN": 919,
+    "es": 940,
+    "fr": 962,
+    "it": 951,
+    "ja": 926,
+    "nl": 967,
+    "no": 952,
+    "pl": 944,
+    "pt": 942,
+    "ru": 915,
+    "sv": 953,
+    "zh_CN": 920,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1294,7 +1300,7 @@ _IDENTICAL_TO_KEY = {
     # in Ukrainian, so the pointer could not match whatever the user read.
     # Nothing else changed. The ceiling is re-measured DOWN here rather than
     # left where it was, so the next rise still has to justify itself.
-    "uk": 1179,
+    "uk": 1180,
 }
 
 

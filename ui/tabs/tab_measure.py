@@ -14152,16 +14152,23 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 block.append("")
             block.append(" " * line.indent + line.text)
         parts = [title, body, "\n".join(block)]
-        # **WHAT HAPPENS TO A METRIC THE CHART CANNOT ANSWER, AND THE LEVER.**
-        # M-VERIFY-UNCHECKED-METRICS, asked for by Knut on 2026-09-22. Shown
-        # ONLY when this chart really is short of something: a paragraph about
-        # rows that will read N-A, on a chart where none will, is noise, and it
-        # would also be the second sentence of this window contradicting the
-        # first, which says "Nothing is missing".
+        # **ONE LINE HERE, THE PARAGRAPH IN THE PRESETS WINDOW.** Knut asked
+        # for both windows to say what the report does with a metric this
+        # chart cannot answer; he also specified that this popup must not
+        # *"become too long"*, and the two collided. Measured on screen by
+        # adversary round 40b, this popup, before and after the full
+        # paragraph: `minimumHeight()` 798 to 958 in English and 798 to 974 in
+        # German, on a window with no scroll area, against about 918 px of
+        # usable height on a 13-inch MacBook Air. The OK button and his own
+        # "do not show this again" tick would have been off the screen.
+        #
+        # Shown ONLY when this chart really is short of something: a sentence
+        # about rows that will read N-A, on a chart where none will, is noise,
+        # and it would sit under this window's own line "Nothing is missing".
         _short = (row is not None and row.assessment.checked
                   and row.assessment.missing)
         if _short:
-            parts.append(M.M_VERIFY_UNCHECKED_METRICS.render()[1])
+            parts.append(tr(M.M_VERIFY_PREFLIGHT_UNCHECKED))
         if gamut_only_shortfalls(row):
             parts.append(tr(M.M_VERIFY_PREFLIGHT_GAMUT))
         return title, "\n\n".join(parts)

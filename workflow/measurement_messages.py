@@ -1007,11 +1007,18 @@ M_VERIFY_PREFLIGHT = _m(
     "Measurement Report. That report checks the print against a set of "
     "metrics, and each metric has a limit the measurement has to stay "
     "inside.\n\n"
+    # **"LEFT OUT OF THE REPORT" WAS AN ABSOLUTE AND IT IS NOT TRUE OF EVERY
+    # SET** (adversary round 40b, F1 and F2, driven end to end). Whether such a
+    # row is left out or shown reading N-A is decided by the limit set: on the
+    # five ChromIQ sets those rows carry no limit and really are left out, on
+    # the two ISO-derived ones they are shown. The sentence said one of the two
+    # everywhere, and the paragraph added below it on 2026-09-22 said the other,
+    # six lines apart in one popup that always shows both.
     "Not every chart can answer every metric. Which ones this chart can is "
     "listed below, worked out from its patch set before anything is printed, "
     "so you can still change the chart. A metric the chart cannot supply is "
-    "left out of the report and nothing else is affected, so falling short "
-    "does not make the chart wrong.\n\n"
+    "not judged and nothing else is affected, so falling short does not make "
+    "the chart wrong.\n\n"
     "To compare patch sets before you settle on one, open “Which presets "
     "can be used for verification” under the preset pulldown in Create "
     "Chart. It judges every preset ChromIQ ships and every one of your own "
@@ -1038,6 +1045,25 @@ M_VERIFY_PREFLIGHT_GAMUT = (
     "a built profile, and it lays the sheet out again from scratch.")
 
 
+#: The one line the PRE-FLIGHT carries, where the full paragraph below is what
+#: the presets window shows. Knut asked for both windows to say this; he also
+#: asked, in the same specification, that this popup not *"become too long"*,
+#: and the two requirements collided.
+#:
+#: **MEASURED ON SCREEN** by adversary round 40b, the real popup, before and
+#: after the paragraph was appended: English frame 826 to 986 px, German 826 to
+#: 1002, with `minimumHeight()` 798 to 974. A `QMessageBox` has no scroll area
+#: and that height is a hard minimum, so on a 13-inch MacBook Air (usable about
+#: 918 px) the OK button and Knut's "do not show this again" tick fall off the
+#: bottom of the screen. This line is about a fifth of the paragraph's length
+#: and leaves the popup inside that budget, and it points at the window that
+#: carries the rest, which this popup already sends the reader to by name.
+M_VERIFY_PREFLIGHT_UNCHECKED = (
+    "A metric this chart cannot answer is never judged and can never make the "
+    "report fail. Whether it is shown at all is decided by the limit set, and "
+    "the window named above says how to change that.")
+
+
 # --- PROPOSED: a metric the chart cannot answer, and the lever for it ------
 # Knut, 2026-09-22, on #182: a report that judges metrics the chart cannot
 # calculate carries a warning for each of them, and he asked that the reader
@@ -1061,17 +1087,45 @@ M_VERIFY_PREFLIGHT_GAMUT = (
 # So "-" removes the row only in the case Knut is asking about, and shows it
 # ungraded in the other. A sentence promising it disappears either way would be
 # false on half the rows the reader might try it on, so the text says both.
+# **THE FIRST VERSION OF THIS WAS FALSE IN MOST STATES**, and adversary round
+# 40b measured every one of them by driving the app. It said a metric the chart
+# cannot supply "is listed in the report all the same, reading N-A with a
+# numbered note", and that the threshold is set to "-". Four separate things
+# were wrong:
+#
+#  * **the set decides, not ChromIQ.** Only the two ISO-derived sets put a real
+#    limit on those rows; the five ChromIQ sets put none, so the rows are left
+#    out and the sentence described 2 of 7 selectable sets. On the other five
+#    the remedy was also a no-op, because the threshold is already "no limit".
+#  * **the report TYPE decides too.** Measured on one run, four buildable
+#    types: the numbered note exists on T2 only (T4 is ungraded, so
+#    `_note_the_absences` returns early), T3 does not carry those rows at all,
+#    and T1 carries no metric rows. The pre-flight cannot know the type, so an
+#    unconditional sentence about notes was wrong on three of the four.
+#  * **you cannot type "-" into the box.** One row, both states: typing it
+#    leaves `hasAcceptableInput()` False and the cell silently reverts on
+#    focus-out. The gesture is setting the spin box to ZERO, which it displays
+#    as "–" via `setSpecialValueText`. The message also spelled that mark as a
+#    hyphen while the app writes an en dash everywhere.
+#  * **the lever is often not there.** On a locked run every column is
+#    read-only (zero spin boxes in the whole table, photographed on Knut's own
+#    demo project), and the two ISO columns are read-only in every state.
+#
+# So this says what is invariant, names what decides the rest, and qualifies
+# the instruction rather than promising it works everywhere.
 M_VERIFY_UNCHECKED_METRICS = _m(
     "M-VERIFY-UNCHECKED-METRICS",
-    "A metric this chart cannot answer still appears in the report",
-    "A metric this chart cannot supply is listed in the report all the same, "
-    "reading N-A with a numbered note saying what it would have needed. "
-    "Nothing is judged from it and it can never make the report fail.\n\n"
-    "If you would rather it was not there at all, open Report limits and set "
-    "that metric's threshold to “-”. The metric then leaves the limit set: a "
-    "row your chart cannot answer disappears from the report entirely, and one "
-    "it can answer is shown with its number and no verdict. Either way what "
-    "you hand a customer holds only the metrics you chose to have checked.",
+    "What the report does with a metric this chart cannot answer",
+    "It is never judged, and it can never make the report fail.\n\n"
+    "Whether it appears at all is decided by the limit set the report is "
+    "judged against. Where the set puts a real limit on the metric, the row is "
+    "shown reading N-A, and on a report type that carries notes it also "
+    "carries one saying what the row needed. Where the set puts no limit on "
+    "it, the row is left out; that is what ChromIQ's own sets do with the "
+    "metrics above.\n\n"
+    "To leave a row out yourself, set that metric's threshold to zero in the "
+    "run's limits, where those limits can still be edited. The box shows zero "
+    "as “–”.",
     approved=False)
 
 
@@ -1082,17 +1136,34 @@ M_VERIFY_UNCHECKED_METRICS = _m(
 # more patches is not worked out over quite the same population as the same
 # metric over fewer, so small differences between the columns, and steps in
 # the trend graphs, can come from the charts rather than from the printer.
+# **IT SAYS "READINGS", BECAUSE READINGS ARE WHAT IS COUNTED.** The first
+# version was headed "taken from charts with different numbers of patches", and
+# `report_scope` counts `r["patches"]`, which is `data.n_patches`: the number of
+# readings in the `.ti3`, not the chart's patch count. Adversary round 40b drove
+# the difference on one variable, twelve measurements of ONE chart: with the
+# twelfth read in full the note stayed silent, and with the same read ended
+# early at 168 of 210 patches the report printed "taken from charts with
+# different numbers of patches (210, 167)" directly under a Report Scope block
+# naming one chart and twelve runs. Ending a measurement early is a supported
+# ending (`save_partial_and_quit`), so that is not an exotic state.
+#
+# Saying "readings" makes the sentence true in both cases, and the second
+# paragraph names both causes, so the note stays useful exactly where it was
+# lying: a metric over 167 readings really is not over the same colours as the
+# same metric over 210.
 M_REPORT_PATCH_COUNTS_DIFFER = _m(
     "M-REPORT-PATCH-COUNTS-DIFFER",
-    "These measurements were taken from charts with different numbers of patches",
-    "The sheets in this report do not all carry the same number of patches "
-    "({counts}). Every metric is worked out over the patches the sheet "
+    "These measurements do not all hold the same number of readings",
+    "The sheets in this report do not all carry the same number of measured "
+    "patches ({counts}). Every metric is worked out over the patches a sheet "
     "actually holds, so a figure taken over more of them is not measured over "
     "quite the same set of colours as the same figure taken over fewer, and "
     "the two can differ a little for that reason alone. It shows in the trend "
     "graphs as well as in the table.\n\n"
-    "This is not a fault and nothing here is wrong. It is worth knowing before "
-    "you read a small change as a change in the printer.",
+    "That can be because the charts differ, or because a measurement was ended "
+    "before its last strip. Either way it is not a fault and nothing here is "
+    "wrong. It is worth knowing before you read a small change as a change in "
+    "the printer.",
     approved=False)
 
 

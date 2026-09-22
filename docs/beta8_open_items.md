@@ -23784,6 +23784,101 @@ would reach.
   (1), M16 descending (1), M20 red note (3), and the caveat gutted from either
   half (5 each). Control green after each.
 
+### B8-773 · FIXED · Round 40b: the pre-flight paragraph was false in most states, and Knut's premise holds in a minority of them
+- blocks release: no
+- status: FIXED
+- found by: adversary round 40b, 2026-09-22, every finding driven in the real
+  app on screen, sandboxed, with the licence holder's ISO file forced away
+  from. It is the round that measured Knut's own premise rather than
+  implementing it, and the premise does not hold where he assumed it did.
+- **his request**, 2026-09-22: a report judging metrics that cannot be
+  calculated carries a warning for each, and the reader should be told before
+  printing that they can be switched off in Report limits with a threshold of
+  "-". **Measured, four separate ways it is not so:**
+  * **the limit SET decides.** Only the two ISO-derived sets put a real limit
+    on the rows a ChromIQ verification chart cannot answer. The five ChromIQ
+    sets put none, so those rows are simply left out: the sentence described
+    2 of the 7 selectable sets, and on the other five the remedy is a no-op
+    because the threshold is already "no limit".
+  * **the report TYPE decides too.** One run, four buildable types: the
+    numbered note exists on T2 alone. T4 is ungraded so `_note_the_absences`
+    returns early, T3 does not carry those rows, T1 carries no metric rows at
+    all. The pre-flight cannot know the type, so anything unconditional it
+    says about notes is wrong on three of the four.
+  * **"-" cannot be typed.** One row, both states: typing it leaves
+    `hasAcceptableInput()` False and the cell silently reverts on focus-out
+    with the old value still stored. The gesture is setting the spin box to
+    ZERO, which it shows as "–" through `setSpecialValueText`, and the message
+    spelled that mark as a hyphen while the app writes an en dash everywhere.
+  * **the lever is often absent.** On a locked run every column is read-only,
+    photographed on Knut's own demo project with zero spin boxes in the table,
+    and the two ISO columns are read-only in every state.
+- **AND THE NEW PARAGRAPH CONTRADICTED THE ONE SIX LINES ABOVE IT**, in the
+  same popup, always shown together: M-VERIFY-PREFLIGHT said such a metric "is
+  left out of the report", the new paragraph said it "is listed in the report
+  all the same". Photographed in one frame, English and German. The older
+  sentence was an absolute that is true of five sets and false of two, so both
+  were rewritten.
+- **the popup could not carry the paragraph at all.** Knut asked for both
+  windows AND asked in the same specification that this popup not *"become too
+  long"*. Round 40b measured the real popup: `minimumHeight()` 798 px to 958
+  in English and 974 in German, no scroll area, against about 918 px usable on
+  a 13-inch MacBook Air, which puts the OK button and his own "do not show
+  this again" tick off the screen. Re-measured here on screen with a stand-in
+  metric list, the same three states: the paragraph costs 208 px and the one
+  line that now ships costs 80 (English) and 96 (German). So the popup carries
+  one line naming what decides it, and the presets window, which is a scroll
+  area, carries the paragraph.
+- **⚠ TWO QUESTIONS FOR KNUT, in the design document and not answered here:**
+  whether the pre-flight carrying one line rather than the paragraph is
+  acceptable given the height measurement, and whether the behaviour he wants
+  is actually the ISO sets' one, so that the ISO-derived sets should stop
+  showing rows nothing can answer.
+- evidence: test_the_set_really_decides_whether_such_a_row_is_shown,
+  test_which_shipped_sets_put_a_real_limit_on_an_unanswerable_row,
+  test_the_message_says_what_decides_it_and_qualifies_the_lever,
+  test_the_preflight_says_it_too_when_the_chart_falls_short
+- mutation-proved: give a ChromIQ set a real limit on an unanswerable row (2
+  red); drop the "where those limits can still be edited" qualifier (1 red);
+  put the full paragraph back into the popup (1 red).
+- on screen: `~/Desktop/ChromIQ-beta35-proof/preflight-height/`, photographs
+  of the shipped popup in English and German with `driver-report.json`.
+- **the driver's own first cut was wrong and is worth recording**: it built
+  the text tuple before setting the language, so the German popup was measured
+  with the English line in it. The tell was arithmetic, not appearance: the
+  German and English character counts differed by exactly 95 in both the
+  "no paragraph" and the "one line" state, which is the body's difference
+  alone. Corrected German cost is 96 px, not the 80 the first run reported.
+
+### B8-774 · FIXED · Round 40b: the patch-count note called one chart measured twice "different charts"
+- blocks release: no
+- status: FIXED
+- found by: adversary round 40b, 2026-09-22, on one variable.
+- `report_scope` counts `r["patches"]`, which is `data.n_patches`: the number
+  of READINGS in the `.ti3`, not the chart's patch count. Twelve measurements
+  of ONE chart: with the twelfth read in full the note stayed silent; with the
+  same read ended early at 168 of 210 patches, the report printed "taken from
+  charts with different numbers of patches (210, 167)" directly under a Report
+  Scope block naming one chart and twelve runs. `save_partial_and_quit` is a
+  supported ending, so that is not an exotic state.
+- fixed in the WORDING rather than by withholding the note, because the note
+  is true and useful in that case too: a metric over 167 readings really is
+  not over the same colours as the same metric over 210. It now says
+  "readings", is headed "These measurements do not all hold the same number of
+  readings", and its second paragraph names both causes, the charts differing
+  and a measurement ended early.
+- evidence: test_two_patch_counts_make_one_note_in_column_order,
+  test_the_note_reaches_the_rendered_report_and_the_pdf
+
+### B8-775 · FIXED · Round 40b: German said Kennwert where the window it sits in says Kennzahl
+- blocks release: no
+- status: FIXED
+- found by: adversary round 40b (F9), 2026-09-22, reading the rendered popup.
+- the verification pre-flight says "Kennzahl" five times and "Testform" for the
+  chart; the new German said "Kennwert" and "Chart" in the same window. All the
+  new strings now use the window's own words.
+- evidence: test_catalog_is_complete
+
 ### B8-767 · FIXED · Before printing, nothing said what the report does with a metric the chart cannot answer
 - blocks release: no
 - status: FIXED
@@ -23809,12 +23904,15 @@ would reach.
 - **THE LEVER HAS TWO OUTCOMES AND THE FIRST DRAFT PROMISED ONE.** Measured on
   the real `row_verdict`, one row, both states: a metric the chart cannot
   answer reads N-A with a numbered note while its threshold is a number and
-  gets **no word at all** once it is "-", so its row is not drawn; a metric the
-  chart CAN answer reads INFO with "-", so its row IS drawn, with the number
-  and no verdict. "-" removes the row only in the case Knut is asking about.
-  The text says both, and the guard measures both rather than trusting it.
-- evidence: test_the_lever_really_does_what_the_message_promises,
-  test_the_message_states_both_outcomes_and_names_the_window,
+  gets **no word at all** once the set puts no limit on it, so its row is not
+  drawn; a metric the chart CAN answer reads INFO in that state, so its row IS
+  drawn, with the number and no verdict.
+- **AND THE WHOLE TEXT WAS REWRITTEN THE SAME DAY.** Adversary round 40b drove
+  it end to end and found the first version false in most states; see **B8-773**
+  for what was measured and what it says now. The two guards this entry used to
+  cite went with that rewrite and are named there instead.
+- evidence: test_the_set_really_decides_whether_such_a_row_is_shown,
+  test_the_message_says_what_decides_it_and_qualifies_the_lever,
   test_the_preset_window_prints_it_under_a_chart_that_falls_short,
   test_and_never_under_a_chart_that_falls_short_of_nothing
 

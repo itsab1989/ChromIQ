@@ -539,6 +539,12 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED a third time on 2026-09-22, after adversary round 40b drove
+    # both new messages in the real app and found the first one false in most
+    # states. The texts were rewritten, so six keys changed: German is written
+    # by hand and stays at its number, which is how a hand translation that
+    # quietly fell back to English would show up here. Counted off the tree
+    # with this file's own helper, BOTH ledgers in the same commit.
     # RE-MEASURED AGAIN the same day, when `STANDARD_CAVEAT` was split into
     # two keys. The one-page summary branches away before the block that
     # prints the caveat, so T1 needed it too, and measured on that page's own
@@ -840,18 +846,18 @@ _BUDGET = {
     # recorded. COUNTED with this file's own helper on the tree this commit
     # leaves behind.
     "de": 22,
-    "es": 678,
-    "fr": 679,
-    "it": 678,
-    "ja": 678,
-    "nl": 678,
-    "no": 678,
-    "pl": 678,
-    "pt": 678,
-    "ru": 677,
-    "sv": 678,
-    "zh_CN": 677,
-    "uk": 893,
+    "es": 679,
+    "fr": 680,
+    "it": 679,
+    "ja": 679,
+    "nl": 679,
+    "no": 679,
+    "pl": 679,
+    "pt": 679,
+    "ru": 678,
+    "sv": 679,
+    "zh_CN": 678,
+    "uk": 894,
 }
 
 

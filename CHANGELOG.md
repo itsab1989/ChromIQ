@@ -31,15 +31,17 @@ what that PASS is.**
 
 - **Before you print, the verification pre-flight and "Which presets can be
   used for verification" now say what the report does with a metric your chart
-  cannot answer**: it appears reading N-A with a note, it is never judged, and
-  it can be taken out altogether by setting that metric's threshold to "-" in
-  Report limits. A row your chart cannot answer then leaves the report
-  entirely; one it can answer is shown with its number and no verdict.
+  cannot answer.** It is never judged and can never make the report fail.
+  Whether it appears at all is decided by the limit set: where the set puts a
+  real limit on it the row is shown reading N-A, and where it puts none the
+  row is left out, which is what ChromIQ's own sets do. You can leave a row
+  out yourself by setting its threshold to zero, which the box shows as "–".
 
-- **A report whose sheets do not all carry the same number of patches says
+- **A report whose sheets do not all hold the same number of readings says
   so.** A metric worked out over more patches is not worked out over quite the
   same colours as the same metric over fewer, so the two can differ a little
-  for that reason alone, and it shows in the trend graphs. This is a plain
+  for that reason alone, and it shows in the trend graphs. That can be because
+  the charts differ or because a measurement was ended early. This is a plain
   note, not a warning: nothing is wrong.
 
 
