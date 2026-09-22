@@ -722,7 +722,14 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                 # columns it is understood that the button restores defaults
                 # for the specific column the button belong to."* The button
                 # sits under the column it acts on, so naming the column in
-                # the label was spending width on what the position says.
+                # the label repeated what the position already said.
+                #
+                # NOT a width saving, and an earlier comment here claimed it
+                # was. Measured by challenge round 38: "Restore this column"
+                # has a sizeHint of 129 px, "Restore defaults" 111, and the
+                # grid gives the cell 138 px in every language, so the rename
+                # freed nothing. It is what Knut asked for; the reason was
+                # mine and it was wrong.
                 btn = QPushButton(tr("Restore defaults"), self)
                 btn.setProperty("set_id", col)
                 btn.setStyleSheet("QPushButton { padding: 1px 6px; font-size: 10px;"

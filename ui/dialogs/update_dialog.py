@@ -91,11 +91,21 @@ class UpdateAvailableDialog(QDialog):
         # the window being 262. That is exactly the fault: the text is cut and
         # the user has to drag the window taller to read it.
         #
-        # The width is pinned at 540 above, so the body can never have to wrap
-        # into MORE lines than it does here, and the height this asks for is
-        # the height it will need. Widening the window only frees space.
+        # Widening the window only frees space; narrowing it is what the
+        # width floor below prevents.
         self.layout().activate()
-        self.setMinimumHeight(self.sizeHint().height())
+        # **AND THE WIDTH THE HEIGHT WAS MEASURED AT, OR THE FAULT COMES
+        # BACK.** `setMinimumWidth(540)` above is a MINIMUM and not a pin: the
+        # button row makes the window open wider than 540 in nine of the
+        # fourteen languages, and a user can still drag it back down to 540.
+        # The body then wraps into more lines than the height was measured
+        # for. Measured by challenge round 38, dragging each window to the
+        # width it still allowed: German needs 80 px of body and has 64, so 16
+        # px of text is cut, and the same in Norwegian, Ukrainian and Japanese.
+        #
+        # So the floor is the size it was actually laid out at, both ways.
+        self.setMinimumSize(max(self.minimumWidth(), self.sizeHint().width()),
+                            self.sizeHint().height())
 
     def _open_download_page(self) -> None:
         QDesktopServices.openUrl(QUrl(_RELEASES_PAGE))

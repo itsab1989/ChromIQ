@@ -120,3 +120,36 @@ def test_a_longer_version_string_raises_the_floor(qapp, dialog):
         f"{long_.minimumHeight()} for one that wraps onto another line; it "
         f"is not following the content"
     )
+
+
+@pytest.mark.parametrize("code", ["en", "de", "uk", "ja"])
+def test_the_window_cannot_be_dragged_narrower_than_it_was_measured(qapp, dialog,
+                                                                    code):
+    """A height measured at one width is only a floor AT that width.
+
+    `setMinimumWidth(540)` is a MINIMUM and not a pin: the button row makes
+    the window open wider than 540 in nine of the fourteen languages, and a
+    user could still drag it back to 540. The body then wraps into more lines
+    than the height was measured for, and Knut's fault returns.
+
+    Measured by challenge round 38, dragging each window to the width it still
+    allowed: German needs 80 px of body and has 64, so 16 px of text is cut,
+    and the same in Norwegian, Ukrainian and Japanese.
+
+    MUTATION: put back `setMinimumHeight(self.sizeHint().height())` on its own,
+    without the width, and this goes red for every language that opens wider
+    than 540.
+    """
+    from core import i18n
+    i18n.set_language(code)
+    try:
+        dlg = dialog("v4.3.0-beta.32-rc1+build.20260922.arm64")
+        dlg.show()
+        qapp.processEvents()
+        assert dlg.minimumWidth() >= dlg.sizeHint().width(), (
+            f"[{code}] the window lays out at {dlg.sizeHint().width()} px wide "
+            f"but can be dragged to {dlg.minimumWidth()}, where its text needs "
+            f"more lines than the height it was given"
+        )
+    finally:
+        i18n.set_language("en")

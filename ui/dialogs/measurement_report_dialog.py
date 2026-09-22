@@ -7231,11 +7231,32 @@ class MeasurementReportDialog(QDialog):
         sufficient for now. cancel the design of making a checkmark for each
         report type."*
         """
-        from workflow.compliance_sets import ROW_BY_ID
+        from workflow.compliance_sets import ROW_BY_ID, limit_bearing
         from workflow.measurement_report import rows_for_report_type
         keep = rows_for_report_type(type_id or self._report_type_now())
         if not keep:
             return ""
+        # **ONLY THE ROWS THE CHOSEN SET ACTUALLY LIMITS.** Challenge round 38
+        # drove this on the demo pack and the first version promised three
+        # metrics the document judged none of: two printed N-A in all twelve
+        # columns, and `ramps_30_70_dl_max` printed no row at all because
+        # `chromiq_default` leaves it at "–", as do chromiq_tight,
+        # chromiq_quick and iso_12647_7, four of the seven sets. So the
+        # sentence named a metric the set does not limit and then said in the
+        # next breath that any other limit the set defines is not part of the
+        # report, which told the reader all three were limits it defines.
+        #
+        # `limit_bearing` is the application's own answer to "does this set put
+        # a number on this row", and it is the same filter `rows_asked` uses.
+        try:
+            lim = self._document_limits() or self._sticky_limits()
+            bearing = set(limit_bearing(lim.limits)) if lim is not None else None
+        except Exception:      # noqa: BLE001 — advisory text, never a gate
+            bearing = None
+        if bearing is not None:
+            keep = tuple(rid for rid in keep if rid in bearing)
+            if not keep:
+                return ""
         names = [tr(ROW_BY_ID[rid].label) for rid in keep if rid in ROW_BY_ID]
         if not names:
             return ""
@@ -7245,7 +7266,7 @@ class MeasurementReportDialog(QDialog):
                           only=names[0])
         return tr("This kind of report judges {count} metrics: {names}. Any "
                   "other limit the set defines is not part of it.").format(
-                      count=len(names), names=", ".join(names))
+                      count=len(names), names="; ".join(names))
 
     def _keep_rows_for_type(self, rows: list) -> list:
         """Only the rows the chosen type is ABOUT.
@@ -7489,13 +7510,39 @@ class MeasurementReportDialog(QDialog):
                     break
         if want is None:
             want = self._yardstick_of(judged[-1])
+        # AGREEING WITH THE ANCHOR IS NOT ENOUGH, AND THAT WAS A FAULT WORSE
+        # THAN THE ONE THE COMPARISON FIXED. `same_limits` SKIPS a row one side
+        # does not define, and skipping is not transitive: a copy bound before
+        # the row existed agrees with a copy holding 2.0 AND with one holding
+        # 9.9, while those two contradict each other. Measured by challenge
+        # round 38 in a real window, three copies of `chromiq_default`
+        # differing only in `all_de00_avg`:
+        #
+        #     A row ABSENT   B 2.0   C 9.9
+        #     A~B True   A~C True   B~C False
+        #     anchor A -> the document held A, B and C: 2.0 AND 9.9 in one
+        #     document, which is precisely what Knut's ruling of 2026-09-16
+        #     forbids, and which sheet the user opened decided it.
+        #
+        # So a candidate must agree with EVERY column already admitted, not
+        # only with the anchor. The first disagreement keeps the earlier
+        # column and leaves the later one out, so the result does not depend
+        # on the order the history happens to arrive in beyond that.
         keep, out = [], []
+        kept_keys: list = []
         for r in runs:
-            if _is_raw_drift(r) or self._same_yardstick(self._yardstick_of(r),
-                                                        want):
+            if _is_raw_drift(r):
                 keep.append(r)
-            else:
+                continue
+            key = self._yardstick_of(r)
+            if not self._same_yardstick(key, want):
                 out.append(r)
+                continue
+            if any(not self._same_yardstick(key, k) for k in kept_keys):
+                out.append(r)
+                continue
+            keep.append(r)
+            kept_keys.append(key)
         return keep, out
 
     @staticmethod
@@ -7524,6 +7571,10 @@ class MeasurementReportDialog(QDialog):
         all: the set id is compared first and nothing below it can rescue a
         mismatch.
         """
+        # `_yardstick_of` cannot return None -- `recorded_compliance` already
+        # guarantees a thresholds dict and the live branch builds one -- but a
+        # caller with no record must not be merged into somebody else's set by
+        # accident, and `None == None` was the old behaviour.
         if a is None or b is None:
             return a is b
         from workflow.compliance_sets import Limit, same_limits

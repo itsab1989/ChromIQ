@@ -1503,7 +1503,13 @@ def same_limits(a: "dict[str, Limit]", b: "dict[str, Limit]") -> bool:
     It does not matter if one report uses a metric as recommendation ('should')
     and the other report uses required ('shall')."*
 
-    So the rules are `is_edited`'s, for the same reasons written out there:
+    The rules are `is_edited`'s in spirit and in two of three cases exactly,
+    with ONE deliberate difference measured by challenge round 38: `is_edited`
+    skips a stored ``?`` only on the RUN's copy, because a number stored where
+    the set now says ``?`` is a real edit of that set. Here there is no set and
+    no "other direction": two run copies are being compared with each other, so
+    a ``?`` on EITHER side is the same absence of a judgement and is skipped
+    both ways. The reasons for the other two are as written there:
 
     * **a row ABSENT from either side is not a difference.** `limits_to_json`
       writes every row of a column, a removed limit included, so a row the user

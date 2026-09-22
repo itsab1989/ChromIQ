@@ -1339,3 +1339,55 @@ def test_ukrainian_parameter_overlay_merges():
     assert d["name"] == "Тип пристрою"
     assert len(d["labels"]) == len(english["labels"]) == 16
     assert d["labels"] != english["labels"]
+
+
+#: The longest verbatim run of the ENGLISH source that may appear inside a
+#: German string. MEASURED off the catalogue, 2026-09-22, over all 1,750
+#: German strings of 120 characters or more: the largest legitimate run is
+#: **215** characters, inside a 5,199-character technical passage about
+#: building a printer profile from a scan. The next four are 106, 104, 104 and
+#: 96, and the 104s are a list of file names and an HTML fragment, which are
+#: identical in every language by nature.
+_DE_MAX_ENGLISH_RUN = 300
+
+
+def test_a_german_string_is_not_english_with_a_sentence_spliced_in():
+    """German is translated by hand, and half-translating it passes every
+    other guard in this file.
+
+    **MEASURED, AND IT WAS MINE.** Renaming one button changed one sentence
+    inside a 684-character Report-limits help text. What went in as "German
+    written by hand" was the ENGLISH source with a single German sentence
+    spliced into the middle: the string went from **5.7 % English to 76.8 %
+    English**, and a German user read an English paragraph with one German
+    sentence in it.
+
+    It slipped past everything: it is not a MISSING key, so the missing-key
+    guard is silent; it is not IDENTICAL to its key, so
+    `_IDENTICAL_TO_KEY` is silent and stayed at 146; and it carries no
+    placeholder fault. Challenge round 38 found it by measuring the text
+    against its own source.
+
+    Only German is asked, deliberately. The other twelve carry the English
+    source ON PURPOSE during a beta, which is the project's own rule and the
+    reason `_IDENTICAL_TO_KEY` exists with numbers in the hundreds.
+    """
+    from difflib import SequenceMatcher
+    cat = _load_catalog("de")
+    bad = []
+    for key, val in cat.items():
+        if key.startswith("@") or len(key) < 120 or val == key:
+            continue
+        m = SequenceMatcher(None, key, val, autojunk=False).find_longest_match(
+            0, len(key), 0, len(val))
+        if m.size > _DE_MAX_ENGLISH_RUN:
+            bad.append(f"{m.size} characters of the English source survive "
+                       f"verbatim in: {key[:70]!r}")
+    assert not bad, (
+        "a German string carries a long verbatim run of its English source, "
+        "which is what a half-translated string looks like:\n  "
+        + "\n  ".join(bad[:5])
+        + f"\n\nThe measured ceiling is {_DE_MAX_ENGLISH_RUN}; the largest "
+          "legitimate run in the catalogue is 215. Translate the whole string "
+          "rather than splicing a sentence into the English."
+    )

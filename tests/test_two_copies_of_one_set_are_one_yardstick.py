@@ -92,3 +92,44 @@ def test_a_row_present_on_both_sides_but_removed_on_one_is_a_difference():
     kept = _copy(de00_avg=2.0)
     removed = {"de00_avg": Limit.none()}
     assert not same_limits(kept, removed)
+
+
+# ---------------------------------------------------------------------------
+# Transitivity: the half a pairwise predicate cannot carry on its own
+# ---------------------------------------------------------------------------
+
+def test_agreeing_with_one_copy_does_not_make_two_copies_agree():
+    """`same_limits` is NOT an equivalence relation, and callers must know it.
+
+    Skipping a row one side does not define is the whole point of this
+    predicate, and skipping is not transitive. Challenge round 38 measured it
+    on three stored copies of `chromiq_default` differing only in one row:
+
+        A  the row ABSENT   (any copy bound before it existed)
+        B  the row = 2.0
+        C  the row = 9.9    (a user's own edit)
+
+        same_limits(A, B) is True
+        same_limits(A, C) is True
+        same_limits(B, C) is False
+
+    With A as the anchor, a report admitted B and C together, so one document
+    held columns judged against 2.0 and against 9.9, which is exactly what
+    Knut's ruling of 2026-09-16 forbids. Which sheet the user happened to open
+    decided it.
+
+    This test does not ask the predicate to change: that behaviour is correct
+    and is what makes an older copy usable at all. It pins the shape so that
+    `_one_limit_set`'s obligation is visible here rather than being
+    rediscovered in a report somebody hands to a customer.
+    """
+    absent = _copy(de00_avg=2.0)
+    two = _copy(de00_avg=2.0, all_de00_avg=2.0)
+    nine = _copy(de00_avg=2.0, all_de00_avg=9.9)
+
+    assert same_limits(absent, two)
+    assert same_limits(absent, nine)
+    assert not same_limits(two, nine), (
+        "2.0 and 9.9 on the same row are different limits; if this ever "
+        "passes, the predicate has stopped separating anything"
+    )
