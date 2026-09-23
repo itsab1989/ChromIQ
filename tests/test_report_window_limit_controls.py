@@ -650,7 +650,9 @@ def test_the_report_explains_bound_and_locked(qapp, tmp_path):
         # bound: the copy is taken at the FIRST dated verification and is the
         # run's own from then on
         assert "first dated verification" in plain
-        assert "does not reach a run that is already bound" in plain
+        # K18 (the final round): the Preferences clause told a ChromIQ user
+        # how the app behaves; what the reader keeps is what binding MEANS.
+        assert "judged against the same numbers" in plain
         # locked: it starts at the SECOND one, and it is about comparability
         assert "locked once a second dated verification has been measured" in plain
     finally:

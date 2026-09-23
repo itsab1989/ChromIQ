@@ -111,8 +111,13 @@ def test_adding_a_measurement_is_a_change_to_the_selected_report(
     from tests.test_import_measurement_module import _cgats, _PATCHES
     from workflow.measurement_report import REPORT_TYPE_FULL
     s, _fm, run, vs = two_dates
-    sheet = run.dir / f"{run.dir.parent.parent.name}.ti3"
-    sheet.write_text(_cgats("CTI3", _PATCHES), encoding="utf-8")
+    # A THIRD DATED VERIFICATION, not the run's profiling sheet: since the
+    # final round (FC-2) a profiling sheet beside verifications is a mixed
+    # load and Generate refuses it outright, which is another test.
+    v3 = run.new_verification()
+    v3.ensure_dir()
+    v3.measurement_ti3.write_text(_cgats("CTI3", _PATCHES), encoding="utf-8")
+    sheet = v3.measurement_ti3
     dlg = _window(s, vs[-1].measurement_ti3, qapp)
     try:
         key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_FULL,

@@ -3996,6 +3996,13 @@ class MeasurementReportDialog(QDialog):
         reports = self._reports_to_generate()
         if ctx is None or not reports:
             return
+        # The button is disabled with a reason when both kinds are loaded
+        # (FC-2); the handler refuses as well, so no other door writes one
+        # type into both kinds of folder.
+        if self._kinds_are_mixed():
+            log.info("Generate refused: a profiling sheet and dated "
+                     "verifications are loaded together")
+            return
         # **IT SAYS SO INSTEAD OF CORRECTING THE TICKS (B8-591).** Knut,
         # 2026-09-20, reporting the same silence from both ends: *"This
         # unselected all but the last measurement without a warning"* and *"the
@@ -6661,6 +6668,25 @@ class MeasurementReportDialog(QDialog):
         return KIND_VERIFICATION if ctx.verification is not None \
             else KIND_PROFILING
 
+    def _kinds_are_mixed(self) -> bool:
+        """True when the loaded measurements include both a profiling sheet
+        and a dated verification (final round FC-2)."""
+        from workflow.run_compliance import run_context_for
+        kinds = set()
+        for r in getattr(self, "_history", None) or []:
+            origin, ti3 = r.get("_origin_dir"), r.get("ti3")
+            if not origin or not ti3:
+                continue
+            try:
+                ctx = run_context_for(Path(str(origin)) / str(ti3))
+            except Exception:                        # noqa: BLE001
+                ctx = None
+            if ctx is not None:
+                kinds.add(ctx.verification is not None)
+            if len(kinds) > 1:
+                return True
+        return False
+
     def _fit_to_kind(self, tid: str) -> str:
         """*tid*, or the kind's own default when the kind does not allow it."""
         from workflow.measurement_report import report_types_for_kind
@@ -6951,8 +6977,23 @@ class MeasurementReportDialog(QDialog):
         # was fixed. A disabled button is visibly refusing; a live one that
         # writes nothing is not. The all-unticked case already disabled it, so
         # this only makes the rule reach the row that matters.
+        # FINAL ROUND FC-2 (and B8-803): a profiling sheet and dated
+        # verifications loaded together. One press wrote ONE type into BOTH
+        # kinds of folder: Printing records into verification folders, or a
+        # graded Full colour check into the profiling folder, which K19 then
+        # rightly hides from both readouts, so the press looked like it did
+        # nothing. Each kind has its own reports (§13.10), so it is refused
+        # and said, as several places are.
+        mixed = self._kinds_are_mixed()
+        if mixed and not several:
+            self._generate_btn.setToolTip(tr(
+                "Measurements of a profiling sheet and of verifications are "
+                "loaded together, and each has its own kind of report. Remove "
+                "one kind from the list with Remove Profile's Measurements… "
+                "to save a report. Save report as PDF… saves the report shown "
+                "here."))
         self._generate_btn.setEnabled(
-            run is not None and not several
+            run is not None and not several and not mixed
             and bool(self._reports_to_generate()))
         # **THE BOX THAT WIDENED THE REPORT IS GONE (B8-590), AND SO IS THE
         # RULE THAT FORCED IT OFF.** A one-measurement list needed "Show all
@@ -8128,7 +8169,7 @@ class MeasurementReportDialog(QDialog):
                 "This verdict was recorded when the report was saved, against "
                 "the limit set {label}. It is what this measurement was judged "
                 "to be at the time, and this run's current limits do not "
-                "change it. Only unlocking the run's limits recalculates it."
+                "change it."
             ).format(label=label)
         if r.get("_fresh"):
             # A MEASUREMENT IN NO RUN HAS NO "THIS RUN". An i1Profiler export or
@@ -8949,6 +8990,8 @@ class MeasurementReportDialog(QDialog):
                       "there is no one run to unlock here. To unlock a profile "
                       "run's limits, remove every other entry from the list, "
                       "one at a time, with Remove Profile's Measurements….")
+        if not self._sources:                   # final round FC-8
+            return tr("No measurement is loaded yet.")
         if run is None:
             return tr("This measurement does not belong to a profile run, so "
                       "there are no stored limits to unlock.")
@@ -10813,16 +10856,12 @@ class MeasurementReportDialog(QDialog):
             "<p><b>" + html.escape(tr("Bound, and locked.")) + "</b> "
             + html.escape(tr(
                 "When the first dated verification of a profile run was "
-                "measured, ChromIQ copied the limit set chosen at that moment "
-                "onto the run. The run is bound to that copy: every later date "
-                "of the same run is judged against the same numbers, so the "
-                "dates can be compared, and changing the set in Preferences "
-                "afterwards does not reach a run that is already bound. The "
-                "copy is locked once a second dated verification has been "
-                "measured, so the numbers behind a history cannot move under "
-                "it. Until then the set may still be chosen in the report "
-                "window, and choosing one recalculates the dates already "
-                "saved, keeping a copy of each first.")) + "</p>"
+                "measured, the limit set chosen at that moment was copied onto "
+                "the run. The run is bound to that copy: every later date of "
+                "the same run is judged against the same numbers, so the dates "
+                "can be compared. The copy is locked once a second dated "
+                "verification has been measured, so the numbers behind a "
+                "history cannot move under it.")) + "</p>"
             "<p>" + html.escape(tr(
                 "What the numbers mean depends on how the chart was printed:")) + "</p>"
             "<ul>"
@@ -10833,14 +10872,13 @@ class MeasurementReportDialog(QDialog):
                 "it is the CHANGE between dated reports that matters, not a single "
                 "value.")) + "</li>"
             "<li>" + html.escape(tr(
-                "A verification chart is printed THROUGH your finished profile — "
-                "ChromIQ converts the sheet itself and prints it with the "
-                "printer's colour management off. It SHOULD match the design "
-                "closely, so low ΔE and passes mean the profile is still "
-                "accurate; rising numbers over time tell you when it's worth "
-                "re-profiling. (Printed raw instead, the same sheet is a printer "
-                "drift check — the report says which way each sheet was "
-                "printed.)")) + "</li>"
+                "A verification chart is printed THROUGH the finished profile, "
+                "with the printer's colour management off. It SHOULD match the "
+                "design closely, so low ΔE and passes mean the profile is "
+                "still accurate; rising numbers over time show when it is "
+                "worth re-profiling. (Printed raw instead, the same sheet is a "
+                "printer drift check, and the report says which way each sheet "
+                "was printed.)")) + "</li>"
             "</ul>"
             "<p>" + html.escape(tr(
                 "Some of a chart's design colours can be brighter or more "
@@ -10873,12 +10911,11 @@ class MeasurementReportDialog(QDialog):
                 "better.")) + "</p>"
             "<p>" + html.escape(tr(
                 "Because the design reference never changes, comparing dated "
-                "reports of the same chart on the same printer is a clean, reliable "
-                "signal of drift — ageing inks, a wandering printer, or an "
-                "instrument going off. Save a report after each measurement to "
-                "build that history. Screen and print colours here are "
-                "approximate; the numbers come from your measurement file and are "
-                "exact.")) + "</p>")
+                "reports of the same chart on the same printer is a clean, "
+                "reliable signal of drift: ageing inks, a wandering printer, "
+                "or an instrument going off. Screen and print colours here are "
+                "approximate; the numbers come from the measurement file and "
+                "are exact.")) + "</p>")
         # page_break: the gap batch (2026-08-13) could leave this headline
         # orphaned at a page bottom; a fixed break makes page 2 deterministic.
         return (_h2(tr("How to read this report"), page_break=True) + _gap()
@@ -11340,7 +11377,12 @@ class MeasurementReportDialog(QDialog):
         return ""
 
     def _report_profile_name(self, runs: list) -> str:
-        """The dominant profile/chart name across the included runs."""
+        """The dominant profile/chart name across the included runs.
+
+        Final round FC-6 (open, B8-811): a verification's chart is
+        "<project>-verify", so the title names the chart's file rather than
+        the profile. Which one Knut wants is his call; the title design
+        (and its Preferences toggle) predates it."""
         from collections import Counter
         names = [r.get("chart") for r in runs if r.get("chart")]
         return Counter(names).most_common(1)[0][0] if names else ""
@@ -11743,9 +11785,9 @@ class MeasurementReportDialog(QDialog):
             out.append(_h2(tr("Example colours")) + _gap()
                        + f"<div style='color:{_C['dim']};margin-bottom:4px'>"
                        + html.escape(tr(
-                           "{count} colours from the chart that was measured, "
-                           "spread across what this printer can make. Left: "
-                           "what the chart asked for. Right: what came back."
+                           "{count} colours from the test chart used, spread "
+                           "across what this printer can make. Left: what the "
+                           "chart asked for. Right: what came back."
                        ).format(count=len(picked))) + "</div>"
                        + self._swatch_table_html(
                            picked,
@@ -11797,9 +11839,8 @@ class MeasurementReportDialog(QDialog):
         _standard = self._names_a_standard(r)
         out.append(f"<div style='color:{_C['dim']};margin-top:10px'>"
                    + html.escape(tr(STANDARD_CAVEAT_PROOF) if _standard else tr(
-                       "ChromIQ measures against published values; it does "
-                       "not certify. This page says what was measured and "
-                       "what it was compared against."))
+                       "This page says what was measured and what it was "
+                       "compared against; it does not certify."))
                    + "</div>")
         return "".join(out)
 

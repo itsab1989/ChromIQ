@@ -24853,14 +24853,22 @@ would reach.
   test_a_refused_update_leaves_no_archive_behind
   test_clear_list_forgets_the_selected_report
 
-### B8-803 · OPEN · A Profiling window can write Printing records into dated verification folders
+### B8-803 · FIXED · A Profiling window can write Printing records into dated verification folders
 - blocks release: no
-- status: OPEN
+- status: FIXED
+- fix (final round before beta 36, FC-2, 2026-09-23): the other direction
+  was found too (a Verification window with the profiling sheet added wrote a
+  graded Full colour check into the profiling folder, which K19 then hid, so
+  the press looked like it did nothing). With a profiling sheet and dated
+  verifications loaded together, Generate is now greyed with a reason and its
+  handler refuses; Save report as PDF still works. Whether such a window
+  should instead write each kind its own type stays Knut's (question 10 of
+  5784140521); refusing loses nothing and writes nothing wrong meanwhile.
 - found by: round 2A (R2A-5): a Profiling window with a verification added
   and Select all writes a Printing record for each verification, because the
   allowed types follow the measurement the window was OPENED on. What a
   window holding both kinds may produce is Knut's (question 10 of 5784140521).
-- evidence: test_a_stale_saved_report_is_shown_as_the_type_its_file_records
+- evidence: test_both_kinds_loaded_generate_is_refused_and_says_why
 ### B8-804 · FIXED · The demo pack brought in line with every rule (K15 of B8-778, B8-764)
 - blocks release: no
 - status: FIXED
@@ -25112,3 +25120,34 @@ would reach.
   and the failure box does not name the date.
 - evidence: none yet, it is open; both are strict xfails in
   tests/test_round3_a_features_since_265216d5.py.
+
+### B8-811 · FIXED · Final round before beta 36: a press that wrote a hidden report, and report text that still explained ChromIQ
+- blocks release: no
+- status: FIXED
+- found by: the final challenge round, on screen, 2026-09-23. Report:
+  `~/Desktop/ChromIQ-beta36-proof/final-challenge/REPORT.md`.
+- FC-1/FC-2 (HIGH): one press with a profiling sheet and dated verifications
+  loaded wrote one type into both kinds of folder; K19 hid the disallowed
+  half, so the window said nothing had been written. Refused now (B8-803).
+  FC-1 (a Profiling window writing a Full colour check) was reproduced only
+  downstream of FC-2's hidden report; the plain Profiling window writes a
+  Printing record, measured.
+- FC-3/FC-5/FC-7 (K18 again): the bound-and-locked paragraph (Preferences,
+  the report window, recalculation), "Only unlocking the run's limits
+  recalculates it" (also untrue as worded), "Save a report after each
+  measurement", "ChromIQ converts the sheet itself", "the chart that was
+  measured", and a summary footer claiming "published values" under
+  ChromIQ's own set.
+- FC-8: after Clear list, Unlock said "this measurement" of nothing.
+- OPEN, not changed: FC-4 a Printing record still names the set it would have
+  been judged against and carries the verdict-words guide (its design says it
+  names the set; Knut's); FC-6 the title and "Profile name" name the
+  verification chart's file ("…-verify") rather than the profile, which is
+  the title design with its Preferences toggle (Knut's); FC-9 the real Add
+  dialog once added nothing on screen (unconfirmed); FC-10 the PDF's text
+  layer maps ':' wrongly when copied (the page renders correctly).
+- evidence:
+  test_both_kinds_loaded_generate_is_refused_and_says_why
+  test_the_guide_explains_no_chromiq_mechanics
+  test_the_recorded_verdict_sentence_names_no_ChromIQ_action
+  test_after_clear_list_unlock_says_nothing_is_loaded
