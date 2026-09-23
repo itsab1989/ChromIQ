@@ -2266,3 +2266,57 @@ driven on screen on the demo packs:
     the window and the PDF. "The same chart measured again" has nothing to
     compare on a chart's first date, so on three dates it can have one value;
     that value was in the table and missing from the graph.
+
+### 17.1 Every graph explains itself (#182 K25, 2026-09-23)
+
+#### ⏳ AWAITING CONFIRMATION
+
+**Confirmed by:** *nobody yet.*
+
+What Knut asked for: 5789263863, the graph section (answers 2 and 5),
+acknowledged in 5789282445. What was built, as driven on screen on the demo
+packs (`~/Desktop/ChromIQ-beta38-proof/graphs/REPORT.md`):
+
+11. **The limit words follow the Colour accuracy rule on every graph.** One
+    piece of code places every graph's words, so the rule of item 6 is the
+    same everywhere: in the left margin beside the axis numbers while they
+    fit; inside the plot, the upper line's word above its line and the lower
+    one's below, when a word would land within 9 px of an axis number or
+    within 11 px of the other word. New: a word placed inside the plot also
+    keeps clear of the graph's own lines, points and red x. Where the left
+    end of its line is crossed by a data line it moves along its own line to
+    the first clear place; where there is none it stays at the left end. A
+    word is never left out.
+12. **Every limit word has a description.** Pointing at the word on screen
+    shows it as a tooltip; the PDF prints the same text under the graph, one
+    line per limit line, marked with a short dotted stroke in the line's
+    colour. The text is the word, the limit with its unit, and what it is the
+    limit for, for example *"Pairs (1.5 ΔE00): the limit for the largest
+    difference between any two of the nine areas of the sheet."* A line the
+    plotted range does not reach has no word on the graph to point at; the
+    PDF still lists it, followed by *"Outside the range of values shown."*
+13. **Two lines above each graph in the PDF**, under its title: what the
+    graph is and what it shows, written for whoever the PDF is handed to (no
+    ChromIQ instructions, no history). Each is at most two lines at the
+    picture's width, in English and in German.
+14. **Units on the data labels.** Every legend entry carries its unit, as
+    Colour accuracy's "Average ΔE, all patches" already did: the judged rows
+    as "<row label> (ΔE00)", "(ΔCh)" or "(ΔL*)", Cube corners as "White
+    (ΔE00)" and so on. Paper white and Darkest black already said L*.
+15. **A withheld date is a small red x.** A date whose value exists but was
+    not judged (today: evenness, when the sheet's own noise is not below the
+    limit) stays on the date axis and is drawn as a red x on that metric:
+    * at the neighbouring date's value when only one of the two dates beside
+      it has a point for that metric;
+    * at the mean of the two when both have;
+    * just above the x-axis when neither has (no date beside it, or the date
+      beside it is withheld too). When a date beside it gets a point, the x
+      moves up by the same rule.
+
+    The neighbours are the dates immediately beside it on the axis. Pointing
+    at the x shows *"<date>, <metric>: not judged, because <the same sentence
+    as the results table's N-A>."*; the PDF prints the same text under the
+    graph, after the line descriptions, marked with a red ×.
+16. **Unchanged:** the tab scroll arrows; and a report of one measurement
+    still shows "A trend graph needs at least two measurement runs…" in its
+    graphs, with no red x.

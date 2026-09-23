@@ -25571,3 +25571,41 @@ would reach.
   test_the_delete_message_says_measurement_s
   test_the_file_guide_names_the_shared_report_folders
   test_a_report_across_projects_loads_the_other_project_from_where_it_is_now
+
+### B8-827 · FIXED · K25: every trend graph explains its lines, its red x and itself
+- blocks release: no
+- status: FIXED
+- found by: Knut, #182 5789263863 (graph section, answers 2 and 5),
+  acknowledged in 5789282445.
+- fix: in `_TrendChart` and `_export_pdf` only (the graph code):
+  * one sentence per limit line (`_LIMIT_NOTES`), shown as a tooltip over
+    the line's word and printed under the graph in the PDF, word for word;
+  * at most two lines above each graph in the PDF (`_TREND_ABOUT`), measured
+    in English and German;
+  * the unit on every legend entry (`_with_unit`);
+  * a withheld value (evenness, noise not below the limit) keeps its date on
+    the axis and is drawn as a red x at the neighbouring value, the mean of
+    both neighbours, or just above the x-axis (`_withheld_mark_value`), with
+    the table's own N-A sentence as tooltip and PDF text;
+  * a limit word placed inside the plot slides along its own line off a data
+    line, point or red x (`_clear_left`).
+  Spec: §17.1 of `docs/design/measurement_report_limits.md`, awaiting
+  confirmation.
+- found and fixed while driving: a bare `<img>` after the description joined
+  its last line, so a short last line ("all nine.") printed beside the
+  picture's foot; and a plain-text tooltip was one line 1,580 px wide.
+- proof: 20 mutations, each proved red; on screen
+  `~/Desktop/ChromIQ-beta38-proof/graphs/REPORT.md`.
+- evidence:
+  test_the_red_x_height_follows_knuts_three_cases
+  test_a_withheld_date_stays_on_the_axis_with_its_reason
+  test_the_red_x_is_painted_red_where_the_rule_puts_it
+  test_every_tab_places_its_words_by_the_accuracy_rule
+  test_a_word_inside_the_plot_moves_off_a_data_line
+  test_hovering_a_word_or_a_red_x_shows_the_text_the_pdf_prints
+  test_every_graph_description_fits_two_lines_in_the_pdf
+  test_the_pdf_prints_the_description_above_and_the_key_under
+- open, for Knut: whether the neighbours of a red x are the dates directly
+  beside it (built, his words) or the nearest dates with a value; whether a
+  date with NO value (the chart could not supply the row) should also get a
+  red x (not built: only a value withheld from judging does).
