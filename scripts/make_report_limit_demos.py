@@ -3339,6 +3339,9 @@ def _crossed_rows(report, limits, row_values, row_verdict, set_summary,
 #: are not selectable at all, because their tolerance values are not in this
 #: repository. So "every threshold for every set" is 53 cells as the product
 #: ships, and the other 27 exist only once a user types a number in.
+#: (That was measured before #182 S-2. Since then the read-only ISO columns
+#: carry the values the repository ships and are selectable; they take no
+#: typed number, and their matrix runs are designed by `iso_matrix_pair`.)
 #:
 #: That is not a workaround. ``effective_limits`` accepts an override on any
 #: row whose status is not ``unmeasurable``/``unknown``, the Report limits
@@ -3501,13 +3504,113 @@ MATRIX["custom_iso_12647_7"] = (
 MATRIX["custom_iso_12647_8"] = (
     _replace_design(_CUSTOM_OVER, outer_de=5.0, surface_de=5.0), _CUSTOM_IN)
 
+# ---------------------------------------------------------------------------
+# THE TWO READ-ONLY ISO COLUMNS, since their values ship (#182 S-2, §23)
+# ---------------------------------------------------------------------------
+#: The repository's own values file, READ DIRECTLY. Not through
+#: `compliance_sets`: this table is built when the module is imported, before
+#: `main` forces the variable at this file, and `compliance_sets` would then
+#: prefer a licence holder's own file in ChromIQ's settings folder. The pack is
+#: public; the values the repository ships may appear in it, a licence
+#: holder's may not.
+_REPO_ISO_FILE = _HERE.parent / "data" / "compliance_sets" / "iso12647.json"
+_ISO_SET_IDS = ("iso_12647_7", "iso_12647_8")
+
+
+def shipped_iso_limits(set_id: str) -> "dict[str, float]":
+    """The numbers the repository ships for *set_id*, on the rows ChromIQ can
+    judge, read from the file at build time. Empty while the set ships empty.
+
+    NO NUMBER OF EITHER STANDARD IS WRITTEN IN THIS SCRIPT. Every design and
+    every expectation of a run bound to a read-only ISO column is derived from
+    what this returns, so the pack follows the file and a change to the file
+    is a change to the pack, never a stale copy of it.
+    """
+    from workflow.compliance_sets import ROW_BY_ID, Limit, _ISO_ROWS
+    try:
+        doc = json.loads(_REPO_ISO_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    cells = doc.get(set_id) if isinstance(doc, dict) else None
+    if not isinstance(cells, dict):
+        return {}
+    out: "dict[str, float]" = {}
+    for rid, raw in cells.items():
+        row = ROW_BY_ID.get(rid)
+        if row is None or rid not in _ISO_ROWS.get(set_id, ()):
+            continue
+        if row.status not in ("now", "build", "ref"):
+            continue
+        lim = Limit.from_json(raw)
+        if lim.is_numeric:
+            out[rid] = float(lim.number)
+    return out
+
+
+#: The ISO sets whose values ship, in window order. A set that ships empty is
+#: not offered by the app, so it gets no run here either.
+SHIPPED_ISO_SETS = tuple(s for s in _ISO_SET_IDS if shipped_iso_limits(s))
+
+
+def _numeric_fields_scaled(design: Design, k: float) -> Design:
+    """*design* with every MAGNITUDE multiplied by *k*. `n_shoulder` is a
+    count, not a magnitude, and is kept."""
+    from dataclasses import fields as _fields
+    changes = {}
+    for f in _fields(design):
+        v = getattr(design, f.name)
+        if f.name == "n_shoulder" or v is None or isinstance(v, bool):
+            continue
+        if isinstance(v, (int, float)):
+            changes[f.name] = round(float(v) * k, 3)
+    return _replace_design(design, **changes)
+
+
+def iso_matrix_pair(set_id: str) -> "tuple[Design, Design]":
+    """ChromIQ default's matrix pair, re-scaled to a shipped ISO column.
+
+    ChromIQ default's "everything over" date is proven to cross every row at
+    the numbers that run is judged against (its factory limits and
+    `fill_limits`), and its "everything inside" date to stay under all of
+    them. The ISO column's number on each row, read from the file, is set
+    against that same number: the OVER design is scaled by the LARGEST ratio,
+    so every row of the column is over by at least the margin default's own
+    over date has, and the INSIDE design by the SMALLEST ratio (never above
+    one), so every row stays under by at least the margin default's inside
+    date has. The build's intended-against-actual check is what proves it.
+    """
+    from workflow.compliance_sets import factory_limits
+    over, inside = MATRIX["chromiq_default"]
+    base = {rid: float(lim.number)
+            for rid, lim in factory_limits("chromiq_default").items()
+            if lim.is_numeric}
+    base.update(fill_limits("chromiq_default"))
+    # Only the rows a matrix date is about: the evenness rows are the
+    # evenness project's, and a ratio on a row no matrix date moves would
+    # only stretch the design for nothing.
+    about = set(ROWS_ORDINARY) | set(ROWS_GAMUT)
+    ratios = [v / base[rid] for rid, v in shipped_iso_limits(set_id).items()
+              if rid in about and base.get(rid)]
+    if not ratios:
+        raise SystemExit(f"{set_id}: the shipped file limits no row ChromIQ "
+                         f"default's matrix run is designed against")
+    return (_numeric_fields_scaled(over, max(1.0, max(ratios))),
+            _numeric_fields_scaled(inside, min(1.0, min(ratios))))
+
+
+for _sid in SHIPPED_ISO_SETS:
+    MATRIX[_sid] = iso_matrix_pair(_sid)
+
 MATRIX_SETS = ("chromiq_default", "chromiq_tight", "chromiq_quick",
+               *SHIPPED_ISO_SETS,
                "custom_iso_12647_7", "custom_iso_12647_8")
 
 #: The label a matrix run's story uses for its set, without repeating the
 #: whole sentence six times.
 _SET_WORD = {"chromiq_default": "ChromIQ default", "chromiq_tight": "ChromIQ tight",
              "chromiq_quick": "Quick check",
+             "iso_12647_7": "ISO 12647-7:2016 values",
+             "iso_12647_8": "ISO 12647-8:2021 values",
              "custom_iso_12647_7": "Custom ISO 12647-7",
              "custom_iso_12647_8": "Custom ISO 12647-8"}
 
@@ -3515,7 +3618,37 @@ _SET_WORD = {"chromiq_default": "ChromIQ default", "chromiq_tight": "ChromIQ tig
 #: never show two entries a reader cannot tell apart.
 _MATRIX_MONTH = {"chromiq_default": "03", "chromiq_tight": "04",
                  "chromiq_quick": "05", "custom_iso_12647_7": "06",
-                 "custom_iso_12647_8": "07"}
+                 "custom_iso_12647_8": "07", "iso_12647_7": "08",
+                 "iso_12647_8": "09"}
+
+
+def matrix_rows(set_id: str, kind: str) -> "list[str]":
+    """The rows a matrix date of *set_id* on *kind* of chart is about.
+
+    Every row the chart can answer, for a set that numbers every one of them
+    (the ChromIQ sets with their typed-in copy, the Custom columns). A
+    read-only ISO column numbers only the rows its standard limits, and a row
+    it puts no number on carries no word however far out it is, so for those
+    two the list is the rows the SHIPPED FILE limits.
+    """
+    rows = list(ROWS_ORDINARY if kind == "ordinary" else ROWS_GAMUT)
+    if set_id in _ISO_SET_IDS:
+        limited = shipped_iso_limits(set_id)
+        rows = [r for r in rows if r in limited]
+    return rows
+
+
+def _that_it_limits(set_id: str) -> str:
+    """The words a read-only ISO run's description adds: it is about the rows
+    its standard limits, not every row the chart answers."""
+    return " that the standard limits" if set_id in _ISO_SET_IDS else ""
+
+
+def matrix_edited_limits(set_id: str) -> "dict[str, float] | None":
+    """What a matrix run of *set_id* types into its own column: the rows a
+    ChromIQ set leaves unnumbered. A Custom column numbers them already, and
+    a read-only ISO column takes no typed number at all."""
+    return fill_limits(set_id) if set_id in SET_SCALE else None
 
 
 def matrix_dates(set_id: str, kind: str) -> "list[Date]":
@@ -3537,7 +3670,13 @@ def matrix_dates(set_id: str, kind: str) -> "list[Date]":
         from dataclasses import replace as _replace
         over = _replace(over, ramp_dl=None, repeat_split=None)
         inside = _replace(inside, ramp_dl=None, repeat_split=None)
-    rows = list(ROWS_ORDINARY if kind == "ordinary" else ROWS_GAMUT)
+    rows = matrix_rows(set_id, kind)
+    # The repeat row of the second date crosses only in a column that numbers
+    # it; a read-only ISO column does not (no standard limits ChromIQ's own
+    # repeatability rows), so there the second date is simply back inside.
+    repeat_row = [r for r in ("repeat_measurement_de00_max",)
+                  if set_id not in _ISO_SET_IDS
+                  or r in shipped_iso_limits(set_id)]
     m = _MATRIX_MONTH[set_id]
     d = "05" if kind == "ordinary" else "12"
     d2 = "19" if kind == "ordinary" else "26"
@@ -3562,14 +3701,42 @@ def matrix_dates(set_id: str, kind: str) -> "list[Date]":
                "printing condition have no value here: an ordinary chart "
                "cannot supply them, and the Profile-Gamut project is where "
                "they are exercised.")
+    if set_id in _ISO_SET_IDS:
+        # A READ-ONLY ISO COLUMN numbers only what its standard limits, so
+        # the sentence counts those rows and says why the others carry no
+        # word, instead of promising a word on every row the chart answers.
+        missing = ("This column holds the published values ChromIQ ships "
+                   "for that standard, values only, and a row the standard "
+                   "puts no number on reads '–' here and carries no word, "
+                   "however far out it is.")
+        over_story = (f"{_SET_WORD[set_id]} on {what}. Every one of the "
+                      f"{len(rows)} rows this chart supplies that the column "
+                      f"puts a number on is over that number. {missing}")
+        back_story = (f"The same chart and the same column, with every value "
+                      f"brought back under its limit. Read against the date "
+                      f"before it, this pair is what shows each of the "
+                      f"{len(rows)} thresholds releasing as well as "
+                      f"triggering. The standard puts no number on 'The same "
+                      f"chart measured again, largest difference', so the "
+                      f"swing back from the date before is shown without a "
+                      f"word.")
+    else:
+        over_story = (f"{_SET_WORD[set_id]} on {what}. Every one of the "
+                      f"{len(rows)} rows this chart supplies is over the "
+                      f"number this column puts on it, so every cell of the "
+                      f"column that can carry a word carries one. {missing}")
+        back_story = (f"The same chart and the same column, with every value "
+                      f"brought back under its limit. Read against the date "
+                      f"before it, this pair is what shows each of the "
+                      f"{len(rows)} thresholds releasing as well as "
+                      f"triggering. The one row over is 'The same chart "
+                      f"measured again, largest difference': it compares this "
+                      f"sheet with the one before it, and getting back from "
+                      f"there moved every patch.")
     return [
         _d(f"2028-{m}-{d}_100000", f"2028-{m}-{d}T10:00:00",
            f"Every row this chart can answer is over its limit",
-           f"{_SET_WORD[set_id]} on {what}. Every one of the "
-           f"{len(rows)} rows this chart supplies is over the number this "
-           f"column puts on it, so every cell of the column that can carry a "
-           f"word carries one. {missing}",
-           over, rows),
+           over_story, over, rows),
         # ROW B IS THE ONE ROW THIS DATE CANNOT BRING BACK, and says so.
         # "The same chart measured again, largest difference" compares a sheet
         # with the one before it, and the one before it was over every limit:
@@ -3577,19 +3744,17 @@ def matrix_dates(set_id: str, kind: str) -> "list[Date]":
         # which is exactly what that row exists to report. So it crosses here,
         # on the date every other row recovers, and recovers on the third.
         _d(f"2028-{m}-{d2}_100000", f"2028-{m}-{d2}T10:00:00",
-           "The same sheet, every row back inside but one",
-           f"The same chart and the same column, with every value brought "
-           f"back under its limit. Read against the date before it, this pair "
-           f"is what shows each of the {len(rows)} thresholds releasing as "
-           f"well as triggering. The one row over is 'The same chart measured "
-           f"again, largest difference': it compares this sheet with the one "
-           f"before it, and getting back from there moved every patch.",
-           inside, ["repeat_measurement_de00_max"]),
+           ("The same sheet, every row back inside but one" if repeat_row
+            else "The same sheet, every row back inside"),
+           back_story, inside, repeat_row),
         _d(f"2028-{m}-{d3}_100000", f"2028-{m}-{d3}T10:00:00",
            "Measured again, and steady",
-           "The same sheet as the date before, measured again. Every row is "
-           "inside its limit, the repeat row included, because nothing moved "
-           "between the two.",
+           ("The same sheet as the date before, measured again. Every row is "
+            "inside its limit, the repeat row included, because nothing moved "
+            "between the two." if repeat_row else
+            "The same sheet as the date before, measured again. Every row "
+            "the column numbers is inside its limit, because nothing moved "
+            "between the two."),
            inside, []),
     ]
 
@@ -3927,7 +4092,9 @@ _SECOND_PAPER = {"chromiq_default": ("glossy_oba", "baryta"),
                  "chromiq_tight": ("baryta", "matte_rag"),
                  "chromiq_quick": ("matte_rag", "office"),
                  "custom_iso_12647_7": ("office", "glossy_oba"),
-                 "custom_iso_12647_8": ("newsprint", "baryta")}
+                 "custom_iso_12647_8": ("newsprint", "baryta"),
+                 "iso_12647_7": ("matte_rag", "glossy_oba"),
+                 "iso_12647_8": ("glossy_oba", "office")}
 
 
 def _second_route(set_id: str, kind: str) -> "list[Date]":
@@ -4302,19 +4469,19 @@ PROJECTS = [
         for set_id in MATRIX_SETS
         for plan in (
             RunPlan(f"{_SET_WORD[set_id]}, every row an ordinary chart can "
-                    f"answer: over on one date, inside on the next.",
+                    f"answer{_that_it_limits(set_id)}: over on one date, "
+                    f"inside on the next.",
                     CHART_SMALL, CHART_MEDIUM, set_id,
                     matrix_dates(set_id, "ordinary"),
                     unlocked=True, lock="unlocked",
-                    edited_limits=(None if set_id.startswith("custom_")
-                                   else fill_limits(set_id))),
+                    edited_limits=matrix_edited_limits(set_id)),
             RunPlan(f"{_SET_WORD[set_id]}, every row a From-profile-gamut "
-                    f"chart can answer: over on one date, inside on the next.",
+                    f"chart can answer{_that_it_limits(set_id)}: over on one "
+                    f"date, inside on the next.",
                     CHART_SMALL, CHART_GAMUT, set_id,
                     matrix_dates(set_id, "gamut"),
                     unlocked=True, lock="unlocked", expect_strip_p95=False,
-                    edited_limits=(None if set_id.startswith("custom_")
-                                   else fill_limits(set_id))),
+                    edited_limits=matrix_edited_limits(set_id)),
         )
     ]),
     # -----------------------------------------------------------------------
@@ -4395,8 +4562,7 @@ PROJECTS = [
                     _second_route(set_id, "ordinary"),
                     paper_class=_SECOND_PAPER[set_id][0],
                     unlocked=True, lock="unlocked",
-                    edited_limits=(None if set_id.startswith("custom_")
-                                   else fill_limits(set_id))),
+                    edited_limits=matrix_edited_limits(set_id)),
             RunPlan(f"{_SET_WORD[set_id]} again, on a smaller From Profile "
                     f"Gamut chart and "
                     f"{PAPER_CLASSES[_SECOND_PAPER[set_id][1]].name.lower()}.",
@@ -4404,8 +4570,7 @@ PROJECTS = [
                     _second_route(set_id, "gamut"),
                     paper_class=_SECOND_PAPER[set_id][1],
                     unlocked=True, lock="unlocked", expect_strip_p95=False,
-                    edited_limits=(None if set_id.startswith("custom_")
-                                   else fill_limits(set_id))),
+                    edited_limits=matrix_edited_limits(set_id)),
         )
     ]),
     # -----------------------------------------------------------------------
@@ -5999,13 +6164,31 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a(f"  {_done} of {len(_cells)} judged cells are complete, over "
       f"{len(_cov.get('matrix_sets', []))} selectable limit sets.")
     a("")
-    a("THE TWO READ-ONLY ISO COLUMNS ARE NOT IN THIS TABLE AND CANNOT BE. The")
-    a("tolerance values of ISO 12647-7:2016 and ISO 12647-8:2021 are not in")
-    a("ChromIQ, so every cell of both columns reads '?', neither column has a")
-    a("limit-bearing row, and, unless you have pointed ChromIQ at your own")
-    a("figures file, the report window does not offer either. No measurement")
-    a("can make it offer them.")
-    a("")
+    # WHAT SHIPS DECIDES THIS PARAGRAPH (#182 S-2, §23), asked of the sets
+    # the build actually offered rather than assumed in either state.
+    _iso_in = [s for s in _ISO_SET_IDS if s in _cov.get("matrix_sets", [])]
+    _iso_out = [s for s in _ISO_SET_IDS if s not in _iso_in]
+    if _iso_in:
+        for chunk in _wrap(
+                "THE READ-ONLY ISO COLUMNS IN THIS TABLE ("
+                + ", ".join(_SET_WORD[s] for s in _iso_in)
+                + ") hold the published values ChromIQ ships for that "
+                "standard, values only. They cannot be edited, so their runs "
+                "type nothing into their own copy: a row the standard puts "
+                "no number on reads '–' and is not a cell of the table.", 70):
+            a(chunk)
+        a("")
+    if _iso_out:
+        for chunk in _wrap(
+                "NOT IN THIS TABLE: "
+                + ", ".join(_SET_WORD[s] for s in _iso_out)
+                + ". ChromIQ ships no values for it, so every cell of the "
+                "column reads '?', it has no limit-bearing row, and, unless "
+                "you have pointed ChromIQ at your own figures file, the report "
+                "window does not offer it. No measurement can make it offer "
+                "it.", 70):
+            a(chunk)
+        a("")
     _by_set: dict = {}
     for c in _cells:
         _by_set.setdefault(c["set"], []).append(c)

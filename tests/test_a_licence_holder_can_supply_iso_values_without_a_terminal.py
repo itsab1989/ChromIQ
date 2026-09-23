@@ -59,9 +59,21 @@ def test_the_folder_is_beside_the_presets_on_every_platform(monkeypatch):
 
 
 def test_a_filled_in_file_is_used_and_then_forgotten(own_folder):
-    """The three buttons' whole journey, without a shell or a variable."""
+    """The three buttons' whole journey, without a shell or a variable.
+
+    #182 S-2, §23: a fresh install reads what ChromIQ SHIPS (the repository's
+    file, read here, never written into this source), the user's number then
+    wins its row, and "Stop using it" puts the shipped figure back. The
+    precondition keeps the middle step honest: were the shipped figure the
+    user's own 1.9, an install that did nothing would pass. Red on its
+    mutation: make `install_user_values` or `forget_user_values` skip
+    `reset_iso_cache`, and the table keeps the old figure.
+    """
+    from tests.helpers.iso_files import shipped_limits
+    shipped = shipped_limits("iso_12647_7")["all_de00_avg"]
+    assert shipped.number != pytest.approx(1.9)
     assert cs.iso_data_path_text() == "", "a fresh install starts with none"
-    assert cs.factory_limits("iso_12647_7")["all_de00_avg"].kind == "unknown"
+    assert cs.factory_limits("iso_12647_7")["all_de00_avg"] == shipped
 
     # 1. the template, as the first button writes it
     filled = own_folder / "mine.json"
@@ -86,7 +98,7 @@ def test_a_filled_in_file_is_used_and_then_forgotten(own_folder):
     # 3. the third button
     assert cs.forget_user_values() is True
     assert cs.iso_data_path_text() == ""
-    assert cs.factory_limits("iso_12647_7")["all_de00_avg"].kind == "unknown"
+    assert cs.factory_limits("iso_12647_7")["all_de00_avg"] == shipped
     assert cs.forget_user_values() is False, "removing nothing is not an event"
 
 
@@ -289,19 +301,35 @@ def test_a_second_source_costs_no_button_in_the_report_limits_window(
         dlg.close()
 
 
-def test_the_window_behind_the_door_explains_itself(qapp_or_skip):
+def test_the_window_behind_the_door_explains_itself(qapp_or_skip, tmp_path,
+                                                    monkeypatch):
     """What the dropped icon guard was really protecting, kept.
 
     The three hover tooltips and the one ⓘ in the Report limits window are
     gone with the three buttons. The explanation moved into the window behind
     the door, and the two sentences that exist purely to reassure a reader must
-    survive any future edit of it: WHY ChromIQ has no numbers of its own, and
-    that what you supply never leaves the computer.
+    survive any future edit of it: what ChromIQ's own numbers are (or WHY it
+    has none), and that what you supply never leaves the computer.
+
+    #182 S-2, §23 item 4: the first sentence asks what ships. The repository's
+    file ships both sets, so it says so and says a supplied value takes the
+    shipped one's place; over an empty shipped file, made by fixture, it says
+    WHY the numbers are absent. Red on its mutation: hard-code either sentence
+    and the other state fails.
     """
+    from tests.helpers.iso_files import use_empty_shipped_iso, use_repo_iso
     from ui.dialogs.reference_values_dialog import ReferenceValuesDialog, iso_source
 
+    use_repo_iso(monkeypatch)
     src = iso_source()
-    assert "paid standard" in src.why, "it does not say WHY the numbers are absent"
+    assert "ships the published values of both ISO columns" in src.why, src.why
+    assert "takes the place of ChromIQ's" in src.why, src.why
+    assert "paid standard" not in src.why, "it still says nothing ships"
+    use_empty_shipped_iso(tmp_path, monkeypatch)
+    empty = iso_source()
+    cs.reset_iso_cache()
+    assert "paid standard" in empty.why, "it does not say WHY the numbers are absent"
+    assert "—" not in empty.why, "em dash"
     help_text = ReferenceValuesDialog._help(src)
     for must in ("Save a file to fill in", "Use a file I filled in",
                  "Stop using it"):

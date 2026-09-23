@@ -123,23 +123,41 @@ def test_only_the_types_chromiq_can_produce_may_be_picked(tmp_path, qapp):
         dlg.close()
 
 
-def test_a_type_that_is_not_built_says_WHY_not_that_it_is_missing(tmp_path, qapp):
-    """The two ISO types cannot be produced for a reason a user can act on,
-    and the other unbuilt ones for a different reason. One sentence each, and
-    they are not the same sentence.
+def test_a_type_that_is_not_built_says_WHY_not_that_it_is_missing(
+        tmp_path, qapp, monkeypatch):
+    """While a standard's values do not ship, its ISO type cannot be produced
+    for that reason, and the other unbuilt ones for a different one: one
+    sentence each, not the same sentence. Once the values ship (#182 S-2,
+    §23 item 4: "the paywall reason only while that standard's values do not
+    ship"), what is left is the document itself, so the ISO type says what
+    every unbuilt type says.
 
-    MUTATION: return one line for every unbuilt type and this goes red.
+    The repository's file ships both sets, so the empty state is made by
+    fixture and both states are driven.
+    MUTATION: return one line for every unbuilt type and the empty half goes
+    red; always give the paywall reason and the shipped half goes red.
     """
+    from tests.helpers.iso_files import use_empty_shipped_iso, use_repo_iso
     dlg, _run = _dialog(tmp_path, qapp)
     try:
+        ground = tmp_path / "ground"
+        ground.mkdir()
+        use_empty_shipped_iso(ground, monkeypatch)
         iso = dlg._not_built_line(REPORT_TYPE_ISO_8)
         soon = dlg._not_built_line(REPORT_TYPE_GREY)
         assert iso != soon
         assert "standard" in iso.lower()
         for line in (iso, soon):
             assert line and not line.endswith("unavailable")
+        use_repo_iso(monkeypatch)
+        for tid in (REPORT_TYPE_ISO_7, REPORT_TYPE_ISO_8):
+            line = dlg._not_built_line(tid)
+            assert line == soon, line
+            assert "standard" not in line.lower(), line
     finally:
         dlg.close()
+        from workflow import compliance_sets as cs
+        cs.reset_iso_cache()
 
 
 def test_the_line_beside_the_pulldown_describes_the_chosen_type(tmp_path, qapp):

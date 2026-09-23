@@ -451,8 +451,20 @@ def test_the_limits_knut_gave_and_the_half_and_double_rule():
             f["chromiq_quick"][FROM_MEAN].number) == (1.5, 1.0)
     for s in ("custom_iso_12647_7", "custom_iso_12647_8"):
         assert (f[s][PAIR].number, f[s][FROM_MEAN].number) == (1.5, 1.0), s
+    # THE TWO READ-ONLY ISO COLUMNS HOLD WHAT THE SHIPPED FILE GIVES THEM
+    # (#182 S-2, §23), read from that file here and never written into this
+    # source, and none of ChromIQ's own numbers. A row the file leaves out has
+    # no number at all. MUTATION: fill a read-only column from ChromIQ
+    # default's evenness numbers and this goes red on any row the shipped
+    # figure differs from them, and on every row the file does not carry.
+    from tests.helpers.iso_files import shipped_limits
     for s in ("iso_12647_7", "iso_12647_8"):
-        assert not f[s][PAIR].is_numeric, s
+        shipped = shipped_limits(s)
+        for rid in (PAIR, FROM_MEAN):
+            if rid in shipped:
+                assert f[s][rid] == shipped[rid], (s, rid)
+            else:
+                assert not f[s][rid].is_numeric, (s, rid)
 
 
 def test_the_help_text_quotes_the_numbers_the_code_uses():

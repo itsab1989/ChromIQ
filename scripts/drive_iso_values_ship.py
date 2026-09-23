@@ -4,8 +4,12 @@
     python scripts/drive_iso_values_ship.py <out> <en|de> <repo|fake8>
 
 ``repo``   the repository's own `data/compliance_sets/iso12647.json`, as it
-           is (both sets empty until the owner's go-ahead): what a user of
-           this build sees.
+           is: what a user of this build sees. Since the S-2 fill both sets
+           ship; every expectation of this pass is read from that file (which
+           sets it ships, how many rows), never typed, so the same pass holds
+           in either state. When ISO 12647-8 ships, the pass also opens the
+           demo pack's run BOUND to it (Report-Limits-Every-Limit-Set) and
+           generates a report there.
 ``fake8``  a file of MADE-UP placeholder numbers (9.87 on every row ISO
            12647-8 limits, ISO 12647-7 empty) stood in for the SHIPPED file,
            the way `tests/test_iso_values_ship_as_values_only.py` does it:
@@ -34,7 +38,31 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from userdrive import Drive                                   # noqa: E402
 
 PROJECT = "Report-Limits-Threshold-Series"
+#: The release package's matrix project, which holds runs bound to each
+#: shipped ISO column (#182 S-2). Copied only when the pack has it.
+MATRIX_PROJECT = "Report-Limits-Every-Limit-Set"
 FAKE = 9.87
+REPO_ISO = (Path(__file__).resolve().parents[1] / "data" / "compliance_sets"
+            / "iso12647.json")
+
+
+def repo_ships() -> "tuple[str, ...]":
+    """The sets the repository's file carries values for, read from it."""
+    doc = json.loads(REPO_ISO.read_text(encoding="utf-8"))
+    return tuple(s for s in ("iso_12647_7", "iso_12647_8") if doc.get(s))
+
+
+def run_bound_to(project_dir: Path, set_id: str) -> "str | None":
+    """The first run of *project_dir* whose stored limit set is *set_id*."""
+    for meta in sorted((project_dir / "runs").glob("run*/meta.json"),
+                       key=lambda m: int(m.parent.name[3:] or 0)):
+        try:
+            if json.loads(meta.read_text(encoding="utf-8")).get(
+                    "compliance_set_id") == set_id:
+                return meta.parent.name
+        except (OSError, ValueError):
+            continue
+    return None
 
 
 def install_fake_shipped(out: Path) -> Path:
@@ -73,9 +101,10 @@ def script_for(mode: str, language: str):
         rec["shipped_iso_sets"] = list(shipped)
         d.note(f"[{tag}] ISO file in use: {cs.iso_data_path_text()}; "
                f"ships: {shipped}")
-        check("the pass is in the state it names",
-              shipped == (("iso_12647_8",) if mode == "fake8" else ()),
-              repr(shipped))
+        expect = ("iso_12647_8",) if mode == "fake8" else repo_ships()
+        rec["expected_shipped"] = list(expect)
+        check("the pass is in the state it names", shipped == expect,
+              f"{shipped!r} (want {expect!r})")
 
         # ---- Preferences > Reports > Report limits ------------------------
         d.later(d.win._open_settings)
@@ -119,11 +148,17 @@ def script_for(mode: str, language: str):
             lb = cs.limit_bearing(cs.factory_limits(sid))
             check(f"{sid} holds no placeholder", not any(
                 l.number == FAKE for l in lb.values()))
-        if mode == "fake8":
-            check("the paragraph says the -8 column ships",
-                  "which ship with ChromIQ" in para or "die ChromIQ mitliefert" in para)
-            check("the paragraph says the -7 column is empty",
-                  " is empty" in para or " ist leer" in para)
+        if shipped:
+            from ui.dialogs.thresholds_dialog import _iso_columns_sentence
+            check("the paragraph carries the per-column ISO sentence",
+                  _iso_columns_sentence() in para)
+            for sid in ("iso_12647_7", "iso_12647_8"):
+                name = tr(cs.SET_BY_ID[sid].label)
+                ships_txt = tr("“{name}” holds that standard's published "
+                               "values, which ship with ChromIQ."
+                               ).format(name=name)
+                check(f"the paragraph says whether {sid} ships",
+                      (ships_txt in para) == (sid in shipped))
             check("no 'no permission' sentence", tr(
                 "The two ISO columns are read-only and hold a standard's "
                 "published values, which ChromIQ has no permission to include: "
@@ -195,10 +230,9 @@ def script_for(mode: str, language: str):
         combo = dlg._set_combo
         entries = [combo.itemData(i) for i in range(combo.count())]
         rec["judged_against_entries"] = entries
-        check("ISO 12647-8 is a choice exactly when it ships",
-              ("iso_12647_8" in entries) == ("iso_12647_8" in shipped),
-              repr(entries))
-        check("ISO 12647-7 is not a choice", "iso_12647_7" not in entries)
+        for sid in ("iso_12647_7", "iso_12647_8"):
+            check(f"{sid} is a choice exactly when it ships",
+                  (sid in entries) == (sid in shipped), repr(entries))
         # A POPUP IS NOT PHOTOGRAPHED: measured, `capture_window` finds no
         # window of its own for a combo's list and the rectangle fallback
         # proves it is a picture of what is behind. The entries are recorded
@@ -212,13 +246,19 @@ def script_for(mode: str, language: str):
         paywall = tr("Not available yet: the figures this report judges "
                      "against are published in a standard ChromIQ may not "
                      "include.")
-        check("-7 type still names the figures", why7 == paywall, why7)
+        check("-7 type names the figures only while they do not ship",
+              (why7 == paywall) == ("iso_12647_7" not in shipped), why7)
         check("-8 type names the figures only while they do not ship",
               (why8 == paywall) == ("iso_12647_8" not in shipped), why8)
         rec["report_type_entries"] = [
             (dlg._type_combo.itemText(i), dlg._type_combo.itemData(
                 i, 3)) for i in range(dlg._type_combo.count())]
 
+        if mode == "repo" and "iso_12647_8" in shipped:
+            dlg.close()
+            yield 1500
+            yield from bound_run_report(d, tag, check, rec)
+            return
         if mode == "fake8":
             i = combo.findData("iso_12647_8")
             combo.setCurrentIndex(i)
@@ -267,11 +307,77 @@ def script_for(mode: str, language: str):
     return script
 
 
+def bound_run_report(d, tag, check, rec):
+    """The shipped ISO 12647-8 column on a run BOUND to it: the demo pack's
+    matrix run, opened, its report window photographed as it opens, a new
+    report of its first date generated, and the limits it was judged by."""
+    from core.i18n import tr
+    from workflow import compliance_sets as cs
+    run = run_bound_to(d.work / MATRIX_PROJECT, "iso_12647_8") \
+        if (d.work / MATRIX_PROJECT).is_dir() else None
+    check("the demo pack has a run bound to ISO 12647-8", run is not None,
+          f"{MATRIX_PROJECT}/{run}")
+    if run is None:
+        return
+    rec["bound_run"] = f"{MATRIX_PROJECT}/{run}"
+    d.open_project(MATRIX_PROJECT)
+    d.set_bar(run_type="verification", run=run)
+    yield 900
+    d.launch_tool("measurement_report")
+    dlg = None
+    for _ in range(60):
+        yield 250
+        dlg = d.top_dialog("MeasurementReportDialog")
+        if dlg is not None:
+            break
+    check("Measurement Report opened on the bound run", dlg is not None)
+    if dlg is None:
+        return
+    yield 3000
+    combo = dlg._set_combo
+    check("the run is judged against ISO 12647-8 as it opens",
+          combo.currentData() == "iso_12647_8", repr(combo.currentData()))
+    d.shot(dlg, f"{tag}-07-bound-run-opens-on-iso-12647-8")
+    d.later(dlg._generate_btn.click)
+    yield 1500
+    m = d.modal()
+    said = None
+    if m is not None and m is not dlg:
+        said = d.answer("new" if rec.get("language") == "en" else "neu", name=f"{tag}-09-generate-question")
+        yield 1500
+    yield 6000
+    rec["generate_question"] = said
+    d.shot(dlg, f"{tag}-10-report-judged-against-iso-12647-8")
+    text = dlg._view.toPlainText()
+    label8 = tr(cs.SET_BY_ID["iso_12647_8"].label)
+    check("the report names the ISO 12647-8 set", label8 in text, label8)
+    view = dlg._view
+    c = view.document().find(tr("Report Results"))
+    if not c.isNull():
+        view.setTextCursor(c)
+        view.ensureCursorVisible()
+        yield 900
+        d.shot(dlg, f"{tag}-11-report-results")
+    d.later(dlg._limits_btn.click)
+    yield 3000
+    m = d.modal()
+    if m is not None and m is not dlg:
+        d.shot(m, f"{tag}-12-show-limits-from-the-report")
+        m.close()
+        d._modal_closed()
+    yield 1500
+    dlg.close()
+    yield 1500
+
+
 def main() -> int:
     out, language, mode = Path(sys.argv[1]), sys.argv[2], sys.argv[3]
     assert mode in ("repo", "fake8"), mode
     out = out / f"{mode}-{language}"
-    d = Drive(out, projects=[PROJECT], language=language)
+    from userdrive import DEMO_PACK
+    projects = [PROJECT] + ([MATRIX_PROJECT]
+                            if (DEMO_PACK / MATRIX_PROJECT).is_dir() else [])
+    d = Drive(out, projects=projects, language=language)
     if mode == "fake8":
         f = install_fake_shipped(d.out)
         d.note(f"fake shipped file (placeholders only): {f}")

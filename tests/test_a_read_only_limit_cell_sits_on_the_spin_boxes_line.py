@@ -71,6 +71,15 @@ def qapp():
 
 @pytest.fixture
 def dlg(qapp, tmp_path, monkeypatch):
+    # THE HAND-MARKED FILE IS LAID OVER AN EMPTY SHIPPED FILE. Since #182 S-2
+    # (§23) the repository ships both sets and a user's file is laid over it
+    # row by row, so over the real one no read-only cell reads ? and the
+    # `unknown` kind the last test needs is never drawn. The empty ground is
+    # made by fixture; the shipped figures themselves are not used here.
+    from tests.helpers.iso_files import use_empty_shipped_iso
+    ground = tmp_path / "ground"
+    ground.mkdir()
+    use_empty_shipped_iso(ground, monkeypatch)
     f = tmp_path / "iso12647.json"
     f.write_text(json.dumps({"iso_12647_7": {MARKED: [3.0, "should"],
                                              NUMBERED: 2.0},

@@ -19,6 +19,7 @@ from workflow.compliance_sets import (COND, FAIL, INFO, N_A, PASS, Limit,
                                       limit_text, limits_from_json,
                                       limits_to_json, row_verdict,
                                       selectable_set_ids, set_summary)
+from tests.helpers.iso_files import shipped_limits, use_empty_shipped_iso
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -158,13 +159,31 @@ def test_an_iso_set_the_shipped_file_leaves_empty_reads_a_question_mark(monkeypa
     cs.reset_iso_cache()
 
 
-def test_a_filled_data_file_lights_the_iso_cells(tmp_path, monkeypatch):
+def _users_file(tmp_path, monkeypatch):
     p = tmp_path / "iso.json"
     p.write_text(json.dumps({"iso_12647_8": {"all_de00_avg": 9.9,
                                              "ramps_30_70_dl_max": [1.0, "should"],
                                              "not_a_row": 1.0}}), encoding="utf-8")
     monkeypatch.setenv(cs.ISO_DATA_ENV, str(p))
     cs.reset_iso_cache()
+    return p
+
+
+def test_a_filled_data_file_lights_the_iso_cells(tmp_path, monkeypatch):
+    """A licence holder's file lights the cells it answers, keeps a should a
+    should, drops a row id ChromIQ does not know, and a row it leaves out
+    reads ? when nothing ships underneath.
+
+    THE EMPTY SHIPPED STATE IS MADE BY FIXTURE (#182 S-2, §23): the
+    repository's file ships both sets now, so over it an unanswered row reads
+    the shipped figure, which the next test pins. Red on its mutation: make
+    `_load_iso_numbers` ignore the variable, or read a [n, "should"] pair as a
+    plain value, and this fails.
+    """
+    ground = tmp_path / "ground"
+    ground.mkdir()
+    use_empty_shipped_iso(ground, monkeypatch)
+    _users_file(tmp_path, monkeypatch)
     try:
         f = factory_limits("iso_12647_8")
         assert f["all_de00_avg"] == Limit.value(9.9)
@@ -179,12 +198,43 @@ def test_a_filled_data_file_lights_the_iso_cells(tmp_path, monkeypatch):
         cs.reset_iso_cache()
 
 
+def test_a_users_file_is_laid_over_the_shipped_values(tmp_path, monkeypatch):
+    """The same file over the REPOSITORY'S shipped values (§23): the user's
+    number wins its row and a row they leave out keeps the shipped figure.
+    The expected figure is read from the data file, never written here. Red
+    on its mutation: read the user's file INSTEAD of laying it over the
+    shipped one, and all_de00_p95 reads ?.
+    """
+    shipped = shipped_limits("iso_12647_8")
+    assert "all_de00_p95" in shipped, "the repository ships ISO 12647-8"
+    _users_file(tmp_path, monkeypatch)
+    try:
+        f = factory_limits("iso_12647_8")
+        assert f["all_de00_avg"] == Limit.value(9.9)
+        assert f["all_de00_p95"] == shipped["all_de00_p95"]
+    finally:
+        cs.reset_iso_cache()
+
+
 def test_an_unreadable_data_file_degrades_to_question_marks(tmp_path, monkeypatch):
+    """A user's file that is not JSON contributes nothing. Over nothing
+    shipped every cell reads ?; over the repository's shipped values the
+    shipped figure stands, because a broken file cannot blank it. Red on its
+    mutation: let a parse error raise, or let it replace the shipped ground.
+    """
     p = tmp_path / "broken.json"
     p.write_text("{not json", encoding="utf-8")
+    shipped = shipped_limits("iso_12647_7")
     monkeypatch.setenv(cs.ISO_DATA_ENV, str(p))
     cs.reset_iso_cache()
     try:
+        assert factory_limits("iso_12647_7")["all_de00_avg"] == \
+            shipped["all_de00_avg"]
+        ground = tmp_path / "ground"
+        ground.mkdir()
+        use_empty_shipped_iso(ground, monkeypatch)
+        monkeypatch.setenv(cs.ISO_DATA_ENV, str(p))
+        cs.reset_iso_cache()
         assert factory_limits("iso_12647_7")["all_de00_avg"].kind == "unknown"
     finally:
         cs.reset_iso_cache()
@@ -254,7 +304,13 @@ def test_overrides_apply_to_editable_sets_only_and_keep_a_should_a_should():
     assert e["all_de00_max"].kind == "none"
     assert e["all_de00_p95"].kind == "none"
     assert e["macro_uniformity_score"].kind == "none"
-    assert effective_limits("iso_12647_7", ov)["all_de00_avg"].kind == "unknown"
+    # A READ-ONLY SET TAKES NO OVERRIDE: it keeps exactly its factory cell,
+    # which since #182 S-2 is the shipped figure (and ? where nothing ships).
+    # The precondition keeps the check honest: were the shipped figure the
+    # override's own 1.0, an applied override would pass unseen.
+    iso7 = factory_limits("iso_12647_7")["all_de00_avg"]
+    assert iso7 != Limit.value(1.0)
+    assert effective_limits("iso_12647_7", ov)["all_de00_avg"] == iso7
     # garbage shapes never raise
     assert effective_limits("chromiq_default", {"chromiq_default": "x"}) == \
         factory_limits("chromiq_default")
@@ -638,14 +694,36 @@ def test_a_custom_columns_counts_add_up_to_what_it_judges():
             "industry": 0, "chromiq": 0, "supplied": 0, "total": 0}
 
 
-def test_the_read_only_iso_columns_are_untouched_by_the_placeholders():
-    cs.reset_iso_cache()
-    for sid in ("iso_12647_7", "iso_12647_8"):
-        f = factory_limits(sid)
-        assert not any(lim.is_numeric for lim in f.values()), (
-            f"{sid} acquired a number. The read-only columns hold the "
-            "standard's own values and ship with none of them.")
-        assert not cs.limit_bearing(f)
+def test_the_read_only_iso_columns_are_untouched_by_the_placeholders(
+        tmp_path, monkeypatch):
+    """The Custom columns' starting numbers (Knut's researched figures and
+    ChromIQ's own) never reach the two READ-ONLY ISO columns. Those hold
+    exactly what the shipped file gives them: every number there is the
+    file's own figure for that row (read from the file, not written here),
+    and over an EMPTY shipped file, made by fixture, they hold no number at
+    all. Red on its mutation: let `factory_limits` fill a read-only set from
+    `custom_defaults`, and a row the file leaves out, or the empty state,
+    acquires a number.
+    """
+    from tests.helpers.iso_files import use_repo_iso
+    use_repo_iso(monkeypatch)
+    try:
+        for sid in ("iso_12647_7", "iso_12647_8"):
+            shipped = shipped_limits(sid)
+            for rid, lim in factory_limits(sid).items():
+                if lim.is_numeric:
+                    assert shipped.get(rid) == lim, (
+                        f"{sid}.{rid} holds {lim}, which is not the shipped "
+                        "file's figure for that row")
+        use_empty_shipped_iso(tmp_path, monkeypatch)
+        for sid in ("iso_12647_7", "iso_12647_8"):
+            f = factory_limits(sid)
+            assert not any(lim.is_numeric for lim in f.values()), (
+                f"{sid} acquired a number over an empty shipped file. The "
+                "read-only columns hold the standard's own values only.")
+            assert not cs.limit_bearing(f)
+    finally:
+        cs.reset_iso_cache()
 
 
 def test_a_licence_holders_own_file_wins_over_the_placeholder(tmp_path, monkeypatch):

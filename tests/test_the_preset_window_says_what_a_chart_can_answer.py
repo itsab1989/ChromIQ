@@ -242,12 +242,28 @@ def test_a_report_type_that_grades_nothing_asks_for_nothing():
         assert PE.rows_asked(MR.REPORT_TYPE_RECORD, sid) == ()
 
 
-def test_a_set_that_limits_nothing_is_not_offered():
-    """The two read-only ISO columns ship empty, so `selectable_set_ids` leaves
-    them out and this window can never open on one."""
-    ids = CS.selectable_set_ids(None)
-    for sid in ("iso_12647_7", "iso_12647_8"):
-        assert sid not in ids
+def test_a_set_that_limits_nothing_is_not_offered(tmp_path, monkeypatch):
+    """A read-only ISO column that limits nothing is left out of
+    `selectable_set_ids`, so this window can never open on one.
+
+    #182 S-2, §23: the repository's file ships both sets now, so the empty
+    state is made by fixture, and the shipped state is driven beside it: there
+    both columns limit something and both are offered. Red on its mutation:
+    offer every set whatever it limits (the empty half fails), or never offer a
+    read-only set (the shipped half fails).
+    """
+    from tests.helpers.iso_files import use_empty_shipped_iso, use_repo_iso
+    use_empty_shipped_iso(tmp_path, monkeypatch)
+    try:
+        ids = CS.selectable_set_ids(None)
+        for sid in ("iso_12647_7", "iso_12647_8"):
+            assert sid not in ids
+        use_repo_iso(monkeypatch)
+        ids = CS.selectable_set_ids(None)
+        for sid in ("iso_12647_7", "iso_12647_8"):
+            assert sid in ids
+    finally:
+        CS.reset_iso_cache()
 
 
 # ---------------------------------------------------------------------------

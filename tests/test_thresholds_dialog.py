@@ -77,6 +77,39 @@ def a_hand_marked_recommendation(tmp_path, monkeypatch):
     cs.reset_iso_cache()
 
 
+def test_the_read_only_iso_cells_read_what_ships(qapp, tmp_path, monkeypatch):
+    """#182 S-2, §23: the two ISO columns are LABELS in both states of the
+    shipped file. With the repository's file they carry its figure, in the
+    spin boxes' own number format; over an empty shipped file, made by
+    fixture, they read ?. The expected figure comes from the data file, never
+    from this source. Red on its mutation: make a read-only column a spin box,
+    or drop the shipped figure from the cell.
+    """
+    from tests.helpers.iso_files import (shipped_limits, use_empty_shipped_iso,
+                                         use_repo_iso)
+    from ui.dialogs.thresholds_dialog import ThresholdsDialog
+    use_repo_iso(monkeypatch)
+    s, dlg = _dlg(qapp, tmp_path)
+    try:
+        for col in ("iso_12647_7", "iso_12647_8"):
+            w = _cell(dlg, col, "all_de00_avg")
+            want = ThresholdsDialog._cell_text(shipped_limits(col)["all_de00_avg"])
+            assert isinstance(w, QLabel) and w.text() == want, col
+            assert w.text() not in ("?", "–", "✕"), col
+    finally:
+        dlg.deleteLater()
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    use_empty_shipped_iso(empty, monkeypatch)
+    s, dlg = _dlg(qapp, tmp_path)
+    try:
+        for col in ("iso_12647_7", "iso_12647_8"):
+            w = _cell(dlg, col, "all_de00_avg")
+            assert isinstance(w, QLabel) and w.text() == "?", col
+    finally:
+        dlg.deleteLater()
+
+
 def test_editable_and_read_only_columns_follow_the_rulings(qapp, tmp_path):
     s, dlg = _dlg(qapp, tmp_path)
     try:
@@ -84,10 +117,10 @@ def test_editable_and_read_only_columns_follow_the_rulings(qapp, tmp_path):
         for col in ("chromiq_default", "chromiq_tight", "chromiq_quick",
                     "custom_iso_12647_7", "custom_iso_12647_8"):
             assert isinstance(_cell(dlg, col, "all_de00_avg"), NoScrollDoubleSpinBox), col
-        # … the ISO columns are labels (read-only), reading ? until S-2
+        # … the ISO columns are labels (read-only); what they read, in both
+        # states of the shipped file, is pinned by the test above.
         for col in ("iso_12647_7", "iso_12647_8"):
-            w = _cell(dlg, col, "all_de00_avg")
-            assert isinstance(w, QLabel) and w.text() == "?", col
+            assert isinstance(_cell(dlg, col, "all_de00_avg"), QLabel), col
         # a row a set defines no limit for reads – ; an unmeasurable row ✕ / –
         assert _cell(dlg, "iso_12647_7", "best95_de00_avg").text() == "–"
         assert _cell(dlg, "iso_12647_7", "substrate_gloss_class").text() == "✕"
@@ -308,7 +341,8 @@ def test_no_lambda_or_partial_is_connected_to_a_child_signal():
         assert "lambda" not in arg and "partial" not in arg, arg
 
 
-def test_a_default_radio_exists_only_for_selectable_sets(qapp, tmp_path):
+def test_a_default_radio_exists_only_for_selectable_sets(qapp, tmp_path,
+                                                          monkeypatch):
     """CH-11: a column with no limit-bearing row is never a choice.
 
     THE TWO CUSTOM COLUMNS JOINED THE LIST ON 2026-09-11. They used to inherit
@@ -319,7 +353,29 @@ def test_a_default_radio_exists_only_for_selectable_sets(qapp, tmp_path):
     offerable. The two READ-ONLY ISO columns are unchanged and still are not:
     the last line here is what proves the difference is the placeholders and
     not a relaxed rule.
+
+    #182 S-2, §23: SINCE THE ISO VALUES SHIP, the two read-only columns have
+    limit-bearing rows and are offered too. The rule is the same in both
+    states, so both are driven: the repository's file (both offered) and an
+    empty shipped file made by fixture (neither offered, every cell ?). Red on
+    its mutation: offer a radio for every column, and the empty half fails;
+    offer only the editable ones, and the shipped half fails.
     """
+    from tests.helpers.iso_files import use_empty_shipped_iso, use_repo_iso
+    use_repo_iso(monkeypatch)
+    s, dlg = _dlg(qapp, tmp_path)
+    try:
+        assert set(dlg._default_radios) == {"chromiq_default", "chromiq_tight",
+                                            "chromiq_quick",
+                                            "iso_12647_7", "iso_12647_8",
+                                            "custom_iso_12647_7",
+                                            "custom_iso_12647_8"}
+        assert dlg._default_radios["chromiq_default"].isChecked()
+    finally:
+        dlg.deleteLater()
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    use_empty_shipped_iso(empty, monkeypatch)
     s, dlg = _dlg(qapp, tmp_path)
     try:
         assert set(dlg._default_radios) == {"chromiq_default", "chromiq_tight",

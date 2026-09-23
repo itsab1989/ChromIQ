@@ -388,7 +388,7 @@ MESSAGE_DEMOS: "dict[str, list[str]]" = {
         "not reachable from a built project: raised when Create Chart files a verification chart that cannot carry a strip (Report-Limits-Strip-And-Gamut/run4 is such a chart, already filed)",
     ],
     "M-LIMIT-RECOMMENDED": [
-        "not reachable while the ISO columns read '?' (a standard's recommended row)",
+        "not reachable from data: no set ChromIQ ships marks a row recommended (a licence holder's own file can)",
     ],
     "M-VERIFY-NO-PROFILE": ["not a report message: a run without a profile (none in this package)"],
     "M-VERIFY-NO-CHART": ["not a report message: a run without a verification chart (none in this package)"],

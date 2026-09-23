@@ -26346,9 +26346,10 @@ would reach.
   test_the_built_package_verifies,
   test_every_measurable_row_is_tripped_and_passed_from_two_angles
 
-### B8-851 · OPEN · #182 S-2: the ISO 12647 values are prepared to ship, values only; the values themselves wait on the owner
+### B8-851 · FIXED, awaiting confirmation · #182 S-2: the ISO 12647-7 and -8 values ship, values only
 - blocks release: no
-- status: OPEN
+- status: FIXED
+- note: filled 2026-09-23 on Knut's yes (#182 5798461562); awaiting confirmation
 - where: the S-2 worktree branch (commit "#182 S-2: ISO 12647 values prepared
   to ship, values only"), spec §23 of `docs/design/measurement_report_limits.md`,
   awaiting confirmation. Numbered 850: 846, 848 and 849 are taken and 847 was
@@ -26366,23 +26367,49 @@ would reach.
   Report type help and M-THRESHOLDS-NOT-CERTIFICATION say what ships instead
   of that nothing does; `scripts/install_iso_12647_values_into_repo.py` copies
   only the set objects and prints no value.
-- evidence: `tests/test_iso_values_ship_as_values_only.py`
+- evidence: the S-2 test file, iso_values_ship_as_values_only
   (test_each_set_in_the_shipped_file_is_empty_or_complete,
   test_a_shipped_set_leaves_the_custom_column_on_knuts_figures,
   test_a_licence_holders_number_wins_its_row_and_a_null_keeps_the_shipped_one,
   test_nothing_says_chromiq_ships_no_values_once_a_set_ships,
   test_the_install_script_copies_only_the_sets_and_prints_no_value,
   test_the_install_script_refuses_half_a_set_and_names_rows_not_values, and
-  nine more), each guard red on a mutation; the older emptiness tests now
-  hold whichever state the file is in.
+  nine more), each guard red on a mutation; after the fill,
+  test_a_users_file_is_laid_over_the_shipped_values,
+  test_an_unreadable_data_file_degrades_to_question_marks,
+  test_the_read_only_iso_cells_read_what_ships,
+  test_a_default_radio_exists_only_for_selectable_sets,
+  test_a_type_that_is_not_built_says_WHY_not_that_it_is_missing,
+  test_the_window_behind_the_door_explains_itself and
+  test_every_selectable_limit_set_has_runs_of_its_own hold both states (the
+  first and the fifth proved red on their mutations: no overlay, and the
+  paywall reason always given).
 - proof: `~/Desktop/ChromIQ-beta39-proof/iso-12647-ships/` (REPORT.md; on
   screen, EN and DE, the repository file as it is and one pass with placeholder
   numbers standing in for a shipped ISO 12647-8).
-- open: the one remaining step, run on the owner's go-ahead:
-  `python scripts/install_iso_12647_values_into_repo.py <licence holder's file>`
-  (it prints counts and True/False only), then re-run the gate and move this
-  item to FIXED. For Knut: whether a shipped standard's values should also
-  become the Custom columns' starting numbers, which §2a's order reads as no.
+- fixed: the file was filled with
+  `scripts/install_iso_12647_values_into_repo.py` (18 cells for ISO 12647-7,
+  19 for ISO 12647-8; commit "S-2: the ISO 12647-7 and -8 values ship").
+  The 14 tests that pinned the empty state against the real file now hold
+  both states: the empty one by fixture (`tests/helpers/iso_files.py`,
+  standing an empty file in for the shipped one) and the shipped one with
+  expected figures read from the data file, never typed; each guard's
+  mutation is named in its docstring. The demo generators give both
+  read-only columns matrix runs on both routes (Every-Limit-Set and
+  Second-Route), their designs scaled from ChromIQ default's proven pair by
+  the ratios of the shipped limits, read from the file at build time.
+- evidence (after the fill): everyday tier at -n 4 green (count line in the
+  commit that closes this); `make_release_demo_package.py <scratch> --zip`
+  188 of 188 dated verifications matching their design, matrix 111 cells, 0
+  short of 2+2, 0 faults; `--verify` on the zip: complete; all 19 (row, ISO
+  set) cells 2 or more trip and 2 or more pass angles.
+- proof: `~/Desktop/ChromIQ-beta39-proof/iso-12647-ships/after-fill/`
+  (REPORT.md; ON SCREEN, EN and DE: Preferences > Reports > Report limits,
+  Reference values, the report window on Report-Limits-Threshold-Series/run3,
+  and a report generated on Report-Limits-Every-Limit-Set/run9, which is
+  bound to ISO 12647-8).
+- open for Knut: whether a shipped standard's values should also become the
+  Custom columns' starting numbers, which §2a's order reads as no.
 
 ### B8-860 · FIXED · FROM PROFILE GAMUT as the first build of a session never finished, and a verification build moved the run's profile into old/
 - blocks release: yes

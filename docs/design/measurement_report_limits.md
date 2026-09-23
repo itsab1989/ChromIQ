@@ -4599,4 +4599,10 @@ state the file is in. No test asserts a value of either standard.
 screen, EN and DE; the repository file as it is, and one pass with placeholder
 numbers standing in for a shipped ISO 12647-8).
 **Register:** B8-851.
-**Status:** prepared; the values are NOT in the repository; **not confirmed**.
+**Status:** the values SHIP (filled 2026-09-23 on Knut's yes, #182
+5798461562, with `scripts/install_iso_12647_values_into_repo.py`: 18 cells for
+ISO 12647-7, 19 for ISO 12647-8); the suite holds both states (the empty one
+by fixture, `tests/helpers/iso_files.py`); the demo pack has runs bound to
+both read-only columns, designed from the file at build time; driven on
+screen after the fill (`~/Desktop/ChromIQ-beta39-proof/iso-12647-ships/after-fill/`);
+**not confirmed**.
