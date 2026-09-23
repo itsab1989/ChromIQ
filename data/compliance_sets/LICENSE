@@ -5,12 +5,15 @@ There are two kinds of file here, and they are not under the same terms.
 
 1. ChromIQ's own files
 ----------------------
-`iso12647.json` and this folder's structure are ChromIQ's own work and are
-covered by the project's licence, the GNU Affero General Public License version
-3, the same as the rest of ChromIQ. A copy is in the LICENSE file at the root of
-the project.
+The structure of `iso12647.json`, its explanation and this folder are
+ChromIQ's own work and are covered by the project's licence, the GNU Affero
+General Public License version 3, the same as the rest of ChromIQ. A copy is in
+the LICENSE file at the root of the project.
 
-`iso12647.json` contains NO tolerance value of any standard. It ships empty.
+Each of the two sets in `iso12647.json` is either empty or complete. A complete
+set holds the tolerance values of that standard and nothing else from it; those
+values are the standard's, used on the basis stated under ISO below, and are
+not relicensed by the line above.
 
 2. Third-party reference data
 -----------------------------
@@ -36,11 +39,19 @@ words the rights holders used. In short:
   United          "GRACoL is a registered trademark of PRINTING United
   Alliance)       Alliance."
 
-  ISO            NO PERMISSION. Reproducing the content of a standard inside
-                 software needs explicit permission or a licence; a single-user
-                 reading licence is not enough. No tolerance value of
-                 ISO 12647-7:2016 or ISO 12647-8:2021 is in this folder, in any
-                 file ChromIQ ships, or on any branch it is released from.
+  ISO / DIN      VALUES ONLY. ISO's answer was that reproducing the content
+                 of a standard inside software needs explicit permission or a
+                 licence, through the national member body. DIN's legal
+                 department answered in writing on 2026-09-23: "wenn Sie
+                 definitiv nur Werte aus der Norm verwenden - keine Bilder,
+                 keine Seiten, keine Texte, dann faellt das nicht unter
+                 Vervielfaeltigung." (If you definitely use only values from
+                 the standard, no images, no pages, no texts, that does not
+                 count as reproduction.) So the tolerance values of
+                 ISO 12647-7:2016 and ISO 12647-8:2021 may be in
+                 iso12647.json, one number per row, and nothing else of either
+                 standard is in any file ChromIQ ships: no wording, table,
+                 figure or page. A set that is empty in the file ships no value.
 
                  Said precisely, because a broader claim would not be true: the
                  standards' NAMES and clause citations are used, deliberately

@@ -65,7 +65,14 @@ def iso_file(tmp_path, monkeypatch):
     def use(payload: "dict | None"):
         path = tmp_path / "iso12647.json"
         if payload is None:
-            path = (cs.resource_path(cs.ISO_DATA_FILE))
+            # THE EMPTY SHIPPED STATE, BY FIXTURE. This used to read the
+            # repository's own file, which was empty by design; since #182
+            # S-2 (§23) that file may ship a set, so the empty state is stood
+            # in for the shipped file here and stays measurable either way.
+            path = tmp_path / "shipped-empty-iso12647.json"
+            path.write_text(json.dumps({"iso_12647_7": {}, "iso_12647_8": {}}),
+                            encoding="utf-8")
+            monkeypatch.setattr(cs, "_bundled_iso_path", lambda: path)
         else:
             path.write_text(json.dumps(payload), encoding="utf-8")
         monkeypatch.setenv(cs.ISO_DATA_ENV, str(path))
@@ -89,6 +96,13 @@ def test_the_shipped_file_really_is_empty_and_the_custom_sets_really_are_not():
     """
     payload = json.loads(
         cs.resource_path(cs.ISO_DATA_FILE).read_text(encoding="utf-8"))
+    # #182 S-2, §23: the file may now ship a set, complete. The tests below
+    # that use `iso_file(None)` measure the EMPTY state, which is what the
+    # repository holds until the owner's go-ahead; once a set ships they
+    # measure a different world, and this is where that is noticed first.
+    # The shipped state is measured in `test_iso_values_ship_as_values_only`.
+    if payload.get("iso_12647_7") or payload.get("iso_12647_8"):
+        pytest.skip("a set ships; the empty state is measured by fixture")
     assert payload.get("iso_12647_7") == {}
     assert payload.get("iso_12647_8") == {}
 

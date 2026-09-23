@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- **Prepared, awaiting the owner's go-ahead: the ISO 12647-7 and ISO 12647-8
+  values can ship, values only**, on DIN's written statement of 23 September
+  that a standard's values alone are not reproduction. Nothing is filled in
+  yet, so the two ISO columns still read "?". Once a set is filled its
+  read-only column judges and can be chosen, the Custom column beside it keeps
+  its researched starting limits, a licence holder's own figures still win
+  their rows, and every sentence that said ChromIQ ships no ISO values says
+  what it ships.
+
 ## v4.3.0-beta.38
 
 **Knut's rulings of 23 September: the report list grouped by project and run,

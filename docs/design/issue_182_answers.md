@@ -61,6 +61,16 @@ a release or a posted picture until permission is in writing.** Basti,
 want to get in trouble."* Knut has asked for the thresholds to be included so a
 beta can be tested; that request is NOT authority to include them.
 
+> **2026-09-23: the permission question is answered in writing, the rule
+> stands until the owner says go.** DIN's legal department: *"wenn Sie
+> definitiv nur Werte aus der Norm verwenden – keine Bilder, keine Seiten,
+> keine Texte, dann fällt das nicht unter Vervielfältigung."* The owner agreed
+> it covers ISO 12647-7 and ISO 12647-8. Everything is prepared so that
+> filling `data/compliance_sets/iso12647.json` is the only step left
+> (`measurement_report_limits.md` §23, B8-851), and that step waits on his
+> explicit go-ahead. Values only, even then: no wording, table, figure or page
+> of either standard.
+
 The honest way to give a tester real verdicts meanwhile: `compliance_sets.py`
 reads its data file from a path the environment variable
 `CHROMIQ_COMPLIANCE_ISO_FILE` can override, so a tester who owns the standard

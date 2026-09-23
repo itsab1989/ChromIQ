@@ -467,6 +467,17 @@ def test_no_dictionary_term_is_printed_without_its_definition(qapp, tmp_path):
                      if ln.strip()]
             # lines[0] is our own header band, lines[-1] the centred page number
             body = lines[1:-1]
+            # …UNLESS THE EXTRACTOR JOINED THE PAGE NUMBER TO THE LAST LINE OF
+            # TEXT. Measured on A5 page 11 (2026-09-23, after the glossary's
+            # ISO entries grew for #182 S-2): the definition's first line sits
+            # on the page, 8 px above the body's foot, and the text layer hands
+            # it back as "Two populations ... Surface\ufffePage 11 of 21", one
+            # line with the page number. Dropping that line as "the page
+            # number" made the term above it look stranded when the sheet
+            # carries both. The text before the page number is body text.
+            joined = re.match(r"^(.*\S)[\s\ufffe]*Page \d+ of \d+$", lines[-1])
+            if joined and len(lines) > 1:
+                body = lines[1:-1] + [joined.group(1)]
             if body and body[-1] in terms:
                 stranded.append(f"{size} page {page + 1}: {body[-1]!r}")
     assert not stranded, (

@@ -115,20 +115,26 @@ def test_chromiq_sets_define_no_limit_on_the_standards_only_rows():
         assert f[rid].kind == "none", rid
 
 
-def test_the_shipped_iso_data_file_is_empty_so_every_iso_cell_reads_a_question_mark():
-    """#182 S-2 is open: the numbers of a paid standard are not in the repo.
-    A row the standard limits reads ?, a row it does not reads –, and a row
-    ChromIQ cannot measure reads ✕ whatever the standard says."""
+def test_an_iso_set_the_shipped_file_leaves_empty_reads_a_question_mark(monkeypatch):
+    """#182 S-2, §23: each set of the shipped file is EMPTY or COMPLETE, and
+    `tests/test_iso_values_ship_as_values_only.py` holds it to that. This test
+    reads whichever sets the file leaves empty (both of them until the owner's
+    go-ahead) and pins what an empty set looks like: a row the standard limits
+    reads ?, a row it does not reads –, and a row ChromIQ cannot measure reads
+    ✕ whatever the standard says. A set that ships is pinned there instead."""
     doc = json.loads((ROOT / cs.ISO_DATA_FILE).read_text(encoding="utf-8"))
-    assert doc["iso_12647_7"] == {} and doc["iso_12647_8"] == {}
+    monkeypatch.setenv(cs.ISO_DATA_ENV, str(ROOT / cs.ISO_DATA_FILE))
     cs.reset_iso_cache()
+    # the unmeasurable and the not-limited rows read the same in both states
     f7 = factory_limits("iso_12647_7")
-    assert f7["all_de00_avg"].kind == "unknown"
     assert f7["best95_de00_avg"].kind == "none"          # -7 has no such row
     assert f7["substrate_gloss_class"].kind == "unmeasurable"
     f8 = factory_limits("iso_12647_8")
     assert f8["control_strip_de00_max"].kind == "none"   # -8 uses the 95th percentile
-    assert f8["control_strip_de00_p95"].kind == "unknown"
+    if not doc["iso_12647_7"]:
+        assert f7["all_de00_avg"].kind == "unknown"
+    if not doc["iso_12647_8"]:
+        assert f8["control_strip_de00_p95"].kind == "unknown"
     # The two READ-ONLY ISO columns still hold nothing, so neither is offered.
     #
     # THE TWO CUSTOM COLUMNS ARE, AND THAT IS NEW, 2026-09-11. This line used
@@ -142,9 +148,14 @@ def test_the_shipped_iso_data_file_is_empty_so_every_iso_cell_reads_a_question_m
     # ChromIQ's own numbers (`custom_defaults`), which is why they are
     # selectable; no ISO figure is involved, and the two read-only columns
     # are unchanged.
+    #
+    # A SET THAT SHIPS IS A CHOICE, and one the file leaves empty is not.
+    shipped = [s for s in ("iso_12647_7", "iso_12647_8") if doc[s]]
     assert selectable_set_ids({}) == ["chromiq_default", "chromiq_tight",
-                                      "chromiq_quick", "custom_iso_12647_7",
+                                      "chromiq_quick", *shipped,
+                                      "custom_iso_12647_7",
                                       "custom_iso_12647_8"]
+    cs.reset_iso_cache()
 
 
 def test_a_filled_data_file_lights_the_iso_cells(tmp_path, monkeypatch):

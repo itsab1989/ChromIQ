@@ -127,16 +127,30 @@ def test_the_guide_is_true_whether_or_not_the_figures_are_supplied(tmp_path,
         C._iso_problems = []
 
 
-def test_the_two_read_only_columns_really_do_ship_empty(tmp_path, qapp):
-    """The sentence above is only true while this is. If ChromIQ ever ships
-    those numbers, this fails and the sentence is the thing to rewrite."""
+def test_the_two_read_only_columns_hold_numbers_only_where_they_ship(tmp_path,
+                                                                   qapp):
+    """A read-only column carries numbers exactly when its set ships.
+
+    This used to assert that both columns ship empty, and to say that the day
+    ChromIQ ships the numbers the sentence above is the thing to rewrite. That
+    day is prepared (#182 S-2, §23), and the guide's sentence was rewritten
+    for it in K18: "may differ from the standard's published values" is true
+    in both states, which `test_every_clause_of_the_guide_survives_a_licence_
+    holder` pins. What is left to hold is the link between the file and the
+    column.
+    """
+    import json
+
+    from workflow import compliance_sets as C
     from workflow.compliance_sets import effective_limits
+    doc = json.loads(C.resource_path(C.ISO_DATA_FILE).read_text(encoding="utf-8"))
     for sid in ("iso_12647_7", "iso_12647_8"):
         lims = effective_limits(sid, None)
         assert lims, sid
-        assert not [l for l in lims.values() if l.is_numeric], (
-            f"{sid} now carries published numbers, so the report's guide must "
-            "stop saying ChromIQ ships none of them")
+        numeric = [l for l in lims.values() if l.is_numeric]
+        assert bool(numeric) == bool(doc[sid]), (
+            f"{sid}: the shipped file {'carries' if doc[sid] else 'leaves empty'} "
+            f"that set, and its read-only column has {len(numeric)} numbers")
 
 
 def test_the_guide_never_says_a_custom_column_holds_published_values(tmp_path,

@@ -1407,18 +1407,23 @@ _IDENTICAL_TO_KEY = {
     # does not move; each of the twelve others rises by exactly 18 (20 new
     # English placeholders, 2 old English placeholders gone). COUNTED off the
     # tree with this file's own expression, BOTH ledgers in the same commit.
+    # RE-MEASURED 2026-09-23, #182 S-2 (§23, the ISO values prepared to ship):
+    # 20 new keys, 12 of them replacing changed texts whose old keys left every
+    # catalogue. German by hand, does not move; each of the twelve others
+    # rises by exactly 8 (20 new English placeholders, 12 old ones gone).
+    # COUNTED off the tree, BOTH ledgers in the same commit.
     "de": 142,
-    "es": 1113,
-    "fr": 1135,
-    "it": 1124,
-    "ja": 1099,
-    "nl": 1140,
-    "no": 1125,
-    "pl": 1117,
-    "pt": 1115,
-    "ru": 1088,
-    "sv": 1126,
-    "zh_CN": 1093,
+    "es": 1121,
+    "fr": 1143,
+    "it": 1132,
+    "ja": 1107,
+    "nl": 1148,
+    "no": 1133,
+    "pl": 1125,
+    "pt": 1123,
+    "ru": 1096,
+    "sv": 1134,
+    "zh_CN": 1101,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1445,7 +1450,8 @@ _IDENTICAL_TO_KEY = {
     # in Ukrainian, so the pointer could not match whatever the user read.
     # Nothing else changed. The ceiling is re-measured DOWN here rather than
     # left where it was, so the next rise still has to justify itself.
-    "uk": 1329,
+    # +8 on 2026-09-23 for #182 S-2, the same eight as every other language.
+    "uk": 1337,
 }
 
 

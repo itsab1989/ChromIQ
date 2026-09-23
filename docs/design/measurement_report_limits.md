@@ -12,9 +12,13 @@
 > Every other section is still **⏳ Awaiting confirmation**.
 >
 > The tolerance numbers of ISO 12647-7:2016 and ISO 12647-8:2021 are NOT in
-> this document, not in the code and not in the repository. Whether they may
-> ship is Sebastian's open question S-2; until then the two ISO columns read
-> `?` and cannot be chosen for a run.
+> this document and not in the code. ~~Whether they may ship is Sebastian's
+> open question S-2; until then the two ISO columns read `?` and cannot be
+> chosen for a run.~~ **Superseded by §23 (2026-09-23):** S-2 is answered in
+> principle by DIN's written statement that values alone are not
+> reproduction. The repository's `data/compliance_sets/iso12647.json` may carry
+> them, as values only, each set empty or complete; filling it waits on the
+> owner's go-ahead, and until then the two ISO columns still read `?`.
 
 **These specifications are binding.** Knut's rule (2026-08-06): they are
 consulted before code in this area changes, and a fault that contradicts them
@@ -189,7 +193,10 @@ Custom ISO 12647-7 · Custom ISO 12647-8.
 > can be tested against."*
 >
 > **So a Custom set starts from its parent's value where the parent HAS one,
-> and from a ChromIQ default everywhere else.** Today the parent has none, so
+> and from a ChromIQ default everywhere else.** *(Narrowed by §23: "the
+> parent's value" means a figure from a licence holder's own file. A value
+> ChromIQ SHIPS fills the read-only column and not the Custom one.)* Today the
+> parent has none, so
 > every row ChromIQ can measure carries one of those defaults
 > (`compliance_sets.py::custom_defaults`); a licence holder who points
 > `CHROMIQ_COMPLIANCE_ISO_FILE` at their own copy still starts from theirs, row
@@ -800,7 +807,9 @@ names what the chart cannot supply. Nothing on disk changed.
 The reading of a user-supplied characterization file and its copy into the
 run's `verifications/reference/` folder (Knut K-e); the CMYK measurement
 reader (S-3); the tone-ramp generator, the approved-chart list and the
-uniformity form (N5). The ISO numbers (S-2). Of the six report types of §10,
+uniformity form (N5). ~~The ISO numbers (S-2).~~ *(Prepared, §23: the file
+and every text are ready; the values go in on the owner's go-ahead.)* Of the
+six report types of §10,
 the two that judge against a printing condition the user supplies.
 
 ## 10. The report type (D28)
@@ -875,8 +884,10 @@ is never honoured: the run refuses to store one, and a stored one, which a
 project made on a later ChromIQ can carry home, is read as Full colour check.
 What is on disk is left alone so that later ChromIQ still finds the choice.
 
-**Not built here:** T5 and T6. Their figures are published in standards
-ChromIQ has no permission to include (§9, S-2).
+**Not built here:** T5 and T6. ~~Their figures are published in standards
+ChromIQ has no permission to include (§9, S-2).~~ *(§23: once a standard's
+values ship, the greyed entry says only that the report is still being built;
+while they do not, it still names the figures.)*
 
 ### ⏳ FIXED 2026-09-12: a limit-set change rewrote the TYPE of every saved report
 
@@ -971,7 +982,8 @@ into a paragraph under the list.
 *"Rephrase so that report text states what the report shows […] which actually
 has the opposite effect of building confidence in the report results."* It now
 reads that a read-only column named after a standard holds that standard's
-published tolerance values and nothing else, that ChromIQ ships none of them, so
+published tolerance values and nothing else, that ChromIQ ships none of them
+*(superseded: K18 rewrote this paragraph, and §23 prepares the values to ship)*, so
 such a column is empty unless a licence holder has supplied its figures, and
 that an editable column starts from those supplied figures where there are any
 and from ChromIQ's own numbers where there are none. Either way the values are
@@ -4498,3 +4510,93 @@ column (§18.3, "Judged against" defines the thresholds shown).
 `_how_to_read_html`); `workflow/measurement_report.py::build_report`
 (`REASON_NO_DEVICE_VALUES`).
 **Status:** agreed; built in beta 39; **not confirmed**.
+
+## 23. #182 S-2: the ISO 12647 values are prepared to ship, values only (2026-09-23)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+**The decision.** DIN's legal department answered the owner in writing on
+2026-09-23, about ISO 12647-8 and as a statement of the general rule:
+
+> *"wenn Sie definitiv nur Werte aus der Norm verwenden – keine Bilder, keine
+> Seiten, keine Texte, dann fällt das nicht unter Vervielfältigung."*
+> (If you definitely use only values from the standard, no images, no pages, no
+> texts, that does not count as reproduction.)
+
+The owner delegated the decision and agreed that it covers ISO 12647-7 and
+ISO 12647-8 alike. So Sebastian's S-2 is answered in principle: both sets may
+ship **as values only**, in `data/compliance_sets/iso12647.json`, under
+ChromIQ's own row names, help texts and layout, with no wording, table, figure
+or clause text of either standard. **Filling the file waits on the owner's
+explicit go-ahead**; everything else is built so that it is the only step left
+(`scripts/install_iso_12647_values_into_repo.py SOURCE.json [--set 7|8]`, which
+copies only the two set objects, keeps the file's own `_readme`, refuses half a
+set, and prints counts and True/False, never a value). Until then the file's
+two sets are empty and the app behaves exactly as before.
+
+**The file.** Each set is EMPTY or COMPLETE: only row ids that standard limits
+(`compliance_sets._ISO_ROWS`), every row ChromIQ can judge present, and every
+cell a number or `[number, "should"]`. A row ChromIQ cannot measure reads `✕`
+whatever it holds, so it may be left out. Its `_readme` quotes DIN's sentence
+with a translation.
+
+**What a set that ships changes on screen** (driven with a file of made-up
+placeholder numbers standing in for the shipped one; proof below):
+
+1. Its read-only column carries a number on every row ChromIQ can judge, and
+   it becomes a choice in the Measurement Report's "Judged against" pulldown
+   and for a run. A set that does not ship reads `?` and is not a choice.
+2. **The Custom column beside it does not move.** It keeps Knut's researched
+   industry figures and ChromIQ's own numbers (§2a). §2a's first source, "a
+   licence holder's own values file", is read literally: a shipped value is
+   not one, so it fills the read-only column and not the Custom one
+   (`compliance_sets.supplied_iso_rows`). This narrows §2's "a Custom set
+   starts from its parent's value where the parent HAS one".
+3. **A licence holder's own file is laid OVER the shipped one, row by row**,
+   where it used to be read instead of it. A number they give wins its row; a
+   row they leave null (the template writes one per row) keeps the shipped
+   figure; their figures still become the Custom column's starting numbers.
+   Reading their file instead would have taken every shipped figure away from
+   someone who supplied three rows of the other set.
+4. The texts that said ChromIQ ships no ISO values say what ships. Where the
+   text is generated, it asks `compliance_sets.shipped_iso_sets()`:
+   the Report limits window's column paragraph (one clause per ISO column:
+   ships, supplied, or empty) and its note on the Custom columns; the first
+   line of the ISO half of "Reference values"; the reason a greyed ISO report
+   type gives (the paywall reason only while that standard's values do not
+   ship). Where the text is static (help card glossary, "Where are my files?",
+   the Report type help in Preferences, the pairing help, the Reference values
+   steps), it is rewritten as a condition that is true in both states.
+   M-THRESHOLDS-NOT-CERTIFICATION is revised the same way (§M-PROPOSED).
+
+**Not changed:** the certification promise and the standard caveat (a column
+named after a standard is still applied to the printed chart, and a PASS is an
+indication, not proof); the two ISO report types stay unbuilt; the template a
+licence holder saves stays all nulls.
+
+**Built:** `data/compliance_sets/iso12647.json` (`_readme` only; both sets
+empty), `data/compliance_sets/README.md`, `data/compliance_sets/LICENSE`;
+`workflow/compliance_sets.py` (`_bundled_iso_path`, `_load_iso_numbers`,
+`supplied_iso_rows`, `shipped_iso_sets`, `factory_limits`,
+`custom_default_counts`, `iso_values_template`);
+`ui/dialogs/thresholds_dialog.py` (`_columns_paragraph`,
+`_iso_columns_sentence`, the Custom note); `ui/dialogs/reference_values_dialog.py`
+(`iso_source`); `ui/dialogs/measurement_report_dialog.py` (`_not_built_line`,
+`_PAIRING_HELP`); `ui/dialogs/settings_dialog.py`; `ui/dialogs/welcome_dialog.py`;
+`ui/file_guide.py`; `workflow/measurement_messages.py`;
+`scripts/install_iso_12647_values_into_repo.py`.
+**Verified by:** `tests/test_iso_values_ship_as_values_only.py` (the file is
+empty or complete; a shipped set judges its read-only column and leaves the
+Custom one on Knut's figures; a licence holder's number wins its row and a null
+keeps the shipped one; the texts in the empty, one-set and both-set states; the
+install script), each guard proved red on a mutation; the older emptiness tests
+in `test_compliance_sets.py`, `test_a_custom_column_is_not_a_standards_column.py`
+and `test_the_limits_window_says_what_its_columns_hold.py` now hold whichever
+state the file is in. No test asserts a value of either standard.
+**Proof:** `~/Desktop/ChromIQ-beta39-proof/iso-12647-ships/` (REPORT.md; on
+screen, EN and DE; the repository file as it is, and one pass with placeholder
+numbers standing in for a shipped ISO 12647-8).
+**Register:** B8-851.
+**Status:** prepared; the values are NOT in the repository; **not confirmed**.

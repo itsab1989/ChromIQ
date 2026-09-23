@@ -982,19 +982,26 @@ _BUDGET = {
     # others carry the English under the beta rule and each rises by exactly 9.
     # COUNTED off the tree with this file's own expression, BOTH ledgers in the
     # same commit.
+    # RE-MEASURED 2026-09-23, #182 S-2 (§23, the ISO values prepared to ship):
+    # eight new keys (the per-column ISO clauses, "The two ISO columns are
+    # read-only.", the shipped variants of the Custom note and of the
+    # Reference values line) and twelve changed ones whose old keys left every
+    # catalogue. German by hand, does not move; each of the twelve others
+    # rises by exactly 6 under the beta rule. COUNTED off the tree, BOTH
+    # ledgers in the same commit.
     "de": 14,
-    "es": 824,
-    "fr": 825,
-    "it": 824,
-    "ja": 824,
-    "nl": 824,
-    "no": 824,
-    "pl": 824,
-    "pt": 824,
-    "ru": 823,
-    "sv": 824,
-    "zh_CN": 823,
-    "uk": 1018,
+    "es": 830,
+    "fr": 831,
+    "it": 830,
+    "ja": 830,
+    "nl": 830,
+    "no": 830,
+    "pl": 830,
+    "pt": 830,
+    "ru": 829,
+    "sv": 830,
+    "zh_CN": 829,
+    "uk": 1024,
 }
 
 

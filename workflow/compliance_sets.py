@@ -26,11 +26,17 @@ here, once:
   since Knut retired it as a row word on 2026-09-21; it stays defined because
   reports saved before that day carry it.
 
-**The ISO tolerance numbers are not in this file, and not in the repository.**
-They are read from ``data/compliance_sets/iso12647.json``, which ships EMPTY
-until the licensing question (#182, Sebastian's S-2) is answered; a row an ISO
-set is known to limit then reads ``?`` (the limit is in a clause ChromIQ does
-not hold or may not show). The *structure* of a standard, which rows it
+**The ISO tolerance numbers are not in this file.** They are read from
+``data/compliance_sets/iso12647.json``. Each of its two set objects is either
+EMPTY, and a row that ISO set is known to limit then reads ``?`` (the limit is
+in a clause ChromIQ does not hold or may not show), or COMPLETE, carrying the
+standard's values and nothing else. The licensing question (#182, Sebastian's
+S-2) was answered in principle by DIN's legal department on 2026-09-23: values
+alone, without pages, images or texts, are not reproduction. Filling the file
+waits on the owner's explicit go-ahead
+(``scripts/install_iso_12647_values_into_repo.py`` does it, printing no
+value), and the code below is written for both states (§23 of
+``docs/design/measurement_report_limits.md``). The *structure* of a standard, which rows it
 writes a limit over, is not licensed content and is stated below so the table
 can draw ``?`` in the right cells and ``–`` (the set defines no limit) in the
 others.
@@ -1009,11 +1015,19 @@ _ISO_ROWS: "dict[str, tuple[str, ...]]" = {
     ),
 }
 
-#: The data file. Ships empty (see the module docstring). The environment
-#: variable exists so a licence holder can point ChromIQ at their own copy.
+#: The data file ChromIQ SHIPS (see the module docstring: each set in it is
+#: either empty or complete). The environment variable exists so a licence
+#: holder can point ChromIQ at their own copy.
 ISO_DATA_FILE = "data/compliance_sets/iso12647.json"
 ISO_DATA_ENV = "CHROMIQ_COMPLIANCE_ISO_FILE"
 _iso_cache: "dict[str, dict[str, Limit]] | None" = None
+#: Per set, the rows the USER'S OWN file gave a number for (the file the
+#: environment variable names, or the one in :func:`user_values_path`), and
+#: never the shipped file's. See :func:`supplied_iso_rows`.
+_iso_supplied: "dict[str, frozenset[str]] | None" = None
+#: Per set, the rows the SHIPPED file gives a number for. See
+#: :func:`shipped_iso_sets`.
+_iso_shipped: "dict[str, frozenset[str]] | None" = None
 
 #: THE TWO CUSTOM COLUMNS' STARTING NUMBERS, AND WHERE EACH ONE COMES FROM.
 #:
@@ -1185,7 +1199,7 @@ def custom_default_counts(set_id: str) -> "dict[str, int]":
     # matters most: a licence holder whose own figure happens to EQUAL a
     # default would be reported as not having supplied it, and the window
     # would then name our sources and not theirs.
-    supplied = _load_iso_numbers().get(s.parent, {})
+    supplied = supplied_iso_rows(s.parent)
     out = dict(zero)
     for rid in limit_bearing(factory_limits(set_id)):
         out["total"] += 1
@@ -1253,18 +1267,52 @@ def forget_user_values() -> bool:
     return True
 
 
+def _bundled_iso_path() -> Path:
+    """The values file ChromIQ ships. One function, so a test can stand a
+    fixture in for the shipped file without touching the real one."""
+    return resource_path(ISO_DATA_FILE)
+
+
+def _same_file(a: Path, b: Path) -> bool:
+    try:
+        return Path(a).resolve() == Path(b).resolve()
+    except OSError:
+        return False
+
+
 def _iso_data_path() -> Path:
     override = os.environ.get(ISO_DATA_ENV, "").strip()
     if override:
         return Path(override)
     own = user_values_path()
-    return own if own.is_file() else resource_path(ISO_DATA_FILE)
+    return own if own.is_file() else _bundled_iso_path()
+
+
+def _numeric_cells(doc: Any) -> "dict[str, dict[str, Limit]]":
+    """The rows of each known set that carry a NUMBER, and nothing else.
+
+    Used for the shipped file underneath a user's own, where a cell that is
+    not a number (a ``null`` left from the template, a ``?``) must not blank
+    a figure ChromIQ ships.
+    """
+    out: "dict[str, dict[str, Limit]]" = {}
+    if not isinstance(doc, dict):
+        return out
+    for sid in ISO_SET_IDS:
+        cells = doc.get(sid)
+        if not isinstance(cells, dict):
+            continue
+        out[sid] = {rid: lim for rid, lim in
+                    ((rid, Limit.from_json(v)) for rid, v in cells.items()
+                     if rid in ROW_BY_ID)
+                    if lim.is_numeric}
+    return out
 
 
 def _is_the_users_own_file() -> bool:
     """True when the file is one the user supplied, either way in.
 
-    The bundled file ships deliberately empty, so "no numbers in it" is its
+    An empty set in the bundled file is one ChromIQ does not ship, which is a
     normal state and not something to report. The user's own file is the only
     one whose emptiness is a mistake.
     """
@@ -1314,13 +1362,16 @@ def iso_values_template(set_id: "str | None" = None) -> str:
     labels = {r.id: (r.label, r.unit, r.status) for r in ROWS}
     out: "dict[str, Any]" = {
         "_readme": (
-            "Tolerance values for ChromIQ's two ISO limit sets. ChromIQ ships "
-            "this file EMPTY and cannot ship it filled: the numbers are the "
-            "content of a paid standard. Fill a row in from your own copy of "
-            "the standard and point CHROMIQ_COMPLIANCE_ISO_FILE at this file. "
-            "A row is a number, or [number, \"should\"] for a recommendation. "
-            "Leave a row null and ChromIQ goes on drawing '?' for it. The rows "
-            "are in the order the Report limits window draws them."),
+            "Tolerance values for ChromIQ's two ISO limit sets, filled in "
+            "from your own copy of the standard. Put this file in place from "
+            "the Report limits window, under 'Reference values...', or point "
+            "CHROMIQ_COMPLIANCE_ISO_FILE at it. A row is "
+            "a number, or [number, \"should\"] for a recommendation. A number "
+            "you give takes the place of any figure ChromIQ ships for that "
+            "row; leave a row null and ChromIQ goes on showing what it shows "
+            "for it now, its own figure where it ships one and '?' where it "
+            "does not. The rows are in the order the Report limits window "
+            "draws them."),
         "_rows": {},
     }
     for sid in want:
@@ -1350,14 +1401,35 @@ def _load_iso_numbers() -> "dict[str, dict[str, Limit]]":
     most likely to copy.
 
     Problems are only collected for the file the ENVIRONMENT VARIABLE names.
+
+    **THE SHIPPED FILE IS THE GROUND, AND A USER'S OWN FILE IS LAID OVER IT.**
+    While the shipped file was empty the two were never both in play, and "read
+    the user's file instead" was the whole rule. Once a set ships complete
+    (#182 S-2, §23 of the limits record), reading the user's file INSTEAD would
+    take every shipped figure away from a licence holder who supplied three
+    rows of the other set. So a user's NUMBER wins its row, a row their file
+    leaves null keeps the shipped figure, and a row neither answers reads
+    ``?`` exactly as before. A path that IS the shipped file (the tests and
+    drivers force the variable at it) is read once, as the shipped file.
     """
-    global _iso_cache, _iso_problems
+    global _iso_cache, _iso_problems, _iso_supplied, _iso_shipped
     if _iso_cache is not None:
         return _iso_cache
     out: "dict[str, dict[str, Limit]]" = {}
     problems: "list[tuple[str, str]]" = []
     mine = _is_the_users_own_file()
     path = _iso_data_path()
+    bundled = _bundled_iso_path()
+    from_bundle = _same_file(path, bundled)
+    if from_bundle:
+        shipped_doc = None             # read below, as `doc`
+    else:
+        try:
+            shipped_doc = json.loads(bundled.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            log.warning("shipped compliance data file %s unreadable (%s)",
+                        bundled, exc)
+            shipped_doc = {}
     try:
         doc = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
@@ -1379,8 +1451,10 @@ def _load_iso_numbers() -> "dict[str, dict[str, Limit]]":
             if mine and set_id in ISO_SET_IDS:
                 problems.append(("set_not_an_object", set_id))
             continue
+        # A null is "not filled in yet" (the template writes one per row), so
+        # it is left out rather than read as "no limit".
         out[set_id] = {rid: Limit.from_json(v) for rid, v in cells.items()
-                       if rid in ROW_BY_ID}
+                       if rid in ROW_BY_ID and v is not None}
         if not mine or set_id not in ISO_SET_IDS:
             continue
         for rid, raw in cells.items():
@@ -1408,9 +1482,58 @@ def _load_iso_numbers() -> "dict[str, dict[str, Limit]]":
             dict.fromkeys(unknown_rows)))))
     for kind, detail in problems:
         log.warning("compliance data file %s: %s (%s)", path, kind, detail)
+    if from_bundle:
+        shipped = _numeric_cells(doc)
+        supplied: "dict[str, frozenset[str]]" = {}
+    else:
+        shipped = _numeric_cells(shipped_doc)
+        supplied = {sid: frozenset(rid for rid, lim in out.get(sid, {}).items()
+                                   if lim.is_numeric)
+                    for sid in ISO_SET_IDS}
+        for sid, cells in shipped.items():
+            merged = dict(cells)
+            for rid, lim in out.get(sid, {}).items():
+                if lim.is_numeric or rid not in merged:
+                    merged[rid] = lim
+            out[sid] = merged
     _iso_cache = out
     _iso_problems = problems
+    _iso_supplied = supplied
+    _iso_shipped = {sid: frozenset(cells) for sid, cells in shipped.items()}
     return out
+
+
+def supplied_iso_rows(set_id: str) -> "frozenset[str]":
+    """The rows of *set_id* that a USER'S OWN values file gave a number for.
+
+    Never the shipped file's rows. This is the question a Custom column asks
+    before it starts from a standard's figure instead of its own default:
+    §2a's order of precedence names "a licence holder's own values file", and
+    the shipped values are not that. The Custom columns start from Knut's
+    researched figures whatever ChromIQ ships (Knut, 2026-09-21), so shipping a
+    set changes the read-only column beside them and nothing in them.
+    """
+    if _iso_supplied is None:
+        _load_iso_numbers()
+    return (_iso_supplied or {}).get(set_id, frozenset())
+
+
+def shipped_iso_sets() -> "tuple[str, ...]":
+    """The ISO sets whose values ship WITH ChromIQ, in window order.
+
+    A set counts when the shipped file carries a number on at least one row
+    ChromIQ can judge, which in practice means a set that ships complete
+    (``tests/test_compliance_sets.py`` holds the file to "empty or complete").
+    Empty while nothing is shipped, which is what the file holds until the
+    owner's go-ahead; every sentence that says what ChromIQ ships asks this
+    rather than assuming either state.
+    """
+    if _iso_shipped is None:
+        _load_iso_numbers()
+    got = _iso_shipped or {}
+    return tuple(sid for sid in ISO_SET_IDS
+                 if any(ROW_BY_ID[rid].status in ("now", "build", "ref")
+                        for rid in got.get(sid, ())))
 
 
 def iso_data_problems() -> "list[tuple[str, str]]":
@@ -1436,9 +1559,11 @@ def iso_data_path_text() -> str:
 
 def reset_iso_cache() -> None:
     """For tests that swap the data file."""
-    global _iso_cache, _iso_problems
+    global _iso_cache, _iso_problems, _iso_supplied, _iso_shipped
     _iso_cache = None
     _iso_problems = None
+    _iso_supplied = None
+    _iso_shipped = None
 
 
 def factory_limits(set_id: str) -> "dict[str, Limit]":
@@ -1483,14 +1608,26 @@ def factory_limits(set_id: str) -> "dict[str, Limit]":
         # below is the second lock on the same door: a ``?`` on an ``unknown``
         # row means ChromIQ does not know WHICH patches the row is about, so a
         # number there would be a limit nothing is ever compared with.
+        #
+        # AND ONLY A USER'S OWN FILE ANSWERS FOR A CUSTOM ROW, never the
+        # shipped one. §2a's first source is "a licence holder's own values
+        # file"; the figures ChromIQ ships for a standard belong in the
+        # read-only column beside this one, and Knut asked for his researched
+        # figures as the Custom columns' starting numbers. So a shipped
+        # figure is replaced here by the default, exactly as "?" is.
         if s.kind == "custom":
+            mine = supplied_iso_rows(source)
             for rid, lim in custom_defaults(source).items():
                 row = ROW_BY_ID.get(rid)
                 if row is None or row.status not in ("now", "build", "ref"):
                     continue
-                if out.get(rid, Limit.none()).is_numeric:
-                    continue            # the data file answered for this row
+                if rid in mine and out.get(rid, Limit.none()).is_numeric:
+                    continue            # the user's own file answered this row
                 out[rid] = lim
+            for rid, lim in list(out.items()):
+                if lim.is_numeric and rid not in mine \
+                        and rid not in custom_defaults(source):
+                    out[rid] = Limit.unknown()
     return out
 
 

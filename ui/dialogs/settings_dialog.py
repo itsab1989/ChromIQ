@@ -4207,9 +4207,9 @@ class SettingsDialog(QDialog):
                "project. A verification is never a Printing record, so that "
                "type cannot be chosen here. A profiling measurement's report "
                "is always the Printing record, whatever this is set to.\n\n"
-               "The two ISO entries are shown and cannot be chosen: the "
-               "figures they judge against are behind a paywall and ChromIQ "
-               "has no permission to ship them.\n\n"
+               "The two ISO entries are shown and cannot be chosen yet. "
+               "Pointing at one in the Measurement Report window says "
+               "why.\n\n"
                "Default: Full colour check"),
             self))
         gl.addLayout(_type_row)

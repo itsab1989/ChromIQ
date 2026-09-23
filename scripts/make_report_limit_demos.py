@@ -4665,6 +4665,32 @@ def _misses(r: dict) -> bool:
 
 
 def main(argv=None) -> int:
+    """Build the pack against the REPOSITORY'S OWN ISO file, and nothing else.
+
+    THE DEMO PACK IS PUBLIC. Without this `compliance_sets` prefers a licence
+    holder's own values file in ChromIQ's settings folder, and on a machine
+    that holds one the Custom ISO columns bound into every demo run would
+    start from those figures (#182 S-2, §23). Values the repository ships may
+    appear in a demo; a licence holder's may not. FORCED for the call and put
+    back afterwards, so a test that calls this leaves its worker as it was.
+    """
+    from workflow import compliance_sets as _cs
+    key = "CHROMIQ_COMPLIANCE_ISO_FILE"
+    before = os.environ.get(key)
+    os.environ[key] = str(_HERE.parent / "data" / "compliance_sets"
+                          / "iso12647.json")
+    _cs.reset_iso_cache()
+    try:
+        return _main(argv)
+    finally:
+        if before is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = before
+        _cs.reset_iso_cache()
+
+
+def _main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--verify", default="",
                     help="check a built pack (folder or .zip) for completeness "

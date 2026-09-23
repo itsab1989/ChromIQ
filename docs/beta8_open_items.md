@@ -26345,3 +26345,41 @@ would reach.
   test_border_dates_step_one_thousandth_either_side_of_the_limit,
   test_the_built_package_verifies,
   test_every_measurable_row_is_tripped_and_passed_from_two_angles
+
+### B8-851 · OPEN · #182 S-2: the ISO 12647 values are prepared to ship, values only; the values themselves wait on the owner
+- blocks release: no
+- status: OPEN
+- where: the S-2 worktree branch (commit "#182 S-2: ISO 12647 values prepared
+  to ship, values only"), spec §23 of `docs/design/measurement_report_limits.md`,
+  awaiting confirmation. Numbered 850: 846, 848 and 849 are taken and 847 was
+  skipped by other work.
+- found by: DIN's legal department, in writing to the owner, 2026-09-23 ("wenn
+  Sie definitiv nur Werte aus der Norm verwenden – keine Bilder, keine Seiten,
+  keine Texte, dann fällt das nicht unter Vervielfältigung"); the owner
+  delegated the decision and agreed it covers ISO 12647-7 and ISO 12647-8.
+- built: `data/compliance_sets/iso12647.json` holds each set empty or complete
+  and its `_readme` says on what basis (both sets still EMPTY); a shipped set
+  judges its read-only column and becomes a choice, the Custom column keeps
+  Knut's researched figures, a licence holder's own file is laid over the
+  shipped one row by row; the Report limits window, Reference values, the
+  greyed ISO report types, the help card glossary, "Where are my files?", the
+  Report type help and M-THRESHOLDS-NOT-CERTIFICATION say what ships instead
+  of that nothing does; `scripts/install_iso_12647_values_into_repo.py` copies
+  only the set objects and prints no value.
+- evidence: `tests/test_iso_values_ship_as_values_only.py`
+  (test_each_set_in_the_shipped_file_is_empty_or_complete,
+  test_a_shipped_set_leaves_the_custom_column_on_knuts_figures,
+  test_a_licence_holders_number_wins_its_row_and_a_null_keeps_the_shipped_one,
+  test_nothing_says_chromiq_ships_no_values_once_a_set_ships,
+  test_the_install_script_copies_only_the_sets_and_prints_no_value,
+  test_the_install_script_refuses_half_a_set_and_names_rows_not_values, and
+  nine more), each guard red on a mutation; the older emptiness tests now
+  hold whichever state the file is in.
+- proof: `~/Desktop/ChromIQ-beta39-proof/iso-12647-ships/` (REPORT.md; on
+  screen, EN and DE, the repository file as it is and one pass with placeholder
+  numbers standing in for a shipped ISO 12647-8).
+- open: the one remaining step, run on the owner's go-ahead:
+  `python scripts/install_iso_12647_values_into_repo.py <licence holder's file>`
+  (it prints counts and True/False only), then re-run the gate and move this
+  item to FIXED. For Knut: whether a shipped standard's values should also
+  become the Custom columns' starting numbers, which §2a's order reads as no.

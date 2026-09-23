@@ -1796,8 +1796,9 @@ _PAIRING_HELP = (
     "Printing record grades nothing: every row it can compute reads INFO "
     "whichever set is beside it, though the document still names the set it "
     "would otherwise have used. The two ISO types belong with the matching "
-    "Custom ISO set, the one you have typed the published tolerances into from "
-    "your own copy of the standard. Any set can be chosen with any type; the "
+    "ISO set: the read-only one where ChromIQ ships that standard's values, "
+    "or the Custom ISO set you have typed them into from your own copy of the "
+    "standard. Any set can be chosen with any type; the "
     "pairs above are the usual habits, not rules.")
 _CHART_HELP = (
     "And the chart you printed decides what any of it can say. A row is judged "
@@ -9100,8 +9101,14 @@ class MeasurementReportDialog(QDialog):
     def _not_built_line(type_id: str) -> str:
         """Why a type cannot be chosen yet. One sentence, and it names the
         reason rather than the word "unavailable"."""
+        from workflow.compliance_sets import shipped_iso_sets
         from workflow.measurement_report import REPORT_TYPE_ISO_7, REPORT_TYPE_ISO_8
-        if type_id in (REPORT_TYPE_ISO_7, REPORT_TYPE_ISO_8):
+        # #182 S-2 (§23): the paywall reason is only the reason while that
+        # standard's values do not ship. Once they do, what is left is the
+        # document itself, which is not built.
+        own_set = {REPORT_TYPE_ISO_7: "iso_12647_7",
+                   REPORT_TYPE_ISO_8: "iso_12647_8"}.get(type_id)
+        if own_set and own_set not in shipped_iso_sets():
             return tr("Not available yet: the figures this report judges "
                       "against are published in a standard ChromIQ may not "
                       "include.")

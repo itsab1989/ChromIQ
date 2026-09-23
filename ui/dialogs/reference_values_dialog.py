@@ -246,15 +246,39 @@ def iso_source() -> Source:
                   ).format(path=dst)
 
     def forgotten(_key: str) -> str:
-        return tr("ChromIQ is back to its own numbers. Close and reopen "
+        # "its own numbers" was the shipped state's word for "?" in the two
+        # ISO columns; once a set ships (#182 S-2, §23) what comes back is
+        # that standard's shipped values, which are not ChromIQ's own.
+        return tr("ChromIQ is back to what it ships. Close and reopen "
                   "the Report limits window to see the table change.")
+
+    # WHAT SHIPS DECIDES THE FIRST SENTENCE (#182 S-2, §23). "ChromIQ does not
+    # ship these numbers and cannot" is true only while the shipped file is
+    # empty, so it is asked, not assumed.
+    shipped = cs.shipped_iso_sets()
+    if shipped:
+        names = [tr(cs.SET_BY_ID[sid].label) for sid in shipped]
+        if len(names) == 1:
+            why = tr("ChromIQ ships the published values of “{name}”, so "
+                     "that column judges without anything from you. If you "
+                     "hold a copy of either standard, a value you supply from "
+                     "it takes the place of ChromIQ's for that row, and a "
+                     "column ChromIQ ships no values for stops showing ? and "
+                     "starts judging.").format(name=names[0])
+        else:
+            why = tr("ChromIQ ships the published values of both ISO columns, "
+                     "so they judge without anything from you. If you hold a "
+                     "copy of either standard, a value you supply from it "
+                     "takes the place of ChromIQ's for that row.")
+    else:
+        why = tr("ChromIQ does not ship these numbers and cannot: they are the "
+                 "content of a paid standard. Supply your own copy's values "
+                 "and the two ISO columns stop showing ? and start judging.")
 
     return Source(
         key="iso12647",
         title=tr("ISO 12647-7 and ISO 12647-8 limit values"),
-        why=tr("ChromIQ does not ship these numbers and cannot: they are the "
-               "content of a paid standard. Supply your own copy's values and "
-               "the two ISO columns stop showing ? and start judging."),
+        why=why,
         help_text=tr(
             "Three steps, and no typing of file paths:\n\n"
             "1.  Press “Save a file to fill in” and choose where to "
@@ -263,13 +287,13 @@ def iso_source() -> Source:
             "blank.\n"
             "2.  Open that file in any text editor and type the numbers from "
             "your own copy in place of the word null. A value you leave alone "
-            "goes on showing ?, so you can do a few at a time.\n"
+            "keeps what the table shows for it now, so you can do a few at a "
+            "time.\n"
             "3.  Press “Use a file I filled in” and pick it. ChromIQ "
             "copies it into its own folder, so the values stay even if you "
             "tidy the file away afterwards.\n\n"
-            "“Stop using it” removes ChromIQ's copy and goes back to "
-            "ChromIQ's own numbers. The file you made it from is never "
-            "touched.\n\n"
+            "“Stop using it” removes ChromIQ's copy and goes back to what "
+            "ChromIQ ships. The file you made it from is never touched.\n\n"
             "The values stay on this computer. ChromIQ does not send them "
             "anywhere, they are not part of a report you share, and they are "
             "not written into any project."),
@@ -772,5 +796,5 @@ class ReferenceValuesDialog(QDialog):
         """
         if src.forgotten is not None:
             return src.forgotten(key)
-        return tr("ChromIQ is back to its own numbers. Close and reopen "
+        return tr("ChromIQ is back to what it ships. Close and reopen "
                   "the Report limits window to see the table change.")

@@ -133,13 +133,18 @@ def _columns_paragraph() -> str:
     mentioned. Drop a source from `compliance_sets` and the sentence stops
     claiming it, without anybody editing this function.
     """
-    from workflow.compliance_sets import (custom_default_counts,
-                                          factory_limits, limit_bearing)
+    from workflow.compliance_sets import (factory_limits, limit_bearing,
+                                          shipped_iso_sets)
     supplied = any(limit_bearing(factory_limits(sid))
                    for sid in ("iso_12647_7", "iso_12647_8"))
     own = tr("ChromIQ default, ChromIQ tight and Quick check are ChromIQ's "
              "own sets and can be edited here.")
-    if supplied:
+    if shipped_iso_sets():
+        # #182 S-2, §23: A SET CHROMIQ SHIPS. From here on the two ISO columns
+        # can be in three different states each, so the sentence is built per
+        # column from what is actually loaded rather than chosen whole.
+        iso = _iso_columns_sentence()
+    elif supplied:
         iso = tr("The two ISO columns are read-only and hold the published "
                  "values you supplied from your own copy of each standard.")
     else:
@@ -151,6 +156,39 @@ def _columns_paragraph() -> str:
             "you supply that standard's figures with “Reference "
             "values…” below.")
     return own + " " + iso + " " + _custom_columns_sentence()
+
+
+def _iso_columns_sentence() -> str:
+    """The two read-only ISO columns, one clause each, once a set SHIPS.
+
+    Three states per column, and each is measured, not assumed: its values
+    ship with ChromIQ (a user's own figure, where they gave one, takes the
+    shipped one's place), the user supplied them, or it holds none. The two
+    older sentences in `_columns_paragraph` stay for the states they were
+    written for, where nothing ships.
+    """
+    from workflow.compliance_sets import (SET_BY_ID, factory_limits,
+                                          limit_bearing, shipped_iso_sets,
+                                          supplied_iso_rows)
+    shipped = shipped_iso_sets()
+    parts = [tr("The two ISO columns are read-only.")]
+    for sid in ("iso_12647_7", "iso_12647_8"):
+        name = tr(SET_BY_ID[sid].label)
+        if sid in shipped:
+            parts.append(tr("“{name}” holds that standard's published values, "
+                            "which ship with ChromIQ.").format(name=name))
+        elif limit_bearing(factory_limits(sid)):
+            parts.append(tr("“{name}” holds the published values you supplied "
+                            "from your own copy.").format(name=name))
+        else:
+            parts.append(tr("“{name}” is empty, and every cell in it reads ? "
+                            "or ✕, until you supply that standard's figures "
+                            "with “Reference values…” below."
+                            ).format(name=name))
+    if any(supplied_iso_rows(sid) for sid in shipped):
+        parts.append(tr("A figure you supplied from your own copy takes the "
+                        "place of the one ChromIQ ships for that row."))
+    return " ".join(parts)
 
 
 def _custom_columns_sentence() -> str:
@@ -1074,16 +1112,34 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         # a shell never reaches an app launched from the Dock, so the route
         # this sentence gave was one nobody outside a checkout could take. The
         # button two rows below does the same job.
-        custom = tr(
-            "The two Custom columns start from limits researched from "
-            "industry practice, and from ChromIQ's own numbers on the rows "
-            "that research does not cover, so that every row ChromIQ can "
-            "measure has a limit to be judged against. Neither source is the "
-            "published tolerances of ISO 12647-7 or ISO 12647-8, which "
-            "ChromIQ does not hold. If you hold either standard, use "
-            "\u201cReference values\u2026\u201d below to supply its figures "
-            "from your own copy, and the Custom column starts from those "
-            "instead. Every limit here is yours to change.")
+        from workflow.compliance_sets import shipped_iso_sets
+        if shipped_iso_sets():
+            # #182 S-2, §23. "which ChromIQ does not hold" stops being true
+            # the day a set ships, and the Custom columns still do not start
+            # from it: Knut's researched figures stay their starting numbers.
+            custom = tr(
+                "The two Custom columns start from limits researched from "
+                "industry practice, and from ChromIQ's own numbers on the rows "
+                "that research does not cover, so that every row ChromIQ can "
+                "measure has a limit to be judged against. Neither source is "
+                "the published tolerances of ISO 12647-7 or ISO 12647-8: "
+                "where ChromIQ ships those, they are in the read-only ISO "
+                "column, and a Custom column does not start from them. If you "
+                "hold either standard, use \u201cReference values\u2026\u201d "
+                "below to supply its figures from your own copy, and the "
+                "Custom column starts from those instead. Every limit here is "
+                "yours to change.")
+        else:
+            custom = tr(
+                "The two Custom columns start from limits researched from "
+                "industry practice, and from ChromIQ's own numbers on the rows "
+                "that research does not cover, so that every row ChromIQ can "
+                "measure has a limit to be judged against. Neither source is the "
+                "published tolerances of ISO 12647-7 or ISO 12647-8, which "
+                "ChromIQ does not hold. If you hold either standard, use "
+                "\u201cReference values\u2026\u201d below to supply its figures "
+                "from your own copy, and the Custom column starts from those "
+                "instead. Every limit here is yours to change.")
         cannot = [tr(r.label) for r in ROWS if r.status == "unmeasurable"]
         title, body = M_THRESHOLDS_NOT_CERTIFICATION.render(rows=", ".join(cannot))
         return legend + "\n" + foot + "\n\n" + custom + "\n\n" + title + "\n" + body

@@ -1517,9 +1517,11 @@ GLOSSARY += [
      tr("One column of the Report limits table: the numbers a report is "
         "judged against, one per row. ChromIQ ships three of its own, "
         "“ChromIQ default (recommended)”, “ChromIQ tight” (half the numbers) "
-        "and “Quick check” (double them), plus two columns named after ISO "
-        "12647-7 and 12647-8 that hold no numbers until a licence holder "
-        "supplies them, and two Custom columns you fill in yourself. Pick one "
+        "and “Quick check” (double them), plus two read-only columns named "
+        "after ISO 12647-7 and 12647-8 that hold a standard's published values "
+        "where ChromIQ ships them or a licence holder supplies them, and read "
+        "“?” where neither is so, and two Custom columns you fill in yourself. "
+        "Pick one "
         "in the report window's “Judged against:” pulldown.")),
     (tr("Row (in the limits table)"),
      tr("One line of a limit set, and it is always a population and a "
@@ -1687,11 +1689,12 @@ GLOSSARY += [
     (tr("ISO 12647-7 and ISO 12647-8"),
      tr("Two parts of the printing standard: -7 covers a contract proof and "
         "-8 a validation print. ChromIQ names two limit-set columns after "
-        "them, and ships NO numbers in either, because the figures are "
-        "published in a standard that may not be redistributed. Until a "
-        "licence holder supplies them those columns read “?” and judge "
-        "nothing. ChromIQ can never say that a print conforms to a standard: "
-        "it reports what it measured against the numbers you gave it, which "
+        "them. Each holds that standard's published values, as values only, "
+        "where ChromIQ ships them or a licence holder supplies them; a column "
+        "with neither reads “?” and judges nothing. ChromIQ can never say "
+        "that a print conforms to a standard: "
+        "it reports what it measured against the numbers in the column you "
+        "chose, which "
         "is a different claim.")),
     (tr("Report limits (window)"),
      tr("The window that shows every limit set side by side, one column each, "
@@ -1702,7 +1705,8 @@ GLOSSARY += [
     (tr("Reference values (window)"),
      tr("The one door to other people's numbers, reached from Report limits. "
         "It has two halves that must not be confused: the ISO half, where a "
-        "licence holder puts in a file of limit values ChromIQ may not ship, "
+        "licence holder puts in a file of limit values from their own copy, "
+        "which take the place of any ChromIQ ships, "
         "and the FOGRA half, which shows which copy of each reference set is "
         "in force and lets you replace one with a newer file.")),
     (tr("Reference set (printing condition)"),
