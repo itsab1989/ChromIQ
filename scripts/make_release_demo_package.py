@@ -239,6 +239,13 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
         "the pack's reports/: delete a report across two projects",
         "Report-Limits-Renamed: delete its report across projects",
     ]),
+    ("§22", "K28: the judged figures on the one-page summary", [
+        "Report-Limits-Report-Types/run1: the one-page summary's judged figures",
+        "Report-Limits-Strip-And-Gamut/run4: a split sheet, the within-gamut sentence",
+        "Report-Limits-Threshold-Series/run1: a set with \"–\" rows, and the For information heading",
+        "Report-Limits-Renamed: a report across projects, the several-projects Run description",
+        "Report-Notes-Every-Reason: B8-845's texts",
+    ]),
     ("§17", "Trend graphs for the judged metrics", [
         "Report-Limits-Threshold-Series/run1: eleven dates",
         "Report-Limits-Border-Values/run1..run4: three dates hugging the limit line",
