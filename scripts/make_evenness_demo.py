@@ -344,8 +344,8 @@ def build(dest: Path) -> Path:
          "evenness across the sheet needs.", DATES_SMALL, 200)
     run3 = proj.new_run()
     _run(proj, run3, LARGE, "X-Rite i1Pro 2",
-         "The same 837-patch chart as run 1, not measured yet: what the Measure "
-         "tab says before the first verification.", [], 300)
+         "The same 837-patch chart as run 1, with no verification measured "
+         "yet.", [], 300)
     run4 = proj.new_run()
     _run(proj, run4, I1_572, "X-Rite i1Pro 2",
          "A 572-patch i1Pro sheet, 22 strips by 26 rows, whose patches cover "

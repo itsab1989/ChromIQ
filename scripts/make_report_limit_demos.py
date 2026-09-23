@@ -1633,33 +1633,34 @@ SERIES_DEFAULT: "list[Date]" = [
        []),
     _d("2026-01-19_100000", "2026-01-19T10:00:00",
        "One patch goes badly wrong",
-       "A single patch at 4.5 pushes 'All patches, largest' over 3.0. The "
-       "worst-5 % average stays under 2.0 because the other patches in that "
+       "A single patch at 4.5 pushes 'Maximum ΔE00, all patches' over 3.0. "
+       "'Average ΔE00, highest 5 %' stays under 2.0 because the other patches in that "
        "band did not move. ONE row crosses.",
        Design(bulk=0.80, shoulder=1.40, peak=4.50, tail=1.20, grey_dch=0.50),
        ["all_de00_max"]),
     _d("2026-02-02_100000", "2026-02-02T10:00:00",
        "The bad patch is gone again",
-       "The same sheet without the outlier. 'All patches, largest' is back "
+       "The same sheet without the outlier. 'Maximum ΔE00, all patches' is back "
        "inside 3.0 and the column reads PASS again.",
        Design(bulk=0.80, shoulder=1.40, peak=2.20, tail=1.60, grey_dch=0.50),
        []),
     _d("2026-02-16_100000", "2026-02-16T10:00:00",
        "The hardest colours all drift together",
-       "The worst 5 % of patches average about 2.7, over their limit of 2.0, "
-       "while the largest single value stays under 3.0. ONE row crosses.",
+       "The highest 5 % of patches average about 2.7, so 'Average ΔE00, highest 5 %' is over "
+       "its limit of 2.0, while 'Maximum ΔE00, all patches' stays under 3.0. ONE row "
+       "crosses.",
        Design(bulk=0.80, shoulder=1.40, peak=2.75, tail=2.65, grey_dch=0.50),
        ["worst5_de00_avg"]),
     _d("2026-03-02_100000", "2026-03-02T10:00:00",
        "The hardest colours come back",
-       "The worst-5 % average is back under 2.0. PASS again.",
+       "'Average ΔE00, highest 5 %' is back under 2.0. PASS again.",
        Design(bulk=0.80, shoulder=1.40, peak=2.20, tail=1.60, grey_dch=0.50),
        []),
     _d("2026-03-16_100000", "2026-03-16T10:00:00",
        "The whole sheet drifts",
        "The bulk of the chart moves up to just under its own limit and the "
-       "worst 5 % go to 2.98, just under theirs. Between them they carry the "
-       "all-patch average over 2.0. TWO rows cross, which is the most this "
+       "highest 5 % go to 2.98, just under theirs. Between them they carry "
+       "'Average ΔE00, all patches' over 2.0. TWO rows cross, which is the most this "
        "design allows.",
        Design(bulk=2.0, shoulder=2.40, peak=2.98, tail=2.98,
               target_best95=1.98, grey_dch=1.20, n_shoulder=6),
@@ -1672,9 +1673,9 @@ SERIES_DEFAULT: "list[Date]" = [
     _d("2026-04-13_100000", "2026-04-13T10:00:00",
        "The greys pick up a cast",
        "Every grey on the ramp is 1.8 off in chroma, over the 1.5 this set "
-       "puts on the grey average. The worst-5 % average goes with it "
+       "puts on the grey average. 'Average ΔE00, highest 5 %' goes with it "
        "and cannot be held back: 1.8 of chroma error on a neutral IS a colour "
-       "difference of 2.55, the grey ramp is most of the worst 5 % of this "
+       "difference of 2.55, the grey ramp is most of the highest 5 % of this "
        "chart, and their limit is 2.0. TWO rows cross. Isolated-Rows run 4 "
        "shows the grey average crossing on its own, with a column that allows "
        "for this.",
@@ -1693,11 +1694,12 @@ SERIES_DEFAULT: "list[Date]" = [
        "The step in the middle of the grey ramp goes from 1.8 to 3.6 off in "
        "chroma. That crosses the 3.0 this set puts on the grey maximum, and "
        "the same patch is far enough out to carry "
-       "'All patches, largest' over 3.0 with it. TWO rows cross, and this pair "
+       "'Maximum ΔE00, all patches' over 3.0 with it. TWO rows cross, and this pair "
        "cannot be separated: a grey cast this size along a* is over 2.0 as a "
        "colour difference too, which the note further down works out. The "
        "step moved 1.8 since the date before, which is inside the 3.0 on "
-       "'The same chart measured again', so the printer is not blamed for "
+       "'The same chart measured again, largest difference', so the printer "
+       "is not blamed for "
        "moving.",
        Design(bulk=0.80, shoulder=1.10, peak=1.50, tail=1.40,
               grey_dch=0.40, grey_spike=3.60),
@@ -1719,7 +1721,7 @@ SERIES_TIGHT: "list[Date]" = [
     _d("2026-02-10_113000", "2026-02-10T11:30:00",
        "Good enough for the default column, not for this one",
        "Exactly the numbers of run 1's healthy baseline, which passed there. "
-       "Against ChromIQ tight the worst-5 % average and the largest value are "
+       "Against ChromIQ tight 'Average ΔE00, highest 5 %' and 'Maximum ΔE00, all patches' are "
        "both over their limits. TWO rows cross.",
        Design(bulk=0.80, shoulder=1.40, peak=2.20, tail=1.60, grey_dch=0.50),
        ["worst5_de00_avg", "all_de00_max"]),
@@ -1731,8 +1733,8 @@ SERIES_TIGHT: "list[Date]" = [
        []),
     _d("2026-04-10_113000", "2026-04-10T11:30:00",
        "One patch out, tight column",
-       "A single patch at 2.4 crosses 'All patches, largest' (1.5) on its own, "
-       "with the worst-5 % average held just under 1.0. ONE row crosses.",
+       "A single patch at 2.4 crosses 'Maximum ΔE00, all patches' (1.5) on its own, "
+       "with 'Average ΔE00, highest 5 %' held just under 1.0. ONE row crosses.",
        Design(bulk=0.40, shoulder=0.45, peak=2.40, tail=0.45, grey_dch=0.30),
        ["all_de00_max"]),
 ]
@@ -1758,8 +1760,8 @@ SERIES_ONE_DATE: "list[Date]" = [
 SERIES_TWO_DATES_UNLOCKED: "list[Date]" = [
     _d("2026-06-02_090000", "2026-06-02T09:00:00",
        "One patch out, and the lock lifted by hand",
-       "A single patch at 1.55 crosses 'All patches, largest' (1.5) on its "
-       "own. This small chart judges 56 patches, so its worst 5 % is only "
+       "A single patch at 1.55 crosses 'Maximum ΔE00, all patches' (1.5) on its "
+       "own. This small chart judges 56 patches, so its highest 5 % is only "
        "two of them, and the second is held at 0.42 to keep their average "
        "just under 1.0.",
        Design(bulk=0.35, shoulder=0.40, peak=1.55, tail=0.40, grey_dch=0.25),
@@ -1806,15 +1808,15 @@ SERIES_RAMP: "list[Date]" = [
 SERIES_BEST95: "list[Date]" = [
     _d("2026-07-06_140000", "2026-07-06T14:00:00",
        "The bulk of the chart is over its limit",
-       "The best 95 % of patches average 2.4, over the 2.0 this run's own "
-       "column asks for, while the deliberately relaxed all-patch, worst-5 %, "
-       "largest and 95th-percentile limits stay comfortable. ONE row crosses.",
+       "'Average ΔE00, lowest 95 %' is 2.4, over the 2.0 this run's own column asks "
+       "for, while the deliberately relaxed limits on the other four "
+       "ΔE00 rows stay comfortable. ONE row crosses.",
        Design(bulk=2.4, shoulder=2.70, peak=3.20, tail=2.90,
               target_best95=2.40, grey_dch=1.00),
        ["best95_de00_avg"]),
     _d("2026-07-20_140000", "2026-07-20T14:00:00",
        "The bulk comes back inside",
-       "The best-95 % average drops to 1.5. The row recovers and nothing else "
+       "'Average ΔE00, lowest 95 %' drops to 1.5. The row recovers and nothing else "
        "changed.",
        Design(bulk=1.5, shoulder=1.80, peak=2.20, tail=2.00,
               target_best95=1.50, grey_dch=1.00),
@@ -1823,16 +1825,16 @@ SERIES_BEST95: "list[Date]" = [
 
 SERIES_P95: "list[Date]" = [
     _d("2026-08-03_140000", "2026-08-03T14:00:00",
-       "The 95th percentile crosses",
-       "The value at the 95th percentile is 3.6, over the 3.0 this run's own "
+       "Maximum ΔE00, lowest 95 % (95th percentile) crosses",
+       "'Maximum ΔE00, lowest 95 % (95th percentile)' is 3.6, over the 3.0 this run's own "
        "column asks for, while the deliberately relaxed averages and maximum "
        "stay comfortable. ONE row crosses.",
        Design(bulk=1.00, shoulder=3.60, peak=4.20, tail=3.90,
               grey_dch=0.80, n_shoulder=4),
        ["all_de00_p95"]),
     _d("2026-08-17_140000", "2026-08-17T14:00:00",
-       "The 95th percentile comes back",
-       "The shoulder of the distribution drops to 2.0 while the worst few "
+       "Maximum ΔE00, lowest 95 % (95th percentile) comes back",
+       "The shoulder of the distribution drops to 2.0 while the highest few "
        "patches are left exactly where they were. The row recovers on its own.",
        Design(bulk=1.00, shoulder=2.00, peak=4.20, tail=3.90,
               grey_dch=0.80, n_shoulder=4),
@@ -1927,8 +1929,8 @@ SERIES_COMPARE_QUICK: "list[Date]" = [
 TYPES_DE_DEFAULT: "list[Date]" = [
     _d("2026-11-02_100000", "2026-11-02T10:00:00",
        "One patch goes badly wrong",
-       "A single patch at 4.5 carries 'All patches, largest' over ChromIQ "
-       "default's 3.0, with the worst-5 % average held under 2.0. ONE row "
+       "A single patch at 4.5 carries 'Maximum ΔE00, all patches' over ChromIQ "
+       "default's 3.0, with 'Average ΔE00, highest 5 %' held under 2.0. ONE row "
        "crosses, and it is the row the one-page summary prints beside its "
        "word.",
        Design(bulk=0.90, shoulder=1.50, peak=4.50, tail=1.20, grey_dch=0.50),
@@ -1952,7 +1954,7 @@ FOLDERS_RUN1: "list[Date]" = [
     _d("2026-12-01_100000", "2026-12-01T10:00:00", "First check",
        "A clean sheet.", _FOLDERS_OK, []),
     _d("2026-12-08_100000", "2026-12-08T10:00:00", "One patch goes wrong",
-       "A single patch at 4.5 carries 'All patches, largest' over 3.0.",
+       "A single patch at 4.5 carries 'Maximum ΔE00, all patches' over 3.0.",
        _FOLDERS_BAD, ["all_de00_max"]),
     _d("2026-12-15_100000", "2026-12-15T10:00:00", "Clean again",
        "The outlier is gone.", _FOLDERS_OK, []),
@@ -1961,7 +1963,7 @@ FOLDERS_RUN2: "list[Date]" = [
     _d("2026-12-22_100000", "2026-12-22T10:00:00", "The new profile, first check",
        "A clean sheet.", _FOLDERS_OK, []),
     _d("2026-12-29_100000", "2026-12-29T10:00:00", "One patch goes wrong",
-       "A single patch at 4.5 carries 'All patches, largest' over 3.0.",
+       "A single patch at 4.5 carries 'Maximum ΔE00, all patches' over 3.0.",
        _FOLDERS_BAD, ["all_de00_max"]),
 ]
 
@@ -1971,15 +1973,15 @@ FOLDERS_OTHER_RUN1: "list[Date]" = [
     _d("2027-01-05_100000", "2027-01-05T10:00:00", "Another project, first check",
        "A clean sheet.", _FOLDERS_OK, []),
     _d("2027-01-12_100000", "2027-01-12T10:00:00", "One patch goes wrong",
-       "A single patch at 4.5 carries 'All patches, largest' over 3.0.",
+       "A single patch at 4.5 carries 'Maximum ΔE00, all patches' over 3.0.",
        _FOLDERS_BAD, ["all_de00_max"]),
 ]
 
 TYPES_DE_TIGHT: "list[Date]" = [
     _d("2026-11-03_100000", "2026-11-03T10:00:00",
        "One patch out, tight column",
-       "A single patch at 2.4 crosses 'All patches, largest' (1.5) on its own, "
-       "with the worst-5 % average held just under 1.0. ONE row crosses.",
+       "A single patch at 2.4 crosses 'Maximum ΔE00, all patches' (1.5) on its own, "
+       "with 'Average ΔE00, highest 5 %' held just under 1.0. ONE row crosses.",
        Design(bulk=0.40, shoulder=0.70, peak=2.40, tail=0.55, grey_dch=0.30),
        ["all_de00_max"]),
     _d("2026-11-17_100000", "2026-11-17T10:00:00",
@@ -1998,8 +2000,9 @@ TYPES_DE_TIGHT: "list[Date]" = [
 TYPES_DE_QUICK: "list[Date]" = [
     _d("2026-11-04_100000", "2026-11-04T10:00:00",
        "A patch far enough out to fail Quick check",
-       "A single patch at 7.5, over Quick check's 6.0 on 'All patches, "
-       "largest', with every average well inside 4.0. ONE row crosses, and it "
+       "A single patch at 7.5, over Quick check's 6.0 on 'Maximum ΔE00, "
+       "all patches', with every average well inside 4.0. ONE row crosses, "
+       "and it "
        "is the row the one-page summary prints beside its word.",
        Design(bulk=1.10, shoulder=2.50, peak=7.50, tail=3.00, grey_dch=0.70),
        ["all_de00_max"]),
@@ -2038,8 +2041,8 @@ TYPES_GREY_TIGHT: "list[Date]" = [
     _d("2026-11-06_100000", "2026-11-06T10:00:00",
        "Both grey rows cross at once",
        "The ramp carries 1.4 of chroma error and one step carries 2.4, which "
-       "puts the average over ChromIQ tight's 1.0 and the largest "
-       "over its 2.0. TWO rows cross. The tone-ramp row shows its number and "
+       "puts 'Grey balance of the grey ramp, average' over ChromIQ tight's "
+       "1.0 and 'Grey balance of the grey ramp, largest' over its 2.0. TWO rows cross. The tone-ramp row shows its number and "
        "no word, because no shipped limit set puts a limit on it.",
        Design(bulk=0.40, shoulder=0.60, tail=0.70, grey_dch=1.40,
               grey_spike=2.40),
@@ -2115,10 +2118,10 @@ TYPES_GREY_NOTHING: "list[Date]" = [
 #: same time, which is the other of the two.
 BORDER_SMALL_SAMPLE: "list[Date]" = [
     _d("2026-12-01_100000", "2026-12-01T10:00:00",
-       "Too few patches to have a worst 5 per cent, and a grey cast as well",
-       "Twenty patches, so the worst 5 % of the sheet is the empty set and "
-       "that row cannot be computed at all; the best 95 % and the 95th "
-       "percentile become every patch. The grey ramp is 1.55 off in chroma at "
+       "Too few patches to have a highest 5 per cent, and a grey cast as well",
+       "Twenty patches, so the highest 5 % of the sheet is the empty set and "
+       "'Average ΔE00, highest 5 %' cannot be computed at all; the lowest 95 % "
+       "becomes every patch, for its average and its 95th percentile. The grey ramp is 1.55 off in chroma at "
        "the same time, over the 1.5 this set puts on the grey average. The "
        "column therefore has both a row nobody could compute and a row over "
        "its limit, which is the only way to reach the sentence that counts "
@@ -2127,8 +2130,8 @@ BORDER_SMALL_SAMPLE: "list[Date]" = [
        ["grey_balance_neutral_ramp_avg"]),
     _d("2026-12-15_100000", "2026-12-15T10:00:00",
        "The cast is corrected, and the chart is still too small",
-       "The grey ramp is back to 0.5 and nothing is over a limit. The worst "
-       "5 % is still not computable, because that is a property of the chart "
+       "The grey ramp is back to 0.5 and nothing is over a limit. "
+       "'Average ΔE00, highest 5 %' is still not computable, because that is a property of the chart "
        "and not of the printing, so the column reads the sentence that counts "
        "only what was missing.",
        Design(bulk=0.80, shoulder=1.10, tail=1.10, grey_dch=0.50),
@@ -2225,8 +2228,9 @@ BORDER_RAW_DRIFT: "list[Date]" = [
 CUSTOM_7_SERIES: "list[Date]" = [
     _d("2027-01-05_100000", "2027-01-05T10:00:00",
        "One patch over the largest-difference limit",
-       "A single patch at 4.5, over the 3.0 this column puts on 'All patches, "
-       "largest', with the worst-5 % average held under its own 2.0. ONE row "
+       "A single patch at 4.5, over the 3.0 this column puts on 'Maximum "
+       "ΔE00, all patches', with 'Average ΔE00, highest 5 %' held under its own 2.0. "
+       "ONE row "
        "crosses.",
        Design(bulk=0.90, shoulder=1.50, peak=4.50, tail=1.20, grey_dch=0.50),
        ["all_de00_max"]),
@@ -2251,7 +2255,7 @@ CUSTOM_7_SERIES: "list[Date]" = [
 CUSTOM_8_SERIES: "list[Date]" = [
     _d("2027-02-02_100000", "2027-02-02T10:00:00",
        "The hardest colours drift, and one ramp step goes dark",
-       "The worst 5 % of patches average about 2.7, over their 2.0, and the "
+       "'Average ΔE00, highest 5 %' is about 2.7, over its 2.0, and the "
        "middle step of the grey tone ramp is 3.0 too dark, over the 2.0 this "
        "column puts on it. TWO rows cross, which is the most this design "
        "allows, and neither is a recommendation: this column requires both.",
@@ -3688,7 +3692,7 @@ def matrix_dates(set_id: str, kind: str) -> "list[Date]":
                "it has no value to judge here and is exercised on the "
                "ordinary charts instead, and neither is ChromIQ's row for "
                "repeat patches on one sheet, because this chart repeats no "
-               "colour. The 95th-percentile control-strip row is "
+               "colour. 'Control-strip patches, 95th percentile' is "
                "withheld too, and for a reason this chart shows better than "
                "any other: ChromIQ declares a control strip on it, of "
                "seventeen of the twenty-nine rungs it looks for, and the "
@@ -3786,7 +3790,8 @@ GAMUT_ISOLATION: "list[Date]" = [
        "Cyan, magenta and yellow are each turned about the neutral axis at "
        "constant lightness and constant chroma, so their metric hue "
        "difference is 3.0 and their lightness and chroma differences are "
-       "zero. That is over the 2.0 on 'CMY solids, hue difference' and, "
+       "zero. That is over the 2.0 on 'Cyan, magenta and yellow solids, "
+       "largest hue difference' and, "
        "because a pure hue turn at this chroma is a much smaller colour "
        "difference than it is a hue one, inside the 3.0 on 'Solid colours, "
        "largest'. ONE row crosses.",
@@ -3975,7 +3980,7 @@ def _outlier_pair(m: str, over: Design, inside: Design, limit_word: str,
 PAPER_GLOSSY = _outlier_pair(
     "01", Design(bulk=0.80, shoulder=1.40, peak=3.60, tail=1.40, grey_dch=0.40),
     Design(bulk=0.80, shoulder=1.40, peak=2.20, tail=1.40, grey_dch=0.40),
-    "'All patches, largest' (ChromIQ default 3.0)", ["all_de00_max"])
+    "'Maximum ΔE00, all patches' (ChromIQ default 3.0)", ["all_de00_max"])
 PAPER_BARYTA = _outlier_pair(
     "02", Design(bulk=1.20, shoulder=1.30, peak=1.45, tail=1.30, grey_dch=0.30),
     Design(bulk=0.40, shoulder=0.70, peak=1.10, tail=0.70, grey_dch=0.30),
@@ -3998,7 +4003,7 @@ PAPER_NEWS: "list[Date]" = [
     _d("2029-05-03_100000", "2029-05-03T10:00:00",
        "Measured once, one patch far out",
        "The only verification of this run: a single patch at 3.8 carries "
-       "'All patches, largest' over ChromIQ default's 3.0. One measurement "
+       "'Maximum ΔE00, all patches' over ChromIQ default's 3.0. One measurement "
        "is not yet a history, so the run's limit set can still be chosen.",
        Design(bulk=0.80, shoulder=1.30, peak=3.80, tail=1.00, grey_dch=0.40),
        ["all_de00_max"]),
@@ -4008,7 +4013,8 @@ PAPER_GAMUT_WHITE: "list[Date]" = [
        "The paper is off its reference",
        "A From Profile Gamut chart on brightened glossy paper, whose "
        "reference carries the paper: the white is designed 4.0 off it, over "
-       "the 3.0 this run's own column puts on 'Paper white'. Everything else "
+       "the 3.0 this run's own column puts on 'Paper white, difference from "
+       "the reference paper'. Everything else "
        "is relaxed, so that row crosses alone.",
        Design(bulk=0.6, shoulder=0.9, peak=1.4, tail=1.0,
               white_de=4.0, solid_de=0.5, cmy_dh=0.4),
@@ -4068,7 +4074,7 @@ def _border_dates(m: str, word: str, at: float, step: float, base: Design,
 BORDER_VALUES: "dict[str, tuple[str, float]]" = {}
 
 
-_MAX_WORD = "'All patches, largest'"
+_MAX_WORD = "'Maximum ΔE00, all patches'"
 BORDER_DEFAULT_MAX = _border_dates(
     "07", _MAX_WORD, 3.0, 0.001,
     Design(bulk=0.80, shoulder=1.40, peak=3.0, tail=1.40, grey_dch=0.40),
@@ -4082,7 +4088,7 @@ BORDER_QUICK_MAX = _border_dates(
     Design(bulk=1.00, shoulder=2.00, peak=6.0, tail=1.50, grey_dch=0.80),
     "peak", "all_de00_max")
 BORDER_BEST95 = _border_dates(
-    "10", "'Best 95 % of patches, average'", 2.0, 0.001,
+    "10", "'Average ΔE00, lowest 95 %'", 2.0, 0.001,
     Design(bulk=1.0, shoulder=2.2, peak=3.0, tail=2.5, target_best95=2.0,
            grey_dch=0.5),
     "target_best95", "best95_de00_avg")
@@ -4117,7 +4123,7 @@ RENAMED_FROM = "Report-Limits-Before-Rename"
 RENAMED_DATES = _outlier_pair(
     "11", Design(bulk=0.80, shoulder=1.40, peak=3.40, tail=1.40, grey_dch=0.40),
     Design(bulk=0.80, shoulder=1.40, peak=2.10, tail=1.40, grey_dch=0.40),
-    "'All patches, largest' (ChromIQ default 3.0)", ["all_de00_max"])
+    "'Maximum ΔE00, all patches' (ChromIQ default 3.0)", ["all_de00_max"])
 
 
 PROJECTS = [
@@ -4134,7 +4140,7 @@ PROJECTS = [
                 lock="one-date"),
     ]),
     ("Report-Limits-Isolated-Rows", [
-        RunPlan("Best 95 % average isolated by this run's own edited column.",
+        RunPlan("'Average ΔE00, lowest 95 %' isolated by limits edited for this run.",
                 CHART_MEDIUM, CHART_MEDIUM, "chromiq_default", SERIES_BEST95,
                 edited_limits={"all_de00_avg": 6.0, "worst5_de00_avg": 8.0,
                                "best95_de00_avg": 2.0, "all_de00_max": 9.0,
@@ -4145,8 +4151,8 @@ PROJECTS = [
         # chart and hardly at all on a big one), so the biggest chart is the
         # right one to judge it on, and it puts a fifth size under the
         # supported/not-supported table below.
-        RunPlan("95th percentile isolated by this run's own edited column, "
-                "on the package's largest verification sheet.",
+        RunPlan("'Maximum ΔE00, lowest 95 % (95th percentile)' isolated by limits edited for "
+                "this run, on the package's largest verification sheet.",
                 CHART_WIDE, CHART_LARGE, "chromiq_default", SERIES_P95,
                 edited_limits={"all_de00_avg": 9.0, "worst5_de00_avg": 9.0,
                                "best95_de00_avg": 9.0, "all_de00_max": 9.0,
@@ -4154,13 +4160,15 @@ PROJECTS = [
         RunPlan("The small chart, measured twice.",
                 CHART_SMALL, CHART_SMALL, "chromiq_tight",
                 SERIES_TWO_DATES_UNLOCKED, unlocked=True, lock="unlocked"),
-        RunPlan("Grey balance average isolated by this run's own edited column.",
+        RunPlan("'Grey balance of the grey ramp, average' isolated by limits "
+                "edited for this run.",
                 CHART_SMALL, CHART_MEDIUM, "chromiq_default", SERIES_GREY_AVG,
                 edited_limits={"all_de00_avg": 6.0, "worst5_de00_avg": 6.0,
                                "best95_de00_avg": 6.0, "all_de00_max": 9.0,
                                "all_de00_p95": 9.0}),
-        RunPlan("The tone-ramp row, which no shipped set judges, given a "
-                "limit by this run's own edited column.",
+        RunPlan("'Single-colour ramps 30 % to 70 %, largest lightness "
+                "difference', which no shipped limit set judges, given a "
+                "limit edited for this run.",
                 CHART_MEDIUM, CHART_MEDIUM, "chromiq_default", SERIES_RAMP,
                 edited_limits={"all_de00_avg": 9.0, "worst5_de00_avg": 9.0,
                                "best95_de00_avg": 9.0, "all_de00_max": 9.0,
@@ -4177,9 +4185,9 @@ PROJECTS = [
     ]),
     ("Report-Limits-Report-Types", [
         RunPlan("Colour summary, ChromIQ default. The run also holds a Full "
-                "colour check and a Grey and tone check of its first date, so "
-                "the window's 'Already generated' line has four types to "
-                "count, the profiling sheet's Printing record among them.",
+                "colour check and a Grey and tone check of its first date, "
+                "and the Printing record of its profiling measurement: four "
+                "report types in one run.",
                 CHART_SMALL, CHART_MEDIUM, "chromiq_default", TYPES_DE_DEFAULT,
                 report_type=REPORT_TYPE_SUMMARY, unlocked=True, lock="unlocked",
                 also_generate=(REPORT_TYPE_FULL, REPORT_TYPE_GREY)),
@@ -4191,8 +4199,9 @@ PROJECTS = [
                 "every run's: a verification does not have one.",
                 CHART_SMALL, CHART_MEDIUM, "chromiq_quick", TYPES_DE_QUICK,
                 report_type=REPORT_TYPE_SUMMARY, unlocked=True, lock="unlocked"),
-        RunPlan("Grey and tone check, ChromIQ default, with a limit typed into "
-                "the tone-ramp row so all three of its rows carry a word.",
+        RunPlan("Grey and tone check, ChromIQ default, with a limit edited for "
+                "this run on the tone-ramp row, so all three of its rows "
+                "carry a word.",
                 CHART_MEDIUM, CHART_MEDIUM, "chromiq_default",
                 TYPES_GREY_DEFAULT, report_type=REPORT_TYPE_GREY,
                 unlocked=True, lock="unlocked",
@@ -4205,7 +4214,7 @@ PROJECTS = [
                 CHART_MEDIUM, CHART_MEDIUM, "chromiq_quick", TYPES_GREY_QUICK,
                 report_type=REPORT_TYPE_GREY, unlocked=True, lock="unlocked"),
         RunPlan("Grey and tone check on a chart with no grey ramp, so the "
-                "column has limits and nothing it can check.",
+                "limit set has limits and nothing it can check.",
                 CHART_SMALL, CHART_NO_GREY, "chromiq_tight",
                 TYPES_GREY_NOTHING, report_type=REPORT_TYPE_GREY,
                 unlocked=True, lock="unlocked",
@@ -4220,43 +4229,41 @@ PROJECTS = [
                      "report says when a chart cannot supply a row."),
     ]),
     (FOLDERS_PROJECT, [
-        RunPlan("Where reports live (K23). Every dated check keeps a report "
-                "of its own of each verification type on its first date, the "
-                "profiling sheet keeps its Printing record, and "
-                "`seed_report_folders` adds a report of several dates, a "
-                "legacy one written the way beta 36 wrote it, a deleted one, "
-                "and reports across both runs.",
+        RunPlan("Where reports are kept. Every dated check has a report of its "
+                "own, and its first date one of each verification type; the "
+                "profiling measurement has its Printing record; and there "
+                "are a report of several dates, one in an older format, a "
+                "deleted one, and reports across both runs.",
                 CHART_SMALL, CHART_MEDIUM, "chromiq_default", FOLDERS_RUN1,
                 report_type=REPORT_TYPE_FULL, unlocked=True, lock="unlocked",
                 also_generate=(REPORT_TYPE_SUMMARY, REPORT_TYPE_GREY)),
         RunPlan("The second profile run. Its first date holds a Colour "
-                "summary as well, its second date a report saved by an "
-                "older ChromIQ with no document record, and it shares two "
+                "summary as well, its second date a report in an older "
+                "format with no document record, and it shares two "
                 "reports with run1 in the project's own reports folder.",
                 CHART_SMALL, CHART_MEDIUM, "chromiq_default", FOLDERS_RUN2,
                 report_type=REPORT_TYPE_FULL, unlocked=True, lock="unlocked",
                 also_generate=(REPORT_TYPE_SUMMARY,)),
     ]),
     (FOLDERS_OTHER_PROJECT, [
-        RunPlan("A SECOND project for the grouped report list (K25). Add its "
-                "measurements to a window on Report-Limits-Report-Folders and "
-                "\"Report shown\" groups by project, then by run. It holds a "
-                "report of both its dates, and shares two reports with "
-                "Report-Limits-Report-Folders in the pack's own reports "
-                "folder: \"Reports including multiple projects\".",
+        RunPlan("A second project, reported on together with "
+                "Report-Limits-Report-Folders. It holds a report of both its "
+                "dates, and shares two reports with "
+                "Report-Limits-Report-Folders, kept in the package's own "
+                "folder of reports including multiple projects.",
                 CHART_SMALL, CHART_MEDIUM, "chromiq_default",
                 FOLDERS_OTHER_RUN1, report_type=REPORT_TYPE_FULL,
                 unlocked=True, lock="unlocked"),
     ]),
     ("Report-Limits-Custom-Columns", [
-        RunPlan("The Custom ISO 12647-7 column, which starts from ChromIQ's "
-                "own numbers and not from that standard's published values.",
+        RunPlan("The Custom ISO 12647-7 limit set, whose numbers are not that "
+                "standard's published values.",
                 CHART_SMALL, CHART_MEDIUM, "custom_iso_12647_7",
                 CUSTOM_7_SERIES, unlocked=True, lock="unlocked",
                 note="The limits of this column are not edited by this "
                      "package and must not be: they are placeholders under a "
                      "permission condition, pinned by a test."),
-        RunPlan("The Custom ISO 12647-8 column, crossing the tone-ramp row "
+        RunPlan("The Custom ISO 12647-8 limit set, crossing the tone-ramp row "
                 "that no other shipped set puts a limit on.",
                 CHART_MEDIUM, CHART_MEDIUM, "custom_iso_12647_8",
                 CUSTOM_8_SERIES, unlocked=True, lock="unlocked",
@@ -4265,8 +4272,9 @@ PROJECTS = [
                      "permission condition, pinned by a test."),
     ]),
     ("Report-Limits-Border-Conditions", [
-        RunPlan("A chart with fewer than twenty patches, so the worst 5 % of "
-                "the sheet is the empty set and that row cannot be computed.",
+        RunPlan("A chart with fewer than twenty patches, so the highest 5 % of "
+                "the sheet is the empty set and 'Average ΔE00, highest 5 %' "
+                "cannot be computed.",
                 CHART_SMALL, CHART_TINY, "chromiq_default",
                 BORDER_SMALL_SAMPLE, unlocked=True, lock="unlocked",
                 # Exactly eight rungs, measured: the substrate, four of the
@@ -4278,7 +4286,7 @@ PROJECTS = [
                 expect_strip_p95=False,
                 note="Deliberately twenty patches. Do not regenerate it "
                      "larger: this run exists to show what the report says "
-                     "when a sheet is too small to have a worst 5 %."),
+                     "when a sheet is too small to have a highest 5 %."),
         # QUICK CHECK, and for a measured reason. The grey ramp carries a cast
         # of 1.9 so its rows have a number worth reading, and a chroma error
         # that size near a neutral is a colour difference of about 2.7, which
@@ -4337,7 +4345,7 @@ PROJECTS = [
     # reports of this package.
     ("Report-Limits-Profile-Gamut", [
         RunPlan("The three rows only a From-profile-gamut chart can answer, "
-                "one at a time, isolated by this run's own edited column.",
+                "one at a time, isolated by limits edited for this run.",
                 CHART_MEDIUM, CHART_GAMUT, "chromiq_default",
                 GAMUT_ISOLATION, unlocked=True, lock="unlocked",
                 # 17 of the 29 rungs, measured: the eight corners, three
@@ -4381,7 +4389,7 @@ PROJECTS = [
     # `declare_for_chart`, and run4 below is a chart it refuses.
     ("Report-Limits-Strip-And-Gamut", [
         RunPlan("ChromIQ's own control-strip declaration, with each of the "
-                "three strip rows isolated by this run's own edited column.",
+                "three strip rows isolated by limits edited for this run.",
                 CHART_MEDIUM, CHART_MEDIUM, "chromiq_default",
                 STRIP_ISOLATION, unlocked=True, lock="unlocked",
                 edited_limits=fill_limits(
@@ -4395,15 +4403,15 @@ PROJECTS = [
                      "and which of this chart's patches filled each one. "
                      "Delete it and all three strip rows go back to reading "
                      "'this chart declares no control strip'."),
-        RunPlan("The surface of the device cube, isolated by this run's own "
-                "edited column.",
+        RunPlan("The surface of the device cube, isolated by limits edited for "
+                "this run.",
                 CHART_MEDIUM, CHART_MEDIUM, "chromiq_default",
                 SURFACE_ISOLATION, unlocked=True, lock="unlocked",
                 edited_limits=fill_limits(
                     "chromiq_default", relax=RELAX_ALL,
                     keep=("surface_gamut_de00_avg",))),
-        RunPlan("The most saturated quarter of the chart, isolated by this "
-                "run's own edited column.",
+        RunPlan("The most saturated quarter of the chart, isolated by limits "
+                "edited for this run.",
                 CHART_MEDIUM, CHART_MEDIUM, "chromiq_default",
                 OUTER_ISOLATION, unlocked=True, lock="unlocked",
                 edited_limits=fill_limits(
@@ -4503,7 +4511,7 @@ PROJECTS = [
                 paper_class="matte_rag", report_type=REPORT_TYPE_GREY,
                 unlocked=True, lock="unlocked"),
         RunPlan("Uncoated office paper, an i1Pro chart layout, the Custom "
-                "ISO 12647-7 column, and no record of how the sheets were "
+                "ISO 12647-7 limit set, and no record of how the sheets were "
                 "printed, so they are judged in absolute Lab.",
                 CHART_SMALL_I1, CHART_SMALL_I1, "custom_iso_12647_7",
                 PAPER_OFFICE, paper_class="office", print_colour="none",
@@ -4515,7 +4523,7 @@ PROJECTS = [
                 CHART_MEDIUM, CHART_MEDIUM, "chromiq_default", PAPER_NEWS,
                 paper_class="newsprint", lock="one-date"),
         RunPlan("A From Profile Gamut chart on brightened glossy paper, the "
-                "paper white isolated by this run's own edited column.",
+                "paper white isolated by limits edited for this run.",
                 CHART_MEDIUM, CHART_GAMUT_SMALL, "chromiq_default",
                 PAPER_GAMUT_WHITE, paper_class="glossy_oba",
                 unlocked=True, lock="unlocked", expect_strip_p95=False,
@@ -4527,22 +4535,22 @@ PROJECTS = [
     # K29: exactly on a limit, one thousandth over, one thousandth under
     # -----------------------------------------------------------------------
     ("Report-Limits-Border-Values", [
-        RunPlan("'All patches, largest' on ChromIQ default's 3.0: on it, over "
+        RunPlan("'Maximum ΔE00, all patches' on ChromIQ default's 3.0: on it, over "
                 "it, under it.",
                 CHART_MEDIUM, CHART_MEDIUM, "chromiq_default",
                 BORDER_DEFAULT_MAX),
-        RunPlan("'All patches, largest' on ChromIQ tight's 1.5, on the A3 "
+        RunPlan("'Maximum ΔE00, all patches' on ChromIQ tight's 1.5, on the A3 "
                 "chart.",
                 CHART_SMALL, CHART_WIDE, "chromiq_tight", BORDER_TIGHT_MAX,
                 paper_class="baryta"),
         # NOT THE SMALL CHART, measured: 55 of its 105 colours are in gamut,
         # so its worst 5 % is two patches and a 6.0 peak alone takes that
         # average over Quick check's 4.0.
-        RunPlan("'All patches, largest' on Quick check's 6.0, on matte rag.",
+        RunPlan("'Maximum ΔE00, all patches' on Quick check's 6.0, on matte rag.",
                 CHART_SMALL, CHART_MEDIUM, "chromiq_quick", BORDER_QUICK_MAX,
                 paper_class="matte_rag"),
-        RunPlan("'Best 95 % of patches, average' on 2.0, isolated by this "
-                "run's own edited column, on the five-page chart.",
+        RunPlan("'Average ΔE00, lowest 95 %' on 2.0, isolated by limits edited for "
+                "this run, on the five-page chart.",
                 CHART_MEDIUM, CHART_LARGE, "chromiq_default", BORDER_BEST95,
                 edited_limits=fill_limits(
                     "chromiq_default", relax=RELAX_ALL,
@@ -4577,10 +4585,10 @@ PROJECTS = [
     # K29: a project renamed after a report across projects was written
     # -----------------------------------------------------------------------
     (RENAMED_PROJECT, [
-        RunPlan(f"Built as {RENAMED_FROM} and renamed with ChromIQ's own "
-                f"rename. A report across this project and "
-                f"Report-Limits-Paper-Classes, written under the old name, "
-                f"lives in the pack's own reports folder.",
+        RunPlan(f"Built as {RENAMED_FROM} and renamed afterwards. A report "
+                f"across this project and Report-Limits-Paper-Classes, "
+                f"written under the old name, is kept in the package's "
+                f"own reports folder.",
                 CHART_SMALL, CHART_MEDIUM, "chromiq_default", RENAMED_DATES,
                 unlocked=True, lock="unlocked"),
     ]),
@@ -5610,19 +5618,19 @@ def metric_coverage(dest: Path, results: list) -> dict:
 #: and that one IS demonstrated.
 NO_CHART_CAN_UNSUPPORT = {
     "all_de00_avg":
-        "the average over every judged patch, which exists as soon as one "
+        "the average over all patches, which exists as soon as one "
         "patch is judged. A chart cannot withhold it; only a sheet with no "
         "reference at all can, and that is a property of the measurement, not "
         "of the chart.",
     "best95_de00_avg":
-        "the average over the best 95 %, which `de00_stats` takes as the whole "
-        "chart when the worst-5 % set is empty, so it too exists for any chart "
+        "the average over the lowest 95 %, which `de00_stats` takes as the whole "
+        "chart when the highest 5 % is empty, so it too exists for any chart "
         "with a judged patch.",
     "all_de00_max":
         "the largest error on the sheet, which exists whenever any patch is "
         "judged.",
     "all_de00_p95":
-        "the largest of the best 95 %, which falls back to the largest of all "
+        "the largest of the lowest 95 %, which falls back to the largest of all "
         "patches on a small chart rather than becoming unavailable.",
 }
 
@@ -5968,7 +5976,9 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("ChromIQ Measurement Report: the limit demo projects")
     a("=" * 52)
     a("")
-    a("Built by scripts/make_report_limit_demos.py for issue #182.")
+    a("Built for issue #182 by scripts/make_report_limit_demos.py, which")
+    a("makes the report-limit projects. The release package around them, the")
+    a("download, is built by scripts/make_release_demo_package.py.")
     a("")
     a("TWO WAYS IN, AND THE FIRST IS USUALLY THE RIGHT ONE")
     a("---------------------------------------------------")
@@ -5978,9 +5988,10 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("1. DOWNLOAD this folder as the zip attached to the beta release, unzip")
     a("   it anywhere, and point ChromIQ at it: open ChromIQ Preferences,")
     a("   Paths, and set 'Default output folder' to the unzipped folder.")
-    # COUNTED ON THE DISK (K29): the release package puts the evenness and
-    # notes projects beside these, and "all fifteen" beside seventeen folders
-    # is a README contradicting its own download.
+    # COUNTED ON THE DISK, AND STATED ONCE (K29, K30): the release package
+    # puts the evenness and notes projects beside these, and a README that
+    # said "all seventeen" here and "Fifteen projects" two sections later
+    # contradicted itself. The one number is the folders that are there.
     _n = sum(1 for p in dest.iterdir() if (p / "project.json").is_file()) \
         if dest is not None and dest.is_dir() else len(PROJECTS)
     a(f"   All {_WORDS.get(_n, _n)} "
@@ -5989,17 +6000,23 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("   built it, so it opens the same wherever it lands.")
     a("")
     a("2. GENERATE it yourself, if you want the data to match a ChromIQ newer")
-    a("   than the archive:")
+    a("   than the archive. The release package is built by:")
     a("")
-    a("       .venv/bin/python scripts/make_report_limit_demos.py")
+    a("       .venv/bin/python scripts/make_release_demo_package.py [PARENT]")
     a("")
-    a("   ArgyllCMS 3.5.0 in /Applications/Argyll is required. The whole set")
-    a("   builds in well under a minute and is deterministic: the same command")
-    a("   on the same Argyll gives the same numbers, every time, and this file")
-    a("   comes out byte for byte the same. THAT IS WHY NO BUILD TIME IS")
-    a("   PRINTED HERE. Two were, one a round number and one measured to a")
-    a("   tenth of a second, and both were written when the package was")
-    a("   smaller; a measured time would also make every rebuild differ from")
+    a("   which writes ChromIQ-Demo-Projects_v<version> into PARENT (dist/")
+    a("   when none is given), the version being the ChromIQ it was built with.")
+    a("   scripts/make_report_limit_demos.py alone builds only the report-limit")
+    a("   projects, without the evenness and notes projects beside them.")
+    a("")
+    # "WELL UNDER A MINUTE" WAS FALSE (K30): the release package takes about
+    # three minutes on the machine that builds the betas. No measured time is
+    # printed, for the reason below; "a few minutes" is the honest size.
+    a("   ArgyllCMS 3.5.0 in /Applications/Argyll is required. The whole")
+    a("   package takes a few minutes to build and is deterministic: the same")
+    a("   command on the same Argyll gives the same numbers, every time, and")
+    a("   this file comes out byte for byte the same. That is why no measured")
+    a("   build time is printed here: it would make every rebuild differ from")
     a("   the archive somebody is comparing against.")
     a("")
     a("   Prefer the download when you just want to look at reports. Prefer")
@@ -6009,8 +6026,9 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("WHAT IS IN HERE")
     a("---------------")
     a("")
-    a(f"{str(_WORDS.get(len(PROJECTS), len(PROJECTS))).capitalize()} projects. Each "
-      f"project holds several profile runs, and each")
+    # NO SECOND COUNT (K30): the number of projects is stated once, above.
+    a(("These are the report-limit projects. " if _n != len(PROJECTS) else "")
+      + "Each project holds several profile runs, and each")
     a("profile run holds its own chart, its own profile, and its dated")
     a("verifications.")
     a("")
@@ -6301,8 +6319,8 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
                                           "chromiq_quick"))
     for chunk in _wrap(
             f"{str(_n_ship).capitalize()} rows can be judged by "
-            f"{_chromiq_labels} as they ship: the five all-patch colour "
-            f"differences, the two grey-balance rows and ChromIQ's two "
+            f"{_chromiq_labels} as they ship: the five ΔE00 rows "
+            f"over all patches and their lowest 95 % and highest 5 %, the two grey-balance rows and ChromIQ's two "
             f"repeatability rows. The two Custom columns judge all "
             f"{_n_cust}. A green column means the rows its own set judges "
             f"passed; it does not mean the rest were checked.", 70):
@@ -6329,9 +6347,9 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("is forced over its own limit at the same moment.")
     a("")
     a(f"{_n.capitalize()} of them by arithmetic, and the reason is that the")
-    a("three averages are ordered: 'Best 95 % of patches, average' is always")
-    a("less than or equal to 'All patches, average', which is always less than")
-    a("or equal to 'Worst 5 % of patches, average'. Every shipped set gives")
+    a("three averages are ordered: 'Average ΔE00, lowest 95 %' is always")
+    a("less than or equal to 'Average ΔE00, all patches', which is always less")
+    a("than or equal to 'Average ΔE00, highest 5 %'. Every shipped set gives")
     a("those three the SAME number, so:")
     a("")
     for _rid, _why in _forced:

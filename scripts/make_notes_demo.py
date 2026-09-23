@@ -463,8 +463,8 @@ def build(dest: Path) -> "tuple[Path, list]":
     # -- run6: history -----------------------------------------------------
     run = proj.new_run()
     run.ensure_dir()
-    _describe(run, "Three dated sheets; the first two reports were saved by "
-              "older ChromIQ.")
+    _describe(run, "Three dated sheets; the reports of the first two are in "
+              "older formats.")
     lim = _limits(run, t0)
     cols = _greys(range(0, 101, 10)) + _random_colours(133, 27)
     _say(run, "profiling", _profiling(run, cols, 12, 12, "2026-11-01T15:00:00",
