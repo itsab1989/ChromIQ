@@ -61,12 +61,18 @@ sides.**
 - **Renaming a project or deleting a profile run keeps saved reports right**:
   every report that names the project or its runs follows, and a report of
   another project with the same or a former name is never touched.
-- A rename or a run delete also updates the reports kept in the ChromIQ folder's `reports/`.
+- A rename or a run delete also updates the reports kept in the ChromIQ folder's
+  `reports/`, and the reports of other projects when the project sits in a
+  sub-folder of the ChromIQ folder.
+- An update keeps to the report's own measurements: a verification report
+  never takes in profiling sheets.
 - In a read-only folder a delete or an update changes nothing, and the message
   names the folder and what to do.
 - "Report shown" always names the report that is loaded.
 - The "Report type" row no longer covers the last row of the measurement list,
   and the list shows whole rows only.
+- In Create Chart's targen and printtarg parameters, every setting's name shows
+  again beside its control (since beta 30 some controls covered their names).
 - Pressing Return in the report window no longer opens the file chooser.
 - Report PDFs no longer print a blank page or a heading alone at a page foot.
 - A report across runs says which runs it judges, and a calibration report no
