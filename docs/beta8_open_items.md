@@ -25244,6 +25244,11 @@ would reach.
 ### B8-815 · OPEN · Evenness: eight questions for Knut before §16 can be confirmed
 - blocks release: no
 - status: OPEN
+- answered by Knut 2026-09-23 (5789263863): E1 as built; E3 all three ChromIQ
+  sets 1.5 / 1.0 (BUILT); E4 the star stays, verify an i1Pro 3 Plus multi-page
+  preset; E5 the Custom columns keep 1.5 / 1.0; E6 keep; E7 1.0 confirmed; E2
+  page coverage from the Measured-from-Preview margins at 75 % (5789539407,
+  for beta 38); E8 investigate normal practice (beta 38).
 - found by: building B8-814; each is written out in
   `docs/design/measurement_report_limits.md` §16.5.
 - E1 a page under 9 by 9 in a multi-page chart is left out (built) or refuses

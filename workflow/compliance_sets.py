@@ -931,11 +931,12 @@ _CHROMIQ_FACTORY: "dict[str, dict[str, Limit]]" = {
         "grey_balance_neutral_ramp_max": Limit.value(2.0),
         "repeat_patches_de00_max": Limit.value(1.0),
         "repeat_measurement_de00_max": Limit.value(1.5),
-        # Half of default, as every other row here. At 0.75 the sheet's own
-        # noise must fall under 0.75 as well, which takes about four times the
-        # patches, so on most charts tight reads N-A on these two (§16, Q-E3).
-        "uniformity_sd": Limit.value(0.75),
-        "uniformity_de00_max_from_mean": Limit.value(0.5),
+        # NOT half of default, unlike every other row here. Knut, E3
+        # (2026-09-23): all three ChromIQ sets carry 1.5 / 1.0, because at
+        # 0.75 the sheet's own noise must fall under 0.75 too, and most
+        # charts then read N-A on these two.
+        "uniformity_sd": Limit.value(1.5),
+        "uniformity_de00_max_from_mean": Limit.value(1.0),
     },
     "chromiq_quick": {
         "all_de00_avg": Limit.value(4.0), "best95_de00_avg": Limit.value(4.0),
@@ -945,8 +946,9 @@ _CHROMIQ_FACTORY: "dict[str, dict[str, Limit]]" = {
         "grey_balance_neutral_ramp_max": Limit.value(7.0),
         "repeat_patches_de00_max": Limit.value(4.0),
         "repeat_measurement_de00_max": Limit.value(6.0),
-        "uniformity_sd": Limit.value(3.0),
-        "uniformity_de00_max_from_mean": Limit.value(2.0),
+        # E3, as in tight above: the same 1.5 / 1.0 as default.
+        "uniformity_sd": Limit.value(1.5),
+        "uniformity_de00_max_from_mean": Limit.value(1.0),
     },
 }
 

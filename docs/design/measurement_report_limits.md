@@ -2025,8 +2025,8 @@ a\*, b\*)", which was the standards' statistic and is not the one computed.
 | set | nine locations | from the mean |
 |---|---|---|
 | ChromIQ default | 1.5 | 1.0 |
-| ChromIQ tight | 0.75 | 0.5 |
-| Quick check | 3.0 | 2.0 |
+| ChromIQ tight | 1.5 | 1.0 |
+| Quick check | 1.5 | 1.0 |
 | Custom ISO 12647-7 / -8 | 1.5 | 1.0 |
 | ISO 12647-7 / -8 (read-only) | `?` | `?` |
 
@@ -2105,8 +2105,10 @@ measured noise.
   answered in 5745765820 item 3) is not in the rulings of 2026-09-22 and is
   not built. A `.ti2` records the paper size but not where the patch block
   sits. Is it still wanted?
-* **E3. Tight and quick.** Built as half and double of default (0.75 / 0.5
-  and 3.0 / 2.0), the rule every other row follows. At 0.75 the noise must be
+* **E3. Tight and quick. ANSWERED by Knut, 2026-09-23 (5789263863): "Yes",
+  all three ChromIQ sets carry 1.5 / 1.0, built.** It was built as half and
+  double of default (0.75 / 0.5 and 3.0 / 2.0), the rule every other row
+  follows. At 0.75 the noise must be
   under 0.75 too, which takes about four times the patches, so most charts
   read N-A on tight. Or should all three ChromIQ sets carry 1.5 / 1.0?
 * **E4. The star.** At 1.5 the rows want about 30 patches in every ninth of
@@ -2120,7 +2122,8 @@ measured noise.
   (the standards do limit evenness), so those cells read `?`. A licence
   holder's figure for the first row was written for a spread statistic, not
   for the pairwise ΔE00 now computed. Keep the rows in the ISO structure?
-* **E7. The 1.0** on the from-the-mean row (16.2).
+* **E7. CONFIRMED by Knut, 2026-09-23: 1.0 on the from-the-mean row.**
+  **E7. The 1.0** on the from-the-mean row (16.2).
 * **E8. The yardstick.** Evenness uses the same yardstick as the other rows,
   so a sheet printed through its profile with a white-mapping intent is read
   media-relative: every reading is divided by the sheet's lightest patch.

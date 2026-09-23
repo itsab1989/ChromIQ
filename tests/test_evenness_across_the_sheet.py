@@ -429,7 +429,7 @@ def test_the_rows_are_computable_under_their_own_heading():
 
 def test_the_limits_knut_gave_and_the_half_and_double_rule():
     """1.5 and 1.0 in ChromIQ default (Knut, 2026-09-22; the 1.0 awaits his
-    confirmation), half in tight, double in quick, default's own numbers in
+    confirmation), the same in tight and quick (E3), default's own numbers in
     both Custom columns, and nothing in the two read-only ISO columns.
 
     MUTATION: change either default number and this goes red.
@@ -437,10 +437,11 @@ def test_the_limits_knut_gave_and_the_half_and_double_rule():
     f = {s: CS.factory_limits(s) for s in CS.SET_IDS}
     assert (f["chromiq_default"][PAIR].number,
             f["chromiq_default"][FROM_MEAN].number) == (1.5, 1.0)
+    # E3 (Knut, 2026-09-23): tight and quick carry default's numbers too.
     assert (f["chromiq_tight"][PAIR].number,
-            f["chromiq_tight"][FROM_MEAN].number) == (0.75, 0.5)
+            f["chromiq_tight"][FROM_MEAN].number) == (1.5, 1.0)
     assert (f["chromiq_quick"][PAIR].number,
-            f["chromiq_quick"][FROM_MEAN].number) == (3.0, 2.0)
+            f["chromiq_quick"][FROM_MEAN].number) == (1.5, 1.0)
     for s in ("custom_iso_12647_7", "custom_iso_12647_8"):
         assert (f[s][PAIR].number, f[s][FROM_MEAN].number) == (1.5, 1.0), s
     for s in ("iso_12647_7", "iso_12647_8"):
@@ -522,11 +523,13 @@ def test_a_laid_out_small_chart_is_told_its_noise_would_be_too_high(tmp_path):
     assert a.get(PAIR) == MR.REASON_EVENNESS_NOISY_PAIRWISE, a
     b = PE.assess(large, MR.REPORT_TYPE_FULL, "chromiq_default")
     assert PAIR in b.answered and FROM_MEAN in b.answered, b.missing
-    # the pre-flight asks with the loosest limit any set has (quick: 3.0)
+    # the pre-flight asks with the loosest limit any set has; since E3
+    # (Knut, 2026-09-23) every ChromIQ set carries 1.5
     c = dict(PE.assess_any(small).missing)
-    assert PE.loosest_limits()[PAIR].number == 3.0
+    loosest = PE.loosest_limits()[PAIR].number
+    assert loosest == 1.5
     assert (PAIR in c) == (PE.chart_row_values(small)[PAIR]["noise_p95"]
-                          >= 3.0)
+                          >= loosest)
     PE.clear_cache()
 
 
