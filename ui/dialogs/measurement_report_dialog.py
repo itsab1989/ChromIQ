@@ -7172,7 +7172,17 @@ class MeasurementReportDialog(QDialog):
         wanted = (block or {}).get("measurements") or []
         if len(wanted) < 2:
             return 0
-        loaded = {project_relative(r.get("_origin_dir") or "")
+        # **BY PROJECT AND FOLDER, NOT BY FOLDER ALONE (K25).** A report
+        # across two PROJECTS names `runs/run1` in each, and comparing from
+        # `runs/` down alone took the other project's `runs/run1` for this
+        # one's: measured on the demo pack, a Printing record across two
+        # projects loaded nothing of the second, and a verification report
+        # across them looked for the second project's date inside the first.
+        from workflow.measurement_report import measurement_place
+
+        def _ident(d) -> tuple:
+            return (measurement_place(d)[0], project_relative(d))
+        loaded = {_ident(r.get("_origin_dir") or "")
                   for r in self._history if r.get("_origin_dir")}
         project = None
         for r in self._history:
@@ -7186,10 +7196,21 @@ class MeasurementReportDialog(QDialog):
             if not d or not name:
                 continue
             rel = project_relative(d)
-            if rel in loaded:
+            if _ident(d) in loaded:
                 continue
-            folder = (project / rel if project is not None
-                      and rel.startswith("runs/") else Path(d))
+            # Where it is NOW, beside the project this window is on: the same
+            # folder in the project of that NAME (this one, when the names
+            # agree), because a copied project's recorded folders may still
+            # exist where it was copied FROM, and those are not this
+            # project's. The recorded folder only when that finds nothing.
+            folder = Path(d)
+            if project is not None and rel.startswith("runs/"):
+                recorded = _project_folder_of(Path(d))
+                owner = (project.parent / recorded.name
+                         if recorded is not None
+                         and recorded.name != project.name else project)
+                if (owner / rel / name).is_file():
+                    folder = owner / rel
             ti3 = folder / name
             if not ti3.is_file():
                 log.info("a report covers %s, which is not on disk", ti3)
@@ -7197,7 +7218,7 @@ class MeasurementReportDialog(QDialog):
             try:
                 if self._append_source(ti3, origin=ti3):
                     added += 1
-                    loaded.add(rel)
+                    loaded.add(_ident(folder))
                     self._borrowed_sources.add(str(ti3))
                     log.info("loaded %s: the selected report covers it", ti3)
             except Exception as exc:                  # noqa: BLE001

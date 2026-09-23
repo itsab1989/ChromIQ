@@ -116,6 +116,31 @@ def script(d):
     def ti3_in(folder):
         return sorted(folder.glob("*.ti3"))[0]
 
+    import ui.dialogs.measurement_report_dialog as _M
+    _orig_ofd = _M.open_files_dialog
+
+    def _ofd(*a, **k):
+        got = _orig_ofd(*a, **k)
+        d.note(f"   [trace] open_files_dialog returned {got}")
+        return got
+    _M.open_files_dialog = _ofd
+
+    def add(dlg, target, name):
+        """Add Profile's Measurements, the file picked in ChromIQ's own
+        dialog, then wait until the window holds one more source."""
+        import time as _t
+        before = len(dlg._sources)
+        d.later(dlg._add_btn.click)
+        yield 400
+        ok = d.answer_file(target, name=name)
+        t0 = _t.monotonic()
+        while _t.monotonic() - t0 < 45 and len(dlg._sources) <= before:
+            yield 250
+        d.note(f"   [add] {Path(target).name} picked={ok}; sources "
+               f"{before} -> {len(dlg._sources)} after "
+               f"{_t.monotonic() - t0:.1f} s")
+        yield 1500
+
     d.open_project(NAME)
     listing("00-as-shipped")
 
@@ -134,19 +159,13 @@ def script(d):
 
     # --- V2: add a run2 date: Run1 / Run2 --------------------------------------
     target = ti3_in(dated(NAME, "run2")[0])
-    d.later(dlg._add_btn.click)
-    yield 300
-    d.answer_file(target, name="V2-add-file-dialog")
-    yield 3000
+    yield from add(dlg, target, "V2-add-file-dialog")
     state(dlg, "V2-verification-two-runs", "run1 as Verification with a run2 "
           "date added: Run1 / Run2 headings")
 
     # --- V3: add the second project's date: project headings ----------------
     target = ti3_in(dated(OTHER, "run1")[0])
-    d.later(dlg._add_btn.click)
-    yield 300
-    d.answer_file(target, name="V3-add-file-dialog")
-    yield 3000
+    yield from add(dlg, target, "V3-add-file-dialog")
     state(dlg, "V3-verification-two-projects", "and a date of the second "
           "project added: project headings, runs under them, and 'Reports "
           "including multiple projects'")
@@ -181,10 +200,7 @@ def script(d):
 
     # --- P3: run2 Profiling + the second project's profiling sheet ----------
     target = ti3_in(work / OTHER / "runs" / "run1")
-    d.later(dlg._add_btn.click)
-    yield 300
-    d.answer_file(target, name="P3-add-file-dialog")
-    yield 3000
+    yield from add(dlg, target, "P3-add-file-dialog")
     state(dlg, "P3-profiling-two-projects", "run2 as Profiling with the "
           "second project's profiling sheet added")
     dlg.close()
@@ -213,7 +229,15 @@ def script(d):
     d.later(dlg._delete_report_btn.click)
     yield 1200
     said = d.answer("OK", name="D1-delete-question")
-    yield 2500
+    # THE MOVE RUNS WHEN THE QUESTION'S OWN LOOP HAS RETURNED, which is after
+    # this step: the first drive listed the folders 2.5 s later and found
+    # nothing moved, while the log shows the move ten seconds on. Wait for it.
+    import time as _t
+    t0 = _t.monotonic()
+    while _t.monotonic() - t0 < 30 and listing("D1-after") == pre:
+        yield 500
+    d.note(f"   [delete] the folders changed after {_t.monotonic() - t0:.1f} s")
+    yield 1500
     post = listing("D1-after")
     d.record["scenarios"]["D1-changed"] = {
         "gone": sorted(set(pre) - set(post)),

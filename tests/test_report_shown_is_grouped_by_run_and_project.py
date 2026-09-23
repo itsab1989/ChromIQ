@@ -431,7 +431,7 @@ def test_the_file_guide_names_the_shared_report_folders():
     """Knut, Q6: *"Yes"* to rows for `verifications/reports/` and
     `<project>/reports/`.
 
-    MUTATION: delete either row from `_files` in `ui/file_guide.py`, red.
+    MUTATION: delete either row from `_rows` in `ui/file_guide.py`, red.
     """
     import ui.file_guide as fg
     rows = [(f, where, text) for _g, items in fg._rows()
@@ -439,3 +439,46 @@ def test_the_file_guide_names_the_shared_report_folders():
     wheres = {where for _f, where, _t in rows if _f == "report_*.json"}
     assert "runs/runN/verifications/reports" in wheres, wheres
     assert "reports (project folder)" in wheres, wheres
+
+
+def test_a_report_across_projects_loads_the_other_project_from_where_it_is_now(
+        tmp_path, qapp):
+    """Selecting a report across two projects loads what it covers ("a
+    report is shown whole", beta 37), and in a COPIED pack that must be the
+    copy's second project, not the original's and not a folder of the same
+    name inside the first project.
+
+    Measured on screen with the K25 demo pack before this: the report across
+    Report-Limits-Report-Folders and its -Second project loaded nothing of
+    the second, because `runs/run1/...` was looked for inside the first.
+
+    MUTATION: in `_load_the_documents_other_measurements` resolve every
+    folder as `project / rel` (the code before K25) and the second project's
+    date is not loaded, red. MUTATION: prefer the recorded folder when it
+    exists and the ORIGINAL (not the copy) is loaded, red.
+    """
+    import shutil
+    s, _fm, _run1, _run2, v1, _v2 = _two_runs(tmp_path)
+    _qrun, qv = _second_project(tmp_path)
+    _save_doc([v1[0].dir, qv.dir], [v1[0].measurement_ti3, qv.measurement_ti3])
+    moved = tmp_path / "moved"
+    for name in ("P", "Q", "reports"):
+        shutil.copytree(tmp_path / name, moved / name)
+    ti3 = moved / v1[0].dir.relative_to(tmp_path) / v1[0].measurement_ti3.name
+    dlg = _dialog(s, ti3, qapp)
+    try:
+        combo = dlg._saved_combo
+        combo.setCurrentIndex(0)
+        qapp.processEvents()
+        docs = dlg._saved_documents(dlg._run_ctx.run)
+        across = [d for d in docs
+                  if len({p for p, _r in dlg._entry_places(d)}) > 1]
+        assert across, "the report across projects is not listed"
+        combo.setCurrentIndex(combo.findData(across[0]["key"]))
+        qapp.processEvents()
+        origins = {str(r.get("_origin_dir")) for r in dlg._history}
+        want = str(moved / qv.dir.relative_to(tmp_path))
+        assert want in origins, sorted(origins)
+        assert str(qv.dir) not in origins, "the ORIGINAL was loaded"
+    finally:
+        dlg.close()

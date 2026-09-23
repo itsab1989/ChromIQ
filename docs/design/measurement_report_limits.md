@@ -1795,7 +1795,10 @@ What was built:
 * **A report across projects** is filed where §13.11's `document_home` puts
   it, the projects' common folder (`<output folder>/reports/`). That folder is
   now read by the list and the counter; before, such a report was written and
-  never listed or counted.
+  never listed or counted. Selecting it loads the other project's
+  measurements it covers (§13.11, "a report is shown whole"), found in the
+  project of that name beside this one, so a copied or moved pack loads its
+  own copy.
 * **M-REPORT-DELETE (Q5)** says "the measurement(s) it describes"
   (§M-PROPOSED, revised).
 * **"Where are my files" (Q6)** has rows for the saved reports in

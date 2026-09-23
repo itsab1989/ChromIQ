@@ -25537,6 +25537,12 @@ would reach.
   which nothing read before, so such a report was written and never listed
   or counted. M-REPORT-DELETE says "the measurement(s) it describes"; the
   folder guide has rows for `verifications/reports/` and `<project>/reports/`.
+  FOUND ON SCREEN and fixed: selecting (or opening on) a report across two
+  projects loaded nothing of the second project, because
+  `_load_the_documents_other_measurements` compared and resolved folders
+  from `runs/` down only, inside the window's own project;
+  it now keys by project and folder and finds the other project beside this
+  one, preferring the copy the user is working in over the recorded path.
   Proof: `~/Desktop/ChromIQ-beta38-proof/report-list/`.
 - open, for Knut:
   - Q1: his first message had the Profiling tags become Run1 / Multiple runs
@@ -25564,3 +25570,4 @@ would reach.
   test_the_automatic_record_of_one_measurement_ticks_one
   test_the_delete_message_says_measurement_s
   test_the_file_guide_names_the_shared_report_folders
+  test_a_report_across_projects_loads_the_other_project_from_where_it_is_now
