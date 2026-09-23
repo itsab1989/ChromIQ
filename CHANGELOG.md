@@ -1,5 +1,56 @@
 # Changelog
 
+## v4.3.0-beta.37
+
+**Knut's rulings of 22 and 23 September: where reports live, what the report
+window shows, evenness across the sheet, and a trend graph for every judged
+metric.**
+
+### Added
+
+- **Evenness across the sheet.** Two new rows judge how even a print is over
+  the page: the largest difference between any two of nine areas, and the
+  largest difference of one area from the mean of all nine. Every patch is
+  compared with its own expected colour, the page is split 3 by 3, and a page
+  smaller than 9 by 9 patches is left out. A sheet whose own measurement noise
+  is too high to tell is not judged, and says so. The notes name the area that
+  is furthest off and the likely causes. The rows appear in the report, in
+  "Which presets can be used for verification?" and in the pre-flight, at
+  1.5 / 1.0 in all three ChromIQ limit sets.
+- **A trend graph for every judged metric group**: Paper white difference,
+  Grey balance, Tone, Control strip, Repeatability and Evenness, each with at
+  most two related metrics and each metric with its own dotted limit line. A
+  tab is shown, and printed, only when its metrics were judged. Colour
+  accuracy is printed twice as tall in the PDF.
+- A new demo project for evenness, and one that holds every report location.
+
+### Changed
+
+- **Where a report lives.** A report of one measurement stays in that date's
+  folder; a report of several dates of one run is in
+  `runN/verifications/reports/`; a report across runs is in
+  `<project>/reports/`. Each date keeps its own verdict record. Reports
+  already on disk stay where they are and are counted by what they cover.
+- **The profile bar's Run type decides** which report types the report window
+  shows, lists and counts.
+- **Every N-A note says what is missing in the measured chart**, and never
+  what to add or where.
+- Report text no longer addresses a ChromIQ user or explains ChromIQ, German
+  reports are titled in German, and the one-page summary names what it could
+  not check.
+
+### Fixed
+
+- **A report covering two runs could be narrowed** by an Update from one run's
+  window. A report is now always shown whole, and cannot be rewritten
+  narrower than it is.
+- **The results table was cut off** at the page's right margin on reports of
+  many dates. It now splits across tables and never breaks a word.
+- A trend with a single value drew nothing; it now draws the point.
+- The Printing record no longer prints a verdict sentence or the standard's
+  caveat.
+- A refused Update no longer leaves archives behind.
+
 ## v4.3.0-beta.36
 
 **Knut's beta-34 and beta-35 findings, and a report written for the person it
