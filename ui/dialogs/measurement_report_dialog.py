@@ -357,6 +357,8 @@ ALWAYS_BUILT_BLOCKS: "tuple[str, ...]" = (
     # S2w (2026-09-18) and the two repeatability rows (2026-09-21)
     "corners", "control_strip", "gamut_populations",
     "repeat_within_sheet", "repeat_across_sheets",
+    # evenness across the sheet (Knut, 2026-09-22)
+    "evenness",
 )
 
 
@@ -521,6 +523,114 @@ def _repeat_shared_sentence(r: "dict | None") -> str:
                         "same patch set and what changed cannot be read as the "
                         "printer moving").format(
                             k=REPEAT_ACROSS_MIN_PATCHES)
+
+
+def _evenness_block(r: "dict | None") -> dict:
+    block = (r or {}).get("evenness")
+    return block if isinstance(block, dict) else {}
+
+
+def _evenness_grid_sentence(r: "dict | None") -> str:
+    """Why evenness was withheld: no page of the measured chart reaches Knut's
+    geometric floor. Names the largest page the chart has, because "at least 9
+    are needed" beside a chart whose size is not said teaches nothing."""
+    from workflow.measurement_report import EVENNESS_MIN_GRID
+    s, rows = (_evenness_block(r).get("largest_page") or [0, 0])[:2]
+    return tr("the measured chart has {s} strips and {r} rows on its largest "
+              "page; at least {k} strips and {k} rows are needed on a "
+              "page").format(s=int(s or 0), r=int(rows or 0),
+                             k=EVENNESS_MIN_GRID)
+
+
+def _evenness_noise_sentence(r: "dict | None", key: str) -> str:
+    """Why an evenness row was withheld by the noise rule (Knut, ruling 6).
+
+    Says what the measured chart lacks (patches in its emptiest ninth) and the
+    noise figure the rule compared, which he asked to be shown."""
+    b = _evenness_block(r)
+    noise = b.get(f"noise_{key}_p95")
+    counts = [int(c) for c in (b.get("counts") or []) if c is not None]
+    fewest = min(counts) if counts else 0
+    return tr("the measured chart has {n} patches in the emptiest ninth of "
+              "the page, too few for this row: its own noise here is {noise} "
+              "ΔE00 (the 95th percentile of the same figure with the "
+              "patches shuffled across the nine areas), and the noise has to "
+              "be below the limit").format(n=fewest, noise=_fmt(noise, 2))
+
+
+def _evenness_area_name(area: dict) -> str:
+    """One ninth of the page, by the labels printed on the sheet.
+
+    Never "top left": which way up a strip runs depends on the instrument and
+    the orientation, and the letters and numbers are on the paper."""
+    spans = [tr("{first} to {last}").format(first=a, last=b)
+             for a, b in (area.get("strips") or [])]
+    rows = area.get("rows") or ["", ""]
+    if not spans:
+        strips = "?"
+    elif len(spans) == 1:
+        strips = spans[0]
+    else:
+        strips = tr("{list} and {last}").format(list=", ".join(spans[:-1]),
+                                                last=spans[-1])
+    return tr("strips {strips}, rows {first} to {last}").format(
+        strips=strips, first=rows[0], last=rows[1])
+
+
+def _evenness_worst_area_sentence(r: "dict | None") -> str:
+    """The one sentence naming the ninth of the page furthest from the rest,
+    or "" when the sheet was not judged on evenness."""
+    b = _evenness_block(r)
+    areas = b.get("areas") or []
+    if not b.get("eligible") or len(areas) != 9:
+        return ""
+    worst = areas[int(b.get("worst_area", 0))]
+    return tr("On the measured chart the ninth of the page furthest from the "
+              "average of all nine is {area}: {de} ΔE00 from it (ΔL* {dl}, "
+              "Δa* {da}, Δb* {db} against its aim values, over {n} "
+              "patches).").format(
+                  area=_evenness_area_name(worst),
+                  de=_fmt(worst.get("de_from_mean"), 2),
+                  dl=_fmt(worst.get("dL"), 2), da=_fmt(worst.get("da"), 2),
+                  db=_fmt(worst.get("db"), 2), n=int(worst.get("n") or 0))
+
+
+def _evenness_where_sentence(r: "dict | None") -> str:
+    """Which part of the measured sheet is off, for a note on the verdict.
+
+    Knut, 2026-09-22: *"The results of this test should return indications of
+    which part of the page are not uniform against other areas."*
+    """
+    out = _evenness_worst_area_sentence(r)
+    if not out:
+        return ""
+    b = _evenness_block(r)
+    areas = b.get("areas") or []
+    i, j = (b.get("worst_pair") or [0, 1])[:2]
+    out += " " + tr("The two ninths furthest apart are {a} and {b}, {de} "
+                    "ΔE00 apart.").format(
+                        a=_evenness_area_name(areas[int(i)]),
+                        b=_evenness_area_name(areas[int(j)]),
+                        de=_fmt(b.get("pairwise"), 2))
+    out += " " + tr("The measured chart's own noise, the 95th percentile of "
+                    "the same figures with its patches shuffled across the "
+                    "nine areas, is {pw} ΔE00 between two areas and {fm} "
+                    "ΔE00 from the average.").format(
+                        pw=_fmt(b.get("noise_pairwise_p95"), 2),
+                        fm=_fmt(b.get("noise_from_mean_p95"), 2))
+    used = b.get("pages_used") or []
+    pages = b.get("pages") or []
+    left = [p for p in range(1, len(pages) + 1) if p not in used]
+    if left:
+        from workflow.measurement_report import EVENNESS_MIN_GRID
+        out += " " + (tr("Page {p} has fewer than {k} strips or rows and is "
+                         "not counted.").format(p=left[0], k=EVENNESS_MIN_GRID)
+                      if len(left) == 1 else
+                      tr("Pages {p} have fewer than {k} strips or rows and are "
+                         "not counted.").format(
+                             p=", ".join(str(x) for x in left),
+                             k=EVENNESS_MIN_GRID))
+    return out
 
 
 def _outer_gamut_sentence(r: "dict | None") -> str:
@@ -7443,6 +7553,22 @@ class MeasurementReportDialog(QDialog):
                 "nothing to compare it with; the row is judged from the "
                 "second measurement onward"),
             "too_few_shared_patches": _repeat_shared_sentence(r),
+            # EVENNESS ACROSS THE SHEET (Knut, 2026-09-22). Written to his
+            # rule of 2026-09-23: each says what the MEASURED CHART lacks,
+            # never what to add or where to add it.
+            "evenness_no_layout": tr(
+                "no chart file beside the measurement records where each "
+                "patch of the measured chart was printed"),
+            "evenness_no_positions": tr(
+                "the measured chart's layout does not say which strip and "
+                "which row each patch was printed in"),
+            "evenness_grid_too_small": _evenness_grid_sentence(r),
+            "evenness_empty_area": tr(
+                "one of the nine areas of the measured chart holds no patch "
+                "with an aim value"),
+            "evenness_noisy_pairwise": _evenness_noise_sentence(r, "pairwise"),
+            "evenness_noisy_from_mean": _evenness_noise_sentence(
+                r, "from_mean"),
         }
         return texts.get(code or "", "")
 
@@ -7476,6 +7602,18 @@ class MeasurementReportDialog(QDialog):
             # (2026-09-21), so it lives in the §M catalogue and both renderers
             # ask for it. Two hand-written copies are two documents that drift.
             "recommended_limit": _recommended_limit_note(),
+            # Knut, 2026-09-22: the likely causes of an uneven sheet belong
+            # *"as notes on the results in the report text, for any report
+            # type that has enabled this metric"*. Causes only: no step to
+            # take and nothing about ChromIQ (his K18 rule for report text).
+            "evenness_causes": tr(
+                "A difference between areas of one sheet can come from the "
+                "printer (banding, a partly blocked or misaligned print head), "
+                "from the paper (not flat, or not the same all over), or, on "
+                "an instrument that reads whole strips, from the instrument "
+                "drifting during the reading. The strips are read one after "
+                "another, so such a drift shows as a difference across the "
+                "strips rather than down them."),
         }.get(code or "", "")
 
     def _numbered_notes(self, runs: list) -> "list[tuple[int, str, str]]":
@@ -7576,10 +7714,14 @@ class MeasurementReportDialog(QDialog):
         if not r or self._ungraded_by_type():
             return ""
         from workflow.compliance_sets import N_A, POPULATION_MAY_BE_ABSENT
+        from workflow.measurement_report import EVENNESS_FILE_REASONS
         rows, _rec = self._verdict_rows(r)
         missing = [(row.get("row_id") or row.get("key"), row.get("reason"))
                    for row in rows if row.get("word") == N_A
                    and row.get("reason") not in (None, "printing_unrecorded")
+                   # …nor a row withheld for want of a chart FILE (the
+                   # evenness layout): no patch added to the chart supplies it
+                   and row.get("reason") not in EVENNESS_FILE_REASONS
                    # …AND THIS STRIP IS ABOUT THE CHART. Its message tells the
                    # reader to add patches in Create Chart, print the chart
                    # again and measure it, so naming a row whose population
@@ -7690,7 +7832,24 @@ class MeasurementReportDialog(QDialog):
         """
         if self._ungraded_by_type():
             return rows
-        from workflow.compliance_sets import N_A
+        from workflow.compliance_sets import FAIL, N_A, PASS
+        from workflow.measurement_report import EVENNESS_ROWS
+        # …AND WHERE ON THE SHEET, on an evenness verdict that was given.
+        # Knut, 2026-09-22: *"The results of this test should return
+        # indications of which part of the page are not uniform against other
+        # areas."* The sentence carries this measurement's own numbers, so it
+        # travels with its code exactly as a computed reason does below, and a
+        # report holding two sheets numbers them apart.
+        where = _evenness_where_sentence(r)
+        if where:
+            for row in rows or ():
+                if ((row.get("row_id") or row.get("key")) in EVENNESS_ROWS
+                        and row.get("word") in (PASS, FAIL)):
+                    code = "evenness_where" + self._NOTE_TEXT_SEP + where
+                    notes = list(row.get("notes") or ())
+                    if code not in notes:
+                        notes.append(code)
+                    row["notes"] = notes
         for row in rows or ():
             if row.get("word") != N_A or not row.get("reason"):
                 continue
@@ -11734,6 +11893,28 @@ class MeasurementReportDialog(QDialog):
             return dataclasses.replace(sm, reason=plain)
         return sm
 
+    def _one_page_evenness_html(self, r: dict) -> str:
+        """The one-page summary's evenness paragraph, or "" when no evenness
+        row was judged on this sheet."""
+        from workflow.compliance_sets import (FAIL, PASS, ROW_BY_ID,
+                                              word_label)
+        from workflow.measurement_report import EVENNESS_ROWS
+        rows, _rec = self._verdict_rows(r)
+        judged = [x for x in rows
+                  if (x.get("row_id") or x.get("key")) in EVENNESS_ROWS
+                  and x.get("word") in (PASS, FAIL)]
+        if not judged:
+            return ""
+        words = "; ".join(
+            f"{tr(ROW_BY_ID[x.get('row_id')].label)}: "
+            f"{word_label(x.get('word'))}" for x in judged
+            if x.get("row_id") in ROW_BY_ID)
+        where = _evenness_worst_area_sentence(r)
+        return (f"<div style='color:{_C['dim']};margin-top:6px'>"
+                + html.escape(words + ". " + where + " "
+                              + self._note_sentence("evenness_causes"))
+                + "</div>")
+
     def _one_page_html(self, runs: list, dropped: "list | None" = None) -> str:
         """T1, "Colour summary (one page)": the page that goes with the job.
 
@@ -11808,6 +11989,15 @@ class MeasurementReportDialog(QDialog):
         # sentence away from being two pages. So the page names the first few
         # and says where the rest are, which keeps the sentence's promise
         # without breaking the document's.
+        # -- EVENNESS, when this page's verdict includes it. Knut, 2026-09-22:
+        # the likely causes go *"as notes on the results in the report text,
+        # for any report type that has enabled this metric"*, and this type
+        # has no notes list, so the note is one short paragraph here, and only
+        # when an evenness row was actually judged: a line about a verdict the
+        # page did not give would be the unasked-for sentence this page's
+        # length rule exists to keep out.
+        out.append(self._one_page_evenness_html(r))
+
         # -- the colours, from the chart that was measured
         picked = r.get("summary_patches") or []
         if picked:

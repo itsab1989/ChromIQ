@@ -1675,8 +1675,8 @@ GLOSSARY += [
         "you down.")),
     (tr("Not evaluated by ChromIQ (the ✕ rows)"),
      tr("A group of rows at the foot of the limits table that a printing "
-        "standard asks for and ChromIQ cannot measure: evenness across the "
-        "sheet, macro-uniformity, repeatability from day to day, light "
+        "standard asks for and ChromIQ cannot measure: macro-uniformity, "
+        "repeatability from day to day, light "
         "fastness, permanence in storage, rub resistance and the rest. They "
         "are listed rather than hidden, so you can see what a report does NOT "
         "cover as well as what it does.")),

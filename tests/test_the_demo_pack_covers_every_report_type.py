@@ -737,13 +737,13 @@ def test_every_row_chromiq_can_compute_is_given_a_limit_by_some_run(gen):
 def test_nothing_invents_a_number_for_a_row_chromiq_cannot_measure(gen):
     """The rule that matters more than the coverage.
 
-    Fourteen rows need a gloss meter, nine readings at set positions, a
+    Twelve rows need a gloss meter, a
     climate chamber or a xenon rig. A demo that put a limit on one, or made a
     measurement look as though it had filled one, would make the shared
     fixture lie about what ChromIQ measures, and every later round is told to
     trust this fixture.
 
-    MUTATION: put "uniformity_sd": 2.0 into any plan's edited_limits and this
+    MUTATION: put "macro_uniformity_score": 2.0 into any plan's edited_limits and this
     goes red.
     """
     from workflow.compliance_sets import ROW_BY_ID

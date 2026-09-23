@@ -990,6 +990,7 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
     report["corners"] = corners_block(rgb100, lab, ref, data,
                                       corner_ids, corner_devices)
 
+    in_gamut_ids: "set[str] | None" = None
     if ref:
         des: list[tuple[float, int]] = []
         for i, sid in enumerate(data.sample_ids):
@@ -1038,6 +1039,11 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
                                                margin=MARGIN_SAFE,
                                                intent="absolute")
                         d_in = [d for (d, _i), f in zip(des, flags) if f]
+                        # the same split, by patch, for the evenness rows:
+                        # where the words judge the within-gamut figures,
+                        # evenness is judged on the within-gamut patches
+                        in_gamut_ids = {data.sample_ids[_i]
+                                        for (_d, _i), f in zip(des, flags) if f}
                         d_out = [d for (d, _i), f in zip(des, flags) if not f]
                         report["gamut_split"] = {
                             "profile": referee.name,
@@ -1115,6 +1121,19 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
     # answer, not an error in it.
     report["repeat_across_sheets"] = repeat_across_sheets_block(
         ti3_path, absolute_lab, data.sample_ids, rgb100)
+
+    # EVENNESS ACROSS THE SHEET (Knut, 2026-09-22): every patch against its
+    # own aim, in the SAME yardstick and against the SAME aim as the ΔE00 rows
+    # above, averaged over the nine areas of the page the chart's own layout
+    # puts it in. Written with its reason when the sheet cannot answer it.
+    # WHERE THE WORDS JUDGE THE WITHIN-GAMUT FIGURES, SO DOES EVENNESS: a
+    # colour the profile could never print is far from its aim wherever it
+    # sits, so it is noise to a question about places, and the verdict above
+    # already sets it aside.
+    report["evenness"] = evenness_block(
+        lab, ref, data.sample_ids, rgb100,
+        ref_ti2 if ref_ti2.is_file() else None, corner_ids,
+        only_ids=in_gamut_ids)
 
     # …and the control strip, which is a DECLARATION rather than a measurement:
     # it needs the chart file, not the device values, so it is written whether
@@ -2480,6 +2499,64 @@ REPEAT_WITHIN_MIN_GROUPS = 2
 #: itself had been changed share 4. Fourteen separates those cleanly.
 REPEAT_ACROSS_MIN_PATCHES = 14
 
+# ---------------------------------------------------------------------------
+# Evenness across the sheet, nine locations (#182, Knut, 2026-09-22)
+# ---------------------------------------------------------------------------
+#: **KNUT'S GEOMETRIC FLOOR: every page used has at least this many strips AND
+#: this many rows.** 5744704621 requirement 1, kept on 2026-09-22 when he was
+#: offered a patch count instead: *"Yes, keep 9 by nine minimum rule. The test
+#: is supposed to judge uniformity across the various areas of a page."*
+#:
+#: ONE CONSTANT FOR BOTH DIRECTIONS, because he has said he may raise it (to
+#: 12 by 12 was the figure named) and that must be a one-line change. Every
+#: sentence that quotes the floor reads it from here.
+EVENNESS_MIN_GRID = 9
+
+#: How many times the patches are shuffled across the nine areas to measure
+#: the sheet's own noise. Knut, 2026-09-22, ruling 6, on the F1 proposal:
+#: *"Your suggestion is good. Do not use the stricter version."* A shuffle puts
+#: every patch in a random area, so whatever the two numbers read afterwards is
+#: noise by construction (instrument, profile, the chart's own mix of colours),
+#: and the 95th percentile of 500 such readings is the level a real difference
+#: has to clear. Five hundred gives that percentile to about +-0.02 on the real
+#: sheet the F1 analysis used; more buys nothing a verdict can see.
+EVENNESS_SHUFFLES = 500
+
+#: The shuffles are drawn from a FIXED seed, so the same measurement gives the
+#: same noise figure every time it is reported, on every machine. A report that
+#: changed its N-A to a PASS on being opened again would be worse than either.
+EVENNESS_SEED = 182
+
+#: The place a residual is evaluated at. A deviation has no colour of its own,
+#: and ΔE00 needs one; a neutral mid grey is where ΔE00 weighs L*, a* and b*
+#: most nearly evenly, and it is the construction the F1 analysis used for the
+#: numbers Knut was shown and ruled on (0.81 and 0.45 on the real sheet, noise
+#: 0.27 and 0.16, "about 30 patches per area" at 1.5).
+EVENNESS_BASE_LAB = (50.0, 0.0, 0.0)
+
+#: **THE PRE-PRINT ESTIMATE, AND ONLY THAT.** The presets window and the
+#: Measure tab's pre-flight answer before anything is printed, so they cannot
+#: measure a sheet's noise; they estimate it for a typical print by giving each
+#: patch a random residual of this size (ΔL*, Δa*, Δb* each, normal, fixed
+#: seed) and running the SAME shuffle as the report.
+#:
+#: CALIBRATED ON NOISE, NOT ON ΔE00. The F1 analysis measured a real Pro300 /
+#: i1Studio sheet against a profile that never saw the patches: noise p95 of
+#: the pairwise row 2.57 at 10 patches per area, 1.41 at 30, 1.18 at 45. A
+#: residual of 1.1 per component reproduces 2.4, 1.41 and 1.17. A residual
+#: matched to the same sheet's per-patch ΔE00 instead (median 0.71) predicts a
+#: third of that, because a saturated patch's chroma error is discounted in its
+#: own ΔE00 and weighed in full at mid grey. The report measures the real
+#: figure; this number never reaches a report.
+EVENNESS_TYPICAL_SIGMA = 1.1
+
+#: The estimate's shuffles. Fewer than the report's, because the presets
+#: window runs it for every preset on one click and an estimate's 95th
+#: percentile does not need the report's precision: 200 moves it by about
+#: 0.03 on the real sheet, a tenth of the step between a chart that can and
+#: one that cannot be judged.
+EVENNESS_ESTIMATE_SHUFFLES = 200
+
 #: Reason codes for a row that could not be computed. The report window turns
 #: them into sentences through tr(); the JSON keeps the code.
 REASON_NO_GREYS = "no_greys"
@@ -2530,6 +2607,43 @@ REPEATABILITY_REASONS: "tuple[str, ...]" = (
     REASON_NO_REPEAT_PATCHES, REASON_TOO_FEW_REPEAT_GROUPS,
     REASON_NO_EARLIER_MEASUREMENT, REASON_TOO_FEW_SHARED_PATCHES,
 )
+#: …and the two evenness rows, one code per thing the MEASURED CHART lacks
+#: (Knut, 2026-09-23: a note says what is missing in the measured chart, never
+#: what to add or where):
+#:
+#: * no chart layout beside the measurement at all (a stand-alone import);
+#: * a layout whose patch locations cannot be read as strip and row;
+#: * no page with at least :data:`EVENNESS_MIN_GRID` strips and rows;
+#: * an area of the nine with no patch carrying an aim value;
+#: * the sheet's own noise is not below the limit, once per row, because each
+#:   row has its own limit and its own noise.
+#:
+#: (A preset that has not been laid out yet has a seventh answer, "not known
+#: yet", which no measured sheet can give; it lives in `preset_eligibility`.)
+REASON_EVENNESS_NO_LAYOUT = "evenness_no_layout"
+REASON_EVENNESS_NO_POSITIONS = "evenness_no_positions"
+REASON_EVENNESS_GRID_TOO_SMALL = "evenness_grid_too_small"
+REASON_EVENNESS_EMPTY_AREA = "evenness_empty_area"
+REASON_EVENNESS_NOISY_PAIRWISE = "evenness_noisy_pairwise"
+REASON_EVENNESS_NOISY_FROM_MEAN = "evenness_noisy_from_mean"
+EVENNESS_REASONS: "tuple[str, ...]" = (
+    REASON_EVENNESS_NO_LAYOUT, REASON_EVENNESS_NO_POSITIONS,
+    REASON_EVENNESS_GRID_TOO_SMALL, REASON_EVENNESS_EMPTY_AREA,
+    REASON_EVENNESS_NOISY_PAIRWISE, REASON_EVENNESS_NOISY_FROM_MEAN,
+)
+#: The two of those that are about the measurement's FILES rather than the
+#: chart's patches: no layout beside the measurement, or one that cannot be
+#: read. Adding patches in Create Chart and printing again answers neither,
+#: so the report window's strip, whose message promises exactly that, does not
+#: name a row withheld for one of these (the row still reads N-A with its note).
+EVENNESS_FILE_REASONS: "tuple[str, ...]" = (
+    REASON_EVENNESS_NO_LAYOUT, REASON_EVENNESS_NO_POSITIONS,
+)
+#: The two row ids, and which of the block's two numbers each reads.
+EVENNESS_ROWS: "dict[str, str]" = {
+    "uniformity_sd": "pairwise",
+    "uniformity_de00_max_from_mean": "from_mean",
+}
 
 # ---------------------------------------------------------------------------
 # Notes: a comment ON a verdict, which is not a reason for withholding one
@@ -2561,6 +2675,15 @@ NOTE_PRINTING_UNRECORDED = "printing_unrecorded"
 #: attached in :func:`judge`, the one place that holds a value and its limit at
 #: the same moment. The text is `measurement_messages.M_LIMIT_RECOMMENDED`.
 NOTE_RECOMMENDED_LIMIT = "recommended_limit"
+
+#: **WHAT CAN MAKE A SHEET UNEVEN, ON EVERY EVENNESS VERDICT.** Knut,
+#: 2026-09-22: information on what type of faults may result in uniformity
+#: issues must be *"mentioned in the help text, but also as notes on the
+#: results in the report text, for any report type that has enabled this
+#: metric."* A comment ON a verdict, so it is a note and not a reason, and it
+#: is attached whether the row passed or failed: a cause listed only beside a
+#: failure would read as an excuse for it.
+NOTE_EVENNESS_CAUSES = "evenness_causes"
 
 
 def _distinct_levels(levels: "list[float]", tol: float = GREY_LEVEL_TOL) -> int:
@@ -3024,6 +3147,370 @@ def repeat_across_sheets_block(ti3_path: "str | Path", lab,
     return block
 
 
+# ---------------------------------------------------------------------------
+# Evenness across the sheet, nine locations (Knut, #182, 2026-09-22)
+# ---------------------------------------------------------------------------
+def evenness_bands(n: int) -> "list[int]":
+    """*n* whole strips or rows split into three bands, the remainder to the
+    MIDDLE one. Knut, 5745765820: *"Where the remainder goes. Answer: middle
+    section."* So 10 is 3 + 4 + 3 and 11 is 3 + 5 + 3."""
+    b = int(n) // 3
+    return [b, int(n) - 2 * b, b]
+
+
+_LOC_ALPHA_NUM = re.compile(r"^([A-Za-z]+)(\d+)$")
+_LOC_NUM_ALPHA = re.compile(r"^(\d+)([A-Za-z]+)$")
+
+
+def _kw(keywords: dict, key: str, default: str = "") -> str:
+    return str(keywords.get(key, default) or default).strip().strip('"').strip()
+
+
+def chart_grid(ti2_path: "str | Path | None") -> dict:
+    """Where every patch of a laid-out chart sits: page, strip, row.
+
+    Read off the chart's ``.ti2``, never off the measurement: a chartread
+    ``.ti3`` carries no ``SAMPLE_LOC`` (checked on the demo pack), and the
+    chart is what was printed. The strip part and the row part of a location
+    are told apart by which index pattern is alphabetic, which is how Argyll
+    and the layout engine write them (``STRIP_INDEX_PATTERN "A-Z, A-Z"``,
+    ``PATCH_INDEX_PATTERN "0-9,@-9,@-9;1-999"``: strip ``Y``, row ``14``).
+
+    Returns ``{"reason": code}`` when the chart cannot say, else ``{"pages":
+    [strips per page], "rows": steps, "slot": {sample_id: (page, strip on the
+    page, row)}, "strip_label": {global strip: label}, "row_label": {row:
+    label}, "rgb": {sample_id: device 0..100}}``.
+    """
+    if ti2_path is None or not Path(ti2_path).is_file():
+        return {"reason": REASON_EVENNESS_NO_LAYOUT}
+    try:
+        d = parse_ti3(ti2_path)
+    except (Ti3ParseError, OSError):
+        return {"reason": REASON_EVENNESS_NO_LAYOUT}
+    kw = d.keywords or {}
+    pages = [int(x) for x in re.findall(r"\d+", _kw(kw, "PASSES_IN_STRIPS2"))]
+    try:
+        rows = int(_kw(kw, "STEPS_IN_PASS", "0"))
+    except ValueError:
+        rows = 0
+    if not pages or rows < 1 or not d.sample_locs:
+        return {"reason": REASON_EVENNESS_NO_LAYOUT}
+    strip_alpha = "A-Z" in _kw(kw, "STRIP_INDEX_PATTERN", "A-Z, A-Z").upper()
+    patch_alpha = "A-Z" in _kw(kw, "PATCH_INDEX_PATTERN", "0-9").upper()
+    if strip_alpha == patch_alpha:
+        # both parts letters or both digits: "12" cannot be split into a
+        # strip and a row, so no position is known
+        return {"reason": REASON_EVENNESS_NO_POSITIONS}
+    from core.strip_utils import letter_to_idx
+    starts = np.cumsum([0] + pages)
+    n_strips = int(starts[-1])
+    slot: "dict[str, tuple[int, int, int]]" = {}
+    strip_label: "dict[int, str]" = {}
+    row_label: "dict[int, str]" = {}
+    for sid, loc in zip(d.sample_ids, d.sample_locs):
+        loc = str(loc).strip().strip('"')
+        m = _LOC_ALPHA_NUM.match(loc) or _LOC_NUM_ALPHA.match(loc)
+        if not m:
+            return {"reason": REASON_EVENNESS_NO_POSITIONS}
+        a, b = m.group(1), m.group(2)
+        letters, digits = (a, b) if a.isalpha() else (b, a)
+        s_txt, r_txt = (letters, digits) if strip_alpha else (digits, letters)
+        s = letter_to_idx(s_txt) if strip_alpha else int(s_txt) - 1
+        r = int(r_txt) - 1 if strip_alpha else letter_to_idx(r_txt)
+        if not (0 <= s < n_strips and 0 <= r < rows):
+            return {"reason": REASON_EVENNESS_NO_POSITIONS}
+        page = int(np.searchsorted(starts, s, side="right") - 1)
+        slot[sid] = (page, int(s - starts[page]), r)
+        strip_label.setdefault(s, s_txt)
+        row_label.setdefault(r, r_txt)
+    rgb = {}
+    if d.rgb is not None and len(d.rgb):
+        for sid, v in zip(d.sample_ids, _rgb_to_0_100(np.asarray(d.rgb, float))):
+            rgb[sid] = v
+    return {"pages": pages, "rows": rows, "slot": slot,
+            "strip_label": strip_label, "row_label": row_label, "rgb": rgb}
+
+
+def evenness_grid_from_layout(strips_per_page: "list[int]", rows: int,
+                              total: int) -> dict:
+    """The same grid for a chart that has not been laid out yet, from the
+    layout arithmetic alone (the presets window).
+
+    The engine and printtarg both fill slots ``0 .. total-1`` strip by strip
+    and only PERMUTE which patch lands in which slot, so how many patches each
+    area holds does not depend on the seed. Synthetic ids ``"0" .. "total-1"``
+    stand in for the patches; nothing reads them but the area arithmetic.
+    """
+    starts = np.cumsum([0] + list(strips_per_page))
+    k = np.arange(int(total))
+    s, r = np.divmod(k, int(rows))
+    keep = s < int(starts[-1])
+    s, r, k = s[keep], r[keep], k[keep]
+    page = np.searchsorted(starts, s, side="right") - 1
+    return {"pages": list(strips_per_page), "rows": int(rows),
+            "ids": [str(x) for x in k], "page": page,
+            "strip": s - starts[page], "row": r,
+            "strip_label": {}, "row_label": {}, "rgb": {}}
+
+
+def _grid_arrays(grid: dict) -> "tuple[list, np.ndarray, np.ndarray, np.ndarray]":
+    """``(ids, page, strip on the page, row)`` as arrays, whichever form the
+    grid came in (the per-id ``slot`` map of a laid-out chart, or the arrays
+    of a predicted one)."""
+    if "ids" in grid:
+        return (list(grid["ids"]), np.asarray(grid["page"], int),
+                np.asarray(grid["strip"], int), np.asarray(grid["row"], int))
+    ids = list(grid["slot"])
+    if not ids:
+        z = np.zeros(0, int)
+        return ids, z, z, z
+    arr = np.asarray([grid["slot"][i] for i in ids], int)
+    return ids, arr[:, 0], arr[:, 1], arr[:, 2]
+
+
+def _bands_of(idx: np.ndarray, n: np.ndarray) -> np.ndarray:
+    """Which of :func:`evenness_bands`' three bands each index falls in, for
+    its own *n*, over arrays."""
+    b = n // 3
+    m = n - 2 * b
+    return np.where(idx < b, 0, np.where(idx < b + m, 1, 2))
+
+
+def _nearest_rank_p95(a: np.ndarray) -> float:
+    """The 95th percentile by nearest rank, the rule every p95 in this report
+    uses (`_stats`, CH-28)."""
+    s = np.sort(np.asarray(a, float))
+    k = max(1, min(s.size, int(math.ceil(0.95 * s.size))))
+    return float(s[k - 1])
+
+
+_IU = np.triu_indices(9, 1)
+
+
+def _nine_numbers(means: np.ndarray) -> "tuple[np.ndarray, np.ndarray]":
+    """``(pairwise max, largest from the mean)`` for stacks of nine area
+    residual means, shape ``(k, 9, 3)`` -> two arrays of length ``k``.
+
+    Each area's colour is :data:`EVENNESS_BASE_LAB` plus its mean residual;
+    "the mean of all nine" is the plain mean of the nine area colours, each
+    area counting once whatever it holds.
+    """
+    from workflow.profile_engine.metrics import delta_e_2000
+    labs = np.asarray(means, float) + np.asarray(EVENNESS_BASE_LAB)
+    k = labs.shape[0]
+    a = labs[:, _IU[0], :].reshape(-1, 3)
+    b = labs[:, _IU[1], :].reshape(-1, 3)
+    pw = delta_e_2000(a, b).reshape(k, -1).max(axis=1)
+    centre = labs.mean(axis=1, keepdims=True)
+    fm = delta_e_2000(labs.reshape(-1, 3),
+                      np.repeat(centre, 9, axis=1).reshape(-1, 3)
+                      ).reshape(k, 9).max(axis=1)
+    return pw, fm
+
+
+def _area_means(areas: np.ndarray, resid: np.ndarray,
+                counts: np.ndarray) -> np.ndarray:
+    return np.stack([np.bincount(areas, weights=resid[:, c], minlength=9)
+                     for c in range(3)], axis=-1) / counts[:, None]
+
+
+def evenness_from_residuals(grid: dict, residuals, *,
+                            shuffles: int = EVENNESS_SHUFFLES,
+                            seed: int = EVENNESS_SEED) -> dict:
+    """The two evenness numbers and their noise, from a grid and a residual
+    (measured minus aim, Lab) per sample id.
+
+    *residuals* is ``{sample_id: (dL, da, db)}``, or an ``(n, 3)`` array in
+    the order of the grid's own ids (the pre-print estimate, which has a
+    residual for every slot).
+
+    ONE FUNCTION FOR THE REPORT AND FOR THE PRE-PRINT ESTIMATE, so the presets
+    window and the Measure tab's pre-flight run the arithmetic the report runs
+    and differ from it only in where the residuals come from.
+    """
+    block: dict = {
+        "eligible": False, "reason": None,
+        "pairwise": None, "from_mean": None,
+        "noise_pairwise_p95": None, "noise_from_mean_p95": None,
+        "min_grid": EVENNESS_MIN_GRID,
+        "shuffles": int(shuffles), "seed": int(seed),
+        "base_lab": list(EVENNESS_BASE_LAB),
+    }
+    if "reason" in grid:
+        block["reason"] = grid["reason"]
+        return block
+    pages, rows = list(grid["pages"]), int(grid["rows"])
+    used = [p for p, s in enumerate(pages)
+            if s >= EVENNESS_MIN_GRID and rows >= EVENNESS_MIN_GRID]
+    block["pages"] = [[int(s), rows] for s in pages]
+    block["pages_used"] = [p + 1 for p in used]
+    block["largest_page"] = [int(max(pages)), rows]
+    if not used:
+        block["reason"] = REASON_EVENNESS_GRID_TOO_SMALL
+        return block
+    ids, page, strip, row = _grid_arrays(grid)
+    on_used = np.isin(page, used)
+    if isinstance(residuals, dict):
+        have = np.fromiter((i in residuals for i in ids), bool, len(ids))
+        keep = on_used & have
+        resid = np.asarray([residuals[i] for i, k in zip(ids, keep) if k],
+                           dtype=float).reshape(-1, 3)
+    else:
+        keep = on_used
+        resid = np.asarray(residuals, dtype=float).reshape(-1, 3)[keep]
+    page_strips = np.asarray(pages, int)[page[keep]]
+    areas = (_bands_of(strip[keep], page_strips) * 3
+             + _bands_of(row[keep], np.full(int(keep.sum()), rows)))
+    counts = np.bincount(areas, minlength=9).astype(float) if areas.size \
+        else np.zeros(9)
+    block["n_patches"] = int(areas.size)
+    block["counts"] = [int(c) for c in counts]
+    if areas.size == 0 or (counts == 0).any():
+        block["reason"] = REASON_EVENNESS_EMPTY_AREA
+        return block
+    means = _area_means(areas, resid, counts)
+    pw, fm = _nine_numbers(means[None])
+    # the noise: the same patches, their areas shuffled. One array of
+    # shuffles and one bincount per Lab component over all of them at once:
+    # the presets window runs this for 170 charts on one click.
+    rng = np.random.default_rng(int(seed))
+    k = int(shuffles)
+    perm = rng.permuted(np.tile(areas, (k, 1)), axis=1)
+    flat = (np.arange(k)[:, None] * 9 + perm).ravel()
+    sums = np.stack([np.bincount(flat, weights=np.tile(resid[:, c], k),
+                                 minlength=9 * k) for c in range(3)], axis=-1)
+    sh_means = sums.reshape(k, 9, 3) / counts[None, :, None]
+    npw, nfm = _nine_numbers(sh_means)
+    block.update({
+        "eligible": True, "reason": None,
+        "pairwise": round(float(pw[0]), 3),
+        "from_mean": round(float(fm[0]), 3),
+        "noise_pairwise_p95": round(_nearest_rank_p95(npw), 3),
+        "noise_from_mean_p95": round(_nearest_rank_p95(nfm), 3),
+    })
+    # WHERE: each area's own deviation, so the report can say which part of
+    # the page it is (Knut, 2026-09-22: *"return indications of which part of
+    # the page are not uniform against other areas"*).
+    from workflow.profile_engine.metrics import delta_e_2000
+    labs = means + np.asarray(EVENNESS_BASE_LAB)
+    centre = labs.mean(axis=0)
+    dfm = delta_e_2000(labs, np.repeat(centre[None], 9, axis=0))
+    pair_de = delta_e_2000(labs[_IU[0]], labs[_IU[1]])
+    worst = int(np.argmax(pair_de))
+    block["worst_pair"] = [int(_IU[0][worst]), int(_IU[1][worst])]
+    block["worst_area"] = int(np.argmax(dfm))
+    area_rows = []
+    for a in range(9):
+        c, r = divmod(a, 3)
+        area_rows.append({
+            "area": a, "strip_band": c, "row_band": r, "n": int(counts[a]),
+            "dL": round(float(means[a, 0]), 3),
+            "da": round(float(means[a, 1]), 3),
+            "db": round(float(means[a, 2]), 3),
+            "de_from_mean": round(float(dfm[a]), 3),
+            "strips": _band_labels(grid, used, c),
+            "rows": _row_band_labels(grid, rows, r),
+        })
+    block["areas"] = area_rows
+    return block
+
+
+def _band_labels(grid: dict, used: "list[int]", band: int) -> "list[list[str]]":
+    """The first and last strip label of one strip band, per page used."""
+    pages = grid["pages"]
+    starts = np.cumsum([0] + list(pages))
+    out = []
+    for p in used:
+        a, m, _ = evenness_bands(pages[p])
+        lo = (0, a, a + m)[band]
+        hi = (a, a + m, pages[p])[band] - 1
+        g_lo, g_hi = int(starts[p] + lo), int(starts[p] + hi)
+        lab = grid.get("strip_label") or {}
+        out.append([str(lab.get(g_lo, g_lo + 1)), str(lab.get(g_hi, g_hi + 1))])
+    return out
+
+
+def _row_band_labels(grid: dict, rows: int, band: int) -> "list[str]":
+    a, m, _ = evenness_bands(rows)
+    lo = (0, a, a + m)[band]
+    hi = (a, a + m, rows)[band] - 1
+    lab = grid.get("row_label") or {}
+    return [str(lab.get(lo, lo + 1)), str(lab.get(hi, hi + 1))]
+
+
+def evenness_block(lab, ref: "dict[str, tuple]", sample_ids: "list[str]",
+                   rgb100, ti2_path: "str | Path | None",
+                   corner_ids: "set[str] | None" = None,
+                   only_ids: "set[str] | None" = None) -> dict:
+    """Evenness across the sheet, nine locations, for one measured sheet.
+
+    Knut's rulings of 2026-09-22 (#182, 5785774676), in order:
+
+    1. *each patch against its own expected colour, averaged per area*: the
+       residual is measured Lab minus the aim the ΔE00 rows use (`ref`, in the
+       same yardstick as `lab`), with the declared cube corners left out as
+       the ΔE00 statistics leave them out;
+    2. three by three areas per page, whole strips and rows, remainder to the
+       middle, every page pooled (5745765820), and only pages with at least
+       :data:`EVENNESS_MIN_GRID` strips and rows;
+    3. the pairwise maximum and the largest difference from the mean;
+    6. the noise, from :data:`EVENNESS_SHUFFLES` shuffles of the same patches
+       across the areas. The COMPARISON with a limit is made in :func:`judge`
+       by :func:`evenness_withheld`, because this function never sees one.
+
+    A patch whose device values here disagree with the chart's is left out and
+    counted: its position on the sheet is the chart's, and a measurement of a
+    different chart under the same ids would put it in the wrong area.
+    """
+    grid = chart_grid(ti2_path)
+    if "reason" in grid:
+        return evenness_from_residuals(grid, {})
+    if not ref:
+        out = evenness_from_residuals({"reason": REASON_NO_REFERENCE}, {})
+        return out
+    corner_ids = corner_ids or set()
+    mine_rgb = (dict(zip(sample_ids, np.asarray(rgb100, dtype=float)))
+                if rgb100 is not None and len(rgb100) else {})
+    chart_rgb = grid.get("rgb") or {}
+    residuals: "dict[str, tuple]" = {}
+    mismatched = 0
+    for i, sid in enumerate(sample_ids):
+        aim = ref.get(sid)
+        if aim is None or sid in corner_ids or sid not in grid["slot"]:
+            continue
+        if only_ids is not None and sid not in only_ids:
+            continue
+        if sid in mine_rgb and sid in chart_rgb and float(
+                np.abs(mine_rgb[sid] - chart_rgb[sid]).max()) > PATCH_IDENTITY_TOL:
+            mismatched += 1
+            continue
+        residuals[sid] = tuple(float(lab[i][k]) - float(aim[k]) for k in range(3))
+    block = evenness_from_residuals(grid, residuals)
+    block["n_mismatched"] = mismatched
+    block["population"] = "in_gamut" if only_ids is not None else "all"
+    return block
+
+
+def evenness_withheld(row_id: str, cell: "dict | None", lim) -> "str | None":
+    """The reason code that withholds an evenness verdict, or None.
+
+    Knut, 2026-09-22, ruling 6: no verdict when the sheet's own noise (its
+    95th percentile) is not below the limit. ONE RULE, asked by :func:`judge`
+    and by `preset_eligibility`, so the report and the two pre-print windows
+    cannot disagree about what a chart can be judged on.
+    """
+    key = EVENNESS_ROWS.get(row_id)
+    if key is None or not cell or cell.get("value") is None:
+        return None
+    noise = cell.get("noise_p95")
+    if noise is None or not getattr(lim, "is_numeric", False):
+        return None
+    if float(noise) >= float(lim.number):
+        return (REASON_EVENNESS_NOISY_PAIRWISE if key == "pairwise"
+                else REASON_EVENNESS_NOISY_FROM_MEAN)
+    return None
+
+
 def is_graded_sheet(report: dict) -> bool:
     """Whether a measurement is judged against limits at all.
 
@@ -3232,6 +3719,22 @@ def row_values(report: dict) -> "dict[str, dict]":
     else:
         put("repeat_measurement_de00_max", None,
             ra.get("reason") or REASON_NO_EARLIER_MEASUREMENT)
+
+    # -- evenness across the sheet, nine locations (Knut, 2026-09-22).
+    #
+    # The value is the sheet's; whether it may be JUDGED depends on the limit
+    # as well (the noise rule), which this function never sees, so the noise
+    # travels in the cell and `judge` asks `evenness_withheld`. Every verdict
+    # on these rows carries the note on likely causes.
+    ev = report.get("evenness")
+    for rid, key in EVENNESS_ROWS.items():
+        if not isinstance(ev, dict):
+            put(rid, None, REASON_NOT_COMPUTED)
+        elif ev.get("eligible") and ev.get(key) is not None:
+            put(rid, ev[key], notes=[NOTE_EVENNESS_CAUSES])
+            out[rid]["noise_p95"] = ev.get(f"noise_{key}_p95")
+        else:
+            put(rid, None, ev.get("reason") or REASON_EVENNESS_NO_LAYOUT)
     return out
 
 
@@ -3245,7 +3748,7 @@ def judge(report: dict, limits: "dict") -> "list[dict]":
     the row id otherwise; ``pass`` keeps the old True / False / None shape
     (True for PASS, False for FAIL, None for every other word).
     """
-    from workflow.compliance_sets import (COND, FAIL, PASS, ROWS, Limit,
+    from workflow.compliance_sets import (COND, FAIL, N_A, PASS, ROWS, Limit,
                                           row_verdict)
     graded_sheet = is_graded_sheet(report)
     values = row_values(report)
@@ -3262,6 +3765,14 @@ def judge(report: dict, limits: "dict") -> "list[dict]":
         word = row_verdict(lim, value, graded)
         if word is None:
             continue
+        # THE EVENNESS NOISE RULE, which needs the limit and so lives here
+        # beside the other rule that does (`_row_notes`). It withholds a PASS
+        # or a FAIL, never an INFO: an ungraded sheet shows its number anyway.
+        withheld = (evenness_withheld(r.id, cell, lim)
+                    if word in (PASS, FAIL) else None)
+        if withheld:
+            word = N_A
+            cell = dict(cell or {}, reason=withheld)
         rows.append({
             "row_id": r.id,
             "key": r.metric_key or r.id,

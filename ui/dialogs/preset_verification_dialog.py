@@ -116,6 +116,11 @@ class PresetRow:
     #: `workflow.verification_print.chart_conversion_state`, never passed in as
     #: a claim: see `TabChart.current_chart_row`.
     from_profile_gamut: bool = False
+    #: The layout engine recipe of a built-in preset, when it has one. The
+    #: evenness rows need the chart's PAGE GRID, which a `.ti1` does not carry;
+    #: for an engine preset `PE._predicted_grid` computes it from this, with
+    #: the engine's own arithmetic and no file written.
+    recipe: "dict | None" = None
 
 
 # ---------------------------------------------------------------------------
@@ -162,6 +167,32 @@ def reason_line(code: str) -> str:
             tr("This chart has no patch at any of the solid ink corners."),
         MR.REASON_NOT_COMPUTED:
             tr("ChromIQ cannot check this metric on this chart."),
+        # EVENNESS ACROSS THE SHEET (Knut, 2026-09-22). The page grid is
+        # exact for a laid-out chart and for an engine preset; the noise is an
+        # estimate for a typical print, and the line says so.
+        MR.REASON_EVENNESS_NO_LAYOUT:
+            tr("This chart has no layout file saying where each patch is "
+               "printed."),
+        MR.REASON_EVENNESS_NO_POSITIONS:
+            tr("This chart's layout does not say which strip and row each "
+               "patch is printed in."),
+        MR.REASON_EVENNESS_GRID_TOO_SMALL:
+            tr("No page of this chart has at least {k} strips and {k} "
+               "rows.").format(k=MR.EVENNESS_MIN_GRID),
+        MR.REASON_EVENNESS_EMPTY_AREA:
+            tr("One of the nine areas of the page holds no patch."),
+        MR.REASON_EVENNESS_NOISY_PAIRWISE:
+            tr("Too few patches in each ninth of the page: on a typical print "
+               "the chart's own noise would not be below this limit. The "
+               "report measures the real noise on the printed sheet."),
+        MR.REASON_EVENNESS_NOISY_FROM_MEAN:
+            tr("Too few patches in each ninth of the page: on a typical print "
+               "the chart's own noise would not be below this limit. The "
+               "report measures the real noise on the printed sheet."),
+        PE.REASON_EVENNESS_LAID_OUT_LATER:
+            tr("This preset's page layout is decided when the chart is "
+               "built, so whether each page has at least {k} strips and {k} "
+               "rows is not known yet.").format(k=MR.EVENNESS_MIN_GRID),
     }.get(code, tr("ChromIQ cannot check this metric on this chart."))
 
 
@@ -695,10 +726,10 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         type_id, set_id = self.current_type(), self.current_set()
         for row in self._rows + ([self._current] if self._current else []):
             row.assessment = PE.assess(row.chart, type_id, set_id,
-                                       self._overrides)
+                                       self._overrides, recipe=row.recipe)
             row.starred = PE.made_for_verification(
                 row.chart, row.patches, row.pages,
-                relayoutable=row.relayoutable)
+                relayoutable=row.relayoutable, recipe=row.recipe)
         if self._current is not None:
             # **THE STAR IS A MARK ON A PRESET, AND THIS ROW IS NOT ONE.**
             # It says "this is one of the charts made for verification, pick

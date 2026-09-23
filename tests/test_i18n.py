@@ -786,6 +786,9 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-23, the evenness rows (B8-814) merged onto K22/K24:
+    # the new evenness strings are German by hand and English placeholders in
+    # the twelve others. COUNTED off the merged tree, BOTH ledgers.
     # RE-MEASURED 2026-09-23, K22 (Knut: every N-A note names what is missing
     # in the measured chart, never what to add or where). Twenty-seven reason
     # sentences reworded ("the measured chart", no instructions). German by
@@ -1340,17 +1343,17 @@ _IDENTICAL_TO_KEY = {
     # recorded. COUNTED with this file's own helper on the tree this commit
     # leaves behind.
     "de": 141,
-    "es": 965,
-    "fr": 987,
-    "it": 976,
-    "ja": 951,
-    "nl": 992,
-    "no": 977,
-    "pl": 969,
-    "pt": 967,
-    "ru": 940,
-    "sv": 978,
-    "zh_CN": 945,
+    "es": 989,
+    "fr": 1011,
+    "it": 1000,
+    "ja": 975,
+    "nl": 1016,
+    "no": 1001,
+    "pl": 993,
+    "pt": 991,
+    "ru": 964,
+    "sv": 1002,
+    "zh_CN": 969,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1377,7 +1380,7 @@ _IDENTICAL_TO_KEY = {
     # in Ukrainian, so the pointer could not match whatever the user read.
     # Nothing else changed. The ceiling is re-measured DOWN here rather than
     # left where it was, so the next rise still has to justify itself.
-    "uk": 1194,
+    "uk": 1216,
 }
 
 

@@ -79,6 +79,11 @@ STRICT = (MR.REPORT_TYPE_FULL, "custom_iso_12647_7")
 #: The one code every preset carries and no preset causes: a preset chart never
 #: has a colorimetric reference. Excluded wherever a claim is checked.
 CONSTANT = MR.REASON_NEEDS_REFERENCE_FILE
+#: …and a second one since the evenness rows became computable (#182,
+#: 2026-09-22): every demo is a printtarg preset, whose page grid does not
+#: exist until printtarg runs, so both evenness rows read "laid out later".
+CONSTANT_LAYOUT = PE.REASON_EVENNESS_LAID_OUT_LATER
+CONSTANTS = (CONSTANT, CONSTANT_LAYOUT)
 
 
 # ---------------------------------------------------------------------------
@@ -190,6 +195,9 @@ def _independent(path: Path) -> "dict[str, str | None]":
     ids, rgb, kw = _read_ti1(path)
     out: "dict[str, str | None]" = {r: CONSTANT for r in _REFERENCE_ROWS}
     out.update({r: None for r in _FREE_ROWS})
+    # a .ti1 carries no page grid, so neither evenness row can be answered
+    out.update({r: CONSTANT_LAYOUT for r in ("uniformity_sd",
+                                             "uniformity_de00_max_from_mean")})
 
     # -- the control strip
     declared = [p for p in re.split(r"[,\s]+",
@@ -345,7 +353,8 @@ def _withheld(dlg, demo) -> "dict[str, str]":
     """What the real window withholds from this preset, minus the constant."""
     _head, item, row = _row_for(dlg, demo.name)
     assert item is not None, f"{demo.name} is not in the window"
-    return {rid: why for rid, why in row.assessment.missing if why != CONSTANT}
+    return {rid: why for rid, why in row.assessment.missing
+            if why not in CONSTANTS}
 
 
 def _detail_text(dlg, item) -> "list[str]":
@@ -671,8 +680,12 @@ def test_the_unreachable_four_really_are_unreachable_here(dialog):
     for row in dialog._rows:
         seen |= {why for _rid, why in row.assessment.missing}
     for code in GEN.UNREACHABLE:
-        if code == CONSTANT:
-            assert code in seen, "every preset should read needs_reference_file"
+        if code in CONSTANTS:
+            assert code in seen, f"every preset should read {code}"
+        elif code in GEN.SHOWN_BY_BUILTINS:
+            # the evenness codes the built-in ENGINE presets show, from their
+            # predicted page grid (#182, 2026-09-22); no demo here can
+            assert code in seen, f"no built-in preset showed {code}"
         else:
             assert code not in seen, code
 

@@ -426,8 +426,9 @@ def test_every_judgeable_row_names_a_lever():
     # ELEVEN UNTIL 2026-09-18, sixteen since: B8-397 built the detection for
     # the three control-strip rows and the two gamut populations, so five rows
     # that had nothing to advise now do. EIGHTEEN since 2026-09-22, for
-    # ChromIQ's own two repeatability rows (B8-660, B8-661).
-    assert len(judgeable) == 18, len(judgeable)
+    # ChromIQ's own two repeatability rows (B8-660, B8-661). TWENTY since
+    # 2026-09-23: the two evenness rows became computable (B8-814).
+    assert len(judgeable) == 20, len(judgeable)
     for row in judgeable:
         assert row.remedy, f"{row.id} tells the reader nothing to do"
         assert len(row.remedy.split()) >= 25, (

@@ -25190,3 +25190,62 @@ would reach.
 - evidence:
   test_every_na_note_names_what_is_missing_and_nothing_to_do
   test_every_new_reason_becomes_a_sentence_that_says_what_to_do
+
+### B8-814 · FIXED · Evenness across the sheet, nine locations: the two rows are computed, judged and explained everywhere
+- blocks release: yes
+- status: FIXED
+- found by: Knut, #182 comments 5545146395, 5744704621, 5745765820 and his
+  rulings of 2026-09-22 (5785774676) on the F1 analysis; specified in
+  `docs/design/measurement_report_limits.md` §16 (awaiting confirmation).
+- what was built: `measurement_report.evenness_block` (every patch against its
+  own aim, averaged over nine areas of the page from the chart's `.ti2`,
+  remainder to the middle band, pages pooled, pages under 9 by 9 left out),
+  the pairwise and from-the-mean rows under a heading of their own, 1.5 / 1.0
+  in ChromIQ default, the noise guard (500 shuffles, fixed seed, no verdict
+  while the 95th percentile is not below the limit) applied in `judge` and in
+  the preset eligibility by one function, notes on likely causes and on where
+  the sheet is off, the one-page summary's paragraph, and the presets window
+  and pre-flight answering by the same arithmetic (exact page grid for laid-out
+  charts and engine presets, estimated noise for a typical print).
+- evidence:
+  test_the_remainder_goes_to_the_middle_band
+  test_the_positions_come_from_the_chart_and_not_from_the_file_order
+  test_an_even_sheet_passes_both_rows_and_carries_the_causes_note
+  test_a_gradient_across_the_sheet_fails_the_pairwise_row_first
+  test_one_area_off_fails_the_from_mean_row_first
+  test_the_pairwise_figure_is_the_largest_pair
+  test_the_mean_counts_each_area_once
+  test_a_noisy_sheet_is_not_judged_and_says_its_noise
+  test_the_noise_rule_is_strictly_below
+  test_the_noise_is_reproducible
+  test_an_ungraded_sheet_shows_its_number_whatever_the_noise
+  test_nine_by_nine_is_the_floor_exactly
+  test_a_short_last_page_is_left_out_not_fatal
+  test_no_chart_beside_the_measurement_is_na_and_stays_off_the_strip
+  test_a_patch_the_measurement_disagrees_with_is_left_out
+  test_a_saved_report_without_the_block_is_rebuilt
+  test_the_rows_are_computable_under_their_own_heading
+  test_the_limits_knut_gave_and_the_half_and_double_rule
+  test_the_help_text_quotes_the_numbers_the_code_uses
+  test_the_causes_note_is_customer_text
+  test_the_report_names_the_area_by_the_labels_printed_on_it
+  test_a_laid_out_small_chart_is_told_its_noise_would_be_too_high
+  test_a_preset_not_laid_out_yet_says_so_and_keeps_its_star
+  test_the_estimate_reproduces_the_real_sheets_noise
+  test_the_predicted_grid_is_the_grid_the_engine_builds
+- proof: `~/Desktop/ChromIQ-beta37-proof/evenness/` (DESIGN.md, REPORT.md,
+  photographs of the real app on screen).
+
+### B8-815 · OPEN · Evenness: seven questions for Knut before §16 can be confirmed
+- blocks release: no
+- status: OPEN
+- found by: building B8-814; each is written out in
+  `docs/design/measurement_report_limits.md` §16.5.
+- E1 a page under 9 by 9 in a multi-page chart is left out (built) or refuses
+  the chart; E2 the 75 % page-coverage requirement is not in the 2026-09-22
+  rulings and is not built; E3 tight and quick are half and double (0.75 / 0.5,
+  3.0 / 2.0) and tight is N-A on most charts; E4 the rows do not decide the
+  presets window's star; E5 the Custom columns start from 1.5 / 1.0 rather
+  than his own researched figures; E6 both rows stay in the ISO columns'
+  structure though the first was a spread statistic there; E7 the 1.0 on the
+  from-the-mean row.

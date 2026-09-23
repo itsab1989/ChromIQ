@@ -237,6 +237,11 @@ GROUP_LABELS: "dict[str, str]" = {
     # stops the arrangement claiming otherwise, which is the failure this file
     # already records being made twice by juxtaposition rather than by words.
     "repeatability": "Repeatability, measured by ChromIQ",
+    # Knut, 2026-09-22: the two evenness rows became computable, by a method he
+    # ruled rather than one a standard publishes, so they leave "Not evaluated
+    # by ChromIQ" for a heading of their own. Their help text says whose method
+    # it is; the heading only says what the rows are about.
+    "evenness":      "Evenness across the sheet",
     "not_evaluated": "Not evaluated by ChromIQ",
 }
 
@@ -467,6 +472,57 @@ _R_REPEAT_ACROSS = (
     "values both measurements agree on, so a rebuilt chart starts the series "
     "again instead of extending it.")
 
+#: **EVENNESS ACROSS THE SHEET** (Knut, #182, 2026-09-22). The help text
+#: carries the likely causes, which he asked for in the help text AND in the
+#: report: *"information on what type of faults may result in uniformity issues
+#: need to be mentioned in the help text, but also as notes on the results in
+#: the report text"*. The 9, the 500 and the 30 are
+#: `measurement_report.EVENNESS_MIN_GRID`, `EVENNESS_SHUFFLES` and the F1
+#: measurement; `tests/test_evenness_across_the_sheet.py` holds the sentence to
+#: the constants.
+_EVEN_CAUSES = (
+    "An uneven sheet usually has a cause you can look for: banding from the "
+    "printer, a partly blocked or misaligned print head, paper that is not "
+    "flat or not the same all over, or, on an instrument that reads whole "
+    "strips, the instrument drifting while it reads. The strips are read one "
+    "after another, so a drift during the reading shows as a difference "
+    "across the strips rather than down them.")
+_B_EVEN_PAIRWISE = (
+    "Whether the sheet prints the same colour everywhere. Every patch is "
+    "compared with its own aim value, the differences are averaged over each "
+    "ninth of the page, and this row is the largest difference between any "
+    "two of those nine areas.\n\n" + _EVEN_CAUSES)
+_B_EVEN_FROM_MEAN = (
+    "The ninth of the page that sits furthest from the sheet as a whole: the "
+    "largest difference between one of the nine areas and the average of all "
+    "nine. One area on its own that is off, a blotch, shows here first; a "
+    "gradual change from one side to the other shows first in the row "
+    "above.\n\n" + _EVEN_CAUSES)
+_D_EVENNESS = (
+    "ChromIQ can judge these two rows on a verification sheet whose chart "
+    "file records where each patch is printed, which every chart ChromIQ lays "
+    "out does. Each page is divided into three bands of strips and three "
+    "bands of rows, whole strips and rows only, with any remainder in the "
+    "middle band, and the same ninth of every page is counted together. Only "
+    "pages with at least 9 strips and 9 rows are used, so the chart needs at "
+    "least one such page.\n\n"
+    "Every patch is compared with its own aim value, the same one the colour "
+    "accuracy rows use, and the differences are averaged in each of the nine "
+    "areas. No patches are matched by brightness or by grey.\n\n"
+    "The report also measures the sheet's own noise: it shuffles the patches "
+    "across the nine areas 500 times and takes the 95th percentile of what "
+    "the same arithmetic reads. A row is judged only when that noise is below "
+    "the row's limit. With a typical print that wants about 30 patches in "
+    "each area, roughly 270 on a page.\n\n"
+    "This method is ChromIQ's own. A standard that limits evenness reads it "
+    "its own way, on its own chart.")
+_R_EVENNESS = (
+    "Use a chart whose pages hold at least 9 strips and 9 rows and enough "
+    "patches that about 30 land in each ninth of the page: the larger "
+    "built-in presets do. If a row reads a difference, measure the same sheet "
+    "again before looking for a cause, since an instrument that drifts during "
+    "a long reading makes the strips read last differ from the first.")
+
 ROWS: "tuple[Row, ...]" = (
     # -- Paper
     Row("substrate_de00_max", "substrate",
@@ -598,15 +654,32 @@ ROWS: "tuple[Row, ...]" = (
         blurb='Whether the same file prints the same colour on another sheet and on another day. This is the question behind asking whether a printer is steady, and it is answered by measuring one verification chart more than once.',
         detect=_D_REPEAT_ACROSS,
         remedy=_R_REPEAT_ACROSS),
-    # -- Not evaluated by ChromIQ (✕ rows; notes in the report)
-    Row("uniformity_sd", "not_evaluated",
-        "Evenness across the sheet, nine locations (spread of L*, a*, b*)", "",
-        "unmeasurable", note="needs nine readings at set positions on one sheet",
-        blurb='Whether one sheet prints the same colour in the middle as in the corners, read at nine set places.'),
-    Row("uniformity_de00_max_from_mean", "not_evaluated",
+    # -- Evenness across the sheet (Knut, #182, 2026-09-22)
+    #
+    # THE TWO IDS ARE KEPT, as `outer_gamut_226` kept its "226": a run's stored
+    # limits, a saved report's verdict and a licence holder's values file are
+    # all keyed by the id, and the id is shown nowhere. What changed is what
+    # the rows MEAN. Until 2026-09-22 they were ✕, "needs nine readings at set
+    # positions on one sheet"; Knut then ruled a method that needs no set
+    # positions at all (every patch against its own aim, averaged over nine
+    # areas of the page), and named the two numbers: the pairwise maximum for
+    # "nine locations", the largest difference from the mean for the other.
+    # The first label drops "spread of L*, a*, b*", which was the standards'
+    # statistic and is not the one computed here; `docs/design/
+    # measurement_report_limits.md` §16 records that a licence holder's figure
+    # for this row was written for a different statistic.
+    Row("uniformity_sd", "evenness",
+        "Evenness across the sheet, nine locations", "ΔE00", "build",
+        blurb=_B_EVEN_PAIRWISE,
+        detect=_D_EVENNESS,
+        remedy=_R_EVENNESS),
+    Row("uniformity_de00_max_from_mean", "evenness",
         "Evenness across the sheet, largest difference from the mean", "ΔE00",
-        "unmeasurable", note="needs nine readings at set positions on one sheet",
-        blurb='The worst of those nine places against their own average.'),
+        "build",
+        blurb=_B_EVEN_FROM_MEAN,
+        detect=_D_EVENNESS,
+        remedy=_R_EVENNESS),
+    # -- Not evaluated by ChromIQ (✕ rows; notes in the report)
     Row("macro_uniformity_score", "not_evaluated",
         "Macro-uniformity score", "", "unmeasurable",
         note="a scanned-image method; ChromIQ measures patches, not areas",
@@ -841,6 +914,14 @@ _CHROMIQ_FACTORY: "dict[str, dict[str, Limit]]" = {
         # maxima from 0.32 to 1.999, median 0.698.
         "repeat_patches_de00_max": Limit.value(2.0),
         "repeat_measurement_de00_max": Limit.value(3.0),
+        # EVENNESS ACROSS THE SHEET, Knut 2026-09-22: *"keep 1.5 for pairwise
+        # row. largest diff 1.0 I think may be ok"*. The 1.0 was Basti's
+        # proposal and awaits Knut's confirmation (§16 of the limits spec).
+        # With nine areas the pairwise figure P and the from-the-mean figure D
+        # satisfy 1.125 D <= P <= 2 D, so 1.5 and 1.0 make each row catch a
+        # fault the other misses: a blotch trips D first, a gradient P first.
+        "uniformity_sd": Limit.value(1.5),
+        "uniformity_de00_max_from_mean": Limit.value(1.0),
     },
     "chromiq_tight": {
         "all_de00_avg": Limit.value(1.0), "best95_de00_avg": Limit.value(1.0),
@@ -850,6 +931,11 @@ _CHROMIQ_FACTORY: "dict[str, dict[str, Limit]]" = {
         "grey_balance_neutral_ramp_max": Limit.value(2.0),
         "repeat_patches_de00_max": Limit.value(1.0),
         "repeat_measurement_de00_max": Limit.value(1.5),
+        # Half of default, as every other row here. At 0.75 the sheet's own
+        # noise must fall under 0.75 as well, which takes about four times the
+        # patches, so on most charts tight reads N-A on these two (§16, Q-E3).
+        "uniformity_sd": Limit.value(0.75),
+        "uniformity_de00_max_from_mean": Limit.value(0.5),
     },
     "chromiq_quick": {
         "all_de00_avg": Limit.value(4.0), "best95_de00_avg": Limit.value(4.0),
@@ -859,6 +945,8 @@ _CHROMIQ_FACTORY: "dict[str, dict[str, Limit]]" = {
         "grey_balance_neutral_ramp_max": Limit.value(7.0),
         "repeat_patches_de00_max": Limit.value(4.0),
         "repeat_measurement_de00_max": Limit.value(6.0),
+        "uniformity_sd": Limit.value(3.0),
+        "uniformity_de00_max_from_mean": Limit.value(2.0),
     },
 }
 
@@ -1016,6 +1104,12 @@ _CUSTOM_CHROMIQ_FILL: "dict[str, Limit]" = {
     # either, so ChromIQ's own numbers stand.
     "repeat_patches_de00_max": Limit.value(2.0),      # ΔE00
     "repeat_measurement_de00_max": Limit.value(3.0),  # ΔE00
+    # EVENNESS ACROSS THE SHEET, computable since 2026-09-22: ChromIQ
+    # default's own two numbers, by the rule this table follows. Knut's values
+    # file may carry figures of his own for these rows; nothing here reads it
+    # (§16 asks him whether he wants those as the Custom starting numbers).
+    "uniformity_sd": Limit.value(1.5),                  # ΔE00
+    "uniformity_de00_max_from_mean": Limit.value(1.0),  # ΔE00
 }
 
 

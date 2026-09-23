@@ -3970,6 +3970,11 @@ def verification_preset_rows(settings) -> list:
                 group=instr, label=overlay_label, chart=chart,
                 patches=patch_count(chart) if chart else 0,
                 pages=pages, builtin=True, key=key,
+                # the engine recipe, so the evenness rows can be told the
+                # page grid this preset will be laid out on (#182)
+                recipe=(dict(p.layout_recipe)
+                        if p is not None and getattr(p, "layout_recipe", None)
+                        else None),
                 # **A PREBUILT-FILES PRESET SHIPS ITS PAGES AS TIFFs.** Knut,
                 # beta 25: *"these charts do not have a proper layout and come
                 # with pre-made tif files"*, so the sheet cannot be laid out
@@ -10239,7 +10244,11 @@ class TabChart(QWidget):
             rows = verification_preset_rows(self._settings)
         except Exception:      # noqa: BLE001 - warming is never worth an error
             return
-        self._preset_warm_charts = [r.chart for r in rows
+        # WITH EACH PRESET'S RECIPE, because the window asks with it: the
+        # evenness rows' page grid comes from the recipe, so the recipe is
+        # part of the cache key and warming without it warmed nothing.
+        self._preset_warm_charts = [(r.chart, getattr(r, "recipe", None))
+                                    for r in rows
                                     if getattr(r, "chart", None)]
         if not self._preset_warm_charts:
             return
@@ -10256,9 +10265,9 @@ class TabChart(QWidget):
         charts = getattr(self, "_preset_warm_charts", None) or []
         at = int(getattr(self, "_preset_warm_at", 0))
         end = min(len(charts), at + 4)
-        for c in charts[at:end]:
+        for c, recipe in charts[at:end]:
             try:
-                _pe.chart_row_values(c)
+                _pe.chart_row_values(c, recipe)
             except Exception:   # noqa: BLE001 - one bad chart is not fatal
                 pass
         self._preset_warm_at = end

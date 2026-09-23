@@ -146,6 +146,37 @@ OTHER_SHORTFALL_REASONS: "frozenset[str]" = frozenset({
     MR.REASON_NOT_COMPUTED,              # the block is absent (old report)
 })
 
+#: A preset whose page grid does not exist yet: a printtarg preset is laid
+#: out when printtarg runs, and a `.ti1` carries no grid. Only this window can
+#: meet it, since every measured sheet was laid out, so it lives here and not
+#: among the report's own codes.
+REASON_EVENNESS_LAID_OUT_LATER = "evenness_laid_out_later"
+
+#: **EVENNESS ACROSS THE SHEET: A THIRD KIND OF SHORTFALL, THE LAYOUT'S.**
+#: (Knut, 2026-09-22.) A page grid under 9 by 9, an area with no patch, or too
+#: few patches per area for the sheet's noise to stay under the limit: a
+#: larger chart fixes each of them, so they are shown as missing like any
+#: patch shortfall. They do NOT decide the star, and that is a question put to
+#: Knut rather than an answer (docs/design/measurement_report_limits.md §16,
+#: Q-E4): at 1.5 the rows want about 30 patches in every ninth of the page,
+#: roughly 270 on one page, and the verification presets the star was made
+#: for are deliberately 77 to 204. Counting them would take the star off nearly
+#: every chart it exists to mark.
+LAYOUT_SHORTFALL_REASONS: "frozenset[str]" = frozenset({
+    MR.REASON_EVENNESS_GRID_TOO_SMALL,
+    MR.REASON_EVENNESS_EMPTY_AREA,
+    MR.REASON_EVENNESS_NOISY_PAIRWISE,
+    MR.REASON_EVENNESS_NOISY_FROM_MEAN,
+})
+#: …and the evenness codes that are about the chart FILE, not its size: no
+#: layout beside it, locations that do not read as strip and row, and a preset
+#: that has not been laid out yet (printtarg decides its grid when it runs).
+OTHER_SHORTFALL_REASONS = OTHER_SHORTFALL_REASONS | frozenset({
+    MR.REASON_EVENNESS_NO_LAYOUT,
+    MR.REASON_EVENNESS_NO_POSITIONS,
+    REASON_EVENNESS_LAID_OUT_LATER,
+})
+
 #: **CHROMIQ'S OWN TWO REPEATABILITY ROWS ARE NOT IN EITHER SET ABOVE, because
 #: this window never asks them.** `rows_asked` filters them out through
 #: `compliance_sets.POPULATION_MAY_BE_ABSENT`, so their four reason codes
@@ -157,7 +188,8 @@ OTHER_SHORTFALL_REASONS: "frozenset[str]" = frozenset({
 
 def classified_reasons() -> "frozenset[str]":
     """Every reason this module knows how to file. The guard's subject."""
-    return PATCH_SHORTFALL_REASONS | OTHER_SHORTFALL_REASONS
+    return (PATCH_SHORTFALL_REASONS | OTHER_SHORTFALL_REASONS
+            | LAYOUT_SHORTFALL_REASONS)
 
 
 # ---------------------------------------------------------------------------
@@ -195,9 +227,93 @@ def is_patch_shortfall(reason: "str | None") -> bool:
 # ---------------------------------------------------------------------------
 # The stand-in report
 # ---------------------------------------------------------------------------
-def _perfect_print(chart: Path) -> dict:
+def _evenness_grid_for(chart: Path, recipe: "dict | None") -> dict:
+    """Where every patch of *chart* will sit, or the reason nobody knows yet.
+
+    * a laid-out chart (a ``.ti2``, or a ``.ti1`` with its ``.ti2`` beside it,
+      as the prebuilt bundles ship): read by the report's own
+      :func:`~workflow.measurement_report.chart_grid`, exactly;
+    * a preset with an engine layout recipe: the engine's own layout
+      arithmetic (:func:`_predicted_grid`), with no file written;
+    * anything else, a printtarg preset that has never been built: printtarg
+      decides the grid when it runs, so the answer is "laid out later".
+    """
+    if chart.suffix.lower() == ".ti2":
+        return MR.chart_grid(chart)
+    beside = chart.with_suffix(".ti2")
+    if beside.is_file():
+        return MR.chart_grid(beside)
+    if recipe:
+        try:
+            return _predicted_grid(chart, recipe)
+        except Exception as exc:      # noqa: BLE001 — an estimate, never a gate
+            log.info("could not lay out %s for the evenness rows: %s",
+                     chart, exc)
+    return {"reason": REASON_EVENNESS_LAID_OUT_LATER}
+
+
+def _predicted_grid(chart: Path, recipe: dict) -> dict:
+    """The page grid the layout engine will give *chart* under *recipe*.
+
+    The same chokepoint Create Chart's own capacity estimate goes through
+    (`instruments.geom_from_build_kwargs` then `geometry.compute`), and the
+    same per-page strip count `ti2_writer` writes into ``PASSES_IN_STRIPS2``.
+    `side_stamp` is left at `build_chart`'s own default, which is the app's.
+    `tests/test_evenness_across_the_sheet.py` builds real presets and holds
+    this prediction to the ``.ti2`` the build wrote.
+    """
+    from workflow.layout_engine import geometry, instruments, papers
+    from workflow.layout_engine.presets import LayoutRecipe
+    rec = LayoutRecipe.from_dict(dict(recipe))
+    kw = rec.build_kwargs()
+    npat = patch_count(chart)
+    if npat < 1:
+        raise ValueError("no patches")
+    kw.setdefault("side_stamp", True)
+    kw["area_target_count"] = npat
+    geom = instruments.geom_from_build_kwargs(kw)
+    w_mm, h_mm = papers.dimensions_mm(kw["paper"])
+    lay = geometry.compute(geom, w_mm, h_mm, npat)
+    steps = lay.steps_in_pass or 1
+    per_page = lay.patches_per_page or 0
+    strips, remaining = [], lay.total_patches
+    for _pg in range(max(1, lay.pages)):
+        on_page = min(per_page, remaining) if per_page else remaining
+        strips.append((on_page + steps - 1) // steps)
+        remaining -= on_page
+    return MR.evenness_grid_from_layout(strips, steps, lay.total_patches)
+
+
+def _estimated_evenness(chart: Path, recipe: "dict | None") -> dict:
+    """The evenness block a TYPICAL print of *chart* would give.
+
+    The grid is exact where the chart is laid out (see
+    :func:`_evenness_grid_for`); the residuals cannot be known before the sheet
+    is printed, so each patch gets one of the size the F1 measurement found on
+    a real sheet (:data:`~workflow.measurement_report.EVENNESS_TYPICAL_SIGMA`),
+    from a fixed seed, and the report's own arithmetic runs on them. The block
+    says it is an estimate.
+    """
+    grid = _evenness_grid_for(chart, recipe)
+    if "reason" in grid:
+        block = MR.evenness_from_residuals(grid, {})
+    else:
+        rng = np.random.default_rng(MR.EVENNESS_SEED)
+        n = len(grid["ids"]) if "ids" in grid else len(grid["slot"])
+        noise = rng.normal(0.0, MR.EVENNESS_TYPICAL_SIGMA, (n, 3))
+        block = MR.evenness_from_residuals(
+            grid, noise, shuffles=MR.EVENNESS_ESTIMATE_SHUFFLES)
+    block["estimated"] = True
+    return block
+
+
+def _perfect_print(chart: Path, recipe: "dict | None" = None) -> dict:
     """The report a flawless print of *chart*, measured as a verification
-    sheet, would produce. Every block comes from :mod:`measurement_report`."""
+    sheet, would produce. Every block comes from :mod:`measurement_report`.
+
+    The one exception is evenness, which a flawless print cannot answer: its
+    noise IS the imperfection. That block is the report's own arithmetic on an
+    estimated typical print (:func:`_estimated_evenness`)."""
     data = parse_ti3(chart)
     if not len(data.rgb):
         raise Ti3ParseError("The chart carries no device RGB columns.")
@@ -235,6 +351,7 @@ def _perfect_print(chart: Path) -> dict:
             rgb100, lab, ref, data.sample_ids),
         "control_strip": MR.control_strip_block(
             lab, ref, data.sample_ids, _declaration_it_would_get(chart)),
+        "evenness": _estimated_evenness(chart, recipe),
     }
     if colorimetric:
         # The three reference rows are computed from this block and nothing
@@ -341,7 +458,8 @@ _CACHE: "dict[tuple, dict]" = {}
 _PATCHES: "dict[tuple, int]" = {}
 
 
-def chart_row_values(chart: "str | Path") -> "dict[str, dict]":
+def chart_row_values(chart: "str | Path",
+                     recipe: "dict | None" = None) -> "dict[str, dict]":
     """``{row_id: {"value", "reason", …}}`` for a chart that is not printed yet.
 
     The report's own :func:`~workflow.measurement_report.row_values`, over the
@@ -356,14 +474,30 @@ def chart_row_values(chart: "str | Path") -> "dict[str, dict]":
     try:
         st = p.stat()
         key = (str(p.resolve()), st.st_mtime_ns, st.st_size,
-               _reference_stamp(p))
+               _reference_stamp(p), _layout_stamp(p),
+               # the recipe decides the predicted page grid of a preset that
+               # is not laid out yet, so two recipes are two answers
+               repr(sorted((recipe or {}).items())))
     except OSError as exc:
         raise Ti3ParseError(str(exc)) from exc
     hit = _CACHE.get(key)
     if hit is None:
-        hit = MR.row_values(_perfect_print(p))
+        hit = MR.row_values(_perfect_print(p, recipe))
         _CACHE[key] = hit
     return hit
+
+
+def _layout_stamp(chart: Path) -> tuple:
+    """The (mtime, size) of the ``.ti2`` beside a ``.ti1``, or ``()``: the
+    evenness rows read the page grid from it, a second file, so it is part of
+    the key for the reason `_reference_stamp` gives."""
+    if chart.suffix.lower() == ".ti2":
+        return ()
+    try:
+        st = chart.with_suffix(".ti2").stat()
+    except OSError:
+        return ()
+    return (st.st_mtime_ns, st.st_size)
 
 
 def _reference_stamp(chart: Path) -> tuple:
@@ -519,28 +653,56 @@ def rows_any_report_can_ask(overrides: "dict | None" = None) -> "tuple[str, ...]
 
 
 def assess_any(chart: "str | Path | None",
-               overrides: "dict | None" = None) -> Assessment:
+               overrides: "dict | None" = None,
+               recipe: "dict | None" = None) -> Assessment:
     """One chart against everything any report could ask of it.
 
     The pre-flight's question, as opposed to the presets window's. See
     :func:`rows_any_report_can_ask` for why the two differ.
+
+    The evenness noise rule needs a LIMIT, and this question has no one set:
+    a row counts as one the chart can answer when it could be judged under the
+    loosest limit any selectable set puts on it (:func:`loosest_limits`),
+    which is the same "maximum a report can check" the row list itself is.
     """
-    return assess_rows(chart, rows_any_report_can_ask(overrides))
+    return assess_rows(chart, rows_any_report_can_ask(overrides),
+                       limits=loosest_limits(overrides), recipe=recipe)
+
+
+def loosest_limits(overrides: "dict | None" = None) -> "dict":
+    """``{row_id: Limit}``, the largest numeric limit any selectable set puts
+    on each row, for the pre-flight's set-independent question."""
+    from workflow.compliance_sets import SETS
+    out: dict = {}
+    for sd in SETS:
+        for rid, lim in CS.effective_limits(sd.id, overrides).items():
+            if not lim.is_numeric:
+                continue
+            if rid not in out or lim.number > out[rid].number:
+                out[rid] = CS.Limit.value(lim.number)
+    return out
 
 
 def assess_rows(chart: "str | Path | None",
-                asked: "tuple[str, ...]") -> Assessment:
+                asked: "tuple[str, ...]", *,
+                limits: "dict | None" = None,
+                recipe: "dict | None" = None) -> Assessment:
     """One chart against a given set of rows. Never raises.
 
     `assess` decides the rows from one report type and one limit set;
     `assess_any` decides them from every combination there is. Both then ask
     the same question of the chart, and that question lives here so the two
     cannot drift apart.
+
+    *limits* lets the one rule that depends on a limit apply here as it does
+    in the report: an evenness row whose (estimated) noise is not below its
+    limit is missing, with the report's own reason
+    (:func:`~workflow.measurement_report.evenness_withheld`).
     """
     if chart is None:
         return Assessment(asked=asked, answered=(), missing=(), checked=False)
     try:
-        values = chart_row_values(chart)
+        values = chart_row_values(chart, recipe)
     except (Ti3ParseError, OSError) as exc:
         log.info("preset chart %s cannot be assessed: %s", chart, exc)
         return Assessment(asked=asked, answered=(), missing=(),
@@ -548,7 +710,11 @@ def assess_rows(chart: "str | Path | None",
     answered, missing = [], []
     for rid in asked:
         v = values.get(rid) or {}
-        if v.get("value") is not None:
+        withheld = (MR.evenness_withheld(rid, v, (limits or {}).get(rid))
+                    if limits else None)
+        if withheld:
+            missing.append((rid, withheld))
+        elif v.get("value") is not None:
             answered.append(rid)
         else:
             missing.append((rid, v.get("reason") or MR.REASON_NOT_COMPUTED))
@@ -557,16 +723,20 @@ def assess_rows(chart: "str | Path | None",
 
 
 def assess(chart: "str | Path | None", type_id: str, set_id: str,
-           overrides: "dict | None" = None) -> Assessment:
+           overrides: "dict | None" = None,
+           recipe: "dict | None" = None) -> Assessment:
     """One chart against one combination. Never raises."""
-    return assess_rows(chart, rows_asked(type_id, set_id, overrides))
+    return assess_rows(chart, rows_asked(type_id, set_id, overrides),
+                       limits=CS.effective_limits(set_id, overrides),
+                       recipe=recipe)
 
 
 # ---------------------------------------------------------------------------
 # The star
 # ---------------------------------------------------------------------------
 def made_for_verification(chart: "str | Path | None", patches: int,
-                          pages: int, *, relayoutable: bool = True) -> bool:
+                          pages: int, *, relayoutable: bool = True,
+                          recipe: "dict | None" = None) -> bool:
     """Whether this chart is one of the ones Knut asked to be highlighted.
 
     Four conditions, ANDed, and none of them depends on the two pulldowns:
@@ -593,7 +763,7 @@ def made_for_verification(chart: "str | Path | None", patches: int,
     if patches < 1 or patches > VERIFICATION_MAX_PATCHES:
         return False
     try:
-        values = chart_row_values(chart)
+        values = chart_row_values(chart, recipe)
     except (Ti3ParseError, OSError):
         return False
     return not any(is_patch_shortfall((values.get(rid) or {}).get("reason"))

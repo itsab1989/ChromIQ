@@ -539,6 +539,9 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-23, the evenness rows (B8-814) merged onto K22/K24:
+    # the new evenness strings are German by hand and English placeholders in
+    # the twelve others. COUNTED off the merged tree, BOTH ledgers.
     # RE-MEASURED 2026-09-23, K22 (Knut: every N-A note names what is missing
     # in the measured chart, never what to add or where). Twenty-seven reason
     # sentences reworded ("the measured chart", no instructions). German by
@@ -923,18 +926,18 @@ _BUDGET = {
     # recorded. COUNTED with this file's own helper on the tree this commit
     # leaves behind.
     "de": 17,
-    "es": 703,
-    "fr": 704,
-    "it": 703,
-    "ja": 703,
-    "nl": 703,
-    "no": 703,
-    "pl": 703,
-    "pt": 703,
-    "ru": 702,
-    "sv": 703,
-    "zh_CN": 702,
-    "uk": 910,
+    "es": 724,
+    "fr": 725,
+    "it": 724,
+    "ja": 724,
+    "nl": 724,
+    "no": 724,
+    "pl": 724,
+    "pt": 724,
+    "ru": 723,
+    "sv": 724,
+    "zh_CN": 723,
+    "uk": 929,
 }
 
 

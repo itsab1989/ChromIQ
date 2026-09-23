@@ -106,9 +106,12 @@ def test_chromiq_sets_define_no_limit_on_the_standards_only_rows():
     # default's own numbers are Knut's K4 ruling and he did not extend them.
     # They are limited in the two Custom columns, which is where he asked for
     # "a value that can be tested against" for every measurable metric.
+    # `uniformity_sd` left this list on 2026-09-23: Knut ruled a method for
+    # the two evenness rows and 1.5 on the pairwise one in ChromIQ's own sets
+    # (B8-814), so ChromIQ default limits it now. The ✕ row below stays.
     for rid in ("substrate_de00_max", "control_strip_de00_avg",
                 "outer_gamut_226_de00_avg", "surface_gamut_de00_avg",
-                "uniformity_sd"):
+                "macro_uniformity_score"):
         assert f[rid].kind == "none", rid
 
 
@@ -226,7 +229,7 @@ def test_overrides_apply_to_editable_sets_only_and_keep_a_should_a_should():
                               "grey_balance_neutral_ramp_avg": 2.0,
                               "all_de00_max": None,          # "no limit"
                               "all_de00_p95": 0.0,           # the spin box's –
-                              "uniformity_sd": 1.0,          # cannot be overridden
+                              "macro_uniformity_score": 1.0,  # cannot be overridden
                               "no_such_row": 1.0},
           "iso_12647_7": {"all_de00_avg": 1.0}}
     e = effective_limits("chromiq_default", ov)
@@ -239,7 +242,7 @@ def test_overrides_apply_to_editable_sets_only_and_keep_a_should_a_should():
     assert e["grey_balance_neutral_ramp_avg"] == Limit.value(2.0)
     assert e["all_de00_max"].kind == "none"
     assert e["all_de00_p95"].kind == "none"
-    assert e["uniformity_sd"].kind == "none"
+    assert e["macro_uniformity_score"].kind == "none"
     assert effective_limits("iso_12647_7", ov)["all_de00_avg"].kind == "unknown"
     # garbage shapes never raise
     assert effective_limits("chromiq_default", {"chromiq_default": "x"}) == \
@@ -255,9 +258,11 @@ def test_limit_bearing_rows_are_numeric_and_computable():
         # than the set being loosened, because this assertion is the record of
         # exactly what ChromIQ default judges, and a row joining that list is
         # a deliberate act each time.
-        "repeat_patches_de00_max", "repeat_measurement_de00_max"}
+        "repeat_patches_de00_max", "repeat_measurement_de00_max",
+        # the two evenness rows, Knut 2026-09-22 (B8-814)
+        "uniformity_sd", "uniformity_de00_max_from_mean"}
     # an unmeasurable row with a value must never be judged
-    assert not limit_bearing({"uniformity_sd": Limit.value(0.5)})
+    assert not limit_bearing({"macro_uniformity_score": Limit.value(0.5)})
 
 
 def test_a_runs_copy_round_trips_and_keeps_unknown_future_rows():

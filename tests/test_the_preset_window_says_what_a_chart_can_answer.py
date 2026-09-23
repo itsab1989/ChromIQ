@@ -283,6 +283,13 @@ def test_a_chart_too_small_is_told_exactly_what_it_is_short_of(tmp_path):
     assert missing.get("grey_balance_neutral_ramp_avg") in (
         MR.REASON_NO_GREYS, MR.REASON_TOO_FEW_STEPS,
         MR.REASON_NO_WHITE, MR.REASON_NO_BLACK)
+    # …except the two evenness rows, which a bare `.ti1` cannot answer at all:
+    # its page grid is decided when it is laid out, a fact about the FILE and
+    # not a shortfall a different patch set would fix (#182, 2026-09-22).
+    evenness = {rid: missing.pop(rid) for rid in list(missing)
+                if rid in MR.EVENNESS_ROWS}
+    assert set(evenness.values()) == {PE.REASON_EVENNESS_LAID_OUT_LATER}, \
+        evenness
     assert all(PE.is_patch_shortfall(w) for w in missing.values()), missing
     assert not PE.made_for_verification(chart, 12, 1)
     PE.clear_cache()

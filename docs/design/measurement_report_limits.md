@@ -1878,3 +1878,154 @@ row table and no notes, so that sentence is the only thing on the page that
 can say a row was left unanswered.
 
 **These specifications are binding.**
+
+---
+
+## 16. Evenness across the sheet, nine locations (#182, 2026-09-22)
+
+**⏳ AWAITING CONFIRMATION.** **Ruled by:** Knut, 2026-09-22, on issue #182
+(comment 5785774676), answering the F1 analysis
+(`~/Desktop/ChromIQ-beta36-proof/F1-evenness/REPORT.md`) and Basti's reply
+5785894881. **Confirmed by:** *nobody yet.* This section records the method he
+ruled and what was built from it (B8-814). Nobody has confirmed that what the
+app now does is what it should do, and seven questions below are his.
+
+### 16.1 The method
+
+For one measured sheet:
+
+1. **Every patch against its own expected colour.** The residual is the
+   measured Lab minus the aim Lab the ΔE00 rows already use, in the same
+   yardstick (absolute, or media-relative where the report normalises) and
+   with the same patches left out (the eight declared cube corners of a FROM
+   PROFILE GAMUT chart). Where the report separates colours the profile could
+   never print, only the within-gamut patches count, as they do for the words.
+   Nothing is matched by grey or by brightness (Knut, Q1: *"yes, do it"*).
+2. **Positions come from the chart's `.ti2`**, by `SAMPLE_ID`: `SAMPLE_LOC`
+   (strip label + patch number), `PASSES_IN_STRIPS2` (strips per page),
+   `STEPS_IN_PASS` (rows). A chartread `.ti3` carries no `SAMPLE_LOC`. A patch
+   whose device values in the measurement disagree with the chart's by more
+   than `PATCH_IDENTITY_TOL` is left out and counted.
+3. **Nine areas.** Each page with at least 9 strips and 9 rows
+   (`measurement_report.EVENNESS_MIN_GRID`, one constant) is divided into three
+   bands of strips and three bands of rows, whole strips and rows only, the
+   remainder in the MIDDLE band (10 = 3 + 4 + 3). The same ninth of every such
+   page is pooled (5745765820 items 1 and 4).
+4. **Two numbers.** Each area's colour is a neutral L\* 50 plus its mean
+   residual, the construction behind every number Knut was shown (0.81 and
+   0.45 on the real sheet, noise 0.27 and 0.16):
+   * `uniformity_sd`, **"Evenness across the sheet, nine locations"**: the
+     largest ΔE00 between any two of the nine areas;
+   * `uniformity_de00_max_from_mean`, **"… largest difference from the
+     mean"**: the largest ΔE00 between an area and the plain mean of the nine
+     area colours (each area counts once).
+5. **The noise guard** (Q2: *"Your suggestion is good. Do not use the stricter
+   version."*). The same arithmetic runs on the same patches with their areas
+   shuffled, 500 times from a fixed seed (`EVENNESS_SHUFFLES`,
+   `EVENNESS_SEED`), so a report is reproducible to the digit. The 95th
+   percentile (nearest rank) of each number over the shuffles is that row's
+   noise. **A row gives no verdict (N-A) when its noise is not below its
+   limit**, and the note names the noise and the fewest patches in an area.
+   The comparison needs the limit, so it is made in `judge`
+   (`evenness_withheld`); the presets window and the pre-flight ask the same
+   function. A sheet that is not graded (a profiling sheet, a raw drift check)
+   shows its number as INFO whatever the noise.
+6. **Where.** The block keeps, per area, its patch count, mean ΔL\*, Δa\*,
+   Δb\* and its ΔE00 from the mean, and the worst pair and worst area. The
+   report names an area by the labels printed on the sheet ("strips P to AF,
+   rows 15 to 20"; several pages: "strips A to D and M to P"), never "top
+   left", because which way up a strip runs depends on the instrument.
+
+### 16.2 The rows, the limits, the heading
+
+The two ids are **kept** (`outer_gamut_226` is the precedent): a run's stored
+limits, a saved verdict and a licence holder's values file key on them. They
+leave "Not evaluated by ChromIQ" for a group of their own, **"Evenness across
+the sheet"**, status `build`, unit ΔE00. The first label drops "(spread of L\*,
+a\*, b\*)", which was the standards' statistic and is not the one computed.
+
+| set | nine locations | from the mean |
+|---|---|---|
+| ChromIQ default | 1.5 | 1.0 |
+| ChromIQ tight | 0.75 | 0.5 |
+| Quick check | 3.0 | 2.0 |
+| Custom ISO 12647-7 / -8 | 1.5 | 1.0 |
+| ISO 12647-7 / -8 (read-only) | `?` | `?` |
+
+1.5 is Knut's (Q4: *"keep 1.5 for pairwise row"*). 1.0 is Basti's proposal
+that Knut leaned towards (*"largest diff 1.0 I think may be ok … I am not
+sure though"*) and is **awaiting his confirmation**. The reason the two differ:
+with nine areas, 1.125 D ≤ P ≤ 2 D, so a blotch trips the from-the-mean row
+first and a gradient trips the pairwise row first; both at 1.5 would make the
+second row never say anything the first had not.
+
+### 16.3 Notes on the results (Knut, Q5)
+
+* Every PASS or FAIL on either row carries a numbered note on likely causes:
+  the printer (banding, a partly blocked or misaligned head), the paper (not
+  flat, not the same all over), and on a strip instrument the instrument
+  drifting during the reading, which shows across the strips because the
+  strips are read in order. No ChromIQ how-to (K18).
+* Each such verdict also carries a note naming the area furthest from the
+  mean, the two areas furthest apart, and the sheet's noise.
+* The one-page summary, which has no notes list, carries one short paragraph
+  when an evenness row was judged: the words, the area furthest from the
+  mean, and the causes.
+* An N-A carries its reason as a note, written to Knut's rule of 2026-09-23:
+  what the MEASURED CHART lacks, never what to add or where.
+
+| reason | the note says |
+|---|---|
+| `evenness_no_layout` | no chart file beside the measurement records where each patch was printed |
+| `evenness_no_positions` | the chart's layout does not say which strip and row each patch is in |
+| `evenness_grid_too_small` | the measured chart has S strips and R rows on its largest page; at least 9 of each are needed |
+| `evenness_empty_area` | one of the nine areas holds no patch with an aim value |
+| `evenness_noisy_pairwise` / `_from_mean` | the fewest patches in an area, and the noise figure, which has to be below the limit |
+
+The report window's strip ("these rows read N-A … add patches to the chart")
+leaves out the two FILE reasons, which no patch can answer.
+
+### 16.4 Everywhere metrics are judged (Knut, Q5)
+
+* **The Measurement Report**, every type that includes the rows: T1 and T2
+  judge them; T3 (grey and tone) is about other rows; T4 judges nothing.
+* **"Which presets can be used for verification?"** and **the Measure tab's
+  pre-flight** ask the report's own arithmetic. The page grid is exact for a
+  laid-out chart (the pre-flight's chart, the window's first line, the
+  prebuilt bundles that ship a `.ti2`) and for a built-in ENGINE preset, whose
+  grid the layout engine's own arithmetic predicts without writing a file
+  (held to a real build by a test). A printtarg preset has no grid until
+  printtarg runs and says so (`evenness_laid_out_later`). The noise cannot be
+  known before printing, so these two windows use an **estimate for a typical
+  print**: a residual of 1.1 per L\*, a\*, b\* component, calibrated so the
+  estimate reproduces the F1 real sheet's noise (1.41 at 30 patches per area),
+  and say it is an estimate. The pre-flight, which knows no set yet, asks
+  against the loosest limit any set puts on the row.
+* **The star is not decided by these rows** (question E4 below).
+
+### 16.5 Questions for Knut
+
+* **E1. A short last page.** "At least 9 columns and 9 rows per page": built
+  as "a page under 9 by 9 is left out and the chart is judged on the rest",
+  and the report names the pages left out. Or should such a page refuse the
+  whole chart?
+* **E2. The 75 % page coverage requirement** (5744704621 requirement 2,
+  answered in 5745765820 item 3) is not in the rulings of 2026-09-22 and is
+  not built. A `.ti2` records the paper size but not where the patch block
+  sits. Is it still wanted?
+* **E3. Tight and quick.** Built as half and double of default (0.75 / 0.5
+  and 3.0 / 2.0), the rule every other row follows. At 0.75 the noise must be
+  under 0.75 too, which takes about four times the patches, so most charts
+  read N-A on tight. Or should all three ChromIQ sets carry 1.5 / 1.0?
+* **E4. The star.** At 1.5 the rows want about 30 patches in every ninth of
+  the page, roughly 270 on one page; the one-page verification presets the
+  star marks are 77 to 204. The rows are therefore shown as missing in the
+  presets window but do not take the star away. Should they?
+* **E5. The Custom columns.** Both start from ChromIQ's own 1.5 / 1.0. Your
+  own values file may carry researched figures for these rows; ChromIQ does
+  not read it here. Do you want those as the Custom starting numbers?
+* **E6. The ISO structure.** Both rows stay in the two ISO columns' structure
+  (the standards do limit evenness), so those cells read `?`. A licence
+  holder's figure for the first row was written for a spread statistic, not
+  for the pairwise ΔE00 now computed. Keep the rows in the ISO structure?
+* **E7. The 1.0** on the from-the-mean row (16.2).

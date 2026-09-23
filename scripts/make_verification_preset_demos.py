@@ -763,7 +763,42 @@ UNREACHABLE: "dict[str, str]" = {
         "Means 'this report predates the block', so it can only come out of a "
         "SAVED report read back. The stand-in report is built fresh and "
         "always carries every block.",
+    # EVENNESS ACROSS THE SHEET (#182, 2026-09-22). One of these is the
+    # state of every demo here, and the other six need a page grid, which a
+    # printtarg preset does not have until printtarg runs.
+    "evenness_laid_out_later":
+        "It is the STATE OF EVERY DEMO HERE, like the reference code above. "
+        "These are printtarg presets, and printtarg decides a chart's page "
+        "grid when it runs, so the window cannot say yet whether a page will "
+        "have 9 strips and 9 rows.",
+    "evenness_no_layout":
+        "Needs a MEASURED sheet with no chart file beside it. A preset is a "
+        "chart file.",
+    "evenness_no_positions":
+        "Needs a laid-out chart whose patch locations cannot be read, which a "
+        "printtarg preset is not until it is laid out.",
+    "evenness_grid_too_small":
+        "Needs the page grid, which a printtarg preset does not have until it "
+        "is laid out. The built-in ENGINE presets do have one, and the window "
+        "shows this code on the small ones (SHOWN_BY_BUILTINS).",
+    "evenness_empty_area":
+        "Needs a page of at least 9 by 9 whose patches leave a ninth of it "
+        "empty, which a chart filled strip by strip cannot do.",
+    "evenness_noisy_pairwise":
+        "Needs the page grid (see grid_too_small); shown by the built-in "
+        "engine presets of one page and 140 to 200 patches.",
+    "evenness_noisy_from_mean":
+        "As the row above.",
 }
+
+#: Of the codes above, the ones the window DOES show, on the built-in engine
+#: presets whose page grid the layout engine's own arithmetic predicts. Not by
+#: any demo here, so they stay in UNREACHABLE; the test asserts they really
+#: appear, which is stronger than asserting they do not.
+SHOWN_BY_BUILTINS: "frozenset[str]" = frozenset({
+    "evenness_grid_too_small", "evenness_noisy_pairwise",
+    "evenness_noisy_from_mean",
+})
 
 
 # ---------------------------------------------------------------------------
@@ -838,6 +873,14 @@ def build(dest: Path) -> "list[tuple[Demo, Path | None]]":
 #: The one code every preset carries and no preset causes. Excluded everywhere
 #: a claim is checked, because it is the background and not the picture.
 CONSTANT = "needs_reference_file"
+#: …and, since the evenness rows became computable (#182, 2026-09-22), the
+#: second such code: every demo here is a printtarg preset, whose page grid
+#: exists only once printtarg runs, so both evenness rows read "laid out
+#: later" on every one of them. The background again, not the picture; the
+#: evenness boundaries are demonstrated on laid-out charts instead (the
+#: report demo pack's Report-Limits-Evenness project and
+#: tests/test_evenness_across_the_sheet.py).
+CONSTANTS = (CONSTANT, "evenness_laid_out_later")
 
 
 def assess(chart: "Path | None") -> "dict[str, str]":
@@ -869,7 +912,7 @@ def withheld(chart: "Path | None") -> "dict[str, str]":
     from workflow import preset_eligibility as PE
     askable = set(PE.rows_any_report_can_ask())
     return {rid: why for rid, why in assess(chart).items()
-            if why != CONSTANT and (rid in askable or rid == "")}
+            if why not in CONSTANTS and (rid in askable or rid == "")}
 
 
 def in_the_window(chart: "Path | None", r: "Requirement") -> "dict[str, str]":
@@ -878,7 +921,7 @@ def in_the_window(chart: "Path | None", r: "Requirement") -> "dict[str, str]":
     from workflow import preset_eligibility as PE
     tid, sid = shown_under(r)
     a = PE.assess(chart, tid, sid)
-    return {rid: why for rid, why in a.missing if why != CONSTANT}
+    return {rid: why for rid, why in a.missing if why not in CONSTANTS}
 
 
 def check(dest: Path) -> int:
