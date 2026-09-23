@@ -25151,3 +25151,19 @@ would reach.
   test_the_guide_explains_no_chromiq_mechanics
   test_the_recorded_verdict_sentence_names_no_ChromIQ_action
   test_after_clear_list_unlock_says_nothing_is_loaded
+
+### B8-812 · FIXED · K24: the report window took its kind from a measurement, not from the profile bar's Run type
+- blocks release: no
+- status: FIXED
+- found by: Knut, #182 comment 5787117741, 2026-09-23: *"The open
+  measurement window strictly shows and lists and counts report types that
+  are allowed according to the set 'run type' in the profile bar."* The
+  window asked the measurement it was opened on, so adding a profiling sheet
+  to a Verification window made it a Profiling window and Printing records
+  were listed.
+- fix: `_window_kind` asks the profile bar through the window's parents
+  (`_bar_kind`); a calibration keeps every type as before; only a window with
+  no bar behind it falls back to the measurement.
+- evidence:
+  test_a_verification_bar_keeps_the_window_a_verification
+  test_a_profiling_bar_makes_a_profiling_window

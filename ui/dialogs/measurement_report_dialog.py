@@ -6658,6 +6658,16 @@ class MeasurementReportDialog(QDialog):
         from workflow.measurement_report import (KIND_PROFILING,
                                                  KIND_VERIFICATION)
         from workflow.run_compliance import run_context_for
+        # **THE PROFILE BAR DECIDES (K24).** Knut, 2026-09-23: *"The open
+        # measurement window strictly shows and lists and counts report types
+        # that are allowed according to the set 'run type' in the profile
+        # bar."* The measurement the window was opened on decided before, so
+        # adding a profiling sheet to a Verification window flipped it and
+        # Printing records were listed. The measurement is asked only when
+        # there is no bar to ask (a window with no main window behind it).
+        found, bar = self._bar_kind()
+        if found:
+            return bar
         r = getattr(self, "_report", None) or {}
         origin, ti3 = r.get("_origin_dir"), r.get("ti3")
         if not origin or not ti3:
@@ -6667,6 +6677,26 @@ class MeasurementReportDialog(QDialog):
             return None
         return KIND_VERIFICATION if ctx.verification is not None \
             else KIND_PROFILING
+
+    def _bar_kind(self) -> "tuple[bool, str | None]":
+        """``(found, kind)`` from the profile bar's Run type, looked up
+        through the window's parents; ``(False, None)`` when there is no bar.
+        Calibration keeps every type (kind None), as before."""
+        from core.measurement_target import (RUN_TYPE_PROFILING,
+                                             RUN_TYPE_VERIFICATION)
+        from workflow.measurement_report import (KIND_PROFILING,
+                                                 KIND_VERIFICATION)
+        p = self.parent()
+        while p is not None:
+            ctl = getattr(p, "_target_ctl", None)
+            target = getattr(ctl, "target", None) if ctl is not None else None
+            rt = getattr(target, "run_type", None)
+            if isinstance(rt, str) and rt:
+                return True, (KIND_VERIFICATION if rt == RUN_TYPE_VERIFICATION
+                              else KIND_PROFILING if rt == RUN_TYPE_PROFILING
+                              else None)
+            p = p.parent() if hasattr(p, "parent") else None
+        return False, None
 
     def _kinds_are_mixed(self) -> bool:
         """True when the loaded measurements include both a profiling sheet
