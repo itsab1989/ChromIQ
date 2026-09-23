@@ -557,8 +557,11 @@ def test_a_chart_with_no_declaration_behaves_exactly_as_it_did(tmp_path):
                                   "too_few_outer_patches"])
 def test_every_new_reason_becomes_a_sentence_that_says_what_to_do(qapp, code,
                                                                   tmp_path):
-    """A reason a reader cannot act on is not a reason, and these go through
-    the same `_reason_sentence` path as the other ten.
+    """These go through the same `_reason_sentence` path as the other ten.
+
+    K22 (Knut, 2026-09-23) replaced "each names the thing to change" with
+    *"each names the thing missing in the measured chart"*: a report may reach
+    a customer, so it states what is missing and never what to add or where.
 
     MUTATION: remove any one of the four keys from `_reason_sentence` and this
     goes red with an empty sentence.
@@ -567,10 +570,10 @@ def test_every_new_reason_becomes_a_sentence_that_says_what_to_do(qapp, code,
     rep = report_of(build_chart(tmp_path, interior=60, surface=9, strip=7))
     text = MeasurementReportDialog._reason_sentence(None, code, rep)
     assert text, code
-    assert len(text.split()) >= 12, text
-    # each names the thing to CHANGE, not only the thing that is wrong
-    assert any(w in text.lower() for w in
-               ("declare", "add ", "use a larger chart", "chart")), text
+    assert "the measured chart" in text, text
+    for instruction in ("declare a", "add ", "use a ", "create chart",
+                        "control-strip.json"):
+        assert instruction not in text.lower(), (instruction, text)
 
 
 def test_the_strip_sentence_names_the_count_and_both_thresholds(tmp_path):
@@ -602,7 +605,7 @@ def test_the_count_bearing_sentences_have_a_singular_form(tmp_path):
     assert "has one patch" in one_strip and " 1 patches" not in one_strip
     one_surf = _surface_gamut_sentence(
         {"gamut_populations": {"surface": {"n": 1}}})
-    assert "one patch of this chart sits" in one_surf
+    assert "one patch of the measured chart sits" in one_surf
     assert " 1 patches" not in one_surf
     one_outer = _outer_gamut_sentence({"gamut_populations": {"outer": {"n": 1}}})
     assert "is one patch" in one_outer and " 1 patches" not in one_outer

@@ -422,10 +422,10 @@ def _small_sample_sentence(r: "dict | None") -> str:
                    "the worst 5 %").format(total=total, n=n))
     _count = n if isinstance(n, int) else total if total is not None else None
     if _count == 1:
-        return tr("the chart has one patch; at least 20 are needed to split "
-                  "off the worst 5 %")
-    return tr("the chart has {n} patches; at least 20 are needed to split off "
-              "the worst 5 %").format(n=_count if _count is not None else "?")
+        return tr("the measured chart has one patch; at least 20 are needed to "
+                  "split off the worst 5 %")
+    return tr("the measured chart has {n} patches; at least 20 are needed to "
+              "split off the worst 5 %").format(n=_count if _count is not None else "?")
 
 
 # ---------------------------------------------------------------------------
@@ -455,15 +455,13 @@ def _control_strip_sentence(r: "dict | None") -> str:
     k = block.get("n")
     k = k if isinstance(k, int) else 0
     if k == 1:
-        counted = tr("the control strip this chart declares has one patch in "
-                     "this measurement with a reference value")
+        counted = tr("the control strip of the measured chart has one patch "
+                     "with a reference value")
     else:
-        counted = tr("the control strip this chart declares has {k} patches in "
-                     "this measurement with reference values").format(k=k)
+        counted = tr("the control strip of the measured chart has {k} patches "
+                     "with reference values").format(k=k)
     return counted + tr("; at least {n} are needed for the average and the "
-                        "largest, and at least {p} for the 95th percentile. "
-                        "Declare a longer strip, or add its patches to the "
-                        "chart").format(n=CONTROL_STRIP_MIN,
+                        "largest, and at least {p} for the 95th percentile").format(n=CONTROL_STRIP_MIN,
                                         p=CONTROL_STRIP_P95_MIN)
 
 
@@ -474,14 +472,12 @@ def _surface_gamut_sentence(r: "dict | None") -> str:
     n = block.get("n")
     n = n if isinstance(n, int) else 0
     if n == 1:
-        counted = tr("one patch of this chart sits on the surface of the "
-                     "device cube and carries a reference value")
+        counted = tr("one patch of the measured chart sits on the surface of "
+                     "the device cube and carries a reference value")
     else:
-        counted = tr("{n} patches of this chart sit on the surface of the "
-                     "device cube and carry reference values").format(n=n)
-    return counted + tr("; at least {k} are needed. Add solid inks, two-ink "
-                        "overprints, or steps that hold one of red, green or "
-                        "blue at 0 or at 100, in Create Chart").format(
+        counted = tr("{n} patches of the measured chart sit on the surface of "
+                     "the device cube and carry reference values").format(n=n)
+    return counted + tr("; at least {k} are needed").format(
                             k=SURFACE_GAMUT_MIN)
 
 
@@ -498,12 +494,12 @@ def _repeat_groups_sentence(r: "dict | None") -> str:
     n = block.get("n_groups")
     n = n if isinstance(n, int) else 0
     if n == 1:
-        counted = tr("this sheet repeats one colour")
+        counted = tr("the measured chart repeats one colour")
     else:
-        counted = tr("this sheet repeats {n} colours").format(n=n)
+        counted = tr("the measured chart repeats {n} colours").format(n=n)
     return counted + tr("; at least {k} are needed, because a reading taken "
                         "from a single colour stands for nothing else on the "
-                        "sheet. Use a chart that repeats more than one").format(
+                        "sheet").format(
                             k=REPEAT_WITHIN_MIN_GROUPS)
 
 
@@ -515,15 +511,15 @@ def _repeat_shared_sentence(r: "dict | None") -> str:
     n = block.get("n_shared")
     n = n if isinstance(n, int) else 0
     if n == 1:
-        counted = tr("one patch of this chart is also in the measurement "
-                     "before it, asked for the same colour")
+        counted = tr("one patch of the measured chart is also in the "
+                     "measurement before it, asked for the same colour")
     else:
-        counted = tr("{n} patches of this chart are also in the measurement "
-                     "before it, asked for the same colour").format(n=n)
-    return counted + tr("; at least {k} are needed. The chart was rebuilt "
-                        "between the two measurements, so most of it is no "
-                        "longer the same patch set and what changed cannot be "
-                        "read as the printer moving").format(
+        counted = tr("{n} patches of the measured chart are also in the "
+                     "measurement before it, asked for the same colour").format(n=n)
+    return counted + tr("; at least {k} are needed. The chart changed between "
+                        "the two measurements, so most of it is no longer the "
+                        "same patch set and what changed cannot be read as the "
+                        "printer moving").format(
                             k=REPEAT_ACROSS_MIN_PATCHES)
 
 
@@ -534,13 +530,14 @@ def _outer_gamut_sentence(r: "dict | None") -> str:
     n = block.get("n")
     n = n if isinstance(n, int) else 0
     if n == 1:
-        counted = tr("the most saturated quarter of this chart is one patch")
+        counted = tr("the most saturated quarter of the measured chart is one "
+                     "patch")
     else:
-        counted = tr("the most saturated quarter of this chart is {n} "
+        counted = tr("the most saturated quarter of the measured chart is {n} "
                      "patches").format(n=n)
-    return counted + tr("; at least {k} are needed for an average, which wants "
-                        "roughly {c} patches carrying reference values on the "
-                        "chart. Use a larger chart").format(
+    return counted + tr("; at least {k} are needed for an average, which means "
+                        "roughly {c} patches carrying reference values in the "
+                        "measured chart").format(
                             k=OUTER_GAMUT_MIN, c=OUTER_GAMUT_MIN * 4)
 
 
@@ -7377,18 +7374,20 @@ class MeasurementReportDialog(QDialog):
         r = r or {}
         gb = r.get("grey_balance") or {}
         texts = {
-            "no_greys": tr("the chart has no grey patches (R = G = B)"),
-            "too_few_steps": tr("the chart has {k} grey steps, at least 8 are "
-                                "needed from white to black").format(
+            "no_greys": tr("the measured chart has no grey patches (R = G = B)"),
+            "too_few_steps": tr("the measured chart has {k} grey steps; at "
+                                "least 8 from white to black are needed").format(
                                     k=gb.get("levels", 0)),
-            "no_white": tr("the grey ramp does not reach white"),
-            "no_black": tr("the grey ramp does not reach black"),
+            "no_white": tr("the grey ramp in the measured chart does not reach "
+                           "white"),
+            "no_black": tr("the grey ramp in the measured chart does not reach "
+                           "black"),
             "no_reference": tr("there is no reference value for these patches"),
-            "needs_reference_file": tr("this row needs a reference file for the "
-                                       "printing condition; the chart's design "
-                                       "has no aim for it"),
-            "no_ramp": tr("the chart has no tone ramp with at least three steps "
-                          "between 30 % and 70 %"),
+            "needs_reference_file": tr("this row needs a reference for the "
+                                       "printing condition, and the measured "
+                                       "chart has no aim for it"),
+            "no_ramp": tr("the measured chart has no tone ramp with at least "
+                          "three steps between 30 % and 70 %"),
             # **THE POPULATION THAT WAS GRADED, NOT THE CHART'S OWN COUNT.**
             # Measured on a 20-patch chart: the row was withheld and the
             # sentence read *"the chart has 20 patches; at least 20 are
@@ -7400,8 +7399,8 @@ class MeasurementReportDialog(QDialog):
             "printing_unrecorded": tr("how this sheet was printed is not "
                                       "recorded, so this value is shown for "
                                       "information only"),
-            "no_corners": tr("the chart has no patch at the colour corners this "
-                             "row needs"),
+            "no_corners": tr("the measured chart has no patch at the colour "
+                             "corners this row needs"),
             # WHAT THE CODE MEANS, WHICH IS NOT WHAT THIS USED TO SAY.
             # `REASON_NOT_COMPUTED` is set when the BLOCK IS MISSING FROM THIS
             # REPORT; it says nothing about whether a file can be read. The old
@@ -7411,9 +7410,7 @@ class MeasurementReportDialog(QDialog):
             # value, and a report of a measurement that has since been
             # re-measured has its own .ti3 sitting in the run's old/ folder.
             # This sentence is the one thing that is true of both.
-            "not_computed": tr("this value is not in this saved report; it "
-                               "was not one of the values ChromIQ kept when "
-                               "the report was saved"),
+            "not_computed": tr("this value is not in this saved report"),
             # #182 S2w, approved by Knut on 2026-09-18. TWO codes rather than
             # one, because they send a reader to different places: the first
             # asks the chart to declare a strip at all, the second says the
@@ -7421,10 +7418,7 @@ class MeasurementReportDialog(QDialog):
             # reader cannot act on is not a reason, so each names the thing to
             # change and not only the thing that is wrong.
             "no_control_strip": tr(
-                "this chart declares no control strip; name the patches that "
-                "make one up in a file beside the chart, called after it with "
-                "\".control-strip.json\" on the end, or in a "
-                "CONTROL_STRIP_IDS keyword in its .ti1 or .ti2"),
+                "the measured chart declares no control strip"),
             "control_strip_too_small": _control_strip_sentence(r),
             "too_few_surface_patches": _surface_gamut_sentence(r),
             "too_few_outer_patches": _outer_gamut_sentence(r),
@@ -7434,10 +7428,8 @@ class MeasurementReportDialog(QDialog):
             # reason. Neither sentence mentions a standard, because no
             # standard defines either row.
             "no_repeat_patches": tr(
-                "this chart never asks for the same colour twice, so there is "
-                "nothing on the sheet to compare with itself; a chart that "
-                "repeats a colour at two places can be judged on this row "
-                "without any reference values at all"),
+                "the measured chart never asks for the same colour twice, so "
+                "there is nothing on the sheet to compare with itself"),
             "too_few_repeat_groups": _repeat_groups_sentence(r),
             "no_earlier_measurement": tr(
                 "this is the first measurement of this chart, so there is "

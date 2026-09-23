@@ -539,6 +539,11 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-23, K22 (Knut: every N-A note names what is missing
+    # in the measured chart, never what to add or where). Twenty-seven reason
+    # sentences reworded ("the measured chart", no instructions). German by
+    # hand; the twelve others back to English placeholders for the reworded
+    # keys. COUNTED off the tree, BOTH ledgers in the same commit.
     # RE-MEASURED 2026-09-23, the final round before beta 36 (K18 again):
     # six report sentences that still explained ChromIQ reworded (bound and
     # locked, the recorded-verdict line, the verification bullet, the drift
@@ -918,17 +923,17 @@ _BUDGET = {
     # recorded. COUNTED with this file's own helper on the tree this commit
     # leaves behind.
     "de": 17,
-    "es": 702,
-    "fr": 703,
-    "it": 702,
-    "ja": 702,
-    "nl": 702,
-    "no": 702,
-    "pl": 702,
-    "pt": 702,
-    "ru": 701,
-    "sv": 702,
-    "zh_CN": 701,
+    "es": 703,
+    "fr": 704,
+    "it": 703,
+    "ja": 703,
+    "nl": 703,
+    "no": 703,
+    "pl": 703,
+    "pt": 703,
+    "ru": 702,
+    "sv": 703,
+    "zh_CN": 702,
     "uk": 910,
 }
 

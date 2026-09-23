@@ -786,6 +786,11 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-23, K22 (Knut: every N-A note names what is missing
+    # in the measured chart, never what to add or where). Twenty-seven reason
+    # sentences reworded ("the measured chart", no instructions). German by
+    # hand; the twelve others back to English placeholders for the reworded
+    # keys. COUNTED off the tree, BOTH ledgers in the same commit.
     # RE-MEASURED 2026-09-23, the final round before beta 36 (K18 again):
     # six report sentences that still explained ChromIQ reworded (bound and
     # locked, the recorded-verdict line, the verification bullet, the drift
@@ -1335,17 +1340,17 @@ _IDENTICAL_TO_KEY = {
     # recorded. COUNTED with this file's own helper on the tree this commit
     # leaves behind.
     "de": 141,
-    "es": 964,
-    "fr": 986,
-    "it": 975,
-    "ja": 950,
-    "nl": 991,
-    "no": 976,
-    "pl": 968,
-    "pt": 966,
-    "ru": 939,
-    "sv": 977,
-    "zh_CN": 944,
+    "es": 965,
+    "fr": 987,
+    "it": 976,
+    "ja": 951,
+    "nl": 992,
+    "no": 977,
+    "pl": 969,
+    "pt": 967,
+    "ru": 940,
+    "sv": 978,
+    "zh_CN": 945,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which

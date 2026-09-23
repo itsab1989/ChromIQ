@@ -220,7 +220,7 @@ def test_the_strip_names_what_the_chart_cannot_supply(qapp, tmp_path):
         assert "Notes on the verdicts above" in html
         # the same two facts the strip carries, each numbered and pointed at
         # by the cell it explains, and the two grey rows sharing one number
-        assert "the chart has no grey patches" in html
+        assert "the measured chart has no grey patches" in html   # K22
         assert "at least 20" in html
         assert "Grey balance of the grey ramp, average" in html
     finally:

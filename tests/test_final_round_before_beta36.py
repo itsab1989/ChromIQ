@@ -89,3 +89,32 @@ def test_after_clear_list_unlock_says_nothing_is_loaded(tmp_path, qapp):
         assert "No measurement is loaded yet." in tip, tip
     finally:
         dlg.deleteLater()
+
+
+_EVERY_REASON = ("no_greys", "too_few_steps", "no_white", "no_black",
+                 "no_reference", "needs_reference_file", "no_ramp",
+                 "small_sample", "printing_unrecorded", "no_corners",
+                 "not_computed", "no_control_strip", "control_strip_too_small",
+                 "too_few_surface_patches", "too_few_outer_patches",
+                 "no_repeat_patches", "too_few_repeat_groups",
+                 "no_earlier_measurement", "too_few_shared_patches")
+
+
+@pytest.mark.parametrize("code", _EVERY_REASON)
+def test_every_na_note_names_what_is_missing_and_nothing_to_do(code, qapp):
+    """K22 (Knut, 2026-09-23): *"each names the thing missing in the measured
+    chart"*. No note tells the reader what to add, where, or how, and none
+    explains ChromIQ.
+
+    MUTATION: put "Use a larger chart" back on the outer-gamut sentence (or
+    any instruction on any of them) and that code goes red."""
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    text = MeasurementReportDialog._reason_sentence(None, code, {})
+    assert text, code
+    import re
+    low = text.lower()
+    for bad in (r"\bdeclare a\b", r"\badd\b", r"\buse a\b",
+                r"create chart", r"chromiq", r"control-strip\.json",
+                r"control_strip_ids", r"name the patches",
+                r"this chart declares", r"measure the same"):
+        assert not re.search(bad, low), (code, bad, text)

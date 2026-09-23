@@ -25167,3 +25167,21 @@ would reach.
 - evidence:
   test_a_verification_bar_keeps_the_window_a_verification
   test_a_profiling_bar_makes_a_profiling_window
+
+### B8-813 · FIXED · K22: an N-A note told the reader what to add to the chart and where
+- blocks release: no
+- status: FIXED
+- found by: Knut, #182 comment 5787117741, 2026-09-23, answering the K18
+  question: *"could you instead state what is missing, without mentioning
+  what to add? ... the rule becomes 'each names the thing missing in the
+  measured chart'."* It replaces his 2026-09-18 S2w rule ("each names the
+  thing to change").
+- fix: every reason sentence behind an N-A note states what is missing in
+  "the measured chart" and gives no instruction: no "Declare a longer
+  strip", "Add solid inks ... in Create Chart", "Use a larger chart", no
+  `.control-strip.json` recipe, and no ChromIQ history in "not in this saved
+  report". The window's own help (the remedies in the limits window) keeps
+  its levers, because that is ChromIQ talking to its user.
+- evidence:
+  test_every_na_note_names_what_is_missing_and_nothing_to_do
+  test_every_new_reason_becomes_a_sentence_that_says_what_to_do
