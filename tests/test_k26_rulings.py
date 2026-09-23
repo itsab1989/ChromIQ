@@ -616,3 +616,31 @@ def test_the_measure_tab_button_opens_the_empty_window_under_calibration(
         for d in opened:
             d.deleteLater()
         fake.deleteLater()
+
+
+def test_a_cancelled_pdf_save_leaves_no_reports_folder(tmp_path, monkeypatch):
+    """Knut (5792484060, 5): `<output folder>/reports/` exists only once a
+    report across projects is written. `_export_pdf` created the folder for
+    its file chooser and left it when the user cancelled.
+
+    MUTATION: drop the `rmdir` on cancel and the folder is left: red."""
+    import types
+    from pathlib import Path
+    import ui.dialogs.measurement_report_dialog as M
+    import ui.widgets as W
+    where = tmp_path / "out" / "reports"
+    host = types.SimpleNamespace(
+        _report_dir=lambda: where,
+        _as_the_document_was_built=lambda: __import__("contextlib").nullcontext(),
+        _report_filename=lambda runs: "x.pdf",
+        _runs_for_document=lambda: [],
+        _report={"x": 1}, _ti3=tmp_path / "m.ti3",
+        _settings={"custom_output_path": ""})
+    host._settings = types.SimpleNamespace(get=lambda k, d="": "")
+    monkeypatch.setattr(W, "save_file_dialog", lambda *a, **k: "")
+    M.MeasurementReportDialog._export_pdf(host)
+    assert not where.exists(), "a cancelled save left an empty reports folder"
+    # a folder that was already there is never removed
+    where.mkdir(parents=True)
+    M.MeasurementReportDialog._export_pdf(host)
+    assert where.exists()

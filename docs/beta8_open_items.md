@@ -25759,6 +25759,10 @@ would reach.
   concurrent PDF change set and is left to it.
 - proof: 26 mutations, each proved red; on screen
   `~/Desktop/ChromIQ-beta38-proof/k26/REPORT.md` (`scripts/drive_k26.py`).
+- also (merge, 2026-09-23): a CANCELLED "Save report as PDF" no longer leaves
+  an empty `<output folder>/reports/` behind; `_export_pdf` removes the folder
+  it made for the chooser when nothing was saved in it
+  (test_a_cancelled_pdf_save_leaves_no_reports_folder).
 - evidence:
   test_a_calibration_window_opens_empty_and_locked
   test_the_other_run_types_are_untouched

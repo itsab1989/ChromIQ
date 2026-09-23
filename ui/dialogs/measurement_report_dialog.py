@@ -5491,6 +5491,11 @@ class MeasurementReportDialog(QDialog):
         )
 
         reports = self._report_dir()
+        # Created for the chooser to open in, and taken away again if the
+        # user cancels and nothing was saved there (the K26 round found a
+        # cancelled save leaving an empty `<output folder>/reports/`, which
+        # Knut ruled exists only once a report across projects is written).
+        _made_reports = not reports.exists()
         reports.mkdir(parents=True, exist_ok=True)
         # THE SAME LIST THE DOCUMENT IS BUILT FROM. The one-page summary
         # narrows to a single measurement, and its title and kind narrow
@@ -5516,6 +5521,11 @@ class MeasurementReportDialog(QDialog):
             start_path=str(default),
             extra_path=str(self._settings.get("custom_output_path", "")))
         if not path:
+            if _made_reports:
+                try:
+                    reports.rmdir()          # only ever empty: nothing saved
+                except OSError:
+                    pass
             return
         # The dialog does not force the extension — a name typed without one
         # must still come out as a .pdf.
