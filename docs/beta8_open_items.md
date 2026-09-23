@@ -26926,3 +26926,14 @@ would reach.
 - tests: tests/test_a_report_in_the_chromiq_folder_follows_a_rename.py (13, each case with the other project in a sub-folder of the ChromIQ folder and outside it; mutations: no ChromIQ folder 9 red, no renamed-in-place rule 3 red, no existing-namesake test 1 red, no recorded-beside test 1 red).
 - proof: `~/Desktop/ChromIQ-beta39-proof/rename-chromiq-folder/` before/ and after/ (photographs, diffs/, listings/ with sha1 of every file, refs-*.txt).
 - open for Knut: none beyond §13.14 question 3 (a rename rewrites reports outside the project).
+
+### B8-921 · FIXED, awaiting confirmation · The "Report type" row covered the bottom of the measurement list in the report window
+- blocks release: no
+- status: FIXED
+- note: beta 39
+- found by: Basti, 2026-09-23, his own photograph (Verification, Report-Limits-Report-Folders run1, "2026-12-08 10:00:00 · Full colour check"): the list's fifth row half hidden behind the "Report type" pulldown.
+- cause: two, measured on screen (Report-Limits-Threshold-Series, 11 dates, 979 px wide). (1) `_size_profile_list` sized the list to its rows plus 4 px while the viewport is the list minus its frame only: viewport 84 px over five 16 px rows, so row 6 showed a 4 px sliver. (2) `showEvent` fitted the window to the screen once, with the list compacted, and asked `minimumSize`, which does not count the wrapped labels; picking a report rebuilt the list at five rows afterwards. The layout then needed 1083 px at its narrowest in a window capped at 1039, Qt squeezed the "Report settings" frame to 218 px of its 233, and the pulldown, which cannot shrink, sat 8 px over the list (12 px at the 760 px width, where it also met "Judged against" by 2 px).
+- fixed: the list is its whole rows plus its frame (`_list_height`); `_layout_need` asks the layout's height for its narrowest width; `_keep_the_list_inside_the_window` runs after every relayout once the window is on screen: the report view yields first (to 150 px), then the list gives up whole rows (down to two), and the window's minimum follows, so neither a report picked nor a drag can squeeze the frame.
+- tests: tests/test_the_report_type_row_never_covers_the_list.py
+- evidence: test_no_control_of_the_settings_frame_covers_another (default, minimum and 979 px widths, at the window's floor and ceiling), test_the_list_shows_whole_rows_and_scrolls_for_the_rest; both mutations (the `+ 4` back, the fit disabled) red.
+- proof: ~/Desktop/ChromIQ-beta39-proof/list-combo-overlap/ (before-en/, after-en/, geometry-en.json, the two crops).

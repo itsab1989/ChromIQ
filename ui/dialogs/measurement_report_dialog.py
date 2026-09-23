@@ -3149,9 +3149,12 @@ class MeasurementReportDialog(QDialog):
             # scrolls, so it yields first — the charts do not scroll, and a
             # squeezed chart stops being a graph (Sebastian, 2026-08-12), so
             # they yield last and keep 100 px until nothing else is left.
+            # What the layout needs at its narrowest width, wrapped labels
+            # counted: see `_layout_need` (B8-921).
+            _need = self._layout_need
+
             def _over() -> int:
-                layout.activate()
-                return layout.minimumSize().height() - cap
+                return _need() - cap
 
             charts = (self._trend_de, self._trend_white,
                       self._trend_black, self._trend_corners,
@@ -3179,7 +3182,15 @@ class MeasurementReportDialog(QDialog):
                 for c in charts:
                     c.setMinimumHeight(
                         max(60, c.minimumHeight() - _over()))
-            h = max(h, min(layout.minimumSize().height(), cap))
+            if _over() > 0:
+                # the last thing left: the list at two rows, as when even the
+                # plain minimum did not fit
+                self._size_profile_list(compact=True)
+            need = min(_need(), cap)
+            h = max(h, need)
+            # and the user cannot drag the window below it either, which is
+            # the other way the frame was squeezed
+            self.setMinimumHeight(need)
         # **AND IT MAY NOT GROW PAST THE SCREEN AFTERWARDS.** `resize` was the
         # whole of this, and a resize is a one-off request: the window's own
         # PREFERRED height is the sum of what its widgets would like, which is
@@ -4169,7 +4180,8 @@ class MeasurementReportDialog(QDialog):
     #: included — landed off-screen).
     _LIST_VISIBLE_ROWS = 5
 
-    def _size_profile_list(self, *, compact: bool = False) -> None:
+    def _size_profile_list(self, *, compact: bool = False,
+                           rows: "int | None" = None) -> None:
         """Size the list to its content, capped at ``_LIST_VISIBLE_ROWS``
         visible rows — past the cap the list scrolls internally, and that is
         the one scrollbar above the chart tabs (Knut's beta.5 point, settled
@@ -4177,17 +4189,11 @@ class MeasurementReportDialog(QDialog):
         the 5 lines"). ``compact`` shrinks it to two rows when the window's
         own minimum would otherwise not fit the screen."""
         n = len(self._list_rows)
-        frame = 2 * self._profile_list.frameWidth() + 4
-        rows = 2 if compact else min(max(n, 1), self._LIST_VISIBLE_ROWS)
-        # Sum the real row heights — the checkable run rows are a few px
-        # taller than the profile header row, so a rows×row_h estimate either
-        # clipped the last visible row in half or let a sliver of the next
-        # one peek in.
-        heights = [self._profile_list.sizeHintForRow(i)
-                   for i in range(min(n, rows))]
-        if not heights or min(heights) <= 0:
-            heights = [self._profile_list.fontMetrics().height() + 8] * rows
-        h = sum(heights) + frame
+        if rows is None:
+            rows = 2 if compact else min(max(n, 1), self._LIST_VISIBLE_ROWS)
+        h = self._list_height(rows)
+        #: how many rows the list is sized to show, for the fit after show
+        self._list_rows_shown = rows
         self._profile_list.setMinimumHeight(h)
         self._profile_list.setMaximumHeight(h)
         # **AND THE TWO BUTTONS BESIDE IT MUST NOT MAKE THE ROW TALLER
@@ -4217,6 +4223,109 @@ class MeasurementReportDialog(QDialog):
             else:
                 b.setMinimumHeight(0)
                 b.setMaximumHeight(16777215)
+
+
+    def _list_height(self, rows: int) -> int:
+        """The list's height for *rows* whole rows, its frame included."""
+        n = len(self._list_rows)
+        # **THE FRAME AND NOTHING ELSE (B8-921).** This was `+ 4` on top of
+        # the frame, and the viewport is the list's height minus the frame
+        # only, so with a sixth row waiting the list painted four pixels of it
+        # under the fifth: measured on screen, viewport 84 px over five
+        # 16 px rows, row 6 at y 80. Basti photographed that sliver, half
+        # behind the "Report type" pulldown.
+        frame = 2 * self._profile_list.frameWidth()
+        # Sum the real row heights — the checkable run rows are a few px
+        # taller than the profile header row, so a rows×row_h estimate either
+        # clipped the last visible row in half or let a sliver of the next
+        # one peek in.
+        heights = [self._profile_list.sizeHintForRow(i)
+                   for i in range(min(n, rows))]
+        if not heights or min(heights) <= 0:
+            heights = [self._profile_list.fontMetrics().height() + 8] * rows
+        return sum(heights) + frame
+
+    def _layout_need(self) -> int:
+        """The height this window's layout needs at its NARROWEST width.
+
+        **NOT `minimumSize` (B8-921).** The wrapped labels (the intro, the
+        "Already generated" line, the limits note) are height-for-width, and
+        `minimumSize` does not count them. Measured on screen on
+        Report-Limits-Threshold-Series: minimum 1065 px, window 1065 px, and
+        the layout's own height for that width 1081. Qt found the 16 px by
+        squeezing the "Report settings" frame 6 px below its 237 px minimum,
+        and the "Report type" pulldown, which cannot shrink, was pushed 3 px
+        up over the list (10 px at the 760 px minimum width). The narrowest
+        width is the one asked, because a label only wraps further as the
+        window narrows.
+        """
+        layout = self.layout()
+        if layout is None:
+            return 0
+        layout.activate()
+        need = layout.minimumSize().height()
+        if layout.hasHeightForWidth():
+            narrowest = max(self.minimumWidth(), layout.minimumSize().width())
+            need = max(need, layout.totalHeightForWidth(narrowest))
+        return need
+
+    def event(self, ev) -> bool:  # noqa: D401
+        """A relayout after the window is on screen is checked against the
+        window's ceiling once the event loop is idle (B8-921)."""
+        from PyQt6.QtCore import QEvent
+        if (ev.type() == QEvent.Type.LayoutRequest
+                and getattr(self, "_sized_to_screen", False)
+                and not getattr(self, "_fit_queued", False)):
+            self._fit_queued = True
+            QTimer.singleShot(0, self._keep_the_list_inside_the_window)
+        return super().event(ev)
+
+    def _keep_the_list_inside_the_window(self) -> None:
+        """After the window is on screen, what grows later (the list rebuilt
+        for a report picked, a sentence that wraps) must not grow the layout
+        past the window's ceiling.
+
+        **THE LADDER RAN ONCE AND THE WINDOW KEPT GROWING (B8-921).**
+        `showEvent` fits the window to the screen as it is at that moment,
+        with the list compacted to two rows; picking a report rebuilt the list
+        with five and set longer sentences, and nothing asked again. Measured
+        on screen on Report-Limits-Threshold-Series: the layout needed
+        1083 px at its narrowest in a window capped at 1039, Qt squeezed the
+        "Report settings" frame to 218 px of its 233, and the "Report type"
+        pulldown sat 8 px over the list (12 px at the 760 px width). So the
+        report view yields first (it scrolls, down to 150 px), then the list
+        gives up whole rows, down to the two the compact case keeps, and the
+        window's own minimum follows what is left, so a drag cannot squeeze
+        the frame either. Run again on every relayout, so a list that shrinks
+        gets its rows back when they fit.
+        """
+        self._fit_queued = False
+        if not getattr(self, "_sized_to_screen", False):
+            return
+        cap = self.maximumHeight()
+        if cap >= 16777215:
+            return
+        current = getattr(self, "_list_rows_shown", 2)
+        wanted = min(max(len(self._list_rows), 1), self._LIST_VISIBLE_ROWS)
+        # the layout's need with the list taken out, so every row count can be
+        # tried without laying the window out once per try, and the list is
+        # set once, which keeps this from answering its own relayout
+        base = self._layout_need() - self._profile_list.maximumHeight()
+        over = base + self._list_height(wanted) - cap
+        view = getattr(self, "_view", None)
+        if over > 0 and view is not None and view.minimumHeight() > 150:
+            # the report view scrolls, so it yields first, down to the
+            # ladder's first floor; the list's rows go only after that
+            view.setMinimumHeight(max(150, view.minimumHeight() - over))
+            base = self._layout_need() - self._profile_list.maximumHeight()
+        rows = wanted
+        while rows > 2 and base + self._list_height(rows) > cap:
+            rows -= 1
+        if rows != current:
+            self._size_profile_list(rows=rows)
+        floor = min(self._layout_need(), cap)
+        if floor != self.minimumHeight():
+            self.setMinimumHeight(floor)
 
     def _compact_the_settings_frame(self) -> None:
         """Take the air out of the "Report settings" frame and the row above it.
