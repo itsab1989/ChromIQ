@@ -26020,8 +26020,15 @@ would reach.
   lists its notes under itself (`_notes_list_html`); the record's list is
   headed "Notes on the values above:" and its closing sentence mentions no
   failure; the record's gamut paragraph no longer names a Result column.
-- verified by: `tests/test_g12_notes_where_a_value_is_shown.py` (six tests,
-  each red on its mutation); three older tests retargeted to the narrower rule.
+- evidence: the six tests of the G12 file in tests/ (
+  each red on its mutation):
+  test_the_printing_records_detailed_table_gives_no_verdict_word,
+  test_a_printing_record_explains_every_absence_with_a_note,
+  test_the_record_heading_is_about_values_not_verdicts,
+  test_the_record_prints_no_note_that_comments_a_verdict,
+  test_a_graded_detailed_table_carries_the_documents_note_numbers,
+  test_the_record_does_not_say_the_result_judges_the_gamut; three older
+  tests retargeted to the narrower rule.
 - proof: `~/Desktop/ChromIQ-beta39-proof/notes/` (REPORT.md: all 27 reason
   codes reached, printed on screen and in a saved PDF, with photographs and
   page numbers; demo built by `scripts/make_notes_demo.py`, driven by
