@@ -25110,11 +25110,16 @@ would reach.
 - status: OPEN
 - found by: adversary round 3A, on screen, 2026-09-23. Report:
   `~/Desktop/ChromIQ-beta36-proof/round3-A-features/REPORT.md`.
-- R3A-2: an 11-date document narrowed to 10 by Update shows 10 ticked in
-  place, but 11 once the project is copied elsewhere (B8-804's moved-project
-  fallback reads the files an Update leaves behind); Update then silently puts
-  the date back. Only after narrowing a multi-date document AND moving the
-  project.
+- R3A-2: FIXED 2026-09-23 with K23 (B8-814). An 11-date document narrowed
+  to 10 by Update showed 10 ticked in place, but 11 once the project was
+  copied elsewhere (B8-804's moved-project fallback read the files an Update
+  leaves behind); Update then silently put the date back. The restore now
+  matches the document's recorded measurements from `runs/` down before it
+  falls back to the files, and a measurement an Update takes out keeps its
+  file as a verdict record, which is never a member of the document. Guards:
+  test_a_moved_document_does_not_tick_the_date_an_update_took_out (was the
+  strict xfail) and test_a_moved_narrowed_document_ticks_what_it_covers
+  (mutation: drop the relative match, red).
 - R3A-1: FIXED 2026-09-23. An Update refused because one date's
   reports/old is read-only had already archived the other dates; the
   pre-flight now checks `reports/old` before anything is copied
@@ -25123,8 +25128,8 @@ would reach.
 - R3A-4's guard skipped itself once its fixture changed (a skip on a failed
   premise guards nothing); it now sets the state directly and fails if the
   premise fails.
-- evidence: none yet, it is open; both are strict xfails in
-  tests/test_round3_a_features_since_265216d5.py.
+- evidence: the guards named under R3A-1 and R3A-2. Still OPEN for the one
+  thing left: the failure box of a refused Update does not name the date.
 
 ### B8-811 · FIXED · Final round before beta 36: a press that wrote a hidden report, and report text that still explained ChromIQ
 - blocks release: no
@@ -25251,3 +25256,47 @@ would reach.
   from-the-mean row; E8 whether evenness should always be judged in absolute
   Lab, since a media-relative sheet whose paper-white patch sits in a faulty
   area shifts all nine areas (measured on screen on the demo project).
+
+### B8-816 · FIXED · K23: where a report lives, and which folders "Report shown" and "Already generated" read
+- blocks release: no
+- status: FIXED
+- spec: §13.11 of docs/design/measurement_report_limits.md, awaiting Knut's
+  confirmation of the built behaviour.
+- found by: Knut, #182 comment 5787117741, 2026-09-23 (the rule), accepting
+  the proposal of 5787131342 in 5787380408: one measurement in its own
+  `reports/`; several dates of one profile run in
+  `runN/verifications/reports/`; several profile runs in `<project>/reports/`;
+  every date keeps its own verdict record, never listed or counted; reports
+  already on disk stay and are counted by what they cover.
+- fix: `document_home` decides the home from what a report covers. A report
+  of several measurements is a document file there (`"role": "document"`)
+  plus a verdict record (`"role": "record"`) in each measurement folder the
+  press writes into. The list and the line read the list's measurement
+  folders of the bar's Run type plus the two shared folders (a document
+  there only when it covers a listed measurement, compared from `runs/`
+  down). Update moves, rewrites or retires the document file (D23 archive,
+  all or nothing); Delete moves only the document file. Also fixes B8-810
+  R3A-2. The demo pack gains Report-Limits-Report-Folders with every
+  combination.
+- found on the way, reported and NOT widened: a Profiling window gathers
+  every run's profiling reports for the trend (#40), and with two runs'
+  sheets ticked Generate was live and wrote one file into the window's run
+  that claimed both runs. It is the one path that writes a report across
+  profile runs; it now files the report in `<project>/reports/` with a
+  record in the window's run only
+  (test_the_cross_run_path_a_profiling_window_has).
+- open with Knut: (1) should a Profiling window, which lists every run's
+  sheet for the trend, also list and count every run's Printing records?
+  Built: no, only the window's run and what the user added. (2) Does an
+  Update of a report written before K23 move it into the new place? Built:
+  yes, its files archived first. (3) Delete moves the document file and
+  leaves each date's verdict record: right? (4) "Already generated for this
+  run" counts reports across runs that cover this run; keep the words?
+- evidence: the K23 test file's 21 tests, 17 mutations, all red, among them
+  test_where_a_document_lives,
+  test_several_dates_write_one_document_file_and_a_record_per_date,
+  test_a_deleted_document_leaves_its_records_unlisted_and_uncounted,
+  test_a_legacy_document_of_several_dates_counts_once_and_stays,
+  test_a_cross_run_document_is_listed_where_it_covers_and_nowhere_else,
+  test_update_to_one_date_retires_the_document_file_and_back; on screen in
+  `~/Desktop/ChromIQ-beta37-proof/report-folders/`.

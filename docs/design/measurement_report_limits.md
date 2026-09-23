@@ -1664,6 +1664,65 @@ disk, untouched), where it was shown as recorded. *Assumption:* "run type" here
 is the window's measurement, as in the first bullet; adding a measurement of
 the other kind makes it the window's subject (B8-803 is open on that).
 
+### 13.11 Where a report lives, and which folders the list reads (K23, Knut 2026-09-23)
+
+**⏳ AWAITING CONFIRMATION.** **Ruled by:** Knut, #182 comments 5787117741
+(the rule) and 5787380408 (accepting the proposal in 5787131342).
+**Confirmed by:** *nobody yet.* This records his ruling and what was built
+from it (B8-816); nobody has confirmed the built behaviour.
+
+> *"For single measurements: ".../runN/verifications/<date_time>/reports/"
+> For multiple measurements within same measurement set(within same profile
+> run): ".../runN/verifications/reports/" For multiple measurements across
+> different measurement sets of different profile runs:
+> ".../printer_profile_project_name/reports/""*, and for a profiling run
+> *"For single measurements: ".../runN/reports/""*, several runs in the
+> project's `reports/`.
+
+Accepted in 5787380408: each date keeps its own small verdict record in its
+own folder, *"it is not a report, it is never listed or counted"*; reports
+already on users' disks stay where they are and are shown and counted by what
+they cover.
+
+What was built:
+
+* **Where.** `document_home` decides from what the report COVERS (its ticked
+  measurements): one folder, that folder's `reports/`; several dates of one
+  profile run, `runN/verifications/reports/`; anything across profile runs,
+  `<project>/reports/`.
+* **What is written.** A report of one measurement is one file in that
+  measurement's folder, as before: it is the report and the date's verdict
+  record at once. A report of several measurements is a **document file** in
+  its home (its document block with `"role": "document"`, no measurement
+  data) and, in each measurement folder the press may write into (the
+  window's own run, as before), a **verdict record**: the same per-measurement
+  report with `"role": "record"`. The lock, the trend, the recorded-verdict
+  rows and recalculation read the records exactly as they read every report
+  file before.
+* **What is listed and counted.** "Report shown" and "Already generated for
+  this run" read the reports folders of the measurements in "Included
+  measurements" of the profile bar's Run type, plus the two shared folders,
+  where a document is taken only when it covers one of those measurements
+  (compared from `runs/` down, so a moved project still finds it). A verdict
+  record is never an entry and never counted.
+* **Which measurements.** Those of the window's own profile run, and those the
+  user added from elsewhere. *Assumption:* NOT the other runs' profiling
+  sheets that a Profiling window gathers by itself for the trend across a
+  printer's builds (#40); counting their reports made "for this run" name
+  another run's report and opened the window on it. Knut is asked.
+* **Update** decides the home again from the new ticks: the document file is
+  rewritten in place, moved (the old one archived into its `reports/old/`
+  first, D23) or retired when the report now covers one measurement, whose
+  file then becomes the report; a measurement taken out keeps its file as a
+  verdict record. All or nothing, as before.
+* **Delete Selected Report** of a report with a document file moves that one
+  file, into `verifications/old/<stamp>/` or `<project>/old/<stamp>/` (§13.2
+  L.7); the verdict records stay in their dates.
+* **Legacy.** Nothing is moved or rewritten by opening a project. A report of
+  several dates written before this (one file per date, one id, no role) is
+  listed and counted once, from the dates it covers. An Update of such a
+  report writes it by this rule (its files archived first).
+
 
 ## 15. ChromIQ's own two repeatability rows (#182, 2026-09-22)
 
