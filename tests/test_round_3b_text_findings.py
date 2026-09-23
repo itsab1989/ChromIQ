@@ -35,8 +35,12 @@ def _loose_window(tmp_path):
 
 def test_a_loose_file_beside_a_run_gives_the_several_places_reason(tmp_path,
                                                                    qapp):
-    """F9. MUTATION: drop `and not several` and Generate says "not part of a
-    profile run" with a run loaded beside it: red."""
+    """F9, restated for G7 (#182 beta 39): the several-places sentence is
+    gone, and with a loose file beside a run the across-places sentence says
+    why (a ticked measurement outside a ChromIQ project).
+
+    MUTATION, proven red: drop `and not self._generate_btn.toolTip()` from
+    the "not part of a profile run" branch, and it overwrites the reason."""
     from tests.test_import_measurement_module import _cgats, _PATCHES, _verify_env
     _s, _fm, _ctl, run = _verify_env(tmp_path / "proj")
     v = run.new_verification()
@@ -48,7 +52,7 @@ def test_a_loose_file_beside_a_run_gives_the_several_places_reason(tmp_path,
         qapp.processEvents()
         assert dlg._several_runs(), "the fixture did not load two places"
         tip = dlg._generate_btn.toolTip()
-        assert "more than one place" in tip, tip
+        assert "in a ChromIQ project" in tip, tip
         assert "not part of a profile run" not in tip, tip
     finally:
         dlg.deleteLater()

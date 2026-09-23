@@ -7,8 +7,11 @@ Round A, F1 (HIGH): a report in `<project>/reports` covering run1's
 about one date and retired the file that covered two.
 
 The fix loads the measurements a selected document records that the window
-has not loaded. The several-places rule then greys Generate with its reason,
-so an Update cannot narrow the document, and the page shows all of it.
+has not loaded, and the page shows all of it. Until G7 (#182 beta 39) the
+several-places rule then greyed Generate so an Update could not narrow the
+document; since G7 a report across runs is written as a whole (one document
+file, judged against its own set), so Generate is live and an Update keeps
+every date.
 """
 from __future__ import annotations
 
@@ -90,9 +93,8 @@ def test_opening_run2_on_the_cross_run_report_loads_run1s_date(tmp_path, qapp):
             "run1's date the report covers is not in the report")
         assert project_relative(v2.dir) in dirs
         assert len(dlg._sources) == 2
-        assert not dlg._generate_btn.isEnabled(), (
-            "Generate is live over a report whose Update would narrow it")
-        assert "more than one place" in dlg._generate_btn.toolTip()
+        # G7: live, and an Update keeps both dates (the next test).
+        assert dlg._generate_btn.isEnabled(), dlg._generate_btn.toolTip()
     finally:
         dlg.close()
 
@@ -100,11 +102,11 @@ def test_opening_run2_on_the_cross_run_report_loads_run1s_date(tmp_path, qapp):
 def test_picking_the_report_in_the_list_loads_it_whole_and_writes_nothing(
         tmp_path, qapp):
     """The click path: a window that opened on another report, then the
-    cross-run report picked from "Report shown". Nothing on disk moves.
+    cross-run report picked from "Report shown". Picking writes nothing, and
+    Generate answered Cancel writes nothing.
 
-    MUTATIONS (proved red 2026-09-23): as above; and, separately, make the
-    new several-places refusal in `_on_generate_report` read `if False:`,
-    and the handler writes a report into `<project>/reports`."""
+    MUTATION (proved red 2026-09-23): make
+    `_load_the_documents_other_measurements` return 0 at its top."""
     s, run1, run2, v1, v2, doc_path, doc_id = \
         _two_runs_and_a_report_across_them(tmp_path)
     root = Path(doc_path).parent.parent
@@ -120,15 +122,58 @@ def test_picking_the_report_in_the_list_loads_it_whole_and_writes_nothing(
         dirs = {project_relative(r.get("_origin_dir") or "")
                 for r in dlg._runs_for_report()}
         assert {project_relative(v1.dir), project_relative(v2.dir)} <= dirs
-        assert not dlg._generate_btn.isEnabled()
-        # pressing it anyway (the button is disabled; the handler is what an
-        # accidental call would reach) must not narrow the document
+        assert _snapshot(root) == before, "picking a report wrote a file"
+        dlg._ask_update_or_create_new = lambda: "cancel"
         dlg._say_generated = lambda saved, failed: None
         dlg._on_generate_report()
         qapp.processEvents()
-        assert _snapshot(root) == before, "a report file was rewritten or moved"
+        assert _snapshot(root) == before, "Cancel wrote a file"
     finally:
         dlg.close()
+
+
+def test_update_of_the_cross_run_report_keeps_both_dates(tmp_path, qapp):
+    """G7 (#182 beta 39): the Update that A-F1 had to forbid now rewrites the
+    document across both runs, in place, with its old file archived first
+    (D23), and the dates' verdict records keep their verdicts.
+
+    MUTATION, proven red: take `across` as False in `_write_the_document`
+    (the Update is written the one-place way: a record into run2's date only
+    and the document file rewritten without a verdict per date)."""
+    from workflow.measurement_report import JUDGED_KEY, recorded_document
+    s, run1, run2, v1, v2, doc_path, doc_id = \
+        _two_runs_and_a_report_across_them(tmp_path)
+    # THE OTHER RUN'S date (the window is on run2): nothing is written there.
+    verdicts = {}
+    for f in (v1.dir,):
+        for p in (f / "reports").glob("report_*.json"):
+            verdicts[str(p)] = json.loads(p.read_text(encoding="utf-8")).get("verdict")
+    dlg = _dialog(s, v2.measurement_ti3, qapp)
+    try:
+        assert dlg._loaded_doc_id == f"id:{doc_id}"
+        dlg._ask_update_or_create_new = lambda: "update"
+        dlg._say_generated = lambda saved, failed: None
+        dlg._on_generate_report()
+        qapp.processEvents()
+    finally:
+        dlg.close()
+    body = json.loads(Path(doc_path).read_text(encoding="utf-8"))
+    block = recorded_document(body)
+    assert block["id"] == doc_id and block.get("updated"), block
+    ms = block["measurements"]
+    assert {project_relative(m["dir"]) for m in ms} == {
+        project_relative(v1.dir), project_relative(v2.dir)}
+    assert all(isinstance(m.get(JUDGED_KEY), dict) for m in ms), ms
+    assert list((Path(doc_path).parent / "old").glob("*/report_*.json")), (
+        "the document file was rewritten without a copy in reports/old")
+    for p, v in verdicts.items():
+        assert json.loads(Path(p).read_text(encoding="utf-8")).get("verdict") == v, (
+            f"{p} changed its verdict")
+    # …and the window's own date's record, rewritten under the same set as
+    # its run's (K23 as before), was copied into its reports/old first (D23).
+    assert list((v2.dir / "reports" / "old").glob("*/report_*.json"))
+    shared = sorted(Path(doc_path).parent.glob("report_*.json"))
+    assert shared == [Path(doc_path)], shared
 
 
 def test_new_report_unloads_what_the_cross_run_report_loaded(tmp_path, qapp):

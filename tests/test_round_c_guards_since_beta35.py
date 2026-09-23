@@ -259,33 +259,46 @@ def _remove_source_of(dlg, run, qapp):
     qapp.processEvents()
 
 
-def test_the_several_runs_reason_goes_when_the_second_run_is_removed(
+def _only_the_other_run(dlg, run1, qapp, only=True):
+    mine = {dlg._run_key(r) for r in dlg._history
+            if str(r.get("_origin_dir") or "").startswith(str(run1.dir))}
+    dlg._hidden_runs = set(mine) if only else set()
+    dlg._sync_limit_controls()
+    qapp.processEvents()
+
+
+def test_the_other_run_reason_goes_when_this_run_is_ticked_again(
         tmp_path, qapp):
-    """MUTATION survived: delete `self._generate_btn.setToolTip("")` before
-    `if several:`. The sentence then stays on a live Generate button after the
-    second run's measurements are removed from the window."""
+    """Retargeted for G7 (#182 beta 39): the several-runs reason is gone
+    (Generate is live across runs); the reason that replaced it, "every ticked
+    measurement belongs to another profile run", must go as soon as it stops
+    being true.
+
+    MUTATION, proven red: delete `self._generate_btn.setToolTip("")` at the
+    head of the Generate block. The sentence then stays on a live button."""
     from tests.test_the_report_type_pulldown_stores_on_the_run import _two_runs
-    dlg, _run1, run2 = _two_runs(tmp_path, qapp)
+    dlg, run1, _run2 = _two_runs(tmp_path, qapp)
     try:
-        assert "more than one place" in dlg._generate_btn.toolTip()
-        _remove_source_of(dlg, run2, qapp)
-        assert not dlg._several_runs(), "the second run is still loaded"
-        assert "more than one place" not in dlg._generate_btn.toolTip(), (
-            "the several-runs reason outlived the second run")
+        _only_the_other_run(dlg, run1, qapp)
+        assert "another profile run" in dlg._generate_btn.toolTip()
+        _only_the_other_run(dlg, run1, qapp, only=False)
+        assert dlg._generate_btn.isEnabled()
+        assert "another profile run" not in dlg._generate_btn.toolTip(), (
+            "the other-run reason outlived its state")
     finally:
         dlg.close()
 
 
 def test_the_tooltip_no_longer_offers_a_lever_that_does_nothing(qapp, tmp_path):
     """Round C found (and round B the same hour) that the several-runs tooltip
-    told the reader to untick the other run's measurements, which does not
-    bring Generate back: what greys it is a second profile ADDED. Fixed in
-    85bcc182 by naming the lever that works (its own guard follows that
-    advice through the buttons); this keeps the false one from coming back.
-    """
+    told the reader to untick the other run's measurements, which did not
+    bring Generate back. G7 removed that sentence; the reason a greyed
+    Generate gives with two runs loaded (only the other run ticked) still
+    names a lever, and never "untick"."""
     from tests.test_the_report_type_pulldown_stores_on_the_run import _two_runs
-    dlg, _r1, _r2 = _two_runs(tmp_path, qapp)
+    dlg, run1, _r2 = _two_runs(tmp_path, qapp)
     try:
+        _only_the_other_run(dlg, run1, qapp)
         tip = dlg._generate_btn.toolTip().lower()
         assert tip, "Generate is greyed with no reason"
         assert "untick" not in tip, tip

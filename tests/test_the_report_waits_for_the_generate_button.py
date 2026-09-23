@@ -336,7 +336,8 @@ def test_nothing_waits_for_a_button_that_cannot_be_pressed(tmp_path, qapp):
     ADVERSARY ROUND THE SAME HOUR.
 
     `_generate_btn` is disabled when the window is on a measurement that
-    belongs to no run, when SEVERAL profile runs are loaded, and when every
+    belongs to no run, when only ANOTHER profile run's measurements are
+    ticked (before G7: when several profile runs were loaded), and when every
     measurement has been unticked. The two tick boxes and the run ticks stay
     live in all three. So the first version of this feature let a user with two
     profiles loaded, which is this window's main job, toggle "Show detailed
@@ -359,9 +360,17 @@ def test_nothing_waits_for_a_button_that_cannot_be_pressed(tmp_path, qapp):
             encoding="utf-8")
         dlg._add_source(v2.measurement_ti3)
         qapp.processEvents()
+        # G7 (#182 beta 39): two runs loaded no longer grey Generate; ONLY
+        # the other run ticked still does (a report of it alone belongs to
+        # its own window), so that is the state this test stands in.
+        dlg._hidden_runs = {dlg._run_key(r) for r in dlg._history
+                            if str(v2.dir) != r.get("_origin_dir")}
+        dlg._sync_limit_controls()
+        qapp.processEvents()
         assert not dlg._generate_btn.isEnabled(), (
-            "two profile runs are loaded and the button is still live, so "
-            "this test is no longer about the state it was written for")
+            "only another run's measurement is ticked and the button is still "
+            "live, so this test is no longer about the state it was written "
+            "for")
         before = dlg._view.toHtml()
         dlg._detail_check.setChecked(not dlg._detail_check.isChecked())
         qapp.processEvents()

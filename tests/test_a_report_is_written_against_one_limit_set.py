@@ -126,24 +126,43 @@ def _dialog(tmp_path, qapp, bind="chromiq_default"):
 
 def _second_run(tmp_path, fm, dlg, qapp, set_id="chromiq_tight",
                 thresholds=None):
-    """A second profile run, bound to *set_id*, added to the window."""
+    """A second DATED VERIFICATION of the window's own run, whose saved report
+    was judged against *set_id* (with *thresholds* as its copy, when given):
+    a date saved before the run was bound to the set it has now.
+
+    **IT WAS A SECOND PROFILE RUN, AND G7 MOVED IT (#182 beta 39).** Knut,
+    5794311113: *"the report's own limit set applies to every included
+    measurement, whatever each run is bound to"*. Across profile runs nothing
+    is narrowed any more (`_judged_by_the_document`); one place can still hold
+    dates recorded against two sets, and that is where the rule these tests
+    guard still applies. Returns ``(run, v2)``; *run* is the window's own.
+    """
+    import os as _os
+    import time as _time
     from tests.test_import_measurement_module import _cgats, _PATCHES
-    from workflow.run_compliance import bind_run
-    run2 = fm.project().new_run()
-    v2 = run2.new_verification()
+    from workflow.compliance_sets import (SET_BY_ID, effective_limits,
+                                          limits_from_json)
+    from workflow.measurement_report import (build_report, save_report,
+                                             stamp_verdict)
+    run = dlg._run_ctx.run
+    v2 = run.new_verification()
     v2.ensure_dir()
     v2.measurement_ti3.write_text(
         _cgats("CTI3", [(r * 0.5, g, b) for (r, g, b) in _PATCHES]),
         encoding="utf-8")
-    bind_run(run2, set_id, None)
-    if thresholds is not None:
-        meta = run2.load_meta()
-        meta.compliance_thresholds = thresholds
-        run2.save_meta(meta)
-    _save_a_report(run2, v2)
-    dlg._add_source(v2.measurement_ti3)
+    _t = _time.time() + 60
+    _os.utime(v2.measurement_ti3, (_t, _t))
+    limits = (limits_from_json(thresholds, set_id) if thresholds is not None
+              else effective_limits(set_id, None))
+    rep = build_report(v2.measurement_ti3)
+    stamp_verdict(rep, limits, set_id=set_id,
+                  set_label=SET_BY_ID[set_id].label if set_id in SET_BY_ID
+                  else set_id)
+    save_report(rep, v2.dir)
+    dlg._reload_sources()
+    dlg._saved_combo.setCurrentIndex(0)
     qapp.processEvents()
-    return run2, v2
+    return run, v2
 
 
 def _plain(dlg) -> str:
@@ -348,7 +367,9 @@ def test_the_pdf_is_offered_in_the_folder_of_the_run_it_describes(tmp_path,
         covered = Path(kept[0]["_origin_dir"])
         assert str(where).startswith(str(covered)), (
             f"the report describes {covered} and would be saved in {where}")
-        assert str(run.dir) not in str(where) or str(run2.dir) not in str(where)
+        # …and never in the folder of the date it left out (G7 moved this
+        # fixture into one run: the two dates are the two places now).
+        assert str(dropped[0]["_origin_dir"]) not in str(where)
     finally:
         dlg.close()
 
@@ -450,108 +471,84 @@ def test_a_choice_that_names_no_file_falls_back_to_the_newest():
     assert out[0]["_report_file"] == "report_2026-09-15_13-35-33_16.json"
 
 
-def test_renaming_the_project_does_not_pull_another_set_into_the_document(
-        tmp_path, qapp):
-    """R18-F4: a document is written against ONE "judged against" set, and the
-    split reads each row's binding off the disk through `run_context_for`. Move
-    or rename the project while the window is open and every row of it falls
-    through to the WINDOW's set instead, so a measurement judged against
-    another one is silently pulled IN. Measured: folder present, 2 kept and 1
-    dropped; folder renamed, 3 kept and 0 dropped, under a heading still naming
-    one set.
-
-    A row that has answered once keeps its answer.
-
-    MUTATION, proven to land: drop the `_limits_by_origin` fall-back.
-    """
-    from tests.test_a_report_says_what_it_is_and_what_judged_it import _dialog
+def _two_more_runs(dlg, fm, qapp):
+    """Two more profile runs of the window's project, one bound to
+    chromiq_tight, each with a dated verification and NO saved report, added
+    to the window. Returns the project root."""
     from tests.test_import_measurement_module import _cgats, _PATCHES
     from workflow.run_compliance import bind_run
     from pathlib import Path as _P
+    proj = fm.project()
+    for scale, limits in ((0.9, None), (0.7, "chromiq_tight")):
+        run = proj.new_run()
+        v = run.new_verification()
+        v.ensure_dir()
+        v.measurement_ti3.write_text(
+            _cgats("CTI3", [(r * scale, g, b) for (r, g, b) in _PATCHES]),
+            encoding="utf-8")
+        if limits:
+            bind_run(run, limits, None)
+        dlg._add_source(v.measurement_ti3)
+        qapp.processEvents()
+    return _P(str(proj.root))
+
+
+def test_renaming_the_project_does_not_pull_another_set_into_the_document(
+        tmp_path, qapp):
+    """R18-F4 guarded a document ACROSS RUNS that was narrowed to one set, so
+    that a rename could not pull another set's measurement into it. G7 (#182
+    beta 39, Knut 5794311113: *"the report's own limit set applies to every
+    included measurement, whatever each run is bound to"*) retired the
+    narrowing across runs, so the rule this now guards is the ruling itself:
+    three runs, two sets, nothing left out, before the project is renamed
+    under the open window and after.
+
+    MUTATION, proven red: drop the `_spans_places` early return in
+    `_one_limit_set` (the tight run's date is left out again)."""
+    from tests.test_a_report_says_what_it_is_and_what_judged_it import _dialog
     dlg, _run, fm = _dialog(tmp_path, qapp)
     try:
-        proj = fm.project()
-        root = _P(str(proj.root))
-        for scale, limits in ((0.9, None), (0.7, "chromiq_tight")):
-            run = proj.new_run()
-            v = run.new_verification()
-            v.ensure_dir()
-            v.measurement_ti3.write_text(
-                _cgats("CTI3", [(r * scale, g, b) for (r, g, b) in _PATCHES]),
-                encoding="utf-8")
-            if limits:
-                bind_run(run, limits, None)
-            dlg._add_source(v.measurement_ti3)
-            qapp.processEvents()
+        root = _two_more_runs(dlg, fm, qapp)
         kept_before, dropped_before = dlg._one_limit_set(list(dlg._history))
-        assert dropped_before, (
-            "the fixture has nothing judged against another set, so this test "
-            "would prove nothing")
+        assert (len(kept_before), len(dropped_before)) == (3, 0), (
+            len(kept_before), len(dropped_before))
         moved = root.with_name(root.name + "-moved")
         root.rename(moved)
         try:
             kept_after, dropped_after = dlg._one_limit_set(list(dlg._history))
         finally:
             moved.rename(root)
-        assert len(kept_after) == len(kept_before), (
-            f"renaming the project moved {len(kept_after) - len(kept_before)} "
-            f"more measurement(s) into a document written against one set")
-        assert len(dropped_after) == len(dropped_before), (
-            f"{len(dropped_before)} measurements were left out before the "
-            f"rename and {len(dropped_after)} after")
+        assert (len(kept_after), len(dropped_after)) == (3, 0)
     finally:
         dlg.close()
 
 
 def test_the_limit_split_survives_the_window_repainting_itself(tmp_path, qapp):
-    """R19-3: the fix for R18-F4 was inert in the app, and the guard could not
-    see it because it called `_one_limit_set` twice by hand. `_refresh()` calls
-    `_forget_limits()` and THEN renders, and that was emptying the very memo
-    the fix depends on, so with the folder already gone nothing in the render
-    could refill it. Driven through `_refresh()`: memo 0 entries, 3 kept and 0
-    dropped, which is the symptom the fix was written for.
+    """R19-3 guarded the same split through the app's own repaint. Under G7
+    the page of a document across runs is judged against ONE set, the
+    document's, whatever each run is bound to; this repaints the window, as
+    the app does, renames the project under it, and asks the page.
 
-    **This test repaints the window, because that is the only sequence the app
-    ever runs.**
-
-    MUTATION, proven to land: clear `_limits_by_origin` in `_forget_limits`.
-    """
+    MUTATION, proven red: make `_judged_by_the_document` return the rows
+    unchanged (each row is judged live against its own run's set, so the
+    page holds two yardsticks)."""
     from tests.test_a_report_says_what_it_is_and_what_judged_it import _dialog
-    from tests.test_import_measurement_module import _cgats, _PATCHES
-    from workflow.run_compliance import bind_run
-    from pathlib import Path as _P
     dlg, _run, fm = _dialog(tmp_path, qapp)
     try:
-        proj = fm.project()
-        root = _P(str(proj.root))
-        for scale, limits in ((0.9, None), (0.7, "chromiq_tight")):
-            run = proj.new_run()
-            v = run.new_verification()
-            v.ensure_dir()
-            v.measurement_ti3.write_text(
-                _cgats("CTI3", [(r * scale, g, b) for (r, g, b) in _PATCHES]),
-                encoding="utf-8")
-            if limits:
-                bind_run(run, limits, None)
-            dlg._add_source(v.measurement_ti3)
-            qapp.processEvents()
+        root = _two_more_runs(dlg, fm, qapp)
         dlg._refresh()
         qapp.processEvents()
-        kept_before, dropped_before = dlg._one_limit_set(list(dlg._history))
-        assert dropped_before, "the fixture leaves nothing out"
+        keys = {dlg._yardstick_of(r) for r in dlg._runs_for_report()}
+        assert len(dlg._runs_for_report()) == 3 and len(keys) == 1, keys
         moved = root.with_name(root.name + "-moved")
         root.rename(moved)
         try:
             dlg._refresh()            # the app's own sequence, forget then render
             qapp.processEvents()
-            kept_after, dropped_after = dlg._one_limit_set(list(dlg._history))
+            keys = {dlg._yardstick_of(r) for r in dlg._runs_for_report()}
         finally:
             moved.rename(root)
-        assert len(kept_after) == len(kept_before), (
-            f"after the window repainted itself, {len(kept_after)} "
-            f"measurements are in a document written against one set where "
-            f"{len(kept_before)} were")
-        assert len(dropped_after) == len(dropped_before)
+        assert len(keys) == 1, f"{len(keys)} limit sets on one page"
     finally:
         dlg.close()
 

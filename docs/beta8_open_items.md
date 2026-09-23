@@ -6004,7 +6004,8 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   test_every_built_type_names_itself,
   test_the_head_can_never_name_a_type_this_build_cannot_make,
   test_the_limit_set_is_named_at_the_top,
-  test_two_runs_bound_to_different_sets_leave_one_in_the_document,
+  test_two_runs_bound_to_different_sets_are_judged_by_the_reports_set
+  (retargeted by G7, B8-848: was ..._leave_one_in_the_document),
   test_the_run_description_is_labelled_as_one,
   test_and_keeps_room_for_a_description_of_ordinary_length.
   Measured on his own two files with pypdf before anything was changed.
@@ -10639,7 +10640,9 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   test_the_button_files_a_report_only_for_what_the_page_describes,
   test_a_single_measurement_is_never_filtered_out_of_its_own_report,
   test_the_anchor_is_the_sheet_the_window_is_on,
-  test_two_runs_bound_to_different_sets_leave_one_in_the_document.
+  test_two_runs_bound_to_different_sets_are_judged_by_the_reports_set
+  (retargeted by G7, B8-848: across runs nothing is narrowed any more; the
+  file's other tests now stage two dates of ONE run).
   Four mutations proved to land by reading the file back: the filter removed
   from `_report_body_html` (3 red), `yardstick_key` reduced to the set id
   (3 red), `_other_limit_sets_html` silenced (2 red), and
@@ -24439,7 +24442,8 @@ would reach.
   tone check chosen, page built as t3_grey_and_tone, no meta.json changed.
 - evidence:
   test_with_two_runs_ticked_the_type_can_be_chosen_and_neither_run_is_written
-  test_a_greyed_generate_says_why_when_two_runs_are_ticked
+  test_a_greyed_generate_says_why_when_only_another_run_is_ticked
+  (retargeted by G7, B8-848: two runs no longer grey Generate)
 
 ### B8-786 · FIXED · Two of three measurements ticked became a "One date" report and the ticks collapsed
 - blocks release: no
@@ -24549,7 +24553,9 @@ would reach.
   translated nothing; it now loads the catalogue and Qt's translator as
   main.py does.
 - evidence:
-  test_the_advice_generates_tooltip_gives_really_brings_generate_back
+  test_with_two_runs_ticked_generate_is_live (replaces ROUND B's test that
+  followed the tooltip's advice; G7 removed that advice with the refusal,
+  B8-848)
   test_the_pdf_page_header_describes_the_rows_the_body_describes
 
 ### B8-790 · FIXED · "Covers 1 of the 18 measurements recorded for this project" on a three-run Printing record
@@ -26158,3 +26164,58 @@ would reach.
   test_a_bunched_ramp_is_refused_and_says_where,
   test_a_screen_too_short_for_the_wide_box_gets_the_one_line,
   test_the_folder_guide_shows_the_chromiq_folders_own_old
+
+### B8-848 · FIXED, awaiting confirmation · G7: Generate report across profile runs and across projects, judged against the report's own set
+- blocks release: no
+- status: FIXED
+- number: the two numbers before this one are left to the K28a and K28b
+  rounds working at the same time (the first was already on the main
+  checkout).
+- where: commits "#182 beta39 G7: ..." in the G7 worktree, awaiting Knut's
+  confirmation (spec §13.13, §13.9 record, §20 G7; amendments marked in
+  §13.11 and §18.12).
+- found by: Knut, #182 5773668311 (2026-09-22, one report, one set),
+  confirmed 5794311113 (*"the report's own limit set applies to every
+  included measurement, whatever each run is bound to"*); 5794078008 point 3
+  (Generate across projects). The leak was found by the beta 39 Calibration
+  round: a report of P/run1 and Q/run1 was offered in R/run1's window.
+- measured before (beta 39 HEAD 38e820db): Generate greyed whenever
+  measurements of two places were loaded ("Measurements from more than one
+  place are loaded" / "Calibrations of more than one project are loaded");
+  graded reports narrowed to one set's measurements; "Judged against" greyed
+  with two runs loaded.
+- built: a report across places is ONE document file (`<project>/reports/`,
+  or `<ChromIQ folder>/reports/` made by that write) whose measurement entries
+  each carry `judged`, the verdict against the report's set; the page shows
+  those words, or judges every row live against the "Judged against" set for a
+  new report; a verdict record goes only into the window's own run and only
+  where it cannot contradict it (a profiling sheet, or a run with the same
+  yardstick); no run is bound; "Judged against" is live and binds nothing,
+  "Show limits…" and "Unlock" stay greyed; Update/Create New/Delete as before,
+  all or nothing; refusals with a reason for measurements outside a project,
+  projects in two folders, or ticks all in another place; the across-projects
+  folder matched by project name too (the leak); a sheet gathered twice by
+  two sources is one row.
+- evidence: the G7 file in tests/ (8 tests, each red on the
+  mutation in its docstring, run with -n 0; output in the proof folder's
+  mutations.txt), and retargeted:
+  test_two_runs_loaded_the_pulldown_chooses_the_reports_set,
+  test_with_two_runs_ticked_generate_is_live,
+  test_a_greyed_generate_says_why_when_only_another_run_is_ticked,
+  test_the_other_run_reason_goes_when_this_run_is_ticked_again,
+  test_update_of_the_cross_run_report_keeps_both_dates,
+  test_two_runs_bound_to_different_sets_are_judged_by_the_reports_set.
+- proof: `~/Desktop/ChromIQ-beta39-proof/g7/` (DESIGN.md, REPORT.md, the
+  on-screen drive `scripts/drive_beta39_g7.py` with 33 photographs and the
+  folders listed before and after every press).
+- open for Knut: (1) within ONE profile run, a date recorded against a set
+  the run was later re-bound away from is still narrowed out of a graded
+  report; should G7 reach that case too? (2) a report across places writes a
+  verdict record into the window's own run only when the run has the report's
+  set; is "no record, the date keeps its own verdict" right for the other
+  case? (3) projects in two different folders cannot share a report (there is
+  no one `<ChromIQ folder>/reports/`); acceptable? (4) "Show limits…" stays
+  greyed with several places loaded; should it show the chosen set's limits
+  read-only? (5) with the several-places window, the page waits for Generate
+  after "Judged against" moves (N.2), so the head names the old set under a
+  pulldown naming the new one until the press, as for one run.

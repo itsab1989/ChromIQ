@@ -48,7 +48,8 @@ those rows read "confirmed by Knut 2026-09-23", and their sections carry
 **Confirmed by:** Knut. §18.1 is superseded by his Calibration rule
 (5794078008), confirmed as a rule and built in beta 39 (§18.12, the built
 result awaiting his confirmation). The rule of
-§13.9 / G7 is confirmed and not built yet (beta 39). The §20 gaps stay open.
+§13.9 / G7 is confirmed and built in beta 39 (§13.13, B8-848), the built
+result awaiting his confirmation. The other §20 gaps stay open.
 
 | section | subject | Knut's ruling | status |
 |---|---|---|---|
@@ -57,7 +58,7 @@ result awaiting his confirmation). The rule of
 | §13.8 | Generate asks about a selected report even when nothing changed (K4) | 2026-09-22, 5781159382 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
 | §13.8 | An Update re-creates a report by today's rules; an older report keeps its text until then | 2026-09-22, 5773668311 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
 | §13.9 | A report that judges nothing keeps every ticked measurement (K16) | 2026-09-22, 5781159382 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
-| §13.9 | One report, one limit set, applied to every measurement it includes, across runs | 2026-09-22, 5773668311; confirmed 2026-09-23, 5794311113 | agreed; rule confirmed by Knut 2026-09-23 (5794311113); not built yet (beta 39) (gap G7, §20) |
+| §13.9 | One report, one limit set, applied to every measurement it includes, across runs | 2026-09-22, 5773668311; confirmed 2026-09-23, 5794311113 | agreed; rule confirmed by Knut 2026-09-23 (5794311113); built in beta 39 (§13.13, B8-848), the built result awaiting confirmation |
 | §13.10 | Report types by run type; the automatic report follows (K13) | 2026-09-22, 5781159382 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
 | §13.10 | "The measurement decides, not the bar" | assumption, 2026-09-22 | superseded by K24 (the profile bar decides) |
 | §13.10 | A calibration keeps every report type | assumption, 2026-09-22 | superseded by §18.1 (no report under Calibration), which is itself superseded by the Calibration rule of 5794078008 (every type but the Printing record; built in beta 39, §18.12) |
@@ -1933,8 +1934,8 @@ this section.
 * **Proof:** `~/Desktop/ChromIQ-beta36-proof/K16-two-of-three/`.
 * **Status:** agreed; the built result is confirmed. **Confirmed by:** Knut, 2026-09-23 (#182 comment [5794311113](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5794311113)).
 
-**Record (one report, one limit set, across runs). NOT BUILT as ruled: gap G7
-(§20).**
+**Record (one report, one limit set, across runs). Built in beta 39 (§13.13,
+gap G7 of §20), awaiting confirmation.**
 * **Rule:** a report is judged against ITS OWN limit set, and that one set is
   applied to every measurement the report includes, even when they belong to
   different profile runs whose own reports used other sets: *"The project
@@ -1946,10 +1947,15 @@ this section.
   uses required ('shall'), those reports are separate."*
 * **Ruling:** Knut, 2026-09-22,
   [5773668311](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5773668311).
-* **Built:** not as ruled. `_one_limit_set` still narrows a GRADED report to
-  the measurements judged against one set (his ruling of 2026-09-16), so
-  verifications judged against different sets and ticked together lose all but
-  one set's dates (B8-786 "NOT decided here", B8-793 A-4). Question 8 of our
+* **Built (beta 39, B8-848):** across profile runs and across projects, as
+  ruled: every included measurement is judged against the report's own set
+  (§13.13). Before beta 39, not as ruled: `_one_limit_set` narrowed a GRADED
+  report to the measurements judged against one set (his ruling of
+  2026-09-16), so verifications judged against different sets and ticked
+  together lost all but one set's dates (B8-786 "NOT decided here", B8-793
+  A-4). Within ONE profile run it still does (a date recorded against a set
+  the run was later re-bound away from); whether G7 reaches that case too is
+  a question in B8-848. Question 8 of our
   [5784140521](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5784140521)
   asked which rule wins and has no answer yet; his words above, given earlier
   the same day, read as an answer.
@@ -1958,10 +1964,17 @@ this section.
   answering question 8 of 5784140521: *"Yes, I confirm 'the report's own limit
   set applies to every included measurement, whatever each run is bound
   to.'"* This settles question 8.
-* **Verified by:** nothing pins the ruled behaviour.
-* **Proof:** none.
-* **Status:** agreed rule, confirmed by Knut 2026-09-23; **not built yet (beta
-  39)**. The rule is confirmed; there is no built result to confirm.
+* **Verified by:** `tests/test_g7_reports_across_places.py` (8 tests, each
+  red on the mutation in its docstring), and the retargeted
+  `tests/test_a_report_says_what_it_is_and_what_judged_it.py::`
+  `test_two_runs_bound_to_different_sets_are_judged_by_the_reports_set`,
+  `tests/test_a_report_is_written_against_one_limit_set.py::`
+  `test_renaming_the_project_does_not_pull_another_set_into_the_document`,
+  `test_the_limit_split_survives_the_window_repainting_itself`.
+* **Proof:** `~/Desktop/ChromIQ-beta39-proof/g7/` (REPORT.md, photographs,
+  folder listings before and after every press).
+* **Status:** agreed rule, confirmed by Knut 2026-09-23; built in beta 39;
+  the built result ⏳ awaiting confirmation. **Confirmed by:** *nobody yet.*
 
 ### 13.10 Which report types each run type offers (Knut, 2026-09-22)
 
@@ -2083,8 +2096,9 @@ of the other kind makes it the window's subject (B8-803 is open on that).~~
   tooltip's advice corrected by B8-789 and B8-799).
 * **Verified by:** `tests/test_the_report_type_pulldown_stores_on_the_run.py::`
   `test_with_two_runs_ticked_the_type_can_be_chosen_and_neither_run_is_written`,
-  `test_a_greyed_generate_says_why_when_two_runs_are_ticked`,
-  `test_the_advice_generates_tooltip_gives_really_brings_generate_back`;
+  `test_a_greyed_generate_says_why_when_only_another_run_is_ticked`,
+  `test_with_two_runs_ticked_generate_is_live` (the last two retargeted by
+  G7, §13.13: two runs loaded no longer grey Generate);
   `tests/test_round_2b_text_findings.py::`
   `test_a_measurement_in_no_run_says_why_generate_is_grey`.
 * **Proof:** `~/Desktop/ChromIQ-beta36-proof/K17-two-runs-type/`.
@@ -2168,12 +2182,33 @@ What was built:
   report with `"role": "record"`. The lock, the trend, the recorded-verdict
   rows and recalculation read the records exactly as they read every report
   file before.
+
+  > **SUPERSEDED IN PART by G7 (§13.13, beta 39) for a report ACROSS
+  > PLACES** (several profile runs, or several projects), after Knut's
+  > 5773668311 and [5794311113](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5794311113): *"the report's own limit set applies to every
+  > included measurement, whatever each run is bound to"*. Such a document
+  > file also records each measurement's verdict against the report's set,
+  > and the window's own run gets its record ONLY where the record cannot
+  > contradict the run: a profiling sheet (no set grades it), or a date
+  > whose run is judged by the same yardstick as the report. A date whose
+  > run is bound to another set gets no record and keeps the verdict it has.
+  > ⏳ Awaiting confirmation. **Confirmed by:** *nobody yet.*
 * **What is listed and counted.** "Report shown" and "Already generated for
   this run" read the reports folders of the measurements in "Included
   measurements" of the profile bar's Run type, plus the two shared folders,
   where a document is taken only when it covers one of those measurements
   (compared from `runs/` down, so a moved project still finds it). A verdict
   record is never an entry and never counted.
+
+  > **AMENDED by G7 (§13.13, beta 39), the folder across projects only.**
+  > Compared from `runs/` down alone, a report of P/run1 and Q/run1 was also
+  > offered in R/run1's window, because every project has a `runs/run1`.
+  > A document in the folder across projects is now compared by project
+  > name AND `runs/` path (every name the window's project has had, so a
+  > renamed project still finds it), as §18.12 already compares a
+  > calibration (Knut, [5794078008](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5794078008): that list *"can only show reports belonging"*
+  > to what is listed). A document inside a project is compared as before.
+  > ⏳ Awaiting confirmation. **Confirmed by:** *nobody yet.*
 * **Which measurements.** Every measurement in "Included measurements",
   ticked or not. *ANSWERED by Knut in K25 (5789263863, Q1), see §13.12:* the
   assumption recorded here before (NOT the other runs' profiling sheets a
@@ -2196,12 +2231,15 @@ What was built:
   measurements the window has not loaded, loads them into "Included
   measurements" before anything is drawn (found from `runs/` down, so a moved
   project finds them too; a folder no longer holding its measurement is left
-  out). The page then shows every date the report covers, and because the
+  out). The page then shows every date the report covers, ~~and because the
   window now holds measurements from more than one place, Generate report is
   greyed with the several-places reason, and the handler refuses as well:
-  an Update can no longer rewrite a report narrower than it is. Before this, a
+  an Update can no longer rewrite a report narrower than it is~~. Before this, a
   report across run1 and run2 opened from run2 showed one date, Generate said
   "Nothing was changed", and Update rewrote it about that one date.
+  **SUPERSEDED by G7 (§13.13, beta 39; Knut [5794078008](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5794078008) point 3 and [5794311113](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5794311113)):** a
+  report across places is written whole, so Generate is live over it and an
+  Update rewrites it about every date it covers. ⏳ Awaiting confirmation. **Confirmed by:** *nobody yet.*
 
 **Record (K23).**
 * **Rule:** his folder rule quoted at the head of this section, for a
@@ -2426,6 +2464,122 @@ with. That is what "a report is shown whole" (§13.11) does.
 * **Proof:** `~/Desktop/ChromIQ-beta38-proof/report-list/`.
 * **Status:** agreed; the built result is confirmed. **Confirmed by:** Knut, 2026-09-23 (#182 comment [5794311113](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5794311113)).
 
+
+### 13.13 Reports across profile runs and across projects (G7, beta 39)
+
+#### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.* The RULES are Knut's and confirmed; what
+follows is what was BUILT from them, driven on screen
+(`~/Desktop/ChromIQ-beta39-proof/g7/`), and it waits for him to say that it
+is what he meant. Registered as B8-848.
+
+> *"a user may need to see how a printers profile has changed across
+> different periods that are saved as different projects"* (Knut,
+> [5794078008](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5794078008), point 3)
+>
+> *"Yes, I confirm 'the report's own limit set applies to every included
+> measurement, whatever each run is bound to.'"* (Knut, [5794311113](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5794311113))
+>
+> *"The project across both profile runs' verification measurements have
+> only one defined limit set ... The same settings are used in that report
+> to check the metrics for the selected measurements to include, even if
+> the measurements belong in separate profile runs dated verification
+> runs."* (Knut, [5773668311](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5773668311))
+
+What was built:
+
+* **A report across places.** The ticked measurements live in more than one
+  PLACE: a profile run (its own sheet and its dated verifications are one
+  place) or a project's calibration. Several dates of one run are one place,
+  as before (K23).
+* **Generate is live** with several places loaded, under Verification,
+  Profiling and Calibration. The two several-places sentences on the button
+  are gone. It still refuses, and says why, when: a ticked measurement is
+  outside a ChromIQ project or the projects are in two folders (Knut names
+  ONE folder for a report across projects, `<ChromIQ default
+  folder>/reports/`); every ticked measurement belongs to another place (a
+  report of that place alone belongs to that place's own window, whose run
+  type and set it would be filed under); a profiling sheet and verifications
+  are ticked together (FC-2, unchanged); under Calibration, a ticked
+  measurement is not a project's calibration.
+* **One limit set, the report's own:** the "Judged against" choice. Every
+  included measurement is judged against it, whatever its run is bound to.
+  Nothing is left out for having been judged against another set
+  (`_one_limit_set` does not narrow across places).
+* **Where it is written** (K23/K25, as built): several runs of one project,
+  `<project>/reports/`; several projects (runs or calibrations), the folder
+  across projects (`<ChromIQ folder>/reports/`), made by the first such
+  write and not before.
+* **What is written.** One document file. Each measurement entry in its
+  block carries `judged`: that measurement's verdict against the report's
+  set (`pass_thresholds`, `compliance`, `verdict`, as a saved report carries
+  them). The page of a saved report across places shows those words and
+  never recalculates them.
+* **The dated per-date verdict records.** A record in a measurement's folder
+  is that measurement's result (§5): the lock, the trend, the newest-file
+  choice and the delete rule read it there. So a record is written only into
+  the window's own run, and only where it cannot contradict the run: a
+  profiling sheet (no set grades it, §3), or a date whose run is judged by
+  the same yardstick as the report. A date whose run is bound to another set
+  gets none and keeps its own recorded verdict. Nothing is written into
+  another run's folder, and nothing into any `cal/` for a report across
+  projects. No run is bound, re-bound or unlocked by any of this.
+* **Update, Create New, Delete, archiving** as before, all or nothing:
+  Update rewrites the document file in place with its previous content in
+  `reports/old/<stamp>/` first (D23), or moves it when its home changes;
+  Delete moves it into `old/<stamp>/` beside its folder; the dates keep
+  their files. A report across places written before beta 39 (verdict
+  records in each date) is shown from its records until it is updated; an
+  Update writes it by this rule, re-stamping its records' document block
+  (their verdicts untouched, archived first).
+* **Listing and counting** as built for K23/K25: under "Reports including
+  multiple runs" or "Reports including multiple projects", counted in
+  "Already generated". A report in the folder across projects is offered
+  only in a window whose list it covers by project name and `runs/` path
+  (the leak fixed in §13.11's amendment).
+* **The limit-set controls with several places loaded.** "Judged against"
+  is live: it chooses the report's own set and binds no run, even when a
+  run among the places is locked; its tooltip says so. "Show limits…" and
+  "Unlock this run's limits" stay greyed with their existing sentences:
+  limits are edited, and a lock lifted, for one profile run at a time.
+* **One measurement, one row.** A profiling sheet gathers every run's sheet
+  of its project; a second source that gathers a sheet already loaded no
+  longer lists it twice.
+
+Record (G7).
+* **Rule:** his words at the head of this section.
+* **Ruling:** Knut, [5773668311](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5773668311) (2026-09-22), confirmed
+  [5794311113](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5794311113) (2026-09-23); [5794078008](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5794078008) point 3 (2026-09-23).
+* **Built:** `workflow/measurement_report.py::document_spans_places`,
+  `across_places_refusal`, `JUDGED_KEY`, `judged_block`,
+  `recorded_judgement`, `shared_documents` (with `_named_coverage_key`);
+  `ui/dialogs/measurement_report_dialog.py::_spans_places`,
+  `_judged_by_the_document`, `_judged_live`, `_records_across_places`,
+  `_reports_to_generate`, `_write_the_document`, `_on_generate_report`,
+  `_on_set_chosen`, `_sync_limit_controls`, `_sync_type_combo`,
+  `_one_limit_set`, `_append_source` (B8-848).
+* **Verified by:** `tests/test_g7_reports_across_places.py` (8 tests, each
+  red on the mutation in its docstring):
+  `test_a_report_across_two_runs_is_one_document_judged_by_its_own_set`,
+  `test_a_date_whose_run_has_the_reports_set_keeps_its_record`,
+  `test_the_saved_report_shows_the_verdicts_it_recorded`,
+  `test_a_report_across_projects_lives_in_the_folder_across_them`,
+  `test_projects_in_two_folders_have_no_folder_across_them`,
+  `test_update_and_delete_of_a_report_across_projects`,
+  `test_a_calibration_report_across_projects`,
+  `test_a_sheet_another_source_gathers_again_is_one_row`; and
+  `tests/test_report_window_limit_controls.py::`
+  `test_two_runs_loaded_the_pulldown_chooses_the_reports_set`,
+  `tests/test_the_report_type_pulldown_stores_on_the_run.py::`
+  `test_with_two_runs_ticked_generate_is_live`,
+  `test_a_greyed_generate_says_why_when_only_another_run_is_ticked`,
+  `tests/test_beta37_a_report_is_shown_whole.py::`
+  `test_update_of_the_cross_run_report_keeps_both_dates`.
+* **Proof:** `~/Desktop/ChromIQ-beta39-proof/g7/` (REPORT.md, photographs,
+  the folders listed before and after every press).
+* **Status:** rule agreed and confirmed; the built result ⏳ awaiting
+  confirmation. **Confirmed by:** *nobody yet.*
 
 ## 15. ChromIQ's own two repeatability rows (#182, 2026-09-22)
 
@@ -3580,16 +3734,24 @@ What was built:
 * **The window opens on the newest report covering its calibration**
   (§13.12's rule). When that is a report across projects ("All cals" in the
   demo pack), it loads the calibrations it covers (§13.11, "a report is shown
-  whole"), and Generate is greyed until "New report…" is chosen. *Say if a
-  Calibration window should open on its own "Cal" report instead.*
+  whole"), ~~and Generate is greyed until "New report…" is chosen~~
+  (**superseded by G7, §13.13**: Generate is live, and Update rewrites the
+  report across projects). *Say if a Calibration window should open on its
+  own "Cal" report instead.*
 * **Generate report** writes a report of the window's own calibration into
   `<project>/cal/reports/` (one file, one document, as for one dated
   verification). "New report…" starts from the Preferences default type,
   fitted (a Printing record default reads as Full colour check), and the
   Preferences default limit set: a calibration binds no set and stores no
-  type. With another project's calibration loaded, Generate is greyed and its
-  tooltip says calibrations of more than one project are loaded; a report
-  across projects is not written from the window yet (the §13.9 / G7 work).
+  type. ~~With another project's calibration loaded, Generate is greyed and
+  its tooltip says calibrations of more than one project are loaded; a report
+  across projects is not written from the window yet (the §13.9 / G7
+  work).~~ **SUPERSEDED by G7 (§13.13, beta 39; Knut [5794078008](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5794078008): a report that
+  *"selects measurements across projects ... is stored same as the other
+  run types, in the <ChromIQ default folder>/reports/"*):** with another
+  project's calibration loaded and ticked, Generate writes one document in
+  the folder across projects, judged against the report's own set, and
+  nothing into either `cal/`. ⏳ Awaiting confirmation. **Confirmed by:** *nobody yet.*
   Under Calibration a run's measurement is never written, even when a Remove
   left one first in the list.
 * **Delete Selected Report** moves a calibration's report to
@@ -4021,7 +4183,7 @@ built waits on a question to him or on work not yet done.
 | G4 | R1 the one-page summary: *"keep 1"*, and analyse option 3 with the Run description limited to 2 lines | 5781645939, 2026-09-22 | Option 1 is what runs. Option 3 analysed (`~/Desktop/ChromIQ-beta36-proof/design-R3-R2-R1/`): it did not fit A4 with a 2-line description. Question 7 unanswered; the 2-line limit and its help text NOT built |
 | G5 | R2 the pre-flight popup made wider so the full beta 34 paragraph fits with no scrolling | 5781645939, 2026-09-22; 5795087247, 2026-09-23 | **Built in beta 39** (§21.3): *"Leave the window wider as previously specified."* |
 | G6 | R3 the ISO-derived sets stop showing rows nothing can answer (*"agreed, do that"*) | 5781645939, 2026-09-22 | NOT built. Questions 5 and 6 of 5784140521 (by reason or by set; should the full report still name what was left out) unanswered |
-| G7 | One report, one limit set, applied to every measurement it includes, across runs (§13.9) | 5773668311, 2026-09-22; rule confirmed 5794311113, 2026-09-23 | Rule **confirmed by Knut, 2026-09-23** (5794311113): *"the report's own limit set applies to every included measurement, whatever each run is bound to"*, which answers question 8 of 5784140521. **Not built yet (beta 39)**: graded reports are still narrowed to one set's measurements |
+| G7 | One report, one limit set, applied to every measurement it includes, across runs (§13.9); Generate across projects (5794078008 point 3) | 5773668311, 2026-09-22; rule confirmed 5794311113, 2026-09-23; 5794078008, 2026-09-23 | Rule **confirmed by Knut, 2026-09-23** (5794311113): *"the report's own limit set applies to every included measurement, whatever each run is bound to"*, which answers question 8 of 5784140521. **Built in beta 39, awaiting confirmation** (§13.13, B8-848): Generate across profile runs and across projects, in Verification, Profiling and Calibration; one document file judged against the report's set; `tests/test_g7_reports_across_places.py`; proof `~/Desktop/ChromIQ-beta39-proof/g7/`. Within one profile run, dates recorded against another set are still narrowed (question in B8-848) |
 | G8 | E8 judge evenness in absolute Lab (*"Do an investigation to see what is normal practice."*) | 5789263863, 5795087247, 2026-09-23 | **Built in beta 39** (§21.1): he answered *"Yes"* |
 | G9 | Built rulings with no test that goes red: the type-covers sentence (§19.9); the "New report…" set tooltip (§19.13) | 5777326491, 5776479532, 2026-09-22 | Built, unpinned |
 | G10 | Built rulings with no on-screen proof folder of their own: K19 (§13.10), K22 (§19.2), K10 (§19.3), the unlock box (§19.6), the ISO cap (§14.6); K12 only inside round A; B8-526's proof folder gone | as listed | Tests only |

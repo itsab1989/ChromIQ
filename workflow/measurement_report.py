@@ -2074,8 +2074,20 @@ def shared_documents(measurement_dirs) -> "list[tuple[Path, dict]]":
     Oldest first by file name. Never raises.
     """
     here = {_coverage_key(d) for d in (measurement_dirs or []) if str(d)}
+    # **ACROSS PROJECTS, THE PROJECT IS COMPARED TOO (#182 beta 39, G7).**
+    # From `runs/` down alone, a report of P/run1 and Q/run1 in the folder
+    # across projects also "covered" R/run1, because every project has a
+    # `runs/run1`, and R's window listed and counted it. The calibration
+    # matching already carries the project (`_coverage_key`); a run folder
+    # does now as well, but ONLY for a document found outside every project:
+    # a document inside a project can only be that project's, and comparing
+    # its names there would lose the reports of a project renamed by hand.
+    # The window's side is every name its project has had
+    # (`names_of_project`), so a renamed project still finds its reports.
+    here_named = _named_coverage_keys(measurement_dirs)
     out: "list[tuple[Path, dict]]" = []
     for folder in shared_report_folders(measurement_dirs):
+        outside = project_home_of(folder) is None
         try:
             paths = (sorted(folder.glob("report_*.json"))
                      if folder.is_dir() else [])
@@ -2089,12 +2101,134 @@ def shared_documents(measurement_dirs) -> "list[tuple[Path, dict]]":
             block = recorded_document(report_object(rep))
             if block is None or is_verdict_record(block):
                 continue
+            if outside:
+                covers = {_named_coverage_key(m.get("dir") or "")
+                          for m in block.get("measurements") or []
+                          if m.get("dir")}
+                if covers & here_named:
+                    out.append((path, block))
+                continue
             covers = {_coverage_key(m.get("dir") or "")
                       for m in block.get("measurements") or []
                       if m.get("dir")}
             if covers & here:
                 out.append((path, block))
     return out
+
+
+def _named_coverage_key(d: "str | Path") -> str:
+    """A recorded folder as ``<project name>/<runs/... or cal>`` (NFC), or
+    `project_relative` alone outside a project layout (#182 beta 39, G7)."""
+    from core.file_manager import nfc
+    d = Path(str(d))
+    project = _project_folder_of(d)
+    if project is None:
+        return project_relative(d)
+    return nfc(project.name) + "/" + project_relative(d)
+
+
+def _named_coverage_keys(measurement_dirs) -> "set[str]":
+    """Every `_named_coverage_key` the window's own folders answer to: one
+    per name their project has had (`names_of_project`)."""
+    from core.file_manager import nfc
+    out: "set[str]" = set()
+    for d in measurement_dirs or []:
+        if not str(d):
+            continue
+        d = Path(str(d))
+        project = _project_folder_of(d)
+        if project is None:
+            out.add(project_relative(d))
+            continue
+        rel = project_relative(d)
+        for name in names_of_project(project) | {nfc(project.name)}:
+            out.add(nfc(name) + "/" + rel)
+    return out
+
+
+def document_spans_places(member_dirs) -> bool:
+    """Whether a document of *member_dirs* spans more than one PLACE: more
+    than one profile run, or calibrations of more than one project (#182
+    beta 39, G7). Several dates of one run are one place (K23)."""
+    places = {str(_run_folder_of(Path(str(d))))
+              for d in (member_dirs or []) if str(d)}
+    return len(places) > 1
+
+
+#: Why a document across places cannot be written (G7), or "" when it can.
+ACROSS_OK = ""
+ACROSS_OUTSIDE = "outside"
+
+
+def across_places_refusal(member_dirs) -> str:
+    """"" when a document across places may be written, else a reason code.
+
+    Knut names ONE folder for a report across projects, *"the <ChromIQ
+    default folder>/reports/"* (5794078008), so every measurement must be in
+    a ChromIQ project on disk and the projects must sit in one folder: a
+    common ancestor such as the home folder is nobody's reports folder.
+    """
+    projects: "set[str]" = set()
+    parents: "set[str]" = set()
+    for d in member_dirs or []:
+        if not str(d):
+            continue
+        project = _project_folder_of(Path(str(d)))
+        try:
+            ok = project is not None and (project / "project.json").is_file()
+        except OSError:
+            ok = False
+        if not ok:
+            return ACROSS_OUTSIDE
+        projects.add(str(project))
+        parents.add(str(project.parent))
+    if len(projects) > 1 and len(parents) > 1:
+        return ACROSS_OUTSIDE
+    return ACROSS_OK
+
+
+#: The key, inside one measurement entry of a document FILE across places,
+#: that carries that measurement's verdict against the document's own set
+#: (G7): ``{"pass_thresholds", "compliance", "verdict"}``, as `stamp_verdict`
+#: writes them onto a report.
+JUDGED_KEY = "judged"
+
+
+def judged_block(report: dict) -> dict:
+    """The three keys `stamp_verdict` wrote on *report*, as a `JUDGED_KEY`
+    value."""
+    return {k: report[k] for k in ("pass_thresholds", "compliance", "verdict")
+            if k in report}
+
+
+def recorded_judgement(block: "dict | None", key: str,
+                       origin_dir: "str | Path") -> "dict | None":
+    """The verdict a document across places recorded for one measurement
+    (*key*, `document_measurement_key`), or None (G7).
+
+    Matched by the exact key first, then, for a project that has moved, by
+    its project's name and the key from ``runs/`` (or ``cal``) down. A value
+    that is not the shape this build writes is not a verdict (R27-F2): None.
+    """
+    if not isinstance(block, dict):
+        return None
+    ms = [m for m in (block.get("measurements") or []) if isinstance(m, dict)]
+
+    def _ok(m):
+        j = m.get(JUDGED_KEY)
+        if (isinstance(j, dict) and isinstance(j.get("verdict"), dict)
+                and isinstance(j["verdict"].get("rows"), list)
+                and isinstance(j.get("compliance"), dict)):
+            return j
+        return None
+    for m in ms:
+        if str(m.get("key") or "") == str(key):
+            return _ok(m)
+    want = (_named_coverage_key(origin_dir), relative_measurement_key(key))
+    hits = [m for m in ms
+            if (_named_coverage_key(m.get("dir") or ""),
+                relative_measurement_key(str(m.get("key") or ""))) == want]
+    return _ok(hits[0]) if len(hits) == 1 else None
 
 
 def document_file(*, doc_id: str, created: str, type_id: str,

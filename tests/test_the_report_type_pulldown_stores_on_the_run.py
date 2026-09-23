@@ -615,47 +615,46 @@ def test_with_two_runs_ticked_the_type_can_be_chosen_and_neither_run_is_written(
         dlg.close()
 
 
-def test_the_advice_generates_tooltip_gives_really_brings_generate_back(
-        tmp_path, qapp):
-    """ROUND B, 2026-09-22: the tooltip's first wording told the reader to
-    untick the other run's measurements, which does nothing, because what
-    greys Generate is a second profile ADDED. So the advice it gives now is
-    followed here, through the buttons: select the other profile's row and
-    click "Remove Profile's Measurements…", and Generate is live.
+def test_with_two_runs_ticked_generate_is_live(tmp_path, qapp):
+    """G7 (#182 beta 39). Two profile runs loaded and ticked no longer grey
+    Generate: Knut, 5794078008, *"a user may need to see how a printers
+    profile has changed across different periods"*, and 5794311113, one
+    report judged against its own set. The old sentence asking the reader to
+    remove every other entry is gone, and so is ROUND B's test that followed
+    that advice.
 
-    MUTATION: make the advice false again (Generate stays grey after the
-    removal) by counting a removed source, and this goes red.
-    """
+    MUTATION, proven red: put `and not several` back into the enable line in
+    `_sync_type_combo`."""
     dlg, _run1, _run2 = _two_runs(tmp_path, qapp)
     try:
-        assert not dlg._generate_btn.isEnabled()
-        assert "Remove Profile's Measurements" in dlg._generate_btn.toolTip()
-        rows = [i for i, (_k, si, _key) in enumerate(dlg._list_rows) if si == 1]
-        assert rows, "the second profile has no row in the list"
-        dlg._profile_list.clearSelection()
-        dlg._profile_list.item(rows[0]).setSelected(True)
-        qapp.processEvents()
-        dlg._remove_btn.click()
-        qapp.processEvents()
-        assert len(dlg._distinct_run_dirs()) == 1
-        assert dlg._generate_btn.isEnabled(), (
-            "the tooltip's advice was followed and Generate stayed grey")
+        assert dlg._several_runs()
+        assert dlg._generate_btn.isEnabled(), dlg._generate_btn.toolTip()
+        assert "Remove Profile's Measurements" not in \
+            dlg._generate_btn.toolTip()
     finally:
         dlg.close()
 
 
-def test_a_greyed_generate_says_why_when_two_runs_are_ticked(tmp_path, qapp):
-    """A greyed control says why. The old sentence was set on the type
-    pulldown and then overwritten by the type's description whenever the runs
-    agreed, so nothing on screen explained the dead Generate button.
+def test_a_greyed_generate_says_why_when_only_another_run_is_ticked(
+        tmp_path, qapp):
+    """A greyed control says why. With two runs loaded and ONLY the other
+    run's measurement ticked, a report of that run alone would be filed into
+    it under this window's type and set; Generate is greyed and names why.
 
-    MUTATION: delete the `if several:` tooltip block -> red.
-    """
-    dlg, _run1, _run2 = _two_runs(tmp_path, qapp)
+    MUTATION, proven red: delete the "Every ticked measurement belongs to
+    another profile run" tooltip branch in `_sync_type_combo` (the button is
+    grey with no reason)."""
+    dlg, run1, _run2 = _two_runs(tmp_path, qapp)
     try:
+        mine = {dlg._run_key(r) for r in dlg._history
+                if str(r.get("_origin_dir") or "").startswith(str(run1.dir))}
+        assert mine
+        dlg._hidden_runs = set(mine)
+        dlg._sync_limit_controls()
+        qapp.processEvents()
         assert not dlg._generate_btn.isEnabled()
         tip = dlg._generate_btn.toolTip()
-        assert "more than one place" in tip, tip
+        assert "belongs to another profile run" in tip, tip
     finally:
         dlg.close()
 

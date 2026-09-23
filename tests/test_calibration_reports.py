@@ -332,8 +332,8 @@ def test_several_calibrations_are_grouped_by_project(tmp_path, qapp):
     """Another project's calibration added: a heading per project with its
     reports directly under it (no run heading), a report of both under
     "Reports including multiple projects", named "All cals" (it covers every
-    calibration listed). Generate is greyed, and says why in calibration
-    words.
+    calibration listed). Generate is live: a report across projects is
+    written from here since G7 (#182 beta 39).
 
     MUTATION, proven red: drop `if not calibration:` before the run heading
     in `_grouped_documents` (a "Cal" heading appears under each project)."""
@@ -354,9 +354,7 @@ def test_several_calibrations_are_grouped_by_project(tmp_path, qapp):
         rows = [t for t, _k in _rows(dlg)]
         assert rows[-1].endswith(" · All cals"), rows
         assert rows[1].endswith(" · Cal") and rows[3].endswith(" · Cal")
-        assert not dlg._generate_btn.isEnabled()
-        assert dlg._generate_btn.toolTip().startswith(
-            "Calibrations of more than one project are loaded.")
+        assert dlg._generate_btn.isEnabled(), dlg._generate_btn.toolTip()
         assert dlg._type_blurb_full.startswith(
             "Already generated for these measurements: ")
         assert "Full colour check: 3" in dlg._type_blurb_full

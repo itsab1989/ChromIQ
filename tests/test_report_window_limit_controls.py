@@ -236,16 +236,39 @@ def test_a_full_chart_shows_no_strip(qapp, tmp_path):
         dlg.deleteLater()
 
 
-def test_two_runs_loaded_disable_the_controls(qapp, tmp_path):
+def test_two_runs_loaded_the_pulldown_chooses_the_reports_set(qapp, tmp_path):
+    """G7 (#182 beta 39). With two profile runs loaded, "Judged against"
+    chooses the REPORT's own set (Knut, 5794311113: *"the report's own limit
+    set applies to every included measurement, whatever each run is bound
+    to"*) and binds no run; "Show limits…" and "Unlock this run's limits"
+    stay greyed, because limits are edited for one run at a time.
+
+    Before G7 this test asserted all three greyed.
+
+    MUTATION, proven red: drop the `if self._several_runs():` early return in
+    `_on_set_chosen` (the window's run is re-bound to the chosen set)."""
+    from workflow.run_compliance import run_limits
     proj, run, ti3s = _verified_run(tmp_path)
     proj2, run2, ti3s2 = _verified_run(tmp_path / "other")
     dlg = _dialog(_settings(tmp_path), ti3s[-1])
     try:
         dlg._add_source(ti3s2[-1], origin=ti3s2[-1])
         assert len(dlg._distinct_run_dirs()) == 2
-        assert not dlg._set_combo.isEnabled()
+        assert dlg._set_combo.isEnabled()
         assert not dlg._limits_btn.isEnabled()
-        assert "more than one place" in dlg._set_combo.toolTip()
+        assert not dlg._unlock_check.isEnabled()
+        assert "judges every measurement" in dlg._set_combo.toolTip()
+        assert "more than one place" in dlg._limits_btn.toolTip()
+        before = (run_limits(run, None).set_id, run_limits(run2, None).set_id)
+        other = next(dlg._set_combo.itemData(i)
+                     for i in range(dlg._set_combo.count())
+                     if dlg._set_combo.itemData(i) not in before)
+        idx = dlg._set_combo.findData(other)
+        dlg._set_combo.setCurrentIndex(idx)
+        qapp.processEvents()
+        assert dlg._set_combo.currentData() == other
+        after = (run_limits(run, None).set_id, run_limits(run2, None).set_id)
+        assert after == before, "choosing the report's set bound a run"
     finally:
         dlg.deleteLater()
 

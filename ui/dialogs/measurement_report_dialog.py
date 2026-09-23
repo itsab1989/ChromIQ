@@ -3456,6 +3456,19 @@ class MeasurementReportDialog(QDialog):
                 return False
         key = keys[0]
         name, runs = self._gather_runs(ti3)
+        # **A MEASUREMENT ANOTHER SOURCE ALREADY HOLDS IS NOT A SECOND ROW
+        # (#182 beta 39, G7).** A profiling sheet gathers every run's sheet of
+        # its project for the trend (#40), so loading run 2's sheet into run
+        # 1's window brought run 1's sheet in a second time. It was reached
+        # once a report across runs stopped leaving a record in run 2 (the
+        # record is what made run 2's sheet part of run 1's gathering, so the
+        # borrowed source was never added): run 1's window opened on that
+        # report, loaded run 2 and listed run 1 twice.
+        _key = MeasurementReportDialog._run_key
+        have = {_key(r) for s in self._sources for r in s["runs"]}
+        runs = [r for r in runs
+                if not (r.get("_origin_dir") and r.get("ti3"))
+                or _key(r) not in have]
         if not runs:
             return False
         # ASKED ONCE, HERE, because this is the one place a measurement joins
@@ -4751,6 +4764,27 @@ class MeasurementReportDialog(QDialog):
         runs = self._runs_for_document()
         ctx = self._run_ctx
         mine: "set[str] | None" = None
+        if self._spans_places(runs):
+            # **A REPORT ACROSS PROFILE RUNS OR PROJECTS (#182 beta 39, G7).**
+            # Knut, 5794078008: *"a user may need to see how a printers
+            # profile has changed across different periods that are saved as
+            # different projects"*. Such a report is ONE document file in the
+            # folder its places share (`document_home`), judged against the
+            # report's own limit set (5794311113); what this list still
+            # answers is which of THIS window's measurements it covers (at
+            # least one, or the report belongs to another window), and
+            # `_records_across_places` decides which of them get a record.
+            # What refuses outright: a measurement outside a project,
+            # projects in two folders, and under Calibration anything that is
+            # not a project's calibration.
+            from workflow.measurement_report import (across_places_refusal,
+                                                     is_calibration_dir)
+            dirs = [str(r.get("_origin_dir") or "") for r in runs]
+            if across_places_refusal(dirs):
+                return []
+            if self._is_calibration_window() and not all(
+                    is_calibration_dir(d) for d in dirs if d):
+                return []
         if self._is_calibration_window():
             # **A CALIBRATION WINDOW WRITES ITS OWN CALIBRATION ONLY (#182
             # beta 39)**, into `<project>/cal/reports/`: never a run's folder
@@ -4872,14 +4906,12 @@ class MeasurementReportDialog(QDialog):
             log.info("Generate refused: a profiling sheet and dated "
                      "verifications are loaded together")
             return
-        # …AND WHEN MEASUREMENTS FROM MORE THAN ONE PLACE ARE LOADED, which
-        # the button already refuses with its reason (A-F1, before beta 37).
-        # A report across two runs is loaded whole now, so this is the state
-        # it is shown in, and an Update from here would rewrite it narrower.
-        if self._several_runs():
-            log.info("Generate refused: measurements from more than one "
-                     "place are loaded")
-            return
+        # MEASUREMENTS FROM MORE THAN ONE PLACE ARE NO LONGER REFUSED (#182
+        # beta 39, G7). The refusal stood here because a report across runs
+        # could only be written as one run's (A-F1, before beta 37); it is
+        # now written as a document across places, judged against its own
+        # limit set, and `_reports_to_generate` answers empty for the cases
+        # that still cannot be written, which returned above.
         # **IT SAYS SO INSTEAD OF CORRECTING THE TICKS (B8-591).** Knut,
         # 2026-09-20, reporting the same silence from both ends: *"This
         # unselected all but the last measurement without a warning"* and *"the
@@ -5135,6 +5167,42 @@ class MeasurementReportDialog(QDialog):
         home = document_home([m["dir"] for m in members])
         several = len({m["dir"] for m in members}) > 1
         file_role = ROLE_RECORD if several else ""
+        # **A DOCUMENT ACROSS PLACES (#182 beta 39, G7).** Knut, 5794311113:
+        # *"the report's own limit set applies to every included measurement,
+        # whatever each run is bound to"*. The document file carries each
+        # measurement's verdict against the document's set (`JUDGED_KEY`), so
+        # it is complete by itself and is never recalculated under its reader.
+        #
+        # A verdict record in a measurement's folder is that measurement's
+        # RESULT (§5): the lock, the trend, the newest-file choice and the
+        # delete rule read it there. So a record is written ONLY into the
+        # window's own run (K23, as before), and only where it cannot
+        # contradict that run: a profiling sheet, which no set grades (§3),
+        # or a date whose run is judged by the same yardstick as the
+        # document. A date whose run is bound to another set gets NO record:
+        # it keeps the verdict it has. Nothing is written into another run's
+        # folder, and nothing into a calibration's for a report across
+        # projects. A file this document already had (an Update) keeps its
+        # verdict and is re-stamped as a record of the new block below,
+        # archived first, as before.
+        from workflow.measurement_report import (JUDGED_KEY,
+                                                 document_spans_places,
+                                                 judged_block)
+        across = document_spans_places([m["dir"] for m in members])
+        doc_members = members
+        if across:
+            reports = self._records_across_places(reports, lim)
+            by_key = {self._run_key(r): r for r in self._runs_for_document()}
+            doc_members = []
+            for m in members:
+                m2 = dict(m)
+                r = by_key.get(m["key"])
+                if r is not None:
+                    rep = {k: v for k, v in r.items() if not k.startswith("_")}
+                    stamp_verdict(rep, lim.limits, set_id=lim.set_id,
+                                  set_label=lim.label_en, edited=lim.edited)
+                    m2[JUDGED_KEY] = judged_block(rep)
+                doc_members.append(m2)
         #: The document file it had before this press (Update only), which
         #: is rewritten in place when the home has not moved, and archived
         #: and removed when it has, or when the document now covers one
@@ -5321,17 +5389,29 @@ class MeasurementReportDialog(QDialog):
         # **THE DOCUMENT FILE, WHERE THE DOCUMENT LIVES (K23).** Written only
         # when something of the press was written and nothing was refused, so
         # a document file never names a press that left no record.
-        if several and home is not None and saved and not _blocked:
-            first = next((json.loads(read_text(p)) for p in saved[:1]), {})
+        if across and _blocked:
+            failed.append(str(home))
+        if several and home is not None and (saved or across) \
+                and not _blocked:
+            if across:
+                # THE DOCUMENT'S OWN SET, as every `JUDGED_KEY` carries it.
+                first = next((m[JUDGED_KEY] for m in doc_members
+                              if m.get(JUDGED_KEY)), {})
+            else:
+                first = next((json.loads(read_text(p)) for p in saved[:1]),
+                             {})
             body = document_file(
                 doc_id=doc_id, created=doc_created, type_id=_tid_for_block,
                 compliance=(first or {}).get("compliance"), detail=detail,
-                measurements=members, scope=scope, updated=updated)
+                measurements=doc_members, scope=scope, updated=updated)
             try:
                 if keep_doc_file and old_doc_file.exists():
-                    rewrite_report(old_doc_file, body)
+                    _doc_path = rewrite_report(old_doc_file, body)
                 else:
-                    save_report(body, home.parent)
+                    _doc_path = save_report(body, home.parent)
+                if across:
+                    saved.append(_doc_path)
+                    log.info("wrote the report across places: %s", _doc_path)
             except OSError as exc:               # noqa: BLE001
                 log.warning("could not write the document file in %s: %s",
                             home, exc)
@@ -5407,6 +5487,36 @@ class MeasurementReportDialog(QDialog):
             self._refresh()
             self._doc_built_with = was_built
             self._show_stale_banner()
+
+    def _records_across_places(self, reports: list, lim) -> list:
+        """The rows of a document across places that get a verdict record
+        (G7): the window's own run's, and of those only the ones whose record
+        cannot contradict their run (see `_write_the_document`)."""
+        from workflow.compliance_sets import limits_to_json
+        from workflow.measurement_report import is_graded_sheet, yardstick_key
+        ctx = self._run_ctx
+        if ctx is None or self._is_calibration_window():
+            return []
+        mine = {str(ctx.run.dir)}
+        try:
+            mine |= {str(v.dir) for v in ctx.run.verifications()}
+        except Exception:                            # noqa: BLE001
+            pass
+        doc_key = yardstick_key({"set_id": lim.set_id,
+                                 "thresholds": limits_to_json(lim.limits)})
+        out = []
+        for r in reports:
+            if str(r.get("_origin_dir") or "") not in mine:
+                continue
+            if is_graded_sheet(r):
+                own = self._limits_for(r)
+                own_key = yardstick_key(
+                    {"set_id": own.set_id,
+                     "thresholds": limits_to_json(own.limits)})
+                if not self._same_yardstick(own_key, doc_key):
+                    continue
+            out.append(r)
+        return out
 
     def _say_generated(self, saved: list, failed: list) -> None:
         """SUCCESS IS QUIET; A FAILURE IS NOT.
@@ -6063,7 +6173,11 @@ class MeasurementReportDialog(QDialog):
             self._unlock_check.setVisible(True)
             # F6: the button's text changes, so its width must follow it
             self._limits_btn.setMinimumWidth(self._limits_btn.sizeHint().width())
-            self._set_combo.setEnabled(not several and (run is None or not locked))
+            # **ACROSS PLACES THE PULLDOWN CHOOSES THE REPORT'S SET (#182 beta
+            # 39, G7)**, and binds no run (`_on_set_chosen`), so a locked run
+            # among the places does not grey it: the lock is the run's, the
+            # choice is the document's.
+            self._set_combo.setEnabled(several or run is None or not locked)
             self._limits_btn.setText(tr("Edit limits…") if (run is not None
                                                             and not locked)
                                      else tr("Show limits…"))
@@ -6132,6 +6246,15 @@ class MeasurementReportDialog(QDialog):
                         default=tr(d.label) if d else self._default_set_id())
             for w in (self._set_combo, self._limits_btn):
                 w.setToolTip(tip)
+            if several:
+                # G7: the pulldown is live and chooses the report's own set;
+                # "Show limits…" keeps the sentence above, because limits are
+                # edited for one profile run at a time.
+                self._set_combo.setToolTip(tr(
+                    "Measurements from more than one place are loaded. The "
+                    "limit set chosen here judges every measurement in this "
+                    "report, whatever limit set each profile run is bound to, "
+                    "and no run's own limit set is changed."))
             # **AND THE UNLOCK BOX SAYS WHY IT IS GREY, IN ITS OWN WORDS.** It
             # shares the other two controls' sentence only when there is no
             # more specific one: a box that is always on screen has to answer
@@ -8595,46 +8718,42 @@ class MeasurementReportDialog(QDialog):
             self._set_type_blurb(already or blurb)
             self._type_combo.setToolTip(blurb)
         self._generate_btn.setToolTip("")
-        if several:
-            # AFTER the blurb, so nothing overwrites it: the old "several
-            # runs" sentence was set first and replaced by the type's
-            # description whenever the runs agreed, so the greyed Generate
-            # button had no reason anywhere on screen (critic round,
-            # 2026-09-22).
-            # ROUND B (2026-09-22) caught the first wording twice over: it
-            # said "untick the other run's measurements", which does nothing
-            # because "several" counts the profiles ADDED, and it said the
-            # report "covers" both runs, which the page may not (rows judged
-            # against another limit set are left out of it). The advice is
-            # now the one control that really gives Generate back.
-            # ROUND 2B (#5, #7): "another profile run" was false when the
-            # other entry is a file outside any project, and the advice did
-            # nothing when the window's own measurement is in no run at all
-            # (handled below). "Every other entry", because there can be two.
-            self._generate_btn.setToolTip(tr(
-                "Measurements from more than one place are loaded: another "
-                "profile run, or a file outside this project. Generate report "
-                "saves a report into one profile run, so remove every other "
-                "entry from the list, one at a time, with Remove Profile's "
-                "Measurements… to save it. Save report as PDF… saves the "
-                "report shown here."))
-        # **A CALIBRATION WINDOW WRITES INTO ITS CALIBRATION (#182 beta 39).**
-        # One calibration: Generate report saves into `<project>/cal/
-        # reports/`. Another project's calibration added: the several-places
-        # rule above greys it, and the sentence names what is loaded.
+        # **SEVERAL PLACES ARE NO LONGER A REFUSAL (#182 beta 39, G7).** Two
+        # sentences stood here saying Generate saves into one profile run (or
+        # one project's calibration) and asking the reader to remove every
+        # other entry. Knut, 5794078008: *"a user may need to see how a
+        # printers profile has changed across different periods that are
+        # saved as different projects"*, so a report across places is written
+        # (`_write_the_document`). Two states still cannot be, and each says
+        # why: a document across places that has no one folder to live in,
+        # and ticks that are all in ONE other place (a report of that place
+        # alone belongs to that place's own window, whose run type and limit
+        # set it would be filed under).
         calibration = self._is_calibration_window()
         cal_ok = calibration and self._own_cal_dir() is not None
-        if calibration and several:
+        _doc_runs = [] if self._nothing_is_ticked() else self._runs_for_document()
+        if self._spans_places(_doc_runs):
+            from workflow.measurement_report import across_places_refusal
+            if across_places_refusal(
+                    [r.get("_origin_dir") or "" for r in _doc_runs]):
+                self._generate_btn.setToolTip(tr(
+                    "A report across profile runs or projects is saved only "
+                    "when every ticked measurement is in a ChromIQ project and "
+                    "the projects are in one folder. Save report as PDF… "
+                    "saves the report shown here."))
+        if (several and _doc_runs and not self._generate_btn.toolTip()
+                and not self._reports_to_generate()):
             self._generate_btn.setToolTip(tr(
-                "Calibrations of more than one project are loaded. Generate "
-                "report saves a report of one project's calibration, so "
-                "remove every other entry from the list, one at a time, with "
-                "Remove Profile's Measurements… to save it. Save report as "
-                "PDF… saves the report shown here."))
-        # ROUND 3B (F9): only when this is the ONLY place loaded. With a
-        # profile run beside it, removing the loose entry DOES give Generate
-        # back, and the several-places sentence above is the true one.
-        if run is None and self._sources and not several and not cal_ok:
+                "Every ticked measurement belongs to another profile run or "
+                "another project's calibration. Save a report of those from "
+                "their own window, or tick one of this window's measurements "
+                "as well to save a report across them. Save report as PDF… "
+                "saves the report shown here."))
+        # ROUND 3B (F9): only when no sentence above has said why. With a
+        # profile run beside the loose file, the across-places sentence names
+        # the file outside a project, and removing it gives Generate back.
+        if (run is None and self._sources and not cal_ok and not calibration
+                and not self._generate_btn.toolTip()):
             # NO RUN TO SAVE INTO, and removing entries cannot change that
             # (round 2B, #7): the window's own measurement is outside any
             # profile run. Said, rather than a greyed button with no reason.
@@ -8662,7 +8781,7 @@ class MeasurementReportDialog(QDialog):
         # nothing. Each kind has its own reports (§13.10), so it is refused
         # and said, as several places are.
         mixed = self._kinds_are_mixed()
-        if mixed and not several:
+        if mixed:
             self._generate_btn.setToolTip(tr(
                 "Measurements of a profiling sheet and of verifications are "
                 "loaded together, and each has its own kind of report. Remove "
@@ -8673,7 +8792,7 @@ class MeasurementReportDialog(QDialog):
         # loaded: a run's measurement left first in the list after a Remove
         # would otherwise be written as a calibration type into a profiling
         # or verification folder.
-        if calibration and not cal_ok and self._sources and not several:
+        if calibration and not cal_ok and self._sources:
             self._generate_btn.setToolTip(tr(
                 "With Run type Calibration, Generate report saves a report of "
                 "a project's calibration, and the measurement this window is "
@@ -8681,7 +8800,7 @@ class MeasurementReportDialog(QDialog):
                 "here."))
         self._generate_btn.setEnabled(
             (cal_ok if calibration else run is not None)
-            and not several and not mixed
+            and not mixed
             and bool(self._reports_to_generate()))
         # **THE BOX THAT WIDENED THE REPORT IS GONE (B8-590), AND SO IS THE
         # RULE THAT FORCED IT OFF.** A one-measurement list needed "Show all
@@ -9766,6 +9885,14 @@ class MeasurementReportDialog(QDialog):
         """
         if len(runs) <= 1:
             return list(runs), []
+        # **ACROSS PLACES, NOTHING IS NARROWED (#182 beta 39, G7).** Knut,
+        # 5794311113: *"the report's own limit set applies to every included
+        # measurement, whatever each run is bound to"*. Such a document's rows
+        # all carry its one set (`_judged_by_the_document`), so there is no
+        # second yardstick to keep apart, and a pre-G7 document's records
+        # were written against its one set too.
+        if self._spans_places(runs):
+            return list(runs), []
         judged = [r for r in runs if not _is_raw_drift(r)]
         if not judged:
             return list(runs), []
@@ -10061,6 +10188,15 @@ class MeasurementReportDialog(QDialog):
         # there is a real change that must not read as a no-op.
         shown = self._document_limits() or self._sticky_limits() or lim
         if not set_id or set_id == shown.set_id:
+            return
+        # **ACROSS PLACES IT IS THE REPORT'S SET, AND NO RUN IS BOUND (#182
+        # beta 39, G7).** Knut, 5794311113: *"the report's own limit set
+        # applies to every included measurement, whatever each run is bound
+        # to"*. Binding the window's run here would change that run's
+        # yardstick for its dates still to come because of a report about
+        # other runs; unlocking and editing stay per run.
+        if self._several_runs():
+            self._settings_touched(set_id=set_id)
             return
         if set_id == lim.set_id:
             # The RUN already carries it, so there is nothing to bind, nothing
@@ -11742,7 +11878,7 @@ class MeasurementReportDialog(QDialog):
         ticked = [r for r in (self._history or [])
                   if self._run_key(r) not in self._hidden_runs]
         if ticked:
-            return ticked
+            return self._judged_by_the_document(ticked)
         # NOTHING TICKED IS NOT "EVERYTHING", and it is not "nothing" either:
         # the PAGE a reader is looking at falls back to the measurement the
         # window was opened on rather than going blank underneath them.
@@ -11760,6 +11896,97 @@ class MeasurementReportDialog(QDialog):
         # separately: "what does this page show" and "what would a press
         # write".
         return [self._report] if self._report else []
+
+    def _spans_places(self, runs: list) -> bool:
+        """Do *runs* live in more than one PLACE: several profile runs, or
+        calibrations of several projects (#182 beta 39, G7)?"""
+        from workflow.measurement_report import document_spans_places
+        return document_spans_places(
+            [r.get("_origin_dir") for r in runs or [] if r.get("_origin_dir")])
+
+    def _judged_by_the_document(self, rows: list) -> list:
+        """*rows*, each carrying the verdict of THE DOCUMENT'S limit set when
+        they span places (#182 beta 39, G7); *rows* unchanged otherwise.
+
+        Knut, 5773668311: *"The project across both profile runs'
+        verification measurements have only one defined limit set ... The
+        same settings are used in that report to check the metrics for the
+        selected measurements to include, even if the measurements belong in
+        separate profile runs"*, confirmed in 5794311113: *"the report's own
+        limit set applies to every included measurement, whatever each run is
+        bound to."*
+
+        A row's own file carries the verdict of ITS run's set, which is the
+        date's record and stays so (§5). The page of a document across places
+        is drawn from COPIES of the rows with that verdict replaced:
+
+        * a saved document that recorded each measurement's verdict
+          (`JUDGED_KEY`) shows exactly those words, never recalculated under
+          its reader;
+        * a saved document from before G7 has no such entry, and its verdict
+          records (the rows' files) were written against its own set: shown
+          as they are;
+        * a new report, or one whose settings moved, is judged just now
+          against the set "Judged against" names.
+
+        Profiling sheets are never graded (§3), so a Profiling window keeps
+        its rows as they are.
+        """
+        from workflow.measurement_report import (JUDGED_KEY, KIND_PROFILING,
+                                                 recorded_judgement)
+        if len(rows) < 2 or not self._spans_places(rows):
+            return rows
+        if self._window_kind() == KIND_PROFILING:
+            return rows
+        from workflow.measurement_report import document_spans_places
+        doc = self._document_settings()
+        ms = [m for m in (doc or {}).get("measurements") or []
+              if isinstance(m, dict)]
+        # A DOCUMENT ACROSS PLACES FROM BEFORE G7 records no verdicts of its
+        # own: its records, which the rows are drawn from, are its verdicts.
+        # (A loaded document of ONE place is not the page any more once rows
+        # of other places are ticked beside it; only its set still speaks.)
+        if (doc is not None
+                and document_spans_places([m.get("dir") for m in ms])
+                and not any(m.get(JUDGED_KEY) for m in ms)):
+            return rows
+        lim = (self._document_limits() or self._sticky_limits()
+               or self._window_limits())
+        out = []
+        for r in rows:
+            j = (recorded_judgement(doc, self._run_key(r),
+                                    r.get("_origin_dir") or "")
+                 if doc is not None else None)
+            if j is None:
+                out.append(self._judged_live(r, lim))
+                continue
+            c = dict(r)
+            c.update(j)
+            out.append(c)
+        return out
+
+    def _judged_live(self, r: dict, lim) -> dict:
+        """A copy of *r* judged against *lim* just now (G7). Cached per row,
+        file and yardstick, because the page asks many times per repaint."""
+        from workflow.compliance_sets import limits_to_json
+        from workflow.measurement_report import stamp_verdict
+        thr = limits_to_json(lim.limits)
+        key = (self._run_key(r), str(r.get("_report_file") or ""),
+               lim.set_id, json.dumps(thr, sort_keys=True, default=str),
+               bool(lim.edited))
+        cache = getattr(self, "_judged_cache", None)
+        if cache is None:
+            cache = self._judged_cache = {}
+        hit = cache.get(key)
+        if hit is not None and hit[0] is r:
+            return hit[1]
+        c = dict(r)
+        stamp_verdict(c, lim.limits, set_id=lim.set_id,
+                      set_label=lim.label_en, edited=lim.edited)
+        if len(cache) > 4000:
+            cache.clear()
+        cache[key] = (r, c)
+        return c
 
     def _nothing_is_ticked(self) -> bool:
         """True when the user has unticked every measurement there is.

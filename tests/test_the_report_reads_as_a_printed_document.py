@@ -191,8 +191,8 @@ def test_the_total_is_what_the_project_records_not_what_is_loaded(tmp_path,
     Three runs, one dated verification each, the window on the first:
 
     * nothing added: the report covers all of its run, so no sentence;
-    * run 2's added and left out (another limit set): "1 of the 2 ... for
-      these runs";
+    * run 2's added and left out (unticked; before G7 its other limit set
+      left it out): "1 of the 2 ... for these runs";
     * run 3's too: "1 of the 3 ... for these runs".
 
     And the disk half: a SECOND dated verification in run 1, never loaded,
@@ -222,6 +222,13 @@ def test_the_total_is_what_the_project_records_not_what_is_loaded(tmp_path,
             if v is not None:
                 dlg._add_source(v.measurement_ti3)
                 qapp.processEvents()
+                # LEFT OUT BY ITS TICK (G7, #182 beta 39). This row used to
+                # leave the document because its run is bound to another
+                # set; across runs one report now judges every measurement
+                # against its own set (Knut, 5794311113), so the untick is
+                # what leaves it out.
+                dlg._hidden_runs |= {dlg._run_key(r) for r in dlg._history
+                                     if str(v.dir) == r.get("_origin_dir")}
             body = _plain(dlg._report_body_html(dlg._runs_for_report(),
                                                 for_pdf=False))
             m = re.search(r"covers (\d+) of the (\d+) measurements recorded "

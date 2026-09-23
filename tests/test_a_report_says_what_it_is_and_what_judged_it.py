@@ -172,22 +172,21 @@ def test_the_limit_set_is_named_at_the_top(tmp_path, qapp):
         dlg.close()
 
 
-def test_two_runs_bound_to_different_sets_leave_one_in_the_document(tmp_path,
-                                                                    qapp):
-    """A DOCUMENT IS WRITTEN AGAINST ONE LIMIT SET (B8-246).
+def test_two_runs_bound_to_different_sets_are_judged_by_the_reports_set(
+        tmp_path, qapp):
+    """ONE REPORT, ONE LIMIT SET, EVERY MEASUREMENT (G7, #182 beta 39).
 
-    This test used to pin the opposite half of the same situation: the head
-    named no set, because the table under it held two. The design authority
-    ruled on 2026-09-16 that the table may not hold two at all, so the state
-    that made the head silent is now unreachable and the head names the one
-    set the document IS written against. The `len(_sets) == 1` guard is left
-    where it is as a backstop, and deliberately not tested: nothing can reach
-    it any more, and a test that stages an unreachable state would pin the
-    staging rather than the window.
+    This test pinned B8-246's reading: two runs bound to different sets, and
+    the document narrowed to one of them, "covers 1 of the 2". Knut ruled the
+    other way for a report across runs (5773668311) and confirmed it
+    (5794311113): *"the report's own limit set applies to every included
+    measurement, whatever each run is bound to"*. So both measurements are in
+    the document, the head names the ONE set it is judged against (the one
+    "Judged against" shows), and nothing is counted out.
 
-    MUTATION: drop the `_one_limit_set` call from `_report_body_html` and this
-    goes red on the head line and on the left-out note together.
-    """
+    MUTATION, proven red: make `_judged_by_the_document` return the rows
+    unchanged (each is judged against its own run's set, the head names none
+    and the tight run's date is left out again)."""
     from tests.test_import_measurement_module import _cgats, _PATCHES
     dlg, run, fm = _dialog(tmp_path, qapp)
     try:
@@ -203,19 +202,13 @@ def test_two_runs_bound_to_different_sets_leave_one_in_the_document(tmp_path,
         qapp.processEvents()
         body = _plain(dlg)
         head = body.split("Report Scope")[0]
-        assert "Judged against:" in head, (
-            "the document holds one limit set and the head names none of them")
-        assert "ChromIQ tight" in head, head[-200:]
-        # AND THE OTHER RUN IS COUNTED, NOT NAMED. Knut ruled in beta 20 that
-        # a report may not "show information that other reports exist with
-        # other 'judged against' threshold sets", so the sentence that used to
-        # name the left-out measurement and its set is gone and the Scope
-        # states the count instead.
-        assert "judged against a different limit set" not in body
+        shown = dlg._set_combo.currentText()
+        assert "Judged against: " + shown in head, (shown, head[-300:])
+        assert "ChromIQ tight" not in head, head[-300:]
         import re
-        assert re.search(r"covers \d+ of the \d+ measurements", body), (
-            "the other run's measurement is neither in the report nor counted "
-            "out of it")
+        assert not re.search(r"covers \d+ of the \d+ measurements", body), (
+            "a measurement was left out of a report across runs")
+        assert len(dlg._runs_for_document()) == 2
     finally:
         dlg.close()
 

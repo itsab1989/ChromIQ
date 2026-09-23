@@ -539,6 +539,7 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-23, G7 (B8-848) merged onto K28a. COUNTED, BOTH ledgers.
     # RE-MEASURED 2026-09-23, K28a (B8-846) merged onto Calibration and G12.
     # COUNTED off the merged tree, BOTH ledgers.
     # RE-MEASURED 2026-09-23, Calibration reports (B8-844) merged onto the G12
@@ -982,18 +983,18 @@ _BUDGET = {
     # COUNTED off the tree with this file's own expression, BOTH ledgers in the
     # same commit.
     "de": 14,
-    "es": 814,
-    "fr": 815,
-    "it": 814,
-    "ja": 814,
-    "nl": 814,
-    "no": 814,
-    "pl": 814,
-    "pt": 814,
-    "ru": 813,
-    "sv": 814,
-    "zh_CN": 813,
-    "uk": 1012,
+    "es": 815,
+    "fr": 816,
+    "it": 815,
+    "ja": 815,
+    "nl": 815,
+    "no": 815,
+    "pl": 815,
+    "pt": 815,
+    "ru": 814,
+    "sv": 815,
+    "zh_CN": 814,
+    "uk": 1013,
 }
 
 
