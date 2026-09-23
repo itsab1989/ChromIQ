@@ -235,7 +235,8 @@ def test_only_the_judged_rows_of_a_group_are_plotted(qapp, tmp_path):
     try:
         g = _group(dlg, "grey")
         assert [m[0] for m in g._metrics] == [
-            "Grey balance of the grey ramp, average"]
+            # the row's label, with its unit since K25
+            "Grey balance of the grey ramp, average (ΔCh)"]
         assert [v for v, _w, _c in g._limit_lines] == [1.5]
     finally:
         dlg.deleteLater()

@@ -215,6 +215,170 @@ def _trend_row_value(pt: dict, row_id: str, limit=None):
         return None
     return v
 
+
+# ---------------------------------------------------------------------------
+# #182 K25 (Knut, 5789263863): what every line, every graph and every red x
+# on a trend graph says, on screen as a tooltip and in the PDF as text.
+# Written for whoever the PDF is handed to (K18): what the thing IS, never
+# how to work ChromIQ and never how the report came to look like this.
+# ---------------------------------------------------------------------------
+
+#: One sentence per limit line, keyed by the row the line belongs to. The
+#: accuracy chart's grey pair is keyed by the two rows `legacy_pair` reads.
+#: Composed with the line's word and value by `_limit_line_note`.
+_LIMIT_NOTES = {
+    "all_de00_avg": lambda: tr(
+        "the limit for the average colour difference over all patches."),
+    "all_de00_max": lambda: tr(
+        "the limit for the largest colour difference of any single patch."),
+    "substrate_de00_max": lambda: tr(
+        "the limit for the difference between the bare paper and the "
+        "reference paper."),
+    "grey_balance_neutral_ramp_avg": lambda: tr(
+        "the limit for the average colour cast over the steps of the grey "
+        "ramp."),
+    "grey_balance_neutral_ramp_max": lambda: tr(
+        "the limit for the colour cast of the worst single step of the grey "
+        "ramp."),
+    "ramps_30_70_dl_max": lambda: tr(
+        "the limit for the largest lightness difference on the ramps between "
+        "30 % and 70 %."),
+    "control_strip_de00_avg": lambda: tr(
+        "the limit for the average colour difference of the control-strip "
+        "patches."),
+    "control_strip_de00_p95": lambda: tr(
+        "the limit for the colour difference that 95 % of the control-strip "
+        "patches stay under."),
+    "repeat_patches_de00_max": lambda: tr(
+        "the limit for the largest difference between patches of the same "
+        "colour on one sheet."),
+    "repeat_measurement_de00_max": lambda: tr(
+        "the limit for the largest difference when the same chart is "
+        "measured again."),
+    "uniformity_sd": lambda: tr(
+        "the limit for the largest difference between any two of the nine "
+        "areas of the sheet."),
+    "uniformity_de00_max_from_mean": lambda: tr(
+        "the limit for the largest difference between one of the nine areas "
+        "and the mean of all nine."),
+}
+
+#: What each graph is and what it shows, printed above it in the PDF: at
+#: most two lines at the picture's width (Knut: *"at most, a two-line
+#: description above its chart"*), which a test measures in English and
+#: German. Keyed like `_TREND_GROUPS`, plus the four original tabs.
+_TREND_ABOUT = {
+    "de": lambda: tr(
+        "How far each measured patch lies from its aim value (ΔE00), per "
+        "date: the average and the largest, over all patches, the best 95 % "
+        "and the worst 5 %."),
+    "white": lambda: tr(
+        "The lightness (L*) of the bare paper, per date. A change points to "
+        "a different paper or to a change in the instrument."),
+    "paper_diff": lambda: tr(
+        "How far the bare paper lies from the reference paper (ΔE00), per "
+        "date, with its limit."),
+    "black": lambda: tr(
+        "The lightness (L*) of the darkest patch on the sheet, per date. A "
+        "rising line means the blacks print lighter."),
+    "corners": lambda: tr(
+        "How far the paper white, the black and each solid primary and "
+        "secondary colour lie from their aim values (ΔE00), per date."),
+    "grey": lambda: tr(
+        "How neutral the grey ramp prints (ΔCh, the colour cast with "
+        "lightness left out), per date: the average step and the worst step."),
+    "tone": lambda: tr(
+        "The largest lightness difference (ΔL*) on the single-colour and grey "
+        "ramps between 30 % and 70 %, per date."),
+    "strip": lambda: tr(
+        "The colour difference (ΔE00) of the control-strip patches, per date: "
+        "their average and the value 95 % of them stay under."),
+    "repeat": lambda: tr(
+        "How far apart the same colour measures (ΔE00), per date: repeated "
+        "patches on one sheet, and the same chart measured again."),
+    "evenness": lambda: tr(
+        "Whether the sheet prints the same colour everywhere (ΔE00), per "
+        "date: between any two of nine areas, and one area against all nine."),
+}
+
+#: The colour of the mark for a withheld value (Knut: *"a small red x"*).
+_WITHHELD_RED = "#d62828"
+#: How far above the x-axis a withheld mark with no neighbouring point sits.
+_WITHHELD_FLOOR_PX = 6.0
+
+
+def _limit_value_text(v: float, unit: str) -> str:
+    """``1.5 ΔE00``: one decimal, two when the limit has them (0.75)."""
+    s = f"{float(v):.2f}"
+    if s.endswith("0"):
+        s = s[:-1]
+    return f"{s} {unit}".strip()
+
+
+def _limit_line_note(word: str, value: float, unit: str, row_id: str) -> str:
+    """The sentence a limit line's word stands for, on screen and in print."""
+    return tr("{word} ({value}): {text}").format(
+        word=word, value=_limit_value_text(value, unit),
+        text=_LIMIT_NOTES[row_id]())
+
+
+def _with_unit(label: str, unit: str) -> str:
+    """A legend entry carrying its unit, as Colour accuracy's already do."""
+    return tr("{metric} ({unit})").format(metric=label, unit=unit)
+
+
+def _trend_withheld_reason(pt: dict, row_id: str, limit) -> "str | None":
+    """Why *row_id* has no point on this date although it has a value: the
+    same noise rule, and the same sentence, as the results table's N-A. None
+    when the value is plotted, or when there is no value to withhold."""
+    v = (pt.get("rows") or {}).get(row_id)
+    if v is None or limit is None:
+        return None
+    if _trend_row_value(pt, row_id, limit) is not None:
+        return None
+    from workflow.measurement_report import EVENNESS_ROWS
+    key = EVENNESS_ROWS.get(row_id) or "pairwise"
+    noise = (pt.get("rows_noise") or {}).get(row_id)
+    return _evenness_noise_sentence(
+        {"evenness": {f"noise_{key}_p95": noise}}, key, float(limit))
+
+
+def _withheld_mark_value(values: list, i: int) -> "float | None":
+    """The height of the red x at date *i* of one metric (Knut, 5789263863):
+    at the neighbouring date's value when only one of the two dates beside it
+    has a point, at their mean when both do, and None, the floor just above
+    the x-axis, when neither does. *values* holds the metric's plotted value
+    per date on the axis, None where it has no point. The neighbours are the
+    dates immediately beside *i*, as Knut wrote: "the measurement date
+    before, or the one after"."""
+    before = values[i - 1] if i > 0 else None
+    after = values[i + 1] if i + 1 < len(values) else None
+    have = [v for v in (before, after) if v is not None]
+    return sum(have) / len(have) if have else None
+
+
+def _tip_rich(text: str) -> str:
+    """*text* as a tooltip Qt wraps. Plain text is shown on ONE line, and the
+    red x's sentence came out 1,580 px wide, wider than the report window
+    (photographed in the K25 drive); rich text is wrapped by the tooltip."""
+    return "<qt>" + html.escape(text) + "</qt>"
+
+
+def _segment_meets_rect(a: "QPointF", b: "QPointF", r: "QRectF") -> bool:
+    """Whether the straight line a-b passes through *r* (sampled every px)."""
+    import math
+    if not QRectF(QPointF(min(a.x(), b.x()), min(a.y(), b.y())),
+                  QPointF(max(a.x(), b.x()), max(a.y(), b.y()))
+                  ).adjusted(-1, -1, 1, 1).intersects(r):
+        return False
+    n = max(1, int(math.hypot(b.x() - a.x(), b.y() - a.y())))
+    for k in range(n + 1):
+        t = k / n
+        if r.contains(QPointF(a.x() + (b.x() - a.x()) * t,
+                              a.y() + (b.y() - a.y()) * t)):
+            return True
+    return False
+
 # The report body is one self-contained HTML document, shown in a QTextBrowser
 # AND saved to PDF. Inline colours beat any widget stylesheet, so a fixed
 # light-theme palette rendered the on-screen report as #333 text on the dark
@@ -898,6 +1062,38 @@ _PDF_ACCURACY_SCALE = 2
 _TREND_LONE_POINT_R = 4.0
 
 
+#: The PDF's type size for a graph's description and its key (K25). The
+#: two-line test measures at this size.
+_TREND_ABOUT_PX = 11
+
+
+def _trend_about_html(text: str) -> str:
+    """The description above a graph in the PDF (at most two lines)."""
+    if not text:
+        return ""
+    return (f"<div style='font-size:{_TREND_ABOUT_PX}px;color:{_LIGHT_REPORT['dim']};"
+            f"margin:2px 0 4px'>" + html.escape(text) + "</div>")
+
+
+def _trend_key_html(descriptions: list) -> str:
+    """Under a graph in the PDF: each limit line's word and each red x, with
+    the text its tooltip shows on screen. A line is keyed by a short dotted
+    stroke in its own colour, a withheld date by a red x."""
+    if not descriptions:
+        return ""
+    rows = []
+    for kind, col, text in descriptions:
+        mark = ("\u00d7" if kind == "mark" else "\u2508\u2508")
+        rows.append(
+            f"<div style='color:{_LIGHT_REPORT['dim']}'>"
+            f"<span style='color:{col.name()};font-weight:bold'>{mark}</span>"
+            "&nbsp;&nbsp;" + html.escape(text) + "</div>")
+    # Divs, not a table: `_paginate_tables` moves the graph's own one-cell
+    # table as a whole, and a table inside it would be a second one to move.
+    return (f"<div style='margin:4px 0 0;font-size:{_TREND_ABOUT_PX}px'>"
+            + "".join(rows) + "</div>")
+
+
 class _TrendChart(QWidget):
     """A compact multi-line chart of a printer's measurement history over time
     (#40, Knut). Generic: each instance plots one GROUP of related metrics
@@ -905,7 +1101,12 @@ class _TrendChart(QWidget):
     scales never share an axis. A metric is ``(label, QColor, accessor)`` where
     ``accessor(point)`` returns the value or ``None``. Hidden until ≥2 points.
     ``unit_dec`` sets the y-label decimals; ``y_max`` optionally pins the top
-    (e.g. 100 for L*)."""
+    (e.g. 100 for L*).
+
+    #182 K25 (Knut, 5789263863): every limit line's word explains itself
+    (``line_notes``, a tooltip here and the same text under the graph in the
+    PDF, `descriptions`), and a date whose value was withheld is drawn as a
+    small red x (``withheld``) instead of disappearing from the axis."""
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -917,12 +1118,28 @@ class _TrendChart(QWidget):
         self._auto = False
         self._thresholds: "tuple[float, float] | None" = None
         self._limit_lines: list = []
+        self._line_notes: list = []
+        self._withheld: list = []
+        #: ``[(QRectF, text)]`` of everything painted that explains itself,
+        #: refreshed by every paint, read by the tooltip (`event`).
+        self._hits: list = []
         self.setMinimumHeight(150)
 
     def set_data(self, series, metrics, dark=True, y_max=None, dec=1,
-                 auto=False, thresholds=None, limit_lines=None) -> None:
+                 auto=False, thresholds=None, limit_lines=None,
+                 line_notes=None, withheld=None) -> None:
+        # One entry per metric: ``withheld[k](pt)`` is the sentence saying
+        # why metric k's value on that date is not drawn, or None.
+        wh = list(withheld or [])
+        self._withheld = (wh + [None] * len(metrics))[:len(metrics)]
+
         def has_any(pt) -> bool:
-            return any(acc(pt) is not None for _, _, acc in metrics)
+            # A DATE WITH A WITHHELD VALUE STAYS ON THE AXIS (K25). It used to
+            # be dropped here when no other metric of the tab had a value on
+            # it, so a four-date evenness report drew three dates and said
+            # nothing about the fourth.
+            return (any(acc(pt) is not None for _, _, acc in metrics)
+                    or any(f is not None and f(pt) for f in self._withheld))
         self._series = [p for p in (series or []) if has_any(p)]
         self._metrics = metrics
         self._dark = dark
@@ -940,6 +1157,9 @@ class _TrendChart(QWidget):
         # pair above. The pair keeps its own name and grey pen: it is what
         # the R24-F3 guard watches, and its two lines serve five metrics.
         self._limit_lines = list(limit_lines or [])
+        # K25: the sentence each line's word stands for, in the order of the
+        # pair or of ``limit_lines``.
+        self._line_notes = list(line_notes or [])
         # NB: visibility is owned by the container (the tab widget), NOT the
         # chart — a per-widget setVisible here fought the tab stack and made all
         # three pages paint on top of each other before layout settled.
@@ -947,6 +1167,91 @@ class _TrendChart(QWidget):
 
     def has_trend(self) -> bool:
         return len(self._series) >= 2
+
+    # ---- K25: lines, words and red marks, described ------------------------
+    def _lines(self) -> list:
+        """``[(value, word, QColor | None, note)]`` for every limit line."""
+        if self._thresholds:
+            raw = [(tv, tlab, None) for tv, tlab in
+                   zip(self._thresholds, (tr("Avg"), tr("Max")))]
+        else:
+            raw = list(self._limit_lines)
+        notes = self._line_notes + [""] * len(raw)
+        return [(tv, tlab, tcol, notes[k])
+                for k, (tv, tlab, tcol) in enumerate(raw)]
+
+    def _date_label(self, i: int) -> str:
+        """The x-axis label of date *i*: the day, and the time as well when
+        several measurements share that day ("2026-08-10 11:36", Knut)."""
+        pts = self._series
+        c = str(pts[i].get("created") or "")
+        days = [str(pt.get("created") or "")[:10] for pt in pts]
+        if days.count(c[:10]) > 1 and len(c) >= 16:
+            return f"{c[:10]} {c[11:16]}"
+        return c[:10]
+
+    def withheld_marks(self) -> list:
+        """``[(metric index, date index, height or None, tooltip)]``: every
+        red x, with the height `_withheld_mark_value` gives it (None is the
+        floor just above the x-axis)."""
+        out = []
+        if len(self._series) < 2:
+            return out
+        for k, (lbl, _col, acc) in enumerate(self._metrics):
+            f = self._withheld[k] if k < len(self._withheld) else None
+            if f is None:
+                continue
+            values = [acc(pt) for pt in self._series]
+            for i, pt in enumerate(self._series):
+                reason = f(pt)
+                if not reason:
+                    continue
+                out.append((k, i, _withheld_mark_value(values, i),
+                            tr("{date}, {metric}: not judged, because "
+                               "{reason}.").format(
+                                   date=self._date_label(i), metric=lbl,
+                                   reason=reason)))
+        return out
+
+    def descriptions(self) -> list:
+        """What the PDF prints under the graph: ``[(kind, QColor, text)]``,
+        one per limit line (kind ``"line"``) then one per red x (``"mark"``).
+        The text is the tooltip's, word for word; a line outside the plotted
+        range, which has no word on the graph to point at, says so."""
+        out = []
+        grey = QColor(120, 120, 120)
+        vmin, vmax = self._y_range() if len(self._series) >= 2 else (None, None)
+        for tv, _w, tcol, note in self._lines():
+            if not note or not isinstance(tv, (int, float)):
+                continue
+            if vmin is not None and not (vmin <= tv <= vmax):
+                note = note + " " + tr("Outside the range of values shown.")
+            out.append(("line", QColor(tcol) if tcol is not None else grey,
+                        note))
+        for _k, _i, _v, text in self.withheld_marks():
+            out.append(("mark", QColor(_WITHHELD_RED), text))
+        return out
+
+    def event(self, ev) -> bool:  # noqa: D401
+        from PyQt6.QtCore import QEvent
+        if ev.type() == QEvent.Type.ToolTip:
+            from PyQt6.QtWidgets import QToolTip
+            pos = QPointF(ev.pos())
+            for rect, text in self._hits:
+                if rect.contains(pos):
+                    QToolTip.showText(ev.globalPos(), _tip_rich(text), self)
+                    return True
+            QToolTip.hideText()
+            ev.ignore()
+            return True
+        return super().event(ev)
+
+    def tooltip_at(self, pos: "QPointF") -> "str | None":
+        """The tooltip a pointer at *pos* is shown (after a paint)."""
+        for rect, text in self._hits:
+            if rect.contains(pos):
+                return text
+        return None
 
     def _y_range(self) -> "tuple[float, float]":
         """The plotted y-range, from the DATA alone.
@@ -995,6 +1300,7 @@ class _TrendChart(QWidget):
     def paintEvent(self, _ev) -> None:  # noqa: N802
         fg = QColor(210, 210, 210) if self._dark else QColor(60, 60, 60)
         grid = QColor(255, 255, 255, 28) if self._dark else QColor(0, 0, 0, 22)
+        self._hits = []
         p = QPainter(self)
         # A light-mode chart paints its own white ground. In dark mode the
         # widget stays transparent over the dialog — but the light rendering
@@ -1007,7 +1313,6 @@ class _TrendChart(QWidget):
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
         font = QFont(); font.setPixelSize(10); p.setFont(font)
 
-        import math
         L, R, B = 40.0, 12.0, 26.0
         w = max(1.0, self.width() - L - R)
         # The plot starts below the FULL legend, however many rows it wraps to.
@@ -1054,6 +1359,11 @@ class _TrendChart(QWidget):
                        f"{vmin + span * frac:.{self._dec}f}")
             p.setPen(QPen(grid, 1.0))
 
+        # What a word placed inside the plot must keep clear of (K25): every
+        # data segment, every marker and every red x.
+        segments: list = []
+        blobs: list = []
+
         # One polyline per metric.
         for _lbl, col, acc in self._metrics:
             poly = [xy(i, v) for i, pt in enumerate(pts)
@@ -1063,6 +1373,7 @@ class _TrendChart(QWidget):
             p.setPen(QPen(col, 2.0))
             for a, b in zip(poly, poly[1:]):
                 p.drawLine(a, b)
+                segments.append((a, b))
             # A SERIES WITH ONE VALUE IS STILL A VALUE (round B before beta
             # 37, H6). "The same chart measured again" has nothing to compare
             # on a chart's first date, so on a three-date report it has one
@@ -1073,21 +1384,39 @@ class _TrendChart(QWidget):
             r_dot = 2.4 if len(poly) > 1 else _TREND_LONE_POINT_R
             for q in poly:
                 p.drawEllipse(q, r_dot, r_dot)
+                blobs.append(QRectF(q.x() - r_dot, q.y() - r_dot,
+                                    2 * r_dot, 2 * r_dot))
+
+        # THE RED X (K25, Knut 5789263863): a date whose value was withheld,
+        # at its neighbour's height, their mean, or just above the x-axis.
+        xpen = QPen(QColor(_WITHHELD_RED), 2.0)
+        xpen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        arm = 3.5
+        for _k, i, val, text in self.withheld_marks():
+            c = (xy(i, val) if val is not None
+                 else QPointF(L + (w * i / (n - 1)), T + h - _WITHHELD_FLOOR_PX))
+            p.setPen(xpen)
+            p.drawLine(QPointF(c.x() - arm, c.y() - arm),
+                       QPointF(c.x() + arm, c.y() + arm))
+            p.drawLine(QPointF(c.x() - arm, c.y() + arm),
+                       QPointF(c.x() + arm, c.y() - arm))
+            box = QRectF(c.x() - arm - 3, c.y() - arm - 3,
+                         2 * arm + 6, 2 * arm + 6)
+            blobs.append(box)
+            self._hits.append((box, text))
 
         # Limit lines: the accuracy chart's grey Avg / Max pair, or one line
         # per metric on a judged-metric tab (#182 K20/K21) — dotted, and only
         # while they fall inside the visible y-range (Knut).
         grey_line = QColor(150, 150, 150) if self._dark else QColor(120, 120, 120)
-        lines = ([(tv, tlab, None) for tv, tlab in
-                  zip(self._thresholds, (tr("Avg"), tr("Max")))]
-                 if self._thresholds else list(self._limit_lines))
+        lines = self._lines()
         if lines:
-            thr = [(tv, tlab) for tv, tlab, _c in lines
-                   if isinstance(tv, (int, float)) and vmin <= tv <= vmax]
+            inside = [(tv, tlab, tcol, note) for tv, tlab, tcol, note in lines
+                      if isinstance(tv, (int, float)) and vmin <= tv <= vmax]
+            thr = [(tv, tlab) for tv, tlab, _c, _n in inside]
+            notes = [note for _tv, _tl, _c, note in inside]
             pens = []
-            for tv, _tlab, tcol in lines:
-                if not (isinstance(tv, (int, float)) and vmin <= tv <= vmax):
-                    continue
+            for _tv, _tlab, tcol, _n in inside:
                 tpen = QPen(QColor(tcol) if tcol is not None else grey_line)
                 tpen.setStyle(Qt.PenStyle.DotLine); tpen.setWidthF(1.2)
                 pens.append(tpen)
@@ -1109,6 +1438,9 @@ class _TrendChart(QWidget):
             # plot at the lines' left tips, the UPPER line's word above it
             # and the LOWER line's word below it, so the two diverge instead
             # of stacking however close the lines sit.
+            #
+            # THE SAME RULE ON EVERY GRAPH (K25): this code is the only place
+            # any tab's limit words are placed, and a test pins it per tab.
             collide = any(abs(ty - ay) < 9.0 for ty in thr_ys for ay in axis_ys)
             if len(thr_ys) == 2 and abs(thr_ys[0] - thr_ys[1]) < 11.0:
                 collide = True
@@ -1116,12 +1448,17 @@ class _TrendChart(QWidget):
                 p.setPen(tpen)
                 p.drawLine(QPointF(L, yy), QPointF(L + w, yy))
             p.setPen(QPen(fg, 1.0))
+            fm = p.fontMetrics()
             if not collide:
-                for (tv, tlab), yy in zip(thr, thr_ys):
+                for (tv, tlab), yy, note in zip(thr, thr_ys, notes):
                     p.drawText(QRectF(0, yy - 7, L - 4, 14),
                                Qt.AlignmentFlag.AlignRight
                                | Qt.AlignmentFlag.AlignVCenter,
                                tlab)
+                    tw = fm.horizontalAdvance(tlab)
+                    if note:
+                        self._hits.append(
+                            (QRectF(L - 4 - tw - 2, yy - 7, tw + 4, 14), note))
             else:
                 order = sorted(range(len(thr)), key=lambda i: thr_ys[i])
                 for rank, i in enumerate(order):
@@ -1130,10 +1467,17 @@ class _TrendChart(QWidget):
                     top = yy - 16 if above else yy + 2
                     # never outside the plot: clamp, keeping above/below sense
                     top = min(max(top, T), T + h - 14)
-                    p.drawText(QRectF(L + 4, top, 80, 14),
+                    left = self._clear_left(L, w, top, fm.horizontalAdvance(tlab),
+                                            segments, blobs)
+                    p.drawText(QRectF(left, top, 80, 14),
                                Qt.AlignmentFlag.AlignLeft
                                | Qt.AlignmentFlag.AlignVCenter,
                                tlab)
+                    box = QRectF(left - 1, top, fm.horizontalAdvance(tlab) + 2,
+                                 14)
+                    blobs.append(box)
+                    if notes[i]:
+                        self._hits.append((box, notes[i]))
 
         # X axis: a tick under EVERY measurement point plus as many dated labels
         # (YYYY-MM-DD) as fit without overlapping — always the first and last —
@@ -1147,17 +1491,10 @@ class _TrendChart(QWidget):
         p.setPen(QPen(fg, 1.0))
         fm = p.fontMetrics()
 
-        days = [str(pt.get("created") or "")[:10] for pt in pts]
-        shared_days = {d for d in days if days.count(d) > 1}
-
-        def _lab(i: int) -> str:
-            # Several checks on one day: the date alone reads as the same
-            # point over and over, so those labels carry the time as well
-            # ("2026-08-10 11:36" — Knut, 2026-08-11). Unique days stay short.
-            c = str(pts[i].get("created") or "")
-            if c[:10] in shared_days and len(c) >= 16:
-                return f"{c[:10]} {c[11:16]}"
-            return c[:10]
+        # Several checks on one day: the date alone reads as the same point
+        # over and over, so those labels carry the time as well
+        # ("2026-08-10 11:36" — Knut, 2026-08-11). Unique days stay short.
+        _lab = self._date_label
 
         def _draw_date(left: float, text: str) -> None:
             p.drawText(QRectF(left, axis_y + 4, fm.horizontalAdvance(text) + 6, 16),
@@ -1184,6 +1521,28 @@ class _TrendChart(QWidget):
         # Legend (wraps across as many rows as needed for 8 corners).
         self._draw_legend(p, fg, L, w)
         p.end()
+
+    @staticmethod
+    def _clear_left(L: float, w: float, top: float, tw: float,
+                    segments: list, blobs: list) -> float:
+        """Where a limit word inside the plot starts (K25, Knut: what happens
+        *"when a threshold label comes close to a graph's line"*).
+
+        At the line's left end, as always, unless its box would cross a data
+        line, a point, a red x or the other word: then the first place further
+        along its own line, in 8 px steps, where it crosses none. Where there
+        is no such place it stays at the left end: a word is never dropped
+        (Knut, 2026-08-11)."""
+        start = L + 4
+        x = start
+        while x + tw <= L + w:
+            box = QRectF(x - 2, top + 1, tw + 4, 12)
+            if (not any(box.intersects(b) for b in blobs)
+                    and not any(_segment_meets_rect(a, b, box)
+                                for a, b in segments)):
+                return x
+            x += 8.0
+        return start
 
 
 class _NothingToRestore(Exception):
@@ -4041,7 +4400,9 @@ class MeasurementReportDialog(QDialog):
         — shared by the live tabs and the PDF export so they always match. ``auto``
         ranges the axis tightly around the data instead of anchoring at 0."""
         corner_metrics = [
-            (_CORNER_LABELS[code](), QColor(_CORNER_LINE[code]),
+            # K25: the unit on every data label, as Colour accuracy's carry.
+            (_with_unit(_CORNER_LABELS[code](), "ΔE00"),
+             QColor(_CORNER_LINE[code]),
              (lambda pt, c=code: (pt.get("corners") or {}).get(c)))
             for code in ("W", "K", "R", "G", "B", "C", "M", "Y")
         ]
@@ -5007,9 +5368,12 @@ class MeasurementReportDialog(QDialog):
                                           if _c is self._trend_de else 1)
                     tmp = _TrendChart()
                     tmp.resize(640, ch_h)
+                    ex = self._trend_extras(_c)
                     tmp.set_data(self._trend_series, metrics, dark=False,
                                  y_max=y_max, dec=dec, auto=auto, thresholds=thr,
-                                 limit_lines=lines)
+                                 limit_lines=lines,
+                                 line_notes=ex["line_notes"],
+                                 withheld=ex["withheld"])
                     # Render at 3× and display at the same 600px layout width: a
                     # plain grab() gave a ~96-dpi raster that printed visibly
                     # blurry next to the vector text (Sebastian, 2026-08-10).
@@ -5030,12 +5394,23 @@ class MeasurementReportDialog(QDialog):
                     # rather than leaving its title at the foot of this one:
                     # with Colour accuracy twice as tall and up to ten charts,
                     # the trend section now runs over several pages.
+                    #
+                    # K25 (Knut, 5789263863): at most two lines above the
+                    # picture saying what the graph is and shows, and under
+                    # it every line's word and every red x explained, in the
+                    # words their tooltips use on screen.
                     charts_html += (
                         "<table cellspacing='0' cellpadding='0'><tr><td>"
                         "<div style='font-size:16px;font-weight:bold;"
                         "margin-top:4px'>" + html.escape(title) + "</div>"
-                        f"<img src='chart://{i}' width='600'>"
-                        "</td></tr></table>" + _gap())
+                        + _trend_about_html(ex["about"])
+                        # THE PICTURE IN A BLOCK OF ITS OWN: a bare <img>
+                        # after the description joined its last line, and a
+                        # short last line ("all nine.") was printed beside
+                        # the picture's foot, under the graph (drive, K25).
+                        + f"<div><img src='chart://{i}' width='600'></div>"
+                        + _trend_key_html(tmp.descriptions())
+                        + "</td></tr></table>" + _gap())
             runs = self._runs_for_report()
             doc.setHtml(self._pdf_html(runs, charts_html))
             # THE HEADER DESCRIBES THE SAME ROWS AS THE BODY (round B,
@@ -12967,7 +13342,10 @@ class MeasurementReportDialog(QDialog):
                 if rid not in judged:
                     continue
                 lim = judged[rid]
-                metrics.append((tr(ROW_BY_ID[rid].label), QColor(col),
+                # K25: the legend carries the row's unit, as Colour
+                # accuracy's "Average ΔE, all patches" does.
+                metrics.append((_with_unit(tr(ROW_BY_ID[rid].label),
+                                           ROW_BY_ID[rid].unit), QColor(col),
                                 (lambda pt, rr=rid, ll=lim:
                                  _trend_row_value(pt, rr, ll))))
                 lines.append((lim, word(), QColor(col)))
@@ -12975,6 +13353,46 @@ class MeasurementReportDialog(QDialog):
                          False, None, lines, bool(metrics)))
         plan.sort(key=lambda e: self._trend_tabs.indexOf(e[0]))
         return plan
+
+    def _trend_extras(self, chart) -> dict:
+        """The K25 half of a chart's data: ``{"line_notes", "withheld",
+        "about"}``, for the tab and the PDF alike (Knut, 5789263863).
+
+        ``line_notes`` explains each limit line, in the order `_trend_plan`
+        gives the lines; ``withheld`` says, per plotted metric, why a date's
+        value is not drawn (the red x); ``about`` is the graph's two-line
+        description for the PDF."""
+        from workflow.compliance_sets import ROW_BY_ID
+        key = {self._trend_de: "de", self._trend_white: "white",
+               self._trend_black: "black",
+               self._trend_corners: "corners"}.get(chart)
+        if key is None:
+            key = next((k for k, c in self._trend_groups.items()
+                        if c is chart), None)
+        about = _TREND_ABOUT[key]() if key in _TREND_ABOUT else ""
+        if chart is self._trend_de:
+            avg_thr, max_thr = self._thresholds()
+            notes = [_limit_line_note(tr("Avg"), avg_thr, "ΔE00",
+                                      "all_de00_avg")
+                     if isinstance(avg_thr, (int, float)) else "",
+                     _limit_line_note(tr("Max"), max_thr, "ΔE00",
+                                      "all_de00_max")
+                     if isinstance(max_thr, (int, float)) else ""]
+            return {"line_notes": notes, "withheld": [], "about": about}
+        rows = dict((k, r) for k, _t, r in _TREND_GROUPS).get(key)
+        if not rows:
+            return {"line_notes": [], "withheld": [], "about": about}
+        judged = self._judged_trend_limits()
+        notes, withheld = [], []
+        for rid, word, _col in rows:
+            if rid not in judged:
+                continue
+            lim = judged[rid]
+            notes.append(_limit_line_note(word(), lim, ROW_BY_ID[rid].unit,
+                                          rid))
+            withheld.append(lambda pt, rr=rid, ll=lim:
+                            _trend_withheld_reason(pt, rr, ll))
+        return {"line_notes": notes, "withheld": withheld, "about": about}
 
     def _update_trends(self, series: list, dark: bool) -> None:
         """Feed the grouped trend charts their metric sets. The tabs stay visible
@@ -12984,8 +13402,11 @@ class MeasurementReportDialog(QDialog):
         metric and is hidden while none of its rows is judged (#182 K20/K21)."""
         for (chart, _title, metrics, y_max, dec, auto, thr, lines,
              shown) in self._trend_plan():
+            ex = self._trend_extras(chart)
             chart.set_data(series, metrics, dark=dark, y_max=y_max, dec=dec,
-                           auto=auto, thresholds=thr, limit_lines=lines)
+                           auto=auto, thresholds=thr, limit_lines=lines,
+                           line_notes=ex["line_notes"],
+                           withheld=ex["withheld"])
             self._trend_tabs.setTabVisible(self._trend_tabs.indexOf(chart),
                                            shown)
         show = bool(self._sources)

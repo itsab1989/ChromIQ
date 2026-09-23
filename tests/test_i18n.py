@@ -1365,18 +1365,26 @@ _IDENTICAL_TO_KEY = {
     # The two M-REPORT-DELETE keys were renamed in place and reset to the new
     # English. German by hand, does not move. The other ledger, `_BUDGET`,
     # rose by 4 in the same commit ("Run{number}" is under 25 characters).
-    "de": 139,
-    "es": 1024,
-    "fr": 1046,
-    "it": 1035,
-    "ja": 1010,
-    "nl": 1051,
-    "no": 1036,
-    "pl": 1028,
-    "pt": 1026,
-    "ru": 999,
-    "sv": 1037,
-    "zh_CN": 1004,
+    # RE-MEASURED 2026-09-23, #182 K25 graphs (the trend graphs explain their
+    # lines, their red x and themselves), on top of the K25 list round. 26 new
+    # keys. German is translated by hand and rises by exactly 2:
+    # `{metric} ({unit})` and `{word} ({value}): {text}` are pure placeholder
+    # templates, identical to their key in every language. Each of the twelve
+    # others rises by exactly 26, the new keys carrying their English source
+    # under the beta rule. COUNTED off the catalogues this change leaves
+    # behind with the expression the test below uses.
+    "de": 141,
+    "es": 1050,
+    "fr": 1072,
+    "it": 1061,
+    "ja": 1036,
+    "nl": 1077,
+    "no": 1062,
+    "pl": 1054,
+    "pt": 1052,
+    "ru": 1025,
+    "sv": 1063,
+    "zh_CN": 1030,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1403,7 +1411,7 @@ _IDENTICAL_TO_KEY = {
     # in Ukrainian, so the pointer could not match whatever the user read.
     # Nothing else changed. The ceiling is re-measured DOWN here rather than
     # left where it was, so the next rise still has to justify itself.
-    "uk": 1246,
+    "uk": 1272,
 }
 
 

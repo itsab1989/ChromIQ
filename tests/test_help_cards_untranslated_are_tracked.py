@@ -539,6 +539,12 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-23, #182 K25 graphs, on top of the K25 list round:
+    # 26 new keys, 24 of them long enough to count here (the two short ones
+    # are placeholder templates). German by hand and unmoved; the twelve
+    # others carry the English under the beta rule and each rises by exactly
+    # 24. COUNTED off the tree with this file's own expression, BOTH ledgers
+    # in the same commit.
     # RE-MEASURED 2026-09-23, the fixes for the two challenge rounds before
     # beta 37: report text reworded for K18 ("the test chart used", no
     # "you"/"your", no ChromIQ explanation), the evenness noise note
@@ -943,18 +949,18 @@ _BUDGET = {
     # were renamed in place and were already English there. German by hand,
     # does not move. COUNTED off the tree, BOTH ledgers in the same commit.
     "de": 14,
-    "es": 746,
-    "fr": 747,
-    "it": 746,
-    "ja": 746,
-    "nl": 746,
-    "no": 746,
-    "pl": 746,
-    "pt": 746,
-    "ru": 745,
-    "sv": 746,
-    "zh_CN": 745,
-    "uk": 946,
+    "es": 770,
+    "fr": 771,
+    "it": 770,
+    "ja": 770,
+    "nl": 770,
+    "no": 770,
+    "pl": 770,
+    "pt": 770,
+    "ru": 769,
+    "sv": 770,
+    "zh_CN": 769,
+    "uk": 970,
 }
 
 
