@@ -25236,7 +25236,7 @@ would reach.
 - proof: `~/Desktop/ChromIQ-beta37-proof/evenness/` (DESIGN.md, REPORT.md,
   photographs of the real app on screen).
 
-### B8-815 · OPEN · Evenness: seven questions for Knut before §16 can be confirmed
+### B8-815 · OPEN · Evenness: eight questions for Knut before §16 can be confirmed
 - blocks release: no
 - status: OPEN
 - found by: building B8-814; each is written out in
@@ -25248,4 +25248,6 @@ would reach.
   presets window's star; E5 the Custom columns start from 1.5 / 1.0 rather
   than his own researched figures; E6 both rows stay in the ISO columns'
   structure though the first was a spread statistic there; E7 the 1.0 on the
-  from-the-mean row.
+  from-the-mean row; E8 whether evenness should always be judged in absolute
+  Lab, since a media-relative sheet whose paper-white patch sits in a faulty
+  area shifts all nine areas (measured on screen on the demo project).

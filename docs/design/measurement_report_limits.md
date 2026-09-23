@@ -1888,7 +1888,7 @@ can say a row was left unanswered.
 (`~/Desktop/ChromIQ-beta36-proof/F1-evenness/REPORT.md`) and Basti's reply
 5785894881. **Confirmed by:** *nobody yet.* This section records the method he
 ruled and what was built from it (B8-814). Nobody has confirmed that what the
-app now does is what it should do, and seven questions below are his.
+app now does is what it should do, and eight questions below are his.
 
 ### 16.1 The method
 
@@ -2029,3 +2029,10 @@ leaves out the two FILE reasons, which no patch can answer.
   holder's figure for the first row was written for a spread statistic, not
   for the pairwise ΔE00 now computed. Keep the rows in the ISO structure?
 * **E7. The 1.0** on the from-the-mean row (16.2).
+* **E8. The yardstick.** Evenness uses the same yardstick as the other rows,
+  so a sheet printed through its profile with a white-mapping intent is read
+  media-relative: every reading is divided by the sheet's lightest patch.
+  Driven on the demo project: when the paper-white patch happened to sit in
+  the one area printed lighter, the whole sheet shifted by a colour-dependent
+  amount, the noise rose from 0.3 to 3.7 and both rows read N-A. Should
+  evenness always be judged in absolute Lab, whatever the other rows use?
