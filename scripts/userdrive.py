@@ -77,6 +77,10 @@ class Drive:
         self.shots.mkdir(parents=True, exist_ok=True)
         _sandbox(self.out)
         self.notes: list[str] = []
+        #: Set when this step has just closed a modal (a button clicked, a
+        #: file chooser accepted); cleared when the next step starts. While it
+        #: is set, `pump` does NOT call processEvents: see `_modal_closed`.
+        self._closed_a_modal = False
         self.record: dict = {"mode": "ON SCREEN", "tree": str(ROOT),
                              "steps": [], "modals": [], "photos": []}
 
@@ -124,6 +128,13 @@ class Drive:
 
     # -- time ---------------------------------------------------------------
     def pump(self, ms: int = 300) -> None:
+        if self._closed_a_modal:
+            # A MODAL WAS JUST CLOSED IN THIS STEP. Its exec() is on the stack
+            # under this call and can only return once this step returns to
+            # it; pumping here is what left "Save report as PDF" waiting two
+            # minutes for the report window to close (beta 38, B8-831). The
+            # wait the caller wanted happens on its next `yield` instead.
+            return
         end = time.monotonic() + ms / 1000.0
         while time.monotonic() < end:
             self.app.processEvents()
@@ -140,6 +151,14 @@ class Drive:
         from onscreen_capture import capture_window
         win = widget.window() if widget is not None else self.win
         path = self.shots / f"{name}.png"
+        if self._closed_a_modal:
+            # capture_window pumps the loop too (see `_modal_closed`)
+            self.record["photos"].append({"file": path.name, "ok": False,
+                                          "why": "a modal was closed in this "
+                                          "step; yield before photographing"})
+            self.note(f"   [photo] {path.name}: SKIPPED, a modal was closed "
+                      f"in this step (yield first)")
+            return False
         self.pump(700)
         ok, why = capture_window(win, path)
         self.record["photos"].append({"file": path.name, "ok": ok, "why": why,
@@ -322,7 +341,7 @@ class Drive:
                   f"{choice.text() if choice else 'NO SUCH BUTTON'}")
         if choice is not None:
             choice.click()
-        self.pump(600)
+            self._modal_closed()
         return said
 
     def answer_file(self, path, name: str | None = None,
@@ -364,8 +383,31 @@ class Drive:
         self.note(f"   [file dialog] {w.windowTitle()!r} -> {p}; the dialog "
                   f"reports selected: {chosen}")
         w.accept()
-        self.pump(600)
+        self._modal_closed()
         return str(p) in chosen
+
+    def _modal_closed(self) -> None:
+        """A modal was just answered from inside its own exec(). Return to it.
+
+        **NOTHING MAY CALL processEvents() BETWEEN HERE AND THE NEXT `yield`.**
+        This step runs as a timer callback INSIDE the modal's exec() loop.
+        `accept()` asks that loop to exit, and on macOS (the cocoa event
+        dispatcher) a processEvents() call made on top of it before it gets
+        control back can swallow the wake-up: the dialog is hidden, its result
+        is Accepted, and its exec() does not return until something else
+        interrupts the dispatcher. Measured on screen, beta 38 (B8-831): the
+        file chooser of "Save report as PDF" sat in exec() for two minutes,
+        every timer still firing inside it, and returned only when the drive
+        closed the report window, so the PDF was written then. A standalone
+        probe (`scripts/probe_dialog_exit_after_reentrant_pump.py`, plain Qt,
+        no ChromIQ) gives the same: accept-and-return 0.02 s in 6 of 6;
+        accept-then-pump stuck in 2 of 6; a queued accept fired inside the pump
+        stuck in 6 of 6.
+
+        A user's click is delivered by the modal's own loop and never has a
+        processEvents() on top of it, so this is a property of the drivers.
+        """
+        self._closed_a_modal = True
 
     def read_file_dialog(self, name: str | None = None,
                          within_ms: int = 6000) -> "dict | None":
@@ -406,6 +448,7 @@ class Drive:
         state = {"rc": 0}
 
         def step():
+            self._closed_a_modal = False
             try:
                 wait = next(gen)
             except StopIteration:

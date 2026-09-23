@@ -25670,3 +25670,31 @@ would reach.
   (ICC.1) exists to compare two papers.
 - recommendation: judge evenness in absolute Lab always.
 - evidence: `~/Desktop/ChromIQ-beta38-proof/evenness-followups/E8-research.md`
+
+### B8-831 · FIXED · Not an app fault: "Save report as PDF…" written only when the report window closed (the drive harness)
+- blocks release: no
+- status: FIXED
+- found by: two beta 38 drive rounds (graphs: L1 and R1 "NOT WRITTEN", the
+  file appearing when the window closed; beta 37 recheck: the chooser took a
+  path and wrote nothing until later).
+- measured, on screen: `_export_pdf` is synchronous (chooser `exec()`, then
+  QPdfWriter, `painter.end()`, the "PDF saved" log line, `openUrl`); no
+  callback, timer or deferred event. In the reproducing drive the chooser was
+  hidden with result Accepted and its `exec()` stayed on the stack for two
+  minutes with nothing above it, returning when the drive closed the report
+  window. Cause: `scripts/userdrive.py` answered the chooser from a timer
+  callback inside its `exec()` and then pumped `processEvents()`; on macOS
+  that re-entrant pump can swallow the dispatcher's wake-up. Plain-Qt probe
+  (`scripts/probe_dialog_exit_after_reentrant_pump.py`): accept-and-return
+  0 of 6 stuck (0.02 s); accept-then-pump 2 of 6; accept queued into the pump
+  6 of 6. A user's click is delivered by the chooser's own loop; no app code
+  on this path pumps.
+- fix (harness): after answering a modal, `Drive.pump` and `Drive.shot` do
+  nothing until the step yields (`Drive._modal_closed`).
+- proof: `~/Desktop/ChromIQ-beta38-proof/evenness-followups/pdf/FINDINGS.md`;
+  nine exports in one window (first by the real pointer on SAVE), each
+  complete with `%%EOF` 0.25 to 1.4 s after the answer, window open.
+- evidence:
+  test_no_pump_between_accepting_the_file_chooser_and_the_next_yield
+  test_no_pump_after_clicking_a_question_either
+  test_the_next_step_pumps_again
