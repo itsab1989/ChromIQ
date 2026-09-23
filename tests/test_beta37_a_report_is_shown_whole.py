@@ -129,3 +129,33 @@ def test_picking_the_report_in_the_list_loads_it_whole_and_writes_nothing(
         assert _snapshot(root) == before, "a report file was rewritten or moved"
     finally:
         dlg.close()
+
+
+def test_new_report_unloads_what_the_cross_run_report_loaded(tmp_path, qapp):
+    """Recheck R1 (before beta 37): the measurements a selected report loads
+    belong to that report and leave with it. A run whose newest report covered
+    two runs opened with the other run loaded and Generate greyed, and stayed
+    so through "New report…" and every other report until Clear List.
+
+    MUTATION: make `_drop_borrowed_sources` return False at its top and the
+    window keeps two sources and a greyed Generate after "New report…": red.
+    """
+    s, run1, run2, v1, v2, doc_path, doc_id = \
+        _two_runs_and_a_report_across_them(tmp_path)
+    dlg = _dialog(s, v2.measurement_ti3, qapp)
+    try:
+        assert len(dlg._sources) == 2, "the premise: it opened whole"
+        dlg._saved_combo.setCurrentIndex(0)           # "New report…"
+        qapp.processEvents()
+        assert len(dlg._sources) == 1, "the other run's measurement stayed"
+        dirs = {project_relative(r.get("_origin_dir") or "")
+                for r in dlg._history}
+        assert project_relative(v1.dir) not in dirs
+        assert dlg._generate_btn.isEnabled(), dlg._generate_btn.toolTip()
+        # and picking the cross-run report again loads it whole again
+        i = dlg._saved_combo.findData(f"id:{doc_id}")
+        dlg._saved_combo.setCurrentIndex(i)
+        qapp.processEvents()
+        assert len(dlg._sources) == 2
+    finally:
+        dlg.close()

@@ -25495,3 +25495,26 @@ would reach.
   demo whose noise can move the paper-white pick acceptable, or should the
   demo keep the paper patches noise-free (and should the report guard the
   lightest-patch rule with the chart's own white).
+
+### B8-825 · FIXED · Recheck before beta 37: a report's borrowed measurements stayed loaded, and the window could not generate
+- blocks release: no
+- status: FIXED
+- found by: the recheck round before beta 37, on screen, 2026-09-23 (R1).
+  Report: `~/Desktop/ChromIQ-beta37-proof/recheck/REPORT.md`. The A-F1 fix
+  loaded the measurements a selected report covers, and nothing unloaded
+  them: a run whose newest report covered two runs opened with the other
+  run's measurement in the list and Generate greyed, and stayed so through
+  "New report…" and every other report until Clear List.
+- fix: `_drop_borrowed_sources` unloads what a report pulled in when another
+  report or "New report…" is chosen; a measurement the user added is never
+  touched. Driven on screen (`~/Desktop/ChromIQ-beta37-proof/r1-fixed/`):
+  after switching, one source, Generate live, the Update question asked; and
+  an Update of the legacy two-date report reproduced off the driver archives
+  and rewrites it in the new layout.
+- NOT changed, LOW: R2 a German user who types the English default title gets
+  the German one back (the default is recognised by value); the results
+  table's date headers are right-aligned over centred verdict words; a split
+  table carries its note numbers on the first part and "Notes on the verdicts
+  above" under the last.
+- evidence:
+  test_new_report_unloads_what_the_cross_run_report_loaded

@@ -1413,6 +1413,9 @@ class MeasurementReportDialog(QDialog):
         # Each source is one profile's measurements: {"name", "dir", "runs"}.
         # The list-field mirrors this; _history is their runs, oldest-first.
         self._sources: "list[dict]" = []
+        #: the measurements a selected report loaded (A-F1), which leave with
+        #: it (`_drop_borrowed_sources`, recheck R1)
+        self._borrowed_sources: "set[str]" = set()
         self._created = datetime.now().isoformat(timespec="seconds")
         self.setWindowTitle(tr("Measurement Report"))
         # Width only — the HEIGHT minimum must stay the layout's own: an
@@ -3682,6 +3685,7 @@ class MeasurementReportDialog(QDialog):
 
     def _on_clear_list(self) -> None:
         self._sources = []
+        self._borrowed_sources = set()
         self._report, self._ti3 = None, None
         # **NO SAVED REPORT SURVIVES THE CLEAR (round 2A, R2A-6).** The
         # cleared report stayed selected: the page went on printing its
@@ -6748,6 +6752,7 @@ class MeasurementReportDialog(QDialog):
         writes a NEW document, which is Knut's K.1 (*"It is better that
         existing reports are not overwritten"*) unchanged.
         """
+        self._drop_borrowed_sources()        # recheck R1
         self._load_the_defaults()
         # A NEW REPORT IS ABOUT THE NEWEST FILE OF EACH MEASUREMENT, so the
         # document a click left behind stops choosing which file is drawn.
@@ -6883,6 +6888,12 @@ class MeasurementReportDialog(QDialog):
         `_rebuild_from_sources`, which repaints immediately afterwards.
         """
         key = entry["key"]
+        if self._drop_borrowed_sources():
+            again = next((d for d in self._saved_documents(
+                self._run_ctx.run if self._run_ctx else None)
+                if d["key"] == key), None)
+            if again is not None:
+                entry = again
         # **A DOCUMENT IS SHOWN WHOLE, OR IT IS NOT SHOWN AS ITSELF (the
         # challenge round before beta 37, A-F1).** A document in
         # `<project>/reports` covering run1's 2026-12-15 and run2's
@@ -6930,6 +6941,33 @@ class MeasurementReportDialog(QDialog):
         # repaint the caller runs. Setting the two combos here as well would be
         # two answers to one question, and this window has paid for that before.
 
+    def _drop_borrowed_sources(self) -> bool:
+        """Unload the measurements a selected report pulled in (recheck R1,
+        before beta 37).
+
+        `_load_the_documents_other_measurements` loads what a report covers
+        so it is shown whole; nothing unloaded them, so a run whose newest
+        report covered two runs opened with the other run's measurement in the
+        list and Generate greyed, and it stayed so through "New report…" and
+        every other report until Clear List. They belong to that report only,
+        and leave with it. A source the user added is never touched.
+        """
+        borrowed = getattr(self, "_borrowed_sources", set())
+        if not borrowed:
+            return False
+        keep = [src for src in self._sources
+                if str(src.get("ti3")) not in borrowed]
+        dropped = len(keep) != len(self._sources)
+        self._borrowed_sources = set()
+        if dropped:
+            self._sources = keep
+            self._history = sorted(
+                (r for src in self._sources for r in src["runs"]),
+                key=lambda r: str(r.get("created") or ""))
+            self._project_dirs = {src["dir"] for src in self._sources}
+            log.info("unloaded the measurements the previous report covered")
+        return dropped
+
     def _load_the_documents_other_measurements(self, entry: dict) -> int:
         """Load every measurement *entry*'s document records that is not in
         the list yet; the number loaded (A-F1, before beta 37).
@@ -6971,6 +7009,7 @@ class MeasurementReportDialog(QDialog):
                 if self._append_source(ti3, origin=ti3):
                     added += 1
                     loaded.add(rel)
+                    self._borrowed_sources.add(str(ti3))
                     log.info("loaded %s: the selected report covers it", ti3)
             except Exception as exc:                  # noqa: BLE001
                 log.warning("could not load %s for the selected report: %s",
