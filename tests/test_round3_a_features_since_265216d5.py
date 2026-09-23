@@ -107,28 +107,25 @@ def test_already_generated_counts_an_untyped_report_as_its_label_says(
 # R3A-4: FIXED 2026-09-23; this was a strict xfail and is now the guard.
 def test_adding_a_measurement_is_a_change_to_the_selected_report(
         two_dates, qapp, monkeypatch):
+    """R3A-4: when the loaded measurements differ from the ones the selected
+    document was drawn from, the question says the settings were modified.
+
+    Since the final round before beta 36, every way Add can change the list
+    under a selected report is refused before this question (another run is
+    several places, the run's profiling sheet is both kinds), so the state is
+    set directly: the document's recorded sources against today's.
+
+    MUTATION: drop `sources_moved` from `modified` and the box says "Nothing
+    was changed": red."""
     from PyQt6.QtWidgets import QMessageBox
-    from tests.test_import_measurement_module import _cgats, _PATCHES
     from workflow.measurement_report import REPORT_TYPE_FULL
     s, _fm, run, vs = two_dates
-    # A THIRD DATED VERIFICATION, not the run's profiling sheet: since the
-    # final round (FC-2) a profiling sheet beside verifications is a mixed
-    # load and Generate refuses it outright, which is another test.
-    v3 = run.new_verification()
-    v3.ensure_dir()
-    v3.measurement_ti3.write_text(_cgats("CTI3", _PATCHES), encoding="utf-8")
-    sheet = v3.measurement_ti3
     dlg = _window(s, vs[-1].measurement_ti3, qapp)
     try:
         key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_FULL,
                                every_measurement=False, detail=False)
         _pick_key(dlg, key, qapp)
-        n0 = len(dlg._sources)
-        dlg._append_source(sheet, origin=sheet)
-        dlg._rebuild_from_sources()
-        qapp.processEvents()
-        if len(dlg._sources) == n0:
-            pytest.skip("the fixture's run sheet was not taken as a new source")
+        dlg._doc_sources = ("/somewhere/else.ti3",)
         asked = []
 
         def _cancel(box):
@@ -142,14 +139,11 @@ def test_adding_a_measurement_is_a_change_to_the_selected_report(
         dlg._on_generate_report()
         qapp.processEvents()
         assert asked, "no question was asked"
-        assert not asked[0].startswith("Nothing was changed"), (
-            f"a measurement was added and the window says: {asked[0]!r}")
+        assert not asked[0].startswith("Nothing was changed"), asked[0]
     finally:
         dlg.close()
 
 
-@pytest.mark.xfail(strict=True, reason="R3A-1: an archive that fails in one "
-                   "folder leaves old/ folders in the others for a refused Update")
 def test_a_refused_update_leaves_no_archive_even_when_the_archive_fails(
         two_dates, qapp, monkeypatch):
     from PyQt6.QtWidgets import QMessageBox

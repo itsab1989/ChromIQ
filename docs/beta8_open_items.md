@@ -25115,9 +25115,14 @@ would reach.
   fallback reads the files an Update leaves behind); Update then silently puts
   the date back. Only after narrowing a multi-date document AND moving the
   project.
-- R3A-1: an Update refused because one date's reports/old is read-only has
-  already archived the other dates; nothing is lost (the files are copies),
-  and the failure box does not name the date.
+- R3A-1: FIXED 2026-09-23. An Update refused because one date's
+  reports/old is read-only had already archived the other dates; the
+  pre-flight now checks `reports/old` before anything is copied
+  (test_a_refused_update_leaves_no_archive_even_when_the_archive_fails). The
+  failure box still does not name the date.
+- R3A-4's guard skipped itself once its fixture changed (a skip on a failed
+  premise guards nothing); it now sets the state directly and fails if the
+  premise fails.
 - evidence: none yet, it is open; both are strict xfails in
   tests/test_round3_a_features_since_265216d5.py.
 

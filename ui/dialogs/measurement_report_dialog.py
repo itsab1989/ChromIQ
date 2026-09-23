@@ -4275,6 +4275,13 @@ class MeasurementReportDialog(QDialog):
             if _p.exists() and not (os.access(_p, os.W_OK)
                                     and os.access(_p.parent, os.W_OK)):
                 _stuck.add(_p.parent.resolve())
+            # …AND THE FOLDER THE ARCHIVE WRITES INTO (round 3A, R3A-1): a
+            # read-only `reports/old` was found only by the archive itself,
+            # after it had already copied the other dates, so a refused press
+            # still left an old/ folder in every other date.
+            _old = _p.parent / "old"
+            if _p.exists() and _old.exists() and not os.access(_old, os.W_OK):
+                _stuck.add(_p.parent.resolve())
         for r in reports:
             origin = r.get("_origin_dir")
             if not origin or self._run_key(r) in existing:
