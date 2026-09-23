@@ -2737,6 +2737,14 @@ B8-918 and B8-919):
   matches no row is read the same way and matched by folder and creation
   stamp (`_recorded_keys_where_they_are_now`), where before only a report
   none of whose keys matched was mapped.
+* **The ChromIQ folder's `reports/` follows a rename and a run delete too**
+  (B8-920, the beta 39 help audit). A report across projects in two
+  folders lives there (§24.4), and it was searched only when it happened to
+  be the folder beside the project, so a project in a sub-folder (or
+  outside the ChromIQ folder) left it naming its old folder and its old run
+  numbers. It is now searched with the others, under the same rule: a
+  reference is rewritten only when it resolves to this project, never when
+  its recorded folder is another existing project.
 
 Questions for Knut:
 

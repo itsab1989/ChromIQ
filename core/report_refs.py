@@ -20,10 +20,11 @@ the report, and neither told the reports:
 
 This module rewrites exactly those references and nothing else, in every
 report file that can hold one: the project's own (every ``reports/`` folder
-under it), the folder across projects beside it, and the reports of the
-projects beside it (a verdict record of a report across projects carries the
-document's list). Archives (anything under an ``old/`` folder) are history
-and are never touched, and nothing is archived: the content of a report does
+under it), the folder across projects beside it, the ChromIQ folder's
+``reports/`` (§24.4, B8-920), and the reports of the projects beside it (a
+verdict record of a report across projects carries the document's list).
+Archives (anything under an ``old/`` folder) are history and are never
+touched, and nothing is archived: the content of a report does
 not change, only the name it uses for a folder that has itself moved.
 
 **ALL OR NOTHING.** Every file is read and its new content worked out before
@@ -112,20 +113,44 @@ def _sibling_projects(project_root: Path) -> "list[Path]":
     return out
 
 
+def _chromiq_reports() -> "Path | None":
+    """``<ChromIQ folder>/reports``, where a report across projects that are
+    NOT side by side lives (K30, §24.4); None when it cannot be worked out."""
+    try:
+        from workflow import measurement_report as mr
+        return Path(str(mr.chromiq_folder())) / "reports"
+    except Exception:                                  # noqa: BLE001
+        return None
+
+
 def report_files_referring(project_root: Path, *, outside: bool = True
                            ) -> "list[Path]":
     """The report files that may name *project_root*'s folders: its own, and
-    with *outside* the folder across projects beside it and every project
-    beside it."""
+    with *outside* every folder a report across places is filed in (the
+    folder across projects beside it, and the ChromIQ folder's) and every
+    project beside it.
+
+    **THE ChromIQ FOLDER'S reports/ WAS MISSING (B8-920).** §24.4 files a
+    report across projects in two different folders in ``<ChromIQ folder>/
+    reports/``, whichever of them is renamed or loses a run. For a project
+    in a sub-folder of the ChromIQ folder (or outside it) that is not the
+    folder beside it, so the
+    report was never searched: after a rename it went on naming the old
+    folder, after a run delete the old run numbers."""
     project_root = Path(project_root)
     files = _reports_under(project_root)
     if outside:
-        across = project_root.parent / "reports"
-        try:
-            files += sorted(p for p in across.glob("report_*.json")
-                            if p.is_file())
-        except OSError:
-            pass
+        acrosses = [project_root.parent / "reports"]
+        mine = _chromiq_reports()
+        if mine is not None and not any(_same_folder(mine, a)
+                                        for a in acrosses):
+            acrosses.append(mine)
+        for across in acrosses:
+            try:
+                files += sorted(p for p in across.glob("report_*.json")
+                                if p.is_file())
+            except OSError:
+                pass
         for sib in _sibling_projects(project_root):
             files += _reports_under(sib)
     return files
@@ -302,7 +327,8 @@ def refers_here(project_root: "str | Path", report: "str | Path",
     projects), and when that reading lands inside *project_root*. Outside
     the project, a name another existing project folder beside it holds is
     never this project's, whatever ``former_names`` says."""
-    from workflow.measurement_report import (project_home_of,
+    from workflow.measurement_report import (names_of_project,
+                                             project_home_of,
                                              resolve_recorded_folder)
     root = Path(project_root)
     report = Path(report)
@@ -332,9 +358,19 @@ def refers_here(project_root: "str | Path", report: "str | Path",
             return False
         if not inside:
             namesake = root.parent / split[1]
+            # **AND THE RECORDED FOLDER ITSELF (B8-920).** Searched from
+            # the ChromIQ folder's reports/, `resolve_recorded_folder` looks
+            # for the one project in the ChromIQ folder that answers to the
+            # recorded name (its step 3c) before it looks at the recorded
+            # folder, so a report naming ANOTHER existing project of the
+            # same name elsewhere read as this one's.
+            recorded = (Path(split[0]) / split[1]) if split[0] else None
             try:
                 held = ((namesake / "project.json").is_file()
                         and not _same_folder(namesake, root))
+                if recorded is not None and not held:
+                    held = ((recorded / "project.json").is_file()
+                            and not _same_folder(recorded, root))
             except OSError:
                 held = True
             if held:
@@ -344,7 +380,30 @@ def refers_here(project_root: "str | Path", report: "str | Path",
                                           must_exist=False)
         except Exception:                              # noqa: BLE001
             return False
-        return got is not None and _inside_folder(Path(str(got)), root)
+        if got is None:
+            return False
+        if _inside_folder(Path(str(got)), root):
+            return True
+        # **RENAMED WHERE IT STANDS (B8-920).** A report in the ChromIQ
+        # folder's reports/ names a project kept elsewhere by the folder it
+        # had (§24.4). Renamed, that folder is gone, and the app's reading
+        # from the ChromIQ folder cannot find the project under its new
+        # name (it is neither beside that folder nor in it), so it answers
+        # with the recorded folder itself. That reference is this project's
+        # when the recorded folder was a folder beside this one, under a
+        # name this project answers to, and nothing is there now: no other
+        # existing folder can claim it (`held` above refused one that is).
+        if inside or str(got) != str(Path(d)):
+            return False
+        prefix, name, _below = split
+        if not prefix or not _same_folder(Path(prefix), root.parent):
+            return False
+        try:
+            if (Path(prefix) / name).exists():
+                return False
+        except OSError:
+            return False
+        return _nfc(name) in names_of_project(root)
     return test
 
 
