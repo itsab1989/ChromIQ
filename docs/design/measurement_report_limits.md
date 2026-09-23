@@ -112,6 +112,7 @@ result awaiting his confirmation. The other §20 gaps stay open.
 | §19.11 | A per-target row a stored block lacks opens on its default | 2026-09-22, 5775260868 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
 | §19.12 | Knut's eight i1Pro presets built in (K1); the demo pack follows every rule (K15) | 2026-09-22, 5781159382, 5781197240, 5776517563; 2026-09-23, 5787117741 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
 | §19.13 | "New report…" on a bound run shows the run's own set, and says so | 2026-09-22, 5776479532 | agreed ("as you said and recommend"); built before beta 34, confirmed by Knut 2026-09-23 (5794311113) |
+| §22 | K28: the judged figures on the one-page summary; one vocabulary; a "–" row leaves everywhere; "For information (no limit applies)"; the general N-A rule; the several-runs Run description; B8-845's texts | 2026-09-23, 5795087247 | agreed; built in beta 39 (B8-849), NOT confirmed |
 | §20 | Rulings not built, or built without a test or proof (G1 to G13) | 2026-09-22 to 2026-09-23 | gaps, listed one by one |
 
 Related documents: `unified_measurement_management.md` (the life of a
@@ -334,7 +335,8 @@ number is in a clause ChromIQ does not hold or may not show).
 
 Per row: PASS when the value is within the limit; FAIL when over it,
 **whether the set requires that limit or only recommends it** (§14); INFO when
-the set puts no limit on the row, or the sheet is not graded, **or the row
+the set puts no limit on the row (**SUPERSEDED by K28, §22.3: such a row is
+not in the report at all**), or the sheet is not graded, **or the row
 itself could not be graded, or the chosen report type judges nothing**; N-A
 when the chart or the reference cannot supply the row, with the reason beside
 it.
@@ -2759,7 +2761,8 @@ one written, so the marker on the cell and the item in the list come from one
 numbering and cannot disagree about which note is note 1. The note's sentence
 is the row's existing refusal reason, which already names what that row needs
 (*"this is the first measurement of this chart, so there is nothing to compare
-it with; the row is judged from the second measurement onward"*), so no new
+it with; the row is judged from the second measurement onward"*; **since
+beta 39 it ends at "nothing to compare it with"**, §22.7), so no new
 wording was invented for it.
 
 `judge` had deliberately given an N-A row no notes, on the reading that *"a
@@ -3516,6 +3519,11 @@ by the profile's gamut, all patches where they were not. With a within-gamut
 date on the axis the two "all patches" legend entries read "all judged
 patches", and the PDF description says the figures are within the profile's
 gamut where the sheet was split by it. The Avg / Max lines are unchanged.
+> **The "all judged patches" legend clause is SUPERSEDED by K28 item 2 (§22.2,
+> Knut 2026-09-23, [5795087247](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5795087247)):** one name per metric everywhere, so the
+> legend reads the row's own name ("Average ΔE00, all patches") on every
+> graph, and the within-gamut fact is carried by the graph's description, the
+> results intro and the one-page summary (§22.1). The rest of 18.4 stands.
 *Beta 38 challenge round (F9):* the legend names its unit as every other graph
 does, "Average, all patches (ΔE00)", where it said "Average ΔE, all patches".
 
@@ -3899,6 +3907,9 @@ proposed in `unified_measurement_management.md`.
   things do not take much space and should always be present when presenting
   numbers."* The one-page summary reads "Average difference 0.87 ΔE00; Largest
   2.75 ΔE00". The graphs follow the same rule (§17.1 item 14).
+  **The wording is SUPERSEDED by K28 item 2 (§22.2):** the line now reads
+  "Average ΔE00, all patches: 0.87; Maximum ΔE00, all patches: 2.75", the one
+  name carrying the unit; the rule (a number carries its unit) stands.
 * **Ruling:** Knut, 2026-09-22,
   [5781159382](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5781159382)
   (K10 of B8-778).
@@ -4177,12 +4188,12 @@ built waits on a question to him or on work not yet done.
 
 | # | ruling | comment, date | what exists |
 |---|---|---|---|
-| G1 | K6 one vocabulary for the metric names, in the graphs, "Overview of Measurement Metrics", Report limits, help and messages: *"Make sure we are using the correct names in the reports, windows, help text, warnings, popup messages etc."* | 5781159382, 2026-09-22 | NOT built. Questions 1 and 2 of 5784140521 (the exact i1Profiler-style names; which population a table shows) unanswered; the graph's population is settled by §18.4 |
-| G2 | K7 a metric whose threshold is "-" disappears from Report Results, the Overview, the detailed data and the graph | 5781159382, 2026-09-22 | NOT built. Question 3 of 5784140521 (the Overview table too?) unanswered |
-| G3 | K8 report rows with no Report limits row (Paper white L\*, Black L\*, the per-colour ΔE00 rows, Spread): which limit each belongs to, and should notes say so | 5781159382, 2026-09-22 | Answered by measurement in 5784140521; question 4 (keep them under "For information", or remove) unanswered. Not built |
-| G4 | R1 the one-page summary: *"keep 1"*, and analyse option 3 with the Run description limited to 2 lines | 5781645939, 2026-09-22 | Option 1 is what runs. Option 3 analysed (`~/Desktop/ChromIQ-beta36-proof/design-R3-R2-R1/`): it did not fit A4 with a 2-line description. Question 7 unanswered; the 2-line limit and its help text NOT built |
+| G1 | K6 one vocabulary for the metric names, in the graphs, "Overview of Measurement Metrics", Report limits, help and messages: *"Make sure we are using the correct names in the reports, windows, help text, warnings, popup messages etc."* | 5781159382, 2026-09-22 | **Built in beta 39 (§22.2, B8-849), awaiting confirmation.** NOT built. Questions 1 and 2 of 5784140521 (the exact i1Profiler-style names; which population a table shows) unanswered; the graph's population is settled by §18.4 |
+| G2 | K7 a metric whose threshold is "-" disappears from Report Results, the Overview, the detailed data and the graph | 5781159382, 2026-09-22 | **Built in beta 39 (§22.3, B8-849), awaiting confirmation.** NOT built. Question 3 of 5784140521 (the Overview table too?) unanswered |
+| G3 | K8 report rows with no Report limits row (Paper white L\*, Black L\*, the per-colour ΔE00 rows, Spread): which limit each belongs to, and should notes say so | 5781159382, 2026-09-22 | **Built in beta 39 (§22.4, B8-849), awaiting confirmation.** Answered by measurement in 5784140521; question 4 (keep them under "For information", or remove) unanswered. Not built |
+| G4 | R1 the one-page summary: *"keep 1"*, and analyse option 3 with the Run description limited to 2 lines | 5781645939, 2026-09-22 | **Answered (K28 item 7: keep option 1, A4 only); the dead list code removed in beta 39 (§22.5).** Option 1 is what runs. Option 3 analysed (`~/Desktop/ChromIQ-beta36-proof/design-R3-R2-R1/`): it did not fit A4 with a 2-line description. Question 7 unanswered; the 2-line limit and its help text NOT built |
 | G5 | R2 the pre-flight popup made wider so the full beta 34 paragraph fits with no scrolling | 5781645939, 2026-09-22; 5795087247, 2026-09-23 | **Built in beta 39** (§21.3): *"Leave the window wider as previously specified."* |
-| G6 | R3 the ISO-derived sets stop showing rows nothing can answer (*"agreed, do that"*) | 5781645939, 2026-09-22 | NOT built. Questions 5 and 6 of 5784140521 (by reason or by set; should the full report still name what was left out) unanswered |
+| G6 | R3 the ISO-derived sets stop showing rows nothing can answer (*"agreed, do that"*) | 5781645939, 2026-09-22 | **Superseded by the general N-A rule of K28 item 5 (§22.5), awaiting confirmation.** NOT built. Questions 5 and 6 of 5784140521 (by reason or by set; should the full report still name what was left out) unanswered |
 | G7 | One report, one limit set, applied to every measurement it includes, across runs (§13.9); Generate across projects (5794078008 point 3) | 5773668311, 2026-09-22; rule confirmed 5794311113, 2026-09-23; 5794078008, 2026-09-23 | Rule **confirmed by Knut, 2026-09-23** (5794311113): *"the report's own limit set applies to every included measurement, whatever each run is bound to"*, which answers question 8 of 5784140521. **Built in beta 39, awaiting confirmation** (§13.13, B8-848): Generate across profile runs and across projects, in Verification, Profiling and Calibration; one document file judged against the report's set; `tests/test_g7_reports_across_places.py`; proof `~/Desktop/ChromIQ-beta39-proof/g7/`. Within one profile run, dates recorded against another set are still narrowed (question in B8-848) |
 | G8 | E8 judge evenness in absolute Lab (*"Do an investigation to see what is normal practice."*) | 5789263863, 5795087247, 2026-09-23 | **Built in beta 39** (§21.1): he answered *"Yes"* |
 | G9 | Built rulings with no test that goes red: the type-covers sentence (§19.9); the "New report…" set tooltip (§19.13) | 5777326491, 5776479532, 2026-09-22 | Built, unpinned |
@@ -4380,3 +4391,110 @@ Registered as B8-846. Proof: `~/Desktop/ChromIQ-beta39-proof/k28-a/`.
   `test_the_folder_guide_shows_the_chromiq_folders_own_old`.
 * **Proof:** on screen, the card scrolled to the rows, English and German.
 * **Status:** folder agreed; the help card rows built; awaiting confirmation.
+
+## 22. K28: what a report shows (#182, 2026-09-23, beta 39)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+**Ruled by:** Knut, #182
+[5795087247](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5795087247),
+answering 5794332548 (the questions of 5784140521, renumbered); our reply
+5795122579. The rulings are agreed from that day; what was built from them
+(B8-849) waits for his confirmation. Proof: `~/Desktop/ChromIQ-beta39-proof/k28-b/`
+(REPORT.md, EN and DE, on screen, with PDFs). Tests:
+`tests/test_k28b_one_vocabulary.py`, each proved red on the mutation in its
+docstring. This section SUPERSEDES the clauses marked so in §4, §15.6, §18.4,
+§19.3 and gaps G1 to G4 and G6 of §20.
+
+**21.1 The one-page summary uses the judged figures, and says so.** *"Yes, and
+the reports need to show that the figures judged are within-gamut."* The
+one-page result line prints `graded_de00` (within the profile's gamut where the
+sheet was split by it) and counts "{n} of {total} patches"; the sentence under
+it adds *"The judged figures are those of the patches within the profile's
+gamut."* The full report's results intro says the words judge the within-gamut
+figures only where a row shown uses that split (the five ΔE00 rows and the two
+evenness rows) and the type grades: not on a Grey and tone check, not on a
+Printing record. The graph says it in its description (§18.4).
+
+**21.2 One vocabulary.** *"all metrics in report, in graphs and in Report Limits
+window, and in all help texts, use the same label/name ... The text can mention
+in parenthesis that lowest 95 % is 95th percentile."* The five names, in
+i1Profiler's order with the unit:
+
+| row | name |
+|---|---|
+| `all_de00_avg` | Average ΔE00, all patches |
+| `best95_de00_avg` | Average ΔE00, lowest 95 % |
+| `worst5_de00_avg` | Average ΔE00, highest 5 % |
+| `all_de00_max` | Maximum ΔE00, all patches |
+| `all_de00_p95` | Maximum ΔE00, lowest 95 % (95th percentile) |
+
+They live in `compliance_sets.ROWS` only; the Report Results grid, How to
+read, the detailed tables, the Overview, the graph legends, the Report Limits
+window, the presets window, the notes and the one-page summary read them from
+there (the parallel tables `_METRIC_LABELS`, `_TREND_ACCURACY_LABELS` and the
+"all judged patches" variants are gone). A legend does not add "(ΔE00)" to a
+name that carries it. The help texts (graph descriptions, the window guide,
+the help card glossary, the N-A sentences, the presets window) say "lowest
+95 %" and "highest 5 %". The other rows keep their labels, one per row, from
+the same table; whether they should take the same word order is asked (B8-849).
+
+**21.3 A "–" limit removes the row everywhere.** *"Yes"* (the Overview too). A
+row whose limit is "–" is not in Report Results, How to read, the detailed
+table, the Overview, or the Colour accuracy graph, whose Avg / Max limit line
+is not drawn for a "–" member either (`legacy_pair` would draw 2.0 / 3.0). It
+applies on every type, the Printing record included. Nothing is counted
+differently: the Overall word and "X of Y checked" count limit-bearing rows
+only.
+
+**21.4 "For information (no limit applies)".** *"keep them under a heading 'For
+information (no limit applies)'"*. The Overview carries the heading as a block
+row above Spread, Paper white L\*, Black L\* and the eight corner ΔE00; the
+detailed table carries it as a row above Spread, and the detailed section as a
+heading above paper white and the cube corners; the one-page summary's corner
+table is headed "Cube corners, for information (no limit applies)".
+
+**21.5 The general N-A rule.** *"Any limit set selected shall stop showing rows
+no chart can answer, only if the metric/row for a selected limit set has '-'
+for its limit. If the limit set has defined a threshold value for that
+metric/row, then the report shall continue to show those rows ... as N-A and
+with a superscript number as reference to a note ... This is the general
+rule."* It holds for every set and supersedes R3 (G6, never built). *"The
+reference numbers on all N-A results ... this is the information stating what
+was left out. Thus no other info needs to be repeated after that. This also
+applies to the one-page summary."* and *"Keep option 1. Only use A4."* No
+report lists the unchecked rows apart from the notes (checked: "Measured but
+not graded" names INFO rows, not N-A ones; the D25 strip is a window control,
+not report text); the unused one-page list (`_unchecked_rows_for`) is deleted.
+The rows a note covers are joined by "; ", because the names now hold commas.
+
+**21.6 Several runs or projects: the Run description (B8-798).** *"The report
+should under the 'Run Description' heading inform the user that the report
+includes data from multiple runs (or multiple projects ...), thus not written
+here. Then refer back to the Scope section."* The document's own measurements
+decide: one run prints THAT run's description (not the window's); several runs
+print *"This report includes measurements from several runs, so no single run
+description is given. The list below shows the measurements included."*;
+several projects the same with *"... from each project."*
+
+**21.7 B8-845's report texts (K18, K22).** `no_earlier_measurement` ends at
+*"so there is nothing to compare it with"*; `evenness_empty_area` says *"holds
+no measured patch with an aim value"* (and *"within the profile's gamut"* on a
+split sheet); a measurement with no device values gives its grey, ramp and
+gamut rows the new reason `no_device_values` (*"the measured chart carries no
+device values (the RGB numbers each patch was printed from)"*) instead of
+`not_computed`; the guide's INFO bullet no longer names "no limit on the row"
+and, on a report that judges nothing, says so instead of promising a note; the
+N-A bullet points at the raised number. The Printing record keeps its Limit
+column (§18.3, "Judged against" defines the thresholds shown).
+
+**Built:** `workflow/compliance_sets.py::ROWS`;
+`ui/dialogs/measurement_report_dialog.py` (`_drop_dash_rows`,
+`_dash_row_ids`, `_accuracy_thresholds`, `_comparison_table_html`,
+`_run_detail_html`, `_one_page_html`, `WITHIN_GAMUT_ROWS`,
+`_run_description`, `_several_places_notice`, `_reason_sentence`,
+`_how_to_read_html`); `workflow/measurement_report.py::build_report`
+(`REASON_NO_DEVICE_VALUES`).
+**Status:** agreed; built in beta 39; **not confirmed**.

@@ -24737,9 +24737,16 @@ would reach.
   three profiling runs of Threshold-Series (210, 400 and 105 readings).
 - evidence: test_the_note_is_set_apart_from_body_text
 
-### B8-798 · OPEN · A report of several profile runs prints one run's own description
+### B8-798 · FIXED · A report of several profile runs prints one run's own description
 - blocks release: no
-- status: OPEN
+- status: FIXED
+- RULED by Knut, #182 5795087247 (2026-09-23): under "Run description" the
+  report says it holds data from several runs (or projects), so none is
+  printed, and points to Report Scope. Built in beta 39 (B8-849): the
+  document's own measurements decide, a single-run document prints THAT run's
+  description, several runs or projects print the notice. Driven on screen,
+  `~/Desktop/ChromIQ-beta39-proof/k28-b/` (scenes runs, projects).
+- evidence: (the K28b file in tests/) test_the_run_description_belongs_to_the_documents_own_run
 - found by: the R4 drive, 2026-09-22: a Printing record of Threshold-Series'
   three profiling runs printed run1's "Run description" under Report Scope,
   a paragraph about run1's dated verification series, as if it described
@@ -26219,3 +26226,48 @@ would reach.
   read-only? (5) with the several-places window, the page waits for Generate
   after "Judged against" moves (N.2), so the head names the old set under a
   pulldown naming the new one until the press, as for one run.
+
+- ANSWERED in beta 39 (B8-849, Knut's K18 / K22 rules, and K26's "the record
+  keeps Judged against" for (1)): (1) the Limit column stays; (2) the sentence
+  ends at "nothing to compare it with"; (3) a new reason `no_device_values`;
+  (4) "holds no measured patch with an aim value"; (5) the INFO bullet is
+  chosen per type and promises no note on the record.
+
+### B8-849 · FIXED, awaiting confirmation · K28b: what a report shows (one vocabulary, "–" rows, judged figures, several runs)
+- blocks release: no
+- status: FIXED
+- where: worktree branch of the K28b agent (commits "#182 beta39 K28b: ..."),
+  spec §22 of `docs/design/measurement_report_limits.md`, awaiting Knut's
+  confirmation. Numbered 849, not 847: 846 is K28a's and 848 the G7 work's,
+  and 847 was skipped by the latter, so it may be held by work not merged yet.
+- found by: Knut, #182 5795087247 (2026-09-23), answering 5794332548 items 1
+  to 7; our reply 5795122579.
+- built: the five colour-accuracy names in i1Profiler order with the unit
+  ("Average ΔE00, all patches / lowest 95 % / highest 5 %", "Maximum ΔE00, all
+  patches", "Maximum ΔE00, lowest 95 % (95th percentile)"), read from
+  `compliance_sets.ROWS` by every place that names them; a "–" row leaves
+  Report Results, How to read, the detailed table, the Overview and the graph
+  (its limit line too); "For information (no limit applies)" over Spread, L*
+  and the corners; the one-page summary prints the judged (within-gamut)
+  figures and says so; the results sentence about within-gamut figures only
+  where a shown row uses the split; the several-runs / several-projects notice
+  (B8-798); B8-845's four texts; the unused one-page list code deleted.
+- evidence: the K28b file in tests/ (16 tests, each red on the
+  mutation in its docstring: test_the_five_names_are_knuts_in_i1profilers_order,
+  test_every_place_names_a_metric_from_rows,
+  test_a_dash_row_leaves_results_guide_and_detail,
+  test_a_dash_row_leaves_the_overview_and_the_graph,
+  test_a_dash_average_draws_no_limit_line,
+  test_figures_with_no_limit_sit_under_their_heading,
+  test_the_one_page_summary_gives_the_judged_figures,
+  test_the_within_gamut_sentence_only_where_a_shown_row_uses_it,
+  test_the_run_description_belongs_to_the_documents_own_run,
+  test_a_measurement_without_device_values_says_so, and six more); six older
+  tests retargeted and re-proved.
+- proof: `~/Desktop/ChromIQ-beta39-proof/k28-b/` (REPORT.md; on screen in
+  English and German, PDFs and rendered pages;
+  `scripts/drive_k28b_report_rendering.py`).
+- open for Knut: whether the other rows take the same word order (for example
+  "Average ΔE00, control strip" for "Control-strip patches, average"); and that
+  "all patches" now names a within-gamut population on a split sheet, the
+  within-gamut fact being said in the text rather than in the name.
