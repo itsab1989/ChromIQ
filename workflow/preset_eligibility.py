@@ -129,7 +129,7 @@ PATCH_SHORTFALL_REASONS: "frozenset[str]" = frozenset({
     MR.REASON_NO_WHITE,                  # it does not reach white
     MR.REASON_NO_BLACK,                  # it does not reach black
     MR.REASON_NO_RAMP,                   # no 30-70 % tone ramp
-    MR.REASON_SMALL_SAMPLE,              # under 20 patches: no worst twentieth
+    MR.REASON_SMALL_SAMPLE,              # under 20 patches: no highest 5 %
     MR.REASON_TOO_FEW_SURFACE_PATCHES,   # under 10 on the cube surface
     MR.REASON_TOO_FEW_OUTER_PATCHES,     # under 20 in the top chroma quarter
 })
@@ -145,6 +145,7 @@ OTHER_SHORTFALL_REASONS: "frozenset[str]" = frozenset({
     MR.REASON_CONTROL_STRIP_TOO_SMALL,   # the declared strip is too short
     MR.REASON_NO_CORNERS,                # no patch at a solid corner
     MR.REASON_NOT_COMPUTED,              # the block is absent (old report)
+    MR.REASON_NO_DEVICE_VALUES,          # the file carries no device values
 })
 
 #: A preset whose page grid does not exist yet: a printtarg preset is laid

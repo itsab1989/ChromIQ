@@ -354,7 +354,7 @@ _D_ALL_PATCHES = (
     "reference values at all is not judged either, and the report says so.")
 _D_WORST5 = (
     "As the rows above, a verification sheet only, and the chart needs at "
-    "least twenty patches counted, so that a worst twentieth exists to "
+    "least twenty patches counted, so that the highest 5 % holds a patch to "
     "average. Where the report separates colours the profile could never "
     "print, the count is of the patches inside the gamut, and that is the "
     "number the report quotes.")
@@ -599,29 +599,39 @@ ROWS: "tuple[Row, ...]" = (
         detect=_D_GREY_RAMP,
         remedy=_R_GREY_RAMP),
     # -- All patches (ChromIQ's five, shape A merge with the ISO all-patch rows)
-    Row("all_de00_avg", "all_patches", "All patches, average", "ΔE00", "now",
+    # **THE FIVE NAMES ARE KNUT'S, IN i1PROFILER'S WORD ORDER WITH THE UNIT**
+    # (K28, #182 5795087247, 2026-09-23): *"all metrics in report, in graphs
+    # and in Report Limits window, and in all help texts, use the same
+    # label/name ... so that there is no confusion"*. These labels ARE that
+    # name: the report grid, How to read, the detailed tables, the Overview,
+    # the graphs, both limits windows and the notes all read them from here
+    # (`tests/test_k28b_one_vocabulary.py`). Before beta 39 the same five
+    # numbers had three vocabularies ("All patches, average", "Average ΔE, all
+    # patches", "Average, all patches (ΔE00)") and a fourth for a within-gamut
+    # graph ("all judged patches").
+    Row("all_de00_avg", "all_patches", "Average ΔE00, all patches", "ΔE00", "now",
         metric_key="avg_all",
         blurb='The average colour error over the whole chart. The headline number, and the one to watch over time.',
         detect=_D_ALL_PATCHES,
         remedy=_R_ALL_PATCHES),
-    Row("best95_de00_avg", "all_patches", "Best 95 % of patches, average", "ΔE00",
+    Row("best95_de00_avg", "all_patches", "Average ΔE00, lowest 95 %", "ΔE00",
         "now", metric_key="avg_low95",
-        blurb='The average with the worst twentieth of the patches thrown out, so a handful of very hard colours cannot hide an otherwise good result.',
+        blurb='The average over the lowest 95 % of the patches, with the highest 5 % left out, so a handful of very hard colours cannot hide an otherwise good result.',
         detect=_D_ALL_PATCHES,
         remedy=_R_ALL_PATCHES),
-    Row("worst5_de00_avg", "all_patches", "Worst 5 % of patches, average", "ΔE00",
+    Row("worst5_de00_avg", "all_patches", "Average ΔE00, highest 5 %", "ΔE00",
         "now", metric_key="avg_high5",
-        blurb='How bad the hardest colours are: the average over the worst twentieth alone. This is the row that answers what happens at the edge of what the printer can do.',
+        blurb='How bad the hardest colours are: the average over the highest 5 % alone. This is the row that answers what happens at the edge of what the printer can do.',
         detect=_D_WORST5,
         remedy=_R_WORST5),
-    Row("all_de00_max", "all_patches", "All patches, largest", "ΔE00", "now",
+    Row("all_de00_max", "all_patches", "Maximum ΔE00, all patches", "ΔE00", "now",
         metric_key="max_all",
         blurb='The single worst patch on the sheet. Useful for finding a misread or a damaged patch as well as a real error.',
         detect=_D_ALL_PATCHES,
         remedy=_R_ALL_PATCHES),
-    Row("all_de00_p95", "all_patches", "All patches, 95th percentile", "ΔE00",
+    Row("all_de00_p95", "all_patches", "Maximum ΔE00, lowest 95 % (95th percentile)", "ΔE00",
         "now", metric_key="max_low95",
-        blurb='The error 95 % of the chart stays under, counted by rank rather than by fitting a curve.',
+        blurb='The largest difference within the lowest 95 %, which is the 95th percentile: the error 95 % of the chart stays under, counted by rank rather than by fitting a curve.',
         detect=_D_ALL_PATCHES,
         remedy=_R_ALL_PATCHES),
     # -- Selected patches of the chart (S2w, Knut 2026-09-18)

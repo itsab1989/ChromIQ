@@ -795,6 +795,10 @@ UNREACHABLE: "dict[str, str]" = {
         "Means 'this report predates the block', so it can only come out of a "
         "SAVED report read back. The stand-in report is built fresh and "
         "always carries every block.",
+    "no_device_values":
+        "A measurement file with no device columns (B8-845). Every preset is "
+        "a chart of device values, and the stand-in report is built from "
+        "them, so no preset can carry this code.",
     # EVENNESS ACROSS THE SHEET (#182, 2026-09-22). One of these is the
     # state of every demo here, and the other six need a page grid, which a
     # printtarg preset does not have until printtarg runs.

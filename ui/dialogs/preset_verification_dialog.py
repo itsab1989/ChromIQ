@@ -165,7 +165,7 @@ def reason_line(code: str) -> str:
         MR.REASON_NO_RAMP:
             tr("This chart has no tone ramp through the mid-tones."),
         MR.REASON_SMALL_SAMPLE:
-            tr("This chart has too few patches for a worst twentieth of them "
+            tr("This chart has too few patches for a highest 5 % of them "
                "to exist."),
         MR.REASON_TOO_FEW_SURFACE_PATCHES:
             tr("Too few of this chart's patches sit on the surface of the "
@@ -177,6 +177,8 @@ def reason_line(code: str) -> str:
             tr("This chart has no patch at any of the solid ink corners."),
         MR.REASON_NOT_COMPUTED:
             tr("ChromIQ cannot check this metric on this chart."),
+        MR.REASON_NO_DEVICE_VALUES:
+            tr("This chart carries no device values."),
         # EVENNESS ACROSS THE SHEET (Knut, 2026-09-22). The page grid is
         # exact for a laid-out chart and for an engine preset; the noise is an
         # estimate for a typical print, and the line says so.

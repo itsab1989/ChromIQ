@@ -162,9 +162,14 @@ def test_the_legend_promises_a_note_only_where_there_is_one(tmp_path, qapp):
     """The legend gained a fourth cause of INFO and the promise "the note under
     the results says which". A row that is INFO because the SET PUTS NO LIMIT
     on it carries no reason and is in no note, so the promise was false for the
-    first cause it lists. It is scoped to the two cases the note covers now.
+    first cause it lists.
 
-    MUTATION: promise the note for every cause and this goes red.
+    K28 (item 3) removed that cause: a row whose limit is "–" is no longer in
+    the document at all, so there is no unlimited INFO row left to promise
+    anything about, and the bullet names the one case its note covers.
+
+    MUTATION: put "when this limit set puts no limit on the row" back among
+    the causes, or stop `_drop_dash_rows` dropping, and this goes red.
     """
     from core.i18n import tr
     dlg, run = _dialog(tmp_path, qapp, _grey_ramp_ti3())
@@ -173,19 +178,12 @@ def test_the_legend_promises_a_note_only_where_there_is_one(tmp_path, qapp):
         rows, _rc = dlg._verdict_rows(reps[0])
         unlimited = [x for x in rows
                      if x["word"] == INFO and not x.get("reason")]
-        assert unlimited, "no unlimited INFO row here, so nothing is proved"
-        listed = {lbl for lbl, _w in dlg._measured_not_graded(reps[0])}
-        from workflow.compliance_sets import ROW_BY_ID
-        for x in unlimited:
-            rid = x.get("row_id")
-            if rid in ROW_BY_ID:
-                assert tr(ROW_BY_ID[rid].label) not in listed, (
-                    f"{rid} has no limit and no reason; naming it in a note "
-                    f"about ungraded rows would invent one")
+        assert not unlimited, [x["row_id"] for x in unlimited]
         body = dlg._report_body_html(reps, for_pdf=True)
+        assert "puts no limit on the row" not in body
         assert _html.escape(tr("the note under the results names the rows in "
-                               "the last two cases")) in body or \
-            "last two cases" in body, \
+                               "that last case")) in body or \
+            "that last case" in body, \
             "the legend promises a note for every cause again"
     finally:
         dlg.close()

@@ -115,39 +115,36 @@ def _corner_ideal_hex(code: str) -> str:
 # field. Labels are lazy so tr() runs under the active language. ``_METRIC_LABELS``
 # covers all six (Spread included); ``_ACCURACY_ROW_KEYS`` are the five that carry
 # a Pass/Fail verdict, in display order; the trend chart plots those five.
-_METRIC_LABELS = {
-    "avg_all":   lambda: tr("Average ΔE, all patches"),
-    "avg_low95": lambda: tr("Average ΔE, lowest 95%"),
-    "avg_high5": lambda: tr("Average ΔE, highest 5%"),
-    "max_all":   lambda: tr("Maximum ΔE, all patches"),
-    "max_low95": lambda: tr("Maximum ΔE, lowest 95%"),
-    "std":       lambda: tr("Spread (std. dev.)"),
-}
+#
+# **ONE NAME PER METRIC, AND IT LIVES IN `compliance_sets.ROWS` (K28, #182
+# 5795087247).** Knut: *"all metrics in report, in graphs and in Report Limits
+# window, and in all help texts, use the same label/name and refer to these
+# with those names so that there is no confusion."* This table used to hold a
+# second vocabulary ("Average ΔE, all patches") beside the grid's first ("All
+# patches, average"), the graph a third ("Average, all patches (ΔE00)"), and a
+# within-gamut graph a fourth ("all judged patches"). Now every one of them is
+# the row's own label, looked up through `_ROW_ID_OF`, so a sixth spelling
+# cannot be added here without a test failing
+# (`tests/test_k28b_one_vocabulary.py`). Spread is not a row of the limits
+# table (it never has a limit), so it keeps its own name.
+def _row_label_of_key(key: str):
+    """The lazy label of the ROWS row behind one ``de00`` key."""
+    def _label() -> str:
+        from workflow.compliance_sets import ROW_BY_ID
+        return tr(ROW_BY_ID[_ROW_ID_OF[key]].label)
+    return _label
+
+
 _ACCURACY_ROW_KEYS = ("avg_all", "avg_low95", "avg_high5", "max_all", "max_low95")
-#: The two "all patches" labels when the graph plots the figures a verdict
-#: judged within the profile's gamut (K26): "all" is then all the JUDGED
-#: patches, and saying "all patches" would name the population the graph no
-#: longer draws.
-_METRIC_LABELS_JUDGED = {
-    "avg_all": lambda: tr("Average ΔE, all judged patches"),
-    "max_all": lambda: tr("Maximum ΔE, all judged patches"),
-}
-#: The Colour accuracy GRAPH's legend (#182 beta 38, F9): the metric in
-#: words and the unit in brackets, "Average, all patches (ΔE00)", as every
-#: other graph's legend reads ("{metric} ({unit})", `_with_unit`). The graph
-#: said "Average ΔE, all patches" while its neighbours said "(ΔE00)". The
-#: results table keeps `_METRIC_LABELS`.
-_TREND_ACCURACY_LABELS = {
-    "avg_all":   lambda: tr("Average, all patches"),
-    "avg_low95": lambda: tr("Average, lowest 95%"),
-    "avg_high5": lambda: tr("Average, highest 5%"),
-    "max_all":   lambda: tr("Maximum, all patches"),
-    "max_low95": lambda: tr("Maximum, lowest 95%"),
-}
-_TREND_ACCURACY_LABELS_JUDGED = {
-    "avg_all": lambda: tr("Average, all judged patches"),
-    "max_all": lambda: tr("Maximum, all judged patches"),
-}
+#: The rows a within-gamut split feeds: the five colour-accuracy rows
+#: (`graded_de00`) and the two evenness rows (`evenness_block(only_ids=...)`).
+#: Every other row counts every patch of its population, so a sentence saying
+#: its words judge within-gamut figures would be false (K28, item 1).
+WITHIN_GAMUT_ROWS = frozenset({
+    "all_de00_avg", "best95_de00_avg", "worst5_de00_avg", "all_de00_max",
+    "all_de00_p95", "uniformity_sd", "uniformity_de00_max_from_mean"})
+_METRIC_LABELS = {k: _row_label_of_key(k) for k in _ACCURACY_ROW_KEYS}
+_METRIC_LABELS["std"] = lambda: tr("Spread (std. dev.)")
 
 
 def _series_is_within_gamut(series: list) -> bool:
@@ -258,10 +255,14 @@ def _trend_row_value(pt: dict, row_id: str, limit=None):
 #: accuracy chart's grey pair is keyed by the two rows `legacy_pair` reads.
 #: Composed with the line's word and value by `_limit_line_note`.
 _LIMIT_NOTES = {
+    # K28: the two lines of the Colour accuracy graph name their rows by the
+    # rows' own names, as the legend beside them does.
     "all_de00_avg": lambda: tr(
-        "the limit for the average colour difference over all patches."),
+        "the limit for “{metric}”.").format(
+            metric=_METRIC_LABELS["avg_all"]()),
     "all_de00_max": lambda: tr(
-        "the limit for the largest colour difference of any single patch."),
+        "the limit for “{metric}”.").format(
+            metric=_METRIC_LABELS["max_all"]()),
     "substrate_de00_max": lambda: tr(
         "the limit for the difference between the bare paper and the "
         "reference paper."),
@@ -299,10 +300,12 @@ _LIMIT_NOTES = {
 #: description above its chart"*), which a test measures in English and
 #: German. Keyed like `_TREND_GROUPS`, plus the four original tabs.
 _TREND_ABOUT = {
+    # K28: the lines are named here as the legend names them, "Average" and
+    # "Maximum" over all patches, the lowest 95 % and the highest 5 %.
     "de": lambda: tr(
         "How far each measured patch lies from its aim value (ΔE00), per "
-        "date: the average and the largest, over all patches, the best 95 % "
-        "and the worst 5 %."),
+        "date: the average and the maximum, over all patches, the lowest "
+        "95 % and the highest 5 %."),
     "white": lambda: tr(
         "The lightness (L*) of the bare paper, per date. A change points to "
         "a different paper or to a change in the instrument."),
@@ -338,7 +341,7 @@ def _TREND_ABOUT_DE_JUDGED() -> str:                          # noqa: N802
     return tr(
         "How far each judged patch lies from its aim value (ΔE00), per date: "
         "within the profile's gamut where the sheet was split by it. The "
-        "average and the largest, the best 95 % and the worst 5 %.")
+        "average and the maximum, the lowest 95 % and the highest 5 %.")
 
 
 #: The colour of the mark for a withheld value (Knut: *"a small red x"*).
@@ -424,7 +427,15 @@ def _limit_line_note(word: str, value: float, unit: str, row_id: str) -> str:
 
 
 def _with_unit(label: str, unit: str) -> str:
-    """A legend entry carrying its unit, as Colour accuracy's already do."""
+    """A legend entry carrying its unit, as Colour accuracy's already do.
+
+    **A NAME THAT ALREADY CARRIES ITS UNIT IS NOT GIVEN IT TWICE (K28).** The
+    five colour-accuracy names are Knut's i1Profiler-order names with the unit
+    inside them, "Average ΔE00, all patches"; the legend is that name exactly,
+    as the grid and the limits window print it, not "Average ΔE00, all
+    patches (ΔE00)"."""
+    if unit and unit in label:
+        return label
     return tr("{metric} ({unit})").format(metric=label, unit=unit)
 
 
@@ -750,7 +761,8 @@ def _fmt(v, dec: int = 2) -> str:
 
 
 def _small_sample_sentence(r: "dict | None") -> str:
-    """Why the worst-5 % row was withheld, naming the population it counted.
+    """Why "Average ΔE00, highest 5 %" was withheld, naming the population it
+    counted. Its words are the row's own name (K28, one vocabulary).
 
     Two sentences, because the honest answer depends on whether the profile's
     gamut took patches out of the reckoning. A chart of 20 whose within-gamut
@@ -770,17 +782,17 @@ def _small_sample_sentence(r: "dict | None") -> str:
         return (tr("{total} patches were measured and one of them falls inside "
                    "the profile's gamut; at least 20 inside it are needed to "
                    "split off "
-                   "the worst 5 %").format(total=total) if n == 1 else
+                   "the highest 5 %").format(total=total) if n == 1 else
                 tr("{total} patches were measured and {n} of them fall inside "
                    "the profile's gamut; at least 20 inside it are needed to "
                    "split off "
-                   "the worst 5 %").format(total=total, n=n))
+                   "the highest 5 %").format(total=total, n=n))
     _count = n if isinstance(n, int) else total if total is not None else None
     if _count == 1:
         return tr("the measured chart has one patch; at least 20 are needed to "
-                  "split off the worst 5 %")
+                  "split off the highest 5 %")
     return tr("the measured chart has {n} patches; at least 20 are needed to "
-              "split off the worst 5 %").format(n=_count if _count is not None else "?")
+              "split off the highest 5 %").format(n=_count if _count is not None else "?")
 
 
 # ---------------------------------------------------------------------------
@@ -906,6 +918,21 @@ def _coverage_pct(v) -> str:
 def _min_coverage_pct() -> str:
     from workflow.measurement_report import EVENNESS_MIN_PAGE_COVERAGE
     return f"{EVENNESS_MIN_PAGE_COVERAGE * 100:g}"
+
+
+def _evenness_empty_area_sentence(r: "dict | None") -> str:
+    """`evenness_empty_area`: an area of the nine with no patch to compare.
+
+    A patch counts in an area when it was measured and has an aim value, and,
+    on a sheet split by the profile's gamut, lies within it
+    (`evenness_block`), so the sentence names the last condition only where it
+    applied."""
+    if _evenness_block(r).get("population") == "in_gamut":
+        return tr("one of the nine areas of the measured chart holds no "
+                  "measured patch with an aim value within the profile's "
+                  "gamut")
+    return tr("one of the nine areas of the measured chart holds no measured "
+              "patch with an aim value")
 
 
 def _evenness_coverage_sentence(r: "dict | None") -> str:
@@ -1997,8 +2024,9 @@ class MeasurementReportDialog(QDialog):
             "N-A), with the column's Overall word, which may also read COND, "
             "and what it was judged against.\n"
             "  • Colour accuracy: the ΔE00 (colour difference) figures, split so "
-            "the bulk of the chart (all patches, and the best 95 %) is separated "
-            "from the few hardest patches (the worst 5 %). Each is judged against "
+            "the bulk of the chart (all patches, and the lowest 95 %) is "
+            "separated from the few hardest patches (the highest 5 %). Each is "
+            "judged against "
             "the run's limit set. 0 is perfect, 1–2 is barely visible, 10+ is "
             "clearly wrong.\n"
             "  • Trend over time: the same metrics plotted across every saved "
@@ -4610,9 +4638,14 @@ class MeasurementReportDialog(QDialog):
         — shared by the live tabs and the PDF export so they always match. ``auto``
         ranges the axis tightly around the data instead of anchoring at 0."""
         # K26: the figures each date's verdict judged, within gamut where the
-        # sheet was split by the profile's gamut (`report_trend`).
-        judged_pop = _series_is_within_gamut(
-            getattr(self, "_trend_series", None))
+        # sheet was split by the profile's gamut (`report_trend`). The NAME is
+        # the same either way (K28, one vocabulary); what the population is,
+        # the graph's description says (`_TREND_ABOUT_DE_JUDGED`).
+        #
+        # **A "–" LIMIT TAKES THE LINE OFF THE GRAPH (K28, item 3).** Knut:
+        # a limit set to "–" removes the row from the results, the guide, the
+        # detailed data, the Overview *"and the graph"*.
+        dash = self._dash_row_ids(self._document_runs_for_graphs())
         corner_metrics = [
             # K25: the unit on every data label, as Colour accuracy's carry.
             (_with_unit(_CORNER_LABELS[code](), "ΔE00"),
@@ -4622,14 +4655,10 @@ class MeasurementReportDialog(QDialog):
         ]
         return [
             (self._trend_de, tr("Colour accuracy (ΔE00)"), [
-                (_with_unit(
-                    (_TREND_ACCURACY_LABELS_JUDGED.get(
-                        k, _TREND_ACCURACY_LABELS[k])()
-                     if judged_pop else _TREND_ACCURACY_LABELS[k]()),
-                    "ΔE00"),
+                (_with_unit(_METRIC_LABELS[k](), "ΔE00"),
                  QColor(_METRIC_LINE[k]),
                  (lambda pt, kk=k: _accuracy_value(pt, kk)))
-                for k in _ACCURACY_ROW_KEYS
+                for k in _ACCURACY_ROW_KEYS if _ROW_ID_OF[k] not in dash
             ], None, 1, False),
             # White (~L*100) and black (~L*10) are too far apart to share an axis
             # (Knut), so each is its own auto-scaled chart — and the axis ranges
@@ -5913,6 +5942,78 @@ class MeasurementReportDialog(QDialog):
         from workflow.compliance_sets import legacy_pair
         lim = self._window_limits()
         return legacy_pair(lim.limits if lim is not None else {})
+
+    def _accuracy_thresholds(self) -> "tuple[float | None, float | None]":
+        """`_thresholds`, with None for a member whose row is "–" (K28).
+
+        `legacy_pair` answers 2.0 / 3.0 for a row the set does not limit,
+        because its old readers need two numbers. A dotted "Avg 2.0" on the
+        Colour accuracy graph for a row the set leaves at "–" is a limit line
+        for a limit nobody set, so the graph asks this instead. `_TrendChart`
+        already draws and describes only the members that are numbers."""
+        avg_thr, max_thr = self._thresholds()
+        dash = self._dash_row_ids(self._document_runs_for_graphs())
+        return (None if "all_de00_avg" in dash else avg_thr,
+                None if "all_de00_max" in dash else max_thr)
+
+    def _document_runs_for_graphs(self) -> list:
+        """The document's measurements, for a graph deciding what to draw;
+        empty when nothing is loaded (a bare chart in a test, a window before
+        its first source)."""
+        if not getattr(self, "_sources", None):
+            return []
+        try:
+            return self._runs_for_document()
+        except Exception:      # noqa: BLE001 - a graph, never a gate
+            log.debug("could not list the document's runs", exc_info=True)
+            return []
+
+    def _row_limits_of(self, r: dict) -> "dict | None":
+        """``{row_id: Limit}`` *r* is judged against, or None when unknown.
+
+        A saved verdict answers from the limits it was SAVED with (its
+        ``compliance.thresholds``), which is what its rows were judged
+        against; a verdict saved before those were recorded answers None, and
+        nothing is dropped for it. A live column answers from its run's set,
+        as `_verdict_rows` judges it."""
+        from workflow.compliance_sets import Limit
+        from workflow.measurement_report import recorded_compliance
+        if self._recorded(r) is not None:
+            comp = recorded_compliance(r) or {}
+            th = comp.get("thresholds")
+            if not isinstance(th, dict):
+                return None
+            return {str(k): Limit.from_json(v) for k, v in th.items()}
+        try:
+            lim = self._limits_for(r)
+        except Exception:      # noqa: BLE001 - advisory, never a gate
+            return None
+        return dict(lim.limits) if lim is not None else None
+
+    def _dash_row_ids(self, runs: list) -> "set[str]":
+        """The rows the document's limit set leaves at "–" (K28, item 3).
+
+        Knut, #182 5795087247: a limit set to "–" removes the row from Report
+        Results, How to read, Detailed data, the graph AND the Overview table.
+        The first three are built from `_verdict_rows`, which drops such a row
+        itself; the Overview and the Colour accuracy graph are built from the
+        measurement's figures, so they ask this.
+
+        A row is dropped only when EVERY graded column leaves it at "–": one
+        document has one limit set (`_one_limit_set`), so they agree, and when
+        they cannot be read (an old saved verdict) nothing is dropped, because
+        a row wrongly hidden is a figure the reader never sees."""
+        out: "set[str] | None" = None
+        for r in runs or ():
+            if _is_raw_drift(r):
+                continue
+            lims = self._row_limits_of(r)
+            if lims is None:
+                return set()
+            mine = {rid for rid, lim in lims.items()
+                    if getattr(lim, "kind", "") == "none"}
+            out = mine if out is None else (out & mine)
+        return out or set()
 
     # ---- #182: which limit set, whose run, and the lock ----------------------
     #
@@ -9225,6 +9326,15 @@ class MeasurementReportDialog(QDialog):
             # re-measured has its own .ti3 sitting in the run's old/ folder.
             # This sentence is the one thing that is true of both.
             "not_computed": tr("this value is not in this saved report"),
+            # K22 (B8-845, question 3): a measurement with no device values
+            # printed `not_computed` on its grey, ramp and gamut rows, "this
+            # value is not in this saved report", for a report built a second
+            # ago. What is missing is the numbers each patch was printed from:
+            # without them no patch can be found to be grey, a ramp step or on
+            # the gamut's edge.
+            "no_device_values": tr(
+                "the measured chart carries no device values (the RGB numbers "
+                "each patch was printed from)"),
             # #182 S2w, approved by Knut on 2026-09-18. TWO codes rather than
             # one, because they send a reader to different places: the first
             # asks the chart to declare a strip at all, the second says the
@@ -9245,10 +9355,13 @@ class MeasurementReportDialog(QDialog):
                 "the measured chart never asks for the same colour twice, so "
                 "there is nothing on the sheet to compare with itself"),
             "too_few_repeat_groups": _repeat_groups_sentence(r),
+            # K18 and K22 (B8-845, question 2): it ended "; the row is judged
+            # from the second measurement onward", which explains ChromIQ to a
+            # customer and is untrue on a Printing record, which judges
+            # nothing on any measurement.
             "no_earlier_measurement": tr(
-                "this is the first measurement of this chart, so there is "
-                "nothing to compare it with; the row is judged from the "
-                "second measurement onward"),
+                "this is the first measurement of the measured chart, so "
+                "there is nothing to compare it with"),
             "too_few_shared_patches": _repeat_shared_sentence(r),
             # EVENNESS ACROSS THE SHEET (Knut, 2026-09-22). Written to his
             # rule of 2026-09-23: each says what the MEASURED CHART lacks,
@@ -9266,9 +9379,13 @@ class MeasurementReportDialog(QDialog):
                 "no file of the measured chart records where its patches sit "
                 "on the page, so how much of the page they cover is not "
                 "known"),
-            "evenness_empty_area": tr(
-                "one of the nine areas of the measured chart holds no patch "
-                "with an aim value"),
+            # K22 (B8-845, question 4): the reachable cause is an area with
+            # no READING (the notes demo's run5), whose patches do have aims;
+            # "holds no patch with an aim value" named the other half of the
+            # condition as the whole. `evenness_block` keeps a patch only when
+            # it was measured, has an aim, and (on a split sheet) lies within
+            # the profile's gamut, so the sentence names all it needs.
+            "evenness_empty_area": _evenness_empty_area_sentence(r),
             "evenness_noisy_pairwise": _evenness_noise_sentence(
                 r, "pairwise", _limit),
             "evenness_noisy_from_mean": _evenness_noise_sentence(
@@ -9344,7 +9461,10 @@ class MeasurementReportDialog(QDialog):
                 continue
             labels = [tr(ROW_BY_ID[rid].label) if rid in ROW_BY_ID else str(rid)
                       for rid in rids]
-            out.append((n, ", ".join(labels), sentence))
+            # "; " and not ", ": since K28 the names carry commas of their
+            # own ("Average ΔE00, all patches"), and two of them joined by a
+            # comma read as four fragments.
+            out.append((n, "; ".join(labels), sentence))
         return out
 
     def _has_an_absence(self, runs: list) -> bool:
@@ -9513,11 +9633,33 @@ class MeasurementReportDialog(QDialog):
                         row["word"] = FAIL
                     else:
                         row["word"] = INFO if rec.get("graded") is False else N_A
-            return self._note_the_absences(
-                self._ungrade(self._keep_rows_for_type(rows)), r), True
+            return self._note_the_absences(self._ungrade(
+                self._keep_rows_for_type(self._drop_dash_rows(rows))), r), True
         from workflow.measurement_report import judge
         return self._note_the_absences(self._ungrade(self._keep_rows_for_type(
-            judge(r, self._limits_for(r).limits))), r), False
+            self._drop_dash_rows(judge(r, self._limits_for(r).limits)))),
+            r), False
+
+    @staticmethod
+    def _drop_dash_rows(rows: list) -> list:
+        """Every row whose limit is "–" leaves the document (K28, item 3).
+
+        Knut, #182 5795087247, asked whether a "–" row should leave the
+        Overview as well as Report Results, How to read, Detailed data and the
+        graph: *"Yes."* And on rows no chart can answer: *"Any limit set
+        selected shall stop showing rows ... only if the metric/row for a
+        selected limit set has '-' for its limit."*
+
+        `judge` already writes no row for a "–" limit WITHOUT a value (CH-20);
+        a "–" limit WITH a value was written as INFO and printed. That is the
+        row this removes. A written row carries ``threshold`` None only for a
+        "–" limit (`row_verdict` writes nothing for "?" and "✕"), in a saved
+        verdict as in a live one; a row with no ``threshold`` key at all is
+        not claimed to be one and is kept. Nothing is counted differently:
+        `set_summary` counts limit-bearing rows only, and a "–" row is not one.
+        """
+        return [x for x in (rows or [])
+                if not ("threshold" in x and x.get("threshold") is None)]
 
     #: Separator inside a note code that carries its own sentence. A unit
     #: separator, because it can never occur in prose or in a reason code.
@@ -12172,12 +12314,22 @@ class MeasurementReportDialog(QDialog):
         #
         # The label is faint and the description keeps its weight, because it
         # is still the heading of this section, which is what he asked for.
-        desc = self._run_description()
+        desc = self._run_description(runs)
+        # SEVERAL RUNS OR PROJECTS: THE HEADING STAYS, AND SAYS WHY THERE IS
+        # NO DESCRIPTION UNDER IT (K28, B8-798). In the dim note colour, not
+        # the description's bold, because it is the document speaking and not
+        # something a person wrote.
+        several = "" if desc else self._several_places_notice(runs)
         out = (_h2(tr("Report Scope")) + _gap()
                + (f"<div style='color:{_C['faint']};margin:0'>"
                   + html.escape(tr("Run description")) + "</div>"
                   + f"<div style='font-weight:bold;margin:0 0 4px'>"
                   + html.escape(desc) + "</div>" + _gap() if desc else "")
+               + (f"<div style='color:{_C['faint']};margin:0'>"
+                  + html.escape(tr("Run description")) + "</div>"
+                  + f"<div style='color:{_C['dim']};margin:0 0 4px'>"
+                  + html.escape(several) + "</div>" + _gap()
+                  if several else "")
                + "<div>" + html.escape(intro)
                + "</div><ul style='margin:2px 0 6px'>" + items + "</ul>"
                + "<div><b>" + html.escape(tr("No. of Measurements:")) + "</b></div>"
@@ -12554,21 +12706,87 @@ class MeasurementReportDialog(QDialog):
         except Exception:      # noqa: BLE001 — a count is never a blocker
             return 0
 
-    def _run_description(self) -> str:
-        """What the user wrote about this run, or "".
+    @staticmethod
+    def _document_places(runs: list) -> "tuple[set[str], set[str]]":
+        """``(runs, projects)`` the DOCUMENT's measurements come from.
 
-        The window's own run, not each column's: a report holding several runs
-        has no single description, and a heading that names one of them would
-        be wrong about the rest.
+        A run is its folder; a measurement in no run (a calibration, a file
+        outside any project) counts as a place of its own, because no run's
+        description is about it. A project is the folder carrying the
+        manifest (`project_root_for`), so a calibration is counted in its
+        project; a file in none is its own."""
+        from workflow.run_compliance import project_root_for, run_context_for
+        run_keys: "set[str]" = set()
+        projects: "set[str]" = set()
+        for r in runs or ():
+            origin = str(r.get("_origin_dir") or r.get("ti3") or "")
+            ctx = run_context_for(origin) if origin else None
+            run_keys.add(str(ctx.run.dir) if ctx is not None
+                         else f"external:{origin}")
+            root = project_root_for(origin) if origin else None
+            projects.add(str(root) if root is not None
+                         else f"external:{origin}")
+        return run_keys, projects
+
+    def _run_description(self, runs: "list | None" = None) -> str:
+        """What the user wrote about the document's run, or "".
+
+        **THE DOCUMENT'S MEASUREMENTS DECIDE, NOT THE WINDOW'S SOURCES
+        (B8-798).** This asked whether the window held several SOURCES, and a
+        single project source spans every run of its project: a Printing
+        record of three profile runs printed run1's description under Report
+        Scope as if it described all three. It also read the WINDOW's run, so
+        a window on run2 with only run1's sheet ticked printed run2's. Now the
+        description is read from the one run the document's measurements come
+        from, and a document drawn from several has none
+        (`_several_places_notice` says so instead).
+
+        *runs* None keeps the old question, for a caller with no document.
         """
-        ctx = self._run_ctx
-        if ctx is None or len(self._distinct_run_dirs()) > 1:
-            return ""
+        if runs is None:
+            ctx = self._run_ctx
+            if ctx is None or len(self._distinct_run_dirs()) > 1:
+                return ""
+            run = ctx.run
+        else:
+            run_keys, _projects = self._document_places(runs)
+            if len(run_keys) != 1:
+                return ""
+            only = next(iter(run_keys))
+            if only.startswith("external:"):
+                return ""
+            from core.file_manager import Run
+            run = Run.for_dir(Path(only))
         try:
-            return str(ctx.run.load_meta().description or "").strip()
+            return str(run.load_meta().description or "").strip()
         except Exception as exc:                 # noqa: BLE001 — a heading
             log.debug("could not read the run description: %s", exc)
             return ""
+
+    def _several_places_notice(self, runs: list) -> str:
+        """What stands under "Run description" when the document has no one
+        run to describe, or "" when it has (K28; Knut, #182 5795087247, on
+        B8-798): *"The report should under the 'Run Description' heading
+        inform the user that the report includes data from multiple runs (or
+        multiple projects (when that is specified), thus not written here.
+        Then refer back to the Scope section for which measurements are
+        included from which projects."*
+
+        Written for the reader of the document (K18): what it holds and where
+        in it to look, nothing about how ChromIQ came to leave it out. The
+        list it points at is Report Scope's own, directly below it, which
+        names each project and how many measurements come from it."""
+        run_keys, projects = self._document_places(runs)
+        if len(projects) > 1:
+            return tr("This report includes measurements from several "
+                      "projects, so no single run description is given. The "
+                      "list below shows the measurements included from each "
+                      "project.")
+        if len(run_keys) > 1:
+            return tr("This report includes measurements from several runs, "
+                      "so no single run description is given. The list below "
+                      "shows the measurements included.")
+        return ""
 
     def _scope_warnings_html(self, warnings: list) -> str:
         """Red warning block for the Report Scope checks (Knut). Empty when clean."""
@@ -12808,18 +13026,33 @@ class MeasurementReportDialog(QDialog):
                 "required. Rows do not use this word, and a row the test chart "
                 "used could not answer does not make a column COND: it is not "
                 "counted as a failure.")) + "</li>"
+            # **INFO, AS IT IS TRUE OF THE DOCUMENT IT IS PRINTED IN (K28;
+            # B8-845, question 5).** The bullet listed four causes and said
+            # "the note under the results names the rows in the last two
+            # cases". Two of the four went: a row this set puts no limit on is
+            # no longer in the report at all (K28, item 3), and on a Printing
+            # record, which judges nothing, there is no note naming rows, so
+            # the promise was false in the one document it was about. What is
+            # left is said per type, like the notes heading
+            # (`_notes_list_html`).
             "<li>" + html.escape(tr(
+                "INFO: the number is shown for information only. This kind "
+                "of report judges nothing, so every value in it reads INFO.")
+                if _grades_nothing else tr(
                 "INFO: the number is shown for information only and nothing "
-                "was judged from it. That happens when this limit set puts no "
-                "limit on the row, when the sheet is a profiling measurement, "
-                "which is never graded, when the row needs something about the "
-                "print that was not recorded, and when a report judges "
-                "nothing. The note under the results names the rows in the "
-                "last two cases.")) + "</li>"
+                "was judged from it. That happens when the sheet is a "
+                "profiling measurement, which is never graded, and when the "
+                "row needs something about the print that was not recorded; "
+                "the note under the results names the rows in that last "
+                "case.")) + "</li>"
+            # N-A, AS KNUT RULED IT (K28, item 5): a raised number beside the
+            # word, pointing at a note that names what the measured chart
+            # lacks (K22). "The reason is listed under the results" described
+            # the prose list that the numbered notes replaced on 2026-09-21.
             "<li>" + html.escape(tr(
-                "N-A (not applicable): the row does not apply here. The reason "
-                "is listed under the results, for example that the chart has "
-                "too few grey steps.")) + "</li>"
+                "N-A (not applicable): the value could not be worked out from "
+                "the measured chart. A raised number beside it points to the "
+                "note under the results that names what is missing.")) + "</li>"
             "</ul>"
             # WHAT THE REPORT SHOWS, NOT WHAT IT WITHHOLDS. Knut, 2026-09-11,
             # on the sentence that used to close this paragraph, *"and this
@@ -13071,7 +13304,15 @@ class MeasurementReportDialog(QDialog):
             intro = tr("The following results are extracted from detailed data "
                        "(Colour accuracy) for the included measurements in this "
                        "report.")
-        if any(r.get("gamut_split") for r in runs):
+        # **EVERY REPORT SAYS THAT ITS JUDGED FIGURES ARE THE WITHIN-GAMUT
+        # ONES (K28, item 1)**, and only where that is TRUE of the rows it
+        # shows. It was printed whenever any column was split, so a Grey and
+        # tone check, whose rows use every grey patch, and a Printing record,
+        # which judges nothing, both told the reader their words judged
+        # within-gamut figures.
+        if (any(r.get("gamut_split") for r in runs)
+                and not self._ungraded_by_type()
+                and set(present or ()) & WITHIN_GAMUT_ROWS):
             intro += " " + tr(
                 "Where a sheet's colours are split into within / beyond the "
                 "profile's gamut, the words judge the within-gamut "
@@ -13323,6 +13564,13 @@ class MeasurementReportDialog(QDialog):
             return None
 
         row_getters = []
+        # A "–" LIMIT TAKES THE ROW OUT OF THIS TABLE TOO (K28, item 3; Knut,
+        # asked whether the Overview follows Report Results: *"Yes."*). Every
+        # block below loses the same rows, so within, beyond and all read as
+        # one table.
+        dash = self._dash_row_ids(runs)
+        keys = [k for k in ("avg_all", "avg_low95", "avg_high5", "max_all",
+                            "max_low95") if _ROW_ID_OF[k] not in dash]
         # Knut's layout (2026-08-10): datasets stay side-by-side as columns;
         # the in/out-of-gamut split arrives as row BLOCKS one after another —
         # within, beyond, then all patches — so comparing two dates inside any
@@ -13338,18 +13586,24 @@ class MeasurementReportDialog(QDialog):
             row_getters.append((tr("Patches"),
                                 num(lambda r: gs(r).get("n_in"), 0)))
             row_getters += [(_METRIC_LABELS[k](), num(part("de00_in", k), 2))
-                            for k in ("avg_all", "avg_low95", "avg_high5",
-                                      "max_all", "max_low95")]
+                            for k in keys]
             row_getters.append((tr("Beyond the profile's gamut"), None))
             row_getters.append((tr("Patches"),
                                 num(lambda r: gs(r).get("n_out"), 0)))
             row_getters += [(_METRIC_LABELS[k](), num(part("de00_out", k), 2))
-                            for k in ("avg_all", "avg_low95", "avg_high5",
-                                      "max_all", "max_low95")]
+                            for k in keys]
             row_getters.append((tr("All patches together"), None))
         row_getters += [(_METRIC_LABELS[k](), num((lambda r, k=k: de(r).get(k)), 2))
-                        for k in ("avg_all", "avg_low95", "avg_high5",
-                                  "max_all", "max_low95", "std")]
+                        for k in keys]
+        # **FIGURES THAT NEVER HAVE A LIMIT, UNDER A HEADING THAT SAYS SO (K28,
+        # item 4).** Knut, asked whether to keep the spread, the lightest and
+        # darkest L* and the eight corner ΔE00 or remove them: *"keep them
+        # under a heading 'For information (no limit applies)'"*. The heading
+        # is a block row like "Within the profile's gamut" above, so the table
+        # stays one table.
+        row_getters.append((tr("For information (no limit applies)"), None))
+        row_getters.append((_METRIC_LABELS["std"](),
+                            num(lambda r: de(r).get("std"), 2)))
         # WHICHEVER SHAPE THE FILE IS IN (R24-F2). These two read `lab` only,
         # so a schema-5 measurement -- ChromIQ's own demo projects hold them --
         # printed a dash here while the detailed section below printed the very
@@ -13726,47 +13980,14 @@ class MeasurementReportDialog(QDialog):
         # last one, never the first.
         return runs[-1:]
 
-    #: How many unchecked metrics the ONE-PAGE summary names before it hands
-    #: the reader to the full report. MEASURED, not chosen: with all ten named
-    #: on the worst case in the fixture the page had 33 px spare against the
-    #: 60 px of headroom its own guard requires, and each name costs roughly a
-    #: third of a line. Four fits with room to spare in every language tried.
-    _ONE_PAGE_UNCHECKED_MAX = 4
-
-    def _unchecked_rows_for(self, r: dict) -> "list[tuple[str, str]]":
-        """(label, why) for every limit-bearing row this sheet could not answer.
-
-        **THE SAME ROWS THE FULL REPORT JUDGES**, through `_verdict_rows`, so
-        the one-page summary cannot name a different set of absences than the
-        document it is a summary of. Each carries the sentence its numbered
-        note would have given it, which is the reason a reader can act on.
-
-        Only rows the set actually LIMITS are counted: a row left at "–" is not
-        unchecked, it is not asked, and naming it would send a reader after
-        something nobody wanted.
-        """
-        from workflow.compliance_sets import N_A, ROW_BY_ID
-        try:
-            rows, _graded = self._verdict_rows(r)
-        except Exception:      # noqa: BLE001 — a summary, never a gate
-            log.debug("could not list the unchecked rows", exc_info=True)
-            return []
-        out: "list[tuple[str, str]]" = []
-        for row in rows or ():
-            if row.get("word") != N_A:
-                continue
-            lim = row.get("limit")
-            if lim is not None and not getattr(lim, "is_numeric", False):
-                continue
-            rid = row.get("row_id") or row.get("key") or ""
-            meta = ROW_BY_ID.get(str(rid))
-            label = tr(meta.label) if meta is not None else str(
-                row.get("label") or rid)
-            if not label:
-                continue
-            out.append((label, self._reason_sentence(row.get("reason"), r,
-                                                     row) or ""))
-        return out
+    # **NO LIST OF UNCHECKED ROWS ON THE ONE-PAGE SUMMARY (K28, item 5 and
+    # 7: "Keep option 1").** `_unchecked_rows_for` and its cap
+    # `_ONE_PAGE_UNCHECKED_MAX` were built for option 3 and never called
+    # (design-R3-R2-R1, beta 36). Knut: *"The reference numbers on all N-A
+    # results, which points to notes that give explanations, this is the
+    # information stating what was left out. Thus no other info needs to be
+    # repeated after that. This also applies to the one-page summary."* So
+    # both are deleted rather than left for someone to wire in.
 
     @staticmethod
     def _one_page_summary(sm):
@@ -13845,29 +14066,50 @@ class MeasurementReportDialog(QDialog):
         out = [self._scope_html(runs, dropped)]
 
         # -- the one line of numbers a reader acts on
-        de = r.get("de00") or {}
+        #
+        # **THE JUDGED FIGURES, AND THE PAGE SAYS WHICH THEY ARE (K28, item
+        # 1).** Knut, asked whether this page should show the within-gamut
+        # figures the verdict judges, as the Colour accuracy graph does: *"Yes,
+        # and the reports need to show that the figures judged are
+        # within-gamut."* It printed `de00`, every patch, beside a word judged
+        # on `graded_de00`, so a sheet with colours beyond the gamut showed a
+        # PASS next to a larger number than the one that earned it.
+        from workflow.measurement_report import (VERDICT_SOURCE_IN_GAMUT,
+                                                 graded_de00)
+        de, _source = graded_de00(r)
+        within = _source == VERDICT_SOURCE_IN_GAMUT
         sm = self._column_summary(r)
         bits = []
-        # WITH THE UNIT (K10, Knut on beta 34): *"The results does not say the
-        # normal proper units or ΔE00. These things do not take much space and
-        # should always be present when presenting numbers."*
-        if de.get("avg_all") is not None:
-            bits.append(tr("Average difference {v} ΔE00").format(
-                v=_fmt(de.get("avg_all"), 2)))
-        if de.get("max_all") is not None:
-            bits.append(tr("Largest {v} ΔE00").format(
-                v=_fmt(de.get("max_all"), 2)))
+        # WITH THE UNIT (K10, Knut on beta 34), which the names now carry
+        # themselves: they are the one vocabulary of K28 (item 2), the same
+        # words the full report, the graphs and the limits window print.
+        # **AND A "–" ROW IS NOT HERE EITHER (K28, item 3).**
+        _dash = self._dash_row_ids([r])
+        for key in ("avg_all", "max_all"):
+            if de.get(key) is not None and _ROW_ID_OF[key] not in _dash:
+                bits.append(tr("{metric}: {value}").format(
+                    metric=_METRIC_LABELS[key](), value=_fmt(de.get(key), 2)))
+        _split = r.get("gamut_split") or {}
+        _sheet = int((_split.get("n_in") or 0) + (_split.get("n_out") or 0))
         if de.get("n"):
             n = int(de["n"])
             # Singular and plural in full, never "(s)" (CLAUDE.md).
-            bits.append(tr("{n} patch").format(n=n) if n == 1
-                        else tr("{n} patches").format(n=n))
+            if within and _sheet > n:
+                bits.append(tr("{n} of {total} patches").format(
+                    n=n, total=_sheet))
+            else:
+                bits.append(tr("{n} patch").format(n=n) if n == 1
+                            else tr("{n} patches").format(n=n))
+        said = summary_text(self._one_page_summary(sm))
+        if within:
+            said += " " + tr("The judged figures are those of the patches "
+                             "within the profile's gamut.")
         out.append(_h2(tr("Result")) + _gap()
                    + "<div><b>" + html.escape(word_label(sm.word)) + "</b>"
                    + (" · " + html.escape("; ".join(bits)) if bits else "")
                    + "</div>"
                    + f"<div style='color:{_C['dim']};margin-top:2px'>"
-                   + html.escape(summary_text(self._one_page_summary(sm)))
+                   + html.escape(said)
                    + "</div>")
 
         # **AND THE LIST THAT SENTENCE PROMISES.** Knut, 2026-09-22: *"it is
@@ -13934,7 +14176,12 @@ class MeasurementReportDialog(QDialog):
 
         corners = [c for c in (r.get("corners") or []) if c.get("present")]
         if corners:
-            out.append(_h2(tr("Cube corners")) + _gap()
+            # K28 (item 4): the eight corner ΔE00 never have a limit, and say
+            # so here as in the full report; in the heading, because this page
+            # has no line to spare (`test_and_keeps_room_for_a_description_of
+            # _ordinary_length`).
+            out.append(_h2(tr("Cube corners, for information (no limit "
+                              "applies)")) + _gap()
                        + self._swatch_table_html(corners))
 
         # **T1 NEVER REACHES THE CAVEAT BLOCK, AND THE CAP USED TO COVER FOR
@@ -14077,11 +14324,16 @@ class MeasurementReportDialog(QDialog):
         is shown when at least one of its rows was judged, and plots only its
         judged rows, each with its own dotted line (`_TREND_GROUPS`)."""
         from workflow.compliance_sets import ROW_BY_ID
-        avg_thr, max_thr = self._thresholds()
+        avg_thr, max_thr = self._accuracy_thresholds()
         plan = []
         for chart, title, metrics, y_max, dec, auto in self._trend_configs():
             thr = (avg_thr, max_thr) if chart is self._trend_de else None
-            plan.append((chart, title, metrics, y_max, dec, auto, thr, [], True))
+            # A Colour accuracy graph whose five rows are all "–" has nothing
+            # left to draw (K28, item 3), and is hidden like a judged-metric
+            # tab with no judged row. The other three always show.
+            shown = bool(metrics) if chart is self._trend_de else True
+            plan.append((chart, title, metrics, y_max, dec, auto, thr, [],
+                         shown))
         judged = self._judged_trend_limits()
         for key, title, rows in _TREND_GROUPS:
             metrics, lines = [], []
@@ -14121,7 +14373,7 @@ class MeasurementReportDialog(QDialog):
                 getattr(self, "_trend_series", None)):
             about = _TREND_ABOUT_DE_JUDGED()
         if chart is self._trend_de:
-            avg_thr, max_thr = self._thresholds()
+            avg_thr, max_thr = self._accuracy_thresholds()
             notes = [_limit_line_note(tr("Avg"), avg_thr, "ΔE00",
                                       "all_de00_avg")
                      if isinstance(avg_thr, (int, float)) else "",
@@ -14483,7 +14735,15 @@ class MeasurementReportDialog(QDialog):
                 trs.append(row_html(i, label, values, row.get("threshold"), word,
                                     should=bool(row.get("should")), tip=tip,
                                     mark=mark_for(row)))
-            # Spread is reported for completeness but carries no threshold (Knut).
+            # Spread is reported for completeness but carries no threshold
+            # (Knut), and since K28 (item 4) it sits under a heading that says
+            # so, as it does in the Overview: a separator row spanning the
+            # table, because the figure needs this table's columns.
+            _span = 1 + len(cols) + 1 + (0 if record else 1)
+            trs.append(f"<tr><td colspan='{_span}' style='padding-top:8px;"
+                       f"color:{_C['dim']};font-weight:bold'>"
+                       + html.escape(tr("For information (no limit applies)"))
+                       + "</td></tr>")
             trs.append(row_html(
                 len(rows), _METRIC_LABELS["std"](),
                 ([d_in.get("std"), d_out.get("std"), de.get("std")]
@@ -14669,6 +14929,7 @@ class MeasurementReportDialog(QDialog):
                     "file has not been touched."))
                 + "</p>")
 
+        _info_heading_done = False
         w, b = r.get("paper_white"), r.get("max_black")
         if w and b:
             # **WHAT THE FILE CARRIES, AND NO KeyError WHEN IT CARRIES LESS.**
@@ -14714,12 +14975,24 @@ class MeasurementReportDialog(QDialog):
                     bits.append(f"- L* {_n(lv)}")
                 return "<div>" + " ".join(bits) + "</div>"
 
-            parts.append(_h3(tr("Paper white & darkest black")))
+            # K28 (item 4): the lightest and darkest L* and the eight corner
+            # ΔE00 never have a limit, so they sit under one heading that says
+            # so; the two headings they had become its sub-labels, rather
+            # than three headings in a row.
+            parts.append(_h3(tr("For information (no limit applies)")))
+            _info_heading_done = True
+            parts.append("<div style='font-weight:bold;margin-top:4px'>"
+                         + html.escape(tr("Paper white & darkest black"))
+                         + "</div>")
             parts.append(_line(w, tr("White")) + _line(b, tr("Black")))
 
         corners = r.get("corners") or []
         if corners:
-            parts.append(_h3(tr("Cube corners (the eight ink extremes)")))
+            if not _info_heading_done:
+                parts.append(_h3(tr("For information (no limit applies)")))
+            parts.append("<div style='font-weight:bold;margin-top:6px'>"
+                         + html.escape(tr("Cube corners (the eight ink "
+                                          "extremes)")) + "</div>")
             head = (f"<tr style='color:{_C['faint']}'><th align='left'>" + html.escape(tr("Corner"))
                     + "</th><th>" + html.escape(tr("Expected")) + "</th><th>"
                     + html.escape(tr("Measured")) + "</th><th align='right'>ΔE00</th></tr>")

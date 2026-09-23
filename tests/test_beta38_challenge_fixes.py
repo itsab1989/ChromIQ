@@ -470,11 +470,13 @@ def test_the_lower_value_s_cross_stays_lower():
 # F9: the Colour accuracy legend carries "(ΔE00)" like every other graph
 # ---------------------------------------------------------------------------
 def test_the_accuracy_legend_names_its_unit_as_the_others_do(tmp_path, qapp):
-    """Every legend entry of every graph that measures a colour difference
-    ends in "(ΔE00)"; none says a bare "ΔE".
+    """Every legend entry of the Colour accuracy graph names its unit, ΔE00;
+    none says a bare "ΔE". Since K28 (item 2) the unit is INSIDE the name,
+    "Average ΔE00, all patches", which is the name the grid and the limits
+    window print, so the legend does not add "(ΔE00)" a second time.
 
-    MUTATION, proven red: put `_METRIC_LABELS` back in `_trend_configs`
-    ("Average ΔE, all patches", no "(ΔE00)")."""
+    MUTATION, proven red: make `_with_unit` always append "({unit})" (the
+    legend reads "Average ΔE00, all patches (ΔE00)")."""
     from workflow.compliance_sets import effective_limits
     from tests.test_trend_graphs_for_judged_metrics import _open
     dlg = _open(tmp_path, qapp, effective_limits("chromiq_default", {}))
@@ -486,8 +488,11 @@ def test_the_accuracy_legend_names_its_unit_as_the_others_do(tmp_path, qapp):
             dlg._trend_series = series
             labels = [m[0] for m in dlg._trend_configs()[0][2]]
             assert len(labels) == 5
+            from workflow.compliance_sets import ROWS
+            names = [r.label for r in ROWS if r.group == "all_patches"]
+            assert labels == names, labels
             for lbl in labels:
-                assert lbl.endswith("(ΔE00)"), labels
+                assert "ΔE00" in lbl and lbl.count("ΔE00") == 1, labels
                 assert "ΔE," not in lbl, labels
     finally:
         dlg.deleteLater()

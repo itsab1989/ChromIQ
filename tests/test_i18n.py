@@ -1407,18 +1407,18 @@ _IDENTICAL_TO_KEY = {
     # does not move; each of the twelve others rises by exactly 18 (20 new
     # English placeholders, 2 old English placeholders gone). COUNTED off the
     # tree with this file's own expression, BOTH ledgers in the same commit.
-    "de": 141,
-    "es": 1110,
-    "fr": 1132,
-    "it": 1121,
-    "ja": 1096,
-    "nl": 1137,
-    "no": 1122,
-    "pl": 1114,
-    "pt": 1112,
-    "ru": 1085,
-    "sv": 1123,
-    "zh_CN": 1090,
+    "de": 142,
+    "es": 1113,
+    "fr": 1135,
+    "it": 1124,
+    "ja": 1099,
+    "nl": 1140,
+    "no": 1125,
+    "pl": 1117,
+    "pt": 1115,
+    "ru": 1088,
+    "sv": 1126,
+    "zh_CN": 1093,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1445,7 +1445,7 @@ _IDENTICAL_TO_KEY = {
     # in Ukrainian, so the pointer could not match whatever the user read.
     # Nothing else changed. The ceiling is re-measured DOWN here rather than
     # left where it was, so the next rise still has to justify itself.
-    "uk": 1330,
+    "uk": 1329,
 }
 
 

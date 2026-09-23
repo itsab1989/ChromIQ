@@ -90,7 +90,8 @@ def test_dialog_grades_within_gamut_and_shows_the_blocks(
                       "Beyond the profile's gamut", "All patches together"):
             assert block in overview
         # the split blocks list the five accuracy metrics three times over
-        assert overview.count("Average ΔE, all patches") == 3
+        # K28: the one name, "Average ΔE00, all patches", in each block
+        assert overview.count("Average ΔE00, all patches") == 3
         results = _html.unescape(dlg._report_results_html([rep]))
         assert "within-gamut" in results
     finally:

@@ -208,10 +208,16 @@ def test_the_preflight_names_the_bars_own_german_labels():
 
 
 def test_the_worst_five_percent_is_plural_in_german():
-    """B-L3: "das schlechteste 5 %"."""
+    """B-L3: "das schlechteste 5 %". Since K28 (one vocabulary, #182
+    5795087247) the population is "highest 5 %", in German "die obersten
+    5 %", and the plural rule holds for the new word as it did for the old.
+
+    MUTATION (proven red 2026-09-23): write "die oberste 5 %" into one of the
+    German sentences."""
     d = _de()
     assert not any("schlechteste 5" in v for v in d.values())
-    assert sum("die schlechtesten 5 %" in v for v in d.values()) >= 2
+    assert not any("die oberste 5" in v for v in d.values())
+    assert sum("die obersten 5 %" in v for v in d.values()) >= 2
 
 
 def test_the_presets_column_heading_fits_in_german(qapp):

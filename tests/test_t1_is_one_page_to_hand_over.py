@@ -183,9 +183,12 @@ def test_a_report_saved_before_the_colours_existed_says_so(tmp_path, qapp):
 def test_the_result_line_gives_its_numbers_with_their_unit(tmp_path, qapp):
     """K10 (Knut on beta 34): *"FAIL · Average difference 0.87; Largest 2.75;
     210 patches"* with no unit. *"These things do not take much space and
-    should always be present when presenting numbers."*
+    should always be present when presenting numbers."* Since K28 (item 2) the
+    numbers are named by the one vocabulary, which carries the unit:
+    "Average ΔE00, all patches: 0.87; Maximum ΔE00, all patches: 2.75".
 
-    MUTATION: drop " ΔE00" from either format string and this goes red.
+    MUTATION (proven red 2026-09-23): name them by the bare ``de00`` key
+    instead of `_METRIC_LABELS[key]()` in `_one_page_html`.
     """
     import re
     from workflow.measurement_report import REPORT_TYPE_SUMMARY
@@ -193,7 +196,9 @@ def test_the_result_line_gives_its_numbers_with_their_unit(tmp_path, qapp):
     try:
         runs = _as(dlg, run, REPORT_TYPE_SUMMARY)
         text = _text(dlg._report_body_html(runs, for_pdf=True))
-        assert re.search(r"Average difference \d+\.\d\d ΔE00", text), text[:800]
-        assert re.search(r"Largest \d+\.\d\d ΔE00", text), text[:800]
+        assert re.search(r"Average ΔE00, all patches: \d+\.\d\d", text), \
+            text[:800]
+        assert re.search(r"Maximum ΔE00, all patches: \d+\.\d\d", text), \
+            text[:800]
     finally:
         dlg.close()

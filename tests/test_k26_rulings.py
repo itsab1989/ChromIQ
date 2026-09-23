@@ -123,12 +123,16 @@ def test_the_accuracy_trend_plots_what_the_verdict_judged():
 
 
 def test_the_graph_says_its_figures_are_the_judged_ones(tmp_path, qapp):
-    """With a within-gamut date on the axis the two "all patches" legend
-    entries say "all judged patches", and the PDF description says which
-    patches those are.
+    """With a within-gamut date on the axis the PDF description says which
+    patches the figures are. The LEGEND no longer changes with it: K28 (Knut,
+    #182 5795087247, item 2) gives each metric one name everywhere, so the
+    "all judged patches" variant of §18.4 is superseded and the legend reads
+    the row's own name on both axes; the within-gamut fact is carried by the
+    description (and, in the report, by the results intro and the one-page
+    summary).
 
-    MUTATION, proven red: drop ``if judged_pop`` from `_trend_configs`
-    (the legend still reads "all patches" over within-gamut figures)."""
+    MUTATION, proven red: return `_TREND_ABOUT["de"]` for a within-gamut
+    series in `_trend_extras` (the description no longer says so)."""
     from workflow.compliance_sets import effective_limits
     from tests.test_trend_graphs_for_judged_metrics import _open
     dlg = _open(tmp_path, qapp, effective_limits("chromiq_default", {}))
@@ -136,14 +140,14 @@ def test_the_graph_says_its_figures_are_the_judged_ones(tmp_path, qapp):
         dlg._trend_series = [{"created": "x", "avg_all": 1.0,
                               "de00_population": "in_gamut"}]
         labels = [m[0] for m in dlg._trend_configs()[0][2]]
-        assert labels[0] == "Average, all judged patches (ΔE00)", labels
-        assert labels[3] == "Maximum, all judged patches (ΔE00)", labels
+        assert labels[0] == "Average ΔE00, all patches", labels
+        assert labels[3] == "Maximum ΔE00, all patches", labels
         assert "within the profile's gamut" in dlg._trend_extras(
             dlg._trend_de)["about"]
         dlg._trend_series = [{"created": "x", "avg_all": 1.0,
                               "de00_population": "all"}]
         labels = [m[0] for m in dlg._trend_configs()[0][2]]
-        assert labels[0] == "Average, all patches (ΔE00)", labels
+        assert labels[0] == "Average ΔE00, all patches", labels
     finally:
         dlg.deleteLater()
 

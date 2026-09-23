@@ -983,18 +983,18 @@ _BUDGET = {
     # COUNTED off the tree with this file's own expression, BOTH ledgers in the
     # same commit.
     "de": 14,
-    "es": 815,
-    "fr": 816,
-    "it": 815,
-    "ja": 815,
-    "nl": 815,
-    "no": 815,
-    "pl": 815,
-    "pt": 815,
-    "ru": 814,
-    "sv": 815,
-    "zh_CN": 814,
-    "uk": 1013,
+    "es": 824,
+    "fr": 825,
+    "it": 824,
+    "ja": 824,
+    "nl": 824,
+    "no": 824,
+    "pl": 824,
+    "pt": 824,
+    "ru": 823,
+    "sv": 824,
+    "zh_CN": 823,
+    "uk": 1018,
 }
 
 

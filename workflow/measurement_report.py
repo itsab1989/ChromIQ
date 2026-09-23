@@ -1103,6 +1103,15 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
         # with the reason, exactly as the two blocks above are.
         report["gamut_populations"] = gamut_populations_block(
             rgb100, lab, ref, data.sample_ids)
+    else:
+        # NO DEVICE VALUES: say so, rather than leave the blocks out. An
+        # absent block is `not_computed`, which is the truth about a report
+        # saved before a row existed and a falsehood about this one (K22).
+        _none = {"eligible": False, "reason": REASON_NO_DEVICE_VALUES}
+        report["grey_balance"] = dict(_none)
+        report["ramps_30_70"] = dict(_none)
+        report["gamut_populations"] = {"surface": dict(_none),
+                                       "outer": dict(_none)}
 
     # ChromIQ'S OWN TWO REPEATABILITY ROWS, and neither asks for a reference.
     # Row A compares the sheet's repeated patches WITH EACH OTHER, and Row B
@@ -3343,6 +3352,12 @@ REASON_SMALL_SAMPLE = "small_sample"
 REASON_PRINTING_UNRECORDED = "printing_unrecorded"
 REASON_NO_CORNERS = "no_corners"
 REASON_NOT_COMPUTED = "not_computed"     # the block is missing from this report
+#: The measurement carries no device values, so no patch can be found to be a
+#: grey, a ramp step or on the gamut's surface (B8-845, question 3). Written by
+#: `build_report` into the grey, ramp and gamut blocks it could not compute,
+#: where it used to leave them out and the report then said "this value is not
+#: in this saved report" of a report built a second ago.
+REASON_NO_DEVICE_VALUES = "no_device_values"
 #: S2w, approved 2026-09-18. TWO codes for the control strip, because they
 #: send a reader to different places: one asks the chart to declare a strip at
 #: all, the other says the strip it declares is too short to average over.

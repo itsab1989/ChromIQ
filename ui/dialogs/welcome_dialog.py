@@ -1524,7 +1524,8 @@ GLOSSARY += [
     (tr("Row (in the limits table)"),
      tr("One line of a limit set, and it is always a population and a "
         "statistic together: WHICH patches, and WHICH number about them. "
-        "“All patches, average” and “All patches, largest” are two rows, not "
+        "“Average ΔE00, all patches” and “Maximum ΔE00, all patches” are two "
+        "rows, not "
         "one, because a chart can pass on the average and fail on the worst "
         "patch. The rows are grouped by population: Paper, Solid colours, "
         "Control strip, the grey ramp, all patches, selected patches, and the "
@@ -1635,7 +1636,9 @@ GLOSSARY += [
         "30 % and 70 %, where the eye reads a lightness error as a tone "
         "curve going wrong.")),
     (tr("95th percentile (a report row)"),
-     tr("The figure that all but the worst 5 % of your patches come in under. "
+     tr("The figure that all but the highest 5 % of your patches come in "
+        "under; the report names it “Maximum ΔE00, lowest 95 % (95th "
+        "percentile)”. "
         "It is a fairer summary than the largest difference, which one dusty "
         "patch can dominate, and a stricter one than the average, which hides "
         "a bad tail. ChromIQ takes it by nearest rank, so the number is "
