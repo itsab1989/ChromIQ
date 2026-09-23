@@ -74,6 +74,19 @@ Read `PROJECTS` for the current shape. In outline, what each project is for:
                                      EVERY selectable limit set, over its limit
                                      on one date and inside it on the next, on
                                      both kinds of chart.
+    Report-Limits-Paper-Classes      K29: five real paper classes (published
+                                     facts, our values), each on its own
+                                     chart, set, report type and printing.
+    Report-Limits-Border-Values      K29: exactly on a limit, one thousandth
+                                     over, one thousandth under, on four rows
+                                     and sets; the saved value is checked.
+    Report-Limits-Second-Route       K29: Knut's matrix again, on a different
+                                     chart and paper per set.
+    Report-Limits-Renamed            K29: built under another name, given a
+                                     report across projects, then renamed.
+
+`scripts/make_release_demo_package.py` puts these beside the evenness and
+notes projects in ONE release package with a coverage matrix.
 
 How the measurements are made
 -----------------------------
@@ -130,6 +143,7 @@ TIMEOUT_COLPROF = 900
 
 FOLDER = "ChromIQ-Report-Limit-Demos"
 INSTRUMENT = "X-Rite ColorMunki"
+INSTRUMENT_I1 = "X-Rite i1Pro 2"
 
 
 # ---------------------------------------------------------------------------
@@ -166,6 +180,10 @@ class ChartRecipe:
     single: int
     paper: str
     label: str
+    #: printtarg's instrument (#182 K29): "CM" (ColorMunki, every chart
+    #: before K29) or "i1" (i1Pro strips), so a rule is not only ever seen on
+    #: one instrument's layout.
+    instrument: str = "CM"
 
     @property
     def targen_args(self) -> list:
@@ -386,15 +404,18 @@ def make_chart(into: Path, stem: str, recipe: ChartRecipe, cache_root: Path) -> 
     """A real chart: targen designs it, printtarg lays it out and renders the
     pages. Cached per recipe so the same size is not designed twice."""
     into.mkdir(parents=True, exist_ok=True)
-    key = (recipe.patches, recipe.grey, recipe.single, recipe.paper)
+    key = (recipe.patches, recipe.grey, recipe.single, recipe.paper,
+           recipe.instrument)
     src = _chart_cache.get(key)
     if src is None:
-        src = cache_root / f"chart-{recipe.patches}-{recipe.paper}"
+        src = cache_root / (f"chart-{recipe.patches}-{recipe.paper}"
+                            f"-{recipe.instrument}")
         src.mkdir(parents=True, exist_ok=True)
         run([ARGYLL / "targen"] + recipe.targen_args + ["chart"],
             src, TIMEOUT_TARGEN)
-        run([ARGYLL / "printtarg"] + printtarg_args(recipe.paper) + ["chart"],
-             src, TIMEOUT_PRINTTARG)
+        run([ARGYLL / "printtarg"]
+            + printtarg_args(recipe.paper, recipe.instrument) + ["chart"],
+            src, TIMEOUT_PRINTTARG)
         _chart_cache[key] = src
     for p in sorted(src.iterdir()):
         if p.is_file() and p.name.startswith("chart"):
@@ -422,14 +443,23 @@ def _targen_settings(recipe) -> "dict[str, object]":
             "f": recipe.patches}
 
 
-def printtarg_args(paper: str) -> list:
-    return [f"-i{PRINTTARG_INSTRUMENT}", f"-p{paper}", f"-t{PRINTTARG_DPI}",
-            "-L", f"-M{PRINTTARG_MARGIN_MM}"]
+def _suppress_left(instrument: str) -> bool:
+    """``-L`` for the ColorMunki (a no-op there, kept for the recorded
+    command), never for the i1Pro: an i1Pro strip chart keeps printtarg's own
+    left clip border, which is the ruler's lead-in (#182 K29)."""
+    return instrument != "i1"
+
+
+def printtarg_args(paper: str, instrument: str = PRINTTARG_INSTRUMENT) -> list:
+    return ([f"-i{instrument}", f"-p{paper}", f"-t{PRINTTARG_DPI}"]
+            + (["-L"] if _suppress_left(instrument) else [])
+            + [f"-M{PRINTTARG_MARGIN_MM}"])
 
 
 def record_chart_settings(folder: Path, paper: str,
                           targen: "dict[str, object] | None" = None,
-                          mode: str = "manual") -> None:
+                          mode: str = "manual",
+                          instrument: str = PRINTTARG_INSTRUMENT) -> None:
     """Write the Create Chart settings the app would have stored for a chart
     it laid out this way, into the chart's own settings store.
 
@@ -449,15 +479,15 @@ def record_chart_settings(folder: Path, paper: str,
     from core.file_manager import Run
     from workflow.layout_engine.presets import LayoutRecipe
     settings = {
-        "printtarg-i": {"enabled": True, "value": PRINTTARG_INSTRUMENT},
+        "printtarg-i": {"enabled": True, "value": instrument},
         "printtarg-p": {"enabled": True, "value": paper},
         "printtarg-t": {"enabled": True, "value": PRINTTARG_DPI},
-        "printtarg-L": {"enabled": True, "value": True},
+        "printtarg-L": {"enabled": _suppress_left(instrument), "value": True},
         "printtarg-m": {"enabled": False, "value": PRINTTARG_MARGIN_MM},
     }
     for flag, value in (targen or {}).items():
         settings[f"targen-{flag}"] = {"enabled": True, "value": value}
-    recipe = LayoutRecipe(instrument=PRINTTARG_INSTRUMENT, paper=paper,
+    recipe = LayoutRecipe(instrument=instrument, paper=paper,
                           clip_content_mode="off")
     store = Run.for_dir(folder)
     meta = store.load_meta()
@@ -467,11 +497,12 @@ def record_chart_settings(folder: Path, paper: str,
     # into Manual's -i, so the chart was then judged against the i1Pro's 26 mm
     # left minimum instead of the ColorMunki's 6 mm (measured on screen).
     meta.create_chart_ui = {"mode": mode, "engine_on": False,
-                            "guided": {"instrument": PRINTTARG_INSTRUMENT,
+                            "guided": {"instrument": instrument,
                                        "paper": paper, "pages": 1,
                                        "double_density": False,
                                        "triple_density": False,
-                                       "left_border": False,
+                                       "left_border": not _suppress_left(
+                                           instrument),
                                        "no_strip_limit": False,
                                        "precond": ""},
                             "engine_recipe": recipe.to_dict()}
@@ -505,6 +536,90 @@ def fakeread(into: Path, stem: str, profile: Path) -> Path:
 PAPER_LAB = (95.5, 0.2, 1.4)
 
 
+@dataclass(frozen=True)
+class PaperClass:
+    """A class of real paper, for the K29 angles (#182, Knut 5795310999:
+    *"Try to use available paper data as part of the simulation data to make
+    it more realistic."*).
+
+    **THE LAB IS OURS; THE FACT IT RESTS ON IS PUBLISHED.** Each value is a
+    round, typical paper white for the class (D50, the way every reading in
+    ChromIQ is taken), chosen to sit where the cited public fact puts the
+    class. Nothing is copied from a dataset, a standard (ISO 12647, Fogra,
+    Idealliance), a licence holder's file or anyone's measurements: this
+    package is a public download. `cie_whiteness` lets a reader check the
+    class claim against the cited sentence instead of trusting it.
+    """
+    id: str
+    name: str
+    lab: tuple
+    oba: str                 # "high", "very low", "none"
+    fact: str
+    source: str
+
+    @property
+    def cie_whiteness(self) -> float:
+        """CIE whiteness W = Y + 800 (xn - x) + 1700 (yn - y), against the D50
+        white every ChromIQ reading is taken under."""
+        X, Y, Z = _lab_to_xyz100(self.lab)
+        s = X + Y + Z
+        x, y = X / s, Y / s
+        xn = _D50[0] / sum(_D50)
+        yn = _D50[1] / sum(_D50)
+        return Y + 800.0 * (xn - x) + 1700.0 * (yn - y)
+
+
+#: The five classes, in the order the README lists them.
+PAPER_CLASSES: "dict[str, PaperClass]" = {p.id: p for p in (
+    PaperClass(
+        "glossy_oba", "Glossy / luster RC photo paper with optical brighteners",
+        (96.0, 1.2, -7.5), "high",
+        "Optical brighteners absorb ultraviolet and re-emit it as visible "
+        "blue, so a paper that carries them measures blue (negative b*) under "
+        "light with UV in it; most glossy photo papers carry them.",
+        "Wikipedia, 'Optical brightener' "
+        "(https://en.wikipedia.org/wiki/Optical_brightener)"),
+    PaperClass(
+        "baryta", "Baryta (fibre base, very low brightener content)",
+        (95.5, 0.4, -2.0), "very low",
+        "A baryta photo paper's datasheet gives 'OBA content: Very low' and a "
+        "CIE whiteness of 96.30: a faint blue, far less than an RC paper's.",
+        "Canson Infinity, 'Baryta Photographique II' datasheet "
+        "(https://www.canson-infinity.com/en/product_pdf/2727)"),
+    PaperClass(
+        "matte_rag", "Matte cotton rag, no optical brighteners",
+        (94.5, 0.4, 3.5), "none",
+        "Whiteness is what brighteners add; without them a paper shows the "
+        "natural cream of its fibre, so its b* is positive (warmer).",
+        "Wikipedia, 'Optical brightener' "
+        "(https://en.wikipedia.org/wiki/Optical_brightener)"),
+    PaperClass(
+        "office", "Uncoated office paper",
+        (94.0, 1.8, -11.0), "high",
+        "'Most white paper will have CIE whiteness measures of between 130 "
+        "and 170', because of optical brighteners.",
+        "papersizes.org, 'Paper Whiteness, Brightness & Shade' "
+        "(https://www.papersizes.org/whiteness-brightness.htm)"),
+    PaperClass(
+        "newsprint", "Newsprint-like (mechanical pulp)",
+        (84.0, 0.3, 5.5), "none",
+        "Newsprint is made from mechanical pulp that keeps its lignin: 'an "
+        "off-white cast', and it yellows in air and light. It is the darkest "
+        "and the yellowest class here by a wide margin.",
+        "Wikipedia, 'Newsprint' (https://en.wikipedia.org/wiki/Newsprint)"),
+)}
+
+
+def paper_lab_of(paper_class: str) -> tuple:
+    """The paper white a run prints on: its class's, or the pack's default."""
+    return PAPER_CLASSES[paper_class].lab if paper_class else PAPER_LAB
+
+
+def paper_name_of(paper_class: str) -> str:
+    return (f"{PAPER_CLASSES[paper_class].name} (demo)" if paper_class
+            else "Demo matte 200 g")
+
+
 def lay_paper(ti3: Path, paper_lab=PAPER_LAB) -> "tuple[float, float, float]":
     """Scale a relative (D50-white) measurement onto :data:`PAPER_LAB`.
 
@@ -520,11 +635,12 @@ def lay_paper(ti3: Path, paper_lab=PAPER_LAB) -> "tuple[float, float, float]":
     return k
 
 
-def build_profile(run_dir: Path, stem: str) -> None:
-    """fakeread through sRGB plays the bare printer, on :data:`PAPER_LAB`;
+def build_profile(run_dir: Path, stem: str, paper_lab=PAPER_LAB) -> None:
+    """fakeread through sRGB plays the bare printer, on *paper_lab*
+    (:data:`PAPER_LAB` unless the run names a :data:`PAPER_CLASSES` entry);
     colprof makes the run's own profile from that measurement."""
     run([ARGYLL / "fakeread", "-I", "r", SRGB, stem], run_dir, TIMEOUT_FAKEREAD)
-    lay_paper(run_dir / f"{stem}.ti3")
+    lay_paper(run_dir / f"{stem}.ti3", paper_lab)
     # A PRINTER PROFILE, NOT A DISPLAY ONE. fakeread copies the class of the
     # profile it read through, which is ArgyllCMS's sRGB DISPLAY profile, and
     # colprof normalises a display's white to Y = 1: every run in the pack was
@@ -1378,20 +1494,20 @@ def _rewrite_xyz(ti3: Path, xyz_by_index: "dict[int, tuple]") -> None:
 # ---------------------------------------------------------------------------
 # Filing one dated verification
 # ---------------------------------------------------------------------------
-def stamp(ti3: Path, when: str) -> None:
+def stamp(ti3: Path, when: str, instrument: str = INSTRUMENT) -> None:
     from workflow.ti3_analysis import mark_verification_ti3
     mark_verification_ti3(ti3)
     lines = ti3.read_text(encoding="utf-8").splitlines()
     at = next(i for i, l in enumerate(lines) if l.startswith("NUMBER_OF_FIELDS"))
     lines[at:at] = ['KEYWORD "CHROMIQ_MEASURED"',
                     f'CHROMIQ_MEASURED "{when}"',
-                    f'TARGET_INSTRUMENT "{INSTRUMENT}"']
+                    f'TARGET_INSTRUMENT "{instrument}"']
     ti3.write_text("\n".join(lines) + "\n", encoding="utf-8")
     t = datetime.fromisoformat(when).timestamp()
     os.utime(ti3, (t, t))
 
 
-def stamp_profiling(ti3: Path, when: str) -> None:
+def stamp_profiling(ti3: Path, when: str, instrument: str = INSTRUMENT) -> None:
     """Date the run's OWN measurement, the sheet the profile was built from.
 
     `stamp` above is for a dated verification and calls `mark_verification_ti3`,
@@ -1406,7 +1522,7 @@ def stamp_profiling(ti3: Path, when: str) -> None:
     at = next(i for i, l in enumerate(lines) if l.startswith("NUMBER_OF_FIELDS"))
     lines[at:at] = ['KEYWORD "CHROMIQ_MEASURED"',
                     f'CHROMIQ_MEASURED "{when}"',
-                    f'TARGET_INSTRUMENT "{INSTRUMENT}"']
+                    f'TARGET_INSTRUMENT "{instrument}"']
     ti3.write_text("\n".join(lines) + "\n", encoding="utf-8")
     t = datetime.fromisoformat(when).timestamp()
     os.utime(ti3, (t, t))
@@ -2250,6 +2366,9 @@ class RunPlan:
     #: strip and cannot reach twenty is its own demonstration, so it is stated
     #: rather than discovered.
     expect_strip_p95: bool = True
+    #: The paper this run's simulated printer prints on (#182 K29): a key of
+    #: `PAPER_CLASSES`, or "" for the pack's default matte paper.
+    paper_class: str = ""
 
     @property
     def set_name(self) -> str:
@@ -2645,6 +2764,90 @@ def seed_calibrations(dest: Path) -> "list[str]":
 
 
 #: See `--survey` in `main`.
+RENAMED_MANIFEST: "list[str]" = []
+
+
+def seed_renamed(dest: Path) -> "list[str]":
+    """Write a report across two projects under one project's OLD name, then
+    rename that project with the app's own rename (#182 K29, "moved and
+    renamed projects").
+
+    The report is a Full colour check of the last date of
+    Report-Limits-Before-Rename/run1 and the first date of
+    Report-Limits-Paper-Classes/run1, filed where the app files a report of
+    several projects (`document_home`, the pack's own ``reports/``), with a
+    verdict record in each date. Then the folder is moved and
+    `Project.rename` renames its files and records the old name in
+    ``former_names``. The report still names the old folder, so a window on
+    Report-Limits-Renamed lists it only if the app matches a report by every
+    name the project has had (`names_of_project`).
+
+    Returns the README lines. Does nothing when either project is missing
+    (an ``--only`` build).
+    """
+    import re as _re
+    from core.file_manager import (Project, REPORTS_DIRNAME,
+                                   VERIFICATIONS_DIRNAME)
+    from workflow.measurement_report import (
+        ROLE_RECORD, SCOPE_MULTIPLE_DATES, document_file, document_home,
+        document_measurement_key, new_document_id, report_type,
+        rewrite_report, set_report_type, stamp_document)
+    old = dest / RENAMED_FROM
+    other = dest / "Report-Limits-Paper-Classes"
+    if not (old / "runs").is_dir() or not (other / "runs").is_dir():
+        return []
+
+    def dates(rd):
+        return sorted(d for d in (rd / VERIFICATIONS_DIRNAME).iterdir()
+                      if d.is_dir() and _re.fullmatch(r"\d{4}-\d{2}-\d{2}_\d{6}",
+                                                      d.name))
+
+    folders = [dates(old / "runs" / "run1")[-1],
+               dates(other / "runs" / "run1")[0]]
+    when = "2029-12-01T09:00:00"
+    when_dt = datetime.fromisoformat(when)
+    reps = [json.loads(sorted((f / REPORTS_DIRNAME).glob("report_*.json"))[0]
+                       .read_text(encoding="utf-8")) for f in folders]
+    members = [{"dir": str(f), "created": str(r.get("created") or ""),
+                "ti3": str(r.get("ti3") or ""),
+                "key": document_measurement_key(f, str(r.get("created") or ""),
+                                                str(r.get("ti3") or ""))}
+               for f, r in zip(folders, reps)]
+    doc_id = new_document_id(when_dt)
+    lines = ["  ACROSS TWO PROJECTS, written while one of them was still "
+             f"called {RENAMED_FROM}:"]
+    for f, rep in zip(folders, reps):
+        rep = json.loads(json.dumps(rep))
+        rep.pop("document", None)
+        if report_type(rep) != REPORT_TYPE_FULL:
+            set_report_type(rep, REPORT_TYPE_FULL)
+        stamp_document(rep, doc_id=doc_id, created=when,
+                       type_id=REPORT_TYPE_FULL,
+                       compliance=rep.get("compliance"), detail=False,
+                       measurements=members, scope=SCOPE_MULTIPLE_DATES,
+                       role=ROLE_RECORD)
+        p = rewrite_report(f / REPORTS_DIRNAME
+                           / f"report_{when_dt:%Y-%m-%d_%H-%M-%S}.json", rep)
+        lines.append(f"      verdict record:     {p.relative_to(dest)}")
+    home = document_home(folders)
+    home.mkdir(parents=True, exist_ok=True)
+    body = document_file(doc_id=doc_id, created=when, type_id=REPORT_TYPE_FULL,
+                         compliance=reps[0].get("compliance"), detail=False,
+                         measurements=members, scope=SCOPE_MULTIPLE_DATES)
+    doc = rewrite_report(home / f"report_{when_dt:%Y-%m-%d_%H-%M-%S}.json",
+                         body)
+    lines.append(f"      the report:         {doc.relative_to(dest)}")
+    # THE RENAME, the way `FileManager.rename_existing_project` does it.
+    new = dest / RENAMED_PROJECT
+    shutil.move(str(old), str(new))
+    Project.load(new).rename(new.name)
+    lines.append(f"  then {RENAMED_FROM} was renamed to {RENAMED_PROJECT} with "
+                 f"ChromIQ's own rename; the report still names the old "
+                 f"folder, and project.json keeps the old name in "
+                 f"former_names.")
+    return lines
+
+
 SURVEY = False
 SURVEY_FAULTS: "list[str]" = []
 
@@ -2663,7 +2866,7 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
     stem = run.stem
     print(f"  {run.id}: profiling chart, {plan.profile_chart.label}")
     make_chart(run.dir, stem, plan.profile_chart, cache_root)
-    build_profile(run.dir, stem)
+    build_profile(run.dir, stem, paper_lab_of(plan.paper_class))
     icc = run.built_profile_icc()
 
     print(f"  {run.id}: verification chart, {plan.verify_chart.label}")
@@ -2678,10 +2881,14 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
         make_chart(run.verifications_dir, vstem_, plan.verify_chart, cache_root)
     # EACH CHART'S OWN CREATE CHART SETTINGS, where the app keeps them (F12).
     record_chart_settings(run.dir, plan.profile_chart.paper,
-                          _targen_settings(plan.profile_chart))
+                          _targen_settings(plan.profile_chart),
+                          instrument=getattr(plan.profile_chart, "instrument",
+                                             PRINTTARG_INSTRUMENT))
     record_chart_settings(run.verifications_dir, plan.verify_chart.paper,
                           _targen_settings(plan.verify_chart),
-                          mode=("gamut" if gsel is not None else "manual"))
+                          mode=("gamut" if gsel is not None else "manual"),
+                          instrument=getattr(plan.verify_chart, "instrument",
+                                             PRINTTARG_INSTRUMENT))
 
     # WHAT THE REPORT WILL USE AS THE REFERENCE, decided once, here, from the
     # same fact the report decides it from: a `<stem>-reference.ti3` beside the
@@ -2734,8 +2941,9 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
     # state; `full_description` stays only as the README's and the tests'
     # statement of what each plan declares.
     meta.description = plan.description
-    meta.instrument = INSTRUMENT
-    meta.paper = "Demo matte 200 g"
+    meta.instrument = (INSTRUMENT_I1 if getattr(plan.verify_chart, "instrument",
+                                                "CM") == "i1" else INSTRUMENT)
+    meta.paper = paper_name_of(plan.paper_class)
     meta.status = "complete"
     meta.verify_chart_notes = plan.note
     run.save_meta(meta)
@@ -2782,7 +2990,7 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
     prof_when = (datetime.fromisoformat(plan.dates[0].when)
                  - timedelta(days=7)).isoformat(timespec="seconds")
     prof_ti3 = run.dir / f"{stem}.ti3"
-    stamp_profiling(prof_ti3, prof_when)
+    stamp_profiling(prof_ti3, prof_when, meta.instrument)
     prof_rep = build_report(prof_ti3, argyll_bin=ARGYLL)
     pw_fault = _paper_white_fault(prof_ti3, prof_rep)
     if pw_fault:
@@ -2840,7 +3048,7 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
             relative=plan.print_colour == "through-profile" and cref_labs is None,
             ref_labs=cref_labs, corner_ids=corner_ids,
             corner_devices=corner_devices, strip_ids=strip_ids)
-        stamp(ti3, date.when)
+        stamp(ti3, date.when, meta.instrument)
         shutil.move(str(ti3), str(v.dir / f"{vstem}.ti3"))
         cdir = snapshot(v.dir, vstem, work)
         write_print_record(cdir, vstem, date.when, icc.name, plan.print_colour)
@@ -2914,6 +3122,18 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
             # What the report took as paper white, and whether the chart has a
             # paper patch at all, for the README's paper section.
             "print": plan.print_colour,
+            # A BORDER DATE (K29) MUST SAVE EXACTLY ITS NUMBER.
+            "border": ({"row": BORDER_VALUES[date.vid][0],
+                        "want": BORDER_VALUES[date.vid][1],
+                        "got": actual["values"].get(
+                            BORDER_VALUES[date.vid][0])}
+                       if date.vid in BORDER_VALUES else None),
+            # THE ROUTE (#182 K29): what else about this date differs from
+            # another date that trips or passes the same row.
+            "paper": plan.paper_class or "default",
+            "paper_lab": list(paper_lab_of(plan.paper_class)),
+            "chart_label": plan.verify_chart.label,
+            "instrument": getattr(plan.verify_chart, "instrument", "CM"),
             "paper_white": dict(rep.get("paper_white") or {}),
             "has_paper_patch": bool(chart_white_locs(v.measurement_ti3, rep)),
         })
@@ -3200,12 +3420,14 @@ ROWS_ORDINARY = (
 ROWS_GAMUT = (
     "all_de00_avg", "best95_de00_avg", "worst5_de00_avg", "all_de00_max",
     "all_de00_p95",
-    # THE GREY PAIR IS ON THIS CHART NOW. The selection keeps the neutrals of
-    # the profile's own gamut, and since the pack prints on a paper (L* 95.5,
-    # K15) and not on the D65 white it used to, those neutrals span the eight
-    # distinct steps from black to white the grey rows need. Measured on the
-    # first build on that paper: both rows answered on every gamut date.
-    "grey_balance_neutral_ramp_avg", "grey_balance_neutral_ramp_max",
+    # THE GREY PAIR IS OFF THIS CHART AGAIN, since K28a (B8-483, Knut
+    # 5795087247: the ramp's required steps roughly evenly spaced, within 4 %
+    # of full scale). The selection keeps the neutrals of the profile's own
+    # gamut, which on the K15 paper span eight distinct levels, but not evenly:
+    # measured on the first build after K28a (2026-09-23), every From Profile
+    # Gamut date reads `grey_steps_bunched` on both rows, on all five limit
+    # sets. The app follows Knut's rule, so the design follows the app; the
+    # grey cells of every set are exercised on the ordinary charts.
     "substrate_de00_max", "solids_de00_max",
     "cmy_solids_dhab_max", "control_strip_de00_avg", "control_strip_de00_max",
     "surface_gamut_de00_avg", "outer_gamut_226_de00_avg",
@@ -3548,6 +3770,188 @@ NO_SURFACE: "list[Date]" = [
        Design(bulk=0.6, shoulder=0.9, peak=1.4, tail=1.0),
        []),
 ]
+
+# ---------------------------------------------------------------------------
+# K29 (#182, Knut 5795310999): the same rules from more than one side
+# ---------------------------------------------------------------------------
+#: *"attacks all thresholds, metrics, requirement, output behaviour and
+#: messages and functionality, from more angles of attack, so that none of
+#: these things are only tested against one way of thinking"*. The projects
+#: below add ROUTES, not rows: a different chart, instrument layout, paper,
+#: limit set, report type or way of printing to a row the pack already
+#: exercises, and the border of each limit. `make_release_demo_package.py`
+#: counts the routes per row from the saved reports and lists any row that
+#: has fewer than two trip routes and two pass routes.
+
+#: One chart size the pack already uses, laid out for the i1Pro instead.
+CHART_SMALL_I1 = ChartRecipe(105, 12, 8, "A4", "105 patches on A4, i1Pro layout",
+                             instrument="i1")
+#: A From Profile Gamut chart of a different size than the pack's first.
+CHART_GAMUT_SMALL = GamutChartRecipe(150, "A4")
+
+
+def _outlier_pair(m: str, over: Design, inside: Design, limit_word: str,
+                  expect: "list[str]") -> "list[Date]":
+    """One date with the row over its limit, then the same sheet back in."""
+    return [
+        _d(f"2029-{m}-03_100000", f"2029-{m}-03T10:00:00",
+           f"Over the limit on {limit_word}",
+           f"The sheet is designed to cross {limit_word} and nothing else.",
+           over, expect),
+        _d(f"2029-{m}-17_100000", f"2029-{m}-17T10:00:00",
+           "Back inside",
+           "The same chart measured again after the fault is corrected; the "
+           "row that crossed comes back under its limit.",
+           inside, []),
+    ]
+
+
+#: Report-Limits-Paper-Classes: one run per paper class, each on its own route.
+PAPER_GLOSSY = _outlier_pair(
+    "01", Design(bulk=0.80, shoulder=1.40, peak=3.60, tail=1.40, grey_dch=0.40),
+    Design(bulk=0.80, shoulder=1.40, peak=2.20, tail=1.40, grey_dch=0.40),
+    "'All patches, largest' (ChromIQ default 3.0)", ["all_de00_max"])
+PAPER_BARYTA = _outlier_pair(
+    "02", Design(bulk=1.20, shoulder=1.30, peak=1.45, tail=1.30, grey_dch=0.30),
+    Design(bulk=0.40, shoulder=0.70, peak=1.10, tail=0.70, grey_dch=0.30),
+    "the three averages (ChromIQ tight 1.0)",
+    ["all_de00_avg", "best95_de00_avg", "worst5_de00_avg"])
+PAPER_RAG = _outlier_pair(
+    "03", Design(bulk=0.80, shoulder=1.00, tail=1.00, grey_dch=3.60),
+    Design(bulk=0.80, shoulder=1.00, tail=1.00, grey_dch=1.00),
+    "the grey average (Quick check 3.0)", ["grey_balance_neutral_ramp_avg"])
+#: The Custom column numbers every row ChromIQ can measure, so a single far
+#: patch also crosses the control-strip rows when it is a strip patch
+#: (measured: it was). The tone-ramp row is what this run moves instead.
+PAPER_OFFICE = _outlier_pair(
+    "04", Design(bulk=0.80, shoulder=1.20, tail=1.00, grey_dch=0.40,
+                 ramp_dl=2.6),
+    Design(bulk=0.80, shoulder=1.20, tail=1.00, grey_dch=0.40, ramp_dl=1.0),
+    "the tone-ramp row (Custom ISO 12647-7 2.0), on a sheet whose printing "
+    "nobody recorded", ["ramps_30_70_dl_max"])
+PAPER_NEWS: "list[Date]" = [
+    _d("2029-05-03_100000", "2029-05-03T10:00:00",
+       "Measured once, one patch far out",
+       "The only verification of this run: a single patch at 3.8 carries "
+       "'All patches, largest' over ChromIQ default's 3.0. One measurement "
+       "is not yet a history, so the run's limit set can still be chosen.",
+       Design(bulk=0.80, shoulder=1.30, peak=3.80, tail=1.00, grey_dch=0.40),
+       ["all_de00_max"]),
+]
+PAPER_GAMUT_WHITE: "list[Date]" = [
+    _d("2029-06-03_100000", "2029-06-03T10:00:00",
+       "The paper is off its reference",
+       "A From Profile Gamut chart on brightened glossy paper, whose "
+       "reference carries the paper: the white is designed 4.0 off it, over "
+       "the 3.0 this run's own column puts on 'Paper white'. Everything else "
+       "is relaxed, so that row crosses alone.",
+       Design(bulk=0.6, shoulder=0.9, peak=1.4, tail=1.0,
+              white_de=4.0, solid_de=0.5, cmy_dh=0.4),
+       ["substrate_de00_max"]),
+    _d("2029-06-17_100000", "2029-06-17T10:00:00",
+       "The paper is back on its reference",
+       "The same chart, the white within 1.0 of its reference.",
+       Design(bulk=0.6, shoulder=0.9, peak=1.4, tail=1.0,
+              white_de=1.0, solid_de=0.5, cmy_dh=0.4),
+       []),
+]
+
+
+def _border_dates(m: str, word: str, at: float, step: float, base: Design,
+                  field_: str, row: str, nudge: float = 0.0) -> "list[Date]":
+    """Exactly on a limit, one step over, one step under (K29).
+
+    A value EQUAL to its limit is inside it (`compliance_sets.row_verdict`:
+    ``value <= limit``), and the value judged is the one the report saves,
+    rounded to three decimals. `BORDER_VALUES` records the three numbers each
+    date must SAVE, and `build_run` refuses a border date whose saved value is
+    not that number, so "exactly on the limit" is a checked fact.
+
+    *nudge* is added to the designed patch value and never to the number the
+    story states. Measured on the first build (2026-09-23): on the 210-patch
+    chart the saved "All patches, largest" came out 0.0005 to 0.0015 above
+    the designed peak (3.0 read 3.001), because the media-relative
+    normalisation moves the whole sheet a hair after the patch is placed; on
+    the A3 chart it came out exact. The nudge aims the design at the saved
+    number, which is the one a reader sees and the one that is judged.
+    """
+    from dataclasses import replace as _r
+    for vid, value in ((f"2029-{m}-06_100000", at),
+                       (f"2029-{m}-13_100000", round(at + step, 3)),
+                       (f"2029-{m}-20_100000", round(at - step, 3))):
+        BORDER_VALUES[vid] = (row, value)
+    return [
+        _d(f"2029-{m}-06_100000", f"2029-{m}-06T10:00:00",
+           f"Exactly on the limit: {at:.3f}",
+           f"{word} is designed to read {at:.3f}, which is its limit. A value "
+           f"equal to its limit is inside it.",
+           _r(base, **{field_: at + nudge}), []),
+        _d(f"2029-{m}-13_100000", f"2029-{m}-13T10:00:00",
+           f"Just over: {at + step:.3f}",
+           f"{word} is designed to read {at + step:.3f}, one thousandth over "
+           f"its limit of {at:.3f}.",
+           _r(base, **{field_: round(at + step, 3) + nudge}), [row]),
+        _d(f"2029-{m}-20_100000", f"2029-{m}-20T10:00:00",
+           f"Just under: {at - step:.3f}",
+           f"{word} is designed to read {at - step:.3f}, one thousandth "
+           f"under its limit of {at:.3f}.",
+           _r(base, **{field_: round(at - step, 3) + nudge}), []),
+    ]
+
+
+#: vid -> (row, the value the saved report must carry), for every border date.
+BORDER_VALUES: "dict[str, tuple[str, float]]" = {}
+
+
+_MAX_WORD = "'All patches, largest'"
+BORDER_DEFAULT_MAX = _border_dates(
+    "07", _MAX_WORD, 3.0, 0.001,
+    Design(bulk=0.80, shoulder=1.40, peak=3.0, tail=1.40, grey_dch=0.40),
+    "peak", "all_de00_max", nudge=-0.001)
+BORDER_TIGHT_MAX = _border_dates(
+    "08", _MAX_WORD, 1.5, 0.001,
+    Design(bulk=0.40, shoulder=0.70, peak=1.5, tail=0.70, grey_dch=0.30),
+    "peak", "all_de00_max")
+BORDER_QUICK_MAX = _border_dates(
+    "09", _MAX_WORD, 6.0, 0.001,
+    Design(bulk=1.00, shoulder=2.00, peak=6.0, tail=1.50, grey_dch=0.80),
+    "peak", "all_de00_max")
+BORDER_BEST95 = _border_dates(
+    "10", "'Best 95 % of patches, average'", 2.0, 0.001,
+    Design(bulk=1.0, shoulder=2.2, peak=3.0, tail=2.5, target_best95=2.0,
+           grey_dch=0.5),
+    "target_best95", "best95_de00_avg")
+
+#: The second route of Knut's matrix: a different chart and paper per set.
+_SECOND_PAPER = {"chromiq_default": ("glossy_oba", "baryta"),
+                 "chromiq_tight": ("baryta", "matte_rag"),
+                 "chromiq_quick": ("matte_rag", "office"),
+                 "custom_iso_12647_7": ("office", "glossy_oba"),
+                 "custom_iso_12647_8": ("newsprint", "baryta")}
+
+
+def _second_route(set_id: str, kind: str) -> "list[Date]":
+    """`matrix_dates`, re-dated into 2029 so the two routes of one cell never
+    share a date in a window that shows both projects."""
+    out = []
+    for d in matrix_dates(set_id, kind):
+        vid = "2029" + d.vid[4:]
+        out.append(Date(vid, "2029" + d.when[4:], d.title, d.story,
+                        d.design, list(d.expect)))
+    return out
+
+
+#: The project built under one name and renamed afterwards (K29 "moved and
+#: renamed projects"). `main` renames it with the app's own `Project.rename`
+#: after a report across it and Paper-Classes has been written under its old
+#: name, so the renamed project must still find that report.
+RENAMED_PROJECT = "Report-Limits-Renamed"
+RENAMED_FROM = "Report-Limits-Before-Rename"
+RENAMED_DATES = _outlier_pair(
+    "11", Design(bulk=0.80, shoulder=1.40, peak=3.40, tail=1.40, grey_dch=0.40),
+    Design(bulk=0.80, shoulder=1.40, peak=2.10, tail=1.40, grey_dch=0.40),
+    "'All patches, largest' (ChromIQ default 3.0)", ["all_de00_max"])
+
 
 PROJECTS = [
     ("Report-Limits-Threshold-Series", [
@@ -3913,6 +4317,108 @@ PROJECTS = [
                                    else fill_limits(set_id))),
         )
     ]),
+    # -----------------------------------------------------------------------
+    # K29: realistic paper, each class on a route of its own
+    # -----------------------------------------------------------------------
+    ("Report-Limits-Paper-Classes", [
+        RunPlan("Glossy photo paper with optical brighteners: one patch far "
+                "out, then back.",
+                CHART_MEDIUM, CHART_MEDIUM, "chromiq_default", PAPER_GLOSSY,
+                paper_class="glossy_oba", unlocked=True, lock="unlocked"),
+        RunPlan("Baryta, on the A3 chart, judged with ChromIQ tight in a "
+                "Colour summary: the averages drift, then recover.",
+                CHART_SMALL, CHART_WIDE, "chromiq_tight", PAPER_BARYTA,
+                paper_class="baryta", report_type=REPORT_TYPE_SUMMARY,
+                unlocked=True, lock="unlocked"),
+        RunPlan("Matte cotton rag, judged with Quick check in a Grey and tone "
+                "check: a grey cast, then corrected.",
+                CHART_MEDIUM, CHART_MEDIUM, "chromiq_quick", PAPER_RAG,
+                paper_class="matte_rag", report_type=REPORT_TYPE_GREY,
+                unlocked=True, lock="unlocked"),
+        RunPlan("Uncoated office paper, an i1Pro chart layout, the Custom "
+                "ISO 12647-7 column, and no record of how the sheets were "
+                "printed, so they are judged in absolute Lab.",
+                CHART_SMALL_I1, CHART_SMALL_I1, "custom_iso_12647_7",
+                PAPER_OFFICE, paper_class="office", print_colour="none",
+                unlocked=True, lock="unlocked",
+                note="The limits of this column are not edited by this "
+                     "package and must not be: they are placeholders under a "
+                     "permission condition, pinned by a test."),
+        RunPlan("Newsprint-like paper, measured once.",
+                CHART_MEDIUM, CHART_MEDIUM, "chromiq_default", PAPER_NEWS,
+                paper_class="newsprint", lock="one-date"),
+        RunPlan("A From Profile Gamut chart on brightened glossy paper, the "
+                "paper white isolated by this run's own edited column.",
+                CHART_MEDIUM, CHART_GAMUT_SMALL, "chromiq_default",
+                PAPER_GAMUT_WHITE, paper_class="glossy_oba",
+                unlocked=True, lock="unlocked", expect_strip_p95=False,
+                edited_limits=fill_limits(
+                    "chromiq_default", relax=RELAX_ALL,
+                    keep=("substrate_de00_max",))),
+    ]),
+    # -----------------------------------------------------------------------
+    # K29: exactly on a limit, one thousandth over, one thousandth under
+    # -----------------------------------------------------------------------
+    ("Report-Limits-Border-Values", [
+        RunPlan("'All patches, largest' on ChromIQ default's 3.0: on it, over "
+                "it, under it.",
+                CHART_MEDIUM, CHART_MEDIUM, "chromiq_default",
+                BORDER_DEFAULT_MAX),
+        RunPlan("'All patches, largest' on ChromIQ tight's 1.5, on the A3 "
+                "chart.",
+                CHART_SMALL, CHART_WIDE, "chromiq_tight", BORDER_TIGHT_MAX,
+                paper_class="baryta"),
+        # NOT THE SMALL CHART, measured: 55 of its 105 colours are in gamut,
+        # so its worst 5 % is two patches and a 6.0 peak alone takes that
+        # average over Quick check's 4.0.
+        RunPlan("'All patches, largest' on Quick check's 6.0, on matte rag.",
+                CHART_SMALL, CHART_MEDIUM, "chromiq_quick", BORDER_QUICK_MAX,
+                paper_class="matte_rag"),
+        RunPlan("'Best 95 % of patches, average' on 2.0, isolated by this "
+                "run's own edited column, on the five-page chart.",
+                CHART_MEDIUM, CHART_LARGE, "chromiq_default", BORDER_BEST95,
+                edited_limits=fill_limits(
+                    "chromiq_default", relax=RELAX_ALL,
+                    keep=("best95_de00_avg",))),
+    ]),
+    # -----------------------------------------------------------------------
+    # K29: a second route for every cell of Knut's matrix
+    # -----------------------------------------------------------------------
+    ("Report-Limits-Second-Route", [
+        plan
+        for set_id in MATRIX_SETS
+        for plan in (
+            RunPlan(f"{_SET_WORD[set_id]} again, on the A3 chart and "
+                    f"{PAPER_CLASSES[_SECOND_PAPER[set_id][0]].name.lower()}: "
+                    f"every row over on one date, inside on the next.",
+                    CHART_SMALL, CHART_WIDE, set_id,
+                    _second_route(set_id, "ordinary"),
+                    paper_class=_SECOND_PAPER[set_id][0],
+                    unlocked=True, lock="unlocked",
+                    edited_limits=(None if set_id.startswith("custom_")
+                                   else fill_limits(set_id))),
+            RunPlan(f"{_SET_WORD[set_id]} again, on a smaller From Profile "
+                    f"Gamut chart and "
+                    f"{PAPER_CLASSES[_SECOND_PAPER[set_id][1]].name.lower()}.",
+                    CHART_SMALL, CHART_GAMUT_SMALL, set_id,
+                    _second_route(set_id, "gamut"),
+                    paper_class=_SECOND_PAPER[set_id][1],
+                    unlocked=True, lock="unlocked", expect_strip_p95=False,
+                    edited_limits=(None if set_id.startswith("custom_")
+                                   else fill_limits(set_id))),
+        )
+    ]),
+    # -----------------------------------------------------------------------
+    # K29: a project renamed after a report across projects was written
+    # -----------------------------------------------------------------------
+    (RENAMED_PROJECT, [
+        RunPlan(f"Built as {RENAMED_FROM} and renamed with ChromIQ's own "
+                f"rename. A report across this project and "
+                f"Report-Limits-Paper-Classes, written under the old name, "
+                f"lives in the pack's own reports folder.",
+                CHART_SMALL, CHART_MEDIUM, "chromiq_default", RENAMED_DATES,
+                unlocked=True, lock="unlocked"),
+    ]),
 ]
 
 
@@ -3921,11 +4427,16 @@ def build_project(dest: Path, name: str, plans: "list[RunPlan]",
                   lock_rows: "list[dict] | None" = None) -> Path:
     from core.file_manager import Project
     from workflow.run_compliance import is_locked, measured_dates
-    root = dest / name
-    if root.exists():
-        shutil.rmtree(root)
-    print(f"== {name}")
-    proj = Project.create(root, name)
+    # THE RENAMED PROJECT IS BUILT UNDER ITS FORMER NAME (K29); `main` renames
+    # it once a report across projects has been written under that name.
+    build_name = RENAMED_FROM if name == RENAMED_PROJECT else name
+    for stale in {dest / name, dest / build_name}:
+        if stale.exists():
+            shutil.rmtree(stale)
+    root = dest / build_name
+    print(f"== {name}" + (f" (built as {build_name})" if build_name != name
+                          else ""))
+    proj = Project.create(root, build_name)
     run = proj.current_run()
     for i, plan in enumerate(plans):
         if i:
@@ -4143,6 +4654,16 @@ def _has_verdict(raw: bytes) -> bool:
     return bool(rec and rec.get("rows"))
 
 
+def _misses(r: dict) -> bool:
+    """A date that did not do what it was designed to: a different set of
+    crossed rows, or a border date (K29) that did not save its number."""
+    if sorted(r["intended"]) != sorted(r["actual"]):
+        return True
+    b = r.get("border")
+    return bool(b) and (b["got"] is None
+                        or abs(float(b["got"]) - float(b["want"])) > 1e-9)
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--verify", default="",
@@ -4239,6 +4760,8 @@ def main(argv=None) -> int:
         # #182 beta 39: the calibrations and their reports, after the
         # shared `reports/` above has been emptied and refilled.
         CAL_MANIFEST[:] = seed_calibrations(dest)
+    # K29: the renamed project, after the shared reports/ has been refilled.
+    RENAMED_MANIFEST[:] = seed_renamed(dest)
     shutil.rmtree(cache_root, ignore_errors=True)
 
     # THE DEMO PRESETS (#182, Knut 2026-09-19), built by their own generator.
@@ -4255,13 +4778,13 @@ def main(argv=None) -> int:
 
     if args.only:
         bad = [r for r in results
-               if sorted(r["intended"]) != sorted(r["actual"])]
+               if _misses(r)]
         print(f"\n--only: {len(results)} dated verifications, "
               f"{len(results) - len(bad)} matching their design. No README, "
               f"no coverage: this is not a pack.")
         for r in bad:
             print(f"  MISMATCH {r['project']}/{r['run']}/{r['date']}: "
-                  f"intended {r['intended']} actual {r['actual']}")
+                  f"intended {r['intended']} actual {r['actual']} border {r.get('border')}")
         return 1 if (bad or SURVEY_FAULTS) else 0
 
     cov = coverage(dest, results)
@@ -4272,12 +4795,12 @@ def main(argv=None) -> int:
     if args.report:
         Path(args.report).write_text(json.dumps(results, indent=2), encoding="utf-8")
 
-    bad = [r for r in results if sorted(r["intended"]) != sorted(r["actual"])]
+    bad = [r for r in results if _misses(r)]
     print(f"\n{len(results)} dated verifications, "
           f"{len(results) - len(bad)} matching their design.")
     for r in bad:
         print(f"  MISMATCH {r['project']}/{r['run']}/{r['date']}: "
-              f"intended {r['intended']} actual {r['actual']}")
+              f"intended {r['intended']} actual {r['actual']} border {r.get('border')}")
 
     # AND THE COVERAGE CLAIM, which is the one the package was reported for.
     # Matching a design says every date crossed the row it meant to; it says
@@ -4554,6 +5077,13 @@ def paper_white_lines(results: list) -> "list[str]":
                        f"chart's white cube corner, put on the chart's own aim "
                        f"and moved toward yellow by the date's designed paper "
                        f"difference: {seen}.")
+        elif r.get("paper", "default") != "default" and all(
+                max(abs(x - p) for x, p in zip(k, r["paper_lab"])) <= 0.1
+                for k in labs):
+            pc = PAPER_CLASSES[r["paper"]]
+            out.append(f"{key}: printed on {pc.name.lower()}, "
+                       f"{pc.lab[0]:.1f} / {pc.lab[1]:.1f} / {pc.lab[2]:.1f} "
+                       f"(within 0.1), on every date: {seen}.")
         elif all(max(abs(x - p) for x, p in zip(k, PAPER_LAB)) <= 0.1
                  for k in labs):
             same += 1
@@ -5257,7 +5787,12 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("1. DOWNLOAD this folder as the zip attached to the beta release, unzip")
     a("   it anywhere, and point ChromIQ at it: open ChromIQ Preferences,")
     a("   Paths, and set 'Default output folder' to the unzipped folder.")
-    a(f"   All {_WORDS.get(len(PROJECTS), len(PROJECTS))} "
+    # COUNTED ON THE DISK (K29): the release package puts the evenness and
+    # notes projects beside these, and "all fifteen" beside seventeen folders
+    # is a README contradicting its own download.
+    _n = sum(1 for p in dest.iterdir() if (p / "project.json").is_file()) \
+        if dest is not None and dest.is_dir() else len(PROJECTS)
+    a(f"   All {_WORDS.get(_n, _n)} "
       f"projects then appear in the project")
     a("   list. Nothing inside a project names a folder on the machine that")
     a("   built it, so it opens the same wherever it lands.")
@@ -6054,6 +6589,17 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
         a("")
         a("Add another project's cal/<name>-cal.ti3 with \"Add Profile's")
         a("Measurements...\" and \"Report shown\" is grouped by project.")
+        a("")
+    if RENAMED_MANIFEST:
+        a("")
+        a("A RENAMED PROJECT (#182 K29)")
+        a("----------------------------")
+        a("")
+        lines.extend(RENAMED_MANIFEST)
+        a("")
+        a("Open Report-Limits-Renamed/run1 in the report window: the report")
+        a("across both projects must be listed under \"Reports including")
+        a("multiple projects\", although it names the project's old folder.")
         a("")
     return "\n".join(lines) + "\n"
 

@@ -25,10 +25,12 @@ can, beside the pack, so the rows can be driven on screen:
   26 rows, with the i1Pro's 26 mm clip border and its 38 mm top its patches
   cover 68.4 % of the page. Under the first 75 % floor both rows read N-A;
   since Knut lowered the floor to 60 % (5792912682) the page is counted and
-  both rows are judged;
+  both rows are judged: evenly printed, with the drift, and with the blotch
+  (#182 K29, so each row is tripped on more than one chart);
 * **run5** (#182 E4, beta 38), Knut's 308-patch i1Pro 3 Plus A4 preset on two
   pages, 11 strips by 14 rows each, 65.3 % of each page covered: Knut's
-  multi-page case, judged at 60 %;
+  multi-page case, judged at 60 %, evenly printed, with the drift and with
+  the blotch;
 * **run6** (#182 E2 at 60 %), the 312-patch i1Pro A4 preset that fills the
   left half of the page: 12 strips by 26 rows, its patches cover 37.3 % of
   the page, so both rows N-A with the coverage note ("at least 60 % is
@@ -129,11 +131,20 @@ DATES_LARGE = [
 DATES_SMALL = [
     ("2026-10-01_110000", "2026-10-01T11:00:00", "even", _even),
 ]
+#: #182 K29: the drift and the blotch AGAIN, on two charts other than run1's,
+#: so each evenness row is tripped from more than one chart (a 22 by 26 i1Pro
+#: page, and the i1Pro 3 Plus on two pages) and not only on the 837-patch one.
 DATES_572 = [
     ("2026-10-01_120000", "2026-10-01T12:00:00", "even", _even),
+    ("2026-10-08_120000", "2026-10-08T12:00:00", "drift across the strips",
+     _drift),
+    ("2026-10-15_120000", "2026-10-15T12:00:00", "one area lighter", _blotch),
 ]
 DATES_P3 = [
     ("2026-10-01_130000", "2026-10-01T13:00:00", "even", _even),
+    ("2026-10-08_130000", "2026-10-08T13:00:00", "drift across the strips",
+     _drift),
+    ("2026-10-15_130000", "2026-10-15T13:00:00", "one area lighter", _blotch),
 ]
 DATES_UNCOVERED = [
     ("2026-10-01_140000", "2026-10-01T14:00:00", "even", _even),

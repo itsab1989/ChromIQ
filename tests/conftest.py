@@ -660,7 +660,10 @@ _STALE_AFTER_HOURS = 1
 
 #: Never swept, whatever its age: rebuilding it costs about four minutes per
 #: gate, which is the whole reason it exists.
-_KEEP_FOREVER = ("chromiq-demo-projects-cache",)
+_KEEP_FOREVER = ("chromiq-demo-projects-cache",
+                 # the release demo package (#182 K29), about four minutes to
+                 # build; `test_the_release_demo_package` keeps ONE key in it
+                 "chromiq-release-demo-cache")
 
 
 def _folder_size(folder: pathlib.Path) -> int:
