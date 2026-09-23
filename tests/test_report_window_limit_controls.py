@@ -313,9 +313,12 @@ def test_the_words_reach_the_grid_and_the_pdf_body(qapp, tmp_path):
         import html as _html
         plain = _html.unescape(body)
         assert plain.count("conforms") == 0
-        # …and the fact the denial protected is still stated, positively
+        # …and the fact the denial protected is stated where it applies: in
+        # a report judged against a standard's set. This one is judged
+        # against ChromIQ default, so it does not carry that paragraph, and
+        # does not point at a note it does not have (R2 of beta 39, #2).
         assert ("rather than to that standard's own chart and control strip"
-                in plain)
+                not in plain)
         # W5: one bullet per word, not one paragraph carrying all five
         for word in ("PASS:", "FAIL:", "COND (short for conditional):",
                      "INFO:", "N-A (not applicable):"):

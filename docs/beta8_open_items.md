@@ -26859,3 +26859,56 @@ would reach.
 - evidence: test_the_false_sentence_is_gone, test_the_false_sentence_is_gone_in_german_too, test_the_new_help_says_it, test_the_pairing_help_matches_the_shipped_ramp_limits
 - tests: tests/test_beta39_help_texts_are_true.py (23 false phrases gone in EN and de.json, the new phrases present and translated, the ramp sentence measured against the shipped sets); tests/test_the_report_words_say_what_the_code_does.py (two COND strings re-pinned)
 - proof: ~/Desktop/ChromIQ-beta39-proof/help-fixes/ (drive-en, drive-de: every changed help icon and card opened on screen and photographed; results.json)
+
+### B8-911 · FIXED, awaiting confirmation · The run-delete refusal said it had tried to remove the reports folder, and had no headline (re-challenge R2, #1)
+- blocks release: no
+- status: FIXED
+- note: R2-fix, beta 39; new §M-PROPOSED message M-RUN-DELETE-REPORTS-LOCKED (wording ours, waits for review)
+- found by: re-challenge R2 of beta 39 (#1, MAJOR; de-R/M6-then).
+- cause: `delete_run` raised `DeleteFailed(reason=…)` and the bar's handler put "This is what ChromIQ tried to remove:" over every path it carried, including `<project>/reports`, which ChromIQ never tried to remove: it holds the reports it would have had to CHANGE. The window had no headline and the text was not in §M.
+- fixed: `DeleteFailed.message` carries a whole §M message; `delete_run` renders M-RUN-DELETE-REPORTS-LOCKED (headline "Profile run {n} was not deleted" / "Profillauf {n} wurde nicht gelöscht", the folders under "ChromIQ is not allowed to change the reports in these folders:" / "in this folder:", singular by count) and `_on_delete_clicked` shows it headline first with no list heading of its own.
+- tests: tests/test_r2_text_fixes.py
+- evidence: test_r2_1_the_refusal_is_a_message_with_a_headline, test_r2_1_several_folders_read_as_several, test_r2_1_the_bar_shows_the_message_without_the_remove_heading, test_r2_1_the_refusal_is_in_the_german_catalogue_by_hand
+- proof: ~/Desktop/ChromIQ-beta39-proof/rechallenge-R2-fixes/en-all/photographs/M6-then.png, de-m/photographs/M6-then.png
+
+### B8-912 · FIXED, awaiting confirmation · The ISO verdict note and "How to read" made a hedged conformance claim and a stale one; the report glossary spoke about ChromIQ (re-challenge R2, #2 and #20)
+- blocks release: no
+- status: FIXED
+- note: R2-fix, beta 39; changes wording Knut asked for (§11 and §19.1 of measurement_report_limits.md), recorded there as awaiting confirmation
+- found by: re-challenge R2 of beta 39 (#2 MAJOR, #20).
+- cause: `STANDARD_CAVEAT` said the limits "may differ from that standard's published values", false of a read-only ISO column since §23, and that a pass indicates "the print would likely meet the standard", a hedged conformance claim in customer text; the "How to read" copy was printed in every graded report, pointing at a note only a standard's column carries. The glossary said "Where the report can tell (it asks the run's profile)", closed a paragraph with a tip about another check, and printed the profile's chain in calibration reports.
+- fixed: both caveat halves state what was judged against what ("… A PASS means that the measured values are inside these limits. It is not proof that the print meets the standard, and where these limits are wider than the standard's own it says nothing about the standard."); `_how_to_read_html(standard=, split=, calibration=)`: the standard's paragraph only where `_names_a_standard` holds for a column, the gamut paragraph and its within-gamut sentence only where a sheet was split, a calibration's chain without the profile and without "one profile holds up over time", and no tip.
+- tests: tests/test_r2_text_fixes.py, tests/test_a_saved_pass_under_a_standard_is_never_bare.py, tests/test_a_custom_column_is_not_a_standards_column.py
+- evidence: test_r2_2_the_caveat_makes_no_conformance_claim_and_no_stale_one, test_r2_2_the_how_to_read_paragraph_only_where_a_standard_is_named, test_r2_2_the_guide_asks_the_same_question_as_the_note, test_r2_20_the_glossary_speaks_about_the_report
+- proof: ~/Desktop/ChromIQ-beta39-proof/rechallenge-R2-fixes/en-all/pdfs/ and de-a/pdfs/ (I4 carries the paragraph and the note, V3 and C2/C4 carry neither).
+
+### B8-913 · FIXED, awaiting confirmation · Counts, remedies and a cut-off reason in the report window (re-challenge R2, #7, #8, #9, #10, #14, #15)
+- blocks release: no
+- status: FIXED
+- note: R2-fix, beta 39; M-REPORT-NOT-WRITABLE and M-REPORT-DELETE-FAILED revised in §M-PROPOSED
+- found by: re-challenge R2 of beta 39.
+- fixed: M-REPORT-NOT-WRITABLE "that folder" / "those folders" by count (#7); M-REPORT-DELETE-FAILED's `{remedy}` (`report_delete_remedy`) names the project only for a report inside one, and for a report beside the projects names the folder that holds them (#8); the Calibration greyed reason "Untick it" / "{n} measurements of profile runs are ticked. Untick them" (#9); the greyed-Generate reason on its own full-width row under the buttons, shown whole and wrapped (#10); a calibration report's running header counts "{n} measurements" / "{n} Messungen" (#14); every list header in Included Measurements counts measurements (#15).
+- tests: tests/test_r2_text_fixes.py
+- evidence: test_r2_7_not_writable_follows_the_number_of_folders, test_r2_8_the_delete_remedy_names_the_project_only_inside_one, test_r2_8_the_window_passes_the_remedy, test_r2_9_the_calibration_reason_counts_what_is_ticked, test_r2_10_the_reason_is_never_shortened, test_r2_10_the_reason_has_a_row_of_its_own, test_r2_14_a_calibration_header_counts_measurements, test_r2_15_the_list_header_counts_measurements
+- proof: ~/Desktop/ChromIQ-beta39-proof/rechallenge-R2-fixes/en-all and de-a (G3/G5-why-default/minimum, M4-update-readonly-then, M5-delete-readonly-then), en-x and de-a (X2-delete-across-then).
+
+### B8-914 · FIXED, awaiting confirmation · A blank PDF page and a heading alone at a page foot (re-challenge R2, #12, #13)
+- blocks release: no
+- status: FIXED
+- note: R2-fix, beta 39
+- found by: re-challenge R2 of beta 39 (German calibration report across two projects, page 7 of 8 blank; German ISO 12647-8 report, "Zur Information (es gilt kein Grenzwert)" and "Papierweiß & dunkelstes Schwarz" at the foot of page 9).
+- cause: the report ran only `paginate_tables`, which keeps a heading with a TABLE; headings over lines of text were never kept with them. And the last trend graph's spacer spilled onto a page of its own in front of the next section's forced break.
+- fixed: `_export_pdf` runs `avoid_orphan_headings` (the help cards' rule) and then `ui.pdf_layout.no_blank_page_before_a_break`, which moves such a break onto the spilled spacer.
+- tests: tests/test_r2_text_fixes.py
+- evidence: test_r2_12_a_spacer_before_a_forced_break_takes_no_sheet, test_r2_12_and_13_the_report_pdf_applies_both_rules, test_r2_13_a_heading_over_lines_follows_them_overleaf
+- proof: ~/Desktop/ChromIQ-beta39-proof/rechallenge-R2-fixes/de-a/pdfs/ (every page rendered and read).
+
+### B8-915 · FIXED, awaiting confirmation · German "Lauf", German term splits and grammar, awkward English, and developer notes in the demo README (re-challenge R2, #16 to #19, #21)
+- blocks release: no
+- status: FIXED
+- note: R2-fix, beta 39; help texts (Dictionary, file guide, Custom paragraph, pairing help) left to the help-fix agent, listed in the hand-back
+- found by: re-challenge R2 of beta 39.
+- fixed: the run-delete windows, the M-REPORT-UPDATE-NOT-FOUND / -LEAVES-OUT line, "Für diesen Lauf bereits erzeugt", "Standard für neue Läufe" and the two row texts that said "eines Runs" / "des Runs" say Lauf / Profillauf; "nummeriert", "Nach dieser Löschung gilt: Lauf 2 wird zu Lauf 1"; report text uses Zielwert, Messfeld and Bogen (Bogen 36, Blatt 24 in the report's strings); the control-strip and repeat-patch blurbs rewritten in English; "um die geänderte Tabelle zu sehen"; the demo README drops issue and comment ids, ruling codes, script paths, the build recipe and "seen on screen" (`for_the_reader`, checked by `developer_notes_in`).
+- tests: tests/test_r2_text_fixes.py, tests/test_the_release_demo_package.py
+- evidence: test_r2_16_the_run_delete_windows_say_lauf, test_r2_16_the_photographed_lines_say_lauf, test_r2_16_no_english_run_in_german_text_changed_since_ae4d79e6, test_r2_16_the_renumbering_sentence_has_german_word_order, test_r2_17_report_text_uses_one_word_each, test_r2_19_the_english_reads_as_english, test_r2_21_the_reader_filter_takes_the_developer_references_out, test_r2_21_the_package_readme_carries_no_developer_note
+- proof: ~/Desktop/ChromIQ-beta39-proof/rechallenge-R2-fixes/README-built.txt (package built and `--verify` complete, pkg-build.log), de-m/photographs/M6-delete-run1-q.png.

@@ -413,7 +413,7 @@ def test_delete_in_a_read_only_folder_moves_nothing_and_says_why(
         dlg.close()
     assert _snapshot(tmp_path) == before
     assert not (tmp_path / "old").exists()
-    title = M.CATALOGUE["M-REPORT-DELETE-FAILED"].render(folder="")[0]
+    title = M.CATALOGUE["M-REPORT-DELETE-FAILED"].render(folder="", remedy="")[0]
     hits = [x for k, t, x in said if t == title]
     assert hits and str(ro) in hits[0], said
     assert not any("Errno" in x for _k, _t, x in said), said

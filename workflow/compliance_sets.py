@@ -580,12 +580,12 @@ ROWS: "tuple[Row, ...]" = (
     # -- Control strip
     Row("control_strip_de00_avg", "control_strip",
         "Control-strip patches, average", "ΔE00", "build",
-        blurb='The average colour error over the control strip the test chart used declares: the run of patches a press or a proof is checked on.',
+        blurb='The average colour error over the patches of the control strip on the test chart used: the run of patches a press or a proof is checked on.',
         detect=_D_CONTROL_STRIP,
         remedy=_R_CONTROL_STRIP),
     Row("control_strip_de00_max", "control_strip",
         "Control-strip patches, largest", "ΔE00", "build",
-        blurb='The worst single patch of that declared strip.',
+        blurb='The worst single patch of that control strip.',
         detect=_D_CONTROL_STRIP,
         remedy=_R_CONTROL_STRIP),
     Row("control_strip_de00_p95", "control_strip",
@@ -676,7 +676,7 @@ ROWS: "tuple[Row, ...]" = (
     # a document that does not contain them.
     Row("repeat_patches_de00_max", "repeatability",
         "Repeat patches on one sheet, largest difference", "ΔE00", "build",
-        blurb='How far apart the same colour landed where the test chart used asked for it more than once on one sheet. No profile and no aim value is in this number: the patches were asked for the same thing, so what separates them is the printer and the instrument together.',
+        blurb='How far apart the patches of one colour landed where that colour appears more than once on one sheet of the test chart used. No profile and no aim value is in this number: the patches were asked for the same thing, so what separates them is the printer and the instrument together.',
         detect=_D_REPEAT_WITHIN,
         remedy=_R_REPEAT_WITHIN),
     Row("repeat_measurement_de00_max", "repeatability",
@@ -1897,16 +1897,29 @@ def row_verdict(limit: Limit, value: "float | None", graded: bool) -> "str | Non
 #: only one to keep true. `tr()` is a whole-string lookup, so a sentence
 #: sliced out of a longer key at runtime would reach every language as
 #: English; each half is its own key.
-STANDARD_CAVEAT_APPLIED = ("This limit set is named after a standard, and its "
-                           "limits may differ from that standard's published "
-                           "values. It is not a test against that standard: "
-                           "the printed test chart is not the standard's "
-                           "chart, and the metrics are ChromIQ's own rather "
-                           "than the standard's methods.")
-STANDARD_CAVEAT_PROOF = ("A result inside these limits is an indication that "
-                         "the print would likely meet the standard, not proof "
-                         "that it does, and only as far as these limits are "
-                         "within the standard's own.")
+#:
+#: **WHAT WAS JUDGED, AGAINST WHAT, AND NO CONFORMANCE CLAIM (re-challenge R2
+#: of beta 39, #2).** The first half said the limits "may differ from that
+#: standard's published values"; since §23 the read-only ISO columns HOLD
+#: those values, so in the one state where a read-only ISO column prints this
+#: note the sentence was false. The second half said a result inside the
+#: limits indicates that "the print would likely meet the standard", which is
+#: a hedged conformance claim in text handed to a customer (K18), beside a
+#: Report limits window that says a report can never say a print conforms.
+#: Both halves now state what the report did: the values measured on the
+#: printed test chart were compared with this set's limits. Knut's "not proof"
+#: and "as long as the limits stay within the standard's" (K18, §19.1) stay.
+STANDARD_CAVEAT_APPLIED = ("This limit set is named after a standard. Its "
+                           "limits were applied to the values measured on the "
+                           "printed test chart with ChromIQ's own metrics, "
+                           "not to that standard's own chart and control "
+                           "strip with its own methods, so this is not a test "
+                           "against that standard.")
+STANDARD_CAVEAT_PROOF = ("A PASS means that the measured values are inside "
+                         "these limits. It is not proof that the print meets "
+                         "the standard, and where these limits are wider "
+                         "than the standard's own it says nothing about the "
+                         "standard.")
 #: The whole note, for the report types that have room for it. NOT a catalogue
 #: key itself: `tr()` is applied to each half and the two are joined, or the
 #: join would reach every language as English.

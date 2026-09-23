@@ -193,6 +193,11 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  "M-REPORT-UPDATE-NOTHING-LEFT",
                                  "M-REPORT-DELETE-FAILED",
                                  "M-REPORT-NOT-WRITABLE",
+                                 # Re-challenge R2 of beta 39: the run-delete
+                                 # refusal about reports it cannot renumber
+                                 # had no headline and a list heading that
+                                 # was false. Our words.
+                                 "M-RUN-DELETE-REPORTS-LOCKED",
                                  # #182, 2026-09-19: Knut overruled his own
                                  # K.1 ("Generate report always creates a new
                                  # report"). Pressed with a report selected and

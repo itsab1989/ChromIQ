@@ -131,9 +131,10 @@ def test_the_caveat_says_it_is_not_proof():
     reader has.
     """
     from workflow.compliance_sets import STANDARD_CAVEAT
-    for phrase in ("not the standard's chart",
-                   "ChromIQ's own rather than the standard's methods",
-                   "not proof that it does"):
+    # R2 of beta 39 (#2): the same three facts, stated as what was judged.
+    for phrase in ("not to that standard's own chart and control strip",
+                   "with ChromIQ's own metrics",
+                   "It is not proof that the print meets the standard"):
         assert phrase in STANDARD_CAVEAT, (
             f"the caveat no longer says {phrase!r}, and it is now the only "
             f"place the qualification appears"

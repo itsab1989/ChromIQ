@@ -306,7 +306,9 @@ def test_the_audit_batch_texts_are_in_the_report(qapp, tmp_path, monkeypatch):
         # ruled in beta 20 that the report is a document printed for someone
         # who has never seen the window, and a menu path is not something they
         # can follow. The fact it carried survives, the route does not.
-        assert "profile on its own is a separate check" in how
+        # R2 of beta 39 (#20): and not the tip about a separate check
+        # either, which was advice about another ChromIQ tool (K18).
+        assert "Judging the profile on its own" not in how
         assert "not a fair measure for ranking papers or printers" in how
         assert "whole chain in one number" in how
     finally:

@@ -2034,7 +2034,13 @@ class MeasurementTargetBar(QWidget):
             box = QMessageBox(self)
             box.setIcon(QMessageBox.Icon.NoIcon)
             box.setWindowTitle(tr("Could not delete everything"))
-            if getattr(exc, "reason", ""):
+            if getattr(exc, "message", None):
+                # A §M MESSAGE OF ITS OWN (re-challenge R2, #1): headline
+                # first, as the confirmation above it has, and no list
+                # heading, because its folders were never to be removed.
+                box.setWindowTitle(exc.message[0])
+                box.setText(exc.message[0] + "\n\n" + exc.message[1])
+            elif getattr(exc, "reason", ""):
                 box.setText(exc.reason + "\n\n"
                             + tr("This is what ChromIQ tried to remove:")
                             + "\n\n" + "\n".join(exc.paths))

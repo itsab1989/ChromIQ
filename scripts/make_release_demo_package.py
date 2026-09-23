@@ -401,6 +401,9 @@ MESSAGE_DEMOS: "dict[str, list[str]]" = {
     "M-REPORT-NOT-WRITABLE": [
         "Report-Limits-Report-Folders/run1: make verifications/reports read-only, then Update the 2026-12-21 09:30 report",
     ],
+    "M-RUN-DELETE-REPORTS-LOCKED": [
+        "Report-Limits-Report-Folders: make its reports/ folder read-only, then delete profile run 1 from the bar",
+    ],
     "M-VERIFY-PREFLIGHT": [
         "Report-Limits-Evenness/run3: Measure tab, Run type Verification, before the first measurement",
     ],
@@ -850,10 +853,10 @@ PROJECT_PURPOSE = {
     "Report-Limits-Profile-Gamut": "a From Profile Gamut chart: paper white, solids, CMY hue",
     "Report-Limits-Strip-And-Gamut": "the control strip, the surface of the cube, the most saturated quarter",
     "Report-Limits-Every-Limit-Set": "every judgeable row against every selectable limit set, first route",
-    "Report-Limits-Paper-Classes": "five real paper classes, each on its own route (K29)",
-    "Report-Limits-Border-Values": "exactly on a limit, 0.001 over, 0.001 under, on four rows and sets (K29)",
-    "Report-Limits-Second-Route": "every cell of the limit-set matrix again, on a different chart and paper (K29)",
-    "Report-Limits-Renamed": "a project renamed after a report across projects was written (K29)",
+    "Report-Limits-Paper-Classes": "five real paper classes, each on its own route",
+    "Report-Limits-Border-Values": "exactly on a limit, 0.001 over, 0.001 under, on four rows and sets",
+    "Report-Limits-Second-Route": "every cell of the limit-set matrix again, on a different chart and paper",
+    "Report-Limits-Renamed": "a project renamed after a report across projects was written",
     "Report-Limits-Evenness": "evenness across the sheet: judged, too small, too noisy, too little of the page",
     "Report-Notes-Every-Reason": "every reason a row can read N-A, and older report shapes",
 }
@@ -872,7 +875,7 @@ def package_readme(m: dict, limit_readme: str, notes_lines: "list[str]",
     a("Projects to try every part of ChromIQ's Measurement Report without a")
     a("printer or an instrument: every limit, every metric, every verdict word,")
     a("every reason a row can read N-A, every report type and every place a")
-    a("report lives, each from more than one side (#182, Knut 5795310999).")
+    a("report lives, each from more than one side.")
     a("")
     a("HOW TO USE IT")
     a("")
@@ -898,8 +901,9 @@ def package_readme(m: dict, limit_readme: str, notes_lines: "list[str]",
     a("")
     a("THE PAPERS")
     a("")
-    a("Five classes of real paper, each a round, typical paper white under D50.")
-    a("The value is ours; the fact it rests on is published, and named:")
+    a("Five classes of real paper, each with a typical paper white under D50,")
+    a("rounded. The values are ours; the fact each rests on is published, and")
+    a("named:")
     a("")
     for p in m["papers"]:
         a(f"  {p['name']}")
@@ -913,7 +917,7 @@ def package_readme(m: dict, limit_readme: str, notes_lines: "list[str]",
         a("")
     a("A run's profile is built from a sheet printed on its paper, so the paper")
     a("white its profiling sheet and every sheet printed through the profile")
-    a("record is that paper's (seen on screen: 96.0 on the glossy paper, 94.5")
+    a("record is that paper's (for example 96.0 on the glossy paper, 94.5")
     a("on the rag). Two kinds of sheet do NOT show the class, and say so: a")
     a("sheet judged in absolute Lab (its printing not recorded), and a From")
     a("Profile Gamut chart. On both, every patch, the paper included, is put at")
@@ -960,7 +964,44 @@ def package_readme(m: dict, limit_readme: str, notes_lines: "list[str]",
     a("")
     L.extend(notes_lines)
     a("")
-    return "\n".join(L) + "\n"
+    return for_the_reader("\n".join(L) + "\n")
+
+
+#: Developer references a README handed to users must not carry
+#: (re-challenge R2 of beta 39, #21): issue and comment numbers, the design
+#: record's ruling codes, and how a driver saw something. The generators'
+#: own docstrings keep them; the reader's copy does not.
+_REF = (r"(?:#\d+|K\d+|E\d+(?: at 60 %)?|beta \d+|B8-\d+|\d{10}"
+        r"|Knut(?:,)?(?: \d{4}-\d\d-\d\d| \d{10})?)")
+_DEV_PATTERNS = (
+    # a parenthesis that holds nothing but references goes, with its space
+    (r"[ \t]*\((?:%s)(?:[ ,]+%s)*\)" % (_REF, _REF), ""),
+    # references leading a parenthesis that says more: "(#182 K29, so ..."
+    (r"\((?:%s)(?:[ ,]+%s)*,\s*" % (_REF, _REF), "("),
+    # references closing one: "... (the drift, #182 K29)"
+    (r",\s*(?:%s)(?:[ ,]+%s)*\)" % (_REF, _REF), ")"),
+    # a bare ruling code leading a ruling: "Knut's E8 ruling"
+    (r"\b(Knut's) E\d+ (ruling)", r"\1 \2"),
+    # Python identifiers in backticks are the generator's, not the reader's
+    (r"\s*\(`[A-Z0-9_]+`, ", " ("),
+    (r"so the rows can be driven on screen", "so the rows can be seen judged"),
+)
+
+
+def for_the_reader(text: str) -> str:
+    """*text* with the developer references in `_DEV_PATTERNS` taken out."""
+    for pat, rep in _DEV_PATTERNS:
+        text = re.sub(pat, rep, text)
+    return text
+
+
+def developer_notes_in(text: str) -> "list[str]":
+    """Every line of *text* that still carries a developer reference: an
+    issue or comment number, a ruling code, a script path or a driver's
+    "seen on screen". Empty for a README fit to ship."""
+    bad = re.compile(r"#\d{2,}|\b\d{10}\b|\bK\d{1,2}\b|\bB8-\d+|scripts/"
+                     r"|\.py\b|seen on screen|\.venv")
+    return [ln for ln in text.splitlines() if bad.search(ln)]
 
 
 def _wrap(text: str, width: int) -> "list[str]":

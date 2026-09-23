@@ -40,7 +40,9 @@ def _guide(tmp_path):
     s, fm, ctl, run = _verify_env(tmp_path)
     dlg = MeasurementReportDialog(s, None)
     try:
-        return _html.unescape(dlg._how_to_read_html())
+        # A report judged against a standard's set: since R2 of beta 39 (#2)
+        # the paragraph about such a column is printed only there.
+        return _html.unescape(dlg._how_to_read_html(standard=True))
     finally:
         dlg.deleteLater()
 
@@ -53,7 +55,11 @@ def test_the_guide_separates_a_published_column_from_a_custom_one(tmp_path,
     # supplied figures, "yours to change"). What it keeps is the one claim
     # true of both kinds in every state: a column named after a standard may
     # not hold that standard's published values.
-    assert "Its limits may differ from the standard's published values" in g
+    # R2 of beta 39 (#2): "may differ" was false of a read-only ISO column
+    # once §23 ships its values; what is true of both kinds is what they were
+    # applied to.
+    assert "is judged against its limit set's limits" in g
+    assert "may differ from the standard's published values" not in g
     assert "holds that standard's published tolerance values" not in g
 
 
@@ -85,7 +91,7 @@ def test_every_clause_of_the_guide_survives_a_licence_holder(tmp_path, qapp):
     assert "cannot be chosen" not in g
     # What replaced them, since K18 (2026-09-23): a claim that is true
     # whether or not figures were supplied, and names no ChromIQ mechanism.
-    assert "may differ from the standard's published values" in g
+    assert "applied to the values measured on the printed test chart" in g
     assert "licence holder" not in g
 
 
@@ -177,7 +183,8 @@ def test_the_caveat_survives_the_correction(tmp_path, qapp):
     g = _guide(tmp_path)
     assert "printed test chart" in g       # K18: was "chart you printed"
     assert "control strip" in g
-    assert "not proof that it does" in g
+    assert "what that word does and does not mean" in g
+    assert "would likely meet" not in g
     assert "COND at best" not in g, (
         "the retired ISO cap is being taught again by the report's guide")
 

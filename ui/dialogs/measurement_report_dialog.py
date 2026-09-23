@@ -2449,14 +2449,13 @@ class MeasurementReportDialog(QDialog):
                "a reports folder and open any PDF you saved earlier."),
             self, color=SPEC_GREEN))
         #: Why Generate is greyed, when it is (C6): the button's own reason,
-        #: on screen, two lines at most.
+        #: on screen and whole, on its own row under the buttons.
         self._generate_why = QLabel(self)
         self._generate_why.setWordWrap(True)
         self._generate_why.setStyleSheet(_faint_label_css(
             resolve_mode(settings.get("appearance", "auto"))))
         self._generate_why.setVisible(False)
         self._generate_why_full = ""
-        actions_row.addWidget(self._generate_why, 10)
         actions_row.addStretch(1)
         # **THE TWO TICK BOXES RIDE WITH "REPORT TYPE" NOW (B8-460).** Knut,
         # beta.5, put them to the right of the buttons *"to save a bit of
@@ -2696,6 +2695,14 @@ class MeasurementReportDialog(QDialog):
         top_v.addLayout(shown_grid)
         top_v.addWidget(self._settings_box)
         top_v.addLayout(actions_row)
+        # **WHY GENERATE IS GREYED, ON A ROW OF ITS OWN (re-challenge R2 of
+        # beta 39, #10).** Beside the four buttons it had what was left of the
+        # row, which at the window's default width was room for four to six
+        # words; the German remedy never appeared at all, only in the tooltip.
+        # Under the buttons it has the window's whole width and wraps into as
+        # many lines as the sentence needs. A hidden label claims no space, so
+        # the row costs nothing while Generate is live.
+        top_v.addWidget(self._generate_why)
         #: Says the document is older than the settings. **ON ITS OWN ROW,
         #: DIRECTLY UNDER THE BUTTON IT NAMES.** Put inside `out_row` with a
         #: stretch, as it was first built, it competed with four buttons and a
@@ -4081,20 +4088,18 @@ class MeasurementReportDialog(QDialog):
             # buttons is about. See `_scale_label`.
             from ui.measurement_filing import the_colour_scale_tag
             _unticked = self._rows_drawn_unticked()
-            from workflow.measurement_report import is_calibration_dir
             for si, s in enumerate(self._sources):
                 n = len(s["runs"])
                 # A CALIBRATION HAS MEASUREMENTS, NOT RUNS (K30 leftover, as
                 # B10 put it for the report's Scope): "P-cal · 1 run" named a
-                # profile run that a calibration is not.
-                cal = bool(s["runs"]) and all(
-                    is_calibration_dir(str(r.get("_origin_dir") or ""))
-                    for r in s["runs"])
+                # profile run that a calibration is not. AND NEITHER DOES A
+                # LIST OF DATES (re-challenge R2 of beta 39, #15): the rows
+                # under this header are measurements, one per date, and
+                # "· 3 runs" stood above three dates of ONE run. So every
+                # header counts measurements.
                 self._profile_list.addItem(
                     f'{s["name"]}  ·  {n} '
-                    + ((tr("measurement") if n == 1 else tr("measurements"))
-                       if cal else
-                       (tr("run") if n == 1 else tr("runs")))
+                    + (tr("measurement") if n == 1 else tr("measurements"))
                     + (the_colour_scale_tag() if s.get("scale_note") else ""))
                 self._list_rows.append(("source", si, None))
                 # One checkable row per dated run: unticking leaves it out of
@@ -5906,7 +5911,8 @@ class MeasurementReportDialog(QDialog):
         elif failed and getattr(self, "_unwritable_folders", None):
             # WHICH FOLDER, AND WHAT TO DO (challenge C, beta 39, #8).
             warn(self, *M.CATALOGUE["M-REPORT-NOT-WRITABLE"].render(
-                folders="\n".join(self._unwritable_folders)))
+                folders="\n".join(self._unwritable_folders),
+                count=len(self._unwritable_folders)))
         elif failed:
             warn(self, tr("Report not generated"), tr(
                 "Nothing could be written. The log says why."))
@@ -6152,6 +6158,22 @@ class MeasurementReportDialog(QDialog):
         doc.setPageSize(QSizeF(page_w, body_h))
 
         _paginate_tables(doc, body_h)
+        # HEADINGS STAY WITH WHAT THEY HEAD, AND NO SHEET IS BLANK
+        # (re-challenge R2 of beta 39, #12 and #13). `_paginate_tables` keeps a
+        # heading with the TABLE under it; "For information (no limit
+        # applies)" and "Paper white & darkest black" head lines of text, and
+        # the German ISO 12647-8 report left both at the foot of page 9 with
+        # their lines overleaf. The rule the help cards already use takes
+        # them over together. Then a trend graph's spacer that spilled onto a
+        # page of its own in front of a forced break (page 7 of 8, blank, on
+        # the German calibration report across two projects) gives that break
+        # to the spacer instead. Tables are fitted again after any heading
+        # moved, since everything below it moved too.
+        from ui.pdf_layout import (avoid_orphan_headings,
+                                   no_blank_page_before_a_break)
+        if avoid_orphan_headings(doc, body_h):
+            _paginate_tables(doc, body_h)
+        no_blank_page_before_a_break(doc, body_h)
 
         units = self._scope_header_units(doc_runs)   # profile names + measurements/date
         head_font = QFont(); head_font.setPixelSize(8)
@@ -6252,13 +6274,25 @@ class MeasurementReportDialog(QDialog):
         # Listing every name gets unwieldy once there are many (e.g. a folder of
         # imported measurements); past a handful, drop the names and let the run
         # count + date range speak for the scope (Knut).
+        # A CALIBRATION HAS MEASUREMENTS, NOT RUNS (re-challenge R2 of beta
+        # 39, #14): the running header of a calibration report said
+        # "2 measurement runs" / "2 Messläufe" on every page, as the list
+        # header "P-cal · 1 run" once did (K30 leftover).
+        from workflow.measurement_report import is_calibration_dir
+        cal = bool(runs) and all(
+            is_calibration_dir(str(r.get("_origin_dir") or "")) for r in runs)
+        if cal:
+            count = (tr("{n} measurement").format(n=n) if n == 1
+                     else tr("{n} measurements").format(n=n))
+        else:
+            count = (tr("{n} measurement run").format(n=n) if n == 1
+                     else tr("{n} measurement runs").format(n=n))
         if len(names) <= 4:
             units = [nm + ("," if i < len(names) - 1 else "")
                      for i, nm in enumerate(names)]
-            units.append("  " + (tr("{n} measurement run").format(n=n) if n == 1
-                                  else tr("{n} measurement runs").format(n=n)))
+            units.append("  " + count)
         else:
-            units = [tr("{n} measurement runs").format(n=n)]
+            units = [count]
         units[-1] += f" ({d0} – {d1})"
         # Trailing space on the name units so they don't run together.
         return [(u + " ") if u.endswith(",") else u for u in units]
@@ -8169,13 +8203,12 @@ class MeasurementReportDialog(QDialog):
         self._wrap_beside_the_pulldown(self._saved_note, full)
 
     def _set_generate_why(self, full: str) -> None:
-        """Why Generate is greyed, on the button row, beside the buttons (C6).
+        """Why Generate is greyed, on its own row under the buttons (C6).
 
         The tooltip alone is a reason nobody sees until they hover over a
-        dead button. The row under the "Report settings" frame has room to
-        the right of its help button; the sentence is wrapped to two lines
-        there (`_wrap_beside_the_pulldown`, so the 800 px floor is kept) and
-        the whole of it stays in the tooltip.
+        dead button. It first sat beside the buttons, cut to two lines, and
+        that left four to six words of it on screen (re-challenge R2, #10);
+        it now has the window's width and is shown whole, wrapped.
         """
         self._generate_why_full = full or ""
         label = getattr(self, "_generate_why", None)
@@ -8186,8 +8219,14 @@ class MeasurementReportDialog(QDialog):
             label.setToolTip("")
             label.setVisible(False)
             return
+        # THE WHOLE SENTENCE, NEVER SHORTENED (re-challenge R2, #10): the
+        # label has its own full-width row now, so it wraps instead of being
+        # cut to two lines with an ellipsis.
+        label.setWordWrap(True)
+        label.setMaximumHeight(16777215)
+        label.setText(full)
+        label.setToolTip(full)
         label.setVisible(True)
-        self._wrap_beside_the_pulldown(label, full)
 
     def _set_saved_hint(self, full: str) -> None:
         """What to do with the list (L.9), on one line, whole text as tooltip.
@@ -8961,8 +9000,12 @@ class MeasurementReportDialog(QDialog):
         if stuck is not None:
             log.warning("the report was not moved to %s: %s cannot be "
                         "changed", dest, stuck)
+            # THE REMEDY FOLLOWS WHERE THE REPORT LIVES (re-challenge R2,
+            # #8): "copy the project" is no remedy for a report across
+            # projects, which lives beside them and not in any one.
             warn(self, *M.CATALOGUE["M-REPORT-DELETE-FAILED"].render(
-                folder=str(stuck)))
+                folder=str(stuck),
+                remedy=M.report_delete_remedy(paths[0] if paths else stuck)))
             self._reload_sources()
             return
         for path, target in zip(paths, moved):
@@ -9410,14 +9453,21 @@ class MeasurementReportDialog(QDialog):
         # the sentence below blamed "every ticked measurement", which was
         # false: the window's own calibration was ticked too.
         from workflow.measurement_report import is_calibration_dir
-        if (calibration and _doc_runs and not self._generate_btn.toolTip()
-                and not all(is_calibration_dir(r.get("_origin_dir") or "")
-                            for r in _doc_runs)):
+        _not_cal = [r for r in _doc_runs
+                    if not is_calibration_dir(r.get("_origin_dir") or "")]
+        if calibration and _not_cal and not self._generate_btn.toolTip():
+            # ONE OR SEVERAL (re-challenge R2 of beta 39, #9): "Untick it"
+            # was said of three ticked profile-run measurements as well.
             self._generate_btn.setToolTip(tr(
                 "With Run type Calibration, a report covers calibrations "
                 "only, and a profile run's measurement is ticked. Untick it "
                 "to save a report of the calibrations. Save report as PDF… "
-                "saves the report shown here."))
+                "saves the report shown here.") if len(_not_cal) == 1 else tr(
+                "With Run type Calibration, a report covers calibrations "
+                "only, and {n} measurements of profile runs are ticked. "
+                "Untick them to save a report of the calibrations. Save "
+                "report as PDF… saves the report shown here.").format(
+                    n=len(_not_cal)))
         # **NOT ONLY WITH SEVERAL PROFILES ADDED (challenge C, C6).** A
         # Profiling window lists every run's sheet of its project, so a
         # window on run 1 with only run 2's record selected ticks run 2's
@@ -13690,7 +13740,9 @@ class MeasurementReportDialog(QDialog):
             return None
         return {r.group for r in ROWS if r.id in set(keep)}
 
-    def _how_to_read_html(self, present: "list[str] | None" = None) -> str:
+    def _how_to_read_html(self, present: "list[str] | None" = None, *,
+                          standard: bool = False, split: bool = False,
+                          calibration: bool = False) -> str:
         """The plain-language guide. The heading sits OUTSIDE its background frame,
         with a blank line above it like every other section heading (Knut).
 
@@ -13924,16 +13976,23 @@ class MeasurementReportDialog(QDialog):
             # H3): a Printing record reads no column PASS or FAIL, so a
             # paragraph saying what such a column's PASS is describes a page
             # the reader is not holding.
+            # **ONLY IN A REPORT JUDGED AGAINST A STANDARD'S SET, AND WITHOUT A
+            # CONFORMANCE CLAIM (re-challenge R2 of beta 39, #2).** This was
+            # printed in every graded report, a ChromIQ default and a
+            # calibration report included, pointing at a note under the
+            # results that only a column named after a standard carries. It
+            # now appears exactly when that note does (`standard`, the same
+            # `_names_a_standard` question), and says what was judged and
+            # against what; "may differ from the published values" went with
+            # §23 and "would likely meet the standard" with K18.
             + (("<p>" + html.escape(tr(
-                "A column named after a standard judges against limits set for "
-                "that standard's printing condition. Its limits may differ "
-                "from the standard's published values, and they are applied to "
-                "the printed test chart rather than to that standard's own "
-                "chart and control strip. Such a column reads PASS or FAIL "
-                "like any other, and the note under the results says what that "
-                "PASS is: an indication that the print would likely meet the "
-                "standard, and not proof that it does.")) + "</p>")
-               if not _grades_nothing else "")
+                "A column named after a standard is judged against its limit "
+                "set's limits, applied to the values measured on the printed "
+                "test chart rather than to that standard's own chart and "
+                "control strip. Such a column reads PASS or FAIL like any "
+                "other, and the note under the results says what that word "
+                "does and does not mean.")) + "</p>")
+               if standard and not _grades_nothing else "")
             + ""
             # **"BOUND, AND LOCKED" IS NOT IN THE REPORT (K26, Knut
             # 5792484060, Q2: "Remove it from the report, and make sure this
@@ -13961,17 +14020,22 @@ class MeasurementReportDialog(QDialog):
                 "printer drift check, and the report says which way each sheet "
                 "was printed.)")) + "</li>"
             "</ul>"
-            "<p>" + html.escape(tr(
+            # **ONLY WHERE A SHEET WAS SPLIT, AND AS A STATEMENT ABOUT THE
+            # REPORT (re-challenge R2 of beta 39, #20).** "Where the report
+            # can tell (it asks the run's profile)" described how ChromIQ
+            # works, and a calibration report, which has no run profile,
+            # printed it too.
+            + (("<p>" + html.escape(tr(
                 "Some of a chart's design colours can be brighter or more "
                 "saturated than this printer and paper can physically produce; "
-                "no profile can print them, however good it is. Where the "
-                "report can tell (it asks the run's profile), it splits the "
-                "colour-accuracy figures into two groups: “Within the "
+                "no profile can print them, however good it is. Where a sheet "
+                "was compared with its profile's gamut, the colour-accuracy "
+                "figures are split into two groups: “Within the "
                 "profile's gamut”, the colours that were genuinely "
                 "printable, the fair measure of accuracy, and “Beyond "
                 "it”, the unreachable ones, whose distance describes the "
                 "limit of the gamut, not a mistake of the profile. Every "
-                "patch stays counted and visible.")) + "</p>"
+                "patch stays counted and visible.")) + "</p>") if split else "")
             # **ONLY WHERE A ROW SHOWN USES THE SPLIT (#182 K30, challenge B
             # B3; spec 22.1).** The sentence ended "the verdict words judge
             # the within-gamut figures" on every report, a Grey and tone
@@ -13981,17 +14045,27 @@ class MeasurementReportDialog(QDialog):
                 "Where a sheet is split this way, the verdict words of the "
                 "colour-accuracy and evenness rows judge the within-gamut "
                 "figures.")) + "</p>")
-               if (not _grades_nothing
+               if (split and not _grades_nothing
                    and set(present or ()) & WITHIN_GAMUT_ROWS) else "")
+            # THE CHAIN, WITHOUT A TIP AND WITHOUT A PROFILE THAT IS NOT
+            # THERE (re-challenge R2 of beta 39, #20). It closed "Judging the
+            # profile on its own is a separate check, made against the
+            # measurement the profile was built from", which is advice about
+            # another ChromIQ tool (K18), and a calibration's chart is printed
+            # with no profile at all, so its chain has two links.
             + "<p>" + html.escape(tr(
+                "The ΔE figures measure a whole chain in one number: the "
+                "printer's behaviour on the day and the instrument's own "
+                "small uncertainty. A rising number means something in "
+                "that chain has moved; by itself it does not say which part.")
+                if calibration else tr(
                 "The ΔE figures measure a whole chain in one number: the "
                 "profile's conversion of each colour to printer values, the "
                 "printer's behaviour on the day, and the instrument's own "
                 "small uncertainty. A rising number means something in "
-                "that chain has moved; by itself it does not say which part. "
-                "Judging the profile on its own is a separate check, made "
-                "against the measurement the profile was built from.")) + "</p>"
-            "<p>" + html.escape(tr(
+                "that chain has moved; by itself it does not say which "
+                "part.")) + "</p>"
+            + ("" if calibration else "<p>" + html.escape(tr(
                 "These figures show how one profile holds up over time. They "
                 "are not a fair measure for ranking papers or printers "
                 "against each other: where a sheet is split by the profile's "
@@ -13999,7 +14073,7 @@ class MeasurementReportDialog(QDialog):
                 "print, and that set differs with every paper. A glossy "
                 "paper keeps more of the difficult, saturated colours than a "
                 "matte one, so its average can look worse while it is "
-                "printing better.")) + "</p>"
+                "printing better.")) + "</p>") +
             "<p>" + html.escape(tr(
                 "Because the design reference never changes, comparing dated "
                 "reports of the same chart on the same printer is a clean, "
@@ -14751,8 +14825,22 @@ class MeasurementReportDialog(QDialog):
         if _judges:
             head = head + ("<div style='margin:6px 0 0'>"
                            + html.escape(_judges) + "</div>")
+        # WHAT THE GUIDE MAY SAY ABOUT THIS DOCUMENT (re-challenge R2, #2 and
+        # #20): the standard's paragraph only where a column names one (the
+        # same question the note under the results asks), the gamut split only
+        # where a sheet was split, and a calibration's chain has no profile.
+        from workflow.measurement_report import is_calibration_dir
+        _graded_runs = [r for r in runs if not _is_raw_drift(r)]
         parts = [head, self._scope_html(runs, _other_sets),
-                 self._how_to_read_html(_present),
+                 self._how_to_read_html(
+                     _present,
+                     standard=any(self._names_a_standard(r)
+                                  for r in _graded_runs),
+                     split=any((r.get("gamut_split") or {}).get("de00_in")
+                               for r in runs),
+                     calibration=bool(runs) and all(
+                         is_calibration_dir(str(r.get("_origin_dir") or ""))
+                         for r in runs)),
                  self._report_results_html(runs, _present)]
         if for_pdf and charts_html:
             parts.append(

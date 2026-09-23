@@ -1007,6 +1007,27 @@ notes should explain this detail."* Such a column now reads PASS or FAIL like
 any other, and the paragraph ends instead with what that PASS is: an indication
 that the print would likely meet the standard, and not proof that it does.
 
+> **Wording revised, re-challenge R2 of beta 39 (#2), 2026-09-23 (B8-912).**
+> Two clauses of the note and of this paragraph were false or a claim. "Its
+> limits may differ from the standard's published values" is false of a
+> read-only ISO column once §23 ships that standard's values, which is the one
+> state such a column is judged in; and "an indication that the print would
+> likely meet the standard" is a hedged conformance claim in text handed to a
+> customer (K18), beside a Report limits window that says a report can never
+> say a print conforms. Both now state what was judged and against what: "This
+> limit set is named after a standard. Its limits were applied to the values
+> measured on the printed test chart with ChromIQ's own metrics, not to that
+> standard's own chart and control strip with its own methods, so this is not
+> a test against that standard. A PASS means that the measured values are
+> inside these limits. It is not proof that the print meets the standard, and
+> where these limits are wider than the standard's own it says nothing about
+> the standard." Knut's "not proof" and his condition on the limits (§19.1)
+> are kept; his "likely fulfil" is not. The "How to read" paragraph is printed
+> only in a report with a column judged against a standard's set, which is
+> exactly when the note it points to is printed. This changes wording Knut
+> asked for, so it waits for him.
+> **⏳ Awaiting confirmation.** **Confirmed by:** *nobody yet.*
+
 **The whole weight of the promise is now on that note**, which was true of the
 word before and is worth stating plainly. `applies_a_standard` decides whether
 it is printed, `STANDARD_CAVEAT` is what it says, and

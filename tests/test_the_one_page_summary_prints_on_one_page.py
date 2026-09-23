@@ -134,7 +134,9 @@ def test_a_standard_named_column_gets_the_caveat_on_this_page(a_run, qapp):
     _bound(dlg, run, "custom_iso_12647_7")
     body = dlg._report_body_html(dlg._runs_for_document(), for_pdf=True)
     text = _html.unescape(re.sub(r"<[^>]+>", " ", body))
-    assert "not proof that it does" in text, (
+    # R2 of beta 39 (#2): the caveat says what a PASS means and that it
+    # is not proof, with no "would likely meet the standard".
+    assert "It is not proof that the print meets the standard" in text, (
         "the one-page summary prints a verdict under a column named after a "
         "standard without the caveat that says what that verdict is and is "
         "not. The COND cap used to carry this and was retired on 2026-09-22.")
@@ -150,7 +152,7 @@ def test_and_chromiqs_own_set_keeps_the_short_line(a_run, qapp):
     _bound(dlg, run, "chromiq_default")
     body = dlg._report_body_html(dlg._runs_for_document(), for_pdf=True)
     text = _html.unescape(re.sub(r"<[^>]+>", " ", body))
-    assert "not proof that it does" not in text
+    assert "It is not proof that the print meets the standard" not in text
     assert "it does not certify" in text
 
 

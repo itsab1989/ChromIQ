@@ -605,12 +605,19 @@ class DeleteFailed(Exception):
     """Something could not be removed or renamed; nothing has been left half
     done — the caller shows the "Could not delete everything" window."""
 
-    def __init__(self, paths: list, reason: str = "") -> None:
+    def __init__(self, paths: list, reason: str = "",
+                 message: "tuple[str, str] | None" = None) -> None:
         super().__init__("could not delete: %s" % paths)
         self.paths = paths
         #: A plain-language sentence for the window, when there is one to give.
         #: Empty for the rename failures, which have their own wording.
         self.reason = reason
+        #: A whole §M message, ``(headline, body)``, when the refusal has one
+        #: of its own. The window then shows it as it stands, with no list
+        #: heading of its own: the report refusal names folders ChromIQ would
+        #: have had to CHANGE, and "This is what ChromIQ tried to remove:"
+        #: above them was false (re-challenge R2 of beta 39, #1).
+        self.message = message
 
 
 #: Marker for the two-phase rename. A folder is moved out of the way under this
@@ -651,12 +658,12 @@ def delete_run(project, plan: DeletePlan) -> str:
     refs = _report_references_plan(project, plan)
     stuck = _unwritable(refs)
     if stuck:
-        raise DeleteFailed([str(s) for s in stuck], reason=tr(
-            "Nothing was deleted. Deleting this run renumbers the runs after "
-            "it, and the saved reports that name those runs by number must "
-            "be renumbered with them, but ChromIQ is not allowed to change "
-            "the reports in the folders below. Make them writable, or move "
-            "the project somewhere you may write, and try again."))
+        from workflow import measurement_messages as M
+        folders = [str(s) for s in stuck]
+        title, body = M.CATALOGUE["M-RUN-DELETE-REPORTS-LOCKED"].render(
+            n=run_number(plan.run_id), folders="\n".join(folders),
+            count=len(folders))
+        raise DeleteFailed(folders, reason=body, message=(title, body))
     # TO THE TRASH — see `delete_verification`. This one matters most: the
     # renumbering below assumes the run really is gone, and a half-deleted run
     # folder would be renumbered around.

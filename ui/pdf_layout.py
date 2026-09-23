@@ -540,6 +540,70 @@ def _first_orphan_heading(doc, body_h: float, skip: "set | None" = None):
     return None
 
 
+def no_blank_page_before_a_break(doc, body_h: float) -> int:
+    """Never print a sheet that holds only the air in front of a forced break.
+
+    **A FEW PIXELS OF WHITESPACE OVER A FULL PAGE, FOLLOWED BY A HEADING THAT
+    BREAKS BEFORE ITSELF, IS A BLANK SHEET.** The Measurement Report's trend
+    graphs are one-cell tables with a small empty line under each, and the
+    section after them starts with `page-break-before`. On the German
+    calibration report across two projects (re-challenge R2 of beta 39, #12)
+    the last graph ended 7 px above the foot of page 6; its table frame and
+    spacer ran 3 px past it, and Qt then broke to the page AFTER that sliver:
+    page 7 of 8 carried the header, the page number and nothing else. Moving
+    the break up onto the spacer did not help (measured: the spacer itself
+    was then pushed to page 8), because the break is taken from where the
+    frame ends, not from where its text ends.
+
+    So the break is taken off the heading when the page in front of it holds
+    no text at all: the heading then follows the whitespace onto that page,
+    which is the page it was meant to start. Checked by the page count, and
+    undone when it does not drop. Returns how many breaks were taken off.
+    """
+    always = QTextFormat.PageBreakFlag.PageBreak_AlwaysBefore
+    auto = QTextFormat.PageBreakFlag.PageBreak_Auto
+    removed = 0
+    tried: set = set()
+    for _ in range(200):
+        lay = settled_layout(doc)
+        target = None
+        block = doc.begin()
+        spans = []                  # (top, bottom) of every block with text
+        breaks = []
+        while block.isValid():
+            r = lay.blockBoundingRect(block)
+            if block.text().strip():
+                spans.append((r.top(), r.bottom()))
+                if (block.blockFormat().pageBreakPolicy() & always
+                        and QTextCursor(block).currentTable() is None
+                        and block.position() not in tried):
+                    breaks.append(block)
+            block = block.next()
+        for brk in breaks:
+            page = _line_page(lay, brk, body_h)
+            if page < 1:
+                continue
+            lo, hi = (page - 1) * body_h, page * body_h
+            if not any(top < hi - 0.5 and bottom > lo + 0.5
+                       for top, bottom in spans):
+                target = brk
+                break
+        if target is None:
+            return removed
+        tried.add(target.position())
+        before = doc.pageCount()
+        fmt = target.blockFormat()
+        fmt.setPageBreakPolicy(auto)
+        QTextCursor(target).setBlockFormat(fmt)
+        settled_layout(doc)
+        if doc.pageCount() < before:
+            removed += 1
+        else:                       # nothing gained: put it back
+            fmt.setPageBreakPolicy(always)
+            QTextCursor(target).setBlockFormat(fmt)
+    return removed
+
+
 def pages_that_carry_something(doc, body_h: float) -> int:
     """How many pages any of *doc*'s content actually reaches, at least 1.
 

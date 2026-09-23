@@ -170,9 +170,11 @@ def test_the_report_still_states_what_an_iso_named_column_is():
     report's own text what a PASS under a standard's name is and is not.
     """
     english = E.english_strings()
+    # R2 of beta 39 (#2): the clause now says what the word does NOT mean
+    # rather than what the print "would likely" do, which was a hedged
+    # conformance claim in customer text (K18).
     for phrase in ("rather than to that standard's own chart and control strip",
-                   "an indication that the print would likely meet the "
-                   "standard, and not proof that it does"):
+                   "It is not proof that the print meets the standard"):
         assert any(phrase in s for s in english), (
             f"{phrase!r} has gone from the report. The paragraph explaining "
             "what a column named after a standard holds is the only thing "

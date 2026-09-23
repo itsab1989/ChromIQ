@@ -488,12 +488,15 @@ def test_the_guide_says_within_gamut_only_where_a_row_uses_it():
     from types import SimpleNamespace
     import ui.dialogs.measurement_report_dialog as mrd
     fake = SimpleNamespace(_ungraded_by_type=lambda: False)
+    # R2 of beta 39 (#20): and only on a report where a sheet WAS split.
     grey = mrd.MeasurementReportDialog._how_to_read_html(
-        fake, ["grey_balance_neutral_ramp_avg"])
+        fake, ["grey_balance_neutral_ramp_avg"], split=True)
     full = mrd.MeasurementReportDialog._how_to_read_html(
+        fake, ["all_de00_avg", "grey_balance_neutral_ramp_avg"], split=True)
+    unsplit = mrd.MeasurementReportDialog._how_to_read_html(
         fake, ["all_de00_avg", "grey_balance_neutral_ramp_avg"])
     s = "judge the within-gamut"
-    assert s not in grey and s in full
+    assert s not in grey and s in full and s not in unsplit
     for text in (grey, full):
         assert "Compare a profile with itself" not in text
         assert "These figures show how one profile holds up over time" in text

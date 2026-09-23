@@ -2994,9 +2994,7 @@ M_REPORT_DELETE_FAILED = _m(
     "The report could not be moved to the old folder",
     "ChromIQ could not change this folder:\n\n{folder}\n\n"
     "Nothing was moved, and the report is still in the list. The usual "
-    "reason is that the folder is read-only. Give yourself permission to "
-    "change it, or copy the project somewhere you may write, and try "
-    "again.",
+    "reason is that the folder is read-only. {remedy}",
     approved=False)
 
 # --- PROPOSED (challenge C, beta 39, #8): an Update or a new report in a
@@ -3009,9 +3007,69 @@ M_REPORT_NOT_WRITABLE = _m(
     "The report was not written",
     "ChromIQ is not allowed to write in:\n\n{folders}\n\n"
     "A report is written whole or not at all, so nothing was changed. Give "
+    "yourself permission to change those folders, or copy the project "
+    "somewhere you may write, and try again.",
+    body_one="ChromIQ is not allowed to write in:\n\n{folders}\n\n"
+    "A report is written whole or not at all, so nothing was changed. Give "
     "yourself permission to change that folder, or copy the project "
     "somewhere you may write, and try again.",
+    count_key="count",
     approved=False)
+
+# --- PROPOSED (re-challenge R2 of beta 39, #1): a run delete refused
+# because the saved reports that name the later runs cannot be renumbered ----
+#
+# The refusal was a bare paragraph under the heading "This is what ChromIQ
+# tried to remove:", followed by <project>/reports. ChromIQ never tried to
+# remove that folder: it is where the reports it would have to CHANGE live.
+# The window now has a headline and says what the folders are.
+# {folders} is one folder per line; {count} is how many.
+M_RUN_DELETE_REPORTS_LOCKED = _m(
+    "M-RUN-DELETE-REPORTS-LOCKED",
+    "Profile run {n} was not deleted",
+    "Nothing was deleted. Deleting this run renumbers the runs after it, and "
+    "the saved reports that name those runs by number must be renumbered "
+    "with them. ChromIQ is not allowed to change the reports in these "
+    "folders:\n\n{folders}\n\n"
+    "Make them writable, or move the project somewhere you may write, and "
+    "try again.",
+    body_one="Nothing was deleted. Deleting this run renumbers the runs "
+    "after it, and the saved reports that name those runs by number must be "
+    "renumbered with them. ChromIQ is not allowed to change the reports in "
+    "this folder:\n\n{folders}\n\n"
+    "Make it writable, or move the project somewhere you may write, and try "
+    "again.",
+    count_key="count",
+    approved=False)
+
+#: The two remedies of M-REPORT-DELETE-FAILED (re-challenge R2, #8). "Copy
+#: the project" is only a remedy for a report that lives in a project; a
+#: report across projects lives in the folder that holds them, and copying
+#: one project would leave it behind.
+_DELETE_REMEDY_PROJECT = ("Give yourself permission to change it, or copy "
+                          "the project somewhere you may write, and try "
+                          "again.")
+_DELETE_REMEDY_OUTSIDE = ("This report is not kept in a project but beside "
+                          "the projects it covers. Give yourself permission "
+                          "to change it, or copy {place}, the folder that "
+                          "holds those projects, somewhere you may write, "
+                          "and try again.")
+
+
+def report_delete_remedy(report_file, stop=None) -> str:
+    """The ``{remedy}`` of M-REPORT-DELETE-FAILED for a report at
+    *report_file*: the project's remedy when a folder above it holds a
+    ``project.json``, otherwise the one that names the folder holding the
+    projects (``<ChromIQ folder>/reports/`` or a ``reports/`` beside the
+    projects)."""
+    from pathlib import Path
+    p = Path(str(report_file))
+    for up in list(p.parents)[:6]:
+        if (up / "project.json").is_file():
+            return tr(_DELETE_REMEDY_PROJECT)
+    place = p.parent.parent if p.parent.name == "reports" else p.parent
+    return tr(_DELETE_REMEDY_OUTSIDE).format(place=str(place))
+
 
 #: The reasons `report_gone_line` gives, one module constant each so the
 #: extractor resolves ``tr(NAME)`` (challenge C, beta 39).
@@ -3066,6 +3124,7 @@ CATALOGUE = {m.id: m for m in (
     M_REPORT_UPDATE_NOT_FOUND, M_REPORT_UPDATE_LEAVES_OUT,
     M_REPORT_UPDATE_NOTHING_LEFT,
     M_REPORT_DELETE_FAILED, M_REPORT_NOT_WRITABLE,
+    M_RUN_DELETE_REPORTS_LOCKED,
     M_REPLACE_PARTIAL, M_REPLACE_COMPLETE, M_TI3_MISMATCH,
     M_REPLACE_UNCOUNTABLE,
     M_IMPORT_REPLACE_CONFIRM, M_IMPORT_REPLACE_PROJECT_CONFIRM,

@@ -102,7 +102,7 @@ def _settings(tmp_path):
     return s
 
 
-_CAVEAT = "would likely meet the standard"
+_CAVEAT = "It is not proof that the print meets the standard"
 _PROVENANCE = "This verdict was recorded against the limit set"
 
 

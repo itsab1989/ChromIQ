@@ -5980,52 +5980,30 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("ChromIQ Measurement Report: the limit demo projects")
     a("=" * 52)
     a("")
-    a("Built for issue #182 by scripts/make_report_limit_demos.py, which")
-    a("makes the report-limit projects. The release package around them, the")
-    a("download, is built by scripts/make_release_demo_package.py.")
-    a("")
-    a("TWO WAYS IN, AND THE FIRST IS USUALLY THE RIGHT ONE")
-    a("---------------------------------------------------")
+    # WHAT A READER OF THE DOWNLOAD NEEDS, AND NOTHING FOR THE DEVELOPER
+    # (re-challenge R2 of beta 39, #21). This used to open with the issue
+    # number and the two scripts that build the pack, and a second way in
+    # that was a build recipe (a venv path, a script, ArgyllCMS in
+    # /Applications). The pack is attached to a release for users; how it is
+    # built is in this module's own docstring.
+    a("HOW TO OPEN IT")
+    a("--------------")
     a("")
     # THE APP'S OWN LABELS, not a paraphrase (round 3B, F28): the window is
     # "ChromIQ Preferences", the tab "Paths", the field "Default output folder".
-    a("1. DOWNLOAD this folder as the zip attached to the beta release, unzip")
-    a("   it anywhere, and point ChromIQ at it: open ChromIQ Preferences,")
-    a("   Paths, and set 'Default output folder' to the unzipped folder.")
+    a("Unzip the archive anywhere and point ChromIQ at it: open ChromIQ")
+    a("Preferences, Paths, and set 'Default output folder' to the unzipped")
+    a("folder.")
     # COUNTED ON THE DISK, AND STATED ONCE (K29, K30): the release package
     # puts the evenness and notes projects beside these, and a README that
     # said "all seventeen" here and "Fifteen projects" two sections later
     # contradicted itself. The one number is the folders that are there.
     _n = sum(1 for p in dest.iterdir() if (p / "project.json").is_file()) \
         if dest is not None and dest.is_dir() else len(PROJECTS)
-    a(f"   All {_WORDS.get(_n, _n)} "
+    a(f"All {_WORDS.get(_n, _n)} "
       f"projects then appear in the project")
-    a("   list. Nothing inside a project names a folder on the machine that")
-    a("   built it, so it opens the same wherever it lands.")
-    a("")
-    a("2. GENERATE it yourself, if you want the data to match a ChromIQ newer")
-    a("   than the archive. The release package is built by:")
-    a("")
-    a("       .venv/bin/python scripts/make_release_demo_package.py [PARENT]")
-    a("")
-    a("   which writes ChromIQ-Demo-Projects_v<version> into PARENT (dist/")
-    a("   when none is given), the version being the ChromIQ it was built with.")
-    a("   scripts/make_report_limit_demos.py alone builds only the report-limit")
-    a("   projects, without the evenness and notes projects beside them.")
-    a("")
-    # "WELL UNDER A MINUTE" WAS FALSE (K30): the release package takes about
-    # three minutes on the machine that builds the betas. No measured time is
-    # printed, for the reason below; "a few minutes" is the honest size.
-    a("   ArgyllCMS 3.5.0 in /Applications/Argyll is required. The whole")
-    a("   package takes a few minutes to build and is deterministic: the same")
-    a("   command on the same Argyll gives the same numbers, every time, and")
-    a("   this file comes out byte for byte the same. That is why no measured")
-    a("   build time is printed here: it would make every rebuild differ from")
-    a("   the archive somebody is comparing against.")
-    a("")
-    a("   Prefer the download when you just want to look at reports. Prefer")
-    a("   generating when the report code has moved on and you want the saved")
-    a("   verdicts rebuilt against it.")
+    a("list. Nothing inside a project names a folder on the machine that")
+    a("built it, so it opens the same wherever it lands.")
     a("")
     a("WHAT IS IN HERE")
     a("---------------")
@@ -6782,7 +6760,7 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("chart's .ti1 at any time.")
     a("")
     if FOLDERS_MANIFEST:
-        a("WHERE A REPORT LIVES (K23, Report-Limits-Report-Folders)")
+        a("WHERE A REPORT LIVES (Report-Limits-Report-Folders)")
         a("--------------------------------------------------------")
         a("")
         a("Knut, 2026-09-23: a report of ONE measurement lives in that")
@@ -6803,7 +6781,7 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
         a("Profiling and it holds the Printing record and the report across")
         a("both profiling sheets.")
         a("")
-        a("THE LIST IS GROUPED (K25). The report names stay; \"Report shown\"")
+        a("THE LIST IS GROUPED. The report names stay; \"Report shown\"")
         a("gets headings from where the measurements in \"Included")
         a("measurements\" come from:")
         a("  one run (run1 as Verification): no headings;")
@@ -6817,7 +6795,7 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
         a("")
     if CAL_MANIFEST:
         a("")
-        a("RUN TYPE CALIBRATION (#182 beta 39, Knut 5794078008)")
+        a("RUN TYPE CALIBRATION")
         a("------------------------------------------------------")
         a("")
         a("With Preferences > Calibration options on and Run type")
@@ -6833,7 +6811,7 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
         a("")
     if RENAMED_MANIFEST:
         a("")
-        a("A RENAMED PROJECT (#182 K29)")
+        a("A RENAMED PROJECT")
         a("----------------------------")
         a("")
         lines.extend(RENAMED_MANIFEST)

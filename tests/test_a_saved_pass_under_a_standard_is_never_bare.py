@@ -190,15 +190,20 @@ def test_the_caveat_is_in_the_report_body_and_the_pdf(qapp, tmp_path,
         # K18 (Knut, 2026-09-23): the first sentence was false for a Custom
         # set ("holds a standard's published values"), and the proof clause
         # now carries his condition.
+        # R2 of beta 39 (#2): "may differ from that standard's published
+        # values" was false of a read-only ISO column since §23, and "would
+        # likely meet the standard" a hedged conformance claim (K18). The
+        # same facts, stated as what was judged; Knut's "not proof" and his
+        # condition on the limits stay.
         _CAVEAT = (
-            "This limit set is named after a standard, and its limits may "
-            "differ from that standard's published values. It is not a test "
-            "against that standard: the printed test chart is not the "
-            "standard's chart, and the metrics are ChromIQ's own rather than "
-            "the standard's methods. A result inside these limits is an "
-            "indication that the print would likely meet the standard, not "
-            "proof that it does, and only as far as these limits are within "
-            "the standard's own.")
+            "This limit set is named after a standard. Its limits were "
+            "applied to the values measured on the printed test chart with "
+            "ChromIQ's own metrics, not to that standard's own chart and "
+            "control strip with its own methods, so this is not a test "
+            "against that standard. A PASS means that the measured values "
+            "are inside these limits. It is not proof that the print meets "
+            "the standard, and where these limits are wider than the "
+            "standard's own it says nothing about the standard.")
         assert _CAVEAT in " ".join(seen.split()), (
             f"the report for {label!r} does not carry the caveat whole. The "
             "clause saying a pass is an indication and not proof is the half "
