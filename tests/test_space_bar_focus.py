@@ -67,8 +67,23 @@ def test_defer_clear_button_focus_drops_a_focused_button(app):
     if app.focusWidget() is not btn:
         pytest.skip("offscreen platform doesn't report app-level focus here")
     defer_clear_button_focus(w)
-    _wait(250)                       # let the 0/40/150ms passes run
-    assert not isinstance(app.focusWidget(), QAbstractButton)
+    # POLL FOR THE CLEAR, DO NOT SAMPLE ONCE. On a loaded -n worker a later
+    # activation of this window (another test's window closing in the same
+    # process) can make Qt give the focus back to the first widget in the
+    # chain AFTER the last pass has run; a single look at 250 ms then saw the
+    # button again (red twice in full tiers, green alone every time). What the
+    # function promises is that its passes take the focus OFF the button, so
+    # that is what is waited for. Still red when the function clears nothing:
+    # the focus then never leaves the button.
+    import time
+    cleared = False
+    deadline = time.monotonic() + 3.0
+    while time.monotonic() < deadline:
+        _wait(10)
+        if not isinstance(app.focusWidget(), QAbstractButton):
+            cleared = True
+            break
+    assert cleared, "the focus never left the button"
     # an input field's focus is preserved
     edit.setFocus()
     defer_clear_button_focus(w)
