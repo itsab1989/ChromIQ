@@ -21,7 +21,7 @@ from functools import partial
 from datetime import datetime
 from pathlib import Path
 
-from PyQt6.QtCore import QPointF, QRectF, Qt
+from PyQt6.QtCore import QPointF, QRectF, Qt, QTimer
 from PyQt6.QtGui import QColor, QFont, QPainter, QPen
 from PyQt6.QtWidgets import (
     QApplication, QCheckBox, QDialog, QFrame, QHBoxLayout, QLabel,
@@ -2418,6 +2418,15 @@ class MeasurementReportDialog(QDialog):
                "you can browse to the reports folder and open any PDF you saved "
                "earlier."),
             self, color=SPEC_GREEN))
+        #: Why Generate is greyed, when it is (C6): the button's own reason,
+        #: on screen, two lines at most.
+        self._generate_why = QLabel(self)
+        self._generate_why.setWordWrap(True)
+        self._generate_why.setStyleSheet(_faint_label_css(
+            resolve_mode(settings.get("appearance", "auto"))))
+        self._generate_why.setVisible(False)
+        self._generate_why_full = ""
+        actions_row.addWidget(self._generate_why, 10)
         actions_row.addStretch(1)
         # **THE TWO TICK BOXES RIDE WITH "REPORT TYPE" NOW (B8-460).** Knut,
         # beta.5, put them to the right of the buttons *"to save a bit of
@@ -3033,6 +3042,9 @@ class MeasurementReportDialog(QDialog):
 
     def showEvent(self, event) -> None:  # noqa: N802
         super().showEvent(event)
+        # C9: Return opens no chooser (`no_default_button`).
+        from ui.dialogs.no_default_button import no_default_button
+        no_default_button(self)
         if self._sized_to_screen:
             return
         self._sized_to_screen = True
@@ -4001,11 +4013,20 @@ class MeasurementReportDialog(QDialog):
             # buttons is about. See `_scale_label`.
             from ui.measurement_filing import the_colour_scale_tag
             _unticked = self._rows_drawn_unticked()
+            from workflow.measurement_report import is_calibration_dir
             for si, s in enumerate(self._sources):
                 n = len(s["runs"])
+                # A CALIBRATION HAS MEASUREMENTS, NOT RUNS (K30 leftover, as
+                # B10 put it for the report's Scope): "P-cal · 1 run" named a
+                # profile run that a calibration is not.
+                cal = bool(s["runs"]) and all(
+                    is_calibration_dir(str(r.get("_origin_dir") or ""))
+                    for r in s["runs"])
                 self._profile_list.addItem(
                     f'{s["name"]}  ·  {n} '
-                    + (tr("run") if n == 1 else tr("runs"))
+                    + ((tr("measurement") if n == 1 else tr("measurements"))
+                       if cal else
+                       (tr("run") if n == 1 else tr("runs")))
                     + (the_colour_scale_tag() if s.get("scale_note") else ""))
                 self._list_rows.append(("source", si, None))
                 # One checkable row per dated run: unticking leaves it out of
@@ -5368,6 +5389,26 @@ class MeasurementReportDialog(QDialog):
                    and self._run_key(r) not in leave_out]
         detail = self._tick_state()
         scope = self._document_scope(members)
+        # **AN UPDATE THAT COVERS THE SAME MEASUREMENTS KEEPS ITS NAME'S
+        # SCOPE (challenge C, C10).** `_document_scope` compares the members
+        # with the list the window holds, and that list is not the report's
+        # universe: the measurements a report across places pulled in leave
+        # with it (`_drop_borrowed_sources`). So a "Multiple cals" report of 2
+        # of 3 projects' calibrations, opened after the "All cals" one had
+        # gone, found 2 of 2 in the list, and an Update that only flipped
+        # "Show detailed data" renamed it "All cals" (multiple_dates became
+        # all_dates). The name follows what the report covers (§24.2), and
+        # it covers what it covered: only a change of membership moves it.
+        if updating is not None and doc:
+            from workflow.measurement_report import (DOCUMENT_SCOPES,
+                                                     relative_measurement_key)
+            was = {relative_measurement_key(str(m.get("key") or ""))
+                   for m in (doc.get("measurements") or [])}
+            now = {relative_measurement_key(str(m.get("key") or ""))
+                   for m in members}
+            recorded = str(doc.get("scope") or "")
+            if was and was == now and recorded in DOCUMENT_SCOPES:
+                scope = recorded
         # **WHERE THIS DOCUMENT LIVES (K23).** Decided from what it COVERS,
         # the list just built, and by the one rule the counter and the list
         # use (`document_home`). One measurement: its own `reports/`, one
@@ -6152,8 +6193,27 @@ class MeasurementReportDialog(QDialog):
         already draws and describes only the members that are numbers."""
         avg_thr, max_thr = self._thresholds()
         dash = self._dash_row_ids(self._document_runs_for_graphs())
-        return (None if "all_de00_avg" in dash else avg_thr,
-                None if "all_de00_max" in dash else max_thr)
+        # **AND ONLY A ROW THE REPORT TYPE JUDGES HAS A LINE (K30 leftover,
+        # spec §17 item 4).** A Grey and tone check judges the neutral axis
+        # and the ramps, not a colour-accuracy row
+        # (`rows_for_report_type`), and its graph drew "Avg 2.0" and
+        # "Max 5.0" as "the limit for" rows the page does not judge.
+        from workflow.measurement_report import rows_for_report_type
+        keep = rows_for_report_type(self._report_type_now())
+        judged = (lambda rid: keep is None or rid in keep)
+        return (None if "all_de00_avg" in dash or not judged("all_de00_avg")
+                else avg_thr,
+                None if "all_de00_max" in dash or not judged("all_de00_max")
+                else max_thr)
+
+    def _colour_accuracy_is_judged(self) -> bool:
+        """Whether the page judges either colour-accuracy row the graph's
+        two lines stand for: not on a Printing record, and not on a type
+        whose rows leave both out (a Grey and tone check)."""
+        if self._ungraded_by_type():
+            return False
+        a, m = self._accuracy_thresholds()
+        return isinstance(a, (int, float)) or isinstance(m, (int, float))
 
     def _document_runs_for_graphs(self) -> list:
         """The document's measurements, for a graph deciding what to draw;
@@ -6497,8 +6557,11 @@ class MeasurementReportDialog(QDialog):
                          "entry from the list, one at a time, with Remove "
                          "Profile's Measurements….")
             elif run is not None:
+                # The run is named only while the ticks are its own (K30).
                 self._judged_label.setText(
-                    tr("Judged against ({run}):").format(run=run.dir.name))
+                    tr("Judged against ({run}):").format(run=run.dir.name)
+                    if self._ticks_are_the_runs_own(run)
+                    else tr("Judged against:"))
                 tip = ""
             else:
                 # **A CALIBRATION IS IN THE PROJECT, AND THIS SAID IT WAS NOT
@@ -7996,6 +8059,27 @@ class MeasurementReportDialog(QDialog):
         # this row.
         self._wrap_beside_the_pulldown(self._saved_note, full)
 
+    def _set_generate_why(self, full: str) -> None:
+        """Why Generate is greyed, on the button row, beside the buttons (C6).
+
+        The tooltip alone is a reason nobody sees until they hover over a
+        dead button. The row under the "Report settings" frame has room to
+        the right of its help button; the sentence is wrapped to two lines
+        there (`_wrap_beside_the_pulldown`, so the 800 px floor is kept) and
+        the whole of it stays in the tooltip.
+        """
+        self._generate_why_full = full or ""
+        label = getattr(self, "_generate_why", None)
+        if label is None:
+            return
+        if not full:
+            label.setText("")
+            label.setToolTip("")
+            label.setVisible(False)
+            return
+        label.setVisible(True)
+        self._wrap_beside_the_pulldown(label, full)
+
     def _set_saved_hint(self, full: str) -> None:
         """What to do with the list (L.9), on one line, whole text as tooltip.
 
@@ -8072,10 +8156,17 @@ class MeasurementReportDialog(QDialog):
         key = str((combo.currentData() if combo is not None else "") or "")
         if not key or key == self._loaded_doc_id:
             return
+        # `activated` follows this signal for a USER's pick; it must not
+        # load the same document a second time (`_on_saved_picked_again`).
+        self._pick_just_loaded = key
+        QTimer.singleShot(0, self._forget_the_pick)
         if key == NEW_REPORT_KEY:
             self._start_new_report()
             return
         self._load_document(key)
+
+    def _forget_the_pick(self) -> None:
+        self._pick_just_loaded = ""
 
     def _on_saved_picked_again(self, _index: int) -> None:
         """The user picked the entry the list was ALREADY on (R24-F1).
@@ -8091,8 +8182,16 @@ class MeasurementReportDialog(QDialog):
             return
         combo = getattr(self, "_saved_combo", None)
         key = str((combo.currentData() if combo is not None else "") or "")
-        if not key or key != self._loaded_doc_id:
+        if not key:
             return
+        if getattr(self, "_pick_just_loaded", "") == key:
+            # `currentIndexChanged` has just loaded it for this very pick.
+            self._pick_just_loaded = ""
+            return
+        # **AND AN ENTRY THE WINDOW DOES NOT HOLD IS LOADED TOO (C5).** This
+        # returned when the entry was not the loaded report, which is the
+        # one state in which a click on it is needed most: the list named a
+        # report the page was not showing, and picking it did nothing.
         if key == NEW_REPORT_KEY:
             self._start_new_report()
         else:
@@ -8620,6 +8719,8 @@ class MeasurementReportDialog(QDialog):
             (r for r in rows if subject and self._run_key(r) == subject),
             rows[-1] if rows else self._report)
         self._rebuild_from_sources()
+        # The disk moved under the list; the entry it now names is loaded.
+        self._load_what_the_list_names()
 
     def _on_delete_report(self) -> None:
         """Move the selected document's files into an ``old/`` folder (L.7).
@@ -8697,11 +8798,57 @@ class MeasurementReportDialog(QDialog):
             key = self._run_key(r)
             if self._chosen_reports.get(key) == name:
                 self._chosen_reports.pop(key, None)
-        if self._loaded_doc_id == entry["key"]:
+        was_loaded = self._loaded_doc_id == entry["key"]
+        if was_loaded:
             self._loaded_doc_id = ""
             self._loaded_doc = None
             self._doc_created = ""
+            # **THE SETTINGS THAT MOVED BELONGED TO THE REPORT THAT IS GONE
+            # (challenge C, C5).** A flag left up here kept
+            # `_adopt_visible_document` from taking the entry the list then
+            # landed on, so "Report shown" named a report the page was not
+            # showing: nothing loaded, Generate greyed, the PDF offered in
+            # the wrong folder under a now-stamp, and a click on the same
+            # entry did nothing because the index did not move.
+            self._doc_settings_moved = False
         self._reload_sources()
+        if was_loaded:
+            # **AND THE ENTRY IT LANDS ON IS LOADED THROUGH THE ONE DOOR A
+            # CLICK USES**, whole (its other measurements included, A-F1),
+            # or "New report…" with its defaults. Adopting it from the page
+            # alone left a report across runs shown with one run.
+            self._load_what_the_list_names(force=True)
+
+    def _load_what_the_list_names(self, *, force: bool = False) -> None:
+        """Make the window hold the entry "Report shown" names (C5).
+
+        **ONE INVARIANT: THE SHOWN ENTRY IS THE LOADED REPORT, OR "NEW
+        REPORT…" WITH ITS DEFAULTS.** The pulldown is filled by
+        `_entry_the_list_lands_on`, which falls back to the file the page is
+        drawn from when the loaded report has gone; what is loaded is
+        `_loaded_doc_id`. When the two disagree, the entry wins, because it
+        is what the reader sees and what a click would load. *force* loads
+        the entry even when the ids agree (after a delete, where the id was
+        adopted from the page without the report's other measurements).
+        """
+        if getattr(self, "_reconciling_the_list", False):
+            return
+        combo = getattr(self, "_saved_combo", None)
+        if combo is None:
+            return
+        key = str(combo.currentData() or "")
+        loaded = str(self._loaded_doc_id or "")
+        if not force and key == loaded:
+            return
+        self._reconciling_the_list = True
+        try:
+            if not key or key == NEW_REPORT_KEY:
+                if force or loaded != NEW_REPORT_KEY:
+                    self._start_new_report()
+            else:
+                self._load_document(key)
+        finally:
+            self._reconciling_the_list = False
 
     def _window_kind(self) -> "str | None":
         """What kind of measurement this window is about, for K13.
@@ -9029,7 +9176,8 @@ class MeasurementReportDialog(QDialog):
         self._type_combo.setEnabled(True)
         self._type_label.setText(
             tr("Report type ({run}):").format(run=run.dir.name)
-            if run is not None and not several else tr("Report type:"))
+            if run is not None and not several
+            and self._ticks_are_the_runs_own(run) else tr("Report type:"))
         self._type_combo.setToolTip("")
         # WHEN THEY DISAGREE, SAY SO WHERE THE PULLDOWN IS. A greyed control
         # over a value that is nobody's choice explains nothing, and this is
@@ -9097,7 +9245,12 @@ class MeasurementReportDialog(QDialog):
                 "only, and a profile run's measurement is ticked. Untick it "
                 "to save a report of the calibrations. Save report as PDF… "
                 "saves the report shown here."))
-        if (several and _doc_runs and not self._generate_btn.toolTip()
+        # **NOT ONLY WITH SEVERAL PROFILES ADDED (challenge C, C6).** A
+        # Profiling window lists every run's sheet of its project, so a
+        # window on run 1 with only run 2's record selected ticks run 2's
+        # sheet alone: one source, `several` False, and the button went grey
+        # with no reason at all. §13.13: it refuses, and says why.
+        if (_doc_runs and not self._generate_btn.toolTip()
                 and not self._reports_to_generate()):
             self._generate_btn.setToolTip(tr(
                 "Every ticked measurement belongs to another profile run or "
@@ -9166,10 +9319,25 @@ class MeasurementReportDialog(QDialog):
                 "a project's calibration, and the measurement this window is "
                 "on is not one. Save report as PDF… saves the report shown "
                 "here."))
-        self._generate_btn.setEnabled(
-            (cal_ok if calibration else run is not None)
-            and not mixed and not cal_missing
-            and bool(self._reports_to_generate()))
+        live = ((cal_ok if calibration else run is not None)
+                and not mixed and not cal_missing
+                and bool(self._reports_to_generate()))
+        if not live and not self._generate_btn.toolTip():
+            # **EVERY GREYED GENERATE CARRIES ITS REASON (C6).** The two
+            # states no sentence above covers: an empty window, and a list
+            # whose every row is unticked.
+            if not self._sources:
+                self._generate_btn.setToolTip(tr(
+                    "No measurement is loaded. Add a profile's measurements "
+                    "to the list to generate a report."))
+            elif self._nothing_is_ticked():
+                self._generate_btn.setToolTip(tr(
+                    "No measurement is ticked in the list, so there is "
+                    "nothing to report on. Tick one to generate a report."))
+        if live:
+            self._generate_btn.setToolTip("")
+        self._generate_btn.setEnabled(live)
+        self._set_generate_why("" if live else self._generate_btn.toolTip())
         # **THE BOX THAT WIDENED THE REPORT IS GONE (B8-590), AND SO IS THE
         # RULE THAT FORCED IT OFF.** A one-measurement list needed "Show all
         # measurement runs" turned off and greyed (B8-392); a one-page summary
@@ -9272,10 +9440,11 @@ class MeasurementReportDialog(QDialog):
         from workflow.measurement_report import (generated_report_types,
                                                  report_type_name)
         kind = self._window_kind()
+        dirs = self._measurement_dirs_of_the_list(run, kind)
         counts = generated_report_types(
             run, kind,
             str(self._settings.get("report_default_type", "") or ""),
-            measurement_dirs=self._measurement_dirs_of_the_list(run, kind))
+            measurement_dirs=dirs)
         # **"FOR THESE MEASUREMENTS" ON A PROFILING WINDOW (K26, Knut
         # 5792484060, Q4: "yes").** Since K25 a Profiling window counts the
         # Printing records of every run in its list, so "for this run" was
@@ -9285,7 +9454,8 @@ class MeasurementReportDialog(QDialog):
         # calibrations.
         from workflow.measurement_report import (KIND_CALIBRATION,
                                                  KIND_PROFILING)
-        profiling = kind in (KIND_PROFILING, KIND_CALIBRATION)
+        profiling = (kind in (KIND_PROFILING, KIND_CALIBRATION)
+                     or not self._dirs_are_the_runs_own(run, dirs))
         if not counts:
             return (tr("No report has been generated for these measurements "
                        "yet.") if profiling
@@ -9298,6 +9468,42 @@ class MeasurementReportDialog(QDialog):
             return tr("Already generated for these measurements: "
                       "{names}").format(names=names)
         return tr("Already generated for this run: {names}").format(names=names)
+
+    def _ticks_are_the_runs_own(self, run) -> bool:
+        """Whether every ticked measurement is *run*'s own (K30 leftovers).
+
+        A label that names the run ("Report type (run1):") is a claim about
+        what the report covers. A Profiling window lists every run's sheet,
+        and a report of another run, or across runs or projects, can be
+        loaded into it; the label then names a run the report is not (only)
+        about, so it drops the name, as it does with several profiles added.
+        """
+        runs = [] if self._nothing_is_ticked() else self._runs_for_document()
+        return self._dirs_are_the_runs_own(
+            run, [r.get("_origin_dir") or "" for r in runs])
+
+    @staticmethod
+    def _dirs_are_the_runs_own(run, dirs) -> bool:
+        """Whether every folder *dirs* names is *run*'s own (its folder or
+        one of its dated verifications).
+
+        **"FOR THIS RUN" ONLY WHEN IT IS THIS RUN'S (challenge C, C12).** A
+        Verification window lists and counts the reports of every
+        measurement in its list (K23/K25), and a report across projects
+        loads the other project's dates into that list: the line read
+        "Already generated for this run: … 10" while three of the ten were
+        another project's. The count is the list's, as K25 rules, so the
+        words follow it: "for these measurements", as a Profiling window
+        says it.
+        """
+        if run is None:
+            return False
+        own = {str(run.dir)}
+        try:
+            own |= {str(v.dir) for v in run.verifications()}
+        except Exception:                            # noqa: BLE001
+            pass
+        return all(str(d) in own for d in (dirs or []) if str(d))
 
     def _set_type_blurb(self, full: str) -> None:
         """One line, elided to the room it has; the whole sentence as the
@@ -9351,7 +9557,16 @@ class MeasurementReportDialog(QDialog):
         if not self._generated_full:
             return
         from ui.warning_sign import inform
-        inform(self, tr("Reports generated for this run"),
+        from workflow.measurement_report import KIND_VERIFICATION
+        ctx = self._run_ctx
+        run = ctx.run if ctx is not None else None
+        kind = self._window_kind()
+        # The title says what the line counted (C12): one run's reports only
+        # when every folder counted is that run's own.
+        own = (kind == KIND_VERIFICATION and self._dirs_are_the_runs_own(
+            run, self._measurement_dirs_of_the_list(run, kind)))
+        inform(self, tr("Reports generated for this run") if own
+               else tr("Reports generated for these measurements"),
                self._generated_full)
 
     @staticmethod
@@ -9541,6 +9756,8 @@ class MeasurementReportDialog(QDialog):
             self._set_saved_note(self._saved_note_full)
         if getattr(self, "_saved_hint_full", ""):
             self._set_saved_hint(self._saved_hint_full)
+        if getattr(self, "_generate_why_full", ""):
+            self._set_generate_why(self._generate_why_full)
 
     # -- reasons a row was not computed, as sentences --------------------------
     def _reason_sentence(self, code: "str | None", r: "dict | None" = None,
@@ -14837,9 +15054,11 @@ class MeasurementReportDialog(QDialog):
         if chart is self._trend_de and _series_is_within_gamut(
                 getattr(self, "_trend_series", None)):
             # K30 (B3): a record judges no patch, so "each judged patch" is
-            # the within-gamut population described as measured.
-            about = (_TREND_ABOUT_DE_WITHIN_GAMUT() if ungraded
-                     else _TREND_ABOUT_DE_JUDGED())
+            # the within-gamut population described as measured; and so does
+            # a type that judges no colour-accuracy row (Grey and tone).
+            about = (_TREND_ABOUT_DE_JUDGED()
+                     if self._colour_accuracy_is_judged()
+                     else _TREND_ABOUT_DE_WITHIN_GAMUT())
         if chart is self._trend_de and ungraded:
             return {"line_notes": [], "withheld": [], "about": about}
         if chart is self._trend_de:

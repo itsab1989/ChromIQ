@@ -6200,5 +6200,8 @@
  "its measurement file is no longer in its folder": "ihre Messdatei ist nicht mehr in ihrem Ordner",
  "its profile run was deleted": "ihr Profillauf wurde gelöscht",
  "{project}, calibration, {when}: {why}": "{project}, Kalibrierung, {when}: {why}",
- "{project}, run {run}, {when}: {why}": "{project}, Durchgang {run}, {when}: {why}"
+ "{project}, run {run}, {when}: {why}": "{project}, Durchgang {run}, {when}: {why}",
+ "No measurement is loaded. Add a profile's measurements to the list to generate a report.": "Es ist keine Messung geladen. Füge mit „Messungen eines Profils hinzufügen…“ Messungen zur Liste hinzu, um einen Bericht zu erzeugen.",
+ "No measurement is ticked in the list, so there is nothing to report on. Tick one to generate a report.": "In der Liste ist keine Messung angehakt, es gibt also nichts, worüber berichtet werden kann. Hake eine an, um einen Bericht zu erzeugen.",
+ "Reports generated for these measurements": "Für diese Messungen erzeugte Berichte"
 }

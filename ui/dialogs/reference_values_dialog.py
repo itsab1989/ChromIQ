@@ -561,6 +561,9 @@ class ReferenceValuesDialog(QDialog):
         once, so a user who resizes the window keeps their size.
         """
         super().showEvent(event)
+        # C9: Return opens no template or file chooser.
+        from ui.dialogs.no_default_button import no_default_button
+        no_default_button(self)
         if getattr(self, "_height_settled", False):
             return
         self._height_settled = True
@@ -682,6 +685,9 @@ class ReferenceValuesDialog(QDialog):
     def _refresh(self) -> None:
         for src in self._sources:
             self._fill_items(src)
+        # The rows are built again here, and a new button is autoDefault (C9).
+        from ui.dialogs.no_default_button import no_default_button
+        no_default_button(self)
 
     def _refresh_later(self) -> None:
         """Rebuild AFTER the click that caused it has returned.

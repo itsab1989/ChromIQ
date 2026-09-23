@@ -1555,6 +1555,9 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
     # ------------------------------------------------------------ lifecycle
     def showEvent(self, event) -> None:  # noqa: N802
         super().showEvent(event)
+        # C9: Return in a limit field opens no "Reference values…" window.
+        from ui.dialogs.no_default_button import no_default_button
+        no_default_button(self)
         if self._sized_once:
             return
         self._sized_once = True

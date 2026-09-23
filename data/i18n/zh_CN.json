@@ -6200,5 +6200,8 @@
  "its measurement file is no longer in its folder": "its measurement file is no longer in its folder",
  "its profile run was deleted": "its profile run was deleted",
  "{project}, calibration, {when}: {why}": "{project}, calibration, {when}: {why}",
- "{project}, run {run}, {when}: {why}": "{project}, run {run}, {when}: {why}"
+ "{project}, run {run}, {when}: {why}": "{project}, run {run}, {when}: {why}",
+ "No measurement is loaded. Add a profile's measurements to the list to generate a report.": "No measurement is loaded. Add a profile's measurements to the list to generate a report.",
+ "No measurement is ticked in the list, so there is nothing to report on. Tick one to generate a report.": "No measurement is ticked in the list, so there is nothing to report on. Tick one to generate a report.",
+ "Reports generated for these measurements": "Reports generated for these measurements"
 }

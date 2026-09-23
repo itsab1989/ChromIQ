@@ -1908,9 +1908,9 @@ SERIES_COMPARE_QUICK: "list[Date]" = [
 #: FOUR OF THE SIX CAN BE TESTED, AND THE OTHER TWO CANNOT BE TESTED AS
 #: DOCUMENTS AT ALL. Validation print check (ISO 12647-8) and Contract proof
 #: check (ISO 12647-7) are declared so the pulldown can show them and refuse
-#: them; the figures they judge against are published in standards ChromIQ has
-#: no permission to include, so ChromIQ cannot produce either document and no
-#: measurement can make it produce one. What CAN be demonstrated about them is
+#: them; the documents are not built (the values they judge against ship,
+#: values only, since #182 S-2), so ChromIQ cannot produce either document and
+#: no measurement can make it produce one. What CAN be demonstrated about them is
 #: that they are offered, greyed, and say why, and that the refusal holds one
 #: level below the control as well: `set_run_report_type` raises rather than
 #: storing an unbuilt id. Both of those are exercised on screen against this
@@ -4261,15 +4261,17 @@ PROJECTS = [
                 CHART_SMALL, CHART_MEDIUM, "custom_iso_12647_7",
                 CUSTOM_7_SERIES, unlocked=True, lock="unlocked",
                 note="The limits of this column are not edited by this "
-                     "package and must not be: they are placeholders under a "
-                     "permission condition, pinned by a test."),
+                     "package and must not be: they are the column's own "
+                     "starting numbers, researched industry figures and "
+                     "ChromIQ's own, and a test pins where each came from."),
         RunPlan("The Custom ISO 12647-8 limit set, crossing the tone-ramp row "
                 "that no other shipped set puts a limit on.",
                 CHART_MEDIUM, CHART_MEDIUM, "custom_iso_12647_8",
                 CUSTOM_8_SERIES, unlocked=True, lock="unlocked",
                 note="The limits of this column are not edited by this "
-                     "package and must not be: they are placeholders under a "
-                     "permission condition, pinned by a test."),
+                     "package and must not be: they are the column's own "
+                     "starting numbers, researched industry figures and "
+                     "ChromIQ's own, and a test pins where each came from."),
     ]),
     ("Report-Limits-Border-Conditions", [
         RunPlan("A chart with fewer than twenty patches, so the highest 5 % of "
@@ -4366,8 +4368,9 @@ PROJECTS = [
                 matrix_dates("custom_iso_12647_7", "gamut"),
                 unlocked=True, lock="unlocked", expect_strip_p95=False,
                 note="The limits of this column are not edited by this "
-                     "package and must not be: they are placeholders under a "
-                     "permission condition, pinned by a test."),
+                     "package and must not be: they are the column's own "
+                     "starting numbers, researched industry figures and "
+                     "ChromIQ's own, and a test pins where each came from."),
     ]),
     # -----------------------------------------------------------------------
     # The eighth project: the five rows that had no detection until B8-397
@@ -4517,8 +4520,9 @@ PROJECTS = [
                 PAPER_OFFICE, paper_class="office", print_colour="none",
                 unlocked=True, lock="unlocked",
                 note="The limits of this column are not edited by this "
-                     "package and must not be: they are placeholders under a "
-                     "permission condition, pinned by a test."),
+                     "package and must not be: they are the column's own "
+                     "starting numbers, researched industry figures and "
+                     "ChromIQ's own, and a test pins where each came from."),
         RunPlan("Newsprint-like paper, measured once.",
                 CHART_MEDIUM, CHART_MEDIUM, "chromiq_default", PAPER_NEWS,
                 paper_class="newsprint", lock="one-date"),
@@ -6416,8 +6420,17 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
             a(f"  {name}")
             a(f"      {blurb}")
     a("")
-    a("The figures they judge against are published in standards ChromIQ has")
-    a("no permission to include, so ChromIQ cannot write either document. They")
+    # #182 S-2 (spec 23): the values of both standards ship, values only,
+    # and the two documents are still not built. The sentence asks which is
+    # true rather than saying either for ever.
+    from workflow.compliance_sets import shipped_iso_sets as _shipped
+    if _shipped():
+        a("The figures they judge against ship with ChromIQ as values only")
+        a("(the read-only ISO 12647 columns), but the two documents themselves")
+        a("are not built yet, so ChromIQ cannot write either of them. They")
+    else:
+        a("The figures they judge against are published in standards ChromIQ")
+        a("does not ship, so ChromIQ cannot write either document. They")
     a("are SHOWN in the pulldown and refused there rather than hidden, under a")
     a("heading that says what they need, and the entry carries the reason:")
     a("")
@@ -6427,8 +6440,7 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("So what this package can demonstrate about those two is that they are")
     a("offered, that they are refused, and that they say why. There is nothing")
     a("else to demonstrate: a demo cannot exercise a document the app cannot")
-    a("produce, and building one would need a tolerance value out of a")
-    a("standard that may not be shipped. Nothing in this generator holds one.")
+    a("produce.")
     a("")
     a("WHICH RUN COVERS WHICH TYPE AND WHICH LIMIT SET")
     a("----------------------------------------------")
@@ -6465,10 +6477,12 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
         a("---------------------------------------------------------------")
         a("")
         a("Report-Limits-Custom-Columns binds a run to each of them. Their")
-        a("numbers are ChromIQ's own, not either standard's published")
-        a("tolerances, and this package does not touch them: they are")
-        a("placeholders under a permission condition and a test in ChromIQ")
-        a("pins where every one of them came from.")
+        a("numbers are not either standard's published values: they start")
+        a("from limits researched from industry practice and from ChromIQ's")
+        a("own numbers, and the published values, where ChromIQ ships them,")
+        a("fill the read-only ISO columns instead. This package does not")
+        a("touch them, and a test in ChromIQ pins where every one of them")
+        a("came from.")
         a("")
         a("FIRST: a column named after a standard cannot check everything it")
         a("puts a limit on, and not because anything is wrong with the print.")
@@ -6502,9 +6516,9 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
         a("  A row that could not be checked does not count against the")
         a("  column, so the word moves FAIL to PASS across these runs while")
         a("  those rows stay N-A. What qualifies that PASS is the NOTE beside")
-        a("  it: the figures are ChromIQ's placeholders under a standard's")
-        a("  name, applied to the chart YOU printed, so a result inside them")
-        a("  says nothing about the standard.")
+        a("  it: the figures are a Custom column's own numbers under a")
+        a("  standard's name, applied to the chart YOU printed, so a result")
+        a("  inside them says nothing about the standard.")
         a("")
         if _cov.get("custom_same_numbers"):
             a("SECOND: on every row that carries a NUMBER, the two columns are")
