@@ -260,5 +260,5 @@ if __name__ == "__main__":
     rc = d.run(script)
     (d.out / "exports.json").write_text(json.dumps(
         {"exports": d.record.get("exports"),
-         "after_close": d.record.get("after_close")}, indent=1, default=str))
+         "after_close": d.record.get("after_close")}, indent=1, default=str), encoding="utf-8")
     sys.exit(rc)

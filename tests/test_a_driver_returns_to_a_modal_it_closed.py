@@ -161,7 +161,7 @@ def test_the_next_step_pumps_again(userdrive, qapp, tmp_path, monkeypatch):
     """
     d = _bare_drive(userdrive, qapp, tmp_path)
     d._log = tmp_path / "log.txt"
-    d._log.write_text("")
+    d._log.write_text("", encoding="utf-8")
     d._log_offset = 0
     d.win = type("W", (), {"close": lambda self: None})()
     seen = {}
