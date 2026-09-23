@@ -25997,3 +25997,41 @@ would reach.
   §18.8).
 - not changed; for Knut: whether (1) should sort by the report's own date,
   and whether (2) is right (the document records both runs).
+
+### B8-845 · FIXED, awaiting confirmation · G12: the Printing record explains its absences; every N-A note driven on screen
+- blocks release: no
+- status: FIXED on branch `beta39-notes` (commits "#182 beta39 notes: ..."),
+  awaiting Knut's confirmation (spec §12 CH-31a, §20 G12).
+- found by: Knut, #182 5774852534 (2026-09-22): the Printing record's detailed
+  sections showed verdict words and "could not be checked" with no reason;
+  "notes wherever a verdict is shown, suppressed where none is" agreed in
+  5775260868 ("OK"); "Yes, check that all notes are printed". Challenge round B
+  (beta 37) had found that the record's N-A rows carried no note.
+- measured before (beta 38, on screen): the record's detailed table had a
+  Result column reading INFO and N-A; no N-A anywhere on the record carried a
+  marker or a note; the reason existed only as a hover tooltip, which the PDF
+  does not carry. Graded types: the detailed table showed PASS/FAIL/N-A with
+  no marker either.
+- built: `_note_the_absences` explains N-A rows on the record too (notes that
+  comment a verdict are still cleared by `_ungrade`); the record's detailed
+  table has no Result column and an absent value reads a dash with its note
+  number; every type's detailed table carries the document's note numbers and
+  lists its notes under itself (`_notes_list_html`); the record's list is
+  headed "Notes on the values above:" and its closing sentence mentions no
+  failure; the record's gamut paragraph no longer names a Result column.
+- verified by: `tests/test_g12_notes_where_a_value_is_shown.py` (six tests,
+  each red on its mutation); three older tests retargeted to the narrower rule.
+- proof: `~/Desktop/ChromIQ-beta39-proof/notes/` (REPORT.md: all 27 reason
+  codes reached, printed on screen and in a saved PDF, with photographs and
+  page numbers; demo built by `scripts/make_notes_demo.py`, driven by
+  `scripts/drive_g12_notes.py`).
+- open for Knut: (1) the record keeps a Limit column beside numbers it does
+  not judge; (2) `no_earlier_measurement` says "the row is judged from the
+  second measurement onward", which explains ChromIQ and is untrue on a record;
+  (3) `not_computed` ("this value is not in this saved report") is also what a
+  measurement with no device values prints for its grey and gamut rows, where
+  the true cause is the missing device values; (4) `evenness_empty_area` says
+  "holds no patch with an aim value" while its reachable cause is a ninth of
+  the page with no readings; (5) the guide's INFO bullet promises "the note
+  under the results names the rows" for a report that judges nothing, and no
+  such note exists on the record.

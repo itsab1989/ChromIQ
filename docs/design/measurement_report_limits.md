@@ -836,7 +836,9 @@ type being pointed at.
   not a judgement being withheld. Nothing is written; switching back to T2
   brings the same verdicts.
   *⏳ Awaiting confirmation (beta 37, challenge round B, H3).*
-  **Confirmed by:** *nobody yet.* T4 prints neither the note saying what a PASS under a
+  **Confirmed by:** *nobody yet.* (Beta 39, G12: T4 now prints the notes
+  explaining its N-A rows and has no Result column in its detailed table,
+  §12 CH-31a.) T4 prints neither the note saying what a PASS under a
   standard's name is, nor the guide paragraph about such columns, nor the
   line under each sheet saying "This verdict was recorded when the report
   was saved, against the limit set …": it grades nothing, so all three were
@@ -1164,6 +1166,40 @@ withholds every verdict by the user's choice, so it prints no notes: a note
 there would comment a judgement the document does not make, and naming two rows
 of eight would imply the other six had been judged. This is not a property that
 holds once at judging time; it holds after every transformation of the rows.
+
+**CH-31a. ⏳ Awaiting confirmation (G12, beta 39).** **Confirmed by:**
+*nobody yet.* Amends CH-31 after Knut's question on the Printing record with
+"Show detailed data" on (5774852534, 2026-09-22): *"The sections with detailed
+data still shows PASS and FAIL, or if a metric could not be checked. Should
+there be a note there instead, so a user knows why a metric could not be
+checked?"*, and his "OK" (5775260868) to *"notes wherever a verdict is shown,
+suppressed where none is"*. Two kinds of note are told apart:
+
+* a note that COMMENTS a verdict (the grey rows' printing note, the
+  recommended-limit note, the evenness causes and "where on the sheet") lives
+  and dies with the verdict, as CH-31 says, and the Printing record prints
+  none of them;
+* a note that EXPLAINS AN ABSENCE (every N-A reason, §19.2) is not about a
+  verdict, so the Printing record prints it: each N-A row carries its raised
+  number in the Report Results grid and in the detailed table, and the list is
+  headed "Notes on the values above:" with the closing sentence "A value that
+  could not be worked out says nothing about the printer; each note above says
+  why." (no word about failures).
+
+On the Printing record the detailed "Colour accuracy" table has no Result
+column: a value that could not be worked out reads a dash with its note
+number, and no PASS, FAIL, COND, INFO or N-A appears in the detailed section.
+The gamut paragraph under it no longer says "The Result judges".
+
+On EVERY type the detailed table carries the same note numbers the Report
+Results grid gives the row (CH-32, CH-33), and lists the notes it points at
+under itself, because in the PDF the detailed section starts on a page of its
+own.
+
+Built in `ui/dialogs/measurement_report_dialog.py` (`_note_the_absences`,
+`_notes_list_html`, `_run_detail_html`); verified by
+`tests/test_g12_notes_where_a_value_is_shown.py`; proof
+`~/Desktop/ChromIQ-beta39-proof/notes/` (B8-845).
 
 **CH-32. One numbering for the whole document, in row order, from 1.** One
 number per distinct note however many rows carry it: a note on three rows is one
@@ -3821,5 +3857,5 @@ built waits on a question to him or on work not yet done.
 | G9 | Built rulings with no test that goes red: the type-covers sentence (§19.9); the "New report…" set tooltip (§19.13) | 5777326491, 5776479532, 2026-09-22 | Built, unpinned |
 | G10 | Built rulings with no on-screen proof folder of their own: K19 (§13.10), K22 (§19.2), K10 (§19.3), the unlock box (§19.6), the ISO cap (§14.6); K12 only inside round A; B8-526's proof folder gone | as listed | Tests only |
 | G11 | Graph details he answered with no test: the line colours (grey Avg and Max, a colour per new metric), the tab scroll arrows staying as they are | 5789263863, 2026-09-23 | Built as he answered, unpinned |
-| G12 | Notes wherever a verdict is shown, including the Printing record's detailed sections, suppressed where none is (*"OK"*); and *"Yes, check that all notes are printed"* (all 19 absence notes on screen) | 5774852534, 5775260868, 2026-09-22 | Commitments listed in B8-780; neither the detailed-section notes nor a drive of all 19 notes is recorded as done |
+| G12 | Notes wherever a verdict is shown, including the Printing record's detailed sections, suppressed where none is (*"OK"*); and *"Yes, check that all notes are printed"* (all 19 absence notes on screen) | 5774852534, 5775260868, 2026-09-22 | **Built in beta 39, awaiting confirmation** (§12 CH-31a, B8-845): the record explains its N-A rows and gives no verdict word in its detailed sections; every type's detailed table carries the document's note numbers. All 27 reason codes (the 19 plus the 8 evenness codes) driven on screen and saved to PDF, `~/Desktop/ChromIQ-beta39-proof/notes/REPORT.md`; `printing_unrecorded` prints only as an INFO reason from a report saved before 2026-09-13 (never N-A). Five questions in B8-845 |
 | G13 | B8-483 the grey ramp subset evenly spaced, no two picked patches close enough to lump (*"How close can two patches picked come to each other"*) | 5775993270, 5776479532, 2026-09-22 | Proposed (no gap under 8 %, none over 22 % of the range), awaiting his word; NOT built |
