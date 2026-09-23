@@ -55,6 +55,14 @@ def test_defer_clear_button_focus_drops_a_focused_button(app):
     lay.addWidget(btn); lay.addWidget(edit)
     w.show()
     app.setActiveWindow(w); w.activateWindow()
+    # WAIT FOR THE ACTIVATION BEFORE STARTING THE CLOCK. Under a loaded
+    # -n worker the window-activation event could land after the function's
+    # last pass (150 ms) and hand the focus back to the button, so the test
+    # failed on timing (18270 passed, this one red; 8 of 8 green alone). A real
+    # dialog is active by the time anyone can press Space, which is the case
+    # the function exists for.
+    from PyQt6.QtTest import QTest
+    QTest.qWaitForWindowActive(w, 2000)
     btn.setFocus()
     if app.focusWidget() is not btn:
         pytest.skip("offscreen platform doesn't report app-level focus here")
