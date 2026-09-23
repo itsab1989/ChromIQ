@@ -5626,7 +5626,11 @@ class MeasurementReportDialog(QDialog):
             if any(str(r.get("_origin_dir") or "") in own for r in rows):
                 continue                  # the window's own source
             wanted |= {str(r.get("_origin_dir") or "") for r in rows}
-        out: "list[str]" = []
+        # THE WINDOW'S OWN RUN ALWAYS, whether or not a row of it is in the
+        # list (K24: a window on a dated verification with the bar on
+        # Profiling still counts the run's Printing record).
+        out: "list[str]" = [d for d in [str(run.dir)] + sorted(own - {str(run.dir)})
+                            if kind is None or measurement_dir_kind(d) == kind]
         for r in getattr(self, "_history", None) or []:
             origin = str(r.get("_origin_dir") or "")
             if not origin or origin in out or origin not in wanted:
