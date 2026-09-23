@@ -10801,7 +10801,7 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   translations. One of them is M-REPORT-DELETE, written into §M-PROPOSED of
   `unified_measurement_management.md` and listed in `AWAITING_APPROVAL`.
 - evidence: test_every_saved_report_of_the_run_is_offered,
-  test_the_selector_never_offers_another_run_s_reports,
+  test_a_profiling_window_offers_every_run_s_printing_record_grouped (it replaced the test that pinned the opposite; K25, B8-826, reversed that rule),
   test_two_reports_of_one_second_are_told_apart_in_the_list,
   test_choosing_an_entry_that_is_not_the_first_one_sticks,
   test_the_document_follows_the_report_that_was_chosen,
@@ -25518,3 +25518,49 @@ would reach.
   above" under the last.
 - evidence:
   test_new_report_unloads_what_the_cross_run_report_loaded
+
+### B8-826 · FIXED · K25: "Report shown" grouped by run and project; every run's Printing records on a Profiling window
+- blocks release: no
+- status: FIXED
+- confirmation: awaiting Knut, §13.12 of `docs/design/measurement_report_limits.md`
+- found by: Knut's K25 answers on #182, 2026-09-23 (5789263863, Q1 to Q6) and
+  his correction (5789532633): the report names stay, the list is grouped by
+  where the included measurements come from.
+- fix: `_grouped_documents` and `_add_report_group_heading` in
+  `ui/dialogs/measurement_report_dialog.py` (the Create Chart preset
+  pulldown's heading rows); the list lands by key, never by position.
+  `_measurement_dirs_of_the_list` reads every row of the list, so a
+  Profiling window lists and counts every run's Printing records, and
+  `_open_on_the_latest_report` opens on the newest report of the window's
+  OWN run. `shared_report_folders` also reads the folder a report across
+  projects is filed in (`document_home`: the projects' common `reports/`),
+  which nothing read before, so such a report was written and never listed
+  or counted. M-REPORT-DELETE says "the measurement(s) it describes"; the
+  folder guide has rows for `verifications/reports/` and `<project>/reports/`.
+  Proof: `~/Desktop/ChromIQ-beta38-proof/report-list/`.
+- open, for Knut:
+  - Q1: his first message had the Profiling tags become Run1 / Multiple runs
+    / All runs; the second keeps the names and lets the grouping carry the
+    run. Built: the second.
+  - Q2: a report across runs of ONE project sits under "Reports including
+    multiple runs" inside that project (his text names only the
+    multiple-projects group).
+  - Q3: a list holding one run's measurements stays flat even when a report
+    across runs covers one of them (his literal rule); selecting that report
+    loads its other run and the list then groups.
+  - Q4: "Already generated for this run" now counts other runs' Printing
+    records on a Profiling window. Keep the words, or "for these
+    measurements"?
+  - Q5: a report across projects lives in `<output folder>/reports/`,
+    outside every project. Right?
+- evidence:
+  test_one_run_is_not_grouped
+  test_several_runs_are_grouped_under_run_headings
+  test_a_heading_can_be_seen_and_not_chosen
+  test_several_projects_are_grouped_by_project_then_run
+  test_a_report_across_projects_is_counted
+  test_profiling_lists_and_counts_every_run_s_printing_record
+  test_a_profiling_window_opens_on_its_own_run_s_report
+  test_the_automatic_record_of_one_measurement_ticks_one
+  test_the_delete_message_says_measurement_s
+  test_the_file_guide_names_the_shared_report_folders

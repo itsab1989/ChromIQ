@@ -1713,11 +1713,11 @@ What was built:
   where a document is taken only when it covers one of those measurements
   (compared from `runs/` down, so a moved project still finds it). A verdict
   record is never an entry and never counted.
-* **Which measurements.** Those of the window's own profile run, and those the
-  user added from elsewhere. *Assumption:* NOT the other runs' profiling
-  sheets that a Profiling window gathers by itself for the trend across a
-  printer's builds (#40); counting their reports made "for this run" name
-  another run's report and opened the window on it. Knut is asked.
+* **Which measurements.** Every measurement in "Included measurements",
+  ticked or not. *ANSWERED by Knut in K25 (5789263863, Q1), see §13.12:* the
+  assumption recorded here before (NOT the other runs' profiling sheets a
+  Profiling window gathers by itself) was the opposite of his rule, and is
+  withdrawn.
 * **Update** decides the home again from the new ticks: the document file is
   rewritten in place, moved (the old one archived into its `reports/old/`
   first, D23) or retired when the report now covers one measurement, whose
@@ -1741,6 +1741,72 @@ What was built:
   an Update can no longer rewrite a report narrower than it is. Before this, a
   report across run1 and run2 opened from run2 showed one date, Generate said
   "Nothing was changed", and Update rewrote it about that one date.
+
+### 13.12 "Report shown" is grouped; the names stay (K25, Knut 2026-09-23)
+
+**⏳ AWAITING CONFIRMATION.** **Ruled by:** Knut, #182 comments 5789263863
+(the K23 answers, Q1 to Q6) and 5789532633 (the correction: names stay, the
+list is grouped). **Confirmed by:** *nobody yet.* This records his ruling and
+what was built from it (B8-826); nobody has confirmed the built behaviour.
+
+> *"For both run type verification and run type profiling the report names
+> keep their names, but are grouped according to which measurement sets have
+> been added, where they come from, and what a report includes."*
+
+What was built:
+
+* **Names.** Unchanged: "One date", "Multiple dates", "All dates" on every
+  entry, profiling and verification alike.
+* **Whether the list is grouped** is decided by the measurements in "Included
+  measurements" (the folders §13.11 reads, of the profile bar's Run type):
+
+  | the measurements come from | headings |
+  |---|---|
+  | one profile run | none, as before |
+  | several runs of one project | `Run1`, `Run2`, ... |
+  | several projects | the project name, with `Run1`, `Run2`, ... under it |
+
+* **Where one report goes** is decided by what it COVERS: the folders its
+  document records, and the folders of its files, compared by project and
+  run folder NAME so a moved project groups the same. One run: under that
+  run. Several runs of one project: under that project's "Reports including
+  multiple runs". More than one project: under "Reports including multiple
+  projects", last.
+* **Order.** "New report…" first. Projects with the window's own first, the
+  others by name; runs in number order; the multi-run group after the runs;
+  newest first inside every group.
+* **The headings** are the Create Chart preset pulldown's: a separator before
+  each top-level heading, a bold row with no data whose item is disabled, so
+  it can be read and not chosen. A run under a project is indented and has no
+  separator of its own. A run heading's tooltip is its folder
+  (`<project>/runs/run1`).
+* **The label** reads "Report shown:" when the list is grouped, and "Report
+  shown (runN):" when it is not.
+* **Profiling (Q1).** "Already generated for this run" and "Report shown"
+  count and list the Printing records of EVERY measurement in the list,
+  which on a Profiling window includes every run's profiling sheet. The
+  window still opens on the newest report of its OWN run; a run with none
+  opens on "New report…" with its defaults, never on another run's report.
+* **The trend (Q1).** Draws only the measurements a report includes (its
+  ticks). The report made at the end of a measurement covers that one
+  measurement, so the window opened on it ticks one row and the graphs show
+  the existing "at least two measurements" text. This was already so and is
+  now pinned by a test.
+* **A report across projects** is filed where §13.11's `document_home` puts
+  it, the projects' common folder (`<output folder>/reports/`). That folder is
+  now read by the list and the counter; before, such a report was written and
+  never listed or counted.
+* **M-REPORT-DELETE (Q5)** says "the measurement(s) it describes"
+  (§M-PROPOSED, revised).
+* **"Where are my files" (Q6)** has rows for the saved reports in
+  `runs/runN/verifications/reports/` and the project's `reports/`.
+
+Open with Knut (B8-826): whether "Reports including multiple runs" is the
+right place for a report across runs of one project; whether a one-run list
+should stay flat when a report across runs covers one of its measurements;
+whether "Already generated for this run" should say "for these measurements"
+now that it counts other runs; and whether a report across projects belongs
+outside every project.
 
 
 ## 15. ChromIQ's own two repeatability rows (#182, 2026-09-22)
