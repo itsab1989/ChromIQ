@@ -61,6 +61,7 @@ sides.**
 - **Renaming a project or deleting a profile run keeps saved reports right**:
   every report that names the project or its runs follows, and a report of
   another project with the same or a former name is never touched.
+- A rename or a run delete also updates the reports kept in the ChromIQ folder's `reports/`.
 - In a read-only folder a delete or an update changes nothing, and the message
   names the folder and what to do.
 - "Report shown" always names the report that is loaded.
