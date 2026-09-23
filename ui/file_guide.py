@@ -162,10 +162,13 @@ def _structure():
         (5, "reports/", tr(
             "The measurement report for that check, so each date keeps its own "
             "verdict alongside its readings.")),
+        # #182 beta 38, F7: nothing is recalculated on an unlock since
+        # B8-391, and Update and Delete MOVE a report here (§18.2, §13.11).
         (6, "old/", tr(
-            "The report as it read before this run's limits were unlocked and "
-            "its reports recalculated. Copied, never moved, so the live report "
-            "keeps its own name and its date.")),
+            "Earlier versions of that check's report, each in a folder named "
+            "with the moment it happened: the report as it read before an "
+            "Update rewrote it, and a report removed with \u201cDelete "
+            "Selected Report\u201d. The current report keeps its own name.")),
         (5, "cache/", tr(
             "Working files from that check. Safe to delete, like every other "
             "cache folder.")),
@@ -401,7 +404,7 @@ def _folders():
         ("cal/chart/", tr("A copy of the calibration chart exactly as it was printed, kept from the moment you start measuring it. “Restore Used Chart” puts this back, so you can reprint the sheet or read it again even after the chart has been regenerated.")),
         ("cal/old/", tr("Earlier calibrations. Once a calibration has been measured, making a new calibration chart moves it here into a folder named with the date rather than deleting it, so an earlier .cal can always be read back — which is also what printcal's “Re-calibrate” and “Verify” modes compare against. A chart you never measured is replaced instead, in the same way a profile run's chart is. Each run also records which calibration it was built with, so ChromIQ can tell you which of them a given profile came from; runs made before ChromIQ started recording that simply say it is unknown.")),
         ("exports/", tr("Files made for other programs from the Tools menu (project-wide, not tied to one run).")),
-        ("runs/runN/verifications/<date>/reports/old/", tr("Reports of that dated check as they read BEFORE this run's limits were unlocked. Unlocking recalculates every report of the run, and a record about to be rewritten is copied here first rather than deleted, in a folder named with the moment it happened. The live report keeps its own name, so each date still has exactly one current report.")),
+        ("runs/runN/verifications/<date>/reports/old/", tr("Earlier versions of that dated check's report, each in a folder named with the moment it happened. An Update moves the version it replaces here, and \u201cDelete Selected Report\u201d moves a report here rather than deleting it. Unlocking a run's limits changes no saved report. The current report keeps its own name, so each date still has exactly one current report.")),
         ("compliance/  (in ChromIQ's settings folder, not in a project)", tr("The limit values of a paid standard, for a licence holder who has typed them in: one file, iso12647.json, holding your own ISO 12647-7 and 12647-8 numbers. ChromIQ ships none of them, which is why those two columns of the Report limits table read “?” until the file is there. Put it in place from the Report limits window, under “Reference values…”; it is the same file on every machine you own, and deleting it simply puts the “?” back.")),
         ("reference_sets/  (in ChromIQ's settings folder, not in a project)", tr("Your own copies of printing-condition reference data, which ChromIQ prefers, set by set, over the eleven Fogra files it ships. A copy is stored under ChromIQ's own name for the set, never under the name of the file you picked, and SUPPLIED.json beside it records where each one came from, when, and its checksum. “Stop using it” removes ChromIQ's copy and leaves your original download alone.")),
     ]
@@ -491,8 +494,8 @@ def _features():
             "values from compliance/iso12647.json when you have supplied "
             "them"),
          tr("The run's limits, back into runs/runN/meta.json. Unlocking a run "
-            "first copies every report of that run into its "
-            "reports/old/<date>/ folder, then recalculates them")),
+            "changes no saved report; a report you then update keeps its "
+            "earlier version in its reports/old/<date>/ folder")),
         (tr("Reference values (from Report limits)"),
          tr("A file of ISO limit values you filled in, or a Fogra reference "
             "file (.txt or .zip) newer than the ones ChromIQ ships"),

@@ -898,6 +898,11 @@ class ProjectManifest:
     target_name: str = ""
     current_run: str = "run1"
     runs: list[str] = field(default_factory=lambda: ["run1"])
+    #: The names this project's files carried before a rename, oldest first
+    #: (#182 beta 38, F2). A saved report records its measurements' folders
+    #: under the name the project had when it was written; these tell the
+    #: report window that such a folder is this project's own.
+    former_names: list[str] = field(default_factory=list)
 
     @classmethod
     def fresh(cls, target_name: str) -> "ProjectManifest":
@@ -2768,6 +2773,66 @@ real ink on real paper. Everything in cache/ is always safe to delete.
 CONFLICT_MARKER = "_conflicted_at_renaming_procedure"
 
 
+def same_entry(a: "Path | str", b: "Path | str") -> bool:
+    """Whether *a* and *b* name ONE entry on disk (#182 beta 38, F1).
+
+    **ON A CASE-INSENSITIVE VOLUME, "report-limits.icc" EXISTS WHEN ONLY
+    "Report-Limits.icc" IS THERE.** macOS formats APFS case-insensitive by
+    default, so ``dst.exists()`` on a name that differs from the file's own
+    only in case (or only in its Unicode normalisation) answers True about the
+    file itself. `Project.rename` took that for a stranger, moved the project's
+    built profile aside as ``…_conflicted_at_renaming_procedure.icc``, and then
+    failed to rename the file that was no longer there; the message said the
+    project was open as it was.
+
+    Asked of the disk (`os.path.samefile`), so it is right on every kind of
+    volume; False when either side is missing or cannot be asked.
+    """
+    try:
+        return os.path.samefile(str(a), str(b))
+    except OSError:
+        return False
+
+
+class ProjectRenameRefused(OSError):
+    """A rename refused BEFORE anything was touched, or undone after a step
+    failed (#182 beta 38, F1).
+
+    ``reason`` is a plain sentence for the person (§M-PROPOSED,
+    M-PROJECT-FOLDER-RENAME-FAILED's ``{error}``), never a bare path.
+    """
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+    def __str__(self) -> str:                        # noqa: D105
+        return self.reason
+
+
+def _rename_via_temporary(src: Path, dst: Path) -> "list[tuple[Path, Path]]":
+    """Rename *src* to *dst* in two steps, through a temporary name beside it;
+    the steps done, as ``[(from, to)]``, so a caller can undo them.
+
+    A rename that changes only the CASE (or the normalisation) of a name is a
+    rename onto itself on a case-insensitive volume; some file systems and
+    network shares ignore it or refuse it. Through a name nothing else holds
+    it is two ordinary renames on every volume (#182 beta 38, F1).
+    """
+    import uuid
+    tmp = src.with_name(f".{src.name}.chromiq-renaming-{uuid.uuid4().hex[:8]}")
+    done: "list[tuple[Path, Path]]" = []
+    src.rename(tmp)
+    done.append((src, tmp))
+    try:
+        tmp.rename(dst)
+    except OSError:
+        tmp.rename(src)
+        raise
+    done.append((tmp, dst))
+    return done
+
+
 def _move_aside_conflict(path: Path) -> "Path | None":
     """Move *path* out of the way so a rename can take its name.
 
@@ -3300,7 +3365,15 @@ class Project:
         # verification measurements (verifications/<date>/<stem>-verify.ti3), so a
         # project rename carries them along too (#130, Hole 8).
         protected = {self.MANIFEST, self.README, "meta.json"}
-        tail_re = re.compile(r"(-cal|-verify)?(-i1profiler|-colours)?(_\d+)?\.[\w.]+$")
+        # **AND A HYPHEN BEFORE THE EXTENSION (#182 beta 38, F3).** The
+        # extension part was `\.[\w.]+`, which cannot hold the hyphen in
+        # ``.control-strip.json``: every rename, the ordinary one and the
+        # folder chooser's, left each ``<stem>-verify.control-strip.json``
+        # under the old name, and the renamed chart had no control-strip
+        # declaration, so the control-strip rows could not be answered.
+        tail_re = re.compile(
+            r"(-cal|-verify)?(-i1profiler|-colours)?(_\d+)?"
+            r"(\.control-strip)?\.[\w.]+$")
 
         # NFC ON BOTH SIDES. `old_stem` comes from a name ChromIQ composed;
         # the names on disk may be decomposed, because a project restored from
@@ -3308,6 +3381,7 @@ class Project:
         # skipped every accented artefact and left the whole chart behind under
         # the old name while the project moved on.
         old_stem_nfc = nfc(old_stem)
+        plan: "list[tuple[Path, Path, str]]" = []   # (file, new name, how)
         for f in sorted(self._root.rglob("*")):
             if not f.is_file() or f.name in protected:
                 continue
@@ -3318,7 +3392,13 @@ class Project:
             if not tail_re.fullmatch(tail):
                 continue
             dst = f.with_name(new_stem + tail)
-            if dst.exists():
+            if same_entry(f, dst):
+                # **THE FILE ITSELF, UNDER ANOTHER SPELLING (F1).** A
+                # case-only (or normalisation-only) rename on a
+                # case-insensitive volume: nothing is in the way, so nothing
+                # is moved aside; two steps, through a temporary name.
+                plan.append((f, dst, "self"))
+            elif dst.exists():
                 # Something in the folder is already called what this file is
                 # about to be called. ChromIQ never generates such a pair —
                 # its own artefacts all carry the project stem — so this can
@@ -3330,14 +3410,73 @@ class Project:
                 # later rename ever repaired it. The stranger is moved aside
                 # instead, so the rename can finish correctly and nothing is
                 # lost.
-                _move_aside_conflict(dst)
-                if dst.exists():           # could not be moved: leave well alone
-                    log.warning("Rename target already exists, skipping: %s", dst)
-                    continue
-            f.rename(dst)
+                plan.append((f, dst, "aside"))
+            else:
+                plan.append((f, dst, "plain"))
 
-        self._manifest.target_name = new_stem
-        self.save_manifest()
+        # **NOTHING IS MOVED ASIDE UNLESS THE RENAME CAN THEN FINISH (F1).**
+        # Asked of the whole plan before the first file is touched: two files
+        # that would take one name, and a folder ChromIQ may not write in, are
+        # refused here, with nothing changed.
+        from core.i18n import tr
+        taken: "dict[str, Path]" = {}
+        for f, dst, _how in plan:
+            k = nfc(str(dst)).casefold()
+            if k in taken and not same_entry(taken[k], f):
+                raise ProjectRenameRefused(tr(
+                    "Two of its files would both be called \u201c{name}\u201d "
+                    "after the rename.").format(name=dst.name))
+            taken[k] = f
+            if not os.access(f.parent, os.W_OK | os.X_OK):
+                raise ProjectRenameRefused(tr(
+                    "ChromIQ is not allowed to change the files in the folder "
+                    "\u201c{folder}\u201d.").format(folder=f.parent.name))
+
+        # **AND WHAT WAS DONE IS UNDONE WHEN A STEP FAILS ANYWAY**, so the
+        # failure message's "The project is open as it was" is true: every
+        # rename and every move aside is recorded and reversed, newest first.
+        done: "list[tuple[Path, Path]]" = []
+        try:
+            for f, dst, how in plan:
+                if how == "self":
+                    done.extend(_rename_via_temporary(f, dst))
+                    continue
+                if how == "aside":
+                    aside = _move_aside_conflict(dst)
+                    if aside is None or dst.exists():
+                        raise ProjectRenameRefused(tr(
+                            "A file called \u201c{name}\u201d is already there "
+                            "and could not be moved out of the way.").format(
+                                name=dst.name))
+                    done.append((dst, aside))
+                f.rename(dst)
+                done.append((f, dst))
+            _was_name = self._manifest.target_name
+            _was_former = list(self._manifest.former_names)
+            # **THE NAME IT HAD IS KEPT (F2).** A report written before the
+            # rename records its measurements' folders under the project's
+            # old name. With the old name recorded here, the report window
+            # knows those are THIS project's, and never reaches into another
+            # folder that merely shares the old name (a Finder duplicate's
+            # original, beside it).
+            if old_stem not in self._manifest.former_names:
+                self._manifest.former_names.append(old_stem)
+            self._manifest.target_name = new_stem
+            try:
+                self.save_manifest()
+            except OSError:
+                self._manifest.target_name = _was_name
+                self._manifest.former_names = _was_former
+                raise
+        except OSError:
+            for a, b in reversed(done):
+                try:
+                    b.rename(a)
+                except OSError as exc:              # pragma: no cover
+                    log.error("could not undo %s -> %s after a failed rename: "
+                              "%s", a, b, exc)
+            raise
+
         self.write_readme()
         log.info("Renamed project stem %s -> %s at %s", old_stem, new_stem, self._root)
 
@@ -4116,13 +4255,32 @@ class FileManager:
                 self._project = proj
                 self._notify_named_state(_was)
             return old_root
-        if new_root.exists():
-            raise FileExistsError(new_root)
+        # **A NAME THAT DIFFERS ONLY IN CASE IS THIS FOLDER, NOT ANOTHER ONE
+        # (#182 beta 38, F1).** On a case-insensitive volume `new_root.exists()`
+        # is True about the project itself; it is renamed in two steps,
+        # through a temporary name, instead of refused as taken.
+        case_only = same_entry(old_root, new_root)
+        if new_root.exists() and not case_only:
+            raise FileExistsError(errno.EEXIST, "already exists", str(new_root))
 
         _was = self._project_identity()
-        shutil.move(str(old_root), str(new_root))
+        if case_only:
+            moved = _rename_via_temporary(old_root, new_root)
+        else:
+            shutil.move(str(old_root), str(new_root))
+            moved = [(old_root, new_root)]
         proj = Project.load(new_root)
-        proj.rename(new_root.name)
+        try:
+            proj.rename(new_root.name)
+        except OSError:
+            # The files are as they were (`Project.rename` undoes its own
+            # steps); the folder goes back too, so nothing has moved.
+            for a, b in reversed(moved):
+                try:
+                    Path(b).rename(a)
+                except OSError as exc:              # pragma: no cover
+                    log.error("could not move %s back to %s: %s", b, a, exc)
+            raise
         self._target_name = new_root.name
         # Keep the override pointing at where the project now is, or a nested
         # one silently detaches the moment it is renamed.

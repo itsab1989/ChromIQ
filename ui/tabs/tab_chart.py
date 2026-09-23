@@ -8254,7 +8254,10 @@ class TabChart(QWidget):
             edit.setText(old_name)
             hint.setVisible(False)
             return
-        if new_root.exists():
+        # A name that differs only in case is THIS folder on a case-insensitive
+        # volume, not a different project (#182 beta 38, F1): it is renamed.
+        from core.file_manager import same_entry as _same_entry
+        if new_root.exists() and not _same_entry(old_root, new_root):
             return                                   # a different project owns the new name
         if not self._handle_target_rename(new_name):
             edit.setText(old_name)                   # cancelled → keep the old name shown
@@ -8267,8 +8270,9 @@ class TabChart(QWidget):
 
     def _offer_rename_for_a_renamed_folder(self, root) -> bool:
         """Offer to rename a project whose folder is not called what its
-        files are called (#182 K26, Knut 5792484060, Q5). True when it was
-        renamed.
+        files are called (#182 K26, Knut 5792484060, Q5). ``"renamed"``,
+        ``"closed"`` (Cancel), ``"failed"`` (the rename was refused and said
+        so), or False when the names agree and nothing was asked.
 
         Knut: *"If a project is opened where the root project folder is
         different than the defined name in 'Printer profile project name'
@@ -8296,31 +8300,86 @@ class TabChart(QWidget):
         built = False
         try:
             from core.file_manager import Project
-            built = any(r.built_profile_icc().exists()
+            # BY THE NAME THE FILES CARRY, not the folder's: a run looks its
+            # files up by the folder's name, which is exactly what this
+            # project's files are not called, so `built_profile_icc()` found
+            # no profile in a duplicate that had one and the window never
+            # said the profile keeps its inner name (seen on screen, beta 38
+            # fixes round).
+            built = any((r.dir / f"{stored}.icc").is_file()
+                        or r.merged_icc.is_file()
                         for r in Project.load(root).all_runs())
         except Exception:                            # noqa: BLE001
             built = False
         log.info("project folder %s is not named what its files carry (%r); "
                  "offering the rename chooser", root, stored)
-        dlg = TargetChangeDialog(stored, new_name, root, new_root, self,
-                                 folder_renamed=True, built_profile=built)
-        dlg.exec()
-        if dlg.result_action() != TargetChangeAction.RENAME:
-            log.info("project %s left as it is (files named %r)", root, stored)
-            return False
+        # **THREE CHOICES (Knut, 5794078008): rename to the folder's name,
+        # choose another name, or Cancel, which CLOSES the project.** "Leave
+        # it as it is" is gone: it left a project open whose files ChromIQ
+        # cannot find. A name window cancelled goes back to the choice.
+        from core.file_manager import same_entry as _same_entry
+        from workflow import measurement_messages as M
+        while True:
+            dlg = TargetChangeDialog(stored, new_name, root, new_root, self,
+                                     folder_renamed=True,
+                                     built_profile=built)
+            dlg.exec()
+            action = dlg.result_action()
+            if action == TargetChangeAction.CANCEL:
+                log.info("project %s not renamed (files named %r): closed, "
+                         "as Cancel says", root, stored)
+                return "closed"
+            if action == TargetChangeAction.RENAME:
+                break
+            # "Choose another name": the existing project-name window, then
+            # the same rename as the name field's (`rename_existing_project`).
+            from ui.dialogs.name_prompt import ask_for_project_name
+
+            def _taken(typed: str, _root=root) -> bool:
+                cand = _root.parent / self._file_mgr._sanitise(
+                    self._file_mgr.strip_workfile_ext(typed))
+                return cand.exists() and not _same_entry(cand, _root)
+            texts = M.folder_renamed_texts(folder=root.name, name=stored,
+                                           new=new_name, built=built)
+            typed = ask_for_project_name(self, prefill=new_name,
+                                         body=texts["name_body"],
+                                         exists=_taken)
+            if typed:
+                new_name = self._file_mgr._sanitise(
+                    self._file_mgr.strip_workfile_ext(typed))
+                break
         try:
             self._file_mgr.rename_existing_project(root, new_name)
         except (OSError, ValueError) as exc:
             log.warning("renaming the project at %s to %r failed: %s",
                         root, new_name, exc)
             from workflow import measurement_messages as M
+            # IN WORDS, NOT A PATH (#182 beta 38, F6): the commonest cause,
+            # a name already taken, used to print as a bare path.
             title, body = M.M_PROJECT_FOLDER_RENAME_FAILED.render(
-                folder=root.name, new=new_name, error=str(exc), name=stored)
+                folder=root.name, new=new_name,
+                error=M.rename_failure_reason(exc), name=stored)
             InfoDialog(title, body, self, min_width=540).exec()
-            return False
+            return "failed"
         log.info("project %s renamed to %r (its files carried %r)", root,
                  new_name, stored)
-        return True
+        return "renamed"
+
+    def _close_after_folder_rename_cancelled(self) -> None:
+        """Close the project whose folder-renamed window was cancelled: the
+        main window's own reset (the one Close Project and a delete share),
+        or, outside one, the file manager's close. Nothing is written into
+        the project: its settings are not recorded, because none were
+        made."""
+        reset = getattr(self.window(), "_reset_after_project_gone", None)
+        if callable(reset):
+            try:
+                reset(deleted=False)
+                return
+            except Exception:                        # noqa: BLE001
+                log.warning("could not reset the app after closing",
+                            exc_info=True)
+        self._file_mgr.close_project()
 
     def _new_project_root_beside(self, old_root, new_name: str):
         """Where a rename of the project at *old_root* to *new_name* would land.
@@ -8528,7 +8587,13 @@ class TabChart(QWidget):
         self._file_mgr.open_project_at(manifest.parent)
         # A folder not called what its files are called is offered the
         # rename chooser BEFORE anything is shown from it (#182 K26).
-        self._offer_rename_for_a_renamed_folder(manifest.parent)
+        if self._offer_rename_for_a_renamed_folder(
+                manifest.parent) == "closed":
+            # CANCEL CLOSES THE PROJECT (Knut, 5794078008): the app goes back
+            # to its starting state, the one Close Project leaves, and
+            # nothing of this project is shown.
+            self._close_after_folder_rename_cancelled()
+            return
         self._last_target_name = self._file_mgr.get_target_name()
         self._update_name_fields()
         # Loading a saved project is a clean slate for the preset/applied bindings.
@@ -15606,8 +15671,11 @@ class TabChart(QWidget):
             return True
         # A project already occupying the new name is a different situation
         # (merge/overwrite) that this dialog doesn't cover — let the normal flow
-        # handle it rather than offering a misleading "rename onto it".
-        if new_root.exists():
+        # handle it rather than offering a misleading "rename onto it". A
+        # name that differs only in case is this folder itself on a
+        # case-insensitive volume (#182 beta 38, F1), and is renamed.
+        from core.file_manager import same_entry as _same_entry
+        if new_root.exists() and not _same_entry(old_root, new_root):
             return True
 
         dlg = TargetChangeDialog(old_name, new_root.name, old_root, new_root, self)

@@ -786,6 +786,12 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-23, the beta 38 challenge-round fixes and Knut's
+    # 5794078008: 23 new keys and 10 retired (see `_BUDGET` in
+    # test_help_cards_untranslated_are_tracked.py). German by hand and
+    # unmoved; the twelve others carry the English under the beta rule and
+    # each rises by exactly 13. COUNTED off the tree, BOTH ledgers in the
+    # same commit.
     # RE-MEASURED 2026-09-23, the fixes for the two challenge rounds before
     # beta 37: report text reworded for K18 ("the test chart used", no
     # "you"/"your", no ChromIQ explanation), the evenness noise note
@@ -1390,17 +1396,17 @@ _IDENTICAL_TO_KEY = {
     # English placeholders, 2 old English placeholders gone). COUNTED off the
     # tree with this file's own expression, BOTH ledgers in the same commit.
     "de": 141,
-    "es": 1077,
-    "fr": 1099,
-    "it": 1088,
-    "ja": 1063,
-    "nl": 1104,
-    "no": 1089,
-    "pl": 1081,
-    "pt": 1079,
-    "ru": 1052,
-    "sv": 1090,
-    "zh_CN": 1057,
+    "es": 1090,
+    "fr": 1112,
+    "it": 1101,
+    "ja": 1076,
+    "nl": 1117,
+    "no": 1102,
+    "pl": 1094,
+    "pt": 1092,
+    "ru": 1065,
+    "sv": 1103,
+    "zh_CN": 1070,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1427,7 +1433,7 @@ _IDENTICAL_TO_KEY = {
     # in Ukrainian, so the pointer could not match whatever the user read.
     # Nothing else changed. The ceiling is re-measured DOWN here rather than
     # left where it was, so the next rise still has to justify itself.
-    "uk": 1299,
+    "uk": 1312,
 }
 
 

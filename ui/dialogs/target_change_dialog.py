@@ -36,6 +36,9 @@ class TargetChangeAction(Enum):
     RENAME = "rename"   # move the old folder to the new name, then regenerate
     KEEP   = "keep"     # leave the old folder, create a fresh one under the new name
     DELETE = "delete"   # delete the old folder, create a fresh one under the new name
+    #: #182, Knut 5794078008: the folder-renamed window's "Choose another
+    #: name": the caller asks for a name and renames the project to it.
+    NEW_NAME = "new_name"
 
 
 class TargetChangeDialog(QDialog):
@@ -193,20 +196,29 @@ class TargetChangeDialog(QDialog):
         name" field shows), *old_root* the folder as it is on disk. The
         heading and introduction are §M-PROPOSED (M-PROJECT-FOLDER-RENAMED).
         Keep both and Delete do not apply: there is one folder, and it is
-        the project. "Leave it as it is" is the Cancel of this case."""
-        from workflow.measurement_messages import M_PROJECT_FOLDER_RENAMED
-        heading_text, intro_text = M_PROJECT_FOLDER_RENAMED.render(
-            folder=old_root.name, name=old_name, new=new_name)
+        the project.
+
+        **THREE CHOICES, NO "LEAVE IT AS IT IS" (Knut, 5794078008):** rename
+        the project to the folder's name (RENAME), choose another name
+        (NEW_NAME, which the caller answers with the project-name window),
+        or Cancel, which closes the project (CANCEL). Each is explained by a
+        bullet in the window text (M-PROJECT-FOLDER-RENAMED, §M-PROPOSED)."""
+        from workflow.measurement_messages import folder_renamed_texts
+        t = folder_renamed_texts(folder=old_root.name, name=old_name,
+                                 new=new_name, built=self._built_profile)
         outer.setContentsMargins(22, 20, 22, 18)
         outer.setSpacing(14)
-        heading = QLabel(heading_text, self)
+        heading = QLabel(t["title"], self)
         heading.setWordWrap(True)
         heading.setStyleSheet(
             f"font-size: 15px; font-weight: bold; color: {text_color};")
         outer.addWidget(heading)
-        intro = QLabel(intro_text, self)
+        # THE THREE CHOICES ARE EXPLAINED IN THE TEXT, one bullet each, as a
+        # popup does (Knut, 5794078008); the buttons carry only their names.
+        intro = QLabel(t["body"], self)
         intro.setWordWrap(True)
         intro.setStyleSheet(f"color: {text_color};")
+        intro.setMinimumWidth(520)
         outer.addWidget(intro)
         paths = QLabel(
             tr("Existing:  {old}\nNew name:  {new}").format(
@@ -221,31 +233,26 @@ class TargetChangeDialog(QDialog):
             "monospace; font-size: 12px;")
         outer.addWidget(paths)
         outer.addWidget(self._divider())
-        rename_text = tr(
-            'ChromIQ renames every file of this project that carries the name '
-            '"{old}" so it carries "{new}", and the project with them. Nothing '
-            'else in the folder is touched, and nothing is deleted.').format(
-                old=old_name, new=new_name)
-        if old_root.name != new_name:
-            rename_text += " " + tr(
-                'The folder becomes "{new}" as well, because a project folder '
-                'has no spaces or other characters a file name cannot '
-                'carry.').format(new=new_name)
-        if self._built_profile:
-            rename_text += "\n\n" + tr(
-                'A profile already built keeps the name written inside it, '
-                '"{old}", which is what ColorSync Utility and other programs '
-                'show. Its file is renamed with the others.').format(
-                    old=old_name)
-        outer.addWidget(self._option_button(
-            tr('Rename the project to "{new}"').format(new=new_name),
-            rename_text, TargetChangeAction.RENAME, primary=True))
-        outer.addWidget(self._option_button(
-            tr("Leave it as it is"),
-            tr('Nothing is changed. The project stays open, but ChromIQ does '
-               'not find its files named "{old}" until they are '
-               'renamed.').format(old=old_name),
-            TargetChangeAction.CANCEL))
+        # EXACTLY THREE, and no "Leave it as it is" (Knut, 5794078008): a
+        # project whose files ChromIQ cannot find is renamed, renamed to
+        # another name, or closed.
+        from ui.widgets import fit_button_width
+        row = QHBoxLayout()
+        cancel_btn = QPushButton(t["cancel"], self)
+        cancel_btn.clicked.connect(self._choose_cancel)
+        other_btn = QPushButton(t["other"], self)
+        other_btn.clicked.connect(self._choose_new_name)
+        rename_btn = QPushButton(t["rename"], self)
+        rename_btn.setObjectName("primary")
+        rename_btn.setDefault(True)
+        rename_btn.clicked.connect(self._choose_rename)
+        row.addWidget(cancel_btn)
+        row.addStretch()
+        row.addWidget(other_btn)
+        row.addWidget(rename_btn)
+        for btn in (cancel_btn, other_btn, rename_btn):
+            fit_button_width(btn)
+        outer.addLayout(row)
 
     def _divider(self) -> QFrame:
         line = QFrame(self)
@@ -299,6 +306,17 @@ class TargetChangeDialog(QDialog):
     def _choose(self, action: TargetChangeAction) -> None:
         self._action = action
         self.accept()
+
+    # Bound methods for the folder-renamed row, not lambdas (CLAUDE.md: a
+    # slot on a signal a widget's own child emits is a named method).
+    def _choose_cancel(self) -> None:
+        self._choose(TargetChangeAction.CANCEL)
+
+    def _choose_new_name(self) -> None:
+        self._choose(TargetChangeAction.NEW_NAME)
+
+    def _choose_rename(self) -> None:
+        self._choose(TargetChangeAction.RENAME)
 
     # ------------------------------------------------------------------
 

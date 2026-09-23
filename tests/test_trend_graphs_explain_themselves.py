@@ -299,17 +299,24 @@ def test_the_stacking_rule_stays_inside_the_plot():
     first instead, and a lone cross is never moved.
 
     MUTATION, proven red (K26): always move up (the second centre lands
-    above the plot's top at y 17)."""
+    above the plot's top at y 17).
+
+    Beta 38 (F8): crosses at ONE height keep their listed order, the first
+    lowest, so near the top the first goes below; and of two at different
+    heights the lower value (larger y) stays below. The two cases this test
+    pinned for the old rule are restated for the new one (the second of them
+    was F8 itself: y 82 is the lower value, and it was put on top)."""
     from PyQt6.QtCore import QPointF as P
     top, bottom = 24.0, 150.0
     out = mrd._stack_withheld_marks([(0, P(10, 26)), (0, P(10, 26)),
                                      (1, P(50, 26))], top, bottom)
-    assert out[0].y() == pytest.approx(26)
-    assert out[1].y() == pytest.approx(26 + mrd._WITHHELD_STACK_PX)
+    assert out[1].y() == pytest.approx(26)
+    assert out[0].y() == pytest.approx(26 + mrd._WITHHELD_STACK_PX)
     assert out[2].y() == pytest.approx(26)
     out = mrd._stack_withheld_marks([(0, P(10, 80)), (0, P(10, 82))],
                                     top, bottom)
-    assert out[1].y() == pytest.approx(80 - mrd._WITHHELD_STACK_PX)
+    assert out[1].y() == pytest.approx(82)
+    assert out[0].y() == pytest.approx(82 - mrd._WITHHELD_STACK_PX)
 
 
 def test_hovering_a_word_or_a_red_x_shows_the_text_the_pdf_prints(qapp):

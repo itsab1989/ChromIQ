@@ -1540,19 +1540,92 @@ M_PROJECT_FOLDER_RENAMED = _m(
     "the name of its folder, so until the two match it finds none of them. "
     "This happens when a project folder is copied, duplicated or renamed "
     "outside ChromIQ.\n\n"
-    "Rename the project to \u201c{new}\u201d so its files carry that name "
-    "too, or leave it as it is.",
+    "\u2022  Rename the project to \u201c{new}\u201d: every file that carries "
+    "the name \u201c{name}\u201d is renamed to carry \u201c{new}\u201d, and "
+    "the folder too when its name has a space or a character a file name "
+    "cannot carry. Nothing is deleted.{built}\n\n"
+    "\u2022  Choose another name: you type the name the project is to have, "
+    "and its folder and files are renamed to it in the same way.\n\n"
+    "\u2022  Cancel: nothing is changed, and the project is closed.",
     approved=False)
+
+#: #182, Knut 5794078008: the window offers exactly three choices, each
+#: explained by a bullet in its text, and no "Leave it as it is". ``{built}``
+#: in the body is empty, or this sentence (with a space before it) when a
+#: run of the project has a built profile, which is still offered the rename
+#: ("Yes", same comment).
+_FOLDER_RENAMED_BUILT = ("A profile already built keeps the name written "
+                         "inside it, \u201c{name}\u201d, which is what "
+                         "ColorSync Utility and other programs show.")
+#: The three buttons, in the order the bullets name them.
+_FOLDER_RENAMED_RENAME = "Rename the project to \u201c{new}\u201d"
+_FOLDER_RENAMED_OTHER = "Choose another name\u2026"
+_FOLDER_RENAMED_CANCEL = "Cancel"
+#: The name window's line when "Choose another name" opens it (the existing
+#: project-name window, `name_prompt.ask_for_project_name`).
+_FOLDER_RENAMED_NAME_BODY = (
+    "Type the name this project is to have. Its folder, and every file that "
+    "carries the name \u201c{name}\u201d, are renamed to it.")
+
+
+def folder_renamed_texts(*, folder: str, name: str, new: str,
+                         built: bool) -> dict:
+    """Every piece of text of the folder-renamed window, rendered (#182,
+    Knut 5794078008): ``title``, ``body``, the three buttons ``rename``,
+    ``other``, ``cancel``, and ``name_body`` for the name window."""
+    extra = (" " + tr(_FOLDER_RENAMED_BUILT).format(name=name)) if built \
+        else ""
+    title, body = M_PROJECT_FOLDER_RENAMED.render(
+        folder=folder, name=name, new=new, built=extra)
+    return {"title": title, "body": body,
+            "rename": tr(_FOLDER_RENAMED_RENAME).format(new=new),
+            "other": tr(_FOLDER_RENAMED_OTHER),
+            "cancel": tr(_FOLDER_RENAMED_CANCEL),
+            "name_body": tr(_FOLDER_RENAMED_NAME_BODY).format(name=name)}
 
 #: …and the window for when that rename cannot be done.
 M_PROJECT_FOLDER_RENAME_FAILED = _m(
     "M-PROJECT-FOLDER-RENAME-FAILED",
     "The project could not be renamed",
-    "ChromIQ could not rename \u201c{folder}\u201d to \u201c{new}\u201d.\n\n"
+    "ChromIQ could not rename the project \u201c{name}\u201d to "
+    "\u201c{new}\u201d.\n\n"
     "What went wrong: {error}\n\n"
-    "The project is open as it was. Its files still carry the name "
-    "\u201c{name}\u201d, so ChromIQ does not find them under this folder.",
+    "Nothing was changed, and the project is open as it was. Its files still "
+    "carry the name \u201c{name}\u201d, so ChromIQ does not find them in the "
+    "folder \u201c{folder}\u201d.",
     approved=False)
+
+#: What M-PROJECT-FOLDER-RENAME-FAILED says went wrong, in words (#182 beta
+#: 38, F6). The window printed the exception, which for the commonest cause
+#: (the new name is taken) was a bare path. Each is its own module constant,
+#: because the extractor resolves ``tr(NAME)`` only for those.
+_RENAME_WHY_TAKEN = ("A folder called \u201c{name}\u201d is already there, "
+                     "beside this one.")
+_RENAME_WHY_NOT_ALLOWED = ("ChromIQ is not allowed to change this folder or "
+                           "the files in it.")
+_RENAME_WHY_GONE = ("A file of the project was no longer where ChromIQ "
+                    "expected it.")
+_RENAME_WHY_OTHER = "The system refused it ({reason})."
+
+
+def rename_failure_reason(exc: BaseException) -> str:
+    """The ``{error}`` of M-PROJECT-FOLDER-RENAME-FAILED for *exc*: a plain
+    sentence, never a bare path (#182 beta 38, F6)."""
+    from pathlib import Path as _P
+    reason = getattr(exc, "reason", None)
+    if isinstance(reason, str) and reason:
+        return reason                        # already a sentence (tr'd)
+    if isinstance(exc, FileExistsError):
+        where = (getattr(exc, "filename", None)
+                 or (exc.args[0] if exc.args else ""))
+        name = _P(str(where)).name
+        return tr(_RENAME_WHY_TAKEN).format(name=name)
+    if isinstance(exc, PermissionError):
+        return tr(_RENAME_WHY_NOT_ALLOWED)
+    if isinstance(exc, FileNotFoundError):
+        return tr(_RENAME_WHY_GONE)
+    why = (getattr(exc, "strerror", None) or type(exc).__name__)
+    return tr(_RENAME_WHY_OTHER).format(reason=why)
 
 #: The one sentence M-PROJECT-EXISTS uses to say what is already in there. It
 #: is a FRAGMENT of that message rather than a message of its own, and every

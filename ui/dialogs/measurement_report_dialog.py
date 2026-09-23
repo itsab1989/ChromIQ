@@ -132,6 +132,22 @@ _METRIC_LABELS_JUDGED = {
     "avg_all": lambda: tr("Average ΔE, all judged patches"),
     "max_all": lambda: tr("Maximum ΔE, all judged patches"),
 }
+#: The Colour accuracy GRAPH's legend (#182 beta 38, F9): the metric in
+#: words and the unit in brackets, "Average, all patches (ΔE00)", as every
+#: other graph's legend reads ("{metric} ({unit})", `_with_unit`). The graph
+#: said "Average ΔE, all patches" while its neighbours said "(ΔE00)". The
+#: results table keeps `_METRIC_LABELS`.
+_TREND_ACCURACY_LABELS = {
+    "avg_all":   lambda: tr("Average, all patches"),
+    "avg_low95": lambda: tr("Average, lowest 95%"),
+    "avg_high5": lambda: tr("Average, highest 5%"),
+    "max_all":   lambda: tr("Maximum, all patches"),
+    "max_low95": lambda: tr("Maximum, lowest 95%"),
+}
+_TREND_ACCURACY_LABELS_JUDGED = {
+    "avg_all": lambda: tr("Average, all judged patches"),
+    "max_all": lambda: tr("Maximum, all judged patches"),
+}
 
 
 def _series_is_within_gamut(series: list) -> bool:
@@ -343,22 +359,53 @@ def _stack_withheld_marks(marks: list, top: float, bottom: float) -> list:
     graph Q3: two crosses on one date, *"place them one above the other so
     they do not overlap"*).
 
-    A cross closer than `_WITHHELD_STACK_PX` to one already placed on the
-    same date moves up by that much from the higher of them, or down from the
-    lower when up would leave the plot between *top* and *bottom*."""
-    out: list = []
-    for i, c in marks:
-        c = QPointF(c)
-        same = [q for (j, _c0), q in zip(marks, out) if j == i]
-        if any(abs(q.y() - c.y()) < _WITHHELD_STACK_PX for q in same):
-            up = min(q.y() for q in same) - _WITHHELD_STACK_PX
-            if up - _WITHHELD_ARM >= top:
-                c.setY(up)
-            else:
-                c.setY(min(max(q.y() for q in same) + _WITHHELD_STACK_PX,
-                           bottom - _WITHHELD_ARM))
-        out.append(c)
+    **THE LOWER VALUE'S CROSS STAYS LOWER (#182 beta 38, F8).** A second
+    cross used to move up from the higher of the others whatever its own
+    value, so with both evenness rows withheld on one date the later metric
+    was always drawn on top, and "largest difference from the mean" (0.114)
+    sat above "nine locations" (0.203). Crosses closer than
+    `_WITHHELD_STACK_PX` on one date are now kept in the order of their own
+    heights: the lowest stays where it is and each higher one sits at least
+    that far above the one below it. When that would leave the plot at
+    *top*, the highest stays where it is and each lower one sits that far
+    below the one above it, down to *bottom*. Crosses at one height keep the
+    order they are listed in, the first lowest. A lone cross never moves."""
+    out = [QPointF(c) for _i, c in marks]
+    groups: "dict[int, list[int]]" = {}
+    for k, (i, _c) in enumerate(marks):
+        groups.setdefault(i, []).append(k)
+    for ks in groups.values():
+        if len(ks) < 2:
+            continue
+        # bottom first: the largest y (the lowest value) first
+        up = sorted(ks, key=lambda k: (-out[k].y(), k))
+        ys = {}
+        prev = None
+        for k in up:
+            y = out[k].y()
+            if prev is not None and y > prev - _WITHHELD_STACK_PX:
+                y = prev - _WITHHELD_STACK_PX
+            ys[k] = prev = y
+        if min(ys.values()) - _WITHHELD_ARM < top:
+            # top first: the highest stays, the lower ones go below it
+            ys, prev = {}, None
+            for k in reversed(up):
+                y = out[k].y()
+                if prev is not None and y < prev + _WITHHELD_STACK_PX:
+                    y = min(prev + _WITHHELD_STACK_PX, bottom - _WITHHELD_ARM)
+                ys[k] = prev = y
+        for k, y in ys.items():
+            out[k].setY(y)
     return out
+
+
+def _same_folder(a: "Path", b: "Path") -> bool:
+    """Whether *a* and *b* are one folder: the same entry on disk, or the
+    same path when either is not there (#182 beta 38, F4)."""
+    try:
+        return os.path.samefile(str(a), str(b))
+    except OSError:
+        return os.path.abspath(str(a)) == os.path.abspath(str(b))
 
 
 def _limit_value_text(v: float, unit: str) -> str:
@@ -3626,8 +3673,18 @@ class MeasurementReportDialog(QDialog):
         if str(r.get("_origin_dir", "")) != str(ti3.parent):
             return False
         here = (dates_by_origin or {}).get(str(ti3.parent))
-        return self._measurement_for(r, ti3.parent, ti3,
-                                     dates_here=here) == ti3.parent / ti3.name
+        found = self._measurement_for(r, ti3.parent, ti3, dates_here=here)
+        if found is None:
+            return False
+        # **THE SAME FILE UNDER ANOTHER CASE IS THIS FILE (#182 beta 38,
+        # F1).** After a case-only rename a saved report names
+        # "Report-Limits-verify.ti3", which on a case-insensitive volume IS
+        # "report-limits-verify.ti3"; compared as strings they differed, and
+        # the measurement the window was opened on was added a second time
+        # (a date listed twice, driven on screen after the F1 rename).
+        from core.file_manager import same_entry
+        target = ti3.parent / ti3.name
+        return found == target or same_entry(found, target)
 
     @staticmethod
     def _measurement_for(rep: dict, run_dir: Path, opened_on: Path, *,
@@ -4594,8 +4651,11 @@ class MeasurementReportDialog(QDialog):
         ]
         return [
             (self._trend_de, tr("Colour accuracy (ΔE00)"), [
-                ((_METRIC_LABELS_JUDGED.get(k, _METRIC_LABELS[k])()
-                  if judged_pop else _METRIC_LABELS[k]()),
+                (_with_unit(
+                    (_TREND_ACCURACY_LABELS_JUDGED.get(
+                        k, _TREND_ACCURACY_LABELS[k])()
+                     if judged_pop else _TREND_ACCURACY_LABELS[k]()),
+                    "ΔE00"),
                  QColor(_METRIC_LINE[k]),
                  (lambda pt, kk=k: _accuracy_value(pt, kk)))
                 for k in _ACCURACY_ROW_KEYS
@@ -5520,17 +5580,23 @@ class MeasurementReportDialog(QDialog):
             self, tr("Save report as PDF"), "PDF (*.pdf)",
             start_path=str(default),
             extra_path=str(self._settings.get("custom_output_path", "")))
-        if not path:
-            if _made_reports:
-                try:
-                    reports.rmdir()          # only ever empty: nothing saved
-                except OSError:
-                    pass
-            return
         # The dialog does not force the extension — a name typed without one
         # must still come out as a .pdf.
-        if not path.lower().endswith(".pdf"):
+        if path and not path.lower().endswith(".pdf"):
             path += ".pdf"
+        # **AND WHEN THE PDF GOES SOMEWHERE ELSE (#182 beta 38, F4).** The
+        # folder was removed only on cancel, so a PDF saved outside it still
+        # left `<output folder>/reports/` behind, empty. Whatever the answer,
+        # a folder made here for the chooser goes again unless the PDF is
+        # about to be written into it; `rmdir` removes only an empty folder.
+        if _made_reports and not (
+                path and _same_folder(Path(path).parent, reports)):
+            try:
+                reports.rmdir()
+            except OSError:
+                pass
+        if not path:
+            return
 
         doc = QTextDocument()
         charts_html = ""
@@ -7052,13 +7118,55 @@ class MeasurementReportDialog(QDialog):
         includes"*, which is the recorded list, not only the measurements this
         window happens to have loaded.
         """
-        from workflow.measurement_report import measurement_place
-        dirs = [str(m.get("dir") or "")
-                for m in ((entry.get("doc") or {}).get("measurements") or [])
-                if isinstance(m, dict)]
+        from workflow.measurement_report import (measurement_place,
+                                                 resolve_recorded_folder)
+        recorded = [str(m.get("dir") or "")
+                    for m in ((entry.get("doc") or {}).get("measurements")
+                              or [])
+                    if isinstance(m, dict)]
+        # **SEEN FROM WHERE THE REPORT'S FILES ARE (#182 beta 38, F2).** The
+        # recorded folders carry the project's name when the report was
+        # written; after a rename that is its OLD name, and a renamed Finder
+        # duplicate's every report read as covering two projects (its own
+        # files, and its original's name) and was filed under "Reports
+        # including multiple projects".
+        homes = self._entry_homes(entry)
+        one = self._records_one_project(recorded)
+        dirs = [str(resolve_recorded_folder(d, homes, one_project=one,
+                                            must_exist=False) or d)
+                for d in recorded if d]
         dirs += [str(r.get("_origin_dir") or "")
                  for r, _n in (entry.get("members") or [])]
         return {measurement_place(d) for d in dirs if d}
+
+    @staticmethod
+    def _entry_homes(entry: dict) -> "list[Path]":
+        """The project folders one entry of "Report shown" has FILES in: its
+        members' folders and its document file, asked of the disk
+        (`project_home_of`), first seen first (#182 beta 38, F2)."""
+        from workflow.measurement_report import project_home_of
+        paths = [str(r.get("_origin_dir") or "")
+                 for r, _n in (entry.get("members") or [])]
+        if entry.get("file"):
+            paths.append(str(entry["file"]))
+        out: "list[Path]" = []
+        for p in paths:
+            h = project_home_of(p) if p else None
+            if h is not None and h not in out:
+                out.append(h)
+        return out
+
+    @staticmethod
+    def _records_one_project(recorded_dirs) -> bool:
+        """Whether a report's recorded folders all name ONE project."""
+        from workflow.measurement_report import _project_folder_of
+        names = set()
+        for d in recorded_dirs or []:
+            if not d:
+                continue
+            proj = _project_folder_of(Path(str(d)))
+            names.add(proj.name if proj is not None else "")
+        return len(names) == 1
 
     def _grouped_documents(self, run, docs: list) -> list:
         """The rows of "Report shown" below "New report…", in order (K25).
@@ -7799,34 +7907,49 @@ class MeasurementReportDialog(QDialog):
             return (measurement_place(d)[0], project_relative(d))
         loaded = {_ident(r.get("_origin_dir") or "")
                   for r in self._history if r.get("_origin_dir")}
-        project = None
-        for r in self._history:
-            if r.get("_origin_dir"):
-                project = _project_folder_of(Path(str(r["_origin_dir"])))
-                if project is not None:
-                    break
+        # **WHERE THE REPORT'S OWN FILES ARE DECIDES WHOSE ITS FOLDERS ARE
+        # (#182 beta 38, F2).** This used to take the recorded project's NAME
+        # and look beside the window's project for a folder of that name. A
+        # renamed Finder duplicate's reports record its ORIGINAL's name, and
+        # the original sits right beside it, so the copy's window loaded the
+        # original's measurements (8 rows, 5 of them the original's). A
+        # recorded folder is now this project's when the name is one this
+        # project has had (`names_of_project`), or the report names only one
+        # project and is filed here; another project's only when the report
+        # names that project and it is not this one.
+        from workflow.measurement_report import resolve_recorded_folder
+        homes = self._entry_homes(entry)
+        if not homes:
+            for r in self._history:
+                if r.get("_origin_dir"):
+                    project = _project_folder_of(Path(str(r["_origin_dir"])))
+                    if project is not None:
+                        homes = [project]
+                        break
+        one = self._records_one_project(
+            [str(m.get("dir") or "") for m in wanted])
         added = 0
         for m in wanted:
             d, name = str(m.get("dir") or ""), str(m.get("ti3") or "")
             if not d or not name:
                 continue
-            rel = project_relative(d)
-            if _ident(d) in loaded:
+            folder = resolve_recorded_folder(d, homes, one_project=one)
+            if folder is None:
+                log.info("a report covers %s, which this project does not "
+                         "have", d)
                 continue
-            # Where it is NOW, beside the project this window is on: the same
-            # folder in the project of that NAME (this one, when the names
-            # agree), because a copied project's recorded folders may still
-            # exist where it was copied FROM, and those are not this
-            # project's. The recorded folder only when that finds nothing.
-            folder = Path(d)
-            if project is not None and rel.startswith("runs/"):
-                recorded = _project_folder_of(Path(d))
-                owner = (project.parent / recorded.name
-                         if recorded is not None
-                         and recorded.name != project.name else project)
-                if (owner / rel / name).is_file():
-                    folder = owner / rel
+            if _ident(folder) in loaded:
+                continue
             ti3 = folder / name
+            if not ti3.is_file():
+                # **THE FILE CARRIES THE PROJECT'S NEW NAME TOO (F2).** A
+                # rename renames the measurement with the folder, and the
+                # report recorded it under the old stem: the renamed copy's
+                # "12-30 Multiple dates" found run 2's date and not its file.
+                from workflow.measurement_report import renamed_file_name
+                alt = renamed_file_name(name, d, folder)
+                if alt is not None:
+                    ti3 = folder / alt
             if not ti3.is_file():
                 log.info("a report covers %s, which is not on disk", ti3)
                 continue

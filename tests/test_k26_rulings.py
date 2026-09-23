@@ -210,14 +210,14 @@ def test_the_graph_says_its_figures_are_the_judged_ones(tmp_path, qapp):
         dlg._trend_series = [{"created": "x", "avg_all": 1.0,
                               "de00_population": "in_gamut"}]
         labels = [m[0] for m in dlg._trend_configs()[0][2]]
-        assert labels[0] == "Average ΔE, all judged patches", labels
-        assert labels[3] == "Maximum ΔE, all judged patches", labels
+        assert labels[0] == "Average, all judged patches (ΔE00)", labels
+        assert labels[3] == "Maximum, all judged patches (ΔE00)", labels
         assert "within the profile's gamut" in dlg._trend_extras(
             dlg._trend_de)["about"]
         dlg._trend_series = [{"created": "x", "avg_all": 1.0,
                               "de00_population": "all"}]
         labels = [m[0] for m in dlg._trend_configs()[0][2]]
-        assert labels[0] == "Average ΔE, all patches", labels
+        assert labels[0] == "Average, all patches (ΔE00)", labels
     finally:
         dlg.deleteLater()
 
@@ -323,11 +323,14 @@ def test_a_finder_duplicate_is_offered_the_rename_and_renamed(
     assert (src / "runs" / "run1" / "Demo.ti3").is_file()
 
 
-def test_leave_it_as_it_is_writes_nothing(chart_tab, monkeypatch):
-    """"Leave it as it is" changes nothing on disk.
+def test_cancel_closes_the_project_and_writes_nothing(chart_tab, monkeypatch):
+    """Knut, 5794078008: no "Leave it as it is"; Cancel *"closes the
+    project"*. Nothing on disk changes, and no project is open afterwards.
 
     MUTATION, proven red: rename on any answer but Rename (test the result
-    against CANCEL instead of RENAME)."""
+    against CANCEL instead of RENAME). MUTATION, proven red: drop the
+    ``== "closed"`` branch in `open_project_manifest` (the project stays
+    open, as "Leave it as it is" left it)."""
     from ui.dialogs.target_change_dialog import TargetChangeAction
     t, fm = chart_tab
     src = _project_with_files(fm, "Demo")
@@ -339,6 +342,75 @@ def test_leave_it_as_it_is_writes_nothing(chart_tab, monkeypatch):
     t.open_project_manifest(dup / "project.json")
     assert len(seen) == 1
     assert sorted(str(p.relative_to(dup)) for p in dup.rglob("*")) == before
+    assert not fm.is_named(), "Cancel left the project open"
+
+
+def test_a_duplicate_with_a_built_profile_is_told_so(chart_tab, monkeypatch):
+    """A Finder duplicate whose run has a built profile: the window's rename
+    bullet says the profile keeps its inner name (Knut, 5794078008: offer
+    the rename, "Yes"). Found on screen: the check asked `built_profile_icc()`,
+    which looks the file up by the FOLDER's name, so a duplicate's profile was
+    never found and the sentence never shown.
+
+    MUTATION, proven red: put back ``r.built_profile_icc().exists()`` in
+    `_offer_rename_for_a_renamed_folder` (the window says nothing about the
+    profile)."""
+    from PyQt6.QtWidgets import QLabel
+    from ui.dialogs.target_change_dialog import TargetChangeAction
+    t, fm = chart_tab
+    src = _project_with_files(fm, "Demo")
+    (src / "runs" / "run1" / "Demo.icc").write_bytes(b"icc")
+    dup = src.parent / "Demo copy"
+    shutil.copytree(src, dup)
+    seen: list = []
+    _choose(monkeypatch, TargetChangeAction.RENAME, seen)
+    t.open_project_manifest(dup / "project.json")
+    assert len(seen) == 1
+    text = "\n".join(lab.text() for lab in seen[0].findChildren(QLabel))
+    assert "keeps the name written inside it, “Demo”" in text
+
+
+def test_choose_another_name_renames_to_the_name_typed(chart_tab,
+                                                        monkeypatch):
+    """Knut, 5794078008, the second choice: *"define a new name"*. The
+    project-name window is asked (the existing one, with a line saying what
+    will be renamed), and the project is renamed to what was typed: its
+    folder and its files. A name window cancelled goes back to the choice.
+
+    MUTATION, proven red: treat NEW_NAME as RENAME in
+    `_offer_rename_for_a_renamed_folder` (``if action in (RENAME,
+    NEW_NAME): break`` before the name window): the project becomes
+    "Demo-copy", not the name typed."""
+    from ui.dialogs import name_prompt
+    from ui.dialogs import target_change_dialog as tcd
+    from ui.dialogs.target_change_dialog import TargetChangeAction
+    t, fm = chart_tab
+    src = _project_with_files(fm, "Demo")
+    dup = src.parent / "Demo copy"
+    shutil.copytree(src, dup)
+    answers = [TargetChangeAction.NEW_NAME, TargetChangeAction.NEW_NAME]
+    names = [None, "Epson P900 Rag"]
+    asked: list = []
+
+    def _exec(self):
+        self._action = answers.pop(0)
+        return 0
+    monkeypatch.setattr(tcd.TargetChangeDialog, "exec", _exec)
+
+    def _ask(parent, *, prefill="", body=None, exists=None, accent=""):
+        asked.append((prefill, body, exists("Demo") if exists else None))
+        return names.pop(0)
+    monkeypatch.setattr(name_prompt, "ask_for_project_name", _ask)
+    t.open_project_manifest(dup / "project.json")
+    assert answers == [] and names == [], "the choice was not asked again"
+    assert asked[0][0] == "Demo-copy"
+    assert "carries the name \u201cDemo\u201d" in asked[0][1]
+    assert asked[0][2] is True             # "Demo" beside it is taken
+    new = src.parent / "Epson-P900-Rag"
+    assert new.is_dir() and not dup.exists()
+    assert (new / "runs" / "run1" / "Epson-P900-Rag.ti3").is_file()
+    assert fm.get_target_name() == "Epson-P900-Rag"
+    assert (src / "runs" / "run1" / "Demo.ti3").is_file()
 
 
 def test_a_folder_already_named_as_chromiq_would_is_renamed_in_place(
@@ -376,26 +448,46 @@ def test_a_project_whose_names_agree_is_not_asked(chart_tab, monkeypatch):
     assert seen == []
 
 
-def test_the_chooser_offers_two_choices_in_its_folder_mode(qapp, tmp_path):
-    """Keep both and Delete do not apply to one folder; the heading and the
-    introduction are M-PROJECT-FOLDER-RENAMED's; a built profile is named.
+def test_the_chooser_offers_three_choices_in_its_folder_mode(qapp, tmp_path):
+    """Knut, 5794078008: exactly three options, *"each explained in a bullet
+    in the window text"*: Rename to the folder's name, Choose another name,
+    Cancel. No "Leave it as it is", no Keep both, no Delete. A built profile
+    is still offered the rename ("Yes"), and the rename bullet says what
+    happens to its inner name.
 
-    MUTATION, proven red: build the ordinary three choices in the folder
-    mode too (four buttons with Cancel)."""
+    MUTATION, proven red: add the old "Leave it as it is" button back to the
+    folder mode (four buttons); or drop the bullets from
+    M-PROJECT-FOLDER-RENAMED's body (the text no longer explains them)."""
     from PyQt6.QtWidgets import QLabel, QPushButton
-    from ui.dialogs.target_change_dialog import TargetChangeDialog
+    from ui.dialogs.target_change_dialog import (TargetChangeAction,
+                                                 TargetChangeDialog)
     dlg = TargetChangeDialog("Demo", "Demo-copy", tmp_path / "Demo copy",
                              tmp_path / "Demo-copy", None,
                              folder_renamed=True, built_profile=True)
     try:
-        buttons = [b.text() for b in dlg.findChildren(QPushButton)]
-        assert buttons == ['Rename the project to "Demo-copy"',
-                           "Leave it as it is"], buttons
+        buttons = {b.text(): b for b in dlg.findChildren(QPushButton)}
+        assert sorted(buttons) == sorted([
+            "Rename the project to \u201cDemo-copy\u201d",
+            "Choose another name\u2026", "Cancel"]), sorted(buttons)
         text = "\n".join(lab.text() for lab in dlg.findChildren(QLabel))
-        assert "This project's folder is called “Demo copy”, but its files " \
-               "are named “Demo”" in text
-        assert "keeps the name written inside it" in text
-        assert "The folder becomes" in text
+        assert "This project's folder is called \u201cDemo copy\u201d, but " \
+               "its files are named \u201cDemo\u201d" in text
+        bullets = [ln for ln in text.splitlines()
+                   if ln.startswith("\u2022  ")]
+        assert [b.split(":")[0] for b in bullets] == [
+            "\u2022  Rename the project to \u201cDemo-copy\u201d",
+            "\u2022  Choose another name", "\u2022  Cancel"], bullets
+        assert "keeps the name written inside it" in bullets[0]
+        assert "closed" in bullets[2]
+        assert "Leave it as it is" not in text
+        for label, want in (("Cancel", TargetChangeAction.CANCEL),
+                            ("Choose another name\u2026",
+                             TargetChangeAction.NEW_NAME),
+                            ("Rename the project to \u201cDemo-copy\u201d",
+                             TargetChangeAction.RENAME)):
+            dlg._action = None
+            buttons[label].click()
+            assert dlg.result_action() == want, label
     finally:
         dlg.deleteLater()
 
@@ -644,3 +736,49 @@ def test_a_cancelled_pdf_save_leaves_no_reports_folder(tmp_path, monkeypatch):
     where.mkdir(parents=True)
     M.MeasurementReportDialog._export_pdf(host)
     assert where.exists()
+
+
+def test_a_pdf_saved_elsewhere_leaves_no_reports_folder(tmp_path, qapp,
+                                                         monkeypatch):
+    """#182 beta 38, F4: the same folder, when the PDF IS saved, but outside
+    it. The challenge round's C2: a PDF of two projects saved anywhere else
+    left `<output folder>/reports/` behind, empty. The PDF is really
+    written; the folder made for the chooser goes. Saved INTO the folder,
+    the folder stays with the PDF in it.
+
+    MUTATION, proven red: remove the folder only when the chooser was
+    cancelled (``if _made_reports and not path:``): the empty folder is
+    left beside the projects."""
+    import types
+    import ui.dialogs.measurement_report_dialog as M
+    import ui.widgets as W
+    from PyQt6.QtGui import QDesktopServices
+    where = tmp_path / "out" / "reports"
+    elsewhere = tmp_path / "Desktop" / "mine.pdf"
+    elsewhere.parent.mkdir()
+    host = types.SimpleNamespace(
+        _report_dir=lambda: where,
+        _as_the_document_was_built=lambda: __import__(
+            "contextlib").nullcontext(),
+        _report_filename=lambda runs: "x.pdf",
+        _runs_for_document=lambda: [],
+        _runs_for_report=lambda: [],
+        _pdf_html=lambda runs, charts: "<p>report</p>",
+        _scope_header_units=lambda runs: [],
+        _trend_de=types.SimpleNamespace(has_trend=lambda: False),
+        _report={"x": 1}, _ti3=tmp_path / "m.ti3")
+    host._settings = types.SimpleNamespace(get=lambda k, d="": "")
+    opened: list = []
+    monkeypatch.setattr(QDesktopServices, "openUrl",
+                        lambda url: opened.append(url) or True)
+    monkeypatch.setattr(W, "save_file_dialog",
+                        lambda *a, **k: str(elsewhere))
+    M.MeasurementReportDialog._export_pdf(host)
+    assert elsewhere.is_file() and elsewhere.stat().st_size > 0
+    assert not where.exists(), "a PDF saved elsewhere left an empty folder"
+    # saved INTO it: the folder stays, holding the PDF
+    inside = where / "in.pdf"
+    monkeypatch.setattr(W, "save_file_dialog", lambda *a, **k: str(inside))
+    M.MeasurementReportDialog._export_pdf(host)
+    assert inside.is_file()
+    assert len(opened) == 2

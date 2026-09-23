@@ -2559,15 +2559,40 @@ project is displayed. `{folder}` is the folder as it is on disk, `{name}` the
 name the files carry, `{new}` what the project becomes: the name the "Printer
 profile project name" field shows.*
 
+*Revised 2026-09-23, Knut 5794078008: the window must NOT offer "Leave it as
+it is". It offers exactly three choices, each explained in a bullet in the
+window text, as is customary for popups: rename the project to the project
+folder's name; define a new name (the existing project-name window, then the
+same rename); Cancel, which closes the project. A project with a built profile
+is still offered the rename ("Yes", same comment). `{built}` is empty, or a
+space and the sentence given below it when a run of the project has a built
+profile.*
+
 > **This project's folder is called “{folder}”, but its files are named “{name}”**
 >
 > ChromIQ finds a project's charts, measurements, profiles and reports by the name of its folder, so until the two match it finds none of them. This happens when a project folder is copied, duplicated or renamed outside ChromIQ.
 >
-> Rename the project to “{new}” so its files carry that name too, or leave it as it is.
+> •  Rename the project to “{new}”: every file that carries the name “{name}” is renamed to carry “{new}”, and the folder too when its name has a space or a character a file name cannot carry. Nothing is deleted.{built}
+>
+> •  Choose another name: you type the name the project is to have, and its folder and files are renamed to it in the same way.
+>
+> •  Cancel: nothing is changed, and the project is closed.
 
-Choices (the chooser's own buttons, each with a line under it): **Rename the
-project to "{new}"** (default) · **Leave it as it is**. Keep both and Delete are
-not offered: there is one folder, and it is the project.
+`{built}`:
+
+> A profile already built keeps the name written inside it, “{name}”, which is what ColorSync Utility and other programs show.
+
+Buttons, in one row: **Cancel** · **Choose another name…** · **Rename the
+project to “{new}”** (default). Cancel, Escape and the window's close button
+close the project: the app goes back to the state Close Project leaves.
+Keep both and Delete are not offered: there is one folder, and it is the
+project.
+
+"Choose another name…" opens the existing project-name window (“Give this
+project a name”), prefilled with “{new}”, with this line in place of its usual
+one; cancelling it returns to the three choices:
+
+> Type the name this project is to have. Its folder, and every file that carries the name “{name}”, are renamed to it.
 
 ### M-PROJECT-FOLDER-RENAME-FAILED · PROPOSED · the rename of such a project could not be done — Create Chart
 
@@ -2575,15 +2600,41 @@ not offered: there is one folder, and it is the project.
 user chose fails (the new folder name is already taken, the folder cannot be
 written). Nothing further runs; the project stays open as it was.*
 
+*Revised 2026-09-23, the beta 38 challenge round (F1, F6). The first wording
+named the rename "{folder}" to "{new}", which for a folder renamed only in
+case printed one name twice, and `{error}` was the exception's text, which for
+the commonest cause (the name is taken) was a bare path. It now names the
+project by the name its files carry, and `{error}` is one of the sentences
+below. "Nothing was changed" is now also true in every case: a rename is
+refused before anything moves when it cannot finish, and a step that fails
+anyway is undone (`Project.rename`, `FileManager.rename_existing_project`).*
+
 > **The project could not be renamed**
 >
-> ChromIQ could not rename “{folder}” to “{new}”.
+> ChromIQ could not rename the project “{name}” to “{new}”.
 >
 > What went wrong: {error}
 >
-> The project is open as it was. Its files still carry the name “{name}”, so ChromIQ does not find them under this folder.
+> Nothing was changed, and the project is open as it was. Its files still carry the name “{name}”, so ChromIQ does not find them in the folder “{folder}”.
 
 Button: **OK**.
+
+`{error}` is exactly one of (`measurement_messages.rename_failure_reason`,
+`core.file_manager.ProjectRenameRefused`):
+
+> A folder called “{name}” is already there, beside this one.
+
+> ChromIQ is not allowed to change this folder or the files in it.
+
+> A file of the project was no longer where ChromIQ expected it.
+
+> The system refused it ({reason}).
+
+> Two of its files would both be called “{name}” after the rename.
+
+> ChromIQ is not allowed to change the files in the folder “{folder}”.
+
+> A file called “{name}” is already there and could not be moved out of the way.
 
 ### M-PROJECT-REPLACE-CONFIRM · PROPOSED · the second look before a project is cleared — Create Chart
 

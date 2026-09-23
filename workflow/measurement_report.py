@@ -1711,6 +1711,144 @@ def project_relative(d: "str | Path") -> str:
     return str(Path(str(d)))
 
 
+def project_home_of(path: "str | Path") -> "Path | None":
+    """The project folder *path* is inside: the nearest folder above it (or
+    itself) that holds a ``project.json``; None when there is none.
+
+    Asked of the disk, so it answers for a report FILE as well as for a
+    measurement folder, wherever the project now lives (#182 beta 38, F2).
+    """
+    if not str(path):
+        return None
+    p = Path(str(path))
+    for cand in [p, *p.parents][:8]:
+        try:
+            if (cand / "project.json").is_file():
+                return cand
+        except OSError:
+            return None
+    return None
+
+
+_NAMES_CACHE: "dict[str, tuple[int, frozenset]]" = {}
+
+
+def names_of_project(project: "str | Path") -> "frozenset[str]":
+    """Every name *project* is known by, NFC: its folder's name, the name its
+    files carry and every name it had before a rename (``former_names``,
+    written by `Project.rename`). #182 beta 38, F2.
+
+    A saved report records its measurements' folders under the name the
+    project had when the report was written, so after a rename that name is
+    this project's old one; these are the names that are THIS project."""
+    from core.file_manager import nfc
+    p = Path(str(project))
+    names = {nfc(p.name)}
+    mp = p / "project.json"
+    try:
+        stamp = mp.stat().st_mtime_ns
+    except OSError:
+        return frozenset(names)
+    hit = _NAMES_CACHE.get(str(mp))
+    if hit is None or hit[0] != stamp:
+        try:
+            data = json.loads(mp.read_text(encoding="utf-8"))
+        except Exception:                            # noqa: BLE001
+            data = {}
+        got = set()
+        if isinstance(data, dict):
+            if isinstance(data.get("target_name"), str):
+                got.add(nfc(data["target_name"]))
+            for n in data.get("former_names") or []:
+                if isinstance(n, str):
+                    got.add(nfc(n))
+        hit = (stamp, frozenset(got))
+        _NAMES_CACHE[str(mp)] = hit
+    return frozenset(names | set(hit[1]))
+
+
+def resolve_recorded_folder(d: "str | Path", homes, *,
+                            one_project: bool = False,
+                            must_exist: bool = True) -> "Path | None":
+    """Where a measurement folder a saved report RECORDS is now, seen from
+    the project(s) the report's own files live in (*homes*); None when it is
+    this project's and not on disk here. #182 beta 38, F2.
+
+    A report records its measurements by absolute folder, under the name the
+    project had when it was written. After a Finder duplicate is renamed,
+    that name is its ORIGINAL's, and the report window reached into the
+    original beside it: the copy's window listed the original's
+    measurements, and filed every one of the copy's reports under "Reports
+    including multiple projects". In order:
+
+    1. a home whose names (`names_of_project`: folder, files, former names)
+       include the recorded project's name: the same folder in THAT home,
+       or None when that home does not have it; never the recorded path,
+       which for a renamed duplicate is the original's;
+    2. a report naming ONE project (*one_project*) whose files live in one
+       home: that home, because a report of one project is only ever filed
+       inside that project (`document_home`); None when it is not there;
+    3. a project of the recorded name beside a home (a report across
+       projects names its other projects that way);
+    4. the recorded folder itself, for a project that is none of these.
+
+    With *must_exist* a folder counts only when it is on disk. Never raises.
+    """
+    from core.file_manager import nfc
+    d = Path(str(d))
+    recorded = _project_folder_of(d)
+    homes = [Path(str(h)) for h in (homes or []) if h]
+    if recorded is None or not homes:
+        return d
+    rel = project_relative(d)
+    if not rel.startswith("runs/"):
+        return d
+    rname = nfc(recorded.name)
+
+    def _ok(p: Path) -> bool:
+        try:
+            return (not must_exist) or p.is_dir()
+        except OSError:
+            return False
+    ours = [h for h in homes if rname in names_of_project(h)]
+    for h in ours:
+        if _ok(h / rel):
+            return h / rel
+    if ours:
+        return None
+    if one_project and len(homes) == 1:
+        return homes[0] / rel if _ok(homes[0] / rel) else None
+    for h in homes:
+        beside = h.parent / recorded.name
+        try:
+            is_project = (beside / "project.json").is_file()
+        except OSError:
+            is_project = False
+        if is_project and _ok(beside / rel):
+            return beside / rel
+    return d
+
+
+def renamed_file_name(name: str, recorded_dir: "str | Path",
+                      folder: "str | Path") -> "str | None":
+    """*name*, a file a report recorded in *recorded_dir*, as it is called in
+    *folder* after its project was renamed; None when the name does not start
+    with the recorded project's name or the folder is in no project.
+
+    A rename gives the project's files its new name (`Project.rename`), so a
+    measurement recorded as ``X-verify.ti3`` is ``X-copy-verify.ti3`` in the
+    renamed project (#182 beta 38, F2)."""
+    from core.file_manager import nfc
+    recorded = _project_folder_of(Path(str(recorded_dir)))
+    home = project_home_of(folder)
+    if recorded is None or home is None:
+        return None
+    old, n = nfc(recorded.name), nfc(str(name))
+    if not n.startswith(old) or nfc(home.name) == old:
+        return None
+    return home.name + n[len(old):]
+
+
 def relative_measurement_key(key: str) -> str:
     """`document_measurement_key` with its folder made `project_relative`."""
     head, sep, tail = str(key).partition("|")
