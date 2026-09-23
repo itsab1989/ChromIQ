@@ -26000,8 +26000,9 @@ would reach.
 
 ### B8-845 · FIXED, awaiting confirmation · G12: the Printing record explains its absences; every N-A note driven on screen
 - blocks release: no
-- status: FIXED on branch `beta39-notes` (commits "#182 beta39 notes: ..."),
-  awaiting Knut's confirmation (spec §12 CH-31a, §20 G12).
+- status: FIXED
+- where: branch `beta39-notes` (commits "#182 beta39 notes: ..."), awaiting
+  Knut's confirmation (spec §12 CH-31a, §20 G12).
 - found by: Knut, #182 5774852534 (2026-09-22): the Printing record's detailed
   sections showed verdict words and "could not be checked" with no reason;
   "notes wherever a verdict is shown, suppressed where none is" agreed in
