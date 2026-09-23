@@ -109,31 +109,7 @@ def test_the_rebuild_keeps_the_reports_own_date(tmp_path):
     assert fresh["created"] == "2026-01-05T10:00:00"
 
 
-def test_the_window_really_rebuilds_before_it_stamps():
-    """THE SEAM, because the behaviour above is a composition and the method
-    that has to perform it needs a project, a dated verification and a set
-    change to reach. A test of the composition alone passes with the guard
-    deleted from the window, which is how the fault got in.
-
-    MUTATION: delete the `_report_needs_rebuilding(rep)` block from
-    `_recalculate_run` and this goes red.
-    """
-    import inspect
-
-    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
-
-    src = inspect.getsource(MeasurementReportDialog._recalculate_run)
-    i = src.index("stamp_verdict(rep, lim.limits")
-    before = src[:i]
-    assert "_report_needs_rebuilding(rep)" in before, (
-        "the recalculation stamps a verdict onto a report without asking "
-        "whether the report is missing the blocks that verdict is read from, "
-        "so a row nobody could answer is written to disk as 'not computed'")
-    assert "build_report(" in before, (
-        "the recalculation asks whether the report is stale and then does not "
-        "rebuild it, which answers the question and acts on nothing")
-    assert "facts_disagree(rep" in before, (
-        "the recalculation rebuilds from a file in the folder without asking "
-        "whether that file is still this report's measurement, so a date that "
-        "was measured again could have its old report filled in from the new "
-        "sheet and keep the old date")
+# RETIRED BY K31 (beta 40): `test_the_window_really_rebuilds_before_it_stamps`.
+# The seam it read, _recalculate_run, is removed (K31). The helper
+# composition the other tests in the file pin (rebuild first, keep the date)
+# is what an Update still relies on through _gather_runs.

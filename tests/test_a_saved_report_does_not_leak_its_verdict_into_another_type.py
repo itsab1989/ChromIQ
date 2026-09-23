@@ -82,7 +82,7 @@ def _saved(tmp_path, qapp):
     from tests.test_import_measurement_module import _cgats, _PATCHES, _verify_env
     from workflow.measurement_report import (build_report, save_report,
                                              stamp_verdict)
-    from workflow.run_compliance import ensure_bound
+    from tests.helpers.legacy_run_meta import (ensure_bound)
     s, _fm, _ctl, run = _verify_env(tmp_path)
     v = run.new_verification()
     v.ensure_dir()
@@ -107,7 +107,7 @@ def _as(dlg, run, tid):
     so a run's stored type is no longer the only answer `_report_type_now`
     has, and a test that writes one behind the window's back stops moving the
     document. `_on_type_chosen` is what a click runs, it stores the type on
-    the run exactly as `set_run_report_type` did, and it drops the loaded
+    the report (K31; it stored it on the run until then), and it drops the loaded
     document's claim on the controls, so everything this file is about is
     unchanged and now reached through the path the complaint came from.
     """
@@ -115,8 +115,8 @@ def _as(dlg, run, tid):
     assert i >= 0, f"{tid} is not in the Report type pulldown"
     dlg._type_combo.setCurrentIndex(i)          # fires `_on_type_chosen`
     assert dlg._report_type_now() == tid, (dlg._report_type_now(), tid)
-    from workflow.run_compliance import run_report_type
-    assert run_report_type(run) == tid, "the run did not take the type"
+    # K31: the type is the REPORT's; the run is not written (it was until
+    # K31, when this also asserted the run took the type).
     return dlg._runs_for_report()
 
 
@@ -345,7 +345,7 @@ def test_a_graded_row_with_a_note_says_so_on_paper(tmp_path, qapp):
     from tests.test_import_measurement_module import _verify_env
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
     from workflow.compliance_sets import COND, FAIL, N_A, PASS, ROW_BY_ID
-    from workflow.run_compliance import set_run_report_type
+    from tests.helpers.report_window import choose_report_type
     s, _fm, _ctl, run = _verify_env(tmp_path)
     v = run.new_verification()
     v.ensure_dir()
@@ -354,7 +354,7 @@ def test_a_graded_row_with_a_note_says_so_on_paper(tmp_path, qapp):
     dlg.show()
     qapp.processEvents()
     try:
-        set_run_report_type(run, REPORT_TYPE_FULL)
+        choose_report_type(dlg, REPORT_TYPE_FULL)
         dlg._forget_limits()
         dlg._sync_limit_controls()
         reps = dlg._runs_for_report()
@@ -398,40 +398,11 @@ def test_a_graded_row_with_a_note_says_so_on_paper(tmp_path, qapp):
         dlg.close()
 
 
-def test_a_recalculation_re_stamps_the_TYPE_as_well_as_the_verdict(tmp_path,
-                                                                   qapp):
-    """Unlocking a run's limits rewrites every saved report with the run's
-    current numbers. It left them claiming the type the run held when they
-    were first saved, so the record said one thing and the run another.
-
-    MUTATION: drop the `stamp_report_type` call from `_recalculate_run` and
-    this goes red.
-    """
-    import json
-    from workflow.measurement_report import report_type
-    from workflow.run_compliance import set_run_report_type
-    dlg, run, path = _saved(tmp_path, qapp)
-    try:
-        # the report was saved without a type, as an older build's would be
-        doc = json.loads(path.read_text(encoding="utf-8"))
-        doc.pop("report_type", None)
-        path.write_text(json.dumps(doc), encoding="utf-8")
-        assert report_type(json.loads(path.read_text(encoding="utf-8"))) \
-            == REPORT_TYPE_FULL
-
-        set_run_report_type(run, REPORT_TYPE_RECORD)
-        dlg._forget_limits()
-        dlg._sync_limit_controls()
-        dlg._recalculate_run()
-        qapp.processEvents()
-
-        after = json.loads(path.read_text(encoding="utf-8"))
-        assert after.get("report_type") == REPORT_TYPE_RECORD, (
-            "the recalculation rewrote the verdict and left the type saying "
-            "what the run no longer says")
-        assert after.get("schema") == 7, "the schema moved"
-    finally:
-        dlg.close()
+# RETIRED BY K31 (beta 40): `test_a_recalculation_re_stamps_the_TYPE_as_well_as_the_verdict`.
+# _recalculate_run is gone (K31): no limit change rewrites a saved report, so
+# there is no re-stamp whose type could go wrong. A report is re-stamped only
+# by its own Update, which writes the type on screen
+# (tests/test_k31_report_model.py).
 
 
 def test_the_verdict_cell_carries_the_note_s_number(tmp_path, qapp):
@@ -455,7 +426,7 @@ def test_the_verdict_cell_carries_the_note_s_number(tmp_path, qapp):
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
     from workflow.compliance_sets import ROW_BY_ID
     from workflow.measurement_report import note_numbers_for
-    from workflow.run_compliance import set_run_report_type
+    from tests.helpers.report_window import choose_report_type
     s, _fm, _ctl, run = _verify_env(tmp_path)
     v = run.new_verification()
     v.ensure_dir()
@@ -464,7 +435,7 @@ def test_the_verdict_cell_carries_the_note_s_number(tmp_path, qapp):
     dlg.show()
     qapp.processEvents()
     try:
-        set_run_report_type(run, REPORT_TYPE_FULL)
+        choose_report_type(dlg, REPORT_TYPE_FULL)
         dlg._forget_limits()
         dlg._sync_limit_controls()
         reps = dlg._runs_for_report()
@@ -530,7 +501,7 @@ def test_the_page_does_not_call_a_noted_row_not_computed(tmp_path, qapp):
     from tests.test_import_measurement_module import _verify_env
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
     from workflow.compliance_sets import ROW_BY_ID
-    from workflow.run_compliance import set_run_report_type
+    from tests.helpers.report_window import choose_report_type
     s, _fm, _ctl, run = _verify_env(tmp_path)
     v = run.new_verification()
     v.ensure_dir()
@@ -539,7 +510,7 @@ def test_the_page_does_not_call_a_noted_row_not_computed(tmp_path, qapp):
     dlg.show()
     qapp.processEvents()
     try:
-        set_run_report_type(run, REPORT_TYPE_GREY)
+        choose_report_type(dlg, REPORT_TYPE_GREY)
         dlg._forget_limits()
         dlg._sync_limit_controls()
         reps = dlg._runs_for_report()
@@ -584,7 +555,7 @@ def test_the_printing_record_does_not_single_out_two_of_eight_rows(tmp_path,
     from tests.test_import_measurement_module import _verify_env
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
     from workflow.compliance_sets import INFO
-    from workflow.run_compliance import set_run_report_type
+    from tests.helpers.report_window import choose_report_type
     s, _fm, _ctl, run = _verify_env(tmp_path)
     v = run.new_verification()
     v.ensure_dir()
@@ -593,7 +564,7 @@ def test_the_printing_record_does_not_single_out_two_of_eight_rows(tmp_path,
     dlg.show()
     qapp.processEvents()
     try:
-        set_run_report_type(run, REPORT_TYPE_FULL)
+        choose_report_type(dlg, REPORT_TYPE_FULL)
         dlg._forget_limits()
         dlg._sync_limit_controls()
         # THE CONTROL, AND IT MOVED WITH THE RULING. This used to prove the
@@ -603,7 +574,7 @@ def test_the_printing_record_does_not_single_out_two_of_eight_rows(tmp_path,
         assert dlg._numbered_notes(dlg._runs_for_report()), \
             "the note list is empty even on Full colour check, so nothing is proved"
 
-        set_run_report_type(run, REPORT_TYPE_RECORD)
+        choose_report_type(dlg, REPORT_TYPE_RECORD)
         dlg._forget_limits()
         dlg._sync_limit_controls()
         reps = dlg._runs_for_report()

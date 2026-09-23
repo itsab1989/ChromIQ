@@ -48,6 +48,7 @@ every entry still opens.
 """
 from __future__ import annotations
 
+from tests.helpers import legacy_run_meta
 import hashlib
 import json
 import os
@@ -351,71 +352,31 @@ def test_every_saved_report_still_opens_afterwards(qapp, tmp_path, monkeypatch):
         dlg.close()
 
 
-def test_the_run_is_still_bound_to_the_set_that_was_chosen(qapp, tmp_path,
-                                                           monkeypatch):
-    """What the pulldown still does, and must: the set is the run's yardstick
-    for the dated verifications still to come, and for anything with no verdict
-    of its own. Only the saved reports are out of its reach.
+def test_the_set_chosen_is_the_reports_and_the_run_is_not_touched(
+        qapp, tmp_path, monkeypatch):
+    """K31 turned this test round (it was
+    `test_the_run_is_still_bound_to_the_set_that_was_chosen`). The pulldown
+    chooses the REPORT's set; the run's meta.json is not written (Knut,
+    5801677743: nothing is bound until Generate report, and then only the
+    report).
 
-    MUTATION: drop the `bind_run` call from `_on_set_chosen` and this goes red.
+    MUTATION: bind the run in `_on_set_chosen` again and this goes red.
     """
     proj, run, other, ti3 = _messy_project(tmp_path)
+    before = run.meta_path.read_bytes() if run.meta_path.exists() else b""
     dlg = _dialog(_settings(tmp_path), ti3)
     try:
         monkeypatch.setattr(type(dlg), "_confirm", lambda self, t, x: True)
         chosen = _choose_another_set(dlg, qapp)
-        assert rc.is_bound(run)
-        assert rc.run_limits(run, {}).set_id == chosen
+        after = run.meta_path.read_bytes() if run.meta_path.exists() else b""
+        assert after == before, "choosing a set wrote the run"
+        assert dlg._report_limits().set_id == chosen
     finally:
         dlg.close()
 
 
-def test_the_unlock_door_recalculates_nothing_either(qapp, tmp_path,
-                                                     monkeypatch):
-    """**KNUT OVERTURNED THIS TEST TOO, 2026-09-18 (B8-391).**
-
-    It was `test_the_unlock_door_still_recalculates`, and it existed to show
-    that B8-384's change was aimed at the "Judged against" pulldown and nowhere
-    else. Reading the unlock window the same evening he wrote: *"The
-    description is wrong. All dated reports shall NOT be recalculated, only the
-    selected report will be recalculated and report text recreated according to
-    new values."*
-
-    So the unlock door goes the way the pulldown went: it lets the user change
-    the run's limits and touches not one file. The report shown is rebuilt when
-    the user presses Generate report, which is N.2 and N.3 of §5.
-
-    ONE DOOR STILL RECALCULATES, the Report limits window's Save, and it is
-    unchanged here: it asks its own question at the moment the rewrite happens.
-    Whether N.3 reaches it as well is B8-310, still open for Knut, and nothing
-    here assumes an answer — `test_report_window_limit_controls.py` is where
-    that door's archive-then-recalculate rule is guarded.
-
-    MUTATION: put `self._recalculate_run()` back at the foot of
-    `_on_unlock_toggled` and this goes red.
-    """
-    proj, run, other, ti3 = _messy_project(tmp_path)
-    s = _settings(tmp_path)
-    s.set("compliance_allow_edit_after_measurement", True)
-    rc.bind_run(run, "chromiq_default", {})
-    dlg = _dialog(s, ti3)
-    try:
-        monkeypatch.setattr(type(dlg), "_confirm", lambda self, t, x: True)
-        before = _inventory(run)
-        dlg._unlock_check.setChecked(True)
-        qapp.processEvents()
-        assert run.load_meta().compliance_unlocked, (
-            "the unlock did not happen, so this proves nothing about what it "
-            "leaves alone")
-        after = _inventory(run)
-        assert set(after) == set(before), (
-            f"a file appeared or vanished: {sorted(set(after) ^ set(before))}")
-        rewritten = [p for p in before if after[p][1] != before[p][1]]
-        assert not rewritten, f"unlocking rewrote these: {rewritten}"
-        copies = sorted(str(p) for p in run.dir.glob("**/old/**/report_*.json"))
-        assert not copies, f"unlocking archived {copies}"
-    finally:
-        dlg.close()
+# RETIRED BY K31 (beta 40): `test_the_unlock_door_recalculates_nothing_either`.
+# The unlock door is removed (K31).
 
 
 @pytest.fixture(autouse=True)

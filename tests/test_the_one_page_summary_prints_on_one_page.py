@@ -117,10 +117,12 @@ def test_a_block_short_of_patches_keeps_the_rows_level(a_run, qapp):
 # either half of this. That is the recurring fault shape on this project: a
 # probe that cannot express the fault is not evidence.
 def _bound(dlg, run, set_id: str):
-    from workflow.run_compliance import bind_run
-    bind_run(run, set_id, {})
-    dlg._forget_limits()
+    # K31: the REPORT's set, chosen in "Judged against" as a user does (it
+    # bound the run until K31).
     dlg._sync_limit_controls()
+    i = dlg._set_combo.findData(set_id)
+    assert i >= 0, f"{set_id} is not offered"
+    dlg._set_combo.setCurrentIndex(i)
     dlg._refresh()
 
 
@@ -207,8 +209,9 @@ def a_run(tmp_path, qapp):
 
 
 def _set(dlg, run, tid: str) -> None:
-    from workflow.run_compliance import set_run_report_type
-    set_run_report_type(run, tid)
+    # K31: the type is the REPORT's, chosen in the pulldown as a user does.
+    from tests.helpers.report_window import choose_report_type
+    choose_report_type(dlg, tid)
     dlg._forget_limits()
     dlg._sync_limit_controls()
     dlg._refresh()

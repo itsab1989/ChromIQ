@@ -363,17 +363,16 @@ def test_nothing_waits_for_a_button_that_cannot_be_pressed(tmp_path, qapp):
             encoding="utf-8")
         dlg._add_source(v2.measurement_ti3)
         qapp.processEvents()
-        # G7 (#182 beta 39): two runs loaded no longer grey Generate; ONLY
-        # the other run ticked still does (a report of it alone belongs to
-        # its own window), so that is the state this test stands in.
-        dlg._hidden_runs = {dlg._run_key(r) for r in dlg._history
-                            if str(v2.dir) != r.get("_origin_dir")}
+        # G7 (#182 beta 39): two runs loaded no longer grey Generate, and
+        # since K31 (Knut, 5801677743) neither does only the other run
+        # ticked; NOTHING ticked still does, so that is the state this test
+        # stands in (the page falls back to the window's own sheet).
+        dlg._hidden_runs = {dlg._run_key(r) for r in dlg._history}
         dlg._sync_limit_controls()
         qapp.processEvents()
         assert not dlg._generate_btn.isEnabled(), (
-            "only another run's measurement is ticked and the button is still "
-            "live, so this test is no longer about the state it was written "
-            "for")
+            "nothing is ticked and the button is still live, so this test is "
+            "no longer about the state it was written for")
         before = dlg._view.toHtml()
         dlg._detail_check.setChecked(not dlg._detail_check.isChecked())
         qapp.processEvents()
@@ -419,20 +418,22 @@ def test_the_loose_type_pulldown_goes_through_the_same_door(tmp_path, qapp):
     An adversary round photographed them behaving differently in one window,
     which is Knut's original complaint still standing in a corner of it.
 
-    MUTATION: put `self._refresh()` back in `_on_type_chosen`'s `ctx is None`
-    branch and the source assertion goes red.
+    K31: neither handler has a no-run branch any more, because both settings
+    are the REPORT's for every measurement; each goes through the one door,
+    `_settings_touched`, and repaints nothing on its own.
+
+    MUTATION: put a `self._refresh()` back in `_on_type_chosen` or
+    `_on_set_chosen` and the source assertion goes red.
     """
     import inspect
     from ui.dialogs import measurement_report_dialog as mrd
     for name in ("_on_type_chosen", "_on_set_chosen"):
         body = inspect.getsource(getattr(mrd.MeasurementReportDialog, name))
-        loose = body.split("ctx is None", 1)
-        assert len(loose) == 2, f"{name} no longer has a no-run branch"
-        head = loose[1].split("return", 1)[0]
-        assert "self._settings_touched(" in head, (
-            f"{name}'s no-run branch does not go through the one door")
-        assert "self._refresh()" not in head, (
-            f"{name}'s no-run branch still repaints on its own")
+        code = body.split('"""')[-1]
+        assert "self._settings_touched(" in code, (
+            f"{name} does not go through the one door")
+        assert "self._refresh()" not in code, (
+            f"{name} still repaints on its own")
 
 
 def test_an_at_once_door_never_leaves_the_window_saying_something_untrue(

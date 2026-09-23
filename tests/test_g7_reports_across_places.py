@@ -82,7 +82,7 @@ def _project(root: Path, name: str, bind: str = "chromiq_default"):
     """A project NAME in *root* whose run1 is bound to *bind* and has one
     dated verification. Returns (project, run, verification)."""
     from core.file_manager import Project
-    from workflow.run_compliance import bind_run
+    from tests.helpers.legacy_run_meta import (bind_run)
     proj = Project.create(root / name, name)
     run = proj.current_run()
     run.ensure_dir()
@@ -143,7 +143,7 @@ def test_a_report_across_two_runs_is_one_document_judged_by_its_own_set(
     proj, run1, v1 = _project(tmp_path, "P", "chromiq_default")
     run2 = proj.new_run()
     run2.ensure_dir()
-    from workflow.run_compliance import bind_run
+    from tests.helpers.legacy_run_meta import (bind_run)
     bind_run(run2, "chromiq_tight", None)
     v2 = _date(run2, 0.5)
     dates = _snapshot(v1.dir, v2.dir)
@@ -171,20 +171,20 @@ def test_a_report_across_two_runs_is_one_document_judged_by_its_own_set(
             run_limits(run2, None).set_id) == bound, "a run was re-bound"
 
 
-def test_a_date_whose_run_has_the_reports_set_keeps_its_record(tmp_path,
-                                                                qapp):
-    """The window's own run bound to the set the report is judged against:
-    its date gets its verdict record as before K23 said (it cannot
-    contradict the run), the other run's date gets nothing.
+def test_a_report_across_runs_writes_nothing_into_any_date(tmp_path, qapp):
+    """K31 turned this test round (it was
+    `test_a_date_whose_run_has_the_reports_set_keeps_its_record`). Knut,
+    5801677743: *"When a report covers more than one run or project, should
+    GENERATE REPORT write anything into the dates' own folders? Answer: no."*
+    Neither date's folder gains a file, the window's own run's included.
 
-    MUTATION, proven red: make `_records_across_places` return [] at its
-    top (no record, and the window's own date's newest file is no longer a
-    file of this report)."""
+    MUTATION: write a record into the window's own run's date again (the
+    pre-K31 `_records_across_places`) and this goes red."""
     from workflow.measurement_report import is_verdict_record
     proj, run1, v1 = _project(tmp_path, "P", "chromiq_default")
     run2 = proj.new_run()
     run2.ensure_dir()
-    from workflow.run_compliance import bind_run
+    from tests.helpers.legacy_run_meta import (bind_run)
     bind_run(run2, "chromiq_tight", None)
     v2 = _date(run2, 0.5)
     other = _snapshot(v2.dir)
@@ -199,7 +199,9 @@ def test_a_date_whose_run_has_the_reports_set_keeps_its_record(tmp_path,
     finally:
         dlg.close()
     new = sorted(set(_reports(v1.dir / "reports")) - before)
-    assert len(new) == 1 and is_verdict_record(_read(new[0])), new
+    assert new == [], new
+    assert not any(is_verdict_record(_read(p))
+                   for p in _reports(v1.dir / "reports"))
     assert _snapshot(v2.dir) == other
 
 
@@ -215,7 +217,7 @@ def test_the_saved_report_shows_the_verdicts_it_recorded(tmp_path, qapp):
     proj, run1, v1 = _project(tmp_path, "P", "chromiq_default")
     run2 = proj.new_run()
     run2.ensure_dir()
-    from workflow.run_compliance import bind_run
+    from tests.helpers.legacy_run_meta import (bind_run)
     bind_run(run2, "chromiq_tight", None)
     v2 = _date(run2, 0.5)
     dlg = _window(_settings(), v1.measurement_ti3, qapp, "verification")

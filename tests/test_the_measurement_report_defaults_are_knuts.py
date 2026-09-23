@@ -313,20 +313,23 @@ def test_the_automatic_record_carries_a_document_of_its_own(tmp_path, qapp):
     assert doc["measurements"][0]["ti3"] == v.measurement_ti3.name
 
 
-def test_the_automatic_records_type_follows_the_run_then_preferences(tmp_path,
-                                                                     qapp):
-    """*"The type belongs to the run, yes, but the default should be the 'Full
-    colour check'."* — so a run that HAS chosen keeps its choice (D9), and a
-    run that has not takes the Preferences default.
+def test_the_automatic_records_type_is_the_preferences_default(tmp_path,
+                                                               qapp):
+    """K31 turned this test round (it was
+    `test_the_automatic_records_type_follows_the_run_then_preferences`, D9).
+    Knut, 5801677743: the report after a measurement is that date's own
+    report with its own settings, and a new report starts on *"the defaults
+    in preferences -> reports"*. A type an earlier ChromIQ stored on the run
+    no longer decides it.
 
-    MUTATION: make `report_type_default_for` ignore the run (return the
-    preference), or ignore the preference (return `run_report_type`), and one
-    half of this goes red either way.
+    MUTATION: make `new_report_type` (or the Measure tab) read the run's
+    stored type again (`report_type_default_for(run, ...)`) and this goes
+    red.
     """
     from workflow.measurement_report import (REPORT_TYPE_GREY,
                                              REPORT_TYPE_SUMMARY, list_reports,
                                              recorded_document)
-    from workflow.run_compliance import set_run_report_type
+    from tests.helpers.legacy_run_meta import (set_run_report_type)
     s, _fm, _ctl, run, v = _a_measured_run(tmp_path)
     s.set("report_default_type", REPORT_TYPE_SUMMARY)
     tab = _measure_tab(s, qapp)
@@ -335,14 +338,15 @@ def test_the_automatic_records_type_follows_the_run_then_preferences(tmp_path,
         first = recorded_document(json.loads(
             Path(list_reports(v.dir)[-1]).read_text(encoding="utf-8")))
         assert first["type"] == REPORT_TYPE_SUMMARY, (
-            "a run that never chose a type ignored the Preferences default")
-        set_run_report_type(run, REPORT_TYPE_GREY)
+            "the automatic report ignored the Preferences default")
+        set_run_report_type(run, REPORT_TYPE_GREY)       # an earlier ChromIQ's
         tab._maybe_save_measurement_report(v.measurement_ti3)
         newest = sorted(list_reports(v.dir))[-1]
         second = recorded_document(json.loads(
             Path(newest).read_text(encoding="utf-8")))
-        assert second["type"] == REPORT_TYPE_GREY, (
-            "the Preferences default overrode the run's own type, which is D9")
+        assert second["type"] == REPORT_TYPE_SUMMARY, (
+            "a type stored on the run by an earlier ChromIQ decided the "
+            "automatic report")
     finally:
         tab.deleteLater()
 
@@ -687,26 +691,30 @@ def test_new_report_writes_nothing_and_reads_nothing_off_the_run(tmp_path,
         dlg.close()
 
 
-def test_the_defaults_do_not_override_a_run_that_chose_its_type(tmp_path,
-                                                                qapp):
-    """D9 is untouched by any of this: a run with a type of its own keeps it,
-    and the Preferences value is only what a run that never chose gets.
+def test_new_report_starts_on_the_preferences_type_whatever_the_run_holds(
+        tmp_path, qapp):
+    """K31 turned this test round (it was
+    `test_the_defaults_do_not_override_a_run_that_chose_its_type`, D9).
+    Knut, 5801677743: *"the starting choice for 'New report...' should be the
+    defaults in preferences -> reports first"*, and the type is the report's.
+    A type an earlier ChromIQ stored on the run is not a starting choice.
 
-    MUTATION: return the Preferences type from `_report_type_now` before asking
-    the run and this goes red.
+    MUTATION: ask the run's stored type in `_report_type_now` before the
+    Preferences default and this goes red.
     """
     from workflow.measurement_report import (REPORT_TYPE_GREY,
                                              REPORT_TYPE_RECORD)
-    from workflow.run_compliance import set_run_report_type
+    from tests.helpers.legacy_run_meta import (set_run_report_type)
     s, _fm, run, vs = _generated_project(tmp_path, qapp, presses=0)
-    s.set("report_default_type", REPORT_TYPE_RECORD)
-    set_run_report_type(run, REPORT_TYPE_GREY)
+    from workflow.measurement_report import REPORT_TYPE_SUMMARY
+    s.set("report_default_type", REPORT_TYPE_SUMMARY)
+    set_run_report_type(run, REPORT_TYPE_GREY)          # an earlier ChromIQ's
     dlg = _report_window(s, vs[-1].measurement_ti3, qapp)
     try:
         dlg._saved_combo.setCurrentIndex(0)      # "New report…"
         qapp.processEvents()
-        assert dlg._report_type_now() == REPORT_TYPE_GREY, (
-            "the Preferences default overrode the run's own type")
+        assert dlg._report_type_now() == REPORT_TYPE_SUMMARY, (
+            "the run's stored type overrode the Preferences default")
     finally:
         dlg.close()
 
@@ -822,8 +830,12 @@ def test_the_flag_words_are_translated_at_display_and_not_stored(tmp_path,
         qapp.processEvents()
     finally:
         dlg.close()
+    # K31: a report of two dates is ONE file, in the run's
+    # verifications/reports/, beside the dates' own reports.
+    files = [p for v in run.verifications() for p in list_reports(v.dir)]
+    files += sorted((run.verifications_dir / "reports").glob("report_*.json"))
     blocks = [recorded_document(json.loads(Path(p).read_text(encoding="utf-8")))
-              for v in run.verifications() for p in list_reports(v.dir)]
+              for p in files]
     blocks = [b for b in blocks if b]
     assert blocks, "nothing was generated, so this proves nothing"
     for b in blocks:

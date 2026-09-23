@@ -27,8 +27,10 @@ Two doors, two behaviours (CH-19). From **Preferences** the window edits a
 buffer the Preferences dialog owns; the blob is written on Preferences Save
 and dropped on Cancel, like every other control on that tab. From the
 **Measurement Report window** there is no Save around it, so edits are written
-as they are made, and a first column "This run" holds the run's own copy of
-its limits, editable only while the run is unlocked.
+as they are made, and a first column "This report" holds the report's own
+limits, in memory until Generate report writes them into the report (K31;
+it was the run's own copy, "This run", editable only while the run was
+unlocked, until the run lock was removed).
 
 Every signal is connected to a bound method that reads ``self.sender()``. A
 lambda or a ``functools.partial`` capturing ``self`` on a child widget's
@@ -61,7 +63,8 @@ from workflow.compliance_sets import (GROUP_LABELS, GROUP_ORDER, ROWS, SET_BY_ID
 
 log = get_logger(__name__)
 
-#: the "This run" pseudo column id
+#: the "This report" pseudo column id (it was "This run" until K31; the id is
+#: kept so a caller's reference to the first column still resolves)
 RUN_COLUMN = "__run__"
 
 #: Gap between the items of the "Show:" row. Named, because the number is the
@@ -71,17 +74,19 @@ SHOW_ROW_SPACING_PX = 24
 
 
 class ReportLimitsColumn:
-    """The "This report" column of a report ACROSS PLACES (#182 K30).
+    """The "This report" column: a REPORT's own limits (#182 K30, K31).
 
     Knut, 5798461562: *"all settings belong to a report, not a specific
-    run"*. A report across profile runs or projects has no run to hold its
-    limits, so this stands in for one, in memory only: it answers
-    `load_meta` / `save_meta` exactly as a run does for the fields this
-    window reads and writes, and nothing it holds ever reaches a disk. The
-    report window reads the edited numbers back with `limits`.
+    run"*, and 5801677743: *"the limit set belongs to the report that is
+    made for the profile run"*. Since K31 this is the first column from every
+    report window, one profile run or several: it stands in for a run, in
+    memory only, answering `load_meta` / `save_meta` exactly as a run does for
+    the fields this window reads and writes, and nothing it holds ever reaches
+    a disk. The report window reads the edited numbers back with `limits`,
+    and the column choice (a view setting, K-b) with `columns`.
     """
 
-    def __init__(self, lim) -> None:
+    def __init__(self, lim, columns: "list | None" = None) -> None:
         import copy
         from core.file_manager import RunMeta
         from workflow.compliance_sets import limits_to_json
@@ -90,7 +95,7 @@ class ReportLimitsColumn:
         m.compliance_set_id = lim.set_id
         m.compliance_set_label = lim.label_en
         m.compliance_thresholds = limits_to_json(lim.limits)
-        m.compliance_bound_at = "report"
+        m.compliance_columns = list(columns or [])
         self._meta = m
         self._copy = copy.deepcopy
 
@@ -99,6 +104,9 @@ class ReportLimitsColumn:
 
     def save_meta(self, meta) -> None:
         self._meta = self._copy(meta)
+
+    def columns(self) -> "list":
+        return list(self._meta.compliance_columns or [])
 
     def limits(self) -> "dict":
         from workflow.compliance_sets import limits_from_json
@@ -315,13 +323,22 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
     def __init__(self, settings, parent: "QWidget | None" = None, *,
                  run=None, run_editable: bool = False,
                  buffer: "dict | None" = None,
-                 report_column: bool = False) -> None:
+                 report_column: bool = True,
+                 run_default=None) -> None:
         super().__init__(parent)
         self._settings = settings
         self._run = run
-        #: K30: the first column is a REPORT's own limits, not a run's
-        #: (`ReportLimitsColumn`); only its words differ.
-        self._report_column = bool(report_column and run is not None)
+        #: K30/K31: the first column is always a REPORT's own limits
+        #: (`ReportLimitsColumn`). The keyword is kept for older callers.
+        self._report_column = run is not None
+        #: K31: the profile run whose OWN DEFAULT for new reports the
+        #: "Default for this run" row sets, or None (Preferences, a report
+        #: across places, a file in no run). Nothing is written here: the
+        #: report window applies `run_default_chosen` after the close.
+        self._run_default = run_default
+        self.run_default_chosen: str = ""
+        self._run_default_radios: "dict[str, QRadioButton]" = {}
+        self._run_default_group: "QButtonGroup | None" = None
         self._run_editable = bool(run_editable and run is not None)
         #: {"overrides": {...}, "default_set": str} owned by Preferences, or
         #: None when edits go straight to the settings (report-window door)
@@ -450,15 +467,17 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                 "supplied for it.\n\n"
                 "Turn a spin box down to 0 to remove a limit (it shows “–”). "
                 "Restore defaults puts a column back to its factory "
-                "values. Default for new runs marks the set a new profile run "
-                "is bound to at its first verification measurement.")
-            # #182 K30 (B8-853, Knut 5798461562): across places the first
-            # column is the report's own.
+                "values. Default for new reports marks the limit set a new "
+                "report starts on; Default for this run, shown when the window "
+                "is opened from a report of one profile run, marks the one new "
+                "reports of that run start on instead. A saved report keeps "
+                "the limits it was generated with.")
+            # #182 K30 (B8-853) and K31: the first column is always the
+            # report's own, whatever the report holds.
             + "\n\n" + tr(
-                "Opened from a Measurement Report that holds measurements "
-                "from more than one place (several profile runs, or several "
-                "projects), the first column is “This report”: the report's "
-                "own limits. A change there applies to that report only, is "
+                "The first column is “This report”: the limits of the report "
+                "the window was opened from, whether it holds one profile run "
+                "or several. A change there applies to that report only, is "
                 "used when you press Generate report and is stored with the "
                 "report, never on a profile run."),
             accent=SPEC_GREEN)
@@ -589,8 +608,7 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         show_row.addWidget(QLabel(tr("Show:"), self))
         visible = self._visible_columns()
         if run is not None:
-            cb = QCheckBox(tr("This report") if self._report_column
-                           else tr("This run"), self)
+            cb = QCheckBox(tr("This report"), self)
             cb.setChecked(True)
             cb.setEnabled(False)
             show_row.addWidget(cb)
@@ -774,8 +792,7 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
 
     def _header_text(self, col: str) -> str:
         if col == RUN_COLUMN:
-            return (tr("This report") if self._report_column
-                    else tr("This run"))
+            return tr("This report")
         return tr(SET_BY_ID[col].label)
 
     def _build_head(self) -> None:
@@ -802,16 +819,9 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
             self._column_widgets.setdefault(col, []).append(hdr)
             # row 1: the read-only mark / Restore defaults / locked note
             editable = self._column_editable(col)
-            if col == RUN_COLUMN and not self._run_editable:
-                note = QLabel(tr("locked: tick “Unlock this run's limits” in "
-                                 "the report window to change these"), self)
-                note.setStyleSheet(faint)
-                note.setWordWrap(True)
-                note.setMinimumWidth(CELL_W + 20)
-                note.setMaximumWidth(CELL_W + 80)
-                g.addWidget(note, 1, ci)
-                self._column_widgets[col].append(note)
-            elif editable:
+            # K31: no run's limits are locked any more, so there is no
+            # "locked" note over the first column.
+            if editable:
                 # RENAMED ON KNUT'S WORD, 2026-09-22: *"I also think all the
                 # buttons called 'Restore this column' can be renamed to
                 # 'Restore Defaults'. Since the button exists for most of the
@@ -840,8 +850,10 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                 ro.setAlignment(Qt.AlignmentFlag.AlignRight)
                 g.addWidget(ro, 1, ci)
                 self._column_widgets[col].append(ro)
-        # row 2: default for new runs (CH-1 / S-13)
-        g.addWidget(QLabel(tr("Default for new runs"), self), 2, 0)
+        # row 2: the Preferences default a new report starts on (CH-1 /
+        # S-13). "Default for new runs" until K31, when a run was BOUND to it
+        # at its first verification; nothing is bound any more.
+        g.addWidget(QLabel(tr("Default for new reports"), self), 2, 0)
         selectable = set(selectable_set_ids(self._overrides))
         for ci, col in enumerate(cols, start=2):
             if col == RUN_COLUMN or col not in selectable:
@@ -854,8 +866,8 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
             self._default_group.addButton(rb)
             rb.setChecked(col == self._default_set)
             rb.toggled.connect(self._on_default_toggled)
-            rb.setToolTip(tr("A new profile run is bound to this set at its "
-                             "first verification measurement."))
+            rb.setToolTip(tr("A new report starts on this limit set, unless "
+                             "its profile run has a default of its own."))
             self._default_radios[col] = rb
             g.addWidget(rb, 2, ci, Qt.AlignmentFlag.AlignRight)
             self._column_widgets[col].append(rb)
@@ -888,9 +900,7 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         # keep in step, which is the fault this file has been bitten by twice.
         # The choice is recorded and the report window applies it on close.
         if self._run is not None:
-            g.addWidget(QLabel(tr("Used for this report")
-                               if self._report_column
-                               else tr("Used for this run"), self), 3, 0)
+            g.addWidget(QLabel(tr("Used for this report"), self), 3, 0)
             for ci, col in enumerate(cols, start=2):
                 if col == RUN_COLUMN or col not in selectable:
                     continue
@@ -904,18 +914,40 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                 rb.setEnabled(bool(self._run_editable))
                 rb.setToolTip(
                     tr("Judge this report against this set. No profile "
-                       "run's limits change.")
-                    if self._report_column else
-                    tr("Judge this run against this set. Available while "
-                       "“Unlock this run's limits” is ticked in the report "
-                       "window, or until a second dated verification locks the "
-                       "run.")
-                    if self._run_editable else
-                    tr("This run's set is locked. Tick “Unlock this run's "
-                       "limits” in the report window to change it."))
+                       "run's limits change."))
                 rb.toggled.connect(self._on_run_set_toggled)
                 self._run_set_radios[col] = rb
                 g.addWidget(rb, 3, ci, Qt.AlignmentFlag.AlignRight)
+                self._column_widgets[col].append(rb)
+        # row 4 (K31): WHICH SET NEW REPORTS OF THIS PROFILE RUN START ON.
+        # Knut, 5801677743: *"the starting choice for 'New report...' should
+        # be the defaults in preferences -> reports first, then the default
+        # in the Edit limits for that run, if it changed to be different from
+        # the preferences default"*. The radio on the Preferences default
+        # means "follow Preferences"; any other is the run's own default. It
+        # writes nothing: `run_default_chosen` is applied by the report window.
+        if self._run_default is not None:
+            from workflow.run_compliance import run_default_set_id
+            own = run_default_set_id(self._run_default) or self._default_set
+            g.addWidget(QLabel(tr("Default for this run"), self), 4, 0)
+            for ci, col in enumerate(cols, start=2):
+                if col == RUN_COLUMN or col not in selectable:
+                    continue
+                rb = QRadioButton(self)
+                rb.setProperty("set_id", col)
+                if self._run_default_group is None:
+                    self._run_default_group = QButtonGroup(self)
+                    self._run_default_group.setExclusive(True)
+                self._run_default_group.addButton(rb)
+                rb.setChecked(col == own)
+                rb.setToolTip(tr(
+                    "New reports of this profile run start on this limit set "
+                    "instead of the default for new reports. Choose the same "
+                    "set as the default for new reports to follow Preferences "
+                    "again. No saved report changes."))
+                rb.toggled.connect(self._on_run_default_toggled)
+                self._run_default_radios[col] = rb
+                g.addWidget(rb, 4, ci, Qt.AlignmentFlag.AlignRight)
                 self._column_widgets[col].append(rb)
 
     def _build_rows(self) -> None:
@@ -1398,6 +1430,16 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
             return
         self.run_set_chosen = "" if col == self._run_set_id else str(col)
 
+    def _on_run_default_toggled(self, on: bool) -> None:
+        """Remember the default the user picked for THIS RUN. Writes nothing
+        (K31): the report window applies it after the window closes."""
+        if not on or self._syncing:
+            return
+        rb = self.sender()
+        col = rb.property("set_id") if rb is not None else None
+        if col:
+            self.run_default_chosen = str(col)
+
     def _on_default_toggled(self, on: bool) -> None:
         if not on:
             return
@@ -1627,9 +1669,11 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         # DIRTY MEANS DIFFERENT, NOT TOUCHED.
         if (self._run is not None and self._run_dirty and self._run_editable
                 and self._run_column_really_moved()):
-            from workflow.run_compliance import set_run_limits
+            from workflow.compliance_sets import limits_to_json
             try:
-                set_run_limits(self._run, self._run_limits)
+                _m = self._run.load_meta()
+                _m.compliance_thresholds = limits_to_json(self._run_limits)
+                self._run.save_meta(_m)
                 self.run_limits_changed = True
             except OSError as exc:
                 log.warning("could not store this run's limits: %s", exc)

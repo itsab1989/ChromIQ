@@ -7,6 +7,7 @@ geometry are proven on screen by the driver, not here.
 """
 from __future__ import annotations
 
+from tests.helpers import legacy_run_meta
 import json
 import os
 
@@ -286,24 +287,24 @@ def test_column_visibility_is_stored_per_run_or_in_preferences(qapp, tmp_path):
         dlg3.deleteLater()
 
 
-def test_this_run_column_is_locked_until_unlocked_and_written_once_on_close(qapp, tmp_path):
+def test_the_first_column_is_written_once_on_close(qapp, tmp_path):
+    """The first column (K31: "This report", the report's own limits) is
+    edited in memory and handed back ONCE, on close (CH-29). K31 retired the
+    half of this test that pinned a LOCKED run's column and its note "tick
+    Unlock this run's limits": nothing is locked any more.
+
+    MUTATION: write the column on every `valueChanged` and this goes red."""
     proj = Project.create(tmp_path / "P", "P")
     run = proj.current_run(); run.ensure_dir()
-    rc.bind_run(run, "chromiq_default", {})
-    # locked: labels, and a note saying how to unlock
+    legacy_run_meta.bind_run(run, "chromiq_default", {})
     s, dlg = _dlg(qapp, tmp_path, run=run, run_editable=False)
     try:
-        w = _cell(dlg, "__run__", "all_de00_avg")
-        from PyQt6.QtCore import QLocale
-        # read-only cells use the spin boxes' locale (2,00 on a German machine)
-        assert isinstance(w, QLabel) and w.text() == QLocale.system().toString(2.0, "f", 2)
         notes = [x.text() for x in dlg._column_widgets["__run__"] if isinstance(x, QLabel)]
-        assert any("Unlock" in t for t in notes)
-        dlg.accept()
-        assert dlg.run_limits_changed is False
+        assert not any("Unlock" in t for t in notes), notes
+        assert dlg._header_text("__run__") == "This report"
     finally:
         dlg.deleteLater()
-    # unlocked: spin boxes; the copy is written ONCE, on close (CH-29)
+    # editable: spin boxes; the copy is written ONCE, on close (CH-29)
     s, dlg = _dlg(qapp, tmp_path / "b", run=run, run_editable=True)
     try:
         sb = _cell(dlg, "__run__", "all_de00_avg")
@@ -401,7 +402,7 @@ def test_this_run_recommendation_survives_a_trip_through_zero(
     col, rid, _n = a_hand_marked_recommendation
     proj = Project.create(tmp_path / "P", "P")
     run = proj.current_run(); run.ensure_dir()
-    rc.bind_run(run, col, {})
+    legacy_run_meta.bind_run(run, col, {})
     s, dlg = _dlg(qapp, tmp_path, run=run, run_editable=True)
     try:
         sb = _cell(dlg, "__run__", rid)
@@ -573,7 +574,7 @@ def test_typing_a_number_and_typing_it_back_is_not_an_edit(qapp, tmp_path):
     proj = Project.create(tmp_path / "P", "P")
     run = proj.current_run()
     run.ensure_dir()
-    rc.bind_run(run, "chromiq_default", {})
+    legacy_run_meta.bind_run(run, "chromiq_default", {})
 
     s, dlg = _dlg(qapp, tmp_path, run=run, run_editable=True)
     try:
@@ -610,7 +611,7 @@ def test_a_real_edit_is_still_an_edit(qapp, tmp_path):
     proj = Project.create(tmp_path / "Q", "Q")
     run = proj.current_run()
     run.ensure_dir()
-    rc.bind_run(run, "chromiq_default", {})
+    legacy_run_meta.bind_run(run, "chromiq_default", {})
 
     s, dlg = _dlg(qapp, tmp_path, run=run, run_editable=True)
     try:

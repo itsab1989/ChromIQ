@@ -262,7 +262,7 @@ def _run(proj, run, slug: str, instrument: str, description: str,
     import make_report_limit_demos as DEMO
     from workflow.measurement_report import (KIND_PROFILING, KIND_VERIFICATION,
                                              build_report, stamp_verdict)
-    from workflow.run_compliance import bind_run, run_limits
+    from workflow.run_compliance import run_limits
     from workflow.ti3_analysis import mark_verification_ti3
     run.ensure_dir()
     stem, vstem = run.stem, run.verify_stem
@@ -278,8 +278,9 @@ def _run(proj, run, slug: str, instrument: str, description: str,
     run.save_meta(meta)
     first = datetime.fromisoformat(dates[0][1] if dates
                                    else "2026-10-01T09:00:00")
-    limits = (bind_run(run, "chromiq_default", {}, when=first) if dates
-              else run_limits(run, {}, "chromiq_default"))
+    # K31: nothing is bound onto the run; its reports start on ChromIQ
+    # default, which is what a new report of it starts on.
+    limits = run_limits(run, {}, "chromiq_default")
     prof_when = (first - timedelta(days=7)).isoformat(timespec="seconds")
     prof = _sheet(ti2, run.dir / f"{stem}.ti3", _even, seed0, instrument,
                   prof_when)

@@ -172,9 +172,9 @@ def test_and_the_list_gets_its_own_sentence_back_when_another_type_is_chosen(
         two_dated, qapp):
     """The one-page sentence is put in FRONT of the list's own and given back,
     which is what it used to do for the removed box's tooltip."""
-    from workflow.run_compliance import set_run_report_type
+    from tests.helpers.report_window import choose_report_type
     dlg, older, newer = two_dated
-    set_run_report_type(dlg._run_ctx.run, mr.REPORT_TYPE_FULL)
+    choose_report_type(dlg, mr.REPORT_TYPE_FULL)   # K31: the report's type
     dlg._forget_limits()
     dlg._sync_limit_controls()
     assert dlg._profile_list.isEnabled() is True
@@ -198,9 +198,9 @@ def test_but_a_run_the_user_really_unticked_is_still_owned_up_to(two_dated, qapp
     longer says "runs in the list above are hidden by you (unticked)" — a list
     a printed sheet cannot show. It says what it covers instead, by count.
     """
-    from workflow.run_compliance import set_run_report_type
+    from tests.helpers.report_window import choose_report_type
     dlg, older, newer = two_dated
-    set_run_report_type(dlg._run_ctx.run, mr.REPORT_TYPE_FULL)
+    choose_report_type(dlg, mr.REPORT_TYPE_FULL)   # K31: the report's type
     dlg._forget_limits()
     dlg._sync_limit_controls()
     _cover_the_whole_history(dlg)
@@ -223,7 +223,6 @@ def two_dated(tmp_path, qapp):
     from core.file_manager import Project
     from core.settings import AppSettings
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
-    from workflow.run_compliance import set_run_report_type
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
     from drive_one_page_report import _GRID, _srgb_to_xyz_d50
 
@@ -272,9 +271,14 @@ def two_dated(tmp_path, qapp):
         # tests vacuous and hid the other's run when a single one was unticked.
         rep = mr.build_report(p)
         rep["created"] = when
+        # K31: the type is the REPORT's. These stand for reports the
+        # one-page summary wrote, so they say so themselves (before K31 the
+        # run's stored type named an untyped report).
+        mr.set_report_type(rep, mr.REPORT_TYPE_SUMMARY)
         mr.save_report(rep, p.parent)
         paths.append(p)
-    set_run_report_type(run, mr.REPORT_TYPE_SUMMARY)
+    # K31: a new report starts on the Preferences type (it was the run's).
+    st.set("report_default_type", mr.REPORT_TYPE_SUMMARY)
     dlg = MeasurementReportDialog(st, None, initial_ti3=paths[-1])
     yield dlg, paths[0], paths[1]
     dlg.close()
@@ -380,19 +384,33 @@ def test_generate_writes_the_one_report_the_page_is_about(two_dated, qapp):
 
 
 def test_and_the_other_types_still_write_every_loaded_run(two_dated, qapp):
-    """The narrowing belongs to the one-page summary, not to the button."""
+    """The narrowing belongs to the one-page summary, not to the button.
+
+    K31: a report of both dates is ONE file, in the run's
+    `verifications/reports/`, covering both; nothing is written into either
+    date's folder (Knut, 5801677743: no verdict records).
+
+    MUTATION: write a record into each date again, or leave a ticked date out
+    of the document's measurements, and this goes red."""
+    import json
     import workflow.measurement_report as mr
-    from workflow.run_compliance import set_run_report_type
+    from tests.helpers.report_window import choose_report_type
     dlg, older, newer = two_dated
-    set_run_report_type(dlg._run_ctx.run, mr.REPORT_TYPE_FULL)
+    choose_report_type(dlg, mr.REPORT_TYPE_FULL)   # K31: the report's type
     dlg._forget_limits()
     dlg._sync_limit_controls()
     _cover_the_whole_history(dlg)
     before = {p: len(mr.list_reports(p.parent)) for p in (older, newer)}
+    home = older.parent.parent / "reports"
+    had = set(home.glob("report_*.json")) if home.is_dir() else set()
     dlg._on_generate_report()
     after = {p: len(mr.list_reports(p.parent)) for p in (older, newer)}
-    assert after[older] == before[older] + 1
-    assert after[newer] == before[newer] + 1
+    assert after == before, "a report of two dates wrote into a date's folder"
+    new_files = set(home.glob("report_*.json")) - had
+    assert len(new_files) == 1, new_files
+    block = mr.recorded_document(json.loads(next(iter(new_files)).read_text(encoding="utf-8")))
+    assert len(block["measurements"]) == 2
+    assert all(m.get(mr.JUDGED_KEY) for m in block["measurements"])
 
 
 def test_the_suggested_pdf_name_matches_the_page_it_saves(two_dated, qapp,

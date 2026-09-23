@@ -447,7 +447,7 @@ def three_dated(tmp_path, qapp):
     from core.file_manager import Project
     from core.settings import AppSettings
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
-    from workflow.run_compliance import ensure_bound, set_run_report_type
+    from tests.helpers.legacy_run_meta import (ensure_bound, set_run_report_type)
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
     from drive_one_page_report import _GRID, _srgb_to_xyz_d50
 

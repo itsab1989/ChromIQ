@@ -37,7 +37,7 @@ def test_an_untyped_saved_verification_report_is_labelled_with_its_runs_type(
                                                       _verify_env)
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
     from workflow.measurement_report import REPORT_TYPE_GREY
-    from workflow.run_compliance import set_run_report_type
+    from tests.helpers.legacy_run_meta import (set_run_report_type)
     s, _fm, _ctl, run = _verify_env(tmp_path)
     set_run_report_type(run, REPORT_TYPE_GREY)
     v = run.new_verification()
@@ -110,11 +110,10 @@ def test_the_page_stops_being_the_saved_document_when_its_list_changes(
 
 def test_a_leftover_member_is_restamped_with_a_type_its_kind_allows(
         tmp_path, qapp, monkeypatch):
-    """Round 2B #8's third site, which its own test said out loud it did not
-    guard: `_tid_for_block`, the type a member the Update DROPS is re-stamped
-    with. A beta-34 Printing record of two verifications, one date unticked,
-    Update: neither file may come out a Printing record, and the two files of
-    the one document must agree.
+    """Round 2B #8's third site. A beta-34 Printing record of two
+    verifications, one date unticked, Update. K31: the report of one date it
+    becomes is ONE file (the kept date's; nothing is left over in the other
+    date to re-stamp), and it may not come out a Printing record.
 
     WHAT IT KILLS, MEASURED: neither D06 nor D07, and it is kept as a pin on
     the behaviour, not offered as their guard. D07
@@ -160,11 +159,6 @@ def test_a_leftover_member_is_restamped_with_a_type_its_kind_allows(
         _pick_key(dlg, key, qapp)
         assert dlg._report_type_now() == REPORT_TYPE_RECORD, \
             "the fixture did not reach a recorded Printing record"
-        entry = next(d for d in dlg._saved_documents(dlg._run_ctx.run)
-                     if d["key"] == key)
-        assert len(entry["members"]) == 2, entry["members"]
-        files = [Path(str(r.get("_origin_dir"))) / "reports" / n
-                 for r, n in entry["members"]]
         dropped = dlg._run_key(dlg._history[0])
         dlg._hidden_runs.add(dropped)
         dlg._settings_touched()
@@ -174,13 +168,15 @@ def test_a_leftover_member_is_restamped_with_a_type_its_kind_allows(
         monkeypatch.setattr(QMessageBox, "exec", _press("Update"))
         dlg._on_generate_report()
         qapp.processEvents()
-        types = {str(f): (json.loads(f.read_text(encoding="utf-8"))
-                          .get("document") or {}).get("type")
-                 for f in files}
-        assert len(types) == 2, types
+        types = {}
+        for f in _files(run) + sorted(
+                (run.verifications_dir / "reports").glob("report_*.json")):
+            doc = json.loads(f.read_text(encoding="utf-8")).get("document") or {}
+            if doc.get("id") == doc_id:
+                types[str(f)] = doc.get("type")
+        assert len(types) == 1, types
         assert REPORT_TYPE_RECORD not in types.values(), (
-            f"a verification's file was re-stamped a Printing record: {types}")
-        assert len(set(types.values())) == 1, types
+            f"a verification's file was stamped a Printing record: {types}")
     finally:
         dlg.close()
 
@@ -212,9 +208,9 @@ def test_an_update_whose_archive_fails_writes_nothing(tmp_path, qapp,
         entry = next(d for d in dlg._saved_documents(dlg._run_ctx.run)
                      if d["key"] == key)
         from pathlib import Path
-        dirs = sorted({(Path(str(r.get("_origin_dir"))) / "reports").resolve()
-                       for r, _n in entry["members"]})
-        assert len(dirs) == 2, dirs
+        # K31: the report of two dates is one file; ITS folder's archive
+        # fails here.
+        dirs = [Path(str(entry["file"])).parent.resolve()]
         real = FM.archive_report_files
 
         def _one_folder_fails(paths, when=None, **kw):
@@ -223,7 +219,8 @@ def test_an_update_whose_archive_fails_writes_nothing(tmp_path, qapp,
                 when, **kw)
             return done, set(failed) | {dirs[0]}
         monkeypatch.setattr(FM, "archive_report_files", _one_folder_fails)
-        before = {p: p.read_bytes() for p in _files(run)}
+        watched = _files(run) + [Path(str(entry["file"]))]
+        before = {p: p.read_bytes() for p in watched}
         dlg._detail_check.setChecked(False)
         qapp.processEvents()
         del dlg._ask_update_or_create_new
@@ -233,7 +230,7 @@ def test_an_update_whose_archive_fails_writes_nothing(tmp_path, qapp,
         monkeypatch.setattr(QMessageBox, "exec", _press("Update"))
         dlg._on_generate_report()
         qapp.processEvents()
-        after = {p: p.read_bytes() for p in _files(run)}
+        after = {p: p.read_bytes() for p in watched}
         changed = [str(p) for p in after if before.get(p) != after[p]]
         assert not changed, (
             "an Update whose archive failed in one folder still rewrote: "

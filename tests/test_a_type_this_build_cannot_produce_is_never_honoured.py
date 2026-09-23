@@ -28,7 +28,8 @@ from __future__ import annotations
 import pytest
 
 from workflow import measurement_report as mr
-from workflow.run_compliance import run_report_type, set_run_report_type
+from workflow.run_compliance import (run_report_type)
+from tests.helpers.legacy_run_meta import (set_run_report_type)
 
 UNBUILT = [t[0] for t in mr.REPORT_TYPE_MENU if not t[3]]
 BUILT = [t[0] for t in mr.REPORT_TYPE_MENU if t[3]]
@@ -40,12 +41,11 @@ def test_there_are_types_this_build_cannot_produce():
     assert BUILT
 
 
-@pytest.mark.parametrize("type_id", UNBUILT)
-def test_the_run_refuses_to_store_one(tmp_path, type_id, qapp):
-    run = _a_run(tmp_path)
-    with pytest.raises(ValueError):
-        set_run_report_type(run, type_id)
-    assert run.load_meta().report_type == "", "nothing may be written on refusal"
+# RETIRED BY K31 (beta 40): `test_the_run_refuses_to_store_one`.
+# set_run_report_type is removed from the app (K31: the type is the report's,
+# never stored on a run). A type this build cannot produce is still refused
+# where a type is written now: set_report_type and _on_type_chosen
+# (test_a_greyed_type_cannot_be_stored_even_when_the_handler_is_reached).
 
 
 @pytest.mark.parametrize("type_id", BUILT)

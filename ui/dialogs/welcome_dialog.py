@@ -744,9 +744,9 @@ WORKFLOWS: list[dict] = [
                tr("If the run has no profile yet, ChromIQ tells you to build "
                   "one first and switches the type back to Profiling. Build "
                   "it, then come back here. Everything below belongs to that "
-                  "one run: its verification chart, its dated checks, its "
-                  "report type and the limits its results are judged "
-                  "against.")),)),
+                  "one run: its verification chart and its dated checks. The "
+                  "report type and the limits a check is judged against "
+                  "belong to each report you make of it.")),)),
             (1, tr("On the Create Chart tab, choose the chart this profile "
                 "will be checked with, then click “Generate Chart”."),
              False,
@@ -852,18 +852,18 @@ WORKFLOWS: list[dict] = [
                   "measurement is never graded at all: it is expected to "
                   "fall outside accuracy limits, and saying so would be "
                   "noise rather than news.")),
-              (tr("The limits belong to the run, and they lock"),
-               tr("The first verification measurement BINDS a copy of the "
-                  "limits to that run, so every later check of the same "
-                  "profile is judged by the same numbers and the trend means "
-                  "something. From the second dated check they LOCK. If you "
-                  "really do need to change them, tick “Allow editing of "
-                  "thresholds after the first verification measurement” in "
-                  "Preferences → Reports, then “Unlock this run's limits” in "
-                  "the report window. ChromIQ copies every report of the run "
-                  "into its own “reports/old” folder before recalculating "
-                  "them, so the record of what you were told is "
-                  "kept.")))),
+              (tr("The limits belong to the report"),
+               tr("Each report carries its own limit set and judges every "
+                  "check ticked in it against the same numbers, so the dates "
+                  "in one report always compare like with like. The report "
+                  "ChromIQ writes after each check is that date's own report. "
+                  "To see a series judged against another set, tick the dates "
+                  "in the report window, choose the set and generate a report "
+                  "of them: nothing already saved is changed, and a report "
+                  "you update keeps its earlier version in an “old” folder "
+                  "beside it. A new report starts on the set chosen in "
+                  "Preferences → Reports, unless the run has a default of its "
+                  "own, chosen in the report window's Edit limits….")))),
             (3, tr("Repeat a verification every few weeks or months, and read "
                 "the trend."),
              False,
@@ -1608,24 +1608,14 @@ GLOSSARY += [
         "FROM rather than a test of one. A raw drift check is not graded "
         "either, because no profile is in the loop to be right or wrong. An "
         "ungraded sheet shows every figure and reads INFO throughout.")),
-    (tr("Bound (a run's limits)"),
-     tr("Your first verification measurement takes a COPY of the limit set "
-        "you chose and stores it with that run, in its meta.json. From then "
-        "on the run is judged by its own copy, so changing a set later never "
-        "silently re-judges work you have already done, and a trend across "
-        "months compares like with like. A report of measurements from more "
-        "than one place (several profile runs, or several projects) is the "
-        "exception: it judges every measurement in it against the report's "
-        "own set, whatever each run is bound to, and binds no run.")),
-    (tr("Locked / Unlock this run's limits"),
-     tr("From the second dated check onwards a run's bound limits are locked, "
-        "so its history cannot be re-scored halfway through. To change them "
-        "anyway, tick “Allow editing of thresholds after the first "
-        "verification measurement” in Preferences → Reports, then “Unlock "
-        "this run's limits” in the report window. Unlocking recalculates "
-        "nothing by itself: every report already saved stays exactly as it "
-        "is, and the report you have open is rebuilt when you press "
-        "Generate report.")),
+    (tr("A report's limit set"),
+     tr("Every report carries a copy of the limit set it was judged against, "
+        "and judges every measurement it covers against that one set, "
+        "whichever profile run or project the measurement comes from. "
+        "Changing a set later never re-judges a report already saved; to "
+        "judge measurements against another set, make a report of them or "
+        "update one. A profile run holds no limits of its own, only, if you "
+        "choose one in Edit limits…, the set its new reports start on.")),
     (tr("Required limit and recommendation (the brackets)"),
      tr("In the Report limits table a plain number is a limit the set "
         "REQUIRES; a number in brackets, such as (2.0), is one it only "
@@ -1744,12 +1734,12 @@ GLOSSARY += [
     (tr("Report limits (window)"),
      tr("The window that shows every limit set side by side, one column each, "
         "so you can compare them and edit your own. Reached from the "
-        "Measurement Report through “Edit limits…” or “Show limits…”, and "
-        "from Preferences → Reports. It is also where the default set for new "
-        "runs is chosen. Opened from a report of measurements from more than "
-        "one place, its first column is “This report”: the report's own "
-        "limits, changed for that report only and stored with it when you "
-        "press Generate report, never on a profile run.")),
+        "Measurement Report through “Edit limits…”, and from Preferences → "
+        "Reports. From the Measurement Report its first column, “This "
+        "report”, holds the report's own limits, which a change there "
+        "affects only; it is also where the default set for new reports is "
+        "chosen, and, with one profile run loaded, the one that run's new "
+        "reports start on.")),
     (tr("Reference values (window)"),
      tr("The one door to other people's numbers, reached from Report limits. "
         "It has two halves that must not be confused: the ISO half, where a "

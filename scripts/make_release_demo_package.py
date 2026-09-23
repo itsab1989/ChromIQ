@@ -173,7 +173,7 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
     ]),
     ("§13.11", "Update moves an older report into the new place", [
         "Report-Limits-Report-Folders/run1: the LEGACY report of two dates",
-        "Report-Limits-Report-Folders/run1: the DELETED report, its records left in the dates",
+        "Report-Limits-Report-Folders/run1: the DELETED report (moved to old/, nothing left in the dates)",
     ]),
     ("§13.11", "\"Save report as PDF\" opens the report's own reports/ folder", [
         "Report-Limits-Report-Folders/run1: a one-date and an all-dates report",
@@ -287,10 +287,7 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
         "Report-Limits-Evenness/run3: before the first verification (shown)",
         "Report-Limits-Paper-Classes/run5: after one (not shown)",
     ]),
-    ("§19.6", "\"Unlock this run's limits\" is dim", [
-        "Report-Limits-Threshold-Series/run3 and Report-Limits-Paper-Classes/run5: one date, dim",
-        "Report-Limits-Border-Values/run1: three dates, locked, live",
-    ]),
+
     ("§19.7", "Before printing, say that a metric the chart cannot answer", [
         "Report-Limits-Strip-And-Gamut/run4: a chart with no surface patch",
         "Create Chart presets (verification demos): the presets window",
@@ -312,9 +309,12 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
     ("§19.12", "Knut's eight i1Pro presets built in", [
         "Create Chart presets (verification demos)", "the whole package",
     ]),
-    ("§19.13", "\"New report…\" on a bound run shows the run's own set", [
-        "Report-Limits-Isolated-Rows/run1: an edited column",
-        "Report-Limits-Set-Compare/run2: ChromIQ tight",
+    ("§25", "K31", [
+        "Report-Limits-Report-Folders/run2: add run1's measurements, pick run1's \"One date\" report, tick only its date, Update: rewritten in run1's own folder",
+        "Report-Limits-Report-Folders/run1+run2: a report across both runs writes one file in the project's reports/ and nothing in the dates",
+        "Report-Limits-Report-Folders/run1: the K23-ERA report (its verdict records are read-only history)",
+        "Report-Limits-Set-Compare/run2: New report starts on the run's own default (ChromIQ tight)",
+        "Report-Limits-Threshold-Series/run1: \"Judged against\" and Edit limits change only the report, nothing is written before Generate report",
     ]),
     ("§20", "Rulings not built", [
         "listed in the spec, one gap at a time; the package demonstrates the built ones above",
@@ -432,9 +432,9 @@ BEHAVIOUR_DEMOS: "dict[str, list[str]]" = {
         "Report-Limits-Report-Folders/run1", "the pack's reports/ (across projects)",
     ],
     "Update or New": ["Report-Limits-Report-Types/run1", "Report-Limits-Report-Folders/run1"],
-    "Unlock this run's limits": [
-        "Report-Limits-Border-Values/run1 (locked, three dates)",
-        "Report-Limits-Paper-Classes/run5 (one date, dim)",
+    "A report owns its limit set (K31)": [
+        "Report-Limits-Threshold-Series/run1 (choose a set, nothing is written until Generate report)",
+        "Report-Limits-Set-Compare/run2 (the run's own default for new reports)",
     ],
     "The verification pre-flight": ["Report-Limits-Evenness/run3"],
     "Trend graphs": ["Report-Limits-Threshold-Series/run1", "Report-Limits-Border-Values/run1"],

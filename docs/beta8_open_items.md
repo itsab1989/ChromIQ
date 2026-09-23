@@ -5638,7 +5638,7 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   test_a_locked_run_cannot_be_changed_from_here,
   test_a_click_on_a_locked_run_records_nothing,
   test_there_is_no_row_when_there_is_no_run,
-  test_the_report_window_applies_the_pick_through_its_own_door.
+  test_edit_limits_changes_only_the_report.
   Three mutations, each proved to land. Driven on screen with
   `scripts/drive_182_limits_radio_case.py`, on his own run and on the pack's
   own locked run.
@@ -5745,9 +5745,9 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 - evidence:
   test_the_two_rows_are_separate_exclusive_groups,
   test_changing_your_mind_back_records_nothing,
-  test_the_pick_is_applied_outside_the_body_so_it_cannot_double,
+  test_edit_limits_changes_only_the_report,
   test_the_body_leaves_the_pick_for_the_wrapper,
-  test_the_report_window_applies_the_pick_through_its_own_door,
+  test_edit_limits_changes_only_the_report,
   test_patch_first_warns_too,
   test_the_label_checks_stay_area_first_only.
   Mutating back to the shipped state reproduces F1 and F2 exactly.
@@ -7822,7 +7822,9 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
      and are renumbered B8-187 to B8-193 here, references included. -->
 ### B8-187 · The report window opened on one run showed, and filed, another run's measurement
 - blocks release: yes
-- status: FIXED
+- status: SUPERSEDED
+- superseded by: B8-891
+- superseded because: K31 (Knut, #182 5801677743, beta 40) removed the behaviour this fix belonged to; see B8-891 and spec §25.
 - found by: a tester walking profile, then refinement, then physical
   verification, reported to Basti as *"it failed generating the report at the
   end"*; reproduced and narrowed by the journey round, 2026-09-15
@@ -7876,7 +7878,7 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   test_the_run_stops_saying_it_has_no_report,
   test_the_history_still_spans_every_run_of_the_project,
   test_the_run_the_window_is_on_is_in_the_history_even_unsaved,
-  test_generate_never_crosses_a_run_boundary,
+  test_generate_covers_what_is_ticked_across_runs,
   test_every_date_of_one_run_still_gets_its_own_report,
   test_a_report_of_another_file_in_the_same_folder_is_not_about_this_one,
   test_a_measurement_that_cannot_be_read_says_so.
@@ -7904,7 +7906,9 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 
 ### B8-189 · Generate stayed live over an empty target list when its own row was unticked
 - blocks release: no
-- status: FIXED
+- status: SUPERSEDED
+- superseded by: B8-891
+- superseded because: K31 (Knut, #182 5801677743, beta 40) removed the behaviour this fix belonged to; see B8-891 and spec §25.
 - INTRODUCED BY THE B8-187 FIX, found by the adversary round on it the same
   hour (`report-fix/drivers/adversary_round2.py`, probe P4).
 - detail: the run-row tick boxes leave a measurement out of the trend, the
@@ -7919,7 +7923,7 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
   already disabled it, so this only makes the rule reach the row that matters.
   Re-measured on screen: unticked gives 0 targets and a disabled button, ticked
   back gives it again (`report-fix/drivers/adversary_round3.py`, P4b).
-- evidence: test_the_button_refuses_when_its_own_run_is_unticked.
+- evidence: test_the_button_follows_the_ticks_not_the_windows_run.
 
 ### B8-190 · Two profile runs of one project were ONE row key
 - blocks release: no
@@ -7939,7 +7943,9 @@ fault reachable: `ask` must OFFER both, and the call site must ACT on No.
 
 ### B8-191 · A source-scanning test anchored on the first MENTION of a method
 - blocks release: no
-- status: FIXED
+- status: SUPERSEDED
+- superseded by: B8-894
+- superseded because: K31 (Knut, #182 5801677743, beta 40) removed the behaviour this fix belonged to; see B8-894 and spec §25.
 - found by: the everyday tier going red on work that had not touched the rule it
   guards.
 - detail: `test_the_window_really_guards_it_this_way` read
@@ -16460,11 +16466,11 @@ would reach.
   test_no_question_is_asked_about_a_rewrite_that_cannot_happen,
   test_another_runs_reports_are_not_touched_either,
   test_every_saved_report_still_opens_afterwards,
-  test_the_run_is_still_bound_to_the_set_that_was_chosen,
-  test_the_unlock_door_recalculates_nothing_either
+  test_the_set_chosen_is_the_reports_and_the_run_is_not_touched,
+  test_changing_judged_against_writes_nothing_until_generate
   (the new guard file named above); test_changing_the_set_neither_asks_nor_rewrites and
-  test_the_set_change_still_binds_the_run (the B8-310 file); and
-  test_a_generated_document_is_never_recalculated, which now drives the UNLOCK
+  test_the_set_change_binds_nothing (the B8-310 file); and
+  test_edit_limits_changes_only_the_report, which now drives the UNLOCK
   door and still asserts that a legacy report IS rewritten there, so it cannot
   pass by accident.
   Mutations proved to land, `__pycache__` cleared around each: putting
@@ -16932,7 +16938,9 @@ would reach.
 
 ### B8-391 · FIXED · The unlock warning describes a recalculation that is not what he wants
 - blocks release: no
-- status: FIXED
+- status: SUPERSEDED
+- superseded by: B8-893
+- superseded because: K31 (Knut, #182 5801677743, beta 40) removed the behaviour this fix belonged to; see B8-893 and spec §25.
 - Knut, 2026-09-18, reading the window that appears when "Unlock this run's
   limits" is unchecked:
 
@@ -16981,10 +16989,10 @@ would reach.
   an inference is how this window has been broken before. **It stays B8-310 and
   is a question for him.**
 - status: FIXED
-- evidence: test_the_unlock_door_recalculates_nothing_either,
+- evidence: test_changing_judged_against_writes_nothing_until_generate,
   test_preferences_allows_the_unlock_and_unlocking_recalculates_nothing,
   test_a_report_stamped_after_the_unlock_is_archived_before_its_first_rewrite,
-  test_a_generated_document_is_never_recalculated.
+  test_edit_limits_changes_only_the_report.
   Mutation proved to land, `__pycache__` cleared: `self._recalculate_run()` put
   back at the foot of `_on_unlock_toggled` (**3 failed**); restored, green.
 - guard files: `a_saved_report_is_not_rewritten_by_a_set_change`,
@@ -17657,7 +17665,7 @@ would reach.
   (0 not grandfathered).
 - status: FIXED
 - evidence: test_a_calibration_is_not_told_it_is_outside_the_project,
-  test_a_file_outside_any_project_is_still_told_so (the control).
+  test_a_calibration_is_not_told_it_is_outside_the_project (the control).
   Mutation proved to land, `__pycache__` cleared: the old sentence read for
   both branches (**1 failed**); restored, 21 passed.
 - guard file: `report_window_limit_controls`, under `tests/`.
@@ -20119,7 +20127,9 @@ would reach.
 - evidence: test_the_report_limits_door_is_short_where_a_reader_sees_it
 
 ### B8-520 · FIXED · Knut's "Unlock this run's limits" was on screen in beta 25 and beta 26 alike, and hidden by a rule of ours in both
-- status: FIXED
+- status: SUPERSEDED
+- superseded by: B8-893
+- superseded because: K31 (Knut, #182 5801677743, beta 40) removed the behaviour this fix belonged to; see B8-893 and spec §25.
 - blocks release: no
 - Knut, 2026-09-20, reviewing beta 26: *"In the Measurement Report window,
   relating to the new layout of buttons and elements, you removed the 'Unlock
@@ -20304,7 +20314,7 @@ would reach.
 - evidence: test_the_help_text_lists_every_option_as_a_bullet
 
 ### B8-526 · OPEN · "New report…" shows the RUN's limit set, and Knut wants Preferences' default — which contradicts §5
-- status: OPEN
+- status: FIXED
 - blocks release: no
 - Knut, 2026-09-20: *"When selecting 'New report…' in Report shown, then the
   Judged against is set to Quick check, which is not set as the default limit
@@ -20341,9 +20351,7 @@ would reach.
   suggests a per-run override, which is what the "Used for this run" row of the
   Report limits window already writes; if that is what he means, the remaining
   question is only about a run that has never been given one.
-- evidence: none yet — nothing is changed but a tooltip, and the ruling is
-  his.
-
+- evidence: test_new_report_starts_on_preferences_then_the_runs_own_default, test_new_report_starts_on_the_preferences_type_whatever_the_run_holds (answered by K31, B8-895: a new report starts on the Preferences default unless its profile run has a default of its own, chosen in Edit limits)
 ### B8-527 · OPEN · An unreadable chart preset is re-parsed on every eligibility pass, 29 times in one session
 - status: OPEN
 - blocks release: no
@@ -22818,7 +22826,8 @@ would reach.
   block, the report type and the document block are all carried across, so
   nothing is re-graded and nothing is re-dated by the rebuild.
 - guard file: `tests/`, the recalculation file added by this round.
-- evidence: `test_the_window_really_rebuilds_before_it_stamps`,
+- evidence: (K31, beta 40: the window seam test was retired with
+  `_recalculate_run`; the helper tests stay)
   `test_rebuilding_first_answers_the_rows`,
   `test_the_measured_fault_without_the_rebuild` and
   `test_the_rebuild_keeps_the_reports_own_date`. Mutation proved:
@@ -24172,7 +24181,9 @@ would reach.
 
 ### B8-766 · FIXED · "Unlock this run's limits" is offered when there is nothing to unlock
 - blocks release: no
-- status: FIXED
+- status: SUPERSEDED
+- superseded by: B8-893
+- superseded because: K31 (Knut, #182 5801677743, beta 40) removed the behaviour this fix belonged to; see B8-893 and spec §25.
 - FIXED 2026-09-22, and it was one word. `is_locked` has answered
   `measured_dates(run) < 2 -> not locked` since Knut's ruling of 2026-09-10;
   the enable rule asked `has_measured_verification`, which is true of ONE, so
@@ -24442,7 +24453,7 @@ would reach.
   tone check chosen, page built as t3_grey_and_tone, no meta.json changed.
 - evidence:
   test_with_two_runs_ticked_the_type_can_be_chosen_and_neither_run_is_written
-  test_a_greyed_generate_says_why_when_only_another_run_is_ticked
+  test_generate_is_live_when_only_another_run_is_ticked
   (retargeted by G7, B8-848: two runs no longer grey Generate)
 
 ### B8-786 · FIXED · Two of three measurements ticked became a "One date" report and the ticks collapsed
@@ -25176,7 +25187,7 @@ would reach.
   test_both_kinds_loaded_generate_is_refused_and_says_why
   test_the_guide_explains_no_chromiq_mechanics
   test_the_recorded_verdict_sentence_names_no_ChromIQ_action
-  test_after_clear_list_unlock_says_nothing_is_loaded
+  test_no_unlock_control_and_no_option_that_allowed_it
 
 ### B8-812 · FIXED · K24: the report window took its kind from a measurement, not from the profile bar's Run type
 - blocks release: no
@@ -25316,8 +25327,8 @@ would reach.
   run" counts reports across runs that cover this run; keep the words?
 - evidence: the K23 test file's 21 tests, 17 mutations, all red, among them
   test_where_a_document_lives,
-  test_several_dates_write_one_document_file_and_a_record_per_date,
-  test_a_deleted_document_leaves_its_records_unlisted_and_uncounted,
+  test_several_dates_write_one_document_file_and_no_record,
+  test_a_deleted_document_leaves_nothing_behind_in_the_dates,
   test_a_legacy_document_of_several_dates_counts_once_and_stays,
   test_a_cross_run_document_is_listed_where_it_covers_and_nowhere_else,
   test_update_to_one_date_retires_the_document_file_and_back; on screen in
@@ -25481,7 +25492,7 @@ would reach.
   also untrue of a report made after unlocking and changing the set. Kept as
   it is; question: keep, reword as a statement about the report, or remove.
 - evidence:
-  test_bound_and_locked_is_explained_in_the_help_not_the_report
+  test_the_help_says_the_report_owns_its_limits_and_nothing_locks
 
 ### B8-821 · FIXED · Question for Knut: should a Printing record keep its "Judged against" row? (beta 37, B-H3)
 - blocks release: no
@@ -25818,7 +25829,7 @@ would reach.
   untouched, the Measure tab's empty window, the type help's "no report").
 - evidence:
   test_every_door_hands_the_window_a_parent_that_knows_the_run_type
-  test_bound_and_locked_is_explained_in_the_help_not_the_report
+  test_the_help_says_the_report_owns_its_limits_and_nothing_locks
   test_the_accuracy_trend_plots_what_the_verdict_judged
   test_the_graph_says_its_figures_are_the_judged_ones
   test_the_judged_description_fits_two_lines
@@ -26208,7 +26219,7 @@ would reach.
   mutations.txt), and retargeted:
   test_two_runs_loaded_the_pulldown_chooses_the_reports_set,
   test_with_two_runs_ticked_generate_is_live,
-  test_a_greyed_generate_says_why_when_only_another_run_is_ticked,
+  test_generate_is_live_when_only_another_run_is_ticked,
   test_the_other_run_reason_goes_when_this_run_is_ticked_again,
   test_update_of_the_cross_run_report_keeps_both_dates,
   test_two_runs_bound_to_different_sets_are_judged_by_the_reports_set.
@@ -26423,13 +26434,13 @@ would reach.
 
 ### B8-853 · OPEN · K30: limits belong to the report across places; the one-run window is a question for Knut
 - blocks release: no
-- status: OPEN
+- status: FIXED
 - note: the across-places half is built in beta 39 and awaits confirmation (spec §24.3); the one-run half is not decided
 - ruled by: Knut, #182 5798461562: *"Why is editing limits is per run? I have not specified this. I have specified the opposite that all settings belong to a report, not a specific run"*.
 - built: with several places loaded "Edit limits…" is live and opens the Report limits window with a "This report" column (`ReportLimitsColumn`, in memory only) and a "Used for this report" row; a change is the report's own limits for the session (`_report_own_limits`), raises the red line, is written into the document by Generate report (Update / Create New / Cancel) and binds, unlocks or rewrites no run. The Colour accuracy graph's Avg / Max lines now follow the limits the page is judged against (`_thresholds`), which they did not.
-- open: with ONE place loaded the window still edits the run's limits and "Judged against" still binds the run (spec §5). Making those the report's too would change §19.6 and §19.13, which Knut confirmed on 2026-09-23. Asked of him, not decided here.
+- answered: by K31 (B8-894, spec §25): with one profile run loaded the limits window is the REPORT's too ("This report"), and "Judged against" binds nothing. Before K31: with ONE place loaded the window still edits the run's limits and "Judged against" still binds the run (spec §5). Making those the report's too would change §19.6 and §19.13, which Knut confirmed on 2026-09-23. Asked of him, not decided here.
 - tests: tests/test_k30_rulings.py, tests/test_report_window_limit_controls.py
-- evidence: test_across_places_the_limits_window_edits_the_reports_own_limits, test_one_run_loaded_the_limits_window_is_still_the_runs, test_a_set_picked_for_the_report_in_the_limits_window, test_two_runs_loaded_the_pulldown_chooses_the_reports_set
+- evidence: test_across_places_the_limits_window_edits_the_reports_own_limits, test_one_run_loaded_the_limits_window_is_the_reports_too, test_a_set_picked_for_the_report_in_the_limits_window, test_two_runs_loaded_the_pulldown_chooses_the_reports_set
 - proof: ~/Desktop/ChromIQ-beta39-proof/k30/drive-en, drive-de (A3 photographs; the runs' meta.json compared before and after).
 
 ### B8-854 · FIXED, awaiting confirmation · K30: projects in two folders share the ChromIQ folder's reports/
@@ -26984,3 +26995,101 @@ would reach.
 - tests: tests/test_r3_an_update_keeps_to_its_own_measurements.py (mutation "no all-gone rule" 1 red, mutation "members = everything pressed" 1 red).
 - evidence: test_no_other_measurement_is_ticked_under_a_report_that_is_all_gone, test_an_update_never_takes_another_kinds_measurements, test_update_may_cover_keeps_to_the_reports_kind, test_an_update_with_its_own_measurements_there_still_works
 - proof: ~/Desktop/ChromIQ-beta39-proof/second-check-R3-fixes/ before/ and after/ UPDNL2 (after: 0 rows ticked, Generate greyed "No measurement is ticked") and UPDNL3 (the sheets ticked by hand: before, a new document covering them was written and the old one archived; after, M-REPORT-UPDATE-NOTHING-LEFT and 0 file changes, photographs/W3-update-then.png).
+
+### B8-890 · FIXED, awaiting confirmation · K31: a report of several measurements writes one file and no verdict records
+- blocks release: no
+- status: FIXED
+- note: K31, beta 40; spec §25.1. Supersedes the K23 records of §13.11 and the G7 records of §13.13.
+- ruled by: Knut, #182 [5801677743](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5801677743): *"Should a report of several measurements stop writing verdict records altogether? Agreed."*; *"When a report covers more than one run or project, should GENERATE REPORT write anything into the dates' own folders? Answer: no."*
+- built: `_write_the_document` (one measurement: one file in its folder; several: one document file in `document_home` whose members carry `judged`); `_records_across_places` removed; `_one_row_per_measurement` never takes a record as a date's own row.
+- tests: tests/test_k31_report_model.py, tests/test_k23_report_folders.py, tests/test_g7_reports_across_places.py
+- evidence: test_a_report_of_several_dates_is_one_file_and_writes_no_record, test_a_report_across_runs_writes_nothing_into_any_date, test_several_dates_write_one_document_file_and_no_record
+- proof: ~/Desktop/ChromIQ-beta40-proof/k31-a-report-model/ (REPORT.md, drive-en, drive-de: file listings with size and sha1 before and after each press).
+
+### B8-891 · FIXED, awaiting confirmation · K31: Update and New report work from any window; a new report is saved where its ticks decide
+- blocks release: no
+- status: FIXED
+- note: K31, beta 40; spec §25.2. Reverses B8-187 and B8-189 (the window's-own-run filter).
+- ruled by: Knut, #182 [5801677743](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5801677743): *"With a report selected, may GENERATE REPORT > Update rewrite that report where it lives, whichever profile run the window was opened from? Agreed."* and *"With 'Create New', or 'New report...', and only another run's dates ticked, may the new report be saved where those dates decide? Agreed."*
+- built: `_reports_to_generate` keeps every ticked measurement (refuses only: nothing ticked, a measurement outside every project across places, a non-calibration under Calibration); `document_home` decides the folder; the Generate tooltip about "another profile run" removed.
+- tests: tests/test_k31_report_model.py, tests/test_a_report_belongs_to_the_run_it_was_asked_from.py, tests/test_the_report_type_pulldown_stores_on_the_run.py
+- evidence: test_knuts_case_update_run1s_one_date_report_from_run2s_window, test_a_new_report_of_another_runs_date_is_saved_in_that_date, test_generate_covers_what_is_ticked_across_runs, test_the_button_follows_the_ticks_not_the_windows_run, test_generate_is_live_when_only_another_run_is_ticked
+- proof: ~/Desktop/ChromIQ-beta40-proof/k31-a-report-model/drive-en and drive-de, step "Knut's case".
+
+### B8-892 · FIXED, awaiting confirmation · K31: a report of one date widened by an Update becomes a report of those dates
+- blocks release: no
+- status: FIXED
+- note: K31, beta 40; spec §25.2.
+- ruled by: Knut, #182 [5801677743](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5801677743): *"that is the logical thing, if a user chooses to update the automatically created reports of one date."*
+- built: `_write_the_document`: the report keeps its id and moves to where its dates decide; its name follows (`_document_scope`); the one-date file is archived into that date's `reports/old/<stamp>/` and taken out of the live folder, never deleted.
+- tests: tests/test_k31_report_model.py
+- evidence: test_widening_a_one_date_report_makes_it_a_report_of_those_dates
+- proof: ~/Desktop/ChromIQ-beta40-proof/k31-a-report-model/drive-en, drive-de.
+
+### B8-893 · FIXED, awaiting confirmation · K31: "Unlock this run's limits", the run lock and the Preferences option are removed
+- blocks release: no
+- status: FIXED
+- note: K31, beta 40; spec §25.4 (the analysis: what the lock protected, why it is no longer needed, what was removed, what a user loses). Supersedes B8-391, B8-520, B8-766 and spec §19.6.
+- ruled by: Knut, #182 [5801677743](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5801677743): *"I agree that the 'Unlock this run's limits' is no longer needed"*.
+- built: the checkbox, its help icon and its two question windows (recalculate, relock) removed from `ui/dialogs/measurement_report_dialog.py`; "Allow editing of thresholds after the first verification measurement" removed from `ui/dialogs/settings_dialog.py` and `core/settings.py` (the key is no longer written or read); `bind_run`, `ensure_bound`, `set_run_limits`, `set_run_unlocked`, `is_locked`, `may_unlock`, `set_run_report_type` removed from `workflow/run_compliance.py`. An older meta.json (`compliance_bound_at`, `compliance_unlocked`, a stored copy) still reads: its set is the run's default for new reports, the unlock flag is ignored.
+- tests: tests/test_k31_report_model.py, tests/test_report_window_limit_controls.py
+- evidence: test_no_unlock_control_and_no_option_that_allowed_it, test_an_older_meta_json_still_reads_and_locks_nothing, test_a_measured_run_is_not_locked
+- proof: ~/Desktop/ChromIQ-beta40-proof/k31-a-report-model/drive-en, drive-de (the report window with two dated verifications: no unlock box, every control live).
+
+### B8-894 · FIXED, awaiting confirmation · K31: the limit set belongs to the report; "Judged against" and Edit limits write nothing until Generate report; one set always
+- blocks release: no
+- status: FIXED
+- note: K31, beta 40; spec §25.3. Answers B8-853. Supersedes spec §5's binding and §24.3's one-run clause.
+- found on screen (beta 40 drive, step C): with "Judged against" moved, opening and closing Edit limits unchanged re-rendered the page (`_refresh`) and took the moved setting as the new baseline, so the red line went and Generate asked "Nothing was changed for the selected report" although the file was then written against the new set. Fixed: an unchanged close syncs the controls and leaves the baseline alone.
+- ruled by: Knut, #182 [5801677743](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5801677743): *"changing the reports settings does not change the report, and its binding to a limit set, unless you click Generate Report"*; *"Go for option (a) One set for the whole report, always."*
+- built: `_on_set_chosen` and `_open_report_limits_window` change only the report's settings (`_settings_touched`, `_report_own_limits`); the limits window always opens on the report's own column "This report"; `_judged_by_the_document` judges every unrecorded row against `_report_limits()`; `_one_limit_set` leaves nothing out; `_recalculate_run` and the run binding removed.
+- tests: tests/test_k31_report_model.py, tests/test_a_set_change_asks_before_it_rewrites_history.py, tests/test_k30_rulings.py
+- evidence: test_changing_judged_against_writes_nothing_until_generate, test_edit_limits_changes_only_the_report, test_a_set_change_still_counts_after_edit_limits_is_closed_unchanged, test_the_column_choice_is_remembered_and_binds_nothing, test_one_set_for_the_whole_report_within_one_run, test_the_set_change_binds_nothing, test_one_run_loaded_the_limits_window_is_the_reports_too
+- proof: ~/Desktop/ChromIQ-beta40-proof/k31-a-report-model/drive-en, drive-de (listings before and after a set change and an edit: identical until Generate).
+
+### B8-895 · FIXED, awaiting confirmation · K31: "New report…" starts on Preferences > Reports, unless the profile run has a default of its own chosen in Edit limits
+- blocks release: no
+- status: FIXED
+- note: K31, beta 40; spec §25.5. Answers B8-526; supersedes spec §19.13.
+- ruled by: Knut, #182 [5801677743](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5801677743): *"the starting choice for 'New report...' should be the the defaults in preferences -> reports first, then the default in the Edit limits for that run, if it changed to be different from the preferences default."*
+- built: `run_limits` (the run's own default, else Preferences); `set_run_default_set` (a choice equal to the Preferences default clears the run's own); the Report limits window's new row "Default for this run", shown with one profile run loaded; `new_report_type` (the type always from Preferences); the "Judged against" tooltip under "New report…" names the run's own default and the Preferences one.
+- tests: tests/test_k31_report_model.py, tests/test_the_measurement_report_defaults_are_knuts.py
+- evidence: test_new_report_starts_on_preferences_then_the_runs_own_default, test_the_default_for_this_run_row_sets_the_runs_own_default, test_new_report_starts_on_the_preferences_type_whatever_the_run_holds
+- proof: ~/Desktop/ChromIQ-beta40-proof/k31-a-report-model/drive-en, drive-de, step "starting choice".
+
+### B8-896 · FIXED, awaiting confirmation · K31: the report after a measurement is that date's report of one date, and binds nothing
+- blocks release: no
+- status: FIXED
+- note: K31, beta 40; spec §25.1.
+- ruled by: Knut, #182 [5801677743](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5801677743) (our post 5798697107 section 1, *"Agreed."*).
+- built: `TabMeasure._report_limits_for` asks `run_limits` (no `ensure_bound`); the type from `new_report_type`; the pre-flight likewise. The run's meta.json is not written by a measurement.
+- tests: tests/test_k31_report_model.py, tests/test_the_measurement_report_defaults_are_knuts.py
+- evidence: test_the_automatic_report_binds_nothing, test_the_automatic_records_type_is_the_preferences_default
+- proof: ~/Desktop/ChromIQ-beta40-proof/k31-a-report-model/REPORT.md.
+
+### B8-897 · FIXED, awaiting confirmation · K31: verdict records an earlier ChromIQ wrote are read-only history
+- blocks release: no
+- status: FIXED
+- note: K31, beta 40; spec §25.6. Our decision under Knut's ruling (records are not written any more); recorded for his confirmation.
+- built: records are never a date's own row (`_one_row_per_measurement`), never listed or counted, and never rewritten, moved, archived or deleted, not even by an Update of the report they belong to (`_write_the_document` leaves them out of `existing`); the updated document file carries every verdict itself.
+- tests: tests/test_k31_report_model.py
+- evidence: test_old_records_are_read_only_history
+- proof: ~/Desktop/ChromIQ-beta40-proof/k31-a-report-model/REPORT.md; the demo pack's K23-ERA report (Report-Limits-Report-Folders/run1).
+
+### B8-898 · FIXED, awaiting confirmation · K31: help icons and Help window cards describe the report model; every lock, unlock and record sentence is gone
+- blocks release: no
+- status: FIXED
+- note: K31, beta 40; Knut, #182 5801750910: *"Make sure all the changes in functionality is described in help icons and relevant help cards."* Covers the beta 40 report-model rows of ~/Desktop/ChromIQ-beta39-proof/remaining-questions/HELP-GAPS.md.
+- built: the help of "Judged against", "Report type", "Report shown", "Save report as PDF…", "Show detailed data", the window guide, the Report limits window, Preferences > Reports (limit sets and "Report type, default"), the Dictionary ("Bound" and "Locked / Unlock" entries removed, "A report's limit set" added), the verification card, "Where are my files?" and M-VERIFY-UNCHECKED-METRICS's last paragraph; English and German.
+- tests: tests/test_k31_report_model.py, tests/test_the_help_knows_the_report_works_files_and_words.py, tests/test_report_window_limit_controls.py
+- evidence: test_no_help_or_window_text_still_describes_the_lock_or_the_records, test_the_help_says_what_the_report_model_is, test_the_dictionary_no_longer_explains_the_run_lock, test_the_help_says_the_report_owns_its_limits_and_nothing_locks
+- proof: ~/Desktop/ChromIQ-beta40-proof/k31-a-report-model/REPORT.md (every help text changed, EN and DE).
+
+### B8-899 · FIXED, awaiting confirmation · K31: the demo generators follow the report model
+- blocks release: no
+- status: FIXED
+- note: K31, beta 40.
+- built: `scripts/make_report_limit_demos.py` (runs carry no lock and no bound copy; a run's own default for new reports where a demo needs one; report folders seeded as K31 documents, one K23-ERA report with its records, one DELETED report; the README's "WHERE EACH RUN'S LIMITS COME FROM"); `scripts/make_release_demo_package.py` (the §19.6 and §19.13 rows replaced by a §25 row; the Unlock behaviour row replaced); `scripts/make_evenness_demo.py`, `scripts/make_notes_demo.py` bind nothing.
+- tests: tests/test_the_demo_data_describes_its_own_lock_correctly.py, tests/test_the_demo_pack_covers_every_report_type.py
+- evidence: test_no_plan_declares_a_lock_state_any_more, test_the_readme_never_writes_a_lock_claim, test_the_index_names_a_run_whose_new_reports_start_on_its_own_set
+- proof: ~/Desktop/ChromIQ-beta40-proof/k31-a-report-model/demo-verify.txt (make_release_demo_package.py --verify).

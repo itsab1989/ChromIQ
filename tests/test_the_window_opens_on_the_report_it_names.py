@@ -63,8 +63,8 @@ def _run_with_three_types(tmp_path):
                                              REPORT_TYPE_SUMMARY, build_report,
                                              save_report, set_report_type,
                                              stamp_verdict)
-    from workflow.run_compliance import (bind_run, run_limits,
-                                         set_run_report_type)
+    from workflow.run_compliance import (run_limits)
+    from tests.helpers.legacy_run_meta import (bind_run, set_run_report_type)
     s, fm, _ctl, run = _verify_env(tmp_path)
     bind_run(run, "chromiq_default", None)
     lim = run_limits(run, None)
@@ -329,8 +329,8 @@ def _run_with_a_typeless_report(tmp_path):
                                                       _verify_env)
     from workflow.measurement_report import (REPORT_TYPE_SUMMARY, build_report,
                                              save_report, stamp_verdict)
-    from workflow.run_compliance import (bind_run, run_limits,
-                                         set_run_report_type)
+    from workflow.run_compliance import (run_limits)
+    from tests.helpers.legacy_run_meta import (bind_run, set_run_report_type)
     s, fm, _ctl, run = _verify_env(tmp_path)
     bind_run(run, "chromiq_default", None)
     lim = run_limits(run, None)

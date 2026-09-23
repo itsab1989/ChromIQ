@@ -228,6 +228,14 @@ def test_several_runs_still_each_get_their_own_row(tmp_path, qapp, monkeypatch):
     for run in (run1, run2):
         dlg = _window_on(s, run.measurement_ti3, qapp)
         try:
+            # K31: a report is saved where its TICKED measurements decide, so
+            # each run's own report is made with that run's sheet ticked
+            # alone (with both ticked it would be one report across the runs,
+            # in the project's reports/, and no run would get its own).
+            mine = dlg._run_key(dlg._report)
+            dlg._hidden_runs = {dlg._run_key(r) for r in dlg._history
+                                if dlg._run_key(r) != mine}
+            dlg._sync_limit_controls()
             _generate(dlg, monkeypatch, qapp)
             _generate(dlg, monkeypatch, qapp)
         finally:

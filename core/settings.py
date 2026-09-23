@@ -232,12 +232,13 @@ DEFAULTS: dict[str, Any] = {
     # `{set_id: {row_id: number | null}}` and holds only the cells the user
     # changed, so a changed factory value still reaches everyone who did not.
     "compliance_set_overrides":  "",
-    # The limit set a NEW profile run is bound to at its first verification
-    # measurement (Knut D18/D20: Preferences holds the defaults).
+    # The limit set a NEW report starts on, unless its profile run has a
+    # default of its own chosen in Edit limits (Knut D18/D20, K31).
     "compliance_default_set":    "chromiq_default",
-    # Knut D20: a run's limits are fixed by its first verification measurement
-    # unless this allows the report window's "Unlock" to be ticked afterwards.
-    "compliance_allow_edit_after_measurement": False,
+    # (K31: "compliance_allow_edit_after_measurement", which let the report
+    # window's "Unlock this run's limits" be ticked after a run's first
+    # verification, is retired with the run lock. A value already stored is
+    # left where it is and read by nothing.)
     # Which limit-set columns the Report limits window shows when opened from
     # Preferences (JSON list of set ids; "" = all). Per RUN when opened from
     # the report window (Knut K-b), stored in the run's meta.json instead.

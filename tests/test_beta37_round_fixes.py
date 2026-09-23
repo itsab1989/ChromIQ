@@ -6,6 +6,8 @@ it holds and the mutation it was proved red against.
 """
 from __future__ import annotations
 
+from tests.helpers import legacy_run_meta
+from tests.helpers.report_window import choose_report_type
 import os
 
 import pytest
@@ -152,7 +154,7 @@ def test_a_graded_verification_keeps_both(qapp, tmp_path):
     mr.save_report(rep, ti3s[0].parent)
     dlg = MeasurementReportDialog(_settings(tmp_path), None, initial_ti3=ti3s[0])
     try:
-        rc.set_run_report_type(run, mr.REPORT_TYPE_FULL)
+        choose_report_type(dlg, mr.REPORT_TYPE_FULL)
         dlg._forget_limits()
         dlg._sync_limit_controls()
         dlg._refresh()

@@ -96,6 +96,14 @@ def test_create_new_on_a_disallowed_saved_type_writes_the_kinds_type(
 
 def test_an_update_that_adds_an_unwritable_date_writes_nothing(
         two_dates, qapp, monkeypatch):
+    """R2A-3, all or nothing. K31: widening a report of one date to two
+    writes the report of both into `verifications/reports/` and retires the
+    one-date file from its date's folder, so the folder that has to be
+    writable is THAT date's (the other date is never written). Locked, the
+    whole Update is refused and nothing moves.
+
+    MUTATION: drop the writability check of the files an Update retires
+    (`_touched` in `_write_the_document`) and this goes red."""
     from PyQt6.QtWidgets import QMessageBox
     from workflow.measurement_report import REPORT_TYPE_FULL
     s, _fm, run, vs = two_dates
@@ -107,7 +115,7 @@ def test_an_update_that_adds_an_unwritable_date_writes_nothing(
         _pick_key(dlg, key, qapp)
         dlg._select_all_btn.click()            # brings the other date in
         qapp.processEvents()
-        locked = vs[0].dir / "reports"
+        locked = vs[-1].dir / "reports"
         os.chmod(locked, stat.S_IRUSR | stat.S_IXUSR)
         if os.access(locked, os.W_OK):
             pytest.skip("this user can write a read-only folder (root?)")
@@ -115,6 +123,9 @@ def test_an_update_that_adds_an_unwritable_date_writes_nothing(
         said = {}
         dlg._say_generated = lambda saved, failed: said.update(
             saved=list(saved), failed=list(failed))
+        # REALLY Update: `_a_real_document` leaves "new" as the answer, and
+        # the press was a Create New until K31 made that a different case.
+        del dlg._ask_update_or_create_new
         monkeypatch.setattr(QMessageBox, "exec", _press("Update"))
         dlg._on_generate_report()
         qapp.processEvents()
@@ -132,6 +143,9 @@ def test_an_update_that_adds_an_unwritable_date_writes_nothing(
 def test_a_refused_update_leaves_no_archive_behind(tmp_path, qapp, monkeypatch):
     """R2A-4: a refused Update still copied every date into old/ for a rewrite
     that never happened. The write check now comes BEFORE the archive.
+    K31: the report of two dates narrowed to one retires its document file
+    and writes the kept date's file; with the kept date's folder read-only
+    the press is refused, and the document file's folder gains no old/.
     MUTATION: archive before checking again and old/ appears: red."""
     import os
     import stat
@@ -149,23 +163,25 @@ def test_a_refused_update_leaves_no_archive_behind(tmp_path, qapp, monkeypatch):
         _pick_key(dlg, key, qapp)
         entry = next(d for d in dlg._saved_documents(dlg._run_ctx.run)
                      if d["key"] == key)
-        dirs = sorted({(Path(str(r.get("_origin_dir"))) / "reports")
-                       for r, _n in entry["members"]})
-        assert len(dirs) >= 2
-        locked = dirs[0]
+        home = Path(str(entry["file"])).parent
+        dropped = dlg._run_key(dlg._history[0])
+        kept = next(r for r in dlg._history if dlg._run_key(r) != dropped)
+        locked = Path(str(kept["_origin_dir"])) / "reports"
+        locked.mkdir(parents=True, exist_ok=True)
         os.chmod(locked, stat.S_IRUSR | stat.S_IXUSR)
         if os.access(locked, os.W_OK):
             pytest.skip("this user can write a read-only folder")
         dlg._say_generated = lambda saved, failed: None
-        dlg._detail_check.setChecked(False)
+        dlg._hidden_runs.add(dropped)
+        dlg._settings_touched()
         qapp.processEvents()
         del dlg._ask_update_or_create_new
         monkeypatch.setattr(QMessageBox, "exec", _press("Update"))
         dlg._on_generate_report()
         qapp.processEvents()
-        for d in dirs[1:]:
-            assert not (d / "old").exists(), (
-                f"{d}/old was made for an update that wrote nothing")
+        assert not (home / "old").exists(), (
+            f"{home}/old was made for an update that wrote nothing")
+        assert Path(str(entry["file"])).exists()
     finally:
         if locked is not None:
             os.chmod(locked, stat.S_IRWXU)

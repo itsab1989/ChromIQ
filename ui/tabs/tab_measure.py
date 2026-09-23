@@ -14166,10 +14166,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         The presets window asks the reader to choose both, because it is
         comparing 177 charts and the answer moves with the choice. This window
         is about ONE chart, the reader's own, and guessing would make it
-        describe a report they are not going to produce: so it asks the RUN,
-        through the same two accessors the Measurement Report asks
-        (`run_report_type` and `run_limits`), and falls back to the
-        application defaults only when there is no run to ask.
+        describe a report they are not going to produce: so it asks what the
+        date's own report will start on (K31), through the same two accessors
+        the Measurement Report asks (`new_report_type` and `run_limits`).
         """
         from core.settings import compliance_overrides_of
         from workflow.measurement_report import REPORT_TYPE_DEFAULT
@@ -14177,11 +14176,16 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         type_id, set_id = REPORT_TYPE_DEFAULT, ""
         try:
             from workflow.compliance_sets import DEFAULT_SET_ID
-            from workflow.run_compliance import run_limits, run_report_type
+            from workflow.measurement_report import KIND_VERIFICATION
+            from workflow.run_compliance import new_report_type, run_limits
             ctl = self._target_ctl
             proj = ctl.project_or_none()
             run = proj.run(ctl.target.profile_run) if proj is not None else None
-            type_id = run_report_type(run) or REPORT_TYPE_DEFAULT
+            # K31: what the date's own report will start on, the Preferences
+            # type and the run's own default set, else the Preferences set.
+            type_id = new_report_type(
+                str(self._settings.get("report_default_type", "") or ""),
+                KIND_VERIFICATION) or REPORT_TYPE_DEFAULT
             set_id = run_limits(
                 run, overrides,
                 str(self._settings.get("compliance_default_set",
@@ -15067,29 +15071,27 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         reveal_in_file_manager(target)
 
     def _report_limits_for(self, ti3):
-        """The limit set this measurement is judged with (#182, D9/D20).
+        """The limit set this measurement's own report of one date is judged
+        with (#182 K31).
 
-        A verification measurement BINDS its profile run to the Preferences
-        default set the first time (the set's limits are copied into the run's
-        meta.json); every later dated verification of that run is judged with
-        the same copy. Done here, before and independent of the autosave
-        setting (CH-2): the lock and the binding are one event. A file that is
-        not in a run (an import in Downloads) is judged with the default and
-        nothing is written. A binding that cannot be written is logged, never
-        reported as a failed report.
+        Knut, 5801677743: *"the limit set belongs to the report that is made
+        for the profile run"*, and the report written after a measurement is
+        that date's own report with its own settings. They are the starting
+        choice of a new report: the run's own default when it has one (chosen
+        in Edit limits, or bound by an earlier ChromIQ), else the Preferences
+        default. NOTHING IS BOUND OR WRITTEN onto the run: until K31 the first
+        verification bound the run and the second locked it, and both are
+        gone. A file that is not in a run (an import in Downloads) is judged
+        with the Preferences default.
         """
-        from workflow.run_compliance import (ensure_bound, run_context_for,
-                                             run_limits)
+        from workflow.run_compliance import run_context_for, run_limits
         from core.settings import compliance_overrides_of
         overrides = compliance_overrides_of(self._settings)
         default_set = str(self._settings.get("compliance_default_set",
                                              "chromiq_default") or "chromiq_default")
         ctx = run_context_for(ti3)
-        if ctx is None:
-            return run_limits(None, overrides, default_set)
-        if ctx.verification is not None:
-            return ensure_bound(ctx.run, overrides, default_set)
-        return run_limits(ctx.run, overrides, default_set)
+        return run_limits(ctx.run if ctx is not None else None, overrides,
+                          default_set)
 
     def _maybe_save_measurement_report(self, ti3) -> None:
         """When the Settings option is on, build + save a dated accuracy report
@@ -15114,9 +15116,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             report = build_report(
                 ti3, argyll_bin=str(self._settings.get("argyll_bin_path", "") or ""))
             # #182, Knut 2026-09-04: *"Verdict should be saved for each dated
-            # run."* Stamped HERE, with the run's own copy of its limit set as
-            # it stands at the moment of the measurement, and never again
-            # afterwards unless the user unlocks the run's limits (D23).
+            # run."* Stamped HERE, with the limits this date's own report
+            # starts on (K31), and never again unless the user updates that
+            # report from the report window.
             stamp_verdict(report, limits.limits, set_id=limits.set_id,
                           set_label=limits.label_en, edited=limits.edited)
             # …and WHICH KIND of document this run produces, beside the verdict
@@ -15198,7 +15200,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                                                      report_type,
                                                      set_report_type,
                                                      stamp_document)
-            from workflow.run_compliance import report_type_default_for
+            from workflow.run_compliance import new_report_type
             run = ctx.run if ctx is not None else None
             # WHICH KIND OF MEASUREMENT THIS IS decides which types it may be
             # (K13): a profiling sheet's automatic report is the Printing
@@ -15221,8 +15223,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                     KIND_CALIBRATION, measurement_dir_kind)
                 if measurement_dir_kind(ti3.parent) == KIND_CALIBRATION:
                     kind = KIND_CALIBRATION
-            tid = report_type_default_for(
-                run, str(self._settings.get("report_default_type", "") or ""),
+            # K31: the Preferences default, fitted to the kind; the run's
+            # stored type is no longer a starting choice.
+            tid = new_report_type(
+                str(self._settings.get("report_default_type", "") or ""),
                 kind)
             if tid and tid != report_type(report):
                 set_report_type(report, tid)

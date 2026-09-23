@@ -45,8 +45,9 @@ def _dialog(tmp_path, qapp, ti3_text=None):
 
 
 def _as(dlg, run, tid):
-    from workflow.run_compliance import set_run_report_type
-    set_run_report_type(run, tid)
+    # K31: the type is the REPORT's, chosen in the pulldown as a user does.
+    from tests.helpers.report_window import choose_report_type
+    choose_report_type(dlg, tid)
     dlg._forget_limits()
     dlg._sync_limit_controls()
     return dlg._runs_for_report()
@@ -124,38 +125,12 @@ def test_the_strip_is_silent_on_a_type_that_applies_no_limit_set(tmp_path,
         dlg.close()
 
 
-def test_a_loose_measurement_keeps_its_own_verdict_in_company(tmp_path, qapp):
-    """A run on the Printing record beside a measurement in no project, whose
-    own saved report says Full colour check: the window saw no disagreement,
-    because it only collected a type from sources that HAVE a run, and applied
-    the run's type to both. Opened alone that file reads FAIL; in company it
-    read INFO, every verdict withheld by a choice made on a different run.
-
-    MUTATION: collect a type only from sources with a run context and this
-    goes red.
-    """
-    from tests.test_import_measurement_module import _cgats, _PATCHES
-    from workflow.compliance_sets import N_A
-    dlg, run = _dialog(tmp_path, qapp)
-    try:
-        loose = tmp_path / "downloads" / "loose.ti3"
-        loose.parent.mkdir(parents=True, exist_ok=True)
-        loose.write_text(_cgats("CTI3", _PATCHES), encoding="utf-8")
-        _as(dlg, run, REPORT_TYPE_RECORD)
-        dlg._add_source(loose)
-        dlg._refresh()
-        qapp.processEvents()
-        reps = dlg._runs_for_report()
-        assert len(reps) == 2, f"{len(reps)} columns"
-        assert len(dlg._types_of_loaded_runs()) > 1, \
-            "the loose file's own type is still invisible to the fallback"
-        assert dlg._report_type_now() == REPORT_TYPE_FULL
-        for r in reps:
-            rows, _rc = dlg._verdict_rows(r)
-            assert any(x["word"] not in (INFO, N_A) for x in rows), \
-                "a column was withheld by a choice its own file never made"
-    finally:
-        dlg.close()
+# RETIRED BY K31 (beta 40): `test_a_loose_measurement_keeps_its_own_verdict_in_company`.
+# It pinned the fallback that showed a report as Full colour check when the
+# loaded runs had been set to different report types. Since K31 a run carries
+# no report type: the type is the report's, chosen once for the whole report,
+# so there is no disagreement left to fall back from (_types_of_loaded_runs
+# is gone).
 
 
 def test_the_legend_promises_a_note_only_where_there_is_one(tmp_path, qapp):

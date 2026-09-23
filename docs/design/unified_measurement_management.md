@@ -1432,9 +1432,11 @@ verification", under the list of what the chart cannot answer:*
 >
 > Whether it appears at all is decided by the limit set the report is judged against. Where the set puts a real limit on the metric, the metric is shown reading N-A, and on a report type that carries notes it also carries one saying what it needed. Where the set puts no limit on it, the metric is left out; that is what ChromIQ's own sets do with the metrics above.
 >
-> To leave a metric out yourself, set its threshold to zero in the run's limits, where those limits can still be edited. The box shows zero as “–”.
+> To leave a metric out yourself, set its threshold to zero in the report's own limits, the first column of Edit limits… in the Measurement Report window. The box shows zero as “–”.
 
 *Revised 2026-09-23 for beta 38: the paragraph said "row" four times in the one window Knut's beta 25 item 4 cleared of the word; it says "metric" now. Still PROPOSED.*
+
+*Revised for beta 40 (K31, Knut [5801677743](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5801677743)): the last paragraph said "in the run's limits, where those limits can still be edited". A run holds no limits of its own any more and nothing is locked, so the lever is the report's own column. Still PROPOSED.*
 
 *Neither window is report text, which is why they may name a control: his other
 ruling of the same day is that no report text explains how to use ChromIQ, and
@@ -1516,10 +1518,20 @@ that way so the choice is visible rather than drifted into.
 *Raised by the round-3 review, 2026-08-30.*
 
 
-### ⏳ Awaiting confirmation — the unlock question, after the door changed (B8-391)
+### RETIRED for beta 40 (K31), never approved: the unlock question, after the door changed (B8-391)
 
-**Confirmed by:** *nobody yet.* This is a proposed replacement sentence, not a
-message in force. Nothing below is on screen.
+*Retired 2026-09-23 with the control it belonged to. Knut, #182
+[5801677743](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5801677743):
+"I agree that the 'Unlock this run's limits' is no longer needed, and it causes
+confusion in the functionality." The checkbox, this question window, its
+re-lock twin ("Lock this run's limits again?") and the Preferences option that
+allowed unlocking are gone from the code and the language files
+(`measurement_report_limits.md` §25). Neither the text in force nor the proposed
+replacement below is shown anywhere; both are kept only as the record of what
+was asked.*
+
+**Confirmed by:** *nobody.* It was a proposed replacement sentence, never a
+message in force.
 
 Knut, 2026-09-18, reading the window that appears when **"Unlock this run's
 limits"** is ticked:

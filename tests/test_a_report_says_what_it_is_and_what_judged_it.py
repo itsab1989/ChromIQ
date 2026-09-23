@@ -190,7 +190,7 @@ def test_two_runs_bound_to_different_sets_are_judged_by_the_reports_set(
     from tests.test_import_measurement_module import _cgats, _PATCHES
     dlg, run, fm = _dialog(tmp_path, qapp)
     try:
-        from workflow.run_compliance import bind_run
+        from tests.helpers.legacy_run_meta import (bind_run)
         run2 = fm.project().new_run()
         v2 = run2.new_verification()
         v2.ensure_dir()

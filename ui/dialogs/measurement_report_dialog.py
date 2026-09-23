@@ -11,13 +11,11 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 
-import copy
 import html
 import json
 import math
 import os
 import shutil
-from functools import partial
 from datetime import datetime
 from pathlib import Path
 
@@ -1747,56 +1745,6 @@ class _TrendChart(QWidget):
         p.end()
 
 
-class _NothingToRestore(Exception):
-    """The refusal had nothing to undo, so nothing is written."""
-
-
-def _restore_sentence(outcome: str, refused: bool = True) -> str:
-    """What really happened to the run's own numbers, in one sentence.
-
-    ONE PLACE, BECAUSE TWO MESSAGES ASK THE SAME QUESTION and they had grown
-    different answers to it. It used to be a yes/no, and `_undo_the_edit` has
-    three branches, so one of them borrowed another's sentence: the branch that
-    leaves the REFUSED numbers on a run bound to a set this build cannot answer
-    for said only that the numbers could not be put back, and never that the
-    run is now judged by the numbers the user had just said no to.
-
-    AND ONE OF THE TWO CALLERS NEVER ASKS THE USER ANYTHING. The locked-
-    meanwhile window follows no question: the edit was stopped by the lock, so
-    there is no refusal and no other change for one to be "gone" beside. Both
-    sentences that said so were false there, and a challenge round photographed
-    them. `refused` is which of the two situations this is.
-    """
-    if outcome == "restored":
-        return (tr("Its dated reports are unchanged, and ChromIQ put this "
-                   "run's own numbers back to what they were when you opened "
-                   "the window, so the other change is gone too.")
-                if refused else
-                tr("Its limits and its dated reports are unchanged."))
-    if outcome == "rederived":
-        # TRUE IN BOTH OF ITS CASES, which the first wording was not: this
-        # branch fires for a run that was UNBOUND when the window opened and
-        # for one another writer has since rebound, and the first draft
-        # described only the former.
-        return tr("Its dated reports are unchanged. This run is no longer bound "
-                  "to what it was when you opened the window, so ChromIQ could "
-                  "not put its own numbers back. It now holds the numbers of "
-                  "the limit set it is bound to.")
-    if outcome == "refused_numbers_left":
-        return (tr("Its dated reports are unchanged, but this run is bound to "
-                   "a limit set this version of ChromIQ does not know, so "
-                   "ChromIQ left its numbers alone: it still holds the numbers "
-                   "you have just refused and is judged by them.")
-                if refused else
-                tr("Its dated reports are unchanged, but this run is bound to "
-                   "a limit set this version of ChromIQ does not know, so "
-                   "ChromIQ left its numbers alone: it still holds the numbers "
-                   "you were editing and is judged by them."))
-    return tr("Its dated reports are unchanged, but ChromIQ could not put this "
-              "run's own numbers back.")
-
-
-
 #: **WHICH SET SUITS WHICH TYPE, AND WHAT THE CHART HAS TO DO WITH IT.** Knut,
 #: 2026-09-14: *"the help text for the report type and judged against must
 #: describe properly what each option are, when they are normally used, and
@@ -1915,9 +1863,9 @@ def _types_and_pairing_help() -> str:
         "project can have any type ChromIQ can produce. With Run type "
         "Calibration, the calibration's measurement can have every type but "
         "the Printing record, as a verification can. The report ChromIQ "
-        "writes by itself after a measurement follows the same rule. With "
-        "measurements from more than one place loaded, the type you choose "
-        "applies to this window only and is not stored on any run.")
+        "writes by itself after a measurement follows the same rule. The "
+        "type you choose belongs to the report shown and is stored with it "
+        "when you press Generate report, never on a profile run.")
     return ("\n\n" + tr("What each one is for") + "\n\n"
             + "\n\n".join(lines)
             + "\n\n" + when_available
@@ -1932,22 +1880,6 @@ def _run_tag(run_folder: str) -> str:
     m = _re.fullmatch(r"run(\d+)", str(run_folder or ""))
     return (tr("Run{number}").format(number=m.group(1)) if m
             else str(run_folder or ""))
-
-
-def _bound_and_locked_help() -> str:
-    """What "bound" and "locked" mean, for the "Judged against" help (K26).
-
-    The paragraph the report's guide carried until Knut moved it out of the
-    report (5792484060, Q2), word for word, so its German (and every other
-    translation) is the one already reviewed."""
-    return ("\n\n" + tr("Bound, and locked.") + " " + tr(
-        "When the first dated verification of a profile run was "
-        "measured, the limit set chosen at that moment was copied onto "
-        "the run. The run is bound to that copy: every later date of "
-        "the same run is judged against the same numbers, so the dates "
-        "can be compared. The copy is locked once a second dated "
-        "verification has been measured, so the numbers behind a "
-        "history cannot move under it."))
 
 
 def _sets_help() -> str:
@@ -1978,22 +1910,6 @@ def _recommended_limit_note() -> str:
 
 
 class MeasurementReportDialog(QDialog):
-    #: The three facts a refusal has to report, set on the way through
-    #: `_on_open_limits` and read by the three `_say_*` methods. Declared here
-    #: so a path that reaches one of them without going through that function
-    #: gets a defined answer rather than an AttributeError.
-    _pending_restore_error: "Exception | None" = None
-    _pending_rebound: bool = False
-    _pending_restore_outcome: str = "none"
-    #: what the run was judged by when this window last drew its controls
-    _run_state_at_sync: tuple = ()
-    #: and the app-wide stores at that same moment (B8-384): the class default
-    #: is None so a door that runs before the first sync falls back to reading
-    #: them, rather than comparing against an empty tuple nothing ever holds.
-    _prefs_at_sync: "tuple | None" = None
-    #: why the last `_confirm_about_run` returned False
-    _last_refusal: str = ""
-
     def __init__(self, settings, parent=None, initial_ti3=None) -> None:
         super().__init__(parent)
         self._settings = settings
@@ -2079,9 +1995,9 @@ class MeasurementReportDialog(QDialog):
             "  • Colour accuracy: the ΔE00 (colour difference) figures, split so "
             "the bulk of the chart (all patches, and the lowest 95 %) is "
             "separated from the few hardest patches (the highest 5 %). Each is "
-            "judged against the limit set named under “Judged against”. 0 is "
-            "perfect, 1–2 is barely visible, 10+ is "
-            "clearly wrong.\n"
+            "judged against "
+            "the report's limit set. 0 is perfect, 1–2 is barely visible, 10+ "
+            "is clearly wrong.\n"
             "  • Trend over time: the same metrics plotted across every saved "
             "measurement, so a slow rise or a sudden jump stands out at a glance.\n"
             "  • Overview of Measurement Metrics: every metric for every run in "
@@ -2093,16 +2009,13 @@ class MeasurementReportDialog(QDialog):
             "A limit set is one column of the limits table: the numbers a report "
             "is judged against, one per row. ChromIQ default (2.0 on the averages, "
             "3.0 on the maxima) is the right choice for checking a profile you "
-            "built; ChromIQ tight is half of that, Quick check twice. The set is "
-            "chosen once per profile run and every dated verification of that "
-            "run is judged with the same numbers, so your history stays "
-            "comparable. A report of measurements from more than one place "
-            "(several profile runs, or several projects) is judged against its "
-            "own set instead: the one chosen in “Judged against” judges every "
-            "measurement in it, whatever set each run is bound to, and no run's "
-            "limits change. Open the limits table with “Show limits…” (it reads "
-            "“Edit limits…” where the numbers can be changed) to see every set "
-            "side by side; edit the sets in Preferences → Reports.\n\n"
+            "built; ChromIQ tight is half of that, Quick check twice. The set "
+            "belongs to the report: every measurement ticked in it is judged "
+            "with the same numbers, so the dates in one report are always "
+            "comparable, and a saved report keeps the set it was made with. "
+            "Open the limits table with “Edit limits…” to see every set side "
+            "by side and this report's own limits beside them; edit the sets "
+            "in Preferences → Reports.\n\n"
             "Options\n"
             "  • Select all / Deselect all: tick or untick every measurement "
             "in the list at once. They change nothing else.\n"
@@ -2315,8 +2228,12 @@ class MeasurementReportDialog(QDialog):
             "per dated run underneath. Untick a run to leave it out of the "
             "trend, the tables and the PDF. Nothing is changed on disk, and "
             "ticking it brings it straight back. Select a profile row and use "
-            "“Remove Profile's Measurements…” to drop the whole profile."
-        ) + "\n\n" + _report_across_projects_help()
+            "“Remove Profile's Measurements…” to drop the whole profile.") \
+            + " " + tr(
+            "Every ticked measurement is judged against the report's one "
+            "limit set, and the ticked measurements decide where Generate "
+            "report saves the report, whichever profile run this window was "
+            "opened from.") + "\n\n" + _report_across_projects_help()
         self._profile_list.setToolTip(self._list_tooltip)
         # **THE SELECTED ROW IS THE WINDOW'S OWN GREEN, NOT THE APP'S CYAN.**
         # Basti, 2026-09-18, on a photograph of this very list: *"when i click
@@ -2426,8 +2343,10 @@ class MeasurementReportDialog(QDialog):
                "numbers) to a PDF and opens it. The trend graphs are included only "
                "when the report has two or more runs.\n\n"
                "Where it is saved: in the reports folder of the place the "
-               "report covers, which the save dialog offers. You choose the "
-               "exact place and name there.\n"
+               "report's ticked measurements cover, whichever profile run "
+               "this window was opened from; the save dialog offers it, and "
+               "you choose the exact place and name there. Nothing is "
+               "written into any other measurement's folder.\n"
                "\u2022 One profile run's measurement: that run's own reports "
                "folder.\n"
                "\u2022 One dated verification: that date's own reports folder, "
@@ -2621,15 +2540,20 @@ class MeasurementReportDialog(QDialog):
             # #182 K30 (Knut, 5798461562): a loaded report can always be
             # generated again, and where a report across projects lives.
             + "\n\n" + tr(
-               "Every report shown can be generated again. Change any of its "
-               "settings, or none, and press “Generate report”: you are "
-               "asked whether to update the report shown, create a new "
-               "report, or cancel. An update keeps the moment the report was "
-               "created at the front of its name and adds when it was "
-               "updated. The rest of the name follows the new settings, its "
-               "report type, limit set and “Detailed”, and the scope in it "
-               "(One date, Multiple runs, Cal and the like) changes only when "
-               "the update covers different measurements.")
+               "Every report shown can be generated again, whichever profile "
+               "run this window was opened from. Change any of its settings, "
+               "or none, and press “Generate report”: you are asked whether "
+               "to update the report shown, create a new report, or cancel. "
+               "Update rewrites the report where it lives, and its earlier "
+               "version is kept in an old/ folder beside it. An update keeps "
+               "the moment the report was created at the front of its name "
+               "and adds when it was updated. The rest of the name follows "
+               "the new settings, its report type, limit set and “Detailed”, "
+               "and the scope in it (One date, Multiple runs, Cal and the "
+               "like) follows the measurements it covers: a report of one "
+               "date that you update to cover more dates becomes a report of "
+               "those dates. A new report is saved where its ticked "
+               "measurements decide.")
             + "\n\n" + tr(
                "An update never leaves a measurement out behind your back. "
                "When a project the report covers cannot be found, the update "
@@ -2739,23 +2663,17 @@ class MeasurementReportDialog(QDialog):
         top_v.addWidget(self._scale_label)
 
         # #182 (Knut D8, D20): the two Pass-threshold spin boxes are gone. A
-        # report is judged against the LIMIT SET bound to its profile run; the
-        # row below names it, opens the limits table, and carries the one
-        # deliberate act that may change a run's limits after its first
-        # verification: "Unlock". Every connection is a bound method: a lambda
+        # report is judged against its own LIMIT SET (K31: the set belongs to
+        # the report, not to a run); the row below names it and opens the
+        # limits table. Every connection is a bound method: a lambda
         # capturing `self` on a child widget's signal is the shape that
         # segfaulted the app (CLAUDE.md).
         from ui.widgets import NoScrollComboBox
         self._run_ctx = None          # workflow.run_compliance.RunContext | None
-        self._limits = None           # RunLimits the window judges with
-        #: Runs this window bound during this session. A run that is bound
-        #: becomes locked the moment it has a history, and taking the control
-        #: away in the same act that used it is what three rounds kept trying
-        #: to fix by writing a flag to disk. This remembers it here instead, so
-        #: nothing untrue is recorded about a lock nobody lifted.
-        self._bound_here: "set[str]" = set()
-        #: A type chosen for a measurement that is in NO run (CH-14): kept for
-        #: the session, written nowhere, exactly as the limit set is.
+        self._limits = None           # the starting choice (RunLimits)
+        #: A type chosen in this window (K31: the REPORT's, kept for the
+        #: session and written only by Generate report), exactly as the
+        #: limit set is.
         self._session_type = ""
         #: B8-250. `_run_key` → the `report_*.json` name the user picked in
         #: "Saved reports". Session-only and written nowhere: it chooses which
@@ -2823,9 +2741,7 @@ class MeasurementReportDialog(QDialog):
         self._opened_on_a_report = False
         self._syncing_limits = False
         # #182 (D28, question 19): the KIND of document, chosen before the
-        # numbers it is judged with. Two controls, one rule: D9 governs both,
-        # because a run whose dated verifications produced different kinds of
-        # report is no more comparable than one whose limits moved under it.
+        # numbers it is judged with. Since K31 both belong to the REPORT.
         # **ROW 0 OF THE FRAME'S GRID (B8-460).** His mockup aligns the
         # "Report type" and "Judged against" pulldowns on one left edge, which
         # two independent QHBoxLayouts cannot promise: the labels are different
@@ -2852,10 +2768,10 @@ class MeasurementReportDialog(QDialog):
             tr("Which kind of document a measurement is made into. The "
                "measurement is the same either way; the type decides what is "
                "put in front of a reader, and how much of it.\n\n"
-               "For verifications, like the limit set, the type belongs to the "
-               "profile run, so every dated verification of the run produces "
-               "the same kind of document and the dates can be compared. "
-               "Another run in the project may use a different one.\n\n"
+               "The type belongs to the report, like the limit set. A new "
+               "report starts on the type chosen in Preferences, Reports; "
+               "choosing another here changes only the report shown, and "
+               "nothing is written until you press Generate report.\n\n"
                "A type shown greyed cannot be chosen here: either ChromIQ "
                "cannot produce it yet, or the kind of measurement does not "
                "allow it. Pointing at the greyed entry says which.")
@@ -2903,57 +2819,42 @@ class MeasurementReportDialog(QDialog):
         self._set_combo.setMinimumWidth(220)
         self._set_combo.currentIndexChanged.connect(self._on_set_chosen)
         settings_grid.addWidget(self._set_combo, 1, 1)
-        self._limits_btn = QPushButton(tr("Show limits…"), self)
+        self._limits_btn = QPushButton(tr("Edit limits…"), self)
         self._limits_btn.setStyleSheet(_compact_btn)
         self._limits_btn.clicked.connect(self._on_open_limits)
         judged_row.addWidget(self._limits_btn)
         judged_row.addSpacing(10)
-        # **THE CLAUSE IN BRACKETS WAS FALSE FROM THE MOMENT THE DOOR CHANGED
-        # (B8-391).** It read *"(recalculates its dated reports)"*, which is
-        # exactly what Knut ruled must not happen: *"All dated reports shall
-        # NOT be recalculated."* It is removed rather than rewritten, like the
-        # clause in the question behind it; the sentence that says what the
-        # door now does is §M-PROPOSED and unapproved. Found in a photograph of
-        # the real window, after the question had already been fixed.
-        self._unlock_check = QCheckBox(tr("Unlock this run's limits"), self)
-        self._unlock_check.toggled.connect(self._on_unlock_toggled)
-        judged_row.addWidget(self._unlock_check)
+        # **"UNLOCK THIS RUN'S LIMITS" IS GONE, WITH THE RUN LOCK (K31).**
+        # Knut, 5801677743: *"I am beginning to think this 'Unlock this run's
+        # limits' feature just creates a mess and confusion. Maybe it is better
+        # to remove it and make the report have full mastery over its own
+        # settings"*, and after our analysis, *"I agree that the 'Unlock this
+        # run's limits' is no longer needed"*. §25 of
+        # `docs/design/measurement_report_limits.md` records the analysis.
         judged_row.addWidget(TooltipButton(
             tr("Judged against"),
             tr("Every row of the results is compared with one limit set: one "
-               "column of the limits table, chosen once per profile run. The "
-               "first verification you measure binds the run to the default "
-               "set from Preferences and copies its numbers into the run, so "
-               "every later dated verification of the run is judged the same "
-               "way and your history stays comparable.\n\n"
-               "Show limits… opens the whole table: every set side by side, "
-               "and, when the measurement is in a project, this run's own copy "
-               "in its first column.\n\n"
-               "Unlock this run's limits: once a verification has been "
-               "measured the run's numbers are fixed, on purpose. Ticking "
-               "this is a deliberate decision to change them, and it "
-               "recalculates nothing by itself: the report you have open is "
-               "rebuilt when you press Generate report, and every report "
-               "already saved stays exactly as it is. It can be ticked only "
-               "when Preferences → Reports allows editing after the first "
-               "measurement.\n\n"
+               "column of the limits table. The limit set belongs to the "
+               "report: every measurement ticked in the list is judged "
+               "against it, whichever profile run or project it comes from, "
+               "so the dates in one report are always compared on the same "
+               "numbers.\n\n"
+               "Changing it, or a number in Edit limits…, changes only the "
+               "settings of the report shown. Nothing is judged again and "
+               "nothing is written until you press Generate report, and every "
+               "report already saved keeps the limit set and the verdicts it "
+               "was made with. To judge earlier measurements against another "
+               "set, tick them in a report and generate it.\n\n"
+               "Edit limits… opens the whole table: this report's own limits "
+               "in its first column, “This report”, beside every set. With "
+               "one profile run loaded it also sets which limit set new "
+               "reports of that run start on.\n\n"
+               "A new report starts on the limit set chosen in Preferences, "
+               "Reports, unless its profile run has a default of its own, "
+               "chosen in Edit limits…, which then wins.\n\n"
                "A measurement that is not in a ChromIQ project (an imported "
-               "file) is judged with the default set for this session only; "
-               "nothing is stored for it.")
-            # #182 G7 and K30 (B8-848, B8-853; Knut 5794311113, 5798461562):
-            # a report across places has its own set and its own limits.
-            + "\n\n" + tr(
-               "With measurements from more than one place loaded (several "
-               "profile runs, or several projects), the choice here is the "
-               "report's own. The set chosen judges every measurement in the "
-               "report, whatever set each profile run is bound to, and no "
-               "run is bound or changed. The button then reads “Edit "
-               "limits…” and opens the Report limits window with a “This "
-               "report” column: a change there applies to this report only "
-               "and is used when you press Generate report. “Unlock this "
-               "run's limits” stays greyed, because there is no one run's "
-               "limits to unlock.")
-            + _bound_and_locked_help()
+               "file) is judged against the set chosen here for this session "
+               "only; nothing is stored for it.")
             + _sets_help()
             + "\n\n" + tr(_PAIRING_HELP) + "\n\n" + tr(_CHART_HELP),
             self, min_width=460, color=SPEC_GREEN))
@@ -3077,13 +2978,6 @@ class MeasurementReportDialog(QDialog):
                 Path(initial_ti3).exists()
                 or _a_calibration_with_saved_reports(Path(initial_ti3))):
             self._load(Path(initial_ti3))
-        # **A WINDOW WITH NOTHING LOADED OFFERS NOTHING TO UNLOCK (#182 K30,
-        # challenge A F5).** `_sync_limit_controls` never runs before a
-        # measurement is loaded, so the box kept the state it was built in:
-        # live, over no run (spec 19.6).
-        if not self._sources:
-            self._unlock_check.setEnabled(False)
-            self._unlock_check.setToolTip(tr("No measurement is loaded yet."))
 
     # ---- Run type Calibration (#182 beta 39) ------------------------------
     def _is_calibration_window(self) -> bool:
@@ -3802,8 +3696,16 @@ class MeasurementReportDialog(QDialog):
                     pick = r
                     break
             if pick is None:
-                pick = group[0]
-                for r in group[1:]:
+                # **A VERDICT RECORD IS NOT THE DATE'S OWN REPORT (K31).**
+                # Records an earlier ChromIQ wrote for a report of several
+                # dates are read-only history of THAT report (they speak only
+                # when it is loaded); the date's own row is its newest own
+                # report, and a record is drawn only when the date has
+                # nothing else, for its measured numbers alone.
+                from workflow.measurement_report import is_verdict_record
+                own = [r for r in group if not is_verdict_record(r)] or group
+                pick = own[0]
+                for r in own[1:]:
                     if (_report_order(r.get("_origin_dir"),
                                       r.get("_report_file"))
                             >= _report_order(pick.get("_origin_dir"),
@@ -4644,13 +4546,12 @@ class MeasurementReportDialog(QDialog):
         it. The document stays SELECTED and stays on the page, which is what the
         red line below is about; only its claim on the controls is dropped.
 
-        The control keeps its own new value, and whatever that value does on
-        disk it still does: choosing a limit set still binds the RUN, which is
-        the yardstick for the dates still to come. It no longer recalculates
-        one saved report (B8-384, Knut's *"Agreed. D23 stands."*), so there is
-        no question in front of it any more either. What waits is the document
-        on screen, so a reader can put a control back and be sure nothing moved
-        under them.
+        The control keeps its own new value, and NOTHING HAPPENS ON DISK
+        (K31, Knut 5801677743: *"changing the reports settings does not change
+        the report, and its binding to a limit set, unless you click Generate
+        Report"*): no run is bound and no saved report is recalculated. What
+        waits is the document on screen, so a reader can put a control back
+        and be sure nothing moved under them.
         """
         # **THE VALUES ON SCREEN SURVIVE THE DOCUMENT'S CLAIM (B8-462).**
         # Read from the WIDGETS, before the flag below drops the document,
@@ -5050,45 +4951,33 @@ class MeasurementReportDialog(QDialog):
         return reports_subdir(lca)
 
     def _reports_to_generate(self) -> list:
-        """WHICH MEASUREMENTS THIS BUTTON WRITES A REPORT FOR, which is not the
-        same question as what the document covers.
+        """THE MEASUREMENTS A PRESS OF GENERATE COVERS: the ticked ones, one
+        row per measurement (K31).
 
-        `_runs_for_document` answers "what is this page about", and that may
-        legitimately span the project's runs: the trend across a printer's
-        builds is the feature (#40, Knut). What Generate writes is narrower, for
-        two reasons that are both in the design record:
+        **FROM ANY WINDOW (Knut, #182 5801677743).** Asked *"With a report
+        selected, may GENERATE REPORT > Update rewrite that report where it
+        lives, whichever profile run the window was opened from?"* and
+        *"With 'Create New', or 'New report...', and only another run's dates
+        ticked, may the new report be saved where those dates decide?"*, he
+        answered *"Agreed."* to both. This used to keep only the window's own
+        run's rows, because the report type and the limit set belonged to the
+        run and a file written from here was stamped with THIS run's; since
+        K.8, K30 and K31 both belong to the report, so that reason is gone and
+        so is the filter. Where the report is saved is `document_home`'s
+        answer from what is ticked, whatever window pressed the button.
 
-        * the report TYPE is stored on the run (§10 of
-          `docs/design/measurement_report_limits.md`), and this method stamps
-          the WINDOW's run's type on every file it writes;
-        * the limit set belongs to the run (§5), and it stamps the WINDOW's
-          limits with it.
-
-        Filing such a file into another run's folder therefore writes that run's
-        measurement under this run's yardstick and this run's type, which is the
-        cross-run leak this window shipped with. The comment on the button's own
-        enable line already said what it should do: *"the button writes a report
-        for the run the window is on"*.
-
-        So: never across a run boundary, and one report per MEASUREMENT rather
-        than one per report already saved of it. That second rule is its own
-        fault — the count doubled on every press, because each saved report came
-        back as a history entry and each history entry was written again. Driven
-        on screen: three presses on one profiling run left four files.
-
-        A measurement in no run (an imported file, CH-14) has no run boundary to
-        stay inside, so it keeps whatever the document covers, deduplicated.
-
-        ONE FILE PER FOLDER, AND IT IS ABOUT THE MEASUREMENT IN HAND. The
-        folder is the unit because a dated verification keeps one report per
-        date and each date is its own folder. Inside a folder the history can
+        ONE ROW PER MEASUREMENT, NOT ONE PER REPORT ALREADY SAVED OF IT. The
+        count doubled on every press when each saved report came back as a
+        history entry and was written again. Inside a folder the history can
         hold MANY measurements (measuring again archives the previous `.ti3`
         and reuses its name), and only one of them is the run's measurement
-        today, so "the first one seen" is the oldest and exactly the wrong one:
-        it would file a report of a sheet measured hours earlier, stamped with
-        this window's limits and this window's type, while the page in front of
-        the user described a different sheet. So the row the window is ON wins,
-        and where the window is on neither, the later measurement does.
+        today, so the row the window is ON wins, and where the window is on
+        neither, the later measurement does.
+
+        What still refuses (empty list): nothing ticked (B8-600), a report
+        across places with a measurement outside every project, and under
+        Calibration a measurement that is not a project's calibration (a
+        calibration report covers calibrations only, K30 F4).
         """
         # NOTHING TICKED, NOTHING TO WRITE (B8-600). See `_nothing_is_ticked`:
         # `_runs_for_report`'s fallback keeps the page readable and must not
@@ -5096,52 +4985,20 @@ class MeasurementReportDialog(QDialog):
         if self._nothing_is_ticked():
             return []
         runs = self._runs_for_document()
-        ctx = self._run_ctx
-        mine: "set[str] | None" = None
-        if self._spans_places(runs):
-            # **A REPORT ACROSS PROFILE RUNS OR PROJECTS (#182 beta 39, G7).**
-            # Knut, 5794078008: *"a user may need to see how a printers
-            # profile has changed across different periods that are saved as
-            # different projects"*. Such a report is ONE document file in the
-            # folder its places share (`document_home`), judged against the
-            # report's own limit set (5794311113); what this list still
-            # answers is which of THIS window's measurements it covers (at
-            # least one, or the report belongs to another window), and
-            # `_records_across_places` decides which of them get a record.
-            # What refuses outright: a measurement outside a project, and
-            # under Calibration anything that is
-            # not a project's calibration.
-            from workflow.measurement_report import (across_places_refusal,
-                                                     is_calibration_dir)
-            dirs = [str(r.get("_origin_dir") or "") for r in runs]
-            if across_places_refusal(dirs):
-                return []
-            if self._is_calibration_window() and not all(
-                    is_calibration_dir(d) for d in dirs if d):
-                return []
-        if self._is_calibration_window():
-            # **A CALIBRATION WINDOW WRITES ITS OWN CALIBRATION ONLY (#182
-            # beta 39)**, into `<project>/cal/reports/`: never a run's folder
-            # (a Remove can leave a run first in the list), and never another
-            # project's calibration (a report across projects is not written
-            # from here).
-            own = self._own_cal_dir()
-            mine = {str(own)} if own is not None else set()
-        elif ctx is not None:
-            # ASKED OF THE RUN, NOT MATCHED OUT OF A STRING — `…/runs/run10`
-            # starts with `…/runs/run1`, and this window has paid for that once
-            # already (see `_recalculate_run`).
-            mine = {str(ctx.run.dir)}
-            try:
-                mine |= {str(v.dir) for v in ctx.run.verifications()}
-            except Exception:                            # noqa: BLE001
-                pass
+        from workflow.measurement_report import (across_places_refusal,
+                                                 is_calibration_dir)
+        dirs = [str(r.get("_origin_dir") or "") for r in runs]
+        if self._spans_places(runs) and across_places_refusal(dirs):
+            return []
+        if self._is_calibration_window() and not all(
+                is_calibration_dir(d) for d in dirs if d):
+            return []
         subject = self._run_key(self._report) if self._report else None
         out: list = []
         seen: "dict[tuple, int]" = {}
         for r in runs:
             origin = str(r.get("_origin_dir") or "")
-            if not origin or (mine is not None and origin not in mine):
+            if not origin:
                 continue
             key = (origin, Path(str(r.get("ti3") or "")).name)
             at = seen.get(key)
@@ -5521,41 +5378,52 @@ class MeasurementReportDialog(QDialog):
         Generate Report clicked, but is instead updating the selected
         report."* With *updating* None this is Generate report exactly as it
         was; with a document entry it keeps that document's id and its creation
-        stamp, rewrites its files where they exist, and records the press as an
-        update.
+        stamp, rewrites it where it lives, and records the press as an update.
+
+        **K31: A REPORT IS THE ONLY THING THERE IS (Knut, #182 5801677743).**
+        Asked *"Should a report of several measurements stop writing verdict
+        records altogether?"*, he answered *"Agreed."*, and of the dates'
+        folders, *"When a report covers more than one run or project, should
+        GENERATE REPORT write anything into the dates' own folders? Answer:
+        no."* So one press writes ONE file, in the folder its ticked
+        measurements decide (`document_home`):
+
+        * **one measurement**: that measurement's report, in its own
+          `reports/` folder, as ever (the report ChromIQ writes after a
+          measurement is exactly this);
+        * **several measurements**: a document file in the shared folder,
+          whose list of measurements carries each one's verdict against the
+          report's own limit set (`JUDGED_KEY`). Nothing is written into any
+          measurement's folder.
+
+        **AND ONE LIMIT SET FOR THE WHOLE REPORT, ALWAYS (G7 Q2, option a):**
+        every measurement is judged against the report's set, whichever run
+        it is in.
+
+        What an Update leaves behind is ARCHIVED, never deleted (D23): the
+        files it rewrites and the ones it retires are copied into their
+        folder's `old/<stamp>/` first. It retires the files of this report
+        that the new shape no longer has: the one-date file of a report of
+        one date widened to more dates (Knut: *"that is the logical thing, if
+        a user chooses to update the automatically created reports of one
+        date"*), and a document file that moves or narrows to one date. The
+        verdict records an earlier ChromIQ wrote (K23) are never touched, this
+        report's or any other's: they are read-only history (section 25).
         """
         from datetime import datetime as _dt
-        from workflow.measurement_report import (ROLE_RECORD, document_file,
+        from workflow.measurement_report import (JUDGED_KEY, document_file,
                                                  document_home,
                                                  document_measurement_key,
                                                  document_updated_stamps,
+                                                 judged_block,
                                                  new_document_id, report_type,
                                                  rewrite_report,
                                                  save_report, set_report_type,
                                                  stamp_document,
-                                                 stamp_report_type,
                                                  stamp_verdict)
-        # WHAT THE WINDOW IS SHOWING, which is the run's set unless a
-        # document is loaded that was judged against another one. Anything else
-        # would file a report against numbers the reader never saw.
-        lim = (self._document_limits() or self._sticky_limits()
-               or self._window_limits())
-        # ONE PRESS OF GENERATE IS ONE DOCUMENT (B8-383, §13.4).
-        #
-        # It still writes one FILE per measurement, because a dated
-        # verification's verdict is its own record and §5 is built on it being
-        # in that date's own folder. What it did not write was anything saying
-        # those files are one thing, so the selector listed a file per
-        # measurement and Knut counted two new reports for one press: *"Clicking
-        # 'Show all measurement runs' ON, and then generate report, creates 2
-        # new reports under the saved reports, which is wrong behaviour."*
-        # Measured before this: 2 files on disk became 4, then 6.
-        #
-        # The id is decided HERE, once, before the first file is written, and
-        # every file of the press carries it along with the settings the press
-        # was made with. That is the whole of the document record, it is
-        # additive, and `REPORT_SCHEMA` stays 7: a report already on disk has
-        # no block, is not touched by this, and is its own one-file document.
+        # WHAT THE WINDOW IS SHOWING: the report's own limits (K31). Anything
+        # else would file a report against numbers the reader never saw.
+        lim = self._report_limits()
         when = _dt.now()
         now_iso = when.isoformat(timespec="seconds")
         # WHAT THE USER AGREED TO LEAVE OUT (`_update_leaves_out`): gone from
@@ -5565,19 +5433,22 @@ class MeasurementReportDialog(QDialog):
             reports = [r for r in reports
                        if self._run_key(r) not in leave_out]
         # **AN UPDATE KEEPS THE DOCUMENT'S OWN id AND ITS OWN created**, which
-        # is the whole of *"keep the current selected report"*: the entry stays
-        # the same entry in the list, its name still leads with the moment it
-        # was created, and the press is recorded on the end instead.
-        #
-        # A report written before the document record existed has neither, and
-        # it is still the report the user selected. It is given an id so the
-        # files it is made of are one thing, and its creation stamp is the one
-        # its NAME already shows (`_document_created_stamp`), never today's.
+        # is the whole of *"keep the current selected report"*. A report
+        # written before the document record existed has neither, and it is
+        # still the report the user selected: it is given an id, and its
+        # creation stamp is the one its NAME already shows.
         doc = (updating or {}).get("doc") if updating else None
         doc_id = str((doc or {}).get("id") or "") or new_document_id(when)
         doc_created = now_iso
         updated: "list[str]" = []
-        # {measurement -> the file of this document that describes it}
+        #: {measurement -> the file of this report in that measurement's
+        #: folder}: its one-date file. An Update rewrites the one it keeps
+        #: and archives, then retires, the rest. **A VERDICT RECORD AN
+        #: EARLIER CHROMIQ WROTE (K23) IS NOT ONE OF THEM**: records are
+        #: read-only history since K31, never rewritten, moved or deleted by
+        #: anything (section 25 of the spec), and the updated report carries
+        #: every verdict itself.
+        from workflow.measurement_report import is_verdict_record
         existing: "dict[str, Path]" = {}
         if updating is not None:
             doc_created = (str((doc or {}).get("created") or "")
@@ -5586,20 +5457,10 @@ class MeasurementReportDialog(QDialog):
             existing = {
                 self._run_key(r): Path(str(r.get("_origin_dir") or "")) /
                 "reports" / name
-                for r, name in (updating.get("members") or [])}
-        # **WHAT THE DOCUMENT COVERS, NOT WHAT IT WRITES FILES FOR**, which
-        # are two different lists and §13.4 asks for the first: *"the list of
-        # measurements included"*. `_reports_to_generate` never crosses a run
-        # boundary, on purpose (a file must not be filed into another run's
-        # folder under this run's yardstick); the PAGE may, because the trend
-        # across a printer's builds is the feature (#40).
-        #
-        # Recording the narrower list made the document claim to cover one run
-        # when the reader was looking at two, and `_apply_document` believes
-        # that claim: loading such a document hid every row of the other run.
-        # Measured on a project with two runs, two reports each, since the
-        # window began opening on the latest document (B8-388): two rows became
-        # one.
+                for r, name in (updating.get("members") or [])
+                if not is_verdict_record(self._document_of(
+                    str(r.get("_origin_dir") or ""), name, r))}
+        # **WHAT THE DOCUMENT COVERS**: the ticked measurements (R.3).
         members = [{"dir": str(r.get("_origin_dir") or ""),
                     "created": str(r.get("created") or ""),
                     "ti3": str(r.get("ti3") or ""),
@@ -5621,15 +5482,8 @@ class MeasurementReportDialog(QDialog):
         detail = self._tick_state()
         scope = self._document_scope(members)
         # **AN UPDATE THAT COVERS THE SAME MEASUREMENTS KEEPS ITS NAME'S
-        # SCOPE (challenge C, C10).** `_document_scope` compares the members
-        # with the list the window holds, and that list is not the report's
-        # universe: the measurements a report across places pulled in leave
-        # with it (`_drop_borrowed_sources`). So a "Multiple cals" report of 2
-        # of 3 projects' calibrations, opened after the "All cals" one had
-        # gone, found 2 of 2 in the list, and an Update that only flipped
-        # "Show detailed data" renamed it "All cals" (multiple_dates became
-        # all_dates). The name follows what the report covers (§24.2), and
-        # it covers what it covered: only a change of membership moves it.
+        # SCOPE (challenge C, C10)**; only a change of membership moves it
+        # (§24.2).
         if updating is not None and doc:
             from workflow.measurement_report import (DOCUMENT_SCOPES,
                                                      relative_measurement_key)
@@ -5640,42 +5494,15 @@ class MeasurementReportDialog(QDialog):
             recorded = str(doc.get("scope") or "")
             if was and was == now and recorded in DOCUMENT_SCOPES:
                 scope = recorded
-        # **WHERE THIS DOCUMENT LIVES (K23).** Decided from what it COVERS,
-        # the list just built, and by the one rule the counter and the list
-        # use (`document_home`). One measurement: its own `reports/`, one
-        # file that is the report and the verdict record at once, exactly as
-        # before. Several: a document file in the home, and each file this
-        # press writes into a measurement's folder is that measurement's
-        # VERDICT RECORD (role "record"), never listed and never counted.
+        # **WHERE THIS REPORT LIVES (K23)**, decided from what it covers.
         home = document_home([m["dir"] for m in members])
         several = len({m["dir"] for m in members}) > 1
-        file_role = ROLE_RECORD if several else ""
-        # **A DOCUMENT ACROSS PLACES (#182 beta 39, G7).** Knut, 5794311113:
-        # *"the report's own limit set applies to every included measurement,
-        # whatever each run is bound to"*. The document file carries each
-        # measurement's verdict against the document's set (`JUDGED_KEY`), so
-        # it is complete by itself and is never recalculated under its reader.
-        #
-        # A verdict record in a measurement's folder is that measurement's
-        # RESULT (§5): the lock, the trend, the newest-file choice and the
-        # delete rule read it there. So a record is written ONLY into the
-        # window's own run (K23, as before), and only where it cannot
-        # contradict that run: a profiling sheet, which no set grades (§3),
-        # or a date whose run is judged by the same yardstick as the
-        # document. A date whose run is bound to another set gets NO record:
-        # it keeps the verdict it has. Nothing is written into another run's
-        # folder, and nothing into a calibration's for a report across
-        # projects. A file this document already had (an Update) keeps its
-        # verdict and is re-stamped as a record of the new block below,
-        # archived first, as before.
-        from workflow.measurement_report import (JUDGED_KEY,
-                                                 document_spans_places,
-                                                 judged_block)
-        across = document_spans_places([m["dir"] for m in members])
+        # A TYPE THE KIND ALLOWS (round 2B, #8): what is WRITTEN is fitted.
+        _tid = self._fit_to_kind(self._report_type_now())
+        #: The row of each measurement, for the verdicts of a document file.
+        by_key = {self._run_key(r): r for r in self._runs_for_document()}
         doc_members = members
-        if across:
-            reports = self._records_across_places(reports, lim)
-            by_key = {self._run_key(r): r for r in self._runs_for_document()}
+        if several:
             doc_members = []
             for m in members:
                 m2 = dict(m)
@@ -5686,87 +5513,59 @@ class MeasurementReportDialog(QDialog):
                                   set_label=lim.label_en, edited=lim.edited)
                     m2[JUDGED_KEY] = judged_block(rep)
                 doc_members.append(m2)
-        #: The document file it had before this press (Update only), which
-        #: is rewritten in place when the home has not moved, and archived
-        #: and removed when it has, or when the document now covers one
-        #: measurement and so has no document file.
+        #: The document file it had before this press (Update only).
         old_doc_file = (Path(str(updating["file"]))
                         if updating is not None and updating.get("file")
                         else None)
         keep_doc_file = (old_doc_file is not None and several
                          and home is not None
                          and old_doc_file.parent.resolve() == home.resolve())
+        #: The one measurement's own file this press writes (one date only).
+        one = reports[0] if (not several and reports) else None
+        one_key = self._run_key(one) if one is not None else None
+        rewrite_here = existing.get(one_key) if one_key is not None else None
+        #: Every file of this report the new shape does not keep: archived,
+        #: then taken out of the live folder.
+        retire = [p for k, p in existing.items()
+                  if k != one_key and p.exists()]
+        if old_doc_file is not None and not keep_doc_file \
+                and old_doc_file.exists():
+            retire.append(old_doc_file)
         saved, failed = [], []
-        # **EVERY FILE THIS PRESS REWRITES IS COPIED INTO old/ FIRST (D23).**
-        # Update rewrites the document's files in place, and so does the
-        # leftover re-stamp further down; neither archived anything, so the
-        # previous content of a dated verification's record, the record the
-        # series is compared on, was simply gone (critic round, 2026-09-22:
-        # 11 files rewritten, 0 copies in reports/old/). Done ONCE, before any
-        # write, so one press makes one archive folder per reports folder. A
-        # folder whose archive fails is not rewritten at all: its files go on
-        # the failure list the window already reports, and are left exactly
-        # as they were.
+        # **ALL OR NOTHING (round A, A-1; round 2A, R2A-3/R2A-4).** Decided
+        # BEFORE anything is archived: every file the press rewrites or
+        # retires must be writable in a writable folder (and its `old/`), and
+        # the folder a new file goes into must be writable or creatable.
         from core.file_manager import archive_report_files
-        # **ALL OR NOTHING (round A, A-1; round 2A, R2A-3/R2A-4).** A folder
-        # that could not be archived or written used to be skipped while the
-        # rest of the document was rewritten, so one document said two things
-        # about itself. An Update now writes nothing unless it can write
-        # everything, and that is decided BEFORE anything is archived:
-        #
-        # * every file the press REWRITES must be writable in a writable
-        #   folder, and every folder a NEW file goes into must be writable (or
-        #   creatable): the first cut checked only the files the document
-        #   already had, so an Update that ADDED a date whose folder was
-        #   read-only wrote the other ten and left the document listing a date
-        #   with no file (R2A-3);
-        # * only then is anything copied into old/: the first cut archived
-        #   first, so a refused press still left an old/ folder in every date
-        #   for a rewrite that never happened (R2A-4).
         _stuck: "set[Path]" = set()
-        for _p in existing.values():
-            if _p.exists() and not (os.access(_p, os.W_OK)
-                                    and os.access(_p.parent, os.W_OK)):
-                _stuck.add(_p.parent.resolve())
-            # …AND THE FOLDER THE ARCHIVE WRITES INTO (round 3A, R3A-1): a
-            # read-only `reports/old` was found only by the archive itself,
-            # after it had already copied the other dates, so a refused press
-            # still left an old/ folder in every other date.
+        _touched = [p for p in list(existing.values())
+                    + ([old_doc_file] if old_doc_file is not None else [])
+                    if p is not None and p.exists()]
+        for _p in _touched:
             _old = _p.parent / "old"
-            if _p.exists() and _old.exists() and not os.access(_old, os.W_OK):
+            if not (os.access(_p, os.W_OK) and os.access(_p.parent, os.W_OK)) \
+                    or (_old.exists() and not os.access(_old, os.W_OK)):
                 _stuck.add(_p.parent.resolve())
-        for r in reports:
-            origin = r.get("_origin_dir")
-            if not origin or self._run_key(r) in existing:
-                continue
-            _rdir = Path(str(origin)) / "reports"
+        if one is not None and (rewrite_here is None
+                                or not rewrite_here.exists()):
+            _rdir = Path(str(one.get("_origin_dir") or "")) / "reports"
             _ok = (os.access(_rdir, os.W_OK) if _rdir.exists()
-                   else os.access(Path(str(origin)), os.W_OK))
+                   else os.access(_rdir.parent, os.W_OK))
             if not _ok:
                 _stuck.add(_rdir.resolve() if _rdir.exists()
-                           else Path(str(origin)).resolve())
-        # …AND THE DOCUMENT FILE (K23): the one it has, which is rewritten or
-        # archived and removed, and the home a new one goes into, which must
-        # be writable or creatable from the nearest folder that exists.
-        if old_doc_file is not None and old_doc_file.exists():
-            _dir = old_doc_file.parent
-            _old = _dir / "old"
-            if not (os.access(old_doc_file, os.W_OK)
-                    and os.access(_dir, os.W_OK)) or (
-                        _old.exists() and not os.access(_old, os.W_OK)):
-                _stuck.add(_dir.resolve())
+                           else _rdir.parent.resolve())
         if several and home is not None and not keep_doc_file:
             _up = home
             while not _up.exists() and _up.parent != _up:
                 _up = _up.parent
             if not os.access(_up, os.W_OK):
                 _stuck.add(home.resolve())
+        if several and home is None:
+            _stuck.add(Path(str(members[0]["dir"])).resolve()
+                       if members else Path("."))
         _unarchived: "set[Path]" = set()
-        _to_archive = [p for p in existing.values() if p.exists()]
-        if old_doc_file is not None and old_doc_file.exists():
-            _to_archive.append(old_doc_file)
-        if _to_archive and not _stuck:
-            _archived, _unarchived = archive_report_files(_to_archive, when)
+        if _touched and not _stuck:
+            _archived, _unarchived = archive_report_files(_touched, when)
             for _rdir, _to in _archived.items():
                 log.info("archived the reports in %s to %s before updating",
                          _rdir, _to)
@@ -5774,117 +5573,46 @@ class MeasurementReportDialog(QDialog):
         _blocked = bool(_stuck)
         for _rdir in sorted(_stuck):
             log.warning("the report was not written: %s cannot be archived "
-                        "or written, and a document is written whole or not "
+                        "or written, and a report is written whole or not "
                         "at all", _rdir)
-
-        def _archive_failed(path: "Path | None") -> bool:
-            return _blocked or (path is not None and path.exists() and
-                                path.parent.resolve() in _unarchived)
         #: WHAT THE RED LINE WAS COMPARING AGAINST BEFORE THIS PRESS (R29-F2).
-        #: A press that writes nothing must leave it exactly there: see the
-        #: failure branch at the end of this method.
         was_built = getattr(self, "_doc_built_with", None)
-        #: (measurement key, file name) for every file this press owns, so the
-        #: page stays on the document's own files rather than on whatever the
-        #: newest file of each measurement happens to be.
+        #: (measurement key, file name) for the one file of a report of one
+        #: date, so the page stays on it.
         written: "list[tuple[str, str]]" = []
-        # A TYPE THE KIND ALLOWS (round 2B, #8): a saved report shown as
-        # recorded may carry a type its kind no longer allows (a beta-34
-        # Printing record of a verification); what is WRITTEN is fitted.
-        _tid_for_block = self._fit_to_kind(self._report_type_now())
-        for r in reports:
-            origin = r.get("_origin_dir")
-            if not origin:
-                continue
-            # THE FILE THIS DOCUMENT ALREADY HAS FOR THIS MEASUREMENT, when
-            # Update is what was pressed. A measurement the document did not
-            # cover before still gets a new file, with this document's id on
-            # it, because the settings the user changed may be the tick that
-            # brought it in.
-            here = existing.pop(self._run_key(r), None)
-            if _blocked or _archive_failed(here):
-                failed.append(str(origin))
-                continue
+        if _blocked:
+            failed.extend(str(p) for p in sorted(_stuck))
+        elif one is not None:
             try:
-                rep = dict(r)
-                # The window's own bookkeeping keys are not part of a report.
+                rep = dict(one)
                 for k in [k for k in rep if k.startswith("_")]:
                     rep.pop(k, None)
                 stamp_verdict(rep, lim.limits, set_id=lim.set_id,
                               set_label=lim.label_en, edited=lim.edited)
-                stamp_report_type(rep, ctx.run if ctx is not None else None)
-                # …AND THE TYPE THE PULLDOWN IS SHOWING, which is the run's
-                # unless a document is loaded that is of another kind. D9 puts
-                # the type on the run and that is untouched; what this refuses
-                # to do is write a document of a kind the reader was not
-                # looking at.
-                _tid = self._fit_to_kind(self._report_type_now())
-                if _tid and _tid != report_type(rep):
+                if _tid:
                     set_report_type(rep, _tid)
                 stamp_document(rep, doc_id=doc_id, created=doc_created,
                                type_id=report_type(rep),
                                compliance=rep.get("compliance"),
                                detail=detail,
                                measurements=members, scope=scope,
-                               updated=updated, role=file_role)
-                if here is not None and here.exists():
-                    # **THE SAME FILE, THE SAME NAME, THE SAME DATE.** An
-                    # update must not leave two live reports of one press
-                    # behind, which is the reason `rewrite_report` exists at
-                    # all (CH-29). Nothing is deleted and nothing is renamed.
-                    path = rewrite_report(here, rep)
+                               updated=updated)
+                if rewrite_here is not None and rewrite_here.exists():
+                    # **THE SAME FILE, THE SAME NAME, THE SAME DATE** (CH-29).
+                    path = rewrite_report(rewrite_here, rep)
                 else:
-                    path = save_report(rep, Path(origin))
+                    path = save_report(rep, Path(str(one["_origin_dir"])))
                 saved.append(path)
-                written.append((self._run_key(r), path.name))
+                written.append((one_key, path.name))
             except Exception as exc:             # noqa: BLE001
-                log.warning("could not generate a report in %s: %s", origin, exc)
-                failed.append(str(origin))
-        # **A MEMBER THE DOCUMENT NO LONGER COVERS KEEPS ITS VERDICT AND GETS
-        # THE NEW BLOCK.** Unticking a measurement and pressing Update takes
-        # it out of `members`, and its file is still on disk carrying this
-        # document's id. Leaving the old block on it would make one document
-        # say two different things about itself, depending on which of its
-        # files the list happened to read first (`_saved_documents`). The
-        # measurement's own verdict is not re-judged: it was judged when it
-        # was part of the document and that is a fact about that sheet.
-        for path in existing.values():
-            if _archive_failed(path):
-                failed.append(str(path))
-                continue
-            try:
-                leftover = json.loads(read_text(path))
-            except Exception as exc:             # noqa: BLE001
-                log.warning("could not re-read %s: %s", path, exc)
-                continue
-            stamp_document(leftover, doc_id=doc_id, created=doc_created,
-                           type_id=_tid_for_block,
-                           compliance=leftover.get("compliance"),
-                           detail=detail,
-                           measurements=members, scope=scope, updated=updated,
-                           # K23: no longer covered, so no longer the
-                           # report; it stays as the date's verdict record.
-                           role=ROLE_RECORD)
-            try:
-                rewrite_report(path, leftover)
-            except OSError as exc:               # noqa: BLE001
-                log.warning("could not rewrite %s: %s", path, exc)
-        # **THE DOCUMENT FILE, WHERE THE DOCUMENT LIVES (K23).** Written only
-        # when something of the press was written and nothing was refused, so
-        # a document file never names a press that left no record.
-        if across and _blocked:
-            failed.append(str(home))
-        if several and home is not None and (saved or across) \
-                and not _blocked:
-            if across:
-                # THE DOCUMENT'S OWN SET, as every `JUDGED_KEY` carries it.
-                first = next((m[JUDGED_KEY] for m in doc_members
-                              if m.get(JUDGED_KEY)), {})
-            else:
-                first = next((json.loads(read_text(p)) for p in saved[:1]),
-                             {})
+                log.warning("could not generate a report in %s: %s",
+                            one.get("_origin_dir"), exc)
+                failed.append(str(one.get("_origin_dir")))
+        elif several and home is not None:
+            first = next((m[JUDGED_KEY] for m in doc_members
+                          if m.get(JUDGED_KEY)), {})
             body = document_file(
-                doc_id=doc_id, created=doc_created, type_id=_tid_for_block,
+                doc_id=doc_id, created=doc_created, type_id=_tid,
                 compliance=(first or {}).get("compliance"), detail=detail,
                 measurements=doc_members, scope=scope, updated=updated)
             try:
@@ -5892,116 +5620,55 @@ class MeasurementReportDialog(QDialog):
                     _doc_path = rewrite_report(old_doc_file, body)
                 else:
                     _doc_path = save_report(body, home.parent)
-                if across:
-                    saved.append(_doc_path)
-                    log.info("wrote the report across places: %s", _doc_path)
+                saved.append(_doc_path)
+                log.info("wrote the report of %d measurements: %s",
+                         len(members), _doc_path)
             except OSError as exc:               # noqa: BLE001
-                log.warning("could not write the document file in %s: %s",
+                log.warning("could not write the report in %s: %s",
                             home, exc)
                 failed.append(str(home))
-        # …AND THE ONE IT HAD, WHEN IT NO LONGER LIVES THERE: archived above
-        # with the rest of the press (D23), so removing it loses nothing.
-        if (old_doc_file is not None and not keep_doc_file and saved
-                and not _blocked and old_doc_file.exists()
-                and old_doc_file.parent.resolve() not in _unarchived):
-            try:
-                old_doc_file.unlink()
-                log.info("the document moved, its old file is in old/: %s",
-                         old_doc_file)
-            except OSError as exc:               # noqa: BLE001
-                log.warning("could not remove %s: %s", old_doc_file, exc)
+        # **WHAT THE NEW SHAPE NO LONGER HAS LEAVES THE LIVE FOLDERS**, only
+        # after the new file is on disk and only where its archive copy was
+        # made (D23: nothing is lost, everything is in `old/`).
+        if saved and not failed:
+            for path in retire:
+                if path.parent.resolve() in _unarchived or not path.exists():
+                    continue
+                try:
+                    path.unlink()
+                    log.info("retired %s: the report no longer has this "
+                             "file, its copy is in old/", path)
+                except OSError as exc:           # noqa: BLE001
+                    log.warning("could not remove %s: %s", path, exc)
         #: The folders that stopped the press, for M-REPORT-NOT-WRITABLE.
         self._unwritable_folders = sorted(str(p) for p in _stuck)
         self._say_generated(saved, failed)
         self._forget_limits()
-        # THE FILE IT JUST WROTE IS WHAT THE PAGE SHOWS, AND IT IS IN THE LIST.
-        # `_refresh` redraws from `self._sources`, which `_gather_runs` filled
-        # when the measurement was loaded, so a report written a second ago was
-        # in neither: the "Saved reports" pulldown went on naming the same four
-        # files and the page went on describing the one it was pointed at.
-        # Driven in a real window (B8-252): an older report of the date chosen
-        # in the pulldown, Generate pressed, one new file on disk, the selector
-        # still at four entries, and the document unchanged. A button that
-        # writes a file and changes nothing on screen is the exact complaint
-        # this window has already been through twice.
-        #
-        # So the choice this measurement carried is dropped, because the user
-        # has just asked for a NEW document of it, and the sources are read
-        # again so the file is in the list and is the one the merge keeps.
-        #
-        # **ONLY WHEN SOMETHING WAS WRITTEN (R29-F2).** With every write
-        # refused there is no new file to move to, and dropping the choice
-        # would walk the page off the report the reader is looking at as a
-        # consequence of a press that failed.
+        # THE FILE IT JUST WROTE IS WHAT THE PAGE SHOWS, AND IT IS IN THE LIST
+        # (B8-252), ONLY WHEN SOMETHING WAS WRITTEN (R29-F2).
         if saved:
             for r in reports:
                 self._chosen_reports.pop(self._run_key(r), None)
-        # …AND AN UPDATE PUTS THE DOCUMENT'S OWN FILES BACK, because a rewrite
-        # keeps the file's original name and date and "the newest file of this
-        # measurement" may therefore be a different report altogether.
+            for key in existing:
+                self._chosen_reports.pop(key, None)
         for key, name in written:
             self._chosen_reports[key] = name
         if saved:
-            # …AND THE WINDOW IS NOW ON THE DOCUMENT IT JUST WROTE, not merely
-            # on one of its files. Without this the list would show the new
-            # entry and the selection would land on it, but nothing would hold
-            # the document open, so the next repaint could fall back to the
-            # newest file of each measurement — which is the same file here and
-            # a different one the moment a second document exists.
             self._loaded_doc_id = f"id:{doc_id}"
             self._loaded_doc = None          # read back off the file it wrote
             self._doc_settings_moved = False
             self._doc_created = doc_created
             self._doc_sources = self._source_signature()
             self._forget_sticky_settings()
+            self._report_own_limits = None
+            self._session_type = ""
             self._reload_sources()
         else:
             # **A PRESS THAT WROTE NOTHING MAY NOT TAKE THE RED LINE DOWN
-            # (R29-F2).** The line says *"Settings changed. Click 'Generate
-            # report' to build the report with them, or put the setting
-            # back."* After a press that saved no file, they are still not in
-            # any report, so both halves of that sentence still stand.
-            #
-            # `_render` re-stamps `_doc_built_with` from the controls every
-            # time it draws, which is right for a repaint and wrong for this:
-            # the reader was just shown *"Nothing could be written"* and the
-            # window then cleared the one signal that says their change has
-            # not been applied. Measured on screen with the reports folder
-            # read-only (round 29): Update pressed, the failure box shown, and
-            # the red line down with the saved report untouched on disk.
+            # (R29-F2).**
             self._refresh()
             self._doc_built_with = was_built
             self._show_stale_banner()
-
-    def _records_across_places(self, reports: list, lim) -> list:
-        """The rows of a document across places that get a verdict record
-        (G7): the window's own run's, and of those only the ones whose record
-        cannot contradict their run (see `_write_the_document`)."""
-        from workflow.compliance_sets import limits_to_json
-        from workflow.measurement_report import is_graded_sheet, yardstick_key
-        ctx = self._run_ctx
-        if ctx is None or self._is_calibration_window():
-            return []
-        mine = {str(ctx.run.dir)}
-        try:
-            mine |= {str(v.dir) for v in ctx.run.verifications()}
-        except Exception:                            # noqa: BLE001
-            pass
-        doc_key = yardstick_key({"set_id": lim.set_id,
-                                 "thresholds": limits_to_json(lim.limits)})
-        out = []
-        for r in reports:
-            if str(r.get("_origin_dir") or "") not in mine:
-                continue
-            if is_graded_sheet(r):
-                own = self._limits_for(r)
-                own_key = yardstick_key(
-                    {"set_id": own.set_id,
-                     "thresholds": limits_to_json(own.limits)})
-                if not self._same_yardstick(own_key, doc_key):
-                    continue
-            out.append(r)
-        return out
 
     def _say_generated(self, saved: list, failed: list) -> None:
         """SUCCESS IS QUIET; A FAILURE IS NOT.
@@ -6603,7 +6270,10 @@ class MeasurementReportDialog(QDialog):
         return len(self._distinct_run_dirs()) > 1
 
     def _window_limits(self):
-        """The RunLimits the window's own controls act on (the first run's)."""
+        """The STARTING CHOICE of a new report's limits (K31): the window's
+        run's own default when it has one, else the Preferences default. A
+        loaded report, or a set chosen in this window, outranks it
+        (`_report_limits`)."""
         if self._limits is None:
             from workflow.run_compliance import run_limits
             ctx = self._context_run()
@@ -6613,41 +6283,14 @@ class MeasurementReportDialog(QDialog):
         return self._limits
 
     def _limits_for(self, r: dict):
-        """The RunLimits a REPORT is judged with live: its own run's, or the
-        window's when it is not in a run (an imported file)."""
-        from workflow.run_compliance import run_context_for, run_limits
-        origin = r.get("_origin_dir")
-        ti3 = r.get("ti3")
-        # **A ROW THAT HAS ANSWERED ONCE KEEPS ITS ANSWER.** `run_context_for`
-        # asks the disk, so a project renamed or moved while the window is open
-        # makes every row of it fall through to the WINDOW's limit set, and the
-        # document is written against one set: a measurement judged against
-        # another was then silently pulled INTO it. Measured: folder present,
-        # 2 kept and 1 dropped; folder renamed, 3 kept and 0 dropped, under a
-        # heading still naming one "Judged against" set (R18-F4).
-        #
-        # This is not the memo that was removed from the scope count. That one
-        # invented a TOTAL the disk no longer supported; this remembers a
-        # property of a row that was read from its own run, and the alternative
-        # is not silence but a different document.
-        seen = getattr(self, "_limits_by_origin", None)
-        if seen is None:
-            seen = self._limits_by_origin = {}
-        if origin and ti3:
-            ctx = run_context_for(Path(origin) / str(ti3))
-            if ctx is not None:
-                cache = getattr(self, "_limits_cache", None)
-                if cache is None:
-                    cache = self._limits_cache = {}
-                key = str(ctx.run.dir)
-                if key not in cache:
-                    cache[key] = run_limits(ctx.run, self._overrides(),
-                                            self._default_set_id())
-                seen[str(origin)] = cache[key]
-                return cache[key]
-            if str(origin) in seen:
-                return seen[str(origin)]
-        return self._window_limits()
+        """The RunLimits a measurement of this report is judged with live:
+        THE REPORT'S, whichever run the measurement is in (K31, one set for
+        the whole report). Until K31 this was the row's own run's set, which
+        is how two dates of one report could be judged against two sets.
+
+        *r* is kept in the signature because every caller asks it of a row.
+        """
+        return self._report_limits()
 
     def _forget_limits(self) -> None:
         """Drop what was read from disk so the next look re-reads it. A
@@ -6674,37 +6317,22 @@ class MeasurementReportDialog(QDialog):
             self._limits = None
 
     def _sync_limit_controls(self) -> None:
-        """Fill the pulldown, set the lock, name the run, fill the strip."""
+        """Fill the pulldown, name the run, fill the strip.
+
+        **K31: NO LOCK.** Every control here is live whenever a measurement is
+        loaded: the limit set is the REPORT's (Knut, 5801677743), so there is
+        no run whose numbers could be protected by greying it, and "Unlock
+        this run's limits" is gone with the lock behind it (§25 of
+        `docs/design/measurement_report_limits.md` says what it protected and
+        why nothing replaces it).
+        """
         if getattr(self, "_set_combo", None) is None:
             return
         from workflow.compliance_sets import SET_BY_ID, selectable_set_ids
-        # NOT `is_locked`: `_locked_here` is the one answer this window gives
-        # about a run, and importing the raw predicate here is how a line came
-        # to use it by accident. Two rounds fixed that fault, in two doors.
-        from workflow.run_compliance import (has_measured_verification,
-                                             may_unlock)
         lim = self._window_limits()
         ctx = self._run_ctx
         run = ctx.run if ctx else None
         self._adopt_visible_document(run)
-        # WHAT THE USER IS ABOUT TO BE SHOWN, stamped here because here is the
-        # last moment this window and the run agree. A guard that stamps it
-        # when a control is CLICKED has already swallowed everything that
-        # happened while the user was reading the screen, which is the whole
-        # window a second writer has to work in. A challenge round drove
-        # exactly that: rebind the run, then click, and the rebind was inside
-        # the "before" the guard compared against.
-        self._run_state_at_sync = self._run_state_now(run) if run else ()
-        # **AND THE APP-WIDE STORES, AT THE SAME MOMENT AND FOR THE SAME
-        # REASON.** The overrides on the set in the pulldown are what
-        # `bind_run` will copy onto the run, and it reads them LIVE. That used
-        # to be guarded by re-reading them across the recalculate question;
-        # with the question gone (B8-384) the only window left is the one that
-        # matters anyway, between the moment the user was shown these controls
-        # and the moment they used one. R19-1 is what happens without it:
-        # another window overrides the chosen set, and the run is bound to
-        # numbers nobody in this window ever saw.
-        self._prefs_at_sync = self._prefs_state_now()
         self._syncing_limits = True
         try:
             self._set_combo.clear()
@@ -6712,9 +6340,7 @@ class MeasurementReportDialog(QDialog):
             # **THE LOADED DOCUMENT'S OWN SET, WHEN ONE IS LOADED (B8-382).**
             # Knut: *"Changing selected report in the saved report pulldown
             # does not change any of the other settings that the selected
-            # report had when it was generated."* The page already judges each
-            # report by the set its own file records (`_yardstick_of`); this is
-            # what stops the pulldown above it saying something else.
+            # report had when it was generated."*
             dlim = self._document_limits() or self._sticky_limits()
             shown = dlim or lim
             if lim.set_id not in ids:
@@ -6730,168 +6356,50 @@ class MeasurementReportDialog(QDialog):
             idx = self._set_combo.findData(shown.set_id)
             self._set_combo.setCurrentIndex(max(0, idx))
             several = self._several_runs()
-            # A run THIS WINDOW bound a moment ago keeps its controls: binding
-            # is what locks a run with a history, so without this the act of
-            # choosing a limit set greys the pulldown that chose it.
-            # Session-scoped on purpose, and the superseded `is_locked(run)`
-            # that used to sit on the line above is gone rather than left
-            # beside it, because a dead assignment holding the OTHER answer is
-            # how the same function came to disagree with itself.
-            locked = self._locked_here(run)
-            self._unlock_check.blockSignals(True)
-            self._unlock_check.setChecked(bool(lim.unlocked))
-            self._unlock_check.blockSignals(False)
-            allow = bool(self._settings.get(
-                "compliance_allow_edit_after_measurement", False))
-            # **LOCKED, NOT MERELY MEASURED.** Knut, on beta 32: with ONE
-            # dated verification the Judged against box is already editable
-            # and Edit Limits already enabled, *"However, the checkbox 'Unlock
-            # this run's limits' is still clickable"*, and pressing it asked
-            # whether to unlock something that is not locked.
-            #
-            # `is_locked` has said `measured_dates(run) < 2 -> not locked`
-            # since his ruling of 2026-09-10, and this line asked
-            # `has_measured_verification`, which is true of ONE. So the box was
-            # live in precisely the state the window's own tooltip describes,
-            # and because an enabled box returns no reason, that sentence had
-            # never been shown to anybody.
-            self._unlock_check.setEnabled(
-                run is not None and not several
-                and ((may_unlock(run, allow) and locked)
-                     or bool(lim.unlocked)))     # F5: re-locking is always allowed
-            # **KNUT PUT THIS CONTROL BACK, AND IT NEVER DISAPPEARS AGAIN
-            # (B8-520).** 2026-09-20, reviewing beta 26: *"In the Measurement
-            # Report window, relating to the new layout of buttons and
-            # elements, you removed the 'Unlock this run's limits' checkbox and
-            # its help icon. They should still be there and work as before."*
-            # And, on the state two loaded runs put the window in: *"the
-            # checkbox 'Unlock this run's limit set' was suddenly gone …
-            # 'Unlock this run's limit set' should be available."*
-            #
-            # It was not the beta-25 re-layout that took it away, and that is
-            # reported rather than repeated: the widget is built and added to
-            # `judged_row` in both betas, byte for byte, and the line below is
-            # the one that hid it. It has hidden it since round 6, on this
-            # reasoning:
-            #
-            #   an unticked "Unlock this run's limits" MEANS "this run is
-            #   locked", and greyed means "and you cannot change that"; on a
-            #   run with one dated verification the pulldown is live, the
-            #   button says "Edit limits…" and the column is editable, so the
-            #   box sat dim beside three live controls saying the opposite of
-            #   all of them.
-            #
-            # That reading of a greyed box is ours; his instruction is his, and
-            # it wins. A control that vanishes is the worse of the two evils --
-            # a user cannot ask why a control is grey if it is not there -- so
-            # the box is ALWAYS on screen and the honesty problem is answered
-            # where it belongs, in a tooltip that says what would have to be
-            # true for it to be usable.
-            self._unlock_check.setVisible(True)
             # F6: the button's text changes, so its width must follow it
+            self._limits_btn.setText(tr("Edit limits…"))
             self._limits_btn.setMinimumWidth(self._limits_btn.sizeHint().width())
-            # **ACROSS PLACES THE PULLDOWN CHOOSES THE REPORT'S SET (#182 beta
-            # 39, G7)**, and binds no run (`_on_set_chosen`), so a locked run
-            # among the places does not grey it: the lock is the run's, the
-            # choice is the document's.
-            self._set_combo.setEnabled(several or run is None or not locked)
-            self._limits_btn.setText(tr("Edit limits…") if (
-                several or (run is not None and not locked))
-                else tr("Show limits…"))
-            # **LIVE WITH SEVERAL PLACES TOO (#182 K30).** Knut, 5798461562:
-            # *"Why is editing limits is per run? I have not specified this.
-            # I have specified the opposite that all settings belong to a
-            # report"*. Across places the window edits the REPORT's own
-            # limits (`_open_report_limits_window`), which no run holds.
+            self._set_combo.setEnabled(True)
             self._limits_btn.setEnabled(True)
-            if several:
-                self._judged_label.setText(tr("Judged against:"))
-                # ROUND 3B (F7): "select every other entry" in a list that
-                # takes ONE selection; the advice is one entry at a time.
-                tip = tr("Measurements from more than one place are loaded, so "
-                         "there is no one set of limits to change here. To "
-                         "change a profile run's limits, remove every other "
-                         "entry from the list, one at a time, with Remove "
-                         "Profile's Measurements….")
-            elif run is not None:
+            if run is not None and not several:
                 # The run is named only while the ticks are its own (K30).
                 self._judged_label.setText(
                     tr("Judged against ({run}):").format(run=run.dir.name)
                     if self._ticks_are_the_runs_own(run)
                     else tr("Judged against:"))
-                tip = ""
             else:
-                # **A CALIBRATION IS IN THE PROJECT, AND THIS SAID IT WAS NOT
-                # (R24-F6).** `run_context_for` answers None for anything that
-                # is not `runs/runN/…`, and the sentence read that as "not in a
-                # ChromIQ project" -- to a user looking at
-                # `<project>/cal/<name>-cal.ti3`, which is where
-                # `calibration_run_type.md` puts a calibration. The half that
-                # matters, and the reason the controls say anything at all, is
-                # the second one: there is no run for the choice to be stored
-                # on. That half was true in both states and is all that is
-                # claimed now.
                 self._judged_label.setText(tr("Judged against:"))
-                # ROUND 3B (F11): after Clear List there is no measurement
-                # for "this measurement" to be.
-                tip = (tr("No measurement is loaded yet.")
-                       if not self._sources else
-                       tr("This measurement does not belong to a profile run, "
-                          "so the choice is not stored anywhere.")
-                       if self._inside_a_project() else
-                       tr("This measurement is not in a ChromIQ project, so "
-                          "the choice is not stored anywhere."))
+            if not self._sources and self._ti3 is None:
+                set_tip = tr("No measurement is loaded yet.")
+                btn_tip = set_tip
+            else:
+                set_tip = tr(
+                    "The limit set this report is judged against. Every "
+                    "measurement ticked in the list is judged against it, "
+                    "whichever profile run or project it comes from. Changing "
+                    "it changes only the settings of the report shown: nothing "
+                    "is judged again or written until you press Generate "
+                    "report.")
+                btn_tip = tr(
+                    "Opens the limits of the report shown, in the first column "
+                    "“This report”, beside every limit set. A change applies "
+                    "to this report only and is applied when you press "
+                    "Generate report.")
             # **AND WHY IT IS NOT THE PREFERENCES DEFAULT, WHEN IT IS NOT
-            # (B8-526).** Knut, beta 26: *"When selecting 'New report…' in
-            # Report shown, then the Judged against is set to Quick check,
-            # which is not set as the default limit set in the Report Limits
-            # window."* He is reading a run that is BOUND to another set, and
-            # §5 of `measurement_report_limits.md` is why: the set belongs to
-            # the profile run, and the Preferences default is what a run that
-            # is not bound yet takes. Measured on his own demo pack: 24 of its
-            # 39 runs are bound to a set other than the Preferences default.
-            #
-            # Whether "New report…" should override that is HIS call and is
-            # asked of him rather than answered here -- a report judged against
-            # a set its run is not bound to is the one thing this window must
-            # never file. What the window can do without a ruling is stop being
-            # silent about it.
+            # (B8-526, K31).** Under "New report…" the set is the run's own
+            # default when it has one (chosen in Edit limits, or bound by an
+            # earlier ChromIQ), and the pulldown says so.
             if (self._loaded_doc_id == NEW_REPORT_KEY and run is not None
-                    and not several and lim.bound
-                    and lim.set_id != self._default_set_id()):
-                from workflow.compliance_sets import SET_BY_ID
+                    and not several and lim.set_id != self._default_set_id()):
                 d = SET_BY_ID.get(self._default_set_id())
-                tip = tr(
-                    "This run is judged against {set}, which was stored on the "
-                    "run at its first verification so that every dated "
-                    "verification of the run stays comparable. The default for "
-                    "a run that has none is {default}, in Preferences, "
-                    "Reports.").format(
+                set_tip = tr(
+                    "New reports of this profile run start on {set}, the run's "
+                    "own default, chosen in Edit limits. The default for new "
+                    "reports is {default}, in Preferences, Reports.").format(
                         set=lim.set_label,
                         default=tr(d.label) if d else self._default_set_id())
-            for w in (self._set_combo, self._limits_btn):
-                w.setToolTip(tip)
-            if several:
-                # G7: the pulldown is live and chooses the report's own set;
-                # K30: so does the limits window, for the report's numbers.
-                self._limits_btn.setToolTip(tr(
-                    "Measurements from more than one place are loaded, so "
-                    "these are the limits of this report. A change applies to "
-                    "this report only, never to a profile run's limits, and "
-                    "is applied when you press Generate report."))
-                self._set_combo.setToolTip(tr(
-                    "Measurements from more than one place are loaded. The "
-                    "limit set chosen here judges every measurement in this "
-                    "report, whatever limit set each profile run is bound to, "
-                    "and no run's own limit set is changed."))
-            # **AND THE UNLOCK BOX SAYS WHY IT IS GREY, IN ITS OWN WORDS.** It
-            # shares the other two controls' sentence only when there is no
-            # more specific one: a box that is always on screen has to answer
-            # "why can I not press this?" wherever it is dim, which is the
-            # whole of what hiding it used to answer.
-            self._unlock_check.setToolTip(
-                self._why_the_unlock_box_is_greyed(run, several, locked, lim)
-                or tip)
+            self._set_combo.setToolTip(set_tip)
+            self._limits_btn.setToolTip(btn_tip)
             self._sync_type_combo(run, several)
             self._sync_saved_reports(run)
             self._set_strip(self._mismatch_text())
@@ -7520,15 +7028,25 @@ class MeasurementReportDialog(QDialog):
                     Path(str(r.get("_origin_dir") or "")) / "reports" / name))
             except Exception:                        # noqa: BLE001
                 return None
+        # **WHAT THE FILE RECORDS, NOT WHAT IT DEFAULTS TO.** `report_type`
+        # answers T2 for a file that chose nothing, and a document built on
+        # that answer makes the window claim a choice nobody made: §10 says a
+        # report with no type of its own follows the RUN it was written for.
+        # Since K31 `_report_type_now` no longer asks the run for a NEW
+        # report, so that legacy reading is made here, for this old file
+        # only (`report_type_default_for`, the rule the list's label uses).
+        tid = recorded_report_type(rep)
+        if not tid:
+            from workflow.run_compliance import (report_type_default_for,
+                                                 run_context_for)
+            ctx = run_context_for(Path(str(r.get("_origin_dir") or ""))
+                                  / str(r.get("ti3") or "m.ti3"))
+            if ctx is not None:
+                tid = report_type_default_for(ctx.run, "", self._window_kind())
         return {
             "id": entry["key"],
             "created": str(rep.get("created") or ""),
-            # **WHAT THE FILE RECORDS, NOT WHAT IT DEFAULTS TO.**
-            # `report_type` answers T2 for a file that chose nothing, and a
-            # document built on that answer makes the window claim a choice
-            # nobody made: §10 says a report with no type of its own follows
-            # the RUN, and "" is what lets `_report_type_now` do that.
-            "type": recorded_report_type(rep),
+            "type": tid,
             "compliance": recorded_compliance(rep),
             "detail": False,
             "measurements": [{
@@ -8482,25 +8000,20 @@ class MeasurementReportDialog(QDialog):
         which is a write to a user's disk that nobody asked for.
 
         **`compliance` IS DELIBERATELY None**, which is what makes "Judged
-        against" fall through to the run's own set (`_document_limits` returns
-        None, `_sync_limit_controls` shows `lim`). That IS the default: §5 says
-        the set belongs to the run, a run that is not bound takes the
-        Preferences default set, and Knut asked for no second selector because
-        *"The Report Limits button contain the Judged Against default
-        chosen"*.
+        against" fall through to the starting choice (`_document_limits`
+        returns None, `_sync_limit_controls` shows `lim`). That IS the default
+        (K31, Knut 5801677743): the Preferences default set, unless the
+        profile run has a default of its own chosen in Edit limits, which then
+        wins (`run_compliance.run_limits`).
         """
         ctx = self._run_ctx
         s = self._settings
         return {
             "id": "new",
             "created": "",
-            # **NO TYPE IS PINNED HERE, and that is deliberate.** D9 puts the
-            # type on the RUN, and a document that recorded one would freeze
-            # it: a run whose type changes under an open window would go on
-            # being drawn as the type this dict was built with.
-            # `_report_type_now` asks the run and falls back to the
-            # Preferences default, which is the same rule one step later and
-            # the only one that stays true.
+            # **NO TYPE IS PINNED HERE.** `_report_type_now` answers a new
+            # report with the Preferences default fitted to the kind (K31),
+            # which is the same rule one step later.
             "type": "",
             "compliance": None,
             "detail": bool(s.get("report_default_show_details", True)),
@@ -8545,12 +8058,14 @@ class MeasurementReportDialog(QDialog):
         # and the controls answer for themselves again (B8-461, B8-462).
         self._doc_created = ""
         self._forget_sticky_settings()
-        # A CALIBRATION'S "New report…" IS THE PREFERENCES DEFAULT (#182 beta
-        # 39): a type chosen earlier in this window is the choice of the
-        # report it was chosen for, not of the next one. (A calibration has
-        # no run to keep a type on; `_report_type_now` then asks Preferences.)
-        if self._is_calibration_window():
-            self._session_type = ""
+        # "New report…" IS THE PREFERENCES DEFAULT (#182 beta 39 for a
+        # calibration, K31 for every window): a type chosen earlier in this
+        # window is the choice of the report it was chosen for, not of the
+        # next one, and `_report_type_now` then asks Preferences. The limit
+        # set follows the same rule through `_forget_sticky_settings` and the
+        # report's own numbers below.
+        self._session_type = ""
+        self._report_own_limits = None
         chk = getattr(self, "_detail_check", None)
         if chk is not None:
             chk.blockSignals(True)
@@ -9319,29 +8834,17 @@ class MeasurementReportDialog(QDialog):
     def _report_type_now(self) -> str:
         """Which kind of document this window is producing.
 
-        The RUN is the source of truth, because that is what D9 says: later
-        dated verifications of a run follow the run's type. A measurement in no
-        project has no run to ask, so the type it was last saved as is used,
-        and failing that today's report.
-
-        AND WHEN THE LOADED RUNS DISAGREE, NOBODY'S CHOICE WINS. This window
-        asked ITS OWN run, which is the first one loaded, and applied that
-        answer to every column. Measured: run 1 set to "Printing record" and
-        run 2 left on "Full colour check", both loaded, and run 2's column came
-        out ungraded, every verdict withheld, because run 1 had chosen that.
-        Knut's own rule is the opposite: *"Another run in the project may use
-        other verification run charts with other selected report type and
-        thresholds."*
-
-        A window produces ONE document, so the columns cannot each have their
-        own type; the answer is to fall back to the one type that withholds
-        nothing and drops no row, which is today's report, and to say so under
-        the pulldown. That is also the only answer that cannot lose a verdict a
-        run recorded.
+        **K31: THE TYPE IS THE REPORT'S.** The loaded report's own type while
+        it speaks for the controls; the type chosen in this window; and for a
+        new report the Preferences > Reports default, fitted to the
+        measurement's kind (`new_report_type`). A run's stored type (D9, the
+        pulldown wrote it until K31) is no longer a starting choice, so two
+        runs loaded together can no longer disagree about it. A measurement in
+        no project keeps the type it was last saved as, failing that today's
+        report.
         """
         from workflow.measurement_report import (REPORT_TYPE_DEFAULT,
                                                  REPORT_TYPES, report_type)
-        from workflow.run_compliance import run_report_type
         # **WHAT THE PAGE ON SCREEN WAS BUILT WITH, while a PDF of that page is
         # being built (R23-F1).** Set only inside `_as_the_document_was_built`
         # and always cleared in its `finally`; empty at every other moment, so
@@ -9375,80 +8878,21 @@ class MeasurementReportDialog(QDialog):
         sticky = str(getattr(self, "_sticky_type", "") or "")
         if sticky in REPORT_TYPES:
             return self._fit_to_kind(sticky)
-        types = self._types_of_loaded_runs()
-        if len(types) > 1:
-            return self._fit_to_kind(REPORT_TYPE_DEFAULT)
-        ctx = self._run_ctx
-        if ctx is not None:
-            # **THE RUN FIRST, THE PREFERENCES DEFAULT BEHIND IT (B8-388).**
-            # Knut: *"The type belongs to the run, yes, but the default should
-            # be the 'Full colour check'."* `run_report_type` answers a run
-            # that never chose with a hard-coded T2; this answers it with
-            # whatever Preferences ▸ Reports says, and a run that HAS chosen is
-            # untouched, which is D9.
-            from workflow.run_compliance import report_type_default_for
-            return report_type_default_for(
-                ctx.run,
-                str(self._settings.get("report_default_type", "") or ""),
-                self._window_kind())
         if self._session_type:
             return self._fit_to_kind(self._session_type)
-        # **A CALIBRATION HAS NO RUN TO ASK, SO PREFERENCES ANSWERS (#182
-        # beta 39)**, as it does for a run that never chose: a new report of
-        # a calibration is the Preferences default type, fitted to the kind
-        # (never the Printing record), the same rule the automatic report
-        # after a calibration measurement follows.
-        if self._is_calibration_window():
-            from workflow.run_compliance import report_type_default_for
-            return report_type_default_for(
-                None, str(self._settings.get("report_default_type", "") or ""),
+        # **A NEW REPORT OF A RUN OR A CALIBRATION STARTS ON THE PREFERENCES
+        # DEFAULT (K31, B8-388).** Knut, 5801677743: *"the starting choice for
+        # 'New report...' should be the the defaults in preferences ->
+        # reports first"*. Fitted to the kind: a profiling sheet's is the
+        # Printing record, a verification's and a calibration's never is.
+        if self._run_ctx is not None or self._is_calibration_window():
+            from workflow.run_compliance import new_report_type
+            return new_report_type(
+                str(self._settings.get("report_default_type", "") or ""),
                 self._window_kind())
         reports = self._runs_for_report()
         return self._fit_to_kind(
             report_type(reports[0]) if reports else REPORT_TYPE_DEFAULT)
-
-    def _types_of_loaded_runs(self) -> "set[str]":
-        """The distinct report types of every RUN this window holds.
-
-        Cached for one render, because it reads a `meta.json` per run and
-        `_report_type_now` is asked several times per column.
-        """
-        cached = getattr(self, "_types_cache", None)
-        if cached is not None:
-            return cached
-        from workflow.measurement_report import report_type
-        from workflow.run_compliance import run_context_for, run_report_type
-        out: "set[str]" = set()
-        from workflow.measurement_report import is_calibration_dir
-        for src in getattr(self, "_sources", []):
-            ctx = run_context_for(src.get("origin"))
-            if ctx is not None:
-                out.add(run_report_type(ctx.run))
-                continue
-            # **A CALIBRATION STORES NO TYPE (#182 K30, challenge A F3).** Its
-            # saved reports' types are the REPORTS' settings (spec 18.12:
-            # "a calibration binds no set and stores no type"), so they are
-            # no disagreement between runs, and the line saying "the runs
-            # loaded here were set to different report types" was about
-            # runs a Calibration window does not have.
-            try:
-                if is_calibration_dir(Path(str(src.get("origin"))).parent):
-                    continue
-            except Exception:                        # noqa: BLE001
-                pass
-            # A MEASUREMENT IN NO RUN HAS A TYPE TOO, and this loop could not
-            # see it. Driven: a run on the Printing record beside a loose file
-            # whose own saved report says Full colour check, and the window saw
-            # no disagreement at all, so T4 was applied to both. Opened alone
-            # that file reads FAIL; in company it read INFO, every verdict
-            # withheld by a choice made on a different run. Nothing is written,
-            # but it is exactly the state the fallback exists to prevent,
-            # reached through the door the guard did not cover.
-            for rep in (src.get("runs") or []):
-                if isinstance(rep, dict):
-                    out.add(report_type(rep))
-        self._types_cache = out
-        return out
 
     def _ungraded_by_type(self) -> bool:
         """Whether the CHOSEN TYPE says nothing here is judged.
@@ -9473,10 +8917,8 @@ class MeasurementReportDialog(QDialog):
         """Fill the type pulldown and put the line under it.
 
         Called from inside `_sync_limit_controls`, under the same
-        `_syncing_limits` flag and after the same `_run_state_at_sync` stamp,
-        so the type control's guard compares against the state this window
-        actually DREW. A separate stamp of its own is how a baseline comes to
-        be taken later than the write it is meant to catch.
+        `_syncing_limits` flag, so filling it is never read as a user's
+        choice.
         """
         if getattr(self, "_type_combo", None) is None:
             return
@@ -9549,35 +8991,28 @@ class MeasurementReportDialog(QDialog):
             if run is not None and not several
             and self._ticks_are_the_runs_own(run) else tr("Report type:"))
         self._type_combo.setToolTip("")
-        # WHEN THEY DISAGREE, SAY SO WHERE THE PULLDOWN IS. A greyed control
-        # over a value that is nobody's choice explains nothing, and this is
-        # the one state where the line beside it has something more useful to
-        # say than what the type is for.
-        if len(self._types_of_loaded_runs()) > 1:
-            self._set_type_blurb(tr(
-                "The runs loaded here were set to different report types, so "
-                "this report is shown as Full colour check, which withholds "
-                "nothing. Open the report on one run to use that run's type."))
-        else:
-            # WHICH TYPES EXIST COMES FIRST, and it used to come second.
-            # Photographed on screen: with both on one elided line, the half
-            # that got cut was "Already generated for this run: …", which is
-            # precisely what Knut asked the window to show. What a type is FOR
-            # has another home, the pulldown's own entries and the help button
-            # beside it; what a run already holds has none.
-            # ONE THING ON THE LINE, NOT TWO. An earlier round moved the
-            # generated list in front of the type's description because, with
-            # both on one elided line, the half that got cut was the list. It
-            # is still one line, so the description was still pushing the list
-            # out on any window narrow enough: what the type is FOR has two
-            # other homes, the pulldown's own entries and its tooltip, and what
-            # the run already holds has none. So the line is the list, and the
-            # description keeps the tooltip.
-            blurb = self._type_blurb_for(current)
-            already = self._generated_types_line(run)
-            self._generated_full = self._generated_types_detail(run)
-            self._set_type_blurb(already or blurb)
-            self._type_combo.setToolTip(blurb)
+        # (K31: runs no longer carry a report type, so the line that said the
+        # loaded runs "were set to different report types" has nothing left
+        # to describe and is gone.)
+        # WHICH TYPES EXIST COMES FIRST, and it used to come second.
+        # Photographed on screen: with both on one elided line, the half
+        # that got cut was "Already generated for this run: …", which is
+        # precisely what Knut asked the window to show. What a type is FOR
+        # has another home, the pulldown's own entries and the help button
+        # beside it; what a run already holds has none.
+        # ONE THING ON THE LINE, NOT TWO. An earlier round moved the
+        # generated list in front of the type's description because, with
+        # both on one elided line, the half that got cut was the list. It
+        # is still one line, so the description was still pushing the list
+        # out on any window narrow enough: what the type is FOR has two
+        # other homes, the pulldown's own entries and its tooltip, and what
+        # the run already holds has none. So the line is the list, and the
+        # description keeps the tooltip.
+        blurb = self._type_blurb_for(current)
+        already = self._generated_types_line(run)
+        self._generated_full = self._generated_types_detail(run)
+        self._set_type_blurb(already or blurb)
+        self._type_combo.setToolTip(blurb)
         self._generate_btn.setToolTip("")
         # **SEVERAL PLACES ARE NO LONGER A REFUSAL (#182 beta 39, G7).** Two
         # sentences stood here saying Generate saves into one profile run (or
@@ -9622,19 +9057,10 @@ class MeasurementReportDialog(QDialog):
                 "Untick them to save a report of the calibrations. Save "
                 "report as PDF… saves the report shown here.").format(
                     n=len(_not_cal)))
-        # **NOT ONLY WITH SEVERAL PROFILES ADDED (challenge C, C6).** A
-        # Profiling window lists every run's sheet of its project, so a
-        # window on run 1 with only run 2's record selected ticks run 2's
-        # sheet alone: one source, `several` False, and the button went grey
-        # with no reason at all. §13.13: it refuses, and says why.
-        if (_doc_runs and not self._generate_btn.toolTip()
-                and not self._reports_to_generate()):
-            self._generate_btn.setToolTip(tr(
-                "Every ticked measurement belongs to another profile run or "
-                "another project's calibration. Save a report of those from "
-                "their own window, or tick one of this window's measurements "
-                "as well to save a report across them. Save report as PDF… "
-                "saves the report shown here."))
+        # (K31, Knut 5801677743: a report is saved where its ticked
+        # measurements decide, from any window, so ticks that are all in
+        # another profile run or another project's calibration are no longer
+        # refused, and the sentence that said so is gone.)
         # ROUND 3B (F9): only when no sentence above has said why. With a
         # profile run beside the loose file, the across-places sentence names
         # the file outside a project, and removing it gives Generate back.
@@ -9980,19 +9406,19 @@ class MeasurementReportDialog(QDialog):
         return ""
 
     def _on_type_chosen(self, index: int) -> None:
-        """Store the chosen type on the run, or keep it for the session.
+        """The report type chose: the REPORT's, kept for the session (K31).
 
-        NOTHING IS RECALCULATED HERE, and that is the difference from the set
-        pulldown beside it. A limit set decides what a measurement is judged
-        against, so changing it moves verdicts already on disk and every dated
-        report has to be archived and rebuilt. A type decides which document is
-        produced from numbers that do not move. No verdict, no measurement and
-        no saved figure changes, so there is nothing to archive and no question
-        to ask.
+        Knut, 5801677743: *"settings belongs to the report"*. The type was
+        stored on the run from a one-run window until K31 (D9); it is now the
+        report's setting in every window, as it already was across places
+        (K17): nothing is written until Generate report, and a new report
+        starts on the Preferences default again (`_load_the_defaults`).
+        NOTHING IS RECALCULATED HERE either: a type decides which document is
+        produced from numbers that do not move.
 
-        The run can still stop being the run this window drew, though, and that
-        is checked: a second window changing the type, or a measurement
-        arriving, is refused here exactly as it is at the set pulldown.
+        THROUGH THE ONE DOOR, like every other setting (`_settings_touched`),
+        which pins the new type (`_sticky_type`) so the pulldown and the page
+        agree.
         """
         if self._syncing_limits or index < 0:
             return
@@ -10005,58 +9431,12 @@ class MeasurementReportDialog(QDialog):
         if not report_type_is_built(type_id) or \
                 type_id not in report_types_for_kind(self._window_kind()):
             # Belt and braces: the entry is greyed, and a keyboard or a style
-            # that ignores the flag must not be able to store it anyway. A
-            # guarded write behind an unguarded control is the shape that came
-            # back in three separate rounds. (K13's refusal rides the same
-            # door: a type the measurement's kind does not allow.)
+            # that ignores the flag must not be able to choose it anyway.
+            # (K13's refusal rides the same door: a type the measurement's
+            # kind does not allow.)
             self._sync_type_combo_to(current)
             return
-        ctx = self._run_ctx
-        if ctx is None or self._several_runs():
-            # Not in a run, OR ACROSS SEVERAL (K17): a session-only choice,
-            # nothing stored (CH-14). With two runs loaded there is no one run
-            # the choice belongs to, and writing it onto the window's own run
-            # would change the default of every later report of that run.
-            # WHERE THE CHOICE LIVES (round C): with a run context present,
-            # `_report_type_now` never reaches `_session_type`; it is the pin
-            # `_settings_touched` takes (`_sticky_type`) that carries it. The
-            # `_session_type` line below matters only with no run at all.
-            #
-            # THROUGH THE ONE DOOR, like every other setting. This branch kept
-            # calling `_refresh` after the other four learned to wait, so on a
-            # measurement outside any project the type pulldown still rebuilt
-            # the document on its own while the limit pulldown two rows below
-            # it did not. An adversary round drove both in one window and
-            # photographed the difference; Knut's original complaint, *"the
-            # report auto-generates whenever report type … is changed"*, was
-            # still true there. `_settings_touched` repaints here anyway,
-            # because a measurement in no run has no Generate button to press,
-            # so the behaviour is the same and there is now one rule.
-            self._session_type = type_id
-            self._settings_touched(type_id=type_id)
-            return
-        if self._run_state_now(ctx.run) != self._run_state_at_sync:
-            self._sync_type_combo_to(current)
-            self._say_run_moved_while_asking(ctx.run)
-            self._forget_limits()
-            self._refresh()
-            return
-        from workflow.run_compliance import set_run_report_type
-        try:
-            set_run_report_type(ctx.run, type_id)
-        except (OSError, ValueError) as exc:
-            log.warning("could not store the report type on %s: %s",
-                        ctx.run.dir, exc)
-            self._sync_type_combo_to(current)
-            return
-        self._forget_limits()
-        # THE TYPE IS STORED ON THE RUN AND THE DOCUMENT WAITS. Every refusal
-        # path above still calls `_refresh`, because those PUT THE CONTROL BACK
-        # and the document has to match the control again. This is the path
-        # where the change took.
-        #
-        # AND IT NAMES WHAT IT JUST CHANGED (B8-462), so the pin taken inside
-        # is the type the user chose and not the one the page still shows.
+        self._session_type = type_id
         self._settings_touched(type_id=type_id)
 
     def _sync_type_combo_to(self, type_id: str) -> None:
@@ -10855,187 +10235,21 @@ class MeasurementReportDialog(QDialog):
                            ungraded_reason=(SUMMARY_REASONS["record_type"]
                                             if _by_type and graded else ""))
 
-    def _yardstick_of(self, r: dict):
-        """The limit set a column is judged with, as a comparable key.
-
-        The RECORD first: a saved report carries the copy of the numbers it was
-        judged against, and that copy is the yardstick whatever the run is
-        bound to today. A column with no record is worked out live, so its
-        yardstick is the live one, which is what `_verdict_rows` uses for it.
-        """
-        from workflow.measurement_report import (recorded_compliance,
-                                                 yardstick_key)
-        comp = recorded_compliance(r)
-        if comp is not None:
-            return yardstick_key(comp)
-        from workflow.compliance_sets import limits_to_json
-        lim = self._limits_for(r)
-        return yardstick_key({"set_id": lim.set_id,
-                              "thresholds": limits_to_json(lim.limits)})
-
     def _one_limit_set(self, runs: list) -> "tuple[list, list]":
-        """``(in the report, left out of it)``: ONE limit set per document.
+        """``(in the report, left out of it)``: nothing is left out (K31).
 
-        **A REPORT IS WRITTEN AGAINST ONE "JUDGED AGAINST" SET, AND ONLY
-        MEASUREMENTS JUDGED AGAINST THAT SET MAY BE IN IT.** The project's
-        design authority, 2026-09-16, on a report of his own:
-
-            "the report sometimes lists in red text that several reports use
-            different Judged against threshold set […] only report data using
-            the same judged against threshold sets as the judge against
-            setting set in the report should be used when writing the report
-            text. Not mix them together in the report output."
-
-        Until now the document put every gathered measurement in one results
-        table whatever it had been judged against, printed a "Judged against"
-        row naming three different sets side by side, and mitigated it with a
-        red line saying the words were not comparable. Telling a reader that
-        the table they are reading cannot be read is not a report.
-
-        **THE HISTORY IS KEPT AND THE SETS ARE SEPARATED, which is not the same
-        as dropping either.** Every measurement is still gathered, still in the
-        run list, still tickable and still a point on the trend over time,
-        which plots measured values and carries no verdict. What narrows is the
-        DOCUMENT: the results, the metric tables and the comparison, the parts
-        that carry words.
-
-        **THE ANCHOR IS THE SHEET THE WINDOW IS ON**, never the pulldown. A
-        run's own profiling report is deliberately not recalculated when its
-        limit set changes (`_recalculate_run` walks `run.verifications()`,
-        which is what §5 of the design record specifies), so a run bound to one
-        set can hold a report judged against another, and anchoring on the
-        pulldown would throw the window's own subject out of its own report.
-        Where the subject is not in the list (the user unticked it), the newest
-        measurement in the list is the anchor, so the document is never empty.
-
-        A raw drift check is never judged at all and never leaves: it has no
-        verdict to be incomparable with.
+        This narrowed a report of ONE profile run to the measurements whose
+        own reports were judged against the same set as the window's subject,
+        after Knut's 2026-09-16 rule *"only report data using the same judged
+        against threshold sets as the judge against setting set in the report
+        should be used when writing the report text"*. G7 lifted it across
+        places; K31 lifts it everywhere. Knut, #182 5801677743: *"Go for
+        option (a) One set for the whole report, always"*: every ticked
+        measurement is judged against the report's own set
+        (`_judged_by_the_document`), so there is never a second yardstick in a
+        report to keep apart, and his 2026-09-16 rule holds by construction.
         """
-        if len(runs) <= 1:
-            return list(runs), []
-        # **ACROSS PLACES, NOTHING IS NARROWED (#182 beta 39, G7).** Knut,
-        # 5794311113: *"the report's own limit set applies to every included
-        # measurement, whatever each run is bound to"*. Such a document's rows
-        # all carry its one set (`_judged_by_the_document`), so there is no
-        # second yardstick to keep apart, and a pre-G7 document's records
-        # were written against its one set too.
-        if self._spans_places(runs):
-            return list(runs), []
-        judged = [r for r in runs if not _is_raw_drift(r)]
-        if not judged:
-            return list(runs), []
-        # **NOTHING IS JUDGED, SO NOTHING IS NARROWED (K16, Knut on beta 34).**
-        # *"I then tried to select 2 of the three measurements and generate
-        # report ... the report is named with flag 'One date', and the 2
-        # selected measurements were automatically changed to one selection.
-        # This is wrong, as reported before."* His three profiling runs are
-        # each judged against a different set, so this dropped every ticked
-        # row but the anchor. The ruling this method serves is about VERDICTS
-        # ("Not mix them together in the report output"), and a Printing
-        # record judges nothing, nor does a profiling sheet under any type
-        # (§3), so there is nothing to keep apart. His later R.3 is then what
-        # holds: *"A report covers exactly the measurements that are ticked."*
-        if self._ungraded_by_type() or not any(
-                r.get("is_verification") for r in judged):
-            return list(runs), []
-        want = None
-        key = self._run_key(self._report) if self._report else None
-        if key is not None:
-            for r in judged:
-                if self._run_key(r) == key:
-                    want = self._yardstick_of(r)
-                    break
-        if want is None:
-            want = self._yardstick_of(judged[-1])
-        # AGREEING WITH THE ANCHOR IS NOT ENOUGH, AND THAT WAS A FAULT WORSE
-        # THAN THE ONE THE COMPARISON FIXED. `same_limits` SKIPS a row one side
-        # does not define, and skipping is not transitive: a copy bound before
-        # the row existed agrees with a copy holding 2.0 AND with one holding
-        # 9.9, while those two contradict each other. Measured by challenge
-        # round 38 in a real window, three copies of `chromiq_default`
-        # differing only in `all_de00_avg`:
-        #
-        #     A row ABSENT   B 2.0   C 9.9
-        #     A~B True   A~C True   B~C False
-        #     anchor A -> the document held A, B and C: 2.0 AND 9.9 in one
-        #     document, which is precisely what Knut's ruling of 2026-09-16
-        #     forbids, and which sheet the user opened decided it.
-        #
-        # So a candidate must agree with EVERY column already admitted, not
-        # only with the anchor. The first disagreement keeps the earlier
-        # column and leaves the later one out, so the result does not depend
-        # on the order the history happens to arrive in beyond that.
-        keep, out = [], []
-        kept_keys: list = []
-        for r in runs:
-            if _is_raw_drift(r):
-                keep.append(r)
-                continue
-            key = self._yardstick_of(r)
-            if not self._same_yardstick(key, want):
-                out.append(r)
-                continue
-            if any(not self._same_yardstick(key, k) for k in kept_keys):
-                out.append(r)
-                continue
-            keep.append(r)
-            kept_keys.append(key)
-        return keep, out
-
-    @staticmethod
-    def _same_yardstick(a, b) -> bool:
-        """Two yardsticks are the same when a USER would call them the same.
-
-        **KEY EQUALITY WAS THE FAULT.** `yardstick_key` packs the whole stored
-        threshold block into a tuple, so ONE extra row, or one row stored as a
-        recommendation rather than a plain limit, made two copies of the SAME
-        set compare unequal. Measured 2026-09-22: one project, two profile runs,
-        both bound to ChromIQ default, neither marked "(edited)", and the
-        document kept 11 measurements and dropped 11, printing "This report
-        covers 11 of the 30 measurements recorded for this project" with
-        nothing on the page saying why. The two copies differed only where
-        ChromIQ had changed itself underneath the user the day before.
-
-        Knut, 2026-09-22: *"I would say one and the same yardstick ... It does
-        not matter if one report uses a metric as recommendation ('should') and
-        the other report uses required ('shall')."*
-
-        `compliance_sets.same_limits` holds the rules, and they are deliberately
-        `is_edited`'s: a row absent from either side is not a difference, a
-        stored `?` is not a difference, and should-versus-shall is not a
-        difference. Genuinely different SETS still separate, which is his
-        earlier ruling of 2026-09-16 and the reason this function exists at
-        all: the set id is compared first and nothing below it can rescue a
-        mismatch.
-        """
-        # `_yardstick_of` cannot return None -- `recorded_compliance` already
-        # guarantees a thresholds dict and the live branch builds one -- but a
-        # caller with no record must not be merged into somebody else's set by
-        # accident, and `None == None` was the old behaviour.
-        if a is None or b is None:
-            return a is b
-        from workflow.compliance_sets import Limit, same_limits
-        (sid_a, thr_a), (sid_b, thr_b) = a, b
-        if sid_a != sid_b:
-            return False
-        if thr_a == thr_b:
-            return True
-        # `yardstick_key` packs the thresholds through `_comparable`, which
-        # turns the stored JSON into nested tuples so the key can be hashed.
-        # `Limit.from_json` is tolerant by design, so a value it cannot read
-        # becomes `unknown` and `same_limits` then ignores that row, which is
-        # the same treatment a stored `?` already gets.
-        def _limits(packed) -> dict:
-            out = {}
-            for item in packed or ():
-                try:
-                    rid, raw = item
-                except (TypeError, ValueError):
-                    continue
-                out[rid] = Limit.from_json(
-                    list(raw) if isinstance(raw, tuple) else raw)
-            return out
-        return same_limits(_limits(thr_a), _limits(thr_b))
+        return list(runs), []
 
     def _names_a_standard(self, r: dict) -> bool:
         """Whether this column is judged against a standard's published
@@ -11138,16 +10352,15 @@ class MeasurementReportDialog(QDialog):
                 ).format(label=label)
             return tr(
                 "This date has no saved report of its own, so its words are "
-                "worked out now against this run's limit set {label}."
+                "worked out against this report's limit set {label}."
             ).format(label=label)
         return tr(
             "Nothing is wrong with this report. It was saved by a version of "
             "ChromIQ that did not yet keep the verdict together with the "
             "measurements, so no PASS or FAIL of its own was stored for it. "
-            "The results above are therefore worked out now, against this "
-            "run's limit set {label}: they are not the verdict this sheet was "
-            "given on the day it was measured, and changing this run's limits "
-            "will change them."
+            "The results above are therefore worked out against this "
+            "report's limit set {label}: they are not the verdict this sheet "
+            "was given on the day it was measured."
         ).format(label=label)
 
     def _thresholds_cell(self, r: dict) -> str:
@@ -11175,7 +10388,20 @@ class MeasurementReportDialog(QDialog):
                 f"style='color:{col};font-weight:bold'>"
                 + html.escape(word_label(sm.word)) + "</td>")
 
-    # ---- the deliberate acts: choose a set, unlock, edit -----------------------
+    # ---- the deliberate acts: choose a set, edit the report's limits ----------
+    #
+    # **K31 (Knut, #182 5801677743): THE LIMIT SET BELONGS TO THE REPORT.**
+    # *"changing the reports settings does not change the report, and its
+    # binding to a limit set, unless you click Generate Report"*, and of
+    # "Unlock this run's limits": *"Maybe it is better to remove it and make
+    # the report have full mastery over its own settings and the measurements
+    # selected to be included."* So every door below changes the settings of
+    # the report on screen and nothing else: no run is bound, locked, unlocked
+    # or recalculated, nothing is written to disk, and Generate report is the
+    # one act that stores anything. What these doors replaced (a bind of the
+    # window's run, the lock and its guards, the recalculation of a run's
+    # dated reports, the undo of a refused edit) is listed in §25 of
+    # `docs/design/measurement_report_limits.md`.
     def _confirm(self, title: str, text: str) -> bool:
         """A yes/no question. One method, so a driver can answer it."""
         from PyQt6.QtWidgets import QMessageBox
@@ -11191,281 +10417,39 @@ class MeasurementReportDialog(QDialog):
         box.exec()
         # NOT `box.exec() == StandardButton.Ok`: exec() returns an int and a
         # PyQt6 enum member never equals an int, so that comparison is always
-        # False and the unlock could never happen. Found by the on-screen
-        # driver, 2026-09-08; the unit test had stubbed this method.
+        # False. Found by the on-screen driver, 2026-09-08; the unit test had
+        # stubbed this method.
         return box.clickedButton() is ok_btn
 
+    def _report_limits(self):
+        """The limits the report on screen is judged against: the loaded
+        report's own, or the ones chosen in this window, or the starting
+        choice (the run's own default, else Preferences). K31: one set for
+        the whole report, whichever run each ticked measurement is in."""
+        return (self._document_limits() or self._sticky_limits()
+                or self._window_limits())
+
     def _on_set_chosen(self, index: int) -> None:
+        """"Judged against" chose a set: the REPORT's, nothing else (K31).
+
+        **"NOTHING CHANGED" IS ASKED OF WHAT THE PULLDOWN WAS SHOWING (N.1).**
+        The box shows the loaded report's set when one is loaded, or the set
+        chosen earlier in this window (B8-462), so choosing the starting set
+        from there is a real change and must not read as a no-op.
+
+        What happens is `_settings_touched`: the report's setting moves, the
+        red line says to press Generate report, and nothing on disk changes.
+        A report's own edited numbers (the "This report" column) were the
+        other set's, so a new set drops them (K30).
+        """
         if self._syncing_limits or index < 0:
             return
         set_id = self._set_combo.itemData(index)
-        lim = self._window_limits()
-        # **"NOTHING CHANGED" IS ASKED OF WHAT THE PULLDOWN WAS SHOWING, NOT OF
-        # THE RUN (N.1).** The box shows the LOADED DOCUMENT's set when one is
-        # loaded (`_sync_limit_controls`), and that need not be the run's: a
-        # report judged against Quick check on a run bound to ChromIQ default
-        # is an ordinary state, and since B8-388 the window OPENS in it,
-        # because it opens on the latest report created.
-        #
-        # Comparing with the run's set made choosing the run's own value a
-        # no-op in every sense: no bind (there was nothing to bind), no red
-        # line, and a document left claiming the set it was made with under a
-        # pulldown now naming another. That is Knut's fifth defect exactly, in
-        # the one window this round is about.
-        # THE STICKY SET COUNTS AS "WHAT THE PULLDOWN WAS SHOWING" TOO
-        # (B8-462): after a type change the box may be showing the document's
-        # set over a run bound to another, and choosing the RUN's set from
-        # there is a real change that must not read as a no-op.
-        shown = self._document_limits() or self._sticky_limits() or lim
+        shown = self._report_limits()
         if not set_id or set_id == shown.set_id:
             return
-        # **ACROSS PLACES IT IS THE REPORT'S SET, AND NO RUN IS BOUND (#182
-        # beta 39, G7).** Knut, 5794311113: *"the report's own limit set
-        # applies to every included measurement, whatever each run is bound
-        # to"*. Binding the window's run here would change that run's
-        # yardstick for its dates still to come because of a report about
-        # other runs; unlocking and editing stay per run.
-        if self._several_runs():
-            # A NEW SET REPLACES THE REPORT'S OWN NUMBERS (K30): they were
-            # the other set's, edited.
-            self._report_own_limits = None
-            self._settings_touched(set_id=set_id)
-            return
-        if set_id == lim.set_id:
-            # The RUN already carries it, so there is nothing to bind, nothing
-            # to ask and nothing to write. What did change is the page: the
-            # document on screen was made with another set and stops speaking
-            # for the controls, and the red line says to press Generate report
-            # (N.2). Nothing on disk is touched on this path at all.
-            self._settings_touched(set_id=set_id)
-            return
-        ctx = self._run_ctx
-        if ctx is None:
-            # Not in a run: a session-only choice, nothing stored (CH-14).
-            from workflow.compliance_sets import SET_BY_ID, effective_limits
-            from workflow.run_compliance import RunLimits
-            self._limits = RunLimits(set_id, tr(SET_BY_ID[set_id].label),
-                                     effective_limits(set_id, self._overrides()),
-                                     label_en=SET_BY_ID[set_id].label, bound=False)
-            # THE ONE DOOR, which will repaint rather than defer here: a
-            # measurement in no run has no Generate button to press.
-            # `_forget_limits` deliberately KEEPS an unbound session choice, so
-            # the RunLimits just built survives it.
-            self._settings_touched(set_id=set_id)
-            return
-        # IS IT STILL UNLOCKED? THIS DOOR NEVER ASKED.
-        # The lock is read when the window refreshes, to decide whether this
-        # combo is ENABLED, and nothing external triggers a refresh. So a run
-        # that becomes locked while the window sits open, by its own
-        # verification measurement finishing or by another window re-locking
-        # it, keeps a live pulldown, and one selection rebinds it and rewrites
-        # its saved reports. A challenge round drove both ways in and watched a
-        # verdict go from FAIL to PASS on a locked run, under nothing but the
-        # ordinary recalculate question.
-        #
-        # `_locked_here`, not the raw predicate, which is the distinction
-        # round 13 was about: a run THIS window bound a moment ago keeps its
-        # controls on purpose, and that grace is what the combo was left live
-        # for.
-        if self._locked_here(ctx.run):
-            self._sync_set_combo_to(lim.set_id)
-            self._say_locked_before_the_set_changed(ctx.run)
-            self._refresh()
-            return
-        # ASK FIRST WHEN THERE IS A HISTORY TO REWRITE, exactly as unlocking
-        # does. This route reached the same consequence with no question at
-        # all, and a challenge round drove it: on a run made before #182 with
-        # eleven dated verifications, ONE selection in this pulldown rewrote
-        # all eleven saved reports and flipped six verdicts from PASS to FAIL,
-        # then bound and locked the run so the control was gone.
-        #
-        # The comment that used to sit here said the pulldown is live only for
-        # an unlocked run or one with nothing measured yet, and that stopped
-        # being true this morning: the lock now waits for a run to be BOUND and
-        # for its SECOND date, both of which were right to add, and both of
-        # which leave this pulldown live over a full history. The guard did not
-        # move with the rule.
-        # ASK, THEN CHECK THE ANSWER IS STILL ABOUT THIS RUN. The guard above
-        # runs BEFORE the question, and the question takes as long as a person
-        # takes to read it. A challenge round re-locked the run while it was on
-        # screen: the user said yes, a locked run was rebound and a saved
-        # verdict went from FAIL to PASS, under one box identical to the
-        # control. The same re-lock one moment earlier fired a full guard.
-        # THE STORES AS THEY WERE WHEN THIS WINDOW LAST DREW ITSELF, which is
-        # where the user's reading of them comes from. See `_sync_limit_
-        # controls`, which stamps it beside the run's own state.
-        _prefs_at_question = getattr(self, "_prefs_at_sync", None)
-        if _prefs_at_question is None:
-            _prefs_at_question = self._prefs_state_now()
-        # **THIS DOOR NO LONGER REWRITES ONE SAVED REPORT, SO IT NO LONGER ASKS
-        # ABOUT REWRITING THEM (B8-384).**
-        #
-        # Knut, 2026-09-18, on beta 21: *"When I change Judged Against to
-        # another setting, all listed reports in the Saved reports pulldown
-        # change to the new judged against setting, AND created a new (third)
-        # report. This is not the behaviour I specified."* Asked directly
-        # whether his rule supersedes D23, he answered *"Agreed. D23 stands."*
-        #
-        # D23 is a rule about HOW a recalculation is done, never about whether
-        # one happens: §5 of `docs/design/measurement_report_limits.md` states
-        # it as *"first copies each dated report … then rewrites the file in
-        # place (Knut D23; nothing is deleted)"*. His beta-20 ruling, and N.2
-        # of the same section, decide the other question: *"If a report has
-        # been generated, those reports shall not be recalculated if I want to
-        # create a new report with a different Judged Against threshold set."*
-        # Leaving the file alone satisfies both, and satisfies D23's promise
-        # more completely than archiving would: nothing is rewritten, so
-        # nothing has to be kept first.
-        #
-        # **AND FOR A REPORT THAT RECORDS NO SET OF ITS OWN IT IS THE ONLY SAFE
-        # READING.** A rewrite is the one thing that can stamp a set onto such
-        # a file, which is exactly what relabelled the two reports Knut
-        # photographed: their names carried "ChromIQ tight" over a press nobody
-        # made. `_saved_report_label` reads the set off the FILE, so a file
-        # left alone keeps the name it had.
-        #
-        # THE OTHER TWO DOORS ARE UNCHANGED and still recalculate,
-        # archive-first: "Unlock this run's limits" and the Report limits
-        # window's Save. They are B8-310, where N.3 is still an open question
-        # for Knut, and neither is what he ruled on here.
-        if self._run_state_now(ctx.run) != self._run_state_at_sync:
-            # THE RUN MOVED SINCE THIS WINDOW LAST DREW IT: a verification
-            # measurement finished, a dated verification was deleted, or
-            # another window rebound or re-locked it. Nothing is written on
-            # that reading, exactly as before; what has gone is the question in
-            # front of it, because there is no history to lose any more.
-            #
-            # `is_locked` turns on at the SECOND dated verification, so a
-            # measurement finishing while this window sat open locks the run,
-            # and this is the guard that catches it.
-            self._sync_set_combo_to(lim.set_id)
-            self._say_run_moved_while_asking(ctx.run)
-            self._forget_limits()
-            self._refresh()
-            return
-        # THE SAME BIND, AND IT LOCKED THE USER OUT ON THIS ROUTE TOO.
-        # A round fixed the "Edit limits…" door and this one kept the fault:
-        # on a project made before #182 with a history, choosing a set bound
-        # the run and `is_locked` became true on the spot, so the pulldown the
-        # user had just used went grey. Same question, same consequence, same
-        # remedy: a run that had no set recorded keeps its controls.
-        # AND THE FLAG WAS REMOVED FROM THE OTHER BIND DOOR AND NOT FROM THIS
-        # ONE. `_bind_without_locking_out` stopped writing `compliance_unlocked`
-        # a round ago, for the reason recorded there: it is a snapshot of
-        # something that moves, and a challenge round drove the same fault back
-        # in through this door. The run is remembered in the session instead,
-        # exactly as the other route does it.
-        # THE OVERRIDES THIS ANSWER WAS GIVEN FOR, not the ones on disk now.
-        # `bind_run` reads them live, AFTER the question, so another window
-        # overriding the chosen set while the question was on screen was baked
-        # onto the run and every saved report recalculated against numbers
-        # nobody in this window ever saw: a challenge round watched six
-        # verdicts go from PASS to FAIL that way, under one box mentioning none
-        # of it. The identical write through the "Edit limits…" door has been
-        # guarded since an earlier round; this one had nothing.
-        if self._prefs_state_now() != _prefs_at_question:
-            self._sync_set_combo_to(lim.set_id)
-            self._say_preferences_changed_meanwhile(reverted=False)
-            self._forget_limits()
-            self._refresh()
-            return
-        from workflow.run_compliance import bind_run, is_bound
-        _was_bound = is_bound(ctx.run)
-        try:
-            bind_run(ctx.run, set_id, self._overrides())
-            if not _was_bound:
-                self._bound_here.add(str(ctx.run.dir))
-        except OSError as exc:
-            log.warning("could not store the limit set on %s: %s", ctx.run.dir, exc)
-        self._forget_limits()
-        # **AND NOT ONE SAVED REPORT IS TOUCHED (B8-384).** `self.
-        # _recalculate_run()` stood here and rewrote every dated report of the
-        # run with the new set, archiving each first. The long note at the head
-        # of this method says why it is gone and what it means for the two
-        # doors that still call it.
-        #
-        # The RUN is still bound to the chosen set, because that is what the
-        # set pulldown is: the yardstick for measurements that carry no verdict
-        # of their own, and for the dated verifications still to come. What the
-        # user sees next is `_settings_touched`'s red line: the settings have
-        # changed, press Generate report (N.2).
+        self._report_own_limits = None
         self._settings_touched(set_id=set_id)
-
-    def _saved_report_count(self, run) -> int:
-        """How many saved report FILES a recalculation would rewrite.
-
-        ASKED BY THE LIMITS WINDOW'S SAVE, and no longer by the "Judged
-        against" pulldown, which stopped recalculating anything (B8-384).
-
-        THIS COUNTED DATES AND THE SENTENCE SAID REPORTS, which is a lie the
-        moment a date holds more than one. `save_report` is timestamped on
-        purpose so that a printer's reports accrue for comparison, so several
-        per date is designed behaviour: eleven dates saved three times each is
-        thirty-three files, and the question said eleven while rewriting all
-        thirty-three. A confirmation exists to tell the user the size of what
-        they are about to lose, so it counts the thing that is lost.
-        """
-        from workflow.measurement_report import recorded_document
-        n = 0
-        try:
-            for v in run.verifications():
-                try:
-                    for path in v.reports_dir.glob("report_*.json"):
-                        # A GENERATED DOCUMENT IS NOT REWRITTEN AND IS NOT
-                        # COUNTED. A confirmation exists to tell the user the
-                        # size of what they are about to lose, and counting a
-                        # file the recalculation now skips would name a loss
-                        # that does not happen. See `_recalculate_run`.
-                        try:
-                            rep = json.loads(read_text(path))
-                        except Exception:             # noqa: BLE001
-                            continue    # unreadable: not rewritten either
-                        if recorded_document(rep) is None:
-                            n += 1
-                except OSError:
-                    continue
-        except (OSError, AttributeError):
-            return 0
-        return n
-
-    def _recalculating_would_rewrite_history(self, run) -> bool:
-        return self._saved_report_count(run) > 0
-
-    def _confirm_recalculate(self, run) -> bool:
-        """Ask before rewriting every saved report of a run.
-
-        The wording follows the unlock confirmation deliberately: the two
-        routes have the same consequence, so a user who has met one should
-        recognise the other. Singular and plural in full, never "(s)".
-
-        **ONE DOOR SHOWS THIS NOW**: saving a change of the run's own numbers
-        in the Report limits window. The "Judged against" pulldown does not
-        recalculate any more (B8-384), so it does not ask; a question about a
-        loss that cannot happen is worse than no question at all.
-        """
-        n = self._saved_report_count(run)
-        # THE TAIL IS SPLIT TOO, and the first version was not. It said "every
-        # one of them" and "the reports they replace" after a head that had
-        # just said "one saved report", so the pronouns had nothing to point
-        # at, and in German the partitive has to agree as well. The sentence
-        # this was modelled on does not have the problem because its tail is
-        # self-contained; the copy took the shape and not the property that
-        # made the shape work.
-        if n == 1:
-            _head = tr("This run ({run}) has one saved report.")
-            _tail = tr(
-                "Changing the limit set recalculates it with the new numbers, "
-                "and the report it replaces is kept first, in a reports/old "
-                "folder beside its date.\n\nNothing is deleted. Continue?")
-        else:
-            _head = tr("This run ({run}) has {n} saved reports.")
-            _tail = tr(
-                "Changing the limit set recalculates every one of them with "
-                "the new numbers, and the reports they replace are kept first, "
-                "in a reports/old folder beside each date.\n\nNothing is "
-                "deleted. Continue?")
-        return self._confirm(tr("Change this run's limit set?"),
-                             _head.format(run=run.dir.name, n=n) + " " + _tail)
 
     def _sync_set_combo_to(self, set_id: str) -> None:
         """Put the pulldown back on *set_id* without re-entering this handler."""
@@ -11481,333 +10465,6 @@ class MeasurementReportDialog(QDialog):
         finally:
             self._syncing_limits = False
 
-    def _relocking_would_take_the_controls(self, run) -> bool:
-        """Whether putting the lock back will take the controls away, NOW OR AT
-        THE NEXT MEASUREMENT.
-
-        THIS ASKED FOR TWO DATED VERIFICATIONS AND THAT WAS THE WRONG MOMENT.
-        The reasoning was that below two dates the lock does not apply, so there
-        is nothing to warn about. It does not apply YET: it applies at the next
-        measurement, and by then this question, which is the only place that
-        names the Preferences setting needed to undo it, is gone. A challenge
-        round drove it on the state the app itself creates when it binds a run:
-        one click on a box the app had ticked for the user, one more dated
-        verification, and the run was locked with the pulldown greyed and the
-        unlock box disabled.
-
-        AND IT IS TWO DATES AGAIN, because the state that made a bound run
-        enough is gone. That reasoning existed because binding used to tick the
-        box on a run the lock did not reach, so a click at one date mattered.
-        It no longer does, and asking there made the question false in the
-        present tense: it says the limit set can then no longer be changed here,
-        while at one date the pulldown stays enabled, the button still reads
-        "Edit limits…" and the column is still editable.
-        """
-        from workflow.run_compliance import is_bound, measured_dates
-        try:
-            return is_bound(run) and measured_dates(run) >= 2
-        except Exception:              # noqa: BLE001
-            return False
-
-    def _confirm_relock(self, run) -> bool:
-        allow = bool(self._settings.get(
-            "compliance_allow_edit_after_measurement", False))
-        _tail = tr(
-            "Its limit set and its numbers can then no longer be changed here, "
-            "and its dated reports stay as they are.")
-        _how = ("" if allow else " " + tr(
-            "To be able to unlock it again, switch on “Allow editing of "
-            "thresholds after the first verification measurement” in "
-            "Preferences."))
-        return self._confirm(
-            tr("Lock this run's limits again?"),
-            tr("This run ({run}) will be locked.").format(run=run.dir.name)
-            + " " + _tail + _how + "\n\n" + tr("Continue?"))
-
-    def _on_unlock_toggled(self, on: bool) -> None:
-        if self._syncing_limits:
-            return
-        ctx = self._run_ctx
-        if ctx is None:
-            return
-        from workflow.run_compliance import set_run_unlocked
-        if not on:
-            # RE-LOCKING IS THE IRREVERSIBLE DIRECTION AND IT ASKED NOTHING.
-            # Ticking this box asks a confirmation; unticking it did not, and
-            # unticking is what takes the controls away. A challenge round found
-            # a user who could reach that state in one click on a box the app
-            # had ticked for them, and getting back needs a Preferences setting
-            # that nothing on this screen names.
-            #
-            # Only when it would really lock: on a run with fewer than two
-            # dated verifications the lock does not apply, so there is nothing
-            # to warn about and a question there would be a habit-forming click.
-            # THE THIRD DIRECTION, AND THE ONE DOOR OF THE THREE THAT
-            # NEVER ASKED AGAIN. Round 17 built the guard and routed the other
-            # two through it. A challenge round drove what is left: the user
-            # locks their run onto ANOTHER window's looser set, having just
-            # been told they could not change it afterwards.
-            _would_lock = self._relocking_would_take_the_controls(ctx.run)
-            _allow_asked = bool(self._settings.get(
-                "compliance_allow_edit_after_measurement", False))
-            if _would_lock and not self._confirm_about_run(
-                    ctx.run, partial(self._confirm_relock, ctx.run)):
-                if self._last_refusal != "moved":
-                    self._syncing_limits = True
-                    try:
-                        self._unlock_check.setChecked(True)
-                    finally:
-                        self._syncing_limits = False
-                return
-            # AND THE SETTING THE QUESTION DESCRIBED, WHICH IS NOT THE SAME
-            # VALUE. `_relocking_would_take_the_controls` asks whether the run
-            # has a history; what decides the WORDING is
-            # `compliance_allow_edit_after_measurement`, read inside
-            # `_confirm_relock` while it builds the text. That is the right
-            # moment to build it and the wrong moment to stop looking: the one
-            # sentence in the app naming the setting that gets the controls
-            # back is printed only when it is off, and it can go on or off
-            # while the user reads. A challenge round flipped it both ways.
-            if bool(self._settings.get(
-                    "compliance_allow_edit_after_measurement", False)) != _allow_asked:
-                self._syncing_limits = True
-                try:
-                    self._unlock_check.setChecked(True)
-                finally:
-                    self._syncing_limits = False
-                self._say_run_moved_while_asking(ctx.run)
-                self._forget_limits()
-                self._refresh()
-                return
-            try:
-                set_run_unlocked(ctx.run, False)
-            except OSError as exc:
-                self._say_not_written(ctx.run, exc)
-            self._forget_limits()
-            self._refresh()
-            return
-        n_dates = sum(1 for v in ctx.run.verifications() if v.exists())
-        # ONE IS NOT "1 dated verifications". CLAUDE.md asks for explicit
-        # singular and plural rather than "(s)", and this sentence read wrong in
-        # exactly the state Knut was testing in.
-        # **THE CLAUSE THAT WAS FALSE IS GONE, AND NO NEW WORDS ARE IN ITS
-        # PLACE (B8-391).** Knut, 2026-09-18, reading this very window:
-        # *"The description is wrong. All dated reports shall NOT be
-        # recalculated, only the selected report will be recalculated and
-        # report text recreated according to new values."*
-        #
-        # The behaviour went first (see the foot of this method): unlocking
-        # recalculates nothing at all now, so the promise about "every dated
-        # report of this run" describes something that cannot happen. Every
-        # word left here was already on screen and is still true.
-        #
-        # THE REPLACEMENT SENTENCE IS NOT WRITTEN HERE. It says what the door
-        # does now, which is new user-facing text, so it is in §M-PROPOSED of
-        # `unified_measurement_management.md` (M-UNLOCK-LIMITS) and waits for
-        # approval. This is the same course B8-384 took at the "Judged against"
-        # door an hour earlier: a false promise is removed the moment it
-        # becomes false, and nothing is invented to replace it.
-        _tail = tr(
-            "Unlocking lets you change the run's limit set and its "
-            "numbers.\n\nNothing is deleted. Continue?")
-        _head = (tr("This run ({run}) has one dated verification.")
-                 if n_dates == 1 else
-                 tr("This run ({run}) has {n} dated verifications."))
-        # ASK, THEN CHECK THE ANSWER IS STILL ABOUT THIS RUN. The question
-        # promises the dated reports will be recalculated "with the numbers you
-        # set", and it takes as long as a person takes to read it.
-        #
-        # `may_unlock` is asked again beside it because it is not a property of
-        # the run at all: the Preferences switch can be turned off while the
-        # question is on screen, and the tick box's enablement was decided when
-        # the window last refreshed.
-        from workflow.run_compliance import has_measured_verification, may_unlock
-
-        def _put_the_box_back() -> None:
-            self._syncing_limits = True
-            try:
-                self._unlock_check.setChecked(False)
-            finally:
-                self._syncing_limits = False
-
-        if not self._confirm_about_run(
-                ctx.run,
-                partial(self._confirm, tr("Unlock this run's limits?"),
-                        _head.format(run=ctx.run.dir.name, n=n_dates)
-                        + " " + _tail)):
-            if self._last_refusal != "moved":
-                _put_the_box_back()
-            return
-        # READ AFTER THE QUESTION, WHICH IS THE WHOLE POINT. Read before it,
-        # this holds the value from before the user was asked, so the switch
-        # being turned off during the question was invisible and the unlock
-        # went through.
-        _allow = bool(self._settings.get(
-            "compliance_allow_edit_after_measurement", False))
-        if not (may_unlock(ctx.run, _allow)
-                and has_measured_verification(ctx.run)):
-            # SAID OUT LOUD, LIKE THE OTHER HALF. Folding this into the
-            # condition above made it share that branch and lose its voice:
-            # the Preferences switch went off while the question was on screen,
-            # the unlock was refused, and the window said nothing at all.
-            _put_the_box_back()
-            self._say_run_moved_while_asking(ctx.run)
-            self._forget_limits()
-            self._refresh()
-            return
-        try:
-            set_run_unlocked(ctx.run, True)
-        except OSError as exc:
-            # F3: the run folder could not be written; the box must not claim
-            # an unlock the disk refused
-            self._say_not_written(ctx.run, exc)
-            self._syncing_limits = True
-            try:
-                self._unlock_check.setChecked(False)
-            finally:
-                self._syncing_limits = False
-            return
-        self._forget_limits()
-        # **AND NOT ONE SAVED REPORT IS RECALCULATED (B8-391).**
-        # `self._recalculate_run()` stood here and rewrote EVERY dated report
-        # of the run, archiving each first. Knut, 2026-09-18: *"All dated
-        # reports shall NOT be recalculated, only the selected report will be
-        # recalculated and report text recreated according to new values."*
-        #
-        # **AND AT THIS MOMENT THERE IS NOTHING TO RECALCULATE.** Unlocking
-        # changes no number: it only lets the user change one. What his rule
-        # asks for is what the window already does for the other doors since
-        # B8-384 and what N.2/N.3 of §5 state: the change belongs to the ONE
-        # report named in "Report shown", it marks that report stale, the red
-        # line says so, and pressing Generate report rebuilds it. Re-stamping
-        # files here with numbers nobody has changed yet would be a rewrite
-        # that says nothing, and for a generated document it would break the
-        # rule B8-384 was built on: a document records the settings it was
-        # made with and is never recalculated under the reader.
-        #
-        # **THE WARNING IS NOT LOST WITH IT.** The Report limits window's Save
-        # is the door that still recalculates, and it asks its own question
-        # (`_confirm_recalculate`) at the moment the rewrite would happen,
-        # which is the right moment for it. That door is B8-310, where N.3
-        # (*"Unlocking a run's limits and saving a change in the Edit limits
-        # window must result in the same behaviour"*) reaches it too; it is
-        # reported rather than changed here, because this round was asked for
-        # the unlock door and re-aiming another round's guards without a review
-        # is how this window has been broken before.
-        self._refresh()
-
-    def _prefs_state_now(self) -> tuple:
-        """The two app-wide stores, as they stand on disk right now.
-
-        The window reads these when it opens and the dialog reads them when it
-        closes, and both of those are before the recalculate question. This is
-        how the same question gets asked one more time, after it.
-        """
-        try:
-            from core.settings import compliance_overrides_of
-            return (str(self._settings.get("compliance_default_set", "") or ""),
-                    json.dumps(compliance_overrides_of(self._settings),
-                               sort_keys=True))
-        except Exception:              # noqa: BLE001
-            return ()
-
-    def _run_state_now(self, run) -> tuple:
-        """EVERYTHING THIS WINDOW'S DECISIONS ABOUT THE RUN DEPEND ON, read
-        from disk at this moment.
-
-        It used to be the three fields that say what a run is judged by, and
-        that left the LOCK out: a second window re-locking the run while a
-        question was on screen changed `compliance_unlocked`, which is not one
-        of those three, so the guard saw nothing and the run was rebound on a
-        lock. The count of dated verifications is here for the same reason, on
-        the other side: the lock turns on at the second one, so a measurement
-        finishing during a question locks the run without touching any field
-        the first version watched.
-        """
-        try:
-            m = run.load_meta()
-            n = sum(1 for v in run.verifications() if v.exists())
-        except Exception:              # noqa: BLE001
-            return ()
-        return (str(m.compliance_set_id or ""),
-                # THE TYPE MOVES THE SAME WAY THE SET DOES, so a second window
-                # changing it while a question is on screen has to be visible
-                # to every door's guard, not only to the one that wrote it.
-                str(getattr(m, "report_type", "") or ""),
-                json.dumps(m.compliance_thresholds or {}, sort_keys=True),
-                str(getattr(m, "compliance_bound_at", "") or ""),
-                bool(getattr(m, "compliance_unlocked", False)),
-                # THE ONE KEY `_undo_the_edit` WRITES, and it was missing from
-                # the state described as everything this window's decisions
-                # depend on. A limits window can change which columns a run's
-                # report shows, the undo puts that back, and the guard could
-                # not see it move.
-                list(getattr(m, "compliance_columns", []) or []),
-                n)
-
-    def _confirm_about_run(self, run, ask) -> bool:
-        """Ask with *ask*, then check the answer is still about the run the
-        question described. True only when the user said yes AND nothing moved.
-
-        `ask` is the door's own question, passed in rather than reproduced
-        here, so each door keeps the wording it is tested through.
-
-        ONE GUARD FOR EVERY DOOR, because four challenge rounds found the same
-        hole in a fourth door each time. A question about recalculating a
-        history takes as long as a person takes to read it, and that is the
-        whole window a second writer needs: rounds 16 and 17 drove a run
-        rebound, re-locked, and locked by its own second measurement, each
-        during the question, each acted on afterwards as though the answer had
-        been about the state that came back.
-
-        The "before" is the state this window last DREW, not the state at the
-        click: everything between the drawing and the click is time the user
-        spent looking at the screen, and a guard that stamps at the click has
-        already swallowed it.
-        """
-        _before = self._run_state_at_sync
-        if not ask():
-            self._last_refusal = "said_no"
-            return False
-        if self._run_state_now(run) != _before:
-            # WHICH REFUSAL IT WAS MATTERS TO THE CALLER. Both end in False,
-            # and the callers put their control back to the value it held
-            # before the click; that is right when the user said no and wrong
-            # here, because the run has MOVED and this has already redrawn the
-            # window from disk. A challenge round photographed the result: a
-            # pulldown naming a set the run is not bound to, and an unlock box
-            # reading "locked" beside a live pulldown on a run that is unlocked
-            # on disk.
-            self._last_refusal = "moved"
-            self._say_run_moved_while_asking(run)
-            self._forget_limits()
-            self._refresh()
-            return False
-        self._last_refusal = ""
-        return True
-
-    def _say_run_moved_while_asking(self, run) -> None:
-        """The run stopped being the run the question was about, between the
-        question going up and the answer coming back.
-
-        Nothing is written here, which is what lets the sentence say so
-        plainly.
-        """
-        from ui.warning_sign import warn
-        warn(self, tr("This run changed while the question was on screen"),
-             # ALL THREE WAYS IN, not two. The guard also fires when the
-             # Preferences setting that allows these edits is switched off and
-             # when a dated verification is deleted, and the first wording
-             # named neither.
-             tr("{run} is no longer the run that question was about: a "
-                "verification measurement of it finished or was deleted, it "
-                "was changed in another window, or the Preferences setting "
-                "that allows these edits was switched off. Nothing was "
-                "unlocked and nothing was recalculated.").format(
-                    run=run.dir.name)
-             + "\n\n"
-             + tr("Open the limits again to see where it stands."))
-
     def _say_not_written(self, run, exc) -> None:
         from ui.warning_sign import warn
         log.warning("could not write %s: %s", run.meta_path, exc)
@@ -11817,501 +10474,92 @@ class MeasurementReportDialog(QDialog):
                 "full, or open in another program. Nothing was changed. Make the "
                 "folder writable and try again.").format(path=str(run.dir)))
 
-    # -- The limits window as ONE act -------------------------------------
-    #
-    # FIVE CONTROLS IN THAT WINDOW WRITE, AND ONLY ONE OF THEM WAS GUARDED.
-    # Four challenge rounds each found the next unguarded one: the run's own
-    # column was questioned, then the pulldown beside it, then the "Default for
-    # new runs" radio, then a shipped column's cell, then its Restore button.
-    # Every fix guarded one door and the round after it walked through the next.
-    #
-    # So the question is no longer "which control was touched". It is the only
-    # one that matters to a user: **did what this run is judged by change?**
-    # That is `run_limits()`, the app's own answer, asked before the window
-    # opens and again after it closes. A control that cannot move that answer
-    # needs no question, and one that can gets the same question whichever it is.
-
-    def _judged_by(self, ctx):
-        """What the run is judged by right now, as a comparable value.
-
-        ASKED THROUGH `run_limits` THE WAY THE WINDOW ASKS IT, which is not the
-        same as asking it plainly. `run_limits(run, overrides)` falls back to
-        the factory set for an unbound run and never looks at the preference;
-        the window passes `self._default_set_id()` as a third argument, and that
-        is why its "Judged against" line follows the "Default for new runs"
-        radio. A predicate that skipped that argument would have watched a value
-        the radio cannot move and reported no change while the header changed on
-        screen, which is the fault it exists to catch.
-        """
-        if ctx is None:
-            return None
-        from workflow.compliance_sets import limits_to_json
-        from workflow.run_compliance import run_limits
-        try:
-            rl = run_limits(ctx.run, self._overrides(), self._default_set_id())
-            return (rl.set_id, limits_to_json(rl.limits))
-        except Exception:              # noqa: BLE001 — a missing meta
-            return None
-
-    def _limits_snapshot(self, ctx):
-        """Everything the limits window can write, and what it is judged by."""
-        from core.settings import compliance_overrides_of
-        run_keys = None
-        if ctx is not None:
-            try:
-                m = ctx.run.load_meta()
-                run_keys = (m.compliance_set_id, m.compliance_set_label,
-                            m.compliance_thresholds, m.compliance_bound_at,
-                            bool(m.compliance_unlocked),
-                            list(getattr(m, "compliance_columns", []) or []))
-            except Exception:          # noqa: BLE001 — a missing meta
-                run_keys = None
-        return {
-            "run": run_keys,
-            "default_set": self._settings.get("compliance_default_set", None),
-            "overrides": copy.deepcopy(compliance_overrides_of(self._settings)),
-            "judged_by": self._judged_by(ctx),
-        }
-
-    def _restore_limits_snapshot(self, ctx, snap) -> bool:
-        """Put every one of them back. False when the run's meta would not
-        write, which is the case the user has to be told about."""
-        from core.settings import store_compliance_overrides
-        ok = True
-        if ctx is not None and snap.get("run") is not None:
-            # ONE UNDO, USED BY BOTH PATHS. This block and the locked-meanwhile
-            # branch had grown separate copies of the same reasoning and they
-            # disagreed: a refusal on a run another writer had rebound left the
-            # user's REFUSED numbers on disk, because it bailed out rather than
-            # recovering. `_undo_the_edit` answers the same three questions in
-            # one place, and the caller only has to know whether the previous
-            # numbers were really recovered.
-            # NOT "did it restore", WHICH IS A DIFFERENT QUESTION. A refusal on
-            # a run somebody else rebound cannot restore and that is not a
-            # failure to write; only a write that was refused by the disk is.
-            # KEPT IS NOT THE SAME QUESTION AS OK. A run whose previous
-            # numbers really did come back is told its limits are unchanged;
-            # one whose could not is told to go and look. The caller had no way
-            # to ask, so both got the second sentence.
-            self._pending_restore_outcome = self._undo_the_edit(
-                ctx, snap, report_failure=True, keep_columns=True)
-            if self._pending_restore_error is not None:
-                ok = False
-        # THE PREFERENCES GO BACK EVEN WHEN THE RUN'S FOLDER WOULD NOT WRITE.
-        # They live in a different file, and leaving them moved is how a
-        # refusal ended with the run judged by a set the user said no to.
-        try:
-            if self._settings.get("compliance_default_set", None) != snap["default_set"]:
-                self._settings.set("compliance_default_set", snap["default_set"])
-        except Exception:              # noqa: BLE001
-            log.warning("could not put the default set back", exc_info=True)
-        try:
-            from core.settings import compliance_overrides_of
-            if compliance_overrides_of(self._settings) != snap["overrides"]:
-                store_compliance_overrides(self._settings, snap["overrides"])
-        except Exception:              # noqa: BLE001
-            log.warning("could not put the overrides back", exc_info=True)
-        return ok
-
-    def _say_rebound_meanwhile(self, run, outcome: str = "none") -> None:
-        """Somebody else changed this run's limits while the window was open.
-
-        NOT ONLY "a different set". A writer that rebinds to the SAME set with
-        different numbers is the same situation and the first wording claimed
-        the numbers belonged to a set the run was no longer bound to, which is
-        false there.
-
-        AND NOT ONLY "the refusal could not reach the run". It fires now for a
-        second Report limits window as well, where the refusal reaches the run
-        perfectly and puts the previous numbers back, taking the OTHER window's
-        number with them. Telling the user their limits are unchanged and
-        stopping would be true of the run and false about what just happened,
-        so the second sentence says which of the two it was.
-        """
-        from ui.warning_sign import warn
-        _what = _restore_sentence(outcome)
-        warn(self, tr("This run's limits changed while you were editing them"),
-             tr("Something else changed {run}'s limits while its own limits "
-                "were open: a verification measurement of it finished, or it "
-                "was changed in another window.").format(run=run.dir.name)
-             + " " + _what + "\n\n"
-             + tr("Open its limits and check them before you measure it "
-                  "again."))
-
-    def _why_the_unlock_box_is_greyed(self, run, several: bool, locked: bool,
-                                      lim) -> str:
-        """The sentence a dim "Unlock this run's limits" owes the reader.
-
-        Knut put the box back on screen in every state (B8-520), so the state
-        it cannot act in is now a GREY control rather than an absent one, and a
-        grey control with no explanation is the fault that made hiding it look
-        reasonable in the first place. One sentence per reason, and an empty
-        string when the box is live, so the caller falls back to the sentence
-        the pulldown and the button share.
-        """
-        if self._unlock_check.isEnabled():
-            return ""
-        if several:
-            return tr("Measurements from more than one place are loaded, so "
-                      "there is no one run to unlock here. To unlock a profile "
-                      "run's limits, remove every other entry from the list, "
-                      "one at a time, with Remove Profile's Measurements….")
-        if not self._sources:                   # final round FC-8
-            return tr("No measurement is loaded yet.")
-        if run is None:
-            return tr("This measurement does not belong to a profile run, so "
-                      "there are no stored limits to unlock.")
-        if not locked and not bool(getattr(lim, "unlocked", False)):
-            return tr("This run's limits are not locked yet. A run is locked "
-                      "by its second dated verification, and this box lifts "
-                      "that lock.")
-        return tr("Preferences, Reports does not allow editing limits after "
-                  "the first measurement, so this run's limits cannot be "
-                  "unlocked here.")
-
-    def _locked_here(self, run) -> bool:
-        """Whether THIS window treats the run as locked.
-
-        The one place that answers it. A run this window bound a moment ago is
-        genuinely locked on disk, and greying the control that bound it is what
-        two rounds kept trying to prevent; every control in this window has to
-        agree about that, and they did not.
-        """
-        from workflow.run_compliance import is_locked
-        if run is None:
-            return False
-        try:
-            if not is_locked(run):
-                return False
-        except Exception:              # noqa: BLE001
-            return False
-        return str(getattr(run, "dir", "")) not in self._bound_here
-
-    def _undo_the_edit(self, ctx, snap, report_failure: bool = False,
-                       keep_columns: bool = False) -> str:
-        """Take the run's own column back to what it held, and touch nothing
-        else. Returns whether the previous numbers were really recovered.
-
-        *keep_columns* leaves `compliance_columns` exactly as it is on disk.
-        WHICH COLUMNS ARE SHOWN IS NOT PART OF WHAT A REFUSAL REFUSES. A user
-        who says no to "Changing the limit set recalculates…" is answering
-        about the numbers; the ticks they set in the same visit were never in
-        the question and were never a claim on a verdict. Knut reported the
-        consequence as a separate fault (*"it is not remembered what I turned
-        off some columns"*), and driven on screen it was this line: Cancel put
-        an empty `compliance_columns` back and every column came up ticked
-        again. The LOCK path is the one caller that still passes False, because
-        there the question is whether this window may write to the run at all,
-        and the answer covers every key it writes.
-
-        RETURNS WHICH OF ITS THREE BRANCHES IT TOOK, because the caller has a
-        different true sentence for each and there is no yes/no that covers
-        them. "restored" put the run's own column back, and an EMPTY column is
-        that when the run had none. "rederived" had no previous column to put
-        back, so the numbers are the ones whoever bound it meant. And
-        "refused_numbers_left" is the case a challenge round named: the set is
-        one this build cannot answer for, so the run keeps the numbers the user
-        has just REFUSED, is bound, and is judged by them. Only the door beside
-        this one used to say that, and this path did not.
-
-        RECOVERED, WHICH IS NOT "WAS BOUND", and it returned the second one.
-        A challenge round drove a pre-#182 run that was unbound when the window
-        opened: the undo put the empty column back perfectly, exactly as it had
-        been, and the caller was handed False and told the user ChromIQ could
-        not put this run's own numbers back. The one accurate sentence
-        available was the one withheld. An empty column IS the previous
-        numbers when the run had none.
-
-        `bind_run` WAS USED FOR THIS AND IT IS NOT AN UNDO. It is a fresh bind:
-        its first line replaces a set id this build does not know with the
-        factory default, and its body overwrites the run's thresholds with the
-        SET's effective limits. A challenge round drove both. On a run carrying
-        an edited column, the "undo" deleted the edit that both of its saved
-        reports had been judged against, under a message saying the limits were
-        unchanged. On a run bound to a set from another build, it erased the id,
-        the English label D23 exists for, and every number.
-
-        So this writes exactly the two keys the limits dialog can write, and
-        the ONE case it cannot honour, where the run was unbound when the window
-        opened so there are no previous numbers to put back, is reported rather
-        than papered over with somebody else's.
-        """
-        from workflow.compliance_sets import (effective_limits, is_known_set,
-                                               limits_to_json)
-        if snap.get("run") is None:
-            return "none"
-        _snap_sid = str(snap["run"][0] or "")
-        try:
-            m = ctx.run.load_meta()
-            _sid_now = str(m.compliance_set_id or "")
-            # "THE BINDING HAS NOT MOVED" IS NOT "THE SET ID IS THE SAME".
-            # Comparing ids alone missed a writer that rebound to the SAME set
-            # with different numbers, because its overrides had moved: the undo
-            # then wrote the snapshot back over numbers somebody else had just
-            # chosen, under a message saying the limits were unchanged.
-            # `bind_run` stamps `compliance_bound_at` every time, so that is the
-            # signal, and it is the only one that distinguishes a rebind from
-            # the dialog's own write.
-            #
-            # ITS RESOLUTION IS ONE SECOND, and that is a real limit rather than
-            # an oversight: `bind_run` writes `isoformat(timespec="seconds")`.
-            # A rebind that lands in the same second as the one the snapshot
-            # holds is invisible here. Nothing a person can do reaches that (the
-            # window has to be opened, a control moved and the window closed),
-            # and the case it is written for, a verification measurement
-            # finishing while the window is open, takes far longer. Say so
-            # rather than pretend the signal is exact.
-            _moved = (_sid_now != _snap_sid
-                      or str(m.compliance_bound_at or "") != str(snap["run"][3] or ""))
-            # WHETHER SOMEBODY ELSE MOVED THE BINDING IS KNOWN HERE AND NOWHERE
-            # ELSE, so it is recorded here. Inferring it in the caller by
-            # comparing before and after cannot tell an undo that worked from a
-            # binding that moved, and fired on the commonest refusal there is.
-            if _moved:
-                self._pending_rebound = True
-            if not _moved:
-                # A REAL UNDO: the run's own column, exactly as it was, which
-                # for a run that had none means putting the absence back. The
-                # binding has not moved, so nothing else has a claim on it.
-                if (m.compliance_thresholds == snap["run"][2]
-                        and (keep_columns
-                             or list(getattr(m, "compliance_columns", []) or [])
-                             == list(snap["run"][5] or []))):
-                    return "restored"      # nothing to write, and nothing lost
-                if not keep_columns:
-                    m.compliance_columns = snap["run"][5]
-                m.compliance_thresholds = snap["run"][2]
-                ctx.run.save_meta(m)
-                return "restored"
-            if not keep_columns:
-                m.compliance_columns = snap["run"][5]
-            if _sid_now and is_known_set(_sid_now):
-                # Not an undo and not pretending to be one. The run was unbound
-                # when the window opened, or is bound to something else now, so
-                # there is no previous column to put back; leaving the refused
-                # edit would be worse. These are the numbers whoever bound it
-                # meant, derived with the overrides AS THEY WERE WHEN THIS
-                # WINDOW OPENED, because the live table still holds the change
-                # the user has just refused and the preferences do not go back
-                # until later in this same function.
-                m.compliance_thresholds = limits_to_json(
-                    effective_limits(_sid_now, snap["overrides"]))
-                ctx.run.save_meta(m)
-                return "rederived"
-            # A set this build does not know. `effective_limits` cannot answer
-            # for it and `bind_run` would silently replace it with the factory
-            # default, erasing the id, the English label D23 exists for, and
-            # every number. Leave the record alone and say so.
-            ctx.run.save_meta(m)
-            return "refused_numbers_left"
-        except OSError as exc:
-            # NOT SWALLOWED. This returned False into a caller that dropped it,
-            # so `ok` stayed True, `_say_restore_failed` became dead code and a
-            # refusal that could not be honoured said nothing at all. A
-            # challenge round measured it as a regression: two windows before,
-            # one after.
-            log.warning("could not undo the edit on %s: %s", ctx.run.dir, exc)
-            if report_failure:
-                self._pending_restore_error = exc
-            return "failed"
-
-    def _say_preferences_changed_meanwhile(self, reverted: bool) -> None:
-        """The APP-WIDE report limits were changed by somebody else while this
-        window was open.
-
-        Its own message, because it is its own thing. Folded into the run's, it
-        announced a change to the preferences as a change to a run whose files
-        nothing had touched, and on the path where nothing is put back it
-        claimed the other change was gone while it was still on disk.
-        """
-        from ui.warning_sign import warn
-        _what = (tr("ChromIQ put them back to what they were when you opened "
-                    "this window, so that change is gone too.")
-                 if reverted else
-                 tr("ChromIQ did not change them back, so they hold whichever "
-                    "change was made last."))
-        warn(self, tr("The report limits in Preferences changed while this "
-                      "window was open"),
-             # NOT "no run's own limits were touched", WHICH THIS WINDOW
-             # CANNOT PROMISE. It is shown by a window that may have just
-             # moved this run's own numbers and rewritten its saved reports,
-             # and a challenge round photographed it landing directly under a
-             # box saying exactly that. This message is about the app-wide
-             # preferences and says only what it knows.
-             tr("Something else changed the report limits in Preferences while "
-                "this window was open: they were edited in another window.")
-             + " " + _what + "\n\n"
-             + tr("Open Preferences and check them before you measure "
-                  "again."))
-
-    def _say_collision_went_ahead(self, run) -> None:
-        """Somebody else changed this run's limits while the window was open,
-        and the user went ahead anyway, so the other change is gone.
-
-        The refusal path has said this since round 13. THIS path said nothing:
-        the user was asked the ordinary recalculate question, said yes, and the
-        other window's number was overwritten with no mention of it. On a run
-        with no saved reports there is not even a question, so nothing at all
-        appeared.
-        """
-        from ui.warning_sign import warn
-        warn(self, tr("This run's limits changed while you were editing them"),
-             tr("Something else changed {run}'s limits while its own limits "
-                "were open: a verification measurement of it finished, or it "
-                "was changed in another window.").format(run=run.dir.name)
-             + " "
-             + tr("ChromIQ went ahead with the change you asked for, so the "
-                  "other change is gone.")
-             + "\n\n"
-             + tr("Open its limits and check them before you measure it "
-                  "again."))
-
-    def _say_locked_before_the_set_changed(self, run) -> None:
-        """The run was locked between the window opening and this pulldown
-        being used, so the selection is put back and nothing is written.
-
-        Nothing to undo here, which is what separates it from
-        `_say_locked_meanwhile`: this door is guarded BEFORE it writes, so the
-        run is untouched and the sentence can say so plainly.
-        """
-        from ui.warning_sign import warn
-        warn(self, tr("This run was locked while this window was open"),
-             tr("{run} was locked while this window was open: a verification "
-                "measurement of it finished, or it was locked in another "
-                "window.").format(run=run.dir.name)
-             + " " + tr("Its limits and its dated reports are unchanged.")
-             + "\n\n"
-             + tr("Open the limits again to see where it stands."))
-
-    def _say_locked_meanwhile(self, run, outcome: str) -> None:
-        """The run was locked between opening the window and closing it."""
-        from ui.warning_sign import warn
-        # THE SECOND SENTENCE WAS TRUE ONLY WHERE IT WAS TESTED. It said the
-        # run had no limits of its own when the window opened, and it fires
-        # whenever the undo could not be honoured, which includes a run that WAS
-        # bound and a set this build cannot answer for. In that last case the
-        # numbers left on the run are the ones the app has just refused, and the
-        # sentence claimed they were whatever locked it wrote.
-        # NOTHING WAS REFUSED HERE. This window follows no question: the
-        # lock stopped the edit. Both of the refusal-flavoured sentences were
-        # false in it, one of them saying a change was "gone too" when the
-        # only other change was the lock, which the undo never touches.
-        _what = _restore_sentence(outcome, refused=False)
-        warn(self, tr("This run was locked while you were editing it"),
-             tr("Something else locked {run} while its limits were open: a "
-                "verification measurement of it finished, or it was locked in "
-                "another window.").format(run=run.dir.name)
-             + " " + _what + "\n\n"
-             + tr("Open the limits again to see where it stands."))
-
-    def _say_restore_failed(self, run, exc) -> None:
-        """The refusal could not be honoured, which is the opposite of what
-        `_say_not_written` says.
-
-        That message ends "Nothing was changed", and here something was: the
-        limits window had already written the edit on its way out, and putting
-        it back is what failed. Saying "nothing was changed" would be the one
-        false sentence available, so this says what is true instead.
-        """
-        from ui.warning_sign import warn
-        from workflow.run_compliance import is_bound
-        log.warning("could not undo the edit in %s: %s", run.meta_path, exc)
-        # SAY WHICH THING IS OUT OF STEP, AND ONLY IF IT IS.
-        # The first version said "the run now holds the numbers you were
-        # editing… so the two no longer agree", which is true only when the run
-        # is BOUND. A challenge round drove the other case: on a project made
-        # before #182 the run is still unbound, so the numbers left behind
-        # govern nothing and the sentence named a disagreement that did not
-        # exist, while the instruction that followed it fixed nothing.
-        _bound = False
-        try:
-            _bound = is_bound(run)
-        except Exception:              # noqa: BLE001
-            _bound = False
-        _what = (tr("This run is judged by those numbers, and its saved reports "
-                    "were NOT recalculated, so the two no longer agree. Make "
-                    "the folder writable, then either set the numbers back or "
-                    "change the limits again to recalculate the reports.")
-                 if _bound else
-                 tr("Nothing is judged by those numbers: this run has no limit "
-                    "set of its own, so it is still judged by the default, and "
-                    "its saved reports were not recalculated. Make the folder "
-                    "writable if you want the leftover numbers cleared."))
-        warn(self, tr("The change could not be undone"),
-             tr("You chose not to change this run's limits, but ChromIQ could "
-                "not put the previous numbers back:\n{path}\n\nThe folder or "
-                "its files may be read-only, on a disk that is full, or open in "
-                "another program. Your Preferences were put back, because they "
-                "are stored elsewhere.").format(path=str(run.dir))
-             + "\n\n" + _what)
-
     def _on_open_limits(self) -> None:
-        """Open the limits window, then apply the set it was asked for.
+        """"Edit limits…": the REPORT's limits window (K30, K31)."""
+        self._open_report_limits_window()
 
-        **THE PICK IS APPLIED AFTER, AND OUTSIDE, THE BODY.** Applying it in
-        line asked the recalculate question TWICE and archived the run's saved
-        reports twice: the body takes a snapshot of the run AFTER the point the
-        pick was being applied, so its own "did what this run is judged by
-        change?" test saw the movement this window had just made, and reported
-        it as somebody else's. On the refusal path it also reverted the
-        preferences the user had just set, silently, and raised a box accusing
-        another window of a change nothing else had made. Found by an
-        adversary round driving one pick with a default-for-new-runs pick
-        beside it.
-
-        The body has a dozen early returns, so `finally` is what makes "exactly
-        once, at the end" true on all of them.
-        """
-        self._pending_run_set_pick = ""
-        try:
-            self._open_limits_window()
-        finally:
-            pick = str(getattr(self, "_pending_run_set_pick", "") or "")
-            self._pending_run_set_pick = ""
-            if pick:
-                _i = self._set_combo.findData(pick)
-                if _i >= 0 and self._set_combo.currentIndex() != _i:
-                    # Fires `_on_set_chosen`, which is the one writer: it
-                    # re-checks the lock, catches a preferences change
-                    # underneath, and asks about recalculating.
-                    self._set_combo.setCurrentIndex(_i)
+    def _run_for_its_own_default(self):
+        """The profile run whose own default for new reports the limits
+        window may set, or None: the window's run, while measurements of one
+        profile run only are loaded (K31). With several places loaded there
+        is no one run the choice would be about."""
+        ctx = self._run_ctx
+        if ctx is None or self._several_runs():
+            return None
+        return ctx.run
 
     def _open_report_limits_window(self) -> None:
-        """The limits window for a report ACROSS PLACES (#182 K30).
+        """The limits window of THE REPORT ON SCREEN (#182 K30, K31).
 
         Knut, 5798461562: *"all settings belong to a report, not a specific
-        run, so if I change a reports settings to include multiple
-        measurements that come from different runs or different projects,
-        and then click Generate Report, I shall be presented with the choice
-        to update the report selected ... or create a new report ... or
-        cancel"*. So the first column is THIS REPORT's limits, editable, and
-        its "Used for this report" radios choose the report's set. Nothing
-        is written to any run and nothing is recalculated here: a change is
-        the report's, marks it changed (the red line) and is applied by
-        Generate report, which asks Update / Create New / Cancel.
+        run"*, and 5801677743: *"changing the reports settings does not change
+        the report, and its binding to a limit set, unless you click Generate
+        Report"*. So the first column is THIS REPORT's limits, editable, and
+        its "Used for this report" radios choose the report's set, from every
+        report window alike, one profile run or several. Nothing is written
+        to any run and nothing is recalculated here: a change is the report's,
+        marks it changed (the red line) and is applied by Generate report,
+        which asks Update / Create New / Cancel when a report is selected.
 
-        The Preferences columns beside it are the app-wide sets, exactly as
-        from any other door.
+        Two things this window may still store, and neither is a report's
+        setting: which COLUMNS it shows (a view setting, remembered per
+        profile run, K-b), and, with one profile run loaded, the run's own
+        DEFAULT for new reports ("Default for this run", K31: *"then the
+        default in the Edit limits for that run"*). The Preferences columns
+        beside it are the app-wide sets, exactly as from any other door.
         """
         from ui.dialogs.thresholds_dialog import (ReportLimitsColumn,
                                                   ThresholdsDialog)
         from workflow.compliance_sets import (SET_BY_ID, effective_limits,
                                               is_edited, limits_to_json)
         from workflow.run_compliance import RunLimits
-        lim = (self._document_limits() or self._sticky_limits()
-               or self._window_limits())
-        column = ReportLimitsColumn(lim)
+        lim = self._report_limits()
+        own_run = self._run_for_its_own_default()
+        ctx = self._run_ctx
+        view_run = ctx.run if ctx is not None else None
+        cols_before: list = []
+        if view_run is not None:
+            try:
+                cols_before = list(view_run.load_meta().compliance_columns or [])
+            except Exception:                        # noqa: BLE001
+                cols_before = []
+        column = ReportLimitsColumn(lim, columns=cols_before)
         before = limits_to_json(lim.limits)
         dlg = ThresholdsDialog(self._settings, self, run=column,
-                               run_editable=True, report_column=True)
+                               run_editable=True, report_column=True,
+                               run_default=own_run)
         self._report_limits_dialog = dlg          # for a driver
         try:
             dlg.exec()
         finally:
             self._report_limits_dialog = None
         chosen = str(getattr(dlg, "run_set_chosen", "") or "")
+        default_chosen = str(getattr(dlg, "run_default_chosen", "") or "")
         edited = column.limits()
+        cols_after = column.columns()
         dlg.deleteLater()
+        # THE COLUMN CHOICE, a view setting (K-b), back onto the run it is
+        # remembered for. It moves no verdict and binds nothing.
+        if view_run is not None and cols_after != cols_before:
+            from workflow.run_compliance import set_run_columns
+            try:
+                set_run_columns(view_run, cols_after)
+            except OSError as exc:
+                log.warning("could not store the column choice: %s", exc)
+        # THE RUN'S OWN DEFAULT FOR NEW REPORTS (K31). Written only when the
+        # user picked one, and only onto the run the row named.
+        if own_run is not None and default_chosen:
+            from workflow.run_compliance import (run_default_set_id,
+                                                 set_run_default_set)
+            was = run_default_set_id(own_run) or self._default_set_id()
+            if default_chosen != was:
+                try:
+                    set_run_default_set(own_run, default_chosen,
+                                        self._default_set_id())
+                    log.info("new reports of %s now start on %s",
+                             own_run.dir, default_chosen)
+                except OSError as exc:
+                    self._say_not_written(own_run, exc)
         self._forget_limits()
         overrides = self._overrides()
         own = None
@@ -12327,7 +10575,16 @@ class MeasurementReportDialog(QDialog):
                                     if known else True),
                             known=lim.known)
         if own is None:
-            self._refresh()
+            # NOTHING OF THE REPORT'S CHANGED (K31, found on screen, beta 40).
+            # This called `_refresh()`, which re-renders the page and takes
+            # what it was drawn with as the new baseline, so a "Judged against"
+            # change made BEFORE opening the window stopped counting as a
+            # change: the red line went and Generate asked "Nothing was
+            # changed for the selected report". A column choice or the run's
+            # own default moves nothing on the page, so the controls are
+            # synced and the baseline is left alone.
+            self._sync_limit_controls()
+            self._show_stale_banner()
             return
         log.info("the report's own limits were changed in the limits window "
                  "(%s); no run is written", own.set_id)
@@ -12335,623 +10592,6 @@ class MeasurementReportDialog(QDialog):
         self._settings_touched(set_id=own.set_id)
         if own.set_id != self._set_combo.currentData():
             self._sync_limit_controls()
-
-    def _open_limits_window(self) -> None:
-        from ui.dialogs.thresholds_dialog import ThresholdsDialog
-        if self._several_runs():
-            self._open_report_limits_window()
-            return
-        ctx = self._run_ctx
-        # EDITABLE MEANS NOT LOCKED, and this line asked a narrower question.
-        # It keyed on the hand-lift flag alone, so a run that is not locked
-        # because it has only ONE dated verification (the state Knut asked for
-        # by name, so that the settings can still be changed) got a read-only
-        # column, a note telling it to tick "Unlock this run's limits", and
-        # that tick box greyed out in the window behind. Three controls, three
-        # different answers about one run. The lock rule gained its second
-        # condition this morning; this line did not move with it.
-        # ONE ANSWER ABOUT THIS RUN, AND THIS LINE HAD ITS OWN.
-        # `_sync_limit_controls` treats a run this window bound as unlocked, so
-        # the pulldown stays live and the button reads "Edit limits…"; this
-        # asked the raw predicate, so the same run opened a READ-ONLY column
-        # whose note pointed at an unlock box the window was hiding. Three
-        # controls, three answers, which is the fault two rounds fixed twice.
-        dlg = ThresholdsDialog(self._settings, self,
-                               run=ctx.run if ctx else None,
-                               run_editable=bool(ctx and not self._locked_here(ctx.run)))
-        # SNAPSHOT BEFORE, BECAUSE THE DIALOG WRITES ON ITS WAY OUT AND
-        # FOUR OF ITS CONTROLS WRITE THE MOMENT THEY ARE TOUCHED.
-        # `ThresholdsDialog.done()` stores the edited column whatever result it
-        # is closing with, and its only button is Close, wired to accept, so
-        # Escape writes too. The radio, a shipped column's cell, that column's
-        # Restore button and the column tick boxes do not wait for the close at
-        # all. There is no route out of that window that does not commit.
-        snap = self._limits_snapshot(ctx)
-        self._pending_restore_error = None
-        dlg.exec()
-        edited_run_column = bool(dlg.run_limits_changed)
-        # SOMEBODY ELSE WROTE THIS RUN'S COLUMN WHILE THE WINDOW WAS OPEN, and
-        # only the dialog can know it. The refusal path asks "has the binding
-        # moved?" through `compliance_bound_at`, which ONLY `bind_run` stamps;
-        # the other writer here is `set_run_limits`, which is a second Report
-        # limits window closing. A challenge round drove all three cases side by
-        # side: another `bind_run` produced two boxes and told the user, a real
-        # second limits window produced one, its number erased in silence, and
-        # a control run where nobody else wrote produced the same one box. The
-        # user could not tell the middle case from the last.
-        # TWO COLLISIONS, TWO ANSWERS. They were folded into one flag and
-        # reported through messages written about the RUN, so a change to the
-        # app-wide preferences was announced as a change to run3, and on the
-        # accept path the sentence said the other change was gone while it was
-        # still on disk. They are separate because what happens to them is
-        # separate: the run's own column is put back by the undo, and the
-        # preferences are put back only when the user refuses.
-        collided = bool(getattr(dlg, "run_limits_collided", False))
-        prefs_collided = bool(getattr(dlg, "prefs_collided", False))
-        # DID THEY PICK A SET FOR THIS RUN IN THERE? The limits window's "Used
-        # for this run" row records a choice and writes nothing (Knut,
-        # 2026-09-13: the only radios on that window were "Default for new
-        # runs", so clicking one moved the app default and left the run alone,
-        # which read as a dead control). It is applied HERE, through the
-        # pulldown, so it takes the one guarded path: the lock is re-checked,
-        # a preferences change underneath is caught, and the user is asked
-        # about recalculating the run's saved reports. Driving the combo rather
-        # than calling `_on_set_chosen` directly also keeps the control on
-        # screen in step with what was chosen.
-        self._pending_run_set_pick = str(getattr(dlg, "run_set_chosen", "") or "")
-        dlg.deleteLater()
-        self._forget_limits()
-
-        # DID WHAT THIS RUN IS JUDGED BY CHANGE? That is the whole test, and it
-        # replaces asking which control was touched, which is the question that
-        # let four rounds each find the next unguarded one. `run_limits` is the
-        # app's own answer: for a bound run its stored copy, for an unbound one
-        # the live preference and the app-wide overrides.
-        # THE TRIGGER IS SOMETHING THIS WINDOW WROTE, AND ONLY THAT.
-        #
-        # Two rounds sharpened this. Taking `edited_run_column` on its own asked
-        # the question for an edit that typed a number and typed it straight
-        # back: net zero, and on an unbound run it still bound the run and
-        # rewrote eleven reports, a permanent change with no control that undoes
-        # it. And taking a movement in `judged_by` on its own asked the user
-        # about a binding ANOTHER writer had made while the window sat open, a
-        # second report window or `ensure_bound` at a verification measurement,
-        # where the natural answer to a question you did not ask for silently
-        # reverted the other writer.
-        #
-        # So each door is tested for what it really did:
-        #   the run's own column   the dialog says it wrote, AND the numbers
-        #                          on disk actually differ
-        #   the preferences        they differ, AND that moved what this run is
-        #                          judged by (on a bound run it cannot)
-        # Anything else in the run's meta, a column tick or another writer's
-        # bind, is not this window's doing and is left alone.
-        _now = self._limits_snapshot(ctx)
-        _run_numbers_moved = bool(
-            edited_run_column and snap["run"] is not None
-            and _now["run"] is not None and _now["run"][2] != snap["run"][2])
-        _prefs_moved = ((_now["default_set"] != snap["default_set"]
-                         or _now["overrides"] != snap["overrides"])
-                        and _now["judged_by"] != snap["judged_by"])
-        # THE THIRD THING THIS WINDOW WRITES TO A RUN, and it was in neither
-        # term. The column tick box writes `compliance_columns` the moment it
-        # is clicked, the undo puts that key back, and the lock branch's
-        # trigger could not see it: a run re-locked while the window was open
-        # kept that write with no message, and was refused only if the user had
-        # ALSO typed a number.
-        _run_columns_moved = bool(
-            snap["run"] is not None and _now["run"] is not None
-            and list(_now["run"][5] or []) != list(snap["run"][5] or []))
-        # …AND IT IS NOT A CHANGE TO WHAT THE RUN IS JUDGED BY. Knut,
-        # 2026-09-11: hiding two table columns and clicking Close raised "This
-        # run (run1) has one saved report. Changing the limit set recalculates
-        # it with the new numbers…", and *"this should only come when
-        # thresholds are changed, not if table columns are hidden or shown"*.
-        # Driven on screen on a run with one dated verification and one saved
-        # report: unticking the two ISO columns raised that question, and
-        # answering Cancel, which is the natural answer to a question about a
-        # limit set nobody touched, ran the undo and put `compliance_columns`
-        # back to empty. That is his other report, *"it is not remembered what
-        # I turned off some columns"*, and it is the same fault twice: one
-        # term, folded into `moved`, carried a VIEW setting into the branch
-        # that asks about, and rewrites, a history.
-        #
-        # So the two are separated by what they can do. `_judged_moved` is the
-        # question, the bind and the recalculation, because only numbers and
-        # preferences can move a verdict. The column choice joins it only for
-        # the lock, which is a question about whether this window may write to
-        # the run at all, and that is true of every key it writes.
-        _judged_moved = ctx is not None and (_run_numbers_moved or _prefs_moved)
-        moved = _judged_moved or (ctx is not None and _run_columns_moved)
-
-        # THE LOCK WAS READ WHEN THE WINDOW OPENED AND ENFORCED NOWHERE ELSE.
-        # `run_editable` is decided before the dialog is built and the dialog
-        # writes as it closes, so a run that becomes locked in between takes the
-        # edit anyway. A challenge round drove both ways in: a verification
-        # measurement's own `ensure_bound` binding the run while the window sat
-        # open, and a second window re-locking it. Eleven saved reports were
-        # rewritten on a locked run.
-        # `_locked_here`, THE SAME ANSWER THE DIALOG WAS BUILT FROM TWELVE
-        # LINES ABOVE. This asked the raw predicate, so on a run THIS window had
-        # just bound, the window offered an editable column, took the number the
-        # user typed, threw it away, and told them something else had locked the
-        # run while they were editing it. Nothing else had: this window bound it
-        # one action earlier. The escape hatch it points at is hidden in that
-        # state, so the user can repeat it for ever.
-        #
-        # A challenge round drove it on both bind doors, two projects, two
-        # languages, and proved with a mutation pair that no test could see it:
-        # the one test covering this function stubs the dialog with a fake that
-        # writes nothing, so `moved` is False and this line is never reached.
-        # NOT GATED ON WHICH CONTROL MOVED. `_run_numbers_moved` was in this
-        # condition, so the lock was enforced when the user had typed in the
-        # run's own column and skipped when they had moved the "Default for new
-        # runs" radio instead. A challenge round drove the difference on a
-        # pre-#182 run with eleven saved reports: a verification measurement
-        # binding and locking the run while the window sat open was refused in
-        # the first case and went straight through in the second, archiving and
-        # rewriting all eleven and moving six verdicts from PASS to FAIL, on a
-        # run the app says is locked, judged by a set the user never picked.
-        #
-        # Which control the user touched has nothing to do with whether the run
-        # may be written. `_locked_here` is the whole question.
-        if moved and self._locked_here(ctx.run):
-            log.info("the run was locked while its limits window was open; "
-                     "the edit is not applied to %s", ctx.run.dir)
-            _outcome = self._undo_the_edit(ctx, snap)
-            self._say_locked_meanwhile(ctx.run, _outcome)
-            if prefs_collided:
-                # THIS BRANCH RETURNS ABOVE WHERE THE APP-WIDE COLLISION WAS
-                # REPORTED, so a lock arriving at the same moment made the
-                # window silent about a change it is noisy about otherwise, and
-                # left that change standing. Nothing here puts the preferences
-                # back, so the sentence is the one that says so.
-                self._say_preferences_changed_meanwhile(reverted=False)
-            self._forget_limits()
-            self._refresh()
-            return
-        if _judged_moved:
-            # THE STATE TO COMPARE AGAINST IS THE ONE TAKEN BEFORE THE
-            # QUESTION, and the question is asked inside the condition below.
-            # A challenge round wrote this run's numbers from another window
-            # while that question was on screen: the collision check had
-            # already run, so nothing was raised, and the recalculation judged
-            # every saved report by a number the user never typed and never
-            # saw. Read here, one line before the asking.
-            _state_before_asking = self._run_state_now(ctx.run)
-            # AND THE APP-WIDE STORES, FOR THE SAME REASON. `prefs_collided`
-            # is decided inside the dialog's `done()`, which is over before
-            # this question goes up. Round 17 taught this function to look at
-            # the RUN again afterwards and left these on the old reading, so
-            # another window's change to them during the question was reverted
-            # by the refusal with no box at all. That is round 15's R15-3 and
-            # round 16's R16-2 again, one moment later.
-            _prefs_before_asking = self._prefs_state_now()
-            if (self._recalculating_would_rewrite_history(ctx.run)
-                    and not self._confirm_recalculate(ctx.run)):
-                if self._prefs_state_now() != _prefs_before_asking:
-                    prefs_collided = True
-                # AND THE RUN'S OWN STATE, WHICH THIS BRANCH READ AND NEVER
-                # COMPARED. The app-wide comparison was added four lines above
-                # and the run's was left behind, so another window's write to
-                # the run DURING the question was wiped by the undo with no box
-                # at all, while the same write one moment earlier produced the
-                # correct two.
-                if self._run_state_now(ctx.run) != _state_before_asking:
-                    collided = True
-                self._pending_rebound = collided
-                self._pending_restore_outcome = "none"
-                if not self._restore_limits_snapshot(ctx, snap):
-                    self._say_restore_failed(ctx.run, self._pending_restore_error)
-                elif self._pending_rebound:
-                    self._say_rebound_meanwhile(
-                        ctx.run, self._pending_restore_outcome)
-                if prefs_collided:
-                    # The refusal put them back, so the other change is gone.
-                    self._say_preferences_changed_meanwhile(reverted=True)
-                self._forget_limits()
-                self._refresh()
-                return
-            if self._prefs_state_now() != _prefs_before_asking:
-                prefs_collided = True
-            if self._run_state_now(ctx.run) != _state_before_asking:
-                # SOMEBODY WROTE THIS RUN WHILE THE QUESTION WAS ON SCREEN.
-                # Going ahead would recalculate every saved report against
-                # whatever they wrote, under a question about what the user
-                # typed. Treated as the refusal it has to be: the run's own
-                # column goes back and the user is told, once, by the window
-                # that already exists for exactly this.
-                self._pending_restore_outcome = "none"
-                if not self._restore_limits_snapshot(ctx, snap):
-                    self._say_restore_failed(ctx.run,
-                                             self._pending_restore_error)
-                else:
-                    self._say_rebound_meanwhile(
-                        ctx.run, self._pending_restore_outcome)
-                if prefs_collided:
-                    self._say_preferences_changed_meanwhile(reverted=True)
-                self._forget_limits()
-                self._refresh()
-                return
-            # NOT `bind_run`, WHICH WOULD COPY THE SET'S NUMBERS OVER THE
-            # USER'S. `done()` may have just written an edited column; all that
-            # can be missing is the record that makes `is_bound` true.
-            from workflow.run_compliance import is_bound
-            if not is_bound(ctx.run):
-                # KEEP THE USER'S OWN COLUMN, ADOPT NOTHING ELSE. A run can
-                # hold thresholds and still be unbound, because
-                # `ThresholdsDialog.done()` writes numbers without a set id, and
-                # the app itself creates that state: a refusal whose undo fails
-                # leaves them behind, and `_say_restore_failed` tells the user
-                # they govern nothing. Testing `if not m.compliance_thresholds`
-                # then adopted those leftovers, so a later visit that moved only
-                # the "Default for new runs" radio bound the run to the chosen
-                # set holding a stale number that was never on screen, and
-                # rewrote eleven reports with it.
-                self._bind_without_locking_out(
-                    ctx.run, self._window_limits().set_id,
-                    keep_numbers=_run_numbers_moved)
-                self._forget_limits()
-            self._recalculate_run()
-            # AND THE SAME COLLISION ON THE WAY THROUGH, WHICH SAID NOTHING.
-            # `collided` was read in one place, inside the refusal above, so a
-            # user who said YES lost the other window's change in silence: one
-            # box, the ordinary recalculate question, indistinguishable from
-            # the case where nobody else wrote. A challenge round drove it, and
-            # found a worse half of the same door: with no saved reports there
-            # is no question to ask, so the collision produced NO box at all.
-            if collided:
-                self._say_collision_went_ahead(ctx.run)
-            if prefs_collided:
-                # NOTHING WAS PUT BACK HERE, so nothing is gone: whichever
-                # window wrote last is what the preferences hold. Saying "the
-                # other change is gone" on this path was false, and a challenge
-                # round read the value off disk to prove it.
-                self._say_preferences_changed_meanwhile(reverted=False)
-        self._refresh()
-
-    def _bind_without_locking_out(self, run, set_id: str,
-                                  keep_numbers: bool = False) -> None:
-        """Record the set on a run that had none, and leave the controls where
-        they were.
-
-        `is_locked` is bound AND two dated verifications AND not unlocked, so on
-        a project made before #182 with a history, binding IS locking: the
-        pulldown greys, the button becomes "Show limits…", and the unlock box
-        comes back disabled, because it consults a preference that ships off.
-        A challenge round drove both routes into this and found the user asking
-        for control of these numbers and the act of granting it removing it,
-        under a question that mentioned neither.
-
-        The set label is stored in English so a later ChromIQ that no longer
-        knows the id can still name it (D23), and `bound_at` is the other half
-        of the record `bind_run` writes; a run bound with only the id printed
-        the raw internal id to the user.
-        """
-        from workflow.compliance_sets import (SET_BY_ID, is_known_set,
-                                               limits_to_json)
-        try:
-            m = run.load_meta()
-            m.compliance_set_id = set_id
-            if is_known_set(set_id):
-                m.compliance_set_label = SET_BY_ID[set_id].label
-            # THE NUMBERS, WHICH ARE THE HALF `is_bound` ACTUALLY TESTS.
-            # This wrote four keys and not this one, so the run it "bound" was
-            # not bound: `is_bound` wants the id AND the thresholds. A challenge
-            # round drove the consequence and it is worse than a missing field.
-            # The run could never lock again, its numbers went on following the
-            # live app-wide overrides while eleven saved reports said something
-            # else, `compliance_bound_at` recorded a binding that had not
-            # happened, and the next verification measurement bound it a third
-            # time to whatever was live at that moment.
-            #
-            # THE WINDOW'S OWN NUMBERS, unless this visit edited the run's
-            # column, in which case `ThresholdsDialog.done()` has just written
-            # the user's and they are the one thing that must not be
-            # overwritten. Anything else already on the run was left by
-            # something else and is not evidence of what the user just agreed
-            # to.
-            if not keep_numbers:
-                m.compliance_thresholds = limits_to_json(
-                    self._window_limits().limits)
-            m.compliance_bound_at = datetime.now().isoformat(timespec="seconds")
-            # NOTHING IS WRITTEN ABOUT THE LOCK, AND THAT WAS THE MISTAKE.
-            #
-            # Three rounds each moved this flag: set always, then set only at
-            # two dated verifications or more. Both are a SNAPSHOT of something
-            # that keeps moving. `compliance_unlocked` means "the user lifted
-            # the lock", `is_locked` reads it live, and the number of dated
-            # verifications can go DOWN, because "Delete a verification" is a
-            # shipped menu action. A challenge round drove it on a shipped demo
-            # project: the box ended up ticked and live on a run one date old,
-            # one click un-ticked it with no question, and the box vanished.
-            #
-            # The run keeps its controls for as long as this window is open
-            # instead, remembered in the session and not on disk. Nothing false
-            # is recorded about a lock nobody lifted, and the lock itself
-            # behaves exactly as it is designed to: a bound run with a history
-            # is locked, which is what binding one means.
-            run.save_meta(m)
-        except OSError as exc:
-            log.warning("could not record the set on %s: %s", run.dir, exc)
-            return
-        self._bound_here.add(str(run.dir))
-
-    def _recalculate_run(self) -> None:
-        """Re-stamp every saved report of the window's run with the run's
-        current limits, rewriting each file in place (D23), once per
-        deliberate act (CH-29), and refresh the loaded history to match.
-
-        ARCHIVE FIRST, PER DATE, AND NEVER REWRITE WHAT COULD NOT BE ARCHIVED
-        (R4, review F2/F11). ``Verification.archive_reports`` copies only
-        content that has no copy yet, so a report stamped after the unlock
-        gets its copy before its first rewrite and a repeat changes nothing.
-        A date whose archive fails is left exactly as it is and named in a
-        window.
-
-        **TWO DOORS REACH THIS, NOT THREE (B8-384).** "Unlock this run's
-        limits" and the Report limits window's Save still do. The "Judged
-        against" pulldown does NOT any more: Knut ruled that changing it may
-        not rewrite a saved report, and `_on_set_chosen` says at length what
-        that leaves. The two that remain are B8-310, where whether his N.3
-        (*"Unlocking a run's limits and saving a change in the Edit limits
-        window must result in the same behaviour"*) applies to them is still an
-        open question for him and has not been assumed here.
-        """
-        ctx = self._run_ctx
-        if ctx is None:
-            return
-        from datetime import datetime as _dt
-        from PyQt6.QtGui import QCursor
-        from workflow.measurement_report import (build_report, facts_disagree,
-                                                 list_reports,
-                                                 recorded_document,
-                                                 rewrite_report,
-                                                 stamp_report_type,
-                                                 stamp_verdict)
-        from workflow.run_compliance import run_limits
-        lim = run_limits(ctx.run, self._overrides(), self._default_set_id())
-        when = _dt.now()
-        # THREE THINGS CAN GO WRONG HERE AND THEY ARE NOT THE SAME THING.
-        # They used to share one list and one message, and the message
-        # described only the first of them. A challenge round drove the second:
-        # three reports on one date with the middle file read-only and the
-        # folder writable. Two of the three were rewritten, the date was
-        # reported as untouched, and every sentence of the message was false in
-        # that state, including the instruction, which fixed nothing.
-        no_archive: list[str] = []    # nothing on this date was touched
-        no_write: list[str] = []      # archived, and not one file was written
-        part_written: list[str] = []  # some of this date's files were rewritten
-        unreadable: list[str] = []    # a file that could not be parsed at all
-        # THE DATED FOLDERS OF **THIS** RUN, asked of the run rather than
-        # matched out of a string. See the loop at the foot of this method.
-        mine = {str(v.dir) for v in ctx.run.verifications()}
-        QApplication.setOverrideCursor(QCursor(Qt.CursorShape.WaitCursor))
-        try:
-            for v in ctx.run.verifications():
-                paths = list_reports(v.dir)
-                if not paths:
-                    continue
-                try:
-                    v.archive_reports(when)
-                except OSError as exc:
-                    log.warning("could not archive reports of %s: %s", v.dir, exc)
-                    no_archive.append(v.id)
-                    continue
-                _failed = False
-                _written = 0
-                for path in paths:
-                    try:
-                        rep = json.loads(read_text(path))
-                    except Exception:  # noqa: BLE001
-                        # NOT SILENT ANY MORE. It is the safe direction, since
-                        # the file is left exactly as it was, but a report the
-                        # user can see in the window and that no recalculation
-                        # ever reaches is worth one line.
-                        # NOT `_failed`, AND THAT ONE LINE PUT THE DATE IN TWO
-                        # LISTS AT ONCE. A challenge round drove a date whose
-                        # ONLY report file is not JSON and read back four false
-                        # clauses: some reports were recalculated (none were), a
-                        # file could not be written (none was attempted), the
-                        # date holds old and new verdicts (it holds one), and
-                        # the window shows what the unwritten file carries
-                        # (there is no unwritten file). A file that cannot be
-                        # READ is its own kind of failure and has its own list.
-                        log.warning("could not read %s; left as it is", path)
-                        unreadable.append(f"{v.id}/{Path(path).name}")
-                        continue
-                    # **A REPORT THAT IS A DOCUMENT IS NOT RECALCULATED.**
-                    # Knut, 2026-09-18, asked whether D23's archive-then-
-                    # recalculate rule still holds: *"Agreed. D23 stands."*,
-                    # and, on what Generate does: *"It is better that existing
-                    # reports are not overwritten. A user could instead select
-                    # and delete old reports they do not want."*
-                    #
-                    # A document records the settings it was made with (B8-383)
-                    # and is offered in the list under a name built from them.
-                    # Rewriting its verdict against another set would make its
-                    # own record false and its own name a lie, which is the
-                    # photograph in B8-384: an entry reading "ChromIQ tight"
-                    # over a page still reading "ChromIQ default".
-                    #
-                    # **THIS IS NOT THE WHOLE OF B8-384.** A report saved by an
-                    # earlier ChromIQ carries no document block and is still
-                    # rewritten here, exactly as it is today, because stopping
-                    # that reaches the confirmation that precedes it and the
-                    # sentence it puts on screen. That is registered and left.
-                    if recorded_document(rep) is not None:
-                        log.info("left alone (it is a generated document): %s",
-                                 path)
-                        continue
-                    # **A ROW THAT WAS NEVER COMPUTED MUST NOT BE JUDGED N-A
-                    # AND WRITTEN TO DISK.** `stamp_verdict` judges the blocks
-                    # the FILE carries, so a report saved before a block
-                    # existed is re-judged without it and the new row is
-                    # stamped "not computed, it was not one of the values
-                    # ChromIQ kept when the report was saved" -- into the file,
-                    # permanently, with the measurement that answers it in the
-                    # same folder. Measured 2026-09-22 on a report saved by the
-                    # build before this one: a recalculation turned 13 recorded
-                    # rows into 15 and both of the two new ones read N-A with
-                    # that reason.
-                    #
-                    # The reading loop already refuses to show such a report
-                    # without rebuilding it (`_report_needs_rebuilding`); this
-                    # is the same rule at the door that WRITES. A dated
-                    # verification folder holds exactly one measurement, so
-                    # "the file in the folder" is the right sheet here -- the
-                    # ambiguity `_measurement_for` exists for is the RUN
-                    # folder's, not this one's.
-                    #
-                    # It recomputes statistics and grades nothing: the verdict
-                    # is stamped below, from the run's current limits, exactly
-                    # as before. `created` is the report's own date and is
-                    # carried across untouched.
-                    #
-                    # AND THE FILE IS ASKED FIRST, as `_measurement_for` asks
-                    # it: `facts_disagree` is one-sided, so a sheet that
-                    # contradicts the report's own recorded patch count or its
-                    # lightest and darkest patch is not this report's
-                    # measurement and nothing is rebuilt from it. Agreement is
-                    # not proof; disagreement is.
-                    if _report_needs_rebuilding(rep):
-                        src = v.measurement_ti3
-                        if src.is_file() and not facts_disagree(rep, src):
-                            try:
-                                _created = rep.get("created")
-                                _kept = {k: rep[k] for k in
-                                         ("pass_thresholds", "verdict",
-                                          "compliance", "report_type",
-                                          "document")
-                                         if k in rep}
-                                rep = build_report(
-                                    src, argyll_bin=self._argyll_bin())
-                                if _created:
-                                    rep["created"] = _created
-                                rep.update(_kept)
-                            except Exception:   # noqa: BLE001 — never a blocker
-                                log.warning("could not rebuild %s before "
-                                            "recalculating it", path)
-                    stamp_verdict(rep, lim.limits, set_id=lim.set_id,
-                                  set_label=lim.label_en, edited=lim.edited)
-                    # …AND THE TYPE, BUT ONLY ONTO A REPORT THAT HAS NONE.
-                    #
-                    # An adversarial round added this so a recalculated report
-                    # could not claim a type the run no longer held, and that
-                    # was right while a run had exactly one. Knut ruled on
-                    # 2026-09-11 that a run may hold reports of SEVERAL types:
-                    # *"the user may have several uses for different reports."*
-                    # Stamping every one with the run's current type then
-                    # destroys the distinction he asked for. Measured: one
-                    # change of limit set, the type pulldown untouched, turned
-                    # a Colour summary, a Full colour check and a Printing
-                    # record into three Colour summaries, and the line naming
-                    # what the run has read "Colour summary (4)".
-                    #
-                    # A report generated AS a document keeps being that
-                    # document. One saved before the types existed has no
-                    # answer of its own, so it follows the run, which is what
-                    # it renders as anyway.
-                    if not (rep or {}).get("report_type"):
-                        stamp_report_type(rep, ctx.run)
-                    try:
-                        rewrite_report(path, rep)
-                        _written += 1
-                    except OSError as exc:
-                        log.warning("could not rewrite %s: %s", path, exc)
-                        _failed = True
-                if _failed:
-                    # "SOME WERE RECALCULATED" HAS TO BE TRUE, AND ON A DATE
-                    # WITH ONE REPORT FILE IT NEVER IS. Every dated verification
-                    # in the shared demo data ships with exactly one, which is
-                    # the ordinary case: a single read-only file means NONE of
-                    # that date was recalculated and it holds only its old
-                    # verdict, while the message said it held both.
-                    (part_written if _written else no_write).append(v.id)
-            # the history in memory: the same records, refreshed (the dates
-            # left untouched on disk are left untouched here as well)
-            # A DATE THAT WAS ONLY PARTLY WRITTEN KEEPS ITS OLD VERDICT HERE
-            # TOO, which is the conservative half of an unavoidable
-            # inconsistency: some of its files now say one thing and some the
-            # other, and showing the OLD word matches the file that could not
-            # be written. The message below says exactly that rather than
-            # letting the window imply the whole date moved.
-            # A PREFIX OF A PATH IS NOT A PARENT OF IT, AND THE NEXT RUN ALONG
-            # PAID FOR THAT. This asked `origin.startswith(str(ctx.run.dir))`,
-            # and `…/runs/run10` starts with `…/runs/run1`, so a project with
-            # ten runs had run10's column re-judged by run1's choice. Driven on
-            # screen, a project with run1 (ChromIQ default), run2 (ChromIQ
-            # tight) and run10 (Quick check), all six columns shown: choosing
-            # "ChromIQ tight" for run1 left run2's column alone, as it must,
-            # and turned run10's from "Quick check" to "ChromIQ tight" in the
-            # rendered document, while run10's file on disk still said
-            # `chromiq_quick`. Nothing was written; the window simply told the
-            # user a column had been judged by a set it is not bound to.
-            #
-            # …AND IT REACHED WIDER THAN THE WRITE ABOVE IN A SECOND WAY. The
-            # disk pass walks `ctx.run.verifications()`, which is what §5 of
-            # `docs/design/measurement_report_limits.md` specifies ("each dated
-            # report"); this loop reached the run's own `reports/` as well, so
-            # on the same drive run1's run-level report read "ChromIQ tight" on
-            # screen and `chromiq_default` on disk, with no question asked,
-            # because `_saved_report_count` counts dated folders and had
-            # counted none. A baseline refreshed wider than the write that
-            # earned it is the shape this window keeps producing; the cure is
-            # to refresh exactly the folders the write above covered.
-            _held = set(no_archive) | set(no_write) | set(part_written)
-            for r in self._history:
-                origin = str(r.get("_origin_dir", ""))
-                if origin in mine and Path(origin).name not in _held:
-                    stamp_verdict(r, lim.limits, set_id=lim.set_id,
-                                  set_label=lim.label_en, edited=lim.edited)
-        finally:
-            QApplication.restoreOverrideCursor()
-        if no_archive or no_write or part_written or unreadable:
-            from ui.warning_sign import warn
-            _parts: list[str] = []
-            if no_archive:
-                _parts.append(tr(
-                    "These dates were not touched at all, because the previous "
-                    "report could not be copied into their reports/old folder, "
-                    "and a report is never rewritten before its previous "
-                    "version is kept:\n{dates}").format(
-                        dates="\n".join(sorted(set(no_archive)))))
-            if no_write:
-                _parts.append(tr(
-                    "On these dates the previous reports were kept, but none of "
-                    "the reports could be written, so each of them still holds "
-                    "the verdict it had:\n{dates}").format(
-                        dates="\n".join(sorted(set(no_write)))))
-            if part_written:
-                _parts.append(tr(
-                    "On these dates the previous reports WERE kept and some of "
-                    "the reports were recalculated, but at least one file could "
-                    "not be written, so that date now holds both old and new "
-                    "verdicts. The window shows the old one, which is the one "
-                    "the unwritten file still carries:\n{dates}").format(
-                        dates="\n".join(sorted(set(part_written)))))
-            if unreadable:
-                _parts.append(tr(
-                    "These report files could not be read at all and were left "
-                    "exactly as they are:\n{files}").format(
-                        files="\n".join(sorted(set(unreadable)))))
-            # AND THE CLOSING LINE FOLLOWS THE LISTS THAT ARE ACTUALLY THERE.
-            # It was appended unconditionally, so a date with one corrupt file
-            # was told to make its files writable and try again, which fixes
-            # nothing and re-runs the same failure.
-            if no_archive or no_write or part_written:
-                _parts.append(tr(
-                    "Individual files can be read-only while their folder is "
-                    "writable. Make the files and the folders writable, then "
-                    "change the limits again to bring them all up to date."))
-            if unreadable:
-                _parts.append(tr(
-                    "A file that cannot be read is not a permissions problem "
-                    "and changing the limits again will not help. Open it, or "
-                    "move it out of its reports folder, and the next "
-                    "recalculation will leave a fresh one in its place."))
-            warn(self, tr("Some reports were not recalculated"),
-                 "\n\n".join(_parts))
 
     def _runs_for_report(self) -> list:
         """**THE MEASUREMENTS THAT ARE TICKED. ALWAYS (B8-590).**
@@ -13001,64 +10641,69 @@ class MeasurementReportDialog(QDialog):
             [r.get("_origin_dir") for r in runs or [] if r.get("_origin_dir")])
 
     def _judged_by_the_document(self, rows: list) -> list:
-        """*rows*, each carrying the verdict of THE DOCUMENT'S limit set when
-        they span places (#182 beta 39, G7); *rows* unchanged otherwise.
+        """*rows*, each carrying the verdict of THE REPORT'S limit set.
 
-        Knut, 5773668311: *"The project across both profile runs'
-        verification measurements have only one defined limit set ... The
-        same settings are used in that report to check the metrics for the
-        selected measurements to include, even if the measurements belong in
-        separate profile runs"*, confirmed in 5794311113: *"the report's own
-        limit set applies to every included measurement, whatever each run is
-        bound to."*
+        **ONE SET FOR THE WHOLE REPORT, ALWAYS (K31; Knut, #182 5801677743:
+        "Go for option (a) One set for the whole report, always").** Every
+        ticked measurement is judged against the report's own "Judged
+        against" set, whichever profile run or project it is in and whatever
+        its own report of one date says. That was G7's rule across places
+        (5794311113); K31 makes it the rule within one run as well, so the
+        difference between one run and several is gone.
 
-        A row's own file carries the verdict of ITS run's set, which is the
-        date's record and stays so (§5). The page of a document across places
-        is drawn from COPIES of the rows with that verdict replaced:
+        A row's own file is that measurement's own report, and it stays so.
+        The page is drawn from COPIES of the rows:
 
-        * a saved document that recorded each measurement's verdict
-          (`JUDGED_KEY`) shows exactly those words, never recalculated under
-          its reader;
-        * a saved document from before G7 has no such entry, and its verdict
-          records (the rows' files) were written against its own set: shown
-          as they are;
-        * a new report, or one whose settings moved, is judged just now
-          against the set "Judged against" names.
+        * a loaded, unchanged report that recorded each measurement's verdict
+          (`JUDGED_KEY`, every report of several measurements since G7/K31)
+          shows exactly those words, never recalculated under its reader;
+        * a row whose file IS the loaded report (a report of one date, or a
+          verdict record an earlier ChromIQ wrote for that report) shows the
+          words it was saved with;
+        * everything else, a new report or one whose settings moved, is
+          judged just now against the set "Judged against" names.
+
+        Old verdict records are therefore read-only history: they speak only
+        for the report they were written for (§25).
 
         Profiling sheets are never graded (§3), so a Profiling window keeps
         its rows as they are.
         """
-        from workflow.measurement_report import (JUDGED_KEY, KIND_PROFILING,
+        from workflow.measurement_report import (KIND_PROFILING,
+                                                 recorded_document,
                                                  recorded_judgement)
-        if len(rows) < 2 or not self._spans_places(rows):
+        if not rows:
             return rows
         if self._window_kind() == KIND_PROFILING:
             return rows
-        from workflow.measurement_report import document_spans_places
         doc = self._document_settings()
-        ms = [m for m in (doc or {}).get("measurements") or []
-              if isinstance(m, dict)]
-        # A DOCUMENT ACROSS PLACES FROM BEFORE G7 records no verdicts of its
-        # own: its records, which the rows are drawn from, are its verdicts.
-        # (A loaded document of ONE place is not the page any more once rows
-        # of other places are ticked beside it; only its set still speaks.)
-        if (doc is not None
-                and document_spans_places([m.get("dir") for m in ms])
-                and not any(m.get(JUDGED_KEY) for m in ms)):
-            return rows
-        lim = (self._document_limits() or self._sticky_limits()
-               or self._window_limits())
+        doc_id = str((doc or {}).get("id") or "")
+        lim = self._report_limits()
         out = []
         for r in rows:
             j = (recorded_judgement(doc, self._run_key(r),
                                     r.get("_origin_dir") or "")
                  if doc is not None else None)
-            if j is None:
-                out.append(self._judged_live(r, lim))
+            if j is not None:
+                c = dict(r)
+                c.update(j)
+                out.append(c)
                 continue
-            c = dict(r)
-            c.update(j)
-            out.append(c)
+            own = recorded_document(r) if doc is not None else None
+            if (own is not None and doc_id
+                    and str(own.get("id") or "") == doc_id):
+                out.append(r)                 # the loaded report's own file
+                continue
+            if doc_id.startswith("file:"):
+                # A report written before the document record existed: its
+                # one file is the report, and it is shown as it was saved.
+                f = Path(doc_id[len("file:"):])
+                if (f.name == str(r.get("_report_file") or "")
+                        and str(f.parent.parent)
+                        == str(r.get("_origin_dir") or "")):
+                    out.append(r)
+                    continue
+            out.append(self._judged_live(r, lim))
         return out
 
     def _judged_live(self, r: dict, lim) -> dict:
@@ -14374,16 +12019,16 @@ class MeasurementReportDialog(QDialog):
                     "fault, and nothing is missing from it. That report was "
                     "saved by a version of ChromIQ that did not yet keep the "
                     "verdict together with the measurements, so its words "
-                    "are worked out now, against the run's limit set, and "
-                    "changing that run's limits will change them. Every "
-                    "report saved from now on keeps the verdict it was given "
-                    "on the day.")) + "</div>")
+                    "are worked out against the limit set this report is "
+                    "judged against. Every report saved from now on keeps the "
+                    "verdict it was given on the day.")) + "</div>")
         if any(r.get("_fresh") for r in runs):
             notes += (
                 f"<div style='{note_css}'>" + html.escape(tr(
                     "A column marked “(not saved)” is a measurement with no "
-                    "saved report of its own; its words are worked out now "
-                    "against the run's limit set.")) + "</div>")
+                    "saved report of its own; its words are worked out "
+                    "against the limit set this report is judged against."))
+                + "</div>")
         # KNUT'S 12b CONDITION, AND IT WAS NOT MET. He allowed INFO for a
         # profiling run's report on one condition: "the report OUTPUT must
         # explain this". The explanation existed, but only as the `title=`
@@ -15913,7 +13558,7 @@ class MeasurementReportDialog(QDialog):
                         "{n} patches. Small numbers mean the printer still "
                         "behaves as it did then; growing numbers mean it has "
                         "drifted. "
-                        "(PASS and FAIL against the run's limit set are not "
+                        "(PASS and FAIL against the report's limit set are not "
                         "shown here: a raw sheet is not expected to match "
                         "the design closely, so it would fail even a "
                         "perfectly healthy printer.)").format(

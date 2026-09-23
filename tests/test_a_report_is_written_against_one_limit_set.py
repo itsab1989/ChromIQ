@@ -1,5 +1,13 @@
 """B8-246 — a report is written against ONE "Judged against" limit set.
 
+**K31 (beta 40) KEEPS THE RULE AND CHANGES HOW IT IS KEPT.** Knut, #182
+5801677743: *"Go for option (a) One set for the whole report, always."* The
+report no longer LEAVES OUT a measurement whose own report was judged against
+another set; it judges EVERY ticked measurement against its own one set
+(`_judged_by_the_document`), so a document still never holds two sets and his
+2026-09-16 rule below holds by construction. The guards here were retargeted
+from "one is left out" to "both are in, judged against one set".
+
 The project's design authority, 2026-09-16, on a report of his own::
 
     after generating several reports for a verification run, the report
@@ -105,7 +113,7 @@ def _dialog(tmp_path, qapp, bind="chromiq_default"):
     v.ensure_dir()
     v.measurement_ti3.write_text(_cgats("CTI3", _PATCHES), encoding="utf-8")
     if bind:
-        from workflow.run_compliance import bind_run
+        from tests.helpers.legacy_run_meta import (bind_run)
         bind_run(run, bind, None)
     _save_a_report(run, v)
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
@@ -169,11 +177,21 @@ def _plain(dlg) -> str:
     return " ".join(re.sub("<[^>]+>", " ", dlg._view.toHtml()).split())
 
 
-def test_the_document_never_holds_two_limit_sets(tmp_path, qapp):
-    """The rule, measured on the document the window actually renders.
+def _ykey(r):
+    """The limit set a row of the page was judged against, as a comparable
+    key (the window's own `_yardstick_of` went with the narrowing, K31)."""
+    from workflow.measurement_report import recorded_compliance, yardstick_key
+    comp = recorded_compliance(r)
+    return yardstick_key(comp) if comp is not None else None
 
-    MUTATION: drop the `_one_limit_set` call from `_report_body_html`, or make
-    its loop keep every run, and this goes red.
+
+def test_the_document_never_holds_two_limit_sets(tmp_path, qapp):
+    """The rule, measured on the document the window actually renders: two
+    dates whose own reports were judged against two sets are BOTH in the
+    report, judged against its one set (K31, option a).
+
+    MUTATION: make `_judged_by_the_document` return the rows unchanged (each
+    date keeps its own report's set) and this goes red.
     """
     dlg, _run, fm = _dialog(tmp_path, qapp)
     try:
@@ -181,8 +199,8 @@ def test_the_document_never_holds_two_limit_sets(tmp_path, qapp):
         assert len(dlg._runs_for_report()) == 2, (
             "this test needs two measurements loaded")
         kept, dropped = dlg._one_limit_set(dlg._runs_for_report())
-        assert len(dropped) == 1, "the two sets were not separated"
-        keys = {dlg._yardstick_of(r) for r in kept}
+        assert len(dropped) == 0 and len(kept) == 2, "a measurement was left out"
+        keys = {_ykey(r) for r in kept}
         assert len(keys) == 1, f"{len(keys)} limit sets in one document"
         # …AND THE DOCUMENT, NOT ONLY THE HELPER. A helper nothing calls is
         # not a fix, and the first cut of this test asserted only on the
@@ -210,11 +228,12 @@ def test_the_left_out_measurement_is_counted_and_never_named(tmp_path, qapp):
     threshold sets."* The Scope block named every measurement left out AND the
     limit set each was judged against, twelve of them on the demo project.
 
-    What survives is Sebastian's honesty rule in the document's own voice: a
-    filtered report still says it is filtered, by COUNT.
+    Since K31 nothing is left out (one set for the whole report), so the
+    report covers every ticked measurement and carries no "covers N of the
+    M" note at all, and still no gossip about other sets.
 
-    MUTATION: drop the "covers N of the M" note from `_scope_html` and this
-    goes red.
+    MUTATION: make `_one_limit_set` leave out the date recorded against
+    another set again and this goes red.
     """
     dlg, _run, fm = _dialog(tmp_path, qapp)
     try:
@@ -224,7 +243,8 @@ def test_the_left_out_measurement_is_counted_and_never_named(tmp_path, qapp):
         assert "not in the results below" not in body
         assert "loaded in this window" not in body
         import re
-        assert re.search(r"covers \d+ of the \d+ measurements", body), body[:400]
+        assert not re.search(r"covers \d+ of the \d+ measurements", body), \
+            body[:400]
     finally:
         dlg.close()
 
@@ -248,9 +268,11 @@ def test_the_old_red_warning_can_no_longer_fire_on_a_rendered_document(
 def test_two_copies_of_ONE_set_are_still_separated_in_the_window(tmp_path,
                                                                  qapp):
     """The case the red line itself could not see: same name, other numbers.
+    Since K31 both are IN the report, judged against the report's own numbers,
+    so the page carries one yardstick, not two copies of one name.
 
-    MUTATION: make `_yardstick_of` key on the set id alone and this goes red,
-    because the two columns then read as one set and neither is left out.
+    MUTATION: make `_judged_by_the_document` keep a row's own recorded
+    verdict and this goes red.
     """
     dlg, run, fm = _dialog(tmp_path, qapp)
     try:
@@ -269,9 +291,9 @@ def test_two_copies_of_ONE_set_are_still_separated_in_the_window(tmp_path,
             raise AssertionError("no numeric limit in the run's own copy")
         _second_run(tmp_path, fm, dlg, qapp, set_id=mine, thresholds=edited)
         kept, dropped = dlg._one_limit_set(dlg._runs_for_report())
-        assert len(dropped) == 1, (
-            "two copies of one set with different numbers were read as one")
-        assert len(kept) == 1
+        assert len(dropped) == 0 and len(kept) == 2
+        assert len({_ykey(r) for r in kept}) == 1, (
+            "two copies of one set with different numbers are on one page")
     finally:
         dlg.close()
 
@@ -304,7 +326,7 @@ def test_the_button_files_a_report_only_for_what_the_page_describes(tmp_path,
     dlg, _run, fm = _dialog(tmp_path, qapp)
     try:
         _second_run(tmp_path, fm, dlg, qapp)
-        keys = {dlg._yardstick_of(r) for r in dlg._runs_for_document()}
+        keys = {_ykey(r) for r in dlg._runs_for_document()}
         assert len(keys) == 1, (
             "the Generate button would file a report for a measurement the "
             "page does not describe")
@@ -356,20 +378,21 @@ def test_the_pdf_is_offered_in_the_folder_of_the_run_it_describes(tmp_path,
     `Report-Limits-Report-Types/reports`; after it,
     `Report-Limits-Report-Types/runs/run1/reports`.
 
+    K31: nothing is left out any more, so the report of the run's two dates
+    is offered where that report lives, `runN/verifications/reports/` (K23),
+    never in either date's own folder.
+
     MUTATION: put `_runs_for_report` back in `_report_dir` and this goes red.
     """
     dlg, run, fm = _dialog(tmp_path, qapp)
     try:
         run2, _v2 = _second_run(tmp_path, fm, dlg, qapp)
         kept, dropped = dlg._one_limit_set(dlg._runs_for_report())
-        assert len(kept) == 1 and len(dropped) == 1, "the fixture did not mix"
+        assert len(kept) == 2 and len(dropped) == 0
         where = dlg._report_dir()
-        covered = Path(kept[0]["_origin_dir"])
-        assert str(where).startswith(str(covered)), (
-            f"the report describes {covered} and would be saved in {where}")
-        # …and never in the folder of the date it left out (G7 moved this
-        # fixture into one run: the two dates are the two places now).
-        assert str(dropped[0]["_origin_dir"]) not in str(where)
+        assert str(where).startswith(str(run.verifications_dir)), where
+        for r in kept:
+            assert not str(where).startswith(str(r["_origin_dir"])), where
     finally:
         dlg.close()
 
@@ -476,7 +499,7 @@ def _two_more_runs(dlg, fm, qapp):
     chromiq_tight, each with a dated verification and NO saved report, added
     to the window. Returns the project root."""
     from tests.test_import_measurement_module import _cgats, _PATCHES
-    from workflow.run_compliance import bind_run
+    from tests.helpers.legacy_run_meta import (bind_run)
     from pathlib import Path as _P
     proj = fm.project()
     for scale, limits in ((0.9, None), (0.7, "chromiq_tight")):
@@ -538,14 +561,14 @@ def test_the_limit_split_survives_the_window_repainting_itself(tmp_path, qapp):
         root = _two_more_runs(dlg, fm, qapp)
         dlg._refresh()
         qapp.processEvents()
-        keys = {dlg._yardstick_of(r) for r in dlg._runs_for_report()}
+        keys = {_ykey(r) for r in dlg._runs_for_report()}
         assert len(dlg._runs_for_report()) == 3 and len(keys) == 1, keys
         moved = root.with_name(root.name + "-moved")
         root.rename(moved)
         try:
             dlg._refresh()            # the app's own sequence, forget then render
             qapp.processEvents()
-            keys = {dlg._yardstick_of(r) for r in dlg._runs_for_report()}
+            keys = {_ykey(r) for r in dlg._runs_for_report()}
         finally:
             moved.rename(root)
         assert len(keys) == 1, f"{len(keys)} limit sets on one page"
@@ -576,8 +599,6 @@ def test_a_printing_record_keeps_every_ticked_measurement(tmp_path, qapp):
         _second_run(tmp_path, fm, dlg, qapp)
         rows = dlg._runs_for_report()
         assert len(rows) == 2
-        assert len(dlg._one_limit_set(rows)[1]) == 1, (
-            "the fixture no longer has two sets, so this proves nothing")
         dlg._sync_type_combo_to(REPORT_TYPE_RECORD)
         dlg._on_type_chosen(dlg._type_combo.currentIndex())
         qapp.processEvents()
@@ -610,9 +631,11 @@ def test_the_pdf_page_header_describes_the_rows_the_body_describes(
     - 2026-05-25)" in the header of every page over a body about ONE
     measurement, because the header was built from every ticked row and the
     body from the document (one limit set per document leaves the other out).
+    Since K31 nothing is left out, so header and body describe both rows.
 
     The real export runs; only the save dialog and the viewer are answered.
-    MUTATION: build the header from `runs` again and this goes red.
+    MUTATION: build the header from anything but the document's rows and
+    this goes red.
     """
     from PyQt6.QtGui import QDesktopServices
     import ui.widgets as W
@@ -620,8 +643,7 @@ def test_the_pdf_page_header_describes_the_rows_the_body_describes(
     try:
         _second_run(tmp_path, fm, dlg, qapp)
         body_rows = dlg._runs_for_document()
-        assert len(dlg._runs_for_report()) == 2 and len(body_rows) == 1, (
-            "the fixture no longer narrows two ticked rows to one document")
+        assert len(dlg._runs_for_report()) == 2 and len(body_rows) == 2
         out = tmp_path / "r.pdf"
         monkeypatch.setattr(W, "save_file_dialog", lambda *a, **k: str(out))
         monkeypatch.setattr(QDesktopServices, "openUrl",

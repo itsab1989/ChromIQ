@@ -50,7 +50,7 @@ def _two_runs(tmp_path):
     """Project P with run1 (ChromIQ default) and run2 (ChromIQ tight), one
     dated verification each. Returns (project, run1, v1, run2, v2)."""
     from tests.test_g7_reports_across_places import _date
-    from workflow.run_compliance import bind_run
+    from tests.helpers.legacy_run_meta import (bind_run)
     proj, run1, v1 = _project(tmp_path, "P", "chromiq_default")
     run2 = proj.new_run()
     run2.ensure_dir()
@@ -124,23 +124,30 @@ def test_across_places_the_limits_window_edits_the_reports_own_limits(
     assert comp.get("edited") is True, comp
 
 
-def test_one_run_loaded_the_limits_window_is_still_the_runs(
+def test_one_run_loaded_the_limits_window_is_the_reports_too(
         tmp_path, qapp, monkeypatch):
-    """With ONE place loaded, the limits window is the run's, as spec
-    section 5 and the confirmed 19.6 / 19.13 have it: "This run", and the
-    report window keeps no report-own limits.
+    """K31 turned this test round (it was
+    `test_one_run_loaded_the_limits_window_is_still_the_runs`, asked of Knut
+    as B8-853). Knut, 5801677743: *"settings belongs to the report"*. With
+    ONE place loaded the limits window is the REPORT's as well: "This
+    report", and an edit there is the report's own limits, written onto no
+    run.
 
-    MUTATION, proven red: call `_open_report_limits_window` unconditionally
-    in `_open_limits_window` (the header reads "This report")."""
+    MUTATION: open a run's own column again for one run (the pre-K31
+    `_open_limits_window`), and this goes red."""
     from tests.test_g7_reports_across_places import _date  # noqa: F401
     proj, run1, v1 = _project(tmp_path, "P", "chromiq_default")
+    _thresholds_before = run1.load_meta().compliance_thresholds
     seen = _edit_in_the_limits_window(monkeypatch, value=0.4)
     dlg = _window(_settings(), v1.measurement_ti3, qapp, "verification")
     try:
         dlg._on_open_limits()
         qapp.processEvents()
-        assert seen["header"] == "This run"
-        assert getattr(dlg, "_report_own_limits", None) is None
+        assert seen["header"] == "This report"
+        own = getattr(dlg, "_report_own_limits", None)
+        assert own is not None, "the edit did not become the report's limits"
+        assert run1.load_meta().compliance_thresholds == \
+            _thresholds_before, "the edit was written onto the run"
     finally:
         dlg.close()
 
@@ -178,7 +185,7 @@ def test_a_calibration_with_no_measurement_lists_its_saved_reports(
         tmp_path, qapp):
     """Challenge A F5: `cal/<name>-cal.ti3` moved aside (a new chart), its
     `cal/reports/` still full. The window lists and opens them, Generate is
-    greyed with the reason, and "Unlock this run's limits" is not live.
+    greyed with the reason. (K31 removed "Unlock this run's limits".)
 
     MUTATION, proven red: drop `_a_calibration_with_saved_reports` from the
     `__init__` load condition (the window opens empty, nothing listed)."""
@@ -190,21 +197,21 @@ def test_a_calibration_with_no_measurement_lists_its_saved_reports(
         assert [t for t, k in _rows(dlg) if k is not None], _rows(dlg)
         assert not dlg._generate_btn.isEnabled()
         assert "has not been measured" in dlg._generate_btn.toolTip()
-        assert not dlg._unlock_check.isEnabled()
     finally:
         dlg.close()
 
 
 def test_an_empty_window_offers_no_unlock(qapp):
-    """Challenge A F5, the other half: a window opened on nothing keeps no
-    live "Unlock this run's limits".
+    """Challenge A F5, the other half: a window opened on nothing offers no
+    "Unlock this run's limits". Since K31 no window has one at all.
 
-    MUTATION, proven red: drop the `if not self._sources:` block at the end
-    of `__init__` (the box is live)."""
+    MUTATION: build the unlock box again and this goes red."""
+    from PyQt6.QtWidgets import QCheckBox
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
     dlg = MeasurementReportDialog(_settings(), None, initial_ti3=None)
     try:
-        assert not dlg._unlock_check.isEnabled()
+        assert not any("Unlock" in c.text()
+                       for c in dlg.findChildren(QCheckBox))
     finally:
         dlg.deleteLater()
 
@@ -367,9 +374,10 @@ def test_a_calibration_window_never_says_runs_were_set_to_types(tmp_path,
     line under "Report shown" must not say "The runs loaded here were set
     to different report types".
 
-    MUTATION, proven red: drop the calibration skip in
-    `_types_of_loaded_runs` (the saved reports' types disagree, and the
-    sentence comes back)."""
+    Since K31 the sentence is gone from every window (runs carry no type).
+
+    MUTATION: put the "different report types" line back in
+    `_sync_type_combo` and this goes red."""
     from workflow.measurement_report import (REPORT_TYPE_FULL,
                                              REPORT_TYPE_GREY)
     p, pti3 = _project_with_cal(tmp_path, "P")
@@ -382,7 +390,6 @@ def test_a_calibration_window_never_says_runs_were_set_to_types(tmp_path,
         qapp.processEvents()
         assert "different report types" not in dlg._type_blurb_full, \
             dlg._type_blurb_full
-        assert dlg._types_of_loaded_runs() == set()
     finally:
         dlg.close()
 

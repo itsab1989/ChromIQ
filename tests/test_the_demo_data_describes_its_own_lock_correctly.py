@@ -1,4 +1,7 @@
-"""The shared demo projects must not describe a lock state they do not have.
+"""The shared demo projects must not describe a limit state they do not have.
+
+**K31 (beta 40):** there is no lock left to describe; see the note above the
+first test. The file keeps its name so its history can be found.
 
 A challenge round found `Report-Limits-Threshold-Series/run3` telling the
 reader "Limits bound and LOCKED" in its `meta.json` description and in the
@@ -52,72 +55,36 @@ def _plans(gen):
             yield f"{name}/run{i}", plan
 
 
-def test_every_plan_can_produce_the_lock_state_it_claims(gen):
-    bad = [(rid, c) for rid, plan in _plans(gen) if (c := plan.lock_complaint())]
-    assert not bad, "; ".join(f"{rid}: {c}" for rid, c in bad)
-
-
-def test_the_claim_agrees_with_the_shipped_rule(gen):
-    """The declaration is checked against `is_locked`'s own two conditions,
-    not against a copy of them, so a change to the rule lands here."""
-    from workflow.run_compliance import is_locked
-
-    src = is_locked.__doc__ or ""
-    assert "not a history" in src or "one measurement" in src.lower(), (
-        "is_locked no longer documents the second condition; this test's "
-        "premise may have moved and the demo data with it")
-
-    for rid, plan in _plans(gen):
-        bound_and_dated = len(plan.dates) >= 2
-        expected = bound_and_dated and not plan.unlocked
-        assert (plan.lock == "locked") == expected, (
-            f"{rid} declares lock={plan.lock!r}, but a run with "
-            f"{len(plan.dates)} dated verification(s) and unlocked="
-            f"{plan.unlocked} is {'locked' if expected else 'not locked'}")
-
-
-def test_no_description_says_anything_about_the_lock(gen):
-    """The sentence is derived, never hand-written. This is the exact prose
-    that went stale, so it is banned from the field it lived in."""
+# K31 (Knut, #182 5801677743, beta 40): the run lock, "Unlock this run's
+# limits" and the binding of a run to a set are gone, so the three lock
+# states this file used to hold the demo data to are gone with them. What
+# stays is the rule the file was written for: the demo projects never
+# describe a limit state by hand, the sentence is derived, and the README's
+# index names runs from measured rows.
+def test_no_description_says_anything_about_a_lock(gen):
+    """MUTATION: write "locked" or "bound to" into a plan's description, or
+    drop the derived sentence from `full_description`, and this goes red."""
     for rid, plan in _plans(gen):
         low = plan.description.lower()
-        for word in ("lock", "unlock"):
+        for word in ("lock", "unlock", "bound to"):
             assert word not in low, (
-                f"{rid}'s description writes the lock state by hand "
-                f"({plan.description!r}); declare it with lock= instead, so "
-                "the sentence and the data cannot drift apart")
+                f"{rid}'s description writes a limit state by hand "
+                f"({plan.description!r})")
         assert plan.full_description.endswith(
-            gen.LOCK_SENTENCES[plan.lock].format(set=plan.set_name))
+            gen.LIMIT_SENTENCE.format(set=plan.set_name))
 
 
-def test_the_limit_sentence_names_the_set_and_defines_both_words(gen):
-    """Knut, 2026-09-11, reading one out of a Colour summary: *"what is the
-    difference between bound and locked? Be specific in the explanation, so
-    that user understands that chosen limits are bound to chosen 'ChromIQ
-    default' thresholds as this was used for the first dated verification
-    run."*
+def test_the_limit_sentence_names_the_set_and_no_lock(gen):
+    """The one sentence names the set (Knut, 2026-09-11: a sentence about
+    limits must say which set) and says nothing about a lock, a binding or a
+    correction.
 
-    So a sentence that uses either word must say what it means and name the
-    set. And it may not read as a note about something that went wrong: *"Text
-    written in any report shall only be factual and not refer to any bugs or
-    failures that were corrected."*
-
-    MUTATION: put "and the lock was never lifted" back into the locked
-    sentence, or drop "{set}" from any of the three, and this goes red.
-    """
-    for state, sentence in gen.LOCK_SENTENCES.items():
-        assert "{set}" in sentence, (
-            f"the {state!r} sentence does not name the set the run is bound "
-            f"to, which is the half a reader can act on")
-        assert "Bound means" in sentence, (
-            f"the {state!r} sentence uses 'bound' without defining it")
-        assert "never" not in sentence.lower(), (
-            f"the {state!r} sentence reads as a note about something that did "
-            f"not go wrong: {sentence!r}")
-        assert "lifted" not in sentence.lower(), (
-            f"the {state!r} sentence says a lock was 'lifted', which describes "
-            f"a correction rather than a state: {sentence!r}")
-
+    MUTATION: drop "{set}" from `LIMIT_SENTENCE`, or put "bound" or "locked"
+    back into it, and this goes red."""
+    s = gen.LIMIT_SENTENCE
+    assert "{set}" in s
+    for word in ("lock", "bound", "never", "lifted"):
+        assert word not in s.lower(), (word, s)
     for rid, plan in _plans(gen):
         text = plan.full_description
         assert "{" not in text, f"{rid}'s description has an unfilled slot"
@@ -125,72 +92,42 @@ def test_the_limit_sentence_names_the_set_and_defines_both_words(gen):
             f"{rid}'s description does not name its limit set")
 
 
-def test_all_three_lock_states_are_demonstrated(gen):
-    """A user cannot compare states the package does not contain. There are
-    three, and the reason a run is unlocked matters: one date is not the same
-    as a lock that was lifted."""
-    states = {plan.lock for _, plan in _plans(gen)}
-    assert states == set(gen.LOCK_SENTENCES), (
-        f"the package demonstrates {sorted(states)}; the states that exist are "
-        f"{sorted(gen.LOCK_SENTENCES)}")
+def test_no_plan_declares_a_lock_state_any_more(gen):
+    """MUTATION: put `lock` or `unlocked` back on `RunPlan` and this goes
+    red."""
+    import dataclasses
+    names = {f.name for f in dataclasses.fields(gen.RunPlan)}
+    assert not names & {"lock", "unlocked"}, names
+    assert not hasattr(gen, "LOCK_SENTENCES")
 
 
-def test_the_readme_never_writes_a_lock_claim_by_hand(gen):
-    """The guard above bans the lock words from a plan's description, and a
-    challenge round found the stale claim alive forty lines away, in README
-    prose the guard could not see.
+def test_the_readme_never_writes_a_lock_claim(gen):
+    """The README's own source may not spell a lock claim at all since K31:
+    there is no lock left for one to describe.
 
-    The index said "exactly one dated verification, LOCKED ... Threshold-Series,
-    run3" after that run had stopped being locked, and "exactly one dated
-    verification, UNLOCKED ... Isolated-Rows, run3" after that run had gained a
-    second date. It contradicted the measured table on the same page, and the
-    index is the half a reader acts on, because it says which run to open.
-
-    So the README's own source may not spell a lock claim either. Every line
-    that makes one is generated from the measured rows now, by `_lock_index`.
-    """
+    MUTATION: put the "WHICH RUNS ARE LOCKED, AND WHY" section back and this
+    goes red."""
     import inspect
     import re
 
     src = inspect.getsource(gen.readme)
-    # Only the literal strings this function writes; the docstring and the
-    # comments are prose about the rule, not text a reader ever sees.
     literals = re.findall(r'a\(\s*(?:f?)"((?:[^"\\]|\\.)*)"', src)
     assert literals, "readme() no longer writes string literals; this test is blind"
-    # A CLAIM NAMES A RUN. The section heading "WHICH RUNS ARE LOCKED, AND WHY"
-    # sits over a table generated from measured rows and says nothing about any
-    # particular run, so it is not what went stale and banning it would only
-    # teach the next person to word the heading around this test.
-    # CASE-INSENSITIVE, AND THE FIRST VERSION WAS NOT. It matched only the
-    # shouted form, so it saw the index it was written for and walked straight
-    # past three lower-case lines forty rows below saying the same kind of
-    # thing, one of which was false. A challenge round found them in the very
-    # commit that added this test.
     offenders = [t for t in literals
-                 if re.search(r"\b(un)?locked\b", t, re.I)
-                 and re.search(r"\brun\s?\d", t, re.I)]
-    assert not offenders, (
-        "readme() writes a lock claim about a named run by hand: "
-        + "; ".join(repr(t) for t in offenders)
-        + ". Derive it from the measured rows instead, as _lock_index does.")
+                 if re.search(r"\b(un)?lock(ed)?\b|Unlock this run", t, re.I)]
+    assert not offenders, "; ".join(repr(t) for t in offenders)
 
 
-def test_the_index_names_a_run_for_each_lock_state(gen):
-    """And it must still ANSWER the question, from measured rows.
-
-    Banning the words is only half of it: an index that lists no run for a
-    state sends the next round off to invent its own data, which is what the
-    shared package exists to stop.
-    """
-    rows = [{"run": "Threshold-Series/run1", "dates": 11, "lifted": False, "locked": True},
-            {"run": "Threshold-Series/run3", "dates": 1, "lifted": False, "locked": False},
-            {"run": "Isolated-Rows/run3", "dates": 2, "lifted": True, "locked": False}]
+def test_the_index_names_a_run_whose_new_reports_start_on_its_own_set(gen):
+    """The index answers from measured rows (K31: a run's own default for
+    new reports, read back with `run_limits`)."""
+    rows = [{"run": "Threshold-Series/run1", "dates": 11,
+             "starts_on": "chromiq_default"},
+            {"run": "Set-Compare/run2", "dates": 1,
+             "starts_on": "chromiq_tight"}]
     got = dict(gen._lock_index(rows))
-    assert len(got) == 3, got
-    assert got["locked, so the set cannot be changed"] == "Threshold-Series, run1"
-    assert got["one date only, so the set is still offered"] == "Threshold-Series, run3"
-    assert got["two dates, but the lock lifted by hand"] == "Isolated-Rows, run3"
-
+    assert got == {"new reports start on a set of its own":
+                   "Set-Compare, run2"}, got
 
 
 def test_the_forced_row_count_is_never_typed(gen):

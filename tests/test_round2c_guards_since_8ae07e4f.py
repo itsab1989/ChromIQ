@@ -106,7 +106,7 @@ def test_two_profiling_runs_that_disagree_still_make_a_printing_record(
     """
     from tests.test_import_measurement_module import _verify_env
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
-    from workflow.run_compliance import set_run_report_type
+    from tests.helpers.legacy_run_meta import (set_run_report_type)
     s, fm, _ctl, run1 = _verify_env(tmp_path)
     run2 = fm.project().new_run()
     t1 = _profiling_run_with_sheet(run1, 0)
@@ -323,9 +323,11 @@ def two_dates(tmp_path):
 # Round A (A-1): all or nothing, the two halves no guard reached
 # ---------------------------------------------------------------------------
 def _update_with_one_member_stuck(dlg, qapp, monkeypatch, *, stick, drop):
-    """Make a two-member document, drop one member (*drop*: "same" or
-    "other" than the stuck one) and press Update; return (files, before,
-    said, stuck_key, dropped_key)."""
+    """Make a report of two dates, *stick* its one file (K31: a report of
+    several dates is ONE file, in `verifications/reports/`), drop one date
+    (*drop* "other") or change a setting (*drop* None), and press Update;
+    return (files, before, said), *files* being that file and every live
+    report file of the two dates."""
     from PyQt6.QtWidgets import QMessageBox
     from tests.test_generate_report_asks_what_to_do import (
         _a_real_document, _pick_key, _press)
@@ -334,13 +336,16 @@ def _update_with_one_member_stuck(dlg, qapp, monkeypatch, *, stick, drop):
     _pick_key(dlg, key, qapp)
     entry = next(d for d in dlg._saved_documents(dlg._run_ctx.run)
                  if d["key"] == key)
-    files = {dlg._run_key(r): Path(str(r.get("_origin_dir"))) / "reports" / n
-             for r, n in entry["members"]}
-    assert len(files) == 2 and len({p.parent for p in files.values()}) == 2
+    doc_file = Path(str(entry["file"]))
+    files = {"document": doc_file}
+    for r in dlg._history:
+        for p in sorted((Path(str(r["_origin_dir"])) / "reports")
+                        .glob("report_*.json")):
+            files[str(p)] = p
     first = dlg._run_key(dlg._history[0])
-    second = next(k for k in files if k != first)
-    stuck = first
-    stick(files[stuck])
+    second = next(dlg._run_key(r) for r in dlg._history
+                  if dlg._run_key(r) != first)
+    stick(doc_file)
     before = {k: p.read_bytes() for k, p in files.items()}
     said = {}
     dlg._say_generated = lambda saved, failed: said.update(
@@ -362,16 +367,13 @@ def _update_with_one_member_stuck(dlg, qapp, monkeypatch, *, stick, drop):
 
 def test_a_blocked_update_does_not_rewrite_a_dropped_member_it_could_archive(
         two_dates, qapp, monkeypatch):
-    """Round C's `test_a_dropped_member_whose_archive_fails_is_not_rewritten`
-    makes the DROPPED member's folder the one that cannot be archived, so the
-    leftover loop's skip is reached through `_unarchived` and never through
-    `_blocked`. Here it is the other way round: the KEPT member's folder
-    cannot be archived (a real `reports/old` file), the dropped member's can,
-    and all-or-nothing still means the dropped member is not rewritten.
+    """All or nothing when a report of two dates narrows to one (K31): the
+    document file's folder cannot be archived (a real `reports/old` file),
+    so the retirement cannot keep a copy, and the kept date's new file must
+    not be written either.
 
-    MUTATION that left the whole everyday tier green: drop `_blocked or` from
-    `_archive_failed` (A-12), and the leftover is rewritten by an update that
-    reported a failure.
+    MUTATION: write the one-date file before (or regardless of) `_blocked`
+    in `_write_the_document` and this goes red.
     """
     from tests.test_generate_report_asks_what_to_do import _window
     s, _fm, _run, vs = two_dates

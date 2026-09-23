@@ -34,14 +34,12 @@ Read `PROJECTS` for the current shape. In outline, what each project is for:
     Report-Limits-Threshold-Series   the dated series: each judged row crosses
                                      its limit on one date and recovers on the
                                      next. run1 has ELEVEN dated verifications,
-                                     run3 has exactly ONE, so its
-                                     limit set can still be chosen.
+                                     run3 has exactly ONE.
     Report-Limits-Isolated-Rows      rows that cannot cross alone under any
                                      shipped limit set, isolated by giving the
                                      run its own edited column. One of them is
                                      judged by no shipped set at all. run3 has
-                                     TWO dated verifications with the lock
-                                     lifted by hand.
+                                     TWO dated verifications.
     Report-Limits-Set-Compare        the same measurement, three times, judged
                                      by ChromIQ default / tight / Quick check.
     Report-Limits-Report-Types       one run per document type, and one run
@@ -1739,27 +1737,26 @@ SERIES_TIGHT: "list[Date]" = [
        ["all_de00_max"]),
 ]
 
-#: run3 of the first project: exactly ONE dated verification, so the limit set
-#: can still be chosen. Knut asked for a run in this state by name: *"Some runs
-#: must only have one verification run, so that settings can be changed."*
+#: run3 of the first project: exactly ONE dated verification. Knut asked for a
+#: run in this state by name: *"Some runs must only have one verification run,
+#: so that settings can be changed."* (Since K31 the settings can be changed on
+#: every run: they are the report's.)
 SERIES_ONE_DATE: "list[Date]" = [
     _d("2026-06-01_090000", "2026-06-01T09:00:00",
        "The only measurement this run has",
        "One dated verification and nothing else, judged by Quick check "
        "(4 on the three averages, 6 on the two maxima, 3 and 7 on the grey "
-       "pair, and 4 and 6 on its own two repeatability rows). The report "
-       "window still offers the limit set, "
-       "because one measurement is not yet a history to keep comparable.",
+       "pair, and 4 and 6 on its own two repeatability rows).",
        Design(bulk=1.10, shoulder=2.20, peak=3.60, tail=3.00, grey_dch=0.70),
        []),
 ]
 
-#: run3 of the second project: the history that WOULD lock the run, with the
-#: lock lifted by hand. Put it beside Threshold-Series/run2, which has the same
-#: kind of history and was never unlocked, and the pair says what the lock does.
+#: run3 of the second project: two dated verifications of a small chart. It
+#: stood for "the history that WOULD lock the run, with the lock lifted by
+#: hand" until K31 removed the lock; the two dates and what crosses stay.
 SERIES_TWO_DATES_UNLOCKED: "list[Date]" = [
     _d("2026-06-02_090000", "2026-06-02T09:00:00",
-       "One patch out, and the lock lifted by hand",
+       "One patch out on a small chart",
        "A single patch at 1.55 crosses 'Maximum ΔE00, all patches' (1.5) on its "
        "own. This small chart judges 56 patches, so its highest 5 % is only "
        "two of them, and the second is held at 0.42 to keep their average "
@@ -1767,10 +1764,9 @@ SERIES_TWO_DATES_UNLOCKED: "list[Date]" = [
        Design(bulk=0.35, shoulder=0.40, peak=1.55, tail=0.40, grey_dch=0.25),
        ["all_de00_max"]),
     _d("2026-06-16_090000", "2026-06-16T09:00:00",
-       "The second date, which is what would normally lock the run",
-       "The patch comes back to 1.2 and nothing crosses. This is the date that "
-       "gives the run a history: without the hand-lifted lock the limit set "
-       "would be fixed from here on, exactly as Threshold-Series/run2's is.",
+       "The second date, and the patch comes back",
+       "The patch comes back to 1.2 and nothing crosses, so a report of both "
+       "dates shows one crossing and its recovery.",
        Design(bulk=0.35, shoulder=0.40, peak=1.20, tail=0.40, grey_dch=0.25),
        []),
 ]
@@ -2275,55 +2271,20 @@ CUSTOM_8_SERIES: "list[Date]" = [
 # ---------------------------------------------------------------------------
 # Building a run
 # ---------------------------------------------------------------------------
-#: What a run demonstrates about the limit lock, and the sentence that says so.
+#: What a run says about its limits, and the sentence that says so.
 #:
-#: These sentences are NOT written by hand into a description. A challenge
-#: round found run3 of the first project describing itself as "Limits bound and
-#: LOCKED" when ``is_locked()`` returned False for it, because the lock rule had
-#: since gained a second condition and the prose had not moved. Shared demo data
-#: that misdescribes itself is worse than none: every later round is told to
-#: trust it. So the sentence is derived from ``RunPlan.lock`` and ``build_run``
-#: refuses to write a run whose real state disagrees with it.
+#: **K31 (Knut, #182 5801677743, beta 40): no run is bound or locked any
+#: more.** Until then this was one of three sentences ("bound and fixed",
+#: "bound and still open", "one date"), each checked against the shipped
+#: `is_locked()`; the lock, "Unlock this run's limits" and the binding are
+#: gone, a limit set belongs to the report, and a run holds at most the set
+#: its NEW reports start on. So there is one sentence, and it names the set.
 #:
-#: **REWRITTEN 2026-09-11 ON KNUT'S READING OF ONE.** He opened a Colour
-#: summary out of this package and found under Report scope: *"Limits bound and
-#: LOCKED: two or more dated verifications, and the lock was never lifted."*
-#: Two things were wrong with it and he named both.
-#:
-#: *"Text written in any report shall only be factual and not refer to any bugs
-#: or failures that were corrected."* "The lock was never lifted" reads as a
-#: note about something that might have gone wrong and was not. It is a state,
-#: and it is written as one now.
-#:
-#: *"What is the difference between bound and locked? Be specific in the
-#: explanation, so that user understands that chosen limits are bound to chosen
-#: 'ChromIQ default' thresholds as this was used for the first dated
-#: verification run."* The old sentence used both words and defined neither, so
-#: each sentence now NAMES THE SET and says what each word means, in that
-#: order: bound is where the numbers came from, locked is whether they can
-#: still be changed.
-#:
-#: ``{set}`` is filled from the run's own binding, so a sentence cannot name a
-#: set the run is not judged against.
-LOCK_SENTENCES = {
-    "locked": "Limits: bound to {set}, and fixed. Bound means a copy of that "
-              "set's numbers was taken when this run's first dated "
-              "verification was measured, and every date of this run is "
-              "judged against that copy. Fixed means the set can no longer be "
-              "chosen here, because the run has two or more dated "
-              "verifications and they are kept comparable.",
-    "unlocked": "Limits: bound to {set}, and still open. Bound means a copy of "
-                "that set's numbers was taken when this run's first dated "
-                "verification was measured, and every date of this run is "
-                "judged against that copy. Open means the set may still be "
-                "chosen here; choosing another recalculates this run's dated "
-                "reports and keeps the ones it replaces.",
-    "one-date": "Limits: bound to {set}, and still open. Bound means a copy of "
-                "that set's numbers was taken when this run's first dated "
-                "verification was measured. Open means the set may still be "
-                "chosen here, because one measurement is not yet a history to "
-                "keep comparable.",
-}
+#: ``{set}`` is filled from the plan, so a sentence cannot name a set the
+#: run's reports were not judged against.
+LIMIT_SENTENCE = ("Limits: every dated report of this run was judged against "
+                  "{set} when it was written, and a new report of the run "
+                  "starts on it.")
 
 
 @dataclass
@@ -2334,9 +2295,7 @@ class RunPlan:
     set_id: str
     dates: "list[Date]"
     edited_limits: "dict[str, float] | None" = None
-    unlocked: bool = False
     note: str = ""
-    lock: str = "locked"
     #: Which of the six documents this run is verified with. Left at the
     #: default it is NOT written to meta.json at all, which is the state
     #: every project made before the pulldown existed is in, and which the
@@ -2380,35 +2339,17 @@ class RunPlan:
         from workflow.compliance_sets import SET_BY_ID
         s = SET_BY_ID.get(self.set_id)
         name = s.label if s else self.set_id
-        return name + (", with limits edited on this run" if self.edited_limits
-                       else "")
+        return name + (", with limits edited for its reports"
+                       if self.edited_limits else "")
 
     @property
     def full_description(self) -> str:
-        """The run's description with its limit state appended, in that order.
+        """The run's description with its limit sentence appended.
 
         The sentence NAMES THE SET, on Knut's 2026-09-11 reading: a paragraph
-        that uses "bound" and "locked" without saying what either means, or
-        what the run is bound TO, tells a reader nothing they can act on.
+        about limits that does not say which set tells a reader nothing.
         """
-        return f"{self.description} {LOCK_SENTENCES[self.lock]}".format(
-            set=self.set_name)
-
-    def lock_complaint(self) -> str:
-        """Why this plan cannot produce the lock state it claims, or ""."""
-        n = len(self.dates)
-        if self.lock not in LOCK_SENTENCES:
-            return f"unknown lock state {self.lock!r}"
-        if self.lock == "one-date":
-            if n != 1:
-                return f"claims one-date and has {n} dated verifications"
-            if self.unlocked:
-                return "claims one-date and also lifts the lock, which says two things"
-        elif n < 2:
-            return f"claims {self.lock!r} and has only {n} dated verification(s)"
-        elif self.unlocked != (self.lock == "unlocked"):
-            return (f"claims {self.lock!r} with unlocked={self.unlocked}")
-        return ""
+        return f"{self.description} {LIMIT_SENTENCE}".format(set=self.set_name)
 
 
 from workflow.measurement_report import (KIND_PROFILING,     # noqa: E402
@@ -2420,9 +2361,9 @@ def file_report(rep: dict, ti3: Path, run, kind: str, when: str, *,
     """Save *rep* beside *ti3* exactly as the app saves its automatic report.
 
     `TabMeasure._maybe_save_measurement_report` is the model, step for step:
-    the verdict is already stamped by the caller; the type is the run's,
-    through the one rule that knows which types a kind of measurement may
-    have (`report_type_default_for`, K13: a profiling sheet's report is the
+    the verdict is already stamped by the caller; the type is the one the
+    plan names or the default a new report starts on (K31: the type is the
+    REPORT's; `new_report_type`, K13: a profiling sheet's report is the
     Printing record, a verification's never is); and the file carries a
     DOCUMENT BLOCK of its own, "One date", both tick boxes off (B8-388,
     B8-392), which is what makes the report window name it
@@ -2444,9 +2385,9 @@ def file_report(rep: dict, ti3: Path, run, kind: str, when: str, *,
                                              rewrite_report, set_report_type,
                                              stamp_document,
                                              stamp_report_type)
-    from workflow.run_compliance import report_type_default_for
-    stamp_report_type(rep, run)
-    tid = type_id or report_type_default_for(run, "", kind)
+    from workflow.run_compliance import new_report_type
+    stamp_report_type(rep, None)
+    tid = type_id or new_report_type("", kind)
     if tid not in report_types_for_kind(kind):
         raise SystemExit(
             f"{run.id if run is not None else ti3}: a {kind} measurement may "
@@ -2473,6 +2414,29 @@ def file_report(rep: dict, ti3: Path, run, kind: str, when: str, *,
     return rewrite_report(reports / f"{name}.json", rep)
 
 
+def judged_members(members: list, reps: list) -> list:
+    """*members* of a report of several measurements, each carrying its
+    verdict against the report's ONE set (`JUDGED_KEY`), the set being the
+    first report's: what `_write_the_document` writes since K31 (Knut,
+    5801677743), where the report file carries every verdict and nothing is
+    written into the measurements' own folders."""
+    from workflow.compliance_sets import limits_from_json
+    from workflow.measurement_report import (JUDGED_KEY, judged_block,
+                                             stamp_verdict)
+    comp = (reps[0] if reps else {}).get("compliance") or {}
+    lim = limits_from_json(comp.get("thresholds") or {},
+                           comp.get("set_id") or "")
+    out = []
+    for m, rep in zip(members, reps):
+        judged = json.loads(json.dumps(rep))
+        if lim:
+            stamp_verdict(judged, lim, set_id=str(comp.get("set_id") or ""),
+                          set_label=str(comp.get("set_label") or ""),
+                          edited=bool(comp.get("edited")))
+        out.append(dict(m, **{JUDGED_KEY: judged_block(judged)}))
+    return out
+
+
 #: K23: the project that shows where every kind of report lives.
 FOLDERS_PROJECT = "Report-Limits-Report-Folders"
 #: K25: a second project, so "Report shown" can be grouped by project.
@@ -2495,13 +2459,19 @@ def seed_report_folders(root: Path,
     the app's own shapes:
 
     * a report of ALL three dates of run1 (Full colour check) and one of TWO
-      of them (Grey and tone check): a document file in
-      `run1/verifications/reports/` and a verdict record in each date;
+      of them (Grey and tone check): ONE file in
+      `run1/verifications/reports/` whose list of measurements carries each
+      date's verdict (K31, Knut 5801677743: no verdict records, nothing
+      written into the dates);
     * a LEGACY report of two dates, written the way beta 36 wrote it: one
       file per date sharing an id, no role, no document file;
-    * a DELETED report of two dates: its document file already moved into
-      `run1/verifications/old/<stamp>/` the way Delete moves it, its records
-      left in the dates, so nothing of it may be listed or counted;
+    * a K23-ERA report of two dates, written the way betas 37 to 39 wrote
+      it: a document file with no verdicts of its own and a verdict record
+      in each date. Records are read-only history since K31: shown only
+      while that report is loaded, never listed, counted or rewritten;
+    * a DELETED report of two dates: its file already moved into
+      `run1/verifications/old/<stamp>/` the way Delete moves it, so nothing
+      of it may be listed or counted;
     * a report across run1 and run2 of verifications (Full colour check) and
       one of the two profiling sheets (Printing record), both in the
       project's own `reports/`;
@@ -2513,10 +2483,12 @@ def seed_report_folders(root: Path,
     import re as _re
     from core.file_manager import REPORTS_DIRNAME, VERIFICATIONS_DIRNAME
     from workflow.measurement_report import (
-        REPORT_TYPE_GREY as _GREY, REPORT_TYPE_RECORD as _RECORD,
+        JUDGED_KEY, REPORT_TYPE_GREY as _GREY, REPORT_TYPE_RECORD as _RECORD,
         ROLE_RECORD, SCOPE_ALL_DATES, SCOPE_MULTIPLE_DATES, document_file,
-        document_home, document_measurement_key, new_document_id,
-        report_type, rewrite_report, set_report_type, stamp_document)
+        document_home, document_measurement_key, judged_block,
+        new_document_id, report_type, rewrite_report, set_report_type,
+        stamp_document, stamp_verdict)
+    from workflow.compliance_sets import limits_from_json
     runs = sorted((root / "runs").glob("run*"), key=lambda p: p.name)
     run1, run2 = runs[0], runs[1]
 
@@ -2550,11 +2522,17 @@ def seed_report_folders(root: Path,
     def rel(p):
         return str(Path(p).relative_to(root.parent))
 
-    def write(folders, type_id, when, *, legacy=False, what=""):
+    def write(folders, type_id, when, *, legacy=False, k23=False, what=""):
+        """*legacy*: beta 36's one file per date; *k23*: betas 37 to 39's
+        document file plus a verdict record per date; neither: K31's ONE
+        file carrying every date's verdict against the report's one set."""
         when_dt = datetime.fromisoformat(when)
         reps = [base(f) for f in folders]
         members = [member(f, r) for f, r in zip(folders, reps)]
         doc_id = new_document_id(when_dt)
+        comp = reps[0].get("compliance") or {}
+        doc_limits = limits_from_json(comp.get("thresholds") or {},
+                                      comp.get("set_id") or "")
         one_run_of_dates = (
             all(f.parent.name == VERIFICATIONS_DIRNAME for f in folders)
             and len({str(f.parent) for f in folders}) == 1)
@@ -2563,6 +2541,8 @@ def seed_report_folders(root: Path,
                  else SCOPE_MULTIPLE_DATES)
         written = []
         for f, rep in zip(folders, reps):
+            if not (legacy or k23):
+                break                       # K31: nothing into the dates
             rep = json.loads(json.dumps(rep))
             rep.pop("document", None)
             if type_id != report_type(rep):
@@ -2573,11 +2553,24 @@ def seed_report_folders(root: Path,
                            role="" if legacy else ROLE_RECORD)
             written.append(rewrite_report(free(f / REPORTS_DIRNAME, when_dt),
                                           rep))
+        doc_members = members
+        if not (legacy or k23):
+            # EVERY DATE'S VERDICT, AGAINST THE REPORT'S ONE SET (K31, and
+            # G7 Q2 option a), as `_write_the_document` writes it.
+            doc_members = []
+            for m, rep in zip(members, reps):
+                judged = json.loads(json.dumps(rep))
+                if doc_limits:
+                    stamp_verdict(judged, doc_limits,
+                                  set_id=str(comp.get("set_id") or ""),
+                                  set_label=str(comp.get("set_label") or ""),
+                                  edited=bool(comp.get("edited")))
+                doc_members.append(dict(m, **{JUDGED_KEY: judged_block(judged)}))
         doc_path = None
         if not legacy:
             body = document_file(doc_id=doc_id, created=when, type_id=type_id,
                                  compliance=reps[0].get("compliance"),
-                                 detail=False, measurements=members,
+                                 detail=False, measurements=doc_members,
                                  scope=scope)
             doc_path = rewrite_report(free(document_home(folders), when_dt),
                                       body)
@@ -2593,9 +2586,12 @@ def seed_report_folders(root: Path,
     write(d1[:2], REPORT_TYPE_FULL, "2026-12-20T09:00:00", legacy=True,
           what="LEGACY, several dates of run1, written as beta 36 did "
                "(listed and counted once, never moved):")
+    write(d1[1:], REPORT_TYPE_FULL, "2026-12-20T10:00:00", k23=True,
+          what="K23-ERA, two dates of run1, written as betas 37 to 39 did "
+               "(listed once; its verdict records are read-only history):")
     gone = write([d1[0], d1[2]], REPORT_TYPE_FULL, "2026-12-20T09:30:00",
-                 what="DELETED, two dates of run1 (not listed, not counted; "
-                      "its records stay):")
+                 what="DELETED, two dates of run1 (not listed, not "
+                      "counted):")
     old = (run1 / VERIFICATIONS_DIRNAME / "old" / "2026-12-20_094500")
     old.mkdir(parents=True, exist_ok=True)
     shutil.move(str(gone), str(old / gone.name))
@@ -2668,8 +2664,9 @@ def seed_calibrations(dest: Path) -> "list[str]":
     Printing record the way beta 38's automatic report could write one (never
     listed or counted under Calibration). Then, with the app's own functions:
     a report of the first two calibrations ("Multiple cals" while three are
-    in the pack) and one of all three ("All cals"), each a document file in
-    the pack's own ``reports/`` and a verdict record in each ``cal/reports/``.
+    in the pack) and one of all three ("All cals"), each ONE file in the
+    pack's own ``reports/`` carrying every calibration's verdict (K31: no
+    verdict records, nothing written into any ``cal/``).
     """
     from core.file_manager import Calibration, REPORTS_DIRNAME
     from workflow.measurement_report import (
@@ -2733,18 +2730,7 @@ def seed_calibrations(dest: Path) -> "list[str]":
                          d, str(r.get("created") or ""), t.name)}
                     for d, t, r in members]
         lines.append(f"  {what}")
-        for d, t, r in members:
-            body = json.loads(json.dumps(r))
-            body.pop("document", None)
-            body["report_type"] = REPORT_TYPE_FULL
-            stamp_document(body, doc_id=doc_id, created=when,
-                           type_id=REPORT_TYPE_FULL,
-                           compliance=body.get("compliance"), detail=False,
-                           measurements=recorded, scope=scope,
-                           role=ROLE_RECORD)
-            out = d / REPORTS_DIRNAME / f"report_{when_dt:%Y-%m-%d_%H-%M-%S}.json"
-            rewrite_report(out, body)
-            lines.append(f"      verdict record:    {rel(out)}")
+        recorded = judged_members(recorded, [r for _d, _t, r in members])
         doc = document_file(doc_id=doc_id, created=when,
                             type_id=REPORT_TYPE_FULL,
                             compliance=members[0][2].get("compliance"),
@@ -2779,8 +2765,8 @@ def seed_renamed(dest: Path) -> "list[str]":
     The report is a Full colour check of the last date of
     Report-Limits-Before-Rename/run1 and the first date of
     Report-Limits-Paper-Classes/run1, filed where the app files a report of
-    several projects (`document_home`, the pack's own ``reports/``), with a
-    verdict record in each date. Then the folder is moved and
+    several projects (`document_home`, the pack's own ``reports/``), as ONE
+    file carrying both dates' verdicts (K31). Then the folder is moved and
     `Project.rename` renames its files and records the old name in
     ``former_names``. The report still names the old folder, so a window on
     Report-Limits-Renamed lists it only if the app matches a report by every
@@ -2820,19 +2806,7 @@ def seed_renamed(dest: Path) -> "list[str]":
     doc_id = new_document_id(when_dt)
     lines = ["  ACROSS TWO PROJECTS, written while one of them was still "
              f"called {RENAMED_FROM}:"]
-    for f, rep in zip(folders, reps):
-        rep = json.loads(json.dumps(rep))
-        rep.pop("document", None)
-        if report_type(rep) != REPORT_TYPE_FULL:
-            set_report_type(rep, REPORT_TYPE_FULL)
-        stamp_document(rep, doc_id=doc_id, created=when,
-                       type_id=REPORT_TYPE_FULL,
-                       compliance=rep.get("compliance"), detail=False,
-                       measurements=members, scope=SCOPE_MULTIPLE_DATES,
-                       role=ROLE_RECORD)
-        p = rewrite_report(f / REPORTS_DIRNAME
-                           / f"report_{when_dt:%Y-%m-%d_%H-%M-%S}.json", rep)
-        lines.append(f"      verdict record:     {p.relative_to(dest)}")
+    members = judged_members(members, reps)
     home = document_home(folders)
     home.mkdir(parents=True, exist_ok=True)
     body = document_file(doc_id=doc_id, created=when, type_id=REPORT_TYPE_FULL,
@@ -2863,8 +2837,8 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
                                              rewrite_report, save_report,
                                              row_values, set_report_type,
                                              stamp_verdict)
-    from workflow.run_compliance import (bind_run, run_limits, set_run_limits,
-                                         set_run_report_type, set_run_unlocked)
+    from workflow.run_compliance import (RunLimits, run_limits,
+                                         set_run_default_set)
 
     run.ensure_dir()
     stem = run.stem
@@ -2952,28 +2926,30 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
     meta.verify_chart_notes = plan.note
     run.save_meta(meta)
 
-    # THE DEFAULT IS WRITTEN BY NOT WRITING IT. A run that never chose a type
-    # is the state every project made before the pulldown existed is in, and
-    # the report renders it as Full colour check; storing the id would hide
-    # that half of the behaviour behind a value nobody ever set.
-    if plan.report_type != REPORT_TYPE_DEFAULT:
-        set_run_report_type(run, plan.report_type)
-
-    # The binding. bind_run copies the set's numbers onto the run, exactly as
-    # the first verification measurement does in the app.
-    limits_rec = bind_run(run, plan.set_id, {},
-                          when=datetime.fromisoformat(plan.dates[0].when))
+    # K31 (Knut, #182 5801677743): NOTHING IS BOUND ONTO THE RUN. The type
+    # and the limit set belong to each REPORT; the dated reports below are
+    # stamped with the plan's type and set, exactly as the report ChromIQ
+    # writes after a measurement is stamped with its starting choice. What a
+    # run may hold is its own default for new reports, chosen in the Report
+    # limits window: written here when the plan's set is not the Preferences
+    # default, which is what a user who wants the run's new reports to start
+    # on that set does.
+    from workflow.compliance_sets import SET_BY_ID as _SETS, effective_limits
+    set_run_default_set(run, plan.set_id, "chromiq_default")
+    limits_rec = RunLimits(plan.set_id, _SETS[plan.set_id].label,
+                           effective_limits(plan.set_id, {}),
+                           label_en=_SETS[plan.set_id].label)
     if plan.edited_limits:
+        # A REPORT'S OWN EDITED LIMITS (the "This report" column), which is
+        # the only place edited numbers live since K31: every dated report of
+        # this run was judged against them and says "(edited)".
         edited = dict(limits_rec.limits)
         for rid, v in plan.edited_limits.items():
             base = edited.get(rid)
             edited[rid] = (Limit.should(v) if (base is not None and base.is_should)
                            else Limit.value(v))
-        set_run_limits(run, edited)
-        limits_rec = run_limits(run, {})
-    if plan.unlocked:
-        set_run_unlocked(run, True)
-        limits_rec = run_limits(run, {})
+        limits_rec = RunLimits(plan.set_id, limits_rec.set_label, edited,
+                               label_en=limits_rec.label_en, edited=True)
 
     # THE RUN'S OWN MEASUREMENT GETS A DATE AND A SAVED REPORT, because the
     # app gives it both. `tab_measure._maybe_save_measurement_report` runs
@@ -3068,7 +3044,10 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
         stamp_verdict(rep, limits_rec.limits, set_id=limits_rec.set_id,
                       set_label=limits_rec.label_en, edited=limits_rec.edited)
         set_report_type(rep, plan.report_type)
-        file_report(rep, v.measurement_ti3, run, KIND_VERIFICATION, date.when)
+        file_report(rep, v.measurement_ti3, run, KIND_VERIFICATION, date.when,
+                    type_id=(plan.report_type
+                             if plan.report_type != REPORT_TYPE_DEFAULT
+                             else ""))
 
         # A RUN MAY HOLD REPORTS OF SEVERAL TYPES, and one in the package has
         # to, or the window's "Already generated for this run" line has nothing
@@ -3174,17 +3153,14 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
               f"intended={date.expect} actual={actual['crossed']}")
 
     # The run is finished, so ask the SHIPPED rule what it made, rather than
-    # trusting the plan. This is the check that was missing when the lock rule
-    # gained its second condition and run3's description went on claiming a
-    # state the code no longer produced.
-    from workflow.run_compliance import is_bound, is_locked, measured_dates
-    really = is_locked(run)
-    if really != (plan.lock == "locked") or not is_bound(run):
+    # trusting the plan (K31): a new report of this run must start on the set
+    # its description names.
+    got = run_limits(run, {}, "chromiq_default").set_id
+    if got != plan.set_id:
         raise SystemExit(
-            f"{run.id} claims lock={plan.lock!r} and its description says so, "
-            f"but the app reads bound={is_bound(run)}, "
-            f"dates={measured_dates(run)}, locked={really}. Fix the plan or "
-            f"the sentence, never the description alone.")
+            f"{run.id} says its new reports start on {plan.set_id!r}, and the "
+            f"app starts them on {got!r}. Fix the plan or the sentence, never "
+            f"the description alone.")
 
 
 def chart_white_locs(ti3: Path, rep: dict) -> "set[str]":
@@ -4136,8 +4112,7 @@ PROJECTS = [
         RunPlan("The same kind of sheet judged with ChromIQ tight.",
                 CHART_LARGE, CHART_WIDE, "chromiq_tight", SERIES_TIGHT),
         RunPlan("The small chart, measured once.",
-                CHART_SMALL, CHART_SMALL, "chromiq_quick", SERIES_ONE_DATE,
-                lock="one-date"),
+                CHART_SMALL, CHART_SMALL, "chromiq_quick", SERIES_ONE_DATE),
     ]),
     ("Report-Limits-Isolated-Rows", [
         RunPlan("'Average ΔE00, lowest 95 %' isolated by limits edited for this run.",
@@ -4159,7 +4134,7 @@ PROJECTS = [
                                "all_de00_p95": 3.0}),
         RunPlan("The small chart, measured twice.",
                 CHART_SMALL, CHART_SMALL, "chromiq_tight",
-                SERIES_TWO_DATES_UNLOCKED, unlocked=True, lock="unlocked"),
+                SERIES_TWO_DATES_UNLOCKED),
         RunPlan("'Grey balance of the grey ramp, average' isolated by limits "
                 "edited for this run.",
                 CHART_SMALL, CHART_MEDIUM, "chromiq_default", SERIES_GREY_AVG,
@@ -4189,35 +4164,33 @@ PROJECTS = [
                 "and the Printing record of its profiling measurement: four "
                 "report types in one run.",
                 CHART_SMALL, CHART_MEDIUM, "chromiq_default", TYPES_DE_DEFAULT,
-                report_type=REPORT_TYPE_SUMMARY, unlocked=True, lock="unlocked",
+                report_type=REPORT_TYPE_SUMMARY,
                 also_generate=(REPORT_TYPE_FULL, REPORT_TYPE_GREY)),
         RunPlan("Full colour check, ChromIQ tight.",
                 CHART_SMALL, CHART_MEDIUM, "chromiq_tight", TYPES_DE_TIGHT,
-                report_type=REPORT_TYPE_FULL, unlocked=True, lock="unlocked"),
+                report_type=REPORT_TYPE_FULL),
         RunPlan("Colour summary, Quick check. The Printing record is the "
                 "report of this run's own profiling measurement, as it is of "
                 "every run's: a verification does not have one.",
                 CHART_SMALL, CHART_MEDIUM, "chromiq_quick", TYPES_DE_QUICK,
-                report_type=REPORT_TYPE_SUMMARY, unlocked=True, lock="unlocked"),
+                report_type=REPORT_TYPE_SUMMARY),
         RunPlan("Grey and tone check, ChromIQ default, with a limit edited for "
                 "this run on the tone-ramp row, so all three of its rows "
                 "carry a word.",
                 CHART_MEDIUM, CHART_MEDIUM, "chromiq_default",
                 TYPES_GREY_DEFAULT, report_type=REPORT_TYPE_GREY,
-                unlocked=True, lock="unlocked",
                 edited_limits={"ramps_30_70_dl_max": 2.0}),
         RunPlan("Grey and tone check, ChromIQ tight, left as the set ships: "
                 "the tone-ramp row shows a number and no word.",
                 CHART_MEDIUM, CHART_MEDIUM, "chromiq_tight", TYPES_GREY_TIGHT,
-                report_type=REPORT_TYPE_GREY, unlocked=True, lock="unlocked"),
+                report_type=REPORT_TYPE_GREY),
         RunPlan("Grey and tone check, Quick check.",
                 CHART_MEDIUM, CHART_MEDIUM, "chromiq_quick", TYPES_GREY_QUICK,
-                report_type=REPORT_TYPE_GREY, unlocked=True, lock="unlocked"),
+                report_type=REPORT_TYPE_GREY),
         RunPlan("Grey and tone check on a chart with no grey ramp, so the "
                 "limit set has limits and nothing it can check.",
                 CHART_SMALL, CHART_NO_GREY, "chromiq_tight",
                 TYPES_GREY_NOTHING, report_type=REPORT_TYPE_GREY,
-                unlocked=True, lock="unlocked",
                 # A LIMIT ON THE TONE-RAMP ROW, so the row APPEARS. Without
                 # one it has neither a limit nor a value, which is a blank
                 # cell and not a verdict (CH-20), and the document then shows
@@ -4235,14 +4208,14 @@ PROJECTS = [
                 "are a report of several dates, one in an older format, a "
                 "deleted one, and reports across both runs.",
                 CHART_SMALL, CHART_MEDIUM, "chromiq_default", FOLDERS_RUN1,
-                report_type=REPORT_TYPE_FULL, unlocked=True, lock="unlocked",
+                report_type=REPORT_TYPE_FULL,
                 also_generate=(REPORT_TYPE_SUMMARY, REPORT_TYPE_GREY)),
         RunPlan("The second profile run. Its first date holds a Colour "
                 "summary as well, its second date a report in an older "
                 "format with no document record, and it shares two "
                 "reports with run1 in the project's own reports folder.",
                 CHART_SMALL, CHART_MEDIUM, "chromiq_default", FOLDERS_RUN2,
-                report_type=REPORT_TYPE_FULL, unlocked=True, lock="unlocked",
+                report_type=REPORT_TYPE_FULL,
                 also_generate=(REPORT_TYPE_SUMMARY,)),
     ]),
     (FOLDERS_OTHER_PROJECT, [
@@ -4252,14 +4225,13 @@ PROJECTS = [
                 "Report-Limits-Report-Folders, kept in the package's own "
                 "folder of reports including multiple projects.",
                 CHART_SMALL, CHART_MEDIUM, "chromiq_default",
-                FOLDERS_OTHER_RUN1, report_type=REPORT_TYPE_FULL,
-                unlocked=True, lock="unlocked"),
+                FOLDERS_OTHER_RUN1, report_type=REPORT_TYPE_FULL),
     ]),
     ("Report-Limits-Custom-Columns", [
         RunPlan("The Custom ISO 12647-7 limit set, whose numbers are not that "
                 "standard's published values.",
                 CHART_SMALL, CHART_MEDIUM, "custom_iso_12647_7",
-                CUSTOM_7_SERIES, unlocked=True, lock="unlocked",
+                CUSTOM_7_SERIES,
                 note="The limits of this column are not edited by this "
                      "package and must not be: they are the column's own "
                      "starting numbers, researched industry figures and "
@@ -4267,7 +4239,7 @@ PROJECTS = [
         RunPlan("The Custom ISO 12647-8 limit set, crossing the tone-ramp row "
                 "that no other shipped set puts a limit on.",
                 CHART_MEDIUM, CHART_MEDIUM, "custom_iso_12647_8",
-                CUSTOM_8_SERIES, unlocked=True, lock="unlocked",
+                CUSTOM_8_SERIES,
                 note="The limits of this column are not edited by this "
                      "package and must not be: they are the column's own "
                      "starting numbers, researched industry figures and "
@@ -4278,7 +4250,7 @@ PROJECTS = [
                 "the sheet is the empty set and 'Average ΔE00, highest 5 %' "
                 "cannot be computed.",
                 CHART_SMALL, CHART_TINY, "chromiq_default",
-                BORDER_SMALL_SAMPLE, unlocked=True, lock="unlocked",
+                BORDER_SMALL_SAMPLE,
                 # Exactly eight rungs, measured: the substrate, four of the
                 # eight corners and the three greys. That is the floor at
                 # which ChromIQ declares a strip at all, and twelve short of
@@ -4317,7 +4289,7 @@ PROJECTS = [
         RunPlan("A sheet whose printing condition nobody wrote down, so the "
                 "grey rows are judged with a numbered note against them.",
                 CHART_SMALL, CHART_MEDIUM, "chromiq_quick",
-                BORDER_UNRECORDED, unlocked=True, lock="unlocked",
+                BORDER_UNRECORDED,
                 report_type=REPORT_TYPE_GREY,
                 print_colour="none",
                 note="Deliberately shipped without a print record beside the "
@@ -4325,7 +4297,7 @@ PROJECTS = [
         RunPlan("A sheet printed with no profile applied, which the report "
                 "treats as a drift check rather than an accuracy check.",
                 CHART_SMALL, CHART_MEDIUM, "chromiq_default",
-                BORDER_RAW_DRIFT, unlocked=True, lock="unlocked",
+                BORDER_RAW_DRIFT,
                 print_colour="raw",
                 note="Deliberately printed raw. The large numbers are "
                      "correct for a sheet nothing corrected."),
@@ -4349,7 +4321,7 @@ PROJECTS = [
         RunPlan("The three rows only a From-profile-gamut chart can answer, "
                 "one at a time, isolated by limits edited for this run.",
                 CHART_MEDIUM, CHART_GAMUT, "chromiq_default",
-                GAMUT_ISOLATION, unlocked=True, lock="unlocked",
+                GAMUT_ISOLATION,
                 # 17 of the 29 rungs, measured: the eight corners, three
                 # greys and six tints. Enough to declare, three short of the
                 # twenty the 95th-percentile row needs.
@@ -4365,8 +4337,7 @@ PROJECTS = [
         RunPlan("The same kind of chart under Custom ISO 12647-7, which "
                 "already puts a number on every judgeable row.",
                 CHART_MEDIUM, CHART_GAMUT, "custom_iso_12647_7",
-                matrix_dates("custom_iso_12647_7", "gamut"),
-                unlocked=True, lock="unlocked", expect_strip_p95=False,
+                matrix_dates("custom_iso_12647_7", "gamut"), expect_strip_p95=False,
                 note="The limits of this column are not edited by this "
                      "package and must not be: they are the column's own "
                      "starting numbers, researched industry figures and "
@@ -4394,7 +4365,7 @@ PROJECTS = [
         RunPlan("ChromIQ's own control-strip declaration, with each of the "
                 "three strip rows isolated by limits edited for this run.",
                 CHART_MEDIUM, CHART_MEDIUM, "chromiq_default",
-                STRIP_ISOLATION, unlocked=True, lock="unlocked",
+                STRIP_ISOLATION,
                 edited_limits=fill_limits(
                     "chromiq_default", relax=RELAX_ALL,
                     keep=("control_strip_de00_avg", "control_strip_de00_max",
@@ -4409,14 +4380,14 @@ PROJECTS = [
         RunPlan("The surface of the device cube, isolated by limits edited for "
                 "this run.",
                 CHART_MEDIUM, CHART_MEDIUM, "chromiq_default",
-                SURFACE_ISOLATION, unlocked=True, lock="unlocked",
+                SURFACE_ISOLATION,
                 edited_limits=fill_limits(
                     "chromiq_default", relax=RELAX_ALL,
                     keep=("surface_gamut_de00_avg",))),
         RunPlan("The most saturated quarter of the chart, isolated by limits "
                 "edited for this run.",
                 CHART_MEDIUM, CHART_MEDIUM, "chromiq_default",
-                OUTER_ISOLATION, unlocked=True, lock="unlocked",
+                OUTER_ISOLATION,
                 edited_limits=fill_limits(
                     "chromiq_default", relax=RELAX_ALL,
                     keep=("outer_gamut_226_de00_avg",))),
@@ -4424,7 +4395,7 @@ PROJECTS = [
                 "control-strip declaration, so four rows are seen to be "
                 "refused rather than passed.",
                 CHART_SMALL, CHART_MIDTONES, "chromiq_default",
-                NO_SURFACE, unlocked=True, lock="unlocked",
+                NO_SURFACE,
                 edited_limits=fill_limits("chromiq_default"),
                 # AND IT IS ALSO THE CHART THAT CANNOT CARRY A CONTROL STRIP.
                 # Measured: it fills four of the twenty-nine rungs (the
@@ -4484,14 +4455,12 @@ PROJECTS = [
                     f"inside on the next.",
                     CHART_SMALL, CHART_MEDIUM, set_id,
                     matrix_dates(set_id, "ordinary"),
-                    unlocked=True, lock="unlocked",
                     edited_limits=matrix_edited_limits(set_id)),
             RunPlan(f"{_SET_WORD[set_id]}, every row a From-profile-gamut "
                     f"chart can answer{_that_it_limits(set_id)}: over on one "
                     f"date, inside on the next.",
                     CHART_SMALL, CHART_GAMUT, set_id,
-                    matrix_dates(set_id, "gamut"),
-                    unlocked=True, lock="unlocked", expect_strip_p95=False,
+                    matrix_dates(set_id, "gamut"), expect_strip_p95=False,
                     edited_limits=matrix_edited_limits(set_id)),
         )
     ]),
@@ -4502,35 +4471,31 @@ PROJECTS = [
         RunPlan("Glossy photo paper with optical brighteners: one patch far "
                 "out, then back.",
                 CHART_MEDIUM, CHART_MEDIUM, "chromiq_default", PAPER_GLOSSY,
-                paper_class="glossy_oba", unlocked=True, lock="unlocked"),
+                paper_class="glossy_oba"),
         RunPlan("Baryta, on the A3 chart, judged with ChromIQ tight in a "
                 "Colour summary: the averages drift, then recover.",
                 CHART_SMALL, CHART_WIDE, "chromiq_tight", PAPER_BARYTA,
-                paper_class="baryta", report_type=REPORT_TYPE_SUMMARY,
-                unlocked=True, lock="unlocked"),
+                paper_class="baryta", report_type=REPORT_TYPE_SUMMARY),
         RunPlan("Matte cotton rag, judged with Quick check in a Grey and tone "
                 "check: a grey cast, then corrected.",
                 CHART_MEDIUM, CHART_MEDIUM, "chromiq_quick", PAPER_RAG,
-                paper_class="matte_rag", report_type=REPORT_TYPE_GREY,
-                unlocked=True, lock="unlocked"),
+                paper_class="matte_rag", report_type=REPORT_TYPE_GREY),
         RunPlan("Uncoated office paper, an i1Pro chart layout, the Custom "
                 "ISO 12647-7 limit set, and no record of how the sheets were "
                 "printed, so they are judged in absolute Lab.",
                 CHART_SMALL_I1, CHART_SMALL_I1, "custom_iso_12647_7",
                 PAPER_OFFICE, paper_class="office", print_colour="none",
-                unlocked=True, lock="unlocked",
                 note="The limits of this column are not edited by this "
                      "package and must not be: they are the column's own "
                      "starting numbers, researched industry figures and "
                      "ChromIQ's own, and a test pins where each came from."),
         RunPlan("Newsprint-like paper, measured once.",
                 CHART_MEDIUM, CHART_MEDIUM, "chromiq_default", PAPER_NEWS,
-                paper_class="newsprint", lock="one-date"),
+                paper_class="newsprint"),
         RunPlan("A From Profile Gamut chart on brightened glossy paper, the "
                 "paper white isolated by limits edited for this run.",
                 CHART_MEDIUM, CHART_GAMUT_SMALL, "chromiq_default",
-                PAPER_GAMUT_WHITE, paper_class="glossy_oba",
-                unlocked=True, lock="unlocked", expect_strip_p95=False,
+                PAPER_GAMUT_WHITE, paper_class="glossy_oba", expect_strip_p95=False,
                 edited_limits=fill_limits(
                     "chromiq_default", relax=RELAX_ALL,
                     keep=("substrate_de00_max",))),
@@ -4573,15 +4538,13 @@ PROJECTS = [
                     CHART_SMALL, CHART_WIDE, set_id,
                     _second_route(set_id, "ordinary"),
                     paper_class=_SECOND_PAPER[set_id][0],
-                    unlocked=True, lock="unlocked",
                     edited_limits=matrix_edited_limits(set_id)),
             RunPlan(f"{_SET_WORD[set_id]} again, on a smaller From Profile "
                     f"Gamut chart and "
                     f"{PAPER_CLASSES[_SECOND_PAPER[set_id][1]].name.lower()}.",
                     CHART_SMALL, CHART_GAMUT_SMALL, set_id,
                     _second_route(set_id, "gamut"),
-                    paper_class=_SECOND_PAPER[set_id][1],
-                    unlocked=True, lock="unlocked", expect_strip_p95=False,
+                    paper_class=_SECOND_PAPER[set_id][1], expect_strip_p95=False,
                     edited_limits=matrix_edited_limits(set_id)),
         )
     ]),
@@ -4593,8 +4556,7 @@ PROJECTS = [
                 f"across this project and Report-Limits-Paper-Classes, "
                 f"written under the old name, is kept in the package's "
                 f"own reports folder.",
-                CHART_SMALL, CHART_MEDIUM, "chromiq_default", RENAMED_DATES,
-                unlocked=True, lock="unlocked"),
+                CHART_SMALL, CHART_MEDIUM, "chromiq_default", RENAMED_DATES),
     ]),
 ]
 
@@ -4603,7 +4565,7 @@ def build_project(dest: Path, name: str, plans: "list[RunPlan]",
                   cache_root: Path, results: list,
                   lock_rows: "list[dict] | None" = None) -> Path:
     from core.file_manager import Project
-    from workflow.run_compliance import is_locked, measured_dates
+    from workflow.run_compliance import measured_dates, run_limits
     # THE RENAMED PROJECT IS BUILT UNDER ITS FORMER NAME (K29); `main` renames
     # it once a report across projects has been written under that name.
     build_name = RENAMED_FROM if name == RENAMED_PROJECT else name
@@ -4626,9 +4588,7 @@ def build_project(dest: Path, name: str, plans: "list[RunPlan]",
             lock_rows.append({
                 "run": f"{name.replace('Report-Limits-', '')}/{run.id}",
                 "dates": measured_dates(run),
-                "lifted": bool(run.load_meta().compliance_unlocked),
-                "locked": is_locked(run),
-                "claimed": plan.lock,
+                "starts_on": run_limits(run, {}, "chromiq_default").set_id,
                 "edited": bool(plan.edited_limits),
             })
     return root
@@ -4906,14 +4866,6 @@ def _main(argv=None) -> int:
     cache_root = dest / "_charts"
     cache_root.mkdir(exist_ok=True)
 
-    bad_plans = [(n, i + 1, c)
-                 for n, plans in PROJECTS
-                 for i, plan in enumerate(plans)
-                 if (c := plan.lock_complaint())]
-    for n, i, c in bad_plans:
-        print(f"  PLAN {n}/run{i}: {c}")
-    if bad_plans:
-        return 2
 
     # EVERY SET A PLAN NAMES MUST BE ONE THE REPORT WINDOW WOULD OFFER, and
     # this is checked BEFORE any Argyll is run.
@@ -5173,37 +5125,17 @@ def _chart_label(dest: Path, project: str, run_id: str, recipe,
 
 
 def _lock_index(lock_rows: "list[dict]") -> "list[tuple[str, str]]":
-    """The three lock lines of the README's index, named from MEASURED state.
-
-    These three lines were hand-written, and a challenge round found them still
-    saying "exactly one dated verification, LOCKED ... Threshold-Series, run3"
-    after the lock rule had changed and after that run had gained a twin with
-    two dates. The table forty lines above them was already correct and read
-    back from the app; the index contradicted it on the same page, and the index
-    is the half a reader acts on, because it says which run to open.
-
-    The guard added with that table did not cover this, because it bans the word
-    "lock" from a plan's DESCRIPTION and these lines are prose in the README.
-    So they are generated too, and from the same measured rows.
+    """The README index line for a run whose NEW reports start on a set of
+    its own (K31), named from MEASURED state, for the reason the three lock
+    lines it replaces were: a hand-written line naming a run goes stale.
     """
-    want = [("locked, so the set cannot be changed", lambda r: r["locked"]),
-            ("one date only, so the set is still offered",
-             lambda r: not r["locked"] and r["dates"] < 2),
-            ("two dates, but the lock lifted by hand",
-             lambda r: not r["locked"] and r["dates"] >= 2 and r["lifted"])]
-    out: "list[tuple[str, str]]" = []
-    for label, pick in want:
-        # The SIMPLEST example of each state, so the reader opens the run where
-        # the state is the only interesting thing rather than the busiest one.
-        # An unedited column first, then the fewest dates, and only then the
-        # name: sorting by size alone landed the locked line on a run whose own
-        # README entry says "(edited for this run)", which is a second thing to
-        # explain in a line that exists to demonstrate one.
-        hits = sorted((r for r in lock_rows if pick(r)),
-                      key=lambda r: (r.get("edited", False), r["dates"], r["run"]))
-        if hits:
-            out.append((label, hits[0]["run"].replace("/", ", ")))
-    return out
+    hits = sorted((r for r in lock_rows
+                   if r.get("starts_on") and r["starts_on"] != "chromiq_default"),
+                  key=lambda r: (r.get("edited", False), r["dates"], r["run"]))
+    if not hits:
+        return []
+    return [("new reports start on a set of its own",
+             hits[0]["run"].replace("/", ", "))]
 
 
 def _type_index(type_set_rows: "list[dict]",
@@ -6030,33 +5962,23 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
               f"verification chart "
               f"{_chart_label(dest, name, f'run{i}', plan.verify_chart, True)}")
         a("")
-    a("WHICH RUNS ARE LOCKED, AND WHY")
-    a("------------------------------")
+    a("WHERE EACH RUN'S LIMITS COME FROM")
+    a("---------------------------------")
     a("")
-    a("A run's limit set is fixed, and the report window stops offering it,")
-    a("once two conditions are both true: the set has been copied onto the run")
-    a("by a first verification measurement, and the run has at least TWO dated")
-    a("verifications. One measurement is not yet a history, so at that point")
-    a("the set can still be chosen. The lock can also be lifted by hand, once")
-    a("ChromIQ Preferences, Reports, 'Allow editing of thresholds after the")
-    a("first verification measurement' is ticked; on a fresh install it is")
-    a("not, and the report window's 'Unlock this run's limits' is greyed.")
+    a("A limit set belongs to a report, not to a run (ChromIQ beta 40). Every")
+    a("dated report in this package was judged against the set its run's")
+    a("description names, and a NEW report of a run starts on that set: the")
+    a("run's own default, chosen in the Report limits window, where it is not")
+    a("ChromIQ default. No run fixes a set: any report can be judged against")
+    a("any set by choosing it in \"Judged against\" and pressing Generate")
+    a("report, and every report already saved keeps the set it was made with.")
     a("")
     a("Every line below was read back from the built projects with the app's")
-    a("own is_locked(), not copied from the plan that asked for it.")
+    a("own run_limits(), not copied from the plan that asked for it.")
     a("")
-    a(f"  {'run':<34}{'dates':>6}  {'lifted':<7}{'locked':<7}")
+    a(f"  {'run':<34}{'dates':>6}  {'new reports start on':<24}")
     for row in _lock_rows:
-        a(f"  {row['run']:<34}{row['dates']:>6}  "
-          f"{'yes' if row['lifted'] else 'no':<7}"
-          f"{'YES' if row['locked'] else 'no':<7}")
-    a("")
-    a("All three states are present on purpose, and the index further down")
-    a("this file names a run for each of them, from the same measured rows as")
-    a("the table above. THEY ARE NOT LISTED AGAIN HERE. The last version of")
-    a("this file answered the question twice, once from a generated line and")
-    a("once from a hand-written one, and the hand-written half named a run")
-    a("with three dated verifications as the example of a run with two.")
+        a(f"  {row['run']:<34}{row['dates']:>6}  {row['starts_on']:<24}")
     a("")
     a("HOW THE MEASUREMENTS WERE MADE")
     a("------------------------------")

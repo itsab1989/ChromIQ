@@ -438,7 +438,7 @@ def _folders():
         ("cal/old/", tr("Earlier calibrations. Once a calibration has been measured, making a new calibration chart moves it here into a folder named with the date rather than deleting it, so an earlier .cal can always be read back — which is also what printcal's “Re-calibrate” and “Verify” modes compare against. A chart you never measured is replaced instead, in the same way a profile run's chart is. Each run also records which calibration it was built with, so ChromIQ can tell you which of them a given profile came from; runs made before ChromIQ started recording that simply say it is unknown.")),
         ("cal/reports/", tr("The measurement reports of this project's calibration (Run type Calibration). “Delete Selected Report” moves one to cal/reports/old/<date>/.")),
         ("exports/", tr("Files made for other programs from the Tools menu (project-wide, not tied to one run).")),
-        ("runs/runN/verifications/<date>/reports/old/", tr("Earlier versions of that dated check's report, each in a folder named with the moment it happened. An Update moves the version it replaces here, and \u201cDelete Selected Report\u201d moves a report here rather than deleting it. Unlocking a run's limits changes no saved report. The current report keeps its own name, so each date still has exactly one current report.")),
+        ("runs/runN/verifications/<date>/reports/old/", tr("Earlier versions of that dated check's reports, each in a folder named with the moment it happened. An Update keeps the version it replaces here, and \u201cDelete Selected Report\u201d moves a report here rather than deleting it. A report of one date that an Update widened to more dates leaves its old file here too. The current report keeps its own name.")),
         ("compliance/  (in ChromIQ's settings folder, not in a project)", tr("The limit values of a paid standard, for a licence holder who has typed them in: one file, iso12647.json, holding your own ISO 12647-7 and 12647-8 numbers. A number in it takes the place of the value ChromIQ ships for that row; a row that standard puts no limit on reads “–” in the Report limits table, and the file does not change that. Put it in place from the Report limits window, under “Reference values…”; it is the same file on every machine you own, and deleting it simply puts back what ChromIQ ships.")),
         ("reference_sets/  (in ChromIQ's settings folder, not in a project)", tr("Your own copies of printing-condition reference data, which ChromIQ prefers, set by set, over the eleven Fogra files it ships. A copy is stored under ChromIQ's own name for the set, never under the name of the file you picked, and SUPPLIED.json beside it records where each one came from, when, and its checksum. “Stop using it” removes ChromIQ's copy and leaves your original download alone.")),
     ]
@@ -516,20 +516,20 @@ def _features():
         (tr("Measurement report (Tools)"),
          tr("The run's measurements ({name}.ti3, or each "
             "verifications/<date>/{name}-verify.ti3) with the chart's .ti2 "
-            "beside them; the run's own limit set, stored in "
-            "runs/runN/meta.json; and the chart's .control-strip.json where "
-            "there is one"),
+            "beside them; a report you select, with the limit set and the "
+            "other settings it was made with; and the chart's "
+            ".control-strip.json where there is one"),
          tr("report_*.json in the reports folder that matches what the report "
             "covers, and a PDF beside it when you save one. Each report "
             "carries its own copy of the limits it was judged against, so it "
             "still reads correctly after the limits change")),
         (tr("Report limits (from the Measurement Report)"),
-         tr("The run's limits from runs/runN/meta.json, and your own ISO "
-            "values from compliance/iso12647.json when you have supplied "
-            "them"),
-         tr("The run's limits, back into runs/runN/meta.json. Unlocking a run "
-            "changes no saved report; a report you then update keeps its "
-            "earlier version in its reports/old/<date>/ folder")),
+         tr("The limits of the report shown, and your own ISO values from "
+            "compliance/iso12647.json when you have supplied them"),
+         tr("Nothing into any report: a change is the report's own and is "
+            "written when you press Generate report. Only the run's own "
+            "default for new reports, when you choose one, goes into "
+            "runs/runN/meta.json")),
         (tr("Reference values (from Report limits)"),
          tr("A file of ISO limit values you filled in, or a Fogra reference "
             "file (.txt or .zip) newer than the ones ChromIQ ships"),
@@ -565,7 +565,7 @@ def _rows():
             ("report_*.json", "runs/runN/reports", tr("Dated PROFILING measurement reports (accuracy & drift), saved automatically after each measurement (Preferences → Reports). The Measurement Report tool reads these back — it builds its figures from the run's .ti3, needs the chart's .ti2 beside it for the ΔE, and reads the instrument name from the .ti3 — and plots how the printer drifts over time. Verification checks keep their own report points under verifications/<date>/reports/, gathered separately."), tr("Measure tab")),
             # K25 (Knut, 2026-09-23, Q6): *"Yes"* to rows for the saved
             # reports in the two shared folders, not only their PDFs.
-            ("report_*.json", "runs/runN/verifications/reports", tr("A saved measurement report that covers SEVERAL dated checks of this run, made with “Generate report”. This file says what the report is: which checks it covers, its report type and what it was judged against. Each check keeps its own result in that date's reports folder, so the dates stay comparable. “Delete Selected Report” moves this file to runs/runN/verifications/old/<date>/ and leaves the dates' results where they are."), tr("Measurement Report tool")),
+            ("report_*.json", "runs/runN/verifications/reports", tr("A saved measurement report that covers SEVERAL dated checks of this run, made with “Generate report”. This one file is the whole report: which checks it covers, its report type, what it was judged against and each check's result in it. Nothing is written into the dates' own folders; each date's own report there is the one ChromIQ wrote after it was measured. “Delete Selected Report” moves this file to runs/runN/verifications/old/<date>/."), tr("Measurement Report tool")),
             # #182 beta 39 (Knut 5794078008): a calibration's reports.
             ("report_*.json", "cal/reports", tr("A saved report of this project's calibration (Run type Calibration)."), tr("Measure tab, Measurement Report tool")),
             ("report_*.json", "reports (project folder)", tr("A saved measurement report that covers measurements of SEVERAL profile runs of this project, for example checks of run1 and run2, or the profiling sheets of both. “Delete Selected Report” moves this file to old/<date>/ in the project folder. A report across projects is kept in the reports folder beside them, or in your ChromIQ folder's when they are not side by side."), tr("Measurement Report tool")),
@@ -574,7 +574,7 @@ def _rows():
             # Report function's files and folders?"* (#130, 2026-07-30). He is
             # right: the diagram should show the folders, and the rule for
             # choosing between them belongs with the tool that applies it.
-            ("<report title> - <date_time>.pdf", "reports/ — the one that matches the report's scope", tr("A printable PDF of a measurement report, written when you press “Save report as PDF”. Its name is the report's own title, which you set in Preferences → Reports, followed by the moment it was written. It is filed with whatever the report actually covers, so a report always sits beside the measurements it describes: ONE PROFILING RUN goes in that run's reports folder (runs/runN/reports/). ONE DATED CHECK goes in that date's own folder (runs/runN/verifications/<date>/reports/). SEVERAL CHECKS OF ONE RUN (the trend across dates) go in runs/runN/verifications/reports/. SEVERAL RUNS, or the whole profile, go in the project's own reports folder next to runs/. A CALIBRATION goes in cal/reports/. SEVERAL PROJECTS go in the reports folder beside them, or in your ChromIQ folder's when they are not side by side. A measurement you browsed to from outside a project gets a reports folder beside the file itself."), tr("Measurement Report tool")),
+            ("<report title> - <date_time>.pdf", "reports/ — the one that matches the report's scope", tr("A printable PDF of a measurement report, written when you press “Save report as PDF”. Its name is the report's own title, which you set in Preferences → Reports, followed by the moment it was written. It is filed with whatever the report actually covers, whichever profile run the report window was opened from, so a report always sits beside the measurements it describes: ONE PROFILING RUN goes in that run's reports folder (runs/runN/reports/). ONE DATED CHECK goes in that date's own folder (runs/runN/verifications/<date>/reports/). SEVERAL CHECKS OF ONE RUN (the trend across dates) go in runs/runN/verifications/reports/. SEVERAL RUNS, or the whole profile, go in the project's own reports folder next to runs/. A CALIBRATION goes in cal/reports/. SEVERAL PROJECTS go in the reports folder beside them, or in your ChromIQ folder's when they are not side by side. A measurement you browsed to from outside a project gets a reports folder beside the file itself."), tr("Measurement Report tool")),
         ]),
         (tr("exports/ — files for other programs"), [
             ("{name}-colours.txt", "runs/runN/exports", tr("The chart's colours as a plain hex list (RGB charts). Can be pasted back into the New-chart dialog."), tr("Create Chart (best-effort)")),

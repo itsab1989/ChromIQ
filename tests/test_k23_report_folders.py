@@ -13,6 +13,13 @@ the dates are built on it, and that record "is not a report, it is never
 listed or counted". Reports already on users' disks stay where they are and
 are shown and counted by what they cover.
 
+**K31 (Knut, 5801677743, beta 40) RETIRED THE RECORDS.** *"Should a report of
+several measurements stop writing verdict records altogether?"* *"Agreed."*
+The folder rule above is unchanged; a report of several measurements is now
+ONE file in its home whose list of measurements carries each one's verdict,
+and nothing is written into the dates. Records already on disk are read-only
+history of their report. The guards below were retargeted to that.
+
 Every test names the mutation that turns it red; each was applied and seen
 red before this file was committed (see the K23 REPORT.md on the Desktop).
 """
@@ -104,10 +111,15 @@ def test_a_verdict_record_is_told_apart_on_disk():
 # ---------------------------------------------------------------------------
 # Generate
 # ---------------------------------------------------------------------------
-def test_several_dates_write_one_document_file_and_a_record_per_date(
+def test_several_dates_write_one_document_file_and_no_record(
         tmp_path, qapp):
-    """MUTATION: write the records without `role=file_role` (no role), or
-    skip the document file, and this goes red."""
+    """K31: one file in `runN/verifications/reports/`, carrying each date's
+    verdict, and NOTHING in the dates' own folders (it was
+    `..._and_a_record_per_date`).
+
+    MUTATION: write a record into each date again, or leave `JUDGED_KEY`
+    off the document's measurements, or skip the document file, and this
+    goes red."""
     s, _fm, run, vs = _messy_project(tmp_path, dates=2)
     dlg = _dialog(s, vs[-1].measurement_ti3, qapp)
     try:
@@ -116,16 +128,14 @@ def test_several_dates_write_one_document_file_and_a_record_per_date(
         before = set(_files(run))
         _press(dlg, qapp)
         written = sorted(set(_files(run)) - before)
-        assert len(written) == 2, written
-        assert {document_role(_read(p)) for p in written} == {ROLE_RECORD}
+        assert written == [], written
         homes = _home_files(run)
         assert len(homes) == 1, homes
         body = _read(homes[0])
         assert document_role(body) == ROLE_DOCUMENT
         assert len(body["document"]["measurements"]) == 2
+        assert all(m.get("judged") for m in body["document"]["measurements"])
         assert "verdict" not in body, "the document file carries no measurement"
-        ids = {_read(p)["document"]["id"] for p in written}
-        assert ids == {body["document"]["id"]}
     finally:
         dlg.close()
 
@@ -149,13 +159,13 @@ def test_one_date_is_written_in_that_dates_folder_as_before(tmp_path, qapp):
 
 def test_the_pulldown_and_the_line_count_a_document_of_several_dates_once(
         tmp_path, qapp):
-    """One entry, one count, and the entry is drawn from its records.
+    """One entry, one count, and (K31) the entry is its own file, with no
+    records as members: the page is drawn from the dates' own rows and the
+    document's recorded verdicts.
 
-    MUTATION: do not attach the records to the document file's entry in
-    `_saved_documents` (drop the `members.extend`), and the entry has no
-    measurements to draw: red. (Dropping the record skip in the COUNTER is
-    equivalent here, because the records share the document's id; it is
-    guarded by the Delete test below, where the records are left alone.)"""
+    MUTATION: list the document file twice (drop the `docs.get(key)` merge
+    in `_saved_documents`), or count it in the counter's per-date walk as
+    well, and this goes red."""
     s, _fm, run, vs = _messy_project(tmp_path, dates=2)
     dlg = _dialog(s, vs[-1].measurement_ti3, qapp)
     try:
@@ -169,19 +179,19 @@ def test_the_pulldown_and_the_line_count_a_document_of_several_dates_once(
         assert sum(added.values()) == 1, (before, after)
         assert len(_listed(dlg)) == n_before + 1
         entry = next(e for e in _listed(dlg) if e["key"] == dlg._loaded_doc_id)
-        assert entry.get("file") and len(entry["members"]) == 2, entry
+        assert entry.get("file") and entry["members"] == [], entry
+        assert len(entry["doc"]["measurements"]) == 2
     finally:
         dlg.close()
 
 
-def test_a_deleted_document_leaves_its_records_unlisted_and_uncounted(
+def test_a_deleted_document_leaves_nothing_behind_in_the_dates(
         tmp_path, qapp):
-    """The records stay (the dates' verdicts) and are not reports.
+    """K31: a report of several dates wrote nothing into the dates, so its
+    Delete leaves the dates exactly as they were and the count goes back
+    (it was `..._leaves_its_records_unlisted_and_uncounted`).
 
-    MUTATIONS: drop the `is_verdict_record` skip in `generated_report_types`
-    (the orphaned records are counted), or make `is_verdict_record` answer
-    False everywhere, and after Delete the
-    records come back as a document of their own: red."""
+    MUTATION: write a record into each date again and this goes red."""
     s, _fm, run, vs = _messy_project(tmp_path, dates=2)
     dlg = _dialog(s, vs[-1].measurement_ti3, qapp)
     dlg._confirm = lambda t, b: True
@@ -200,7 +210,7 @@ def test_a_deleted_document_leaves_its_records_unlisted_and_uncounted(
         assert all(d["key"] != key for d in _listed(dlg))
         assert sum(_counts(dlg).values()) == base
         recs = [p for p in _files(run) if is_verdict_record(_read(p))]
-        assert len(recs) == 2, recs
+        assert recs == [], recs
     finally:
         dlg.close()
 
@@ -208,8 +218,8 @@ def test_a_deleted_document_leaves_its_records_unlisted_and_uncounted(
 def test_a_read_only_home_writes_nothing(tmp_path, qapp):
     """All or nothing reaches the document file's folder.
 
-    MUTATION: drop the home check from the pre-flight, and the records are
-    written while the document file is refused: red."""
+    MUTATION: drop the home check from the pre-flight, and the press tries
+    the document file and says it saved something: red."""
     s, _fm, run, vs = _messy_project(tmp_path, dates=2)
     run.verifications_dir.chmod(0o555)
     dlg = _dialog(s, vs[-1].measurement_ti3, qapp)
@@ -265,10 +275,12 @@ def test_update_rewrites_the_document_file_in_place_and_archives_it(
 def test_update_to_one_date_retires_the_document_file_and_back(
         tmp_path, qapp, monkeypatch):
     """Narrowed to one date the document IS that date's file; widened again
-    it has a document file again.
+    it has a document file again, and (K31) the date's file of it is retired
+    into that date's `reports/old/` (a report of one date updated to cover
+    more dates becomes a report of those dates).
 
-    MUTATION: skip `old_doc_file.unlink()`, and a document of one date keeps
-    a document file that is listed beside it: red."""
+    MUTATION: skip the retirement of the files the new shape no longer has
+    (`retire` in `_write_the_document`), and this goes red."""
     s, _fm, run, vs = _messy_project(tmp_path, dates=2)
     dlg = _dialog(s, vs[-1].measurement_ti3, qapp)
     try:
@@ -284,12 +296,15 @@ def test_update_to_one_date_retires_the_document_file_and_back(
         r, name = entry["members"][0]
         assert document_role(_read(Path(r["_origin_dir"]) / "reports" / name)) \
             == ""
+        one_date_file = Path(r["_origin_dir"]) / "reports" / name
         dlg._hidden_runs = set()
         _update(dlg, qapp, monkeypatch)
         assert len(_home_files(run)) == 1
         entry = next(e for e in _listed(dlg) if e["key"] == key)
-        assert entry.get("file") and len(entry["members"]) >= 2, entry
+        assert entry.get("file") and entry["members"] == [], entry
         assert sum(1 for e in _listed(dlg) if e["key"] == key) == 1
+        assert not one_date_file.exists(), "the widened report kept its one-date file"
+        assert list((one_date_file.parent / "old").glob("*/" + name))
     finally:
         dlg.close()
 
@@ -419,12 +434,11 @@ def test_a_moved_project_still_finds_its_documents(tmp_path, qapp):
 def test_a_moved_narrowed_document_ticks_what_it_covers(
         tmp_path, qapp, monkeypatch):
     """B8-810 R3A-2 in its several-dates form: three dates, Update to two,
-    project moved. The date taken out keeps its verdict record with the
-    document's id, so "which files carry the id" says three; the document
-    says two.
+    project moved. The document says two, and the moved copy ticks two.
+    (Until K31 the date taken out kept a verdict record carrying the id.)
 
     MUTATION: drop the project-relative match in
-    `_restore_the_documents_view`, and the moved copy ticks three: red."""
+    `_restore_the_documents_view`, and the moved copy ticks all three: red."""
     s, fm, run, vs = _messy_project(tmp_path, dates=3)
     dlg = _dialog(s, vs[-1].measurement_ti3, qapp)
     try:
@@ -435,7 +449,7 @@ def test_a_moved_narrowed_document_ticks_what_it_covers(
         dlg._hidden_runs.add(dlg._run_key(dlg._history[0]))
         _update(dlg, qapp, monkeypatch)
         entry = next(e for e in _listed(dlg) if e["key"] == key)
-        assert entry.get("file") and len(entry["members"]) == 3, entry
+        assert entry.get("file") and len(entry["doc"]["measurements"]) == 2
     finally:
         dlg.close()
     from core.file_manager import Project
@@ -509,13 +523,11 @@ def test_the_cross_run_path_a_profiling_window_has(tmp_path, qapp):
     """The one real path that writes a document of several profile runs: a
     Profiling window gathers every run's profiling reports for the trend
     (#40), and with both runs ticked Generate is live. K23 puts that
-    document in `<project>/reports/` and a record in the window's own run
-    only; nothing is written into the other run. Reported to Knut, not
-    widened.
+    document in `<project>/reports/`, and since K31 nothing is written into
+    either run.
 
-    MUTATION: write records into every member folder (drop the run boundary
-    in `_reports_to_generate`), or put the document file in the run's own
-    folder, and this goes red."""
+    MUTATION: write a record into a member folder again, or put the
+    document file in the run's own folder, and this goes red."""
     from tests.test_a_report_belongs_to_the_run_it_was_asked_from import (
         _two_run_project, _window_on)
     s, proj, run1, run2 = _two_run_project(tmp_path, qapp)
@@ -541,4 +553,4 @@ def test_the_cross_run_path_a_profiling_window_has(tmp_path, qapp):
     assert len(shared) == 1, shared
     recs = [p for p in (run2.dir / "reports").glob("report_*.json")
             if is_verdict_record(_read(p))]
-    assert len(recs) == 1, recs
+    assert recs == [], recs

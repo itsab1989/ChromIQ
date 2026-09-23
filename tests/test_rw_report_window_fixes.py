@@ -222,7 +222,9 @@ def test_every_greyed_generate_says_why(tmp_path, qapp):
     line beside the buttons; a live button carries neither.
 
     Paths: (1) only another run's measurement ticked, one source (the C6
-    case: a Profiling window lists every run's sheet); (2) nothing ticked;
+    case: a Profiling window lists every run's sheet), which K31 made LIVE
+    (Knut, 5801677743: a report is saved where its ticks decide, from any
+    window), so it is the control here; (2) nothing ticked;
     (3) no measurement loaded (Clear list); (4) under Calibration, a run's
     measurement only; the others (a measurement outside a project, FC-2,
     a calibration not on disk) have their own tests and reach the same
@@ -250,9 +252,9 @@ def test_every_greyed_generate_says_why(tmp_path, qapp):
         dlg._hidden_runs = set(mine)
         dlg._sync_limit_controls()
         qapp.processEvents()
-        assert not dlg._generate_btn.isEnabled()
+        assert dlg._generate_btn.isEnabled(), dlg._generate_btn.toolTip()
         shown, full, tip = _reason_on_screen(dlg)
-        assert shown and full == tip and "another profile run" in tip, tip
+        assert not shown and not tip, (shown, tip)
         # (2) nothing ticked
         dlg._deselect_all_btn.click()
         qapp.processEvents()
@@ -272,12 +274,12 @@ def test_every_greyed_generate_says_why(tmp_path, qapp):
 def test_the_c6_state_one_profiling_source_other_run_ticked(tmp_path, qapp):
     """The tester's state exactly: a Profiling window on run 1 lists both
     runs' sheets from ONE source; run 2's Printing record selected ticks
-    run 2's sheet alone. Generate is greyed and says why.
+    run 2's sheet alone. K31: Generate is LIVE (the report of run 2's sheet
+    is saved in run 2), and the labels do not name run 1.
 
-    MUTATION, proven red: `several and` back in the "Every ticked
-    measurement belongs to another profile run" condition (no reason), or
-    drop `and self._ticks_are_the_runs_own(run)` from the type label
-    ("Report type (run1):")."""
+    MUTATION: put the own-run filter back into `_reports_to_generate` (the
+    button greys), or drop `and self._ticks_are_the_runs_own(run)` from the
+    type label ("Report type (run1):"), and this goes red."""
     from tests.test_calibration_reports import _settings
     from workflow.measurement_report import (REPORT_TYPE_RECORD,
                                              build_report, save_report,
@@ -308,10 +310,8 @@ def test_the_c6_state_one_profiling_source_other_run_ticked(tmp_path, qapp):
         dlg._sync_limit_controls()
         qapp.processEvents()
         assert not dlg._several_runs()
-        assert not dlg._generate_btn.isEnabled()
-        tip = dlg._generate_btn.toolTip()
-        assert "another profile run" in tip, repr(tip)
-        assert dlg._generate_why.isVisibleTo(dlg)
+        assert dlg._generate_btn.isEnabled(), dlg._generate_btn.toolTip()
+        assert "another profile run" not in dlg._generate_btn.toolTip()
         # and the labels stop naming run 1 (K30 leftover)
         assert dlg._type_label.text() == "Report type:", dlg._type_label.text()
     finally:
@@ -407,6 +407,10 @@ def test_an_update_that_changes_what_it_covers_is_still_renamed(tmp_path,
                 continue
             blk = json.loads(f.read_text(encoding="utf-8")).get(
                 DOCUMENT_BLOCK) or {}
+            # K31: an earlier ChromIQ's verdict records are read-only
+            # history and keep the block they were written with.
+            if blk.get("role") == "record":
+                continue
             if blk.get("id") == doc_id:
                 scopes.append(blk.get("scope"))
         assert scopes, "the updated report is not on disk"

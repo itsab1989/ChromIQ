@@ -41,8 +41,9 @@ def _dialog(tmp_path, qapp):
 
 
 def _as(dlg, run, tid):
-    from workflow.run_compliance import set_run_report_type
-    set_run_report_type(run, tid)
+    # K31: the type is the REPORT's, chosen in the pulldown as a user does.
+    from tests.helpers.report_window import choose_report_type
+    choose_report_type(dlg, tid)
     dlg._forget_limits()
     dlg._sync_limit_controls()
     return dlg._runs_for_report()

@@ -6,6 +6,7 @@ duplicate partition classifies every new field; archiving copies, never moves.
 """
 from __future__ import annotations
 
+from tests.helpers import legacy_run_meta
 import json
 from pathlib import Path
 
@@ -61,7 +62,7 @@ def test_binding_copies_the_effective_limits_including_the_users_overrides(tmp_p
     """CH-5: a user who moved 2.0 to 2.5 before the migration keeps 2.5."""
     _proj, run = _project(tmp_path)
     ov = {"chromiq_default": {"all_de00_avg": 2.5}}
-    rl = rc.bind_run(run, "chromiq_default", ov)
+    rl = legacy_run_meta.bind_run(run, "chromiq_default", ov)
     assert rl.bound and rl.limits["all_de00_avg"] == Limit.value(2.5)
     assert not rl.edited                       # equals the effective set → not an edit
     meta = run.load_meta()
@@ -79,25 +80,17 @@ def test_binding_copies_the_effective_limits_including_the_users_overrides(tmp_p
 
 def test_the_copy_is_a_copy_a_later_preferences_change_does_not_move_it(tmp_path):
     _proj, run = _project(tmp_path)
-    rc.bind_run(run, "chromiq_default", {})
+    legacy_run_meta.bind_run(run, "chromiq_default", {})
     later = {"chromiq_default": {"all_de00_avg": 9.0}}
     rl = rc.run_limits(run, later)
     assert rl.limits["all_de00_avg"] == Limit.value(2.0)
     assert rl.edited                           # it now differs from the set → shown as edited
 
 
-def test_ensure_bound_binds_once_and_never_raises(tmp_path, monkeypatch):
-    _proj, run = _project(tmp_path)
-    a = rc.ensure_bound(run, {}, "chromiq_tight")
-    assert a.bound and a.set_id == "chromiq_tight"
-    b = rc.ensure_bound(run, {}, "chromiq_quick")     # already bound: unchanged
-    assert b.set_id == "chromiq_tight"
-    # a run whose meta cannot be written: judged with the default, no exception
-    _proj2, run2 = _project(tmp_path / "second")
-    def boom(_m): raise OSError("read-only")
-    monkeypatch.setattr(type(run2), "save_meta", lambda self, m: boom(m))
-    c = rc.ensure_bound(run2, {}, "chromiq_default")
-    assert not c.bound and c.set_id == "chromiq_default"
+# RETIRED BY K31 (beta 40): `test_ensure_bound_binds_once_and_never_raises`.
+# ensure_bound is removed (K31): a measurement binds nothing; the Measure tab
+# asks run_limits for the starting choice (tests/test_a_saved_report_keeps_it
+# s_verdict.py::test_the_limits_come_from_the_run_not_the_module_defaults).
 
 
 def test_a_historical_set_keeps_its_values_and_label(tmp_path):
@@ -116,64 +109,26 @@ def test_a_historical_set_keeps_its_values_and_label(tmp_path):
 
 def test_unknown_set_id_on_bind_falls_back_to_the_default(tmp_path):
     _proj, run = _project(tmp_path)
-    assert rc.bind_run(run, "nonsense", {}).set_id == "chromiq_default"
+    assert legacy_run_meta.bind_run(run, "nonsense", {}).set_id == "chromiq_default"
 
 
 # ---- lock -----------------------------------------------------------------------
 
-def test_locked_follows_the_second_measurement_and_the_unlock_flag(tmp_path):
-    """REVISED 2026-09-10, on Knut's report, and it moved twice.
-
-    It used to lock on the FIRST measured verification. Two things were wrong
-    with that, from opposite ends, and he found both.
-
-    A run that is not BOUND has nothing to lock: its limits come from the live
-    Preferences default, so the pulldown was greyed over a value stored nowhere,
-    and a radio button in another window moved it.
-
-    And one measurement is not a history. The lock exists so that every dated
-    verification of a run is judged the same way; with one date there is nothing
-    to be consistent with, so it only takes the choice away.
-    """
-    _proj, run = _project(tmp_path)
-    assert not rc.is_locked(run)                       # nothing measured
-    assert rc.may_unlock(run, allow_after_measurement=False)
-
-    v = run.new_verification(); v.ensure_dir()
-    v.measurement_ti3.write_text(_TI3, encoding="utf-8")
-    assert rc.has_measured_verification(run)
-    assert rc.measured_dates(run) == 1
-    # bound, but only one date: still the user's to choose
-    rc.bind_run(run, "chromiq_default", {})
-    assert rc.is_bound(run)
-    assert not rc.is_locked(run), "one date is not a history to protect"
-    # unlocking is still gated the same way once anything is measured
-    assert not rc.may_unlock(run, allow_after_measurement=False)
-    assert rc.may_unlock(run, allow_after_measurement=True)
-
-    from datetime import datetime, timedelta
-    v2 = run.new_verification(datetime.now() + timedelta(days=30)); v2.ensure_dir()
-    v2.measurement_ti3.write_text(_TI3, encoding="utf-8")
-    assert rc.measured_dates(run) == 2
-    assert rc.is_locked(run), "a second date is what the lock is for"
-
-    rc.set_run_unlocked(run, True)
-    assert not rc.is_locked(run)
-    # the flag is the run's own even before it is bound (a legacy run that a
-    # user unlocks must not read as locked again on the next look)
-    assert rc.run_limits(run, {}).unlocked is True
-    assert not rc.is_locked(None) and not rc.may_unlock(None, True)
+# RETIRED BY K31 (beta 40): `test_locked_follows_the_second_measurement_and_the_unlock_flag`.
+# is_locked and may_unlock are removed with the run lock (K31).
 
 
 def test_edited_copy_columns_and_unlock_round_trip(tmp_path):
     _proj, run = _project(tmp_path)
-    rc.bind_run(run, "chromiq_default", {})
+    legacy_run_meta.bind_run(run, "chromiq_default", {})
     lim = factory_limits("chromiq_default"); lim["all_de00_avg"] = Limit.value(2.7)
-    rc.set_run_limits(run, lim)
+    legacy_run_meta.set_run_limits(run, lim)
     rc.set_run_columns(run, ["chromiq_default", "chromiq_tight"])
-    rc.set_run_unlocked(run, True)
+    legacy_run_meta.set_run_unlocked(run, True)
     rl = rc.run_limits(run, {})
-    assert rl.edited and rl.unlocked and rl.columns == ["chromiq_default", "chromiq_tight"]
+    # K31: an earlier ChromIQ's unlock flag is read without error and ignored
+    assert rl.edited and not rl.unlocked
+    assert rl.columns == ["chromiq_default", "chromiq_tight"]
     assert rl.limits["all_de00_avg"] == Limit.value(2.7)
 
 
@@ -212,13 +167,13 @@ def test_archive_reports_copies_and_never_moves(tmp_path):
 def test_a_duplicated_run_carries_the_choice_of_set_but_is_bound_afresh(tmp_path):
     """F13: the record's words, "carries the chosen set and clears the binding"."""
     proj, run = _project(tmp_path)
-    rc.bind_run(run, "chromiq_tight", {})
+    legacy_run_meta.bind_run(run, "chromiq_tight", {})
     lim = factory_limits("chromiq_tight"); lim["all_de00_avg"] = Limit.value(0.7)
-    rc.set_run_limits(run, lim)
+    legacy_run_meta.set_run_limits(run, lim)
     dup_run = proj.duplicate_run(run)
     rl = rc.run_limits(dup_run, {}, "chromiq_default")
     assert not rl.bound and not rl.edited
     assert rl.set_id == "chromiq_tight"                     # the choice travels
     assert rl.limits["all_de00_avg"] == Limit.value(1.0)     # not the source's edit
-    bound = rc.ensure_bound(dup_run, {}, "chromiq_default")
+    bound = legacy_run_meta.ensure_bound(dup_run, {}, "chromiq_default")
     assert bound.bound and bound.set_id == "chromiq_tight"

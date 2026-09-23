@@ -194,25 +194,25 @@ def test_a_run_starts_on_todays_report(tmp_path, qapp):
         dlg.close()
 
 
-def test_choosing_a_buildable_type_writes_it_to_the_run(tmp_path, qapp):
-    """The only type that can be chosen today is the one already selected, so
-    this drives the write through the handler directly and checks it lands.
+def test_choosing_a_type_writes_nothing_to_the_run(tmp_path, qapp):
+    """K31 turned this test round (it was
+    `test_choosing_a_buildable_type_writes_it_to_the_run`, D9). The type is
+    the REPORT's (Knut, 5801677743: *"settings belongs to the report"*): the
+    pulldown changes the report shown, and the run's meta.json is not
+    touched.
 
-    MUTATION: drop the `set_run_report_type` call and this goes red.
+    MUTATION: call `set_run_report_type(ctx.run, type_id)` (the pre-K31
+    write) from `_on_type_chosen` and this goes red.
     """
-    from workflow.measurement_report import REPORT_TYPE_MENU
-    from workflow.run_compliance import run_report_type, set_run_report_type
     dlg, run = _dialog(tmp_path, qapp)
     try:
-        # put the run somewhere else first, so choosing T2 is a real change
-        set_run_report_type(run, REPORT_TYPE_SUMMARY)
-        dlg._forget_limits()
-        dlg._sync_limit_controls()
-        assert dlg._type_combo.currentData() == REPORT_TYPE_SUMMARY
-        i = _ids(dlg).index(REPORT_TYPE_FULL)
+        before = run.meta_path.read_bytes() if run.meta_path.exists() else b""
+        i = _ids(dlg).index(REPORT_TYPE_SUMMARY)
         dlg._type_combo.setCurrentIndex(i)
         qapp.processEvents()
-        assert run_report_type(run) == REPORT_TYPE_FULL
+        assert dlg._report_type_now() == REPORT_TYPE_SUMMARY
+        after = run.meta_path.read_bytes() if run.meta_path.exists() else b""
+        assert after == before, "choosing a report type wrote the run"
     finally:
         dlg.close()
 
@@ -244,52 +244,14 @@ def test_a_greyed_type_cannot_be_stored_even_when_the_handler_is_reached(
         dlg.close()
 
 
-def test_a_run_that_moved_while_the_window_sat_there_is_not_written_to(
-        tmp_path, qapp, monkeypatch):
-    """A WINDOW MUST BE ABLE TO TELL ITS OWN WRITE FROM SOMEBODY ELSE'S. The
-    set pulldown beside this one learned that over four rounds; this control
-    was built with it rather than without.
-
-    MUTATION: drop the `_run_state_at_sync` comparison and this goes red.
-    """
-    from workflow.run_compliance import run_report_type, set_run_report_type
-    dlg, run = _dialog(tmp_path, qapp)
-    said = []
-    monkeypatch.setattr(dlg, "_say_run_moved_while_asking",
-                        lambda r: said.append(r))
-    try:
-        set_run_report_type(run, REPORT_TYPE_SUMMARY)
-        dlg._forget_limits()
-        dlg._sync_limit_controls()
-        # …and now somebody else changes the run, after this window drew it
-        meta = run.load_meta()
-        meta.compliance_unlocked = True
-        run.save_meta(meta)
-        i = _ids(dlg).index(REPORT_TYPE_FULL)
-        dlg._type_combo.setCurrentIndex(i)
-        qapp.processEvents()
-        assert run_report_type(run) == REPORT_TYPE_SUMMARY, \
-            "the window wrote over a run that had moved under it"
-        assert said, "and it did not say so"
-    finally:
-        dlg.close()
+# RETIRED BY K31 (beta 40): `test_a_run_that_moved_while_the_window_sat_there_is_not_written_to`.
+# The type pulldown writes nothing to the run since K31 (the type is the
+# report's), so there is no write to guard against a run that moved.
 
 
-def test_the_type_moving_is_visible_to_every_doors_guard(tmp_path, qapp):
-    """`_run_state_now` is documented as everything this window's decisions
-    depend on, and the type is now one of them. A second window changing it
-    while a question is on screen has to be visible to the door that asked.
-
-    MUTATION: leave `report_type` out of `_run_state_now` and this goes red.
-    """
-    from workflow.run_compliance import set_run_report_type
-    dlg, run = _dialog(tmp_path, qapp)
-    try:
-        before = dlg._run_state_now(run)
-        set_run_report_type(run, REPORT_TYPE_SUMMARY)
-        assert dlg._run_state_now(run) != before
-    finally:
-        dlg.close()
+# RETIRED BY K31 (beta 40): `test_the_type_moving_is_visible_to_every_doors_guard`.
+# _run_state_now and the guards it served are gone with the run lock and the
+# run's own type (K31).
 
 
 def test_a_measurement_in_no_project_keeps_its_choice_for_the_session(
@@ -337,7 +299,7 @@ def test_an_unbuilt_type_still_renders_todays_report(tmp_path, qapp, tid):
     if tid in _DIFFERS_FROM_T2:
         pytest.skip(f"{tid} has a document of its own now")
     from workflow.measurement_report import report_type_is_built
-    from workflow.run_compliance import set_run_report_type
+    from tests.helpers.legacy_run_meta import (set_run_report_type)
     dlg, run = _dialog(tmp_path, qapp)
     try:
         base = dlg._report_body_html(dlg._runs_for_report(), for_pdf=False)
@@ -375,7 +337,7 @@ def test_a_type_the_menu_calls_BUILT_produces_a_different_document(tmp_path, qap
     MUTATION: flip any `built` to True without building the document and this
     goes red.
     """
-    from workflow.run_compliance import set_run_report_type
+    from tests.helpers.report_window import choose_report_type
     dlg, run = _dialog(tmp_path, qapp)
     # THE FLAG, NOT THE KIND. Since K13 a verification may not be a Printing
     # record, so on this fixture T4 would fall back to T2 and "differ" would
@@ -385,14 +347,11 @@ def test_a_type_the_menu_calls_BUILT_produces_a_different_document(tmp_path, qap
     # for a measurement outside any project.
     monkeypatch.setattr(dlg, "_window_kind", lambda: None)
     try:
-        set_run_report_type(run, REPORT_TYPE_FULL)
-        dlg._forget_limits()
-        dlg._sync_limit_controls()
         t2 = dlg._report_body_html(dlg._runs_for_report(), for_pdf=False)
         for tid, name, _blurb, built in REPORT_TYPE_MENU:
             if not built or tid == REPORT_TYPE_FULL:
                 continue
-            set_run_report_type(run, tid)
+            choose_report_type(dlg, tid)
             dlg._forget_limits()
             dlg._sync_limit_controls()
             body = dlg._report_body_html(dlg._runs_for_report(), for_pdf=False)
@@ -505,19 +464,19 @@ def test_one_runs_choice_is_not_applied_to_another_runs_data(tmp_path, qapp):
     2's verdicts withheld, because run 1 had chosen that.
 
     Knut's rule is the opposite: another run in the project may use a different
-    report type. A window produces ONE document, so the columns cannot each
-    have their own; the answer is the one type that withholds nothing and drops
-    no row, which is today's report.
+    report type. Since K31 a run's stored type decides nothing at all: the
+    type is the report's, and a new report starts on the Preferences default,
+    so neither run's old choice can reach the other's columns.
 
-    MUTATION: drop the `len(types) > 1` branch from `_report_type_now` and this
-    goes red.
+    MUTATION: read `run_report_type(ctx.run)` in `_report_type_now` (the
+    pre-K31 D9 rule) and this goes red.
     """
     from workflow.compliance_sets import INFO
-    from workflow.run_compliance import set_run_report_type
+    from tests.helpers.legacy_run_meta import (set_run_report_type)
     dlg, run1, run2 = _two_runs(tmp_path, qapp)
     try:
         assert len(dlg._distinct_run_dirs()) == 2, "the second run did not load"
-        set_run_report_type(run1, REPORT_TYPE_GREY)
+        set_run_report_type(run1, REPORT_TYPE_GREY)   # an earlier ChromIQ's
         set_run_report_type(run2, REPORT_TYPE_FULL)
         dlg._forget_limits()
         dlg._sync_limit_controls()
@@ -531,68 +490,19 @@ def test_one_runs_choice_is_not_applied_to_another_runs_data(tmp_path, qapp):
         dlg.close()
 
 
-def test_when_the_runs_AGREE_their_type_is_used(tmp_path, qapp):
-    """The control. The fallback must not fire whenever two runs are loaded,
-    only when they disagree.
-
-    MUTATION: fall back on `len(types) >= 1` and this goes red.
-    """
-    from workflow.run_compliance import set_run_report_type
-    dlg, run1, run2 = _two_runs(tmp_path, qapp)
-    try:
-        set_run_report_type(run1, REPORT_TYPE_GREY)
-        set_run_report_type(run2, REPORT_TYPE_GREY)
-        dlg._forget_limits()
-        dlg._sync_limit_controls()
-        assert dlg._report_type_now() == REPORT_TYPE_GREY
-    finally:
-        dlg.close()
+# RETIRED BY K31 (beta 40): `test_when_the_runs_AGREE_their_type_is_used`.
+# A run's stored type is no longer a starting choice (K31: the type is the
+# report's, a new report starts on the Preferences default), so two runs'
+# agreeing types decide nothing.
 
 
-def test_the_window_says_why_it_ignored_both_choices(tmp_path, qapp):
-    """A greyed pulldown over a value that is nobody's choice explains nothing.
-
-    MUTATION: drop the disagreement branch in `_sync_type_combo` and this goes
-    red.
-    """
-    from workflow.run_compliance import set_run_report_type
-    dlg, run1, run2 = _two_runs(tmp_path, qapp)
-    try:
-        set_run_report_type(run1, REPORT_TYPE_GREY)
-        set_run_report_type(run2, REPORT_TYPE_FULL)
-        dlg._forget_limits()
-        dlg._sync_limit_controls()
-        said = dlg._type_blurb_full
-        assert "different report types" in said, said
-        # ENABLED since K17 (Knut, beta 34): a choice across runs is the
-        # window's, for the session, and written to neither run.
-        assert dlg._type_combo.isEnabled()
-    finally:
-        dlg.close()
+# RETIRED BY K31 (beta 40): `test_the_window_says_why_it_ignored_both_choices`.
+# The line 'The runs loaded here were set to different report types' is gone:
+# runs carry no report type since K31.
 
 
-def test_the_type_cache_does_not_outlive_the_read_it_was_taken_for(tmp_path, qapp):
-    """A cache that survives a refresh is a baseline taken later than the write
-    it should have caught, which is a fault shape this window has been bitten
-    by four times.
-
-    MUTATION: leave `_types_cache` alone in `_forget_limits` and this goes red.
-    """
-    from workflow.run_compliance import set_run_report_type
-    dlg, run1, run2 = _two_runs(tmp_path, qapp)
-    try:
-        set_run_report_type(run1, REPORT_TYPE_GREY)
-        set_run_report_type(run2, REPORT_TYPE_GREY)
-        dlg._forget_limits()
-        dlg._sync_limit_controls()
-        assert dlg._report_type_now() == REPORT_TYPE_GREY
-        set_run_report_type(run2, REPORT_TYPE_FULL)
-        dlg._forget_limits()
-        dlg._sync_limit_controls()
-        assert dlg._report_type_now() == REPORT_TYPE_FULL, \
-            "the window answered from a cache taken before the run moved"
-    finally:
-        dlg.close()
+# RETIRED BY K31 (beta 40): `test_the_type_cache_does_not_outlive_the_read_it_was_taken_for`.
+# _types_of_loaded_runs and its cache are gone with the runs' types (K31).
 
 
 # ---------------------------------------------------------------------------
@@ -653,15 +563,16 @@ def test_with_two_runs_ticked_generate_is_live(tmp_path, qapp):
         dlg.close()
 
 
-def test_a_greyed_generate_says_why_when_only_another_run_is_ticked(
-        tmp_path, qapp):
-    """A greyed control says why. With two runs loaded and ONLY the other
-    run's measurement ticked, a report of that run alone would be filed into
-    it under this window's type and set; Generate is greyed and names why.
+def test_generate_is_live_when_only_another_run_is_ticked(tmp_path, qapp):
+    """K31 turned this test round (it was
+    `test_a_greyed_generate_says_why_when_only_another_run_is_ticked`). Knut,
+    5801677743, asked whether a new report with only another run's dates
+    ticked may be saved where those dates decide: *"Agreed."* So Generate is
+    live, and the sentence that sent the user to the other run's window is
+    gone.
 
-    MUTATION, proven red: delete the "Every ticked measurement belongs to
-    another profile run" tooltip branch in `_sync_type_combo` (the button is
-    grey with no reason)."""
+    MUTATION: put the window's-own-run filter (`mine`) back into
+    `_reports_to_generate` and this goes red."""
     dlg, run1, _run2 = _two_runs(tmp_path, qapp)
     try:
         mine = {dlg._run_key(r) for r in dlg._history
@@ -670,9 +581,9 @@ def test_a_greyed_generate_says_why_when_only_another_run_is_ticked(
         dlg._hidden_runs = set(mine)
         dlg._sync_limit_controls()
         qapp.processEvents()
-        assert not dlg._generate_btn.isEnabled()
-        tip = dlg._generate_btn.toolTip()
-        assert "belongs to another profile run" in tip, tip
+        assert dlg._generate_btn.isEnabled(), dlg._generate_btn.toolTip()
+        assert "belongs to another profile run" not in \
+            dlg._generate_btn.toolTip()
     finally:
         dlg.close()
 

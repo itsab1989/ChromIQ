@@ -24,6 +24,7 @@ gains the caveat and the word does not move.
 """
 from __future__ import annotations
 
+from tests.helpers import legacy_run_meta
 import html as _html
 import os
 
@@ -253,7 +254,7 @@ def _live_run(tmp_path, set_id: str, set_label: str):
     meta = run.load_meta()
     # Written the way `bind_run` writes it, then the id is replaced by one this
     # build does not define, which is what a future ChromIQ reads here.
-    rc.bind_run(run, "custom_iso_12647_7", {})
+    legacy_run_meta.bind_run(run, "custom_iso_12647_7", {})
     meta = run.load_meta()
     meta.compliance_set_id = set_id
     meta.compliance_set_label = set_label

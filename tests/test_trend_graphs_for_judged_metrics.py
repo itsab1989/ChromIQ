@@ -69,10 +69,32 @@ def _run(tmp_path, limits: dict, set_id: str = "chromiq_default",
     return run, first
 
 
+def _report_set(s, limits: dict, set_id: str) -> None:
+    """Make *limits* the numbers a NEW report of the window is judged
+    against (K31: the report's own set, so every ticked date is judged
+    against it, whatever each date's own report recorded): the Preferences
+    default set, with *limits* as its overrides."""
+    from core.settings import store_compliance_overrides
+    from workflow.compliance_sets import (SET_BY_ID, effective_limits,
+                                          limits_to_json)
+    base = limits_to_json(effective_limits(set_id, {}))
+    want = limits_to_json(limits)
+    ov = {}
+    for rid, lim in limits.items():
+        if want.get(rid) != base.get(rid):
+            ov[rid] = (None if getattr(lim, "kind", "") == "none"
+                       else float(lim.number))
+    if ov and SET_BY_ID[set_id].editable:
+        store_compliance_overrides(s, {set_id: ov})
+    s.set("compliance_default_set", set_id)
+
+
 def _open(tmp_path, qapp, limits, set_id="chromiq_default"):
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
     _run_, ti3 = _run(tmp_path, limits, set_id)
-    dlg = MeasurementReportDialog(_settings(tmp_path), None, initial_ti3=ti3)
+    s = _settings(tmp_path)
+    _report_set(s, limits, set_id)
+    dlg = MeasurementReportDialog(s, None, initial_ti3=ti3)
     dlg._select_all_btn.click()
     qapp.processEvents()
     # The page and the graphs are repainted together, as Generate does; the

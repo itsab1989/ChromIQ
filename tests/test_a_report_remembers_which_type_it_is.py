@@ -131,7 +131,8 @@ def test_a_run_that_never_chose_is_verified_as_todays_report(tmp_path):
 
 
 def test_the_chosen_type_survives_a_reload(tmp_path):
-    from workflow.run_compliance import run_report_type, set_run_report_type
+    from workflow.run_compliance import (run_report_type)
+    from tests.helpers.legacy_run_meta import (set_run_report_type)
     run = _run(tmp_path)
     set_run_report_type(run, REPORT_TYPE_SUMMARY)
     assert run_report_type(run) == REPORT_TYPE_SUMMARY
@@ -141,7 +142,8 @@ def test_the_chosen_type_survives_a_reload(tmp_path):
 
 def test_a_typo_is_refused_before_it_reaches_the_run(tmp_path):
     """MUTATION: drop the membership check and this goes red."""
-    from workflow.run_compliance import run_report_type, set_run_report_type
+    from workflow.run_compliance import (run_report_type)
+    from tests.helpers.legacy_run_meta import (set_run_report_type)
     run = _run(tmp_path)
     with pytest.raises(ValueError):
         set_run_report_type(run, "t4-printing-record")
@@ -169,7 +171,8 @@ def test_a_duplicated_run_is_verified_the_same_way(tmp_path):
     MUTATION: drop "report_type" from DUPLICATE_META_CARRY and this goes red.
     """
     from core.file_manager import Project
-    from workflow.run_compliance import run_report_type, set_run_report_type
+    from workflow.run_compliance import (run_report_type)
+    from tests.helpers.legacy_run_meta import (set_run_report_type)
     proj = Project.create(tmp_path / "t", "t")
     src = proj.new_run()
     set_run_report_type(src, REPORT_TYPE_SUMMARY)
@@ -194,14 +197,17 @@ def test_the_writer_has_a_caller_at_all():
     # rule: the recalculate path alone would satisfy that while every report
     # saved at measurement time carried nothing, and the two together are what
     # keeps a run's files agreeing with the run.
+    # K31: the report window stamps the type ON SCREEN with `set_report_type`
+    # (the type is the report's), and no longer reaches for the run's.
     required = {
-        "ui/tabs/tab_measure.py": "the report saved after a measurement",
-        "ui/dialogs/measurement_report_dialog.py":
-            "the reports rewritten when a run's limits are unlocked",
+        "ui/tabs/tab_measure.py": ("stamp_report_type(",
+                                   "the report saved after a measurement"),
+        "ui/dialogs/measurement_report_dialog.py": (
+            "set_report_type(rep, _tid)", "a report Generate writes"),
     }
-    for rel, what in required.items():
+    for rel, (call, what) in required.items():
         src = (root / rel).read_text(encoding="utf-8")
-        assert "stamp_report_type(" in src, (
+        assert call in src, (
             f"{rel} does not stamp the type, so {what} records none")
 
     # …AND THE SAVE PATH MAY NOT SKIP THE CASE THE READER CARES ABOUT. The

@@ -44,6 +44,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from tests.helpers import legacy_run_meta
 import pytest
 
 import workflow.compliance_sets as cs
@@ -195,7 +196,7 @@ def test_a_run_bound_before_the_change_keeps_the_numbers_it_was_bound_with(
     moved = _moved(set_id, before)
     before(True)
     _proj, run = _project(tmp_path / set_id)
-    bound = rc.bind_run(run, set_id, {})
+    bound = legacy_run_meta.bind_run(run, set_id, {})
     assert bound.bound
     was = dict(bound.limits)
 
@@ -222,7 +223,7 @@ def test_a_run_bound_after_the_change_gets_the_new_numbers(before, tmp_path, set
     moved = _moved(set_id, before)
     before(False)
     _proj, run = _project(tmp_path / set_id)
-    bound = rc.bind_run(run, set_id, {})
+    bound = legacy_run_meta.bind_run(run, set_id, {})
     for rid, (_old, new) in moved.items():
         assert bound.limits[rid] == new, rid
     assert not bound.edited

@@ -265,10 +265,10 @@ def test_the_one_page_summary_gives_the_judged_figures(tmp_path, qapp,
     """MUTATION, proven red: read `de = r.get("de00") or {}` in
     `_one_page_html` again (the page counts every patch of the sheet beside
     the judged word)."""
-    from workflow.run_compliance import set_run_report_type
+    from tests.helpers.report_window import choose_report_type
     dlg, run, rep = _split_dialog(tmp_path, qapp, monkeypatch)
     try:
-        set_run_report_type(run, mr.REPORT_TYPE_SUMMARY)
+        choose_report_type(dlg, mr.REPORT_TYPE_SUMMARY)
         dlg._forget_limits()
         dlg._sync_limit_controls()
         text = _text(dlg._report_body_html([rep], for_pdf=True))
@@ -296,13 +296,13 @@ def test_the_within_gamut_sentence_only_where_a_shown_row_uses_it(
 
     MUTATION, proven red: drop `and set(present or ()) & WITHIN_GAMUT_ROWS`
     from the intro condition in `_report_results_html`."""
-    from workflow.run_compliance import set_run_report_type
+    from tests.helpers.report_window import choose_report_type
     dlg, run, rep = _split_dialog(tmp_path, qapp, monkeypatch)
     say = "the words judge the within-gamut figures"
     try:
         for tid, expect in ((mr.REPORT_TYPE_FULL, True),
                             (mr.REPORT_TYPE_GREY, False)):
-            set_run_report_type(run, tid)
+            choose_report_type(dlg, tid)
             dlg._forget_limits()
             dlg._sync_limit_controls()
             present = dlg._rows_the_results_show([rep])

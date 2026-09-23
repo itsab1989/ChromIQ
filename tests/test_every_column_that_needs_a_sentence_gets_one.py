@@ -41,7 +41,7 @@ def _two_kinds_in_one_window(tmp_path, qapp):
     from tests.test_import_measurement_module import _cgats, _PATCHES, _verify_env
     from workflow.measurement_report import (build_report, save_report,
                                              stamp_verdict)
-    from workflow.run_compliance import ensure_bound
+    from tests.helpers.legacy_run_meta import (ensure_bound)
     s, _fm, _ctl, run = _verify_env(tmp_path)
     v = run.new_verification()
     v.ensure_dir()
@@ -75,11 +75,11 @@ def _two_kinds_in_one_window(tmp_path, qapp):
 def test_two_columns_needing_two_sentences_get_two(tmp_path, qapp):
     """MUTATION: go back to `next(...)` and this goes red."""
     from workflow.compliance_sets import summary_text
-    from workflow.run_compliance import set_run_report_type
+    from tests.helpers.report_window import choose_report_type
     dlg, run = _two_kinds_in_one_window(tmp_path, qapp)
     try:
         assert len(dlg._runs_for_report()) == 2, "the second sheet did not load"
-        set_run_report_type(run, REPORT_TYPE_RECORD)
+        choose_report_type(dlg, REPORT_TYPE_RECORD)
         dlg._forget_limits()
         dlg._sync_limit_controls()
         runs = dlg._runs_for_report()
@@ -101,10 +101,10 @@ def test_the_same_sentence_is_not_printed_once_per_column(tmp_path, qapp):
 
     MUTATION: drop the `not in _said` check and this goes red.
     """
-    from workflow.run_compliance import set_run_report_type
+    from tests.helpers.report_window import choose_report_type
     dlg, run = _two_kinds_in_one_window(tmp_path, qapp)
     try:
-        set_run_report_type(run, REPORT_TYPE_RECORD)
+        choose_report_type(dlg, REPORT_TYPE_RECORD)
         dlg._forget_limits()
         dlg._sync_limit_controls()
         body = dlg._report_body_html(dlg._runs_for_report(), for_pdf=True)
@@ -120,10 +120,10 @@ def test_the_same_sentence_is_not_printed_once_per_column(tmp_path, qapp):
 def test_the_full_report_prints_no_footnote_it_does_not_need(tmp_path, qapp):
     """The control: a graded column's ordinary sentence is not a footnote, and
     widening the rule must not turn every Overall reason into one."""
-    from workflow.run_compliance import set_run_report_type
+    from tests.helpers.report_window import choose_report_type
     dlg, run = _two_kinds_in_one_window(tmp_path, qapp)
     try:
-        set_run_report_type(run, REPORT_TYPE_FULL)
+        choose_report_type(dlg, REPORT_TYPE_FULL)
         dlg._forget_limits()
         dlg._sync_limit_controls()
         runs = dlg._runs_for_report()

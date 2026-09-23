@@ -1107,9 +1107,9 @@ M_VERIFY_PREFLIGHT_UNCHECKED = (
 #    focus-out. The gesture is setting the spin box to ZERO, which it displays
 #    as "–" via `setSpecialValueText`. The message also spelled that mark as a
 #    hyphen while the app writes an en dash everywhere.
-#  * **the lever is often not there.** On a locked run every column is
-#    read-only (zero spin boxes in the whole table, photographed on Knut's own
-#    demo project), and the two ISO columns are read-only in every state.
+#  * **the lever is often not there.** The two ISO columns are read-only in
+#    every state. (Until K31 a locked run's column was read-only too; the
+#    lock is gone and the lever is now the REPORT's own column.)
 #
 # So this says what is invariant, names what decides the rest, and qualifies
 # the instruction rather than promising it works everywhere.
@@ -1124,8 +1124,8 @@ M_VERIFY_UNCHECKED_METRICS = _m(
     "it, the metric is left out; that is what ChromIQ's own sets do with the "
     "metrics above.\n\n"
     "To leave a metric out yourself, set its threshold to zero in the "
-    "run's limits, where those limits can still be edited. The box shows zero "
-    "as “–”.",
+    "report's own limits, the first column of Edit limits… in the "
+    "Measurement Report window. The box shows zero as “–”.",
     approved=False)
 
 

@@ -65,7 +65,7 @@ def _bodies(tmp_path, qapp) -> list:
     """The rendered body of every report type this window can produce."""
     from tests.test_a_report_says_what_it_is_and_what_judged_it import _dialog
     from tests.test_import_measurement_module import _cgats, _PATCHES
-    from workflow.run_compliance import bind_run
+    from tests.helpers.legacy_run_meta import (bind_run)
     dlg, _run, fm = _dialog(tmp_path, qapp)
     out = []
     try:
@@ -155,7 +155,7 @@ def test_the_count_is_this_projects_own_measurements(tmp_path, qapp):
         # the document, which is the state round 11 photographed: bound to a
         # different limit set, so `_one_limit_set` drops it.
         from core.file_manager import FileManager
-        from workflow.run_compliance import bind_run
+        from tests.helpers.legacy_run_meta import (bind_run)
         other_fm = FileManager(dlg._settings)
         other_fm.set_target_name("ZZ-other-project")
         other = other_fm.project()
@@ -203,7 +203,7 @@ def test_the_total_is_what_the_project_records_not_what_is_loaded(tmp_path,
     """
     from tests.test_a_report_says_what_it_is_and_what_judged_it import _dialog
     from tests.test_import_measurement_module import _cgats, _PATCHES
-    from workflow.run_compliance import bind_run
+    from tests.helpers.legacy_run_meta import (bind_run)
     dlg, run1, fm = _dialog(tmp_path, qapp)
     try:
         proj = fm.project()
@@ -1434,14 +1434,20 @@ def test_the_pdf_door_stays_open_and_the_pdf_is_what_is_on_screen(tmp_path, qapp
         on_screen = dlg._report_body_html(dlg._runs_for_report(), for_pdf=True)
         was_type = dlg._report_type_now()
 
-        # THE TYPE, THROUGH THE PULLDOWN, which stores it on the run at once.
+        # THE TYPE, THROUGH THE PULLDOWN. Until K31 it was stored on the run
+        # at once; since K31 it is the report's setting on screen, which is
+        # the same "moved before Generate" state this test needs.
         other = next(t for t, _n, _b, _built in REPORT_TYPE_MENU
-                     if t != was_type and report_type_is_built(t))
+                     if t != was_type and report_type_is_built(t)
+                     and dlg._type_combo.findData(t) >= 0
+                     and dlg._type_combo.model().item(
+                         dlg._type_combo.findData(t)).isEnabled())
         dlg._type_combo.setCurrentIndex(dlg._type_combo.findData(other))
         qapp.processEvents()
-        assert run_report_type(_run) == other, (
-            "the type never reached the run, so the state this test is about "
-            "does not exist here")
+        assert dlg._report_type_now() == other, (
+            "the type never moved, so the state this test is about does not "
+            "exist here")
+        assert run_report_type(_run) != other, "K31: the run was written"
         dlg._detail_check.setChecked(not dlg._detail_check.isChecked())
         qapp.processEvents()
         assert dlg._stale_label.isVisible(), "the red line did not come up"
@@ -1478,9 +1484,10 @@ def test_the_pdf_door_stays_open_and_the_pdf_is_what_is_on_screen(tmp_path, qapp
             QDesktopServices.openUrl = real_open
             dlg._pdf_html = real_html
         assert "html" in seen, "the export never built a document"
-        assert run_report_type(_run) == other, (
-            "the export wrote the type back onto the run; an export must not "
-            "touch the disk")
+        assert dlg._report_type_now() == other and \
+            run_report_type(_run) != other, (
+            "the export moved the type on screen or wrote it onto the run; an "
+            "export must not touch either")
         assert seen["html"] == on_screen, (
             "the PDF is not the document on screen: the settings moved and the "
             "export followed them")
@@ -1725,7 +1732,8 @@ def test_a_report_of_several_profiling_runs_is_saved_in_the_projects_reports(
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
     from workflow.measurement_report import (build_report, save_report,
                                              stamp_verdict)
-    from workflow.run_compliance import bind_run, run_limits
+    from workflow.run_compliance import (run_limits)
+    from tests.helpers.legacy_run_meta import (bind_run)
     s, proj, runs = _three_profiled_runs(tmp_path, qapp)
     # EACH SHEET WITH A SAVED REPORT, JUDGED AGAINST ITS OWN SET: the list is
     # built from saved reports, and the demo project's three profiling

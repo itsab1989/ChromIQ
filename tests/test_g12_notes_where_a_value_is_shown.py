@@ -22,6 +22,7 @@ Each test names the mutation it was proved red against.
 """
 from __future__ import annotations
 
+from tests.helpers import legacy_run_meta
 import html as _html
 import os
 import re
@@ -175,21 +176,21 @@ def test_the_record_prints_no_note_that_comments_a_verdict(tmp_path, qapp,
     from workflow.measurement_report import (NOTE_PRINTING_UNRECORDED,
                                              REPORT_TYPE_FULL,
                                              REPORT_TYPE_RECORD)
-    from workflow.run_compliance import set_run_report_type
+    from tests.helpers.report_window import choose_report_type
     s, _fm, _ctl, run = _verify_env(tmp_path)
     v = run.new_verification()
     v.ensure_dir()
     v.measurement_ti3.write_text(_grey_ramp_ti3(), encoding="utf-8")
     dlg = MeasurementReportDialog(s, None, initial_ti3=v.measurement_ti3)
     try:
-        set_run_report_type(run, REPORT_TYPE_FULL)
+        choose_report_type(dlg, REPORT_TYPE_FULL)
         dlg._forget_limits()
         dlg._sync_limit_controls()
         full = [c for (_n, c, _r) in dlg._note_numbering(dlg._runs_for_report())]
         assert NOTE_PRINTING_UNRECORDED in full, (
             "the comment note is not there on the graded type, so nothing is "
             "proved")
-        set_run_report_type(run, REPORT_TYPE_RECORD)
+        choose_report_type(dlg, REPORT_TYPE_RECORD)
         dlg._forget_limits()
         dlg._sync_limit_controls()
         reps = dlg._runs_for_report()
@@ -209,11 +210,12 @@ def _graded_dialog(tmp_path):
     from tests.test_report_window_limit_controls import _verified_run
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
     from workflow.measurement_report import REPORT_TYPE_FULL
-    from workflow import run_compliance as rc
+    from workflow import run_compliance as rc  # noqa: F401
+    from tests.helpers.report_window import choose_report_type
     _proj, run, ti3s = _verified_run(tmp_path, dates=2)
     dlg = MeasurementReportDialog(_settings(tmp_path), None,
                                   initial_ti3=ti3s[-1])
-    rc.set_run_report_type(run, REPORT_TYPE_FULL)
+    choose_report_type(dlg, REPORT_TYPE_FULL)
     dlg._forget_limits()
     dlg._sync_limit_controls()
     dlg._refresh()

@@ -4100,8 +4100,10 @@ class SettingsDialog(QDialog):
         v.addWidget(save_grp)
 
         # #182 (Knut K1/K-c): the limits live in their own window; this frame
-        # keeps only the button that opens it and the one checkbox that gates
-        # editing a run's limits after its first verification measurement.
+        # keeps the button that opens it. The checkbox that allowed editing a
+        # run's limits after its first verification ("Allow editing of
+        # thresholds after the first verification measurement") went with
+        # "Unlock this run's limits" and the run lock (K31, Knut 5801677743).
         defaults_grp = QGroupBox(tr("Measurement Report Defaults"), self)
         gl = QVBoxLayout(defaults_grp)
         gl.setSpacing(8)
@@ -4116,41 +4118,16 @@ class SettingsDialog(QDialog):
                "Report can be judged against, side by side. ChromIQ's own three "
                "sets and the two Custom sets can be edited there; the two ISO "
                "columns are read-only. The table also marks which set a new "
-               "profile run is bound to at its first verification "
-               "measurement.\n\n"
+               "report starts on, unless its profile run has a default of its "
+               "own, chosen from the report window's Edit limits….\n\n"
                "Changes made in that window are kept when you press Save here "
                "and dropped with Cancel, like every other setting on this "
                "tab.\n\n"
                "Restore Factory Defaults at the bottom of this window resets "
-               "the edited sets as well; a profile run that already carries "
-               "its own copy of a set is not touched by it."),
+               "the edited sets as well. A saved report keeps the limits it "
+               "was generated with, whatever is changed here."),
             self))
         gl.addLayout(_lim_row)
-        _allow_row = QHBoxLayout()
-        self._compliance_allow_edit_check = QCheckBox(
-            tr("Allow editing of thresholds after the first verification "
-               "measurement"), self)
-        _allow_row.addWidget(self._compliance_allow_edit_check)
-        _allow_row.addStretch()
-        _allow_row.addWidget(TooltipButton(
-            tr("Allow editing of thresholds after the first verification measurement"),
-            tr("A profile run's limits are fixed by its first verification "
-               "measurement, on purpose: every later dated verification of that "
-               "run is judged with the same numbers, so the history stays "
-               "comparable. That is the normal, safe state.\n\n"
-               "With this on, the Measurement Report window offers “Unlock this "
-               "run's limits” for a run that already has measurements. "
-               "Unlocking changes nothing by itself: it lets you set new "
-               "numbers, and the report you have open is rebuilt when you "
-               "press Generate report. Reports already saved are left as they "
-               "are.\n\n"
-               "Changing the numbers in the Report limits window and saving "
-               "them does recalculate this run's dated reports, and asks you "
-               "first; the reports they replace are kept in a reports/old "
-               "folder, and nothing is deleted.\n\n"
-               "Default: off"),
-            self))
-        gl.addLayout(_allow_row)
         # #182 (Knut, 2026-09-18, B8-388): the three DEFAULTS a report is made
         # with when nothing else decides. *"Below the Report Limits button ...
         # add a pulldown selector to select 'Report type, default', where the
@@ -4205,9 +4182,10 @@ class SettingsDialog(QDialog):
                "run that has never generated one, “New report…” chosen in "
                "“Report shown”, and the report ChromIQ writes by itself after "
                "a measurement.\n\n"
-               "A profile run that HAS a report type of its own keeps it. The "
-               "type belongs to the run, so this is the starting point for a "
-               "run that has not chosen, not an override of one that has.\n\n"
+               "The type belongs to the report: a report keeps the type it "
+               "was made with, and choosing another in the report window "
+               "changes only the report shown. So this is where every new "
+               "report starts, of every profile run.\n\n"
                "It applies to every measurement that is not a profiling "
                "measurement: verifications, calibrations and files outside a "
                "project. A verification is never a Printing record, so that "
@@ -5042,8 +5020,6 @@ class SettingsDialog(QDialog):
             "default_set": str(s.get("compliance_default_set", "chromiq_default")
                                or "chromiq_default"),
         }
-        self._compliance_allow_edit_check.setChecked(
-            bool(s.get("compliance_allow_edit_after_measurement", False)))
         # #182 (Knut, B8-388): the three Measurement Report defaults.
         _rt = str(s.get("report_default_type", "t2_full_colour_check")
                   or "t2_full_colour_check")
@@ -6166,8 +6142,6 @@ class SettingsDialog(QDialog):
               str(buf.get("default_set") or "chromiq_default"))
         if "columns" in buf:
             s.set("compliance_columns_shown", str(buf.get("columns") or ""))
-        s.set("compliance_allow_edit_after_measurement",
-              bool(self._compliance_allow_edit_check.isChecked()))
         # #182 (Knut, B8-388). An empty currentData is the pulldown's heading
         # row, which is disabled and cannot be the current one; guarded anyway,
         # because a stored empty id would read back as "no type at all".

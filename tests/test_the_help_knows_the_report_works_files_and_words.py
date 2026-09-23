@@ -197,7 +197,9 @@ def test_the_dictionary_defines_every_verdict_word_in_one_place():
 
 @pytest.mark.parametrize("term", [
     "Measurement Report", "Limit set", "Report type", "Reference set",
-    "Characterisation data", "Aim values", "Graded", "Bound", "Locked",
+    # K31: "Bound" and "Locked" left with the run lock; the idea that
+    # replaces them has its own headword.
+    "Characterisation data", "Aim values", "Graded", "A report's limit set",
     "Control strip", "Grey ramp", "Cube corners", "ISO 12647",
     "FOGRA", "Report limits", "Reference values", "Overall",
 ])
@@ -234,3 +236,15 @@ def test_the_new_entries_were_appended_and_did_not_displace_the_first_eight():
     assert first_eight[0] == ".cht file", (
         "the head of GLOSSARY moved; a sibling test pins GLOSSARY[:8] by "
         "position, so inserting at the front silently changes what it checks")
+
+
+@pytest.mark.parametrize("term", ["Bound", "Locked", "Unlock"])
+def test_the_dictionary_no_longer_explains_the_run_lock(term):
+    """K31 (Knut, 5801677743 and 5801750910): the run lock and "Unlock this
+    run's limits" are gone, so no Dictionary headword may still define them.
+
+    MUTATION: put the glossary's "Bound (a run's limits)" or "Locked / Unlock
+    this run's limits" entry back and this goes red."""
+    terms = [t for t, _b in _glossary()]
+    assert not any(t.lower().startswith(term.lower()) or
+                   f"/ {term.lower()}" in t.lower() for t in terms), terms

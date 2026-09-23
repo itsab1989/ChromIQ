@@ -1,12 +1,19 @@
-"""Which limit set a measurement is judged with, and where that is stored.
+"""The starting choice of a new report's limit set, and what a run stores.
 
-#182 (Knut, D9/D20/D23): the Measurement Report's limit set belongs to the
-PROFILE RUN. It is bound at the run's first verification measurement, its
-limits are copied into ``runs/runN/meta.json``, every dated verification of
-the run is judged with that copy, and the copy moves only when the user
-deliberately unlocks it. This module is the ONE place that reads and writes
-that record, for the Measure tab (which stamps the verdict), the report
-window (which shows it) and the Report limits window (which edits it).
+#182 K31 (Knut, #182 5801677743, 2026-09-23): *"the limit set belongs to the
+report that is made for the profile run"*, and "Unlock this run's limits" is
+removed with the run lock behind it. A profile run no longer OWNS a limit set,
+is no longer bound at its first verification and is never locked. What a run
+may still hold in ``runs/runN/meta.json`` is its own DEFAULT for new reports,
+chosen in the Report limits window (*"the default in the Edit limits for that
+run, if it changed to be different from the preferences default"*): a new
+report of the run starts on it instead of the Preferences default. A run
+bound by an earlier ChromIQ carries such a default already (its old binding),
+and it is read as one; nothing on disk is rewritten to say so.
+
+This module is the ONE place that reads and writes that record, for the
+Measure tab (the automatic report after a measurement), the report window
+("New report...") and the Report limits window (which sets it).
 
 It also decides what a "run context" is (CH-14): a measurement file is judged
 on behalf of a run only when it really sits in one, ``runs/runN/<file>`` or
@@ -21,7 +28,6 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
 from pathlib import Path
 
 from core.file_manager import (_VERIFY_ID_RE, VERIFICATIONS_DIRNAME, Run,
@@ -29,7 +35,7 @@ from core.file_manager import (_VERIFY_ID_RE, VERIFICATIONS_DIRNAME, Run,
 from workflow.compliance_sets import (DEFAULT_SET_ID, SET_BY_ID, Limit,
                                       effective_limits, is_edited,
                                       is_known_set, limits_from_json,
-                                      limits_to_json, set_label)
+                                      set_label)
 
 log = logging.getLogger(__name__)
 
@@ -125,12 +131,12 @@ def measured_dates(run: "Run | None") -> int:
 
 
 def is_bound(run: "Run | None") -> bool:
-    """Whether the run has a limit set copied onto it.
+    """Whether the run carries a COPY of a limit set's numbers.
 
-    A run made before #182 never has one, and upgrading does not give it one,
-    so those runs stay unbound for ever. That matters because an unbound run's
-    limits come from the LIVE Preferences default, re-read every time they are
-    looked at.
+    Only an earlier ChromIQ wrote one (it bound a run at its first verification
+    until K31). Such a copy is read as the run's own default for new reports
+    (:func:`run_limits`); this build never writes one, and nothing is locked by
+    it.
     """
     if run is None:
         return False
@@ -151,7 +157,9 @@ class RunLimits:
     set_label: str                       # translated, ready to show
     limits: "dict[str, Limit]"
     label_en: str = ""                   # the English label, for records on disk
-    bound: bool = False                  # a copy is stored on the run
+    bound: bool = False                  # a copy is stored on the run (legacy)
+    #: always False since K31: nothing is locked, so nothing is unlocked. Kept
+    #: so an older caller's keyword still constructs one.
     unlocked: bool = False
     edited: bool = False                 # the copy differs from the set (CH-15)
     known: bool = True                   # the set id still exists (D23)
@@ -160,12 +168,14 @@ class RunLimits:
 
 def run_limits(run: "Run | None", overrides: "dict | None",
                default_set: str = DEFAULT_SET_ID) -> RunLimits:
-    """What *run* is judged with right now.
+    """The limit set a NEW report of *run* starts on (K31).
 
-    A bound run: its stored copy. An unbound run (or no run): the effective
-    limits of the Preferences default set, marked ``bound=False`` so the caller
-    can say "not stored". The default set falls back to ChromIQ default when
-    the stored default id is unknown.
+    The run's own default when it has one, chosen in the Report limits window
+    (``compliance_set_id``), or an earlier ChromIQ's bound copy of it, whose
+    numbers are then used as they were stored; otherwise the Preferences
+    default set, marked ``bound=False``. The default set falls back to ChromIQ
+    default when the stored default id is unknown. Nothing here is a lock: a
+    report may be judged against any set, and a saved report keeps its own.
     """
     if not is_known_set(default_set):
         default_set = DEFAULT_SET_ID
@@ -174,15 +184,14 @@ def run_limits(run: "Run | None", overrides: "dict | None",
         # Unbound (every run written before this existed, or one whose first
         # verification has not happened yet): the Preferences default, or the
         # set a duplicated run carries from its source (F13: the copy keeps
-        # the CHOICE of set, not the copy of its numbers). The lock flag and
-        # the column choice are the run's own even so.
+        # the CHOICE of set, not the copy of its numbers). The column choice
+        # is the run's own even so.
         preferred = default_set
         if meta is not None and is_known_set(meta.compliance_set_id):
             preferred = meta.compliance_set_id
         return RunLimits(preferred, set_label(preferred),
                          effective_limits(preferred, overrides),
                          label_en=SET_BY_ID[preferred].label, bound=False,
-                         unlocked=bool(meta.compliance_unlocked) if meta else False,
                          columns=list(meta.compliance_columns or []) if meta else [])
     limits = limits_from_json(meta.compliance_thresholds,
                               meta.compliance_set_id)
@@ -193,56 +202,48 @@ def run_limits(run: "Run | None", overrides: "dict | None",
         limits,
         label_en=(SET_BY_ID[meta.compliance_set_id].label if known
                   else (meta.compliance_set_label or meta.compliance_set_id)),
-        bound=True, unlocked=bool(meta.compliance_unlocked),
+        bound=True,
         edited=is_edited(limits, meta.compliance_set_id, overrides) if known else False,
         known=known, columns=list(meta.compliance_columns or []))
 
 
-def bind_run(run: Run, set_id: str, overrides: "dict | None",
-             when: "datetime | None" = None) -> RunLimits:
-    """Copy *set_id*'s effective limits onto the run and save (D20).
+def set_run_default_set(run: Run, set_id: str, preferences_default: str) -> None:
+    """Record which limit set new reports of *run* start from (K31).
 
-    Called at the first verification measurement (CH-2: regardless of the
-    autosave setting) and when the user picks a set in the report window.
-    The label is stored in English so a later ChromIQ that no longer knows
-    the id can still name it (D23).
+    Knut: *"the starting choice for 'New report...' should be the defaults in
+    preferences -> reports first, then the default in the Edit limits for that
+    run, if it changed to be different from the preferences default"*. So a
+    choice equal to the Preferences default clears the run's own default and
+    the run follows Preferences again; any other known set is stored by id
+    (with its English label, D23). No numbers are copied: a report copies the
+    numbers it is judged against when it is generated. A copy an earlier
+    ChromIQ bound onto the run is dropped with the old choice, and nothing
+    already saved changes.
     """
-    if not is_known_set(set_id):
-        set_id = DEFAULT_SET_ID
     meta = run.load_meta()
-    meta.compliance_set_id = set_id
-    meta.compliance_set_label = SET_BY_ID[set_id].label
-    meta.compliance_thresholds = limits_to_json(effective_limits(set_id, overrides))
-    meta.compliance_bound_at = (when or datetime.now()).isoformat(timespec="seconds")
+    if not is_known_set(set_id) or set_id == preferences_default:
+        meta.compliance_set_id = ""
+        meta.compliance_set_label = ""
+    else:
+        meta.compliance_set_id = set_id
+        meta.compliance_set_label = SET_BY_ID[set_id].label
+    meta.compliance_thresholds = {}
+    meta.compliance_bound_at = ""
+    meta.compliance_unlocked = False
     run.save_meta(meta)
-    return run_limits(run, overrides)
 
 
-def ensure_bound(run: Run, overrides: "dict | None", default_set: str) -> RunLimits:
-    """Bind the run to the Preferences default if it is not bound yet; return
-    what it is judged with either way. Never raises: a binding that cannot be
-    written is logged and the caller judges with the default (CH-14)."""
+def run_default_set_id(run: "Run | None") -> str:
+    """The run's own default set id for new reports, or "" when it follows
+    Preferences (K31). A set a later ChromIQ no longer knows is not a
+    starting choice this build can offer, so it answers ""."""
+    if run is None:
+        return ""
     try:
-        current = run_limits(run, overrides, default_set)
-        if current.bound:
-            return current
-        return bind_run(run, current.set_id, overrides)
-    except (OSError, ValueError) as exc:
-        log.warning("could not bind %s to a limit set: %s", run.dir, exc)
-        return run_limits(None, overrides, default_set)
-
-
-def set_run_limits(run: Run, limits: "dict[str, Limit]") -> None:
-    """Write the run's edited copy (the "This run" column)."""
-    meta = run.load_meta()
-    meta.compliance_thresholds = limits_to_json(limits)
-    run.save_meta(meta)
-
-
-def set_run_unlocked(run: Run, unlocked: bool) -> None:
-    meta = run.load_meta()
-    meta.compliance_unlocked = bool(unlocked)
-    run.save_meta(meta)
+        sid = str(run.load_meta().compliance_set_id or "")
+    except Exception:                       # noqa: BLE001 — a missing meta
+        return ""
+    return sid if is_known_set(sid) else ""
 
 
 def set_run_columns(run: Run, columns: "list[str]") -> None:
@@ -255,12 +256,12 @@ def set_run_columns(run: Run, columns: "list[str]") -> None:
 # The run's report TYPE
 # ---------------------------------------------------------------------------
 # #182 (D28): the kind of document, as opposed to the numbers it is judged
-# with. Two controls, one rule: Knut's D9 governs both, because a run whose
-# dated verifications produced different KINDS of report is no more comparable
-# than one whose limits moved under it. So it is stored beside the set, read
-# through this module, and travels with a duplicated run.
+# with. Until K31 a run stored one beside its set (D9). Since K31 the type is
+# the REPORT's, like its limit set: a new report starts on the Preferences
+# default (`new_report_type`), and a run's stored type is read only to name a
+# report written before the type was recorded on the report itself.
 def run_report_type(run: "Run | None") -> str:
-    """Which of the six report types this run is verified with.
+    """The report type an earlier ChromIQ stored on this run (legacy, K31).
 
     A run that never chose, and a run carrying a type from a later ChromIQ,
     both answer with today's report. Never raises: a meta.json that cannot be
@@ -278,7 +279,12 @@ def run_report_type(run: "Run | None") -> str:
 
 def report_type_default_for(run: "Run | None", preferred: str,
                             kind: "str | None" = None) -> str:
-    """The type a NEW document of *run* is made as: D9 first, Preferences second.
+    """What a report of *run* that RECORDS NO TYPE of its own renders as.
+
+    **SINCE K31 THIS IS NOT THE STARTING CHOICE OF A NEW REPORT**, which is
+    :func:`new_report_type` (Preferences only). It is kept for reports written
+    before a report recorded its own type, which are named and shown as the
+    type their run was set to when they were written, exactly as before.
 
     Knut, 2026-09-18 (B8-388): *"Regarding 'the report type': The type belongs
     to the run, yes, but the default should be the 'Full colour check'."* and,
@@ -327,67 +333,17 @@ def report_type_default_for(run: "Run | None", preferred: str,
     return pref if _usable(pref) else REPORT_TYPE_DEFAULT
 
 
-def set_run_report_type(run: Run, type_id: str) -> None:
-    """Record the chosen type on the run.
+def new_report_type(preferred: str, kind: "str | None" = None) -> str:
+    """The type a NEW report starts as (K31): the Preferences > Reports
+    default, fitted to the measurement's kind.
 
-    Refuses an id it does not know, so a typo cannot be written and then read
-    for ever as today's report — and refuses one this build cannot PRODUCE, for
-    the same reason one step further on. The two ISO types exist so the pulldown
-    can show them and say why they are unavailable; the pulldown guards them,
-    but a guard on a control is not a guard on the write, and that is the shape
-    that came back in three separate rounds of this issue.
+    Knut, #182 5801677743: *"the starting choice for 'New report...' should be
+    the defaults in preferences -> reports first"*, and *"settings belongs to
+    the report"*. So a run's own stored ``report_type`` (the type pulldown
+    wrote it until K31) is no longer a starting choice; it is still read by
+    :func:`report_type_default_for` only to name a report written before the
+    type was recorded on the report itself. The per-run default Knut allows is
+    the LIMIT SET chosen in Edit limits (:func:`run_limits`); the Report limits
+    window holds no report type.
     """
-    from workflow.measurement_report import REPORT_TYPES, report_type_is_built
-    if type_id not in REPORT_TYPES:
-        raise ValueError(f"unknown report type {type_id!r}")
-    if not report_type_is_built(type_id):
-        raise ValueError(f"ChromIQ cannot produce a {type_id!r} report")
-    meta = run.load_meta()
-    meta.report_type = type_id
-    run.save_meta(meta)
-
-
-def is_locked(run: "Run | None") -> bool:
-    """Whether the run's limit set may no longer be chosen in the report window.
-
-    Two conditions were missing and Knut found both, from opposite ends.
-
-    **A run that is not BOUND has nothing to lock.** The lock never asked, so a
-    project made before #182 showed a greyed pulldown over a value that is not
-    stored anywhere: an unbound run's limits come from the live Preferences
-    default and are re-read every time. Driven on screen, the "Default for new
-    runs" radio in the limits window then moved the greyed pulldown, the window
-    contradicted its own report body, and on a measurement with no recorded
-    verdict four rows flipped from PASS to FAIL on screen with nothing written
-    to disk. The row was greyed while the value behind it was fixed to nothing.
-
-    **And one measurement is not a history.** Knut, 2026-09-10: *"When only one
-    measurement is done, I should be allowed to choose the type of report I want
-    to print, and which limits to judge against."* The lock exists so that every
-    dated verification of a run is judged the same way and the dates stay
-    comparable. With one date there is nothing yet to be comparable with, so it
-    protects nothing and only takes the choice away. Measured, changing the set
-    at that point rewrites three keys, archives the report it replaces, and
-    leaves eighteen keys of measured data untouched.
-
-    This revises section 5 of `docs/design/measurement_report_limits.md`, which
-    is still marked awaiting confirmation and confirmed by nobody, so it is a
-    draft being corrected rather than a ruling being overturned.
-    """
-    if run is None:
-        return False
-    if not is_bound(run):
-        return False
-    if measured_dates(run) < 2:
-        return False
-    return not bool(run.load_meta().compliance_unlocked)
-
-
-def may_unlock(run: "Run | None", allow_after_measurement: bool) -> bool:
-    """Whether "Unlock this run's limits" may be ticked: always before the
-    first measurement, afterwards only when Preferences allows it (D20)."""
-    if run is None:
-        return False
-    if not has_measured_verification(run):
-        return True
-    return bool(allow_after_measurement)
+    return report_type_default_for(None, preferred, kind)

@@ -102,15 +102,23 @@ def test_the_verdict_is_stamped_before_it_is_saved_not_after():
 
 
 def test_the_limits_come_from_the_run_not_the_module_defaults():
-    """#182: the measurement is judged with the limit set bound to ITS RUN
-    (copied into meta.json at the first verification), never with the module's
-    2.0/3.0 and never with a global setting read at display time."""
+    """#182: the measurement is judged with the limit set its own report of
+    one date starts on (K31: the run's own default, else Preferences), never
+    with the module's 2.0/3.0 and never with a global setting read at display
+    time. And since K31 nothing is BOUND onto the run by a measurement.
+
+    MUTATION: call `ensure_bound` (or anything that writes the run's meta)
+    from `_report_limits_for` again and this goes red."""
     tab = __import__("ui.tabs.tab_measure", fromlist=["TabMeasure"]).TabMeasure
     src = inspect.getsource(tab._maybe_save_measurement_report)
     assert "_report_limits_for" in src
     assert "DEFAULT_PASS" not in src and "report_pass_threshold" not in src
     src2 = inspect.getsource(tab._report_limits_for)
-    assert "ensure_bound" in src2 and "run_context_for" in src2
+    assert "run_limits(" in src2 and "run_context_for" in src2
+    code = "\n".join(l for l in src2.splitlines()
+                     if not l.strip().startswith(("#", '"')))
+    assert "ensure_bound" not in code.split('"""')[-1]
+    assert "bind_run" not in code.split('"""')[-1]
 
 
 def test_a_gamut_split_is_judged_on_its_within_gamut_figures():
@@ -205,7 +213,7 @@ def _choose(dlg, set_id):
     assert idx >= 0, set_id
     dlg._set_combo.setCurrentIndex(idx)
     dlg._on_set_chosen(idx)
-    assert dlg._window_limits().set_id == set_id
+    assert dlg._report_limits().set_id == set_id
 
 
 def test_the_window_shows_the_recorded_verdict_not_todays(qapp, tmp_path):
@@ -362,9 +370,11 @@ def test_an_unrecorded_verdict_does_not_read_as_a_fault(qapp, tmp_path):
         note = dlg._verdict_provenance(_report(), recorded=False)
         assert "Nothing is wrong with this report" in note
         assert "did not yet keep the verdict" in note
-        # …and it must not read as a fresh verdict either: it says the numbers
-        # are today's and that moving the thresholds moves them.
-        assert "changing this run's limits will change them" in note
+        # …and it must not read as a fresh verdict either: it says the words
+        # are not the ones given on the day (K31: judged against the report's
+        # own limit set, and no run's limits exist to "change them").
+        assert "not the verdict this sheet was given" in note
+        assert "this run's limits" not in note
         grid = dlg._report_results_html([_report()])
         assert "is not a fault" in grid
     finally:

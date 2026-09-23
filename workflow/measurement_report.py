@@ -1435,6 +1435,15 @@ def document_scope_of(doc: "dict | None") -> str:
 #: one-measurement document still carries: that file is the report and the
 #: record at once. An older ChromIQ ignores the key, sees the records share
 #: one id, and shows the document once, which is the downgrade we want.
+#: **K31 (Knut, #182 5801677743): NO MORE RECORDS ARE WRITTEN.** *"Should a
+#: report of several measurements stop writing verdict records altogether?"*
+#: *"Agreed."* A report of several measurements is now ONE document file whose
+#: list of measurements carries each one's verdict (`JUDGED_KEY`), and a date's
+#: own verdict is its own report of one date. Records already on disk are
+#: read-only history of the report they were written for: never listed or
+#: counted (as before), shown only while that report is loaded, never the
+#: date's own row, and never rewritten, moved or archived by anything.
+#: Nothing on disk is deleted or rewritten for this.
 ROLE_RECORD = "record"
 ROLE_DOCUMENT = "document"
 DOCUMENT_ROLES = (ROLE_RECORD, ROLE_DOCUMENT)
@@ -2541,9 +2550,10 @@ def document_file(*, doc_id: str, created: str, type_id: str,
 
     It carries what the document is (its block, `stamp_document`, with
     ``role: document``) and the three top-level keys a reader of any report
-    file asks first, and NO measurement data: each measurement's numbers and
-    verdict are in its own verdict record, where they have always been, and
-    the page is drawn from those.
+    file asks first, and NO measurement data: each measurement's numbers are
+    read from its own folder, and since G7 (across places) and K31
+    (everywhere) each measurement's VERDICT in this report is in the block's
+    list of measurements (`JUDGED_KEY`). No verdict record is written.
     """
     body = {"schema": REPORT_SCHEMA, "created": str(created),
             "report_type": str(type_id or ""),

@@ -141,8 +141,9 @@ def test_report_options_open_on_the_preferences_defaults(qapp, tmp_path):
     nothing of Sebastian's feature is deleted, so restoring it is one line if
     they rule that way.
 
-    The limit set half of the old test is untouched: it is the RUN's, stored in
-    its meta.json, and it still comes back.
+    The limit set half of the old test changed with K31 (Knut, 5801677743):
+    the set is the REPORT's, so a set chosen in one window is not stored on
+    the run and a new window starts on the Preferences default again.
     """
     s, fm, ctl, run = _verify_env(tmp_path)
     v = run.new_verification()
@@ -173,7 +174,7 @@ def test_report_options_open_on_the_preferences_defaults(qapp, tmp_path):
         assert dlg._hidden_runs == set()
         dlg._detail_check.setChecked(False)
         dlg._deselect_all_btn.click()
-        # #182: the limit set is the RUN's, stored in its meta.json
+        # K31: the limit set is the REPORT's; nothing is stored on the run
         idx = dlg._set_combo.findData("chromiq_tight")
         dlg._set_combo.setCurrentIndex(idx)
         dlg._on_set_chosen(idx)
@@ -188,8 +189,8 @@ def test_report_options_open_on_the_preferences_defaults(qapp, tmp_path):
         # …and the ticks are back too: the previous window unticked every
         # measurement and that must not carry into a new one.
         assert dlg2._hidden_runs == set(), dlg2._hidden_runs
-        assert dlg2._window_limits().set_id == "chromiq_tight"
-        assert run.load_meta().compliance_set_id == "chromiq_tight"
+        assert dlg2._report_limits().set_id == "chromiq_default"
+        assert run.load_meta().compliance_set_id != "chromiq_tight"
     finally:
         dlg2.deleteLater()
 

@@ -109,24 +109,11 @@ def _new_report(dlg, qapp):
 def _move_the_set(dlg, qapp, set_id):
     """Choose a limit set in "Judged against", the way a user does.
 
-    Binding a run to a set asks first, and that question is `_confirm`, which
-    exists as one method so a driver can answer it. Answered yes, which is what
-    a user who moved the pulldown means.
+    K31: the choice is the REPORT's and nothing asks or refuses any more (it
+    bound the run, behind a question and three refusals, until then).
     """
-    dlg._confirm = lambda title, text: True
-    # **AND A REFUSAL MUST NOT BE SILENT.** This door refuses when the run has
-    # moved since the window last drew itself, and pressing Generate is exactly
-    # such a move, so a test that simply selects and carries on would go on
-    # against the old set and prove nothing. The window is redrawn first, which
-    # is what re-stamps `_run_state_at_sync`, and every refusal this door has
-    # is made to raise rather than pop a box.
     dlg._refresh()
     qapp.processEvents()
-    for name in ("_say_run_moved_while_asking",
-                 "_say_preferences_changed_meanwhile",
-                 "_say_locked_before_the_set_changed"):
-        setattr(dlg, name, lambda *a, _n=name, **k: (_ for _ in ()).throw(
-            AssertionError(f"the set change was refused: {_n}")))
     for i in range(dlg._set_combo.count()):
         if str(dlg._set_combo.itemData(i)) == set_id:
             dlg._set_combo.setCurrentIndex(i)
@@ -218,7 +205,8 @@ def _tick_only_this_measurement(dlg, qapp):
     assert [dlg._run_key(r) for r in dlg._runs_for_report()] == [here]
 
 
-def _a_real_document(dlg, qapp, *, type_id, every_measurement, detail):
+def _a_real_document(dlg, qapp, *, type_id, every_measurement, detail,
+                     set_id=""):
     """Press Generate once, from "New report…", with those settings on screen.
 
     Returns the document's key. Starting from "New report…" is what a user does
@@ -243,6 +231,10 @@ def _a_real_document(dlg, qapp, *, type_id, every_measurement, detail):
     dlg._sync_type_combo_to(type_id)
     dlg._on_type_chosen(dlg._type_combo.currentIndex())
     qapp.processEvents()
+    if set_id:
+        # K31: "New report…" starts on the Preferences set, so a report
+        # judged against another is chosen here, for this report.
+        _move_the_set(dlg, qapp, set_id)
     dlg._ask_update_or_create_new = lambda: "new"
     dlg._on_generate_report()
     qapp.processEvents()
@@ -846,7 +838,8 @@ def test_update_writes_the_same_kind_of_document_create_new_writes(
 
         # the same settings again, as a NEW report
         fresh = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_GREY,
-                                 every_measurement=True, detail=False)
+                                 every_measurement=True, detail=False,
+                                 set_id="chromiq_tight")
         entry2 = next(d for d in dlg._saved_documents(dlg._run_ctx.run)
                       if d["key"] == fresh)
         twin = next(Path(str(r.get("_origin_dir"))) / "reports" / n
@@ -902,36 +895,30 @@ def test_update_never_leaves_two_live_reports_of_one_date(two_dates, qapp,
 
 def test_a_member_the_update_drops_still_agrees_with_its_document(
         two_dates, qapp, monkeypatch):
-    """Untick a measurement, press Update, and ONE document still says one
+    """Untick a measurement, press Update, and ONE report still says one
     thing about itself.
 
-    An Update may narrow what the document covers, and its file for the
-    measurement that left is still on disk carrying this document's id.
-    `_saved_documents` reads the block off whichever member it sees first, so a
-    leftover holding the OLD block makes the entry's settings depend on which
-    file the run happened to yield first. Nothing is deleted: the file keeps
-    its own verdict, which is a fact about that sheet, and gains the block the
-    document now has.
+    K31 (no verdict records) changed what is on disk and kept the rule: the
+    report of two dates is one file in `verifications/reports/`; updated to
+    one date it becomes that date's own file (same id, no role), the file of
+    two dates is archived into `old/` and leaves the live folder, and the
+    date taken out holds nothing of this report.
 
-    MUTATION, proved to land: make `_write_the_document` skip the loop over the
-    leftover members.
+    MUTATION: skip the retirement of the files the new shape no longer has
+    (`retire` in `_write_the_document`), and a report of one date keeps a
+    document file listed beside it: red.
     """
     from PyQt6.QtWidgets import QMessageBox
-    from workflow.measurement_report import REPORT_TYPE_FULL
+    from workflow.measurement_report import REPORT_TYPE_FULL, recorded_document
     s, _fm, run, vs = two_dates
     dlg = _window(s, vs[-1].measurement_ti3, qapp)
     try:
         key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_FULL,
                                every_measurement=True, detail=True)
         _pick_key(dlg, key, qapp)
-        entry = next(d for d in dlg._saved_documents(dlg._run_ctx.run)
-                     if d["key"] == key)
-        assert len(entry["members"]) == 2, (
-            "the document covers one measurement, so nothing can be dropped "
-            "from it: %r" % (entry["members"],))
-        files = {dlg._run_key(r): Path(str(r.get("_origin_dir"))) / "reports" / n
-                 for r, n in entry["members"]}
-
+        home = sorted((run.verifications_dir / "reports").glob("report_*.json"))
+        assert len(home) == 1, home
+        before = set(_files(run))
         dropped = dlg._run_key(dlg._history[0])
         dlg._hidden_runs.add(dropped)
         dlg._settings_touched()
@@ -940,27 +927,25 @@ def test_a_member_the_update_drops_still_agrees_with_its_document(
         monkeypatch.setattr(QMessageBox, "exec", _press("Update"))
         dlg._on_generate_report()
         qapp.processEvents()
-
-        blocks = {k: json.loads(p.read_text(encoding="utf-8"))["document"]
-                  for k, p in files.items()}
-        # K23: the ONE thing they may disagree on is their part in it. The
-        # document now covers one measurement, so that measurement's file IS
-        # the document (no role), and the one taken out is kept as its date's
-        # verdict record (role "record"), never listed or counted.
-        roles = {k: b.pop("role", "") for k, b in blocks.items()}
-        assert roles[dropped] == "record", roles
-        assert sorted(roles.values()) == ["", "record"], roles
         assert not list((run.verifications_dir / "reports").glob(
-            "report_*.json")), "a document of one date kept a document file"
-        assert len({json.dumps(b, sort_keys=True) for b in blocks.values()}) == 1, (
-            "the two files of one document disagree about what it is:\n"
-            + "\n".join(f"  {k}: {b}" for k, b in blocks.items()))
-        covered = {str(m.get("key") or "")
-                   for m in blocks[dropped]["measurements"]}
+            "report_*.json")), "a report of one date kept a document file"
+        assert list((run.verifications_dir / "reports" / "old").glob(
+            "*/" + home[0].name)), "the file of two dates was not archived"
+        mine = []
+        for p in set(_files(run)) - before:
+            block = recorded_document(json.loads(Path(p).read_text(encoding="utf-8")))
+            if block and "id:" + block["id"] == key:
+                mine.append((p, block))
+        assert len(mine) == 1, mine
+        p, block = mine[0]
+        assert "role" not in block, block
+        covered = {str(m.get("key") or "") for m in block["measurements"]}
         assert dropped not in covered, (
-            "the measurement that was unticked is still in the document")
-        assert len(_files(run)) == len(files) + 4, (
-            "Update wrote a file where it should have rewritten one")
+            "the measurement that was unticked is still in the report")
+        drop_dir = next(str(r["_origin_dir"]) for r in dlg._history
+                        if dlg._run_key(r) == dropped)
+        assert Path(p).parent.parent != Path(drop_dir), (
+            "the report went into the dropped date")
     finally:
         dlg.close()
 
@@ -1194,9 +1179,9 @@ def test_update_copies_every_file_it_rewrites_into_old_first(
         _pick_key(dlg, key, qapp)
         entry = next(d for d in dlg._saved_documents(dlg._run_ctx.run)
                      if d["key"] == key)
-        mine = sorted(Path(str(r.get("_origin_dir"))) / "reports" / n
-                      for r, n in entry["members"])
-        assert len(mine) >= 2, "the fixture no longer has two dated records"
+        # K31: the report of two dates is ONE file, where it lives.
+        mine = [Path(str(entry["file"]))] if entry.get("file") else []
+        assert mine, "the fixture no longer makes a report of two dates"
         before = {p: p.read_bytes() for p in mine}
 
         dlg._detail_check.setChecked(False)
@@ -1232,8 +1217,8 @@ def test_a_file_whose_archive_fails_is_not_rewritten(two_dates, qapp,
         _pick_key(dlg, key, qapp)
         entry = next(d for d in dlg._saved_documents(dlg._run_ctx.run)
                      if d["key"] == key)
-        mine = [Path(str(r.get("_origin_dir"))) / "reports" / n
-                for r, n in entry["members"]]
+        mine = [Path(str(entry["file"]))] if entry.get("file") else []
+        assert mine, "the fixture no longer makes a report of two dates"
         before = {p: p.read_bytes() for p in mine}
         monkeypatch.setattr(
             FM, "archive_report_files",
@@ -1369,6 +1354,8 @@ def test_an_update_that_cannot_write_one_date_writes_none_of_them(
     read-only, a setting changed, Update, and 10 of 11 files carried the new
     settings while the locked one kept the old, so one document said two
     things about itself. Now nothing is written unless everything can be.
+    Since K31 the report of two dates is one file, so the folder locked here
+    is the one it lives in, `verifications/reports/`.
 
     A REAL read-only folder, not a patched function (round C's point about
     the archive-failure guard above).
@@ -1392,9 +1379,8 @@ def test_an_update_that_cannot_write_one_date_writes_none_of_them(
         _pick_key(dlg, key, qapp)
         entry = next(d for d in dlg._saved_documents(dlg._run_ctx.run)
                      if d["key"] == key)
-        mine = sorted(Path(str(r.get("_origin_dir"))) / "reports" / n
-                      for r, n in entry["members"])
-        assert len({p.parent for p in mine}) >= 2, "needs two dated folders"
+        mine = [Path(str(entry["file"]))] if entry.get("file") else []
+        assert mine, "needs a report of two dates"
         before = {p: p.read_bytes() for p in mine}
         locked = mine[0].parent
         os.chmod(locked, stat.S_IRUSR | stat.S_IXUSR)

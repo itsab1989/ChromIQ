@@ -51,7 +51,7 @@ def _run_with_a_should_copy(tmp_path, set_id):
                                                       _verify_env)
     from workflow.measurement_report import (build_report, save_report,
                                              stamp_verdict)
-    from workflow.run_compliance import bind_run
+    from tests.helpers.legacy_run_meta import (bind_run)
     from workflow.compliance_sets import limits_from_json
     s, _fm, _ctl, run = _verify_env(tmp_path)
     v = run.new_verification()
@@ -110,7 +110,8 @@ def test_the_runs_own_copy_is_read_without_the_relic(tmp_path):
     saved record, the automatic report). MUTATION: drop the set id from its
     `limits_from_json` call and this goes red."""
     from tests.test_import_measurement_module import _verify_env
-    from workflow.run_compliance import bind_run, run_limits
+    from workflow.run_compliance import (run_limits)
+    from tests.helpers.legacy_run_meta import (bind_run)
     _s, _fm, _ctl, run = _verify_env(tmp_path)
     bind_run(run, "chromiq_quick", None)
     meta = run.load_meta()
@@ -178,7 +179,11 @@ def test_the_loaded_documents_limits_and_its_column_summary_carry_no_relic(
                 "the loaded document's limits still carry a recommendation")
         from workflow.compliance_sets import summary_text
         summ = dlg._column_summary(old_row)
-        assert summ.conditional == 0 and summ.failed > 0, summ
+        # K31: in a report of both dates the old date is judged against the
+        # REPORT's set (one set for the whole report), so its record's
+        # failing thresholds are not what the summary reads any more; what
+        # this still pins is that no "recommended" relic reaches it.
+        assert summ.conditional == 0, summ
         assert "recommended" not in (summ.reason + summary_text(summ)).lower(), summ
     finally:
         dlg.close()

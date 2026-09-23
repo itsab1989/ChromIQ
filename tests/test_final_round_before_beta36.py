@@ -78,17 +78,9 @@ def test_the_recorded_verdict_sentence_names_no_ChromIQ_action(tmp_path, qapp):
     assert "Only unlocking" not in src
 
 
-def test_after_clear_list_unlock_says_nothing_is_loaded(tmp_path, qapp):
-    """FC-8. MUTATION: drop the branch and it speaks of "this measurement"."""
-    from tests.test_round_3b_text_findings import _loose_window
-    dlg = _loose_window(tmp_path)
-    try:
-        dlg._on_clear_list()
-        qapp.processEvents()
-        tip = dlg._unlock_check.toolTip()
-        assert "No measurement is loaded yet." in tip, tip
-    finally:
-        dlg.deleteLater()
+# RETIRED BY K31 (beta 40): `test_after_clear_list_unlock_says_nothing_is_loaded`.
+# The unlock box is gone (K31). After Clear List the Judged against pulldown
+# and Edit limits say 'No measurement is loaded yet.' (_sync_limit_controls).
 
 
 _EVERY_REASON = ("no_greys", "too_few_steps", "no_white", "no_black",

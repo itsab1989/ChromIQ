@@ -185,16 +185,16 @@ def test_archive_reports_answers_through_a_symlinked_project(tmp_path):
 # ---------------------------------------------------------------------------
 def test_a_dropped_member_whose_archive_fails_is_not_rewritten(
         tmp_path, qapp, monkeypatch):
-    """Untick a measurement and press Update: its file is a LEFTOVER, rewritten
-    in the second loop of `_write_the_document`. That loop has its own
-    `_archive_failed` guard and the archive-failure test never reaches it (it
-    drops no member). Here the dropped member's folder cannot be archived, for
-    real (`reports/old` is a file), and the kept member's can. Since round A
-    (A-1) that stops the whole update, so neither file moves.
+    """Untick a measurement and press Update: the report of two dates narrows
+    to one, so (K31) its document file is RETIRED (archived into `old/`,
+    then taken out of the live folder) and the kept date gets its file. Here
+    the document file's folder cannot be archived, for real (`reports/old` is
+    a file). Since round A (A-1) that stops the whole update: nothing moves,
+    nothing is written into the kept date, and the failure names the folder.
 
-    MUTATIONS survived: delete the leftover loop's `if _archive_failed(path)`
-    block (the leftover is rewritten with no copy kept), or keep it but drop its
-    `failed.append` (nothing tells the user)."""
+    MUTATION: drop the `_touched` archive pre-flight for the old document
+    file, or its `failed` entry, in `_write_the_document`, and this goes
+    red."""
     from PyQt6.QtWidgets import QMessageBox
     from tests.test_a_generated_report_is_one_document import _messy_project
     from tests.test_generate_report_asks_what_to_do import (
@@ -208,15 +208,13 @@ def test_a_dropped_member_whose_archive_fails_is_not_rewritten(
         _pick_key(dlg, key, qapp)
         entry = next(d for d in dlg._saved_documents(dlg._run_ctx.run)
                      if d["key"] == key)
-        files = {dlg._run_key(r): Path(str(r.get("_origin_dir"))) / "reports" / n
-                 for r, n in entry["members"]}
-        assert len(files) == 2, files
+        doc_file = Path(str(entry["file"]))
         dropped = dlg._run_key(dlg._history[0])
-        kept = next(k for k in files if k != dropped)
-        assert files[dropped].parent != files[kept].parent, (
-            "both members share one reports folder, so one failure is both")
-        (files[dropped].parent / "old").write_text("x", encoding="utf-8")
-        before = {k: p.read_bytes() for k, p in files.items()}
+        kept_dir = Path(str(next(r["_origin_dir"] for r in dlg._history
+                                 if dlg._run_key(r) != dropped)))
+        (doc_file.parent / "old").write_text("x", encoding="utf-8")
+        doc_before = doc_file.read_bytes()
+        kept_before = sorted((kept_dir / "reports").glob("report_*.json"))
 
         said = {}
         dlg._say_generated = lambda saved, failed: said.update(
@@ -232,12 +230,12 @@ def test_a_dropped_member_whose_archive_fails_is_not_rewritten(
         # ALL OR NOTHING since round A (A-1): a press that cannot archive one
         # of the document's folders writes none of them, so the KEPT member
         # is untouched as well, and the failure names the dropped one.
-        assert files[kept].read_bytes() == before[kept], (
-            "the kept member was rewritten by an update that could not write "
-            "the whole document")
-        assert files[dropped].read_bytes() == before[dropped], (
-            "the dropped member was rewritten although its archive failed")
-        assert str(files[dropped]) in said.get("failed", []), said
+        assert doc_file.exists() and doc_file.read_bytes() == doc_before, (
+            "the document file moved although its archive failed")
+        assert sorted((kept_dir / "reports").glob("report_*.json")) == \
+            kept_before, "the kept date was written by a blocked update"
+        assert any(str(doc_file.parent) in f for f in said.get("failed", [])), \
+            said
         assert not said.get("saved"), said
     finally:
         dlg.close()
@@ -269,18 +267,19 @@ def _only_the_other_run(dlg, run1, qapp, only=True):
 
 def test_the_other_run_reason_goes_when_this_run_is_ticked_again(
         tmp_path, qapp):
-    """Retargeted for G7 (#182 beta 39): the several-runs reason is gone
-    (Generate is live across runs); the reason that replaced it, "every ticked
-    measurement belongs to another profile run", must go as soon as it stops
-    being true.
+    """Retargeted for G7, then for K31 (Knut, 5801677743): with only the
+    other run ticked Generate is LIVE (a report of that run is saved where it
+    lives), so "every ticked measurement belongs to another profile run" is
+    never said, in either state.
 
-    MUTATION, proven red: delete `self._generate_btn.setToolTip("")` at the
-    head of the Generate block. The sentence then stays on a live button."""
+    MUTATION: put the own-run filter back into `_reports_to_generate` (with
+    its sentence) and this goes red."""
     from tests.test_the_report_type_pulldown_stores_on_the_run import _two_runs
     dlg, run1, _run2 = _two_runs(tmp_path, qapp)
     try:
         _only_the_other_run(dlg, run1, qapp)
-        assert "another profile run" in dlg._generate_btn.toolTip()
+        assert dlg._generate_btn.isEnabled(), dlg._generate_btn.toolTip()
+        assert "another profile run" not in dlg._generate_btn.toolTip()
         _only_the_other_run(dlg, run1, qapp, only=False)
         assert dlg._generate_btn.isEnabled()
         assert "another profile run" not in dlg._generate_btn.toolTip(), (
@@ -292,15 +291,15 @@ def test_the_other_run_reason_goes_when_this_run_is_ticked_again(
 def test_the_tooltip_no_longer_offers_a_lever_that_does_nothing(qapp, tmp_path):
     """Round C found (and round B the same hour) that the several-runs tooltip
     told the reader to untick the other run's measurements, which did not
-    bring Generate back. G7 removed that sentence; the reason a greyed
-    Generate gives with two runs loaded (only the other run ticked) still
-    names a lever, and never "untick"."""
+    bring Generate back. G7 removed that sentence, and K31 the state it was
+    about: with only the other run ticked Generate is live, and no tooltip
+    ever says "untick"."""
     from tests.test_the_report_type_pulldown_stores_on_the_run import _two_runs
     dlg, run1, _r2 = _two_runs(tmp_path, qapp)
     try:
         _only_the_other_run(dlg, run1, qapp)
         tip = dlg._generate_btn.toolTip().lower()
-        assert tip, "Generate is greyed with no reason"
+        assert dlg._generate_btn.isEnabled(), tip
         assert "untick" not in tip, tip
     finally:
         dlg.close()

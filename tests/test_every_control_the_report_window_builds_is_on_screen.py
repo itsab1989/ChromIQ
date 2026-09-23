@@ -164,71 +164,20 @@ def _help_icon_beside(widget):
     return None
 
 
-def test_the_unlock_box_and_its_help_icon_are_on_screen(report_window):
-    """Knut's own sentence, on the run state that used to hide the box.
-
-    The fixture's run has ONE dated verification, so it is bound and not
-    locked: `may_unlock` is false, `is_locked` is false, and the superseded
-    rule (`run is not None and not several and (locked or lim.unlocked)`)
-    answers False for it. That is the state B8-520 is about.
-
-    MUTATION PROVEN: restore `self._unlock_check.setVisible(run is not None
-    and not several and (locked or bool(lim.unlocked)))` and this goes red on
-    the first assertion.
-    """
-    from workflow.run_compliance import is_locked
-
-    dlg = report_window
-    run = dlg._run_ctx.run
-    assert not is_locked(run), (
-        "the premise: this is the run state the old rule hid the box on")
-    assert dlg.isVisible(), "measured in a SHOWN window, or it measures nothing"
-    assert dlg._unlock_check.isVisible(), (
-        "Knut's checkbox is off screen again")
-    icon = _help_icon_beside(dlg._unlock_check)
-    assert icon is not None, (
-        "the help icon he named with it is gone from the same row")
-    assert icon.isVisible(), (
-        "the help icon he named with it is on the row and not on screen")
+# RETIRED BY K31 (beta 40): `test_the_unlock_box_and_its_help_icon_are_on_screen`.
+# Knut put the unlock box back in beta 26 (B8-520) and removed it in K31
+# (5801677743): 'I agree that the Unlock this run's limits is no longer
+# needed'. tests/test_k31_report_model.py pins that no report window builds
+# it.
 
 
-def test_a_box_that_cannot_be_pressed_says_why(report_window):
-    """A control that is always there has to answer "why is this grey?", which
-    is the whole of what hiding it used to answer.
-
-    MUTATION PROVEN: return "" from `_why_the_unlock_box_is_greyed` and this
-    goes red -- the tooltip falls back to the empty sentence the pulldown and
-    the button share on a single-run window.
-    """
-    dlg = report_window
-    assert not dlg._unlock_check.isEnabled(), "the premise"
-    tip = dlg._unlock_check.toolTip()
-    assert tip, "a greyed control with no explanation"
-    assert "not locked yet" in tip, tip
+# RETIRED BY K31 (beta 40): `test_a_box_that_cannot_be_pressed_says_why`.
+# The unlock box is gone (K31); the rule it applied, a dim control says why,
+# is pinned for Generate report in tests/test_rw_report_window_fixes.py.
 
 
-def test_the_box_is_still_offered_when_two_runs_are_loaded(report_window,
-                                                           second_project):
-    """His second sentence about the same control: *"Nothing was available when
-    two sets of verification runs from different profile runs were in the
-    included measurements in report list. … 'Unlock this run's limit set'
-    should be available."*
-
-    It cannot ACT there -- two runs have two sets of limits and this box lifts
-    one run's lock -- so it is greyed, and it says so.
-
-    MUTATION PROVEN: drop the `several` branch from
-    `_why_the_unlock_box_is_greyed` and the tooltip assertion goes red.
-    """
-    dlg = report_window
-    dlg._add_source(second_project)
-    dlg._rebuild_from_sources()
-    assert len(dlg._distinct_run_dirs()) > 1, "the premise: two runs are loaded"
-    assert dlg._unlock_check.isVisible(), (
-        "the box vanished the moment a second run was added, which is exactly "
-        "what he reported")
-    assert "more than one place" in dlg._unlock_check.toolTip(), \
-        dlg._unlock_check.toolTip()
+# RETIRED BY K31 (beta 40): `test_the_box_is_still_offered_when_two_runs_are_loaded`.
+# The unlock box is gone (K31).
 
 
 # --------------------------------------------------------------------------
@@ -326,10 +275,10 @@ def test_the_one_page_summary_disables_the_detail_box_and_says_why(
     `_show_that_a_one_page_summary_is_one_sheet` and the first assertion goes
     red; `lst.setEnabled(False)` there and the third does.
     """
-    from workflow.run_compliance import set_run_report_type
+    from tests.helpers.report_window import choose_report_type
 
     dlg = report_window
-    set_run_report_type(dlg._run_ctx.run, mr.REPORT_TYPE_SUMMARY)
+    choose_report_type(dlg, mr.REPORT_TYPE_SUMMARY)
     dlg._forget_limits()
     dlg._sync_limit_controls()
     assert not dlg._detail_check.isEnabled(), (
@@ -343,7 +292,7 @@ def test_the_one_page_summary_disables_the_detail_box_and_says_why(
     assert "ONE measurement" in dlg._profile_list.toolTip(), \
         dlg._profile_list.toolTip()
 
-    set_run_report_type(dlg._run_ctx.run, mr.REPORT_TYPE_FULL)
+    choose_report_type(dlg, mr.REPORT_TYPE_FULL)
     dlg._forget_limits()
     dlg._sync_limit_controls()
     assert dlg._detail_check.isEnabled(), "the box never came back"
@@ -429,7 +378,7 @@ def report_window(tmp_path, qapp):
     rep = mr.build_report(p)
     rep["created"] = "2026-09-01T10:00:00"
     mr.save_report(rep, p.parent)
-    from workflow.run_compliance import ensure_bound
+    from tests.helpers.legacy_run_meta import (ensure_bound)
     ensure_bound(run, None, "chromiq_default")
 
     dlg = MeasurementReportDialog(st, None, initial_ti3=p)

@@ -105,7 +105,7 @@ def a_saved_report(tmp_path, qapp):
     from workflow.measurement_report import (REPORT_TYPE_FULL, build_report,
                                              save_report, set_report_type,
                                              stamp_verdict)
-    from workflow.run_compliance import ensure_bound
+    from tests.helpers.legacy_run_meta import (ensure_bound)
     s, _fm, _ctl, run = _verify_env(tmp_path)
     v = run.new_verification()
     v.ensure_dir()
@@ -286,9 +286,11 @@ def test_changing_the_limit_set_never_moves_the_report_type(a_saved_report,
            to 't3_grey_and_tone' on a limit-set change
     """
     from workflow.measurement_report import REPORT_TYPE_GREY
-    from workflow.run_compliance import set_run_report_type
+    from tests.helpers.legacy_run_meta import set_run_report_type
     dlg, run, _path = a_saved_report
     # the run carries a different kind of document from the report on screen
+    # (an earlier ChromIQ's per-run type, which K31 no longer reads for a
+    # new report; the rule pinned here holds either way)
     set_run_report_type(run, REPORT_TYPE_GREY)
     _select_the_saved_report(dlg, qapp)
     before = dlg._type_combo.currentData()
@@ -370,9 +372,9 @@ def test_every_metric_in_report_results_is_explained_in_the_guide(
            the guide: ['Grey balance of the grey ramp, average', …]
     """
     from workflow.measurement_report import REPORT_TYPE_FULL
-    from workflow.run_compliance import set_run_report_type
+    from tests.helpers.report_window import choose_report_type
     dlg, run, _path = a_saved_report
-    set_run_report_type(run, REPORT_TYPE_FULL)
+    choose_report_type(dlg, REPORT_TYPE_FULL)
     dlg._forget_limits()
     dlg._sync_limit_controls()
     dlg._refresh()
@@ -438,14 +440,14 @@ def test_the_explained_list_changes_with_the_metrics_the_report_contains(
         E  assert 1 >= 2
     """
     from workflow.measurement_report import report_type_is_built
-    from workflow.run_compliance import set_run_report_type
+    from tests.helpers.report_window import choose_report_type
     dlg, run = a_fresh_measurement
     seen = {}
     for ti in range(dlg._type_combo.count()):
         tid = dlg._type_combo.itemData(ti)
         if not tid or not report_type_is_built(tid):
             continue
-        set_run_report_type(run, tid)
+        choose_report_type(dlg, tid)
         dlg._forget_limits()
         dlg._sync_limit_controls()
         dlg._refresh()

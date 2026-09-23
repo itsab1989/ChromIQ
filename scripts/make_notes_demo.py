@@ -243,17 +243,18 @@ def write_sheet(out: Path, colours: list, when: str, *, seed: int,
 # runs
 # ---------------------------------------------------------------------------
 def _limits(run, when: datetime):
-    """Bind the run to ChromIQ default, then put a number on every row ChromIQ
-    can measure in the run's own column (the Report limits window's "This
-    run" edit)."""
+    """ChromIQ default with a number on every row ChromIQ can measure: the
+    REPORT's own edited limits (the Report limits window's "This report"
+    column, K31). Nothing is written onto the run; every dated report of it
+    is judged against these and says "(edited)"."""
     from workflow.compliance_sets import Limit
-    from workflow.run_compliance import bind_run, run_limits, set_run_limits
-    lim = bind_run(run, "chromiq_default", {}, when=when)
+    from workflow.run_compliance import RunLimits, run_limits
+    lim = run_limits(run, {}, "chromiq_default")
     mine = dict(lim.limits)
     for rid, v in _EXTRA_LIMITS.items():
         mine[rid] = Limit.value(v)
-    set_run_limits(run, mine)
-    return run_limits(run, {})
+    return RunLimits(lim.set_id, lim.set_label, mine, label_en=lim.label_en,
+                     edited=True)
 
 
 def _snapshot(vdir: Path, vstem: str, src_ti2: Path) -> Path:

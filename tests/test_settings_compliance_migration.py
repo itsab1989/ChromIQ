@@ -109,6 +109,7 @@ def test_the_new_defaults_exist_and_the_old_keys_do_not():
     assert "report_pass_threshold_avg" not in DEFAULTS
     assert "report_pass_threshold_max" not in DEFAULTS
     assert DEFAULTS["compliance_default_set"] == "chromiq_default"
-    assert DEFAULTS["compliance_allow_edit_after_measurement"] is False
+    # K31: the option that allowed "Unlock this run's limits" is retired.
+    assert "compliance_allow_edit_after_measurement" not in DEFAULTS
     assert DEFAULTS["compliance_set_overrides"] == ""
     assert DEFAULTS["compliance_columns_shown"] == ""

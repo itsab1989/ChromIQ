@@ -1,5 +1,13 @@
 """The limits window never said which set the run was bound to.
 
+**K31 (beta 40):** the row is "Used for this report" from every report window
+now, and a run is never bound: the pick is the REPORT's set, applied when the
+window closes into the report's own limits (Knut, 5801677743). The run's own
+DEFAULT for new reports has its own row, "Default for this run"
+(`tests/test_k31_report_model.py`). The guards below pin what still holds: the
+row shows the set in use, is separate from the Preferences row, and records a
+pick without writing anything.
+
 Knut, 2026-09-13, on `Report-Limits-Report-Types` run 5::
 
     The Judged against is set to "ChromIQ tight", but when opening "Edit
@@ -38,7 +46,7 @@ def _dialog(tmp_path, qapp, *, editable: bool):
     """A limits window on a real run, editable or not."""
     from tests.test_import_measurement_module import _cgats, _PATCHES, _verify_env
     from ui.dialogs.thresholds_dialog import ThresholdsDialog
-    from workflow.run_compliance import ensure_bound
+    from tests.helpers.legacy_run_meta import (ensure_bound)
     s, _fm, _ctl, run = _verify_env(tmp_path)
     v = run.new_verification()
     v.ensure_dir()
@@ -222,55 +230,16 @@ def test_there_is_no_row_when_there_is_no_run(tmp_path, qapp):
         dlg.close()
 
 
-def test_the_report_window_applies_the_pick_through_its_own_door(tmp_path, qapp):
-    """Read off the syntax tree: the body RECORDS the pick and the wrapper
-    APPLIES it by driving `_set_combo`. Neither may call `bind_run`: every
-    guard lives on `_on_set_chosen` and a second caller is a second set of
-    guards to keep in step."""
-    import ast
-    import inspect
-    import textwrap
-    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
-
-    body = inspect.getsource(MeasurementReportDialog._open_limits_window)
-    wrap = inspect.getsource(MeasurementReportDialog._on_open_limits)
-    assert "run_set_chosen" in body, "the body never reads the pick"
-    assert "setCurrentIndex" in wrap, (
-        "the wrapper does not apply the pick by driving the pulldown")
-    for name, src in (("body", body), ("wrapper", wrap)):
-        names = {n.func.id for n in ast.walk(ast.parse(textwrap.dedent(src)))
-                 if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
-        assert "bind_run" not in names, (
-            f"{name} rebinds the run itself, bypassing its own guards")
+# RETIRED BY K31 (beta 40): `test_the_report_window_applies_the_pick_through_its_own_door`.
+# _open_limits_window and the pulldown round trip are gone (K31): the pick is
+# the REPORT's set, applied by _open_report_limits_window straight into the
+# report's own limits, and nothing binds a run
+# (tests/test_k31_report_model.py::test_edit_limits_changes_only_the_report).
 
 
-def test_the_pick_is_applied_outside_the_body_so_it_cannot_double(tmp_path, qapp):
-    """**THE FAULT THIS SHAPE EXISTS FOR.** Applying the pick inside the body
-    made the body's own "did what this run is judged by change?" snapshot see
-    the movement the window had just made, and report it as somebody else's:
-    one pick asked the recalculate question TWICE and archived the run's saved
-    reports twice. An adversary round drove it with a default-for-new-runs pick
-    beside a run pick and counted two archive folders.
-
-    The body has a dozen early returns, so the application has to sit in a
-    `finally` outside it to be exactly once on all of them.
-    """
-    import ast
-    import inspect
-    import textwrap
-    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
-
-    tree = ast.parse(textwrap.dedent(
-        inspect.getsource(MeasurementReportDialog._on_open_limits)))
-    tries = [n for n in ast.walk(tree) if isinstance(n, ast.Try)]
-    assert tries and tries[0].finalbody, (
-        "the pick is not applied in a finally, so an early return skips it")
-    fin = ast.dump(ast.Module(body=tries[0].finalbody, type_ignores=[]))
-    assert "setCurrentIndex" in fin, (
-        "the finally does not apply the pick")
-    body = inspect.getsource(MeasurementReportDialog._open_limits_window)
-    assert "setCurrentIndex" not in body or "_set_combo.setCurrentIndex" not in body, (
-        "the body applies the pick as well, so it can happen twice")
+# RETIRED BY K31 (beta 40): `test_the_pick_is_applied_outside_the_body_so_it_cannot_double`.
+# The body/wrapper split existed so a run's recalculation could not happen
+# twice; there is no recalculation since K31.
 
 
 def test_the_body_leaves_the_pick_for_the_wrapper(tmp_path, qapp):
@@ -281,7 +250,7 @@ def test_the_body_leaves_the_pick_for_the_wrapper(tmp_path, qapp):
     from tests.test_import_measurement_module import (_cgats, _PATCHES,
                                                       _verify_env)
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
-    from workflow.run_compliance import ensure_bound
+    from tests.helpers.legacy_run_meta import (ensure_bound)
     s, _fm, _ctl, run = _verify_env(tmp_path)
     v = run.new_verification()
     v.ensure_dir()

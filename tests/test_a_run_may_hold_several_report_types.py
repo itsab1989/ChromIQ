@@ -29,7 +29,7 @@ from workflow.measurement_report import (REPORT_TYPE_FULL,  # noqa: E402
 
 def _run_with_a_measurement(tmp_path, qapp):
     from tests.test_import_measurement_module import _cgats, _PATCHES, _verify_env
-    from workflow.run_compliance import ensure_bound
+    from tests.helpers.legacy_run_meta import (ensure_bound)
     s, _fm, _ctl, run = _verify_env(tmp_path)
     v = run.new_verification()
     v.ensure_dir()
@@ -60,11 +60,11 @@ def _as(dlg, run, tid):
     and a back door that moves the run without telling the window leaves the
     two disagreeing. Driven through the pulldown, all of it stays true.
     """
-    from workflow.run_compliance import run_report_type
     dlg._sync_type_combo_to(tid)
     dlg._on_type_chosen(dlg._type_combo.currentIndex())
-    assert run_report_type(run) == tid, (
-        f"the pulldown did not store {tid} on the run")
+    # K31: the type is the REPORT's; nothing is stored on the run.
+    assert dlg._report_type_now() == tid, (
+        f"the pulldown did not choose {tid} for the report")
 
 
 def test_nothing_is_generated_until_the_button_is_pressed(tmp_path, qapp):

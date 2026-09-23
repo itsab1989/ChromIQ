@@ -118,7 +118,8 @@ def test_the_message_says_what_decides_it_and_qualifies_the_lever():
                    "on a report type that carries notes",   # F3: so does the type
                    "threshold to zero",                # F4: not "-"
                    "\u201c\u2013\u201d",                      # F4: the en dash it shows
-                   "where those limits can still be edited"):   # F5: not always
+                   # F5, K31: the lever is the REPORT's own limits now
+                   "the report's own limits"):
         assert phrase in body, (phrase, body)
     for gone in ("is listed in the report all the same",
                  "disappears from the report entirely",

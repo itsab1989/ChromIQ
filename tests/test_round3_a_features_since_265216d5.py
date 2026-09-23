@@ -80,7 +80,7 @@ def test_already_generated_counts_an_untyped_report_as_its_label_says(
         two_dates, qapp):
     from workflow.measurement_report import (REPORT_TYPE_SUMMARY,
                                              generated_report_types)
-    from workflow.run_compliance import set_run_report_type
+    from tests.helpers.legacy_run_meta import (set_run_report_type)
     s, _fm, run, vs = two_dates
     set_run_report_type(run, REPORT_TYPE_SUMMARY)
     for v in vs:
@@ -156,7 +156,9 @@ def test_a_refused_update_leaves_no_archive_even_when_the_archive_fails(
         key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_FULL,
                                every_measurement=True, detail=False)
         _pick_key(dlg, key, qapp)
-        locked = vs[0].dir / "reports" / "old"
+        # K31: the report of two dates is ONE file in verifications/reports/,
+        # so that is the folder whose old/ its Update archives into.
+        locked = run.verifications_dir / "reports" / "old"
         locked.mkdir(exist_ok=True)
         os.chmod(locked, stat.S_IRUSR | stat.S_IXUSR)
         if os.access(locked, os.W_OK):

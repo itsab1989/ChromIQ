@@ -39,7 +39,7 @@ def _dialog_with(tmp_path, qapp, type_ids):
     from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
     from workflow.measurement_report import (build_report, save_report,
                                              set_report_type, stamp_verdict)
-    from workflow.run_compliance import ensure_bound
+    from tests.helpers.legacy_run_meta import (ensure_bound)
     s, _fm, _ctl, run = _verify_env(tmp_path)
     v = run.new_verification()
     v.ensure_dir()

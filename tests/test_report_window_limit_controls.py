@@ -1,9 +1,10 @@
-"""The Measurement Report window's limit-set controls (#182): the lock, the
-strip, the set choice binding the run, the unlock that archives once and
-recalculates once, and the multi-run guard.
+"""The Measurement Report window's limit-set controls (#182): the strip, the
+report's own set, and (since K31, beta 40) no lock, no binding and no unlock:
+Knut, 5801677743, *"the limit set belongs to the report"*.
 """
 from __future__ import annotations
 
+from tests.helpers import legacy_run_meta
 import json
 import os
 
@@ -44,7 +45,7 @@ def _verified_run(tmp_path, dates=2, patches=None):
     # skips it produces a run with measured dates and no limit set copied onto
     # it, which is the pre-#182 shape rather than a run this build made. The
     # lock now asks whether a run is bound, so the difference matters.
-    rc.bind_run(run, "chromiq_default", {})
+    legacy_run_meta.bind_run(run, "chromiq_default", {})
     from datetime import datetime, timedelta
     ti3s = []
     for i in range(dates):
@@ -85,7 +86,8 @@ def _edit_the_runs_numbers(dlg, monkeypatch, value=0.2, row="all_de00_avg"):
     function.
     """
     from workflow.compliance_sets import Limit
-    from workflow.run_compliance import run_limits, set_run_limits
+    from workflow.run_compliance import (run_limits)
+    from tests.helpers.legacy_run_meta import (set_run_limits)
 
     class _Fake:
         #: WHAT THE DOOR READS OFF THE DIALOG, spelled out rather than
@@ -112,91 +114,38 @@ def _edit_the_runs_numbers(dlg, monkeypatch, value=0.2, row="all_de00_avg"):
     dlg._on_open_limits()
 
 
-def test_a_measured_run_is_locked_and_the_pulldown_is_disabled(qapp, tmp_path):
+def test_a_measured_run_is_not_locked(qapp, tmp_path):
+    """K31 turned this test round: it was
+    `test_a_measured_run_is_locked_and_the_pulldown_is_disabled`. A run with
+    two dated verifications, bound by an earlier ChromIQ, keeps every limit
+    control live, the button reads "Edit limits…", and there is no unlock
+    control at all (Knut, 5801677743: *"I agree that the 'Unlock this run's
+    limits' is no longer needed"*).
+
+    MUTATION: grey the pulldown on a bound run with two dates in
+    `_sync_limit_controls` (the old lock), or build the unlock box again, and
+    this goes red."""
     proj, run, ti3s = _verified_run(tmp_path)
     s = _settings(tmp_path)
     dlg = _dialog(s, ti3s[-1])
     try:
         assert dlg._run_ctx is not None and dlg._run_ctx.run.dir == run.dir
-        assert not dlg._set_combo.isEnabled()
-        assert not dlg._unlock_check.isEnabled()          # Preferences forbids it
-        assert dlg._limits_btn.text() == "Show limits…"
+        assert dlg._set_combo.isEnabled()
+        assert dlg._limits_btn.isEnabled()
+        assert dlg._limits_btn.text() == "Edit limits…"
+        assert not hasattr(dlg, "_unlock_check")
+        from PyQt6.QtWidgets import QCheckBox
+        assert not any("Unlock" in c.text()
+                       for c in dlg.findChildren(QCheckBox))
         assert "run1" in dlg._judged_label.text()
     finally:
         dlg.deleteLater()
 
 
-def test_preferences_allows_the_unlock_and_unlocking_recalculates_nothing(
-        qapp, tmp_path, monkeypatch):
-    """**KNUT OVERTURNED THE SECOND HALF OF THIS TEST, 2026-09-18 (B8-391).**
-
-    It was `…_and_unlocking_archives_and_recalculates`, and it asserted that
-    ticking "Unlock this run's limits" archived and rewrote every dated report
-    of the run. Reading that very window he wrote: *"All dated reports shall
-    NOT be recalculated, only the selected report will be recalculated and
-    report text recreated according to new values."*
-
-    So the unlock is now what it says it is and no more: it lets the user
-    change the run's limit set and its numbers. The archive-then-recalculate
-    rule (D23) is untouched and still governs the door that does rewrite files,
-    the Report limits window's Save, which asks its own question at the moment
-    the rewrite happens (`test_a_report_stamped_after_the_unlock_is_archived_
-    before_its_first_rewrite`).
-
-    MUTATION: put `self._recalculate_run()` back at the foot of
-    `_on_unlock_toggled` and this goes red.
-    """
-    proj, run, ti3s = _verified_run(tmp_path)
-    s = _settings(tmp_path, compliance_allow_edit_after_measurement=True)
-    dlg = _dialog(s, ti3s[-1])
-    try:
-        assert dlg._unlock_check.isEnabled()
-        # the user says Cancel: nothing changes
-        monkeypatch.setattr(dlg, "_confirm", lambda *a, **k: False)
-        dlg._unlock_check.setChecked(True)
-        assert not dlg._unlock_check.isChecked()
-        assert not run.load_meta().compliance_unlocked
-        # the user says OK: the run is unlocked and NOTHING on disk moves
-        monkeypatch.setattr(dlg, "_confirm", lambda *a, **k: True)
-        before = {p: p.read_text(encoding="utf-8") for v in run.verifications() for p in mr.list_reports(v.dir)}
-        dlg._unlock_check.setChecked(True)
-        assert run.load_meta().compliance_unlocked
-        for v in run.verifications():
-            old = sorted((v.reports_dir / "old").glob("*/report_*.json"))
-            assert not old, f"unlocking archived {old}"
-            for p in mr.list_reports(v.dir):
-                assert p.read_text(encoding="utf-8") == before[p], (
-                    f"unlocking rewrote {p.name}")
-        # …AND THE QUESTION NO LONGER PROMISES ONE. The clause about every
-        # dated report being recalculated went with the behaviour (B8-391);
-        # the replacement sentence is §M-PROPOSED and unapproved, so what is
-        # left is the words that were already there and are still true.
-        _asked: list = []
-        monkeypatch.setattr(dlg, "_confirm",
-                            lambda t, b: (_asked.append(b), True)[1])
-        dlg._unlock_check.setChecked(False)
-        dlg._unlock_check.setChecked(True)
-        assert _asked, "the unlock stopped asking altogether"
-        assert "recalculated" not in _asked[-1], _asked[-1]
-        # THE PULLDOWN IS NOW LIVE, AND CHOOSING A SET RE-STAMPS NOTHING
-        # (B8-384). Knut: *"Agreed. D23 stands."* — the archive-then-
-        # recalculate rule is about HOW a recalculation is done, and his
-        # beta-20 ruling is that this door does not start one. It still binds
-        # the RUN, which is the yardstick for the dates still to come.
-        assert dlg._set_combo.isEnabled()
-        held = {p: p.read_text(encoding="utf-8")
-                for v in run.verifications() for p in mr.list_reports(v.dir)}
-        idx = dlg._set_combo.findData("chromiq_quick")
-        dlg._set_combo.setCurrentIndex(idx)
-        dlg._on_set_chosen(idx)
-        for v in run.verifications():
-            live = mr.list_reports(v.dir)
-            assert len(live) == 1, "the live file keeps its name"
-            assert live[0].read_text(encoding="utf-8") == held[live[0]], (
-                "a saved report was rewritten by a change of limit set")
-        assert run.load_meta().compliance_set_id == "chromiq_quick"
-    finally:
-        dlg.deleteLater()
+# RETIRED BY K31 (beta 40): `test_preferences_allows_the_unlock_and_unlocking_recalculates_nothing`.
+# Unlock this run's limits and the Preferences option that allowed it are
+# removed (Knut, 5801677743); nothing is locked, so there is nothing to allow
+# or unlock.
 
 
 def test_the_strip_names_what_the_chart_cannot_supply(qapp, tmp_path):
@@ -240,7 +189,7 @@ def test_two_runs_loaded_the_pulldown_chooses_the_reports_set(qapp, tmp_path):
     """G7 (#182 beta 39). With two profile runs loaded, "Judged against"
     chooses the REPORT's own set (Knut, 5794311113: *"the report's own limit
     set applies to every included measurement, whatever each run is bound
-    to"*) and binds no run. "Unlock this run's limits" stays greyed.
+    to"*) and binds no run. (K31 removed "Unlock this run's limits".)
 
     Before G7 this test asserted all three greyed. SINCE K30 (Knut,
     5798461562: *"all settings belong to a report, not a specific run"*)
@@ -259,9 +208,8 @@ def test_two_runs_loaded_the_pulldown_chooses_the_reports_set(qapp, tmp_path):
         assert dlg._set_combo.isEnabled()
         assert dlg._limits_btn.isEnabled()
         assert dlg._limits_btn.text() == "Edit limits…"
-        assert not dlg._unlock_check.isEnabled()
-        assert "judges every measurement" in dlg._set_combo.toolTip()
-        assert "more than one place" in dlg._limits_btn.toolTip()
+        assert "whichever profile run or project" in dlg._set_combo.toolTip()
+        assert "This report" in dlg._limits_btn.toolTip()
         before = (run_limits(run, None).set_id, run_limits(run2, None).set_id)
         other = next(dlg._set_combo.itemData(i)
                      for i in range(dlg._set_combo.count())
@@ -277,7 +225,9 @@ def test_two_runs_loaded_the_pulldown_chooses_the_reports_set(qapp, tmp_path):
 
 
 def test_an_external_file_is_judged_but_nothing_is_written(qapp, tmp_path):
-    """CH-14: a measurement in Downloads has no run; the choice is session-only."""
+    """CH-14: a measurement in Downloads has no run; the choice is the
+    report's, for the session, and nothing is written (K31: nothing is written
+    for any measurement until Generate report)."""
     dl = tmp_path / "Downloads"; dl.mkdir()
     ti3 = _write_ti3(dl / "x.ti3", _ramp(16) + _colours())
     dlg = _dialog(_settings(tmp_path), ti3)
@@ -287,9 +237,8 @@ def test_an_external_file_is_judged_but_nothing_is_written(qapp, tmp_path):
         idx = dlg._set_combo.findData("chromiq_tight")
         dlg._set_combo.setCurrentIndex(idx)
         dlg._on_set_chosen(idx)
-        assert dlg._window_limits().set_id == "chromiq_tight"
+        assert dlg._report_limits().set_id == "chromiq_tight"
         assert not (dl / "meta.json").exists()
-        assert "not stored" in dlg._set_combo.toolTip()
     finally:
         dlg.deleteLater()
 
@@ -353,157 +302,28 @@ def test_the_confirmation_answers_yes_when_ok_is_really_clicked(qapp, tmp_path):
         dlg.deleteLater()
 
 
-def test_a_locked_run_can_always_be_relocked_after_preferences_forbid_edits(
-        qapp, tmp_path, monkeypatch):
-    """F5: with the Preferences box turned off after an unlock, the ticked box
-    must stay enabled so the user can lock the run again.
-
-    **RE-LOCKING NOW ASKS FIRST** (round 9). It used to be silent, and a
-    challenge round showed that is the direction that takes every control away:
-    one click on a box the app itself ticks when it binds a run, one more dated
-    verification, and the run is locked with no route back that anything on
-    that screen names. So the question is answered here rather than met by a
-    real modal, which is what this test did on the first gate after that change.
-
-    The property F5 exists for is unchanged: re-locking is allowed even with
-    the Preferences box off.
-    """
-    proj, run, ti3s = _verified_run(tmp_path, dates=1)
-    rc.set_run_unlocked(run, True)
-    dlg = _dialog(_settings(tmp_path), ti3s[-1])       # allow flag off
-    try:
-        assert dlg._unlock_check.isChecked() and dlg._unlock_check.isEnabled()
-        # NO QUESTION AT ONE DATE: the lock needs two dated verifications, so
-        # putting it back here takes nothing away. It is asked at two, which
-        # `test_refusing_the_relock_leaves_the_run_unlocked` below covers.
-        monkeypatch.setattr(dlg, "_confirm",
-                            lambda t, x: pytest.fail(
-                                "a re-lock that takes nothing away asked anyway"))
-        dlg._unlock_check.setChecked(False)
-        assert not run.load_meta().compliance_unlocked
-        assert not dlg._unlock_check.isEnabled()          # and now it is locked for good
-    finally:
-        dlg.deleteLater()
+# RETIRED BY K31 (beta 40): `test_a_locked_run_can_always_be_relocked_after_preferences_forbid_edits`.
+# The relock direction went with the lock (K31).
 
 
-def test_refusing_the_relock_leaves_the_run_unlocked(qapp, tmp_path, monkeypatch):
-    """The other half, and the one that would break silently.
-
-    TWO dated verifications, because that is where re-locking really costs
-    something and therefore where the question is asked.
-    """
-    proj, run, ti3s = _verified_run(tmp_path, dates=2)
-    rc.set_run_unlocked(run, True)
-    dlg = _dialog(_settings(tmp_path), ti3s[-1])
-    try:
-        monkeypatch.setattr(dlg, "_confirm", lambda t, x: False)
-        dlg._unlock_check.setChecked(False)
-        assert run.load_meta().compliance_unlocked, (
-            "a refused re-lock locked the run anyway")
-        assert dlg._unlock_check.isChecked(), (
-            "the box kept the refused state, so it now says the run is locked")
-    finally:
-        dlg.deleteLater()
+# RETIRED BY K31 (beta 40): `test_refusing_the_relock_leaves_the_run_unlocked`.
+# The relock question went with the lock (K31).
 
 
-def test_a_run_folder_that_cannot_be_written_untick_and_tells(qapp, tmp_path, monkeypatch):
-    """F3: the unlock must not claim what the disk refused."""
-    proj, run, ti3s = _verified_run(tmp_path, dates=1)
-    s = _settings(tmp_path, compliance_allow_edit_after_measurement=True)
-    dlg = _dialog(s, ti3s[-1])
-    told = []
-    try:
-        monkeypatch.setattr(dlg, "_confirm", lambda *a, **k: True)
-        monkeypatch.setattr(dlg, "_say_not_written", lambda run, exc: told.append(str(exc)))
-        import workflow.run_compliance as rcmod
-
-        def boom(run, on):
-            raise PermissionError("read-only")
-        monkeypatch.setattr(rcmod, "set_run_unlocked", boom)
-        dlg._unlock_check.setChecked(True)
-        assert not dlg._unlock_check.isChecked()
-        assert told and "read-only" in told[0]
-        assert not run.load_meta().compliance_unlocked
-    finally:
-        dlg.deleteLater()
+# RETIRED BY K31 (beta 40): `test_a_run_folder_that_cannot_be_written_untick_and_tells`.
+# The unlock box is gone (K31); the only run write left in the window, the
+# run's own default for new reports, reports an unwritable folder through the
+# same _say_not_written (tests/test_k31_report_model.py).
 
 
-def test_a_date_whose_archive_fails_is_not_rewritten(qapp, tmp_path, monkeypatch):
-    """F2: archive first; a report that could not be copied keeps its verdict."""
-    proj, run, ti3s = _verified_run(tmp_path, dates=2)
-    s = _settings(tmp_path, compliance_allow_edit_after_measurement=True)
-    dlg = _dialog(s, ti3s[-1])
-    told = []
-    try:
-        monkeypatch.setattr(dlg, "_confirm", lambda *a, **k: True)
-        from core.file_manager import Verification
-        first = run.verifications()[0]
-        orig = Verification.archive_reports
-
-        def failing(self, when=None):
-            if self.id == first.id:
-                raise PermissionError("reports read-only")
-            return orig(self, when)
-        monkeypatch.setattr(Verification, "archive_reports", failing)
-        from ui import warning_sign
-        monkeypatch.setattr(warning_sign, "warn", lambda *a, **k: told.append(a[2]))
-        before = {p: p.read_text(encoding="utf-8") for v in run.verifications() for p in mr.list_reports(v.dir)}
-        dlg._unlock_check.setChecked(True)
-        # THROUGH THE LIMITS WINDOW, because the "Judged against" pulldown no
-        # longer recalculates anything (B8-384). The property is the same one:
-        # archive first, and a date that could not be archived keeps its
-        # verdict.
-        _edit_the_runs_numbers(dlg, monkeypatch, value=0.2)
-        after = {p: p.read_text(encoding="utf-8") for v in run.verifications() for p in mr.list_reports(v.dir)}
-        for p in before:
-            if str(p).startswith(str(first.dir)):
-                assert after[p] == before[p], "a report was rewritten although its archive failed"
-            else:
-                assert json.loads(after[p])["compliance"]["thresholds"][
-                    "all_de00_avg"] == 0.2
-        # ACROSS EVERY BOX THIS DOOR RAISED, not only the last one: the date
-        # that could not be archived is named in its own.
-        assert told and first.id in "\n".join(told), told
-    finally:
-        dlg.deleteLater()
+# RETIRED BY K31 (beta 40): `test_a_date_whose_archive_fails_is_not_rewritten`.
+# The recalculation of a run's dated reports (_recalculate_run) is removed
+# with the run's limits (K31): no report is ever rewritten by a limit change,
+# so there is no archive-then-rewrite to guard.
 
 
-def test_a_report_stamped_after_the_unlock_is_archived_before_its_first_rewrite(qapp, tmp_path, monkeypatch):
-    """F11: every content gets a copy before it changes, and identical content
-    is never copied twice (N2)."""
-    proj, run, ti3s = _verified_run(tmp_path, dates=1)
-    s = _settings(tmp_path, compliance_allow_edit_after_measurement=True)
-    dlg = _dialog(s, ti3s[-1])
-    try:
-        monkeypatch.setattr(dlg, "_confirm", lambda *a, **k: True)
-        dlg._unlock_check.setChecked(True)
-        v = run.verifications()[0]
-        old = lambda: sorted((v.reports_dir / "old").glob("*/report_*.json"))  # noqa: E731
-        # NOTHING YET: the unlock itself recalculates nothing and so archives
-        # nothing (B8-391). What follows is the door that does both.
-        assert not old()
-        # a new measurement stamped while unlocked
-        from tests.test_report_judging import _colours, _ramp, _write_ti3
-        rep = mr.build_report(ti3s[-1])
-        mr.stamp_verdict(rep, rc.run_limits(run, {}).limits, set_id="chromiq_default",
-                         set_label="ChromIQ default (recommended)")
-        rep["created"] = "2026-05-05T05:05:05"
-        p2 = v.reports_dir / "report_2026-05-05_05-05-05.json"
-        p2.write_text(json.dumps(rep), encoding="utf-8")
-        content2 = p2.read_text(encoding="utf-8")
-        # THROUGH THE LIMITS WINDOW, for the reason `_edit_the_runs_numbers`
-        # gives: the pulldown recalculates nothing any more (B8-384).
-        _edit_the_runs_numbers(dlg, monkeypatch, value=0.2)
-        copies = old()
-        assert any(c.read_text(encoding="utf-8") == content2 for c in copies), \
-            "the report stamped after the unlock was rewritten without a copy"
-        n_copies = len(copies)
-        assert n_copies, "the Save door archived nothing"
-        # changing again copies only what changed since
-        _edit_the_runs_numbers(dlg, monkeypatch, value=0.3)
-        assert len(old()) == n_copies + 2   # both live files changed once more
-    finally:
-        dlg.deleteLater()
+# RETIRED BY K31 (beta 40): `test_a_report_stamped_after_the_unlock_is_archived_before_its_first_rewrite`.
+# As above: no unlock and no recalculation since K31.
 
 
 # ---------------------------------------------------------------------------
@@ -559,50 +379,10 @@ def test_hiding_a_column_asks_nothing_and_is_remembered(qapp, tmp_path, monkeypa
         dlg.deleteLater()
 
 
-def test_the_column_choice_survives_a_refused_limit_change(qapp, tmp_path, monkeypatch):
-    """Even when the user DOES change a number and then says no.
-
-    The undo puts the run's numbers back, and used to take the column ticks
-    with them. A refusal answers the question that was asked; the ticks were
-    never in it.
-    """
-    proj, run, ti3s = _verified_run(tmp_path, dates=1)
-    s = _settings(tmp_path, compliance_allow_edit_after_measurement=True)
-    dlg = _dialog(s, ti3s[-1])
-    try:
-        monkeypatch.setattr(dlg, "_confirm", lambda *a, **k: True)
-        dlg._unlock_check.setChecked(True)          # so the column is editable
-        before = dict(run.load_meta().compliance_thresholds or {})
-
-        from ui.dialogs.thresholds_dialog import ThresholdsDialog
-        asked: "list[str]" = []
-        monkeypatch.setattr(
-            dlg, "_confirm",
-            lambda title, text, *a, **k: (asked.append(title), False)[1])
-
-        def fake_exec(self):
-            self._column_checks["iso_12647_7"].setChecked(False)
-            self._cells[("__run__", "all_de00_avg")].setValue(7.25)
-            self.accept()
-            return 1
-        monkeypatch.setattr(ThresholdsDialog, "exec", fake_exec)
-        dlg._on_open_limits()
-
-        assert asked, "a refused NUMBER change must still be asked about"
-        m = run.load_meta()
-        assert m.compliance_thresholds == before, "the refused number stayed"
-        # NOT "iso_12647_7 is absent", WHICH AN EMPTY LIST ALSO SATISFIES.
-        # The snapshot taken when the window opened is the empty list, meaning
-        # "show every column", so restoring it passes a test that only asks
-        # whether the hidden id is missing. A mutation that put the undo back
-        # went straight through it. The list has to be the CHOICE.
-        stored = list(m.compliance_columns or [])
-        assert stored, "the refusal wiped the column choice back to empty"
-        assert "iso_12647_7" not in stored, \
-            "the refusal took the column choice with it"
-        assert "chromiq_default" in stored
-    finally:
-        dlg.deleteLater()
+# RETIRED BY K31 (beta 40): `test_the_column_choice_survives_a_refused_limit_change`.
+# No limit change is refused any more (no question, no undo, K31). The column
+# choice stays a view setting remembered per run: tests/test_k31_report_model
+# .py::test_the_column_choice_is_remembered_and_binds_nothing.
 
 
 def test_hiding_a_column_never_binds_an_unbound_run(qapp, tmp_path, monkeypatch):
@@ -666,23 +446,20 @@ def test_the_scope_section_has_air_under_the_run_description(qapp, tmp_path):
         dlg.deleteLater()
 
 
-def test_bound_and_locked_is_explained_in_the_help_not_the_report(
+def test_the_help_says_the_report_owns_its_limits_and_nothing_locks(
         qapp, tmp_path):
-    """K26 (Knut, 5792484060, Q2): *"Remove it from the report, and make sure
-    this information is in the relevant help text."* The paragraph he asked
-    for on 2026-09-11 (*"what is the difference between bound and locked? Be
-    specific in the explanation"*) explained how ChromIQ binds and locks a
-    run's limits, which K18 keeps out of a document handed to a customer. It
-    is gone from the report, and the window's "Judged against" help and the
-    help card's glossary say it: bound at the FIRST dated verification,
-    locked from the SECOND.
+    """K31 turned this test round. It was
+    `test_bound_and_locked_is_explained_in_the_help_not_the_report` (K26: the
+    "Bound, and locked" paragraph moved out of the report into the help).
+    Since K31 nothing is bound or locked, so no help and no report may say it
+    is, and the "Judged against" help and the glossary say what is true now:
+    the limit set belongs to the report (Knut, 5801677743, and his
+    5801750910: *"Make sure all the changes in functionality is described in
+    help icons and relevant help cards"*).
 
-    MUTATION, proven red (K26): put the paragraph back into
-    `_how_to_read_html` (the report says "Bound, and locked."), or leave
-    `_bound_and_locked_help()` out of the "Judged against" help (no help
-    says it), or put the glossary's "before recalculating them" clause back
-    into its "Locked" entry (the help card promises what Unlock no longer
-    does)."""
+    MUTATION: put `_bound_and_locked_help()` back into the "Judged against"
+    help, or the glossary's "Bound (a run's limits)" or "Locked / Unlock this
+    run's limits" entries back, and this goes red."""
     import html as _html
     from PyQt6.QtWidgets import QToolButton
     from ui.dialogs.welcome_dialog import GLOSSARY
@@ -698,21 +475,18 @@ def test_bound_and_locked_is_explained_in_the_help_not_the_report(
             v = getattr(b, "_body", None)
             if isinstance(v, str):
                 helps.append(v)
-        said = [h for h in helps if "Bound, and locked." in h]
-        assert said, "no help in the report window explains bound and locked"
-        text = said[0]
-        assert "first dated verification" in text
-        assert "judged against the same numbers" in text
-        assert "locked once a second dated verification has been measured" \
-            in text
+        assert helps, "no help button found to read"
+        for h in helps:
+            assert "Bound, and locked." not in h
+            assert "Unlock this run's limits" not in h, h[:200]
+        judged = [h for h in helps if "The limit set belongs to the report" in h]
+        assert judged, "the Judged against help does not say the report owns its set"
     finally:
         dlg.deleteLater()
     words = dict(GLOSSARY)
-    assert any(k.startswith("Bound") for k in words), words.keys()
-    locked = next(v for k, v in words.items() if k.startswith("Locked"))
-    assert "second dated check" in locked
-    assert "recalculat" not in locked.replace("recalculates nothing", ""), (
-        "the glossary still promises a recalculation Unlock no longer does")
+    assert not any(k.startswith("Bound") for k in words), words.keys()
+    assert not any(k.startswith("Locked") for k in words), words.keys()
+    assert "A report's limit set" in words
 
 
 def test_both_limits_doors_are_the_same_window():
@@ -769,73 +543,21 @@ def test_a_calibration_is_not_told_it_is_outside_the_project(qapp, tmp_path):
             "the calibration resolved to a RUN, so this is not the state the "
             "sentence is shown in")
         tip = dlg._set_combo.toolTip()
-        assert "not stored" in tip, (
-            f"the controls no longer say the choice is unstored: {tip!r}")
         assert "not in a ChromIQ project" not in tip, (
             f"the window tells the user their calibration is outside the "
             f"project it is sitting in: {tip!r}")
-        assert "does not belong to a profile run" in tip, tip
+        assert tip, "the limit set pulldown says nothing about itself"
     finally:
         dlg.deleteLater()
 
 
-def test_a_file_outside_any_project_is_still_told_so(qapp, tmp_path):
-    """The control: the sentence is right where it was written to be right.
-
-    A measurement in Downloads really is in no ChromIQ project, and that is
-    what the tooltip says there. Without this, "fix the sentence" could mean
-    "say the weaker thing everywhere", which loses what a reader needs.
-    """
-    dl = tmp_path / "Downloads"; dl.mkdir()
-    ti3 = _write_ti3(dl / "x.ti3", _ramp(16) + _colours())
-    dlg = _dialog(_settings(tmp_path), ti3)
-    try:
-        assert dlg._run_ctx is None
-        tip = dlg._set_combo.toolTip()
-        assert "not in a ChromIQ project" in tip, tip
-    finally:
-        dlg.deleteLater()
+# RETIRED BY K31 (beta 40): `test_a_file_outside_any_project_is_still_told_so`.
+# The sentence it kept ('not in a ChromIQ project, so the choice is not
+# stored anywhere') described the run binding; since K31 no choice of limits
+# is stored anywhere until Generate report, for any measurement, so the
+# sentence is gone. Generate report still says why it is greyed for such a
+# file.
 
 
-def test_the_unlock_box_is_dead_while_there_is_nothing_to_unlock(qapp, tmp_path):
-    """One dated verification locks nothing, so the box must not offer to lift it.
-
-    Knut, on beta 32: with ONE dated verification the Judged against box is
-    already editable and Edit Limits already enabled, *"However, the checkbox
-    'Unlock this run's limits' is still clickable"*, and pressing it asked
-    whether to unlock something that is not locked.
-
-    `is_locked` has answered `measured_dates(run) < 2 -> not locked` since his
-    ruling of 2026-09-10, that *"when only one measurement is done, I should be
-    allowed to choose the type of report I want to print, and which limits to
-    judge against"*. The enable rule asked `has_measured_verification`, which
-    is true of ONE, so the box was live in exactly the state the window's own
-    tooltip describes.
-
-    **AND BECAUSE AN ENABLED BOX RETURNS NO REASON, THAT SENTENCE HAD NEVER
-    BEEN SHOWN TO ANYBODY.** It was written, translated into thirteen
-    languages, and unreachable. That is why this test asserts the tooltip as
-    well as the state: a dim control has to say why.
-
-    MUTATION: put `has_measured_verification(run)` back in place of `locked` in
-    `_sync_limit_controls` and both assertions go red.
-    """
-    _proj, _run, ti3s = _verified_run(tmp_path, dates=1)
-    s = _settings(tmp_path)
-    s.set("compliance_allow_edit_after_measurement", True)
-    dlg = _dialog(s, ti3s[-1])
-    try:
-        assert dlg._set_combo.isEnabled(), (
-            "with one dated verification the set is still the user's to "
-            "choose, which is the ruling this test depends on"
-        )
-        assert not dlg._unlock_check.isEnabled(), (
-            "the unlock box is live with one dated verification, where "
-            "nothing is locked, so pressing it asks to lift a lock that is "
-            "not there"
-        )
-        assert "not locked yet" in dlg._unlock_check.toolTip(), (
-            f"a dim box has to say why; it says {dlg._unlock_check.toolTip()!r}"
-        )
-    finally:
-        dlg.deleteLater()
+# RETIRED BY K31 (beta 40): `test_the_unlock_box_is_dead_while_there_is_nothing_to_unlock`.
+# The unlock box is gone (K31).

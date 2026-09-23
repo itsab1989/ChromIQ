@@ -61,7 +61,8 @@ def _project(tmp_path, dates=3):
                                                       _verify_env)
     from workflow.measurement_report import (build_report, save_report,
                                              stamp_verdict)
-    from workflow.run_compliance import bind_run, run_limits
+    from workflow.run_compliance import (run_limits)
+    from tests.helpers.legacy_run_meta import (bind_run)
 
     s, fm, _ctl, run = _verify_env(tmp_path)
     bind_run(run, "chromiq_default", None)

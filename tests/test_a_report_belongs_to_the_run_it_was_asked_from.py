@@ -67,8 +67,18 @@ def _window_on(s, ti3, qapp):
     return dlg
 
 
-def _generate(dlg, monkeypatch, qapp):
+def _generate(dlg, monkeypatch, qapp, *, only_this=True):
+    """Press Generate report. *only_this*: first tick only the measurement
+    the window is on, which is how a user asks for a report of THIS run. K31
+    (Knut, 5801677743): a report is saved where its TICKED measurements
+    decide, from any window, so with every run's sheet ticked the press is a
+    report across the runs (in `<project>/reports/`), not this run's."""
     monkeypatch.setattr(dlg, "_say_generated", lambda saved, failed: None)
+    if only_this and dlg._report is not None:
+        mine = dlg._run_key(dlg._report)
+        dlg._hidden_runs = {dlg._run_key(r) for r in dlg._history
+                            if dlg._run_key(r) != mine}
+        dlg._sync_limit_controls()
     dlg._on_generate_report()
     qapp.processEvents()
 
@@ -110,10 +120,11 @@ def test_the_window_shows_the_measurement_it_was_opened_on(tmp_path, qapp,
 
 def test_a_report_generated_from_a_run_is_filed_in_that_run(tmp_path, qapp,
                                                             monkeypatch):
-    """Asked from run 2, written into run 2 — and NOTHING into run 1.
+    """Asked from run 2 (run 2 ticked), written into run 2 — and NOTHING
+    into run 1.
 
-    MUTATION: drop the `mine` filter from `_reports_to_generate` and this goes
-    red, because the history spans both runs.
+    MUTATION: file the report in the window's first loaded run rather than
+    where the ticks decide (`document_home`), and this goes red.
     """
     s, _proj, run1, run2 = _two_run_project(tmp_path, qapp)
     dlg = _window_on(s, run1.measurement_ti3, qapp)
@@ -245,9 +256,16 @@ def test_the_run_the_window_is_on_is_in_the_history_even_unsaved(tmp_path,
 # Generate: one report, per measurement, inside one run
 # ---------------------------------------------------------------------------
 
-def test_generate_never_crosses_a_run_boundary(tmp_path, qapp, monkeypatch):
-    """With the whole project's history loaded and shown, the button still
-    writes for one run: the one the window is on."""
+def test_generate_covers_what_is_ticked_across_runs(tmp_path, qapp,
+                                                    monkeypatch):
+    """K31 turned this test round (it was
+    `test_generate_never_crosses_a_run_boundary`). With the whole project's
+    history ticked, the press covers every ticked measurement, whichever run
+    the window was opened from (Knut, 5801677743: a report is saved where its
+    ticked measurements decide, from any window).
+
+    MUTATION: put the window's-own-run filter (`mine`) back into
+    `_reports_to_generate` and this goes red."""
     s, _proj, run1, run2 = _two_run_project(tmp_path, qapp)
     dlg = _window_on(s, run1.measurement_ti3, qapp)
     try:
@@ -265,7 +283,8 @@ def test_generate_never_crosses_a_run_boundary(tmp_path, qapp, monkeypatch):
         assert dlg._hidden_runs == set(), "the premise: the history is in"
         assert len(dlg._runs_for_document()) == 2, "the document lost the history"
         targets = dlg._reports_to_generate()
-        assert [r["_origin_dir"] for r in targets] == [str(run2.dir)], targets
+        assert sorted(r["_origin_dir"] for r in targets) == sorted(
+            [str(run1.dir), str(run2.dir)]), targets
     finally:
         dlg.close()
 
@@ -295,7 +314,7 @@ def test_every_date_of_one_run_still_gets_its_own_report(tmp_path, qapp):
     verifications are the run's, and a window holding several of them still
     writes one report per date."""
     from tests.test_import_measurement_module import _cgats, _PATCHES
-    from workflow.run_compliance import ensure_bound
+    from tests.helpers.legacy_run_meta import (ensure_bound)
     s, _proj, run1, _run2 = _two_run_project(tmp_path, qapp)
     run1.profile_icc.write_bytes(b"icc")
     dates = []
@@ -391,14 +410,18 @@ def test_two_runs_measured_in_the_same_second_are_two_rows(tmp_path, qapp,
     assert run1.dir != run2.dir
 
 
-def test_the_button_refuses_when_its_own_run_is_unticked(tmp_path, qapp,
-                                                         monkeypatch):
-    """FOUND BY THE ADVERSARY ROUND ON THE FIX ITSELF, on screen. Unticking the
-    row of the run you are standing in left Generate enabled over an empty
-    target list: pressing it wrote nothing and said nothing, which is the same
-    shape as the fault this file is about.
+def test_the_button_follows_the_ticks_not_the_windows_run(tmp_path, qapp,
+                                                          monkeypatch):
+    """FOUND BY THE ADVERSARY ROUND ON THE FIX ITSELF, on screen: a button
+    live over an empty target list wrote nothing and said nothing. That rule
+    stands. What K31 changed (it was
+    `test_the_button_refuses_when_its_own_run_is_unticked`) is that another
+    run's measurement ticked alone is NOT an empty target list any more: the
+    report of it is saved where it lives (Knut, 5801677743).
 
-    MUTATION: put `_runs_for_report` back in the enable line and this goes red.
+    MUTATION: put `_runs_for_report` back in the enable line (live with
+    nothing ticked), or the own-run filter back into `_reports_to_generate`
+    (greyed with run 1 ticked), and this goes red.
     """
     s, _proj, run1, run2 = _two_run_project(tmp_path, qapp)
     dlg = _window_on(s, run1.measurement_ti3, qapp)
@@ -414,15 +437,17 @@ def test_the_button_refuses_when_its_own_run_is_unticked(tmp_path, qapp,
         dlg._refresh()
         dlg._sync_limit_controls()
         qapp.processEvents()
-        assert dlg._runs_for_document(), "the control failed: nothing is loaded"
+        targets = dlg._reports_to_generate()
+        assert [r["_origin_dir"] for r in targets] == [str(run1.dir)], targets
+        assert dlg._generate_btn.isEnabled(), dlg._generate_btn.toolTip()
+        # ...and with NOTHING ticked the button is greyed, with its reason.
+        dlg._hidden_runs = {dlg._run_key(r) for r in dlg._history}
+        dlg._refresh()
+        dlg._sync_limit_controls()
         assert not dlg._reports_to_generate()
         assert not dlg._generate_btn.isEnabled(), (
             "the button is live over an empty target list")
-        # ...and ticking it back brings the button back.
-        dlg._hidden_runs.clear()
-        dlg._refresh()
-        dlg._sync_limit_controls()
-        assert dlg._generate_btn.isEnabled()
+        assert dlg._generate_btn.toolTip()
     finally:
         dlg.close()
 

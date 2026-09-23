@@ -71,7 +71,7 @@ result awaiting his confirmation. The other §20 gaps stay open.
 | §13.10 | Counts and list hold only the types the run type allows (K19) | 2026-09-23, 5785414710 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
 | §13.10 | The profile bar's Run type decides what the window lists and counts (K24) | 2026-09-23, 5787117741 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
 | §13.11 | Where a report lives, and which folders the list reads (K23) | 2026-09-23, 5787117741, 5787380408 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
-| §13.11 | Update moves an older report into the new place; Delete leaves each date's verdict record | 2026-09-23, 5789263863 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
+| §13.11 | Update moves an older report into the new place; Delete leaves each date's verdict record | 2026-09-23, 5789263863 | agreed; built, confirmed by Knut 2026-09-23 (5794311113). The records half is superseded by K31 (§25.1, §25.6): no record is written; records already on disk are read-only history |
 | §13.11 | "Save report as PDF" opens the report's own reports/ folder (K9) | 2026-09-22, 5781159382 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
 | §13.11 | A new report's PDF name carries that report's own time (K12) | 2026-09-22, 5781159382 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
 | §13.12 | "Report shown" grouped by run and by project (K25) | 2026-09-23, 5789263863, 5789532633 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
@@ -108,16 +108,17 @@ result awaiting his confirmation. The other §20 gaps stay open.
 | §19.3 | The one-page summary gives its numbers with their unit (K10) | 2026-09-22, 5781159382 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
 | §19.4 | The paper white line prints L\*, a\* and b\* (K5) | 2026-09-22, 5781159382 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
 | §19.5 | The verification pre-flight: only before the first measurement, a generic count (K2) | 2026-09-22, 5777667003, 5781159382, 5784377277 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
-| §19.6 | "Unlock this run's limits" is dim with fewer than two dated verifications | 2026-09-22, 5777805448 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
+| §19.6 | "Unlock this run's limits" is dim with fewer than two dated verifications | 2026-09-22, 5777805448 | superseded by K31 (§25.4): the box, the lock and the Preferences option are removed |
 | §19.7 | Before printing, say that a metric the chart cannot answer can be set to "-" | 2026-09-22, 5774104083 | agreed; built, confirmed by Knut 2026-09-23 (5794311113). Its layout ruling R2 is built in beta 39 (§21.3) |
 | §19.8 | Sheets with different patch counts: an information note, set apart from body text (R4) | 2026-09-22, 5774104083, 5781645939 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
 | §19.9 | A report type says which metrics it judges; "Restore defaults"; the per-type column cancelled | 2026-09-22, 5777326491 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) (the sentence has no test: gap G9) |
 | §19.10 | Restore Used Chart restores the chart's fields only | 2026-09-22, 5774852534, 5775260868 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
 | §19.11 | A per-target row a stored block lacks opens on its default | 2026-09-22, 5775260868 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
 | §19.12 | Knut's eight i1Pro presets built in (K1); the demo pack follows every rule (K15) | 2026-09-22, 5781159382, 5781197240, 5776517563; 2026-09-23, 5787117741 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
-| §19.13 | "New report…" on a bound run shows the run's own set, and says so | 2026-09-22, 5776479532 | agreed ("as you said and recommend"); built before beta 34, confirmed by Knut 2026-09-23 (5794311113) |
+| §19.13 | "New report…" on a bound run shows the run's own set, and says so | 2026-09-22, 5776479532 | superseded by K31 (§25.5): a run is never bound; New report starts on Preferences, unless the run has a default of its own chosen in Edit limits |
 | §22 | K28: the judged figures on the one-page summary; one vocabulary; a "–" row leaves everywhere; "For information (no limit applies)"; the general N-A rule; the several-runs Run description; B8-845's texts | 2026-09-23, 5795087247 | agreed; built in beta 39 (B8-849), NOT confirmed |
-| §24 | K30: every loaded report can be generated again and Update renames it; limits belong to the report across places; projects in two folders share the ChromIQ folder's reports/; a lone project's heading; the words of a report across places and of a calibration | 2026-09-23, 5798461562 | agreed; built in beta 39 (B8-852 to B8-859), NOT confirmed; the one-run limits window is an open question (B8-853) |
+| §24 | K30: every loaded report can be generated again and Update renames it; limits belong to the report across places; projects in two folders share the ChromIQ folder's reports/; a lone project's heading; the words of a report across places and of a calibration | 2026-09-23, 5798461562 | agreed; built in beta 39 (B8-852 to B8-859), NOT confirmed; the one-run limits window, asked in B8-853, is decided by K31 (§25.3) |
+| §25 | K31: a report is the only thing (no verdict records); Update and New report from any window; a widened one-date report becomes a report of those dates; the limit set belongs to the report, one set always; "Unlock this run's limits" and the run lock removed; New report starts on Preferences unless the run has its own default | 2026-09-23, 5801677743 (our 5798697107, 5801707986) | ruled by Knut; built in beta 40 (B8-890 to B8-899), the built result ⏳ awaiting confirmation |
 | §20 | Rulings not built, or built without a test or proof (G1 to G13) | 2026-09-22 to 2026-09-23 | gaps, listed one by one |
 
 Related documents: `unified_measurement_management.md` (the life of a
@@ -466,6 +467,8 @@ no verdict cannot tell whether something is wrong.
 > still ⏳ awaiting confirmation, and the marker above says so.
 
 ## 5. Where the set lives, and when it may change
+
+> **SUPERSEDED by K31 (§25, Knut, #182 [5801677743](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5801677743), beta 40).** A run is no longer bound to a set, nothing is locked, and nothing in this section binds, locks, unlocks or recalculates any more. The limit set belongs to the report; a profile run holds at most its own default for new reports, chosen in Edit limits. What is below is kept as the history of the rule and of what an older meta.json may still carry (`compliance_bound_at`, `compliance_unlocked`, a stored copy), which this build reads and never sets (a meta.json it saves carries them empty).
 
 > ### ⏳ SUPERSEDED 2026-09-17, AWAITING IMPLEMENTATION: a set change may no longer recalculate a saved report
 >
@@ -2219,6 +2222,12 @@ What was built:
   rows and recalculation read the records exactly as they read every report
   file before.
 
+  > **SUPERSEDED by K31 (§25, Knut, #182 [5801677743](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5801677743), beta 40).** A report of several measurements writes its one document
+  > file and nothing into the measurements' folders: no verdict record, in
+  > any run. The document file carries each measurement's verdict
+  > (`judged`). Records an earlier ChromIQ wrote are read-only history
+  > (§25.6). ⏳ Awaiting confirmation. **Confirmed by:** *nobody yet.*
+
   > **SUPERSEDED IN PART by G7 (§13.13, beta 39) for a report ACROSS
   > PLACES** (several profile runs, or several projects), after Knut's
   > 5773668311 and [5794311113](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5794311113): *"the report's own limit set applies to every
@@ -2258,6 +2267,13 @@ What was built:
 * **Delete Selected Report** of a report with a document file moves that one
   file, into `verifications/old/<stamp>/` or `<project>/old/<stamp>/` (§13.2
   L.7); the verdict records stay in their dates.
+
+  > **SUPERSEDED by K31 (§25, Knut, #182 [5801677743](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5801677743), beta 40).** An Update writes no record and moves, rewrites or
+  > archives none; a measurement taken out of a report keeps its own
+  > report of one date and nothing else; Delete moves the one document file
+  > and leaves the dates as they are (there is nothing of the report in
+  > them). A report of one date that an Update widens becomes a report of
+  > those dates (§25.2). ⏳ Awaiting confirmation. **Confirmed by:** *nobody yet.*
 * **Legacy.** Nothing is moved or rewritten by opening a project. A report of
   several dates written before this (one file per date, one id, no role) is
   listed and counted once, from the dates it covers. An Update of such a
@@ -2330,6 +2346,9 @@ What was built:
   `test_a_deleted_document_leaves_its_records_unlisted_and_uncounted`,
   `test_a_legacy_document_of_several_dates_counts_once_and_stays`.
 * **Proof:** `~/Desktop/ChromIQ-beta37-proof/report-folders/`.
+* **Superseded in part by K31 (§25.1, Knut [5801677743](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5801677743)):** "leaves each
+  date's verdict record" no longer applies to a report made from beta 40 on,
+  which writes none. The confirmation below is of the rule as it was.
 * **Status:** agreed; the built result is confirmed. **Confirmed by:** Knut, 2026-09-23 (#182 comment [5794311113](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5794311113)).
 
 **Record (K9: the PDF folder).**
@@ -2563,6 +2582,11 @@ What was built:
   gets none and keeps its own recorded verdict. Nothing is written into
   another run's folder, and nothing into any `cal/` for a report across
   projects. No run is bound, re-bound or unlocked by any of this.
+
+  > **SUPERSEDED by K31 (§25, Knut, #182 [5801677743](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5801677743), beta 40).** No record is written into any folder, the window's own
+  > run included: Knut, *"When a report covers more than one run or
+  > project, should GENERATE REPORT write anything into the dates' own
+  > folders? Answer: no."* ⏳ Awaiting confirmation. **Confirmed by:** *nobody yet.*
 * **Update, Create New, Delete, archiving** as before, all or nothing:
   Update rewrites the document file in place with its previous content in
   `reports/old/<stamp>/` first (D23), or moves it when its home changes;
@@ -2584,6 +2608,9 @@ What was built:
   **SUPERSEDED by K30 (§24.3, Knut 5798461562):** the limits button is live
   and edits the REPORT's own limits ("This report"); "Unlock this run's
   limits" stays greyed. ⏳ Awaiting confirmation. **Confirmed by:** *nobody yet.*
+  **SUPERSEDED by K31 (§25.3, §25.4):** the same with ONE profile run
+  loaded, and "Unlock this run's limits" is removed. ⏳ Awaiting confirmation.
+  **Confirmed by:** *nobody yet.*
 * **One measurement, one row.** A profiling sheet gathers every run's sheet
   of its project; a second source that gathers a sheet already loaded no
   longer lists it twice.
@@ -4209,6 +4236,12 @@ proposed in `unified_measurement_management.md`.
 
 ### 19.6 "Unlock this run's limits" with fewer than two dated verifications
 
+> **SUPERSEDED by K31 (§25, Knut, #182 [5801677743](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5801677743), beta 40).** *"I agree that the 'Unlock this run's limits' is no longer
+> needed"*: the box, its help icon, its two question windows, the run lock
+> and the Preferences option "Allow editing of thresholds after the first
+> verification measurement" are removed (§25.4). The record below is the
+> history of the rule; the tests it names are retired.
+
 **Record.**
 * **Rule:** *"Since there is only one dated verification, and the judged
   agains selection box is editable, it does not make sense to allow to unlock.
@@ -4390,6 +4423,12 @@ proposed in `unified_measurement_management.md`.
 * **Status:** agreed; the built result is confirmed. **Confirmed by:** Knut, 2026-09-23 (#182 comment [5794311113](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5794311113)).
 
 ### 19.13 "New report…" on a bound run shows the run's own set
+
+> **SUPERSEDED by K31 (§25, Knut, #182 [5801677743](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5801677743), beta 40).** No run is bound. *"the starting choice for 'New report...'
+> should be the the defaults in preferences -> reports first, then the
+> default in the Edit limits for that run, if it changed to be different
+> from the preferences default"* (§25.5). An older run's bound set is read
+> as that run's own default for new reports.
 
 **Record.**
 * **Rule:** Preferences supplies the default when the run has no bound set; a
@@ -4883,6 +4922,10 @@ Choosing another set in "Judged against" drops the edited numbers.
 > change behaviour Knut confirmed on 2026-09-23 (§19.6 "Unlock this run's
 > limits", §19.13 "New report… on a bound run shows the run's own set"), which
 > this round may not decide. It is asked of him (B8-853).
+>
+> **DECIDED by K31 (§25.3, Knut [5801677743](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5801677743)):** with one profile run
+> loaded too, the limits window is the report's ("This report"), and
+> "Judged against" binds nothing. §19.6 and §19.13 are superseded with it.
 
 **24.4 Projects in two folders share the ChromIQ folder's `reports/`.** *"I
 propose that the ChromIQ default folder is always used, in this situation, no
@@ -4991,3 +5034,192 @@ found them false. Awaiting confirmation with the rest of this section.
 (`report_title_calibration`); `ui/dialogs/settings_dialog.py`;
 `ui/file_guide.py`; the demo generators (B5).
 **Status:** agreed; built in beta 39 (B8-852 to B8-859), NOT confirmed.
+
+## 25. K31: a report is the only thing there is, and its limit set is its own (#182, 2026-09-23, beta 40)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+**Ruled by:** Knut, #182
+[5801677743](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5801677743)
+(2026-09-23), answering our post
+[5798697107](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5798697107)
+(sections 0b, 0c, 0d, 1, 2 and 8) and our reply 5801707986; and
+[5801750910](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5801750910)
+for the help texts. Where he answered *"Agreed."* to a proposal of ours, the
+proposal is his ruling from that day and is quoted as such; what was BUILT from
+it (B8-890 to B8-899) waits for his confirmation, and so do the decisions in
+§25.6, which are ours. Proof: `~/Desktop/ChromIQ-beta40-proof/k31-a-report-model/`
+(REPORT.md; on screen, English and German, with file listings, size and sha1,
+before and after every press). Tests: `tests/test_k31_report_model.py`, each
+proved red on the mutation in its docstring (`mutations.txt` in the proof
+folder).
+
+This section SUPERSEDES: §5 (a run bound to a set, the lock, the
+recalculation), the K23 verdict records of §13.11 (and the "Delete leaves each
+date's verdict record" half of its K25 record), the G7 records and the
+"window's own run" rule of §13.13, §19.6 ("Unlock this run's limits"), §19.13
+("New report…" on a bound run) and the open one-run clause of §24.3 (B8-853).
+
+**25.1 A report is the only thing (sections 1 and 8 of our post).**
+* *"Should a report of several measurements stop writing verdict records
+  altogether?"* **Agreed.** *"When a report covers more than one run or
+  project, should GENERATE REPORT write anything into the dates' own
+  folders?"* **Answer: no.**
+* Built: a report of ONE measurement is one file in that measurement's own
+  `reports/` folder, as before. A report of SEVERAL is one document file in
+  the folder `document_home` names (§13.11, §24.4), and each of its
+  measurement entries carries that measurement's verdict against the report's
+  set (`judged`: `pass_thresholds`, `compliance`, `verdict`). Nothing is
+  written into the measurements' own folders, in any run or project.
+* The report ChromIQ writes by itself after a measurement is that date's own
+  report of one date, with the starting choice's settings (§25.5). A
+  measurement binds nothing and writes nothing into the run's `meta.json`.
+* Everything that read "the newest file in a date's folder" (the date's own
+  row, the trend graph, the bar, "Already generated") reads the date's own
+  report: a verdict record is never that file (§25.6).
+
+**25.2 Update and New report from any window (section 0b / 0d).**
+* *"With a report selected, may GENERATE REPORT > Update rewrite that report
+  where it lives, whichever profile run the window was opened from?"*
+  **Agreed.** *"With 'Create New', or 'New report...', and only another run's
+  dates ticked, may the new report be saved where those dates decide?"*
+  **Agreed.**
+* Built: the filter that kept only the window's own run's rows is gone. What
+  Generate covers is what is ticked; where it saves is decided by the ticks.
+  It is still refused (greyed, with its reason) for: nothing ticked, a
+  measurement outside every ChromIQ project in a report across places, and
+  under Calibration a measurement that is not a calibration.
+* Knut's case, driven: a window opened from run 2, run 1 added, run 1's
+  report of one date selected, only that date ticked, Update: that report is
+  rewritten in run 1's own `reports/` folder, its previous version in
+  `reports/old/<stamp>/`, and no other file anywhere changes.
+* *"that is the logical thing, if a user chooses to update the automatically
+  created reports of one date."* A report of one date updated to cover more
+  dates becomes a report of those dates: it keeps its id, it is written where
+  the dates decide, its name follows ("Multiple dates", "All dates", or the
+  run and project names across places), and its one-date file is archived
+  into that date's `reports/old/<stamp>/` and taken out of the live folder,
+  never deleted.
+
+**25.3 The limit set belongs to the report (section 0c; G7 Q2).**
+* *"changing the reports settings does not change the report, and its
+  binding to a limit set, unless you click Generate Report"*; *"Go for option
+  (a) One set for the whole report, always."*
+* Built: "Judged against" and "Edit limits…" change only the settings of the
+  report shown, in memory; the red line says to press Generate report, and
+  nothing is judged again or written until then. The limits window always
+  opens on the report's own column, "This report", beside every set, with the
+  "Used for this report" row choosing its set, whether one profile run or many
+  are loaded. Every ticked measurement is judged against the report's one
+  set, within one run too: a date whose own report was judged against another
+  set is judged again against the report's set on the page and in the file.
+* Closing the limits window with nothing of the report's changed leaves the
+  report's settings as they were: a "Judged against" change made before
+  opening it still counts, the red line stays, and Generate asks the
+  "settings changed" question (found on screen in the beta 40 drive, where
+  the close re-rendered the page and took the change as the new baseline).
+* What the window may still write, neither of which is a report's setting:
+  which COLUMNS the limits window shows (a view setting remembered per profile
+  run, K-b), and the run's own default for new reports (§25.5).
+
+**25.4 "Unlock this run's limits" and the run lock are removed (section 2).**
+*"I agree that the 'Unlock this run's limits' is no longer needed."*
+
+* **What the lock protected.** Until K31 a profile run was BOUND to a limit
+  set at its first verification (a copy of the set's numbers in
+  `runs/runN/meta.json`) and LOCKED from its second, so every dated
+  verification of the run was judged against the same numbers and the run's
+  history stayed comparable: a later change of "Judged against" could not
+  quietly make an old date's PASS a FAIL, because the only way to change the
+  set was the unlock box and its question, which recalculated (and, after
+  2026-09-17, archived) the saved reports.
+* **Why it is no longer needed.** Comparability is now a property of the
+  REPORT, not of the run. A report carries its own set and the verdicts it
+  gave (§25.1), judges every measurement it covers against that one set
+  (§25.3), and is never recalculated by a later change of any set (Knut,
+  2026-09-17, §5's banner). So the dates inside one report are compared on
+  the same numbers by construction, and a saved report cannot be changed by
+  anything but its own Update. With no verdict records left in the dates
+  (§25.1) there is no second copy of a verdict that a set change could make
+  disagree with the report.
+* **What was removed.** The checkbox "Unlock this run's limits" and its help
+  icon; the two question windows it raised (recalculate the run's saved
+  reports, put the lock back); the Preferences option "Allow editing of
+  thresholds after the first verification measurement" (`compliance_allow_
+  edit_after_measurement`, no longer written or read); the binding of a run
+  at its first verification (`bind_run`, `ensure_bound`); the lock
+  (`is_locked`, `may_unlock`, `set_run_unlocked`) and the run's own edited
+  column (`set_run_limits`); the recalculation of a run's saved reports; and
+  every sentence about binding and locking in the tooltips, the help icons,
+  the window guide, the Dictionary ("Bound (a run's limits)", "Locked /
+  Unlock this run's limits"), the verification card and Preferences.
+* **What a user loses.** (1) A run no longer forces its dates onto one set:
+  if the Preferences default changes between two measurements, the automatic
+  reports of those two dates are judged against different sets. Each is
+  still that date's own report, saying what it was judged against, and any
+  report of both judges both against one set. A run's own default (§25.5)
+  keeps one run's new reports on one set when that is wanted. (2) A run
+  cannot carry edited numbers of its own any more: edited numbers belong to
+  a report ("This report"), or to a Custom set in Preferences for use across
+  reports. An older run's edited copy is still read, as that run's starting
+  numbers, until a default is chosen for it in Edit limits. (3) Nothing stops
+  a user making a report of a run's dates against another set; that is the
+  point of the ruling, and the reports already saved are not changed by it.
+* **Old files.** A `meta.json` written by an earlier ChromIQ reads without
+  error: `compliance_bound_at` and `compliance_unlocked` are ignored, a stored
+  set is the run's default for new reports, and its stored copy is used as
+  that default's numbers.
+
+**25.5 Where "New report…" starts.** *"the starting choice for 'New
+report...' should be the the defaults in preferences -> reports first, then
+the default in the Edit limits for that run, if it changed to be different
+from the preferences default."*
+* The limit set: the run's own default when it has one, else the Preferences
+  default set. The run's own default is chosen in the Report limits window's
+  row **"Default for this run"**, shown when the window is opened from a
+  report of one profile run (with several runs loaded there is no one run to
+  give a default to). Choosing the same set as the Preferences default clears
+  the run's own, so the run follows Preferences again. The row writes only
+  that run's `meta.json`; no report changes. The Preferences row is now
+  called **"Default for new reports"** (it was "Default for new runs").
+* The report type: always the Preferences default ("Report type, default"),
+  fitted to the kind of measurement. A run's stored type (an earlier
+  ChromIQ's) is read only to name a report that recorded no type of its own.
+* The same starting choice is what the automatic report after a measurement
+  uses (§25.1).
+* The "Judged against" tooltip under "New report…" says which applies: the
+  run's own default and where it was chosen, and the Preferences one.
+
+**25.6 Decisions of ours under the ruling, for Knut to confirm.**
+* **Records already on disk are read-only history.** A verdict record written
+  by betas 37 to 39 is never a date's own row, never listed or counted, and
+  never rewritten, moved, archived or deleted, not even by an Update of the
+  report it belongs to (which then carries every verdict itself). It still
+  speaks for its report while that report is loaded and has not been
+  updated, as before. Deleting a record would lose a verdict a customer may
+  have been given; moving it would change nothing the user sees.
+* A Profiling window whose default ticks cover every run's sheet makes a
+  report across runs when Generate is pressed without changing the ticks
+  (its home is the project's `reports/`), as K25 asked of the ticks.
+* A "New report…" whose ticks are all another run's starts on the window's
+  run's own default, because that is the run the window was opened from.
+* The refusal to delete the only saved report of a dated verification (the
+  date's own report is its result) is unchanged.
+
+**Built:** `workflow/run_compliance.py` (`run_limits`, `set_run_default_set`,
+`run_default_set_id`, `new_report_type`; the binding and the lock removed);
+`ui/dialogs/measurement_report_dialog.py` (`_reports_to_generate`,
+`_write_the_document`, `_judged_by_the_document`, `_one_limit_set`,
+`_report_limits`, `_on_set_chosen`, `_open_report_limits_window`,
+`_sync_limit_controls`, `_on_type_chosen`, `_report_type_now`,
+`_one_row_per_measurement`; the unlock box, its questions and
+`_recalculate_run` removed); `ui/dialogs/thresholds_dialog.py`
+(`ReportLimitsColumn`, the "Default for this run" row); `ui/tabs/tab_measure.py`
+(`_report_limits_for`); `ui/dialogs/settings_dialog.py`, `core/settings.py`
+(the option removed); the help texts of `ui/dialogs/welcome_dialog.py`,
+`ui/file_guide.py` and `workflow/measurement_messages.py`
+(M-VERIFY-UNCHECKED-METRICS, still PROPOSED); the demo generators.
+**Status:** ruled by Knut (5801677743); built in beta 40 (B8-890 to B8-899),
+the built result ⏳ awaiting confirmation, and §25.6 awaiting his decision.

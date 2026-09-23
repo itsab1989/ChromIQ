@@ -76,7 +76,8 @@ def _messy_project(tmp_path, dates=2):
                                                       _verify_env)
     from workflow.measurement_report import (build_report, save_report,
                                              stamp_verdict)
-    from workflow.run_compliance import bind_run, run_limits
+    from workflow.run_compliance import (run_limits)
+    from tests.helpers.legacy_run_meta import (bind_run)
     import os as _os
     import time as _time
     s, fm, _ctl, run = _verify_env(tmp_path)
@@ -215,10 +216,12 @@ def _only_this_measurement(dlg, qapp):
 def test_one_press_of_generate_writes_one_document(tmp_path, qapp):
     """His number, exactly: two files became four and the list grew by two.
 
-    It still writes a file per measurement, and the list grows by ONE.
+    Since K31 (Knut, 5801677743: no verdict records) one press writes ONE
+    file, the report of both dates in `run1/verifications/reports/`, nothing
+    in either date's folder, and the list grows by ONE.
 
-    MUTATION, to be proved to land: drop the `stamp_document` call from
-    `_on_generate_report` and this goes red (the list grows by two).
+    MUTATION: write a verdict record into each date again (a file per
+    measurement), and this goes red.
     """
     s, _fm, run, vs = _messy_project(tmp_path, dates=2)
     dlg = _dialog(s, vs[-1].measurement_ti3, qapp)
@@ -232,8 +235,10 @@ def test_one_press_of_generate_writes_one_document(tmp_path, qapp):
         dlg._on_generate_report()
         qapp.processEvents()
         after_files = _files(run)
-        assert len(after_files) == 6, (
-            "one press should still file a verdict per measurement")
+        assert after_files == before_files, (
+            "a report of two dates wrote into the dates' own folders")
+        home = run.verifications_dir / "reports"
+        assert len(list(home.glob("report_*.json"))) == 1
         assert _count(dlg) == before_entries + 1, (
             f"one press of Generate added {_count(dlg) - before_entries} "
             f"entries to the list")
@@ -258,13 +263,10 @@ def test_the_document_records_what_it_was_made_with(tmp_path, qapp):
         before = set(_files(run))
         dlg._on_generate_report()
         qapp.processEvents()
-        written = sorted(set(_files(run)) - before)
-        assert len(written) == 2, written
-        docs = [json.loads(Path(p).read_text(encoding="utf-8"))["document"]
-                for p in written]
-        assert len({d["id"] for d in docs}) == 1, (
-            "the two files of one press are not one document")
-        d = docs[0]
+        assert set(_files(run)) == before, "K31: nothing in the dates' folders"
+        written = sorted((run.verifications_dir / "reports").glob("report_*.json"))
+        assert len(written) == 1, written
+        d = json.loads(written[0].read_text(encoding="utf-8"))["document"]
         assert d["type"]
         assert d["compliance"]["set_id"] == "chromiq_default"
         assert d["compliance"]["thresholds"]
@@ -279,6 +281,8 @@ def test_the_document_records_what_it_was_made_with(tmp_path, qapp):
             "document block")
         assert len(d["measurements"]) == 2, d["measurements"]
         assert all(m["dir"] and m["created"] for m in d["measurements"])
+        # …AND EACH DATE'S VERDICT IN THIS REPORT, since no record carries it.
+        assert all(m.get("judged") for m in d["measurements"])
     finally:
         dlg.close()
 
@@ -554,7 +558,7 @@ def test_the_window_is_laid_out_the_way_knut_drew_it(tmp_path, qapp):
         for w in (dlg._add_btn, dlg._profile_list, dlg._list_label,
                   dlg._type_combo, dlg._set_combo, dlg._limits_btn,
                   dlg._select_all_btn, dlg._deselect_all_btn,
-                  dlg._detail_check, dlg._unlock_check):
+                  dlg._detail_check):
             assert dlg._settings_box.isAncestorOf(w), (
                 f"{w.objectName() or w.__class__.__name__} is outside the "
                 f"Report settings frame")
@@ -638,12 +642,11 @@ def test_delete_moves_every_file_of_the_document(tmp_path, qapp):
     goes to the RUN's `verifications/old/`, and nothing is destroyed.
 
     **K23 (Knut, 2026-09-23): what moves is the DOCUMENT FILE.** A document of
-    several dates lives in `runN/verifications/reports/`, and each date keeps
-    its own verdict record, which "is not a report": it stays in the date's
-    folder, so the date keeps its verdict after the report is deleted.
+    several dates lives in `runN/verifications/reports/`. Since K31 it is the
+    report's only file: nothing was written into the dates, so nothing is left
+    there, and each date keeps its own report of one date.
 
-    MUTATION: `unlink` instead of moving, move the records with it, or move
-    nothing, and this goes red.
+    MUTATION: `unlink` instead of moving, or move nothing, and this goes red.
     """
     s, _fm, run, vs = _messy_project(tmp_path, dates=2)
     dlg = _dialog(s, vs[-1].measurement_ti3, qapp)
@@ -656,7 +659,7 @@ def test_delete_moves_every_file_of_the_document(tmp_path, qapp):
         dlg._on_generate_report()
         qapp.processEvents()
         written = sorted(set(_files(run)) - before)
-        assert len(written) == 2, written
+        assert written == [], written
         doc_files = sorted(home.glob("report_*.json"))
         assert len(doc_files) == 1, doc_files
         rows = {d["key"]: n for n, d in enumerate(
@@ -825,56 +828,7 @@ def test_a_report_that_records_no_document_still_restores_what_it_records(
         dlg.close()
 
 
-def test_a_generated_document_is_never_recalculated(tmp_path, qapp, monkeypatch):
-    """Knut, 2026-09-18: *"Agreed. D23 stands."* and *"It is better that
-    existing reports are not overwritten."*
-
-    A document records the settings it was made with and is named after them,
-    so a recalculation that re-judged it against another set would make its own
-    record false and its own name a lie. That is the photograph in B8-384: an
-    entry reading "ChromIQ tight" over a page still reading "ChromIQ default".
-
-    **THROUGH THE REPORT LIMITS WINDOW'S SAVE, WHICH IS WHERE A RECALCULATION
-    STILL HAPPENS.** This test has now been re-aimed twice, and each time
-    because Knut closed the door it was driving. It drove the "Judged against"
-    pulldown until B8-384, then the unlock tick box until B8-391 (*"All dated
-    reports shall NOT be recalculated"*). One door is left, the Save in the
-    Report limits window, and it is B8-310: whether Knut's N.3 reaches it too
-    is still an open question for him and nothing here assumes an answer.
-
-    The second half is what stops it passing by accident: the legacy report,
-    which carries no document block, IS rewritten on this door, so the run
-    really was recalculated.
-
-    MUTATION: drop the `recorded_document` guard from `_recalculate_run` and
-    this goes red.
-    """
-    s, _fm, run, vs = _messy_project(tmp_path, dates=1)
-    s.set("compliance_allow_edit_after_measurement", True)
-    dlg = _dialog(s, vs[0].measurement_ti3, qapp)
-    dlg._confirm = lambda t, b: True
-    try:
-        before = set(_files(run))
-        dlg._on_generate_report()
-        qapp.processEvents()
-        written = sorted(set(_files(run)) - before)
-        assert len(written) == 1, written
-        was = Path(written[0]).read_bytes()
-        legacy = sorted(before)
-        legacy_was = {p: Path(p).read_bytes() for p in legacy}
-        # the app's own door: unlock the run (which recalculates nothing,
-        # B8-391), then edit one of its numbers in the Report limits window and
-        # close it, which is the recalculation §5 and D23 describe.
-        dlg._unlock_check.setChecked(True)
-        qapp.processEvents()
-        from tests.test_report_window_limit_controls import \
-            _edit_the_runs_numbers
-        _edit_the_runs_numbers(dlg, monkeypatch, value=0.2)
-        qapp.processEvents()
-        assert Path(written[0]).read_bytes() == was, (
-            "the generated document was recalculated")
-        assert any(Path(p).read_bytes() != legacy_was[p] for p in legacy), (
-            "nothing was recalculated at all, so this proves nothing about "
-            "the guard")
-    finally:
-        dlg.close()
+# RETIRED BY K31 (beta 40): `test_a_generated_document_is_never_recalculated`.
+# The door it drove (_recalculate_run through the Report limits window's
+# Save) is removed (K31): no limit change recalculates any report;
+# tests/test_k31_report_model.py pins that Edit limits writes nothing.

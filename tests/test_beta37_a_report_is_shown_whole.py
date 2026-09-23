@@ -135,19 +135,19 @@ def test_picking_the_report_in_the_list_loads_it_whole_and_writes_nothing(
 def test_update_of_the_cross_run_report_keeps_both_dates(tmp_path, qapp):
     """G7 (#182 beta 39): the Update that A-F1 had to forbid now rewrites the
     document across both runs, in place, with its old file archived first
-    (D23), and the dates' verdict records keep their verdicts.
+    (D23). K31: the dates' own folders are not touched at all, records an
+    earlier ChromIQ wrote included (read-only history).
 
-    MUTATION, proven red: take `across` as False in `_write_the_document`
-    (the Update is written the one-place way: a record into run2's date only
-    and the document file rewritten without a verdict per date)."""
+    MUTATION: write a record into a date again, or leave `JUDGED_KEY` off
+    the document's measurements, and this goes red."""
     from workflow.measurement_report import JUDGED_KEY, recorded_document
     s, run1, run2, v1, v2, doc_path, doc_id = \
         _two_runs_and_a_report_across_them(tmp_path)
     # THE OTHER RUN'S date (the window is on run2): nothing is written there.
     verdicts = {}
-    for f in (v1.dir,):
+    for f in (v1.dir, v2.dir):
         for p in (f / "reports").glob("report_*.json"):
-            verdicts[str(p)] = json.loads(p.read_text(encoding="utf-8")).get("verdict")
+            verdicts[str(p)] = p.read_bytes()
     dlg = _dialog(s, v2.measurement_ti3, qapp)
     try:
         assert dlg._loaded_doc_id == f"id:{doc_id}"
@@ -167,11 +167,10 @@ def test_update_of_the_cross_run_report_keeps_both_dates(tmp_path, qapp):
     assert list((Path(doc_path).parent / "old").glob("*/report_*.json")), (
         "the document file was rewritten without a copy in reports/old")
     for p, v in verdicts.items():
-        assert json.loads(Path(p).read_text(encoding="utf-8")).get("verdict") == v, (
-            f"{p} changed its verdict")
-    # …and the window's own date's record, rewritten under the same set as
-    # its run's (K23 as before), was copied into its reports/old first (D23).
-    assert list((v2.dir / "reports" / "old").glob("*/report_*.json"))
+        assert Path(p).read_bytes() == v, f"{p} was touched by the Update"
+    for f in (v1.dir, v2.dir):
+        assert not list((f / "reports" / "old").glob("*/report_*.json")), (
+            f"the Update archived something in {f}, which it never wrote")
     shared = sorted(Path(doc_path).parent.glob("report_*.json"))
     assert shared == [Path(doc_path)], shared
 

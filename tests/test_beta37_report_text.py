@@ -8,6 +8,8 @@ printed test chart".
 """
 from __future__ import annotations
 
+from tests.helpers import legacy_run_meta
+from tests.helpers.report_window import choose_report_type
 import html as _html
 import json
 import os
@@ -66,7 +68,7 @@ def test_the_report_neither_speaks_to_the_reader_nor_explains_chromiq(
     dlg = MeasurementReportDialog(_settings(tmp_path), None, initial_ti3=ti3)
     try:
         if which == "full":
-            rc.set_run_report_type(run, mr.REPORT_TYPE_FULL)
+            choose_report_type(dlg, mr.REPORT_TYPE_FULL)
             dlg._forget_limits()
             dlg._sync_limit_controls()
         # the printing block names the route; put the one K18 is about on it
