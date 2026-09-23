@@ -1412,18 +1412,28 @@ _IDENTICAL_TO_KEY = {
     # catalogue. German by hand, does not move; each of the twelve others
     # rises by exactly 8 (20 new English placeholders, 12 old ones gone).
     # COUNTED off the tree, BOTH ledgers in the same commit.
-    "de": 142,
-    "es": 1121,
-    "fr": 1143,
-    "it": 1132,
-    "ja": 1107,
-    "nl": 1148,
-    "no": 1133,
-    "pl": 1125,
-    "pt": 1123,
-    "ru": 1096,
-    "sv": 1134,
-    "zh_CN": 1101,
+    # RE-MEASURED 2026-09-23, #182 K30 (Knut 5798461562; challenge rounds
+    # A and B of beta 39): 25 new keys and 8 retired (texts rewritten for the
+    # report across places, the calibration title and scope, the report's own
+    # limits, the ChromIQ folder's reports/, and the report text that
+    # explained ChromIQ). German by hand, and its count FALLS by one: the
+    # Report limits intro was English in de.json and is German now. Each of
+    # the twelve others rises by exactly 20 (25 English placeholders in, 5
+    # English echoes out; 3 of the 8 retired keys were translated there).
+    # COUNTED off the tree with this file's own expression, BOTH ledgers in
+    # the same commit.
+    "de": 141,
+    "es": 1141,
+    "fr": 1163,
+    "it": 1152,
+    "ja": 1127,
+    "nl": 1168,
+    "no": 1153,
+    "pl": 1145,
+    "pt": 1143,
+    "ru": 1116,
+    "sv": 1154,
+    "zh_CN": 1121,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1451,7 +1461,7 @@ _IDENTICAL_TO_KEY = {
     # Nothing else changed. The ceiling is re-measured DOWN here rather than
     # left where it was, so the next rise still has to justify itself.
     # +8 on 2026-09-23 for #182 S-2, the same eight as every other language.
-    "uk": 1337,
+    "uk": 1357,
 }
 
 

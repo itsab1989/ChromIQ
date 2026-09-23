@@ -268,8 +268,11 @@ def test_the_banner_is_a_comparison_and_not_a_flag(tmp_path, qapp):
     dlg, _run, _fm = _dialog(tmp_path, qapp, dates=2)
     try:
         first = dlg._doc_settings()
-        assert len(first) == 4, (
+        # FIVE since K30: the report's own limits (across places) are the
+        # last element, "" here. "Show all measurement runs" stays out.
+        assert len(first) == 5 and first[4] == "", (
             "“Show all measurement runs” is back in the snapshot: " + repr(first))
+        assert all(not isinstance(x, bool) for x in first[3:]), repr(first)
         assert dlg._doc_built_with == first
         _toggle_a_measurement_tick(dlg)
         qapp.processEvents()

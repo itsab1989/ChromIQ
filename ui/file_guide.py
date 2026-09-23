@@ -200,9 +200,14 @@ def _structure():
             "The folder your project folders live in: ~/ChromIQ, or your "
             "custom output folder from Settings. Beside the projects it can "
             "hold two folders of its own, made only when they are needed.")),
+        # #182 K30 (Knut, 5798461562): projects kept in different folders
+        # share this folder's reports/, *"no matter if one of the projects,
+        # or both, are kept is sub folders of ChromIQ default folder"*.
         (1, "reports/", tr(
             "Measurement reports that cover measurements of more than one "
-            "project.")),
+            "project. When those projects are not side by side in one "
+            "folder, their report is always kept here, whichever folders the "
+            "projects are in.")),
         (1, "old/", tr(
             "Reports across several projects that were removed with "
             "\u201cDelete Selected Report\u201d, each in a folder named with "

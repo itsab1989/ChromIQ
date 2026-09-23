@@ -240,10 +240,12 @@ def test_two_runs_loaded_the_pulldown_chooses_the_reports_set(qapp, tmp_path):
     """G7 (#182 beta 39). With two profile runs loaded, "Judged against"
     chooses the REPORT's own set (Knut, 5794311113: *"the report's own limit
     set applies to every included measurement, whatever each run is bound
-    to"*) and binds no run; "Show limits…" and "Unlock this run's limits"
-    stay greyed, because limits are edited for one run at a time.
+    to"*) and binds no run. "Unlock this run's limits" stays greyed.
 
-    Before G7 this test asserted all three greyed.
+    Before G7 this test asserted all three greyed. SINCE K30 (Knut,
+    5798461562: *"all settings belong to a report, not a specific run"*)
+    the limits button is LIVE and reads "Edit limits…": it edits the
+    report's own limits (`tests/test_k30_rulings.py`).
 
     MUTATION, proven red: drop the `if self._several_runs():` early return in
     `_on_set_chosen` (the window's run is re-bound to the chosen set)."""
@@ -255,7 +257,8 @@ def test_two_runs_loaded_the_pulldown_chooses_the_reports_set(qapp, tmp_path):
         dlg._add_source(ti3s2[-1], origin=ti3s2[-1])
         assert len(dlg._distinct_run_dirs()) == 2
         assert dlg._set_combo.isEnabled()
-        assert not dlg._limits_btn.isEnabled()
+        assert dlg._limits_btn.isEnabled()
+        assert dlg._limits_btn.text() == "Edit limits…"
         assert not dlg._unlock_check.isEnabled()
         assert "judges every measurement" in dlg._set_combo.toolTip()
         assert "more than one place" in dlg._limits_btn.toolTip()

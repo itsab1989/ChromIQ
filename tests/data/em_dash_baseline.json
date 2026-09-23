@@ -95,7 +95,6 @@
   "A profile describes how your printer behaved on the day you measured. Ink ages, paper batches differ, printheads drift — a check tells you whether the profile still holds, with numbers instead of a feeling.",
   "A profile here turns on the \"look-based\" colour sets — skin tones, blues, greens, sunrises, pastels and From image — for multi-ink printers (CMYK and CMYK + extra inks). You don't need one to make a chart; it only adds these extra sets. Here's the full picture, and why each step makes a better profile.\n\nThe catch with multi-ink printers: a colour like \"skin\" or \"sky blue\" can be mixed from many different ink combinations, and the app can't know which inks make which colour until it has measured your printer at least once. So the recommended path is a two-pass loop:\n\n  Pass 1 — Even coverage (no profile yet)\n    • Leave this box empty and build the chart from \"Even coverage\".\n    • This spreads patches evenly across all your inks, so the first profile learns the whole printer, not just one area.\n    • Print it with colour management OFF, measure it, and build your first profile. It won't be perfect — that's expected.\n\n  Pass 2 — Refine where it matters (with this profile)\n    • Come back here and choose that first profile (or any profile built for this exact printer and ink set).\n    • The app now knows, roughly, which ink mix makes which colour — so the look-based sets light up. Tick the ones you care about: skin tones for portraits, blues and greens for landscapes, pastels for soft photo tones, or From image to match a specific picture.\n    • The app places extra patches exactly in those colours, plus wherever the first profile was weakest. Print, measure and rebuild.\n    • The second profile is sharpened where your eyes are most critical — without wasting patches on colours you rarely print.\n\nGood to know:\n  • The profile must match the device type you picked (same inks, same number of channels). A mismatch is flagged right here, before you build.\n  • The look-based patches are best guesses from your first profile about where each colour sits. The real measurement is what defines the final profile, so a slightly-off guess still gives a solid result.\n  • Prefer a profile built on the same paper and settings you'll profile with.",
   "A profile holds tables that run in two directions. The “forward” tables (set by the main Quality) describe what colour each ink combination produces. The “back” tables — set here — do the reverse: they work out which ink numbers to send to get a colour you asked for, and are used whenever you print with the perceptual or saturation intent, or soft-proof on screen.\n\nLeave this unchecked to keep the back tables at the same quality as the main setting — normally what you want. Tick it and pick a lower quality to build faster and make a smaller profile if you mostly use colorimetric intents, or “None” to leave the back tables out of a measurement-only profile.",
-  "A profiling chart is printed WITHOUT colour management (the raw print you measure to build a profile). It is not expected to match the design closely, so the ΔE can look large — that's normal. Here it is the CHANGE between dated reports that matters, not a single value.",
   "A readable quality report — grade, explanation, worst strips, full output. Numbered so checks don't overwrite each other.",
   "A readable report from “Verify a profile” — verdict, scores, full output. Numbered so repeated checks keep a history.",
   "A readable report from “Verify against reference” — result summary and full output.",
@@ -107,9 +106,7 @@
   "A strip that is read fast enough still passes. But if it only just scraped through, a slightly slower swipe next time would give you more margin — and this is how close to the limit a strip has to be before ChromIQ mentions it in amber.\n\nSet it to 0% to be told only when a strip is genuinely too fast.",
   "A third mode on the Measure tab, shown for verification runs: instead of measuring here, you hand ChromIQ a measurement made in another program — typically i1Profiler with an i1iO table. ChromIQ converts the file, checks patch for patch that it really belongs to this run's verification chart, and files a copy in its own dated verification folder — exactly where a measurement made here would go. Your original file stays untouched.",
   "A tone ramp of every ink on its own — from a light tint up to 100 % coverage, in the number of steps you choose here.\n\nThis shows the profile how each ink behaves by itself: how fast it darkens, where it saturates, what its pure colour looks like on your paper. Without these single-ink patches the profile only ever sees inks mixed together and has to guess each one's own character.\n\n\"Steps/ink\" is the number of tones per ink — 8 is a solid default; use more for inks with strong tonal behaviour (e.g. black on matte papers).",
-  "A trend graph needs at least two measurement runs. Add another measurement — or, if the profile you have loaded already holds more than one run, tick “Show all measurement runs” above.",
   "A verification always checks a finished profile — you need the one you built in step 4 first. Set “Run type” in the Profile-run bar to “Verification”. Create Chart opens on the “From profile gamut” module — generate that chart, print it from the Print Chart tab (ChromIQ chooses the right way by itself), let it dry, and measure it on the Measure tab. The result is filed by date, and the Measurement Report shows how close every colour landed — and, as checks accumulate, how the profile holds up over time.",
-  "A verification chart is printed THROUGH your finished profile — ChromIQ converts the sheet itself and prints it with the printer's colour management off. It SHOULD match the design closely, so low ΔE and passes mean the profile is still accurate; rising numbers over time tell you when it's worth re-profiling. (Printed raw instead, the same sheet is a printer drift check — the report says which way each sheet was printed.)",
   "A verification checks a finished profile — but this profile run doesn't have a built profile yet.\n\nTo build the profile first:\n  1. Set “Run type” to “Profiling”.\n  2. Create, print and measure the profiling chart as normal — its measurement is stored in the run folder.\n  3. Build the profile on the Build Profile tab (this makes the profile's .icc / .icm file).\n\nOnce the profile exists, you can verify it:\n  4. Set “Run type” back to “Verification”.\n  5. Create a verification chart in the Create Chart tab.\n  6. Print that chart from the Print Chart tab with “Colour” set to “Through the profile” — ChromIQ applies the profile for you and keeps the printer's own colour management off.\n  7. Measure it here with “Run type” = “Verification” — the result is kept in a dated folder under this run's “verifications” folder.",
   "A way of making a verification chart where the colours are chosen by your profile instead of by a patch generator: ChromIQ asks the profile which of a fixed reference list of colours it can print, and tests exactly those. Measuring the sheet then shows how far each printed colour landed from what the profile promised. The chart already has the profile applied when it is made, so it is printed exactly as it is — the Print Chart tab selects “Raw” for it automatically.",
   "A way the measurement report scores a verification sheet: every measured colour is scaled so that this sheet's own paper white counts as pure white, and only then compared with the expected colours. The report does this by itself whenever the sheet was printed in a way that maps white to the paper — through the profile with relative intent, or in another application with colour management — and says so in the “How this verification was produced” section. The point: on such a print the paper's own tone was never supposed to be corrected, so counting it against the profile would blame it for something it was never asked to do. Physical readings like paper white and deepest black are always shown as measured.",
@@ -158,7 +155,6 @@
   "Average error split by colour direction (and the neutrals). It shows where the profile is weakest — for example a high blue number means blues are the hardest for this paper-and-ink.",
   "B covered by A: —",
   "Backward — input gamut",
-  "Because the design reference never changes, comparing dated reports of the same chart on the same printer is a clean, reliable signal of drift — ageing inks, a wandering printer, or an instrument going off. Save a report after each measurement to build that history. Screen and print colours here are approximate; the numbers come from your measurement file and are exact.",
   "Before filing anything, ChromIQ checks that the measurement really belongs to this run's verification chart — and this one does not:\n\n{reason}\n\nNothing has been imported and nothing has been changed.\n\nThe two usual causes: the file belongs to a different chart, or the patches came back in a different order than they were sent — that can happen when the shuffled i1Profiler export was used for measuring. Use the chart's normal export (the file without “shuffled” in its name), measure again, and import that.",
   "Before the main colour table, colprof normally fits a set of gentle per-channel curves that even out the device's tone response, so the table has a well-spread range of values to work with. They almost always improve accuracy.\n\nLeave this unchecked for normal profiling. Tick it only to force a plainer model — handy for troubleshooting, or for a device you already know behaves in a straight, linear way.",
   "Before you can measure a chart, your instrument calibrates itself — for most instruments that means a quick reading of the white tile on its base or dock. Usually it works first time and you never think about it.\n\nSometimes, though, a calibration fails for a reason that clears itself moments later. This is especially common with older instruments like the original i1Pro: striking its lamp draws a burst of power, and on a lamp that has aged, or through a USB port that can't quite supply that burst, the very first attempt can read poorly — while the next attempt, with the lamp already warm, succeeds.\n\nRather than stopping at the first failure, ChromIQ can simply try the calibration again a few times, pausing a couple of seconds between attempts so the instrument can settle. You don't need to do anything while it retries — just leave the instrument where it is. Each attempt is noted in the log.\n\nThis setting is how many extra attempts it makes before giving up. For example, 3 means up to four tries in total. If your instrument's lamp needs several strikes to burn in, raise this — some old i1Pro units are happy at 10. If all the attempts fail, ChromIQ reports the problem and, where it can, falls back to ArgyllCMS's own reader so you can still measure.\n\nSet it to 0 to turn automatic retries off entirely. This only affects the ChromIQ chart-reading engine.\n\nDefault: 3 (four attempts in total)",
@@ -242,7 +238,6 @@
   "Combine the patches of several measurement files into one. Unlike averaging (which mixes repeated reads of the same chart), merging stacks the patches from DIFFERENT charts so the profiler has more data points to fit — useful for combining a pre-conditioning chart with a refinement chart, or for fusing complementary patch sets.\n\nRequirements: every file must use the same colour space and the same data layout (e.g. all spectral, all made with comparable instruments). Header information is taken from the primary file; the additional files contribute only their patches.",
   "Combine two or more readings of the same printed chart into a single averaged measurement. Reading the chart several times and averaging the results reduces instrument noise — every patch's colour value becomes the mean across the reads, so a stray bad sweep has less influence on the final profile.\n\nMethod: 'mean' averages every value; 'median' picks the middle value and ignores the extremes, which is more robust to a single bad reading. Median needs at least three input files to behave differently from mean — with only two reads the two methods are mathematically identical, so the choice is locked to mean.\n\nRequirements: every input must be a .ti3 measurement of the SAME chart (identical patch list, made with the same instrument). The averaged .ti3 can then be loaded into Build Profile.",
   "Compare a measured chart against a set of expected colour values and report the colour error (ΔE) per patch — without building a profile. Use this to check how closely a print matches known target values, e.g. a profile-evaluation target someone shared with you.\n\nPaste (or load) the expected values — one patch per line, in the same order as the chart — pick your measured .ti3, and optionally the chart's .ti1/.ti2 so the patch count is cross-checked. ChromIQ builds a reference file whose patch IDs line up with your measurement and runs Argyll's colverify.",
-  "Compare a profile with itself over time — that is what these figures are for. They are not a fair way to rank papers or printers against each other, because the averages cover only the colours each profile can actually print, and that set differs with every paper: a glossy paper keeps more of the difficult, saturated colours than a matte one, so its average can look worse while it is printing better.",
   "Compare: —",
   "Compensates for Fluorescent Whitening Agents (optical brighteners) in paper.\nRequires spectral measurements — not supported by all instruments.\n\nThe illuminant sets the lighting condition used to compute the FWA effect.\nUse for papers with optical brighteners (bright white coated stock).\n\nImportant: ColorMunki, i1Studio, and CC Studio filter out UV light and will\nfail with an error if this option is enabled. UV-capable instruments such as\nthe X-Rite i1Pro 2/3 are required for FWA compensation.",
   "Controls cLUT grid resolution:\n• Low: 17³ grid — quick test\n• Medium: 33³ grid — good balance\n• High: 45³ grid — production quality\n• Ultra: 65³ grid — maximum accuracy, very slow",
@@ -260,7 +255,6 @@
   "Create a New run, then “← Use as Pre-conditioning” on Build Profile or Check & Refine — that copies the run's profile and measurement in as seeds.",
   "Create the chart for this run first — there is nothing measured yet to restore a chart from",
   "Creates a reduced copy of your .ti3 file containing only patches\nwhose colour error is at or below the threshold you set.\n\nUseful if a small number of badly measured patches are pulling\nthe profile down. Pruning them out lets you build a cleaner\nprofile from the remaining good patches — at the cost of\nhaving fewer data points overall.\n\nThe pruned file is saved next to the original .ti3 and can be\nloaded directly in the Build Profile tab.",
-  "Cube corners — paper white, composite black and the six primary and secondary inks. These say as much about your inks as about the instrument.",
   "Cyan, magenta, yellow and black — printing inks. ChromIQ profiles RGB-driven printers, whose drivers convert to ink internally.",
   "Dark neutral greys built from colour ink PLUS increasing amounts of black — the \"rich black\" region.\n\nA printer can make the same dark grey in many ways: mostly from cyan, magenta and yellow, mostly from black ink, or anything in between. Which mix the profile chooses is its black generation — and this set gives the profile real measurements of those mixes instead of leaving it to interpolate. If you use the Black generation option when building profiles, these are precisely the patches that teach it.\n\n\"Steps\" is the number of grey tones per black level, \"K levels\" how many amounts of black are tried. Inside the ink limit by construction. Needs a black ink — on the rare ink set without one, the set simply adds nothing.",
   "Dated PROFILING measurement reports (accuracy & drift), saved automatically after each measurement (Preferences → Reports). The Measurement Report tool reads these back — it builds its figures from the run's .ti3, needs the chart's .ti2 beside it for the ΔE, and reads the instrument name from the .ti3 — and plots how the printer drifts over time. Verification checks keep their own report points under verifications/<date>/reports/, gathered separately.",
@@ -466,7 +460,6 @@
   "Note: 1 patch that didn't read (no usable pixels) was left out so the profile can still build — re-check the grid covers every patch inside the image.",
   "Note: averaging isn't used for a printer profile — only the first scan of each page is read.",
   "Note: {n} patches that didn't read (no usable pixels) were left out so the profile can still build — re-check the grid covers every patch inside the image.",
-  "Nothing has been changed or hidden. The figures above were worked out in the usual way and your measurement file has not been touched. It is worth checking that this measurement really belongs to this chart — and, if you measured it in another program, that the program kept the patches in the order ChromIQ sent them.",
   "Nothing has been deleted and nothing else has changed — your chart is exactly as it was.",
   "Nothing is wrong with the measurement: it belongs to this chart and every reading in it is valid. It can be built into a profile exactly as it is.\n\nThe overlay needs to know where each patch sits on the printed page, and this chart does not carry that information. Charts made by older versions of ChromIQ — before the ChromIQ layout engine — were laid out by ArgyllCMS's printtarg, which does not record the patch positions anywhere, so there is nothing to draw onto.\n\nTo see the measured values, open the measurement in Tools ▸ Inspect a measurement, which shows every patch and its colour as a table. If you would like the overlay on a future chart, generate it with the ChromIQ layout engine switched on in Create Chart — those charts save their patch positions beside the chart file.",
   "Nothing saved for this combination yet — these are ChromIQ's own defaults. Change any value below to save a layout for it.",
@@ -519,7 +512,6 @@
   "Page {n}: the patches in {groups} read like their neighbours' colours — a grid edge probably sits about one cell off there. Check that edge of the grid on this page's scan.",
   "Paints the colours from a measurement you already made onto the chart in the preview — each patch split between the colour the chart EXPECTED and what your instrument actually MEASURED, with the far-off ones outlined. It reads the .ti3 measurement file sitting next to this chart, so you can look back at how a print turned out without measuring it again.\n\nThis option appears only when a measurement (.ti3) is found for the loaded chart. If the measurement came from a different chart (no matching patch layout), open it in Tools ▸ Inspect a measurement to see the numbers instead.",
   "Paper is the sheet size you'll print on — the profile is only valid for the paper you actually use. Pages is how many sheets to spread the patches across: more pages = more patches total (and more ink and paper).",
-  "Paper white & darkest black — the brightest and deepest patches (L*), a quick health check of your paper and maximum ink.",
   "Patch colours can only be edited on RGB charts — this chart stores multi-ink values.",
   "Patch distribution — 3D RGB cube",
   "Patch distribution — Lab space",
@@ -606,7 +598,6 @@
   "Save and recall named snapshots of all Manual mode settings.\n\n  +  Save current parameter values as a new named preset.\n  −  Delete the currently selected preset.\n  ▢  Open this tab's presets folder in {manager}.\n\nSelect a preset from the dropdown to instantly restore all\nvalues. The Default entry always resets to built-in defaults.\n\nPresets are stored as plain .json files — one per preset —\nin a ChromIQ folder under your system's Preferences / AppData\n/ config location. Use the folder button (▢) on the right of\nthe preset row to open it. To share a preset, copy the .json\nout of that folder and send it to a colleague; to install a\nshared preset, drop the .json into the matching folder on the\ntarget machine and ChromIQ will pick it up on the next launch.\n\nPresets persist between sessions.",
   "Save and recall named snapshots of all Manual mode settings.\n\n  +  Save current parameter values as a new named preset.\n  −  Delete the currently selected preset.\n  ▢  Open this tab's presets folder in {manager}.\n\nSelect a preset from the dropdown to instantly restore all\nvalues. The Default entry always resets to built-in defaults.\n\nPresets are stored as plain .json files — one per preset —\nin a ChromIQ folder under your system's Preferences / AppData\n/ config location. Use the folder button (▢) on the right of\nthe preset row to open it. To share a preset, copy the .json\nout of that folder and send it to a colleague; to install a\nshared preset, drop the .json into the matching folder on the\ntarget machine and ChromIQ will pick it up on the next launch.\n\nProfile Description is not saved — it is filled from the\n.ti3 filename. Presets persist between sessions.",
   "Save and recall named snapshots of all Manual mode settings.\n\n  +  Save current parameter values as a new named preset.\n  −  Delete the currently selected preset.\n  ▢  Open this tab's presets folder in {manager}.\n\nSelect a preset from the dropdown to instantly restore all\nvalues. The Default entry always resets to built-in defaults.\n\nPresets are stored as plain .json files — one per preset —\nin a ChromIQ folder under your system's Preferences / AppData\n/ config location. Use the folder button (▢) on the right of\nthe preset row to open it. To share a preset, copy the .json\nout of that folder and send it to a colleague; to install a\nshared preset, drop the .json into the matching folder on the\ntarget machine and ChromIQ will pick it up on the next launch.\n\nThe target name field is not saved with presets.\nPresets persist between sessions.",
-  "Save report as PDF… — writes the whole report (this window's contents, laid out for print with the ChromIQ heading and page numbers) to a PDF and opens it. The trend graphs are included only when the report has two or more runs.\n\nWhere it is saved: when “Show all measurement runs” is on, the PDF belongs to the whole printer profile and goes in a reports folder next to the profile's runs; when it is off, it goes in the loaded run's own reports folder. You choose the exact place and name in the save dialog.\n\nReveal folder — opens that profile folder in your file manager so you can browse to the reports folder and open any PDF you saved earlier.",
   "Save the soft-proof preview as an image (PNG, TIFF or JPEG). Note: it's an approximate, non-colour-managed rendering — good for illustration, not a colour-accurate file.",
   "Saves a press-ready PDF of the chart next to the usual TIFF — the TIFF is still made, this just adds a PDF copy.\n\nWhen it helps:\n• Your print shop or RIP prefers PDF, or asks for one.\n• You want a file that prints at the exact paper size, with no print dialog quietly scaling it down.\n• Multi-ink charts (CMYK and CMYK + extra inks): the PDF carries each ink as its own named channel, so a RIP knows exactly which ink is which.\n\nThe PDF is drawn as true vector — the patches are exact device colours and the labels stay crisp at any zoom — and it uses the same fonts as the chart. All pages are in one file.\n\nOne rule matters more than the rest: nothing between this file and the paper may convert the colours. That is not the same advice as for the TIFF, and the reason is in the PDF format rather than in any one system. Both files hold raw device values with no colour profile attached, which is what a chart needs — but where a TIFF is a picture whose numbers get passed along, a PDF lets whatever opens it decide that those numbers meant some particular colour space, and convert them. Measured on macOS, a pure red patch of 255,0,0 came back as 234,51,35. On Linux, the PDF interpreter behind most print queues assigns a default colour profile unless it is told not to. On Windows it depends entirely on the application you print from. How far the colours move depends on the machine and the program, so the same file can look fine on one and be badly wrong on another.\n\nNone of which means a chart PDF cannot be printed properly — it can, and there are three ways to be sure of it:\n• Send it straight to the print queue, which is what ChromIQ does with its own charts.\n• Give it to a RIP with colour management switched off — what this export is really for.\n• Print from an application with an explicit setting for it, such as “Same as source (no colour management)”.\n\nWhat you cannot do is assume it. The case that goes wrong is an ordinary viewer that simply draws the page and offers no such setting, which is also the most common way people open a PDF.\n\nSo: if you have a RIP, a print queue or an application with that setting, the PDF is fine. If you are not certain, print the TIFF sheets instead — they behave the same way everywhere. A chart printed through a colour conversion measures the conversion rather than your printer, and nothing afterwards can tell that it happened.\n\nHow to use it: tick this, build the chart as usual, and you'll find a .pdf beside the .tif in the chart folder.\n\nLeave it off if you only print through ChromIQ or just need the TIFF.\n\nDefault: off.",
   "Saves measurement data as D50 L*a*b* instead of XYZ in the\noutput .ti3 file.\n\nStandard ArgyllCMS tools (including colprof) work with XYZ.\nThis option is almost never needed — enable it only if a\ndownstream tool explicitly requires D50 L*a*b* input.",
@@ -733,7 +724,6 @@
   "The measurement held {c0} patches when this session began and {c} when it ended. A resume should only ever add readings, so something has gone wrong.\n\nYour earlier measurement has been put back, and the file this session wrote is kept beside it so nothing is lost. Nothing needs doing right now — measure again when you are ready.",
   "The measurement of the chart you want to scan later — its .ti3 file, produced when you measured the chart. ChromIQ pairs it with the chart's exact layout to write the scanner files. Pick the chart's own measurement; a colour-managed verification read works too.",
   "The measurement of the printed chart. You can pick an i1Profiler measurement straight from i1Profiler — its own saved file (.mxf, no export step needed) or a .txt / .cxf export — and ChromIQ converts it for you, or pick a .ti3 you converted earlier. This is where the true colours come from. ChromIQ matches it to the chart by patch number, so use the measurement of this very chart.",
-  "The measurement report's first-page title and its saved PDF file name are built from these lines. ChromIQ uses the first line for a normal profiling report and the second for a verification report (it can tell which from the measurements).\n\nThe first-page title is just your text — “<your text>” — because the report already shows its date inside. The saved PDF file name adds the date and time: “<your text> - <date_time>.pdf”.\n\nTick “Add profile name in title and file name” to also insert the profile (chart) name, giving the title “<your text> - <profile name>” and the file name “<your text> - <profile name> - <date_time>.pdf”.\n\nDefault: the two suggested lines, profile name on.",
   "The measuring device you'll read the printed chart with. It sets the patch size, strip length and overall layout the chart is built for, so pick the one you actually own — a chart laid out for one instrument may not read correctly on another.",
   "The measuring device — in ChromIQ usually a spectrophotometer (i1Pro, ColorMunki, SpectroScan) or, with the scanner workflow, a profiled flatbed scanner.",
   "The most saturated colours the printer can reach — the boundary of the RGB cube, where profiles err most. This set works hand in hand with the 3D cube: 'between' drops that many patches evenly between each pair of neighbouring cube dots along the 12 cube edges (the gamut wireframe), and 'faces' does the same inside each square of the cube's 6 faces (the gamut surface), or 0 for edges only. Because the spacing is tied to the cube, the fill stays even at any setting (1 is one patch midway between each cube dot).",
@@ -802,7 +792,6 @@
   "This chart has no layout recipe (.channels.json), so ChromIQ cannot redraw its pages. {pages}\n\nIf you have the printed sheets, keep them — they are the only copy. Everything is moved to the run's “old” folder rather than deleted.",
   "This chart has nowhere to go yet, so nothing was changed.\n\nCharts live inside a profile project. Type a name in “Printer profile project name” on the Create Chart tab and press “Generate Chart” to start one — or open an existing project with “Open Project” at the top left — and then use “Apply / Save…” again.",
   "This chart uses hexagonal patches, and the scanner and camera tools are set to turn those away.\n\nNot because they cannot work — they can. A hexagonal chart has been read and profiled successfully, and the two things that used to go wrong have both been dealt with: ScanIn, the Argyll program that finds the chart in your scan, is no longer asked to work out the perspective for itself once you have placed the four corners, which is what used to make it give up on a honeycomb; and the area read inside each patch is now limited automatically to what fits within the hexagon, so it cannot reach into the patches next door.\n\nWhat has not been proven is finding a honeycomb chart in a scan without your help — so the tools ask for the four corners, and the whole thing is still switched off until you say otherwise.\n\nTo try it, turn on “Allow hexagonal charts in the scanner and camera tools” in Preferences → Beta, place the four corners yourself, and check the result before you trust the profile.\n\nOtherwise, make the chart with square patches: in Create Chart, with the SpectroScan selected, set the layout to “Rectangular”.",
-  "This chart was built from your profile's own gamut, so its measurements can only be judged against the colorimetric targets that were stored beside the chart when it was made — and that reference file cannot be found. Comparing against anything else would produce confident-looking numbers measured against the wrong yardstick, so ChromIQ shows none at all.",
   "This chart was made for the CR30, and ChromIQ reads that instrument itself. Standard ArgyllCMS chartread does not know the CR30 at all — it would refuse the chart before reading a single patch, whichever instrument you have connected.\n\nRight now, Preferences → Measurement has “Chart-reading engine” set to ArgyllCMS chartread. Switch it to ChromIQ's own reader and this chart measures normally. The setting applies to every chart, and every other chart reads the same either way.\n\nNothing is wrong with the chart, and nothing you have already measured is affected.",
   "This chart was made for the CR30, and ChromIQ reads that instrument one patch at a time — it has no strip reading to offer. So patch-by-patch is switched on for you and cannot be turned off here; the box is ticked so you can see the mode the measurement is really in.\n\nLoad a chart made for a different instrument and this option comes back exactly as you had it.",
   "This chart was saved as the run's verification chart (in the “verifications” folder). It already has your profile applied — print it exactly as it is, then measure it with the run type set to Verification.",
@@ -833,7 +822,6 @@
   "This set places patches by how colours look (skin, sky, foliage…). On a multi-ink printer the app first needs a preconditioning profile, so it knows which ink mix produces each colour. Add one in the Preconditioning profile field above — its tooltip walks through the two-pass workflow, and the field accepts any profile made for this exact printer and ink set. On RGB printers this set is always available.",
   "This sheet was printed raw, without the profile — a drift check. Its ΔE figures above describe distance from the design, and what matters is how they change between dated checks, not their size.",
   "This sheet was printed raw, without the profile — a drift check. The previous raw check used a different chart, so print-to-print drift cannot be measured for this pair; the next raw check of THIS chart will start a fresh comparison.",
-  "This sheet was printed raw, without the profile — so it is a drift check, and this is the first one: it becomes the baseline. From your next raw check on, the report will show here how far the printer has moved since this sheet.",
   "This step opens Windows' standard print dialog so you can pick the printer and its options. IMPORTANT: ChromIQ cannot disable the printer driver's colour management for you on Windows — you must turn it off yourself before printing, or the printer will apply its own corrections and the chart will be unusable for profiling.\n\nBefore you print:\n• Load the exact paper you chose in step 1.\n• Make sure the printer is on, has ink, and is selected.\n\nHow to use this screen:\n• Click \"Print\" to open the dialog.\n• In the dialog, open the printer's Properties / Preferences and find its colour-management section. Set it to OFF / \"No Color Adjustment\" / \"Application Managed Colors\":\n    – Epson:  \"Epson Color Controls\" → Off (No Color Adjustment)\n    – Canon:  \"Color Options\" → Manual → None\n    – HP:     \"Color Options\" → Application Managed Colors\n    – Others: look for \"No Color Management\", \"Off\", or \"Application Controlled\"\n• Pick the right paper / media type and print quality. Confirm colour management is OFF before clicking Print.\n\nAfter printing: let the print dry fully (1 h minimum, 24 h for pigment inks) before measuring.",
   "This step opens macOS's standard print dialog so you can pick paper feed, media type, quality, and copies yourself.\n\nChromIQ turns off the printer's colour management for you. It tells the system the chart is already in the printer's own colour space (so no colour transform is applied) and switches the driver to \"no colour correction\" — the same thing dedicated tools like Print-Tool do. The dialog's \"Color Matching\" pane opens greyed out as a result; that's expected and correct.\n\nBefore you print:\n• Load the exact paper you chose in step 1.\n• Make sure the printer is on, has ink, and is selected.\n\nHow to use this screen:\n• Click \"Print\". The macOS print dialog appears.\n• Pick the right paper / media type and print quality.\n• You don't need to touch any colour setting — just don't go out of your way to switch an ICC profile or rendering intent back on.\n• Never click Cancel/Abort in any pane or sub-window — always close them with OK. Cancel reverts the colour-off setting; OK keeps it.\n\nPrefer ChromIQ to print straight to the queue with no dialog? Untick \"Use default macOS printer dialog\" in Preferences to use the lp path instead — it also forces colour management off.\n\nLet the print dry fully (1 h minimum, 24 h for pigment inks) before measuring.",
   "This step sends the TIFF from step 1 straight to your printer via CUPS, with all colour management turned off. ChromIQ converts the chart to PostScript and sends it through the \"lp\" command in raw mode, so the printer's own driver corrections don't touch the patches. That's deliberate: to profile a printer we need to see how it behaves on its own, before any correction.\n\nBefore you print:\n• Load the exact paper you chose in step 1. Different paper = different profile.\n• Make sure the printer is on, has ink, and shows up in CUPS (the system print queue). If you don't see it below, check System Settings → Printers, or visit http://localhost:631.\n• Use the same ink, paper, and print settings every time you re-profile this printer — the profile only matches that recipe.\n\nHow to use this screen:\n• Pick the printer and paper size. Quality should usually be the highest setting you'll print at in real use.\n• Click \"Print\". No print dialog will appear — the chart goes straight to the CUPS queue.\n\nAfter printing: let the print dry fully (at least 1 hour, 24 h for best accuracy with pigment inks) before measuring. Wet ink reads wrong.\n\nNote: on Linux there is no native dialog option — ChromIQ always prints via the CUPS bypass path, which is the right choice for profiling anyway.",
@@ -1015,8 +1003,6 @@
   "missing — this chart's stored colorimetric targets could not be found, so no ΔE figures are shown. Comparing against anything else would produce plausible numbers from the wrong yardstick.",
   "no embedded profile — assumed sRGB",
   "no — see the warning below the colour-accuracy table",
-  "not recorded — this sheet was printed before ChromIQ recorded the method, or outside ChromIQ. Sheets ChromIQ printed before it kept this record always went out raw.",
-  "off — ChromIQ printed the sheet itself",
   "one scan per page — {k} of {n} picked",
   "printed raw — no profile",
   "raw — no profile applied",
@@ -1030,7 +1016,6 @@
   "verified — every patch holds the colour the chart asked for",
   "whether this printer has changed — no profile took part, so this is a drift check, not a profile check",
   "yes — {b} bands, {lo:.0f}–{hi:.0f} nm",
-  "your whole everyday printing chain — the application's colour engine, this profile and the printer together",
   "{added} patches added — {total} in the measurement now.",
   "{count} lists of choices are incomplete — translate every option or leave them all blank:",
   "{count} phrases changed a placeholder — keep the parts in curly braces exactly as in the English text:",
@@ -1114,10 +1099,6 @@
   ],
   [
    "de",
-   "03f8e0d988773ad5"
-  ],
-  [
-   "de",
    "09262d8a91f451ce"
   ],
   [
@@ -1151,10 +1132,6 @@
   [
    "de",
    "296be98abec62ce2"
-  ],
-  [
-   "de",
-   "2c57bb386882606a"
   ],
   [
    "de",
@@ -1362,10 +1339,6 @@
   ],
   [
    "de",
-   "c24382cdf65a38d5"
-  ],
-  [
-   "de",
    "c3cb05576e47cfd2"
   ],
   [
@@ -1438,10 +1411,6 @@
   ],
   [
    "es",
-   "03f8e0d988773ad5"
-  ],
-  [
-   "es",
    "09262d8a91f451ce"
   ],
   [
@@ -1486,10 +1455,6 @@
   ],
   [
    "es",
-   "c24382cdf65a38d5"
-  ],
-  [
-   "es",
    "d08754a09af5bc79"
   ],
   [
@@ -1507,10 +1472,6 @@
   [
    "es",
    "eb01a5d3af8cdc11"
-  ],
-  [
-   "fr",
-   "03f8e0d988773ad5"
   ],
   [
    "fr",
@@ -1610,10 +1571,6 @@
   ],
   [
    "it",
-   "03f8e0d988773ad5"
-  ],
-  [
-   "it",
    "09262d8a91f451ce"
   ],
   [
@@ -1678,10 +1635,6 @@
   ],
   [
    "it",
-   "c24382cdf65a38d5"
-  ],
-  [
-   "it",
    "d08754a09af5bc79"
   ],
   [
@@ -1699,10 +1652,6 @@
   [
    "it",
    "eb01a5d3af8cdc11"
-  ],
-  [
-   "ja",
-   "03f8e0d988773ad5"
   ],
   [
    "ja",
@@ -1751,10 +1700,6 @@
   [
    "ja",
    "eb01a5d3af8cdc11"
-  ],
-  [
-   "nl",
-   "03f8e0d988773ad5"
   ],
   [
    "nl",
@@ -1838,10 +1783,6 @@
   ],
   [
    "nl",
-   "c24382cdf65a38d5"
-  ],
-  [
-   "nl",
    "d08754a09af5bc79"
   ],
   [
@@ -1863,10 +1804,6 @@
   [
    "nl",
    "ff7b39e4976dedde"
-  ],
-  [
-   "no",
-   "03f8e0d988773ad5"
   ],
   [
    "no",
@@ -1950,10 +1887,6 @@
   ],
   [
    "no",
-   "c24382cdf65a38d5"
-  ],
-  [
-   "no",
    "d08754a09af5bc79"
   ],
   [
@@ -1971,10 +1904,6 @@
   [
    "no",
    "eb01a5d3af8cdc11"
-  ],
-  [
-   "pl",
-   "03f8e0d988773ad5"
   ],
   [
    "pl",
@@ -2098,10 +2027,6 @@
   ],
   [
    "pt",
-   "03f8e0d988773ad5"
-  ],
-  [
-   "pt",
    "09262d8a91f451ce"
   ],
   [
@@ -2190,10 +2115,6 @@
   ],
   [
    "ru",
-   "03f8e0d988773ad5"
-  ],
-  [
-   "ru",
    "0b0ab1bcb63af523"
   ],
   [
@@ -2223,10 +2144,6 @@
   [
    "ru",
    "17b700af81572349"
-  ],
-  [
-   "ru",
-   "196c535d680196be"
   ],
   [
    "ru",
@@ -2418,10 +2335,6 @@
   ],
   [
    "ru",
-   "75bf143548fb0738"
-  ],
-  [
-   "ru",
    "7c4604141e1ca933"
   ],
   [
@@ -2431,10 +2344,6 @@
   [
    "ru",
    "7d475b23be738e5c"
-  ],
-  [
-   "ru",
-   "7f0319195b57867c"
   ],
   [
    "ru",
@@ -2510,10 +2419,6 @@
   ],
   [
    "ru",
-   "a3576dc30131b45f"
-  ],
-  [
-   "ru",
    "a7ffc529eca0a7f1"
   ],
   [
@@ -2579,10 +2484,6 @@
   [
    "ru",
    "c16fd0db4d78a925"
-  ],
-  [
-   "ru",
-   "c24382cdf65a38d5"
   ],
   [
    "ru",
@@ -2710,10 +2611,6 @@
   ],
   [
    "ru",
-   "e595ca7c9438faa1"
-  ],
-  [
-   "ru",
    "e9e6b0753b79a030"
   ],
   [
@@ -2763,10 +2660,6 @@
   [
    "ru",
    "fcf593c6786e8277"
-  ],
-  [
-   "sv",
-   "03f8e0d988773ad5"
   ],
   [
    "sv",
@@ -2846,10 +2739,6 @@
   ],
   [
    "sv",
-   "c24382cdf65a38d5"
-  ],
-  [
-   "sv",
    "d08754a09af5bc79"
   ],
   [
@@ -2867,10 +2756,6 @@
   [
    "sv",
    "eb01a5d3af8cdc11"
-  ],
-  [
-   "zh_CN",
-   "03f8e0d988773ad5"
   ],
   [
    "zh_CN",

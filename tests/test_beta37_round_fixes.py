@@ -103,7 +103,7 @@ def _settings(tmp_path):
 
 
 _CAVEAT = "would likely meet the standard"
-_PROVENANCE = "This verdict was recorded when the report was saved"
+_PROVENANCE = "This verdict was recorded against the limit set"
 
 
 def test_a_printing_record_carries_no_standard_caveat_and_no_provenance(

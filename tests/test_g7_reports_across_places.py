@@ -301,13 +301,22 @@ def test_a_report_across_projects_lives_in_the_folder_across_them(
         dlg.close()
 
 
-def test_projects_in_two_folders_have_no_folder_across_them(tmp_path, qapp):
-    """Knut names ONE folder for a report across projects; two projects in
-    two folders have none, so Generate is greyed and says why.
+def test_projects_in_two_folders_share_the_chromiq_folder(tmp_path, qapp,
+                                                         monkeypatch):
+    """SUPERSEDED BY K30 (Knut, 5798461562): *"I propose that the ChromIQ
+    default folder is always used, in this situation, no matter if one of
+    the projects, or both, are kept is sub folders of ChromIQ default
+    folder."* Two projects in two folders are no longer refused: their
+    report is one document in `<ChromIQ folder>/reports/`, it is listed
+    from there, and nothing is written into the folders' common ancestor.
 
-    MUTATION, proven red: drop the two-folders check (`len(parents) > 1`)
-    in `across_places_refusal` (Generate is live and would write into their
-    common ancestor)."""
+    MUTATION, proven red: put the two-folders check (`len(parents) > 1`)
+    back in `across_places_refusal` (Generate is greyed again), or return
+    the common ancestor in `document_home` (the file lands in tmp_path)."""
+    import workflow.measurement_report as MR
+    chromiq = tmp_path / "ChromIQ"
+    chromiq.mkdir()
+    monkeypatch.setattr(MR, "chromiq_folder", lambda: chromiq)
     p, _prun, pv = _project(tmp_path / "one", "P")
     q, _qrun, qv = _project(tmp_path / "two", "Q")
     dlg = _window(_settings(), pv.measurement_ti3, qapp, "verification")
@@ -315,9 +324,10 @@ def test_projects_in_two_folders_have_no_folder_across_them(tmp_path, qapp):
         dlg._add_source(qv.measurement_ti3)
         qapp.processEvents()
         _new_report_of_everything(dlg, qapp)
-        assert not dlg._generate_btn.isEnabled()
-        assert "projects are in one folder" in dlg._generate_btn.toolTip()
+        assert dlg._generate_btn.isEnabled(), dlg._generate_btn.toolTip()
         _press(dlg, qapp)
+        assert len(_reports(chromiq / "reports")) == 1
+        assert "Reports including multiple projects" in _headings(dlg)
     finally:
         dlg.close()
     assert not (tmp_path / "reports").exists()

@@ -287,7 +287,8 @@ def test_the_recorded_thresholds_are_the_ones_printed_in_the_detail_table(
         html = dlg._run_detail_html(saved)
         assert "4.00" not in html and "6.00" not in html, \
             "the detail table used today's limits"
-        assert "recorded when the report was saved" in html
+        # K30 (B7, spec 19.1): a statement about the report, no mechanics.
+        assert "recorded against the limit set" in html
     finally:
         dlg.deleteLater()
 
@@ -376,8 +377,12 @@ def test_a_recorded_verdict_says_plainly_that_the_spin_boxes_cannot_move_it(
     try:
         note = dlg._verdict_provenance(
             mr.stamp_verdict(_report(), 2.0, 3.0), recorded=True)
-        assert "recorded when the report was saved" in note
-        assert "do not change it" in note
+        # K30 (challenge B B7, spec 19.1 K18): the sentence states what was
+        # recorded and when; how ChromIQ keeps it ("this run's current limits
+        # do not change it") is not report text.
+        assert "recorded against the limit set" in note
+        assert "when the report was made" in note
+        assert "this run's current limits" not in note
         assert "2.0" in note and "3.0" in note
     finally:
         dlg.deleteLater()

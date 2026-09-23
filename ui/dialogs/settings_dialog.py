@@ -4261,6 +4261,12 @@ class SettingsDialog(QDialog):
         self._report_title_verify_edit = QLineEdit(self)
         _vr.addWidget(self._report_title_verify_edit, 1)
         tgl.addLayout(_vr)
+        # #182 K30 (B2): a calibration's report has its own title.
+        _cr = QHBoxLayout()
+        _cr.addWidget(QLabel(tr("Calibration measurements:"), self))
+        self._report_title_cal_edit = QLineEdit(self)
+        _cr.addWidget(self._report_title_cal_edit, 1)
+        tgl.addLayout(_cr)
         _apn_row = QHBoxLayout()
         self._report_add_profile_check = QCheckBox(
             tr("Add profile name in title and file name"), self)
@@ -4268,18 +4274,20 @@ class SettingsDialog(QDialog):
         _apn_row.addStretch()
         _apn_row.addWidget(TooltipButton(
             tr("Report title and file name"),
-            tr("The measurement report's first-page title and its saved PDF file "
-            "name are built from these lines. ChromIQ uses the first line for a "
-            "normal profiling report and the second for a verification report "
-            "(it can tell which from the measurements).\n\n"
-            "The first-page title is just your text — “<your text>” — because "
-            "the report already shows its date inside. The saved PDF file name "
-            "adds the date and time: “<your text> - <date_time>.pdf”.\n\n"
-            "Tick “Add profile name in title and file name” to also insert the "
-            "profile (chart) name, giving the title “<your text> - <profile "
-            "name>” and the file name “<your text> - <profile name> - "
-            "<date_time>.pdf”.\n\n"
-            "Default: the two suggested lines, profile name on."),
+            tr("The measurement report's first-page title and its saved PDF "
+               "file name are built from these lines. ChromIQ uses the first "
+               "line for a profiling report, the second for a verification "
+               "report and the third for a report of a calibration (it can "
+               "tell which from the measurements).\n\n"
+               "The first-page title is just your text, “<your text>”, "
+               "because the report already shows its date inside. The saved "
+               "PDF file name adds the date and time: “<your text> - "
+               "<date_time>.pdf”.\n\n"
+               "Tick “Add profile name in title and file name” to also insert "
+               "the profile (chart) name, giving the title “<your text> - "
+               "<profile name>” and the file name “<your text> - <profile "
+               "name> - <date_time>.pdf”.\n\n"
+               "Default: the three suggested lines, profile name on."),
             self))
         tgl.addLayout(_apn_row)
         v.addWidget(title_grp)
@@ -5051,6 +5059,8 @@ class SettingsDialog(QDialog):
             report_title_prefix(s, "report_title_profiling"))
         self._report_title_verify_edit.setText(
             report_title_prefix(s, "report_title_verification"))
+        self._report_title_cal_edit.setText(
+            report_title_prefix(s, "report_title_calibration"))
         self._report_add_profile_check.setChecked(
             bool(s.get("report_add_profile_name", True)))
         self._patch_warn_spin.setValue(
@@ -6165,6 +6175,8 @@ class SettingsDialog(QDialog):
         s.set("report_title_verification", report_title_to_store(
             "report_title_verification",
             self._report_title_verify_edit.text()))
+        s.set("report_title_calibration", report_title_to_store(
+            "report_title_calibration", self._report_title_cal_edit.text()))
         s.set("report_add_profile_name", self._report_add_profile_check.isChecked())
         s.set("patch_read_warn_de", float(self._patch_warn_spin.value()))
         s.set("patch_warn_outlier_fence",

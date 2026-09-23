@@ -307,7 +307,7 @@ def test_the_audit_batch_texts_are_in_the_report(qapp, tmp_path, monkeypatch):
         # who has never seen the window, and a menu path is not something they
         # can follow. The fact it carried survives, the route does not.
         assert "profile on its own is a separate check" in how
-        assert "not a fair way to rank papers or printers" in how
+        assert "not a fair measure for ranking papers or printers" in how
         assert "whole chain in one number" in how
     finally:
         dlg.deleteLater()

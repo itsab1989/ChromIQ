@@ -989,19 +989,24 @@ _BUDGET = {
     # catalogue. German by hand, does not move; each of the twelve others
     # rises by exactly 6 under the beta rule. COUNTED off the tree, BOTH
     # ledgers in the same commit.
-    "de": 14,
-    "es": 830,
-    "fr": 831,
-    "it": 830,
-    "ja": 830,
-    "nl": 830,
-    "no": 830,
-    "pl": 830,
-    "pt": 830,
-    "ru": 829,
-    "sv": 830,
-    "zh_CN": 829,
-    "uk": 1024,
+    # RE-MEASURED 2026-09-23, #182 K30: the same 25 keys in and 8 out; the
+    # twelve rise by exactly 15 (the new keys of 25 characters or more, less
+    # the retired English echoes), German falls by one (the Report limits
+    # intro is translated now). COUNTED off the tree, BOTH ledgers in the
+    # same commit.
+    "de": 13,
+    "es": 845,
+    "fr": 846,
+    "it": 845,
+    "ja": 845,
+    "nl": 845,
+    "no": 845,
+    "pl": 845,
+    "pt": 845,
+    "ru": 844,
+    "sv": 845,
+    "zh_CN": 844,
+    "uk": 1039,
 }
 
 

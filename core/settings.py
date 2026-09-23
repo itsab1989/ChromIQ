@@ -272,6 +272,9 @@ DEFAULTS: dict[str, Any] = {
     # Reports.
     "report_title_profiling":    "Measurement Report - Profiling of Printer",
     "report_title_verification": "Measurement Report - Verification of Profile",
+    # #182 K30 (challenge B, B2): a calibration's report was titled with the
+    # profiling line.
+    "report_title_calibration":  "Measurement Report - Calibration of Printer",
     "report_add_profile_name":   True,
     # Patch-reading error limit (#126, Knut): the ΔE at which a just-measured
     # patch gets the red warning outline in the engine's live split-patch
@@ -942,6 +945,8 @@ def report_title_default(key: str) -> str:
         return tr("Measurement Report - Profiling of Printer")
     if key == "report_title_verification":
         return tr("Measurement Report - Verification of Profile")
+    if key == "report_title_calibration":
+        return tr("Measurement Report - Calibration of Printer")
     return str(DEFAULTS.get(key, ""))
 
 

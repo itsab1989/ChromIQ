@@ -2414,7 +2414,13 @@ def _report_seed(parent, project) -> "Path | None":
             # screen, and inert. Caught by driving it again rather than by
             # trusting the edit.
             cal = project.calibration.ti3
-            return cal if cal.exists() else None
+            # A calibration whose measurement was moved to cal/old/ by a new
+            # chart still has its saved reports (#182 K30, F5): the window
+            # lists and opens them.
+            from ui.dialogs.measurement_report_dialog import (
+                _a_calibration_with_saved_reports)
+            return (cal if cal.exists()
+                    or _a_calibration_with_saved_reports(cal) else None)
         if ctl is not None and project is not None:
             # **"NEW RUN" IS NOT A RUN, AND `resolve_run` ANSWERS ONE ANYWAY
             # (R24-F5).** With `create=False` it falls through to

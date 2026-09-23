@@ -235,7 +235,8 @@ def test_a_calibration_window_lists_counts_and_writes_its_own_reports(
         names = _entries(dlg)
         assert len(names) == 1, names
         assert names[0].endswith(" · Cal"), names
-        assert _headings(dlg) == []
+        # K30 (Knut, 5798461562, "ok"): a lone project carries its heading.
+        assert _headings(dlg) == ["P"], _headings(dlg)
         assert dlg._type_blurb_full == (
             "Already generated for these measurements: "
             "Full colour check: 1"), dlg._type_blurb_full

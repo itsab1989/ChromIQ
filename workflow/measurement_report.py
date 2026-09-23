@@ -1938,7 +1938,20 @@ def relative_measurement_key(key: str) -> str:
     return project_relative(head) + sep + tail if sep else str(key)
 
 
-def document_home(member_dirs) -> "Path | None":
+def chromiq_folder() -> Path:
+    """The ChromIQ folder: Preferences' output folder, else the default
+    (`FileManager.root_dir`'s rule, read through the sandboxable store).
+    Where a report across projects that are not side by side lives (K30)."""
+    from core.platform_paths import default_output_root
+    try:
+        from core.settings import AppSettings
+        custom = str(AppSettings().get("custom_output_path", "") or "")
+    except Exception:                                    # noqa: BLE001
+        custom = ""
+    return Path(custom) if custom else default_output_root()
+
+
+def document_home(member_dirs, chromiq_root=None) -> "Path | None":
     """The ``reports`` folder a document covering *member_dirs* lives in (K23).
 
     Knut, 2026-09-23: *"For single measurements: …/runN/verifications/
@@ -1954,6 +1967,8 @@ def document_home(member_dirs) -> "Path | None":
     one folder                              ``<that folder>/reports``
     several dates of ONE profile run        ``<run>/verifications/reports``
     anything across profile runs            ``<project>/reports``
+    projects side by side                   ``<their folder>/reports``
+    projects anywhere else (K30)            ``<ChromIQ folder>/reports``
     ======================================  ================================
 
     Outside a project layout (loose files, which have no run to save into)
@@ -1982,6 +1997,19 @@ def document_home(member_dirs) -> "Path | None":
     project = _project_folder_of(dirs[0])
     if len(projects) == 1 and project is not None:
         return project / REPORTS_DIRNAME
+    # **PROJECTS THAT ARE NOT SIDE BY SIDE SHARE THE ChromIQ FOLDER'S
+    # reports/ (#182 K30, Knut 5798461562).** *"I propose that the ChromIQ
+    # default folder is always used, in this situation, no matter if one of
+    # the projects, or both, are kept is sub folders of ChromIQ default
+    # folder."* Side by side (one parent folder) they keep that folder's
+    # `reports/`, as K25 built it; anywhere else there is no common folder
+    # that is anybody's, so the report goes to the ChromIQ folder.
+    folders = [_project_folder_of(d) for d in dirs]
+    if all(f is not None for f in folders):
+        parents = {str(f.parent) for f in folders}
+        if len(parents) == 1:
+            return folders[0].parent / REPORTS_DIRNAME
+        return Path(str(chromiq_root or chromiq_folder())) / REPORTS_DIRNAME
     try:
         return Path(os.path.commonpath([str(d) for d in dirs])) / REPORTS_DIRNAME
     except ValueError:
@@ -2046,6 +2074,10 @@ def shared_report_folders(measurement_dirs) -> "list[Path]":
                 seen.add(str(c))
                 out.append(c)
     across: "list[Path]" = [p.parent / REPORTS_DIRNAME for p in projects]
+    # AND THE ChromIQ FOLDER'S (K30), where a report across projects that are
+    # not side by side lives, wherever the window's own project is.
+    if projects:
+        across.append(chromiq_folder() / REPORTS_DIRNAME)
     if len(projects) > 1:
         try:
             across.append(Path(os.path.commonpath(
@@ -2174,8 +2206,9 @@ def across_places_refusal(member_dirs) -> str:
 
     Knut names ONE folder for a report across projects, *"the <ChromIQ
     default folder>/reports/"* (5794078008), so every measurement must be in
-    a ChromIQ project on disk and the projects must sit in one folder: a
-    common ancestor such as the home folder is nobody's reports folder.
+    a ChromIQ project on disk. Projects that are not side by side used to
+    be refused as well; since K30 (Knut, 5798461562) their report lives in
+    the ChromIQ folder's ``reports/`` (`document_home`).
     """
     projects: "set[str]" = set()
     parents: "set[str]" = set()
@@ -2191,8 +2224,8 @@ def across_places_refusal(member_dirs) -> str:
             return ACROSS_OUTSIDE
         projects.add(str(project))
         parents.add(str(project.parent))
-    if len(projects) > 1 and len(parents) > 1:
-        return ACROSS_OUTSIDE
+    # PROJECTS IN TWO FOLDERS ARE NO LONGER REFUSED (#182 K30): their report
+    # lives in the ChromIQ folder's `reports/` (`document_home`).
     return ACROSS_OK
 
 

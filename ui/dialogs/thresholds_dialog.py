@@ -70,6 +70,42 @@ RUN_COLUMN = "__run__"
 SHOW_ROW_SPACING_PX = 24
 
 
+class ReportLimitsColumn:
+    """The "This report" column of a report ACROSS PLACES (#182 K30).
+
+    Knut, 5798461562: *"all settings belong to a report, not a specific
+    run"*. A report across profile runs or projects has no run to hold its
+    limits, so this stands in for one, in memory only: it answers
+    `load_meta` / `save_meta` exactly as a run does for the fields this
+    window reads and writes, and nothing it holds ever reaches a disk. The
+    report window reads the edited numbers back with `limits`.
+    """
+
+    def __init__(self, lim) -> None:
+        import copy
+        from core.file_manager import RunMeta
+        from workflow.compliance_sets import limits_to_json
+        self.dir = Path("report")
+        m = RunMeta()
+        m.compliance_set_id = lim.set_id
+        m.compliance_set_label = lim.label_en
+        m.compliance_thresholds = limits_to_json(lim.limits)
+        m.compliance_bound_at = "report"
+        self._meta = m
+        self._copy = copy.deepcopy
+
+    def load_meta(self):
+        return self._copy(self._meta)
+
+    def save_meta(self, meta) -> None:
+        self._meta = self._copy(meta)
+
+    def limits(self) -> "dict":
+        from workflow.compliance_sets import limits_from_json
+        return limits_from_json(self._meta.compliance_thresholds,
+                                self._meta.compliance_set_id)
+
+
 def _stored_column(run) -> "dict | None":
     """Everything about the run that a Report limits window can write, straight
     off its `meta.json`, so that another window's write can be seen.
@@ -275,10 +311,14 @@ class _ScrolledBody(QWidget):
 class ThresholdsDialog(WorkAreaClamped, QDialog):
     def __init__(self, settings, parent: "QWidget | None" = None, *,
                  run=None, run_editable: bool = False,
-                 buffer: "dict | None" = None) -> None:
+                 buffer: "dict | None" = None,
+                 report_column: bool = False) -> None:
         super().__init__(parent)
         self._settings = settings
         self._run = run
+        #: K30: the first column is a REPORT's own limits, not a run's
+        #: (`ReportLimitsColumn`); only its words differ.
+        self._report_column = bool(report_column and run is not None)
         self._run_editable = bool(run_editable and run is not None)
         #: {"overrides": {...}, "default_set": str} owned by Preferences, or
         #: None when edits go straight to the settings (report-window door)
@@ -440,10 +480,10 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                 "being decided. A cell reading ? is a limit the standard "
                 "defines and ChromIQ does not show yet; you may type your own "
                 "number into a Custom column from your own copy of the "
-                "standard. To fill a whole column at once, use the two buttons "
-                "below: the first saves a file listing every row these sets "
-                "use, in the order shown here, for you to type the numbers "
-                "into; the second hands that file back to ChromIQ.")
+                "standard. To fill a whole column at once, press “Reference "
+                "values…” below: its window saves a file listing every row "
+                "these sets use, in the order shown here, for you to type the "
+                "numbers into, and reads that file back into ChromIQ.")
         sub = QLabel(sub_text, self)
         sub.setWordWrap(True)
         inner.addWidget(sub)
@@ -533,7 +573,8 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         show_row.addWidget(QLabel(tr("Show:"), self))
         visible = self._visible_columns()
         if run is not None:
-            cb = QCheckBox(tr("This run"), self)
+            cb = QCheckBox(tr("This report") if self._report_column
+                           else tr("This run"), self)
             cb.setChecked(True)
             cb.setEnabled(False)
             show_row.addWidget(cb)
@@ -717,7 +758,8 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
 
     def _header_text(self, col: str) -> str:
         if col == RUN_COLUMN:
-            return tr("This run")
+            return (tr("This report") if self._report_column
+                    else tr("This run"))
         return tr(SET_BY_ID[col].label)
 
     def _build_head(self) -> None:
@@ -830,7 +872,9 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
         # keep in step, which is the fault this file has been bitten by twice.
         # The choice is recorded and the report window applies it on close.
         if self._run is not None:
-            g.addWidget(QLabel(tr("Used for this run"), self), 3, 0)
+            g.addWidget(QLabel(tr("Used for this report")
+                               if self._report_column
+                               else tr("Used for this run"), self), 3, 0)
             for ci, col in enumerate(cols, start=2):
                 if col == RUN_COLUMN or col not in selectable:
                     continue
@@ -843,6 +887,9 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                 rb.setChecked(col == self._run_set_id)
                 rb.setEnabled(bool(self._run_editable))
                 rb.setToolTip(
+                    tr("Judge this report against this set. No profile "
+                       "run's limits change.")
+                    if self._report_column else
                     tr("Judge this run against this set. Available while "
                        "“Unlock this run's limits” is ticked in the report "
                        "window, or until a second dated verification locks the "
