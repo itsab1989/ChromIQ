@@ -46,7 +46,8 @@ the built result of every section on the confirmation list except §18.1 on
 ([5794311113](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5794311113)):
 those rows read "confirmed by Knut 2026-09-23", and their sections carry
 **Confirmed by:** Knut. §18.1 is superseded by his Calibration rule
-(5794078008), confirmed as a rule and not built yet (beta 39). The rule of
+(5794078008), confirmed as a rule and built in beta 39 (§18.12, the built
+result awaiting his confirmation). The rule of
 §13.9 / G7 is confirmed and not built yet (beta 39). The §20 gaps stay open.
 
 | section | subject | Knut's ruling | status |
@@ -59,7 +60,7 @@ those rows read "confirmed by Knut 2026-09-23", and their sections carry
 | §13.9 | One report, one limit set, applied to every measurement it includes, across runs | 2026-09-22, 5773668311; confirmed 2026-09-23, 5794311113 | agreed; rule confirmed by Knut 2026-09-23 (5794311113); not built yet (beta 39) (gap G7, §20) |
 | §13.10 | Report types by run type; the automatic report follows (K13) | 2026-09-22, 5781159382 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
 | §13.10 | "The measurement decides, not the bar" | assumption, 2026-09-22 | superseded by K24 (the profile bar decides) |
-| §13.10 | A calibration keeps every report type | assumption, 2026-09-22 | superseded by §18.1 (no report under Calibration), which is itself superseded by the Calibration rule of 5794078008 (every type but the Printing record; not built yet, beta 39) |
+| §13.10 | A calibration keeps every report type | assumption, 2026-09-22 | superseded by §18.1 (no report under Calibration), which is itself superseded by the Calibration rule of 5794078008 (every type but the Printing record; built in beta 39, §18.12) |
 | §13.10 | A saved report of a disallowed type is "shown as recorded" | assumption, 2026-09-22 | superseded by K19 (not offered in the list) |
 | §13.10 | The report type can be chosen with two runs' measurements added (K17) | 2026-09-22, 5781159382 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
 | §13.10 | Counts and list hold only the types the run type allows (K19) | 2026-09-23, 5785414710 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
@@ -90,7 +91,8 @@ those rows read "confirmed by Knut 2026-09-23", and their sections carry
 | §17.1 | A limit word slides along its line off a data line | as first built | superseded by §18.9 (stays at the left end) |
 | §17.1 | A red x's neighbours are the dates directly beside it | 2026-09-23, 5789263863 | superseded by §18.9 (nearest dates with a value) |
 | §18.1 | K26: Run type Calibration opens empty and locked | 2026-09-23, 5792484060 | built in beta 38; NOT confirmed; superseded by the Calibration rule below |
-| §18.1 | Calibration rule: every type but the Printing record, `cal/reports/`, Cal / Multiple cals / All cals, grouped by project | 2026-09-23, 5794078008 (our summary 5794100213) | rule confirmed by Knut 2026-09-23 (5794311113); not built yet (beta 39) |
+| §18.1 | Calibration rule: every type but the Printing record, `cal/reports/`, Cal / Multiple cals / All cals, grouped by project | 2026-09-23, 5794078008 (our summary 5794100213) | rule confirmed by Knut 2026-09-23 (5794311113); built in beta 39 (§18.12) |
+| §18.12 | Run type Calibration as built in beta 39: the kind, `cal/reports/`, the list, the names, the grouping, Generate, the automatic report | 2026-09-23, 5794078008, 5794311113 | built; the built result ⏳ awaiting confirmation |
 | §18.2 to §18.11 | K26: Bound and locked, Judged against row, within-gamut graph, folder rename, Profiling names, "these measurements", shared folder, red x, grouping from the start, demo white | 2026-09-23, 5792484060, 5792576954 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
 | §19.1 | Report text is for a customer: no ChromIQ how-to, no history (K18) | 2026-09-22, 5774852534; 2026-09-23, 5785414710 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
 | §19.2 | An N-A note names what the measured chart lacks, nothing to do (K22) | 2026-09-23, 5787117741 | agreed; built, confirmed by Knut 2026-09-23 (5794311113). Supersedes S2w "each names the thing to change" (2026-09-18) |
@@ -1993,8 +1995,8 @@ What was built, and the assumptions it rests on (each is his to overturn):
   a profile run, so the rule is not applied to it. **Overturned for
   calibration by K26 (§18.1):** under Run type Calibration the window makes
   no report at all and opens empty. **§18.1 is itself replaced** by the
-  Calibration rule of 5794078008 (every type but the Printing record), not
-  built yet (beta 39); see §18.1.
+  Calibration rule of 5794078008 (every type but the Printing record),
+  built in beta 39; see §18.12.
 * **Preferences "Report type, default" applies to every measurement that is
   not a profiling measurement** (verifications, calibrations and files outside
   a project), so the Printing record is greyed there, and a stored Printing
@@ -3268,7 +3270,7 @@ what was built from them (B8-832), driven on screen
 (`~/Desktop/ChromIQ-beta38-proof/k26/`). §18.1 is NOT confirmed: it is
 superseded by the Calibration rule recorded under it.
 
-**18.1 Calibration rule, confirmed, not built yet (beta 39).**
+**18.1 Calibration rule, confirmed; built in beta 39 (§18.12).**
 **Confirmed by:** Knut, 2026-09-23 (#182 comment
 [5794311113](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5794311113):
 *"This is changed. Description of 'Run type = Calibration, beta 39. Built as
@@ -3293,8 +3295,9 @@ making reports in this run type."*), as summarised in our
 * "Report shown" grouped under each project's name, with reports of several
   projects under "Reports including multiple projects".
 
-**Status:** rule confirmed; **not built yet (beta 39)**. Beta 38 still has the
-empty, locked window described next, which this rule replaces.
+**Status:** rule confirmed; **built in beta 39**, recorded in §18.12, where the
+built result awaits confirmation. Beta 38's empty, locked window described
+next is removed.
 
 > **18.1 as built in beta 38, SUPERSEDED by the Calibration rule above
 > (Knut, 2026-09-23, 5794078008 and 5794311113). Not confirmed; kept as the
@@ -3458,12 +3461,12 @@ each item quotes him above. **Proof:** `~/Desktop/ChromIQ-beta38-proof/k26/`
 drive-shared, drive-redx). **Status:** every item agreed; the built result
 of 18.2 to 18.11 is confirmed. **Confirmed by:** Knut, 2026-09-23 (#182
 comment [5794311113](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5794311113)).
-18.1 as built is superseded by the Calibration rule (not built yet, beta 39).
+18.1 as built is superseded by the Calibration rule (built in beta 39, §18.12).
 Commits 1ecea062, c198d508, 78a4f00b (B8-832).
 
 | item | built | verified by (`tests/test_k26_rulings.py` unless named) |
 |---|---|---|
-| 18.1 Calibration | `measurement_report_dialog.py::_bar_run_type`, `_is_calibration_window`, `_calibration_controls`, `_lock_for_calibration`; M-REPORT-NOT-FOR-CALIBRATION in `workflow/measurement_messages.py` | `test_a_calibration_window_opens_empty_and_locked`, `test_the_other_run_types_are_untouched`, `test_every_door_hands_the_window_a_parent_that_knows_the_run_type`, `test_the_measure_tab_button_opens_the_empty_window_under_calibration`, `test_the_type_help_no_longer_promises_a_calibration_every_type` |
+| 18.1 Calibration (beta 38; REMOVED in beta 39, §18.12) | was `_bar_run_type`, `_calibration_controls`, `_lock_for_calibration` and M-REPORT-NOT-FOR-CALIBRATION; all removed, the message withdrawn from §M-PROPOSED | its four window tests were removed with it; `test_every_door_hands_the_window_a_parent_that_knows_the_run_type` stays (four doors since beta 39) |
 | 18.2 Bound, and locked | `_bound_and_locked_help` (the "Judged against" help); the paragraph removed from the report guide | `tests/test_report_window_limit_controls.py::test_bound_and_locked_is_explained_in_the_help_not_the_report` |
 | 18.3 Judged against row | nothing changed | `test_the_printing_record_keeps_its_judged_against_row` |
 | 18.4 within-gamut graph | `_series_is_within_gamut`, `_METRIC_LABELS_JUDGED`, `_TREND_ACCURACY_LABELS`, `_TREND_ABOUT_DE_JUDGED`; `workflow/measurement_report.py::graded_de00` | `test_the_accuracy_trend_plots_what_the_verdict_judged`, `test_the_graph_says_its_figures_are_the_judged_ones`, `test_the_judged_description_fits_two_lines`, `tests/test_beta38_challenge_fixes.py::test_the_accuracy_legend_names_its_unit_as_the_others_do` |
@@ -3485,6 +3488,154 @@ may be renamed by 18.5 is answered: *"Yes"* (5794078008). The beta 38
 challenge round's fixes to 18.2, 18.4, 18.5, 18.8 and 18.9, and the three
 choices of 5794078008, are B8-833 to B8-841 (B8-842 and B8-843 are open);
 proof `~/Desktop/ChromIQ-beta38-proof/fixes/`.
+
+### 18.12 Run type Calibration makes reports (beta 39)
+
+#### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.* The RULE is Knut's and he confirmed it
+(5794311113, of our summary 5794100213); what follows is what was BUILT from
+it, driven on screen (`~/Desktop/ChromIQ-beta39-proof/calibration/`), and it
+waits for him to say that it is what he meant. It supersedes §18.1 as built in
+beta 38 (the empty, locked window).
+
+> *"The run type set to calibration should be able to make a report after all.
+> I retract my statement that the measurement report window should not allow
+> making reports in this run type. ... Allowed report types are all except the
+> printing record, and measurements are stored under project_name/cal/ folder
+> and reports (with included one measurement for a project) are stored and
+> read from project_name/cal/reports/, and "Included measurements..." lists
+> the measurement in the cal/ folder. If another cal-folder's measurement is
+> selected (which is only possible selecting in a different project), then the
+> "Included measurements..." list will hold multiple measurement sets. IF a
+> report is created that selects measurements across projects, then that is
+> stored same as the other run types, in the <ChromIQ default folder>/reports/
+> (only created if a report is created across projects). Reposts shown pulldown
+> can only show reports belonging to run type = calibration and can only save
+> or read reports from the two reports/ folders mentioned. The report names
+> shall have tags "Cal" (when only one calibration), or "Multiple cals" when
+> more than one included measurement across projects (but not all listed in
+> "Included measurements..." list ), or "All cals" when all measurement sets in
+> "Included measurements..." list are included across projects for a report.
+> The "Report shown" dropdown list should then group the reports (that include
+> one measurement) with group-headings according to the project name the
+> measurements and reports belong to. And reports with multiple measurements
+> included (across projects) are grouped under "Reports including multiple
+> projects".* (Knut, 5794078008)
+
+What was built:
+
+* **The kind.** Run type Calibration is a kind of its own
+  (`KIND_CALIBRATION`): every report type but the Printing record, which the
+  Report type pulldown shows greyed with a sentence saying why. A window with
+  no profile bar behind it takes the kind from its measurement: a project's
+  `cal/` folder is a calibration. A folder merely named `cal` outside a
+  project is not.
+* **The window opens on the calibration**, from every door: Tools ▸
+  Measurement report and the Measure tab's report button hand it
+  `<project>/cal/<project>-cal.ti3`. Not measured yet: the Measure tab says
+  "Measure this chart first", as it does for a run.
+* **"Included measurements"** lists the calibration's measurement. A
+  calibration of another project is added with "Add Profile's Measurements…"
+  (its `cal/<name>-cal.ti3`), and the list then holds several measurement
+  sets.
+* **"Report shown" and "Already generated…"** read `<project>/cal/reports/` of
+  every calibration in the list, and the folder across projects
+  (`<ChromIQ folder>/reports/`, where a document covering calibrations of
+  several projects lives, §13.11), of the types Calibration allows. Never a
+  run's folders, never the project's own `reports/`. The line reads "Already
+  generated for these measurements" (the Profiling wording, §18.7), because
+  the list may hold several projects' calibrations.
+* **A report across projects is offered only where it covers a calibration
+  in the list**, compared by project name AND `cal`, so a report of P and Q is
+  not offered in R's window just because R has a `cal/` too. A moved pack
+  finds the other project's `cal/` beside this one (§13.11).
+* **Names.** "Cal" for a report of one project's calibration; for a report of
+  several projects' calibrations, "All cals" when it included every
+  measurement set listed when it was made, "Multiple cals" otherwise. *As for
+  "All dates" and "Multiple dates", the word is fixed when the report is
+  made, not recalculated against what the list holds later.* A calibration
+  measured again is still one calibration, so a report of its two
+  measurements is "Cal".
+* **Grouping.** One project's calibration in the list, and no offered report
+  covering another project: no headings (§13.12's rule for one run). Otherwise
+  a heading per project name with that project's reports directly under it
+  (a calibration has no run, so there is no run heading), and reports of
+  several projects under "Reports including multiple projects", last. *This
+  is our reading of "grouped ... according to the project name" for the case
+  with one project: say if a lone project should carry its heading too.*
+* **Generate report** writes a report of the window's own calibration into
+  `<project>/cal/reports/` (one file, one document, as for one dated
+  verification). "New report…" starts from the Preferences default type,
+  fitted (a Printing record default reads as Full colour check), and the
+  Preferences default limit set: a calibration binds no set and stores no
+  type. With another project's calibration loaded, Generate is greyed and its
+  tooltip says calibrations of more than one project are loaded; a report
+  across projects is not written from the window yet (the §13.9 / G7 work).
+  Under Calibration a run's measurement is never written, even when a Remove
+  left one first in the list.
+* **Delete Selected Report** moves a calibration's report to
+  `cal/reports/old/<stamp>/`. It is never refused: a calibration has no dated
+  series and no bound limit set for its last report to keep (§5).
+* **Save report as PDF…** opens `cal/reports/` for one calibration, the
+  folder across projects for several (§13.11's rule).
+* **The report ChromIQ writes by itself after a calibration measurement**
+  (with "Save measurement report" on) follows the Verification pattern: the
+  Preferences default type, never the Printing record, judged against the
+  Preferences default set, one document named "Cal", in
+  `<project>/cal/reports/`. Before beta 39 it was written there too, but a
+  stored Printing record default made it a Printing record.
+* **The help.** The Report type help says a calibration can have every type
+  but the Printing record; "Where are my files" has a row for
+  `cal/reports/report_*.json` and a folder entry for `cal/reports/`.
+* **M-REPORT-NOT-FOR-CALIBRATION is withdrawn** from §M-PROPOSED, never having
+  been approved.
+* **`cal/reports/` survives a new calibration chart.** `Calibration.reset`
+  archives files only, so the reports stay while the measurement they
+  describe moves to `cal/old/<stamp>/`; such a report keeps the numbers it
+  was saved with, as a run's does after it is measured again.
+
+**Record (beta 39, Calibration).**
+* **Rule:** his words at the head of this section.
+* **Ruling:** Knut, 2026-09-23,
+  [5794078008](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5794078008),
+  confirmed as described in our
+  [5794100213](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5794100213)
+  by [5794311113](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5794311113).
+* **Built:** `workflow/measurement_report.py::KIND_CALIBRATION`,
+  `report_types_for_kind`, `is_calibration_dir`, `measurement_dir_kind`,
+  `_project_folder_of`, `project_relative`, `resolve_recorded_folder`,
+  `shared_report_folders`, `_coverage_key`;
+  `ui/dialogs/measurement_report_dialog.py::_bar_kind`, `_window_kind`,
+  `_is_calibration_window`, `_own_cal_dir`, `_calibration_dirs_of_the_list`,
+  `_scope_tag`, `_grouped_documents`, `_own_place`, `_saved_documents`,
+  `_generated_types_line`, `_sync_type_combo`, `_reports_to_generate`,
+  `_on_generate_report`, `_report_type_now`, `_load_the_defaults`;
+  `ui/tabs/tab_measure.py::_open_measurement_report`,
+  `_stamp_the_automatic_document`; `ui/file_guide.py` (B8-844).
+* **Verified by:** `tests/test_calibration_reports.py` (16 tests, each proved
+  red on the mutation in its docstring):
+  `test_a_calibration_offers_every_type_but_the_printing_record`,
+  `test_the_folders_of_a_calibration`,
+  `test_a_moved_pack_finds_the_other_projects_calibration`,
+  `test_a_calibration_window_lists_counts_and_writes_its_own_reports`,
+  `test_a_new_calibration_report_starts_from_the_preferences_type`,
+  `test_a_window_with_no_bar_on_a_calibration_is_a_calibration_window`,
+  `test_delete_moves_a_calibration_report_into_cal_reports_old`,
+  `test_several_calibrations_are_grouped_by_project`,
+  `test_multiple_cals_and_all_cals`,
+  `test_a_report_of_two_calibrations_is_not_offered_to_a_third`,
+  `test_a_calibration_s_reports_are_not_counted_on_a_profiling_window`,
+  `test_under_calibration_a_run_s_measurement_is_never_written`,
+  `test_the_automatic_report_of_a_calibration_is_never_a_printing_record`,
+  `test_the_measure_tab_button_opens_the_calibration_s_measurement`,
+  `test_the_type_help_says_what_a_calibration_can_have`,
+  `test_the_withdrawn_red_line_is_gone`.
+* **Proof:** `~/Desktop/ChromIQ-beta39-proof/calibration/` (REPORT.md and
+  photographs; the demo pack's calibrations in
+  Report-Limits-Report-Folders, -Second and -Report-Types).
+* **Status:** rule agreed and confirmed; the built result ⏳ awaiting
+  confirmation. **Confirmed by:** *nobody yet.*
 
 ## 19. Report text, pre-flight and window rulings of 2026-09-22 and 2026-09-23
 

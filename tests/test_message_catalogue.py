@@ -168,13 +168,14 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # governs removing a report, so the window and
                                  # its one refusal wait here.
                                  "M-REPORT-DELETE",
-                                 # #182 K26, 2026-09-23: Knut ruled that the
-                                 # report window makes no report under Run
-                                 # type Calibration and says so in red, and
-                                 # that a project opened from a folder not
-                                 # named what its files carry is offered the
-                                 # rename chooser. His behaviour, our words.
-                                 "M-REPORT-NOT-FOR-CALIBRATION",
+                                 # #182 K26, 2026-09-23: Knut ruled that a
+                                 # project opened from a folder not named what
+                                 # its files carry is offered the rename
+                                 # chooser. His behaviour, our words.
+                                 # (M-REPORT-NOT-FOR-CALIBRATION, proposed
+                                 # with them, was WITHDRAWN for beta 39: Knut
+                                 # retracted "no reports under Calibration",
+                                 # 5794078008.)
                                  "M-PROJECT-FOLDER-RENAMED",
                                  "M-PROJECT-FOLDER-RENAME-FAILED",
                                  # #182, 2026-09-19: Knut overruled his own

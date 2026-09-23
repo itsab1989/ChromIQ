@@ -112,6 +112,11 @@ def _structure():
             "deleting it, so you can always go back to one.")),
         (2, "exports/", tr(
             "That calibration chart's hand-off files for other programs.")),
+        # #182 beta 39 (Knut 5794078008): a calibration's reports live in
+        # its own folder.
+        (2, "reports/", tr(
+            "The measurement reports of this project's calibration, made "
+            "with Run type Calibration. Created by the first one.")),
         (1, "exports/", tr(
             "Files made for other programs from the Tools menu, belonging to "
             "the whole project rather than to one run.")),
@@ -403,6 +408,7 @@ def _folders():
         ("cal/", tr("The optional printer-calibration target and its curves, shared by every run of this project. A project can contain this folder even when calibration options are switched off in Preferences — nothing is using it then, your charts and profiles are built without it, and switching calibration options back on makes it available again exactly as you left it. Nothing needs deleting.")),
         ("cal/chart/", tr("A copy of the calibration chart exactly as it was printed, kept from the moment you start measuring it. “Restore Used Chart” puts this back, so you can reprint the sheet or read it again even after the chart has been regenerated.")),
         ("cal/old/", tr("Earlier calibrations. Once a calibration has been measured, making a new calibration chart moves it here into a folder named with the date rather than deleting it, so an earlier .cal can always be read back — which is also what printcal's “Re-calibrate” and “Verify” modes compare against. A chart you never measured is replaced instead, in the same way a profile run's chart is. Each run also records which calibration it was built with, so ChromIQ can tell you which of them a given profile came from; runs made before ChromIQ started recording that simply say it is unknown.")),
+        ("cal/reports/", tr("The measurement reports of this project's calibration: the one ChromIQ writes by itself after the calibration chart is measured, and those you make with Run type Calibration in the Measurement Report window. “Delete Selected Report” moves a report to cal/reports/old/<date>/ rather than deleting it. A report that covers the calibrations of more than one project is kept in a reports folder beside those project folders.")),
         ("exports/", tr("Files made for other programs from the Tools menu (project-wide, not tied to one run).")),
         ("runs/runN/verifications/<date>/reports/old/", tr("Earlier versions of that dated check's report, each in a folder named with the moment it happened. An Update moves the version it replaces here, and \u201cDelete Selected Report\u201d moves a report here rather than deleting it. Unlocking a run's limits changes no saved report. The current report keeps its own name, so each date still has exactly one current report.")),
         ("compliance/  (in ChromIQ's settings folder, not in a project)", tr("The limit values of a paid standard, for a licence holder who has typed them in: one file, iso12647.json, holding your own ISO 12647-7 and 12647-8 numbers. ChromIQ ships none of them, which is why those two columns of the Report limits table read “?” until the file is there. Put it in place from the Report limits window, under “Reference values…”; it is the same file on every machine you own, and deleting it simply puts the “?” back.")),
@@ -532,6 +538,8 @@ def _rows():
             # K25 (Knut, 2026-09-23, Q6): *"Yes"* to rows for the saved
             # reports in the two shared folders, not only their PDFs.
             ("report_*.json", "runs/runN/verifications/reports", tr("A saved measurement report that covers SEVERAL dated checks of this run, made with “Generate report”. This file says what the report is: which checks it covers, its report type and what it was judged against. Each check keeps its own result in that date's reports folder, so the dates stay comparable. “Delete Selected Report” moves this file to runs/runN/verifications/old/<date>/ and leaves the dates' results where they are."), tr("Measurement Report tool")),
+            # #182 beta 39 (Knut 5794078008): a calibration's reports.
+            ("report_*.json", "cal/reports", tr("A saved measurement report of this project's calibration, written by itself after the calibration chart is measured, or with “Generate report” under Run type Calibration. It can be any report type but the Printing record."), tr("Measure tab, Measurement Report tool")),
             ("report_*.json", "reports (project folder)", tr("A saved measurement report that covers measurements of SEVERAL profile runs of this project, for example checks of run1 and run2, or the profiling sheets of both. “Delete Selected Report” moves this file to old/<date>/ in the project folder. A report that covers measurements of more than one project is kept in a reports folder beside those project folders."), tr("Measurement Report tool")),
             # Knut asked where the four-way rule belongs, and suggested here
             # rather than in the hierarchy — *"maybe under the Measurement

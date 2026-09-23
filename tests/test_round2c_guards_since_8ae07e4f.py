@@ -142,10 +142,11 @@ def test_the_type_help_says_which_types_each_kind_of_measurement_may_have():
     assert ("A profiling measurement is the sheet a profile was built from, "
             "so its only report is the Printing record.") in body
     assert "the Printing record is not offered for it" in body
-    # K26: "after a profiling or verification measurement", since a
-    # calibration has no report at all.
-    assert ("The report ChromIQ writes by itself after a profiling or "
-            "verification measurement follows the same rule.") in body
+    # Beta 39 (Knut 5794078008): a calibration makes reports again, so the
+    # sentence covers every measurement (it said "after a profiling or
+    # verification measurement" under K26).
+    assert ("The report ChromIQ writes by itself after a measurement follows "
+            "the same rule.") in body
 
 
 def _report_type_help_body(dlg) -> str:

@@ -1751,7 +1751,7 @@ _WHEN_HELP = (
     "a neutral problem, when greys go warm or the mid-tones sit heavy and the "
     "colour rows are only noise. Printing record is the report of a "
     "profiling measurement: the sheet a profile was built from, recorded and "
-    "not graded. A calibration or a file outside a project can have it too. "
+    "not graded. A file outside a project can have it too. "
     "The two ISO types are for a print that has to answer to a "
     "printing condition somebody else supplied; they are greyed today, and "
     "pointing at the greyed entry says why.")
@@ -1837,9 +1837,9 @@ def _types_and_pairing_help() -> str:
         "measurement is judged, so it can have every other type, and the "
         "Printing record is not offered for it. A measurement outside any "
         "project can have any type ChromIQ can produce. With Run type "
-        "Calibration no report is made, and the window opens empty. The "
-        "report ChromIQ writes by itself after a profiling or verification "
-        "measurement follows the same rule. With "
+        "Calibration, the calibration's measurement can have every type but "
+        "the Printing record, as a verification can. The report ChromIQ "
+        "writes by itself after a measurement follows the same rule. With "
         "measurements from more than one place loaded, the type you choose "
         "applies to this window only and is not stored on any run.")
     return ("\n\n" + tr("What each one is for") + "\n\n"
@@ -2906,75 +2906,37 @@ class MeasurementReportDialog(QDialog):
                     f" border: 1px solid {BORDER}; border-radius: 3px; }}")
         self.setStyleSheet(qss)
 
-        # **RUN TYPE CALIBRATION MAKES NO REPORT (K26, Knut 5792484060,
-        # Q1).** *"Run type= Calibration should not allow any reports, and the
-        # measurement report window should have disabled/locked selection
-        # fields ... The measurement report window should not load any text
-        # or reports and open as empty."* Decided HERE, in the one place every
-        # door goes through (Tools menu, the Measure tab's buttons), so no
-        # door can forget it; the measurement a door hands in is not loaded.
-        if self._is_calibration_window():
-            self._lock_for_calibration()
-        elif initial_ti3 is not None and Path(initial_ti3).exists():
+        # **RUN TYPE CALIBRATION MAKES REPORTS AFTER ALL (#182 beta 39).**
+        # Knut, 5794078008: *"The run type set to calibration should be able
+        # to make a report after all. I retract my statement that the
+        # measurement report window should not allow making reports in this
+        # run type."* Beta 38's empty, locked window (K26, §18.1) is gone: the
+        # measurement a door hands in is loaded under every Run type, and
+        # what a Calibration window lists, counts and writes is decided by its
+        # kind (`_window_kind`, KIND_CALIBRATION).
+        if initial_ti3 is not None and Path(initial_ti3).exists():
             self._load(Path(initial_ti3))
 
-    # ---- K26: the Calibration window -------------------------------------
-    def _bar_run_type(self) -> "str | None":
-        """The profile bar's Run type, as stored ("profiling",
-        "verification", "calibration"), looked up through the window's
-        parents the way `_bar_kind` does; None with no bar behind it."""
-        p = self.parent()
-        while p is not None:
-            ctl = getattr(p, "_target_ctl", None)
-            target = getattr(ctl, "target", None) if ctl is not None else None
-            rt = getattr(target, "run_type", None)
-            if isinstance(rt, str) and rt:
-                return rt
-            p = p.parent() if hasattr(p, "parent") else None
-        return None
-
+    # ---- Run type Calibration (#182 beta 39) ------------------------------
     def _is_calibration_window(self) -> bool:
-        """Whether the profile bar says Run type = Calibration (K26). A window
-        with no bar behind it cannot know and behaves as before."""
-        from core.measurement_target import RUN_TYPE_CALIBRATION
-        return self._bar_run_type() == RUN_TYPE_CALIBRATION
+        """Whether this window is a Calibration window: the profile bar says
+        Run type = Calibration, or, with no bar behind it, the measurement it
+        is about is a project's calibration (`_window_kind`)."""
+        from workflow.measurement_report import KIND_CALIBRATION
+        return self._window_kind() == KIND_CALIBRATION
 
-    def _calibration_controls(self) -> list:
-        """Every control of the window a Calibration window locks: the
-        selection fields and the buttons that act on a report. Close and the
-        help icons stay live."""
-        names = ("_saved_combo", "_add_btn", "_remove_btn", "_clear_btn",
-                 "_profile_list", "_select_all_btn", "_deselect_all_btn",
-                 "_type_combo", "_set_combo", "_limits_btn", "_unlock_check",
-                 "_detail_check", "_generate_btn", "_delete_report_btn",
-                 "_pdf_btn", "_reveal_btn")
-        return [w for w in (getattr(self, n, None) for n in names)
-                if w is not None]
+    def _own_cal_dir(self) -> "Path | None":
+        """The calibration folder of the measurement this window is ON (its
+        first source), or None when that is not a project's calibration.
 
-    def _lock_for_calibration(self) -> None:
-        """Open EMPTY and LOCKED, with the red line where "Already
-        generated…" stands (K26). Nothing is read and nothing is written."""
-        from workflow.measurement_messages import M_REPORT_NOT_FOR_CALIBRATION
-        self._calibration_locked = True
-        for w in self._calibration_controls():
-            w.setEnabled(False)
-        self._saved_combo.blockSignals(True)
-        self._saved_combo.clear()
-        self._saved_combo.blockSignals(False)
-        self._view.setHtml("")
-        self._trend_label.setVisible(False)
-        self._trend_tabs.setVisible(False)
-        self._type_blurb.setVisible(False)
-        title, body = M_REPORT_NOT_FOR_CALIBRATION.render()
-        self._calibration_note = QLabel(title, self)
-        self._calibration_note.setToolTip(body)
-        self._calibration_note.setObjectName("calibrationNote")
-        self._calibration_note.setWordWrap(True)
-        self._calibration_note.setStyleSheet(
-            f"color: {_C['fail']}; font-weight: bold")
-        self._already_row.addWidget(self._calibration_note, 1)
-        log.info("measurement report window opened under Run type "
-                 "Calibration: empty and locked, nothing loaded")
+        A calibration has no run, so this is what "the window's own run" is
+        for a Calibration window: the folder Generate report writes into and
+        the place "Report shown" puts first."""
+        from workflow.measurement_report import is_calibration_dir
+        if not self._sources:
+            return None
+        d = Path(str(self._sources[0]["origin"])).parent
+        return d if is_calibration_dir(d) else None
 
     def showEvent(self, event) -> None:  # noqa: N802
         super().showEvent(event)
@@ -4211,13 +4173,9 @@ class MeasurementReportDialog(QDialog):
     def _load(self, path: Path) -> None:
         """Open the report on a measurement — the profile that owns it becomes the
         first list entry."""
-        if getattr(self, "_calibration_locked", False):
-            return                      # K26: a Calibration window loads nothing
         self._add_source(Path(path))
 
     def _on_add_project(self) -> None:
-        if getattr(self, "_calibration_locked", False):
-            return                      # K26: a Calibration window loads nothing
         paths = open_files_dialog(
             self, tr("Add measurements (.ti3, or i1Profiler .mxf / .txt / .cxf)"),
             tr("Measurement data (*.ti3 *.mxf *.txt *.cxf);;All files (*)"),
@@ -4793,7 +4751,15 @@ class MeasurementReportDialog(QDialog):
         runs = self._runs_for_document()
         ctx = self._run_ctx
         mine: "set[str] | None" = None
-        if ctx is not None:
+        if self._is_calibration_window():
+            # **A CALIBRATION WINDOW WRITES ITS OWN CALIBRATION ONLY (#182
+            # beta 39)**, into `<project>/cal/reports/`: never a run's folder
+            # (a Remove can leave a run first in the list), and never another
+            # project's calibration (a report across projects is not written
+            # from here).
+            own = self._own_cal_dir()
+            mine = {str(own)} if own is not None else set()
+        elif ctx is not None:
             # ASKED OF THE RUN, NOT MATCHED OUT OF A STRING — `…/runs/run10`
             # starts with `…/runs/run1`, and this window has paid for that once
             # already (see `_recalculate_run`).
@@ -4890,7 +4856,14 @@ class MeasurementReportDialog(QDialog):
         """
         ctx = self._run_ctx
         reports = self._reports_to_generate()
-        if ctx is None or not reports:
+        # A CALIBRATION HAS NO RUN AND IS WRITTEN (#182 beta 39); under Run
+        # type Calibration nothing else is (the button says why).
+        if self._is_calibration_window():
+            if self._own_cal_dir() is None:
+                return
+        elif ctx is None:
+            return
+        if not reports:
             return
         # The button is disabled with a reason when both kinds are loaded
         # (FC-2); the handler refuses as well, so no other door writes one
@@ -5288,7 +5261,7 @@ class MeasurementReportDialog(QDialog):
                     rep.pop(k, None)
                 stamp_verdict(rep, lim.limits, set_id=lim.set_id,
                               set_label=lim.label_en, edited=lim.edited)
-                stamp_report_type(rep, ctx.run)
+                stamp_report_type(rep, ctx.run if ctx is not None else None)
                 # …AND THE TYPE THE PULLDOWN IS SHOWING, which is the run's
                 # unless a document is loaded that is of another kind. D9 puts
                 # the type on the run and that is untouched; what this refuses
@@ -6331,7 +6304,9 @@ class MeasurementReportDialog(QDialog):
                                                  KIND_VERIFICATION,
                                                  document_key_of,
                                                  report_types_for_kind)
-        if run is None:
+        # A CALIBRATION HAS NO RUN AND HAS REPORTS (#182 beta 39): its
+        # folders come from the list (`_measurement_dirs_of_the_list`).
+        if run is None and not self._is_calibration_window():
             return []
         # **ONLY WHAT THE RUN TYPE CAN HAVE (K19).** Knut, 2026-09-23: *"the
         # listed reports in the pulldown and those counted in 'Already
@@ -6459,7 +6434,10 @@ class MeasurementReportDialog(QDialog):
         `_open_on_the_latest_report`, which opens on the newest report of
         the window's OWN run.
         """
-        from workflow.measurement_report import measurement_dir_kind
+        from workflow.measurement_report import (KIND_CALIBRATION,
+                                                 measurement_dir_kind)
+        if kind == KIND_CALIBRATION:
+            return self._calibration_dirs_of_the_list()
         if run is None:
             return []
         own = {str(run.dir)}
@@ -6482,6 +6460,36 @@ class MeasurementReportDialog(QDialog):
             if not origin or origin in out or origin not in wanted:
                 continue
             if kind is None or measurement_dir_kind(origin) == kind:
+                out.append(origin)
+        return out
+
+    def _calibration_dirs_of_the_list(self) -> "list[str]":
+        """The calibration folders a Calibration window lists and counts the
+        reports of, the window's own first (#182 beta 39).
+
+        Knut, 5794078008: *"'Included measurements...' lists the measurement
+        in the cal/ folder. If another cal-folder's measurement is selected
+        (which is only possible selecting in a different project), then the
+        'Included measurements...' list will hold multiple measurement
+        sets."* So: every row of the list whose folder is a project's
+        calibration, and nothing else; a run's measurement added to a
+        Calibration window names no folder here, as a verification names
+        none on a Profiling window (K24).
+        """
+        from workflow.measurement_report import is_calibration_dir
+        out: "list[str]" = []
+        own = self._own_cal_dir()
+        if own is not None:
+            out.append(str(own))
+        wanted: "set[str]" = set()
+        for src in getattr(self, "_sources", None) or []:
+            wanted |= {str(r.get("_origin_dir") or "")
+                       for r in (src.get("runs") or [])}
+        wanted.discard("")
+        for r in getattr(self, "_history", None) or []:
+            origin = str(r.get("_origin_dir") or "")
+            if (origin and origin not in out and origin in wanted
+                    and is_calibration_dir(origin)):
                 out.append(origin)
         return out
 
@@ -6631,11 +6639,31 @@ class MeasurementReportDialog(QDialog):
         recorded measurements, else its files), or from *origin* for a file
         with no document block.
         """
-        from workflow.measurement_report import (KIND_PROFILING,
+        from workflow.measurement_report import (KIND_CALIBRATION,
+                                                 KIND_PROFILING,
                                                  SCOPE_ALL_DATES,
                                                  SCOPE_MULTIPLE_DATES,
                                                  measurement_place)
-        if self._window_kind() != KIND_PROFILING:
+        kind = self._window_kind()
+        if kind == KIND_CALIBRATION:
+            # **"Cal", "Multiple cals", "All cals" (#182 beta 39).** Knut,
+            # 5794078008: *"The report names shall have tags 'Cal' (when only
+            # one calibration), or 'Multiple cals' when more than one
+            # included measurement across projects (but not all listed in
+            # 'Included measurements...' list), or 'All cals' when all
+            # measurement sets in 'Included measurements...' list are
+            # included across projects for a report."* A project has ONE
+            # calibration, so "one calibration" is one PROJECT covered; the
+            # rest follows the scope the report recorded when it was made, as
+            # "Multiple dates" and "All dates" do.
+            places = self._entry_places(entry) if entry else set()
+            if not places and origin:
+                places = {measurement_place(origin)}
+            if len({p for p, _r in places}) <= 1:
+                return tr("Cal")
+            return (tr("All cals") if scope == SCOPE_ALL_DATES
+                    else tr("Multiple cals"))
+        if kind != KIND_PROFILING:
             return (tr("All dates") if scope == SCOPE_ALL_DATES
                     else tr("Multiple dates") if scope == SCOPE_MULTIPLE_DATES
                     else tr("One date"))
@@ -7105,6 +7133,11 @@ class MeasurementReportDialog(QDialog):
         if ctx is None:
             ctx = self._context_run()
         if ctx is None or getattr(ctx, "run", None) is None:
+            # A CALIBRATION WINDOW'S OWN PLACE is its calibration (#182 beta
+            # 39): (project, "cal").
+            if self._is_calibration_window():
+                own = self._own_cal_dir()
+                return measurement_place(own) if own is not None else None
             return None
         return measurement_place(ctx.run.dir)
 
@@ -7242,6 +7275,16 @@ class MeasurementReportDialog(QDialog):
             return (0, int(m.group(1)), "") if m else (1, 0, name.casefold())
 
         _run_heading = _run_tag
+        # **A CALIBRATION WINDOW GROUPS BY PROJECT ONLY (#182 beta 39).**
+        # Knut, 5794078008: *"The 'Report shown' dropdown list should then
+        # group the reports (that include one measurement) with
+        # group-headings according to the project name the measurements and
+        # reports belong to. And reports with multiple measurements included
+        # (across projects) are grouped under 'Reports including multiple
+        # projects'."* A project has one calibration, so there is no run to
+        # put under the project: its reports go straight under its name.
+        from workflow.measurement_report import KIND_CALIBRATION
+        calibration = kind == KIND_CALIBRATION
 
         out: list = []
         sub = 1 if several_projects else 0
@@ -7255,8 +7298,9 @@ class MeasurementReportDialog(QDialog):
             if several_projects:
                 out.append(("heading", proj, proj, 0))
             for r in runs:
-                out.append(("heading", _run_heading(r), f"{proj}/runs/{r}",
-                            sub))
+                if not calibration:
+                    out.append(("heading", _run_heading(r),
+                                f"{proj}/runs/{r}", sub))
                 out.extend(("entry", d) for d in buckets[(proj, r)])
             if (proj, MULTI_RUNS) in buckets:
                 out.append(("heading", tr("Reports including multiple runs"),
@@ -7679,6 +7723,12 @@ class MeasurementReportDialog(QDialog):
         # and the controls answer for themselves again (B8-461, B8-462).
         self._doc_created = ""
         self._forget_sticky_settings()
+        # A CALIBRATION'S "New report…" IS THE PREFERENCES DEFAULT (#182 beta
+        # 39): a type chosen earlier in this window is the choice of the
+        # report it was chosen for, not of the next one. (A calibration has
+        # no run to keep a type on; `_report_type_now` then asks Preferences.)
+        if self._is_calibration_window():
+            self._session_type = ""
         chk = getattr(self, "_detail_check", None)
         if chk is not None:
             chk.blockSignals(True)
@@ -8205,8 +8255,9 @@ class MeasurementReportDialog(QDialog):
         The SUBJECT decides (the measurement the window was opened on), and
         it is asked the same way the automatic report asks: its run context.
         A dated verification is "verification", a run's own sheet is
-        "profiling", and anything with no run (a file outside any project, a
-        calibration) is None, which keeps every type.
+        "profiling", a project's calibration is "calibration" (#182 beta 39),
+        and anything else with no run (a file outside any project) is None,
+        which keeps every type.
         """
         from workflow.measurement_report import (KIND_PROFILING,
                                                  KIND_VERIFICATION)
@@ -8225,6 +8276,12 @@ class MeasurementReportDialog(QDialog):
         origin, ti3 = r.get("_origin_dir"), r.get("ti3")
         if not origin or not ti3:
             return None
+        # A PROJECT'S CALIBRATION is its own kind (#182 beta 39), asked the
+        # way the automatic report asks it: the folder, on disk.
+        from workflow.measurement_report import (KIND_CALIBRATION,
+                                                 is_calibration_dir)
+        if is_calibration_dir(origin):
+            return KIND_CALIBRATION
         ctx = run_context_for(Path(origin) / str(ti3))
         if ctx is None:
             return None
@@ -8234,10 +8291,16 @@ class MeasurementReportDialog(QDialog):
     def _bar_kind(self) -> "tuple[bool, str | None]":
         """``(found, kind)`` from the profile bar's Run type, looked up
         through the window's parents; ``(False, None)`` when there is no bar.
-        Calibration keeps every type (kind None), as before."""
-        from core.measurement_target import (RUN_TYPE_PROFILING,
+
+        **CALIBRATION IS A KIND OF ITS OWN (#182 beta 39, Knut 5794078008).**
+        It used to answer None ("every type"), and beta 38 then locked the
+        window (K26); now it is KIND_CALIBRATION: every type but the Printing
+        record, from the calibration folders' reports."""
+        from core.measurement_target import (RUN_TYPE_CALIBRATION,
+                                             RUN_TYPE_PROFILING,
                                              RUN_TYPE_VERIFICATION)
-        from workflow.measurement_report import (KIND_PROFILING,
+        from workflow.measurement_report import (KIND_CALIBRATION,
+                                                 KIND_PROFILING,
                                                  KIND_VERIFICATION)
         p = self.parent()
         while p is not None:
@@ -8247,7 +8310,8 @@ class MeasurementReportDialog(QDialog):
             if isinstance(rt, str) and rt:
                 return True, (KIND_VERIFICATION if rt == RUN_TYPE_VERIFICATION
                               else KIND_PROFILING if rt == RUN_TYPE_PROFILING
-                              else None)
+                              else KIND_CALIBRATION
+                              if rt == RUN_TYPE_CALIBRATION else None)
             p = p.parent() if hasattr(p, "parent") else None
         return False, None
 
@@ -8358,6 +8422,16 @@ class MeasurementReportDialog(QDialog):
                 self._window_kind())
         if self._session_type:
             return self._fit_to_kind(self._session_type)
+        # **A CALIBRATION HAS NO RUN TO ASK, SO PREFERENCES ANSWERS (#182
+        # beta 39)**, as it does for a run that never chose: a new report of
+        # a calibration is the Preferences default type, fitted to the kind
+        # (never the Printing record), the same rule the automatic report
+        # after a calibration measurement follows.
+        if self._is_calibration_window():
+            from workflow.run_compliance import report_type_default_for
+            return report_type_default_for(
+                None, str(self._settings.get("report_default_type", "") or ""),
+                self._window_kind())
         reports = self._runs_for_report()
         return self._fit_to_kind(
             report_type(reports[0]) if reports else REPORT_TYPE_DEFAULT)
@@ -8427,7 +8501,8 @@ class MeasurementReportDialog(QDialog):
                                                  REPORT_TYPE_MENU_HEADING,
                                                  REPORT_TYPE_MENU_SPLIT)
         current = self._report_type_now()
-        from workflow.measurement_report import (KIND_PROFILING,
+        from workflow.measurement_report import (KIND_CALIBRATION,
+                                                 KIND_PROFILING,
                                                  report_types_for_kind)
         kind = self._window_kind()
         allowed = report_types_for_kind(kind)
@@ -8465,6 +8540,12 @@ class MeasurementReportDialog(QDialog):
                     i, tr("A profiling measurement is the sheet a profile was "
                           "built from, so its only report is the Printing "
                           "record.") if kind == KIND_PROFILING else
+                    # #182 beta 39, Knut 5794078008: *"Allowed report types
+                    # are all except the printing record"*.
+                    tr("The Printing record is the report of a profiling "
+                       "measurement. With Run type Calibration, the "
+                       "calibration's measurement uses one of the other "
+                       "types.") if kind == KIND_CALIBRATION else
                     tr("The Printing record is the report of a profiling "
                        "measurement. A verification is judged, so it uses "
                        "one of the other types."),
@@ -8537,10 +8618,23 @@ class MeasurementReportDialog(QDialog):
                 "entry from the list, one at a time, with Remove Profile's "
                 "Measurements… to save it. Save report as PDF… saves the "
                 "report shown here."))
+        # **A CALIBRATION WINDOW WRITES INTO ITS CALIBRATION (#182 beta 39).**
+        # One calibration: Generate report saves into `<project>/cal/
+        # reports/`. Another project's calibration added: the several-places
+        # rule above greys it, and the sentence names what is loaded.
+        calibration = self._is_calibration_window()
+        cal_ok = calibration and self._own_cal_dir() is not None
+        if calibration and several:
+            self._generate_btn.setToolTip(tr(
+                "Calibrations of more than one project are loaded. Generate "
+                "report saves a report of one project's calibration, so "
+                "remove every other entry from the list, one at a time, with "
+                "Remove Profile's Measurements… to save it. Save report as "
+                "PDF… saves the report shown here."))
         # ROUND 3B (F9): only when this is the ONLY place loaded. With a
         # profile run beside it, removing the loose entry DOES give Generate
         # back, and the several-places sentence above is the true one.
-        if run is None and self._sources and not several:
+        if run is None and self._sources and not several and not cal_ok:
             # NO RUN TO SAVE INTO, and removing entries cannot change that
             # (round 2B, #7): the window's own measurement is outside any
             # profile run. Said, rather than a greyed button with no reason.
@@ -8575,8 +8669,19 @@ class MeasurementReportDialog(QDialog):
                 "one kind from the list with Remove Profile's Measurements… "
                 "to save a report. Save report as PDF… saves the report shown "
                 "here."))
+        # UNDER CALIBRATION ONLY A CALIBRATION IS WRITTEN, whatever else is
+        # loaded: a run's measurement left first in the list after a Remove
+        # would otherwise be written as a calibration type into a profiling
+        # or verification folder.
+        if calibration and not cal_ok and self._sources and not several:
+            self._generate_btn.setToolTip(tr(
+                "With Run type Calibration, Generate report saves a report of "
+                "a project's calibration, and the measurement this window is "
+                "on is not one. Save report as PDF… saves the report shown "
+                "here."))
         self._generate_btn.setEnabled(
-            run is not None and not several and not mixed
+            (cal_ok if calibration else run is not None)
+            and not several and not mixed
             and bool(self._reports_to_generate()))
         # **THE BOX THAT WIDENED THE REPORT IS GONE (B8-590), AND SO IS THE
         # RULE THAT FORCED IT OFF.** A one-measurement list needed "Show all
@@ -8675,7 +8780,7 @@ class MeasurementReportDialog(QDialog):
         from anything this window remembers: a report is generated by a
         measurement no window was open for.
         """
-        if run is None:
+        if run is None and not self._is_calibration_window():
             return ""
         from workflow.measurement_report import (generated_report_types,
                                                  report_type_name)
@@ -8688,8 +8793,12 @@ class MeasurementReportDialog(QDialog):
         # 5792484060, Q4: "yes").** Since K25 a Profiling window counts the
         # Printing records of every run in its list, so "for this run" was
         # no longer what it counted. A Verification window keeps its words.
-        from workflow.measurement_report import KIND_PROFILING
-        profiling = kind == KIND_PROFILING
+        # A CALIBRATION WINDOW SAYS "these measurements" TOO (#182 beta 39):
+        # it has no run, and its list may hold several projects'
+        # calibrations.
+        from workflow.measurement_report import (KIND_CALIBRATION,
+                                                 KIND_PROFILING)
+        profiling = kind in (KIND_PROFILING, KIND_CALIBRATION)
         if not counts:
             return (tr("No report has been generated for these measurements "
                        "yet.") if profiling
@@ -8735,7 +8844,7 @@ class MeasurementReportDialog(QDialog):
         facts on one line; this is what a reader gets when that line will not
         fit, which on six types it never will.
         """
-        if run is None:
+        if run is None and not self._is_calibration_window():
             return ""
         from workflow.measurement_report import (generated_report_types,
                                                  report_type_name)

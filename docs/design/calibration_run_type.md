@@ -39,6 +39,16 @@ proposed replacement wording is in the hand-back report, and a strict `xfail` in
 `tests/test_calibration_keeps_only_measured.py` keeps the disagreement visible
 in every gate run until it is settled.
 
+## Amendment, 2026-09-23 (beta 39): `cal/reports/`
+
+**⏳ Awaiting confirmation.** **Confirmed by:** *nobody yet.* Knut ruled on
+#182 (5794078008, confirmed 5794311113) that Run type Calibration makes
+measurement reports, stored in and read from `cal/reports/`. The folder is
+created by the first report and is not part of the calibration itself:
+`Calibration.reset` archives files only, so a new calibration chart leaves
+`cal/reports/` where it is. What the report window does with it is recorded
+in `measurement_report_limits.md` §18.12.
+
 ## Verdict in one paragraph
 
 **Doable, and worth doing — but "Calibration" is not a third *run* type; it is a

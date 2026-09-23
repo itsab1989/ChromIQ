@@ -1673,6 +1673,21 @@ def _is_dated(d: Path) -> bool:
     return d.parent.name == VERIFICATIONS_DIRNAME
 
 
+#: The folder a project's calibration lives in (`core.file_manager.
+#: Calibration.dir`), by name.
+CAL_DIRNAME = "cal"
+
+
+def _is_cal(d: Path) -> bool:
+    """Whether *d* is a project's calibration folder, BY NAME (#182 beta 39).
+
+    Name only, like the ``runs/`` test beside it, because it is asked of the
+    folders a saved report RECORDS, and a project that has moved (every
+    downloaded demo pack) is no longer where they say. What a window lists
+    and counts asks the disk as well (`measurement_dir_kind`)."""
+    return d.name == CAL_DIRNAME
+
+
 def _run_folder_of(d: Path) -> Path:
     """The profile run a measurement folder belongs to: the run itself, or
     the run above a dated verification folder."""
@@ -1681,16 +1696,36 @@ def _run_folder_of(d: Path) -> Path:
 
 def _project_folder_of(d: Path) -> "Path | None":
     """The project a measurement folder belongs to, or None outside a
-    ``<project>/runs/runN`` layout."""
+    ``<project>/runs/runN`` layout. A project's ``cal/`` folder belongs to
+    the project above it (#182 beta 39)."""
+    if _is_cal(d):
+        return d.parent
     run = _run_folder_of(d)
     return run.parent.parent if run.parent.name == "runs" else None
 
 
+def is_calibration_dir(d: "str | Path") -> bool:
+    """Whether *d* is a ChromIQ project's calibration folder ON DISK: named
+    ``cal`` with the project's manifest beside it. A user's own folder that
+    happens to be called ``cal`` is not one (#182 beta 39)."""
+    d = Path(str(d))
+    if not str(d) or not _is_cal(d):
+        return False
+    try:
+        return (d.parent / "project.json").is_file()
+    except OSError:
+        return False
+
+
 def measurement_dir_kind(d: "str | Path") -> str:
     """The kind a measurement FOLDER holds: a dated verification folder is
-    ``verification``; anything else (a run's own folder, a loose file's
-    folder) is ``profiling``."""
-    return KIND_VERIFICATION if _is_dated(Path(str(d))) else KIND_PROFILING
+    ``verification``; a project's ``cal/`` folder is ``calibration`` (#182
+    beta 39, Knut 5794078008); anything else (a run's own folder, a loose
+    file's folder) is ``profiling``."""
+    d = Path(str(d))
+    if is_calibration_dir(d):
+        return KIND_CALIBRATION
+    return KIND_VERIFICATION if _is_dated(d) else KIND_PROFILING
 
 
 def project_relative(d: "str | Path") -> str:
@@ -1704,6 +1739,10 @@ def project_relative(d: "str | Path") -> str:
     path finds nothing after a move. Named from `runs/` down, it finds the
     same folders wherever the project now lives (K23, and B8-810 R3A-2).
     """
+    # A PROJECT'S CALIBRATION is ``cal`` from the project down (#182 beta
+    # 39), as a run is ``runs/run1``.
+    if _is_cal(Path(str(d))):
+        return CAL_DIRNAME
     parts = Path(str(d)).parts
     for i in range(len(parts) - 2, -1, -1):
         if parts[i] == "runs":
@@ -1801,7 +1840,7 @@ def resolve_recorded_folder(d: "str | Path", homes, *,
     if recorded is None or not homes:
         return d
     rel = project_relative(d)
-    if not rel.startswith("runs/"):
+    if not (rel.startswith("runs/") or rel == CAL_DIRNAME):
         return d
     rname = nfc(recorded.name)
 
@@ -1950,7 +1989,12 @@ def shared_report_folders(measurement_dirs) -> "list[Path]":
                          / REPORTS_DIRNAME)
         project = _project_folder_of(d)
         if project is not None:
-            cands.append(project / REPORTS_DIRNAME)
+            # A CALIBRATION'S REPORTS ARE NEVER IN THE PROJECT'S OWN
+            # `reports/` (#182 beta 39, Knut 5794078008): one calibration's
+            # live in `cal/reports/`, several projects' in the folder across
+            # projects below. The project's folder holds the RUNS' reports.
+            if not _is_cal(d):
+                cands.append(project / REPORTS_DIRNAME)
             if str(project) not in {str(p) for p in projects}:
                 projects.append(project)
         for c in cands:
@@ -1971,6 +2015,18 @@ def shared_report_folders(measurement_dirs) -> "list[Path]":
     return out
 
 
+def _coverage_key(d: "str | Path") -> str:
+    """What `shared_documents` compares a recorded folder by:
+    `project_relative`, and for a CALIBRATION the project's name with it
+    (#182 beta 39). Every project has a ``cal``, so ``cal`` alone would offer
+    a report across P and Q in R's window as well."""
+    d = Path(str(d))
+    if _is_cal(d):
+        from core.file_manager import nfc
+        return nfc(d.parent.name) + "/" + CAL_DIRNAME
+    return project_relative(d)
+
+
 def shared_documents(measurement_dirs) -> "list[tuple[Path, dict]]":
     """``[(file, block)]`` for every document FILE in the shared folders
     (`shared_report_folders`) that covers at least one of *measurement_dirs*.
@@ -1982,7 +2038,7 @@ def shared_documents(measurement_dirs) -> "list[tuple[Path, dict]]":
     never wrote one, and this skips it rather than guess what it covers.
     Oldest first by file name. Never raises.
     """
-    here = {project_relative(d) for d in (measurement_dirs or []) if str(d)}
+    here = {_coverage_key(d) for d in (measurement_dirs or []) if str(d)}
     out: "list[tuple[Path, dict]]" = []
     for folder in shared_report_folders(measurement_dirs):
         try:
@@ -1998,7 +2054,7 @@ def shared_documents(measurement_dirs) -> "list[tuple[Path, dict]]":
             block = recorded_document(report_object(rep))
             if block is None or is_verdict_record(block):
                 continue
-            covers = {project_relative(m.get("dir") or "")
+            covers = {_coverage_key(m.get("dir") or "")
                       for m in block.get("measurements") or []
                       if m.get("dir")}
             if covers & here:
@@ -2532,9 +2588,11 @@ def report_type_is_built(type_id: str) -> bool:
     return False
 
 
-#: The two kinds of measurement a report can be about (K13).
+#: The kinds of measurement a report can be about (K13), and the third,
+#: a project's calibration (#182 beta 39, Knut 5794078008).
 KIND_PROFILING = "profiling"
 KIND_VERIFICATION = "verification"
+KIND_CALIBRATION = "calibration"
 
 
 def report_types_for_kind(kind: "str | None") -> "tuple[str, ...]":
@@ -2554,7 +2612,10 @@ def report_types_for_kind(kind: "str | None") -> "tuple[str, ...]":
     """
     if kind == KIND_PROFILING:
         return (REPORT_TYPE_RECORD,)
-    if kind == KIND_VERIFICATION:
+    # **RUN TYPE CALIBRATION: EVERY TYPE BUT THE PRINTING RECORD (#182 beta
+    # 39).** Knut, 5794078008: *"Allowed report types are all except the
+    # printing record"*. This replaces K26's "no report at all" (§18.1).
+    if kind in (KIND_VERIFICATION, KIND_CALIBRATION):
         return tuple(t for t in REPORT_TYPES if t != REPORT_TYPE_RECORD)
     return tuple(REPORT_TYPES)
 

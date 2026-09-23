@@ -25432,6 +25432,12 @@ would reach.
 - blocks release: no
 - status: FIXED
 - answered: Knut 5792484060 Q1: no report under Calibration; built in B8-832 (§18.1)
+- answered again: Knut 5794078008 retracted that ruling ("The run type set to
+  calibration should be able to make a report after all"): a Calibration
+  window lists, counts and generates every type but the Printing record,
+  from `cal/reports/` and the folder across projects, and a run's
+  measurement added to it is never listed or written. Built in B8-844
+  (§18.12); the lock of B8-832 and its tests are gone.
 - found by: challenge round A, F2 (only with Preferences > Calibration options
   on). With Run type Calibration the window maps to "every type" (§13.10
   assumption "a calibration keeps every type"): it lists and counts profiling
@@ -25443,8 +25449,9 @@ would reach.
   are not the calibration's? Not changed: the §13.10 assumption is his to
   overturn.
 - evidence:
-  test_a_calibration_window_opens_empty_and_locked
-  test_the_other_run_types_are_untouched
+  test_a_calibration_offers_every_type_but_the_printing_record
+  test_a_calibration_window_lists_counts_and_writes_its_own_reports
+  test_under_calibration_a_run_s_measurement_is_never_written
 
 ### B8-820 · FIXED · Question for Knut: the "Bound, and locked" paragraph against K18 (beta 37, B-H4)
 - blocks release: no
@@ -25784,12 +25791,13 @@ would reach.
   an empty `<output folder>/reports/` behind; `_export_pdf` removes the folder
   it made for the chooser when nothing was saved in it
   (test_a_cancelled_pdf_save_leaves_no_reports_folder).
+- superseded in part (beta 39): the Run type Calibration item, by B8-844.
+  Knut retracted the ruling (5794078008); the lock, the red line and
+  M-REPORT-NOT-FOR-CALIBRATION were removed, and with them four of the tests
+  this entry named (the empty-and-locked window, the other run types
+  untouched, the Measure tab's empty window, the type help's "no report").
 - evidence:
-  test_a_calibration_window_opens_empty_and_locked
-  test_the_other_run_types_are_untouched
   test_every_door_hands_the_window_a_parent_that_knows_the_run_type
-  test_the_measure_tab_button_opens_the_empty_window_under_calibration
-  test_the_type_help_no_longer_promises_a_calibration_every_type
   test_bound_and_locked_is_explained_in_the_help_not_the_report
   test_the_accuracy_trend_plots_what_the_verdict_judged
   test_the_graph_says_its_figures_are_the_judged_ones
@@ -25997,6 +26005,64 @@ would reach.
   §18.8).
 - not changed; for Knut: whether (1) should sort by the report's own date,
   and whether (2) is right (the document records both runs).
+
+### B8-844 · FIXED · Knut 5794078008: Run type Calibration makes reports (replaces §18.1's empty window)
+- blocks release: no
+- status: FIXED
+- note: built as ruled; the rule is confirmed (5794311113), the built
+  behaviour awaits confirmation (§18.12 of
+  `docs/design/measurement_report_limits.md`).
+- ruling: Knut, #182 5794078008 point 1, retracting K26 Q1: every report type
+  but the Printing record; the calibration's measurement in `<project>/cal/`,
+  its reports written to and read from `<project>/cal/reports/`; another
+  project's calibration may be added; a report across projects in
+  `<ChromIQ default folder>/reports/`; "Report shown" lists only Calibration
+  reports from those two folders; names "Cal" / "Multiple cals" / "All cals";
+  grouped by project name, with "Reports including multiple projects".
+  Confirmed as summarised in our 5794100213 (5794311113).
+- fix:
+  * `KIND_CALIBRATION` (every type but the Printing record); the profile
+    bar's Calibration maps to it, and a window with no bar takes it from a
+    measurement in a project's `cal/`;
+  * the structure helpers know `<project>/cal` (`measurement_dir_kind`,
+    `_project_folder_of`, `measurement_place`, `project_relative`,
+    `resolve_recorded_folder`, `shared_report_folders`, `_coverage_key`);
+  * the K26 lock, red line and M-REPORT-NOT-FOR-CALIBRATION removed (the
+    message withdrawn from §M-PROPOSED); every door loads the calibration;
+  * the list, the counter, the names, the grouping (project headings, no run
+    heading), Generate into `cal/reports/` for one calibration (greyed, with
+    a calibration sentence, for several projects), "New report…" on the
+    Preferences type;
+  * the automatic report after a calibration measurement is never a Printing
+    record;
+  * the Report type help and "Where are my files" (`cal/reports/`);
+  * the demo pack holds calibrations and their reports in
+    Report-Limits-Report-Folders, -Second and Report-Limits-Report-Types,
+    with reports across two and three projects.
+- not changed: Generate across projects (the §13.9 / G7 work of another
+  change set). For runs, `shared_documents` still compares a report across
+  projects from `runs/` down only, so a report of P/run1 and Q/run1 is
+  offered in R/run1's window too; calibrations compare the project as well.
+- proof: 16 mutations, each proved red; on screen
+  `~/Desktop/ChromIQ-beta39-proof/calibration/REPORT.md`
+  (`scripts/drive_beta39_calibration.py`).
+- evidence:
+  test_a_calibration_offers_every_type_but_the_printing_record
+  test_the_folders_of_a_calibration
+  test_a_moved_pack_finds_the_other_projects_calibration
+  test_a_calibration_window_lists_counts_and_writes_its_own_reports
+  test_a_new_calibration_report_starts_from_the_preferences_type
+  test_a_window_with_no_bar_on_a_calibration_is_a_calibration_window
+  test_delete_moves_a_calibration_report_into_cal_reports_old
+  test_several_calibrations_are_grouped_by_project
+  test_multiple_cals_and_all_cals
+  test_a_report_of_two_calibrations_is_not_offered_to_a_third
+  test_a_calibration_s_reports_are_not_counted_on_a_profiling_window
+  test_under_calibration_a_run_s_measurement_is_never_written
+  test_the_automatic_report_of_a_calibration_is_never_a_printing_record
+  test_the_measure_tab_button_opens_the_calibration_s_measurement
+  test_the_type_help_says_what_a_calibration_can_have
+  test_the_withdrawn_red_line_is_gone
 
 ### B8-845 · FIXED, awaiting confirmation · G12: the Printing record explains its absences; every N-A note driven on screen
 - blocks release: no

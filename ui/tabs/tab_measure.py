@@ -15099,6 +15099,17 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 kind = (KIND_VERIFICATION
                         if getattr(ctx, "verification", None) is not None
                         else KIND_PROFILING)
+            else:
+                # **A CALIBRATION'S AUTOMATIC REPORT (#182 beta 39).** Knut
+                # retracted "no reports under Calibration" (5794078008) and
+                # allows every type but the Printing record, so it follows
+                # the Verification pattern: the Preferences default type,
+                # never the Printing record. It is saved beside the
+                # measurement, in `<project>/cal/reports/`.
+                from workflow.measurement_report import (
+                    KIND_CALIBRATION, measurement_dir_kind)
+                if measurement_dir_kind(ti3.parent) == KIND_CALIBRATION:
+                    kind = KIND_CALIBRATION
             tid = report_type_default_for(
                 run, str(self._settings.get("report_default_type", "") or ""),
                 kind)
@@ -15171,27 +15182,30 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
     def _open_measurement_report(self) -> None:
         """Open the measurement-report viewer for the current chart's .ti3."""
         from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
-        # **RUN TYPE CALIBRATION: THE WINDOW, EMPTY (#182 K26).** Knut: the
-        # window "should not load any text or reports and open as empty".
-        # This button asked for a measurement first and, with the
-        # calibration chart not yet measured, answered with "Measure this
-        # chart first", a promise of a report that Run type Calibration no
-        # longer makes. It opens the window, which says so itself.
+        # **RUN TYPE CALIBRATION: THE CALIBRATION'S MEASUREMENT (#182 beta
+        # 39).** Knut retracted "no reports under Calibration" (5794078008),
+        # so beta 38's empty window (K26) is gone: the button opens the
+        # window on `<project>/cal/<name>-cal.ti3`, as Tools ▸ Measurement
+        # report does (`_report_seed`), and a calibration not measured yet is
+        # answered like a run's chart: "Measure this chart first".
         ctl = getattr(self, "_target_ctl", None)
         try:
             calibration = bool(ctl is not None and ctl.target.is_calibration())
         except Exception:                                # noqa: BLE001
             calibration = False
-        if calibration:
-            MeasurementReportDialog(self._settings, self).exec()
-            return
         ti3 = self._ti1_path.with_suffix(".ti3") if self._ti1_path else None
+        if calibration:
+            try:
+                proj = ctl.project_or_none()
+                ti3 = proj.calibration.ti3 if proj is not None else None
+            except Exception:                            # noqa: BLE001
+                ti3 = None
         # A verification's measurements live in DATED folders, never beside
         # the shared chart — so the beside-the-chart guess above never finds
         # them (Sebastian, 2026-08-10: after Restore Used Chart the report
         # claimed the measured chart was unmeasured). Resolve through the
         # bar: the selected date first, else the run's newest measured date.
-        if self._is_verification_run():
+        if not calibration and self._is_verification_run():
             run = self._guard_run()
             if run is not None:
                 ctl = getattr(self, "_target_ctl", None)

@@ -2751,22 +2751,10 @@ M_REPORT_CHART_MISMATCH_LAYOUT = _m(
     "most of the page. Make the change, print the chart again and measure it.",
     approved=False)
 
-# --- PROPOSED (#182 K26, Knut 2026-09-23): the report window under Run type
-# Calibration --------------------------------------------------------------------
-#
-# Knut, 5792484060 (Q1): *"Run type= Calibration should not allow any
-# reports ... The 'Already generated....' message could be replaced with a Red
-# warning text informing user that verification measurement and report
-# generation is only allowed for Run type Profiling and Verification."* The
-# headline is the red line; the body is its tooltip. New wording, ours.
-M_REPORT_NOT_FOR_CALIBRATION = _m(
-    "M-REPORT-NOT-FOR-CALIBRATION",
-    "Measurement reports can only be made with Run type Profiling or "
-    "Verification",
-    "Run type Calibration measures the calibration chart, and no report is "
-    "made of it. Choose Run type Profiling or Verification in the bar above "
-    "the tabs to make or read a measurement report.",
-    approved=False)
+# M-REPORT-NOT-FOR-CALIBRATION (#182 K26, beta 38) is WITHDRAWN, never having
+# been approved: Knut retracted the ruling it spoke for (5794078008, "The run
+# type set to calibration should be able to make a report after all"), so the
+# window has no red line to show under Run type Calibration (beta 39).
 
 # --- PROPOSED (#182, 2026-09-16): deleting one saved report ------------------
 #
@@ -2963,7 +2951,6 @@ CATALOGUE = {m.id: m for m in (
     M_PROJECT_REPLACE_CONFIRM,
     M_PROJECT_REPLACE_FAILED,
     M_PROJECT_FOLDER_RENAMED, M_PROJECT_FOLDER_RENAME_FAILED,
-    M_REPORT_NOT_FOR_CALIBRATION,
     M_CR30_STOCK_READER,
     M_CR30_READ_ENDED, M_CR30_INSTRUMENT_GONE, M_CR30_PATCH_GAVE_UP,
     M_CR30_CALIBRATE, M_CR30_CALIBRATE_BLACK, M_CR30_MAGNET,

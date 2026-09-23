@@ -1,7 +1,9 @@
 """#182 K26 (Knut, 2026-09-23, comments 5792484060 and 5792576954).
 
-* Run type Calibration: the Measurement Report window opens EMPTY, every
-  selection field locked, and a red line where "Already generated…" stands.
+* Run type Calibration: the Measurement Report window opened EMPTY and
+  locked in beta 38. SUPERSEDED in beta 39 (Knut 5794078008): a Calibration
+  window makes reports, `tests/test_calibration_reports.py`. The door test
+  below stays, because the rule still lives in the window.
 * The Colour accuracy graph plots the figures the verdict judged: within the
   profile's gamut where the sheet was split by it.
 * A project opened from a folder not named what its files carry is offered
@@ -62,72 +64,6 @@ def _bar(run_type: str) -> QWidget:
 # --------------------------------------------------------------------------
 # 1. Run type Calibration
 # --------------------------------------------------------------------------
-def test_a_calibration_window_opens_empty_and_locked(tmp_path, qapp):
-    """Knut, Q1: *"Run type= Calibration should not allow any reports, and
-    the measurement report window should have disabled/locked selection
-    fields ... should not load any text or reports and open as empty."*
-
-    Handed a real measurement (every door hands one in), the window loads
-    nothing, draws no text, and every selection field and report button is
-    disabled, and stays so after it is shown and resized. The red line says
-    Profiling or Verification; "Already generated" is not shown.
-
-    MUTATION, proven red: drop the `_is_calibration_window()` branch in
-    `__init__` (the measurement is loaded, the list fills, Generate is live).
-    """
-    from core.measurement_target import RUN_TYPE_CALIBRATION
-    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
-    s, _fm, run1, _run2, v1, _v2 = _two_runs(tmp_path)
-    parent = _bar(RUN_TYPE_CALIBRATION)
-    dlg = MeasurementReportDialog(s, parent,
-                                  initial_ti3=v1[-1].measurement_ti3)
-    try:
-        dlg.show()
-        dlg.resize(1200, 900)
-        qapp.processEvents()
-        assert dlg._sources == [] and dlg._history == []
-        assert dlg._profile_list.count() == 0
-        assert dlg._saved_combo.count() == 0
-        assert dlg._view.toPlainText().strip() == ""
-        assert not dlg._trend_tabs.isVisible()
-        locked = dlg._calibration_controls()
-        assert len(locked) == 16
-        for w in locked:
-            assert not w.isEnabled(), w.objectName() or type(w).__name__
-        note = dlg._calibration_note
-        assert note.isVisible()
-        assert note.text() == ("Measurement reports can only be made with "
-                               "Run type Profiling or Verification")
-        assert "color: #" in note.styleSheet()
-        assert not dlg._type_blurb.isVisible()
-        # a later programmatic load is refused as well
-        dlg._load(v1[0].measurement_ti3)
-        assert dlg._sources == []
-    finally:
-        dlg.close()
-        parent.deleteLater()
-
-
-@pytest.mark.parametrize("run_type", ["profiling", "verification"])
-def test_the_other_run_types_are_untouched(tmp_path, qapp, run_type):
-    """The control: under Profiling or Verification the same door loads the
-    measurement and no red line exists.
-
-    MUTATION, proven red: make `_is_calibration_window` return True always
-    (both windows open empty)."""
-    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
-    s, _fm, run1, _run2, v1, _v2 = _two_runs(tmp_path)
-    parent = _bar(run_type)
-    dlg = MeasurementReportDialog(s, parent,
-                                  initial_ti3=v1[-1].measurement_ti3)
-    try:
-        assert dlg._sources, "the measurement was not loaded"
-        assert getattr(dlg, "_calibration_note", None) is None
-    finally:
-        dlg.close()
-        parent.deleteLater()
-
-
 def test_every_door_hands_the_window_a_parent_that_knows_the_run_type():
     """The rule lives in the window, so it holds for every door only if every
     door gives the window a parent the bar can be found from: the Tools menu
@@ -142,25 +78,15 @@ def test_every_door_hands_the_window_a_parent_that_knows_the_run_type():
         encoding="utf-8")
     calls = re.findall(r"MeasurementReportDialog\(([^,()]+),\s*([^,()]+)[,)]",
                        measure)
-    assert len(calls) >= 5, calls
+    # FOUR since beta 39: the Measure tab's report button no longer has a
+    # Calibration branch of its own (it opens the window on the calibration's
+    # measurement like any other), see tests/test_calibration_reports.py.
+    assert len(calls) >= 4, calls
     assert all(parent.strip() == "self" for _s, parent in calls), calls
     assert "self._target_ctl" in measure
     tools = (ROOT / "ui" / "dialogs" / "tools_dialogs.py").read_text(
         encoding="utf-8")
     assert re.search(r"MeasurementReportDialog\(settings, parent,", tools)
-
-
-def test_the_type_help_no_longer_promises_a_calibration_every_type():
-    """The Report type help said *"A measurement outside any project, or a
-    calibration, can have any type ChromIQ can produce"*; under K26 a
-    calibration has none.
-
-    MUTATION, proven red: restore ", or a calibration," in
-    `_types_and_pairing_help`."""
-    from ui.dialogs.measurement_report_dialog import _types_and_pairing_help
-    text = _types_and_pairing_help()
-    assert "or a calibration" not in text
-    assert "With Run type Calibration no report is made" in text
 
 
 # --------------------------------------------------------------------------
@@ -674,40 +600,6 @@ def test_the_printing_record_keeps_its_judged_against_row(tmp_path, qapp):
         assert ">Judged against</td>" in page
     finally:
         dlg.close()
-
-
-def test_the_measure_tab_button_opens_the_empty_window_under_calibration(
-        qapp, monkeypatch):
-    """The Measure tab's own "Measurement report" button asked for a
-    measurement first and, with the calibration chart not measured, said
-    "Measure this chart first". Under Run type Calibration it opens the
-    window, which opens empty and says why.
-
-    MUTATION, proven red: drop the ``if calibration:`` branch from
-    `TabMeasure._open_measurement_report` (the "measure first" message
-    comes instead of the window)."""
-    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
-    from ui.tabs import tab_measure as tm
-    opened, told = [], []
-    monkeypatch.setattr(MeasurementReportDialog, "exec",
-                        lambda self: opened.append(self) or 0)
-    monkeypatch.setattr(tm, "inform", lambda *a, **k: told.append(a),
-                        raising=False)
-    fake = QWidget()
-    fake._target_ctl = SimpleNamespace(target=SimpleNamespace(
-        run_type="calibration", is_calibration=lambda: True))
-    from core.settings import AppSettings
-    fake._settings = AppSettings()
-    fake._ti1_path = None
-    fake._is_verification_run = lambda: False
-    try:
-        tm.TabMeasure._open_measurement_report(fake)
-        assert len(opened) == 1 and told == []
-        assert opened[0]._calibration_locked
-    finally:
-        for d in opened:
-            d.deleteLater()
-        fake.deleteLater()
 
 
 def test_a_cancelled_pdf_save_leaves_no_reports_folder(tmp_path, monkeypatch):
