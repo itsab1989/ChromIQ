@@ -65,6 +65,8 @@ sides.**
 - In a read-only folder a delete or an update changes nothing, and the message
   names the folder and what to do.
 - "Report shown" always names the report that is loaded.
+- The "Report type" row no longer covers the last row of the measurement list,
+  and the list shows whole rows only.
 - Pressing Return in the report window no longer opens the file chooser.
 - Report PDFs no longer print a blank page or a heading alone at a page foot.
 - A report across runs says which runs it judges, and a calibration report no
