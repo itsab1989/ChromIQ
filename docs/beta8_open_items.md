@@ -25303,8 +25303,9 @@ would reach.
 
 ### B8-817 · FIXED · K20/K21: trend graphs for the judged metrics, each with its own limit line
 - blocks release: no
-- status: FIXED (built); the behaviour awaits Knut's confirmation in §17 of
-  `docs/design/measurement_report_limits.md`.
+- status: FIXED
+- spec: §17 of `docs/design/measurement_report_limits.md`, awaiting Knut's
+  confirmation of the built behaviour.
 - found by: Knut, #182 5785414710 (the graph question and the missing limit
   lines), ruled in 5787117741 (at most two related metrics per graph, each
   with its own dotted line; a line out of range is out of view; Colour
@@ -25324,6 +25325,13 @@ would reach.
   needs scroll arrows once more than about six tabs show at the window's
   default width; whether the taller Colour accuracy graph is worth the
   extra page.
-- guard: `tests/test_trend_graphs_for_judged_metrics.py`, 12 tests, each red
-  under the mutation its docstring names; on screen in
+- evidence: the 12 tests of the trend-graph test file, each
+  red under the mutation its docstring names, among them
+  test_a_tab_shows_only_while_one_of_its_rows_is_judged,
+  test_each_line_sits_at_the_limit_the_report_was_judged_against,
+  test_only_the_judged_rows_of_a_group_are_plotted,
+  test_a_line_outside_the_data_range_neither_shows_nor_moves_the_axis,
+  test_the_pdf_prints_the_shown_tabs_and_leaves_the_hidden_out and
+  test_colour_accuracy_is_printed_twice_as_tall; on screen in
   `~/Desktop/ChromIQ-beta37-proof/graphs/`.
+- test file: `tests/test_trend_graphs_for_judged_metrics.py`.
