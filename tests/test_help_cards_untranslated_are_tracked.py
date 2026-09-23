@@ -539,6 +539,12 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-23, #182 K26 (Knut 5792484060), on top of beta 38's
+    # E2 round: 20 new keys and 2 changed ones, the old two gone from every
+    # catalogue. German by hand and unmoved; each of the twelve others rises
+    # by exactly 13 (the new keys long enough to count here, less the two
+    # retired ones). COUNTED off the tree with this file's own expression,
+    # BOTH ledgers in the same commit.
     # RE-MEASURED 2026-09-23, #182 K25 graphs, on top of the K25 list round:
     # 26 new keys, 24 of them long enough to count here (the two short ones
     # are placeholder templates). German by hand and unmoved; the twelve
@@ -956,18 +962,18 @@ _BUDGET = {
     # COUNTED off the tree with this file's own expression, BOTH ledgers in the
     # same commit.
     "de": 14,
-    "es": 779,
-    "fr": 780,
-    "it": 779,
-    "ja": 779,
-    "nl": 779,
-    "no": 779,
-    "pl": 779,
-    "pt": 779,
-    "ru": 778,
-    "sv": 779,
-    "zh_CN": 778,
-    "uk": 979,
+    "es": 792,
+    "fr": 793,
+    "it": 792,
+    "ja": 792,
+    "nl": 792,
+    "no": 792,
+    "pl": 792,
+    "pt": 792,
+    "ru": 791,
+    "sv": 792,
+    "zh_CN": 791,
+    "uk": 992,
 }
 
 

@@ -154,12 +154,30 @@ def _sheet(ti2: Path, out: Path, residual, seed: int, instrument: str,
     rng = np.random.default_rng(seed)
     rows = []
     rgb = MR._rgb_to_0_100(np.asarray(chart.rgb, float))
+    labs = []
     for i, sid in enumerate(chart.sample_ids):
         page, s, r = grid["slot"][sid]
         d = residual(page, s, r, grid["pages"][page], grid["rows"], rng)
         lab = np.asarray(aims[sid]) + d
         lab[0] = min(lab[0], 100.0)
-        x = _lab_to_xyz_array(lab[None])[0]
+        labs.append(lab)
+    # **THE PAPER STAYS THE LIGHTEST PATCH (#182 K26, Knut 5792484060, Q6:
+    # "Fix it").** The report takes the lightest reading as the paper white
+    # (`lightest_and_darkest`), and on the noisy date the synthetic noise
+    # lifted a yellow patch above every paper patch, so the demo's "Paper
+    # white" read L* 100, a* -16.6, b* 90.1. A real sheet cannot print a colour
+    # lighter than its own paper, so no patch that is not paper is allowed
+    # above the lightest paper reading: it is held 0.3 L* under it. Only
+    # near-white patches of a noisy sheet are ever touched.
+    paper = [i for i in range(len(labs))
+             if all(float(v) >= 99.999 for v in rgb[i])]
+    if paper:
+        ceiling = max(float(labs[i][0]) for i in paper) - 0.3
+        for i, lab in enumerate(labs):
+            if i not in paper and lab[0] > ceiling:
+                lab[0] = ceiling
+    for i, sid in enumerate(chart.sample_ids):
+        x = _lab_to_xyz_array(labs[i][None])[0]
         rows.append(f"{sid} {rgb[i][0]:.4f} {rgb[i][1]:.4f} {rgb[i][2]:.4f} "
                     f"{x[0]:.5f} {x[1]:.5f} {x[2]:.5f}")
     text = "\n".join([

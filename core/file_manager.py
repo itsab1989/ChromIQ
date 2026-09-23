@@ -4096,10 +4096,26 @@ class FileManager:
         # The NEW name goes beside the old project, not at the top level: a
         # rename must not also move a project out of the group it is filed in.
         new_root = old_root.parent / self._sanitise(cleaned)
-        if new_root == old_root:
-            return old_root
         if not (old_root / Project.MANIFEST).exists():
             raise FileNotFoundError(old_root)
+        if new_root == old_root:
+            # **THE FOLDER ALREADY HAS THE NAME; ITS FILES MAY NOT (#182
+            # K26).** A project duplicated or renamed outside ChromIQ ("X
+            # copy", or "X-2") is opened from a folder whose name is not
+            # the name its files and project.json carry, and every run then
+            # looks for files that are not there (`Run.stem` is the folder's
+            # name). This returned here and renamed nothing, so it could not
+            # repair that case; the files are renamed in place instead.
+            proj = Project.load(old_root)
+            if nfc(proj.target_name) != nfc(new_root.name):
+                _was = self._project_identity()
+                proj.rename(new_root.name)
+                self._target_name = new_root.name
+                self._project_root_override = (
+                    new_root if new_root.parent != self.root_dir() else None)
+                self._project = proj
+                self._notify_named_state(_was)
+            return old_root
         if new_root.exists():
             raise FileExistsError(new_root)
 
@@ -4116,6 +4132,28 @@ class FileManager:
         # A rename changes which folder is open and told nobody at all.
         self._notify_named_state(_was)
         return new_root
+
+    @staticmethod
+    def name_its_files_carry(root: "Path") -> "str | None":
+        """The name a project's files and ``project.json`` carry, when it is
+        NOT its folder's name; None when they agree or cannot be read (#182
+        K26, Knut 5792484060, Q5).
+
+        A project copied or renamed outside ChromIQ (Finder's "X copy") keeps
+        the old name inside, and `Run.stem` is the folder's name, so such a
+        project finds none of its charts, measurements or reports. Compared in
+        NFC, as `Project.rename` compares names. Reads only."""
+        root = Path(root)
+        try:
+            import json as _json
+            data = _json.loads((root / Project.MANIFEST).read_text(
+                encoding="utf-8"))
+        except Exception:                         # noqa: BLE001
+            return None
+        stored = str((data or {}).get("target_name") or "")
+        if not stored or nfc(stored) == nfc(root.name):
+            return None
+        return stored
 
     def project_has_built_profile(self, name: str) -> bool:
         """True if a project ``name`` exists on disk and any run holds a built

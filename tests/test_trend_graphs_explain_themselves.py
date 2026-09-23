@@ -14,6 +14,11 @@ Knut, 5789263863, the graph section:
   mean of both, or just above the x-axis when neither has a point, with a
   tooltip and the same text in the PDF.
 
+K26 (Knut, 5792484060) revised three of those: the neighbours of a red x are
+the NEAREST dates that have a value, two red crosses on one date sit one above
+the other, and a limit word stays at the left end of its line even over a data
+line (the slide beta 38 added is undone).
+
 Every test below names the mutation it was proved red against.
 """
 from __future__ import annotations
@@ -73,19 +78,25 @@ def _red_near(img, x, y, r=5) -> int:
 # the red x
 # ---------------------------------------------------------------------------
 def test_the_red_x_height_follows_knuts_three_cases():
-    """One neighbour: its height. Both: their mean. Neither: the floor (None).
-    The neighbours are the dates IMMEDIATELY beside the withheld one.
+    """One side has a value: its height. Both: their mean. Neither: the floor
+    (None). The neighbours are the NEAREST dates on each side that have a
+    value (K26, Knut 5792484060, graph Q1: "Yes"), not the dates directly
+    beside it: two withheld dates in a row no longer put the first on the
+    floor.
 
-    MUTATION, proven red: search outwards for the nearest date with a value
-    (``[0.5, None, None, 1.0]`` then puts index 1 at 0.75, not 0.5); or
-    return ``before`` only (index 0 of ``[None, 2.0]`` becomes None)."""
+    MUTATION, proven red (K26): take only the dates directly beside it again
+    (``values[i - 1]`` / ``values[i + 1]``): ``[None, None, 1.0]`` index 0
+    becomes None, and ``[0.5, None, None, 1.0]`` index 1 becomes 0.5."""
     f = mrd._withheld_mark_value
     assert f([1.0, None, 3.0], 1) == pytest.approx(2.0)      # both: the mean
     assert f([None, 2.0], 0) == pytest.approx(2.0)           # after only
     assert f([2.0, None], 1) == pytest.approx(2.0)           # before only
-    assert f([None, None, 1.0], 0) is None                   # neither: floor
-    assert f([0.5, None, None, 1.0], 1) == pytest.approx(0.5)
-    assert f([0.5, None, None, 1.0], 2) == pytest.approx(1.0)
+    assert f([None, None], 0) is None                        # neither: floor
+    # the nearest date WITH a value, however far along
+    assert f([None, None, 1.0], 0) == pytest.approx(1.0)
+    assert f([0.5, None, None, 1.0], 1) == pytest.approx(0.75)
+    assert f([0.5, None, None, 1.0], 2) == pytest.approx(0.75)
+    assert f([None, None, None, 0.4, None], 1) == pytest.approx(0.4)
 
 
 def _even_chart(series, limit=1.5, dark=False):
@@ -132,8 +143,10 @@ def test_a_withheld_date_stays_on_the_axis_with_its_reason():
     ([_quiet(1, 0.2), _quiet(2, 0.6), _noisy(3)], 2, 0.6),
     # both: the mean of 0.2 and 1.0
     ([_quiet(1, 0.2), _noisy(2), _quiet(3, 1.0)], 1, 0.6),
-    # neither (the date after is withheld too): the floor
-    ([_noisy(1), _noisy(2), _quiet(3, 0.8)], 0, None),
+    # the date after is withheld too: the NEAREST date with a value (K26)
+    ([_noisy(1), _noisy(2), _quiet(3, 0.8)], 0, 0.8),
+    # neither side has a value at all: the floor
+    ([_noisy(1), _noisy(2)], 0, None),
 ])
 def test_the_red_x_is_painted_red_where_the_rule_puts_it(
         qapp, series, idx, expect):
@@ -216,34 +229,87 @@ def test_every_tab_places_its_words_by_the_accuracy_rule(qapp, key):
             assert ys[1] - ys[0] >= 14.0
 
 
-def test_a_word_inside_the_plot_moves_off_a_data_line(qapp):
-    """A word placed inside the plot slides along its own line to the first
-    place no data line, point or red x crosses (Knut: *"when a threshold
-    label comes close to a graph's line"*); where none is clear it keeps the
-    left end, so it is never dropped.
+def test_a_word_inside_the_plot_stays_at_the_left_end_over_a_data_line(qapp):
+    """A limit word placed inside the plot stays at the LEFT END of its line
+    even where a data line crosses it: the Colour accuracy tab's rule (K26,
+    Knut 5792484060, graph Q4: "Do as implemented in Colour accuracy tab. I
+    think it stays at the left end even over a line."). Beta 38's first cut
+    slid it along the line; that is undone. Its tooltip stays.
 
-    MUTATION, proven red: ``return start`` at the top of `_clear_left` (the
-    word sits on the line that rises through the left end)."""
+    MUTATION, proven red (K26): start the word anywhere but the left end of
+    its line (``left = L + 68``, a place further along the line, which is
+    what the slide did on this chart)."""
     # data at 1.25 where the line starts, the line at 1.12 (an axis number,
     # so the word is inside the plot, just above its line at the left end)
     chart = _grey_chart([1.25, 1.3, 2.0, 2.0, 2.0],
                         [(1.12, "Avg", QColor("#3070c0"))], ["note Avg"])
     _paint(chart)
     [box] = [r for r, t in chart._hits if t == "note Avg"]
-    assert box.left() > 44.0, "the word stayed on the data line"
-    rid = "grey_balance_neutral_ramp_avg"
-    series = chart._series
-    L, T, w = 40.0, 24.0, 640 - 40.0 - 12.0
-    h = 176 - T - 26.0
-    vmin, vmax = chart._y_range()
+    assert box.left() == pytest.approx(40.0 + 4 - 1), (
+        f"the word moved along its line to x {box.left()}")
+    assert not hasattr(chart, "_clear_left")
 
-    def xy(i, v):
-        return QPointF(L + w * i / (len(series) - 1),
-                       T + h * (1 - (v - vmin) / (vmax - vmin)))
-    vals = [pt["rows"][rid] for pt in series]
-    for a, b in zip(range(len(vals)), range(1, len(vals))):
-        assert not mrd._segment_meets_rect(xy(a, vals[a]), xy(b, vals[b]),
-                                           box.adjusted(1, 1, -1, -1))
+
+def test_two_red_crosses_on_one_date_sit_one_above_the_other(qapp):
+    """Both evenness rows withheld on one date: two red crosses, which Knut
+    wants *"one above the other so they do not overlap"* (K26, 5792484060,
+    graph Q3). Neither the crosses nor their tooltip areas overlap, both are
+    on the date's x, and both are red.
+
+    MUTATION, proven red (K26): return the centres unchanged from
+    `_stack_withheld_marks` (the two crosses of the noisy date share one
+    place and one tooltip box covers the other)."""
+    limit = 1.5
+    rows = ("uniformity_sd", "uniformity_de00_max_from_mean")
+
+    def pt(day, v, noise):
+        return {"created": f"2026-01-{day:02d}T10:00:00",
+                "rows": {rows[0]: v, rows[1]: v},
+                "rows_noise": {rows[0]: noise, rows[1]: noise}}
+
+    series = [pt(1, 0.4, 0.2), pt(2, 0.6, 0.2), pt(3, 1.0, 2.0)]
+    chart = mrd._TrendChart()
+    metrics = [(f"m{k} (ΔE00)", QColor(c),
+                (lambda p_, rid=rid: mrd._trend_row_value(p_, rid, limit)))
+               for k, (rid, c) in enumerate(zip(rows, ("#e0574b", "#37bcd6")))]
+    chart.set_data(series, metrics, dark=False,
+                   limit_lines=[(limit, "Pairs", QColor("#e0574b")),
+                                (limit, "Mean", QColor("#37bcd6"))],
+                   line_notes=["n1", "n2"],
+                   withheld=[(lambda p_, rid=rid: mrd._trend_withheld_reason(
+                       p_, rid, limit)) for rid in rows])
+    img = _paint(chart)
+    marks = chart.withheld_marks()
+    assert [(k, i) for k, i, _v, _t in marks] == [(0, 2), (1, 2)]
+    # both would sit at the same height: the same neighbour value 0.6
+    assert marks[0][2] == pytest.approx(marks[1][2])
+    boxes = [r for r, t in chart._hits if t in {m[3] for m in marks}]
+    assert len(boxes) == 2
+    a, b = boxes
+    assert not a.intersects(b), (a, b)
+    assert a.center().x() == pytest.approx(b.center().x())
+    assert abs(a.center().y() - b.center().y()) >= mrd._WITHHELD_STACK_PX - 0.01
+    for r in boxes:
+        c = r.center()
+        assert _red_near(img, c.x(), c.y(), r=3) >= 8
+
+
+def test_the_stacking_rule_stays_inside_the_plot():
+    """A second cross that would leave the plot at the top goes below the
+    first instead, and a lone cross is never moved.
+
+    MUTATION, proven red (K26): always move up (the second centre lands
+    above the plot's top at y 17)."""
+    from PyQt6.QtCore import QPointF as P
+    top, bottom = 24.0, 150.0
+    out = mrd._stack_withheld_marks([(0, P(10, 26)), (0, P(10, 26)),
+                                     (1, P(50, 26))], top, bottom)
+    assert out[0].y() == pytest.approx(26)
+    assert out[1].y() == pytest.approx(26 + mrd._WITHHELD_STACK_PX)
+    assert out[2].y() == pytest.approx(26)
+    out = mrd._stack_withheld_marks([(0, P(10, 80)), (0, P(10, 82))],
+                                    top, bottom)
+    assert out[1].y() == pytest.approx(80 - mrd._WITHHELD_STACK_PX)
 
 
 def test_hovering_a_word_or_a_red_x_shows_the_text_the_pdf_prints(qapp):

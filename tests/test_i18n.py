@@ -1380,18 +1380,27 @@ _IDENTICAL_TO_KEY = {
     # others carry the English under the beta rule and each rises by exactly 9.
     # COUNTED off the tree with this file's own expression, BOTH ledgers in the
     # same commit.
+    # RE-MEASURED 2026-09-23, #182 K26 (Knut 5792484060): 20 new keys (the
+    # Calibration red line and its tooltip, the rename chooser's folder mode
+    # and its two §M-PROPOSED messages, the Profiling names "All runs" /
+    # "Multiple runs", "for these measurements", the within-gamut legend and
+    # description) and two changed ones (the Report type help, the help card's
+    # "Locked" entry), whose old keys left every catalogue. German by hand,
+    # does not move; each of the twelve others rises by exactly 18 (20 new
+    # English placeholders, 2 old English placeholders gone). COUNTED off the
+    # tree with this file's own expression, BOTH ledgers in the same commit.
     "de": 141,
-    "es": 1059,
-    "fr": 1081,
-    "it": 1070,
-    "ja": 1045,
-    "nl": 1086,
-    "no": 1071,
-    "pl": 1063,
-    "pt": 1061,
-    "ru": 1034,
-    "sv": 1072,
-    "zh_CN": 1039,
+    "es": 1077,
+    "fr": 1099,
+    "it": 1088,
+    "ja": 1063,
+    "nl": 1104,
+    "no": 1089,
+    "pl": 1081,
+    "pt": 1079,
+    "ru": 1052,
+    "sv": 1090,
+    "zh_CN": 1057,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1418,7 +1427,7 @@ _IDENTICAL_TO_KEY = {
     # in Ukrainian, so the pointer could not match whatever the user read.
     # Nothing else changed. The ceiling is re-measured DOWN here rather than
     # left where it was, so the next rise still has to justify itself.
-    "uk": 1281,
+    "uk": 1299,
 }
 
 

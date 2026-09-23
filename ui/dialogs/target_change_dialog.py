@@ -53,9 +53,17 @@ class TargetChangeDialog(QDialog):
         old_root: Path,
         new_root: Path,
         parent: QWidget | None = None,
+        *,
+        folder_renamed: bool = False,
+        built_profile: bool = False,
     ) -> None:
         super().__init__(parent)
         self._action = TargetChangeAction.CANCEL
+        #: #182 K26: the project was OPENED from a folder whose name is not
+        #: the name its files carry (a Finder duplicate, "X copy"), rather
+        #: than renamed in the name field. Same window, two choices.
+        self._folder_renamed = bool(folder_renamed)
+        self._built_profile = bool(built_profile)
         self.setWindowTitle(tr("Rename Printer Profile"))
         self.setMinimumWidth(580)
         # Cap generously: the option titles embed the (variable-length) target
@@ -76,6 +84,10 @@ class TargetChangeDialog(QDialog):
         muted = "#9a9a9a"
 
         outer = QVBoxLayout(self)
+        if self._folder_renamed:
+            self._build_folder_renamed_ui(outer, old_name, new_name, old_root,
+                                          new_root, text_color, muted)
+            return
         outer.setContentsMargins(22, 20, 22, 18)
         outer.setSpacing(14)
 
@@ -166,6 +178,74 @@ class TargetChangeDialog(QDialog):
         outer.addLayout(cancel_row)
 
     # ------------------------------------------------------------------
+
+    def _build_folder_renamed_ui(self, outer, old_name: str, new_name: str,
+                                 old_root: Path, new_root: Path,
+                                 text_color: str, muted: str) -> None:
+        """The same window for a project OPENED from a folder whose name is
+        not the name its files carry (#182 K26, Knut 5792484060, Q5): *"the
+        user should be given the option, with a popup window, to rename the
+        project. This interface and function should already exist and just
+        has to be modified a tiny bit to allow this case."*
+
+        *old_name* is the name the files and project.json carry, *new_name*
+        the name the project becomes (what the "Printer profile project
+        name" field shows), *old_root* the folder as it is on disk. The
+        heading and introduction are §M-PROPOSED (M-PROJECT-FOLDER-RENAMED).
+        Keep both and Delete do not apply: there is one folder, and it is
+        the project. "Leave it as it is" is the Cancel of this case."""
+        from workflow.measurement_messages import M_PROJECT_FOLDER_RENAMED
+        heading_text, intro_text = M_PROJECT_FOLDER_RENAMED.render(
+            folder=old_root.name, name=old_name, new=new_name)
+        outer.setContentsMargins(22, 20, 22, 18)
+        outer.setSpacing(14)
+        heading = QLabel(heading_text, self)
+        heading.setWordWrap(True)
+        heading.setStyleSheet(
+            f"font-size: 15px; font-weight: bold; color: {text_color};")
+        outer.addWidget(heading)
+        intro = QLabel(intro_text, self)
+        intro.setWordWrap(True)
+        intro.setStyleSheet(f"color: {text_color};")
+        outer.addWidget(intro)
+        paths = QLabel(
+            tr("Existing:  {old}\nNew name:  {new}").format(
+                old=old_root, new=new_root),
+            self,
+        )
+        paths.setWordWrap(True)
+        paths.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse)
+        paths.setStyleSheet(
+            f"color: {muted}; font-family: Menlo, Consolas, 'Courier New', "
+            "monospace; font-size: 12px;")
+        outer.addWidget(paths)
+        outer.addWidget(self._divider())
+        rename_text = tr(
+            'ChromIQ renames every file of this project that carries the name '
+            '"{old}" so it carries "{new}", and the project with them. Nothing '
+            'else in the folder is touched, and nothing is deleted.').format(
+                old=old_name, new=new_name)
+        if old_root.name != new_name:
+            rename_text += " " + tr(
+                'The folder becomes "{new}" as well, because a project folder '
+                'has no spaces or other characters a file name cannot '
+                'carry.').format(new=new_name)
+        if self._built_profile:
+            rename_text += "\n\n" + tr(
+                'A profile already built keeps the name written inside it, '
+                '"{old}", which is what ColorSync Utility and other programs '
+                'show. Its file is renamed with the others.').format(
+                    old=old_name)
+        outer.addWidget(self._option_button(
+            tr('Rename the project to "{new}"').format(new=new_name),
+            rename_text, TargetChangeAction.RENAME, primary=True))
+        outer.addWidget(self._option_button(
+            tr("Leave it as it is"),
+            tr('Nothing is changed. The project stays open, but ChromIQ does '
+               'not find its files named "{old}" until they are '
+               'renamed.').format(old=old_name),
+            TargetChangeAction.CANCEL))
 
     def _divider(self) -> QFrame:
         line = QFrame(self)

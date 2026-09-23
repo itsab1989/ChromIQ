@@ -1583,9 +1583,10 @@ GLOSSARY += [
         "so its history cannot be re-scored halfway through. To change them "
         "anyway, tick “Allow editing of thresholds after the first "
         "verification measurement” in Preferences → Reports, then “Unlock "
-        "this run's limits” in the report window. ChromIQ copies every report "
-        "of the run into its own reports/old folder before recalculating "
-        "them, so the record of what you were told is kept.")),
+        "this run's limits” in the report window. Unlocking recalculates "
+        "nothing by itself: every report already saved stays exactly as it "
+        "is, and the report you have open is rebuilt when you press "
+        "Generate report.")),
     (tr("Required limit and recommendation (the brackets)"),
      tr("In the Report limits table a plain number is a limit the set "
         "REQUIRES; a number in brackets, such as (2.0), is one it only "

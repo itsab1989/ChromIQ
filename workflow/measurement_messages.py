@@ -1520,6 +1520,40 @@ M_PROJECT_EXISTS = _m(
     "ChromIQ found it here:\n{folder}\n\nThat name is already taken, so building now would carry on inside that project rather than start a new one. A project keeps its work in runs, and each run holds one finished profile. This one has {runs}.{cal}\n\nYou can choose below which run the new chart goes into. {chosen} holds:\n\n{holds}\n\nNothing has been changed yet. Choose what you would like to do:\n\n•  Continue this project: the new chart is made in the run named in the box below. Anything that chart replaces is moved to that run’s “old” folder first, with today’s date on it, so you can always get it back. Choosing a new run adds a fresh, empty one and leaves everything already in the project exactly as it is.\n\n•  Replace it: everything the project holds now is moved into its own “old” folder, with today’s date, and a new, empty project of the same name is started. Nothing is deleted, and ChromIQ asks you to confirm before it does it.\n\n•  Use a different name: nothing is touched, and ChromIQ takes you back to the name box so you can type another one.\n\n•  Cancel: stops here and changes nothing.",
     approved=False)
 
+# --- PROPOSED (#182 K26, Knut 2026-09-23): a project whose folder is not
+# called what its files are called ---------------------------------------------
+#
+# Knut, 5792484060 (Q5): *"If a project is opened where the root project folder
+# is different than the defined name in 'Printer profile project name' field,
+# then the user should be given the option, with a popup window, to rename the
+# project. This interface and function should already exist and just has to
+# be modified a tiny bit to allow this case."* The window is the existing
+# rename chooser (`TargetChangeDialog`); its heading and introduction for this
+# case are new wording and wait here. {folder} is the folder as it is on disk,
+# {name} the name its files and project.json carry, {new} what the project
+# becomes (the name the "Printer profile project name" field shows).
+M_PROJECT_FOLDER_RENAMED = _m(
+    "M-PROJECT-FOLDER-RENAMED",
+    "This project's folder is called \u201c{folder}\u201d, but its files are "
+    "named \u201c{name}\u201d",
+    "ChromIQ finds a project's charts, measurements, profiles and reports by "
+    "the name of its folder, so until the two match it finds none of them. "
+    "This happens when a project folder is copied or renamed outside "
+    "ChromIQ, for example duplicated in Finder.\n\n"
+    "Rename the project to \u201c{new}\u201d so its files carry that name "
+    "too, or leave it as it is.",
+    approved=False)
+
+#: …and the window for when that rename cannot be done.
+M_PROJECT_FOLDER_RENAME_FAILED = _m(
+    "M-PROJECT-FOLDER-RENAME-FAILED",
+    "The project could not be renamed",
+    "ChromIQ could not rename \u201c{folder}\u201d to \u201c{new}\u201d.\n\n"
+    "What went wrong: {error}\n\n"
+    "The project is open as it was. Its files still carry the name "
+    "\u201c{name}\u201d, so ChromIQ does not find them under this folder.",
+    approved=False)
+
 #: The one sentence M-PROJECT-EXISTS uses to say what is already in there. It
 #: is a FRAGMENT of that message rather than a message of its own, and every
 #: form it can take is written out in §M-PROPOSED so a reviewer sees all of
@@ -2644,6 +2678,23 @@ M_REPORT_CHART_MISMATCH_LAYOUT = _m(
     "most of the page. Make the change, print the chart again and measure it.",
     approved=False)
 
+# --- PROPOSED (#182 K26, Knut 2026-09-23): the report window under Run type
+# Calibration --------------------------------------------------------------------
+#
+# Knut, 5792484060 (Q1): *"Run type= Calibration should not allow any
+# reports ... The 'Already generated....' message could be replaced with a Red
+# warning text informing user that verification measurement and report
+# generation is only allowed for Run type Profiling and Verification."* The
+# headline is the red line; the body is its tooltip. New wording, ours.
+M_REPORT_NOT_FOR_CALIBRATION = _m(
+    "M-REPORT-NOT-FOR-CALIBRATION",
+    "Measurement reports can only be made with Run type Profiling or "
+    "Verification",
+    "Run type Calibration measures the calibration chart, and no report is "
+    "made of it. Choose Run type Profiling or Verification in the bar above "
+    "the tabs to make or read a measurement report.",
+    approved=False)
+
 # --- PROPOSED (#182, 2026-09-16): deleting one saved report ------------------
 #
 # The design authority asked for this before a non-beta: *"the selection and
@@ -2838,6 +2889,8 @@ CATALOGUE = {m.id: m for m in (
     M_PROJECT_EXISTS,
     M_PROJECT_REPLACE_CONFIRM,
     M_PROJECT_REPLACE_FAILED,
+    M_PROJECT_FOLDER_RENAMED, M_PROJECT_FOLDER_RENAME_FAILED,
+    M_REPORT_NOT_FOR_CALIBRATION,
     M_CR30_STOCK_READER,
     M_CR30_READ_ENDED, M_CR30_INSTRUMENT_GONE, M_CR30_PATCH_GAVE_UP,
     M_CR30_CALIBRATE, M_CR30_CALIBRATE_BLACK, M_CR30_MAGNET,

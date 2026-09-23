@@ -8265,6 +8265,63 @@ class TabChart(QWidget):
         self._file_mgr.set_target_name(new_name)
         self._last_target_name = new_name
 
+    def _offer_rename_for_a_renamed_folder(self, root) -> bool:
+        """Offer to rename a project whose folder is not called what its
+        files are called (#182 K26, Knut 5792484060, Q5). True when it was
+        renamed.
+
+        Knut: *"If a project is opened where the root project folder is
+        different than the defined name in 'Printer profile project name'
+        field, then the user should be given the option, with a popup window,
+        to rename the project."* The field shows the folder's name, the files
+        and project.json carry the old one, and every run looks its files up
+        by the folder's name, so such a project (a Finder duplicate, "X
+        copy") finds none of them: the report window of a duplicated demo
+        project opened empty.
+
+        The chooser is the existing one (`TargetChangeDialog`), in its
+        ``folder_renamed`` mode. Rename renames the files in place, and moves
+        the folder too when its name is not one ChromIQ would give a project
+        (a space, as in "X copy"), exactly as every rename does. "Leave it as
+        it is" writes nothing. Called before the chart is shown, so what is
+        shown afterwards is the renamed project.
+        """
+        from pathlib import Path as _P
+        root = _P(root)
+        stored = self._file_mgr.name_its_files_carry(root)
+        if not stored:
+            return False
+        new_name = self._file_mgr._sanitise(root.name)
+        new_root = root.parent / new_name
+        built = False
+        try:
+            from core.file_manager import Project
+            built = any(r.built_profile_icc().exists()
+                        for r in Project.load(root).all_runs())
+        except Exception:                            # noqa: BLE001
+            built = False
+        log.info("project folder %s is not named what its files carry (%r); "
+                 "offering the rename chooser", root, stored)
+        dlg = TargetChangeDialog(stored, new_name, root, new_root, self,
+                                 folder_renamed=True, built_profile=built)
+        dlg.exec()
+        if dlg.result_action() != TargetChangeAction.RENAME:
+            log.info("project %s left as it is (files named %r)", root, stored)
+            return False
+        try:
+            self._file_mgr.rename_existing_project(root, new_name)
+        except (OSError, ValueError) as exc:
+            log.warning("renaming the project at %s to %r failed: %s",
+                        root, new_name, exc)
+            from workflow import measurement_messages as M
+            title, body = M.M_PROJECT_FOLDER_RENAME_FAILED.render(
+                folder=root.name, new=new_name, error=str(exc), name=stored)
+            InfoDialog(title, body, self, min_width=540).exec()
+            return False
+        log.info("project %s renamed to %r (its files carried %r)", root,
+                 new_name, stored)
+        return True
+
     def _new_project_root_beside(self, old_root, new_name: str):
         """Where a rename of the project at *old_root* to *new_name* would land.
 
@@ -8469,6 +8526,9 @@ class TabChart(QWidget):
         # Open at the project's ACTUAL folder (handles a nested sub-folder
         # location as well as a direct child of the ChromIQ folder).
         self._file_mgr.open_project_at(manifest.parent)
+        # A folder not called what its files are called is offered the
+        # rename chooser BEFORE anything is shown from it (#182 K26).
+        self._offer_rename_for_a_renamed_folder(manifest.parent)
         self._last_target_name = self._file_mgr.get_target_name()
         self._update_name_fields()
         # Loading a saved project is a clean slate for the preset/applied bindings.

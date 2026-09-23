@@ -124,6 +124,20 @@ _METRIC_LABELS = {
     "std":       lambda: tr("Spread (std. dev.)"),
 }
 _ACCURACY_ROW_KEYS = ("avg_all", "avg_low95", "avg_high5", "max_all", "max_low95")
+#: The two "all patches" labels when the graph plots the figures a verdict
+#: judged within the profile's gamut (K26): "all" is then all the JUDGED
+#: patches, and saying "all patches" would name the population the graph no
+#: longer draws.
+_METRIC_LABELS_JUDGED = {
+    "avg_all": lambda: tr("Average ΔE, all judged patches"),
+    "max_all": lambda: tr("Maximum ΔE, all judged patches"),
+}
+
+
+def _series_is_within_gamut(series: list) -> bool:
+    """Whether any date of a trend series plots within-gamut figures."""
+    return any(pt.get("de00_population") == "in_gamut"
+               for pt in (series or []))
 
 #: What a report written BEFORE the five-metric vocabulary calls the same
 #: number. `_de00_block` writes both spellings on every report to this day and
@@ -302,10 +316,49 @@ _TREND_ABOUT = {
         "date: between any two of nine areas, and one area against all nine."),
 }
 
+#: The Colour accuracy description when the graph plots the within-gamut
+#: figures its verdicts judged (K26). Two lines at most, like the others.
+def _TREND_ABOUT_DE_JUDGED() -> str:                          # noqa: N802
+    return tr(
+        "How far each judged patch lies from its aim value (ΔE00), per date: "
+        "within the profile's gamut where the sheet was split by it. The "
+        "average and the largest, the best 95 % and the worst 5 %.")
+
+
 #: The colour of the mark for a withheld value (Knut: *"a small red x"*).
 _WITHHELD_RED = "#d62828"
 #: How far above the x-axis a withheld mark with no neighbouring point sits.
 _WITHHELD_FLOOR_PX = 6.0
+#: Half the width of one arm of the red x, in px.
+_WITHHELD_ARM = 3.5
+#: How far apart two red crosses of ONE date sit, centre to centre, when their
+#: heights would make them overlap (K26): one tooltip box, so neither the
+#: crosses nor the areas that show their tooltips overlap.
+_WITHHELD_STACK_PX = 2 * _WITHHELD_ARM + 6
+
+
+def _stack_withheld_marks(marks: list, top: float, bottom: float) -> list:
+    """The centre of each red x, ``[QPointF]`` in the order of *marks*
+    (``[(date index, QPointF)]``), after stacking (K26, Knut 5792484060,
+    graph Q3: two crosses on one date, *"place them one above the other so
+    they do not overlap"*).
+
+    A cross closer than `_WITHHELD_STACK_PX` to one already placed on the
+    same date moves up by that much from the higher of them, or down from the
+    lower when up would leave the plot between *top* and *bottom*."""
+    out: list = []
+    for i, c in marks:
+        c = QPointF(c)
+        same = [q for (j, _c0), q in zip(marks, out) if j == i]
+        if any(abs(q.y() - c.y()) < _WITHHELD_STACK_PX for q in same):
+            up = min(q.y() for q in same) - _WITHHELD_STACK_PX
+            if up - _WITHHELD_ARM >= top:
+                c.setY(up)
+            else:
+                c.setY(min(max(q.y() for q in same) + _WITHHELD_STACK_PX,
+                           bottom - _WITHHELD_ARM))
+        out.append(c)
+    return out
 
 
 def _limit_value_text(v: float, unit: str) -> str:
@@ -346,14 +399,19 @@ def _trend_withheld_reason(pt: dict, row_id: str, limit) -> "str | None":
 
 def _withheld_mark_value(values: list, i: int) -> "float | None":
     """The height of the red x at date *i* of one metric (Knut, 5789263863):
-    at the neighbouring date's value when only one of the two dates beside it
-    has a point, at their mean when both do, and None, the floor just above
-    the x-axis, when neither does. *values* holds the metric's plotted value
-    per date on the axis, None where it has no point. The neighbours are the
-    dates immediately beside *i*, as Knut wrote: "the measurement date
-    before, or the one after"."""
-    before = values[i - 1] if i > 0 else None
-    after = values[i + 1] if i + 1 < len(values) else None
+    at the neighbouring value when only one side has one, at the mean of the
+    two when both do, and None, the floor just above the x-axis, when neither
+    does. *values* holds the metric's plotted value per date on the axis,
+    None where it has no point.
+
+    **THE NEAREST DATE THAT HAS A VALUE, on each side (K26, Knut 5792484060,
+    graph Q1: "Yes").** It was the date directly beside *i*, as his first
+    words read, and two withheld dates in a row then put the first one on the
+    floor although a measured date stood one further along."""
+    before = next((values[j] for j in range(i - 1, -1, -1)
+                   if values[j] is not None), None)
+    after = next((values[j] for j in range(i + 1, len(values))
+                  if values[j] is not None), None)
     have = [v for v in (before, after) if v is not None]
     return sum(have) / len(have) if have else None
 
@@ -364,21 +422,6 @@ def _tip_rich(text: str) -> str:
     (photographed in the K25 drive); rich text is wrapped by the tooltip."""
     return "<qt>" + html.escape(text) + "</qt>"
 
-
-def _segment_meets_rect(a: "QPointF", b: "QPointF", r: "QRectF") -> bool:
-    """Whether the straight line a-b passes through *r* (sampled every px)."""
-    import math
-    if not QRectF(QPointF(min(a.x(), b.x()), min(a.y(), b.y())),
-                  QPointF(max(a.x(), b.x()), max(a.y(), b.y()))
-                  ).adjusted(-1, -1, 1, 1).intersects(r):
-        return False
-    n = max(1, int(math.hypot(b.x() - a.x(), b.y() - a.y())))
-    for k in range(n + 1):
-        t = k / n
-        if r.contains(QPointF(a.x() + (b.x() - a.x()) * t,
-                              a.y() + (b.y() - a.y()) * t)):
-            return True
-    return False
 
 # The report body is one self-contained HTML document, shown in a QTextBrowser
 # AND saved to PDF. Inline colours beat any widget stylesheet, so a fixed
@@ -1424,11 +1467,6 @@ class _TrendChart(QWidget):
                        f"{vmin + span * frac:.{self._dec}f}")
             p.setPen(QPen(grid, 1.0))
 
-        # What a word placed inside the plot must keep clear of (K25): every
-        # data segment, every marker and every red x.
-        segments: list = []
-        blobs: list = []
-
         # One polyline per metric.
         for _lbl, col, acc in self._metrics:
             poly = [xy(i, v) for i, pt in enumerate(pts)
@@ -1438,7 +1476,6 @@ class _TrendChart(QWidget):
             p.setPen(QPen(col, 2.0))
             for a, b in zip(poly, poly[1:]):
                 p.drawLine(a, b)
-                segments.append((a, b))
             # A SERIES WITH ONE VALUE IS STILL A VALUE (round B before beta
             # 37, H6). "The same chart measured again" has nothing to compare
             # on a chart's first date, so on a three-date report it has one
@@ -1449,17 +1486,18 @@ class _TrendChart(QWidget):
             r_dot = 2.4 if len(poly) > 1 else _TREND_LONE_POINT_R
             for q in poly:
                 p.drawEllipse(q, r_dot, r_dot)
-                blobs.append(QRectF(q.x() - r_dot, q.y() - r_dot,
-                                    2 * r_dot, 2 * r_dot))
 
         # THE RED X (K25, Knut 5789263863): a date whose value was withheld,
         # at its neighbour's height, their mean, or just above the x-axis.
         xpen = QPen(QColor(_WITHHELD_RED), 2.0)
         xpen.setCapStyle(Qt.PenCapStyle.RoundCap)
-        arm = 3.5
-        for _k, i, val, text in self.withheld_marks():
-            c = (xy(i, val) if val is not None
-                 else QPointF(L + (w * i / (n - 1)), T + h - _WITHHELD_FLOOR_PX))
+        arm = _WITHHELD_ARM
+        centres = _stack_withheld_marks(
+            [(i, (xy(i, val) if val is not None
+                  else QPointF(L + (w * i / (n - 1)),
+                               T + h - _WITHHELD_FLOOR_PX)))
+             for _k, i, val, _t in self.withheld_marks()], T, T + h)
+        for (_k, i, val, text), c in zip(self.withheld_marks(), centres):
             p.setPen(xpen)
             p.drawLine(QPointF(c.x() - arm, c.y() - arm),
                        QPointF(c.x() + arm, c.y() + arm))
@@ -1467,7 +1505,6 @@ class _TrendChart(QWidget):
                        QPointF(c.x() + arm, c.y() - arm))
             box = QRectF(c.x() - arm - 3, c.y() - arm - 3,
                          2 * arm + 6, 2 * arm + 6)
-            blobs.append(box)
             self._hits.append((box, text))
 
         # Limit lines: the accuracy chart's grey Avg / Max pair, or one line
@@ -1532,15 +1569,19 @@ class _TrendChart(QWidget):
                     top = yy - 16 if above else yy + 2
                     # never outside the plot: clamp, keeping above/below sense
                     top = min(max(top, T), T + h - 14)
-                    left = self._clear_left(L, w, top, fm.horizontalAdvance(tlab),
-                                            segments, blobs)
+                    # **AT THE LEFT END OF ITS LINE, ALWAYS (K26, Knut
+                    # 5792484060, graph Q4: "Do as implemented in Colour
+                    # accuracy tab ... it stays at the left end even over a
+                    # line").** Beta 38's first cut slid the word along its
+                    # line off a data line; that is undone, and the tooltip
+                    # and the PDF description it gained stay.
+                    left = L + 4
                     p.drawText(QRectF(left, top, 80, 14),
                                Qt.AlignmentFlag.AlignLeft
                                | Qt.AlignmentFlag.AlignVCenter,
                                tlab)
                     box = QRectF(left - 1, top, fm.horizontalAdvance(tlab) + 2,
                                  14)
-                    blobs.append(box)
                     if notes[i]:
                         self._hits.append((box, notes[i]))
 
@@ -1586,28 +1627,6 @@ class _TrendChart(QWidget):
         # Legend (wraps across as many rows as needed for 8 corners).
         self._draw_legend(p, fg, L, w)
         p.end()
-
-    @staticmethod
-    def _clear_left(L: float, w: float, top: float, tw: float,
-                    segments: list, blobs: list) -> float:
-        """Where a limit word inside the plot starts (K25, Knut: what happens
-        *"when a threshold label comes close to a graph's line"*).
-
-        At the line's left end, as always, unless its box would cross a data
-        line, a point, a red x or the other word: then the first place further
-        along its own line, in 8 px steps, where it crosses none. Where there
-        is no such place it stays at the left end: a word is never dropped
-        (Knut, 2026-08-11)."""
-        start = L + 4
-        x = start
-        while x + tw <= L + w:
-            box = QRectF(x - 2, top + 1, tw + 4, 12)
-            if (not any(box.intersects(b) for b in blobs)
-                    and not any(_segment_meets_rect(a, b, box)
-                                for a, b in segments)):
-                return x
-            x += 8.0
-        return start
 
 
 class _NothingToRestore(Exception):
@@ -1770,9 +1789,10 @@ def _types_and_pairing_help() -> str:
         "from, so its only report is the Printing record. A verification "
         "measurement is judged, so it can have every other type, and the "
         "Printing record is not offered for it. A measurement outside any "
-        "project, or a calibration, can have any type ChromIQ can produce. "
-        "The report ChromIQ "
-        "writes by itself after a measurement follows the same rule. With "
+        "project can have any type ChromIQ can produce. With Run type "
+        "Calibration no report is made, and the window opens empty. The "
+        "report ChromIQ writes by itself after a profiling or verification "
+        "measurement follows the same rule. With "
         "measurements from more than one place loaded, the type you choose "
         "applies to this window only and is not stored on any run.")
     return ("\n\n" + tr("What each one is for") + "\n\n"
@@ -1780,6 +1800,31 @@ def _types_and_pairing_help() -> str:
             + "\n\n" + when_available
             + "\n\n" + tr(_WHEN_HELP)
             + "\n\n" + tr(_PAIRING_HELP) + "\n\n" + tr(_CHART_HELP))
+
+
+def _run_tag(run_folder: str) -> str:
+    """``Run1`` for the folder ``run1`` (K25 headings, K26 Profiling names);
+    a folder that is not ``runN`` keeps its own name."""
+    import re as _re
+    m = _re.fullmatch(r"run(\d+)", str(run_folder or ""))
+    return (tr("Run{number}").format(number=m.group(1)) if m
+            else str(run_folder or ""))
+
+
+def _bound_and_locked_help() -> str:
+    """What "bound" and "locked" mean, for the "Judged against" help (K26).
+
+    The paragraph the report's guide carried until Knut moved it out of the
+    report (5792484060, Q2), word for word, so its German (and every other
+    translation) is the one already reviewed."""
+    return ("\n\n" + tr("Bound, and locked.") + " " + tr(
+        "When the first dated verification of a profile run was "
+        "measured, the limit set chosen at that moment was copied onto "
+        "the run. The run is bound to that copy: every later date of "
+        "the same run is judged against the same numbers, so the dates "
+        "can be compared. The copy is locked once a second dated "
+        "verification has been measured, so the numbers behind a "
+        "history cannot move under it."))
 
 
 def _sets_help() -> str:
@@ -2702,6 +2747,7 @@ class MeasurementReportDialog(QDialog):
                "A measurement that is not in a ChromIQ project (an imported "
                "file) is judged with the default set for this session only; "
                "nothing is stored for it.")
+            + _bound_and_locked_help()
             + _sets_help()
             + "\n\n" + tr(_PAIRING_HELP) + "\n\n" + tr(_CHART_HELP),
             self, min_width=460, color=SPEC_GREEN))
@@ -2813,8 +2859,75 @@ class MeasurementReportDialog(QDialog):
                     f" border: 1px solid {BORDER}; border-radius: 3px; }}")
         self.setStyleSheet(qss)
 
-        if initial_ti3 is not None and Path(initial_ti3).exists():
+        # **RUN TYPE CALIBRATION MAKES NO REPORT (K26, Knut 5792484060,
+        # Q1).** *"Run type= Calibration should not allow any reports, and the
+        # measurement report window should have disabled/locked selection
+        # fields ... The measurement report window should not load any text
+        # or reports and open as empty."* Decided HERE, in the one place every
+        # door goes through (Tools menu, the Measure tab's buttons), so no
+        # door can forget it; the measurement a door hands in is not loaded.
+        if self._is_calibration_window():
+            self._lock_for_calibration()
+        elif initial_ti3 is not None and Path(initial_ti3).exists():
             self._load(Path(initial_ti3))
+
+    # ---- K26: the Calibration window -------------------------------------
+    def _bar_run_type(self) -> "str | None":
+        """The profile bar's Run type, as stored ("profiling",
+        "verification", "calibration"), looked up through the window's
+        parents the way `_bar_kind` does; None with no bar behind it."""
+        p = self.parent()
+        while p is not None:
+            ctl = getattr(p, "_target_ctl", None)
+            target = getattr(ctl, "target", None) if ctl is not None else None
+            rt = getattr(target, "run_type", None)
+            if isinstance(rt, str) and rt:
+                return rt
+            p = p.parent() if hasattr(p, "parent") else None
+        return None
+
+    def _is_calibration_window(self) -> bool:
+        """Whether the profile bar says Run type = Calibration (K26). A window
+        with no bar behind it cannot know and behaves as before."""
+        from core.measurement_target import RUN_TYPE_CALIBRATION
+        return self._bar_run_type() == RUN_TYPE_CALIBRATION
+
+    def _calibration_controls(self) -> list:
+        """Every control of the window a Calibration window locks: the
+        selection fields and the buttons that act on a report. Close and the
+        help icons stay live."""
+        names = ("_saved_combo", "_add_btn", "_remove_btn", "_clear_btn",
+                 "_profile_list", "_select_all_btn", "_deselect_all_btn",
+                 "_type_combo", "_set_combo", "_limits_btn", "_unlock_check",
+                 "_detail_check", "_generate_btn", "_delete_report_btn",
+                 "_pdf_btn", "_reveal_btn")
+        return [w for w in (getattr(self, n, None) for n in names)
+                if w is not None]
+
+    def _lock_for_calibration(self) -> None:
+        """Open EMPTY and LOCKED, with the red line where "Already
+        generated…" stands (K26). Nothing is read and nothing is written."""
+        from workflow.measurement_messages import M_REPORT_NOT_FOR_CALIBRATION
+        self._calibration_locked = True
+        for w in self._calibration_controls():
+            w.setEnabled(False)
+        self._saved_combo.blockSignals(True)
+        self._saved_combo.clear()
+        self._saved_combo.blockSignals(False)
+        self._view.setHtml("")
+        self._trend_label.setVisible(False)
+        self._trend_tabs.setVisible(False)
+        self._type_blurb.setVisible(False)
+        title, body = M_REPORT_NOT_FOR_CALIBRATION.render()
+        self._calibration_note = QLabel(title, self)
+        self._calibration_note.setToolTip(body)
+        self._calibration_note.setObjectName("calibrationNote")
+        self._calibration_note.setWordWrap(True)
+        self._calibration_note.setStyleSheet(
+            f"color: {_C['fail']}; font-weight: bold")
+        self._already_row.addWidget(self._calibration_note, 1)
+        log.info("measurement report window opened under Run type "
+                 "Calibration: empty and locked, nothing loaded")
 
     def showEvent(self, event) -> None:  # noqa: N802
         super().showEvent(event)
@@ -4041,9 +4154,13 @@ class MeasurementReportDialog(QDialog):
     def _load(self, path: Path) -> None:
         """Open the report on a measurement — the profile that owns it becomes the
         first list entry."""
+        if getattr(self, "_calibration_locked", False):
+            return                      # K26: a Calibration window loads nothing
         self._add_source(Path(path))
 
     def _on_add_project(self) -> None:
+        if getattr(self, "_calibration_locked", False):
+            return                      # K26: a Calibration window loads nothing
         paths = open_files_dialog(
             self, tr("Add measurements (.ti3, or i1Profiler .mxf / .txt / .cxf)"),
             tr("Measurement data (*.ti3 *.mxf *.txt *.cxf);;All files (*)"),
@@ -4464,6 +4581,10 @@ class MeasurementReportDialog(QDialog):
         """The four grouped charts as ``(chart, title, metrics, y_max, dec, auto)``
         — shared by the live tabs and the PDF export so they always match. ``auto``
         ranges the axis tightly around the data instead of anchoring at 0."""
+        # K26: the figures each date's verdict judged, within gamut where the
+        # sheet was split by the profile's gamut (`report_trend`).
+        judged_pop = _series_is_within_gamut(
+            getattr(self, "_trend_series", None))
         corner_metrics = [
             # K25: the unit on every data label, as Colour accuracy's carry.
             (_with_unit(_CORNER_LABELS[code](), "ΔE00"),
@@ -4473,7 +4594,9 @@ class MeasurementReportDialog(QDialog):
         ]
         return [
             (self._trend_de, tr("Colour accuracy (ΔE00)"), [
-                (_METRIC_LABELS[k](), QColor(_METRIC_LINE[k]),
+                ((_METRIC_LABELS_JUDGED.get(k, _METRIC_LABELS[k])()
+                  if judged_pop else _METRIC_LABELS[k]()),
+                 QColor(_METRIC_LINE[k]),
                  (lambda pt, kk=k: _accuracy_value(pt, kk)))
                 for k in _ACCURACY_ROW_KEYS
             ], None, 1, False),
@@ -6396,13 +6519,9 @@ class MeasurementReportDialog(QDialog):
         # that turns them into words, so a report named on a German machine
         # reads in English on an English one and matches what this build looks
         # for. The words are what changed; where they come from did not.
-        from workflow.measurement_report import (SCOPE_ALL_DATES,
-                                                 SCOPE_MULTIPLE_DATES,
-                                                 document_scope_of)
+        from workflow.measurement_report import document_scope_of
         scope = document_scope_of(doc)
-        bits.append(tr("All dates") if scope == SCOPE_ALL_DATES
-                    else tr("Multiple dates") if scope == SCOPE_MULTIPLE_DATES
-                    else tr("One date"))
+        bits.append(self._scope_tag(scope, entry))
         if doc.get("detail"):
             bits.append(tr("Detailed"))
         # **AND WHEN IT WAS LAST UPDATED, ON THE END (B8-491).** Knut:
@@ -6421,6 +6540,40 @@ class MeasurementReportDialog(QDialog):
             bits.append(tr("updated {when}").format(
                 when=str(when).replace("T", " ")[:19]))
         return " · ".join(bits)
+
+    def _scope_tag(self, scope: str, entry: "dict | None" = None, *,
+                   origin: str = "") -> str:
+        """The date-scope flag of one name in "Report shown".
+
+        Verification: "One date", "Multiple dates", "All dates" (B8-392).
+
+        **PROFILING: "Run1", "Multiple runs", "All runs" (K26, Knut
+        5792484060).** *"When run type is set to Profiling: The name tags
+        become Run1, Run2, ..., then Multiple runs and All runs"*: a
+        profiling run has one measurement, so its report is named after the
+        run it covers. The run comes from what the report covers (its
+        recorded measurements, else its files), or from *origin* for a file
+        with no document block.
+        """
+        from workflow.measurement_report import (KIND_PROFILING,
+                                                 SCOPE_ALL_DATES,
+                                                 SCOPE_MULTIPLE_DATES,
+                                                 measurement_place)
+        if self._window_kind() != KIND_PROFILING:
+            return (tr("All dates") if scope == SCOPE_ALL_DATES
+                    else tr("Multiple dates") if scope == SCOPE_MULTIPLE_DATES
+                    else tr("One date"))
+        if scope == SCOPE_ALL_DATES:
+            return tr("All runs")
+        if scope == SCOPE_MULTIPLE_DATES:
+            return tr("Multiple runs")
+        places = self._entry_places(entry) if entry else set()
+        if not places and origin:
+            places = {measurement_place(origin)}
+        runs = sorted({r for _p, r in places})
+        if len(runs) == 1:
+            return _run_tag(runs[0])
+        return tr("Multiple runs") if len(runs) > 1 else tr("One date")
 
     def _document_key_of_report(self) -> str:
         """The document key of the file the page is drawn from, or ""."""
@@ -6723,7 +6876,10 @@ class MeasurementReportDialog(QDialog):
             stamp = path.stat().st_mtime_ns
         except OSError:
             stamp = 0
-        hit = cache.get((str(path), bool(with_stamp)))
+        # THE KIND IS PART OF THE NAME (K26): the same file is "One date" on
+        # a Verification window and "Run1" on a Profiling one.
+        kind = self._window_kind()
+        hit = cache.get((str(path), bool(with_stamp), kind))
         if hit is not None and hit[0] == stamp:
             return hit[1]
         rep = r
@@ -6778,9 +6934,12 @@ class MeasurementReportDialog(QDialog):
         # file is one file about one measurement, so the flag is a fact here
         # and not a guess, exactly as it is for the automatic measurement-time
         # report (§13.7 F.4).
-        bits.append(tr("One date"))
+        # K26: on a Profiling window the flag names the run (`_scope_tag`).
+        from workflow.measurement_report import SCOPE_ONE_DATE
+        bits.append(self._scope_tag(SCOPE_ONE_DATE,
+                                    origin=str(r.get("_origin_dir") or "")))
         label = " · ".join(bits)
-        cache[(str(path), bool(with_stamp))] = (stamp, label)
+        cache[(str(path), bool(with_stamp), kind)] = (stamp, label)
         return label
 
     def _saved_delete_refusal(self, r: dict, name: str) -> str:
@@ -6930,7 +7089,16 @@ class MeasurementReportDialog(QDialog):
         kind = self._window_kind()
         listed = {measurement_place(d)
                   for d in self._measurement_dirs_of_the_list(run, kind)}
-        if len(listed) <= 1 or not docs:
+        # **AND WHAT THE OFFERED REPORTS COVER (K26, Knut 5792576954).**
+        # *"'Report shown' should be grouped from the start, because one of
+        # the reports it offers covers two profile runs."* The list stayed
+        # flat while "Included measurements in report" held one run's
+        # measurements, and grouped only once such a report was selected and
+        # had loaded the other run. The reports offered now count as well.
+        offered: "set[tuple[str, str]]" = set()
+        for d in docs:
+            offered |= self._entry_places(d)
+        if len(listed | offered) <= 1 or not docs:
             return [("entry", d) for d in docs]
         own = self._own_place() or next(iter(sorted(listed)))
         MULTI_RUNS, MULTI_PROJECTS = "\x00runs", "\x00projects"
@@ -6946,7 +7114,7 @@ class MeasurementReportDialog(QDialog):
                 key = next(iter(places))
             buckets.setdefault(key, []).append(d)
         projects = sorted({k[0] for k in buckets if k[1] != MULTI_PROJECTS}
-                          | {p for p, _r in listed},
+                          | {p for p, _r in listed | offered},
                           key=lambda p: (p != own[0], p.casefold()))
         several_projects = len(projects) > 1 or (
             ("", MULTI_PROJECTS) in buckets)
@@ -6955,10 +7123,7 @@ class MeasurementReportDialog(QDialog):
             m = _re.fullmatch(r"run(\d+)", name)
             return (0, int(m.group(1)), "") if m else (1, 0, name.casefold())
 
-        def _run_heading(name: str) -> str:
-            m = _re.fullmatch(r"run(\d+)", name)
-            return (tr("Run{number}").format(number=m.group(1)) if m
-                    else name)
+        _run_heading = _run_tag
 
         out: list = []
         sub = 1 if several_projects else 0
@@ -8386,12 +8551,23 @@ class MeasurementReportDialog(QDialog):
             run, kind,
             str(self._settings.get("report_default_type", "") or ""),
             measurement_dirs=self._measurement_dirs_of_the_list(run, kind))
+        # **"FOR THESE MEASUREMENTS" ON A PROFILING WINDOW (K26, Knut
+        # 5792484060, Q4: "yes").** Since K25 a Profiling window counts the
+        # Printing records of every run in its list, so "for this run" was
+        # no longer what it counted. A Verification window keeps its words.
+        from workflow.measurement_report import KIND_PROFILING
+        profiling = kind == KIND_PROFILING
         if not counts:
-            return tr("No report has been generated for this run yet.")
+            return (tr("No report has been generated for these measurements "
+                       "yet.") if profiling
+                    else tr("No report has been generated for this run yet."))
         names = ", ".join(
             tr("{type}: {count}").format(type=tr(report_type_name(tid)),
                                           count=n)
             for tid, n in sorted(counts.items()))
+        if profiling:
+            return tr("Already generated for these measurements: "
+                      "{names}").format(names=names)
         return tr("Already generated for this run: {names}").format(names=names)
 
     def _set_type_blurb(self, full: str) -> None:
@@ -12254,25 +12430,13 @@ class MeasurementReportDialog(QDialog):
                 "standard, and not proof that it does.")) + "</p>")
                if not _grades_nothing else "")
             + ""
-            # BOUND AND LOCKED, in the report that uses both words. Knut,
-            # 2026-09-11: *"what is the difference between bound and locked? Be
-            # specific in the explanation, so that user understands that chosen
-            # limits are bound to chosen 'ChromIQ default' thresholds as this
-            # was used for the first dated verification run of the included
-            # measurement sets."* The two facts are §5 of
-            # docs/design/measurement_report_limits.md, in his terms: bound is
-            # the run holding its own copy of the numbers, taken at its first
-            # dated verification; locked is that copy no longer being
-            # changeable, which starts at the second one.
-            "<p><b>" + html.escape(tr("Bound, and locked.")) + "</b> "
-            + html.escape(tr(
-                "When the first dated verification of a profile run was "
-                "measured, the limit set chosen at that moment was copied onto "
-                "the run. The run is bound to that copy: every later date of "
-                "the same run is judged against the same numbers, so the dates "
-                "can be compared. The copy is locked once a second dated "
-                "verification has been measured, so the numbers behind a "
-                "history cannot move under it.")) + "</p>"
+            # **"BOUND, AND LOCKED" IS NOT IN THE REPORT (K26, Knut
+            # 5792484060, Q2: "Remove it from the report, and make sure this
+            # information is in the relevant help text").** It explained how
+            # ChromIQ binds and locks a run's limits, which K18 keeps out of a
+            # document handed to a customer. The same two sentences are now in
+            # the "Judged against" help (`_bound_and_locked_help`) and the help
+            # card's glossary.
             "<p>" + html.escape(tr(
                 "What the numbers mean depends on how the chart was printed:")) + "</p>"
             "<ul>"
@@ -13441,6 +13605,9 @@ class MeasurementReportDialog(QDialog):
             key = next((k for k, c in self._trend_groups.items()
                         if c is chart), None)
         about = _TREND_ABOUT[key]() if key in _TREND_ABOUT else ""
+        if chart is self._trend_de and _series_is_within_gamut(
+                getattr(self, "_trend_series", None)):
+            about = _TREND_ABOUT_DE_JUDGED()
         if chart is self._trend_de:
             avg_thr, max_thr = self._thresholds()
             notes = [_limit_line_note(tr("Avg"), avg_thr, "ΔE00",

@@ -637,26 +637,53 @@ def test_the_scope_section_has_air_under_the_run_description(qapp, tmp_path):
         dlg.deleteLater()
 
 
-def test_the_report_explains_bound_and_locked(qapp, tmp_path):
-    """*"what is the difference between bound and locked? Be specific in the
-    explanation"*. §5 of the design record, in his terms."""
+def test_bound_and_locked_is_explained_in_the_help_not_the_report(
+        qapp, tmp_path):
+    """K26 (Knut, 5792484060, Q2): *"Remove it from the report, and make sure
+    this information is in the relevant help text."* The paragraph he asked
+    for on 2026-09-11 (*"what is the difference between bound and locked? Be
+    specific in the explanation"*) explained how ChromIQ binds and locks a
+    run's limits, which K18 keeps out of a document handed to a customer. It
+    is gone from the report, and the window's "Judged against" help and the
+    help card's glossary say it: bound at the FIRST dated verification,
+    locked from the SECOND.
+
+    MUTATION, proven red (K26): put the paragraph back into
+    `_how_to_read_html` (the report says "Bound, and locked."), or leave
+    `_bound_and_locked_help()` out of the "Judged against" help (no help
+    says it), or put the glossary's "before recalculating them" clause back
+    into its "Locked" entry (the help card promises what Unlock no longer
+    does)."""
     import html as _html
+    from PyQt6.QtWidgets import QToolButton
+    from ui.dialogs.welcome_dialog import GLOSSARY
     proj, run, ti3s = _verified_run(tmp_path, dates=1)
     dlg = _dialog(_settings(tmp_path), ti3s[-1])
     try:
         plain = _html.unescape(dlg._report_body_html(dlg._runs_for_report(),
                                                      for_pdf=True))
-        assert "Bound, and locked." in plain
-        # bound: the copy is taken at the FIRST dated verification and is the
-        # run's own from then on
-        assert "first dated verification" in plain
-        # K18 (the final round): the Preferences clause told a ChromIQ user
-        # how the app behaves; what the reader keeps is what binding MEANS.
-        assert "judged against the same numbers" in plain
-        # locked: it starts at the SECOND one, and it is about comparability
-        assert "locked once a second dated verification has been measured" in plain
+        assert "Bound, and locked." not in plain
+        assert "locked once a second dated verification" not in plain
+        helps = []
+        for b in dlg.findChildren(QToolButton):
+            v = getattr(b, "_body", None)
+            if isinstance(v, str):
+                helps.append(v)
+        said = [h for h in helps if "Bound, and locked." in h]
+        assert said, "no help in the report window explains bound and locked"
+        text = said[0]
+        assert "first dated verification" in text
+        assert "judged against the same numbers" in text
+        assert "locked once a second dated verification has been measured" \
+            in text
     finally:
         dlg.deleteLater()
+    words = dict(GLOSSARY)
+    assert any(k.startswith("Bound") for k in words), words.keys()
+    locked = next(v for k, v in words.items() if k.startswith("Locked"))
+    assert "second dated check" in locked
+    assert "recalculat" not in locked.replace("recalculates nothing", ""), (
+        "the glossary still promises a recalculation Unlock no longer does")
 
 
 def test_both_limits_doors_are_the_same_window():

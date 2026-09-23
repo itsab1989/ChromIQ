@@ -2110,7 +2110,19 @@ def report_trend(reports: "list[dict]") -> "list[dict]":
     series: list[dict] = []
     for r in reports:
         pt: dict = {"created": r.get("created"), "chart": r.get("chart")}
-        de = r.get("de00") or {}
+        # **THE FIGURES THE VERDICT JUDGED (K26, Knut 5792484060, Q4: "Yes,
+        # use the within-gamut figures").** A sheet whose colours were split
+        # by the profile's gamut is judged on its within-gamut figures
+        # (`graded_de00`), and this plotted the all-patch ones against the
+        # same Avg / Max lines: on one demo date the graph drew 1.36 where the
+        # verdict had used 1.95. Asked of the one function the verdict asks,
+        # so the two cannot part again; which population it was is recorded
+        # so the graph can say so.
+        de, source = graded_de00(r)
+        if de:
+            pt["de00_population"] = ("in_gamut"
+                                     if source == VERDICT_SOURCE_IN_GAMUT
+                                     else "all")
         # The five accuracy metrics the colour-accuracy chart plots (Knut), plus
         # the mean/max aliases older points used.
         for k in ("mean", "max", "p95",
