@@ -9091,16 +9091,16 @@ class MeasurementReportDialog(QDialog):
         the verdict cells ask as well, so the marker and the list cannot
         disagree.
         """
+        return self._numbered_notes_from(self._note_numbering(runs))
+
+    def _numbered_notes_from(self, numbering: list
+                             ) -> "list[tuple[int, str, str]]":
+        """`_numbered_notes` for a numbering already worked out, so the list
+        under the Report Results grid and the lists under the detailed tables
+        read one sentence per number from one place."""
         from workflow.compliance_sets import ROW_BY_ID
-        from workflow.measurement_report import numbered_notes
-        merged: list = []
-        for r in runs or ():
-            if _is_raw_drift(r):
-                continue
-            rows, _rec = self._verdict_rows(r)
-            merged.extend(rows)
         out = []
-        for n, code, rids in numbered_notes(merged):
+        for n, code, rids in numbering or ():
             sentence = self._note_sentence(code)
             if not sentence:
                 continue
@@ -9308,18 +9308,20 @@ class MeasurementReportDialog(QDialog):
         beside both rows. Numbering on the code AND its sentence gives them
         separate numbers when they differ and one number when they do not.
 
-        **SILENT ON A TYPE THAT JUDGES NOTHING**, like every other explanation
-        under this table. On the Printing record the summary says the report
-        judges none of it; a numbered note under the heading "Notes on the
-        verdicts above" would comment verdicts that were never given, and the
-        closing sentence under it says an unanswered row "is not counted as a
-        failure" on a document that counts nothing. `_ungrade` leaves an N-A
-        an N-A (there is no number to show for it), so without this guard the
-        notes and the raised markers arrive on T4 as well. That is the same
-        fault shape three neighbours in this file already record.
+        **ON A TYPE THAT JUDGES NOTHING, THE ABSENCES ARE STILL EXPLAINED
+        (G12, beta 39).** This method used to return early on the Printing
+        record, on the reasoning that a note comments a verdict and T4 gives
+        none. That holds for a note that COMMENTS a verdict (`_ungrade` clears
+        those, and the "where on the sheet" half below still asks for PASS or
+        FAIL). It does not hold for a note that EXPLAINS AN ABSENCE: "this
+        could not be worked out, because the measured chart lacks X" is not a
+        judgement withheld, which is why `_ungrade` keeps N-A on T4 in the
+        first place. Knut, 2026-09-22, on exactly this report type: *"Should
+        there be a note there instead, so a user knows why a metric could not
+        be checked?"* The heading and the closing sentence under the list are
+        chosen per type in `_notes_list_html`, so T4 is never told about
+        verdicts or failures.
         """
-        if self._ungraded_by_type():
-            return rows
         from workflow.compliance_sets import FAIL, N_A, PASS
         from workflow.measurement_report import EVENNESS_ROWS
         # …AND WHERE ON THE SHEET, on an evenness verdict that was given.
@@ -12897,32 +12899,63 @@ class MeasurementReportDialog(QDialog):
         # cell points at the number, which is what he asked for both times.
         numbered = self._numbered_notes(runs)
         if numbered:
-            from workflow.measurement_report import note_label
-            items = "".join(
-                "<li style='margin-bottom:2px'><b>"
-                + html.escape(note_label(n)) + "</b> "
-                + html.escape(f"{where}: ") + html.escape(sentence) + "</li>"
-                for (n, where, sentence) in numbered)
-            notes += (f"<div style='{note_css}'><b>" + html.escape(tr(
-                "Notes on the verdicts above:")) + "</b>"
-                + f"<ol style='margin:2px 0 0 16px;padding:0;"
-                f"list-style:none'>{items}</ol>"
-                # THE CLOSING SENTENCE THE PROSE BLOCK USED TO CARRY, kept
-                # because it answers the question a reader of an N-A actually
-                # has, and reworded to Knut's ruling: an unanswerable row is
-                # not a failure. It does not name one remedy for every reason
-                # (B8-397); each note above carries its own.
-                + ("<div style='margin-top:4px'>" + html.escape(tr(
-                    "A row that could not be worked out says nothing about"
-                    " the printer and is not counted as a failure;"
-                    " each note above says why.")) + "</div>"
-                   if self._has_an_absence(runs) else "")
-                + "</div>")
+            notes += self._notes_list_html(
+                numbered, note_css, closing=self._has_an_absence(runs))
         return (_h2(tr("Report Results"), page_break=True) + _gap()
                 + f"<div style='color:{_C['dim']};margin-bottom:4px'>" + html.escape(intro)
                 + "</div>" + _gap()
                 + self._chunked_metric_tables(runs, row_getters)
                 + notes)
+
+    def _notes_list_html(self, numbered: list, note_css: str, *,
+                         closing: bool) -> str:
+        """The numbered notes as a list, under a heading that is TRUE OF THE
+        DOCUMENT it is printed in.
+
+        ONE RENDERER FOR BOTH PLACES THE LIST APPEARS: under the Report Results
+        grid and under each run's table in the detailed section (G12). Two
+        copies of this markup would be two documents that drift, which is the
+        reason the numbering itself lives in one function.
+
+        **ON A TYPE THAT JUDGES NOTHING, NO WORD ABOUT VERDICTS OR FAILURES.**
+        The Printing record now prints the notes that explain an absence
+        (`_note_the_absences`), and the heading every other type uses, "Notes
+        on the verdicts above", would describe verdicts the page never gives;
+        its closing sentence would say an unanswered row "is not counted as a
+        failure" on a document that counts nothing. Both are chosen here, by
+        the same `_ungraded_by_type` that withholds the verdicts.
+
+        *closing* adds the sentence about rows that could not be worked out;
+        the caller passes whether any row shown actually reads N-A.
+        """
+        from workflow.measurement_report import note_label
+        record = self._ungraded_by_type()
+        items = "".join(
+            "<li style='margin-bottom:2px'><b>"
+            + html.escape(note_label(n)) + "</b> "
+            + html.escape(f"{where}: ") + html.escape(sentence) + "</li>"
+            for (n, where, sentence) in numbered)
+        head = (tr("Notes on the values above:") if record
+                else tr("Notes on the verdicts above:"))
+        # THE CLOSING SENTENCE THE PROSE BLOCK USED TO CARRY, kept because it
+        # answers the question a reader of an N-A actually has, and reworded
+        # to Knut's ruling: an unanswerable row is not a failure. It does not
+        # name one remedy for every reason (B8-397); each note above carries
+        # its own.
+        close = ""
+        if closing:
+            close = (tr("A value that could not be worked out says nothing "
+                        "about the printer; each note above says why.")
+                     if record else
+                     tr("A row that could not be worked out says nothing about"
+                        " the printer and is not counted as a failure;"
+                        " each note above says why."))
+        return (f"<div style='{note_css}'><b>" + html.escape(head) + "</b>"
+                + f"<ol style='margin:2px 0 0 16px;padding:0;"
+                f"list-style:none'>{items}</ol>"
+                + ("<div style='margin-top:4px'>" + html.escape(close)
+                   + "</div>" if close else "")
+                + "</div>")
 
     def _comparison_table_html(self, runs: list) -> str:
         """Side-by-side: the full metric set across every run (columns = dated
@@ -13961,10 +13994,16 @@ class MeasurementReportDialog(QDialog):
                 "style='border-collapse:collapse;font-size:11px'>"
                 + "".join(trs) + "</table>")
 
-    def _run_detail_html(self, r: dict) -> str:
+    def _run_detail_html(self, r: dict, numbering: "list | None" = None) -> str:
         """One run's full breakdown: the colour-accuracy Pass/Fail table
         (Metric / Measured ΔE00 / Threshold / Result), paper white & black, the
-        cube corners, and the 16 worst patches (Knut)."""
+        cube corners, and the 16 worst patches (Knut).
+
+        *numbering* is the DOCUMENT's note numbering (`_note_numbering` over
+        every run the document holds), so a row's marker here is the number the
+        same row carries in the Report Results grid (G12, CH-32/33). None
+        works it out from this run alone, for a caller that has no document.
+        """
         de = r.get("de00") or {}
         parts = []
         produced = self._printing_block_html(r)
@@ -13994,6 +14033,15 @@ class MeasurementReportDialog(QDialog):
             thb = f"border-bottom:1.5px solid {_C['rule']}"
             cols = ([tr("Within gamut"), tr("Beyond it"), tr("All patches")]
                     if split else [tr("Measured ΔE00")])
+            # **NO VERDICT COLUMN ON A TYPE THAT JUDGES NOTHING** (G12, Knut
+            # 2026-09-22: *"The sections with detailed data still shows PASS
+            # and FAIL, or if a metric could not be checked. Should there be a
+            # note there instead"*). On the Printing record every word in this
+            # column was INFO or N-A, two of the five verdict words, in the one
+            # document that gives no verdict. What the column carried that is
+            # not a verdict, "no number here", stays: the value cell reads "—"
+            # with the raised number of the note saying why.
+            record = self._ungraded_by_type()
             head = (f"<tr style='color:{_C['faint']}'>"
                     f"<th align='left' style='{thb}'>"
                     + html.escape(tr("Metric")) + "</th>"
@@ -14001,31 +14049,45 @@ class MeasurementReportDialog(QDialog):
                               + html.escape(c) + "</th>" for c in cols)
                     + f"<th align='right' style='{thb}'>"
                     + html.escape(tr("Limit")) + "</th>"
-                    f"<th align='center' style='{thb}'>"
-                    + html.escape(tr("Result")) + "</th></tr>")
+                    + ("" if record else
+                       f"<th align='center' style='{thb}'>"
+                       + html.escape(tr("Result")) + "</th>")
+                    + "</tr>")
             trs = [head]
 
             from workflow.compliance_sets import (COND, FAIL, PASS, ROW_BY_ID,
                                                   word_label)
+            from workflow.measurement_report import (note_label,
+                                                     note_numbers_for)
+            # THE DOCUMENT'S NUMBERING, never this run's own: a note is "2)"
+            # here because it is "2)" under the Report Results grid.
+            _nums = (numbering if numbering is not None
+                     else self._note_numbering([r]))
+            _marked: "list[int]" = []
+
+            def mark_for(row) -> str:
+                if raw_drift or row is None:
+                    return ""
+                ns = note_numbers_for(row, _nums)
+                for n in ns:
+                    if n not in _marked:
+                        _marked.append(n)
+                return ("<sup style='font-weight:normal'>&nbsp;"
+                        + html.escape(" ".join(note_label(n) for n in ns))
+                        + "</sup>") if ns else ""
 
             def row_html(i, label, values, threshold, word, should=False,
-                         bold_first=True, tip=""):
+                         bold_first=True, tip="", mark=""):
                 bg = f" style='background:{self._ZEBRA_BG}'" if i % 2 == 1 else ""
                 if word is None:
-                    res = "—"
+                    res = "—" + mark
                 else:
                     col = {PASS: _C["pass"], FAIL: _C["fail"],
                            COND: _C["cond"]}.get(word, _C["faint"])
                     weight = "bold" if word in (PASS, FAIL, COND) else "normal"
                     title = f" title='{html.escape(tip)}'" if tip else ""
                     res = (f"<span{title} style='color:{col};font-weight:{weight}'>"
-                           + html.escape(word_label(word)) + "</span>")
-                tds = "".join(
-                    "<td align='right'>" + ("<b>" if bold_first and j == 0 else "")
-                    + _fmt(v) + ("</b>" if bold_first and j == 0 else "") + "</td>"
-                    for j, v in enumerate(values))
-                thr = "—" if threshold is None else (
-                    f"({_fmt(threshold)})" if should else _fmt(threshold))
+                           + html.escape(word_label(word)) + "</span>" + mark)
                 # F9 / CS Q12: a FAIL whose two-decimal value reads like the
                 # limit shows three decimals, so a failing value never looks
                 # like a passing one
@@ -14034,10 +14096,25 @@ class MeasurementReportDialog(QDialog):
                         and _fmt(values[0]) == _fmt(threshold)):
                     values = list(values)
                     values[0] = f"{values[0]:.3f}"
+                cells = []
+                for j, v in enumerate(values):
+                    txt = _fmt(v)
+                    if bold_first and j == 0:
+                        txt = "<b>" + txt + "</b>"
+                    # ON THE RECORD THE MARKER SITS ON THE EMPTY VALUE, since
+                    # there is no verdict cell to carry it
+                    if record and j == 0 and mark:
+                        title = (f" title='{html.escape(tip)}'" if tip else "")
+                        txt = f"<span{title}>" + txt + "</span>" + mark
+                    cells.append("<td align='right'>" + txt + "</td>")
+                tds = "".join(cells)
+                thr = "—" if threshold is None else (
+                    f"({_fmt(threshold)})" if should else _fmt(threshold))
                 return (f"<tr{bg}><td style='padding-right:14px'>{html.escape(label)}</td>"
                         + tds +
                         f"<td align='right'>{thr}</td>"
-                        f"<td align='center'>{res}</td></tr>")
+                        + ("" if record else f"<td align='center'>{res}</td>")
+                        + "</tr>")
 
             for i, row in enumerate(rows):
                 k = row.get("key")
@@ -14058,7 +14135,8 @@ class MeasurementReportDialog(QDialog):
                 tip = (self._reason_sentence(row.get("reason"), r, row)
                        if row.get("reason") else "")
                 trs.append(row_html(i, label, values, row.get("threshold"), word,
-                                    should=bool(row.get("should")), tip=tip))
+                                    should=bool(row.get("should")), tip=tip,
+                                    mark=mark_for(row)))
             # Spread is reported for completeness but carries no threshold (Knut).
             trs.append(row_html(
                 len(rows), _METRIC_LABELS["std"](),
@@ -14072,6 +14150,19 @@ class MeasurementReportDialog(QDialog):
             parts.append("<table cellpadding='5' cellspacing='0' "
                          "style='border-collapse:collapse;font-size:11px'>"
                          + "".join(trs) + "</table>")
+            # …AND THE NOTES THIS TABLE POINTS AT, UNDER IT (G12). In the PDF
+            # the detailed section starts on a page of its own, and a marker
+            # whose note is pages back is a marker nobody follows. Same
+            # numbers, same sentences, one renderer with the Results list.
+            if _marked:
+                _said = {n: (where, sentence) for (n, where, sentence)
+                         in self._numbered_notes_from(_nums)}
+                _mine = [(n,) + _said[n] for n in sorted(_marked) if n in _said]
+                if _mine:
+                    parts.append(self._notes_list_html(
+                        _mine,
+                        f"color:{_C['faint']};font-size:10px;margin-top:4px",
+                        closing=False))
             # WHERE THE WORDS CAME FROM, WHICH A RECORD HAS NONE OF (round B
             # before beta 37, H3). A Printing record grades nothing, so "This
             # verdict was recorded ... against the limit set ..." beside "This
@@ -14120,7 +14211,22 @@ class MeasurementReportDialog(QDialog):
                 parts.append(
                     f"<p style='color:{_C['faint']};font-size:10px'>"
                     + html.escape(drift_txt) + "</p>")
-            if split:
+            if split and record:
+                # THE OTHER PARAGRAPH SAYS "The Result judges the within-gamut
+                # figures", and on the record there is no Result column
+                parts.append(
+                    f"<p style='color:{_C['faint']};font-size:10px'>" + html.escape(tr(
+                        "Within what the profile ({profile}) can print: {n} of "
+                        "this sheet's colours ({pct} %); beyond it: {m}. A "
+                        "colour beyond the gamut was never printable, so its "
+                        "distance describes the gamut's limit, not a mistake "
+                        "of the profile.").format(
+                            n=split.get("n_in"), m=split.get("n_out"),
+                            pct=round(100 * (split.get("n_in") or 0)
+                                      / max((split.get("n_in") or 0)
+                                            + (split.get("n_out") or 0), 1)),
+                            profile=split.get("profile", ""))) + "</p>")
+            elif split:
                 parts.append(
                     f"<p style='color:{_C['faint']};font-size:10px'>" + html.escape(tr(
                         "Within what the profile ({profile}) can print: {n} of "
@@ -14364,6 +14470,10 @@ class MeasurementReportDialog(QDialog):
         own page, led by a 'Measurement run — date — N patches' heading and the
         profile name (Knut)."""
         out = [_h2(tr("Detailed data per measurement run"), page_break=True)]
+        # ONE NUMBERING FOR THE WHOLE DOCUMENT (CH-32), worked out over the
+        # same runs the Report Results grid numbers, so the detailed tables'
+        # markers and the grid's cannot disagree about which note is note 1.
+        numbering = self._note_numbering(runs)
         for idx, run in enumerate(runs):
             brk = "page-break-before:always;" if idx > 0 else ""
             out.append(
@@ -14376,5 +14486,5 @@ class MeasurementReportDialog(QDialog):
                 f"<div style='color:{_C['dim']};margin-bottom:4px'>"
                 + html.escape(tr("Profile name: {name}").format(
                     name=run.get("chart") or "")) + "</div>"
-                + self._run_detail_html(run))
+                + self._run_detail_html(run, numbering))
         return "".join(out)

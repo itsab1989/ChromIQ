@@ -611,12 +611,19 @@ def test_the_printing_record_does_not_single_out_two_of_eight_rows(tmp_path,
         assert all(x["word"] == INFO or x["word"] == "N-A" for x in rows)
         assert not dlg._measured_not_graded(reps[0]), \
             "two of eight rows are singled out on a report that judges none"
-        # …AND THE NUMBERED NOTES MUST BE SILENT FOR THE SAME REASON. A note
-        # comments a verdict, and on T4 there are none: every row is INFO
-        # because the type says so. A note here would comment nothing and imply
-        # the other six rows had been judged.
-        assert not dlg._numbered_notes(reps), \
+        # …AND NO NOTE THAT COMMENTS A VERDICT, FOR THE SAME REASON. A comment
+        # note (the grey rows' printing note) would comment nothing on T4 and
+        # imply the other six rows had been judged. SINCE G12 (beta 39) a note
+        # that EXPLAINS AN ABSENCE is printed on T4 (Knut, 2026-09-22: "so a
+        # user knows why a metric could not be checked"), so the list may hold
+        # notes; every one of them must sit on an N-A row, and the list is not
+        # headed as notes on verdicts.
+        from workflow.measurement_report import NOTE_PRINTING_UNRECORDED
+        codes = [c for (_n, c, _r) in dlg._note_numbering(reps)]
+        assert NOTE_PRINTING_UNRECORDED not in codes, \
             "the note list comments verdicts on a report that gives none"
+        assert all(x["word"] == "N-A" for x in rows if x.get("notes")), \
+            "a row that is not N-A carries a note on a report that judges none"
         body = dlg._report_body_html(reps, for_pdf=True)
         assert _html.escape(tr("Notes on the verdicts above:")) not in body, \
             "the numbered note list is printed on a report that judges nothing"

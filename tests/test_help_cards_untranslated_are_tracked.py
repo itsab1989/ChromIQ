@@ -539,6 +539,13 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-23, #182 beta 39 G12 (Knut 5774852534, "OK" in
+    # 5775260868): three new keys (the Printing record's notes heading
+    # "Notes on the values above:", its closing sentence, and the detailed
+    # gamut paragraph without "The Result judges"). German by hand, does not
+    # move; the twelve others carry the English under the beta rule and each
+    # rises by exactly 3. COUNTED off the tree with this file's own
+    # expression, BOTH ledgers in the same commit.
     # RE-MEASURED 2026-09-23, the beta 38 challenge-round fixes and Knut's
     # 5794078008 (the folder-renamed window's three choices): 23 new keys
     # (the rename refusals in words, M-PROJECT-FOLDER-RENAME-FAILED's and
@@ -971,18 +978,18 @@ _BUDGET = {
     # COUNTED off the tree with this file's own expression, BOTH ledgers in the
     # same commit.
     "de": 14,
-    "es": 798,
-    "fr": 799,
-    "it": 798,
-    "ja": 798,
-    "nl": 798,
-    "no": 798,
-    "pl": 798,
-    "pt": 798,
-    "ru": 797,
-    "sv": 798,
-    "zh_CN": 797,
-    "uk": 998,
+    "es": 801,
+    "fr": 802,
+    "it": 801,
+    "ja": 801,
+    "nl": 801,
+    "no": 801,
+    "pl": 801,
+    "pt": 801,
+    "ru": 800,
+    "sv": 801,
+    "zh_CN": 800,
+    "uk": 1001,
 }
 
 

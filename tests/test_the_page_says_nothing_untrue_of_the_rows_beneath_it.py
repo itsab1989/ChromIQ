@@ -66,8 +66,17 @@ def test_a_type_that_judges_nothing_does_not_tell_you_what_to_add(tmp_path,
     it is retargeted rather than deleted: whatever explains an unanswerable
     row must stay silent on a type that answers nothing.
 
-    MUTATION: drop the `_ungraded_by_type` guard from `_note_the_absences`
-    and this goes red.
+    **AND SINCE G12 (beta 39) THAT IS NARROWER.** A note explaining an N-A is
+    printed on the Printing record now (Knut, 2026-09-22: "so a user knows why
+    a metric could not be checked"), under "Notes on the values above:". So
+    on T4 a note may only sit on an N-A row; the ones commenting a verdict
+    (the grey rows' printing note on the Full colour check) must stay off.
+
+    MUTATION (re-proved 2026-09-23): in `_notes_list_html` replace
+    `record = self._ungraded_by_type()` with `record = False` and this goes
+    red: the record's list is headed as notes on verdicts. (Its first
+    mutation, the `_ungraded_by_type` guard at the top of
+    `_note_the_absences`, is the guard G12 removed.)
     """
     from core.i18n import tr
     dlg, run = _dialog(tmp_path, qapp)
@@ -83,7 +92,11 @@ def test_a_type_that_judges_nothing_does_not_tell_you_what_to_add(tmp_path,
         assert head not in body, (
             "a report that judges nothing told the reader what to add to have "
             "it checked")
-        assert not dlg._numbered_notes(rec)
+        # only notes that explain an absence, each on an N-A row (G12)
+        from workflow.compliance_sets import N_A
+        rows, _rc = dlg._verdict_rows(rec[0])
+        assert all(x["word"] == N_A for x in rows if x.get("notes")), \
+            "a note comments a verdict on a report that gives none"
         assert "Create Chart" not in body
     finally:
         dlg.close()
