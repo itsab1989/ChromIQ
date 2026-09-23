@@ -119,6 +119,14 @@ def script_for(which):
                    f" (dialog ok={ok})")
             rec["scenarios"].setdefault("pdfs", []).append(str(target))
 
+        if which == "grey":
+            open_window(LIMITS[1], "run10")
+            yield 5000
+            dlg = d.top_dialog("MeasurementReportDialog")
+            generate_all(dlg)
+            yield 500
+            state(dlg, "E1-all-dates", "Every-Limit-Set run10, Full colour "
+                  "check, every date ticked, Generate")
         if which == "limits":
             # -- T ---------------------------------------------------------
             open_window(LIMITS[0], "run1")
@@ -149,20 +157,27 @@ def script_for(which):
             finally:
                 mrd._PDF_ACCURACY_SCALE = 2
 
+        if which in ("limits", "grey"):
             # -- G ---------------------------------------------------------
             d.pick(dlg._type_combo, "Grey and tone")
             yield 1500
             d.later(dlg._generate_btn.click)
             yield 1500
             said = d.answer("New", name="G0-generate-question", within_ms=3000)
-            yield 3500
+            # WAIT FOR THE PAGE, not for a guess: measured 30 s and more for
+            # the three dates to be written on this machine under load.
+            for _ in range(120):
+                yield 1000
+                if "Report type: Grey and tone check" in dlg._view.toPlainText():
+                    break
+            yield 1500
             rec["scenarios"]["G-question"] = said
             state(dlg, "G1-grey-and-tone", "the same dates as Grey and tone "
                   "check: only the grey and tone rows are judged")
             photograph_tabs(dlg, "G1")
             dlg.close()
             yield 1000
-
+        if which == "limits":
             # -- P ---------------------------------------------------------
             open_window(LIMITS[1], "run10", run_type="Profiling")
             yield 5000
@@ -172,7 +187,7 @@ def script_for(which):
             d.shot(dlg, "P1-profiling-no-new-tabs")
             dlg.close()
             yield 1000
-        else:
+        if which == "evenness":
             # -- V ---------------------------------------------------------
             open_window(EVEN, "run1")
             yield 5000
@@ -204,7 +219,7 @@ def script_for(which):
 if __name__ == "__main__":
     which = sys.argv[2] if len(sys.argv) > 2 else "limits"
     d = Drive(Path(sys.argv[1]),
-              projects=list(LIMITS) if which == "limits" else [EVEN])
+              projects=[EVEN] if which == "evenness" else list(LIMITS))
     rc = d.run(script_for(which))
     print(json.dumps(d.record.get("scenarios", {}), indent=1, default=str)[:3000])
     sys.exit(rc)
