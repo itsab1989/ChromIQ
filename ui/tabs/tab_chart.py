@@ -14849,6 +14849,10 @@ class TabChart(QWidget):
                 ti1_path, params,
                 on_line=self._on_log_line,
                 on_finish=self._on_generate_finished,
+                # FROM PROFILE GAMUT and every .ti1 preset under Run type =
+                # Verification: the profile and the profiling measurement are
+                # not what this chart replaces (B8-860).
+                keep_results=self._is_verification_target(),
             )
             return True
         except OSError as exc:
@@ -16273,6 +16277,11 @@ class TabChart(QWidget):
                 params,
                 on_line=self._on_log_line,
                 on_finish=self._on_generate_finished,
+                # A VERIFICATION CHART DISPLACES NO PROFILING WORK. It is laid
+                # down at the run root and filed into verifications/, so the
+                # run's measurement and profile stay where they are instead of
+                # gaining a copy in old/ on every build (B8-860).
+                keep_results=self._is_verification_target(),
             )
 
         # A DOOR CAN STOP BY RAISING, AND THE `finally` BELOW ONLY FORGETS AN
@@ -16669,7 +16678,7 @@ class TabChart(QWidget):
             ti1, params,
             on_line=self._on_log_line,
             on_finish=self._on_generate_finished,
-            keep_results=chart_only,
+            keep_results=chart_only or self._is_verification_target(),
         )
 
     def _on_log_line(self, line: str) -> None:

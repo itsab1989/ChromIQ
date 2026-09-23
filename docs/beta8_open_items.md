@@ -26383,3 +26383,54 @@ would reach.
   (it prints counts and True/False only), then re-run the gate and move this
   item to FIXED. For Knut: whether a shipped standard's values should also
   become the Custom columns' starting numbers, which §2a's order reads as no.
+
+### B8-860 · FIXED · FROM PROFILE GAMUT as the first build of a session never finished, and a verification build moved the run's profile into old/
+- blocks release: yes
+- status: FIXED
+- note: numbered 860, not 852: 851 is the last entry here and the K30 work
+  running in parallel takes numbers after it, so this one starts at 860 to
+  keep clear of it.
+- found by: tester A, beta 39 challenge round
+  (`~/Desktop/ChromIQ-beta39-proof/challenge-A-behaviour/`, A1 twice, A1-primed
+  as the control): Run 1, Verification, FROM PROFILE GAMUT, 100 colours, Auto
+  off, Generate, "Generate the new chart". printtarg ran in 0.2 s, then
+  Generate stayed greyed, Stop stayed up and no preview came for minutes; the
+  gamut chart was left in `runs/run1/` as the PROFILING chart and the profile
+  and the profiling `.ti3` were in `runs/run1/old/<stamp>/`. A Manual Generate
+  earlier in the session made it work.
+- cause 1: since 93ba45ee every ending of a build runs through
+  `ChartCreator._finish`, which calls `_pending_on_finish`; the printtarg
+  branch of `load_ti1_and_generate_preview` never stored it (only
+  `generate()` and the engine branch did). So the tab's finish handler, which
+  files a verification chart into `verifications/` and puts the profiling
+  chart back, never ran on a first build, and on a later build the previous
+  build's callback ran instead. Every printtarg-laid build from a `.ti1` was
+  affected: FROM PROFILE GAMUT, `.ti1` presets on printtarg, a loaded patch
+  set, the page rebuild of Restore Used Chart.
+- cause 2: every build route reset the run root with `keep_results=False`,
+  so a VERIFICATION build archived the run's profile and measurement into
+  `old/`; only a snapshot restore put copies back (none with cause 1), and
+  each verification build left one more `old/<stamp>/` holding them, against
+  M-CHART-VERIFY's "no measurement is touched".
+- fixed: `load_ti1_and_generate_preview` stores both callbacks (and clears a
+  leftover `_cancelling` and `_pending_work_dir`) before anything runs;
+  `generate()` takes `keep_results`; under Run type = Verification the tab
+  passes `keep_results=True` from `_on_generate`, `_generate_from_ti1` and
+  `_on_load_ti1`.
+- evidence: six tests in the FPG first-build file under tests/
+  (test_a_first_printtarg_build_from_a_ti1_reports_that_it_finished,
+  test_the_callbacks_are_this_builds_before_printtarg_starts,
+  test_a_previous_builds_callback_is_never_invoked,
+  test_a_stop_left_over_from_the_last_build_does_not_cancel_this_one,
+  test_fpg_under_verification_files_its_chart_and_leaves_the_run_alone,
+  test_a_manual_verification_generate_leaves_the_run_alone_too), each red on
+  the mutation its docstring names (six mutations, all caught).
+- proof: `~/Desktop/ChromIQ-beta39-proof/fpg-first-build-blocker/` (on
+  screen, EN, a fresh process per scenario: tester A's steps, Manual first, a
+  built-in `.ti1` preset first, Restore Used Chart; sha256 listings of
+  `runs/run1` before and after; the profile, the profiling `.ti3`, `.ti1`,
+  `.ti2` and both pages byte-identical in all four, no `runs/run1/old/`).
+- recovery for a user who hit it: no in-app path back from `old/`; move
+  `<name>.icc` and `<name>.ti3` from `runs/runN/old/<stamp>/` into
+  `runs/runN/`, then Profiling, Restore Used Chart for the chart (only when
+  `runs/runN/chart/` exists, i.e. the run was measured in ChromIQ).

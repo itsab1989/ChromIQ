@@ -714,8 +714,16 @@ class ChartCreator:
         params: ChartParams,
         on_line: Callable[[str], None],
         on_finish: Callable[[list[Path]], None],
+        *,
+        keep_results: bool = False,
     ) -> None:
         """Run targen then printtarg; call on_finish(tiff_paths) on completion.
+
+        ``keep_results`` leaves the run's measurement and profile where they
+        are. The tab passes it for Run type = Verification, whose chart is laid
+        down at the run root and then filed into ``verifications/``: the run's
+        profiling work is not what is being replaced, so it has no business in
+        ``old/`` (M-CHART-VERIFY: "no measurement is touched"). B8-860.
 
         Folder routing:
           * ``cal_target=True``  → writes to ``project.calibration.dir/`` with
@@ -752,12 +760,13 @@ class ChartCreator:
             work_dir = cal.ensure_dir()
         else:
             run = proj.current_run()
-            self._announce_result_archive(run, on_line, False)
+            self._announce_result_archive(run, on_line, keep_results)
             # SET THE OLD CHART ASIDE RATHER THAN DELETING IT. Nothing here is
             # "regenerated" unless the build finishes, and every way it can fail
             # now puts the chart back — see `_finish`.
             self._chart_stash_owner = run
-            self._chart_stash = run.reset_chart_artefacts(stash=True)
+            self._chart_stash = run.reset_chart_artefacts(
+                keep_results=keep_results, stash=True)
             work_dir = run.ensure_dir()
             # External -c preconditioning: copy ICC (and sibling .ti3 if
             # refinement is on) into the current run so the chart and the
@@ -1008,6 +1017,24 @@ class ChartCreator:
         # in a future session. Mirror the generate() path so this entry point
         # produces the same artifacts.
         self._pending_params = params
+        # THE CALLBACKS ARE THIS BUILD'S, AND THEY ARE SET BEFORE ANYTHING RUNS.
+        # Since 93ba45ee every ending goes through `_finish`, which calls
+        # `_pending_on_finish` and not the `on_finish` handed in here, but only
+        # the engine branch below and `generate()` ever stored it. So the
+        # printtarg branch finished into NOTHING on a first build of a session
+        # (the tab never heard the chart was done: Generate greyed, Stop up, no
+        # preview, and under Run type = Verification the chart was never filed
+        # into verifications/, so it stayed in the run root as the PROFILING
+        # chart), and on a later build it called whatever the PREVIOUS build
+        # had left there. Tester A, beta 39, FROM PROFILE GAMUT: B8-860.
+        self._pending_on_finish = on_finish
+        self._pending_on_line = on_line
+        # …and nothing a previous targen build armed may act on this one: a
+        # printtarg-only build has no targen to relaunch, and a Stop pressed
+        # after the last build ended must not turn this one into a cancel.
+        self._pending_work_dir = None
+        self._restart_fast = False
+        self._cancelling = False
         # Capture the input patch set BEFORE wiping the run: when ti1_path lives
         # inside this very run folder (e.g. a re-layout of the run's own chart),
         # reset_chart_artefacts() would delete it and the copy below would have
@@ -1032,8 +1059,6 @@ class ChartCreator:
         # nothing) because this path always ran printtarg (#93). The .ti1 is
         # already in place, so the engine builds from it just like the targen path.
         if self._should_use_engine(params):
-            self._pending_on_finish = on_finish
-            self._pending_on_line = on_line
             self._matched_errors = []
             self._raw_errors = []
             self._matched_warnings = []
