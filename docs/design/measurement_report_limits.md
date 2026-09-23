@@ -3204,7 +3204,11 @@ make sure this information is in the relevant help text."* The paragraph is
 gone from "How to read this report". The same two sentences are in the "Judged
 against" help; the help card's glossary already had "Bound" and "Locked", and
 its "Locked" entry no longer says an unlock recalculates the saved reports
-(nothing is recalculated since B8-391).
+(nothing is recalculated since B8-391). *Beta 38 challenge round (F7):* the
+folder guide ("Where are my files") said the same in two more places and
+called `reports/old/` "copied, never moved"; it now says that an unlock changes
+no saved report, and that an Update and "Delete Selected Report" move a report
+into `reports/old/<stamp>/`.
 
 **18.3 The Printing record keeps "Judged against".** *"keep the judged against
 row, which defines the thresholds shown."* Nothing changed.
@@ -3216,6 +3220,8 @@ by the profile's gamut, all patches where they were not. With a within-gamut
 date on the axis the two "all patches" legend entries read "all judged
 patches", and the PDF description says the figures are within the profile's
 gamut where the sheet was split by it. The Avg / Max lines are unchanged.
+*Beta 38 challenge round (F9):* the legend names its unit as every other graph
+does, "Average, all patches (ΔE00)", where it said "Average ΔE, all patches".
 
 **18.5 A project whose folder is not named what its files carry** (a Finder
 duplicate, "X copy"). *"the user should be given the option, with a popup
@@ -3224,18 +3230,50 @@ exist and just has to be modified a tiny bit to allow this case."*
 
 * When a project is opened and its `project.json` name is not its folder's
   name, the existing rename chooser comes up before anything of the project is
-  shown, with its heading and introduction from M-PROJECT-FOLDER-RENAMED
-  (§M-PROPOSED) and two choices: **Rename the project to "<name>"** and
-  **Leave it as it is**. <name> is what the "Printer profile project name"
-  field shows.
+  shown, with its heading and text from M-PROJECT-FOLDER-RENAMED
+  (§M-PROPOSED). <name> is what the "Printer profile project name" field
+  shows.
+* **Three choices, and no "Leave it as it is"** (Knut, 2026-09-23,
+  [5794078008](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5794078008),
+  which replaces the two choices first built): *"(1) rename the project to the
+  project folder's name; (2) define a new name, which reuses the existing
+  target-rename entry; (3) Cancel, which closes the project"*, each explained
+  by a bullet in the window's text. Buttons: **Cancel** · **Choose another
+  name…** · **Rename the project to "<name>"** (default). "Choose another name…"
+  opens the existing project-name window prefilled with <name>, and the
+  project is renamed to what is typed exactly as by the name field
+  (`rename_existing_project`); cancelling that window returns to the three
+  choices. Cancel (and Escape) closes the project: the app goes back to the
+  state Close Project leaves, and nothing is written.
 * Rename renames every ChromIQ file carrying the old name, and the manifest,
   in place; a folder whose name ChromIQ would not give a project (a space, as
   in "X copy") becomes "X-copy" as every rename does. A failure is reported
-  (M-PROJECT-FOLDER-RENAME-FAILED) and nothing else runs.
-* A project with a built profile is offered the same rename; the option says
-  the profile keeps the name written inside it. *Assumption:* the ordinary
-  rename refuses a built profile, but refusing here leaves the copy unable to
-  find any of its files (asked, B8-832).
+  (M-PROJECT-FOLDER-RENAME-FAILED, which says what went wrong in words) and
+  nothing else runs.
+* A project with a built profile is offered the same rename, and the rename
+  bullet says the profile keeps the name written inside it. Knut answered the
+  question (B8-832) *"Yes"* in 5794078008.
+* **What a rename does on disk (beta 38 challenge round, F1 and F3).** A name
+  that differs only in case (a folder renamed "report-limits" beside files
+  called "Report-Limits") is the file itself on a case-insensitive volume, not
+  a stranger: it is renamed in two steps through a temporary name, and nothing
+  is moved aside. A file is moved aside ("…_conflicted_at_renaming_procedure")
+  only when a different file holds the name. The whole rename is planned
+  first and refused before anything moves when it cannot finish (two files
+  would take one name, a folder ChromIQ may not write in), and a step that
+  fails anyway is undone, so "Nothing was changed" in the failure message is
+  true. ChromIQ's ordinary rename changes the case of a project's name the
+  same way. Every file carrying the old name moves, `*.control-strip.json`
+  included.
+* **The reports a renamed project already has stay its own (F2).** A saved
+  report records its measurements' folders under the name the project had
+  when it was written. The rename records that name in `project.json`
+  (`former_names`), and the report window reads a folder recorded under one
+  of the project's own names, or a report of one project filed inside it, as
+  THIS project's, and the measurement file under its new name. It never
+  reaches into another folder that merely has the old name (a Finder
+  duplicate's original, beside it), and it files the copy's reports under the
+  copy's own runs.
 
 **18.6 Profiling names.** *"When run type is set to Profiling: The name tags
 become Run1, Run2, ..., then Multiple runs and All runs"*. On a Profiling
@@ -3256,7 +3294,9 @@ loaded"), so the window itself writes no report across projects today.
 *Found, not changed (another change set owns it):* "Save report
 as PDF…" creates the report's folder before its file chooser opens, so a
 cancelled PDF of a page across projects leaves `<output folder>/reports/`
-behind, empty.
+behind, empty. *Fixed since:* the folder is removed when a save is cancelled
+(K26 merge) and, since the beta 38 challenge round (F4), whenever the PDF is
+saved anywhere else; it stays only when the PDF is written into it.
 
 **18.9 The red x and the limit words.**
 
@@ -3264,8 +3304,11 @@ behind, empty.
   when one side has one, at the mean when both do, just above the x-axis when
   neither does (§17.1 item 15, amended).
 * Two red crosses on one date whose places would overlap sit one above the
-  other, one tooltip box apart (13 px), the later metric above; below instead
-  when above would leave the plot.
+  other, one tooltip box apart (13 px), and **the lower value's cross stays
+  lower** (beta 38 challenge round, F8; it used to be the later metric above,
+  which drew "largest difference from the mean" 0.114 above "nine locations"
+  0.203). When that would leave the plot at the top, the higher cross stays
+  and the lower one goes below it.
 * A limit word placed inside the plot stays at the left end of its line even
   over a data line, as on Colour accuracy before beta 38 (§17.1 item 11,
   amended). The tooltips and the PDF descriptions stay.
@@ -3294,20 +3337,22 @@ awaits Knut's confirmation. Commits 1ecea062, c198d508, 78a4f00b (B8-832).
 | 18.1 Calibration | `measurement_report_dialog.py::_bar_run_type`, `_is_calibration_window`, `_calibration_controls`, `_lock_for_calibration`; M-REPORT-NOT-FOR-CALIBRATION in `workflow/measurement_messages.py` | `test_a_calibration_window_opens_empty_and_locked`, `test_the_other_run_types_are_untouched`, `test_every_door_hands_the_window_a_parent_that_knows_the_run_type`, `test_the_measure_tab_button_opens_the_empty_window_under_calibration`, `test_the_type_help_no_longer_promises_a_calibration_every_type` |
 | 18.2 Bound, and locked | `_bound_and_locked_help` (the "Judged against" help); the paragraph removed from the report guide | `tests/test_report_window_limit_controls.py::test_bound_and_locked_is_explained_in_the_help_not_the_report` |
 | 18.3 Judged against row | nothing changed | `test_the_printing_record_keeps_its_judged_against_row` |
-| 18.4 within-gamut graph | `_series_is_within_gamut`, `_METRIC_LABELS_JUDGED`, `_TREND_ABOUT_DE_JUDGED`; `workflow/measurement_report.py::graded_de00` | `test_the_accuracy_trend_plots_what_the_verdict_judged`, `test_the_graph_says_its_figures_are_the_judged_ones`, `test_the_judged_description_fits_two_lines` |
-| 18.5 folder rename | `ui/tabs/tab_chart.py::_offer_rename_for_a_renamed_folder`; `ui/dialogs/target_change_dialog.py::_build_folder_renamed_ui`; `core/file_manager.py::rename_existing_project` | `test_a_finder_duplicate_is_offered_the_rename_and_renamed`, `test_leave_it_as_it_is_writes_nothing`, `test_a_folder_already_named_as_chromiq_would_is_renamed_in_place`, `test_a_project_whose_names_agree_is_not_asked`, `test_the_chooser_offers_two_choices_in_its_folder_mode` |
+| 18.4 within-gamut graph | `_series_is_within_gamut`, `_METRIC_LABELS_JUDGED`, `_TREND_ACCURACY_LABELS`, `_TREND_ABOUT_DE_JUDGED`; `workflow/measurement_report.py::graded_de00` | `test_the_accuracy_trend_plots_what_the_verdict_judged`, `test_the_graph_says_its_figures_are_the_judged_ones`, `test_the_judged_description_fits_two_lines`, `tests/test_beta38_challenge_fixes.py::test_the_accuracy_legend_names_its_unit_as_the_others_do` |
+| 18.5 folder rename | `ui/tabs/tab_chart.py::_offer_rename_for_a_renamed_folder`, `_close_after_folder_rename_cancelled`; `ui/dialogs/target_change_dialog.py::_build_folder_renamed_ui`; `workflow/measurement_messages.py::folder_renamed_texts`, `rename_failure_reason`; `core/file_manager.py::rename_existing_project`, `Project.rename`, `same_entry`, `ProjectRenameRefused`; `workflow/measurement_report.py::resolve_recorded_folder`, `names_of_project`, `renamed_file_name` | `test_a_finder_duplicate_is_offered_the_rename_and_renamed`, `test_cancel_closes_the_project_and_writes_nothing`, `test_choose_another_name_renames_to_the_name_typed`, `test_a_folder_already_named_as_chromiq_would_is_renamed_in_place`, `test_a_project_whose_names_agree_is_not_asked`, `test_the_chooser_offers_three_choices_in_its_folder_mode`; `tests/test_beta38_challenge_fixes.py::test_a_case_only_folder_keeps_its_built_profile`, `test_after_a_case_only_rename_no_date_is_listed_twice`, `test_the_ordinary_rename_changes_the_case_of_the_folder_too`, `test_a_rename_that_fails_part_way_is_undone`, `test_a_rename_that_cannot_finish_is_refused_before_anything_moves`, `test_the_failure_message_says_what_went_wrong_in_words`, `test_a_rename_carries_the_control_strip_declarations`, `test_a_renamed_duplicate_reads_only_its_own_measurements`, `test_a_renamed_duplicate_loads_its_own_other_run`, `test_the_old_name_never_reaches_into_the_original` |
 | 18.6 Profiling names | `_scope_tag`, `_run_tag` | `test_a_profiling_window_names_reports_after_their_runs`, `test_a_verification_window_keeps_its_date_names` |
 | 18.7 "these measurements" | the line under "Report shown" | `test_a_profiling_window_with_nothing_generated_says_these_measurements` |
-| 18.8 shared folder | `document_home`; `_export_pdf` removes a folder it made when nothing was saved | `test_the_shared_reports_folder_waits_for_a_report_across_projects`, `test_a_cancelled_pdf_save_leaves_no_reports_folder` |
-| 18.9 red x and words | `_withheld_mark_value`, `_stack_withheld_marks`, `_WITHHELD_STACK_PX` | `tests/test_trend_graphs_explain_themselves.py::test_the_red_x_height_follows_knuts_three_cases`, `test_two_red_crosses_on_one_date_sit_one_above_the_other`, `test_the_stacking_rule_stays_inside_the_plot`, `test_a_word_inside_the_plot_stays_at_the_left_end_over_a_data_line` |
+| 18.8 shared folder | `document_home`; `_export_pdf` removes a folder it made unless the PDF is written into it | `test_the_shared_reports_folder_waits_for_a_report_across_projects`, `test_a_cancelled_pdf_save_leaves_no_reports_folder`, `test_a_pdf_saved_elsewhere_leaves_no_reports_folder` |
+| 18.9 red x and words | `_withheld_mark_value`, `_stack_withheld_marks`, `_WITHHELD_STACK_PX` | `tests/test_trend_graphs_explain_themselves.py::test_the_red_x_height_follows_knuts_three_cases`, `test_two_red_crosses_on_one_date_sit_one_above_the_other`, `test_the_stacking_rule_stays_inside_the_plot`, `test_a_word_inside_the_plot_stays_at_the_left_end_over_a_data_line`; `tests/test_beta38_challenge_fixes.py::test_the_lower_value_s_cross_stays_lower` |
 | 18.10 grouped from the start | `_grouped_documents` counts what the offered reports cover | `test_report_shown_is_grouped_from_the_start` |
 | 18.11 demo white | `scripts/make_evenness_demo.py` | `test_the_evenness_demo_noisy_date_takes_the_paper_as_paper_white` |
 
 Still open with Knut from this section (B8-832): whether "should not allow any
 reports" also stops the report the Measure tab writes by itself after a
-calibration measurement (not changed), and whether a project with a BUILT
-profile may be renamed by 18.5 (built: offered, and the option says the
-profile keeps its inner name).
+calibration measurement (not changed). Whether a project with a BUILT profile
+may be renamed by 18.5 is answered: *"Yes"* (5794078008). The beta 38
+challenge round's fixes to 18.2, 18.4, 18.5, 18.8 and 18.9, and the three
+choices of 5794078008, are B8-833 to B8-841 (B8-842 and B8-843 are open);
+proof `~/Desktop/ChromIQ-beta38-proof/fixes/`.
 
 ## 19. Report text, pre-flight and window rulings of 2026-09-22 and 2026-09-23
 

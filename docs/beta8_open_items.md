@@ -25795,10 +25795,10 @@ would reach.
   test_the_graph_says_its_figures_are_the_judged_ones
   test_the_judged_description_fits_two_lines
   test_a_finder_duplicate_is_offered_the_rename_and_renamed
-  test_leave_it_as_it_is_writes_nothing
+  test_cancel_closes_the_project_and_writes_nothing
   test_a_folder_already_named_as_chromiq_would_is_renamed_in_place
   test_a_project_whose_names_agree_is_not_asked
-  test_the_chooser_offers_two_choices_in_its_folder_mode
+  test_the_chooser_offers_three_choices_in_its_folder_mode
   test_the_evenness_demo_noisy_date_takes_the_paper_as_paper_white
   test_a_profiling_window_names_reports_after_their_runs
   test_a_verification_window_keeps_its_date_names
@@ -25812,5 +25812,188 @@ would reach.
   test_a_word_inside_the_plot_stays_at_the_left_end_over_a_data_line
 - open, for Knut: whether "should not allow any reports" also stops the
   report the Measure tab writes by itself after a calibration measurement
-  (not changed); whether a project with a BUILT profile may be renamed this
-  way (built: offered, and the option says the profile keeps its inner name).
+  (not changed). Whether a project with a BUILT profile may be renamed this
+  way: answered "Yes" (5794078008); the same comment replaced the two choices
+  with three (B8-841), and the two tests of the old window were rewritten for
+  it.
+
+### B8-833 · FIXED · F1: a case-only folder name moved the built profile aside and aborted the rename
+- blocks release: yes
+- status: FIXED
+- found by: the beta 38 challenge round (F1, BLOCKER),
+  `~/Desktop/ChromIQ-beta38-proof/challenge/REPORT.md`, R2: a copy renamed in
+  Finder to `report-limits-report-folders`, then "Rename the project".
+- cause: `Project.rename` asked `dst.exists()`, which on case-insensitive APFS
+  is the file itself; `_move_aside_conflict` moved the real ICC to
+  `…_conflicted_at_renaming_procedure.icc` and the next rename failed with
+  [Errno 2] while the message said "The project is open as it was".
+- fix: `core/file_manager.py`: `same_entry` (`os.path.samefile`) decides
+  whether the name in the way is the file itself; such a rename goes through a
+  temporary name (`_rename_via_temporary`) and nothing is moved aside. The
+  whole rename is planned first and refused before anything moves when it
+  cannot finish (`ProjectRenameRefused`: two files to one name, a folder
+  ChromIQ may not write in); every step, move-aside included, is undone when a
+  later one fails, and `rename_existing_project` moves the folder back.
+  ChromIQ's ordinary rename changes the case of a project the same way (it
+  raised FileExistsError about the project itself), and the name field's
+  gates no longer read a case-only name as "another project". A case-only
+  rename also listed the date the report window was opened on twice (the
+  saved report names the old case); `_is_this_measurement` asks the disk.
+- proof: on screen, `~/Desktop/ChromIQ-beta38-proof/fixes/F1-F2-F3-rename/`
+  (F1: 49 files renamed to the new case, no conflicted file, both ICCs
+  present, no second window; the report window lists five dates once each).
+- evidence:
+  test_a_case_only_folder_keeps_its_built_profile
+  test_after_a_case_only_rename_no_date_is_listed_twice
+  test_the_ordinary_rename_changes_the_case_of_the_folder_too
+  test_a_rename_that_fails_part_way_is_undone
+  test_a_rename_that_cannot_finish_is_refused_before_anything_moves
+
+### B8-834 · FIXED · F2: a renamed Finder duplicate's report window read its ORIGINAL's measurements
+- blocks release: no
+- status: FIXED
+- found by: the beta 38 challenge round (F2, HIGH), R2-renamed-copy: 8
+  included rows, 5 from the original beside it; every one of the copy's
+  reports under "Reports including multiple projects".
+- cause: a saved report records its measurements' folders under the project
+  name of the day; the loader looked "beside this project" for a folder of
+  that NAME, which after a duplicate's rename is the original.
+- fix: `Project.rename` records the old name in `project.json`
+  (`former_names`). `workflow/measurement_report.py::resolve_recorded_folder`
+  resolves a recorded folder from the project(s) the report's own FILES are
+  in: a name that is one of that project's names, or a report of one project
+  filed in it, is THIS project, and a date it does not have is left out,
+  never taken from the original; another project only when the report names
+  it (a report across projects). `renamed_file_name` finds the measurement
+  under the project's new name. `_entry_places` groups by the same answer.
+- proof: on screen, `~/Desktop/ChromIQ-beta38-proof/fixes/F1-F2-F3-rename/`
+  (F2: Verification 5 rows, Profiling 2 rows, every one from the copy; no
+  "Reports including multiple projects"; the same with the original moved
+  away).
+- evidence:
+  test_a_renamed_duplicate_reads_only_its_own_measurements
+  test_a_renamed_duplicate_loads_its_own_other_run
+  test_the_old_name_never_reaches_into_the_original
+
+### B8-835 · FIXED · F3: every rename left the control-strip declarations under the old name
+- blocks release: no
+- status: FIXED
+- found by: the beta 38 challenge round (F3): 7 `*-verify.control-strip.json`
+  left behind by the chooser's rename and by ChromIQ's ordinary one.
+- fix: `Project.rename`'s pattern accepts `.control-strip` before the
+  extension.
+- proof: on screen, `fixes/F1-F2-F3-rename/driver-notes.txt` [F3]: no file
+  carries the old name, 7 declarations carry the new one.
+- evidence:
+  test_a_rename_carries_the_control_strip_declarations
+
+### B8-836 · FIXED · F4: a PDF saved outside `<output folder>/reports/` left that folder behind, empty
+- blocks release: no
+- status: FIXED
+- found by: the beta 38 challenge round (F4), L2-list [C2-saved-pdf].
+- fix: `_export_pdf` removes the folder it made for the chooser whatever the
+  answer, unless the PDF is written into it (`rmdir` removes only an empty
+  folder).
+- proof: on screen, `~/Desktop/ChromIQ-beta38-proof/fixes/F4-pdf-elsewhere/`.
+- evidence:
+  test_a_pdf_saved_elsewhere_leaves_no_reports_folder
+  test_a_cancelled_pdf_save_leaves_no_reports_folder
+
+### B8-837 · FIXED · F6: the rename failure message printed a bare path, and a case-only name twice
+- blocks release: no
+- status: FIXED
+- note: the wording is §M-PROPOSED (M-PROJECT-FOLDER-RENAME-FAILED, revised)
+  and awaits approval.
+- fix: the body names the project by the name its files carry ("… rename the
+  project “X” to “X-copy”"), and `{error}` is a sentence
+  (`measurement_messages.rename_failure_reason`, or a `ProjectRenameRefused`
+  reason), never a path.
+- proof: on screen, `fixes/F1-F2-F3-rename/photographs/F6-collision-message.png`.
+- evidence:
+  test_the_failure_message_says_what_went_wrong_in_words
+
+### B8-838 · FIXED · F7: "Where are my files" still promised a recalculation, and a reports/old/ "copied, never moved"
+- blocks release: no
+- status: FIXED
+- fix: `ui/file_guide.py`: the dated `reports/old/` rows say an Update and
+  "Delete Selected Report" move a report there and an unlock changes no saved
+  report; the Report limits row no longer says an unlock recalculates
+  (§18.2, B8-391). German by hand.
+- evidence:
+  test_the_folder_guide_no_longer_promises_a_recalculation
+
+### B8-839 · FIXED · F8: two stacked red crosses drew the lower value above the higher
+- blocks release: no
+- status: FIXED
+- fix: `_stack_withheld_marks` keeps the crosses of one date in the order of
+  their own heights: the lower value's cross stays lower (§18.9 amended).
+- evidence:
+  test_the_lower_value_s_cross_stays_lower
+  test_the_stacking_rule_stays_inside_the_plot
+
+### B8-840 · FIXED · F9: the Colour accuracy legend said "ΔE" where every other graph says "(ΔE00)"
+- blocks release: no
+- status: FIXED
+- fix: the graph's legend reads "Average, all patches (ΔE00)" and so on
+  (`_TREND_ACCURACY_LABELS`, `_with_unit`); the results table keeps its labels.
+- evidence:
+  test_the_accuracy_legend_names_its_unit_as_the_others_do
+  test_the_graph_says_its_figures_are_the_judged_ones
+
+### B8-841 · FIXED · Knut 5794078008: the folder-renamed window offers three choices, no "Leave it as it is"
+- blocks release: no
+- status: FIXED
+- note: built as ruled; M-PROJECT-FOLDER-RENAMED is §M-PROPOSED and the
+  behaviour awaits confirmation (§18.5).
+- ruling: Knut, #182 5794078008: the window must not offer "Leave it as it
+  is"; exactly three options, each explained by a bullet in the window text:
+  (1) rename the project to the folder's name, (2) define a new name (the
+  existing name entry), (3) Cancel, which closes the project. A project with a
+  built profile is still offered the rename ("Yes").
+- fix: `TargetChangeDialog` folder mode: Cancel · Choose another name… ·
+  Rename the project to “<name>”; `_offer_rename_for_a_renamed_folder` asks
+  the project-name window for (2) and renames with `rename_existing_project`,
+  and returns "closed" for (3), which `open_project_manifest` answers with the
+  app's own Close Project reset. German by hand.
+  Also found driving it: the window never said a DUPLICATE's profile keeps
+  its inner name, because the check looked the profile up by the folder's
+  name; it now asks by the name the files carry.
+- proof: on screen, `fixes/F1-F2-F3-rename/photographs/K-cancel-chooser.png`,
+  `K-other-name-window.png`; notes [K-cancel] (nothing written, no project
+  open) and [K-other] (renamed to "Epson-P900-Rag-Copy", 49 files).
+- evidence:
+  test_the_chooser_offers_three_choices_in_its_folder_mode
+  test_cancel_closes_the_project_and_writes_nothing
+  test_choose_another_name_renames_to_the_name_typed
+  test_a_finder_duplicate_is_offered_the_rename_and_renamed
+  test_a_duplicate_with_a_built_profile_is_told_so
+- open, for Knut: when the rename then FAILS (the new name is taken), the
+  project stays open unrenamed, as M-PROJECT-FOLDER-RENAME-FAILED says; with
+  "Leave it as it is" gone, should the three choices come back instead?
+
+### B8-842 · OPEN · F5: deleting a report across projects creates `<output folder>/old/<stamp>/`
+- blocks release: no
+- status: OPEN
+- found by: the beta 38 challenge round (F5), L2-list [D1]: "Delete Selected
+  Report" on the 2027-01-14 report across projects moved it to
+  `<output>/old/2026-09-23_130246/`, a new top-level folder beside the user's
+  projects.
+- question for Knut: is `<output folder>/old/` where a deleted report across
+  projects belongs, or `<output folder>/reports/old/<stamp>/` beside the
+  shared reports folder (the rule for one project's reports, §13.11)? Not
+  covered by any ruling; not changed.
+
+### B8-843 · OPEN · F9 observations: order inside a group, and a Profiling "All runs" member file in run1 only
+- blocks release: no
+- status: OPEN
+- found by: the beta 38 challenge round (F9).
+- (1) the order inside a group of "Report shown" follows the files' times,
+  not the date shown, so pack entries read out of order (12-08 before 12-15;
+  Run2 oldest first). Files ChromIQ writes itself sort correctly.
+- (2) a Profiling "All runs" report wrote a member file only in
+  `runs/run1/reports/` (and the project's document), none in run2 (A2).
+- (3) Generate is greyed while "Included measurements" holds two projects,
+  so a report across projects cannot be written from the window (known,
+  §18.8).
+- not changed; for Knut: whether (1) should sort by the report's own date,
+  and whether (2) is right (the document records both runs).
