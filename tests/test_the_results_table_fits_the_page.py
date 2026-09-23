@@ -56,6 +56,7 @@ def _laid_out(table_html: str) -> QTextDocument:
     doc.setHtml(f"<div style=\"font-family:'{family}';font-size:12px\">"
                 + table_html + "</div>")
     doc.setPageSize(QSizeF(679.0, 100_000))
+    doc.size()                    # lays it out, so each block has its lines
     return doc
 
 
@@ -87,6 +88,38 @@ def test_every_results_table_fits_the_page_with_no_word_broken(code, n_runs,
             assert not broken, f"{code}: a word is broken in {broken[0]!r}"
             columns += t.count("<th align='right'")
         assert columns == n_runs, "every date is in some table"
+    finally:
+        i18n.set_language(before)
+
+
+@pytest.mark.parametrize("code", ["en", "de", "ru"])
+def test_the_metric_column_keeps_its_room(code, qapp):
+    """The first on-screen proof of the fit above came back with the Metric
+    column squeezed to one word a line ("Grey / balance / of the / grey /
+    ramp"): the table fitted, and the labels were unreadable. No label may
+    take more than three lines.
+
+    MUTATION (proved red 2026-09-23): `_METRIC_COL_SHARE = "1%"`, and this
+    goes red in every language with the fit above. (The share is on the
+    header AND on every label cell, so removing either one alone is carried
+    by the other; and `white-space:nowrap` on a header, which is what let Qt
+    squeeze the label to one word a line, is now absent from `_metric_table`.)"""
+    import core.i18n as i18n
+    from core.i18n import tr
+    from workflow.compliance_sets import ROWS
+    before = getattr(i18n, "current_language", lambda: "en")()
+    try:
+        i18n.set_language(code)
+        labels = {tr(r.label) for r in ROWS}
+        worst = 0
+        for t in _tables(11):
+            doc = _laid_out(t)
+            b = doc.begin()
+            while b.isValid():
+                if b.text() in labels:
+                    worst = max(worst, b.layout().lineCount())
+                b = b.next()
+        assert 0 < worst <= 3, f"{code}: a metric label takes {worst} lines"
     finally:
         i18n.set_language(before)
 

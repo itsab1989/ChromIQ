@@ -284,6 +284,9 @@ _MAX_RUN_COLS = 6
 #: before beta 37 photographed (H1).
 _PDF_TEXT_W = 679.0
 
+#: The share of a metric table's width its Metric column keeps (H1).
+_METRIC_COL_SHARE = "32%"
+
 
 def _words_broken_across_lines(doc) -> "list[str]":
     """The texts of *doc* whose layout breaks a WORD over two lines.
@@ -299,7 +302,7 @@ def _words_broken_across_lines(doc) -> "list[str]":
             ln = lay.lineAt(i)
             end = ln.textStart() + ln.textLength()
             if 0 < end < len(t) and not t[end - 1].isspace() \
-                    and not t[end].isspace() and t[end - 1] not in "-/":
+                    and not t[end].isspace() and t[end - 1] != "/":
                 out.append(t)
                 break
         b = b.next()
@@ -10652,7 +10655,7 @@ class MeasurementReportDialog(QDialog):
         """One metric×run table: a wide, no-wrap Metric column, dated run columns,
         a rule under the header row and a light-grey background on every other
         data row (Knut)."""
-        thb = f"border-bottom:1.5px solid {_C['rule']};white-space:nowrap"
+        thb = f"border-bottom:1.5px solid {_C['rule']}"
         # Date headers inherit the table cellpadding (4 px) like the number cells
         # below them, so they line up on the right; the Metric header keeps its
         # own wide right pad to match the metric column (Knut #PDF3).
@@ -10668,7 +10671,13 @@ class MeasurementReportDialog(QDialog):
                 inner = html.escape(d)
             return "<th align='right' style='" + thb + "'>" + inner + "</th>"
 
-        th = ("<tr><th align='left' style='" + thb + ";padding:2px 14px 3px 0'>"
+        # THE METRIC COLUMN KEEPS ITS SHARE (beta 37, H1). Once it could wrap,
+        # Qt's table layout gave it whatever the dates left, and a PDF of six
+        # dates came out with "Grey / balance / of the / grey / ramp" one word
+        # a line. A fixed share of the width keeps a label on one or two
+        # lines, and `_chunked_metric_tables` then fits the dates beside it.
+        th = ("<tr><th align='left' width='" + _METRIC_COL_SHARE + "' style='"
+              + thb + ";padding:2px 14px 3px 0'>"
               + html.escape(tr("Metric")) + "</th>"
               + "".join(_th(d) for d in dates) + "</tr>")
         body = [th]
@@ -10686,11 +10695,11 @@ class MeasurementReportDialog(QDialog):
                 continue
             bg = f" style='background:{self._ZEBRA_BG}'" if zebra % 2 == 1 else ""
             zebra += 1
-            body.append(f"<tr{bg}><td style='padding-right:14px'>"
+            body.append(f"<tr{bg}><td width='{_METRIC_COL_SHARE}' style='padding-right:14px'>"
                         + html.escape(label) + "</td>" + "".join(cells) + "</tr>")
         # page-break-inside:avoid keeps a whole chunk-table together — if it won't
         # fit, it moves to the next page rather than splitting rows (Knut #PDF4).
-        return ("<table cellpadding='4' cellspacing='0' style='border-collapse:"
+        return ("<table width='100%' cellpadding='4' cellspacing='0' style='border-collapse:"
                 "collapse;font-size:11px;margin-bottom:10px;"
                 "page-break-inside:avoid'>"
                 + "".join(body) + "</table>")
