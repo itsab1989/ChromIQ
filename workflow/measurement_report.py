@@ -2885,7 +2885,7 @@ EVENNESS_MIN_GRID = 9
 #: the four "Measured from Preview" margins, computed in
 #: :mod:`workflow.page_coverage`. ONE CONSTANT, read by every sentence that
 #: quotes it.
-EVENNESS_MIN_PAGE_COVERAGE = 0.75
+EVENNESS_MIN_PAGE_COVERAGE = 0.60
 
 #: How many times the patches are shuffled across the nine areas to measure
 #: the sheet's own noise. Knut, 2026-09-22, ruling 6, on the F1 proposal:

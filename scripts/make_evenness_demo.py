@@ -22,11 +22,24 @@ can, beside the pack, so the rows can be driven on screen:
 * **run3**, the 837-patch chart again with no verification measured, so the
   Measure tab's pre-flight is due on it;
 * **run4** (#182 E2, beta 38), Knut's 572-patch i1Pro A4 preset: 22 strips by
-  26 rows, but with the i1Pro's 26 mm clip border and its 38 mm top its
-  patches cover 68 % of the page, under the 75 % floor, so both rows N-A;
+  26 rows, with the i1Pro's 26 mm clip border and its 38 mm top its patches
+  cover 68.4 % of the page. Under the first 75 % floor both rows read N-A;
+  since Knut lowered the floor to 60 % (5792912682) the page is counted and
+  both rows are judged;
 * **run5** (#182 E4, beta 38), Knut's 308-patch i1Pro 3 Plus A4 preset on two
-  pages, 11 strips by 14 rows each: the grid and the noise estimate would let
-  it be judged, and its patches cover 65 % of each page, so both rows N-A.
+  pages, 11 strips by 14 rows each, 65.3 % of each page covered: Knut's
+  multi-page case, judged at 60 %;
+* **run6** (#182 E2 at 60 %), the 312-patch i1Pro A4 preset that fills the
+  left half of the page: 12 strips by 26 rows, its patches cover 37.3 % of
+  the page, so both rows N-A with the coverage note ("at least 60 % is
+  needed");
+* **run7** (#182 E4 at 60 %), the 154-patch i1Pro 3 Plus A4 preset, the
+  same 11 by 14 page as run5 on ONE page, measured as a TYPICAL print (the
+  residual the presets window's estimate assumes, 1.1 per component, where
+  every other demo sheet uses 0.25): coverage and grid pass, but about 17
+  patches in each ninth leave the sheet's own noise above the limits, so both
+  rows N-A for the noise. Knut: "a one page target will not fulfil the
+  requirement".
 
 The readings are SYNTHETIC: each patch is the chart's own aim plus the
 residual named above, so what every area should read is known in advance. The
@@ -54,10 +67,14 @@ ARGYLL = Path(os.environ.get("CHROMIQ_ARGYLL_BIN", "/Applications/Argyll/bin"))
 SRGB = ARGYLL.parent / "ref" / "sRGB.icm"
 LARGE = "i1_w75max_a4_837p_1page_portrait_w7_5mm_maximised_no_clip_border"
 SMALL = "p3_a4_84p_1page_portrait_w25_0mm"
-#: #182 E2: 22 x 26 on one page, 68.4 % of it covered.
-UNCOVERED = "i1_w8_a4_572p_1page_portrait_w8_0mm"
+#: #182 E2: 22 x 26 on one page, 68.4 % of it covered: over the 60 % floor.
+I1_572 = "i1_w8_a4_572p_1page_portrait_w8_0mm"
 #: #182 E4: i1Pro 3 Plus, two pages of 11 x 14, 65.3 % of each covered.
 P3_TWO_PAGES = "p3_a4_308p_2pages_portrait_w16_0mm"
+#: #182 E2 at 60 %: 12 x 26 on the left half of an A4 page, 37.3 % covered.
+UNCOVERED = "i1_w8_a4_312p_1page_portrait_w8_0mm"
+#: #182 E4 at 60 %: i1Pro 3 Plus, ONE page of 11 x 14, too few patches.
+P3_ONE_PAGE = "p3_a4_154p_1page_portrait_w16_0mm"
 
 #: (vid, when, title, residual(page, strip on page, row, strips, rows, rng))
 _SIGMA = 0.25
@@ -87,6 +104,13 @@ def _noisy(page, s, r, S, R, rng):
     return rng.normal(0, 2.4, 3)
 
 
+def _typical(page, s, r, S, R, rng):
+    """A typical print: the residual the presets window's noise estimate
+    assumes (`EVENNESS_TYPICAL_SIGMA`), no place effect."""
+    import workflow.measurement_report as MR
+    return rng.normal(0, MR.EVENNESS_TYPICAL_SIGMA, 3)
+
+
 DATES_LARGE = [
     ("2026-10-01_100000", "2026-10-01T10:00:00", "even", _even),
     ("2026-10-08_100000", "2026-10-08T10:00:00", "drift across the strips",
@@ -97,11 +121,17 @@ DATES_LARGE = [
 DATES_SMALL = [
     ("2026-10-01_110000", "2026-10-01T11:00:00", "even", _even),
 ]
-DATES_UNCOVERED = [
+DATES_572 = [
     ("2026-10-01_120000", "2026-10-01T12:00:00", "even", _even),
 ]
 DATES_P3 = [
     ("2026-10-01_130000", "2026-10-01T13:00:00", "even", _even),
+]
+DATES_UNCOVERED = [
+    ("2026-10-01_140000", "2026-10-01T14:00:00", "even", _even),
+]
+DATES_P3_ONE = [
+    ("2026-10-01_150000", "2026-10-01T15:00:00", "typical print", _typical),
 ]
 
 
@@ -286,13 +316,23 @@ def build(dest: Path) -> Path:
          "The same 837-patch chart as run 1, not measured yet: what the Measure "
          "tab says before the first verification.", [], 300)
     run4 = proj.new_run()
-    _run(proj, run4, UNCOVERED, "X-Rite i1Pro 2",
+    _run(proj, run4, I1_572, "X-Rite i1Pro 2",
          "A 572-patch i1Pro sheet, 22 strips by 26 rows, whose patches cover "
-         "68 % of the page.", DATES_UNCOVERED, 400)
+         "68 % of the page.", DATES_572, 400)
     run5 = proj.new_run()
     _run(proj, run5, P3_TWO_PAGES, "X-Rite i1Pro 3 Plus",
          "A 308-patch i1Pro 3 Plus chart on two pages, 11 strips by 14 rows "
          "each, whose patches cover 65 % of each page.", DATES_P3, 500)
+    run6 = proj.new_run()
+    _run(proj, run6, UNCOVERED, "X-Rite i1Pro 2",
+         "A 312-patch i1Pro sheet, 12 strips by 26 rows on half the page, "
+         "whose patches cover 37 % of it, less than the 60 % evenness across "
+         "the sheet needs.", DATES_UNCOVERED, 600)
+    run7 = proj.new_run()
+    _run(proj, run7, P3_ONE_PAGE, "X-Rite i1Pro 3 Plus",
+         "A 154-patch i1Pro 3 Plus chart on one page, 11 strips by 14 rows: "
+         "too few patches in each ninth of the page for the sheet's own "
+         "noise to stay under the limits.", DATES_P3_ONE, 700)
     return root
 
 

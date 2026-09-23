@@ -505,7 +505,7 @@ _D_EVENNESS = (
     "bands of rows, whole strips and rows only, with any remainder in the "
     "middle band, and the same ninth of every page is counted together. Only "
     "pages with at least 9 strips and 9 rows whose patches cover at least "
-    "75 % of the page are used, so the chart needs at least one such page. "
+    "60 % of the page are used, so the chart needs at least one such page. "
     "The share is worked out from the distance between each paper edge and "
     "the first patch, the four margins Create Chart shows as Measured from "
     "Preview.\n\n"
@@ -521,7 +521,7 @@ _D_EVENNESS = (
     "its own way, on its own chart.")
 _R_EVENNESS = (
     "Use a chart whose pages hold at least 9 strips and 9 rows, with patches "
-    "covering at least 75 % of the page, and enough patches that about 30 "
+    "covering at least 60 % of the page, and enough patches that about 30 "
     "land in each ninth of the page. If a metric reads a difference, measure the same sheet "
     "again before looking for a cause, since an instrument that drifts during "
     "a long reading makes the strips read last differ from the first.")
