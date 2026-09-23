@@ -746,9 +746,33 @@ GREY_SPREAD_TOL = 1.0        # mirrors workflow.measurement_report
 GREY_PAPER_LEVEL = 99.5
 
 
-def grey_stat_indices(rgb100: np.ndarray) -> "list[int]":
+def grey_stat_indices(rgb100: np.ndarray, sample_ids=None,
+                      aims: "dict | None" = None,
+                      corner_ids=()) -> "list[int]":
     """The patches the grey-balance rows are computed over: neutral by device
-    value, and not the bare paper. The same test grey_balance_block applies."""
+    value, and not the bare paper. The same test grey_balance_block applies.
+
+    **ON A CHART BUILT FROM PROFILE GAMUT, ITS NEUTRAL AIMS** (K31, Knut, #182
+    5801677743, option a): with *aims* (the colorimetric reference) the greys
+    are the non-corner patches whose aim is neutral, as
+    `measurement_report._neutral_aim_grey_block` reads them. Before K31 the
+    grey rows of every such chart read N-A, so no date here designed them, and
+    they carried the sheet's general drift the day the report began to judge
+    them."""
+    if aims is not None:
+        from workflow.measurement_report import NEUTRAL_AIM_CHROMA_MAX
+        corners = {str(c) for c in (corner_ids or ())}
+        out = []
+        for i, sid in enumerate(sample_ids or ()):
+            a = aims.get(sid)
+            if sid in corners or a is None:
+                continue
+            if math.hypot(float(a[1]), float(a[2])) >= NEUTRAL_AIM_CHROMA_MAX:
+                continue
+            if float(np.min(rgb100[i])) >= GREY_PAPER_LEVEL:
+                continue
+            out.append(i)
+        return out
     out = []
     for i in range(rgb100.shape[0]):
         if float(rgb100[i].max() - rgb100[i].min()) > GREY_SPREAD_TOL:
@@ -1039,7 +1063,9 @@ def apply_design(ti3: Path, ti2: Path, design: Design,
     if relative and not whites:
         anchor_free = {wi}
 
-    greys = [i for i in grey_stat_indices(rgb)
+    greys = [i for i in grey_stat_indices(
+                 rgb, data.sample_ids,
+                 ref if ref_labs is not None else None, corners_by_id)
              if i not in white_set and i not in corner_at
              and i not in anchor_free]
     grey_set = set(greys)
@@ -3403,14 +3429,15 @@ ROWS_ORDINARY = (
 ROWS_GAMUT = (
     "all_de00_avg", "best95_de00_avg", "worst5_de00_avg", "all_de00_max",
     "all_de00_p95",
-    # THE GREY PAIR IS OFF THIS CHART AGAIN, since K28a (B8-483, Knut
-    # 5795087247: the ramp's required steps roughly evenly spaced, within 4 %
-    # of full scale). The selection keeps the neutrals of the profile's own
-    # gamut, which on the K15 paper span eight distinct levels, but not evenly:
-    # measured on the first build after K28a (2026-09-23), every From Profile
-    # Gamut date reads `grey_steps_bunched` on both rows, on all five limit
-    # sets. The app follows Knut's rule, so the design follows the app; the
-    # grey cells of every set are exercised on the ordinary charts.
+    # THE GREY PAIR IS BACK ON THIS CHART, since K31 (Knut, #182 5801677743,
+    # option a): a FROM PROFILE GAMUT chart's grey steps are its neutral AIMS,
+    # placed by L*, and the profile's own neutrals are evenly spaced in L* by
+    # construction. Between K28a and K31 every From Profile Gamut date read
+    # `grey_steps_bunched` here, because the device test R = G = B missed the
+    # lightest neutrals (challenge A, F2). The greys are designed on the same
+    # neutral aims (`grey_stat_indices`), so the pair crosses and recovers
+    # with the other rows.
+    "grey_balance_neutral_ramp_avg", "grey_balance_neutral_ramp_max",
     "substrate_de00_max", "solids_de00_max",
     "cmy_solids_dhab_max", "control_strip_de00_avg", "control_strip_de00_max",
     "surface_gamut_de00_avg", "outer_gamut_226_de00_avg",

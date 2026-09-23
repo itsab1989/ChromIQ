@@ -229,7 +229,10 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
         "Report-Limits-Evenness/run8: printed relative colorimetric on a real paper",
     ]),
     ("§21.2", "B8-483 the grey ramp's required steps", [
-        "every From Profile Gamut run: grey rows N-A grey_steps_bunched",
+        # K31 (§26.5): a From Profile Gamut run's grey steps are its neutral
+        # aims now, so it no longer reads grey_steps_bunched; the device rule
+        # is shown on the ordinary charts and the notes demo.
+        "Report-Limits-Threshold-Series/run1: an evenly spaced device grey ramp, judged",
         "Report-Notes-Every-Reason/run2: ramps that stop short of white and of black",
     ]),
     ("§21.3", "R2 the pre-flight widened", [
@@ -251,6 +254,12 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
         "Report-Limits-Report-Folders/run1 + run2: Edit limits… edits the report's own limits",
         "Report-Limits-Report-Folders-Second moved into a sub-folder: a report of both projects goes to the ChromIQ folder's reports/",
         "Report-Limits-Report-Types, Run type Calibration: the calibration title and Scope",
+    ]),
+    ("§26", "K31 metrics:", [
+        "Report-Limits-Evenness/run8: the How evenness was judged line, printed relative",
+        "Report-Limits-Threshold-Series/run1: a split sheet, the judged names within gamut, Within and beyond the gamut together",
+        "Report-Limits-Profile-Gamut/run2 and the From Profile Gamut runs of Report-Limits-Every-Limit-Set: grey rows judged on the neutral aims",
+        "Create Chart presets (verification demos): R15 FAIL (40, 59.4, 60) and PASS (40, 50, 60)",
     ]),
     ("§17", "Trend graphs for the judged metrics", [
         "Report-Limits-Threshold-Series/run1: eleven dates",

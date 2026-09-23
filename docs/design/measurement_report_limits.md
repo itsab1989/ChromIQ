@@ -119,6 +119,7 @@ result awaiting his confirmation. The other §20 gaps stay open.
 | §22 | K28: the judged figures on the one-page summary; one vocabulary; a "–" row leaves everywhere; "For information (no limit applies)"; the general N-A rule; the several-runs Run description; B8-845's texts | 2026-09-23, 5795087247 | agreed; built in beta 39 (B8-849), NOT confirmed |
 | §24 | K30: every loaded report can be generated again and Update renames it; limits belong to the report across places; projects in two folders share the ChromIQ folder's reports/; a lone project's heading; the words of a report across places and of a calibration | 2026-09-23, 5798461562 | agreed; built in beta 39 (B8-852 to B8-859), NOT confirmed; the one-run limits window, asked in B8-853, is decided by K31 (§25.3) |
 | §25 | K31: a report is the only thing (no verdict records); Update and New report from any window; a widened one-date report becomes a report of those dates; the limit set belongs to the report, one set always; "Unlock this run's limits" and the run lock removed; New report starts on Preferences unless the run has its own default | 2026-09-23, 5801677743 (our 5798697107, 5801707986) | ruled by Knut; built in beta 40 (B8-890 to B8-899), the built result ⏳ awaiting confirmation |
+| §26 | K31 metrics: the "How evenness was judged" line and the evenness help text; rule A on the 30 to 70 % tone ramp; version 1 names everywhere, "within gamut" on a split sheet; "Within and beyond the gamut together"; a FROM PROFILE GAMUT chart's neutral aims as its grey steps | 2026-09-23, 5801677743 | agreed; built for beta 40 (B8-900 to B8-909), NOT confirmed |
 | §20 | Rulings not built, or built without a test or proof (G1 to G13) | 2026-09-22 to 2026-09-23 | gaps, listed one by one |
 
 Related documents: `unified_measurement_management.md` (the life of a
@@ -323,7 +324,9 @@ number is in a clause ChromIQ does not hold or may not show).
   is eligible with at least 8 distinct levels (the paper patch counts as a
   level), a lightest level ≥ 90 and a darkest ≤ 10, and (since beta 39,
   §21.2) at least 8 of its levels roughly evenly spaced; the paper patch is
-  left out of the statistics, composite black stays in. This is the same
+  left out of the statistics, composite black stays in. **On a chart built
+  FROM PROFILE GAMUT the steps are its neutral aims instead, placed by L\*
+  (§26.5, K31, beta 40).** This is the same
   arithmetic as the ISO near-neutral rows; the standards' aim is
   characterization data, ChromIQ's aim is the chart's design (footnote ²).
   TR 015's substrate-relative aim is deliberately not used: a perfect
@@ -333,6 +336,8 @@ number is in a clause ChromIQ does not hold or may not show).
   |ΔL\*| against the reference over patches whose tone value lies in
   30..70 %, largest; eligible with at least 3 distinct tone values spanning
   ≥ 20 %. A recommendation (ISO 12647-8:2021 4.2.7 is a *should*).
+  **Amended by §26.2 (K31 rule A, beta 40):** three of those steps must also
+  be roughly evenly spaced (4 points), else `ramp_steps_bunched`.
 * Rows needing a reference file for the printing condition (paper white
   against the reference paper, solid colours, CMY hue difference) read N-A
   until such a reference exists (Knut D31: "a reference measurement file you
@@ -3093,6 +3098,9 @@ For one measured sheet:
 4. **Two numbers.** Each area's colour is a neutral L\* 50 plus its mean
    residual, the construction behind every number Knut was shown (0.81 and
    0.45 on the real sheet, noise 0.27 and 0.16):
+   (**The two names are SUPERSEDED by §26.3:** "Maximum ΔE00, between two of
+   the nine sheet areas" and "Maximum ΔE00, one sheet area against the whole
+   sheet".)
    * `uniformity_sd`, **"Evenness across the sheet, nine locations"**: the
      largest ΔE00 between any two of the nine areas;
    * `uniformity_de00_max_from_mean`, **"… largest difference from the
@@ -3510,6 +3518,11 @@ driven on screen on the demo packs:
    | Repeatability (ΔE00) | repeat patches on one sheet "Sheet", the same chart measured again "Again" | ΔE00 |
    | Evenness (ΔE00) | nine locations "Pairs", largest difference from the mean "Mean" | ΔE00 |
 
+   (**The tab names "Paper white, diff", "Tone (ΔL*)" and "Cube corners",
+   the legend "Black L\*" and the line word "Pairs" are SUPERSEDED by §26.3:**
+   "Paper white difference (ΔE00)", "Tone ramps 30 to 70 % (ΔL*)", "Cube
+   corners (ΔE00)", "Darkest black L\*", "Areas"; the row names are the
+   version 1 names.)
    "Paper white, diff" sits beside "Paper white (L*)"; the other five follow
    "Cube corners" in the order Knut accepted them. The control strip plots
    its average and its 95th percentile, not its largest: the 95th percentile
@@ -4512,10 +4525,13 @@ Registered as B8-846. Proof: `~/Desktop/ChromIQ-beta39-proof/k28-a/`.
   * the evenness block records `"yardstick": "absolute"` and `"aims":
     "on_the_paper"` or `"as_designed"`;
   * the evenness help text says the readings are taken as measured, and that
-    on such a sheet each aim is carried onto the paper;
+    on such a sheet each aim is carried onto the paper (**its wording is
+    SUPERSEDED by §26.1**, the text Knut approved);
   * **not changed:** the report's "How the colours were judged" line
     describes the ΔE00 rows only. Whether it should also say that evenness is
     read as measured is an open question (report rendering, not built here).
+    **Answered by §26.1:** a separate "How evenness was judged" line, shown
+    only when an evenness row is in the report.
 * **Built:** `workflow/measurement_report.py::build_report` (the
   `evenness_ref` wiring), `aims_on_the_paper`, `evenness_block`;
   `workflow/compliance_sets.py::_D_EVENNESS`; the demo's run8
@@ -5223,3 +5239,244 @@ from the preferences default."*
 (M-VERIFY-UNCHECKED-METRICS, still PROPOSED); the demo generators.
 **Status:** ruled by Knut (5801677743); built in beta 40 (B8-890 to B8-899),
 the built result ⏳ awaiting confirmation, and §25.6 awaiting his decision.
+
+## 26. K31 metrics: evenness wording, the tone ramp's spacing, version 1 names, within and beyond the gamut, a FROM PROFILE GAMUT chart's grey steps (#182, 2026-09-23, beta 40)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+**Ruled by:** Knut, #182
+[5801677743](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5801677743)
+(2026-09-23), answering sections 3 to 7 of our 5798697107; our reply
+5801707986. The RULINGS are agreed from that day; what was BUILT from them
+(B8-900 to B8-909) waits for his confirmation. Proof:
+`~/Desktop/ChromIQ-beta40-proof/k31-b-metrics/` (on screen, EN and DE, with
+PDFs). Tests: `tests/test_k31_metrics.py`, each proved red on the mutation in
+its docstring (`k31-b-metrics/mutations.txt`); the demo pairs in
+`tests/test_the_demo_presets_pair_on_every_requirement.py`. This section
+SUPERSEDES the clauses marked so in §3, §16.1, §17, §21.1 and §22.2.
+
+**26.1 Evenness: which readings are used** (section 3, *"Both texts
+approved."*).
+* The report's "How this verification was produced" block carries a line of
+  its own, **only when an evenness row is in the report** (in the run's
+  verdict rows, after a "–" limit and the report type have filtered them):
+  **"How evenness was judged: from the readings as the instrument took them,
+  by comparing the nine areas of this sheet with each other."** German:
+  *"Wie die Gleichmäßigkeit beurteilt wurde: aus den Messwerten, so wie das
+  Messgerät sie aufgenommen hat, indem die neun Bereiche dieses Bogens
+  miteinander verglichen wurden."* The "How the colours were judged" line is
+  unchanged.
+* The help icon of both evenness rows replaces the paragraph "The readings
+  are taken as measured, …" with the two approved paragraphs word for word
+  ("Which readings are used. Evenness compares the nine areas of this one
+  sheet with each other, …" and "Some sheets are printed with an intent that
+  makes the paper the white, …"). The Dictionary entry "Judged relative to
+  paper white (media-relative)" says the same in one sentence and names the
+  new line.
+* Neither text is a message window, so neither is in §M; both are recorded
+  here as the approved wording.
+* **Built:** `ui/dialogs/measurement_report_dialog.py::_printing_block_html`,
+  `_evenness_row_is_in_report`; `workflow/compliance_sets.py::_D_EVENNESS`;
+  `ui/dialogs/welcome_dialog.py` (Dictionary).
+* **Verified by:** `test_the_evenness_line_is_there_only_with_an_evenness_row`,
+  `test_both_evenness_help_icons_carry_the_approved_text`.
+
+**26.2 The 30 to 70 % tone ramp: rule A** (section 4, *"Implement rule A,
+update all relevant text and help text relevant. And update the demo project
+package to test the requirements for this metric with the new rule."*).
+* On each of the four axes, after the unchanged count (at least 3 distinct
+  steps) and span (at least 20 points), `RAMP_MIN_STEPS` positions evenly
+  spaced from the ramp's own lowest to its own highest step in the band must
+  each have a step within `RAMP_SPACING_TOL` = 4.0 points (the grey ramp's
+  `GREY_SPACING_TOL`, inclusive), by the grey ramp's own
+  `pick_even_grey_steps`. More steps may be picked when they fit, as on the
+  grey ramp. An axis that has the count and span but not the spacing is
+  refused with the new reason **`ramp_steps_bunched`**, and the note names the
+  tone value nothing is near: *"the mid-tone steps of the measured chart are
+  bunched together: none lies within 4 of the tone value 50 %, and 3 roughly
+  evenly spaced steps between 30 % and 70 % on one ramp are needed"*. A chart
+  short of steps or span keeps `no_ramp`.
+* The metric's help icon states the rule; its lever names Single Channel Steps
+  (-s) and Grey Axis Steps (-g); the presets window says *"The mid-tone steps
+  of this chart's tone ramps are bunched together: no ramp has 3 of them
+  roughly evenly spaced between 30 % and 70 %."* and files it as a patch
+  shortfall; the report's help paragraph on what a chart must carry and the
+  Dictionary entry "ΔL* (lightness difference)" say it.
+* **Counted after the build** (the presets window's own code over every
+  preset, `k31-b-metrics/tone_ramp_count_after.txt`): **185 of 185 built-in
+  presets answer the tone row**, as measured before; of the 31 demo presets
+  with a readable chart 28 answer, and the three that do not are R09 FAIL and
+  R10 FAIL (`no_ramp`) and the new **R15 FAIL** (`ramp_steps_bunched`). The grey
+  rows are unchanged by it (185 of 185).
+* **The demo package:** the open preset Q2 (40, 59.4, 60) became requirement
+  **R15**'s FAIL side, beside a PASS side at 40, 50 and 60 that differs in
+  nothing else (`make_verification_preset_demos.py --check`: 15 requirements,
+  33 presets, 0 not doing what they claim). The pack's independent
+  reimplementation carries the rule from Knut's words.
+* **Built:** `workflow/measurement_report.py::RAMP_SPACING_TOL`,
+  `REASON_RAMP_STEPS_BUNCHED`, `ramps_block`;
+  `workflow/preset_eligibility.py::PATCH_SHORTFALL_REASONS`;
+  `ui/dialogs/preset_verification_dialog.py::reason_line`;
+  `ui/dialogs/measurement_report_dialog.py::_reason_sentence`, `_CHART_HELP`;
+  `workflow/compliance_sets.py::_D_RAMPS`, `_R_RAMPS`;
+  `scripts/make_verification_preset_demos.py` (R15).
+* **Verified by:** `test_bunched_mid_tones_are_refused_and_named`,
+  `test_evenly_spaced_mid_tones_pass_and_the_tolerance_is_four_inclusive`,
+  `test_too_few_steps_is_still_no_ramp`,
+  `test_the_na_note_and_the_presets_window_name_the_bunching`,
+  `test_the_help_icon_states_rule_a`, `test_no_built_in_preset_loses_the_tone_row`,
+  `test_no_open_question_is_left_in_the_pack`.
+
+**26.3 Version 1 names everywhere** (section 5, *"Use version 1 everywhere
+and implement your recommendations. Accepted."*).
+* Every row of `compliance_sets.ROWS` carries its version 1 name (statistic,
+  unit, then the patches), which is the one name the Report limits windows,
+  Report Results, How to read, the detailed data, the Overview, the
+  one-page summary, the help icons, the notes and the graph legends print.
+  "Maximum", never "largest"; every name with a unit carries it. The rows
+  version 1 left unchanged keep their names.
+
+  | row | name |
+  |---|---|
+  | `substrate_de00_max` | ΔE00, paper white against the reference paper |
+  | `substrate_overprinted_de00_max` | ΔE00, overprinted proofing paper against the production paper |
+  | `solids_de00_max` | Maximum ΔE00, solid colours |
+  | `cmy_solids_dhab_max` | Maximum ΔH\*ab, cyan, magenta and yellow solids |
+  | `spot_solids_de00_max` | Maximum ΔE00, spot colours |
+  | `control_strip_de00_avg` / `_max` / `_p95` | Average ΔE00, control strip / Maximum ΔE00, control strip / Maximum ΔE00, control strip, lowest 95 % (95th percentile) |
+  | `grey_balance_neutral_ramp_avg` / `_max` | Average ΔCh, grey balance of the grey ramp / Maximum ΔCh, grey balance of the grey ramp |
+  | `outer_gamut_226_de00_avg` | Average ΔE00, outer-gamut patches |
+  | `surface_gamut_de00_avg` | Average ΔE00, surface-gamut patches |
+  | `ramps_30_70_dl_max` | Maximum ΔL\*, single-colour ramps 30 % to 70 % |
+  | `repeat_patches_de00_max` | Maximum ΔE00, repeat patches on one sheet |
+  | `repeat_measurement_de00_max` | Maximum ΔE00, the same chart measured again |
+  | `uniformity_sd` | Maximum ΔE00, between two of the nine sheet areas |
+  | `uniformity_de00_max_from_mean` | Maximum ΔE00, one sheet area against the whole sheet |
+  | `repeatability_de00_max` | Maximum ΔE00, print to print and day to day |
+  | `permanence_de00_max` | Maximum ΔE00, permanence in storage |
+  | `fading_24h_de00_max` | Maximum ΔE00, fading in the dark, first 24 hours |
+
+* Figures with no limit: the Overview's "Spread (std. dev.)" is **"Standard
+  deviation ΔE00, all patches"**; "Black L\*" is **"Darkest black L\*"** in
+  the Overview and the graph legend (one name with the tab "Darkest black
+  (L\*)"); the corners keep "{corner} ΔE00". Detailed data headings: **"Paper
+  white and darkest black (L\*)"**, **"Colour accuracy (ΔE00 against the
+  chart's design)"**, **"Cube corners (ΔE00)"**.
+* Graphs: tabs **"Paper white difference (ΔE00)"**, **"Tone ramps 30 to 70 %
+  (ΔL\*)"**, **"Cube corners (ΔE00)"** (tab and title), so every tab carries
+  its unit; the evenness line word "Pairs" is **"Areas"**; the other words
+  stay.
+* Help prose says "maximum" where it named the statistic "largest" (the
+  control strip, repeatability, evenness and 95th-percentile help, the
+  Dictionary's 95th percentile), and the verification help card names the
+  three reference metrics by their names.
+* i18n: the keys are renamed textually in all fourteen catalogues; German by
+  hand, with no form of address in report text (§19.1); the twelve other
+  languages carry the English under the beta rule.
+* **Built:** `workflow/compliance_sets.py::ROWS`;
+  `ui/dialogs/measurement_report_dialog.py::_METRIC_LABELS`,
+  `_TREND_GROUPS`, the tab and legend of `_trend_configs`,
+  `_comparison_table_html`, `_run_detail_html`, `_detailed_section_html`;
+  `ui/dialogs/welcome_dialog.py`; `data/i18n/*.json`.
+* **Verified by:** `test_every_row_carries_its_version_1_name`,
+  `test_a_name_says_maximum_never_largest_and_carries_its_unit`,
+  `test_every_graph_tab_carries_a_unit`, `test_the_darkest_black_has_one_name`,
+  `test_the_evenness_line_word_is_areas`,
+  `test_the_german_report_texts_address_nobody`; `tests/test_k28b_one_vocabulary.py`
+  (unchanged: the five names).
+
+**26.4 "Within gamut" in the judged names; within and beyond is information
+only** (section 5 point 4 and section 6, *"Agreed, do as recommended."*).
+* On a document that holds a sheet split by the profile's gamut, the seven
+  rows judged on the within-gamut patches (the five colour-accuracy rows and
+  the two evenness rows, `WITHIN_GAMUT_ROWS`) carry their within-gamut name,
+  e.g. **"Average ΔE00, all patches within gamut"**, in Report Results, How
+  to read, the notes and the graph legends (decided for the document), and in
+  each sheet's detailed table and one-page summary (decided for that sheet).
+  A document with no split sheet prints the plain names. One list,
+  `compliance_sets.IN_GAMUT_LABELS`, through `row_name`.
+* The Overview keeps its three blocks; the third, "All patches together", is
+  **"Within and beyond the gamut together"**. The beyond and together figures
+  carry no limit and are never judged, as before.
+* **No text says a FROM PROFILE GAMUT chart is split**, and none may: such a
+  chart is never split (every colour is chosen inside the gamut). The "all
+  patches" help icon and the Dictionary entry now say so in as many words.
+* **Built:** `workflow/compliance_sets.py::IN_GAMUT_LABELS`, `row_name`,
+  `_D_ALL_PATCHES`, `_D_EVENNESS`;
+  `ui/dialogs/measurement_report_dialog.py::_row_name`, `_doc_is_split`
+  (used by the grid, the guide, the notes, the detail table, the one-page
+  summary and the legends), `_comparison_table_html`;
+  `ui/dialogs/welcome_dialog.py` (Dictionary "Within / beyond the profile's
+  gamut").
+* **Verified by:** `test_the_within_gamut_names_are_exactly_the_split_rows`,
+  `test_a_split_report_names_the_judged_figures_within_gamut`,
+  `test_the_overview_block_is_within_and_beyond_together`.
+
+**26.5 A FROM PROFILE GAMUT chart's grey steps are its neutral aims**
+(section 7, *"Implement option (a) On a FROM PROFILE GAMUT chart, use the
+chart's neutral AIMS as its grey steps."*).
+* On a chart that carries a colorimetric reference (`reference_source ==
+  "colorimetric"` in the report; the chart's `-reference.ti3` in the presets
+  window), the grey steps are the patches whose AIM is neutral:
+  `hypot(a*, b*) < NEUTRAL_AIM_CHROMA_MAX` = 1.0, the test Create Chart itself
+  uses to pick those neutrals (`gamut_target.select_gamut_targets`). The eight
+  cube corners are never steps (their reference is the ideal device corner).
+* Each step is placed by its aim's **L\*** (0 to 100), and the device rules
+  are asked of those levels: at least `GREY_MIN_LEVELS` = 8 distinct steps; 8
+  of them within `GREY_SPACING_TOL` = 4 L\* of an even spacing between the
+  ramp's own ends (the "same 4 on a 0 to 100 scale" of the proposal).
+* **Our construction, to confirm:** the ENDS are the chart's own reach, not the
+  device rule's fixed 90 and 10: the lightest neutral aim within
+  `NEUTRAL_AIM_END_REACH` = 10 L\* of the lightest aim on the chart, the
+  darkest within 10 of the darkest (corners excluded). The fixed 10 would
+  refuse every paper whose black is lighter than L\* 10, which is most matte
+  papers, on the kind of chart that is made of what the paper can print.
+* The ΔCh is each step's measured a\*, b\* against its aim, over every step
+  (the bare paper left out by device value, as on a device ramp).
+* Four reasons of its own, because the device sentences ("R = G = B", "add
+  grey steps") are false on such a chart: `too_few_neutral_aims`,
+  `neutral_aims_bunched` (names the L\* nothing is near),
+  `neutral_aims_no_white`, `neutral_aims_no_black`. The presets window's lever
+  for them is a larger chart ("about one patch in eight is a neutral aim"),
+  never "add grey steps" (`compliance_sets.remedy_for`); the grey rows' help
+  icon, the report's help paragraph, the verification help card and the
+  Dictionary entry "Grey ramp" say how such a chart's grey steps are found.
+* **Tester A's case, before and after** (challenge A, F2; 400 and 100
+  patches, FROM PROFILE GAMUT, default intent, Folders-Second run1): before,
+  both grey rows read N-A with `grey_steps_bunched` in the presets window and
+  in the report; after, both are answered in both
+  (`k31-b-metrics/`, driven on screen).
+* **Not changed, and a question:** the 30 to 70 % tone ramp's grey axis
+  still finds its steps by device R = G = B, on every chart. Option (a) was
+  ruled for the grey rows; whether a FROM PROFILE GAMUT chart's tone row should
+  take its neutral aims too (and by which tone value: an L\* is not a tone
+  value) is left for Knut. Measured on the challenge A charts, the tone row is
+  answered by the device greys of the middle band (spread 0.4 to 1.0).
+* The demo package: the FROM PROFILE GAMUT runs of the report demo projects
+  now design their greys on the neutral aims (`grey_stat_indices`), because
+  the report began to judge rows it had read N-A on them.
+* **Built:** `workflow/measurement_report.py::NEUTRAL_AIM_CHROMA_MAX`,
+  `NEUTRAL_AIM_END_REACH`, the four reasons, `_neutral_aim_grey_block`,
+  `grey_balance_block(neutral_aims=, corner_ids=)`, `build_report`;
+  `workflow/preset_eligibility.py::_colorimetric_aims`, `_perfect_print`,
+  `row_remedy`; `workflow/compliance_sets.py::_D_GREY_RAMP`, `_R_GREY_RAMP`,
+  `remedy_for`, `GREY_AIM_REASONS`;
+  `ui/dialogs/preset_verification_dialog.py::reason_line`;
+  `ui/dialogs/measurement_report_dialog.py::_reason_sentence`;
+  `scripts/make_report_limit_demos.py::grey_stat_indices`.
+* **Verified by:** `test_the_device_rule_refuses_the_charts_of_challenge_a`,
+  `test_the_presets_window_answers_the_grey_rows_of_a_gamut_chart`,
+  `test_the_report_of_a_gamut_verification_answers_the_grey_rows`,
+  `test_the_corners_are_never_grey_steps`, `test_the_ends_are_the_charts_own_reach`,
+  `test_a_neutral_aim_is_what_create_chart_calls_neutral`,
+  `test_bunched_aims_are_named_with_their_lightness`,
+  `test_the_lever_on_a_gamut_chart_is_a_larger_chart_not_grey_steps`,
+  `test_the_two_spellings_of_the_aim_reasons_agree`.
+
+**26.6 The German heading of the reading guide** stays "So ist dieser Bericht
+zu lesen" (Knut: *"use your recommendation, then if Sebastian says
+differently you can alter it"*); the owner decides.
+
+**Status:** agreed; built for beta 40 (B8-900 to B8-909), NOT confirmed.

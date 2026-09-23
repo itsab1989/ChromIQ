@@ -335,12 +335,12 @@ _D_CONTROL_STRIP = (
     ".ti1 or .ti2, naming the same ids, does the same job.\n\n"
     "ChromIQ then counts how many of those ids are in the measurement and "
     "carry a reference value. At least 8 are needed for the average and the "
-    "largest, because below that an average over the strip says nothing. The "
+    "maximum, because below that an average over the strip says nothing. The "
     "95th percentile needs 20: on a shorter strip its nearest rank is the "
-    "largest patch itself, so the row would only repeat the one above it.")
+    "worst patch itself, so the row would only repeat the maximum.")
 _D_GREY_RAMP = (
-    "The chart needs a grey ramp. A patch counts as grey when its red, green "
-    "and blue values are within one unit of each other.\n\n"
+    "The chart needs a grey ramp. On most charts a patch counts as grey when "
+    "its red, green and blue values are within one unit of each other.\n\n"
     "There have to be at least eight distinct steps of it, it has to reach "
     "white at one end and black at the other, and the patches have to carry "
     "reference values.\n\n"
@@ -351,13 +351,34 @@ _D_GREY_RAMP = (
     "longer ramp is fine; ChromIQ picks the steps that fit.\n\n"
     "Bare paper counts as one of those steps and can be the white end on its "
     "own, but it is left out of the figure itself. The report names whichever "
-    "of those is missing.")
+    "of those is missing.\n\n"
+    # K31 (Knut, #182 5801677743, option a): a FROM PROFILE GAMUT chart's
+    # neutral AIMS are its grey steps. `measurement_report.grey_balance_block`
+    # with `neutral_aims`; the numbers are NEUTRAL_AIM_CHROMA_MAX,
+    # GREY_SPACING_TOL and NEUTRAL_AIM_END_REACH.
+    "A chart built with FROM PROFILE GAMUT is different. Every patch on it is "
+    "printed in the profile's own numbers, so a grey is seldom printed with "
+    "equal red, green and blue. On such a chart the grey steps are the "
+    "patches whose aim colour is neutral, with a* and b* together less than "
+    "1.0 from zero, and each step is placed by the lightness L* of its aim, "
+    "on the same scale from 0 to 100. The same rules apply: at least eight "
+    "distinct steps, eight of them each within 4 of an even spacing, and a "
+    "ramp that reaches within 10 of the lightest and the darkest aim on the "
+    "chart. The eight solid corners are not counted as steps.")
 _D_ALL_PATCHES = (
     "ChromIQ can judge this row on any VERIFICATION sheet it built, because "
     "every patch carries the colour it was asked for. A run's own profiling "
     "chart is printed raw before a profile exists, so its numbers are shown "
     "for information only and no row on it is judged. A measurement with no "
-    "reference values at all is not judged either, and the report says so.")
+    "reference values at all is not judged either, and the report says so.\n\n"
+    # K31 (Knut, #182 5801677743, sections 5 and 6): `IN_GAMUT_LABELS`.
+    "Where the report splits a sheet's colours into those within the "
+    "profile's gamut and those beyond it, this row is judged on the colours "
+    "within the gamut, and its name then ends in \"within gamut\". The "
+    "colours beyond the gamut, and all of them together, are shown in the "
+    "Overview for information and are never judged. A chart built with FROM "
+    "PROFILE GAMUT is never split, because every colour on it was chosen "
+    "inside the gamut.")
 _D_WORST5 = (
     "As the rows above, a verification sheet only, and the chart needs at "
     "least twenty patches counted, so that the highest 5 % holds a patch to "
@@ -368,7 +389,16 @@ _D_RAMPS = (
     "ChromIQ can judge this row when the chart has a single-ink or grey ramp "
     "with at least three distinct steps between 30 % and 70 % tone value, "
     "spanning at least twenty points of it, and carrying reference values. Any "
-    "one of the four axes, red, green, blue or grey, is enough.")
+    "one of the four axes, red, green, blue or grey, is enough.\n\n"
+    # K31 (Knut, #182 5801677743: "Implement rule A"): the grey ramp's
+    # spacing rule of K28a, `pick_even_grey_steps(n=RAMP_MIN_STEPS)`.
+    "Three of those steps also have to be roughly evenly spaced over the "
+    "ramp's own part of the band, from its lowest step to its highest: each "
+    "within 4 % of full scale of where an even spacing puts it. It is the "
+    "grey ramp's rule, applied to this band, so that three readings bunched "
+    "at one end cannot stand for the whole mid-tone range. A ramp with more "
+    "steps is fine; ChromIQ picks the steps that fit. The report names the "
+    "tone value that no step is near.")
 #: **CHROMIQ'S OWN POPULATION, UNDER A HEADING THAT NO LONGER NAMES A
 #: STANDARD.** These two rows were never missing a detection method; they were
 #: missing the DEFINITION of the patches they are about, which the standards
@@ -405,11 +435,21 @@ _R_REFERENCE = (
     "tab. That chart is made from your own profile and carries the aim values "
     "this row is measured against, so the row can be judged. A chart made any "
     "other way will keep reading N-A here however good the print is.")
-_R_GREY_RAMP = (
+_R_GREY_RAMP_DEVICE = (
     "Use a chart with a longer grey ramp: at least eight steps of neutral "
     "grey, running from white through to black and spread evenly between "
     "them. Most of the built-in presets have one. If you are building your own patch set on the Create Chart tab, "
     "add grey steps until there are eight or more.")
+#: K31: the lever on a FROM PROFILE GAMUT chart, whose neutrals come from the
+#: profile. `gamut_target._neutral_budget` gives about one patch in eight to
+#: the neutral block, so a larger chart is the lever there is.
+_R_GREY_RAMP_AIMS = (
+    "On a chart built with FROM PROFILE GAMUT the grey steps come from the "
+    "profile, not from a grey step setting, so build the chart again with "
+    "more patches: about one patch in eight is a neutral aim, and a larger "
+    "chart carries more of them, spread from the profile's white to its "
+    "black.")
+_R_GREY_RAMP = _R_GREY_RAMP_DEVICE + "\n\n" + _R_GREY_RAMP_AIMS
 _R_ALL_PATCHES = (
     "Nothing needs changing on the chart: any verification sheet ChromIQ "
     "builds can be judged on this row. If it is blank, the measurement is "
@@ -422,13 +462,17 @@ _R_WORST5 = (
     "accuracy rows are still judged.")
 _R_RAMPS = (
     "Use a chart with a tone ramp through the mid-tones: three steps between "
-    "30 % and 70 % of one single ink, or of grey, is enough. The built-in "
-    "presets have one; a patch set you build yourself may not.")
+    "30 % and 70 % of one single ink, or of grey, spread evenly rather than "
+    "bunched together, is enough. The built-in presets have one; a patch set "
+    "you build yourself may not. On the Create Chart tab, raise Single "
+    "Channel Steps (-s) or Grey Axis Steps (-g) so that the ramp has steps "
+    "near the low end, the middle and the high end of 30 to 70 %, then "
+    "generate the chart again.")
 _R_CONTROL_STRIP = (
     "Declare the strip on the chart. Put a file beside the chart named after "
     "it with \".control-strip.json\" on the end, holding the strip's name and "
     "the list of sample ids that make it up, and make sure the chart really "
-    "has those patches: 8 of them for the average and the largest, 20 for the "
+    "has those patches: 8 of them for the average and the maximum, 20 for the "
     "95th percentile.")
 _R_SURFACE_GAMUT = (
     "Add patches at the edge of the device cube in Create Chart: the solid "
@@ -465,7 +509,7 @@ _D_REPEAT_ACROSS = (
     "values it was asked for, so a chart that was rebuilt between the two "
     "dates drops out of the comparison instead of being read as the printer "
     "moving. At least 14 patches have to survive that test, because below "
-    "that the largest difference says more about which patches happened to "
+    "that the maximum difference says more about which patches happened to "
     "match than about the printer.\n\n"
     "This row is ChromIQ's own. No standard defines it, and it needs no "
     "reference values, so it can be judged on a chart that carries no aim "
@@ -501,11 +545,11 @@ _EVEN_CAUSES = (
 _B_EVEN_PAIRWISE = (
     "Whether the sheet prints the same colour everywhere. Every patch is "
     "compared with its own aim value, the differences are averaged over each "
-    "ninth of the page, and this row is the largest difference between any "
+    "ninth of the page, and this row is the maximum difference between any "
     "two of those nine areas.\n\n" + _EVEN_CAUSES)
 _B_EVEN_FROM_MEAN = (
     "The ninth of the page that sits furthest from the sheet as a whole: the "
-    "largest difference between one of the nine areas and the average of all "
+    "maximum difference between one of the nine areas and the average of all "
     "nine. One area on its own that is off, a blotch, shows here first; a "
     "gradual change from one side to the other shows first in the row "
     "above.\n\n" + _EVEN_CAUSES)
@@ -523,17 +567,27 @@ _D_EVENNESS = (
     "Every patch is compared with its own aim value, the same one the colour "
     "accuracy rows use, and the differences are averaged in each of the nine "
     "areas. No patches are matched by brightness or by grey.\n\n"
-    "The readings are taken as measured, whatever rendering intent the sheet "
-    "was printed with. Evenness is a property of the printer and the paper, "
-    "not of how the sheet was colour-managed, so the readings are never "
-    "adjusted to the paper white, even where the colour accuracy rows are. "
-    "On such a sheet each aim value is carried onto the paper instead, so "
-    "the paper's own tint is not counted as unevenness.\n\n"
+    # K31 (Knut, #182 5801677743, section 3: "Both texts approved").
+    "Which readings are used. Evenness compares the nine areas of this one "
+    "sheet with each other, so it uses the readings exactly as the "
+    "instrument took them. How the sheet was colour-managed does not matter "
+    "here: a colour that prints differently in one corner than in another is "
+    "a fault of the printer or the paper either way.\n\n"
+    "Some sheets are printed with an intent that makes the paper the white, "
+    "and on those the colour accuracy figures are worked out relative to the "
+    "paper. On such a sheet ChromIQ moves every aim colour onto the paper by "
+    "the same amount instead. The paper's own tint then does not count as "
+    "unevenness, and because every aim moves by the same amount, no area of "
+    "the page can come out different from another because of it.\n\n"
     "The report also measures the sheet's own noise: it shuffles the patches "
     "across the nine areas 500 times and takes the 95th percentile of what "
     "the same arithmetic reads. A row is judged only when that noise is below "
     "the row's limit. With a typical print that wants about 30 patches in "
     "each area, roughly 270 on a page.\n\n"
+    # K31: `IN_GAMUT_LABELS`, the evenness rows among them.
+    "Where the report splits a sheet's colours into those within the "
+    "profile's gamut and those beyond it, only the patches within the gamut "
+    "are counted, and the two names then end in \"within gamut\".\n\n"
     "This method is ChromIQ's own. A standard that limits evenness reads it "
     "its own way, on its own chart.")
 _R_EVENNESS = (
@@ -546,12 +600,12 @@ _R_EVENNESS = (
 ROWS: "tuple[Row, ...]" = (
     # -- Paper
     Row("substrate_de00_max", "substrate",
-        "Paper white, difference from the reference paper", "ΔE00", "ref",
+        "ΔE00, paper white against the reference paper", "ΔE00", "ref",
         blurb='How far the bare paper of the printed test chart sits from the paper the reference describes. A paper that is bluer, warmer or darker than the aim moves every colour printed on it.',
         detect=_D_REFERENCE_WHITE,
         remedy=_R_REFERENCE),
     Row("substrate_overprinted_de00_max", "substrate",
-        "Overprinted proofing paper against the production paper", "ΔE00",
+        "ΔE00, overprinted proofing paper against the production paper", "ΔE00",
         "unmeasurable",
         note="needs the production paper measured as well",
         blurb='Whether the proofing stock, once printed, matches the stock the job will really run on.'),
@@ -564,43 +618,43 @@ ROWS: "tuple[Row, ...]" = (
         blurb='How much optical brightener the paper carries. Brighteners glow under the ultraviolet in daylight, so the paper can measure and look bluer than it is.'),
     # -- Solid colours
     Row("solids_de00_max", "solids",
-        "Solid colours, largest difference", "ΔE00", "ref",
+        "Maximum ΔE00, solid colours", "ΔE00", "ref",
         blurb='The worst of the four solid ink corners against what they should be. Solids are where an ink is laid down at full strength, so they show the ink itself rather than the profile.',
         detect=_D_REFERENCE_SOLIDS,
         remedy=_R_REFERENCE),
     Row("cmy_solids_dhab_max", "solids",
-        "Cyan, magenta and yellow solids, largest hue difference", "ΔH*ab", "ref",
+        "Maximum ΔH*ab, cyan, magenta and yellow solids", "ΔH*ab", "ref",
         blurb='Whether the three chromatic solids drifted in hue, ignoring how light or how saturated they are. A hue shift in a solid is the one error the eye finds hardest to forgive.',
         detect=_D_REFERENCE_CMY,
         remedy=_R_REFERENCE),
     Row("spot_solids_de00_max", "solids",
-        "Spot colours, largest difference", "ΔE00", "unmeasurable",
+        "Maximum ΔE00, spot colours", "ΔE00", "unmeasurable",
         note="ChromIQ has no spot-colour workflow",
         blurb='Named brand inks, such as a company colour, against their published book values.'),
     # -- Control strip
     Row("control_strip_de00_avg", "control_strip",
-        "Control-strip patches, average", "ΔE00", "build",
+        "Average ΔE00, control strip", "ΔE00", "build",
         blurb='The average colour error over the patches of the control strip on the test chart used: the run of patches a press or a proof is checked on.',
         detect=_D_CONTROL_STRIP,
         remedy=_R_CONTROL_STRIP),
     Row("control_strip_de00_max", "control_strip",
-        "Control-strip patches, largest", "ΔE00", "build",
+        "Maximum ΔE00, control strip", "ΔE00", "build",
         blurb='The worst single patch of that control strip.',
         detect=_D_CONTROL_STRIP,
         remedy=_R_CONTROL_STRIP),
     Row("control_strip_de00_p95", "control_strip",
-        "Control-strip patches, 95th percentile", "ΔE00", "build",
+        "Maximum ΔE00, control strip, lowest 95 % (95th percentile)", "ΔE00", "build",
         blurb='The error that 95 % of the declared strip stays under, so one bad patch does not decide the result.',
         detect=_D_CONTROL_STRIP,
         remedy=_R_CONTROL_STRIP),
     # -- Grey ramp (K-h)
     Row("grey_balance_neutral_ramp_avg", "grey_ramp",
-        "Grey balance of the grey ramp, average", "ΔCh", "build",
+        "Average ΔCh, grey balance of the grey ramp", "ΔCh", "build",
         blurb='How neutral the greys of the printed test chart are on average: how far each step of the grey ramp sits from having no colour cast at all. Lightness is ignored, only the cast is counted.',
         detect=_D_GREY_RAMP,
         remedy=_R_GREY_RAMP),
     Row("grey_balance_neutral_ramp_max", "grey_ramp",
-        "Grey balance of the grey ramp, largest", "ΔCh", "build",
+        "Maximum ΔCh, grey balance of the grey ramp", "ΔCh", "build",
         blurb='The worst single step of the grey ramp. One step with a cast is visible in a photograph even when the average looks healthy.',
         detect=_D_GREY_RAMP,
         remedy=_R_GREY_RAMP),
@@ -637,7 +691,7 @@ ROWS: "tuple[Row, ...]" = (
         remedy=_R_ALL_PATCHES),
     Row("all_de00_p95", "all_patches", "Maximum ΔE00, lowest 95 % (95th percentile)", "ΔE00",
         "now", metric_key="max_low95",
-        blurb='The largest difference within the lowest 95 %, which is the 95th percentile: the error 95 % of the chart stays under, counted by rank rather than by fitting a curve.',
+        blurb='The maximum difference within the lowest 95 %, which is the 95th percentile: the error 95 % of the chart stays under, counted by rank rather than by fitting a curve.',
         detect=_D_ALL_PATCHES,
         remedy=_R_ALL_PATCHES),
     # -- Selected patches of the chart (S2w, Knut 2026-09-18)
@@ -646,17 +700,17 @@ ROWS: "tuple[Row, ...]" = (
     # disk are keyed by the id; renaming it would silently drop the limit a
     # user set and the verdict a report recorded. The id is not shown anywhere.
     Row("outer_gamut_226_de00_avg", "selected",
-        "Outer-gamut patches, average", "ΔE00", "build",
+        "Average ΔE00, outer-gamut patches", "ΔE00", "build",
         blurb="The average error over the most saturated quarter of the test chart used, the colours at the edge of what the printer can reach.",
         detect=_D_OUTER_GAMUT,
         remedy=_R_OUTER_GAMUT),
     Row("surface_gamut_de00_avg", "selected",
-        "Surface-gamut patches, average", "ΔE00", "build",
+        "Average ΔE00, surface-gamut patches", "ΔE00", "build",
         blurb='The average error over the patches that sit on the outside of the device cube, where a profile has least room.',
         detect=_D_SURFACE_GAMUT,
         remedy=_R_SURFACE_GAMUT),
     Row("ramps_30_70_dl_max", "selected",
-        "Single-colour ramps 30 % to 70 %, largest lightness difference", "ΔL*",
+        "Maximum ΔL*, single-colour ramps 30 % to 70 %", "ΔL*",
         "build",
         blurb='Whether the mid-tones of each single ink, and of grey, land at the right lightness. This is the part of a ramp the eye reads as contrast.',
         detect=_D_RAMPS,
@@ -675,12 +729,12 @@ ROWS: "tuple[Row, ...]" = (
     # it at a number ChromIQ can compute would attribute these definitions to
     # a document that does not contain them.
     Row("repeat_patches_de00_max", "repeatability",
-        "Repeat patches on one sheet, largest difference", "ΔE00", "build",
+        "Maximum ΔE00, repeat patches on one sheet", "ΔE00", "build",
         blurb='How far apart the patches of one colour landed where that colour appears more than once on one sheet of the test chart used. No profile and no aim value is in this number: the patches were asked for the same thing, so what separates them is the printer and the instrument together.',
         detect=_D_REPEAT_WITHIN,
         remedy=_R_REPEAT_WITHIN),
     Row("repeat_measurement_de00_max", "repeatability",
-        "The same chart measured again, largest difference", "ΔE00", "build",
+        "Maximum ΔE00, the same chart measured again", "ΔE00", "build",
         blurb='Whether the same file prints the same colour on another sheet and on another day. This is the question behind asking whether a printer is steady, and it is answered by measuring one verification chart more than once.',
         detect=_D_REPEAT_ACROSS,
         remedy=_R_REPEAT_ACROSS),
@@ -699,12 +753,12 @@ ROWS: "tuple[Row, ...]" = (
     # measurement_report_limits.md` §16 records that a licence holder's figure
     # for this row was written for a different statistic.
     Row("uniformity_sd", "evenness",
-        "Evenness across the sheet, nine locations", "ΔE00", "build",
+        "Maximum ΔE00, between two of the nine sheet areas", "ΔE00", "build",
         blurb=_B_EVEN_PAIRWISE,
         detect=_D_EVENNESS,
         remedy=_R_EVENNESS),
     Row("uniformity_de00_max_from_mean", "evenness",
-        "Evenness across the sheet, largest difference from the mean", "ΔE00",
+        "Maximum ΔE00, one sheet area against the whole sheet", "ΔE00",
         "build",
         blurb=_B_EVEN_FROM_MEAN,
         detect=_D_EVENNESS,
@@ -715,15 +769,15 @@ ROWS: "tuple[Row, ...]" = (
         note="a scanned-image method; ChromIQ measures patches, not areas",
         blurb='Banding, mottle and streaks judged over areas of print rather than over patches.'),
     Row("repeatability_de00_max", "not_evaluated",
-        "Repeatability from print to print and day to day", "ΔE00",
+        "Maximum ΔE00, print to print and day to day", "ΔE00",
         "unmeasurable", note="a timed protocol, not a property of one sheet",
         blurb='Whether the same file prints the same colour today, tomorrow and on the next sheet.'),
     Row("permanence_de00_max", "not_evaluated",
-        "Permanence in storage", "ΔE00", "unmeasurable",
+        "Maximum ΔE00, permanence in storage", "ΔE00", "unmeasurable",
         note="needs climate chambers",
         blurb='How far the print moves while it is simply stored.'),
     Row("fading_24h_de00_max", "not_evaluated",
-        "Fading in the dark, first 24 hours", "ΔE00", "unmeasurable",
+        "Maximum ΔE00, fading in the dark, first 24 hours", "ΔE00", "unmeasurable",
         note="a timed physical test",
         blurb='How much the print changes in its first day in the dark, while the ink is still settling.'),
     Row("light_fastness", "not_evaluated", "Light fastness", "", "unmeasurable",
@@ -745,6 +799,67 @@ ROWS: "tuple[Row, ...]" = (
 
 ROW_BY_ID: "dict[str, Row]" = {r.id: r for r in ROWS}
 GROUP_ORDER: "tuple[str, ...]" = tuple(dict.fromkeys(r.group for r in ROWS))
+
+#: **"WITHIN GAMUT" IN THE JUDGED NAMES ON A SPLIT SHEET** (K31, Knut, #182
+#: 5801677743, answering 5798697107 sections 5 and 6: *"Use version 1
+#: everywhere and implement your recommendations"*, *"do as recommended"*).
+#: Where a report holds a sheet whose colours were split by the profile's gamut,
+#: these seven rows are judged on the within-gamut patches only
+#: (`measurement_report.graded_de00`, `evenness_block(only_ids=...)`), and
+#: "Average ΔE00, all patches" would then mean the within-gamut figure in
+#: Report Results and all patches together in the Overview. So on such a
+#: report the judged figures carry "within gamut" in their name, and "all
+#: patches" never means two things in one document. English source strings,
+#: displayed through `tr()`; `row_name` is the one door.
+IN_GAMUT_LABELS: "dict[str, str]" = {
+    "all_de00_avg": "Average ΔE00, all patches within gamut",
+    "best95_de00_avg": "Average ΔE00, lowest 95 % within gamut",
+    "worst5_de00_avg": "Average ΔE00, highest 5 % within gamut",
+    "all_de00_max": "Maximum ΔE00, all patches within gamut",
+    "all_de00_p95": "Maximum ΔE00, lowest 95 % within gamut (95th percentile)",
+    "uniformity_sd":
+        "Maximum ΔE00, between two of the nine sheet areas, within gamut",
+    "uniformity_de00_max_from_mean":
+        "Maximum ΔE00, one sheet area against the whole sheet, within gamut",
+}
+
+
+def row_name(row_id: str, within_gamut: bool = False) -> str:
+    """The English name of one row: its `label`, or its within-gamut name
+    when *within_gamut* is True and the row is judged on the within-gamut
+    patches of a split sheet (`IN_GAMUT_LABELS`). The id itself for an id
+    no row carries. Display it through `tr()`."""
+    if within_gamut and row_id in IN_GAMUT_LABELS:
+        return IN_GAMUT_LABELS[row_id]
+    row = ROW_BY_ID.get(row_id)
+    return row.label if row is not None else str(row_id)
+
+
+#: The reasons a FROM PROFILE GAMUT chart's grey steps give (K31), and the
+#: grey-ramp reasons of every other chart. Spelled here rather than imported,
+#: because `measurement_report` imports this module; a test holds the two
+#: spellings together.
+GREY_AIM_REASONS = frozenset({"too_few_neutral_aims", "neutral_aims_bunched",
+                              "neutral_aims_no_white",
+                              "neutral_aims_no_black"})
+GREY_DEVICE_REASONS = frozenset({"no_greys", "too_few_steps",
+                                 "grey_steps_bunched", "no_white",
+                                 "no_black"})
+
+
+def remedy_for(row_id: str, reason: "str | None" = None) -> str:
+    """The lever for one row, as the row's help icon offers it, narrowed to
+    the half that fits *reason* where a row has two (K31: the grey rows on a
+    FROM PROFILE GAMUT chart and on any other chart). English source."""
+    row = ROW_BY_ID.get(row_id)
+    if row is None:
+        return ""
+    if row.remedy == _R_GREY_RAMP:
+        if reason in GREY_AIM_REASONS:
+            return _R_GREY_RAMP_AIMS
+        if reason in GREY_DEVICE_REASONS:
+            return _R_GREY_RAMP_DEVICE
+    return row.remedy
 
 
 def rows_in_group(group: str) -> "list[Row]":

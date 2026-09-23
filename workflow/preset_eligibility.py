@@ -129,6 +129,13 @@ PATCH_SHORTFALL_REASONS: "frozenset[str]" = frozenset({
     MR.REASON_NO_WHITE,                  # it does not reach white
     MR.REASON_NO_BLACK,                  # it does not reach black
     MR.REASON_NO_RAMP,                   # no 30-70 % tone ramp
+    MR.REASON_RAMP_STEPS_BUNCHED,        # its steps are bunched (K31 rule A)
+    # K31 option (a): a FROM PROFILE GAMUT chart's neutral aims. A larger
+    # chart carries more of them, so it is the chart's size that is short.
+    MR.REASON_TOO_FEW_NEUTRAL_AIMS,
+    MR.REASON_NEUTRAL_AIMS_BUNCHED,
+    MR.REASON_NEUTRAL_AIMS_NO_WHITE,
+    MR.REASON_NEUTRAL_AIMS_NO_BLACK,
     MR.REASON_SMALL_SAMPLE,              # under 20 patches: no highest 5 %
     MR.REASON_TOO_FEW_SURFACE_PATCHES,   # under 10 on the cube surface
     MR.REASON_TOO_FEW_OUTER_PATCHES,     # under 20 in the top chroma quarter
@@ -339,6 +346,19 @@ def _perfect_print(chart: Path, recipe: "dict | None" = None) -> dict:
     # eligibility test in the report reads either, only their presence.
     ref = {sid: tuple(lab[i]) for i, sid in enumerate(data.sample_ids)}
     n = len(data.sample_ids)
+    #: K31 option (a): a FROM PROFILE GAMUT chart's grey steps are its neutral
+    #: AIMS, read from the reference beside it, so a flawless print of it
+    #: measures exactly those aims.
+    aims = _colorimetric_aims(chart)
+    if aims is not None:
+        grey_lab = [tuple(aims.get(sid, lab[i]))
+                    for i, sid in enumerate(data.sample_ids)]
+        grey = MR.grey_balance_block(rgb100, grey_lab, aims, data.sample_ids,
+                                     neutral_aims=aims,
+                                     corner_ids=set(_declared_corners(chart)[0]
+                                                    or ()))
+    else:
+        grey = MR.grey_balance_block(rgb100, lab, ref, data.sample_ids)
 
     # **DOES THIS CHART CARRY THE PROFILE'S OWN CONVERSION?** (B8-612.)
     # A preset never does, which is why this used to be the constant
@@ -359,7 +379,7 @@ def _perfect_print(chart: Path, recipe: "dict | None" = None) -> dict:
         "is_verification": True,
         "reference_source": "colorimetric" if colorimetric else "design",
         "de00": MR._stats([0.0] * n),
-        "grey_balance": MR.grey_balance_block(rgb100, lab, ref, data.sample_ids),
+        "grey_balance": grey,
         "ramps_30_70": MR.ramps_block(rgb100, lab, ref, data.sample_ids),
         "gamut_populations": MR.gamut_populations_block(
             rgb100, lab, ref, data.sample_ids),
@@ -413,6 +433,26 @@ def _declared_corners(chart: Path) -> "tuple[list | None, dict | None]":
     if not ids or not devices:
         return None, None
     return ids, devices
+
+
+def _colorimetric_aims(chart: Path) -> "dict[str, tuple] | None":
+    """``{sample id: aim Lab}`` of a chart built FROM PROFILE GAMUT, read from
+    the colorimetric reference beside it, or None for every other chart and
+    for one whose reference has gone (the same door as
+    :func:`_declared_corners`, so the two cannot disagree about which chart is
+    converted)."""
+    from workflow.verification_print import (STATE_CONVERTED,
+                                             chart_conversion_state,
+                                             colorimetric_reference_for)
+    if chart_conversion_state(chart) != STATE_CONVERTED:
+        return None
+    from workflow.gamut_target import read_colorimetric_reference
+    try:
+        blob = read_colorimetric_reference(colorimetric_reference_for(chart))
+    except (OSError, ValueError):
+        return None
+    labs = (blob or {}).get("labs") or {}
+    return {str(k): tuple(v) for k, v in labs.items()} or None
 
 
 def _declaration_it_would_get(chart: Path) -> "dict | None":
@@ -827,12 +867,15 @@ def row_label(row_id: str) -> str:
     return r.label if r is not None else row_id
 
 
-def row_remedy(row_id: str) -> str:
+def row_remedy(row_id: str, reason: "str | None" = None) -> str:
     """The lever the metric's own help icon offers. English source; the window
     puts it through ``tr()``. Reused rather than rewritten so the two windows
-    cannot drift into saying different things about the same row."""
-    r = CS.ROW_BY_ID.get(row_id)
-    return r.remedy if r is not None else ""
+    cannot drift into saying different things about the same row.
+
+    With *reason*, only the half of a two-part lever that fits it (K31: the
+    grey rows of a FROM PROFILE GAMUT chart are not fixed by adding grey
+    steps, `compliance_sets.remedy_for`)."""
+    return CS.remedy_for(row_id, reason)
 
 
 def summarise(entries: "list[Any]") -> "dict[str, int]":

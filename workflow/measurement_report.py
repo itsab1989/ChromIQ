@@ -1097,7 +1097,12 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
     # chart cannot supply them, with the reason, so the report can say
     # "not computed, and why" (Knut, D25) instead of leaving a row blank.
     if rgb100 is not None:
-        report["grey_balance"] = grey_balance_block(rgb100, lab, ref, data.sample_ids)
+        # K31 option (a): on a chart built FROM PROFILE GAMUT the grey steps
+        # are its neutral AIMS, which `ref` holds on the colorimetric branch.
+        report["grey_balance"] = grey_balance_block(
+            rgb100, lab, ref, data.sample_ids,
+            neutral_aims=ref if ref_source == "colorimetric" else None,
+            corner_ids=corner_ids)
         report["ramps_30_70"] = ramps_block(rgb100, lab, ref, data.sample_ids)
         # #182 S2w (Knut, 2026-09-18): the two gamut populations ChromIQ now
         # defines for itself. Written even when the chart cannot supply them,
@@ -3466,6 +3471,36 @@ RAMP_OTHER_CHANNELS_MIN = 99.0
 RAMP_TV_LOW, RAMP_TV_HIGH = 30.0, 70.0
 RAMP_MIN_STEPS = 3
 RAMP_MIN_SPAN = 20.0
+#: **K31, RULE A** (Knut, #182 5801677743, answering 5798697107 section 4:
+#: *"Implement rule A"*). The grey ramp's spacing rule of K28a, applied to the
+#: 30 to 70 % band of each ramp: RAMP_MIN_STEPS positions evenly spaced from
+#: the ramp's OWN lowest to its own highest step in the band, and a step within
+#: this many tone-value points (percent of full scale) of each, by the same
+#: :func:`pick_even_grey_steps`. Measured before it was built (the presets
+#: window's own code over every preset): 185 of 185 built-in presets still
+#: answer, and of the demo presets only the one bunched on purpose (40, 59.4,
+#: 60) is refused.
+RAMP_SPACING_TOL = GREY_SPACING_TOL
+
+#: **K31, OPTION (a)** (Knut, #182 5801677743, answering 5798697107 section
+#: 7: *"On a FROM PROFILE GAMUT chart, use the chart's neutral AIMS as its grey
+#: steps"*). A FROM PROFILE GAMUT chart is printed in the profile's own
+#: numbers, so a neutral aim comes out with R, G and B up to 1.5 apart and the
+#: device test above does not see it as grey (challenge A, F2: the six
+#: lightest of 30 neutral aims on a 400-patch chart). On such a chart a patch
+#: is a grey step when its AIM is neutral: ``hypot(a*, b*)`` of the reference
+#: below this, the same test Create Chart uses to pick those neutrals
+#: (`gamut_target.select_gamut_targets`, ``_is_neutral``). The eight cube corners are
+#: never steps: their reference is the ideal device corner, not an aim.
+NEUTRAL_AIM_CHROMA_MAX = 1.0
+#: …each step placed by its aim's L* (0 to 100), and the ends asked of the
+#: chart itself: its lightest neutral aim within this many L* of the lightest
+#: aim on the chart, its darkest within this many of the darkest. The device
+#: rule's fixed 90 and 10 would refuse every paper whose black is lighter than
+#: L* 10, which is most matte papers, and "reaches white" means "reaches as
+#: far as this printing condition reaches" on a chart made of what it can
+#: print. 10, because it is the distance the device rule allows at each end.
+NEUTRAL_AIM_END_REACH = 10.0
 
 # --- #182 S2w: the control strip, and the two gamut populations -------------
 #
@@ -3646,6 +3681,19 @@ REASON_NO_BLACK = "no_black"
 REASON_NO_REFERENCE = "no_reference"
 REASON_NEEDS_REFERENCE_FILE = "needs_reference_file"
 REASON_NO_RAMP = "no_ramp"
+#: K31 rule A: a ramp with enough steps spanning enough of the band, whose
+#: steps are bunched (`RAMP_SPACING_TOL`). Its own code, because "no tone ramp
+#: with at least three steps" would be false on the chart that reaches it.
+REASON_RAMP_STEPS_BUNCHED = "ramp_steps_bunched"
+#: K31 option (a): the grey-ramp reasons of a FROM PROFILE GAMUT chart, whose
+#: grey steps are its neutral AIMS. Their own codes, because the device
+#: sentences ("add grey steps", "R = G = B") are false on such a chart: its
+#: patches come from the profile, not from a grey step setting. Spelled again
+#: in `compliance_sets.GREY_AIM_REASONS`, which cannot import this module.
+REASON_TOO_FEW_NEUTRAL_AIMS = "too_few_neutral_aims"
+REASON_NEUTRAL_AIMS_BUNCHED = "neutral_aims_bunched"
+REASON_NEUTRAL_AIMS_NO_WHITE = "neutral_aims_no_white"
+REASON_NEUTRAL_AIMS_NO_BLACK = "neutral_aims_no_black"
 REASON_SMALL_SAMPLE = "small_sample"
 #: KEPT ONLY TO READ REPORTS SAVED BEFORE 2026-09-13. It was a REASON, which
 #: in this module means "why this row has no verdict", and rows carrying it
@@ -3854,10 +3902,88 @@ def pick_even_grey_steps(levels: "list[float]", n: int = GREY_MIN_LEVELS,
     return None, first_miss
 
 
+def _neutral_aim_grey_block(rgb, lab, aims: "dict[str, tuple]",
+                            sample_ids: "list[str]",
+                            corner_ids: "set[str]") -> dict:
+    """The grey-ramp block of a FROM PROFILE GAMUT chart (K31, option a).
+
+    The same rules as the device ramp, asked of the chart's neutral AIMS:
+    a patch is a step when its aim's ``hypot(a*, b*)`` is below
+    `NEUTRAL_AIM_CHROMA_MAX`, placed by the aim's L*; at least
+    `GREY_MIN_LEVELS` distinct steps, reaching within `NEUTRAL_AIM_END_REACH`
+    of the lightest and the darkest aim on the chart, and `GREY_MIN_LEVELS`
+    of them within `GREY_SPACING_TOL` L* of an even spacing
+    (:func:`pick_even_grey_steps`). The ΔCh is each step's measured a*, b*
+    against its aim, over every step, as on the device ramp.
+    """
+    corners = {str(c) for c in (corner_ids or ())}
+    usable = [i for i, sid in enumerate(sample_ids)
+              if sid not in corners and aims.get(sid) is not None]
+    idx = [i for i in usable
+           if math.hypot(float(aims[sample_ids[i]][1]),
+                         float(aims[sample_ids[i]][2])) < NEUTRAL_AIM_CHROMA_MAX]
+    block: dict = {"n_greys": len(idx), "levels": 0, "eligible": False,
+                   "reason": None, "avg": None, "max": None, "per_level": [],
+                   "picked_levels": [], "spacing_tol": GREY_SPACING_TOL,
+                   "source": "neutral_aims"}
+    if len(idx) == 0:
+        block["reason"] = REASON_TOO_FEW_NEUTRAL_AIMS
+        return block
+    levels = [float(aims[sample_ids[i]][0]) for i in idx]
+    all_l = [float(aims[sample_ids[i]][0]) for i in usable]
+    block["levels"] = _distinct_levels(levels)
+    block["chart_lightest"] = round(max(all_l), 1)
+    block["chart_darkest"] = round(min(all_l), 1)
+    if block["levels"] < GREY_MIN_LEVELS:
+        block["reason"] = REASON_TOO_FEW_NEUTRAL_AIMS
+    elif max(levels) < max(all_l) - NEUTRAL_AIM_END_REACH:
+        block["reason"] = REASON_NEUTRAL_AIMS_NO_WHITE
+    elif min(levels) > min(all_l) + NEUTRAL_AIM_END_REACH:
+        block["reason"] = REASON_NEUTRAL_AIMS_NO_BLACK
+    else:
+        picked, missing = pick_even_grey_steps(levels)
+        if picked is None:
+            block["reason"] = REASON_NEUTRAL_AIMS_BUNCHED
+            block["missing_level"] = missing
+        else:
+            block["picked_levels"] = [round(v, 1) for v in picked]
+            block["eligible"] = True
+    per: list[dict] = []
+    for i in idx:
+        # the bare paper is left out of the figure here as on a device ramp
+        if rgb is not None and len(rgb) > i \
+                and float(np.min(rgb[i])) >= GREY_PAPER_LEVEL:
+            continue
+        a = aims[sample_ids[i]]
+        dch = math.hypot(lab[i][1] - a[1], lab[i][2] - a[2])
+        per.append({"level": round(float(a[0]), 1), "dch": round(float(dch), 3),
+                    "loc": sample_ids[i]})
+    block["per_level"] = sorted(per, key=lambda d: -d["level"])
+    if block["eligible"]:
+        if not per:
+            block["eligible"] = False
+            block["reason"] = REASON_NO_REFERENCE
+        else:
+            vals = [d["dch"] for d in per]
+            block["avg"] = round(float(np.mean(vals)), 3)
+            block["max"] = round(float(np.max(vals)), 3)
+    return block
+
+
 def grey_balance_block(rgb100, lab, ref: "dict[str, tuple]",
-                       sample_ids: "list[str]") -> dict:
-    """The grey-ramp block of a report (see the notes above)."""
+                       sample_ids: "list[str]",
+                       neutral_aims: "dict[str, tuple] | None" = None,
+                       corner_ids: "set[str] | None" = None) -> dict:
+    """The grey-ramp block of a report (see the notes above).
+
+    *neutral_aims* is given for a chart built FROM PROFILE GAMUT, whose
+    colorimetric reference it is: its grey steps are then its neutral AIMS
+    (K31, :func:`_neutral_aim_grey_block`), and *corner_ids* names the eight
+    cube corners, which are never steps."""
     rgb = np.asarray(rgb100, dtype=float)
+    if neutral_aims is not None:
+        return _neutral_aim_grey_block(rgb, lab, neutral_aims, sample_ids,
+                                       set(corner_ids or ()))
     idx = [i for i in range(len(sample_ids))
            if float(rgb[i].max() - rgb[i].min()) <= GREY_SPREAD_TOL]
     block: dict = {"n_greys": len(idx), "levels": 0, "eligible": False,
@@ -3916,6 +4042,9 @@ def ramps_block(rgb100, lab, ref: "dict[str, tuple]",
     axes: dict = {}
     overall_max = None
     any_eligible = False
+    #: K31 rule A: the first axis that has the steps and the span but not
+    #: their spacing, and the tone value no step is near, for the N-A note.
+    bunched: "tuple[str, float | None] | None" = None
     for name, ch, others in (("R", 0, (1, 2)), ("G", 1, (0, 2)), ("B", 2, (0, 1)),
                              ("grey", None, ())):
         if ch is None:
@@ -3931,20 +4060,39 @@ def ramps_block(rgb100, lab, ref: "dict[str, tuple]",
         distinct = _distinct_levels(tvs)
         span = (max(tvs) - min(tvs)) if tvs else 0.0
         eligible = distinct >= RAMP_MIN_STEPS and span >= RAMP_MIN_SPAN
+        picked: "list[float]" = []
+        if eligible:
+            # K31 rule A: RAMP_MIN_STEPS of them roughly evenly spaced from
+            # the ramp's own lowest to its own highest step in the band.
+            got, miss = pick_even_grey_steps(tvs, n=RAMP_MIN_STEPS,
+                                             tol=RAMP_SPACING_TOL)
+            if got is None:
+                eligible = False
+                if bunched is None:
+                    bunched = (name, miss)
+            else:
+                picked = sorted(round(v, 1) for v in got)
         dls = []
         for i in band:
             r = ref.get(sample_ids[i]) if ref else None
             if r is not None:
                 dls.append(abs(float(lab[i][0]) - float(r[0])))
         axis = {"steps": distinct, "span": round(span, 1), "eligible": eligible,
+                "picked": picked,
                 "max_dl": round(float(max(dls)), 3) if (eligible and dls) else None}
         axes[name] = axis
         if eligible and dls:
             any_eligible = True
             overall_max = max(overall_max or 0.0, axis["max_dl"])
-    return {"axes": axes, "eligible": any_eligible,
-            "reason": None if any_eligible else REASON_NO_RAMP,
-            "max_dl": round(float(overall_max), 3) if overall_max is not None else None}
+    out = {"axes": axes, "eligible": any_eligible,
+           "reason": None if any_eligible else REASON_NO_RAMP,
+           "spacing_tol": RAMP_SPACING_TOL,
+           "max_dl": round(float(overall_max), 3) if overall_max is not None else None}
+    if not any_eligible and bunched is not None:
+        out["reason"] = REASON_RAMP_STEPS_BUNCHED
+        out["bunched_axis"] = bunched[0]
+        out["missing_level"] = bunched[1]
+    return out
 
 
 # ---------------------------------------------------------------------------

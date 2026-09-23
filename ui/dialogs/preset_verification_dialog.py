@@ -164,6 +164,28 @@ def reason_line(code: str) -> str:
             tr("The grey ramp on this chart does not reach black."),
         MR.REASON_NO_RAMP:
             tr("This chart has no tone ramp through the mid-tones."),
+        # K31 rule A (Knut, #182 5801677743): the grey ramp's spacing rule,
+        # applied to the 30 to 70 % band.
+        MR.REASON_RAMP_STEPS_BUNCHED:
+            tr("The mid-tone steps of this chart's tone ramps are bunched "
+               "together: no ramp has {n} of them roughly evenly spaced "
+               "between 30 % and 70 %.").format(n=MR.RAMP_MIN_STEPS),
+        # K31 option (a): a FROM PROFILE GAMUT chart's grey steps are its
+        # neutral aims, which come from the profile.
+        MR.REASON_TOO_FEW_NEUTRAL_AIMS:
+            tr("This chart was built with From Profile Gamut, and it carries "
+               "fewer than {n} distinct neutral aims to serve as its grey "
+               "steps.").format(n=MR.GREY_MIN_LEVELS),
+        MR.REASON_NEUTRAL_AIMS_BUNCHED:
+            tr("The neutral aims on this chart are bunched together: it has "
+               "no {n} of them roughly evenly spaced from its black to its "
+               "white.").format(n=MR.GREY_MIN_LEVELS),
+        MR.REASON_NEUTRAL_AIMS_NO_WHITE:
+            tr("The neutral aims on this chart do not reach its lightest "
+               "colours."),
+        MR.REASON_NEUTRAL_AIMS_NO_BLACK:
+            tr("The neutral aims on this chart do not reach its darkest "
+               "colours."),
         MR.REASON_SMALL_SAMPLE:
             tr("This chart has too few patches for a highest 5 % of them "
                "to exist."),
@@ -369,7 +391,7 @@ def detail_lines(row: "PresetRow | None") -> "list[Line]":
         for rid, why in a.missing:
             out.append(Line("✕  " + tr(PE.row_label(rid)), indent=6))
             out.append(Line(reason_line(why), info=True, indent=22))
-            remedy = PE.row_remedy(rid)
+            remedy = PE.row_remedy(rid, why)
             if remedy:
                 out.append(Line(tr(remedy), info=True, indent=22))
         # **WHAT THE REPORT DOES WITH THESE ROWS, AND THE ONE LEVER OVER IT.**

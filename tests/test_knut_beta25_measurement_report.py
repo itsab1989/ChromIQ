@@ -369,7 +369,7 @@ def test_every_metric_in_report_results_is_explained_in_the_guide(
     give::
 
         E  AssertionError: 8 of 8 metrics are judged with no explanation in
-           the guide: ['Grey balance of the grey ramp, average', …]
+           the guide: ['Average ΔCh, grey balance of the grey ramp', …]
     """
     from workflow.measurement_report import REPORT_TYPE_FULL
     from tests.helpers.report_window import choose_report_type

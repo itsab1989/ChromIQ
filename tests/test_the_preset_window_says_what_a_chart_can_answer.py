@@ -359,7 +359,7 @@ def test_a_missing_row_shows_the_metrics_own_lever(qapp, rows):
                  if dlg._detail_layout.itemAt(i).widget() is not None]
         for rid, why in row.assessment.missing:
             assert PVD.reason_line(why) in shown, why
-            remedy = PE.row_remedy(rid)
+            remedy = PE.row_remedy(rid, why)
             if remedy:
                 assert remedy in shown, rid
     finally:

@@ -14,7 +14,7 @@ first four were not a second view of the other list:
   the first and two behind the second, and all seven were already in the
   second list under their real names, so the same numbers were explained twice
   under two vocabularies.
-* "Paper white & darkest black" and "Cube corners" are report SECTION
+* "Paper white and darkest black (L*)" and "Cube corners (ΔE00)" are report SECTION
   headings, and neither is a row in `compliance_sets.ROWS` at all. They were
   written with no row group, so they survived every filter: a "Grey and tone
   check", which judges three grey and ramp rows and prints neither section,

@@ -120,6 +120,11 @@ def _compliance_set_keys() -> set[str]:
             out.add(row.detect)
         if row.remedy:
             out.add(row.remedy)
+    # K31: the within-gamut names (`tr(row_name(...))`) and the two halves of
+    # the grey rows' lever (`tr(remedy_for(...))`), both tr() on a variable.
+    out |= set(cs.IN_GAMUT_LABELS.values())
+    out.add(cs._R_GREY_RAMP_DEVICE)
+    out.add(cs._R_GREY_RAMP_AIMS)
     for st in cs.SETS:
         out.add(st.label)
         if st.blurb:

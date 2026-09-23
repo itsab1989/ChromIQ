@@ -786,9 +786,11 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-24, K31-A (B8-890 to B8-899) and K31-B (B8-900 to B8-909) cherry-picked onto beta 39 (B8-910 to B8-925). COUNTED, BOTH ledgers.
     # RE-MEASURED 2026-09-23, the R2 text fixes (B8-911 to B8-915) merged onto the help fixes. COUNTED, BOTH ledgers.
     # RE-MEASURED 2026-09-23, the beta 39 help fixes (B8-910) merged onto the R1 fixes. COUNTED, BOTH ledgers.
     # RE-MEASURED 2026-09-23, the R1 fixes (B8-916 to B8-919): M-REPORT-UPDATE-NOTHING-LEFT and "covers no measurement". COUNTED, BOTH ledgers.
+    # RE-MEASURED 2026-09-23, K31 metrics (B8-900 to B8-907): the version 1 names, rule A, the neutral aims, the evenness line and their help texts; German by hand, the twelve others English under the beta rule. COUNTED, BOTH ledgers.
     # RE-MEASURED 2026-09-23, the report-window fixes (B8-880 to B8-886) merged onto the challenge C fixes. COUNTED, BOTH ledgers.
     # RE-MEASURED 2026-09-23, the challenge C fixes (B8-870 to B8-873) merged onto K30. COUNTED, BOTH ledgers.
     # RE-MEASURED 2026-09-23, G7 (B8-848) merged onto K28a. COUNTED, BOTH ledgers.
@@ -1428,17 +1430,17 @@ _IDENTICAL_TO_KEY = {
     # COUNTED off the tree with this file's own expression, BOTH ledgers in
     # the same commit.
     "de": 141,
-    "es": 1185,
-    "fr": 1207,
-    "it": 1196,
-    "ja": 1171,
-    "nl": 1212,
-    "no": 1197,
-    "pl": 1189,
-    "pt": 1187,
-    "ru": 1160,
-    "sv": 1198,
-    "zh_CN": 1165,
+    "es": 1200,
+    "fr": 1222,
+    "it": 1211,
+    "ja": 1186,
+    "nl": 1227,
+    "no": 1212,
+    "pl": 1204,
+    "pt": 1202,
+    "ru": 1175,
+    "sv": 1213,
+    "zh_CN": 1180,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1466,7 +1468,7 @@ _IDENTICAL_TO_KEY = {
     # Nothing else changed. The ceiling is re-measured DOWN here rather than
     # left where it was, so the next rise still has to justify itself.
     # +8 on 2026-09-23 for #182 S-2, the same eight as every other language.
-    "uk": 1400,
+    "uk": 1363,
 }
 
 

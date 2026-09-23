@@ -163,7 +163,7 @@ def test_the_overview_table_prints_it_rather_than_a_dash(tmp_path, qapp):
     try:
         html = dlg._report_body_html(dlg._runs_for_report(), for_pdf=True)
         white = _row_cells(html, "Paper white L*")
-        black = _row_cells(html, "Black L*")
+        black = _row_cells(html, "Darkest black L*")
         assert "95.4" in white, (
             f"the Overview table has no number for the older shape: {white!r}")
         assert "6.2" in black, (

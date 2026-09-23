@@ -1,4 +1,4 @@
-"""Evenness across the sheet, nine locations (#182, Knut, 2026-09-22; B8-814).
+"""Maximum ΔE00, between two of the nine sheet areas (#182, Knut, 2026-09-22; B8-814).
 
 Knut's rulings (issue comment 5785774676), each held here by behaviour:
 

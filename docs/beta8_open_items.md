@@ -19535,7 +19535,11 @@ would reach.
 - photograph: `~/Desktop/ChromIQ-beta26-proof/knut-demo-presets/shots/verify-q1-open.png`,
   right-hand pane, "Grey balance of the grey ramp, average" under *This chart
   can answer*.
-- evidence: test_the_open_questions_really_are_accepted_today
+- K31 (beta 40, B8-901): the tone ramp's spacing rule is ruled too (Knut,
+  #182 5801677743, rule A); Q2 became requirement R15's FAIL side, and the
+  guard that held the open behaviour became
+  `test_no_open_question_is_left_in_the_pack`.
+- evidence: test_no_open_question_is_left_in_the_pack
 
 ### B8-484 · OPEN · A shortfall of REFERENCES is reported as a shortfall of PATCHES on two rows
 - status: OPEN
@@ -27093,3 +27097,94 @@ would reach.
 - tests: tests/test_the_demo_data_describes_its_own_lock_correctly.py, tests/test_the_demo_pack_covers_every_report_type.py
 - evidence: test_no_plan_declares_a_lock_state_any_more, test_the_readme_never_writes_a_lock_claim, test_the_index_names_a_run_whose_new_reports_start_on_its_own_set
 - proof: ~/Desktop/ChromIQ-beta40-proof/k31-a-report-model/demo-verify.txt (make_release_demo_package.py --verify).
+
+### B8-900 · FIXED, awaiting confirmation · Evenness: "How evenness was judged" line and the approved help text (K31 section 3)
+- blocks release: no
+- status: FIXED
+- note: K31, beta 40; spec §26.1. Knut, #182 5801677743: "Both texts approved."
+- found by: Knut's question "What do you mean by 'evenness is read as measured'?" (answered in 5798697107 section 3).
+- fixed: `_printing_block_html` adds "How evenness was judged: from the readings as the instrument took them, by comparing the nine areas of this sheet with each other." only when an evenness row is in the run's verdict rows (`_evenness_row_is_in_report`); `_D_EVENNESS` carries the two approved help paragraphs in place of "The readings are taken as measured, …"; the Dictionary entry "Judged relative to paper white (media-relative)" names the line. German: "Wie die Gleichmäßigkeit beurteilt wurde: aus den Messwerten, so wie das Messgerät sie aufgenommen hat, indem die neun Bereiche dieses Bogens miteinander verglichen wurden."
+- tests: tests/test_k31_metrics.py
+- evidence: test_the_evenness_line_is_there_only_with_an_evenness_row, test_both_evenness_help_icons_carry_the_approved_text
+- proof: ~/Desktop/ChromIQ-beta40-proof/k31-b-metrics/drive-en and drive-de (evenness-01-line, evenness-03-grey-and-tone-no-line, prefs-03-help-evenness; PDFs in pdf/).
+
+### B8-901 · FIXED, awaiting confirmation · The 30 to 70 % tone ramp takes the grey ramp's spacing rule (K31 rule A)
+- blocks release: no
+- status: FIXED
+- note: K31, beta 40; spec §26.2. Knut, #182 5801677743: "Implement rule A, update all relevant text and help text relevant."
+- found by: Knut's question in 5798697107 section 4 (steps 40, 59.4 and 60 passed).
+- fixed: `ramps_block` asks `pick_even_grey_steps(band, n=RAMP_MIN_STEPS, tol=RAMP_SPACING_TOL)` (4.0, inclusive) after the unchanged count and span; a refused axis gives `ramp_steps_bunched` with the tone value nothing is near; the report note, the presets window line (a patch shortfall), the row's help icon and lever (-s, -g), `_CHART_HELP` and the Dictionary "ΔL*" entry say it. Counted after: 185 of 185 built-in presets still answer the row (k31-b-metrics/tone_ramp_count_after.txt).
+- tests: tests/test_k31_metrics.py
+- evidence: test_bunched_mid_tones_are_refused_and_named, test_evenly_spaced_mid_tones_pass_and_the_tolerance_is_four_inclusive, test_too_few_steps_is_still_no_ramp, test_the_na_note_and_the_presets_window_name_the_bunching, test_the_help_icon_states_rule_a, test_no_built_in_preset_loses_the_tone_row
+- proof: ~/Desktop/ChromIQ-beta40-proof/k31-b-metrics/drive-en and drive-de (presets-01-r15-fail, presets-02-r15-pass, split-10-help-tone-ramp).
+
+### B8-902 · FIXED, awaiting confirmation · Version 1 names for every metric row (K31 section 5)
+- blocks release: no
+- status: FIXED
+- note: K31, beta 40; spec §26.3. Knut, #182 5801677743: "Use version 1 everywhere and implement your recommendations. Accepted."
+- found by: 5798697107 section 5.
+- fixed: every `compliance_sets.ROWS` label is its version 1 name ("Maximum ΔE00, solid colours", "Maximum ΔE00, between two of the nine sheet areas", …); "Maximum", never "largest", in the names and the help prose; the verification help card names the three reference metrics by their names. Keys renamed in all fourteen catalogues, German by hand without a form of address (§19.1), twelve languages English under the beta rule.
+- tests: tests/test_k31_metrics.py, tests/test_k28b_one_vocabulary.py
+- evidence: test_every_row_carries_its_version_1_name, test_a_name_says_maximum_never_largest_and_carries_its_unit, test_the_german_report_texts_address_nobody
+- proof: ~/Desktop/ChromIQ-beta40-proof/k31-b-metrics/drive-en and drive-de (split-01-results, split-09-report-limits, prefs-02-report-limits).
+
+### B8-903 · FIXED, awaiting confirmation · A unit in every graph name; one name per figure in the Overview and the graphs (K31 section 5)
+- blocks release: no
+- status: FIXED
+- note: K31, beta 40; spec §26.3
+- found by: 5798697107 section 5 (the tabs "Paper white, diff" and "Cube corners" had no unit; "Black L*" beside "Darkest black"; "Pairs").
+- fixed: tabs "Paper white difference (ΔE00)", "Tone ramps 30 to 70 % (ΔL*)", "Cube corners (ΔE00)" (tab and title); legend and Overview "Darkest black L*"; Overview "Standard deviation ΔE00, all patches"; detail headings "Paper white and darkest black (L*)", "Colour accuracy (ΔE00 against the chart's design)", "Cube corners (ΔE00)"; the evenness line word "Areas".
+- tests: tests/test_k31_metrics.py
+- evidence: test_every_graph_tab_carries_a_unit, test_the_darkest_black_has_one_name, test_the_evenness_line_word_is_areas
+- proof: ~/Desktop/ChromIQ-beta40-proof/k31-b-metrics/drive-en and drive-de (split-05-overview-info, split-07-detail-info, split-08-graph-*).
+
+### B8-904 · FIXED, awaiting confirmation · "Within gamut" in the judged names on a split sheet; "Within and beyond the gamut together" (K31 sections 5 and 6)
+- blocks release: no
+- status: FIXED
+- note: K31, beta 40; spec §26.4. Knut, #182 5801677743: "Agreed, do as recommended."
+- found by: 5798697107 section 5 point 4 and section 6.
+- fixed: `compliance_sets.IN_GAMUT_LABELS` / `row_name`; the dialog's `_row_name` names the seven within-gamut rows "… within gamut" on a document holding a split sheet (grid, guide, notes, legends) and per sheet (detail table, one-page summary); the Overview's third block is "Within and beyond the gamut together"; the beyond and together figures stay information only; the "all patches" and evenness help icons and the Dictionary say so, and that a FROM PROFILE GAMUT chart is never split.
+- tests: tests/test_k31_metrics.py
+- evidence: test_the_within_gamut_names_are_exactly_the_split_rows, test_a_split_report_names_the_judged_figures_within_gamut, test_the_overview_block_is_within_and_beyond_together
+- proof: ~/Desktop/ChromIQ-beta40-proof/k31-b-metrics/drive-en and drive-de (split-01..04, split-08-graph-00, pdf/*-split.pdf).
+
+### B8-905 · FIXED, awaiting confirmation · A FROM PROFILE GAMUT chart's neutral aims are its grey steps (K31 section 7, option a; challenge A F2)
+- blocks release: no
+- status: FIXED
+- note: K31, beta 40; spec §26.5. Knut, #182 5801677743: "Implement option (a)". The chart-relative END rule (within 10 L* of the chart's lightest and darkest aim) is our construction and is on the list to confirm.
+- found by: challenge A of beta 39, F2 (a 400-patch FPG chart read grey_steps_bunched on both grey rows).
+- cause: the grey test is device R = G = B within 1.0, and a neutral aim printed through the profile comes out with R, G and B up to 1.5 apart.
+- fixed: `grey_balance_block(neutral_aims=, corner_ids=)` / `_neutral_aim_grey_block` (aim hypot(a*, b*) < 1.0, corners excluded, steps by L*, the same count and 4 L* spacing), used by `build_report` on the colorimetric branch and by `preset_eligibility._perfect_print` (`_colorimetric_aims`); four reasons of their own with their sentences; the lever is a larger chart (`compliance_sets.remedy_for`); the grey rows' help icon, `_CHART_HELP`, the verification help card and the Dictionary "Grey ramp" say how.
+- tests: tests/test_k31_metrics.py
+- evidence: test_the_presets_window_answers_the_grey_rows_of_a_gamut_chart, test_the_report_of_a_gamut_verification_answers_the_grey_rows, test_the_corners_are_never_grey_steps, test_the_ends_are_the_charts_own_reach, test_a_neutral_aim_is_what_create_chart_calls_neutral, test_bunched_aims_are_named_with_their_lightness, test_the_lever_on_a_gamut_chart_is_a_larger_chart_not_grey_steps, test_the_two_spellings_of_the_aim_reasons_agree
+- proof: ~/Desktop/ChromIQ-beta40-proof/k31-b-metrics/fpg-before-en (beta 39 tree) and fpg-after-en, fpg-after-de: tester A's case, 400 and 100 patches, the presets window and the report's grey rows.
+
+### B8-906 · FIXED, awaiting confirmation · The demo packages exercise rule A and the neutral aims
+- blocks release: no
+- status: FIXED
+- note: K31, beta 40; spec §26.2, §26.5
+- found by: Knut's "update the demo project package to test the requirements for this metric with the new rule"; the first package build after option (a), which failed its own intended-against-actual check on five From Profile Gamut dates.
+- fixed: `make_verification_preset_demos.py`: the open preset Q2 became requirement R15 (FAIL 40, 59.4, 60; PASS 40, 50, 60), the four neutral-aim reasons are listed as unreachable by a preset, the README counts are computed; `make_report_limit_demos.py`: `grey_stat_indices` designs a From Profile Gamut sheet's greys on its neutral aims and `ROWS_GAMUT` holds the grey pair again; `make_release_demo_package.py`: §26 mapped, §21.2's From Profile Gamut line replaced. `--check`: 15 requirements, 33 presets, 0 not doing what they claim; the release package builds with 0 faults and `--verify` says complete.
+- tests: tests/test_the_demo_presets_pair_on_every_requirement.py
+- evidence: test_no_open_question_is_left_in_the_pack, test_the_independent_arithmetic_agrees_with_the_app, test_the_package_accounts_for_every_reason_the_window_can_show
+- proof: ~/Desktop/ChromIQ-beta40-proof/k31-b-metrics/package-build.txt, package-verify.txt, pack/.
+
+### B8-907 · FIXED, awaiting confirmation · Help icons and help cards describe every K31 change
+- blocks release: no
+- status: FIXED
+- note: K31, beta 40; Knut, #182 5801750910: "Make sure all the changes in functionality is described in help icons and relevant help cards."
+- found by: the coordinator's help audit (~/Desktop/ChromIQ-beta39-proof/remaining-questions/HELP-GAPS.md, the "beta 40" metric rows).
+- fixed: row help icons `_D_GREY_RAMP`, `_R_GREY_RAMP`, `_D_RAMPS`, `_R_RAMPS`, `_D_ALL_PATCHES`, `_D_EVENNESS`, `_B_EVEN_PAIRWISE`, `_B_EVEN_FROM_MEAN`, `_D_CONTROL_STRIP`, `_R_CONTROL_STRIP`, `_D_REPEAT_ACROSS`, the 95th-percentile blurb; the report's `_CHART_HELP`; the help cards: the verification card's "Three metrics only FROM PROFILE GAMUT can answer", the Dictionary's "Judged relative to paper white", "Within / beyond the profile's gamut", "ΔL*", "95th percentile" and "Grey ramp" (which also stops saying the grey ramp is needed for tone).
+- tests: tests/test_k31_metrics.py
+- evidence: test_both_evenness_help_icons_carry_the_approved_text, test_the_help_icon_states_rule_a, test_the_lever_on_a_gamut_chart_is_a_larger_chart_not_grey_steps
+- proof: ~/Desktop/ChromIQ-beta40-proof/k31-b-metrics/drive-en and drive-de (split-10, split-11, prefs-03 help dialogs).
+
+### B8-908 · OPEN · Should a FROM PROFILE GAMUT chart's tone row take its neutral aims too?
+- blocks release: no
+- status: OPEN
+- note: K31, beta 40; spec §26.5 ("Not changed, and a question"). Option (a) was ruled for the grey rows; the 30 to 70 % ramp's grey axis still finds its steps by device R = G = B on every chart, and an aim's L* is not a tone value. On the challenge A charts the tone row is answered by the device greys of the middle band. For Knut.
+
+### B8-909 · OPEN · The German heading "So ist dieser Bericht zu lesen" stays until Sebastian decides
+- blocks release: no
+- status: OPEN
+- note: K31, beta 40; spec §26.6. Knut: "use your recommendation, then if Sebastian says differently you can alter it." Nothing changed in the code.

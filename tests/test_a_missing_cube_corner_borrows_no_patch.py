@@ -118,7 +118,7 @@ def _dialog(tmp_path, qapp):
 
 def _corner_rows(detail: str) -> "dict[str, str]":
     """``{corner label: that row's HTML}`` out of the cube-corners table."""
-    i = detail.find("Cube corners (the eight ink extremes)")
+    i = detail.find("Cube corners (ΔE00)")
     assert i > 0, "the cube-corners table is not in this report"
     body = detail[i:]
     end = body.find("</table>")

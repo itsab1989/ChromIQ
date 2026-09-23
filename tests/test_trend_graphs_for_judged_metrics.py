@@ -9,7 +9,7 @@ follow the threshold settings relevant for the report, given by the judged
 against selection."* 5787117741: *"each group show maximum two metrics with
 their own independent threshold level line"*, related metrics only, and a line
 outside the y-range is simply out of view. 5787380408: keep "Paper white
-(L*)", add "Paper white, diff".
+(L*)", add "Paper white difference (ΔE00)".
 
 Every test below names the mutation it was proved red against.
 """
@@ -134,17 +134,17 @@ def test_every_group_holds_at_most_two_related_rows_that_exist():
 
 
 def test_the_paper_white_tabs_are_both_there_in_knuts_order(qapp, tmp_path):
-    """"Paper white (L*)" stays, "Paper white, diff" sits beside it, and the
+    """"Paper white (L*)" stays, "Paper white difference (ΔE00)" sits beside it, and the
     four tabs Knut asked to keep are still there.
 
-    MUTATION, proven red: add "Paper white, diff" after "Cube corners"."""
+    MUTATION, proven red: add "Paper white difference (ΔE00)" after "Cube corners (ΔE00)"."""
     dlg = _open(tmp_path, qapp, effective_limits("chromiq_default", {}))
     try:
         names = [dlg._trend_tabs.tabText(i)
                  for i in range(dlg._trend_tabs.count())]
         assert names[:5] == ["Colour accuracy (ΔE00)", "Paper white (L*)",
-                             "Paper white, diff", "Darkest black (L*)",
-                             "Cube corners"]
+                             "Paper white difference (ΔE00)", "Darkest black (L*)",
+                             "Cube corners (ΔE00)"]
     finally:
         dlg.deleteLater()
 
@@ -197,10 +197,10 @@ def test_a_tab_shows_only_while_one_of_its_rows_is_judged(qapp, tmp_path):
         assert "ramps_30_70_dl_max" not in judged
         vis = _visible(dlg)
         assert vis["Grey balance (ΔCh)"] is True
-        assert vis["Tone (ΔL*)"] is False
-        assert vis["Paper white, diff"] is False
+        assert vis["Tone ramps 30 to 70 % (ΔL*)"] is False
+        assert vis["Paper white difference (ΔE00)"] is False
         for keep in ("Colour accuracy (ΔE00)", "Paper white (L*)",
-                     "Darkest black (L*)", "Cube corners"):
+                     "Darkest black (L*)", "Cube corners (ΔE00)"):
             assert vis[keep] is True, keep
     finally:
         dlg.deleteLater()
@@ -217,7 +217,7 @@ def test_a_limit_on_the_tone_row_brings_its_tab(qapp, tmp_path):
     lim["ramps_30_70_dl_max"] = Limit.value(2.5)
     dlg = _open(tmp_path, qapp, lim)
     try:
-        assert _visible(dlg)["Tone (ΔL*)"] is True
+        assert _visible(dlg)["Tone ramps 30 to 70 % (ΔL*)"] is True
         assert [v for v, _w, _c in _group(dlg, "tone")._limit_lines] == [2.5]
     finally:
         dlg.deleteLater()
@@ -258,7 +258,7 @@ def test_only_the_judged_rows_of_a_group_are_plotted(qapp, tmp_path):
         g = _group(dlg, "grey")
         assert [m[0] for m in g._metrics] == [
             # the row's label, with its unit since K25
-            "Grey balance of the grey ramp, average (ΔCh)"]
+            "Average ΔCh, grey balance of the grey ramp"]
         assert [v for v, _w, _c in g._limit_lines] == [1.5]
     finally:
         dlg.deleteLater()
@@ -377,8 +377,8 @@ def test_the_pdf_prints_the_shown_tabs_and_leaves_the_hidden_out(
             pytest.skip("no trend on this fixture, so nothing is printed")
         _sizes, html_ = _export(dlg, tmp_path, monkeypatch)
         assert "Grey balance (ΔCh)" in html_
-        assert "Tone (ΔL*)" not in html_
-        assert "Paper white, diff" not in html_
+        assert "Tone ramps 30 to 70 % (ΔL*)" not in html_
+        assert "Paper white difference (ΔE00)" not in html_
         n_charts = html_.count("chart://")
         assert n_charts == sum(1 for e in dlg._trend_plan() if e[-1])
         assert html_.count("<table") == n_charts

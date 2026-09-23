@@ -142,7 +142,9 @@ WITHIN_GAMUT_ROWS = frozenset({
     "all_de00_avg", "best95_de00_avg", "worst5_de00_avg", "all_de00_max",
     "all_de00_p95", "uniformity_sd", "uniformity_de00_max_from_mean"})
 _METRIC_LABELS = {k: _row_label_of_key(k) for k in _ACCURACY_ROW_KEYS}
-_METRIC_LABELS["std"] = lambda: tr("Spread (std. dev.)")
+# K31 (Knut, #182 5801677743, version 1): the unit and the patches in the
+# name, as every limited figure carries them.
+_METRIC_LABELS["std"] = lambda: tr("Standard deviation ΔE00, all patches")
 
 
 def _report_across_projects_help() -> str:
@@ -240,12 +242,13 @@ _METRIC_LINE = {
 #: without jumping on one misread patch, and one spike is what stretches a
 #: 0-anchored axis and flattens the small drift a trend is for.
 _TREND_GROUPS = (
-    ("paper_diff", lambda: tr("Paper white, diff"), (
+    # K31 (version 1): every tab name carries its unit.
+    ("paper_diff", lambda: tr("Paper white difference (ΔE00)"), (
         ("substrate_de00_max", lambda: tr("Max"), "#8a8a8a"),)),
     ("grey", lambda: tr("Grey balance (ΔCh)"), (
         ("grey_balance_neutral_ramp_avg", lambda: tr("Avg"), "#56d6a5"),
         ("grey_balance_neutral_ramp_max", lambda: tr("Max"), "#e0574b"))),
-    ("tone", lambda: tr("Tone (ΔL*)"), (
+    ("tone", lambda: tr("Tone ramps 30 to 70 % (ΔL*)"), (
         ("ramps_30_70_dl_max", lambda: tr("Max"), "#37bcd6"),)),
     ("strip", lambda: tr("Control strip (ΔE00)"), (
         ("control_strip_de00_avg", lambda: tr("Avg"), "#56d6a5"),
@@ -254,7 +257,8 @@ _TREND_GROUPS = (
         ("repeat_patches_de00_max", lambda: tr("Sheet"), "#37bcd6"),
         ("repeat_measurement_de00_max", lambda: tr("Again"), "#e0864b"))),
     ("evenness", lambda: tr("Evenness (ΔE00)"), (
-        ("uniformity_sd", lambda: tr("Pairs"), "#e0574b"),
+        # K31: "Pairs" was the one unclear limit-line word.
+        ("uniformity_sd", lambda: tr("Areas"), "#e0574b"),
         ("uniformity_de00_max_from_mean", lambda: tr("Mean"), "#37bcd6"))),
 )
 
@@ -306,7 +310,7 @@ _LIMIT_NOTES = {
         "the limit for the colour cast of the worst single step of the grey "
         "ramp."),
     "ramps_30_70_dl_max": lambda: tr(
-        "the limit for the largest lightness difference on the ramps between "
+        "the limit for the maximum lightness difference on the ramps between "
         "30 % and 70 %."),
     "control_strip_de00_avg": lambda: tr(
         "the limit for the average colour difference of the control-strip "
@@ -315,16 +319,16 @@ _LIMIT_NOTES = {
         "the limit for the colour difference that 95 % of the control-strip "
         "patches stay under."),
     "repeat_patches_de00_max": lambda: tr(
-        "the limit for the largest difference between patches of the same "
+        "the limit for the maximum difference between patches of the same "
         "colour on one sheet."),
     "repeat_measurement_de00_max": lambda: tr(
-        "the limit for the largest difference when the same chart is "
+        "the limit for the maximum difference when the same chart is "
         "measured again."),
     "uniformity_sd": lambda: tr(
-        "the limit for the largest difference between any two of the nine "
+        "the limit for the maximum difference between any two of the nine "
         "areas of the sheet."),
     "uniformity_de00_max_from_mean": lambda: tr(
-        "the limit for the largest difference between one of the nine areas "
+        "the limit for the maximum difference between one of the nine areas "
         "and the mean of all nine."),
 }
 
@@ -355,7 +359,7 @@ _TREND_ABOUT = {
         "How neutral the grey ramp prints (ΔCh, the colour cast with "
         "lightness left out), per date: the average step and the worst step."),
     "tone": lambda: tr(
-        "The largest lightness difference (ΔL*) on the single-colour and grey "
+        "The maximum lightness difference (ΔL*) on the single-colour and grey "
         "ramps between 30 % and 70 %, per date."),
     "strip": lambda: tr(
         "The colour difference (ΔE00) of the control-strip patches, per date: "
@@ -870,7 +874,7 @@ def _control_strip_sentence(r: "dict | None") -> str:
         counted = tr("the control strip of the measured chart has {k} patches "
                      "with reference values").format(k=k)
     return counted + tr("; at least {n} are needed for the average and the "
-                        "largest, and at least {p} for the 95th percentile").format(n=CONTROL_STRIP_MIN,
+                        "maximum, and at least {p} for the 95th percentile").format(n=CONTROL_STRIP_MIN,
                                         p=CONTROL_STRIP_P95_MIN)
 
 
@@ -1797,9 +1801,10 @@ _PAIRING_HELP = (
 _CHART_HELP = (
     "And the chart you printed decides what any of it can say. A row is judged "
     "only when the sheet carries the patches that row needs: at least eight "
-    "roughly evenly spaced grey steps from white to black for the grey rows, "
-    "a single-ink or grey "
-    "ramp through the mid-tones for the tone row, and, for the paper and solid "
+    "grey steps from white to black, spread roughly evenly, for the grey rows "
+    "(on a chart built with FROM PROFILE GAMUT these are its neutral aims), a "
+    "single-ink or grey ramp with three roughly evenly spaced steps through "
+    "the mid-tones for the tone row, and, for the paper and solid "
     "rows, a chart built with FROM PROFILE GAMUT on the Create Chart tab. That "
     "one picks its colours from what your own profile can actually print and "
     "carries an aim value for each of them, which is the thing those rows are "
@@ -2914,7 +2919,7 @@ class MeasurementReportDialog(QDialog):
         for key, title, _m in _TREND_GROUPS[:1]:
             self._trend_tabs.addTab(self._trend_groups[key], title())
         self._trend_tabs.addTab(self._trend_black, tr("Darkest black (L*)"))
-        self._trend_tabs.addTab(self._trend_corners, tr("Cube corners"))
+        self._trend_tabs.addTab(self._trend_corners, tr("Cube corners (ΔE00)"))
         for key, title, _m in _TREND_GROUPS[1:]:
             self._trend_tabs.addTab(self._trend_groups[key], title())
         for chart in self._trend_groups.values():
@@ -4832,14 +4837,19 @@ class MeasurementReportDialog(QDialog):
         — shared by the live tabs and the PDF export so they always match. ``auto``
         ranges the axis tightly around the data instead of anchoring at 0."""
         # K26: the figures each date's verdict judged, within gamut where the
-        # sheet was split by the profile's gamut (`report_trend`). The NAME is
-        # the same either way (K28, one vocabulary); what the population is,
-        # the graph's description says (`_TREND_ABOUT_DE_JUDGED`).
+        # sheet was split by the profile's gamut (`report_trend`). Since K31
+        # the NAME says so too ("… within gamut", `compliance_sets.row_name`),
+        # and the graph's description still says what the population is
+        # (`_TREND_ABOUT_DE_JUDGED`).
         #
         # **A "–" LIMIT TAKES THE LINE OFF THE GRAPH (K28, item 3).** Knut:
         # a limit set to "–" removes the row from the results, the guide, the
         # detailed data, the Overview *"and the graph"*.
         dash = self._dash_row_ids(self._document_runs_for_graphs())
+        # K31 (Knut, #182 5801677743): on a document holding a split sheet
+        # the legend names the judged figures "within gamut", as Report
+        # Results does, so one name never means two populations.
+        _names_runs = self._document_runs_for_graphs()
         corner_metrics = [
             # K25: the unit on every data label, as Colour accuracy's carry.
             (_with_unit(_CORNER_LABELS[code](), "ΔE00"),
@@ -4849,7 +4859,8 @@ class MeasurementReportDialog(QDialog):
         ]
         return [
             (self._trend_de, tr("Colour accuracy (ΔE00)"), [
-                (_with_unit(_METRIC_LABELS[k](), "ΔE00"),
+                (_with_unit(self._row_name(_ROW_ID_OF[k], _names_runs),
+                            "ΔE00"),
                  QColor(_METRIC_LINE[k]),
                  (lambda pt, kk=k: _accuracy_value(pt, kk)))
                 for k in _ACCURACY_ROW_KEYS if _ROW_ID_OF[k] not in dash
@@ -4861,9 +4872,11 @@ class MeasurementReportDialog(QDialog):
                 (tr("Paper white L*"), QColor("#8a8a8a"), lambda pt: pt.get("white_L")),
             ], None, 1, True),
             (self._trend_black, tr("Darkest black (L*)"), [
-                (tr("Black L*"), QColor("#505050"), lambda pt: pt.get("black_L")),
+                # K31: one name for the tab, the legend and the Overview.
+                (tr("Darkest black L*"), QColor("#505050"),
+                 lambda pt: pt.get("black_L")),
             ], None, 1, True),
-            (self._trend_corners, tr("Cube corners (ΔE00 per ink)"),
+            (self._trend_corners, tr("Cube corners (ΔE00)"),
              corner_metrics, None, 1, False),
         ]
 
@@ -9550,6 +9563,38 @@ class MeasurementReportDialog(QDialog):
                                        "chart has no aim for it"),
             "no_ramp": tr("the measured chart has no tone ramp with at least "
                           "three steps between 30 % and 70 %"),
+            # K31 rule A (Knut, #182 5801677743): the grey ramp's spacing
+            # rule on the 30 to 70 % band. Names the tone value nothing is
+            # near, as the grey sentence above names its level.
+            "ramp_steps_bunched": tr(
+                "the mid-tone steps of the measured chart are bunched "
+                "together: none lies within {tol} of the tone value {level} %, "
+                "and {n} roughly evenly spaced steps between 30 % and 70 % on "
+                "one ramp are needed").format(
+                    tol=f"{_MR.RAMP_SPACING_TOL:g}", n=_MR.RAMP_MIN_STEPS,
+                    level=f"{float((r.get('ramps_30_70') or {}).get('missing_level') or 0):g}"),
+            # K31 option (a): on a chart built FROM PROFILE GAMUT the grey
+            # steps are its neutral aims, placed by their L*.
+            "too_few_neutral_aims": tr(
+                "the measured chart was built from the profile's gamut and "
+                "has {k} distinct neutral aims to serve as grey steps; at "
+                "least {n} are needed").format(
+                    k=gb.get("levels", 0), n=_MR.GREY_MIN_LEVELS),
+            "neutral_aims_bunched": tr(
+                "the neutral aims of the measured chart are bunched together: "
+                "none lies within {tol} of the lightness L* {level}, and {n} "
+                "roughly evenly spaced steps from its black to its white are "
+                "needed").format(
+                    tol=f"{_MR.GREY_SPACING_TOL:g}", n=_MR.GREY_MIN_LEVELS,
+                    level=f"{float(gb.get('missing_level') or 0):g}"),
+            "neutral_aims_no_white": tr(
+                "the neutral aims of the measured chart do not reach within "
+                "{reach} L* of its lightest aim").format(
+                    reach=f"{_MR.NEUTRAL_AIM_END_REACH:g}"),
+            "neutral_aims_no_black": tr(
+                "the neutral aims of the measured chart do not reach within "
+                "{reach} L* of its darkest aim").format(
+                    reach=f"{_MR.NEUTRAL_AIM_END_REACH:g}"),
             # **THE POPULATION THAT WAS GRADED, NOT THE CHART'S OWN COUNT.**
             # Measured on a 20-patch chart: the row was withheld and the
             # sentence read *"the chart has 20 patches; at least 20 are
@@ -9706,7 +9751,7 @@ class MeasurementReportDialog(QDialog):
             sentence = self._note_sentence(code)
             if not sentence:
                 continue
-            labels = [tr(ROW_BY_ID[rid].label) if rid in ROW_BY_ID else str(rid)
+            labels = [self._row_name(rid) if rid in ROW_BY_ID else str(rid)
                       for rid in rids]
             # "; " and not ", ": since K28 the names carry commas of their
             # own ("Average ΔE00, all patches"), and two of them joined by a
@@ -11577,7 +11622,8 @@ class MeasurementReportDialog(QDialog):
                     continue
                 out.append("<li>" + html.escape(
                     tr("{metric}: {explanation}").format(
-                        metric=tr(row.label), explanation=tr(row.blurb)))
+                        metric=MeasurementReportDialog._row_name(self, rid),
+                        explanation=tr(row.blurb)))
                     + "</li>")
             return "".join(out)
 
@@ -11958,9 +12004,12 @@ class MeasurementReportDialog(QDialog):
                     f"font-weight:{weight}'>{html.escape(word_label(word))}"
                     f"{mark}</td>")
 
+        self._names_split = self._doc_is_split(runs)
+
         def label_of(rid):
             row = ROW_BY_ID.get(rid)
-            return tr(row.label) if row else _METRIC_LABELS.get(rid, lambda: rid)()
+            return (self._row_name(rid, runs) if row
+                    else _METRIC_LABELS.get(rid, lambda: rid)())
 
         row_getters = [(label_of(rid), (lambda r, rid=rid: cell(r, rid)))
                        for rid in present]
@@ -12266,7 +12315,9 @@ class MeasurementReportDialog(QDialog):
                                 num(lambda r: gs(r).get("n_out"), 0)))
             row_getters += [(_METRIC_LABELS[k](), num(part("de00_out", k), 2))
                             for k in keys]
-            row_getters.append((tr("All patches together"), None))
+            # K31 (Knut, #182 5801677743, section 6: "do as recommended").
+            row_getters.append((tr("Within and beyond the gamut together"),
+                                None))
         row_getters += [(_METRIC_LABELS[k](), num((lambda r, k=k: de(r).get(k)), 2))
                         for k in keys]
         # **FIGURES THAT NEVER HAVE A LIMIT, UNDER A HEADING THAT SAYS SO (K28,
@@ -12286,7 +12337,7 @@ class MeasurementReportDialog(QDialog):
         row_getters += [
             (tr("Paper white L*"),
              num(lambda r: point_lightness(r.get("paper_white")), 1)),
-            (tr("Black L*"),
+            (tr("Darkest black L*"),
              num(lambda r: point_lightness(r.get("max_black")), 1)),
         ]
         for code in ("W", "K", "R", "G", "B", "C", "M", "Y"):
@@ -12513,6 +12564,8 @@ class MeasurementReportDialog(QDialog):
             _LIGHT_REPORT))
         if not runs:
             return self._empty_html()
+        # K31: whether the judged names say "within gamut" in this document.
+        self._names_split = self._doc_is_split(runs)
         # A plain "Created: …" line — at the top of the window body, and under
         # the title + spectrum line in the PDF (Knut). The profile line that used
         # to be here is dropped; Report Scope already lists it.
@@ -12774,7 +12827,7 @@ class MeasurementReportDialog(QDialog):
         if not judged:
             return ""
         words = "; ".join(
-            f"{tr(ROW_BY_ID[x.get('row_id')].label)}: "
+            f"{self._row_name(x.get('row_id'), [r])}: "
             f"{word_label(x.get('word'))}" for x in judged
             if x.get("row_id") in ROW_BY_ID)
         where = _evenness_worst_area_sentence(r)
@@ -12823,7 +12876,8 @@ class MeasurementReportDialog(QDialog):
         for key in ("avg_all", "max_all"):
             if de.get(key) is not None and _ROW_ID_OF[key] not in _dash:
                 bits.append(tr("{metric}: {value}").format(
-                    metric=_METRIC_LABELS[key](), value=_fmt(de.get(key), 2)))
+                    metric=self._row_name(_ROW_ID_OF[key], [r]),
+                    value=_fmt(de.get(key), 2)))
         _split = r.get("gamut_split") or {}
         _sheet = int((_split.get("n_in") or 0) + (_split.get("n_out") or 0))
         if de.get("n"):
@@ -13084,7 +13138,8 @@ class MeasurementReportDialog(QDialog):
                 lim = judged[rid]
                 # K25: the legend carries the row's unit, as Colour
                 # accuracy's "Average ΔE, all patches" does.
-                metrics.append((_with_unit(tr(ROW_BY_ID[rid].label),
+                metrics.append((_with_unit(self._row_name(
+                                    rid, self._document_runs_for_graphs()),
                                            ROW_BY_ID[rid].unit), QColor(col),
                                 (lambda pt, rr=rid, ll=lim:
                                  _trend_row_value(pt, rr, ll))))
@@ -13188,6 +13243,36 @@ class MeasurementReportDialog(QDialog):
         return (f"<div style='color:{_C['error']};padding:24px'>"
                 + html.escape(tr("Could not read this measurement: {msg}")
                               .format(msg=msg)) + "</div>")
+
+    @staticmethod
+    def _doc_is_split(runs: "list | None") -> bool:
+        """Whether any sheet of *runs* had its colours split by the profile's
+        gamut (K31: the judged names then say "within gamut")."""
+        return any((r or {}).get("gamut_split") for r in (runs or []))
+
+    def _row_name(self, rid: str, runs: "list | None" = None) -> str:
+        """One row's name as this document prints it: the ROWS label, or its
+        within-gamut name when a sheet of the document is split by the
+        profile's gamut and the row is judged on the within-gamut patches
+        (K31, Knut #182 5801677743; `compliance_sets.row_name`). *runs*
+        decides when given; otherwise the document being rendered does."""
+        from workflow.compliance_sets import row_name
+        split = (MeasurementReportDialog._doc_is_split(runs)
+                 if runs is not None
+                 else bool(getattr(self, "_names_split", False)))
+        return tr(row_name(rid, split))
+
+    def _evenness_row_is_in_report(self, r: dict) -> bool:
+        """Whether one of the two evenness rows is in this run's part of the
+        report: in its verdict rows, which a "–" limit and the report type
+        have already filtered (K31, the "How evenness was judged" line)."""
+        from workflow.measurement_report import EVENNESS_ROWS
+        try:
+            rows, _rec = self._verdict_rows(r)
+        except Exception:      # noqa: BLE001 — an explanatory line, never a gate
+            return False
+        return any((x.get("row_id") or x.get("key")) in EVENNESS_ROWS
+                   for x in rows)
 
     def _printing_block_html(self, r: dict) -> str:
         """"How this verification was produced" (#130 feature A, §3.3).
@@ -13305,6 +13390,16 @@ class MeasurementReportDialog(QDialog):
                 "counts, the paper's own tone included. (This is a way of "
                 "comparing, not a rendering intent — a raw print has no "
                 "intent at all.)"), False))
+        # **K31, "BOTH TEXTS APPROVED"** (Knut, #182 5801677743, answering
+        # 5798697107 section 3). Evenness is always judged on the readings
+        # as measured (E8), so on a sheet whose line above says "relative to
+        # this sheet's own paper white" a reader would assume the evenness
+        # figures were too. Its own line, shown ONLY when an evenness row is
+        # in this report, so it is always true where it is printed.
+        if MeasurementReportDialog._evenness_row_is_in_report(self, r):
+            rows.append((tr("How evenness was judged"), tr(
+                "from the readings as the instrument took them, by comparing "
+                "the nine areas of this sheet with each other."), False))
         ref = r.get("reference_source")
         if ref == "colorimetric":
             cm = r.get("colorimetric") or {}
@@ -13468,7 +13563,8 @@ class MeasurementReportDialog(QDialog):
                 rid = row.get("row_id") or k
                 rowdef = ROW_BY_ID.get(rid)
                 # one vocabulary with the results grid (N5): the row's label
-                label = (tr(rowdef.label) if rowdef
+                # K31: "within gamut" in the name on a split sheet.
+                label = (self._row_name(rid, [r]) if rowdef
                          else (_METRIC_LABELS[k]() if k in _METRIC_LABELS else str(rid)))
                 main = 0
                 if split and k in de:
@@ -13509,7 +13605,8 @@ class MeasurementReportDialog(QDialog):
             # Both cases compare against the chart's DESIGN — either straight from
             # the .ti2, or reconstructed from the device values — so the heading is
             # the same; the note below explains the reconstruction (Knut).
-            parts.append(_h3(tr("Colour accuracy (ΔE00 vs the chart's design)")))
+            parts.append(_h3(tr("Colour accuracy (ΔE00 against the chart's "
+                                "design)")))
             parts.append("<table cellpadding='5' cellspacing='0' "
                          "style='border-collapse:collapse;font-size:11px'>"
                          + "".join(trs) + "</table>")
@@ -13744,7 +13841,8 @@ class MeasurementReportDialog(QDialog):
             parts.append(_h3(tr("For information (no limit applies)")))
             _info_heading_done = True
             parts.append("<div style='font-weight:bold;margin-top:4px'>"
-                         + html.escape(tr("Paper white & darkest black"))
+                         + html.escape(tr("Paper white and darkest black "
+                                          "(L*)"))
                          + "</div>")
             parts.append(_line(w, tr("White")) + _line(b, tr("Black")))
 
@@ -13753,8 +13851,8 @@ class MeasurementReportDialog(QDialog):
             if not _info_heading_done:
                 parts.append(_h3(tr("For information (no limit applies)")))
             parts.append("<div style='font-weight:bold;margin-top:6px'>"
-                         + html.escape(tr("Cube corners (the eight ink "
-                                          "extremes)")) + "</div>")
+                         + html.escape(tr("Cube corners (ΔE00)"))
+                         + "</div>")
             head = (f"<tr style='color:{_C['faint']}'><th align='left'>" + html.escape(tr("Corner"))
                     + "</th><th>" + html.escape(tr("Expected")) + "</th><th>"
                     + html.escape(tr("Measured")) + "</th><th align='right'>ΔE00</th></tr>")

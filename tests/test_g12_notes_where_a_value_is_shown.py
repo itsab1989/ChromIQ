@@ -67,7 +67,7 @@ def _colour_table(detail: str) -> str:
     """The first run's "Colour accuracy" table and what follows it up to the
     paper-white heading."""
     from core.i18n import tr
-    end = detail.find(_html.escape(tr("Paper white & darkest black")))
+    end = detail.find(_html.escape(tr("Paper white and darkest black (L*)")))
     return detail[:end if end > 0 else len(detail)]
 
 

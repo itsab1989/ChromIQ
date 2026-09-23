@@ -98,6 +98,8 @@ IND = {
     "grey_white_at": 90.0, "grey_black_at": 10.0, "grey_paper_at": 99.5,
     "grey_even_within": 4.0,
     "ramp_low": 30.0, "ramp_high": 70.0, "ramp_steps": 3, "ramp_span": 20.0,
+    # K31 rule A (Knut, #182 5801677743): the grey ramp's spacing, on the band
+    "ramp_even_within": 4.0,
     "ramp_others_at": 99.0,
     "strip_min": 8, "strip_p95_min": 20,
     "surface_within": 2.0, "surface_min": 10,
@@ -258,7 +260,7 @@ def _independent(path: Path) -> "dict[str, str | None]":
     out["grey_balance_neutral_ramp_max"] = grey
 
     # -- the 30 to 70 % ramps, four axes
-    ok = False
+    ok = bunched = False
     for ch, others in ((0, (1, 2)), (1, (0, 2)), (2, (0, 1)), (None, ())):
         if ch is None:
             tvs = [100.0 - sum(t) / 3.0 for t in rgb
@@ -271,8 +273,14 @@ def _independent(path: Path) -> "dict[str, str | None]":
             continue
         if (_distinct(band, IND["grey_apart"]) >= IND["ramp_steps"]
                 and max(band) - min(band) >= IND["ramp_span"]):
-            ok = True
-    out["ramps_30_70_dl_max"] = None if ok else MR.REASON_NO_RAMP
+            if _evenly_spaced(band, IND["ramp_steps"],
+                              IND["ramp_even_within"]):
+                ok = True
+            else:
+                bunched = True
+    out["ramps_30_70_dl_max"] = (None if ok else
+                                 MR.REASON_RAMP_STEPS_BUNCHED if bunched
+                                 else MR.REASON_NO_RAMP)
 
     # -- the counted rows
     out["worst5_de00_avg"] = (None if len(ids) >= IND["worst5_min"]
@@ -480,7 +488,7 @@ def test_the_window_says_what_is_missing_in_its_own_words(dialog, req, fail,
     assert PVD.reason_line(req.reason) in shown, (req.key, shown)
     for rid in req.rows:
         assert "✕  " + PE.row_label(rid) in shown, (req.key, rid)
-        remedy = PE.row_remedy(rid)
+        remedy = PE.row_remedy(rid, req.reason)
         if remedy:
             assert remedy in shown, (req.key, rid)
 
@@ -563,20 +571,24 @@ def test_the_control_answers_every_row_its_patches_decide(dialog):
     assert not _withheld(dialog, demo)
 
 
-@pytest.mark.parametrize("demo", [d for d in GEN.DEMOS if d.kind == "open"],
-                         ids=lambda d: d.name.split(",")[0])
-def test_the_open_questions_really_are_accepted_today(dialog, demo):
+def test_no_open_question_is_left_in_the_pack(dialog):
     """Knut's own paragraph expects a spacing requirement: *"the selected
     patches have a certain distance between each other … so that they are not
     clumped together in one end or in the middle"*. For the GREY ramp he ruled
-    it on 2026-09-23 (#182 B8-483), and this guard said so: its Q1 went red
-    and became R14's FAIL side. Nothing is ruled for the 30 to 70 % ramp, so
-    Q2 is still clumped that way and still withholds nothing.
+    it on 2026-09-23 (#182 B8-483): its Q1 became R14's FAIL side. For the 30
+    to 70 % ramp he ruled it the same day (K31, #182 5801677743, "Implement
+    rule A"): its Q2 became R15's FAIL side, and the chart it was is withheld
+    with ``ramp_steps_bunched``.
 
-    A guard on a behaviour nobody has ruled on yet, so that the day somebody
-    adds a spacing rule for the tone ramp this file says which demo it changed.
-    """
-    assert not _withheld(dialog, demo), demo.name
+    MUTATION, proven red: put ``pick_even_grey_steps`` out of
+    `measurement_report.ramps_block` (the R15 FAIL side answers the row
+    again, and the pair test above goes red with it)."""
+    assert not [d for d in GEN.DEMOS if d.kind == "open"]
+    r15 = GEN.REQ_BY_KEY["R15"]
+    fail = next(d for d in GEN.DEMOS if d.key == "R15" and d.kind == "FAIL")
+    got = _withheld(dialog, fail)
+    assert got.get("ramps_30_70_dl_max") == r15.reason == \
+        MR.REASON_RAMP_STEPS_BUNCHED, got
 
 
 def test_a_preset_with_no_patch_set_is_listed_and_told_which_tick_box(dialog):
@@ -640,6 +652,7 @@ def test_the_thresholds_the_pack_claims_are_the_apps_own():
                                                    MR.RAMP_TV_HIGH)
     assert IND["ramp_steps"] == MR.RAMP_MIN_STEPS
     assert IND["ramp_span"] == MR.RAMP_MIN_SPAN
+    assert IND["ramp_even_within"] == MR.RAMP_SPACING_TOL
     assert IND["ramp_others_at"] == MR.RAMP_OTHER_CHANNELS_MIN
     assert IND["strip_min"] == MR.CONTROL_STRIP_MIN
     assert IND["strip_p95_min"] == MR.CONTROL_STRIP_P95_MIN

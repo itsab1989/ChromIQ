@@ -613,7 +613,7 @@ def test_the_count_bearing_sentences_have_a_singular_form(tmp_path):
 
 def test_the_closing_note_does_not_name_one_remedy_for_every_reason():
     """**PHOTOGRAPHED ON SCREEN, 2026-09-18.** The note under the results
-    table listed *"Control-strip patches, average (… Declare a longer strip, or
+    table listed *"Average ΔE00, control strip (… Declare a longer strip, or
     add its patches to the chart)"* and then closed with *"add the missing
     patches to the chart in Create Chart to have it checked"*, one line below.
     A reader is told two different things about the same row, and the second

@@ -169,9 +169,14 @@ def test_aims_on_the_paper_is_one_scale_for_every_patch():
 
 
 def test_the_help_text_says_evenness_is_read_as_measured():
-    """MUTATION: drop the sentence from `_D_EVENNESS` and this goes red."""
-    assert "The readings are taken as measured" in CS._D_EVENNESS
-    assert "carried onto the paper" in CS._D_EVENNESS
+    """MUTATION: drop the sentence from `_D_EVENNESS` and this goes red.
+
+    Retargeted for K31 (#182 5801677743, "Both texts approved"): the wording
+    is now Knut's approved paragraph (tests/test_k31_metrics.py holds it
+    word for word); the two facts stay."""
+    assert "uses the readings exactly as the instrument took them" \
+        in CS._D_EVENNESS
+    assert "moves every aim colour onto the paper" in CS._D_EVENNESS
 
 
 # ===========================================================================

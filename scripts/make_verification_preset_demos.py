@@ -26,7 +26,7 @@ counts as a surface patch, and how many are needed); ``no_ramp`` is two (how
 many steps, and how far apart). One preset per code cannot tell you which half
 of a code is broken.
 
-So this pack is built around REQUIREMENTS: fourteen of them, each with a FAIL
+So this pack is built around REQUIREMENTS: fifteen of them, each with a FAIL
 preset one notch outside its line and a PASS preset exactly ON it. A pair
 differs by ONE thing and nothing else, so the rows that change between the two
 are the rows that requirement governs, and a detection that quietly went dead
@@ -39,15 +39,17 @@ comparison is ``<=``; "reaches white" is really ``max(level) >= 90`` and not
 comparison as it is written in the source, and the file and constant it was
 read from, so a reader can check the claim rather than believe it.
 
-**AND ONE PRESET ASKS A QUESTION INSTEAD OF MAKING A CLAIM.** Knut's own
-paragraph names a requirement he expected to find: *"that the selected patches
-have a certain distance between each other … so that they are not clumped
-together in one end or in the middle"*. For the GREY RAMP he ruled it on
-2026-09-23 (#182 B8-483, 5795087247), and the chart that asked it, once the
-open preset Q1, is now R14's FAIL side. For the 30 to 70 % tone ramp nothing
-is ruled, so the ``open`` preset Q2 is still a chart clumped that way that
-ChromIQ accepts, with nothing withheld: the question, shipped in a form he can
-open.
+**TWO PRESETS ONCE ASKED A QUESTION INSTEAD OF MAKING A CLAIM, AND BOTH
+HAVE BEEN ANSWERED.** Knut's own paragraph names a requirement he expected to
+find: *"that the selected patches have a certain distance between each other
+… so that they are not clumped together in one end or in the middle"*. For the
+GREY RAMP he ruled it on 2026-09-23 (#182 B8-483, 5795087247), and the chart
+that asked it, once the open preset Q1, is now R14's FAIL side. For the 30 to
+70 % tone ramp he ruled it the same day (K31, #182 5801677743: *"Implement
+rule A ... update the demo project package to test the requirements for this
+metric with the new rule"*), and the chart that asked it, once the open preset
+Q2, is now R15's FAIL side, beside a PASS preset whose three steps are evenly
+spaced.
 
 Every design here was measured, not reasoned about: ``--check`` builds each
 patch set, runs the app's own eligibility path over it, and prints the rows
@@ -357,8 +359,11 @@ def chart_even_greys():
     return _pad(greys(_GREY_EIGHT_EVEN) + surface() + cyan_ramp())
 
 
-def chart_clumped_ramp():
+def chart_clumped_ramp(tone_values=(40.0, 59.4, 60.0)):
     """Three mid-tone steps spanning 20 points, two of them 0.6 apart.
+
+    R15's FAIL side (K31 rule A); with ``(40, 50, 60)`` it is the PASS side,
+    the same chart with its three steps evenly spaced.
 
     Tone values 40.0, 59.4 and 60.0 on the cyan axis. Three distinct steps by
     the same 0.5-unit rule and a span of exactly 20, so the 30 to 70 % row is
@@ -370,7 +375,7 @@ def chart_clumped_ramp():
     rows now refuse.
     """
     lv = (0.0, 14.0, 29.0, 43.0, 57.0, 71.0, 86.0, 100.0)
-    return _pad(greys(lv) + surface() + cyan_ramp((40.0, 59.4, 60.0)))
+    return _pad(greys(lv) + surface() + cyan_ramp(tone_values))
 
 
 # ---------------------------------------------------------------------------
@@ -591,6 +596,21 @@ REQUIREMENTS: "tuple[Requirement, ...]" = (
         "eight steps each within 4 units of an even spacing",
         chart_clumped_greys, chart_even_greys,
         strip_ids(20), strip_ids(20)),
+    # K31 rule A (Knut, 2026-09-23, #182 5801677743): was the open question Q2.
+    Requirement(
+        "R15", "Ramps 30 to 70 %",
+        "Three of those steps have to be roughly evenly spaced from the "
+        "ramp's own lowest step in the band to its highest, each within 4 "
+        "points of where an even spacing puts it, so three readings bunched "
+        "at one end cannot stand for the whole mid-tone range.",
+        "no RAMP_MIN_STEPS (3) or more evenly spaced positions each have a "
+        "step within RAMP_SPACING_TOL (4.0)  ->  ramp_steps_bunched",
+        "measurement_report.RAMP_SPACING_TOL, pick_even_grey_steps",
+        ("ramps_30_70_dl_max",), "ramp_steps_bunched",
+        "mid-tone steps 40, 59.4 and 60",
+        "mid-tone steps 40, 50 and 60",
+        chart_clumped_ramp, lambda: chart_clumped_ramp((40.0, 50.0, 60.0)),
+        strip_ids(20), strip_ids(20)),
 )
 
 
@@ -735,21 +755,15 @@ def _build_demos() -> "tuple[Demo, ...]":
         n += 1
     out += [
         # Q1, the grey ramp clumped at the light end, became R14 when Knut
-        # ruled the spacing rule for the grey ramp (#182 B8-483, 2026-09-23).
-        Demo(n, "Verify Q2 open, mid-tone steps 0.6 apart",
-             "Three steps in the 30 to 70 % band at tone values 40.0, 59.4 "
-             "and 60.0: three distinct steps and a span of exactly 20, with "
-             "two of the three readings 0.6 apart. Judged, and nothing "
-             "withheld. Knut ruled that the grey ramp's steps must not be "
-             "bunched (R14); nothing is ruled for this ramp, so this is "
-             "still the question.",
-             kind="open", chart=chart_clumped_ramp, keywords=strip_ids(20)),
-        Demo(n + 1, "Verify X1 other, settings only, no patch set",
+        # ruled the spacing rule for the grey ramp (#182 B8-483, 2026-09-23),
+        # and Q2, the tone ramp clumped the same way, became R15 when he
+        # ruled it for that ramp too (K31, #182 5801677743).
+        Demo(n, "Verify X1 other, settings only, no patch set",
              "A preset saved with the attach tick box OFF. Not a metric: it "
              "is the one state in which the window can say nothing about a "
              "preset, and it must say which tick box fixes it.",
              kind="other", no_chart=True),
-        Demo(n + 2, "Verify X2 other, the patch set cannot be read",
+        Demo(n + 1, "Verify X2 other, the patch set cannot be read",
              "A .ti1 beside the preset that is not a chart. Not a metric "
              "either: the other half of \"Cannot be checked\".",
              kind="other", corrupt=True, chart=chart_control),
@@ -796,6 +810,15 @@ UNREACHABLE: "dict[str, str]" = {
         "Means 'this report predates the block', so it can only come out of a "
         "SAVED report read back. The stand-in report is built fresh and "
         "always carries every block.",
+    # K31 option (a): the grey rows of a FROM PROFILE GAMUT chart, whose grey
+    # steps are its neutral aims. A preset is never such a chart.
+    "too_few_neutral_aims":
+        "Only a chart built FROM PROFILE GAMUT has neutral aims, and no preset "
+        "is one: the Create Chart tab's current chart line and the report "
+        "itself show this code, never a preset.",
+    "neutral_aims_bunched": "As the code above.",
+    "neutral_aims_no_white": "As the code above.",
+    "neutral_aims_no_black": "As the code above.",
     "no_device_values":
         "A measurement file with no device columns (B8-845). Every preset is "
         "a chart of device values, and the stand-in report is built from "
@@ -1133,7 +1156,9 @@ def readme() -> str:
                             + r.also_why, 70):
                 lines.append("      " + ln)
         lines.append("")
-    lines += ["THE OTHER FOUR PRESETS", "-" * 22, ""]
+    _others = [d for d in DEMOS if d.kind in ("control", "open", "other")]
+    _head = f"THE OTHER {_NUMBER_WORDS.get(len(_others), str(len(_others))).upper()} PRESETS"
+    lines += [_head, "-" * len(_head), ""]
     for d in DEMOS:
         if d.kind not in ("control", "open", "other"):
             continue
@@ -1142,24 +1167,32 @@ def readme() -> str:
             lines.append("      " + ln)
         lines.append("")
     lines += ["WHAT NO PRESET CAN FAIL", "-" * 23, ""]
+    from workflow import preset_eligibility as _PE
+    _codes = len(_PE.classified_reasons())
     lines += _wrap(
-        "The window has fourteen reason codes. These four cannot be provoked "
-        "by any patch set, so no preset here claims to:", 76)
+        f"The window has {_codes} reason codes. These {len(UNREACHABLE)} "
+        "cannot be provoked by any patch set, so no preset here claims to:",
+        76)
     lines.append("")
     for code, why in UNREACHABLE.items():
         lines.append(f"  {code}")
         for ln in _wrap(why, 70):
             lines.append("      " + ln)
         lines.append("")
+    _covered = len({r.reason for r in REQUIREMENTS}
+                   | {c for r in REQUIREMENTS for c in r.also})
     lines += _wrap(
-        "The other ten are the codes these presets cover, between them. Note "
-        "that a code is not a requirement: control_strip_too_small is two "
-        "requirements (R02 and R03), too_few_surface_patches is two (R11 and "
-        "R12), and no_ramp is two (R09 and R10). That is why this pack is "
-        "built around the thirteen requirements and not around the ten "
-        "codes.", 76)
+        f"The other {_covered} are the codes these presets cover, between "
+        "them. Note that a code is not a requirement: control_strip_too_small "
+        "is two requirements (R02 and R03), too_few_surface_patches is two "
+        "(R11 and R12), and no_ramp is two (R09 and R10). That is why this "
+        f"pack is built around the {len(REQUIREMENTS)} requirements and not "
+        f"around the {_covered} codes.", 76)
     lines.append("")
     return "\n".join(lines) + "\n"
+
+
+_NUMBER_WORDS = {1: "one", 2: "two", 3: "three", 4: "four", 5: "five"}
 
 
 def _wrap(text: str, width: int) -> "list[str]":

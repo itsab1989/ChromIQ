@@ -3,7 +3,7 @@ standard is the reference.
 
     *"I opened demo project Report-Limits-Threshold-Series, and run 3 ... Full
     colour check, with quick check limit set ... 1) Grey balance of the grey
-    ramp, average, Grey balance of the grey ramp, largest: The standard calls
+    ramp, average, Maximum ΔCh, grey balance of the grey ramp: The standard calls
     this metric recommended rather than required ... The test refers to the
     standard, which is not used as reference or to compare results against
     for the current settings. This is a bug."*

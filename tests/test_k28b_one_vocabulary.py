@@ -118,8 +118,11 @@ def test_a_legend_does_not_repeat_a_unit_its_name_carries():
     return from `_with_unit`."""
     assert mrd._with_unit("Average ΔE00, all patches", "ΔE00") == \
         "Average ΔE00, all patches"
-    assert mrd._with_unit("Grey balance of the grey ramp, average",
-                          "ΔCh").endswith("(ΔCh)")
+    # K31 (§26.3): every row name carries its unit, so a name without one
+    # is a figure's own; the grey name is left as it is
+    assert mrd._with_unit("Some figure", "ΔCh").endswith("(ΔCh)")
+    assert mrd._with_unit("Average ΔCh, grey balance of the grey ramp",
+                          "ΔCh") == "Average ΔCh, grey balance of the grey ramp"
 
 
 def test_a_note_names_its_rows_apart_when_the_names_carry_commas(tmp_path,
@@ -233,14 +236,14 @@ def test_figures_with_no_limit_sit_under_their_heading(tmp_path, qapp):
         ov = _text(dlg._comparison_table_html(runs))
         i = ov.index(head)
         assert ov.rindex(FIVE["all_de00_p95"]) < i
-        for fig in (tr("Spread (std. dev.)"), tr("Paper white L*"),
-                    tr("Black L*")):
+        for fig in (tr("Standard deviation ΔE00, all patches"), tr("Paper white L*"),
+                    tr("Darkest black L*")):
             assert ov.index(fig) > i, fig
         detail = _text(dlg._run_detail_html(runs[0]))
         j = detail.index(head)
-        assert detail.index(tr("Spread (std. dev.)")) > j
+        assert detail.index(tr("Standard deviation ΔE00, all patches")) > j
         assert detail.count(head) == 2
-        assert detail.index(tr("Paper white & darkest black")) > \
+        assert detail.index(tr("Paper white and darkest black (L*)")) > \
             detail.rindex(head)
     finally:
         dlg.deleteLater()
@@ -274,7 +277,9 @@ def test_the_one_page_summary_gives_the_judged_figures(tmp_path, qapp,
         text = _text(dlg._report_body_html([rep], for_pdf=True))
         judged, src = mr.graded_de00(rep)
         assert src == mr.VERDICT_SOURCE_IN_GAMUT
-        assert f"Average ΔE00, all patches: {judged['avg_all']:.2f}" in text
+        # K31 (§26.4): on a split sheet the judged figure says so in its name
+        assert (f"Average ΔE00, all patches within gamut: "
+                f"{judged['avg_all']:.2f}") in text
         # the fixture measures exactly what it asked for, so the two averages
         # agree; the COUNT tells the populations apart
         assert judged["n"] < rep["de00"]["n"]

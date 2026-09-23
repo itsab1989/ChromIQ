@@ -772,15 +772,19 @@ WORKFLOWS: list[dict] = [
                   "window. Tick “Show only the presets made for verification” "
                   "to see just those.")),
               (tr("Three metrics only “FROM PROFILE GAMUT” can answer"),
-               tr("Paper white against the reference paper, the largest "
-                  "difference on the solid colours, and the largest hue "
-                  "difference on the cyan, magenta and yellow solids all need "
-                  "aim colours that no ordinary patch set carries. The “FROM "
-                  "PROFILE GAMUT” module on this tab builds the chart out of "
-                  "colours your profile promises it can print AND writes "
-                  "those aims beside it, which is what fills those three "
-                  "rows. It is also the most direct accuracy check there "
-                  "is.")),
+               # K31 (Knut, #182 5801677743): the version 1 names, and the
+               # grey rows' neutral aims on such a chart (option a).
+               tr("“ΔE00, paper white against the reference paper”, "
+                  "“Maximum ΔE00, solid colours” and “Maximum ΔH*ab, cyan, "
+                  "magenta and yellow solids” all need aim colours that no "
+                  "ordinary patch set carries. The “FROM PROFILE GAMUT” "
+                  "module on this tab builds the chart out of colours your "
+                  "profile promises it can print AND writes those aims beside "
+                  "it, which is what fills those three rows. It is also the "
+                  "most direct accuracy check there is. On such a chart the "
+                  "two grey balance rows take the neutral aims as their grey "
+                  "steps, because the profile prints a neutral grey with "
+                  "slightly unequal red, green and blue.")),
               (tr("Where the chart lives, and what happens if you replace "
                   "it"),
                tr("It goes into the run's “verifications” folder and is "
@@ -1397,31 +1401,41 @@ GLOSSARY += [
         "repeated the same way over time, shows drift; the report records "
         "which way each sheet was made so they are never mixed silently.")),
     (tr("Judged relative to paper white (media-relative)"),
+     # K31 (Knut, #182 5801677743, section 3): evenness and its own line.
      tr("A way the measurement report scores a verification sheet: every "
         "measured colour is scaled so that this sheet's own paper white "
         "counts as pure white, and only then compared with the expected "
         "colours. The report does this by itself whenever the sheet was "
-        "printed in a way that maps white to the paper — through the "
+        "printed in a way that maps white to the paper (through the "
         "profile with relative intent, or in another application with "
-        "colour management — and says so in the “How this verification was "
+        "colour management) and says so in the “How this verification was "
         "produced” section. The point: on such a print the paper's own "
         "tone was never supposed to be corrected, so counting it against "
         "the profile would blame it for something it was never asked to "
         "do. Physical readings like paper white and deepest black are "
-        "always shown as measured.")),
+        "always shown as measured, and so is evenness: it compares the nine "
+        "areas of one sheet with each other, so it uses the readings as the "
+        "instrument took them and moves every aim colour onto the paper "
+        "instead. The report says so in a line of its own, “How evenness "
+        "was judged”, whenever an evenness row is in it.")),
     (tr("Within / beyond the profile's gamut (report split)"),
+     # K31 (Knut, #182 5801677743, sections 5 and 6).
      tr("Two groups the Measurement Report sorts a verification sheet's "
         "colours into, by asking the run's profile which of the chart's "
         "design colours it can actually print. “Within the profile's gamut” "
-        "are the genuinely printable colours — their ΔE figures are the fair "
-        "measure of accuracy, and the Pass/Fail verdict judges them. “Beyond "
-        "it” are colours brighter or more saturated than this printer and "
-        "paper can physically produce; their larger ΔEs describe the limit "
-        "of the gamut, not a mistake of the profile, and their stability "
-        "from check to check is a useful drift signal. Every patch stays "
-        "counted and visible — the two groups are simply no longer mixed "
-        "into one number. (A chart from the “From profile gamut” module "
-        "needs no split: every colour on it is printable by design.)")),
+        "are the genuinely printable colours: their ΔE figures are the fair "
+        "measure of accuracy, the Pass/Fail verdict judges them, and on such "
+        "a report their names end in “within gamut”, for example “Average "
+        "ΔE00, all patches within gamut”. “Beyond it” are colours brighter "
+        "or more saturated than this printer and paper can physically "
+        "produce; their larger ΔEs describe the limit of the gamut, not a "
+        "mistake of the profile, and their stability from check to check is "
+        "a useful drift signal. The Overview shows both groups and, under "
+        "“Within and beyond the gamut together”, all the colours as one, for "
+        "information only: neither of those ever has a limit. Every patch "
+        "stays counted and visible. (A chart from the “From profile gamut” "
+        "module is never split: every colour on it is printable by "
+        "design.)")),
     (tr("Judged as measured (no white adjustment)"),
      tr("The other way the Measurement Report can score a verification "
         "sheet: every measured colour is compared exactly as the instrument "
@@ -1665,28 +1679,36 @@ GLOSSARY += [
         "an ink that prints the wrong colour, and a hue shift is the one that "
         "shows in every image.")),
     (tr("ΔL* (lightness difference)"),
+     # K31 rule A (Knut, #182 5801677743, section 4).
      tr("How much lighter or darker a patch came out than it should be, with "
         "colour taken out of it. Used on the single-colour ramps between "
         "30 % and 70 %, where the eye reads a lightness error as a tone "
-        "curve going wrong.")),
+        "curve going wrong. A ramp counts there when it has at least three "
+        "steps in that band, spread roughly evenly rather than bunched at "
+        "one end.")),
     (tr("95th percentile (a report row)"),
      tr("The figure that all but the highest 5 % of your patches come in "
         "under; the report names it “Maximum ΔE00, lowest 95 % (95th "
         "percentile)”. "
-        "It is a fairer summary than the largest difference, which one dusty "
+        "It is a fairer summary than the maximum difference, which one dusty "
         "patch can dominate, and a stricter one than the average, which hides "
         "a bad tail. ChromIQ takes it by nearest rank, so the number is "
         "always one of your real measurements rather than an "
         "interpolation.")),
     (tr("Grey ramp"),
+     # K31 option (a) (Knut, #182 5801677743, section 7).
+     # (the device tolerances and the tone row's needs: B8-910, beta 39.)
      tr("A run of patches whose red, green and blue values are equal, or "
         "within one unit of each other, stepping from white to black. ChromIQ "
         "needs at least eight of them, reaching both ends and roughly evenly "
         "spaced (each within 4 % of full scale of where an even spacing puts "
         "it), before it will judge grey balance on your chart; a chart "
-        "without one gets N-A on those rows rather than a guess. The tone row "
-        "needs less: a single-ink or grey ramp with at least three steps "
-        "between 30 % and 70 %.")),
+        "without one gets N-A on those rows rather than a guess. On a chart "
+        "built with “From profile gamut” the grey steps are the patches whose "
+        "aim colour is neutral instead, because the profile prints a neutral "
+        "grey with slightly unequal red, green and blue. The tone row needs "
+        "less: a single-ink or grey ramp with at least three roughly evenly "
+        "spaced steps between 30 % and 70 %.")),
     (tr("Control strip"),
      tr("In printing, the narrow band of standard patches along the edge of a "
         "sheet that a press operator measures. ChromIQ has no such band, so "

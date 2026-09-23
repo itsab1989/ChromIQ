@@ -87,7 +87,7 @@ def test_dialog_grades_within_gamut_and_shows_the_blocks(
         import html as _html
         overview = _html.unescape(dlg._comparison_table_html([rep, rep]))
         for block in ("Within the profile's gamut",
-                      "Beyond the profile's gamut", "All patches together"):
+                      "Beyond the profile's gamut", "Within and beyond the gamut together"):
             assert block in overview
         # the split blocks list the five accuracy metrics three times over
         # K28: the one name, "Average ΔE00, all patches", in each block

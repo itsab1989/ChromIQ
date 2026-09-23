@@ -102,11 +102,11 @@ def test_the_red_x_height_follows_knuts_three_cases():
 def _even_chart(series, limit=1.5, dark=False):
     rid = "uniformity_sd"
     chart = mrd._TrendChart()
-    metrics = [("Pairs (ΔE00)", QColor("#e0574b"),
+    metrics = [("Areas (ΔE00)", QColor("#e0574b"),
                 lambda pt: mrd._trend_row_value(pt, rid, limit))]
     chart.set_data(series, metrics, dark=dark,
-                   limit_lines=[(limit, "Pairs", QColor("#e0574b"))],
-                   line_notes=[mrd._limit_line_note("Pairs", limit, "ΔE00",
+                   limit_lines=[(limit, "Areas", QColor("#e0574b"))],
+                   line_notes=[mrd._limit_line_note("Areas", limit, "ΔE00",
                                                      rid)],
                    withheld=[lambda pt: mrd._trend_withheld_reason(
                        pt, rid, limit)])
@@ -133,7 +133,7 @@ def test_a_withheld_date_stays_on_the_axis_with_its_reason():
     assert len(chart._series) == 4
     [(k, i, v, text)] = chart.withheld_marks()
     assert (k, i) == (0, 3) and v == pytest.approx(0.5)
-    assert text.startswith("2026-01-04, Pairs (ΔE00): not judged, because "
+    assert text.startswith("2026-01-04, Areas (ΔE00): not judged, because "
                            "the measured sheet is too noisy")
     assert "2.00 ΔE00" in text and "1.50 ΔE00" in text
 
@@ -273,7 +273,7 @@ def test_two_red_crosses_on_one_date_sit_one_above_the_other(qapp):
                 (lambda p_, rid=rid: mrd._trend_row_value(p_, rid, limit)))
                for k, (rid, c) in enumerate(zip(rows, ("#e0574b", "#37bcd6")))]
     chart.set_data(series, metrics, dark=False,
-                   limit_lines=[(limit, "Pairs", QColor("#e0574b")),
+                   limit_lines=[(limit, "Areas", QColor("#e0574b")),
                                 (limit, "Mean", QColor("#37bcd6"))],
                    line_notes=["n1", "n2"],
                    withheld=[(lambda p_, rid=rid: mrd._trend_withheld_reason(
@@ -336,10 +336,10 @@ def test_hovering_a_word_or_a_red_x_shows_the_text_the_pdf_prints(qapp):
     chart.show()
     _paint(chart)
     printed = [t for _k, _c, t in chart.descriptions()]
-    assert printed[0] == ("Pairs (0.7 ΔE00): the limit for the largest "
+    assert printed[0] == ("Areas (0.7 ΔE00): the limit for the maximum "
                           "difference between any two of the nine areas of "
                           "the sheet.")
-    assert printed[1].startswith("2026-01-03, Pairs (ΔE00): not judged")
+    assert printed[1].startswith("2026-01-03, Areas (ΔE00): not judged")
     for rect, text in chart._hits:
         assert text in printed
         c = rect.center().toPoint()

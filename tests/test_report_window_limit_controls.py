@@ -171,7 +171,7 @@ def test_the_strip_names_what_the_chart_cannot_supply(qapp, tmp_path):
         # by the cell it explains, and the two grey rows sharing one number
         assert "the measured chart has no grey patches" in html   # K22
         assert "at least 20" in html
-        assert "Grey balance of the grey ramp, average" in html
+        assert "Average ΔCh, grey balance of the grey ramp" in html
     finally:
         dlg.deleteLater()
 

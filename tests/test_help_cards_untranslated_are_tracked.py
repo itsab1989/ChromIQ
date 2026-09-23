@@ -539,9 +539,11 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-24, K31-A (B8-890 to B8-899) and K31-B (B8-900 to B8-909) cherry-picked onto beta 39 (B8-910 to B8-925). COUNTED, BOTH ledgers.
     # RE-MEASURED 2026-09-23, the R2 text fixes (B8-911 to B8-915) merged onto the help fixes. COUNTED, BOTH ledgers.
     # RE-MEASURED 2026-09-23, the beta 39 help fixes (B8-910) merged onto the R1 fixes. COUNTED, BOTH ledgers.
     # RE-MEASURED 2026-09-23, the R1 fixes (B8-916 to B8-919): M-REPORT-UPDATE-NOTHING-LEFT and "covers no measurement". COUNTED, BOTH ledgers.
+    # RE-MEASURED 2026-09-23, K31 metrics (B8-900 to B8-907): the version 1 names, rule A, the neutral aims, the evenness line and their help texts; German by hand, the twelve others English under the beta rule. COUNTED, BOTH ledgers.
     # RE-MEASURED 2026-09-23, the report-window fixes (B8-880 to B8-886) merged onto the challenge C fixes. COUNTED, BOTH ledgers.
     # RE-MEASURED 2026-09-23, the challenge C fixes (B8-870 to B8-873) merged onto K30. COUNTED, BOTH ledgers.
     # RE-MEASURED 2026-09-23, G7 (B8-848) merged onto K28a. COUNTED, BOTH ledgers.
@@ -1000,18 +1002,18 @@ _BUDGET = {
     # intro is translated now). COUNTED off the tree, BOTH ledgers in the
     # same commit.
     "de": 13,
-    "es": 880,
-    "fr": 881,
-    "it": 880,
-    "ja": 880,
-    "nl": 880,
-    "no": 880,
-    "pl": 880,
-    "pt": 880,
-    "ru": 879,
-    "sv": 880,
-    "zh_CN": 879,
-    "uk": 1073,
+    "es": 895,
+    "fr": 896,
+    "it": 895,
+    "ja": 895,
+    "nl": 895,
+    "no": 895,
+    "pl": 895,
+    "pt": 895,
+    "ru": 894,
+    "sv": 895,
+    "zh_CN": 894,
+    "uk": 1043,
 }
 
 

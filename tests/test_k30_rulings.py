@@ -528,7 +528,7 @@ def test_grey_rows_sit_under_all_patches_on_a_split_sheet(tmp_path, qapp):
             "de00_in": {}, "de00_out": {}, "n_in": 10, "n_out": 2,
             "profile": "x.icc"}
         body = dlg._run_detail_html(r, None)
-        row = re.search(r"Grey balance of the grey ramp, average</td>(.*?)</tr>",
+        row = re.search(r"Average ΔCh, grey balance of the grey ramp</td>(.*?)</tr>",
                         body, re.S)
         assert row, body[:400]
         cells = re.findall(r"<td align='right'>(.*?)</td>", row.group(1))
