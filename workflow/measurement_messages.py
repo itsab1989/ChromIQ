@@ -1162,8 +1162,8 @@ M_REPORT_PATCH_COUNTS_DIFFER = _m(
     "graphs as well as in the table.\n\n"
     "That can be because the charts differ, or because a measurement was ended "
     "before its last strip. Either way it is not a fault and nothing here is "
-    "wrong. It is worth knowing before you read a small change as a change in "
-    "the printer.",
+    "wrong, but a small change between such sheets is not necessarily a "
+    "change in the printer.",
     approved=False)
 
 
@@ -2626,6 +2626,24 @@ M_REPORT_CHART_MISMATCH = _m(
     "print the chart again and measure it.",
     approved=False)
 
+# --- PROPOSED (#182, 2026-09-23): the same strip when only evenness is short --
+#
+# Round B before beta 37, M7: under a list holding only the two evenness rows
+# the closing above sent the reader to add patches in Create Chart "(for the
+# grey balance: “Neutral grey ramp” with 16 steps)". Evenness is judged over
+# nine areas of ONE page, so what those rows lack is strips and rows on a
+# page, which is the chart's layout. Same headline, same {set} and {rows}.
+M_REPORT_CHART_MISMATCH_LAYOUT = _m(
+    "M-REPORT-CHART-MISMATCH-LAYOUT",
+    "Some limits cannot be checked on this chart",
+    "The limit set {set} puts a limit on values this chart cannot supply, so "
+    "these rows read N-A (not applicable):\n{rows}\n\n"
+    "A row that was not computed says nothing about the printer. Evenness is "
+    "judged over nine areas of one page, so these rows want a chart laid out "
+    "with more strips and more rows on a page. Make the change, print the "
+    "chart again and measure it.",
+    approved=False)
+
 # --- PROPOSED (#182, 2026-09-16): deleting one saved report ------------------
 #
 # The design authority asked for this before a non-beta: *"the selection and
@@ -2785,7 +2803,8 @@ M_REPORT_ONE_PAGE_ONE_DATE = _m(
 
 CATALOGUE = {m.id: m for m in (
     M_LIMIT_RECOMMENDED,
-    M_REPORT_CHART_MISMATCH, M_THRESHOLDS_NOT_CERTIFICATION, M_REPORT_DELETE,
+    M_REPORT_CHART_MISMATCH, M_REPORT_CHART_MISMATCH_LAYOUT,
+    M_THRESHOLDS_NOT_CERTIFICATION, M_REPORT_DELETE,
     M_REPORT_UPDATE_OR_NEW, M_REPORT_UNCHANGED_UPDATE_OR_NEW,
     M_REPORT_ONE_PAGE_ONE_DATE,
     M_REPLACE_PARTIAL, M_REPLACE_COMPLETE, M_TI3_MISMATCH,

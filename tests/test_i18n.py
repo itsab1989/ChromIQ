@@ -786,6 +786,15 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-23, the fixes for the two challenge rounds before
+    # beta 37: report text reworded for K18 ("the test chart used", no
+    # "you"/"your", no ChromIQ explanation), the evenness noise note
+    # (A-F3/B-H2), the worst-5 % note (B-M5), the one-page ISO summary
+    # (B-M1), the translated title prefixes (B-H5) and one new strip
+    # message (B-M7). German by hand, and two report lines that were still
+    # English in German translated, so de falls; the twelve others carry
+    # the new English under the beta rule. COUNTED off the tree with this
+    # file's own expression, BOTH ledgers in the same commit.
     # RE-MEASURED 2026-09-23, the trend graphs for the judged metrics (#182
     # K20/K21): eleven short keys (six tab titles, five limit-line words).
     # German by hand; it rises by exactly ONE because "P95" is a statistical
@@ -1350,18 +1359,18 @@ _IDENTICAL_TO_KEY = {
     # untranslated German string, not a bigger budget, and is fixed rather than
     # recorded. COUNTED with this file's own helper on the tree this commit
     # leaves behind.
-    "de": 142,
-    "es": 1000,
-    "fr": 1022,
-    "it": 1011,
-    "ja": 986,
-    "nl": 1027,
-    "no": 1012,
-    "pl": 1004,
-    "pt": 1002,
-    "ru": 975,
-    "sv": 1013,
-    "zh_CN": 980,
+    "de": 139,
+    "es": 1019,
+    "fr": 1041,
+    "it": 1030,
+    "ja": 1005,
+    "nl": 1046,
+    "no": 1031,
+    "pl": 1023,
+    "pt": 1021,
+    "ru": 994,
+    "sv": 1032,
+    "zh_CN": 999,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1388,7 +1397,7 @@ _IDENTICAL_TO_KEY = {
     # in Ukrainian, so the pointer could not match whatever the user read.
     # Nothing else changed. The ceiling is re-measured DOWN here rather than
     # left where it was, so the next rise still has to justify itself.
-    "uk": 1227,
+    "uk": 1241,
 }
 
 

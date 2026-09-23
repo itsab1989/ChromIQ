@@ -639,5 +639,6 @@ def test_the_closing_note_does_not_name_one_remedy_for_every_reason():
     # closing sentence moved under that list and says "note" for the thing
     # the reader is now looking at. What it must not do, and the whole point
     # of this test, is name one remedy for all of them.
-    assert "each note above names what that row needs" in src.lower()
+    # beta 37, round B L5: the notes are causes, so the sentence says why
+    assert "each note above says why" in src.lower()
     assert "names what that row needs" in M_REPORT_CHART_MISMATCH.body.lower()

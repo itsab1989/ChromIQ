@@ -82,6 +82,10 @@ from workflow import preset_eligibility as PE
 
 log = logging.getLogger(__name__)
 
+#: Room beside a column heading's text: the section's own margins and the
+#: sort indicator a header may draw.
+_HEADER_PAD = 28
+
 
 # ---------------------------------------------------------------------------
 # One row of the list
@@ -614,9 +618,15 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         head = self._tree.header()
         head.setStretchLastSection(False)
         head.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        # …AND NEVER NARROWER THAN ITS OWN HEADING (round B before beta 37,
+        # L3): 140 px cut the German "Beantwortete Metriken" to "…Metriker".
+        # A heading is a translated string, so its width is measured.
+        hfm = head.fontMetrics()
         for c, wdt in ((1, 80), (2, 70), (3, 140)):
             head.setSectionResizeMode(c, QHeaderView.ResizeMode.Fixed)
-            self._tree.setColumnWidth(c, wdt)
+            label = self._tree.headerItem().text(c)
+            self._tree.setColumnWidth(
+                c, max(wdt, hfm.horizontalAdvance(label) + _HEADER_PAD))
         # A BOUND METHOD, never a self-capturing lambda on a signal a widget's
         # own child emits: CLAUDE.md, the fade-scroll SIGSEGV.
         self._tree.currentItemChanged.connect(self._on_selected)

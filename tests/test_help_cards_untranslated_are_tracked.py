@@ -539,6 +539,15 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-23, the fixes for the two challenge rounds before
+    # beta 37: report text reworded for K18 ("the test chart used", no
+    # "you"/"your", no ChromIQ explanation), the evenness noise note
+    # (A-F3/B-H2), the worst-5 % note (B-M5), the one-page ISO summary
+    # (B-M1), the translated title prefixes (B-H5) and one new strip
+    # message (B-M7). German by hand, and two report lines that were still
+    # English in German translated, so de falls; the twelve others carry
+    # the new English under the beta rule. COUNTED off the tree with this
+    # file's own expression, BOTH ledgers in the same commit.
     # RE-MEASURED 2026-09-23, the trend graphs (#182 K20/K21): unchanged in
     # every language, because the eleven new keys are all under 25 characters.
     # Its twin `_IDENTICAL_TO_KEY` rose in the same commit.
@@ -928,19 +937,19 @@ _BUDGET = {
     # untranslated German string, not a bigger budget, and is fixed rather than
     # recorded. COUNTED with this file's own helper on the tree this commit
     # leaves behind.
-    "de": 17,
-    "es": 724,
-    "fr": 725,
-    "it": 724,
-    "ja": 724,
-    "nl": 724,
-    "no": 724,
-    "pl": 724,
-    "pt": 724,
-    "ru": 723,
-    "sv": 724,
-    "zh_CN": 723,
-    "uk": 929,
+    "de": 14,
+    "es": 742,
+    "fr": 743,
+    "it": 742,
+    "ja": 742,
+    "nl": 742,
+    "no": 742,
+    "pl": 742,
+    "pt": 742,
+    "ru": 741,
+    "sv": 742,
+    "zh_CN": 741,
+    "uk": 942,
 }
 
 

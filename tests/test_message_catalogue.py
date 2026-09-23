@@ -158,6 +158,9 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  "M-VERIFY-UNCHECKED-METRICS",
                                  "M-REPORT-PATCH-COUNTS-DIFFER",
                                  "M-REPORT-CHART-MISMATCH",
+                                 # beta 37, round B M7: the same strip when
+                                 # only the evenness rows are short.
+                                 "M-REPORT-CHART-MISMATCH-LAYOUT",
                                  "M-THRESHOLDS-NOT-CERTIFICATION",
                                  # #182, 2026-09-16: the design authority asked
                                  # for a way to select and delete saved reports

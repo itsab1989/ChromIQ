@@ -747,6 +747,14 @@ type being pointed at.
   nobody could measure still reads N-A, because "we could not measure this" is
   not a judgement being withheld. Nothing is written; switching back to T2
   brings the same verdicts.
+  *⏳ Awaiting confirmation (beta 37, challenge round B, H3).*
+  **Confirmed by:** *nobody yet.* T4 prints neither the note saying what a PASS under a
+  standard's name is, nor the guide paragraph about such columns, nor the
+  line under each sheet saying "This verdict was recorded when the report
+  was saved, against the limit set …": it grades nothing, so all three were
+  about words the page never shows. Its "Judged against" row stays, as
+  Knut's earlier design names the set there; whether it should is a
+  question put to him (the beta-37 register entry).
 * **T3, Grey and tone check** keeps three rows, the two grey-balance rows and
   the 30 % to 70 % ramp row, and drops the colour rows rather than showing them
   as not applicable. Its one word is about the rows it shows, and the guide
@@ -1722,6 +1730,17 @@ What was built:
   several dates written before this (one file per date, one id, no role) is
   listed and counted once, from the dates it covers. An Update of such a
   report writes it by this rule (its files archived first).
+* **A report is shown whole (beta 37, challenge round A, F1).** A report
+  selected in "Report shown", or the one the window opens on, that records
+  measurements the window has not loaded, loads them into "Included
+  measurements" before anything is drawn (found from `runs/` down, so a moved
+  project finds them too; a folder no longer holding its measurement is left
+  out). The page then shows every date the report covers, and because the
+  window now holds measurements from more than one place, Generate report is
+  greyed with the several-places reason, and the handler refuses as well:
+  an Update can no longer rewrite a report narrower than it is. Before this, a
+  report across run1 and run2 opened from run2 showed one date, Generate said
+  "Nothing was changed", and Update rewrote it about that one date.
 
 
 ## 15. ChromIQ's own two repeatability rows (#182, 2026-09-22)
@@ -2039,10 +2058,24 @@ second row never say anything the first had not.
 | `evenness_no_positions` | the chart's layout does not say which strip and row each patch is in |
 | `evenness_grid_too_small` | the measured chart has S strips and R rows on its largest page; at least 9 of each are needed |
 | `evenness_empty_area` | one of the nine areas holds no patch with an aim value |
-| `evenness_noisy_pairwise` / `_from_mean` | the fewest patches in an area, and the noise figure, which has to be below the limit |
+| `evenness_noisy_pairwise` / `_from_mean` | the measured sheet is too noisy to judge the row: its own noise figure, and the row's limit it is not below. No patch count (beta 37, see below) |
 
 The report window's strip ("these rows read N-A … add patches to the chart")
 leaves out the two FILE reasons, which no patch can answer.
+
+**⏳ Awaiting confirmation (beta 37, challenge rounds A F3 and B H2/M7).**
+**Confirmed by:** *nobody yet.* The noise note used to say "the measured
+chart has 42 patches in the emptiest ninth of the page, too few for this
+row" on the evenness demo's noisy date, while the notes beside it judged the
+same chart's 42-patch areas on its three other dates: on a measured sheet it
+is the sheet's readings that scatter. The note now names the noise and the
+limit and no patch count, and the strip leaves the two noise reasons out as
+well, since nothing added to the chart answers them. When every row the strip
+lists is an evenness row, its closing sentence is M-REPORT-CHART-MISMATCH-
+LAYOUT (strips and rows on one page) instead of the general one that names
+the grey ramp. The pre-print windows (presets, pre-flight) keep their own
+estimate, which is about patch counts, because before printing there is no
+measured noise.
 
 ### 16.4 Everywhere metrics are judged (Knut, Q5)
 
@@ -2156,3 +2189,8 @@ driven on screen on the demo packs:
    small change between dates stays visible; the other graphs keep their
    height. Each graph is kept together with its title, and graphs that do
    not fit move to the next page.
+10. **A metric with a single value is drawn as a point** (beta 37, challenge
+    round B, H6), a larger marker since there is no line to see it on, in
+    the window and the PDF. "The same chart measured again" has nothing to
+    compare on a chart's first date, so on three dates it can have one value;
+    that value was in the table and missing from the graph.

@@ -2950,6 +2950,13 @@ EVENNESS_REASONS: "tuple[str, ...]" = (
 EVENNESS_FILE_REASONS: "tuple[str, ...]" = (
     REASON_EVENNESS_NO_LAYOUT, REASON_EVENNESS_NO_POSITIONS,
 )
+#: The two that are about the MEASUREMENT's noise: the sheet's own readings
+#: scatter too much for the rule to judge the row (Knut's ruling 6). A chart
+#: change is not the remedy, so the report window's strip does not name them
+#: and their note names the noise and no patch count (beta 37, A-F3/B-H2).
+EVENNESS_NOISE_REASONS: "tuple[str, ...]" = (
+    REASON_EVENNESS_NOISY_PAIRWISE, REASON_EVENNESS_NOISY_FROM_MEAN,
+)
 #: The two row ids, and which of the block's two numbers each reads.
 EVENNESS_ROWS: "dict[str, str]" = {
     "uniformity_sd": "pairwise",

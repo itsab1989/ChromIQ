@@ -25335,3 +25335,158 @@ would reach.
   test_colour_accuracy_is_printed_twice_as_tall; on screen in
   `~/Desktop/ChromIQ-beta37-proof/graphs/`.
 - test file: `tests/test_trend_graphs_for_judged_metrics.py`.
+
+### B8-818 · FIXED · Beta 37 challenge rounds A and B: a report shown whole, a table that fits the page, and report text for a customer
+- blocks release: no
+- status: FIXED
+- spec: §13.11 (a report is shown whole), §10 T4 (the Printing record), §16.3
+  (the evenness noise note) and §17 item 10 (a single point) of
+  `docs/design/measurement_report_limits.md`, and M-REPORT-CHART-MISMATCH /
+  M-REPORT-CHART-MISMATCH-LAYOUT / M-REPORT-PATCH-COUNTS-DIFFER in §M of
+  `docs/design/unified_measurement_management.md`; every one awaiting
+  confirmation.
+- found by: challenge rounds A and B before 4.3.0-beta.37,
+  `~/Desktop/ChromIQ-beta37-proof/challenge-A/REPORT.md` and
+  `challenge-B/REPORT.md`.
+- fix:
+  * A-F1 (HIGH): a report selected in "Report shown" (or opened on) that
+    records measurements the window has not loaded loads them first
+    (`_load_the_documents_other_measurements`); the several-places rule then
+    greys Generate with its reason and `_on_generate_report` refuses as well,
+    so an Update can no longer rewrite a cross-run report about one date.
+  * A-F3 = B-H2: the evenness noise note names the sheet's noise and the
+    row's limit and no patch count; the strip leaves the two noise reasons
+    out (`EVENNESS_NOISE_REASONS`). B-M7: a strip listing only evenness rows
+    closes with M-REPORT-CHART-MISMATCH-LAYOUT instead of the grey ramp.
+  * B-H1: `_chunked_metric_tables` lays each results table out at the PDF's
+    679 px and takes the largest column count that fits with no word broken;
+    the Metric column wraps; dates are shared evenly over the tables.
+  * B-H3: the Printing record prints neither the standard's caveat, nor the
+    guide paragraph about standard-named columns, nor "This verdict was
+    recorded when the report was saved ...".
+  * B-H4 (partly): "Colour management at the printer: off", no ChromIQ
+    explanation; every "your"/"you" in report text and metric blurbs gone
+    ("the test chart used", "the printed test chart", "the instrument");
+    "rising numbers ... worth re-profiling" is now what the numbers mean; the
+    printing-unrecorded note and the patch-count note give no advice.
+  * B-H5: the report title prefixes are translated while they are the shipped
+    default (`core.settings.report_title_prefix`), a custom one stays as
+    typed; "The ΔE figures measure a whole chain ..." and the two
+    provenance lines are German in German.
+  * B-H6: a trend series with one value is drawn as a point, window and PDF.
+  * B-M1: the one-page Custom ISO summary says how many values could not be
+    worked out. B-M5: the worst-5 % note says how many fall inside the gamut
+    and that 20 inside it are needed. B-M8: the German pre-flight names
+    "Lauftyp „Verifizierung“". B-L3: "die schlechtesten 5 %"; the presets
+    window's columns are never narrower than their heading. B-L5: "each note
+    above says why".
+  * Round B's behaviour note (b): a pre-flight asked for while another is
+    open is asked again when it closes, unless it is the same run and chart.
+- not reproduced: A-F4 ("adding a measurement of the other kind is silently
+  ignored"). Driven on screen through the real Add button
+  (`~/Desktop/ChromIQ-beta37-proof/fixes/f4-probe/`): the profiling sheet IS
+  added to a Verification window, and Generate is greyed with the mixed-kinds
+  reason. The round's driver read the window while the file dialog's `exec()`
+  had not yet returned. Round B's note (a), one date after Select all on a
+  set changed on a locked run, is the one-limit-set rule (Knut 2026-09-16,
+  `_one_limit_set`): the other dates were judged against the old set and the
+  Report Scope names them.
+- evidence: test_opening_run2_on_the_cross_run_report_loads_run1s_date,
+  test_picking_the_report_in_the_list_loads_it_whole_and_writes_nothing,
+  test_the_noise_note_names_the_noise_and_the_limit_and_no_patch_count,
+  test_the_strip_does_not_offer_a_chart_change_for_the_noise,
+  test_a_strip_about_evenness_alone_names_the_layout_not_the_grey_ramp,
+  test_every_results_table_fits_the_page_with_no_word_broken,
+  test_the_dates_are_shared_out_evenly,
+  test_a_printing_record_carries_no_standard_caveat_and_no_provenance,
+  test_a_graded_verification_keeps_both,
+  test_no_metric_blurb_speaks_to_the_reader,
+  test_the_report_neither_speaks_to_the_reader_nor_explains_chromiq,
+  test_what_the_rising_numbers_mean_is_a_statement_not_advice,
+  test_the_title_prefix_default_is_translated_and_a_custom_one_kept,
+  test_the_report_prose_is_german_in_german,
+  test_a_series_with_one_value_is_drawn_as_a_point,
+  test_the_one_page_iso_summary_names_the_unchecked_values,
+  test_the_worst_five_note_says_what_is_short,
+  test_the_preflight_names_the_bars_own_german_labels,
+  test_the_worst_five_percent_is_plural_in_german,
+  test_the_presets_column_heading_fits_in_german,
+  test_the_closing_sentence_says_why_and_not_what_a_row_needs,
+  test_a_request_met_by_an_open_window_is_made_again_when_it_closes and
+  test_but_the_window_just_answered_is_not_shown_twice, each red under the
+  mutation its docstring names; on screen in
+  `~/Desktop/ChromIQ-beta37-proof/fixes/`.
+- test files: `tests/test_beta37_a_report_is_shown_whole.py`,
+  `tests/test_beta37_evenness_noise_is_not_a_patch_count.py`,
+  `tests/test_the_results_table_fits_the_page.py`,
+  `tests/test_beta37_round_fixes.py`, `tests/test_beta37_report_text.py`,
+  `tests/test_beta37_a_preflight_asked_while_one_is_open_is_not_lost.py`.
+
+### B8-819 · OPEN · Question for Knut: Run type Calibration lists and counts every report type (beta 37, A-F2)
+- blocks release: no
+- status: OPEN
+- found by: challenge round A, F2 (only with Preferences > Calibration options
+  on). With Run type Calibration the window maps to "every type" (§13.10
+  assumption "a calibration keeps every type"): it lists and counts profiling
+  and verification reports together, and with verification dates added it
+  opened a profiling Printing record with Generate live. His K24 rule is
+  that the window "strictly shows and lists and counts report types that are
+  allowed according to the set run type". Question: what may a Calibration
+  window list, count and generate, and should it refuse measurements that
+  are not the calibration's? Not changed: the §13.10 assumption is his to
+  overturn.
+
+### B8-820 · OPEN · Question for Knut: the "Bound, and locked" paragraph against K18 (beta 37, B-H4)
+- blocks release: no
+- status: OPEN
+- found by: challenge round B, H4. The report guide's "Bound, and locked."
+  paragraph explains how ChromIQ copies a limit set onto a run at its first
+  dated verification and locks it at the second. K18 (5785414710) says report
+  text never explains ChromIQ's functions or the past; Knut himself asked for
+  the paragraph on 2026-09-11 ("be specific in the explanation ..."). It is
+  also untrue of a report made after unlocking and changing the set. Kept as
+  it is; question: keep, reword as a statement about the report, or remove.
+
+### B8-821 · OPEN · Question for Knut: should a Printing record keep its "Judged against" row? (beta 37, B-H3)
+- blocks release: no
+- status: OPEN
+- found by: challenge round B, H3. The Printing record grades nothing; its
+  standard caveat and "This verdict was recorded ..." line are removed
+  (B8-818). The results still end in a "Judged against" row naming each
+  sheet's set (e.g. "Custom ISO 12647-7 / Quick check / ChromIQ default"),
+  which his earlier design asked for. Question: keep the row on a record that
+  judges nothing, or drop it for that type.
+
+### B8-822 · OPEN · Question for Knut: the colour-accuracy graph plots all-patches figures under a within-gamut verdict (beta 37, B-M6)
+- blocks release: no
+- status: OPEN
+- found by: challenge round B, M6. On a split sheet the verdict words judge the
+  within-gamut figures (1.36 on 2026-12-01 in the Border-Conditions demo),
+  while the Colour accuracy trend plots the all-patches figure (1.95) against
+  the Avg line. Question: plot the within-gamut figures (the ones judged), the
+  all-patches ones (as now), or both with a legend saying which.
+
+### B8-823 · OPEN · Question for Knut: a project duplicated in Finder opens with an empty report window (beta 37, A-F5)
+- blocks release: no
+- status: OPEN
+- found by: challenge round A, F5. "Report-Limits-Report-Folders copy" opens
+  as target "...-copy", while every file inside keeps the old stem, so the
+  window finds no measurement. Checked by reading the code: `Run.stem` has
+  been the project FOLDER's name since July (`core/file_manager.py`), so beta
+  36 behaves the same; not new in beta 37. Question: should opening a renamed
+  or duplicated project find its files by the stem they carry (rename them,
+  or read the stem from `project.json`), or say that the copy's files are
+  named for another project.
+
+### B8-824 · OPEN · Question for Knut: the noisy demo date's white patch (beta 37, B-M4)
+- blocks release: no
+- status: OPEN
+- found by: challenge round B, M4. On the evenness demo's noisy date
+  (2026-10-22) "Paper white & darkest black" reads "White (337) - L* 100.0,
+  a* -16.6, b* 90.1" while the cube-corner table names 343 White and 337
+  Yellow. The date is SYNTHETIC (each patch its aim plus a residual,
+  `scripts/make_evenness_demo.py`), and the noise put a yellow patch at L*
+  100, where the lightest-patch rule takes it for the paper. Question: is a
+  demo whose noise can move the paper-white pick acceptable, or should the
+  demo keep the paper patches noise-free (and should the report guard the
+  lightest-patch rule with the chart's own white).

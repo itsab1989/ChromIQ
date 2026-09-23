@@ -278,6 +278,47 @@ _C = dict(_LIGHT_REPORT)
 # fits six run columns plus the Metric column without the dates wrapping (Knut).
 _MAX_RUN_COLS = 6
 
+#: The text width of the saved PDF, in the 96-dpi pixels its document is laid
+#: out in: A4 less 15 mm a side (`_export_pdf`), floored. A metric table wider
+#: than this is cut off at the paper's right edge, which is what round B
+#: before beta 37 photographed (H1).
+_PDF_TEXT_W = 679.0
+
+
+def _words_broken_across_lines(doc) -> "list[str]":
+    """The texts of *doc* whose layout breaks a WORD over two lines.
+
+    A cell narrower than its longest word is squeezed by Qt's table layout,
+    and the word is then cut wherever the edge falls: "(recommende" over "d)".
+    """
+    out = []
+    b = doc.begin()
+    while b.isValid():
+        lay, t = b.layout(), b.text()
+        for i in range((lay.lineCount() if lay else 0) - 1):
+            ln = lay.lineAt(i)
+            end = ln.textStart() + ln.textLength()
+            if 0 < end < len(t) and not t[end - 1].isspace() \
+                    and not t[end].isspace() and t[end - 1] not in "-/":
+                out.append(t)
+                break
+        b = b.next()
+    return out
+
+
+def _table_fits_the_page(table_html: str, width: float = _PDF_TEXT_W) -> bool:
+    """Whether *table_html* lays out within the PDF's text width, in the
+    report's own font, with no word broken over two lines."""
+    from PyQt6.QtCore import QSizeF
+    from PyQt6.QtGui import QTextDocument
+    family = QApplication.font().family().replace("'", "")
+    doc = QTextDocument()
+    doc.setHtml(f"<div style=\"font-family:'{family}';font-size:12px\">"
+                + table_html + "</div>")
+    doc.setPageSize(QSizeF(width, 100_000))
+    return (doc.size().width() <= width + 0.5
+            and not _words_broken_across_lines(doc))
+
 
 def _swatch(hexc: str) -> str:
     """A solid colour block for rich text. Qt ignores width/height on an empty
@@ -469,10 +510,12 @@ def _small_sample_sentence(r: "dict | None") -> str:
         # colours outside the gamut reaches n = 1, and "(s)" is banned in this
         # project's user-facing text.
         return (tr("{total} patches were measured and one of them falls inside "
-                   "the profile's gamut; at least 20 are needed to split off "
+                   "the profile's gamut; at least 20 inside it are needed to "
+                   "split off "
                    "the worst 5 %").format(total=total) if n == 1 else
                 tr("{total} patches were measured and {n} of them fall inside "
-                   "the profile's gamut; at least 20 are needed to split off "
+                   "the profile's gamut; at least 20 inside it are needed to "
+                   "split off "
                    "the worst 5 %").format(total=total, n=n))
     _count = n if isinstance(n, int) else total if total is not None else None
     if _count == 1:
@@ -594,20 +637,31 @@ def _evenness_grid_sentence(r: "dict | None") -> str:
                              k=EVENNESS_MIN_GRID)
 
 
-def _evenness_noise_sentence(r: "dict | None", key: str) -> str:
+def _evenness_noise_sentence(r: "dict | None", key: str,
+                             limit: "float | None" = None) -> str:
     """Why an evenness row was withheld by the noise rule (Knut, ruling 6).
 
-    Says what the measured chart lacks (patches in its emptiest ninth) and the
-    noise figure the rule compared, which he asked to be shown."""
+    **THE MEASUREMENT'S NOISE, NOT THE CHART'S PATCH COUNT** (the two
+    challenge rounds before beta 37, A-F3 and B-H2). The sentence used to say
+    "the measured chart has 42 patches in the emptiest ninth of the page, too
+    few for this row" on the noisy date of the evenness demo, while the notes
+    beside it judged the SAME chart's 42-patch areas on its three other
+    dates. On a measured sheet the rule compares the sheet's own noise with
+    the limit, and a sheet whose readings scatter is what withholds the row:
+    it names the noise figure the rule compared, which Knut asked to be
+    shown, and the limit it was compared with, and no patch count."""
     b = _evenness_block(r)
     noise = b.get(f"noise_{key}_p95")
-    counts = [int(c) for c in (b.get("counts") or []) if c is not None]
-    fewest = min(counts) if counts else 0
-    return tr("the measured chart has {n} patches in the emptiest ninth of "
-              "the page, too few for this row: its own noise here is {noise} "
-              "ΔE00 (the 95th percentile of the same figure with the "
-              "patches shuffled across the nine areas), and the noise has to "
-              "be below the limit").format(n=fewest, noise=_fmt(noise, 2))
+    if isinstance(limit, (int, float)):
+        return tr("the measured sheet is too noisy to judge this row: its own "
+                  "noise here is {noise} ΔE00 (the 95th percentile of the "
+                  "same figure with the patches shuffled across the nine "
+                  "areas), which is not below the limit of {limit} "
+                  "ΔE00").format(noise=_fmt(noise, 2), limit=_fmt(limit, 2))
+    return tr("the measured sheet is too noisy to judge this row: its own "
+              "noise here is {noise} ΔE00 (the 95th percentile of the same "
+              "figure with the patches shuffled across the nine areas), which "
+              "is not below the limit").format(noise=_fmt(noise, 2))
 
 
 def _evenness_area_name(area: dict) -> str:
@@ -836,6 +890,11 @@ _PDF_TREND_H = 176
 _PDF_ACCURACY_SCALE = 2
 
 
+#: The radius of the marker of a series with a single value on a trend graph:
+#: it has no line to be seen on, so it is drawn larger than a joined point.
+_TREND_LONE_POINT_R = 4.0
+
+
 class _TrendChart(QWidget):
     """A compact multi-line chart of a printer's measurement history over time
     (#40, Knut). Generic: each instance plots one GROUP of related metrics
@@ -996,14 +1055,21 @@ class _TrendChart(QWidget):
         for _lbl, col, acc in self._metrics:
             poly = [xy(i, v) for i, pt in enumerate(pts)
                     if (v := acc(pt)) is not None]
-            if len(poly) < 2:
+            if not poly:
                 continue
             p.setPen(QPen(col, 2.0))
             for a, b in zip(poly, poly[1:]):
                 p.drawLine(a, b)
+            # A SERIES WITH ONE VALUE IS STILL A VALUE (round B before beta
+            # 37, H6). "The same chart measured again" has nothing to compare
+            # on a chart's first date, so on a three-date report it has one
+            # value, 1.45 and PASS in the table, and `len(poly) < 2` skipped
+            # it: the axis was sized to hold it and the graph drew nothing. A
+            # lone point has no line to be seen on, so its marker is larger.
             p.setBrush(col); p.setPen(Qt.PenStyle.NoPen)
+            r_dot = 2.4 if len(poly) > 1 else _TREND_LONE_POINT_R
             for q in poly:
-                p.drawEllipse(q, 2.4, 2.4)
+                p.drawEllipse(q, r_dot, r_dot)
 
         # Limit lines: the accuracy chart's grey Avg / Max pair, or one line
         # per metric on a judged-metric tab (#182 K20/K21) — dotted, and only
@@ -3291,7 +3357,15 @@ class MeasurementReportDialog(QDialog):
         # THE LATEST REPORT, WITH ITS OWN SETTINGS, ONCE PER WINDOW (B8-388).
         # Before `_refresh`, so the page is drawn with those settings already
         # on it rather than drawn twice.
+        before = len(self._sources)
         self._open_on_the_latest_report()
+        if len(self._sources) != before:
+            # the report it opened on covers measurements that were not in
+            # the list (A-F1), and they are now: the list is drawn again.
+            # `_open_on_the_latest_report` runs once per window, so this
+            # cannot come back here a second time.
+            self._rebuild_from_sources()
+            return
         self._refresh()
 
     def _show_the_colour_scale_note(self) -> None:
@@ -4208,6 +4282,14 @@ class MeasurementReportDialog(QDialog):
         if self._kinds_are_mixed():
             log.info("Generate refused: a profiling sheet and dated "
                      "verifications are loaded together")
+            return
+        # …AND WHEN MEASUREMENTS FROM MORE THAN ONE PLACE ARE LOADED, which
+        # the button already refuses with its reason (A-F1, before beta 37).
+        # A report across two runs is loaded whole now, so this is the state
+        # it is shown in, and an Update from here would rewrite it narrower.
+        if self._several_runs():
+            log.info("Generate refused: measurements from more than one "
+                     "place are loaded")
             return
         # **IT SAYS SO INSTEAD OF CORRECTING THE TICKS (B8-591).** Knut,
         # 2026-09-20, reporting the same silence from both ends: *"This
@@ -6798,6 +6880,27 @@ class MeasurementReportDialog(QDialog):
         `_rebuild_from_sources`, which repaints immediately afterwards.
         """
         key = entry["key"]
+        # **A DOCUMENT IS SHOWN WHOLE, OR IT IS NOT SHOWN AS ITSELF (the
+        # challenge round before beta 37, A-F1).** A document in
+        # `<project>/reports` covering run1's 2026-12-15 and run2's
+        # 2026-12-22, opened from run2's window, came up with 12-22 alone
+        # ticked and "1 verification run" on the page; Generate then asked
+        # "Nothing was changed for the selected report", and Update rewrote it
+        # about one date and retired the file that covered two. So the
+        # measurements it records that this window has not loaded are loaded
+        # now, before anything is drawn. The several-places rule then greys
+        # Generate with its reason, the page shows the whole report, and
+        # nothing can be rewritten narrower than it is.
+        if self._load_the_documents_other_measurements(entry):
+            self._history = sorted(
+                (r for s in self._sources for r in s["runs"]),
+                key=lambda r: str(r.get("created") or ""))
+            self._project_dirs = {s["dir"] for s in self._sources}
+            again = next((d for d in self._saved_documents(
+                self._run_ctx.run if self._run_ctx else None)
+                if d["key"] == key), None)
+            if again is not None:
+                entry = again
         self._loaded_doc_id = key
         doc = entry["doc"] or self._settings_of_one_saved_report(entry)
         self._loaded_doc = doc
@@ -6823,6 +6926,53 @@ class MeasurementReportDialog(QDialog):
         # back by `_report_type_now` and `_sync_limit_controls`, which the
         # repaint the caller runs. Setting the two combos here as well would be
         # two answers to one question, and this window has paid for that before.
+
+    def _load_the_documents_other_measurements(self, entry: dict) -> int:
+        """Load every measurement *entry*'s document records that is not in
+        the list yet; the number loaded (A-F1, before beta 37).
+
+        The document's own list is the answer to "what does it cover", named
+        from the project down (`project_relative`) so a moved project finds
+        the same folders. A folder that no longer holds its measurement is
+        left out rather than guessed at.
+        """
+        from workflow.measurement_report import (_project_folder_of,
+                                                 project_relative)
+        block = entry.get("doc") if isinstance(entry, dict) else None
+        wanted = (block or {}).get("measurements") or []
+        if len(wanted) < 2:
+            return 0
+        loaded = {project_relative(r.get("_origin_dir") or "")
+                  for r in self._history if r.get("_origin_dir")}
+        project = None
+        for r in self._history:
+            if r.get("_origin_dir"):
+                project = _project_folder_of(Path(str(r["_origin_dir"])))
+                if project is not None:
+                    break
+        added = 0
+        for m in wanted:
+            d, name = str(m.get("dir") or ""), str(m.get("ti3") or "")
+            if not d or not name:
+                continue
+            rel = project_relative(d)
+            if rel in loaded:
+                continue
+            folder = (project / rel if project is not None
+                      and rel.startswith("runs/") else Path(d))
+            ti3 = folder / name
+            if not ti3.is_file():
+                log.info("a report covers %s, which is not on disk", ti3)
+                continue
+            try:
+                if self._append_source(ti3, origin=ti3):
+                    added += 1
+                    loaded.add(rel)
+                    log.info("loaded %s: the selected report covers it", ti3)
+            except Exception as exc:                  # noqa: BLE001
+                log.warning("could not load %s for the selected report: %s",
+                            ti3, exc)
+        return added
 
     def _restore_the_documents_view(self, doc: "dict | None", *,
                                     recorded: bool = True,
@@ -7790,8 +7940,13 @@ class MeasurementReportDialog(QDialog):
             self._set_saved_hint(self._saved_hint_full)
 
     # -- reasons a row was not computed, as sentences --------------------------
-    def _reason_sentence(self, code: "str | None", r: "dict | None" = None) -> str:
+    def _reason_sentence(self, code: "str | None", r: "dict | None" = None,
+                         row: "dict | None" = None) -> str:
+        """The sentence for one reason code. *row* is the verdict row it
+        withholds, when the caller has it: the evenness noise sentence names
+        that row's limit."""
         r = r or {}
+        _limit = (row or {}).get("threshold")
         gb = r.get("grey_balance") or {}
         texts = {
             "no_greys": tr("the measured chart has no grey patches (R = G = B)"),
@@ -7869,9 +8024,10 @@ class MeasurementReportDialog(QDialog):
             "evenness_empty_area": tr(
                 "one of the nine areas of the measured chart holds no patch "
                 "with an aim value"),
-            "evenness_noisy_pairwise": _evenness_noise_sentence(r, "pairwise"),
+            "evenness_noisy_pairwise": _evenness_noise_sentence(
+                r, "pairwise", _limit),
             "evenness_noisy_from_mean": _evenness_noise_sentence(
-                r, "from_mean"),
+                r, "from_mean", _limit),
         }
         return texts.get(code or "", "")
 
@@ -7898,8 +8054,7 @@ class MeasurementReportDialog(QDialog):
                 "are judged against the chart's own design in absolute Lab. "
                 "The paper's own tint is part of that measurement, so a good "
                 "print on a warm or tinted paper reads higher here than the "
-                "profile deserves. Record the printing condition, or read this "
-                "row against the paper you printed on."),
+                "profile deserves."),
             # ONE TEXT FOR THIS NOTE, IN BOTH PLACES IT APPEARS. Knut asked for
             # the note in the Report limits window AND in the report text
             # (2026-09-21), so it lives in the §M catalogue and both renderers
@@ -8001,7 +8156,8 @@ class MeasurementReportDialog(QDialog):
                 continue
             rid = row.get("row_id") or row.get("key")
             label = tr(ROW_BY_ID[rid].label) if rid in ROW_BY_ID else str(rid)
-            out.append((label, self._reason_sentence(row.get("reason"), r)))
+            out.append((label, self._reason_sentence(row.get("reason"), r,
+                                                     row)))
         return out
 
     def _mismatch_text(self) -> str:
@@ -8017,14 +8173,24 @@ class MeasurementReportDialog(QDialog):
         if not r or self._ungraded_by_type():
             return ""
         from workflow.compliance_sets import N_A, POPULATION_MAY_BE_ABSENT
-        from workflow.measurement_report import EVENNESS_FILE_REASONS
+        from workflow.measurement_report import (EVENNESS_FILE_REASONS,
+                                                 EVENNESS_NOISE_REASONS)
         rows, _rec = self._verdict_rows(r)
-        missing = [(row.get("row_id") or row.get("key"), row.get("reason"))
+        missing = [(row.get("row_id") or row.get("key"), row.get("reason"),
+                    row)
                    for row in rows if row.get("word") == N_A
                    and row.get("reason") not in (None, "printing_unrecorded")
                    # …nor a row withheld for want of a chart FILE (the
                    # evenness layout): no patch added to the chart supplies it
                    and row.get("reason") not in EVENNESS_FILE_REASONS
+                   # …NOR ONE WITHHELD FOR THE MEASUREMENT'S NOISE (the two
+                   # rounds before beta 37, A-F3 and B-H2). The strip says
+                   # "Point here for the reasons and what to add to the
+                   # chart", and on the noisy date of the evenness demo it
+                   # said so about a chart that was judged on its three other
+                   # dates. The sheet scattered; nothing added to the chart
+                   # answers that. The row still reads N-A with its note.
+                   and row.get("reason") not in EVENNESS_NOISE_REASONS
                    # …AND THIS STRIP IS ABOUT THE CHART. Its message tells the
                    # reader to add patches in Create Chart, print the chart
                    # again and measure it, so naming a row whose population
@@ -8041,13 +8207,25 @@ class MeasurementReportDialog(QDialog):
             return ""
         from workflow.compliance_sets import ROW_BY_ID
         from workflow.measurement_messages import M_REPORT_CHART_MISMATCH
+        from workflow.measurement_messages import (
+            M_REPORT_CHART_MISMATCH_LAYOUT)
+        from workflow.measurement_report import EVENNESS_ROWS
         lines = []
-        for rid, reason in missing:
+        for rid, reason, row in missing:
             label = tr(ROW_BY_ID[rid].label) if rid in ROW_BY_ID else str(rid)
-            lines.append("• " + label + ": " + self._reason_sentence(reason, r))
+            lines.append("• " + label + ": "
+                         + self._reason_sentence(reason, r, row))
         lim = self._window_limits()
-        title, body = M_REPORT_CHART_MISMATCH.render(
-            set=lim.set_label, rows="\n".join(lines))
+        # WHEN EVERY ROW LISTED IS AN EVENNESS ROW, THE REMEDY IS THE LAYOUT
+        # (round B before beta 37, M7). The general closing sends a reader to
+        # add patches in Create Chart "(for the grey balance: “Neutral grey
+        # ramp” with 16 steps)", and a round photographed it under a list
+        # holding nothing but the two evenness rows: what they lack is strips
+        # and rows on one page, which is the layout, not a patch set.
+        msg = (M_REPORT_CHART_MISMATCH_LAYOUT
+               if all(rid in EVENNESS_ROWS for rid, _r, _x in missing)
+               else M_REPORT_CHART_MISMATCH)
+        title, body = msg.render(set=lim.set_label, rows="\n".join(lines))
         return title + "\n" + body
 
     # ---- the verdict a report shows ---------------------------------------------
@@ -8156,7 +8334,7 @@ class MeasurementReportDialog(QDialog):
         for row in rows or ():
             if row.get("word") != N_A or not row.get("reason"):
                 continue
-            said = self._reason_sentence(row.get("reason"), r)
+            said = self._reason_sentence(row.get("reason"), r, row)
             if not said:
                 continue
             code = str(row.get("reason")) + self._NOTE_TEXT_SEP + said
@@ -10508,7 +10686,7 @@ class MeasurementReportDialog(QDialog):
                 continue
             bg = f" style='background:{self._ZEBRA_BG}'" if zebra % 2 == 1 else ""
             zebra += 1
-            body.append(f"<tr{bg}><td style='white-space:nowrap;padding-right:14px'>"
+            body.append(f"<tr{bg}><td style='padding-right:14px'>"
                         + html.escape(label) + "</td>" + "".join(cells) + "</tr>")
         # page-break-inside:avoid keeps a whole chunk-table together — if it won't
         # fit, it moves to the next page rather than splitting rows (Knut #PDF4).
@@ -10519,12 +10697,23 @@ class MeasurementReportDialog(QDialog):
 
     def _chunked_metric_tables(self, runs: list, row_getters: list) -> str:
         """Stacked metric×run tables, at most :data:`_MAX_RUN_COLS` dated columns
-        each, continuing below with the Metric column repeated; oldest run first."""
-        out = []
+        each, continuing below with the Metric column repeated; oldest run first.
+
+        **AS MANY COLUMNS AS FIT ON THE PAGE, MEASURED, NOT ASSUMED** (round B
+        before beta 37, H1). Six was a count chosen for English with short
+        labels, and the table was cut off at the PDF's right margin: eleven
+        dates of the Threshold series lost three verdict columns off the
+        paper, four German dates lost "(empfohlen)" and a date's last digit,
+        and English broke "(recommende/d)" mid-word. The Metric column now
+        wraps, and each table is laid out at the PDF's text width before it
+        is used: the largest column count whose tables fit that width with no
+        word broken across two lines wins, and the dates are shared out
+        evenly over as many tables as that takes.
+        """
         days = [str(r.get("created") or "")[:10] for r in runs]
         shared = {d for d in days if days.count(d) > 1}
-        for i in range(0, len(runs), _MAX_RUN_COLS):
-            chunk = runs[i:i + _MAX_RUN_COLS]
+
+        def table(chunk) -> str:
             dates = [((str(r.get("created") or "")[:10],
                        str(r.get("created") or "")[11:16])
                       if str(r.get("created") or "")[:10] in shared
@@ -10532,8 +10721,24 @@ class MeasurementReportDialog(QDialog):
                      for r in chunk]
             rows = [(label, None if get is None else [get(r) for r in chunk])
                     for label, get in row_getters]
-            out.append(self._metric_table(dates, rows))
-        return "".join(out)
+            return self._metric_table(dates, rows)
+
+        def split(k: int) -> "list[list]":
+            n = len(runs)
+            m = -(-n // k) if n else 0
+            out, i = [], 0
+            for j in range(m):
+                size = n // m + (1 if j < n % m else 0)
+                out.append(runs[i:i + size])
+                i += size
+            return out
+
+        best: "list[str]" = []
+        for k in range(min(_MAX_RUN_COLS, max(1, len(runs))), 0, -1):
+            best = [table(c) for c in split(k)]
+            if all(_table_fits_the_page(t) for t in best):
+                break
+        return "".join(best)
 
     def _scope_html(self, runs: list, dropped: "list | None" = None) -> str:
         """Report Scope (Knut): which profiles + instruments are included, the run
@@ -11155,9 +11360,13 @@ class MeasurementReportDialog(QDialog):
                     + "</li>")
             return "".join(out)
 
+        try:
+            _grades_nothing = self._ungraded_by_type()
+        except Exception:              # noqa: BLE001 — a bare guide, no window
+            _grades_nothing = False
         body = (
             "<p>" + html.escape(tr(
-                "This report compares what your instrument measured against the "
+                "This report compares what the instrument measured against the "
                 "chart's design colours (the reference values the chart was built "
                 "from). Every number is a colour difference (\u0394E00): 0 is a perfect "
                 "match, 1\u20132 is barely visible, and 10 or more is clearly "
@@ -11239,7 +11448,7 @@ class MeasurementReportDialog(QDialog):
                 "used could not answer does not make a column COND: it is not "
                 "counted as a failure.")) + "</li>"
             "<li>" + html.escape(tr(
-                "INFO: the number is shown for your information and nothing "
+                "INFO: the number is shown for information only and nothing "
                 "was judged from it. That happens when this limit set puts no "
                 "limit on the row, when the sheet is a profiling measurement, "
                 "which is never graded, when the row needs something about the "
@@ -11325,7 +11534,12 @@ class MeasurementReportDialog(QDialog):
             # stated as the condition it actually is. Every clause below is
             # true of a build that ships as this one does AND of one a licence
             # holder has pointed at their own file.
-            "<p>" + html.escape(tr(
+            #
+            # NOT ON A RECORD THAT GRADES NOTHING (round B before beta 37,
+            # H3): a Printing record reads no column PASS or FAIL, so a
+            # paragraph saying what such a column's PASS is describes a page
+            # the reader is not holding.
+            + (("<p>" + html.escape(tr(
                 "A column named after a standard judges against limits set for "
                 "that standard's printing condition. Its limits may differ "
                 "from the standard's published values, and they are applied to "
@@ -11333,7 +11547,9 @@ class MeasurementReportDialog(QDialog):
                 "chart and control strip. Such a column reads PASS or FAIL "
                 "like any other, and the note under the results says what that "
                 "PASS is: an indication that the print would likely meet the "
-                "standard, and not proof that it does.")) + "</p>"
+                "standard, and not proof that it does.")) + "</p>")
+               if not _grades_nothing else "")
+            + ""
             # BOUND AND LOCKED, in the report that uses both words. Knut,
             # 2026-09-11: *"what is the difference between bound and locked? Be
             # specific in the explanation, so that user understands that chosen
@@ -11358,16 +11574,17 @@ class MeasurementReportDialog(QDialog):
             "<ul>"
             "<li>" + html.escape(tr(
                 "A profiling chart is printed WITHOUT colour management (the raw "
-                "print you measure to build a profile). It is not expected to match "
-                "the design closely, so the ΔE can look large — that's normal. Here "
-                "it is the CHANGE between dated reports that matters, not a single "
-                "value.")) + "</li>"
+                "print that is measured to build a profile). It is not expected to "
+                "match the design closely, so the ΔE can look large, and that is "
+                "normal. Here it is the CHANGE between dated reports that matters, "
+                "not a single value.")) + "</li>"
             "<li>" + html.escape(tr(
                 "A verification chart is printed THROUGH the finished profile, "
                 "with the printer's colour management off. It SHOULD match the "
                 "design closely, so low ΔE and passes mean the profile is "
-                "still accurate; rising numbers over time show when it is "
-                "worth re-profiling. (Printed raw instead, the same sheet is a "
+                "still accurate; numbers rising over time mean that the "
+                "profile describes the printer less well than it did. (Printed "
+                "raw instead, the same sheet is a "
                 "printer drift check, and the report says which way each sheet "
                 "was printed.)")) + "</li>"
             "</ul>"
@@ -11386,8 +11603,8 @@ class MeasurementReportDialog(QDialog):
             "<p>" + html.escape(tr(
                 "The ΔE figures measure a whole chain in one number: the "
                 "profile's conversion of each colour to printer values, the "
-                "printer's behaviour on the day, and your instrument's own "
-                "small uncertainty. A rising number tells you something in "
+                "printer's behaviour on the day, and the instrument's own "
+                "small uncertainty. A rising number means something in "
                 "that chain has moved; by itself it does not say which part. "
                 "Judging the profile on its own is a separate check, made "
                 "against the measurement the profile was built from.")) + "</p>"
@@ -11449,7 +11666,7 @@ class MeasurementReportDialog(QDialog):
             weight = "bold" if word in (PASS, FAIL, COND) else "normal"
             tip = ""
             if word == N_A and x.get("reason"):
-                tip = self._reason_sentence(x.get("reason"), r)
+                tip = self._reason_sentence(x.get("reason"), r, x)
             elif word == COND:
                 # A ROW CANNOT BE JUDGED COND ANY MORE, so reaching this line
                 # means the report was SAVED with the word and is being read
@@ -11587,7 +11804,10 @@ class MeasurementReportDialog(QDialog):
         # the id is unknown, which is precisely the case this closes.
         _standard_cols = [r for r in runs
                           if not _is_raw_drift(r) and self._names_a_standard(r)]
-        if _standard_cols:
+        # ...AND NOT ON A PRINTING RECORD (round B before beta 37, H3). That
+        # type grades nothing, so a sentence saying what a PASS under a
+        # standard's name is describes a word the page never prints.
+        if _standard_cols and not self._ungraded_by_type():
             # TRANSLATED IN HALVES AND JOINED HERE. `tr()` is a whole-string
             # lookup, so `tr(a + " " + b)` would miss every catalogue and
             # print English in thirteen languages.
@@ -11694,7 +11914,7 @@ class MeasurementReportDialog(QDialog):
                 + ("<div style='margin-top:4px'>" + html.escape(tr(
                     "A row that could not be worked out says nothing about"
                     " the printer and is not counted as a failure;"
-                    " each note above names what that row needs.")) + "</div>"
+                    " each note above says why.")) + "</div>"
                    if self._has_an_absence(runs) else "")
                 + "</div>")
         return (_h2(tr("Report Results"), page_break=True) + _gap()
@@ -11883,15 +12103,15 @@ class MeasurementReportDialog(QDialog):
         prefixes: "<prefix>[ - <profile name>]" — NO date/time (the report shows
         its Created date inside; Knut). The prefix is the profiling or
         verification line depending on the included measurements (#130)."""
-        if self._report_kind(runs) == "verification":
-            prefix = str(self._settings.get(
-                "report_title_verification",
-                "Measurement Report - Verification of Profile"))
-        else:
-            prefix = str(self._settings.get(
-                "report_title_profiling",
-                "Measurement Report - Profiling of Printer"))
-        parts = [prefix.strip() or "Measurement Report"]
+        # THE DEFAULT IN THE REPORT'S LANGUAGE, A USER'S OWN AS TYPED (round
+        # B before beta 37, H5): every German PDF was headed "Measurement
+        # Report - Verification of Profile".
+        from core.settings import report_title_prefix
+        prefix = report_title_prefix(
+            self._settings, "report_title_verification"
+            if self._report_kind(runs) == "verification"
+            else "report_title_profiling")
+        parts = [prefix.strip() or tr("Measurement Report")]
         if self._settings.get("report_add_profile_name", True):
             name = self._report_profile_name(runs)
             if name:
@@ -12164,7 +12384,8 @@ class MeasurementReportDialog(QDialog):
                 row.get("label") or rid)
             if not label:
                 continue
-            out.append((label, self._reason_sentence(row.get("reason"), r) or ""))
+            out.append((label, self._reason_sentence(row.get("reason"), r,
+                                                     row) or ""))
         return out
 
     @staticmethod
@@ -12187,13 +12408,21 @@ class MeasurementReportDialog(QDialog):
         this a one-page document are two requirements of his that cannot both
         hold as they stand.
         """
+        # …BUT IT STILL SAYS HOW MANY, AND WHY (round B before beta 37, M1).
+        # Dropping the clause left "12 of 20 values checked, all within this
+        # limit set's values." with not a word about the other 8, while the
+        # same page under ChromIQ's own sets says "The other 8 could not be
+        # worked out from this measurement". The one-page sentences below say
+        # that, and point at no list.
         from workflow.compliance_sets import SUMMARY_REASONS
         import dataclasses
-        plain = SUMMARY_REASONS.get("iso", "")
-        promised = (SUMMARY_REASONS.get("iso_with_unchecked"),
-                    SUMMARY_REASONS.get("iso_with_one_unchecked"))
-        if plain and getattr(sm, "reason", None) in promised:
-            return dataclasses.replace(sm, reason=plain)
+        swap = {SUMMARY_REASONS.get("iso_with_unchecked"):
+                SUMMARY_REASONS.get("iso_partial_page"),
+                SUMMARY_REASONS.get("iso_with_one_unchecked"):
+                SUMMARY_REASONS.get("iso_partial_page_one")}
+        new = swap.get(getattr(sm, "reason", None))
+        if new:
+            return dataclasses.replace(sm, reason=new)
         return sm
 
     def _one_page_evenness_html(self, r: dict) -> str:
@@ -12575,11 +12804,11 @@ class MeasurementReportDialog(QDialog):
             # The user's own answer at measure time (M-HOW-PRINTED): the
             # sheet went through another application's colour management.
             rows.append((tr("What this measured"), tr(
-                "your whole everyday printing chain — the application's "
+                "the whole everyday printing chain: the application's "
                 "colour engine, this profile and the printer together"),
                 False))
             rows.append((tr("Printed"), tr(
-                "in another application with colour management (your answer "
+                "in another application with colour management (as answered "
                 "when the sheet was measured)"), False))
         elif colour == "through-profile":
             intent = intent_labels.get(printing.get("intent") or "relative",
@@ -12602,7 +12831,7 @@ class MeasurementReportDialog(QDialog):
         route = printing.get("route")
         if route == "chromiq":
             rows.append((tr("Colour management at the printer"), tr(
-                "off — ChromIQ printed the sheet itself"), False))
+                "off"), False))
         elif route == "external":
             rows.append((tr("Colour management at the printer"), tr(
                 "printed in another application, which was asked not to "
@@ -12776,7 +13005,7 @@ class MeasurementReportDialog(QDialog):
                 word = row.get("word")
                 if word is None and row.get("pass") is not None:
                     word = PASS if row["pass"] else FAIL
-                tip = (self._reason_sentence(row.get("reason"), r)
+                tip = (self._reason_sentence(row.get("reason"), r, row)
                        if row.get("reason") else "")
                 trs.append(row_html(i, label, values, row.get("threshold"), word,
                                     should=bool(row.get("should")), tip=tip))
@@ -12793,7 +13022,11 @@ class MeasurementReportDialog(QDialog):
             parts.append("<table cellpadding='5' cellspacing='0' "
                          "style='border-collapse:collapse;font-size:11px'>"
                          + "".join(trs) + "</table>")
-            if not raw_drift:
+            # WHERE THE WORDS CAME FROM, WHICH A RECORD HAS NONE OF (round B
+            # before beta 37, H3). A Printing record grades nothing, so "This
+            # verdict was recorded ... against the limit set ..." beside "This
+            # sheet is not graded" is about a verdict the page does not show.
+            if not raw_drift and not self._ungraded_by_type():
                 parts.append(
                     f"<p style='color:{_C['faint']};font-size:10px'>"
                     + html.escape(self._verdict_provenance(r, recorded))
@@ -12802,11 +13035,10 @@ class MeasurementReportDialog(QDialog):
                 rd = r.get("raw_drift") or {}
                 if rd.get("baseline"):
                     drift_txt = tr(
-                        "This sheet was printed raw, without the profile — "
-                        "so it is a drift check, and this is the first one: "
-                        "it becomes the baseline. From your next raw check "
-                        "on, the report will show here how far the printer "
-                        "has moved since this sheet.")
+                        "This sheet was printed raw, without the profile, "
+                        "so it is a drift check, and it is the first one: "
+                        "it is the baseline that later raw checks of this "
+                        "chart are measured against.")
                 elif rd.get("incomparable"):
                     drift_txt = tr(
                         "This sheet was printed raw, without the profile — a "
@@ -12819,9 +13051,9 @@ class MeasurementReportDialog(QDialog):
                         "Drift since the previous raw check ({prev}): "
                         "average {avg} ΔE00, maximum {max}: this print "
                         "measured against that print, patch by patch, "
-                        "{n} patches. Small numbers mean your printer still "
-                        "behaves as it did then; growing numbers mean drift, "
-                        "worth re-profiling when they matter to you. "
+                        "{n} patches. Small numbers mean the printer still "
+                        "behaves as it did then; growing numbers mean it has "
+                        "drifted. "
                         "(PASS and FAIL against the run's limit set are not "
                         "shown here: a raw sheet is not expected to match "
                         "the design closely, so it would fail even a "
@@ -12872,10 +13104,10 @@ class MeasurementReportDialog(QDialog):
                 + "<b>" + html.escape(tr(
                     "No colour-accuracy figures, on purpose.")) + "</b><br><br>"
                 + html.escape(tr(
-                    "This chart was built from your profile's own gamut, so "
+                    "This chart was built from the profile's own gamut, so "
                     "its measurements can only be judged against the "
                     "colorimetric targets that were stored beside the chart "
-                    "when it was made — and that reference file cannot be "
+                    "when it was made, and that reference file cannot be "
                     "found. Comparing against anything else would produce "
                     "confident-looking numbers measured against the wrong "
                     "yardstick, so ChromIQ shows none at all."))
@@ -12931,11 +13163,8 @@ class MeasurementReportDialog(QDialog):
                     "program rearranges the patches for its own layout."))
                 + "<br><br>" + html.escape(tr(
                     "Nothing has been changed or hidden. The figures above "
-                    "were worked out in the usual way and your measurement "
-                    "file has not been touched. It is worth checking that "
-                    "this measurement really belongs to this chart — and, if "
-                    "you measured it in another program, that the program "
-                    "kept the patches in the order ChromIQ sent them."))
+                    "were worked out in the usual way and the measurement "
+                    "file has not been touched."))
                 + "</p>")
 
         w, b = r.get("paper_white"), r.get("max_black")

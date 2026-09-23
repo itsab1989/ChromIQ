@@ -5044,12 +5044,13 @@ class SettingsDialog(QDialog):
         self._report_type_default_combo.setCurrentIndex(_i)
         self._report_details_default_check.setChecked(
             bool(s.get("report_default_show_details", True)))
+        # The shipped default is shown in the UI language; a prefix the user
+        # typed is shown as typed (round B before beta 37, H5).
+        from core.settings import report_title_prefix
         self._report_title_prof_edit.setText(
-            str(s.get("report_title_profiling",
-                      "Measurement Report - Profiling of Printer")))
+            report_title_prefix(s, "report_title_profiling"))
         self._report_title_verify_edit.setText(
-            str(s.get("report_title_verification",
-                      "Measurement Report - Verification of Profile")))
+            report_title_prefix(s, "report_title_verification"))
         self._report_add_profile_check.setChecked(
             bool(s.get("report_add_profile_name", True)))
         self._patch_warn_spin.setValue(
@@ -6158,12 +6159,12 @@ class SettingsDialog(QDialog):
             s.set("report_default_type", _tid)
         s.set("report_default_show_details",
               bool(self._report_details_default_check.isChecked()))
-        s.set("report_title_profiling",
-              self._report_title_prof_edit.text().strip()
-              or "Measurement Report - Profiling of Printer")
-        s.set("report_title_verification",
-              self._report_title_verify_edit.text().strip()
-              or "Measurement Report - Verification of Profile")
+        from core.settings import report_title_to_store
+        s.set("report_title_profiling", report_title_to_store(
+            "report_title_profiling", self._report_title_prof_edit.text()))
+        s.set("report_title_verification", report_title_to_store(
+            "report_title_verification",
+            self._report_title_verify_edit.text()))
         s.set("report_add_profile_name", self._report_add_profile_check.isChecked())
         s.set("patch_read_warn_de", float(self._patch_warn_spin.value()))
         s.set("patch_warn_outlier_fence",

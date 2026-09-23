@@ -14218,6 +14218,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # that depends on that staying true is a guard waiting to fail.
         if getattr(self, "_preflight_open", False) or \
                 getattr(self, "_offer_open", False):
+            # …BUT A REQUEST THAT ARRIVES WHILE ONE IS OPEN IS NOT DROPPED
+            # (challenge round B before beta 37). A run switch landing while
+            # run3's window was open asked for run2's, found this guard, and
+            # was never asked again: the English drive got no pre-flight on
+            # run2 at all while the German one, timed differently, did. The
+            # request is remembered and made again when the window closes.
+            self._preflight_missed = True
             return
         try:
             if not self._verification_preflight_due():
@@ -14261,10 +14268,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         from ui.widgets import fit_message_box_buttons
         fit_message_box_buttons(box)
         self._preflight_open = True
+        self._preflight_missed = False
+        shown = self._preflight_key()
         try:
             box.exec()
         finally:
             self._preflight_open = False
+            self._after_preflight_closed(shown)
         # **REMEMBERED IN THIS PROCESS AND NOWHERE ELSE.** Knut: *"this window
         # will not come again for this run until I restart ChromIQ"*. A set on
         # the tab dies with the tab, so there is nothing on disk to forget to
@@ -14274,6 +14284,20 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             self._preflight_silenced.add(scope)
             log.info("Verification pre-flight silenced for %s (this session)",
                      scope)
+
+    def _preflight_key(self) -> tuple:
+        """Which run and chart a pre-flight is about: the profile run's scope
+        and the chart path."""
+        return (self._preflight_scope(),
+                str(getattr(self, "_ti1_path", None) or ""))
+
+    def _after_preflight_closed(self, shown: tuple) -> None:
+        """Ask again for a pre-flight that was requested while one was open,
+        unless it is about the run and chart the reader has just answered."""
+        missed = bool(getattr(self, "_preflight_missed", False))
+        self._preflight_missed = False
+        if missed and self._preflight_key() != shown:
+            self._queue_verification_preflight()
 
     def _measurement_at_risk(self) -> "Path | None":
         """The measurement a plain re-read would overwrite, or None.

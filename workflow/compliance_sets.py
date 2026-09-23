@@ -481,7 +481,7 @@ _R_REPEAT_ACROSS = (
 #: measurement; `tests/test_evenness_across_the_sheet.py` holds the sentence to
 #: the constants.
 _EVEN_CAUSES = (
-    "An uneven sheet usually has a cause you can look for: banding from the "
+    "An uneven sheet usually has one of these causes: banding from the "
     "printer, a partly blocked or misaligned print head, paper that is not "
     "flat or not the same all over, or, on an instrument that reads whole "
     "strips, the instrument drifting while it reads. The strips are read one "
@@ -527,7 +527,7 @@ ROWS: "tuple[Row, ...]" = (
     # -- Paper
     Row("substrate_de00_max", "substrate",
         "Paper white, difference from the reference paper", "ΔE00", "ref",
-        blurb='How far the bare paper you printed on sits from the paper the reference describes. A paper that is bluer, warmer or darker than the aim moves every colour printed on it.',
+        blurb='How far the bare paper of the printed test chart sits from the paper the reference describes. A paper that is bluer, warmer or darker than the aim moves every colour printed on it.',
         detect=_D_REFERENCE_WHITE,
         remedy=_R_REFERENCE),
     Row("substrate_overprinted_de00_max", "substrate",
@@ -560,7 +560,7 @@ ROWS: "tuple[Row, ...]" = (
     # -- Control strip
     Row("control_strip_de00_avg", "control_strip",
         "Control-strip patches, average", "ΔE00", "build",
-        blurb='The average colour error over the control strip your chart declares: the run of patches a press or a proof is checked on.',
+        blurb='The average colour error over the control strip the test chart used declares: the run of patches a press or a proof is checked on.',
         detect=_D_CONTROL_STRIP,
         remedy=_R_CONTROL_STRIP),
     Row("control_strip_de00_max", "control_strip",
@@ -576,7 +576,7 @@ ROWS: "tuple[Row, ...]" = (
     # -- Grey ramp (K-h)
     Row("grey_balance_neutral_ramp_avg", "grey_ramp",
         "Grey balance of the grey ramp, average", "ΔCh", "build",
-        blurb='How neutral your greys are on average: how far each step of the grey ramp sits from having no colour cast at all. Lightness is ignored, only the cast is counted.',
+        blurb='How neutral the greys of the printed test chart are on average: how far each step of the grey ramp sits from having no colour cast at all. Lightness is ignored, only the cast is counted.',
         detect=_D_GREY_RAMP,
         remedy=_R_GREY_RAMP),
     Row("grey_balance_neutral_ramp_max", "grey_ramp",
@@ -617,7 +617,7 @@ ROWS: "tuple[Row, ...]" = (
     # user set and the verdict a report recorded. The id is not shown anywhere.
     Row("outer_gamut_226_de00_avg", "selected",
         "Outer-gamut patches, average", "ΔE00", "build",
-        blurb="The average error over the most saturated quarter of your chart, the colours at the edge of what the printer can reach.",
+        blurb="The average error over the most saturated quarter of the test chart used, the colours at the edge of what the printer can reach.",
         detect=_D_OUTER_GAMUT,
         remedy=_R_OUTER_GAMUT),
     Row("surface_gamut_de00_avg", "selected",
@@ -646,7 +646,7 @@ ROWS: "tuple[Row, ...]" = (
     # a document that does not contain them.
     Row("repeat_patches_de00_max", "repeatability",
         "Repeat patches on one sheet, largest difference", "ΔE00", "build",
-        blurb='How far apart the same colour landed where your chart asked for it more than once on one sheet. No profile and no aim value is in this number: the patches were asked for the same thing, so what separates them is the printer and the instrument together.',
+        blurb='How far apart the same colour landed where the test chart used asked for it more than once on one sheet. No profile and no aim value is in this number: the patches were asked for the same thing, so what separates them is the printer and the instrument together.',
         detect=_D_REPEAT_WITHIN,
         remedy=_R_REPEAT_WITHIN),
     Row("repeat_measurement_de00_max", "repeatability",
@@ -1817,6 +1817,22 @@ SUMMARY_REASONS: "dict[str, str]" = {
                               "named after a standard; it is not a test "
                               "against that standard. The one value not "
                               "checked is listed below.",
+    # …AND THE ONE-PAGE SUMMARY'S OWN TWO, which have no list to point at.
+    # That page used to drop the unchecked values altogether, so a Custom ISO
+    # summary read "12 of 20 values checked, all within this limit set's
+    # values." and said nothing about the other 8 (round B before beta 37,
+    # M1), where ChromIQ's own sets say how many could not be worked out.
+    # `MeasurementReportDialog._one_page_summary` is the only reader.
+    "iso_partial_page": "{checked} of {total} values checked, all within "
+                        "this limit set's values; the other {not_computed} "
+                        "could not be worked out from this measurement. This "
+                        "limit set is named after a standard; it is not a "
+                        "test against that standard.",
+    "iso_partial_page_one": "{checked} of {total} values checked, all within "
+                            "this limit set's values; the one other value "
+                            "could not be worked out from this measurement. "
+                            "This limit set is named after a standard; it is "
+                            "not a test against that standard.",
     "cond_both": "{checked} of {total} values checked, none over a required "
                  "limit; {not_computed} not computed and {cond} over a "
                  "recommended value.",

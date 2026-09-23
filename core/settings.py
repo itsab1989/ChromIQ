@@ -928,6 +928,43 @@ def _seed_sound_defaults() -> None:
 _seed_sound_defaults()
 
 
+def report_title_default(key: str) -> str:
+    """The report title prefix Preferences starts from, in the UI language.
+
+    Round B before beta 37, H5: the defaults were stored and printed in
+    English, so every German report was headed "Measurement Report -
+    Verification of Profile". The STORED default stays the English source
+    string (that is what "the user has not changed it" is measured against);
+    this is what the window shows and the report prints for it.
+    """
+    from core.i18n import tr
+    if key == "report_title_profiling":
+        return tr("Measurement Report - Profiling of Printer")
+    if key == "report_title_verification":
+        return tr("Measurement Report - Verification of Profile")
+    return str(DEFAULTS.get(key, ""))
+
+
+def report_title_prefix(settings, key: str) -> str:
+    """The prefix a report is titled with: the user's own as typed, or, while
+    it is still the shipped default (or empty), that default translated."""
+    stored = str(settings.get(key, DEFAULTS.get(key, "")) or "").strip()
+    if not stored or stored == str(DEFAULTS.get(key, "")).strip():
+        return report_title_default(key)
+    return stored
+
+
+def report_title_to_store(key: str, typed: str) -> str:
+    """What Preferences writes for a typed prefix: the English default when
+    the box holds the default in either language, so a German user who never
+    touched it still has "the default" stored, and the text as typed
+    otherwise."""
+    typed = (typed or "").strip()
+    if not typed or typed == report_title_default(key).strip():
+        return str(DEFAULTS.get(key, ""))
+    return typed
+
+
 _SUPERSEDED_DEFAULTS: dict[str, tuple[float, ...]] = {
     # #119: the old pair (0.30 + a hard-coded 7 boxes) could not detect a grid
     # with one corner pulled in — at 0.30 a pulled corner leaves 0 flagged

@@ -275,7 +275,7 @@ def test_raw_sheets_show_drift_not_pass_fail(qapp, tmp_path, monkeypatch):
         assert ">drift<" in results.replace("</td>", "<")
         assert "not expected to match the design closely" in results
         detail = _html.unescape(dlg._run_detail_html(rep))
-        assert "it becomes the baseline" in detail
+        assert "it is the baseline" in detail
         assert ">Pass<" not in detail and ">Fail<" not in detail
     finally:
         dlg.deleteLater()
