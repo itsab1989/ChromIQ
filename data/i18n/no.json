@@ -5689,8 +5689,6 @@
  "{n} colours loaded": "{n} farger lastet inn",
  "{n} dated verification checks": "{n} daterte verifiseringer",
  "{n} files": "{n} filer",
- "{n} measurement run": "{n} måling",
- "{n} measurement runs": "{n} målinger",
  "{n} of the {total} reference colours ({pct} %) are printable with this profile.": "{n} av de {total} referansefargene ({pct} %) kan skrives ut med denne profilen.",
  "{n} of {total} master colours in this profile's gamut": "{n} av {total} masterfarger i denne profilens gamut",
  "{n} of {total} metrics": "{n} of {total} metrics",

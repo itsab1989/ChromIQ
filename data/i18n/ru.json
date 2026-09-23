@@ -5689,8 +5689,6 @@
  "{n} colours loaded": "Загружено цветов: {n}",
  "{n} dated verification checks": "датированных проверок: {n}",
  "{n} files": "{n} файлов",
- "{n} measurement run": "{n} измерение",
- "{n} measurement runs": "{n} измерений",
  "{n} of the {total} reference colours ({pct} %) are printable with this profile.": "{n} из {total} эталонных цветов ({pct} %) печатаются этим профилем.",
  "{n} of {total} master colours in this profile's gamut": "{n} из {total} мастер-цветов в охвате этого профиля",
  "{n} of {total} metrics": "{n} of {total} metrics",

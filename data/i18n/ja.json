@@ -5689,8 +5689,6 @@
  "{n} colours loaded": "{n}色を読み込みました",
  "{n} dated verification checks": "日付付きの検証 {n} 件",
  "{n} files": "{n} ファイル",
- "{n} measurement run": "{n} 回の測定",
- "{n} measurement runs": "{n} 回の測定",
  "{n} of the {total} reference colours ({pct} %) are printable with this profile.": "基準色 {total} 色のうち {n} 色（{pct} %）がこのプロファイルで印刷できます。",
  "{n} of {total} master colours in this profile's gamut": "マスター色 {total} 色のうち {n} 色がこのプロファイルの色域内",
  "{n} of {total} metrics": "{n} of {total} metrics",

@@ -5689,8 +5689,6 @@
  "{n} colours loaded": "Кольори {n} завантажено",
  "{n} dated verification checks": "{n} датовані верифікаційні перевірки",
  "{n} files": "Файли {n}",
- "{n} measurement run": "Вимірювання {n}",
- "{n} measurement runs": "Вимірювання {n} виконується",
  "{n} of the {total} reference colours ({pct} %) are printable with this profile.": "{n} з еталонних кольорів {total} ({pct} %) можна друкувати за допомогою цього профілю.",
  "{n} of {total} master colours in this profile's gamut": "{n} з головних кольорів {total} у гамуті цього профілю",
  "{n} of {total} metrics": "{n} of {total} metrics",

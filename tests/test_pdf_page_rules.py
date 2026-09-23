@@ -791,7 +791,10 @@ def _report_page_bodies(pdf):
         out.append([l for l in lines
                     if l != "ChromIQ"
                     and not re.match(r"^Page \d+ of \d+$", l)
-                    and "measurement run" not in l])
+                    and "measurement run" not in l
+                    # the running header counts measurements since beta 39
+                    # (R2 #14/#15): "<profile>  3 measurements (d0 – d1)"
+                    and not re.search(r"\b\d+ measurements? \(", l)])
     return out
 
 

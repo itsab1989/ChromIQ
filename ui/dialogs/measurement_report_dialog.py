@@ -6278,15 +6278,12 @@ class MeasurementReportDialog(QDialog):
         # 39, #14): the running header of a calibration report said
         # "2 measurement runs" / "2 Messläufe" on every page, as the list
         # header "P-cal · 1 run" once did (K30 leftover).
-        from workflow.measurement_report import is_calibration_dir
-        cal = bool(runs) and all(
-            is_calibration_dir(str(r.get("_origin_dir") or "")) for r in runs)
-        if cal:
-            count = (tr("{n} measurement").format(n=n) if n == 1
-                     else tr("{n} measurements").format(n=n))
-        else:
-            count = (tr("{n} measurement run").format(n=n) if n == 1
-                     else tr("{n} measurement runs").format(n=n))
+        # …AND NEITHER DO THE DATES OF ONE PROFILE RUN: a verification report
+        # of three dates of run 1 said "3 measurement runs" while its
+        # Included Measurements header says "· 3 measurements" (R2 #15). Each
+        # entry here is one dated measurement, whatever holds it.
+        count = (tr("{n} measurement").format(n=n) if n == 1
+                 else tr("{n} measurements").format(n=n))
         if len(names) <= 4:
             units = [nm + ("," if i < len(names) - 1 else "")
                      for i, nm in enumerate(names)]

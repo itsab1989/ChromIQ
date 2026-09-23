@@ -5689,8 +5689,6 @@
  "{n} colours loaded": "{n} Farben geladen",
  "{n} dated verification checks": "{n} datierte Verifizierungen",
  "{n} files": "{n} Dateien",
- "{n} measurement run": "{n} Messlauf",
- "{n} measurement runs": "{n} Messläufe",
  "{n} of the {total} reference colours ({pct} %) are printable with this profile.": "{n} der {total} Referenzfarben ({pct} %) sind mit diesem Profil druckbar.",
  "{n} of {total} master colours in this profile's gamut": "{n} von {total} Referenzfarben im Gamut dieses Profils",
  "{n} of {total} metrics": "{n} von {total} Metriken",

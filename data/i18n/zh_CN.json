@@ -5689,8 +5689,6 @@
  "{n} colours loaded": "已载入 {n} 种颜色",
  "{n} dated verification checks": "{n} 次带日期的验证",
  "{n} files": "{n} 个文件",
- "{n} measurement run": "{n} 次测量",
- "{n} measurement runs": "{n} 次测量",
  "{n} of the {total} reference colours ({pct} %) are printable with this profile.": "{total} 种参考颜色中有 {n} 种（{pct} %）能用此配置文件打印。",
  "{n} of {total} master colours in this profile's gamut": "{total} 种主颜色中有 {n} 种在此配置文件的色域内",
  "{n} of {total} metrics": "{n} of {total} metrics",
