@@ -188,6 +188,9 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # are ours.
                                  "M-REPORT-UPDATE-NOT-FOUND",
                                  "M-REPORT-UPDATE-LEAVES-OUT",
+                                 # Re-challenge R1 of beta 39: an Update that
+                                 # would leave a report of nothing is refused.
+                                 "M-REPORT-UPDATE-NOTHING-LEFT",
                                  "M-REPORT-DELETE-FAILED",
                                  "M-REPORT-NOT-WRITABLE",
                                  # #182, 2026-09-19: Knut overruled his own

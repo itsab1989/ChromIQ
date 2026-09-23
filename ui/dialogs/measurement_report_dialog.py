@@ -5159,11 +5159,22 @@ class MeasurementReportDialog(QDialog):
             inform(self, *M.CATALOGUE["M-REPORT-UPDATE-NOT-FOUND"].render(
                 missing=missing))
             return None
+        lost = {str(e["key"]) for e in losses if e.get("key")}
+        # **A REPORT OF NOTHING IS NEVER WRITTEN (re-challenge R1, beta 39,
+        # #4).** "Update without them" on a report whose EVERY measurement
+        # was gone wrote ``measurements: []`` under its old verdict and its
+        # old scope, and the list and the page went on showing it as the
+        # report it had been. Nothing would be left, so there is nothing to
+        # ask: the press is refused, and the window names Delete.
+        if not [m for m in members if str(m.get("key") or "") not in lost]:
+            inform(self, *M.CATALOGUE["M-REPORT-UPDATE-NOTHING-LEFT"].render(
+                missing=missing))
+            return None
         title, body = M.CATALOGUE["M-REPORT-UPDATE-LEAVES-OUT"].render(
             missing=missing)
         if not self._ask_leave_out(title, body):
             return None
-        return {str(e["key"]) for e in losses if e.get("key")}
+        return lost
 
     def _ask_leave_out(self, title: str, body: str) -> bool:
         """M-REPORT-UPDATE-LEAVES-OUT's two buttons; True for "Update without
@@ -5410,6 +5421,16 @@ class MeasurementReportDialog(QDialog):
                         str(r.get("ti3") or ""))}
                    for r in self._runs_for_document() if r.get("_origin_dir")
                    and self._run_key(r) not in leave_out]
+        # THE SAME RULE AT THE DOOR THAT WRITES (R1 #4): an Update that would
+        # cover nothing writes nothing, whichever way it got here.
+        if updating is not None and not members:
+            from ui.warning_sign import inform
+            from workflow import measurement_messages as M
+            log.warning("an Update of %s would cover no measurement; refused",
+                        doc_id)
+            inform(self, *M.CATALOGUE["M-REPORT-UPDATE-NOTHING-LEFT"].render(
+                missing=""))
+            return
         detail = self._tick_state()
         scope = self._document_scope(members)
         # **AN UPDATE THAT COVERS THE SAME MEASUREMENTS KEEPS ITS NAME'S
@@ -7126,6 +7147,12 @@ class MeasurementReportDialog(QDialog):
         bits.append(self._scope_tag(scope, entry))
         if doc.get("detail"):
             bits.append(tr("Detailed"))
+        # A DOCUMENT THAT RECORDS NO MEASUREMENT AT ALL SAYS SO (R1 #4). This
+        # build never writes one, but the build before it did, and its name
+        # would otherwise read as the report it had been.
+        if isinstance(doc.get("measurements"), list) \
+                and not doc.get("measurements"):
+            bits.append(tr("covers no measurement"))
         # **AND WHEN IT WAS LAST UPDATED, ON THE END (B8-491).** Knut:
         # *"Update button will keep the current selected report, then append on
         # the ending of the report name ' - updated <date> <time>'."* Whether a
@@ -8722,6 +8749,18 @@ class MeasurementReportDialog(QDialog):
         # an Update then put the date back. The recorded list is the truth
         # about what the document covers; only its absolute folder went
         # stale, so it is compared from `runs/` down before anything else.
+        # **AND ONE MOVED PROJECT AMONG SEVERAL IS FOUND WHERE IT IS NOW
+        # (re-challenge R1, beta 39, #6).** The rule below maps the recorded
+        # keys only when NONE of them matched, so a report across two
+        # projects of which one moved (into a sub-folder of the ChromIQ
+        # folder, §24.4) ticked the project that stayed and left the moved
+        # one's date unticked: the page covered 1 of 2, with no note. Each
+        # recorded key that matches nothing is read the way the window
+        # loaded it (`resolve_recorded_folder`) and matched by folder and
+        # creation stamp.
+        if keys - here:
+            keys = keys | self._recorded_keys_where_they_are_now(
+                keys - here, here, covers)
         if not (keys & here) and keys:
             from workflow.measurement_report import relative_measurement_key
             rel = {relative_measurement_key(k) for k in keys}
@@ -8732,6 +8771,45 @@ class MeasurementReportDialog(QDialog):
             keys = set(covers)
         self._hidden_runs = (here - keys) if (keys & here) else set()
         # The caller repaints, and `_refresh` is what draws the rows (B8-521).
+
+    def _recorded_keys_where_they_are_now(self, missing, here,
+                                          covers=None) -> "set[str]":
+        """The keys of *here* that the recorded keys *missing* name, read
+        through `resolve_recorded_folder` from the projects the document's
+        files are in (*covers*, else the loaded rows). Never raises."""
+        from workflow.measurement_report import (project_home_of,
+                                                 resolve_recorded_folder)
+        try:
+            homes: "list[Path]" = []
+            for k in list(covers or ()) + list(here):
+                h = project_home_of(str(k).split("|", 1)[0])
+                if h is not None and h not in homes:
+                    homes.append(h)
+            # A report across projects, which is the only kind with a key
+            # that matches nothing while others match: never rule 2.
+            one = False
+            by_place: "dict[tuple[str, str], str]" = {}
+            for h in here:
+                parts = str(h).split("|")
+                if len(parts) >= 3:
+                    by_place[(os.path.realpath(parts[0]), parts[1])] = h
+            out: "set[str]" = set()
+            for k in missing:
+                parts = str(k).split("|")
+                if len(parts) < 3 or not parts[0]:
+                    continue
+                folder = resolve_recorded_folder(parts[0], homes,
+                                                 one_project=one)
+                if folder is None:
+                    continue
+                hit = by_place.get((os.path.realpath(str(folder)), parts[1]))
+                if hit is not None:
+                    out.add(hit)
+            return out
+        except Exception:                              # noqa: BLE001
+            log.debug("could not place the recorded measurements",
+                      exc_info=True)
+            return set()
 
     def _reload_sources(self) -> None:
         """Read every loaded measurement's reports off disk again.

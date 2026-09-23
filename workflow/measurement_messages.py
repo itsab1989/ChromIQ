@@ -2964,6 +2964,25 @@ M_REPORT_UPDATE_LEAVES_OUT = _m(
     "What do you want to do?",
     approved=False)
 
+# --- PROPOSED (re-challenge R1, beta 39, #4): an Update that would leave a
+# report of nothing ----------------------------------------------------------
+#
+# "Update without them" on a report whose EVERY measurement was gone wrote
+# `measurements: []` under the report's old verdict and old scope, and the
+# list and the page went on showing it as the report it had been. Nothing
+# would be left to update, so the press is refused before anything is
+# written and the window names the two buttons that do something.
+M_REPORT_UPDATE_NOTHING_LEFT = _m(
+    "M-REPORT-UPDATE-NOTHING-LEFT",
+    "Nothing of this report is left to update",
+    "None of the measurements the selected report covers is on disk any "
+    "more:\n\n{missing}\n\n"
+    "Updating it would leave a report that covers nothing, so nothing was "
+    "changed and the report stays as it was written. "
+    "“Delete Selected Report” moves it to the old folder, and "
+    "“Create New” writes a new report of what is ticked.",
+    approved=False)
+
 # --- PROPOSED (challenge C, beta 39, #7): Delete Selected Report could not
 # move the report ----------------------------------------------------------
 #
@@ -3045,6 +3064,7 @@ CATALOGUE = {m.id: m for m in (
     M_REPORT_UPDATE_OR_NEW, M_REPORT_UNCHANGED_UPDATE_OR_NEW,
     M_REPORT_ONE_PAGE_ONE_DATE,
     M_REPORT_UPDATE_NOT_FOUND, M_REPORT_UPDATE_LEAVES_OUT,
+    M_REPORT_UPDATE_NOTHING_LEFT,
     M_REPORT_DELETE_FAILED, M_REPORT_NOT_WRITABLE,
     M_REPLACE_PARTIAL, M_REPLACE_COMPLETE, M_TI3_MISMATCH,
     M_REPLACE_UNCOUNTABLE,

@@ -14111,7 +14111,13 @@ class TabChart(QWidget):
         # measurements) by filing this chart in a fresh runN; otherwise it goes
         # into — and resets — the project's current run.
         run = project.new_run() if add_new_run else project.current_run()
-        run.reset_chart_artefacts()
+        # UNDER VERIFICATION THE RUN'S PROFILING FILES ARE NOT THIS BUILD'S
+        # (re-challenge R1, beta 39, #3). The chart goes to verifications/;
+        # the run's measurement and profile stay exactly where they are, so
+        # nothing is archived into runs/runN/old/, and its profiling chart is
+        # snapshotted like on every other route.
+        self._arm_verification_snapshot()
+        run.reset_chart_artefacts(keep_results=self._is_verification_target())
         work_dir = run.ensure_dir()
 
         self._log.clear()
@@ -14132,6 +14138,7 @@ class TabChart(QWidget):
                 tiffs.append(dest)
         except OSError as exc:
             log.error("Applied-chart copy failed: %s", exc)
+            self._restore_profiling_chart()
             InfoDialog(
                 "Could not create target",
                 f"Copying the chart into\n\n{work_dir}\n\nfailed:\n{exc}",
@@ -14423,7 +14430,10 @@ class TabChart(QWidget):
         self._arm_verification_snapshot()
         run = self._file_mgr.project().current_run()
         # Start from a clean slate so stale pages from a prior copy can't linger.
-        run.reset_chart_artefacts()
+        # UNDER VERIFICATION the run's measurement and profile are not this
+        # build's to archive (re-challenge R1, beta 39, #3): measured, every
+        # prebuilt build copied the run's .icc/.ti3 into runs/runN/old/<stamp>/.
+        run.reset_chart_artefacts(keep_results=self._is_verification_target())
         work_dir = run.ensure_dir()
 
         self._log.clear()
@@ -14582,6 +14592,13 @@ class TabChart(QWidget):
         log.warning("the chart build could not be started", exc_info=True)
         self._generate_btn.setEnabled(True)
         self._layout_owned_by_build = False
+        # A snapshot armed for this build is put back and its temporary folder
+        # removed (R1 #5): no `_on_generate_finished` will follow.
+        try:
+            self._restore_profiling_chart()
+        except Exception:      # noqa: BLE001 - never fail on the way out
+            log.debug("could not put the profiling snapshot back",
+                      exc_info=True)
         # ARMED ONE STATEMENT ABOVE THE RAISE. `_on_generate` starts the
         # slow-chart watchdog immediately before handing over to the creator,
         # so a launch that raises leaves it running and the "this chart is
@@ -16171,8 +16188,9 @@ class TabChart(QWidget):
             # the run root (overwriting the profiling chart) before it's moved into
             # verifications/, so snapshot the profiling chart now and restore it in
             # _on_generate_finished after the move.
-            self._verify_profiling_backup = None
-            if not cal_target_active:
+            if cal_target_active:
+                self._discard_profiling_backup()
+            else:
                 self._arm_verification_snapshot()
 
             self._log.clear()
@@ -19637,6 +19655,7 @@ class TabChart(QWidget):
         verification chart was generated + filed into verifications/ (#130)."""
         bak = getattr(self, "_verify_profiling_backup", None)
         self._verify_profiling_backup = None
+        self._verify_profiling_backup_run = None
         if not bak:
             return
         try:
@@ -20079,9 +20098,39 @@ class TabChart(QWidget):
         snapshot here — the one place every build path passes through before
         starting — is what ``_restore_profiling_chart`` puts back afterwards.
         """
-        self._verify_profiling_backup = None
+        # **ONE SNAPSHOT PER BUILD, AND NONE LEFT BEHIND (re-challenge R1,
+        # beta 39, #5).** Replacing the attribute dropped the folder it named
+        # into $TMPDIR, a full copy of the run's chart, measurement and
+        # profile, and nothing ever deleted it. A build that passes through
+        # two doors (`_on_generate`, then `_generate_from_ti1`) keeps the
+        # first snapshot of the same run, which is the state before the build.
+        pending = getattr(self, "_verify_profiling_backup", None)
         if self._is_verification_target():
+            run_dir = self._current_run_dir_or_none()
+            if pending and Path(pending).is_dir() and run_dir is not None \
+                    and getattr(self, "_verify_profiling_backup_run",
+                                None) == run_dir:
+                return
+            self._discard_profiling_backup()
             self._verify_profiling_backup = self._snapshot_profiling_chart()
+            self._verify_profiling_backup_run = run_dir
+            return
+        self._discard_profiling_backup()
+
+    def _current_run_dir_or_none(self) -> "Path | None":
+        try:
+            return Path(self._file_mgr.project().current_run().dir)
+        except Exception:      # noqa: BLE001
+            return None
+
+    def _discard_profiling_backup(self) -> None:
+        """Delete the profiling snapshot, if one is pending, without putting it
+        back (R1 #5): the build it belonged to is over or never started."""
+        bak = getattr(self, "_verify_profiling_backup", None)
+        self._verify_profiling_backup = None
+        self._verify_profiling_backup_run = None
+        if bak:
+            shutil.rmtree(bak, ignore_errors=True)
 
     def _align_current_run_to_target(self) -> None:
         """Point the loaded project's current run at the shared bar's Profile-run
@@ -20513,6 +20562,11 @@ class TabChart(QWidget):
             # over a run that has its chart — under a log line promising that
             # nothing was lost. Measured on screen; a tab round trip did not
             # fix it either.
+            # THE SNAPSHOT IS PUT BACK AND ITS TEMPORARY FOLDER GOES, as on
+            # every other ending (R1 #5): this return skipped both, and a Stop
+            # during FROM PROFILE GAMUT left a full copy of the run's files in
+            # $TMPDIR/chromiq_prof_chart_*.
+            self._restore_profiling_chart()
             self._show_restored_chart_after_a_stop()
             return
         is_isis = self._is_isis_selected()

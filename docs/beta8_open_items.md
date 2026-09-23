@@ -26719,3 +26719,133 @@ would reach.
 - tests: tests/test_rw_report_window_fixes.py, tests/test_beta37_a_report_is_shown_whole.py (unchanged, green)
 - evidence: test_picking_a_borrowed_runs_own_report_keeps_it_and_asks, test_a_borrowed_measurement_the_user_adds_is_the_users
 - proof: ~/Desktop/ChromIQ-beta39-proof/report-window-fixes/gap0-before (the research driver on cad1b0a9: shown "2026-12-29 One date", a new run 2 report written) and gap0-after (shown and loaded "2026-12-08 One date", Generate greyed with its reason, nothing written).
+
+### B8-916 · FIXED, awaiting confirmation · A run delete and a rename rewrote the reports of ANOTHER project that has or had the same name
+- blocks release: yes
+- severity: BLOCKER for beta 39 until fixed.
+- status: FIXED
+- number: 916 to 919 are this round's (re-challenge R1 fixes).
+- where: commit "R1-fix: ..." on the R1 fix worktree; spec §13.14 of
+  `docs/design/measurement_report_limits.md` (awaiting confirmation).
+- found by: re-challenge R1 of beta 39, items 1 and 2, both BLOCKER
+  (`~/Desktop/ChromIQ-beta39-proof/rechallenge-R1-behaviour/REPORT.md`,
+  c/DUP and c/FORMER).
+- measured before (d2a587bb, on screen, driven again for this round): a Finder
+  duplicate of Report-Limits-Paper-Classes, renamed through the folder-renamed
+  window, then its run 2 deleted from the bar: 14 report files of the ORIGINAL
+  renumbered. Report-Limits-Report-Folders renamed to Folders-Renamed, a fresh
+  Report-Limits-Report-Folders put beside it, run 1 of Folders-Renamed
+  deleted: 29 report files of the fresh project renumbered.
+- cause: `core/run_delete.py::_report_references_plan` matched by NAME (the
+  folder, `target_name` and `former_names`), and
+  `core/report_refs.py::run_references_plan` rewrote every match in every
+  project beside it and in `<ChromIQ>/reports`; the duplicate's former name
+  is its original's folder, and a former name can be taken by a new project.
+  The rename's rewrite had the same shape: renaming an original whose Finder
+  duplicate still carries its name rewrote the duplicate's own reports.
+- built: `core.report_refs.refers_here`: a reference is rewritten only when
+  `resolve_recorded_folder`, seen from where the report's file is (its
+  project, or the folder across projects), lands inside the project being
+  changed; outside the project, a name another existing project folder
+  beside it holds is never matched. Used by the run delete and the rename.
+- evidence: the R1 references file in tests/
+  (test_deleting_a_run_of_a_renamed_duplicate_leaves_the_original_alone,
+  test_deleting_a_run_leaves_a_new_project_with_the_former_name_alone,
+  test_deleting_a_run_still_renumbers_this_projects_references_elsewhere,
+  test_renaming_an_original_leaves_its_duplicates_reports_alone,
+  test_renaming_rewrites_the_report_across_projects_that_names_it), each red
+  on the mutation in its docstring.
+- proof: `~/Desktop/ChromIQ-beta39-proof/rechallenge-R1-fixes/` before/ and
+  after/ DUP and FORMER (sha1 listings of every project folder and
+  `<ChromIQ>/reports`, diffed per step).
+
+### B8-917 · FIXED, awaiting confirmation · A verification build from a built-in prebuilt preset archived the run's .icc and .ti3 into old/
+- blocks release: no
+- severity: MAJOR.
+- status: FIXED
+- where: as B8-916; `ui/tabs/tab_chart.py::_apply_prebuilt_preset` and
+  `_import_applied_chart`.
+- found by: re-challenge R1 of beta 39, item 3 (fpg/preset-verif,
+  fpg/fpg-then-preset).
+- measured before (d2a587bb, on screen): Run type Verification, Manual,
+  ColorMunki TC3.00: the profiling files identical, and copies of the run's
+  `.icc` and `.ti3` in `runs/run1/old/<stamp>/` after every build.
+- cause: those two routes called `run.reset_chart_artefacts()` without
+  `keep_results`, while every other route passes
+  `keep_results=self._is_verification_target()`; the applied route did not
+  take the profiling snapshot either.
+- built: both pass `keep_results=self._is_verification_target()`; the applied
+  route arms the snapshot like every other route. Every
+  `reset_chart_artefacts` and `load_ti1_and_generate_preview` call in the tab
+  now names `keep_results` (audited, and kept by a test).
+- evidence: the R1 verification-builds file in tests/
+  (test_a_prebuilt_preset_under_verification_archives_nothing,
+  test_an_applied_editor_chart_under_verification_archives_nothing,
+  test_a_prebuilt_preset_under_profiling_still_archives,
+  test_every_chart_reset_in_the_create_chart_tab_names_keep_results).
+- proof: `~/Desktop/ChromIQ-beta39-proof/rechallenge-R1-fixes/` before/ and
+  after/ preset-verif and fpg-then-preset.
+
+### B8-918 · FIXED, awaiting confirmation · "Update without them" on a report whose every measurement was gone wrote a report of nothing
+- blocks release: no
+- severity: MAJOR.
+- status: FIXED
+- where: as B8-916; `ui/dialogs/measurement_report_dialog.py::
+  _update_leaves_out`, `_write_the_document`, `_document_label`;
+  §M-PROPOSED M-REPORT-UPDATE-NOTHING-LEFT.
+- found by: re-challenge R1 of beta 39, item 4 (c/TI3, T3).
+- measured before (d2a587bb, on screen): the one-date report of 2026-12-08,
+  its only `.ti3` removed, Update then "Update without them": the report was
+  archived and rewritten with `measurements: []`, still "One date", its old
+  verdict, and listed first.
+- built: when nothing the Update covers would be left, the press is refused
+  before anything is written, with M-REPORT-UPDATE-NOTHING-LEFT (German by
+  hand; it names Delete Selected Report and Create New); `_write_the_document`
+  refuses an Update of no measurement by any door; a document that records no
+  measurement carries "covers no measurement" in its name.
+- evidence: the R1 report-of-nothing file in tests/
+  (test_an_update_whose_every_measurement_is_gone_is_refused,
+  test_the_writer_refuses_an_update_of_nothing_by_any_door,
+  test_a_document_of_nothing_says_so_in_its_name).
+- proof: `~/Desktop/ChromIQ-beta39-proof/rechallenge-R1-fixes/` before/ and
+  after/ TI3.
+- open for Knut: question 6 of §13.14.
+
+### B8-919 · FIXED, awaiting confirmation · A stopped verification build left a copy of the run in $TMPDIR; a project moved into a sub-folder dropped out of a report across projects
+- blocks release: no
+- severity: two MINOR items.
+- status: FIXED
+- where: as B8-916; `ui/tabs/tab_chart.py` (`_arm_verification_snapshot`,
+  `_discard_profiling_backup`, the cancel branch of `_on_generate_finished`,
+  `_the_chart_build_could_not_start_quietly`);
+  `workflow/measurement_report.py::resolve_recorded_folder` step 3c.
+- found by: re-challenge R1 of beta 39, items 5 (fpg/fpg-verif-stop) and 6
+  (k30 K5, k30b K6).
+- measured before: Stop during FROM PROFILE GAMUT left
+  `$TMPDIR/chromiq_prof_chart_*` with a full copy of the run's chart,
+  measurement and profile; with Report-Limits-Report-Folders-Second moved
+  into `Group/`, the 2027-01-14 report across projects loaded 1 of its 2
+  dates with no note and Generate said "Nothing was changed".
+- cause: the cancel branch of `_on_generate_finished` returned before
+  `_restore_profiling_chart`, and re-arming the snapshot replaced the
+  attribute without removing the folder it named; `resolve_recorded_folder`
+  looked for another project only beside the report's projects.
+- built: every ending (success, failure, Stop, a build that never started)
+  puts the snapshot back and removes its folder, and a second arming for the
+  same run keeps the first snapshot; step 3c searches the ChromIQ folder and
+  its sub-folders, one level down, for the ONE project that answers to the
+  recorded name (two are neither, and the Update is refused as
+  M-REPORT-UPDATE-NOT-FOUND), and the moved project's date is ticked too
+  (`_restore_the_documents_view` maps each recorded key that matches no row,
+  not only when none matches; the first after-drive showed it loaded and
+  unticked). The choice (resolve rather than show as missing) is recorded in
+  §13.14 as awaiting confirmation.
+- evidence: the R1 verification-builds and moved-project files in tests/
+  (test_a_stopped_verification_build_leaves_no_temporary_copy,
+  test_a_failed_verification_build_leaves_no_temporary_copy,
+  test_arming_twice_for_one_build_keeps_one_copy,
+  test_a_project_moved_into_a_group_folder_is_still_covered,
+  test_two_projects_answering_to_the_name_are_neither).
+- proof: `~/Desktop/ChromIQ-beta39-proof/rechallenge-R1-fixes/` before/ and
+  after/ fpg-verif-stop-*, k30 and k30b.
+- open for Knut: question 7 of §13.14.

@@ -206,9 +206,11 @@ def _rekey(m: dict) -> None:
         m["key"] = f"{m.get('dir', '')}|{m.get('created', '')}|{m.get('ti3', '')}"
 
 
-def _rename_entry(m: dict, old: str, new: str) -> bool:
+def _rename_entry(m: dict, old: str, new: str, here=None) -> bool:
     split = _split_recorded(str(m.get("dir") or ""))
     if split is None or _nfc(split[1]) != _nfc(old):
+        return False
+    if here is not None and not here(m):
         return False
     prefix, _name, below = split
     m["dir"] = _join(prefix, new, below)
@@ -240,9 +242,12 @@ def _rename_stems(obj, old: str, new: str) -> bool:
 
 
 def _renumber_entry(m: dict, names: "frozenset[str]",
-                    mapping: "dict[str, str]", deleted: str) -> bool:
+                    mapping: "dict[str, str]", deleted: str,
+                    here=None) -> bool:
     split = _split_recorded(str(m.get("dir") or ""))
     if split is None or _nfc(split[1]) not in names:
+        return False
+    if here is not None and not here(m):
         return False
     prefix, name, below = split
     if len(below) < 2 or below[0] != "runs":
@@ -257,6 +262,90 @@ def _renumber_entry(m: dict, names: "frozenset[str]",
     m["dir"] = _join(prefix, name, ["runs", new_run, *below[2:]])
     _rekey(m)
     return True
+
+
+# --------------------------------------------------------------------------
+# Whose folder a reference names
+# --------------------------------------------------------------------------
+
+def _same_folder(a: Path, b: Path) -> bool:
+    try:
+        return os.path.realpath(str(a)) == os.path.realpath(str(b))
+    except OSError:
+        return str(a) == str(b)
+
+
+def _inside_folder(p: Path, root: Path) -> bool:
+    try:
+        rp = os.path.realpath(str(p))
+        rr = os.path.realpath(str(root))
+    except OSError:
+        return _is_inside(Path(p), Path(root))
+    return rp == rr or rp.startswith(rr.rstrip(os.sep) + os.sep)
+
+
+def refers_here(project_root: "str | Path", report: "str | Path",
+                rep: dict):
+    """A test ``fn(entry) -> bool``: whether one recorded measurement of the
+    report *report* (parsed as *rep*) names a folder of the project at
+    *project_root*, and no other project's (re-challenge R1, beta 39, #1
+    and #2).
+
+    **A NAME IS NOT AN IDENTITY.** Matching by name alone rewrote the
+    reports of a DIFFERENT project that has, or had, the same name: deleting
+    a run in a renamed Finder duplicate renumbered 14 reports of its
+    original, and deleting a run in a renamed project renumbered all 30
+    reports of a fresh project that took its former name. A reference is
+    now this project's only when the app's own reading of it says so
+    (`workflow.measurement_report.resolve_recorded_folder`, seen from where
+    the report's file lives: the project it is inside, or the folder across
+    projects), and when that reading lands inside *project_root*. Outside
+    the project, a name another existing project folder beside it holds is
+    never this project's, whatever ``former_names`` says."""
+    from workflow.measurement_report import (project_home_of,
+                                             resolve_recorded_folder)
+    root = Path(project_root)
+    report = Path(report)
+    home = project_home_of(report.parent)
+    inside = home is not None and _same_folder(home, root)
+    # A report with no project around it (``<ChromIQ folder>/reports``) is
+    # read from its own folder: no project answers to "reports", so only
+    # the rules that look BESIDE it (a project of the recorded name, or the
+    # one project that answers to it) can claim the folder.
+    homes = [home] if home is not None else [report.parent]
+    recorded: "set[str]" = set()
+
+    def _collect(m: dict) -> bool:
+        split = _split_recorded(str(m.get("dir") or ""))
+        recorded.add(_nfc(split[1]) if split else "")
+        return False
+    _walk_measurement_lists(rep, _collect)
+    # "A report of one project is filed inside it" (rule 2) only holds for a
+    # report that IS inside a project; read from the folder across projects
+    # it would claim the folder for "reports" itself.
+    one = home is not None and len(recorded) == 1
+
+    def test(m: dict) -> bool:
+        d = str(m.get("dir") or "")
+        split = _split_recorded(d)
+        if split is None:
+            return False
+        if not inside:
+            namesake = root.parent / split[1]
+            try:
+                held = ((namesake / "project.json").is_file()
+                        and not _same_folder(namesake, root))
+            except OSError:
+                held = True
+            if held:
+                return False
+        try:
+            got = resolve_recorded_folder(d, homes, one_project=one,
+                                          must_exist=False)
+        except Exception:                              # noqa: BLE001
+            return False
+        return got is not None and _inside_folder(Path(str(got)), root)
+    return test
 
 
 # --------------------------------------------------------------------------
@@ -314,12 +403,13 @@ def rename_references_plan(project_root: "str | Path", old, new: str
 
     def edit(p: Path, rep: dict) -> bool:
         inside = _is_inside(p, root)
+        here = refers_here(root, p, rep)
         changed = False
         for o in olds:
             if not inside and o not in outside_ok:
                 continue
             changed |= _walk_measurement_lists(
-                rep, lambda m, o=o: _rename_entry(m, o, new))
+                rep, lambda m, o=o: _rename_entry(m, o, new, here))
             if inside:
                 changed |= _rename_stems(rep, o, new)
         return changed
@@ -340,9 +430,11 @@ def run_references_plan(project_root: "str | Path", names,
     if not names or (not mapping and not deleted):
         return RefPlan()
 
-    def edit(_p: Path, rep: dict) -> bool:
+    def edit(p: Path, rep: dict) -> bool:
+        here = refers_here(root, p, rep)
         return _walk_measurement_lists(
-            rep, lambda m: _renumber_entry(m, names, dict(mapping), deleted))
+            rep, lambda m: _renumber_entry(m, names, dict(mapping), deleted,
+                                           here))
     return _plan(report_files_referring(root, outside=True), edit)
 
 

@@ -2679,6 +2679,44 @@ What was built:
   ChromIQ may not write in keeps the older sentence.
 * Nothing under an `old/` folder is ever rewritten: an archive is history.
 
+What re-challenge R1 of beta 39 then found, and what was changed
+(`~/Desktop/ChromIQ-beta39-proof/rechallenge-R1-behaviour/REPORT.md` items 1,
+2, 4 and 6; `~/Desktop/ChromIQ-beta39-proof/rechallenge-R1-fixes/`; B8-916,
+B8-918 and B8-919):
+
+* **A reference is rewritten only when it names THIS project.** Matching by
+  name alone reached other projects: a run deleted in a renamed Finder
+  duplicate renumbered 14 reports of its original, and a run deleted in a
+  renamed project renumbered all 30 reports of a new project that had taken
+  its former name. A run delete and a rename now rewrite a reference only
+  when the app's own reading of it (`resolve_recorded_folder`, seen from
+  where the report's file is: the project it is inside, or the folder across
+  projects) lands inside the project being changed; outside the project, a
+  name that another existing project folder beside it holds is never used to
+  match, whatever `former_names` says. The same rule keeps a rename of an
+  original from rewriting the reports inside its Finder duplicate.
+* **An Update never writes a report that covers nothing.** "Update without
+  them" was offered even when EVERY measurement of the report was gone, and
+  wrote the report with an empty list under its old verdict and scope. The
+  press is now refused before anything is written
+  (M-REPORT-UPDATE-NOTHING-LEFT, which names Delete Selected Report and
+  Create New), and a document that records no measurement (only a build
+  before this one wrote one) carries "covers no measurement" in its name.
+* **A project moved into a sub-folder of the ChromIQ folder is still
+  found** (the choice made between the two the round offered: resolve it, or
+  show it as missing). §24.4 lets projects live in sub-folders of the ChromIQ
+  folder, and a report across projects names the other project where it
+  was: moved into `Group/`, it loaded 1 of its 2 dates with no note and
+  Generate said "Nothing was changed". `resolve_recorded_folder` now also
+  searches the ChromIQ folder and its sub-folders, one level down, for the
+  ONE project that answers to the recorded name (its folder, its files or a
+  former name); two that answer are neither, and the Update is then refused
+  as for a project that cannot be found (M-REPORT-UPDATE-NOT-FOUND). The
+  moved project's measurement is then ticked as well: a recorded key that
+  matches no row is read the same way and matched by folder and creation
+  stamp (`_recorded_keys_where_they_are_now`), where before only a report
+  none of whose keys matched was mapped.
+
 Questions for Knut:
 
 1. An Update whose covered project cannot be found is REFUSED outright, with
@@ -2699,6 +2737,13 @@ Questions for Knut:
 5. A run delete is refused when a report that must be renumbered cannot be
    written. Is that right, or should the run be deleted and the report left
    naming the old number?
+6. A report whose every measurement is gone cannot be Updated at all; the
+   window offers Delete Selected Report and Create New. Is that right, or
+   should the Update be allowed to keep it as a record of what it was?
+7. A project moved into a sub-folder of the ChromIQ folder is found by its
+   name, one sub-folder level down, when exactly one project answers to it.
+   Should the search go deeper, or should a moved project instead be shown
+   as missing with the reason?
 
 Record (challenge C, beta 39).
 * **Rule:** none of Knut's covers these cases; this is the safe behaviour,
@@ -2714,6 +2759,24 @@ Record (challenge C, beta 39).
 * **Verified by:** `tests/test_challenge_c_report_files.py` (11 tests, each
   red on the mutation in its docstring).
 * **Proof:** `~/Desktop/ChromIQ-beta39-proof/challenge-C-fixes/`.
+* **Status:** ⏳ awaiting confirmation. **Confirmed by:** *nobody yet.*
+
+Record (re-challenge R1, beta 39).
+* **Rule:** none of Knut's covers these cases; the safe behaviour, awaiting
+  his ruling on questions 6 and 7 above.
+* **Built:** `core/report_refs.py::refers_here` (used by
+  `run_references_plan` and `rename_references_plan`);
+  `workflow/measurement_report.py::resolve_recorded_folder` (step 3c,
+  `_projects_in_the_chromiq_folder`); `workflow/measurement_messages.py`
+  (M-REPORT-UPDATE-NOTHING-LEFT); `ui/dialogs/measurement_report_dialog.py::
+  _update_leaves_out`, `_write_the_document`, `_document_label`,
+  `_recorded_keys_where_they_are_now` (B8-916,
+  B8-918, B8-919).
+* **Verified by:** `tests/test_r1_report_references_follow_the_project.py`,
+  `tests/test_r1_an_update_never_writes_a_report_of_nothing.py`,
+  `tests/test_r1_a_moved_project_is_found_in_the_chromiq_folder.py`, each red
+  on the mutation in its docstring.
+* **Proof:** `~/Desktop/ChromIQ-beta39-proof/rechallenge-R1-fixes/`.
 * **Status:** ⏳ awaiting confirmation. **Confirmed by:** *nobody yet.*
 
 ## 15. ChromIQ's own two repeatability rows (#182, 2026-09-22)

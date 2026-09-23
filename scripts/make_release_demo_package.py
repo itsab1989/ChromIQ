@@ -392,6 +392,9 @@ MESSAGE_DEMOS: "dict[str, list[str]]" = {
     "M-REPORT-UPDATE-LEAVES-OUT": [
         "the pack's reports/: delete the .ti3 of Report-Limits-Report-Folders-Second's 2027-01-05 date, then Update the 2027-01-14 09:00 report from Report-Limits-Report-Folders",
     ],
+    "M-REPORT-UPDATE-NOTHING-LEFT": [
+        "Report-Limits-Report-Folders/run1: delete the .ti3 of the 2026-12-08 date, then Update the 2026-12-08 10:00 One date report",
+    ],
     "M-REPORT-DELETE-FAILED": [
         "Report-Limits-Report-Folders/run1: make verifications/reports read-only, then Delete Selected Report on the 2026-12-21 09:30 report",
     ],

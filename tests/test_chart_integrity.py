@@ -701,7 +701,8 @@ def test_the_prebuilt_preset_asks_before_replacing_a_chart(qapp):
     assert "_s4_done" in src, "§4 can no longer be skipped when §S4.7 answered it"
     assert src.index("self._gate_route_and_replace(") < src.index(
         "self.target_started.emit()"), "the project question comes first of all"
-    assert ask < src.index("run.reset_chart_artefacts()")
+    # (the call names `keep_results` since re-challenge R1, #3)
+    assert ask < src.index("run.reset_chart_artefacts(")
 
 
 def test_no_chart_replacing_path_is_left_unguarded(qapp):

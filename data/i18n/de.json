@@ -6203,5 +6203,8 @@
  "{project}, run {run}, {when}: {why}": "{project}, Durchgang {run}, {when}: {why}",
  "No measurement is loaded. Add a profile's measurements to the list to generate a report.": "Es ist keine Messung geladen. Füge mit „Messungen eines Profils hinzufügen…“ Messungen zur Liste hinzu, um einen Bericht zu erzeugen.",
  "No measurement is ticked in the list, so there is nothing to report on. Tick one to generate a report.": "In der Liste ist keine Messung angehakt, es gibt also nichts, worüber berichtet werden kann. Hake eine an, um einen Bericht zu erzeugen.",
- "Reports generated for these measurements": "Für diese Messungen erzeugte Berichte"
+ "Reports generated for these measurements": "Für diese Messungen erzeugte Berichte",
+ "Nothing of this report is left to update": "Von diesem Bericht ist nichts mehr zu aktualisieren",
+ "None of the measurements the selected report covers is on disk any more:\n\n{missing}\n\nUpdating it would leave a report that covers nothing, so nothing was changed and the report stays as it was written. “Delete Selected Report” moves it to the old folder, and “Create New” writes a new report of what is ticked.": "Keine der Messungen, die der ausgewählte Bericht umfasst, ist noch auf der Festplatte:\n\n{missing}\n\nEine Aktualisierung ließe einen Bericht zurück, der nichts umfasst, deshalb wurde nichts geändert und der Bericht bleibt, wie er geschrieben wurde. „Ausgewählten Bericht löschen“ verschiebt ihn in den Ordner „old“, und „Neu erstellen“ schreibt einen neuen Bericht aus dem, was angehakt ist.",
+ "covers no measurement": "umfasst keine Messung"
 }

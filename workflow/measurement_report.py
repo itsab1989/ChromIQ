@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import re
 import statistics
 from datetime import datetime
@@ -1920,7 +1921,56 @@ def resolve_recorded_folder(d: "str | Path", homes, *,
     claims = _projects_answering_to(rname, homes)
     if len(claims) == 1 and _ok(claims[0] / rel):
         return claims[0] / rel
+    if claims:
+        return d
+    # 3c. **A PROJECT MOVED INTO ANOTHER FOLDER OF THE ChromIQ FOLDER
+    # (re-challenge R1, beta 39, #6).** §24.4 lets projects live in
+    # sub-folders of the ChromIQ folder, and a report across projects names
+    # the other project where it WAS. Moved into ``Group/``, it was found
+    # from neither side: the window loaded 1 of the 2 dates with no note,
+    # and Generate said "Nothing was changed". The ChromIQ folder and its
+    # sub-folders are searched for the ONE project that answers to the
+    # recorded name (`names_of_project`); two that do are neither.
+    found = _projects_in_the_chromiq_folder(rname, homes)
+    if len(found) == 1 and _ok(found[0] / rel):
+        return found[0] / rel
     return d
+
+
+def _projects_in_the_chromiq_folder(name: str, homes) -> "list[Path]":
+    """The projects in the ChromIQ folder (`chromiq_folder`) and in its
+    sub-folders, one level down, that answer to *name* (NFC), the *homes*
+    excluded. A project's own folders are not searched. Never raises."""
+    try:
+        root = chromiq_folder()
+    except Exception:                                  # noqa: BLE001
+        return []
+    skip = {os.path.realpath(str(h)) for h in homes or []}
+    out: "list[Path]" = []
+
+    def _is_project(c: Path) -> bool:
+        try:
+            return (c / "project.json").is_file()
+        except OSError:
+            return False
+
+    def _kids(folder: Path) -> "list[Path]":
+        try:
+            return sorted(c for c in folder.iterdir()
+                          if c.is_dir() and not c.name.startswith(".")
+                          and c.name not in ("reports", "old"))
+        except OSError:
+            return []
+
+    for c in _kids(root):
+        cands = [c] if _is_project(c) else [g for g in _kids(c)
+                                            if _is_project(g)]
+        for g in cands:
+            if os.path.realpath(str(g)) in skip:
+                continue
+            if name in names_of_project(g) and g not in out:
+                out.append(g)
+    return out
 
 
 #: Why a measurement a saved report covers is not there any more
