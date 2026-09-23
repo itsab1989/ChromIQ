@@ -225,7 +225,9 @@ def test_nothing_says_chromiq_ships_no_values_once_a_set_ships(shipped, qapp):
 def test_the_empty_state_keeps_its_own_sentences(shipped, qapp):
     shipped(())
     t = _texts(qapp)
-    assert "no permission to include" in t["columns"], t["columns"]
+    # B8-910: "no permission" stopped being the reason when the values
+    # shipped; the empty state says what it is.
+    assert "No values file supplied any, so they are empty here" in t["columns"], t["columns"]
     assert "does not ship these numbers" in t["why"]
     assert "may not include" in t["type7"] and "may not include" in t["type8"]
 

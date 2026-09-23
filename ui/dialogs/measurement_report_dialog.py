@@ -1834,9 +1834,11 @@ _PAIRING_HELP = (
     "behaving, and Quick check doubles them, for a health check only a clearly "
     "drifted printer fails; the grey rows move with them. Grey and "
     "tone check keeps three rows, the two grey balance ones and the mid-tone "
-    "ramp. A ChromIQ set judges the two grey rows like any other row, and puts "
-    "no limit on the mid-tone ramp at all, so that one is shown for "
-    "information. A Custom ISO set you have filled in judges all three. "
+    "ramp. A ChromIQ set judges the two grey rows like any other row and puts "
+    "no limit on the mid-tone ramp, so that row is left out of the report. "
+    "The read-only ISO 12647-8 set and both Custom ISO sets judge all three; "
+    "the read-only ISO 12647-7 set judges the two grey rows and puts no limit "
+    "on the ramp. "
     "Printing record grades nothing: every row it can compute reads INFO "
     "whichever set is beside it, though the document still names the set it "
     "would otherwise have used. The two ISO types belong with the matching "
@@ -1847,16 +1849,18 @@ _PAIRING_HELP = (
 _CHART_HELP = (
     "And the chart you printed decides what any of it can say. A row is judged "
     "only when the sheet carries the patches that row needs: at least eight "
-    "grey steps from white to black for the grey rows, a single-ink or grey "
+    "roughly evenly spaced grey steps from white to black for the grey rows, "
+    "a single-ink or grey "
     "ramp through the mid-tones for the tone row, and, for the paper and solid "
     "rows, a chart built with FROM PROFILE GAMUT on the Create Chart tab. That "
     "one picks its colours from what your own profile can actually print and "
     "carries an aim value for each of them, which is the thing those rows are "
     "measured against. An ordinary test chart carries no such aim values, and "
     "what you see then depends on the set: a ChromIQ set puts no limit on "
-    "those rows anyway, so they are left out of the table altogether, while a "
-    "Custom ISO set shows them as N-A and the note under the results says what "
-    "the chart was missing. Each row's own info icon in the Report limits "
+    "those rows anyway, so they are left out of the table altogether, while "
+    "the ISO sets, the two read-only ones and the two Custom ones, limit some "
+    "or all of them, show those as N-A, and the note under the results says "
+    "what the chart was missing. Each row's own info icon in the Report limits "
     "window says what that row needs, and what to change where anything can "
     "be.")
 
@@ -2033,7 +2037,7 @@ class MeasurementReportDialog(QDialog):
             "way the numbers move between dated reports of the same printer is a "
             "clean signal of drift: ageing inks, a printer slowly wandering, or "
             "an instrument going off.\n\n"
-            "Two ways to use it\n"
+            "Three ways to use it\n"
             "  • Profiling runs: after building a profile, check how faithfully "
             "the chart reproduced.\n"
             "  • Verification runs: the most valuable habit: print a small chart "
@@ -2042,7 +2046,11 @@ class MeasurementReportDialog(QDialog):
             "every so often, and save a report each time. When the Pass/Fail "
             "results start slipping, that's your sign the printer has drifted far "
             "enough to re-profile. A tiny verification chart is enough; you're "
-            "watching the trend, not building a profile.\n\n"
+            "watching the trend, not building a profile.\n"
+            "  • Calibration: with Run type Calibration, the window opens on "
+            "the project's calibration measurement. It can have every report "
+            "type but the Printing record, and its reports are kept in the "
+            "project's cal/reports folder.\n\n"
             "Building the report\n"
             "The report covers a list of profiles' measurements, shown in the "
             "list box. Use “Add Profile's Measurements…” to add a profile (pick "
@@ -2071,8 +2079,8 @@ class MeasurementReportDialog(QDialog):
             "  • Colour accuracy: the ΔE00 (colour difference) figures, split so "
             "the bulk of the chart (all patches, and the lowest 95 %) is "
             "separated from the few hardest patches (the highest 5 %). Each is "
-            "judged against "
-            "the run's limit set. 0 is perfect, 1–2 is barely visible, 10+ is "
+            "judged against the limit set named under “Judged against”. 0 is "
+            "perfect, 1–2 is barely visible, 10+ is "
             "clearly wrong.\n"
             "  • Trend over time: the same metrics plotted across every saved "
             "measurement, so a slow rise or a sudden jump stands out at a glance.\n"
@@ -2088,21 +2096,28 @@ class MeasurementReportDialog(QDialog):
             "built; ChromIQ tight is half of that, Quick check twice. The set is "
             "chosen once per profile run and every dated verification of that "
             "run is judged with the same numbers, so your history stays "
-            "comparable. Open the limits table with “Show limits…” to see every "
-            "set side by side; edit the sets in Preferences → Reports.\n\n"
+            "comparable. A report of measurements from more than one place "
+            "(several profile runs, or several projects) is judged against its "
+            "own set instead: the one chosen in “Judged against” judges every "
+            "measurement in it, whatever set each run is bound to, and no run's "
+            "limits change. Open the limits table with “Show limits…” (it reads "
+            "“Edit limits…” where the numbers can be changed) to see every set "
+            "side by side; edit the sets in Preferences → Reports.\n\n"
             "Options\n"
             "  • Select all / Deselect all: tick or untick every measurement "
             "in the list at once. They change nothing else.\n"
             "  • Show detailed data for each run: add the per-run breakdown.\n"
             "  • Save report as PDF: a ChromIQ-styled PDF you can keep or share; "
-            "it opens automatically. Reveal folder opens where it was saved.\n\n"
+            "it opens automatically. Reveal folder opens the folder of the "
+            "first measurement in the list, or its project folder for a "
+            "profile run's own measurement.\n\n"
             "Using i1Profiler measurements\n"
             "You can feed this report measurements made in i1Profiler (handy when "
             "you measured with an i1iSis or i1iO, which lay out their own charts). "
-            "Just two steps:\n"
-            "  1. Export the measurement from i1Profiler as a text file.\n"
-            "  2. Convert it with Tools → “Convert i1Profiler → TI3”, then add the "
-            "resulting .ti3 here with “Add Profile's Measurements…”.\n"
+            "Add i1Profiler's own saved file (.mxf), a text export (.txt) or a "
+            "CxF file (.cxf) directly with “Add Profile's Measurements…”; "
+            "ChromIQ converts it for you, and no export or convert step is "
+            "needed.\n"
             "That's all; you get the full colour-accuracy figures, no extra "
             "reference file needed. ChromIQ works out each patch's expected colour "
             "from the device values recorded in the file (the RGB / ink code "
@@ -2110,11 +2125,11 @@ class MeasurementReportDialog(QDialog):
             "the same for every print), so the reference stays just as static "
             "across runs as a .ti2 would. (If a matching .ti2 happens to sit next "
             "to the .ti3, that's used instead.) The instrument is read from the "
-            "i1Profiler file during conversion.\n"
-            "Keeping things tidy: convert into the same folder as your i1Profiler "
-            "files, add the .ti3, and save the PDF report right there, so your "
-            "i1Profiler work stays together and separate from ChromIQ's own "
-            "profile folders.\n\n"
+            "i1Profiler file.\n"
+            "Keeping things tidy: keep your i1Profiler files in a folder of "
+            "their own. The PDF report of such a file is offered in a reports "
+            "folder beside it, so your i1Profiler work stays together and "
+            "separate from ChromIQ's own profile folders.\n\n"
             "Screen and print colours here are approximate; the numbers come from "
             "your measurement file and are exact.")
 
@@ -2298,9 +2313,10 @@ class MeasurementReportDialog(QDialog):
         self._list_tooltip = tr(
             "The profiles whose measurements this report covers, with one row "
             "per dated run underneath. Untick a run to leave it out of the "
-            "trend, the tables and the PDF — nothing is changed on disk, and "
+            "trend, the tables and the PDF. Nothing is changed on disk, and "
             "ticking it brings it straight back. Select a profile row and use "
-            "“Remove Profile's Measurements…” to drop the whole profile.")
+            "“Remove Profile's Measurements…” to drop the whole profile."
+        ) + "\n\n" + _report_across_projects_help()
         self._profile_list.setToolTip(self._list_tooltip)
         # **THE SELECTED ROW IS THE WINDOW'S OWN GREEN, NOT THE APP'S CYAN.**
         # Basti, 2026-09-18, on a photograph of this very list: *"when i click
@@ -2409,14 +2425,28 @@ class MeasurementReportDialog(QDialog):
                "contents, laid out for print with the ChromIQ heading and page "
                "numbers) to a PDF and opens it. The trend graphs are included only "
                "when the report has two or more runs.\n\n"
-               "Where it is saved: a report covering more than one of the "
-               "profile's runs belongs to the whole printer profile and goes "
-               "in a reports folder next to the profile's runs; a report of a "
-               "single run goes in that run's own reports folder. You choose "
-               "the exact place and name in the save dialog.\n\n"
-               "Reveal folder: opens that profile folder in your file manager so "
-               "you can browse to the reports folder and open any PDF you saved "
-               "earlier."),
+               "Where it is saved: in the reports folder of the place the "
+               "report covers, which the save dialog offers. You choose the "
+               "exact place and name there.\n"
+               "\u2022 One profile run's measurement: that run's own reports "
+               "folder.\n"
+               "\u2022 One dated verification: that date's own reports folder, "
+               "verifications/<date>/reports.\n"
+               "\u2022 Several dated verifications of one run: "
+               "verifications/reports in that run.\n"
+               "\u2022 A calibration (Run type Calibration): the project's "
+               "cal/reports folder.\n"
+               "\u2022 Several profile runs of one project: the reports folder "
+               "of the whole project, next to its runs.\n"
+               "\u2022 Several projects: the reports folder beside them when "
+               "they are side by side in one folder, otherwise the reports "
+               "folder of your ChromIQ folder.\n"
+               "\u2022 A file outside any project: a reports folder beside "
+               "it.\n\n"
+               "Reveal folder: opens the folder of the first measurement in "
+               "the list in your file manager (for a profile run's own "
+               "measurement, its whole project folder), so you can browse to "
+               "a reports folder and open any PDF you saved earlier."),
             self, color=SPEC_GREEN))
         #: Why Generate is greyed, when it is (C6): the button's own reason,
         #: on screen, two lines at most.
@@ -2471,10 +2501,12 @@ class MeasurementReportDialog(QDialog):
         out_row.addWidget(TooltipButton(
             tr("Show detailed data for each run"),
             tr("Adds the full breakdown for every run in the report, each on "
-               "a page of its own: the colour-accuracy table with its "
-               "verdict words against the run's limit set, paper white and "
+               "a page of its own: the colour-accuracy table, paper white and "
                "darkest black, the eight cube corners, and the worst patches "
-               "with their expected and measured colours side by side.\n\n"
+               "with their expected and measured colours side by side. The "
+               "table carries verdict words against the limit set named under "
+               "“Judged against” wherever the report judges; a Printing "
+               "record judges nothing, so its table has none.\n\n"
                "Handy when you want to see WHY a run passed or failed, not "
                "just that it did: for example which patches pushed the "
                "average over its limit.\n\n"
@@ -2570,7 +2602,11 @@ class MeasurementReportDialog(QDialog):
         head = QHBoxLayout()
         self._saved_help = TooltipButton(
             tr("Report shown"),
-            tr("Every report this run has generated, newest first. One entry "
+            tr("Every report generated for the measurements in the list, "
+               "newest first: this run's own, and reports that cover them "
+               "together with measurements of other profile runs or other "
+               "projects. With Run type Calibration only the calibrations' "
+               "reports are listed. One entry "
                "is one document: a single press of “Generate report” makes "
                "one, however many measurements it covers.\n\n"
                "Click an entry to bring that report back into this window "
@@ -2589,8 +2625,18 @@ class MeasurementReportDialog(QDialog):
                "Every report shown can be generated again. Change any of its "
                "settings, or none, and press “Generate report”: you are "
                "asked whether to update the report shown, create a new "
-               "report, or cancel. An update renames the report to match its "
-               "settings.")
+               "report, or cancel. An update keeps the moment the report was "
+               "created at the front of its name and adds when it was "
+               "updated. The rest of the name follows the new settings, its "
+               "report type, limit set and “Detailed”, and the scope in it "
+               "(One date, Multiple runs, Cal and the like) changes only when "
+               "the update covers different measurements.")
+            + "\n\n" + tr(
+               "An update never leaves a measurement out behind your back. "
+               "When a project the report covers cannot be found, the update "
+               "is refused and nothing is written. When a measurement it "
+               "covers is gone from disk, you are asked first whether to "
+               "update without it.")
             + "\n\n" + _report_across_projects_help(),
             self, min_width=460, color=SPEC_GREEN)
         head.addWidget(self._saved_help)
@@ -2887,6 +2933,19 @@ class MeasurementReportDialog(QDialog):
                "A measurement that is not in a ChromIQ project (an imported "
                "file) is judged with the default set for this session only; "
                "nothing is stored for it.")
+            # #182 G7 and K30 (B8-848, B8-853; Knut 5794311113, 5798461562):
+            # a report across places has its own set and its own limits.
+            + "\n\n" + tr(
+               "With measurements from more than one place loaded (several "
+               "profile runs, or several projects), the choice here is the "
+               "report's own. The set chosen judges every measurement in the "
+               "report, whatever set each profile run is bound to, and no "
+               "run is bound or changed. The button then reads “Edit "
+               "limits…” and opens the Report limits window with a “This "
+               "report” column: a change there applies to this report only "
+               "and is used when you press Generate report. “Unlock this "
+               "run's limits” stays greyed, because there is no one run's "
+               "limits to unlock.")
             + _bound_and_locked_help()
             + _sets_help()
             + "\n\n" + tr(_PAIRING_HELP) + "\n\n" + tr(_CHART_HELP),

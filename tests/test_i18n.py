@@ -786,6 +786,7 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-23, the beta 39 help fixes (B8-910) merged onto the R1 fixes. COUNTED, BOTH ledgers.
     # RE-MEASURED 2026-09-23, the R1 fixes (B8-916 to B8-919): M-REPORT-UPDATE-NOTHING-LEFT and "covers no measurement". COUNTED, BOTH ledgers.
     # RE-MEASURED 2026-09-23, the report-window fixes (B8-880 to B8-886) merged onto the challenge C fixes. COUNTED, BOTH ledgers.
     # RE-MEASURED 2026-09-23, the challenge C fixes (B8-870 to B8-873) merged onto K30. COUNTED, BOTH ledgers.
@@ -1426,17 +1427,17 @@ _IDENTICAL_TO_KEY = {
     # COUNTED off the tree with this file's own expression, BOTH ledgers in
     # the same commit.
     "de": 141,
-    "es": 1163,
-    "fr": 1185,
-    "it": 1174,
-    "ja": 1149,
-    "nl": 1190,
-    "no": 1175,
-    "pl": 1167,
-    "pt": 1165,
-    "ru": 1138,
-    "sv": 1176,
-    "zh_CN": 1143,
+    "es": 1176,
+    "fr": 1198,
+    "it": 1187,
+    "ja": 1162,
+    "nl": 1203,
+    "no": 1188,
+    "pl": 1180,
+    "pt": 1178,
+    "ru": 1151,
+    "sv": 1189,
+    "zh_CN": 1156,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1464,7 +1465,7 @@ _IDENTICAL_TO_KEY = {
     # Nothing else changed. The ceiling is re-measured DOWN here rather than
     # left where it was, so the next rise still has to justify itself.
     # +8 on 2026-09-23 for #182 S-2, the same eight as every other language.
-    "uk": 1379,
+    "uk": 1391,
 }
 
 

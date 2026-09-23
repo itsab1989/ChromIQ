@@ -271,8 +271,13 @@ COND_IS_ALLOWED_TO_APPEAR_HERE: "dict[str, str]" = {
         "PASS, FAIL, COND, INFO, N-A (the verdict words)",
     "the glossary entry for the row words, which now says it is not one":
         "What a row of a report says about itself. PASS is inside its limit "
-        "and FAIL is outside it. INFO means the set puts no limit on that "
-        "row, so the number is shown and not graded. N-A means your chart "
+        "and FAIL is outside it. INFO means the number is shown for "
+        "information only and nothing was judged from it: on a report type "
+        "that judges nothing, such as the Printing record, on a profiling "
+        "measurement or a raw drift check, which are never graded, and on a "
+        "row that needs something about the print that was not recorded. A "
+        "row the limit set puts no limit on (“–”) is left out of the report "
+        "altogether. N-A means your chart "
         "carries nothing that could answer the row at all. A row the set "
         "cannot express gets no word. COND is not a row word: it belongs to "
         "the column's Overall, below. A report saved before ChromIQ 4.3.0 "
@@ -290,9 +295,15 @@ COND_IS_ALLOWED_TO_APPEAR_HERE: "dict[str, str]" = {
     # register of COND strings is the wrong place to pin it. What it says now
     # is guarded by `test_a_custom_iso_column_carries_the_same_caveat.py`.
     "the Getting Started card's result words":
+        # REWRITTEN FOR BETA 39 (B8-910): a "–" row leaves the report
+        # since K28b, so INFO no longer means "no limit on that row".
         "Each row reads PASS when it is inside its limit and FAIL when it is "
-        "not, INFO when the set puts no limit on that row, and N-A when your "
-        "chart carries nothing that could answer it. “Overall” is "
+        "not, and N-A when your chart carries nothing that could answer it. "
+        "INFO means the number is shown for information only and nothing was "
+        "judged from it: on a report type that judges nothing, on a raw "
+        "drift check, and on a row that needs something about the print that "
+        "was not recorded. A row the limit set puts no limit on (“–”) is "
+        "left out of the report altogether. “Overall” is "
         "the one word for a whole dated check, and the only place COND "
         "appears. A profiling measurement is never graded at all: it is "
         "expected to fall outside accuracy limits, and saying so would be "

@@ -78,7 +78,10 @@ def test_the_help_says_a_chromiq_set_drops_those_rows_rather_than_n_a():
     help_text = " ".join(_CHART_HELP.split())
     assert ("a ChromIQ set puts no limit on those rows anyway, so they are "
             "left out of the table altogether") in help_text, help_text
-    assert "a Custom ISO set shows them as N-A" in help_text, help_text
+    # B8-910: every ISO set, the read-only ones as well, limits some of
+    # them now; the Custom ones among them.
+    assert "the two Custom ones, limit some or all of them, show those as "\
+        "N-A" in help_text, help_text
 
 
 def test_a_row_with_no_limit_and_no_value_is_not_a_row_at_all():

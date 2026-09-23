@@ -185,12 +185,15 @@ def _columns_paragraph() -> str:
                  "values you supplied from your own copy of each standard.")
     else:
         # THE SHIPPING STATE, and the one the old sentence described wrongly.
+        # …AND THE BUTTON IS AT THE TOP (rechallenge R2, 3), and "no
+        # permission" stopped being the reason when the values shipped (§23):
+        # this state is now a values file that supplied nothing.
         iso = tr(
             "The two ISO columns are read-only and hold a standard's "
-            "published values, which ChromIQ has no permission to include: "
-            "they are empty here, and every cell in them reads ? or ✕, until "
-            "you supply that standard's figures with “Reference "
-            "values…” below.")
+            "published values. No values file supplied any, so they are empty "
+            "here, and every cell in them reads ?, “–” or ✕ until you supply "
+            "that standard's figures with "
+            "“Reference values…” at the top of this window.")
     return own + " " + iso + " " + _custom_columns_sentence()
 
 
@@ -217,10 +220,10 @@ def _iso_columns_sentence() -> str:
             parts.append(tr("“{name}” holds the published values you supplied "
                             "from your own copy.").format(name=name))
         else:
-            parts.append(tr("“{name}” is empty, and every cell in it reads ? "
-                            "or ✕, until you supply that standard's figures "
-                            "with “Reference values…” below."
-                            ).format(name=name))
+            parts.append(tr("“{name}” is empty, and every cell in it reads "
+                            "?, “–” or ✕ until you supply that standard's "
+                            "figures with “Reference values…” at the top of "
+                            "this window.").format(name=name))
     if any(supplied_iso_rows(sid) for sid in shipped):
         parts.append(tr("A figure you supplied from your own copy takes the "
                         "place of the one ChromIQ ships for that row."))
@@ -443,12 +446,21 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                 "“–” means the set puts "
                 "no limit on that row. ✕ means ChromIQ cannot measure it at "
                 "all; the row stays so you can see what the standard asks. "
-                "? means the number is in a part of the standard ChromIQ does "
-                "not hold or may not show.\n\n"
+                "? means the set limits that row but no number has been "
+                "supplied for it.\n\n"
                 "Turn a spin box down to 0 to remove a limit (it shows “–”). "
                 "Restore defaults puts a column back to its factory "
                 "values. Default for new runs marks the set a new profile run "
-                "is bound to at its first verification measurement."),
+                "is bound to at its first verification measurement.")
+            # #182 K30 (B8-853, Knut 5798461562): across places the first
+            # column is the report's own.
+            + "\n\n" + tr(
+                "Opened from a Measurement Report that holds measurements "
+                "from more than one place (several profile runs, or several "
+                "projects), the first column is “This report”: the report's "
+                "own limits. A change there applies to that report only, is "
+                "used when you press Generate report and is stored with the "
+                "report, never on a profile run."),
             accent=SPEC_GREEN)
         outer.addLayout(head)
         outer.addWidget(stripe)
@@ -474,11 +486,15 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
             # could be filled in; the values cannot come from ChromIQ, but the
             # table can, and a reader who is told "supply your own copy"
             # without being told how has been given a shrug.
+            # …AND "STILL BEING DECIDED" WAS DECIDED (§23, rechallenge R2,
+            # 6): the values ship, so this line is shown only when the values
+            # file ChromIQ reads supplied none.
             sub_text += " " + tr(
-                "The ISO value sets are not yet available in this version: "
-                "whether a standard's numbers may ship inside ChromIQ is still "
-                "being decided. A cell reading ? is a limit the standard "
-                "defines and ChromIQ does not show yet; you may type your own "
+                "Neither ISO value set can be chosen here: the values file "
+                "ChromIQ reads for them supplied no number for either, "
+                "because it is missing, empty or could not be read. A cell "
+                "reading ? is a limit the standard defines for which no "
+                "number has been supplied; you may type your own "
                 "number into a Custom column from your own copy of the "
                 "standard. To fill a whole column at once, press “Reference "
                 "values…” below: its window saves a file listing every row "
@@ -1094,8 +1110,8 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
             if lim.kind == "unmeasurable" and row.note:
                 lab.setToolTip(tr(row.note))
             elif lim.kind == "unknown":
-                lab.setToolTip(tr("The number is in a part of the standard "
-                                  "ChromIQ does not hold or may not show yet."))
+                lab.setToolTip(tr("The set limits this row, but no number "
+                                  "has been supplied for it."))
             return lab
         sb = NoScrollDoubleSpinBox(self)
         sb.setDecimals(2)
@@ -1130,8 +1146,8 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                     "reported the same way, with a raised number after the "
                     "metric's name pointing to a note below; “–” the set puts "
                     "no limit on the row; ✕ ChromIQ cannot measure it; ? the "
-                    "number is in a part of the standard ChromIQ does not hold "
-                    "or may not show.")
+                    "set limits the row but no number has been supplied for "
+                    "it.")
         foot = tr("¹ The standards write these limits over their own chart and "
                   "control strip; ChromIQ applies them to the patches of the "
                   "chart that was measured, and the report says so. ² The "
@@ -1173,9 +1189,9 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                 "where ChromIQ ships those, they are in the read-only ISO "
                 "column, and a Custom column does not start from them. If you "
                 "hold either standard, use \u201cReference values\u2026\u201d "
-                "below to supply its figures from your own copy, and the "
-                "Custom column starts from those instead. Every limit here is "
-                "yours to change.")
+                "at the top of this window to supply its figures from your own "
+                "copy, and the Custom column starts from those instead. Every "
+                "limit here is yours to change.")
         else:
             custom = tr(
                 "The two Custom columns start from limits researched from "
@@ -1184,9 +1200,10 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                 "measure has a limit to be judged against. Neither source is the "
                 "published tolerances of ISO 12647-7 or ISO 12647-8, which "
                 "ChromIQ does not hold. If you hold either standard, use "
-                "\u201cReference values\u2026\u201d below to supply its figures "
-                "from your own copy, and the Custom column starts from those "
-                "instead. Every limit here is yours to change.")
+                "\u201cReference values\u2026\u201d at the top of this window "
+                "to supply its figures from your own copy, and the Custom "
+                "column starts from those instead. Every limit here is yours "
+                "to change.")
         cannot = [tr(r.label) for r in ROWS if r.status == "unmeasurable"]
         title, body = M_THRESHOLDS_NOT_CERTIFICATION.render(rows=", ".join(cannot))
         return legend + "\n" + foot + "\n\n" + custom + "\n\n" + title + "\n" + body

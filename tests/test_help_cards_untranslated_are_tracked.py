@@ -539,6 +539,7 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-23, the beta 39 help fixes (B8-910) merged onto the R1 fixes. COUNTED, BOTH ledgers.
     # RE-MEASURED 2026-09-23, the R1 fixes (B8-916 to B8-919): M-REPORT-UPDATE-NOTHING-LEFT and "covers no measurement". COUNTED, BOTH ledgers.
     # RE-MEASURED 2026-09-23, the report-window fixes (B8-880 to B8-886) merged onto the challenge C fixes. COUNTED, BOTH ledgers.
     # RE-MEASURED 2026-09-23, the challenge C fixes (B8-870 to B8-873) merged onto K30. COUNTED, BOTH ledgers.
@@ -998,18 +999,18 @@ _BUDGET = {
     # intro is translated now). COUNTED off the tree, BOTH ledgers in the
     # same commit.
     "de": 13,
-    "es": 862,
-    "fr": 863,
-    "it": 862,
-    "ja": 862,
-    "nl": 862,
-    "no": 862,
-    "pl": 862,
-    "pt": 862,
-    "ru": 861,
-    "sv": 862,
-    "zh_CN": 861,
-    "uk": 1056,
+    "es": 874,
+    "fr": 875,
+    "it": 874,
+    "ja": 874,
+    "nl": 874,
+    "no": 874,
+    "pl": 874,
+    "pt": 874,
+    "ru": 873,
+    "sv": 874,
+    "zh_CN": 873,
+    "uk": 1067,
 }
 
 

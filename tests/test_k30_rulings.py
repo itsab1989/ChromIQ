@@ -589,7 +589,8 @@ def test_the_german_report_limits_intro_is_german_and_true():
     from pathlib import Path
     de = json.loads((Path(__file__).resolve().parent.parent / "data" / "i18n"
                      / "de.json").read_text(encoding="utf-8"))
-    k = next(k for k in de if k.startswith("The ISO value sets are not yet"))
+    # B8-910: the sentence no longer says "still being decided".
+    k = next(k for k in de if k.startswith("Neither ISO value set can be chosen here"))
     assert "two buttons" not in k and "Reference values…" in k
     assert de[k] != k and "Referenzwerte…" in de[k]
 

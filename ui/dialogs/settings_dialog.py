@@ -4074,20 +4074,26 @@ class SettingsDialog(QDialog):
         _rep_row.addWidget(TooltipButton(
             tr("Save a measurement report after each measurement"),
             tr("When this is on, ChromIQ automatically writes a small dated "
-            "report next to each chart every time you finish measuring it "
-            "(in a “reports” folder beside the chart). Each report records how "
-            "close the measurement came to the chart's design colours — a "
-            "Pass/Fail check of the colour accuracy, the worst patches, the "
-            "cube corners, and the paper white and black.\n\n"
+            "report every time you finish measuring a chart, in a “reports” "
+            "folder beside the measurement: the run's own for a profiling "
+            "measurement, that date's own for a verification, and the "
+            "project's cal/reports for a calibration. Each report records how "
+            "close the measurement came to the chart's design colours: the "
+            "colour accuracy, the worst patches, the cube corners, and the "
+            "paper white and black. A verification is judged Pass or Fail "
+            "against its limit set; a profiling measurement is recorded "
+            "without a verdict.\n\n"
             "Why keep it on? Because the reports then build up over time, and "
             "the Measurement Report tool can plot how a chart's measurements "
-            "change from one to the next — a gradual rise, or a shift in white "
+            "change from one to the next: a gradual rise, or a shift in white "
             "or black, is a sign of ageing inks, a drifting printer, or a "
             "drifting instrument. It's especially handy for regular "
             "verification measurements: the report shows you when the results "
             "have slipped far enough that re-profiling is worth it.\n\n"
             "It costs nothing noticeable and never changes your measurement "
-            "files. Turn it off if you don't want this history.\n\n"
+            "files. Turn it off if you don't want this history. The Measure "
+            "tab's “Save measurement report” box starts from this setting and "
+            "can be changed there for a run.\n\n"
             "Default: on"),
             self))
         sg.addLayout(_rep_row)
@@ -4229,7 +4235,8 @@ class SettingsDialog(QDialog):
         _det_row.addWidget(TooltipButton(
             tr("Show detailed data for each run, by default"),
             tr("Whether a new report starts with the full breakdown for every "
-               "run in it: the colour-accuracy table with its verdict words, "
+               "run in it: the colour-accuracy table (with verdict words "
+               "wherever the report judges; a Printing record has none), "
                "paper white and darkest black, the eight cube corners and the "
                "worst patches.\n\n"
                "It makes the report, and its PDF, considerably longer. A "

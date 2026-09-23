@@ -2449,10 +2449,13 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         sound_row.addWidget(self._save_report_cb)
         self._save_report_tip = TooltipButton(
             tr("Save measurement report"),
-            tr("Writes a small dated report beside this chart when the "
-               "measurement finishes, in the run's “reports” folder: how close "
-               "the measurement came to the chart's design colours, the worst "
-               "patches, the cube corners, paper white and black.\n\n"
+            tr("Writes a small dated report when the measurement finishes, in "
+               "a “reports” folder beside the measurement: the run's own for "
+               "a profiling measurement, that date's own "
+               "(verifications/<date>/reports) for a verification, and the "
+               "project's cal/reports with Run type Calibration. It says how "
+               "close the measurement came to the chart's design colours, the "
+               "worst patches, the cube corners, paper white and black.\n\n"
                "It starts from Preferences → Reports → “Save a measurement "
                "report after each measurement”, and you can change it here for "
                "this run. Like every other setting on this tab, the run "
@@ -3364,16 +3367,19 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         _report_row.addWidget(TooltipButton(
             tr("Measurement report"),
             tr("Opens a report on the chart you've measured: how close each "
-            "patch came to the colour the chart was designed to have — the "
-            "average, worst and spread of the colour difference (ΔE00), the "
+            "patch came to the colour the chart was designed to have (the "
+            "average, worst and spread of the colour difference, ΔE00), the "
             "worst-offending patches with their colours side by side, and the "
-            "paper white and darkest black.\n\n"
-            "Its real strength is comparing over time: if you turn on "
-            "“Save a measurement report after each measurement” in "
-            "Settings, ChromIQ keeps a dated report beside every chart, and "
-            "this window shows how the latest one has changed from the last — "
-            "a rising colour difference or a shifting white/black points to "
-            "ageing inks, a drifting printer, or a drifting instrument.\n\n"
+            "paper white and darkest black. With Run type Calibration it "
+            "opens on the project's calibration measurement and lists that "
+            "calibration's reports.\n\n"
+            "Its real strength is comparing over time: with “Save "
+            "measurement report” ticked on this tab (it starts from "
+            "Preferences → Reports), ChromIQ keeps a dated report of every "
+            "measurement, and this window shows how the latest one has "
+            "changed from the last. A rising colour difference or a shifting "
+            "white/black points to ageing inks, a drifting printer, or a "
+            "drifting instrument.\n\n"
             "Measure the chart first, then open this. Screen colours are "
             "approximate; the numbers come from your measurement file."),
             left))

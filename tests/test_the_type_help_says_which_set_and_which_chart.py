@@ -170,7 +170,7 @@ def test_the_help_says_the_things_a_reader_came_for():
                  # the disabled row's own tooltip, inside the open list.
                  "pointing at the greyed entry says why"),
         # how the chart decides what can be said at all
-        "chart": ("eight grey steps", "single-ink or grey ramp",
+        "chart": ("eight roughly evenly spaced grey steps", "single-ink or grey ramp",
                   "FROM PROFILE GAMUT", "aim value", "N-A",
                   "left out of the table",
                   # …and the two scoping words a second round asked for: the
@@ -369,7 +369,7 @@ def test_the_three_claims_nothing_was_reading_out_of_the_code():
     assert GREY_MIN_LEVELS == 8, (
         f"the grey rows now need {GREY_MIN_LEVELS} steps and the chart "
         "paragraph still says eight")
-    assert "eight grey steps" in h["chart"]
+    assert "eight roughly evenly spaced grey steps" in h["chart"]
 
     # 2. "The two ISO types … they are greyed today"
     unbuilt = [name for _tid, name, _b, built in REPORT_TYPE_MENU if not built]

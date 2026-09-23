@@ -665,7 +665,22 @@ WORKFLOWS: list[dict] = [
                   "printer.")),)),
             (3, tr("Measure it on the Measure tab, the same way you measure "
                 "any chart. The readings are saved in the project's “cal” "
-                "folder, beside the chart they came from.")),
+                "folder, beside the chart they came from."),
+             False,
+             # #182 beta 39 (B8-844, Knut 5794078008): a calibration has
+             # reports of its own.
+             ((tr("Its measurement reports"),
+               tr("With “Save measurement report” ticked on the Measure tab, "
+                  "a dated report of the calibration's measurement is written "
+                  "into the project's “cal/reports” folder. With Run type "
+                  "Calibration, Tools → “Measurement report (accuracy & "
+                  "drift)” and the Measure tab's “Measurement report…” open "
+                  "on that measurement. It can have every report type but "
+                  "the Printing record, and you can add other projects' "
+                  "calibrations to one report. The reports are named “Cal” "
+                  "for one project's calibration, and “Multiple cals” or "
+                  "“All cals” when calibrations of several projects are "
+                  "in one.")),)),
             (4, tr("Go to the Calibration & Profiling tab and click “Create "
                 "Calibration File”."),
              False,
@@ -812,19 +827,27 @@ WORKFLOWS: list[dict] = [
              False,
              ((tr("What those two pulldowns decide"),
                tr("“Report type:” is which document you get: a one-page "
-                  "Colour summary, a Full colour check, a Grey and tone "
-                  "check, or a Printing record, which sets down what was "
-                  "printed and measured and grades none of it. “Judged "
-                  "against:” is the LIMIT SET, one column of numbers saying "
-                  "how far off each measurement may be. ChromIQ ships three "
-                  "of its own, “ChromIQ default (recommended)”, “ChromIQ "
-                  "tight” and “Quick check”, and sets its defaults for new "
-                  "reports in Preferences → Reports.")),
+                  "Colour summary, a Full colour check or a Grey and tone "
+                  "check. The Printing record, which sets down what was "
+                  "printed and measured and grades none of it, is the report "
+                  "of a profiling measurement and is not offered for a "
+                  "verification. “Judged against:” is the LIMIT SET, one "
+                  "column of numbers saying how far off each measurement may "
+                  "be. ChromIQ ships three of its own, “ChromIQ default "
+                  "(recommended)”, “ChromIQ tight” and “Quick check”, the "
+                  "published values of ISO 12647-7 and ISO 12647-8 as two "
+                  "read-only sets, and two Custom ISO sets you can edit. The "
+                  "defaults for new reports are set in Preferences → "
+                  "Reports.")),
               (tr("How to read the result words"),
                tr("Each row reads PASS when it is inside its limit and FAIL "
-                  "when it is not, INFO when the set puts no limit on that "
-                  "row, and N-A when your chart carries nothing that could "
-                  "answer it. “Overall” is the one word for a whole dated "
+                  "when it is not, and N-A when your chart carries nothing "
+                  "that could answer it. INFO means the number is shown for "
+                  "information only and nothing was judged from it: on a "
+                  "report type that judges nothing, on a raw drift check, "
+                  "and on a row that needs something about the print that "
+                  "was not recorded. A row the limit set puts no limit on "
+                  "(“–”) is left out of the report altogether. “Overall” is the one word for a whole dated "
                   "check, and the only place COND appears. A profiling "
                   "measurement is never graded at all: it is expected to "
                   "fall outside accuracy limits, and saying so would be "
@@ -847,12 +870,14 @@ WORKFLOWS: list[dict] = [
              ((tr("What the trend shows, and what it never mixes in"),
                tr("“Trend over time (this printer)” plots colour accuracy, "
                   "paper white, darkest black and the cube corners across "
-                  "every dated check of this run. A verification report is "
-                  "titled and filed separately from a profiling report, and "
-                  "it only ever trends verification measurements, so a "
-                  "profile's checks are never mixed in with the run that "
-                  "built it. You can set both titles in Preferences → "
-                  "Reports.")),
+                  "every dated check of this run, or, in a report across "
+                  "runs or projects, across every measurement ticked in it. "
+                  "A verification report is titled and filed separately from "
+                  "a profiling report, and it only ever trends verification "
+                  "measurements, so a profile's checks are never mixed in "
+                  "with the run that built it. You can set its title, and "
+                  "those of the profiling and calibration reports, in "
+                  "Preferences → Reports.")),
               (tr("Unsure which kind of check fits you?"),
                tr("The Dictionary entry “Which verification should I use? "
                   "(the three ways)” compares all three side by "
@@ -1425,11 +1450,14 @@ GLOSSARY += [
 # Chart tab use, so a newcomer can tell the project from the profile file.
 GLOSSARY += [
     (tr("Printer profile project name"),
-     tr("The name of a whole profiling job — the title you type in the Create "
+     tr("The name of a whole profiling job: the title you type in the Create "
         "Chart tab. It is the same as the project folder on disk and the base "
         "name of every file inside it (chart, measurements, the finished "
         "profile). Rename it and ChromIQ offers to rename the folder and files "
-        "to match. Not to be confused with the printer profile itself.")),
+        "to match. Saved measurement reports that name the project follow the "
+        "new name: its own, those in the reports folder beside it, and those "
+        "of the projects beside it. Not to be confused with the printer "
+        "profile itself.")),
     (tr("Printer profile (the file)"),
      tr("The finished .icc / .icm file a project produces — the thing you "
         "install and pick in a print dialog. A project makes exactly one; it "
@@ -1540,8 +1568,13 @@ GLOSSARY += [
     # thirteen languages.
     (tr("PASS, FAIL, COND, INFO, N-A (the verdict words)"),
      tr("What a row of a report says about itself. PASS is inside its limit "
-        "and FAIL is outside it. INFO means the set puts no limit on that "
-        "row, so the number is shown and not graded. N-A means your chart "
+        "and FAIL is outside it. INFO means the number is shown for "
+        "information only and nothing was judged from it: on a report type "
+        "that judges nothing, such as the Printing record, on a profiling "
+        "measurement or a raw drift check, which are never graded, and on a "
+        "row that needs something about the print that was not recorded. A "
+        "row the limit set puts no limit on (“–”) is left out of the report "
+        "altogether. N-A means your chart "
         "carries nothing that could answer the row at all. A row the set "
         "cannot express gets no word. COND is not a row word: it belongs to "
         "the column's Overall, below. A report saved before ChromIQ 4.3.0 "
@@ -1580,7 +1613,10 @@ GLOSSARY += [
         "you chose and stores it with that run, in its meta.json. From then "
         "on the run is judged by its own copy, so changing a set later never "
         "silently re-judges work you have already done, and a trend across "
-        "months compares like with like.")),
+        "months compares like with like. A report of measurements from more "
+        "than one place (several profile runs, or several projects) is the "
+        "exception: it judges every measurement in it against the report's "
+        "own set, whatever each run is bound to, and binds no run.")),
     (tr("Locked / Unlock this run's limits"),
      tr("From the second dated check onwards a run's bound limits are locked, "
         "so its history cannot be re-scored halfway through. To change them "
@@ -1596,23 +1632,29 @@ GLOSSARY += [
         "recommends. Missing either reads FAIL, and a row over a recommended "
         "limit carries a note saying the limit was a recommendation. Three "
         "other marks appear in the same column: “–” means the set puts no "
-        "limit on that row, “?” means the number lives in a document ChromIQ "
-        "does not hold, and “✕” means ChromIQ cannot measure that row at "
-        "all.")),
+        "limit on that row, “?” means the set limits the row but no number "
+        "has been supplied for it, and “✕” means ChromIQ cannot measure that "
+        "row at all.")),
     (tr("Report type"),
      tr("Which document the report is. “Colour summary (one page)” is a "
         "single sheet about a single measurement. “Full colour check” is the "
         "complete one. “Grey and tone check” concentrates on neutrals and the "
         "tone ramps. “Printing record (not graded)” sets down what was "
         "printed and measured and judges none of it. Two further types named "
-        "after ISO 12647-7 and 12647-8 are shown and greyed out, because the "
-        "figures they would judge against are published in a standard "
-        "ChromIQ may not include.")),
+        "after ISO 12647-7 and 12647-8 are shown and greyed out: the "
+        "standards' values ship with ChromIQ as two read-only limit sets, "
+        "but those two documents are not built yet. Pointing at the greyed "
+        "entry says why.")),
     (tr("Report scope (All dates, One date, Multiple dates)"),
-     tr("A tag on a report's name saying how much of the history it covers: "
-        "one dated check, several of them, or all of them. It follows what "
-        "the report actually contains, so it changes when you change which "
-        "measurements are ticked and generate again.")),
+     tr("A tag on a report's name saying how much it covers. A verification "
+        "report reads One date, Multiple dates or All dates; a profiling "
+        "report names its run (Run1, Run2 and so on), or reads Multiple runs "
+        "or All runs; a calibration report reads Cal for one project's "
+        "calibration, or Multiple cals or All cals when calibrations of "
+        "several projects are in it. “All” means every measurement in the "
+        "list was ticked. The tag follows what the report covers and nothing "
+        "else: an update that covers the same measurements keeps it, and one "
+        "that covers more or fewer changes it.")),
     (tr("ΔE00 (CIEDE2000)"),
      tr("The colour difference ChromIQ reports everywhere, and a newer "
         "formula than the plain ΔE in the older entry: it corrects for the "
@@ -1647,11 +1689,14 @@ GLOSSARY += [
         "always one of your real measurements rather than an "
         "interpolation.")),
     (tr("Grey ramp"),
-     tr("A run of patches whose red, green and blue values are equal, "
-        "stepping from white to black. ChromIQ needs at least eight of them, "
-        "reaching both ends, before it will judge grey balance or tone on "
-        "your chart; a chart without one gets N-A on those rows rather than a "
-        "guess.")),
+     tr("A run of patches whose red, green and blue values are equal, or "
+        "within one unit of each other, stepping from white to black. ChromIQ "
+        "needs at least eight of them, reaching both ends and roughly evenly "
+        "spaced (each within 4 % of full scale of where an even spacing puts "
+        "it), before it will judge grey balance on your chart; a chart "
+        "without one gets N-A on those rows rather than a guess. The tone row "
+        "needs less: a single-ink or grey ramp with at least three steps "
+        "between 30 % and 70 %.")),
     (tr("Control strip"),
      tr("In printing, the narrow band of standard patches along the edge of a "
         "sheet that a press operator measures. ChromIQ has no such band, so "
@@ -1701,7 +1746,10 @@ GLOSSARY += [
         "so you can compare them and edit your own. Reached from the "
         "Measurement Report through “Edit limits…” or “Show limits…”, and "
         "from Preferences → Reports. It is also where the default set for new "
-        "runs is chosen.")),
+        "runs is chosen. Opened from a report of measurements from more than "
+        "one place, its first column is “This report”: the report's own "
+        "limits, changed for that report only and stored with it when you "
+        "press Generate report, never on a profile run.")),
     (tr("Reference values (window)"),
      tr("The one door to other people's numbers, reached from Report limits. "
         "It has two halves that must not be confused: the ISO half, where a "
