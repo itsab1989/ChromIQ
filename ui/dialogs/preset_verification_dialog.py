@@ -152,6 +152,12 @@ def reason_line(code: str) -> str:
             tr("This chart has no grey patches."),
         MR.REASON_TOO_FEW_STEPS:
             tr("The grey ramp on this chart has too few steps."),
+        # #182 B8-483: enough steps, but not the required number roughly
+        # evenly spaced from black to white.
+        MR.REASON_GREY_STEPS_BUNCHED:
+            tr("The grey steps on this chart are bunched together: it has "
+               "no {n} of them roughly evenly spaced from black to "
+               "white.").format(n=MR.GREY_MIN_LEVELS),
         MR.REASON_NO_WHITE:
             tr("The grey ramp on this chart does not reach white."),
         MR.REASON_NO_BLACK:

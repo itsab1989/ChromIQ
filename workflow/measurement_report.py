@@ -964,6 +964,9 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
     # they describe the paper and ink, not the profile. Everything downstream
     # (corners, ΔE00, worst patches) inherits the chosen yardstick.
     report["yardstick"] = "absolute"
+    #: #182 E8: the aims EVENNESS compares the absolute readings with. The
+    #: ΔE00 aims as they are, unless the sheet is read media-relative below.
+    evenness_ref = None
     if ref_source in ("design", "device") and printing:
         _col = printing.get("colour")
         _route = printing.get("route")
@@ -980,6 +983,9 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
                     (np.asarray(x, dtype=float) / white_xyz * _d50) / 100.0))
                     for x in data.xyz]
                 report["yardstick"] = "media-relative"
+                # #182 E8: evenness keeps the READINGS as measured and
+                # carries the AIMS onto this paper instead (see below).
+                evenness_ref = aims_on_the_paper(ref, white_xyz)
 
     # The eight cube corners (paper white, composite black, the six ink
     # primaries/secondaries) — the patch the chart DECLARES as each corner
@@ -1123,17 +1129,46 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
         ti3_path, absolute_lab, data.sample_ids, rgb100)
 
     # EVENNESS ACROSS THE SHEET (Knut, 2026-09-22): every patch against its
-    # own aim, in the SAME yardstick and against the SAME aim as the ΔE00 rows
-    # above, averaged over the nine areas of the page the chart's own layout
-    # puts it in. Written with its reason when the sheet cannot answer it.
+    # own aim, the SAME aim as the ΔE00 rows above, averaged over the nine
+    # areas of the page the chart's own layout puts it in. Written with its
+    # reason when the sheet cannot answer it.
+    #
+    # **ALWAYS IN ABSOLUTE LAB, WHATEVER THE PRINT'S INTENT** (#182 E8, Knut,
+    # 2026-09-23, 5795087247: "Yes"). Until beta 39 it took `lab`, which is
+    # media-relative on a sheet printed with an intent that maps paper white:
+    # every reading divided by the sheet's LIGHTEST PATCH. That patch sits in
+    # one of the nine areas, so where that area really is lighter the whole
+    # sheet was rescaled by a local deviation, by a different amount per
+    # colour, and the demo's noise went from 0.3 to 3.7 (both rows N-A).
+    # Every published uniformity test compares absolute readings of one sheet
+    # with itself (E8-research.md), and evenness is a property of the printer
+    # and the paper, not of how the sheet was colour-managed.
+    #
+    # **THE READINGS STAY AS MEASURED; ON SUCH A SHEET THE AIMS MOVE.** The
+    # design aims of a white-mapped print describe an ideal white paper, so
+    # against the READINGS of a real paper every patch is off by the paper's
+    # own tint, by a different amount per colour. Measured on the 837-patch
+    # demo chart as a relative print on a paper of L* 95.5, a* 0.5, b* -3
+    # (`~/Desktop/ChromIQ-beta39-proof/k28-a/e8_three_ways.txt`): that raises
+    # the sheet's noise from 0.18 to 1.0 and turns a drift that fails (1.51)
+    # into a pass (1.33). So each aim is carried onto the paper
+    # (`aims_on_the_paper`): the colour the print was asked to measure there.
+    # That is ONE scale for every patch in every area, so it cannot make one
+    # ninth read differently from another, which is what the old division
+    # did; the noise returns to 0.17 and the drift fails again (1.47).
+    #
     # WHERE THE WORDS JUDGE THE WITHIN-GAMUT FIGURES, SO DOES EVENNESS: a
     # colour the profile could never print is far from its aim wherever it
     # sits, so it is noise to a question about places, and the verdict above
-    # already sets it aside.
+    # already sets it aside. (Which patches are in gamut is read off the AIMS,
+    # so it does not depend on the yardstick.)
     report["evenness"] = evenness_block(
-        lab, ref, data.sample_ids, rgb100,
+        absolute_lab, evenness_ref if evenness_ref is not None else ref,
+        data.sample_ids, rgb100,
         ref_ti2 if ref_ti2.is_file() else None, corner_ids,
         only_ids=in_gamut_ids)
+    report["evenness"]["aims"] = ("on_the_paper" if evenness_ref is not None
+                                  else "as_designed")
 
     # …and the control strip, which is a DECLARATION rather than a measurement:
     # it needs the chart file, not the device values, so it is written whether
@@ -2955,11 +2990,27 @@ def report_scope(runs: "list[dict]") -> dict:
 #                 30 ≤ TV ≤ 70 and needs ≥ 3 distinct TVs with the outermost
 #                 ≥ 20 apart. The R=G=B ramp is the fourth axis (the K analogue).
 #                 |ΔL*| against the reference, largest.
+#
+#   spacing     = (#182 B8-483, Knut 2026-09-23, 5795087247: "Yes") the
+#                 GREY_MIN_LEVELS steps the rule asks for must be pickable
+#                 ROUGHLY EVENLY SPACED out of the chart's grey levels, so a
+#                 ramp cannot meet "8 steps, white to black" with one black and
+#                 seven greys huddled at the light end. See
+#                 :func:`pick_even_grey_steps`.
 GREY_SPREAD_TOL = 1.0
 GREY_LEVEL_TOL = 0.5
 GREY_MIN_LEVELS = 8
 GREY_LIGHTEST_MIN = 90.0
 GREY_DARKEST_MAX = 10.0
+#: How far a picked grey step may sit from its evenly spaced position, in
+#: device units of the 0 to 100 scale, i.e. PERCENT OF FULL SCALE. Knut: *"within
+#: a few percent of full scale"*. 4, because it is the number the gap bound
+#: proposed to him on 2026-09-22 (5776479532: "none over 22 %") comes out of:
+#: two neighbouring picks sit at most 100 / 7 + 2 x 4 = 22.3 apart on a full
+#: ramp. MEASURED: none of the 181 built-in charts that had an eligible grey
+#: ramp before this rule is refused at 3, 4 or 5; a ramp of 0 plus 90 to 93.6
+#: (the demo pack's Q1) is refused at all three.
+GREY_SPACING_TOL = 4.0
 GREY_PAPER_LEVEL = 99.5
 RAMP_OTHER_CHANNELS_MIN = 99.0
 RAMP_TV_LOW, RAMP_TV_HIGH = 30.0, 70.0
@@ -3135,6 +3186,11 @@ EVENNESS_ESTIMATE_SHUFFLES = 200
 #: them into sentences through tr(); the JSON keeps the code.
 REASON_NO_GREYS = "no_greys"
 REASON_TOO_FEW_STEPS = "too_few_steps"
+#: #182 B8-483: enough grey steps, reaching white and black, but not
+#: GREY_MIN_LEVELS of them roughly evenly spaced (`pick_even_grey_steps`). Its
+#: own code, because the too-few sentence ("has 20 grey steps; at least 8 are
+#: needed") would be false on the chart that reaches it.
+REASON_GREY_STEPS_BUNCHED = "grey_steps_bunched"
 REASON_NO_WHITE = "no_white"
 REASON_NO_BLACK = "no_black"
 REASON_NO_REFERENCE = "no_reference"
@@ -3288,6 +3344,60 @@ def _distinct_levels(levels: "list[float]", tol: float = GREY_LEVEL_TOL) -> int:
     return n
 
 
+def pick_even_grey_steps(levels: "list[float]", n: int = GREY_MIN_LEVELS,
+                         tol: float = GREY_SPACING_TOL
+                         ) -> "tuple[list[float] | None, float | None]":
+    """The *n* grey levels that meet the step rule, roughly evenly spaced.
+
+    Knut, #182 B8-483 (5775993270, ruled 5795087247): *"the patches that
+    represent the minimum number should be picked out from the existing
+    neutral grey patches, and those should have an approximate even spacing,
+    else the outer black and white positions can be fulfilled, but the patches
+    between them cramped into lumps"*; *"within a few percent of full scale"*.
+
+    Built as: *m* positions evenly spaced from the ramp's own darkest to its
+    own lightest level (the end rules, <= 10 and >= 90, are asked separately),
+    and for each the nearest grey level on the chart, which must lie within
+    *tol* device units (percent of full scale) of it and be a different level
+    from every other pick. The ends are always their own pick.
+
+    *m* starts at *n*, the number required, and the first *m* that works is
+    taken. It may be MORE than *n*, and that is not a loophole: a perfectly
+    even 11-step ramp (0, 10 … 100) holds no 8 steps within 4 of an 8-step
+    spacing (14.3 sits 4.3 from both 10 and 20), yet its steps are as evenly
+    spaced as steps can be. Either way the picked steps sit no more than
+    ``(hi - lo) / 7 + 2 * tol`` apart (22.3 on a full ramp), so a ramp whose
+    steps between the two ends are cramped into lumps fails at every *m*.
+
+    Returns ``(picked, None)``, lightest first, or ``(None, position)`` with
+    the first evenly spaced position of the *n*-step spacing that has no grey
+    level near it.
+    """
+    vals = sorted({round(float(v), 3) for v in levels})
+    if len(vals) < 2 or n < 2:
+        return None, None
+    lo, hi = vals[0], vals[-1]
+
+    def attempt(m: int) -> "tuple[list[float] | None, float | None]":
+        picked: "list[float]" = []
+        for k in range(m):
+            target = lo + k * (hi - lo) / (m - 1)
+            near = min(vals, key=lambda v: abs(v - target))
+            if abs(near - target) > tol or (picked and near == picked[-1]):
+                return None, round(target, 1)
+            picked.append(near)
+        return picked, None
+
+    first_miss: "float | None" = None
+    for m in range(n, len(vals) + 1):
+        picked, miss = attempt(m)
+        if picked is not None:
+            return sorted(picked, reverse=True), None
+        if first_miss is None:
+            first_miss = miss
+    return None, first_miss
+
+
 def grey_balance_block(rgb100, lab, ref: "dict[str, tuple]",
                        sample_ids: "list[str]") -> dict:
     """The grey-ramp block of a report (see the notes above)."""
@@ -3295,7 +3405,8 @@ def grey_balance_block(rgb100, lab, ref: "dict[str, tuple]",
     idx = [i for i in range(len(sample_ids))
            if float(rgb[i].max() - rgb[i].min()) <= GREY_SPREAD_TOL]
     block: dict = {"n_greys": len(idx), "levels": 0, "eligible": False,
-                   "reason": None, "avg": None, "max": None, "per_level": []}
+                   "reason": None, "avg": None, "max": None, "per_level": [],
+                   "picked_levels": [], "spacing_tol": GREY_SPACING_TOL}
     if not idx:
         block["reason"] = REASON_NO_GREYS
         return block
@@ -3308,7 +3419,16 @@ def grey_balance_block(rgb100, lab, ref: "dict[str, tuple]",
     elif min(levels) > GREY_DARKEST_MAX:
         block["reason"] = REASON_NO_BLACK
     else:
-        block["eligible"] = True
+        # #182 B8-483: the required steps, roughly evenly spaced. The
+        # STATISTICS below still run over every grey patch (CH-10): this
+        # decides whether the ramp meets the step rule, not what is averaged.
+        picked, missing = pick_even_grey_steps(levels)
+        if picked is None:
+            block["reason"] = REASON_GREY_STEPS_BUNCHED
+            block["missing_level"] = missing
+        else:
+            block["picked_levels"] = [round(v, 1) for v in picked]
+            block["eligible"] = True
     per: list[dict] = []
     for i in idx:
         level = float(rgb[i].mean())
@@ -4069,6 +4189,32 @@ def _row_band_labels(grid: dict, rows: int, band: int) -> "list[str]":
     return [str(lab.get(lo, lo + 1)), str(lab.get(hi, hi + 1))]
 
 
+#: The D50 white the media-relative yardstick maps the paper onto, in the
+#: 0..100 XYZ scale the .ti3 carries.
+_D50_XYZ_100 = (96.42, 100.0, 82.49)
+
+
+def aims_on_the_paper(ref: "dict[str, tuple]", paper_xyz) -> "dict[str, tuple]":
+    """Each aim Lab carried onto a paper whose white measures *paper_xyz*.
+
+    #182 E8: evenness reads a sheet as MEASURED, whatever its intent. On a
+    sheet printed with an intent that maps paper white, the design aims
+    describe an ideal white paper, and what the print is asked to measure on
+    the real one is each aim's XYZ times ``paper / D50``: the ICC.1 6.3.2.2
+    media-relative scaling run the other way, on the AIMS, so the readings are
+    never touched. One scale for every patch, wherever it sits, so it adds
+    nothing that differs from one ninth of the page to another.
+    """
+    from workflow.ti3_analysis import _lab_to_xyz_array
+    if not ref:
+        return {}
+    ids = list(ref)
+    xyz = _lab_to_xyz_array(np.asarray([ref[i] for i in ids], dtype=float))
+    scale = np.asarray(paper_xyz, dtype=float) / np.asarray(_D50_XYZ_100)
+    return {sid: xyz_to_lab(tuple(x * scale / 100.0))
+            for sid, x in zip(ids, xyz)}
+
+
 def evenness_block(lab, ref: "dict[str, tuple]", sample_ids: "list[str]",
                    rgb100, ti2_path: "str | Path | None",
                    corner_ids: "set[str] | None" = None,
@@ -4078,9 +4224,13 @@ def evenness_block(lab, ref: "dict[str, tuple]", sample_ids: "list[str]",
     Knut's rulings of 2026-09-22 (#182, 5785774676), in order:
 
     1. *each patch against its own expected colour, averaged per area*: the
-       residual is measured Lab minus the aim the ΔE00 rows use (`ref`, in the
-       same yardstick as `lab`), with the declared cube corners left out as
-       the ΔE00 statistics leave them out;
+       residual is measured Lab minus the aim the ΔE00 rows use (`ref`), with
+       the declared cube corners left out as the ΔE00 statistics leave them
+       out. *lab* is the ABSOLUTE reading, as measured, whatever intent the
+       sheet was printed with (#182 E8, Knut 2026-09-23); `build_report`
+       hands in `absolute_lab`, never its media-relative re-reading, and on a
+       white-mapped sheet hands in the aims carried onto the paper
+       (:func:`aims_on_the_paper`);
     2. three by three areas per page, whole strips and rows, remainder to the
        middle, every page pooled (5745765820), and only pages with at least
        :data:`EVENNESS_MIN_GRID` strips and rows;
@@ -4119,6 +4269,8 @@ def evenness_block(lab, ref: "dict[str, tuple]", sample_ids: "list[str]",
     block = evenness_from_residuals(grid, residuals)
     block["n_mismatched"] = mismatched
     block["population"] = "in_gamut" if only_ids is not None else "all"
+    # #182 E8: what the residuals were read in, so a saved report says so.
+    block["yardstick"] = "absolute"
     return block
 
 

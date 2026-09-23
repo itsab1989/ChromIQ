@@ -40,6 +40,14 @@ can, beside the pack, so the rows can be driven on screen:
   patches in each ninth leave the sheet's own noise above the limits, so both
   rows N-A for the noise. Knut: "a one page target will not fulfil the
   requirement".
+* **run8** (#182 E8, beta 39), the 837-patch chart of run1 printed through
+  its profile with RELATIVE colorimetric, the intent that maps paper white,
+  on a real paper (`RUN8_PAPER_LAB`, L* 95.5, b* -3): the same four kinds of
+  sheet as run1. The colour accuracy rows read it relative to its paper
+  white; evenness, since Knut's E8 ruling ("Yes"), reads it as measured, with
+  each aim carried onto the paper. The drift sits at the limit on both
+  runs (about 1.5), so which side of 1.5 it lands is not the point of run8;
+  that both rows are JUDGED, with a noise near run1's, is.
 
 The readings are SYNTHETIC: each patch is the chart's own aim plus the
 residual named above, so what every area should read is known in advance. The
@@ -172,9 +180,18 @@ def _lay_out(slug: str, folder: Path, stem: str) -> Path:
     return Path(res.ti2_path)
 
 
+#: #182 E8: the paper run8 is printed on, a real one rather than the ideal
+#: white the chart's aims describe (L* 95.5, a slight blue from brighteners).
+RUN8_PAPER_LAB = (95.5, 0.5, -3.0)
+
+
 def _sheet(ti2: Path, out: Path, residual, seed: int, instrument: str,
-           when: str) -> Path:
-    """A measured `.ti3` of *ti2*: every patch its aim plus *residual*."""
+           when: str, paper_lab=None) -> Path:
+    """A measured `.ti3` of *ti2*: every patch its aim plus *residual*.
+
+    With *paper_lab*, the sheet is what a print through the profile with an
+    intent that MAPS PAPER WHITE reads on a paper of that colour: every XYZ
+    scaled by paper / D50, the ICC.1 media-relative scaling run backwards."""
     import numpy as np
     import workflow.measurement_report as MR
     from workflow.ti3_analysis import _lab_to_xyz_array, parse_ti3
@@ -208,6 +225,9 @@ def _sheet(ti2: Path, out: Path, residual, seed: int, instrument: str,
                 lab[0] = ceiling
     for i, sid in enumerate(chart.sample_ids):
         x = _lab_to_xyz_array(labs[i][None])[0]
+        if paper_lab is not None:
+            x = x * _lab_to_xyz_array(np.asarray([paper_lab], float))[0] / \
+                np.array([96.42, 100.0, 82.49])
         rows.append(f"{sid} {rgb[i][0]:.4f} {rgb[i][1]:.4f} {rgb[i][2]:.4f} "
                     f"{x[0]:.5f} {x[1]:.5f} {x[2]:.5f}")
     text = "\n".join([
@@ -226,7 +246,8 @@ def _sheet(ti2: Path, out: Path, residual, seed: int, instrument: str,
 
 
 def _run(proj, run, slug: str, instrument: str, description: str,
-         dates: list, seed0: int) -> list:
+         dates: list, seed0: int, intent: str = "absolute",
+         paper_lab=None) -> list:
     import make_report_limit_demos as DEMO
     from workflow.measurement_report import (KIND_PROFILING, KIND_VERIFICATION,
                                              build_report, stamp_verdict)
@@ -260,20 +281,19 @@ def _run(proj, run, slug: str, instrument: str, description: str,
         v = run.verification(vid)
         v.ensure_dir()
         ti3 = _sheet(vti2, v.dir / f"{vstem}.ti3", residual, seed0 + k,
-                     instrument, when)
+                     instrument, when, paper_lab=paper_lab)
         mark_verification_ti3(ti3)
         cdir = DEMO.snapshot(v.dir, vstem, run.verifications_dir)
         DEMO.write_print_record(cdir, vstem, when, f"{stem}.icc",
                                 "through-profile")
-        # ABSOLUTE colorimetric, so the report judges in absolute Lab. With a
-        # white-mapping intent the report divides every reading by the sheet's
-        # lightest patch, and a demo whose "one area lighter" happens to hold
-        # that patch would then shift every colour by its own amount: a real
-        # effect, and not the one this demo is about.
+        # ABSOLUTE colorimetric by default, so every row of the report judges
+        # in absolute Lab. run8 passes "relative", an intent that maps paper
+        # white: the colour accuracy rows then read the sheet relative to its
+        # lightest patch, and evenness, since #182 E8 (beta 39), does not.
         import json
         pj = cdir / f"{vstem}.print.json"
         rec = json.loads(pj.read_text(encoding="utf-8"))
-        rec["intent"] = "absolute"
+        rec["intent"] = intent
         pj.write_text(json.dumps(rec, indent=2), encoding="utf-8")
         rep = build_report(v.measurement_ti3, argyll_bin=ARGYLL)
         stamp_verdict(rep, limits.limits, set_id=limits.set_id,
@@ -333,6 +353,13 @@ def build(dest: Path) -> Path:
          "A 154-patch i1Pro 3 Plus chart on one page, 11 strips by 14 rows: "
          "too few patches in each ninth of the page for the sheet's own "
          "noise to stay under the limits.", DATES_P3_ONE, 700)
+    run8 = proj.new_run()
+    _run(proj, run8, LARGE, "X-Rite i1Pro 2",
+         "The 837-patch chart of run 1, printed through its profile with "
+         "relative colorimetric, an intent that maps paper white: evenly "
+         "printed, with a drift across the strips, with one area lighter, and "
+         "noisy. Evenness is judged as measured whatever the intent.",
+         DATES_LARGE, 100, intent="relative", paper_lab=RUN8_PAPER_LAB)
     return root
 
 

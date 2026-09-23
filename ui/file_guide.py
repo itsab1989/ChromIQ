@@ -124,6 +124,12 @@ def _structure():
             "Measurement reports that cover the whole profile rather than one "
             "run — see the Measurement Report row in the next section for which "
             "reports folder a report lands in.")),
+        # #182 K28 (Knut, 2026-09-23): where "Delete Selected Report" puts a
+        # report that covers several runs of this project.
+        (1, "old/", tr(
+            "Reports that covered several runs of this project and were "
+            "removed with \u201cDelete Selected Report\u201d, each in a folder "
+            "named with the moment it happened. Moved here, never deleted.")),
         (1, "runs/", tr(
             "One folder per profile build. This is where nearly everything "
             "lives.")),
@@ -187,6 +193,20 @@ def _structure():
             "replaced. Your dated results are never moved.")),
         (2, "run2/", tr(
             "The next build, with exactly the same shape inside.")),
+        # #182 K28 (Knut, 2026-09-23, 5795087247): *"This outside-of-project
+        # folder also needs to be visible in the help card for 'Where are my
+        # files?'"*. The folder the projects live in holds two of its own.
+        (0, "Your ChromIQ folder/", tr(
+            "The folder your project folders live in: ~/ChromIQ, or your "
+            "custom output folder from Settings. Beside the projects it can "
+            "hold two folders of its own, made only when they are needed.")),
+        (1, "reports/", tr(
+            "Measurement reports that cover measurements of more than one "
+            "project.")),
+        (1, "old/", tr(
+            "Reports across several projects that were removed with "
+            "\u201cDelete Selected Report\u201d, each in a folder named with "
+            "the moment it happened. Moved here, never deleted.")),
         (0, "ChromIQ's own settings folder/", tr(
             "Not inside any project. It holds what belongs to the APP rather "
             "than to one printer: on macOS ~/Library/Preferences/ChromIQ, on "

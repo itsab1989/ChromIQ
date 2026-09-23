@@ -1145,6 +1145,68 @@ def _cgats_has_no_readings(path) -> bool:
     return held == 0
 
 
+#: #182 R2 (G5): the measure the verification pre-flight wraps its text at,
+#: so the full M-VERIFY-UNCHECKED-METRICS paragraph fits without the popup
+#: growing past a laptop screen. MEASURED on screen in beta 36
+#: (`~/Desktop/ChromIQ-beta36-proof/design-R3-R2-R1/`): a spacer of 920 gives
+#: a box 968 px wide whose German frame, the longer language, is 875 px tall;
+#: re-measured for beta 39 in `~/Desktop/ChromIQ-beta39-proof/k28-a/`.
+PREFLIGHT_TEXT_WIDTH = 920
+#: Qt's own ceiling on a QMessageBox's width is the screen's width less 480
+#: (and never over 1000). Asked for more, Qt wraps the label ANYWHERE, words
+#: broken mid-word; this keeps the spacer inside it, with the box's margins.
+_MESSAGE_BOX_QT_MARGIN = 480 + 48
+#: The title bar a frame adds to the box's own height, which cannot be read
+#: before the window is mapped. Measured on macOS 15: 28.
+_PREFLIGHT_CAPTION = 28
+
+
+def preflight_text_width(box) -> int:
+    """`PREFLIGHT_TEXT_WIDTH`, held inside Qt's width ceiling for the screen
+    *box* opens on."""
+    from PyQt6.QtGui import QGuiApplication
+    screen = box.screen() or QGuiApplication.primaryScreen()
+    if screen is None:
+        return PREFLIGHT_TEXT_WIDTH
+    room = screen.availableGeometry().width() - _MESSAGE_BOX_QT_MARGIN
+    return max(360, min(PREFLIGHT_TEXT_WIDTH, room))
+
+
+def _preflight_work_height(box) -> int:
+    """The height of the work area *box* opens on (menu bar and Dock taken
+    off). A function of its own so a test can give it a 13-inch screen."""
+    from PyQt6.QtGui import QGuiApplication
+    screen = box.screen() or QGuiApplication.primaryScreen()
+    if screen is None:
+        return 10_000
+    return screen.availableGeometry().height()
+
+
+def _preflight_fits(box) -> bool:
+    """Whether *box*, with its title bar, fits the work area. Asked of the
+    shown box's frame; before it is shown, of its size hint (an estimate that
+    can be 140 px short, which is why the pre-flight asks after showing).
+
+    A MacBook Air 13 has about 918 px of work area with the Dock hidden and
+    about 860 with it at the bottom. The wide German popup is 875 tall, so on
+    the second the one-line version is shown instead, and the OK button and
+    the "do not show again" tick can never fall off the screen.
+    """
+    lay = box.layout()
+    if lay is not None:
+        lay.activate()
+    if box.isVisible():
+        # the real frame, title bar included: see `_show_verification_
+        # preflight_now`, where this is asked once the box is on screen
+        need = box.frameGeometry().height() - _PREFLIGHT_CAPTION
+    else:
+        need = max(box.sizeHint().height(), box.minimumSizeHint().height())
+    work = _preflight_work_height(box)
+    log.info("Verification pre-flight: box needs %d px with its title bar, "
+             "work area %d px", need + _PREFLIGHT_CAPTION, work)
+    return need + _PREFLIGHT_CAPTION <= work
+
+
 class TabMeasure(Cr30CalibrationMixin, QWidget):
     """Step 3: interactive chart measurement with chartread."""
 
@@ -14125,7 +14187,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 set_id = DEFAULT_SET_ID
         return type_id, set_id, overrides
 
-    def _verification_preflight_message(self, row) -> "tuple[str, str]":
+    def _verification_preflight_message(self, row, short: bool = False
+                                        ) -> "tuple[str, str]":
         """§M's frame, with this chart's own answer set into it.
 
         The frame is **M-VERIFY-PREFLIGHT** and nothing else in here writes a
@@ -14161,7 +14224,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 block.append("")
             block.append(" " * line.indent + line.text)
         parts = [title, body, "\n".join(block)]
-        # **ONE LINE HERE, THE PARAGRAPH IN THE PRESETS WINDOW.** Knut asked
+        # **UNTIL BETA 39: ONE LINE HERE, THE PARAGRAPH IN THE PRESETS
+        # WINDOW** (superseded by R2 below, kept as the reason for the
+        # 13-inch guard). Knut asked
         # for both windows to say what the report does with a metric this
         # chart cannot answer; he also specified that this popup must not
         # *"become too long"*, and the two collided. Measured on screen by
@@ -14174,10 +14239,21 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # Shown ONLY when this chart really is short of something: a sentence
         # about rows that will read N-A, on a chart where none will, is noise,
         # and it would sit under this window's own line "Nothing is missing".
+        #
+        # **R2 (Knut, 5781645939, and again 5795087247: "Leave the window
+        # wider as previously specified").** So the FULL paragraph the presets
+        # window shows, M-VERIFY-UNCHECKED-METRICS, goes here, in a box made
+        # wide enough (`PREFLIGHT_TEXT_WIDTH`) that it is not as tall. The one
+        # line is kept for a screen whose work area cannot hold the wide box:
+        # `_show_verification_preflight_now` asks `_preflight_fits` and swaps
+        # it back in (*short=True*).
         _short = (row is not None and row.assessment.checked
                   and row.assessment.missing)
-        if _short:
+        if _short and short:
             parts.append(tr(M.M_VERIFY_PREFLIGHT_UNCHECKED))
+        elif _short:
+            u_title, u_body = M.M_VERIFY_UNCHECKED_METRICS.render()
+            parts.append(u_title + "\n\n" + u_body)
         if gamut_only_shortfalls(row):
             parts.append(tr(M.M_VERIFY_PREFLIGHT_GAMUT))
         return title, "\n\n".join(parts)
@@ -14265,8 +14341,37 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         if scope is not None:
             cb = QCheckBox(self._preflight_silence_label(), box)
             box.setCheckBox(cb)
-        from ui.widgets import fit_message_box_buttons
+        from ui.widgets import fit_message_box_buttons, widen_message_box
+        widen_message_box(box, preflight_text_width(box))
         fit_message_box_buttons(box)
+        # THE 13-INCH GUARD. The wide box carries the full paragraph; where
+        # the screen's work area cannot hold it, the one line goes back in
+        # (the popup as it was before beta 39, which fits a 13-inch Air).
+        #
+        # **ASKED OF THE SHOWN WINDOW, NOT BEFORE IT.** Measured on screen: the
+        # box's own size hint before `exec()` said 683 px with its title bar,
+        # and the frame it then opened with was 827. A QMessageBox lays its
+        # text out for its final width only when it is shown, so a guard asked
+        # beforehand passes boxes that do not fit. So it is asked on the first
+        # turn of the box's own event loop, of `frameGeometry()`.
+        def _fit_the_screen() -> None:
+            try:
+                if _preflight_fits(box):
+                    return
+                _t, short_text = self._verification_preflight_message(
+                    row, short=True)
+                box.setText(short_text)
+                if box.layout() is not None:
+                    box.layout().activate()
+                from ui.widgets import keep_message_box_inside_the_work_area
+                keep_message_box_inside_the_work_area(box)
+                log.info("Verification pre-flight: the full paragraph does "
+                         "not fit this screen's work area; showing the "
+                         "one-line version")
+            except Exception:      # noqa: BLE001 — never block the window
+                log.debug("pre-flight fit check failed", exc_info=True)
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(0, _fit_the_screen)
         self._preflight_open = True
         self._preflight_missed = False
         shown = self._preflight_key()

@@ -96,6 +96,7 @@ CONSTANTS = (CONSTANT, CONSTANT_LAYOUT)
 IND = {
     "grey_within": 1.0, "grey_steps": 8, "grey_apart": 0.5,
     "grey_white_at": 90.0, "grey_black_at": 10.0, "grey_paper_at": 99.5,
+    "grey_even_within": 4.0,
     "ramp_low": 30.0, "ramp_high": 70.0, "ramp_steps": 3, "ramp_span": 20.0,
     "ramp_others_at": 99.0,
     "strip_min": 8, "strip_p95_min": 20,
@@ -148,6 +149,25 @@ def _distinct(values, apart: float) -> int:
             n += 1
             last = v
     return n
+
+
+def _evenly_spaced(values, need: int, within: float) -> bool:
+    """Whether *need* or more positions spaced evenly from the lowest value to
+    the highest each have a DIFFERENT value within *within* of them. Written
+    here from Knut's words (#182 B8-483), not imported."""
+    vals = sorted(set(round(v, 3) for v in values))
+    lo, hi = vals[0], vals[-1]
+    for m in range(need, len(vals) + 1):
+        taken = []
+        for k in range(m):
+            at = lo + k * (hi - lo) / (m - 1)
+            best = min(vals, key=lambda v: abs(v - at))
+            if abs(best - at) > within or best in taken:
+                break
+            taken.append(best)
+        else:
+            return True
+    return False
 
 
 def _ladder_fills(ids, rgb) -> int:
@@ -228,6 +248,8 @@ def _independent(path: Path) -> "dict[str, str | None]":
         grey = MR.REASON_NO_WHITE
     elif min(levels) > IND["grey_black_at"]:
         grey = MR.REASON_NO_BLACK
+    elif not _evenly_spaced(levels, IND["grey_steps"], IND["grey_even_within"]):
+        grey = MR.REASON_GREY_STEPS_BUNCHED
     elif not [v for v in levels if v < IND["grey_paper_at"]]:
         grey = MR.REASON_NO_REFERENCE
     else:
@@ -546,12 +568,13 @@ def test_the_control_answers_every_row_its_patches_decide(dialog):
 def test_the_open_questions_really_are_accepted_today(dialog, demo):
     """Knut's own paragraph expects a spacing requirement: *"the selected
     patches have a certain distance between each other … so that they are not
-    clumped together in one end or in the middle"*. There is none. These two
-    charts are clumped exactly that way and ChromIQ withholds nothing from
-    them, which is what makes them the question rather than an assertion.
+    clumped together in one end or in the middle"*. For the GREY ramp he ruled
+    it on 2026-09-23 (#182 B8-483), and this guard said so: its Q1 went red
+    and became R14's FAIL side. Nothing is ruled for the 30 to 70 % ramp, so
+    Q2 is still clumped that way and still withholds nothing.
 
     A guard on a behaviour nobody has ruled on yet, so that the day somebody
-    adds a spacing rule this file says which demo it changed.
+    adds a spacing rule for the tone ramp this file says which demo it changed.
     """
     assert not _withheld(dialog, demo), demo.name
 
@@ -612,6 +635,7 @@ def test_the_thresholds_the_pack_claims_are_the_apps_own():
     assert IND["grey_white_at"] == MR.GREY_LIGHTEST_MIN
     assert IND["grey_black_at"] == MR.GREY_DARKEST_MAX
     assert IND["grey_paper_at"] == MR.GREY_PAPER_LEVEL
+    assert IND["grey_even_within"] == MR.GREY_SPACING_TOL
     assert (IND["ramp_low"], IND["ramp_high"]) == (MR.RAMP_TV_LOW,
                                                    MR.RAMP_TV_HIGH)
     assert IND["ramp_steps"] == MR.RAMP_MIN_STEPS

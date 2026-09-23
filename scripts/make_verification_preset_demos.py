@@ -26,7 +26,7 @@ counts as a surface patch, and how many are needed); ``no_ramp`` is two (how
 many steps, and how far apart). One preset per code cannot tell you which half
 of a code is broken.
 
-So this pack is built around REQUIREMENTS: thirteen of them, each with a FAIL
+So this pack is built around REQUIREMENTS: fourteen of them, each with a FAIL
 preset one notch outside its line and a PASS preset exactly ON it. A pair
 differs by ONE thing and nothing else, so the rows that change between the two
 are the rows that requirement governs, and a detection that quietly went dead
@@ -39,13 +39,15 @@ comparison is ``<=``; "reaches white" is really ``max(level) >= 90`` and not
 comparison as it is written in the source, and the file and constant it was
 read from, so a reader can check the claim rather than believe it.
 
-**AND TWO PRESETS ASK A QUESTION INSTEAD OF MAKING A CLAIM.** Knut's own
+**AND ONE PRESET ASKS A QUESTION INSTEAD OF MAKING A CLAIM.** Knut's own
 paragraph names a requirement he expected to find: *"that the selected patches
 have a certain distance between each other … so that they are not clumped
-together in one end or in the middle"*. There is no such requirement in the
-code. The two ``open`` presets are charts that are clumped exactly that way and
-that ChromIQ accepts today, with nothing withheld. They are not faults until he
-says they are; they are the question, shipped in a form he can open.
+together in one end or in the middle"*. For the GREY RAMP he ruled it on
+2026-09-23 (#182 B8-483, 5795087247), and the chart that asked it, once the
+open preset Q1, is now R14's FAIL side. For the 30 to 70 % tone ramp nothing
+is ruled, so the ``open`` preset Q2 is still a chart clumped that way that
+ChromIQ accepts, with nothing withheld: the question, shipped in a form he can
+open.
 
 Every design here was measured, not reasoned about: ``--check`` builds each
 patch set, runs the app's own eligibility path over it, and prints the rows
@@ -242,7 +244,14 @@ _GREY_OK = (0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0)
 #: chart's surface population is exactly the surface candidates it was given.
 #: 2.5 is still "black" (the line is 10) and 97.5 is still "white" (the line is
 #: 90), which is why the two conditions can be separated at all.
-_GREY_OFF_THE_FACES = (2.5, 12.0, 22.0, 35.0, 50.0, 65.0, 78.0, 88.0, 97.5)
+#: Evenly spaced from 2.5 to 97.5 (steps of 11.875, rounded to a tenth), so
+#: it also meets the spacing rule of #182 B8-483 (`GREY_SPACING_TOL`).
+_GREY_OFF_THE_FACES = (2.5, 14.4, 26.3, 38.1, 50.0, 61.9, 73.8, 85.6, 97.5)
+
+#: #182 B8-483 (Knut, 2026-09-23): eight steps from 0 to 100, each within
+#: `GREY_SPACING_TOL` of an even spacing (0, 14.3, 28.6 … 100), with four of
+#: them (30, 43, 57, 70) inside the 30 to 70 % band, spanning 40 points.
+_GREY_EIGHT_EVEN = (0.0, 14.0, 30.0, 43.0, 57.0, 70.0, 86.0, 100.0)
 
 #: How far past a line a FAIL preset sits. One tenth of a device unit on a
 #: continuous threshold, one patch or one step on a counted one: the smallest
@@ -304,12 +313,12 @@ def chart_grey_levels(levels):
 def chart_patch_count(n: int):
     """A chart of exactly *n* patches that clears every OTHER line it can.
 
-    Eight neutral steps reaching 0 and 100, four of them in the 30 to 70 % band
-    and spanning 40 points; ten surface patches, two of which are the ends of
-    the ramp. What it cannot clear is the outer-gamut line, which wants 77
-    patches: see ``also``.
+    Eight neutral steps reaching 0 and 100, evenly spaced within
+    `GREY_SPACING_TOL`, four of them in the 30 to 70 % band and spanning 40
+    points; ten surface patches, two of which are the ends of the ramp. What it
+    cannot clear is the outer-gamut line, which wants 77 patches: see ``also``.
     """
-    parts = greys((0.0, 10.0, 30.0, 45.0, 60.0, 70.0, 85.0, 100.0)) + surface(8)
+    parts = greys(_GREY_EIGHT_EVEN) + surface(8)
     return _pad(parts, n)
 
 
@@ -338,15 +347,28 @@ def chart_clumped_greys():
     return _pad(greys(lv) + surface() + cyan_ramp())
 
 
+def chart_even_greys():
+    """R14's PASS side: the chart above with its eight grey steps evenly
+    spaced from 0 to 100 (`_GREY_EIGHT_EVEN`). Four of them fall in the 30 to
+    70 % band of the grey axis, but the cyan ramp already answers the
+    tone-ramp row on both sides, so nothing but the grey pair moves.
+    """
+    return _pad(greys(_GREY_EIGHT_EVEN) + surface() + cyan_ramp())
+
+
 def chart_clumped_ramp():
     """Three mid-tone steps spanning 20 points, two of them 0.6 apart.
 
     Tone values 40.0, 59.4 and 60.0 on the cyan axis. Three distinct steps by
     the same 0.5-unit rule and a span of exactly 20, so the 30 to 70 % row is
-    judged on two readings at one end and one at the other. The neutral ramp is
-    held outside the band so the cyan axis is the only one in it.
+    judged on two readings at one end and one at the other. The neutral ramp
+    puts only TWO steps in the band (43 and 57), too few for the grey axis to
+    count as a ramp, so the cyan axis is the only one there. Since #182 B8-483
+    the neutral ramp is evenly spaced as well: the old one (0, 10, 20, 25, 75,
+    80, 90, 100) kept the band empty by leaving a gap of 50, which the grey
+    rows now refuse.
     """
-    lv = (0.0, 10.0, 20.0, 25.0, 75.0, 80.0, 90.0, 100.0)
+    lv = (0.0, 14.0, 29.0, 43.0, 57.0, 71.0, 86.0, 100.0)
     return _pad(greys(lv) + surface() + cyan_ramp((40.0, 59.4, 60.0)))
 
 
@@ -451,9 +473,8 @@ REQUIREMENTS: "tuple[Requirement, ...]" = (
         "measurement_report.GREY_MIN_LEVELS, GREY_LEVEL_TOL",
         _GREY_ROWS, "too_few_steps",
         "7 distinct steps", "8 distinct steps",
-        lambda: chart_grey_levels((0.0, 10.0, 35.0, 50.0, 65.0, 90.0, 100.0)),
-        lambda: chart_grey_levels((0.0, 10.0, 20.0, 35.0, 50.0, 65.0, 90.0,
-                                   100.0)),
+        lambda: chart_grey_levels((0.0, 14.0, 30.0, 43.0, 57.0, 70.0, 100.0)),
+        lambda: chart_grey_levels(_GREY_EIGHT_EVEN),
         strip_ids(20), strip_ids(20)),
     Requirement(
         "R06", "Grey balance",
@@ -464,9 +485,9 @@ REQUIREMENTS: "tuple[Requirement, ...]" = (
         "measurement_report.GREY_LIGHTEST_MIN",
         _GREY_ROWS, "no_white",
         "the lightest neutral at 89.9", "the lightest neutral at exactly 90.0",
-        lambda: chart_grey_levels((0.0, 10.0, 20.0, 35.0, 50.0, 65.0, 80.0,
+        lambda: chart_grey_levels((0.0, 13.0, 26.0, 39.0, 51.0, 64.0, 77.0,
                                    90.0 - NOTCH)),
-        lambda: chart_grey_levels((0.0, 10.0, 20.0, 35.0, 50.0, 65.0, 80.0,
+        lambda: chart_grey_levels((0.0, 13.0, 26.0, 39.0, 51.0, 64.0, 77.0,
                                    90.0)),
         strip_ids(20), strip_ids(20)),
     Requirement(
@@ -477,9 +498,9 @@ REQUIREMENTS: "tuple[Requirement, ...]" = (
         "measurement_report.GREY_DARKEST_MAX",
         _GREY_ROWS, "no_black",
         "the darkest neutral at 10.1", "the darkest neutral at exactly 10.0",
-        lambda: chart_grey_levels((10.0 + NOTCH, 20.0, 35.0, 50.0, 65.0, 80.0,
-                                   90.0, 100.0)),
-        lambda: chart_grey_levels((10.0, 20.0, 35.0, 50.0, 65.0, 80.0, 90.0,
+        lambda: chart_grey_levels((10.0 + NOTCH, 23.0, 36.0, 49.0, 61.0, 74.0,
+                                   87.0, 100.0)),
+        lambda: chart_grey_levels((10.0, 23.0, 36.0, 49.0, 61.0, 74.0, 87.0,
                                    100.0)),
         strip_ids(20), strip_ids(20)),
     Requirement(
@@ -506,10 +527,10 @@ REQUIREMENTS: "tuple[Requirement, ...]" = (
         "measurement_report.RAMP_MIN_STEPS",
         ("ramps_30_70_dl_max",), "no_ramp",
         "2 steps in the band", "3 steps in the band",
-        lambda: chart_grey_levels((0.0, 10.0, 20.0, 40.0, 60.0, 80.0, 90.0,
+        lambda: chart_grey_levels((0.0, 12.5, 25.0, 40.0, 60.0, 75.0, 87.5,
                                    100.0)),
-        lambda: chart_grey_levels((0.0, 10.0, 20.0, 40.0, 50.0, 60.0, 80.0,
-                                   90.0, 100.0)),
+        lambda: chart_grey_levels((0.0, 12.5, 25.0, 40.0, 50.0, 60.0, 75.0,
+                                   87.5, 100.0)),
         strip_ids(20), strip_ids(20)),
     Requirement(
         "R10", "Ramps 30 to 70 %",
@@ -518,10 +539,10 @@ REQUIREMENTS: "tuple[Requirement, ...]" = (
         "measurement_report.RAMP_MIN_SPAN",
         ("ramps_30_70_dl_max",), "no_ramp",
         "3 steps spanning 19 points", "3 steps spanning exactly 20 points",
-        lambda: chart_grey_levels((0.0, 10.0, 20.0, 40.5, 50.0, 59.5, 80.0,
-                                   90.0, 100.0)),
-        lambda: chart_grey_levels((0.0, 10.0, 20.0, 40.0, 50.0, 60.0, 80.0,
-                                   90.0, 100.0)),
+        lambda: chart_grey_levels((0.0, 12.5, 25.0, 40.5, 50.0, 59.5, 75.0,
+                                   87.5, 100.0)),
+        lambda: chart_grey_levels((0.0, 12.5, 25.0, 40.0, 50.0, 60.0, 75.0,
+                                   87.5, 100.0)),
         strip_ids(20), strip_ids(20)),
     Requirement(
         "R11", "Surface of the device cube",
@@ -554,6 +575,20 @@ REQUIREMENTS: "tuple[Requirement, ...]" = (
         "76 patches, so the quarter holds 19",
         "77 patches, so the quarter holds exactly 20",
         lambda: chart_total(76), lambda: chart_total(77),
+        strip_ids(20), strip_ids(20)),
+    # #182 B8-483 (Knut, 2026-09-23, 5795087247): was the open question Q1.
+    Requirement(
+        "R14", "Grey balance",
+        "At least eight of those steps have to be roughly evenly spaced from "
+        "black to white, each within 4 units of where an even spacing puts "
+        "it, so the steps between the two ends are not bunched together.",
+        "no GREY_MIN_LEVELS (8) or more evenly spaced positions each have a "
+        "level within GREY_SPACING_TOL (4.0)  ->  grey_steps_bunched",
+        "measurement_report.GREY_SPACING_TOL, pick_even_grey_steps",
+        _GREY_ROWS, "grey_steps_bunched",
+        "black and seven steps inside 3.6 units at the light end",
+        "eight steps each within 4 units of an even spacing",
+        chart_clumped_greys, chart_even_greys,
         strip_ids(20), strip_ids(20)),
 )
 
@@ -698,25 +733,22 @@ def _build_demos() -> "tuple[Demo, ...]":
             chart=r.pass_chart, keywords=dict(r.pass_keywords)))
         n += 1
     out += [
-        Demo(n, "Verify Q1 open, a grey ramp clumped at the light end",
-             "Eight neutral steps, seven of them inside 3.6 device units at "
-             "the top and one black patch at the bottom. ChromIQ judges the "
-             "grey rows on it and withholds nothing. Knut asked whether a "
-             "spacing requirement should exist; there is none, and this is "
-             "the question rather than a claim that it is wrong.",
-             kind="open", chart=chart_clumped_greys, keywords=strip_ids(20)),
-        Demo(n + 1, "Verify Q2 open, mid-tone steps 0.6 apart",
+        # Q1, the grey ramp clumped at the light end, became R14 when Knut
+        # ruled the spacing rule for the grey ramp (#182 B8-483, 2026-09-23).
+        Demo(n, "Verify Q2 open, mid-tone steps 0.6 apart",
              "Three steps in the 30 to 70 % band at tone values 40.0, 59.4 "
              "and 60.0: three distinct steps and a span of exactly 20, with "
              "two of the three readings 0.6 apart. Judged, and nothing "
-             "withheld. The same question as Q1, on the other ramp.",
+             "withheld. Knut ruled that the grey ramp's steps must not be "
+             "bunched (R14); nothing is ruled for this ramp, so this is "
+             "still the question.",
              kind="open", chart=chart_clumped_ramp, keywords=strip_ids(20)),
-        Demo(n + 2, "Verify X1 other, settings only, no patch set",
+        Demo(n + 1, "Verify X1 other, settings only, no patch set",
              "A preset saved with the attach tick box OFF. Not a metric: it "
              "is the one state in which the window can say nothing about a "
              "preset, and it must say which tick box fixes it.",
              kind="other", no_chart=True),
-        Demo(n + 3, "Verify X2 other, the patch set cannot be read",
+        Demo(n + 2, "Verify X2 other, the patch set cannot be read",
              "A .ti1 beside the preset that is not a chart. Not a metric "
              "either: the other half of \"Cannot be checked\".",
              kind="other", corrupt=True, chart=chart_control),

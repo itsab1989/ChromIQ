@@ -320,18 +320,20 @@ def qapp():
 #
 # `_verification_preflight_message` is the method that builds what the popup
 # shows, so that is what is measured, not the window it is shown in.
-def _preflight_body(row):
+def _preflight_body(row, short: bool = False):
     """What the pre-flight popup would say about *row*, through the tab's own
     builder. A `__new__` instance: the method reads nothing but its argument
-    and the two module functions it imports."""
+    and the two module functions it imports. *short* is the one-line version
+    a screen too short for the wide box gets (#182 R2)."""
     from ui.tabs.tab_measure import TabMeasure
     tab = TabMeasure.__new__(TabMeasure)
-    return TabMeasure._verification_preflight_message(tab, row)[1]
+    return TabMeasure._verification_preflight_message(tab, row, short)[1]
 
 
 def test_the_preflight_says_it_too_when_the_chart_falls_short(a_real_chart):
     """MUTATION: delete the append in `tab_measure._verification_preflight_
-    message` and this goes red."""
+    message` and this goes red; so does appending the one line in place of
+    the paragraph (the beta 38 popup)."""
     import dataclasses
     from workflow import measurement_report as MR
     row = dataclasses.replace(
@@ -339,14 +341,17 @@ def test_the_preflight_says_it_too_when_the_chart_falls_short(a_real_chart):
         assessment=_assessed(a_real_chart.chart, MR.REPORT_TYPE_FULL,
                              "custom_iso_12647_7"))
     assert row.assessment.checked and row.assessment.missing
+    # **THE FULL PARAGRAPH, IN A WIDER BOX** (#182 R2, Knut 5781645939 and
+    # 5795087247: "Leave the window wider as previously specified"). Until
+    # beta 39 this asserted the opposite (one line only), because the
+    # paragraph took the popup past a 13-inch screen at its natural width.
     body = _preflight_body(row)
-    # **ONE LINE HERE, THE PARAGRAPH IN THE PRESETS WINDOW**, because the
-    # paragraph takes this popup's minimum height past a 13-inch screen.
-    assert "is decided by the limit set" in body, body[-600:]
-    assert "never judged and can never make the report fail" in body
-    assert "threshold to zero" not in body, (
-        "the full paragraph is back in the pre-flight; measured on screen it "
-        "costs this popup 208 px of minimum height where the line costs 96")
+    assert "It is never judged, and it can never make the report fail." in body
+    assert "threshold to zero" in body, body[-600:]
+    # …and the one line is what a screen too short for the wide box gets.
+    short = _preflight_body(row, short=True)
+    assert "is decided by the limit set" in short, short[-600:]
+    assert "threshold to zero" not in short
 
 
 def test_and_the_preflight_leaves_it_out_when_the_chart_does_not(qapp):

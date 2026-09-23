@@ -338,6 +338,11 @@ _D_GREY_RAMP = (
     "There have to be at least eight distinct steps of it, it has to reach "
     "white at one end and black at the other, and the patches have to carry "
     "reference values.\n\n"
+    "At least eight of those steps also have to be roughly evenly spaced from "
+    "black to white: each within 4 % of full scale of where an even spacing "
+    "puts it, "
+    "so that the steps between the two ends are not bunched together. A "
+    "longer ramp is fine; ChromIQ picks the steps that fit.\n\n"
     "Bare paper counts as one of those steps and can be the white end on its "
     "own, but it is left out of the figure itself. The report names whichever "
     "of those is missing.")
@@ -396,8 +401,8 @@ _R_REFERENCE = (
     "other way will keep reading N-A here however good the print is.")
 _R_GREY_RAMP = (
     "Use a chart with a longer grey ramp: at least eight steps of neutral "
-    "grey, running from white through to black. Most of the built-in presets "
-    "have one. If you are building your own patch set on the Create Chart tab, "
+    "grey, running from white through to black and spread evenly between "
+    "them. Most of the built-in presets have one. If you are building your own patch set on the Create Chart tab, "
     "add grey steps until there are eight or more.")
 _R_ALL_PATCHES = (
     "Nothing needs changing on the chart: any verification sheet ChromIQ "
@@ -512,6 +517,12 @@ _D_EVENNESS = (
     "Every patch is compared with its own aim value, the same one the colour "
     "accuracy rows use, and the differences are averaged in each of the nine "
     "areas. No patches are matched by brightness or by grey.\n\n"
+    "The readings are taken as measured, whatever rendering intent the sheet "
+    "was printed with. Evenness is a property of the printer and the paper, "
+    "not of how the sheet was colour-managed, so the readings are never "
+    "adjusted to the paper white, even where the colour accuracy rows are. "
+    "On such a sheet each aim value is carried onto the paper instead, so "
+    "the paper's own tint is not counted as unevenness.\n\n"
     "The report also measures the sheet's own noise: it shuffles the patches "
     "across the nine areas 500 times and takes the 95th percentile of what "
     "the same arithmetic reads. A row is judged only when that noise is below "

@@ -9058,11 +9058,21 @@ class MeasurementReportDialog(QDialog):
         r = r or {}
         _limit = (row or {}).get("threshold")
         gb = r.get("grey_balance") or {}
+        from workflow import measurement_report as _MR
         texts = {
             "no_greys": tr("the measured chart has no grey patches (R = G = B)"),
             "too_few_steps": tr("the measured chart has {k} grey steps; at "
                                 "least 8 from white to black are needed").format(
                                     k=gb.get("levels", 0)),
+            # #182 B8-483 (Knut, 2026-09-23): the required steps must be
+            # pickable roughly evenly spaced. Names the level nothing is near.
+            "grey_steps_bunched": tr(
+                "the grey steps of the measured chart are bunched together: "
+                "none lies within {tol} of the level {level} on a scale from "
+                "0 (black) to 100 (white), and {n} roughly evenly spaced "
+                "steps from black to white are needed").format(
+                    tol=f"{_MR.GREY_SPACING_TOL:g}", n=_MR.GREY_MIN_LEVELS,
+                    level=f"{float(gb.get('missing_level') or 0):g}"),
             "no_white": tr("the grey ramp in the measured chart does not reach "
                            "white"),
             "no_black": tr("the grey ramp in the measured chart does not reach "

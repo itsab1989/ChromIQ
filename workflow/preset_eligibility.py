@@ -125,6 +125,7 @@ VERIFICATION_MAX_PATCHES = 600
 PATCH_SHORTFALL_REASONS: "frozenset[str]" = frozenset({
     MR.REASON_NO_GREYS,                  # no grey patches on the chart
     MR.REASON_TOO_FEW_STEPS,             # the grey ramp is too short
+    MR.REASON_GREY_STEPS_BUNCHED,        # its steps are bunched (B8-483)
     MR.REASON_NO_WHITE,                  # it does not reach white
     MR.REASON_NO_BLACK,                  # it does not reach black
     MR.REASON_NO_RAMP,                   # no 30-70 % tone ramp
