@@ -3510,6 +3510,15 @@ class MeasurementReportDialog(QDialog):
         keys = self._source_keys(ti3, origin)
         for s in self._sources:
             if set(s.get("keys") or ()) & set(keys):
+                # **A MEASUREMENT THE USER ADDS IS THE USER'S (GAP 0).** A
+                # report across runs loads the other run's dates as BORROWED
+                # (`_load_the_documents_other_measurements`); adding one of
+                # them through "Add Profile's Measurements…" matched it here
+                # and left it borrowed, so the next report picked unloaded
+                # what the user had asked for. Asked for, it stays.
+                borrowed = getattr(self, "_borrowed_sources", None)
+                if borrowed:
+                    borrowed.discard(str(s.get("ti3")))
                 # **AND THE MATCH REFRESHES WHAT IT MATCHED ON.** The key set
                 # was worked out once, when the source was added, and never
                 # again: rewrite the file and its identity half goes stale for
@@ -5083,6 +5092,20 @@ class MeasurementReportDialog(QDialog):
         # Update, Create New and Cancel. … This feature overrules a previous
         # ruling that Generate Report always should create a new report."*
         updating = self._document_being_updated()
+        loaded = str(getattr(self, "_loaded_doc_id", "") or "")
+        if updating is None and loaded and loaded != NEW_REPORT_KEY:
+            # **A LOADED REPORT THE LIST NO LONGER HOLDS IS NEVER WRITTEN AS
+            # A NEW ONE WITHOUT THE QUESTION (GAP 0, K4).** The window first
+            # takes what "Report shown" names (`_load_what_the_list_names`),
+            # and the press then acts on THAT: asked about if it is a
+            # report, written new only if the list is on "New report…".
+            log.warning("Generate found the loaded report %s missing from "
+                        "the list; loading what the list shows", loaded)
+            self._load_what_the_list_names(force=True)
+            updating = self._document_being_updated()
+            reports = self._reports_to_generate()
+            if not reports:
+                return
         if updating is not None:
             answer = self._ask_update_or_create_new()
             if answer == "cancel":
@@ -8404,7 +8427,7 @@ class MeasurementReportDialog(QDialog):
         `_rebuild_from_sources`, which repaints immediately afterwards.
         """
         key = entry["key"]
-        if self._drop_borrowed_sources():
+        if self._drop_borrowed_sources(keep_for=entry):
             again = next((d for d in self._saved_documents(
                 self._run_ctx.run if self._run_ctx else None)
                 if d["key"] == key), None)
@@ -8457,7 +8480,7 @@ class MeasurementReportDialog(QDialog):
         # repaint the caller runs. Setting the two combos here as well would be
         # two answers to one question, and this window has paid for that before.
 
-    def _drop_borrowed_sources(self) -> bool:
+    def _drop_borrowed_sources(self, keep_for: "dict | None" = None) -> bool:
         """Unload the measurements a selected report pulled in (recheck R1,
         before beta 37).
 
@@ -8471,10 +8494,23 @@ class MeasurementReportDialog(QDialog):
         borrowed = getattr(self, "_borrowed_sources", set())
         if not borrowed:
             return False
+        # **NOT THE ONES THE REPORT BEING OPENED IS ABOUT (GAP 0).** A
+        # Verification window on run 2 that opened on a report across run 2
+        # and run 1 has run 1's dates borrowed; picking run 1's own "One date"
+        # report dropped them first, so the picked report was no longer in
+        # the list: "Report shown" landed on another entry while the page
+        # showed the picked report's date, and Generate wrote a NEW report
+        # without asking (K4). Such a source now belongs to *keep_for*.
+        needed: "set[str]" = set()
+        for r, _n in ((keep_for or {}).get("members") or []):
+            if r.get("_origin_dir"):
+                needed.add(str(Path(str(r["_origin_dir"]))))
+        still = {t for t in borrowed if str(Path(t).parent) in needed}
         keep = [src for src in self._sources
-                if str(src.get("ti3")) not in borrowed]
+                if str(src.get("ti3")) not in borrowed
+                or str(src.get("ti3")) in still]
         dropped = len(keep) != len(self._sources)
-        self._borrowed_sources = set()
+        self._borrowed_sources = set(still)
         if dropped:
             self._sources = keep
             self._history = sorted(

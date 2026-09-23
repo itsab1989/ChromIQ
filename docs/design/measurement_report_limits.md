@@ -4861,6 +4861,30 @@ row judges (challenge B).**
 * F6: the orange strip names every row the page cannot answer, on every sheet
   it shows, not the window's own sheet only.
 
+**24.9 The window after challenge C (RW-fix, B8-880 to B8-886).** Not a
+new ruling: the rules above and §13.13 / §17, made true where challenge C
+found them false. Awaiting confirmation with the rest of this section.
+* "Report shown" names what the window holds: the loaded report, or "New
+  report…" with the Preferences defaults. After a Delete the entry the list
+  lands on is loaded whole; picking the entry the list is already on loads
+  it when the window does not hold it.
+* Every greyed Generate report says why, in its tooltip and on the line
+  beside the buttons, including an empty list and a list with nothing
+  ticked.
+* No button of the report window, the Report limits window or the
+  Reference values window answers Return.
+* An Update over the same measurements keeps its scope flag; a change of
+  membership still renames it (24.2).
+* "Already generated for this run" and the "(runN)" labels only while
+  everything counted or ticked is that run's; otherwise "for these
+  measurements" and no run name. A calibration's row counts measurements.
+* A Grey and tone check draws no Colour accuracy limit line: it judges no
+  colour-accuracy row (§17 item 4).
+* A report of a run whose measurements another report had borrowed keeps
+  them when it is picked, and a measurement the user adds is the user's;
+  Generate never writes a loaded report as a new one without the question
+  (K4).
+
 **Built:** `workflow/measurement_report.py::chromiq_folder`,
 `document_home`, `across_places_refusal`, `shared_report_folders`;
 `ui/dialogs/thresholds_dialog.py::ReportLimitsColumn`, `report_column`;

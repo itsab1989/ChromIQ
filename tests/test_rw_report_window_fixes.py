@@ -534,3 +534,75 @@ def test_the_demo_texts_follow_the_shipped_iso_values():
     assert "permission condition" not in src
     assert '"no permission to include' not in src
     assert "contains no licensed reference values" not in rel
+
+
+# --------------------------------------------------------------------------
+# GAP 0 (answers-for-knut-v2): a borrowed measurement's own report
+# --------------------------------------------------------------------------
+def test_picking_a_borrowed_runs_own_report_keeps_it_and_asks(tmp_path, qapp,
+                                                              monkeypatch):
+    """A Verification window on run 2 opens on a report across run 2 and
+    run 1, so run 1's date is BORROWED. Picking run 1's own "One date"
+    report unloaded run 1 first: "Report shown" landed on another entry
+    while the page showed the picked date, and Generate wrote a NEW report
+    without the Update / Create New / Cancel question (K4, confirmed).
+    Now the picked report stays listed, shown and loaded, and a press of
+    Generate writes nothing unasked (here it is refused with its reason:
+    run 1's report belongs to run 1's window).
+
+    MUTATION, proven red: call `self._drop_borrowed_sources()` without
+    `keep_for=entry` in `_apply_document` (the list lands elsewhere)."""
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    s, _fm, run1, run2, v1, v2 = _two_runs(tmp_path)
+    _save_doc([v2[1].dir, v1[0].dir],
+              [v2[1].measurement_ti3, v1[0].measurement_ti3])
+    asked = []
+    monkeypatch.setattr(MeasurementReportDialog, "_ask_update_or_create_new",
+                        lambda self: (asked.append(self._loaded_doc_id),
+                                      "cancel")[1])
+    dlg = _dialog(s, v2[1].measurement_ti3, qapp)
+    try:
+        assert any(str(v1[0].dir) in str(t) for t in dlg._borrowed_sources), \
+            "the fixture did not open on the report across runs"
+        key = _one_date_key_of(dlg, v1[0])
+        _pick(dlg, key, qapp)
+        assert key in _entry_keys(dlg), "the picked report left the list"
+        _the_list_names_what_is_loaded(dlg)
+        assert dlg._loaded_doc_id == key
+        before = sorted(str(p) for p in Path(run1.dir).parent.rglob(
+            "report_*.json") if "old" not in p.parts)
+        live = dlg._generate_btn.isEnabled()
+        dlg._on_generate_report()
+        qapp.processEvents()
+        after = sorted(str(p) for p in Path(run1.dir).parent.rglob(
+            "report_*.json") if "old" not in p.parts)
+        assert after == before, "a press wrote a report without asking"
+        if live:
+            assert asked == [key], asked
+        else:
+            # run 1's own report in a run 2 window: refused, and it says so
+            assert "another profile run" in dlg._generate_btn.toolTip()
+    finally:
+        dlg.close()
+
+
+def test_a_borrowed_measurement_the_user_adds_is_the_users(tmp_path, qapp):
+    """GAP 0, the other half: "Add Profile's Measurements…" with a
+    measurement a report had borrowed makes it the user's, so "New report…"
+    no longer unloads it.
+
+    MUTATION, proven red: drop the `borrowed.discard(...)` in
+    `_append_source` (run 1's date leaves the list on "New report…")."""
+    s, _fm, run1, run2, v1, v2 = _two_runs(tmp_path)
+    _save_doc([v2[1].dir, v1[0].dir],
+              [v2[1].measurement_ti3, v1[0].measurement_ti3])
+    dlg = _dialog(s, v2[1].measurement_ti3, qapp)
+    try:
+        assert dlg._borrowed_sources
+        _add(dlg, v1[0].measurement_ti3, qapp)
+        dlg._saved_combo.setCurrentIndex(0)                # New report…
+        qapp.processEvents()
+        dirs = {str(r.get("_origin_dir")) for r in dlg._history}
+        assert str(v1[0].dir) in dirs, dirs
+    finally:
+        dlg.close()

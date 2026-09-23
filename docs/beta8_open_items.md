@@ -26644,3 +26644,78 @@ would reach.
   test_delete_in_a_read_only_folder_moves_nothing_and_says_why,
   test_an_update_in_a_read_only_folder_names_the_folder).
 - proof: `~/Desktop/ChromIQ-beta39-proof/challenge-C-fixes/` part E.
+
+### B8-880 · FIXED, awaiting confirmation · "Report shown" named a report the window was not showing after a Delete (challenge C, C5)
+- blocks release: no
+- status: FIXED
+- note: RW-fix, beta 39; awaiting confirmation with spec §24.9
+- found by: challenge C of beta 39 (~/Desktop/ChromIQ-beta39-proof/challenge-C-files/REPORT.md, finding 5; c2-functions W2-Profiling-e02/e03).
+- cause: a setting changed on the selected report ("Show detailed data") left `_doc_settings_moved` up after that report was deleted, so `_adopt_visible_document` refused the entry the list then landed on (the report across runs the page's newest file belongs to). The list named it, `_loaded_doc_id` was "", Generate was greyed, the PDF was offered in runs/run2/reports under a now-stamp, and picking the same entry did nothing: `currentIndexChanged` cannot fire for it and `_on_saved_picked_again` only acted when the entry was already the loaded one.
+- fixed: `_load_what_the_list_names` (after every reload from disk: the shown entry is loaded through the click's door, or "New report…" with its defaults); `_on_delete_report` resets the flag and loads the landing entry whole; `_on_saved_picked_again` loads an entry the window does not hold, and a pick that moves the index loads once (`_pick_just_loaded`).
+- tests: tests/test_rw_report_window_fixes.py
+- evidence: test_after_a_delete_the_shown_entry_is_the_loaded_report, test_every_delete_leaves_the_list_on_what_is_loaded, test_picking_an_entry_the_window_does_not_hold_loads_it, test_a_pick_that_moves_the_index_loads_once
+- proof: ~/Desktop/ChromIQ-beta39-proof/report-window-fixes/ (before-c2 and after-c2: the tester's driver; before-en/de and after-en/de: A3, A4).
+
+### B8-881 · FIXED, awaiting confirmation · A greyed Generate report carried no reason (challenge C, C6)
+- blocks release: no
+- status: FIXED
+- note: RW-fix, beta 39; spec §13.13 ("it still refuses, and says why"), §24.9
+- found by: challenge C of beta 39 (finding 6; c2 W2-e02, c5 L2).
+- cause: the "Every ticked measurement belongs to another profile run" sentence was gated on `several` (profiles ADDED from more than one run), and a Profiling window lists every run's sheet from ONE source, so run 2's record selected in a run 1 window greyed the button with no tooltip. An empty list and an all-unticked list had no sentence either, and no reason was ever on screen, only in a tooltip.
+- fixed: `_sync_type_combo` drops the gate and adds the two missing reasons; `_set_generate_why` puts the reason on the button row (two lines at most, whole text as tooltip). Texts: "No measurement is loaded. Add a profile's measurements to the list to generate a report." / "Es ist keine Messung geladen. Füge mit „Messungen eines Profils hinzufügen…“ Messungen zur Liste hinzu, um einen Bericht zu erzeugen."; "No measurement is ticked in the list, so there is nothing to report on. Tick one to generate a report." / "In der Liste ist keine Messung angehakt, es gibt also nichts, worüber berichtet werden kann. Hake eine an, um einen Bericht zu erzeugen."
+- tests: tests/test_rw_report_window_fixes.py
+- evidence: test_every_greyed_generate_says_why, test_the_c6_state_one_profiling_source_other_run_ticked
+- proof: ~/Desktop/ChromIQ-beta39-proof/report-window-fixes/after-en/photographs/A1-run2-record-selected.png, after-de (same), before-en/de (no reason).
+
+### B8-882 · FIXED, awaiting confirmation · Return anywhere in the report window opened the Add chooser (challenge C, C9)
+- blocks release: no
+- status: FIXED
+- note: RW-fix, beta 39
+- found by: challenge C of beta 39 (finding 9; c1b-return, 10 of 10).
+- cause: a QPushButton in a QDialog is autoDefault, and Qt made the first one in the focus chain, "Add Profile's Measurements…", the default button. The Report limits window had the same with "Reference values…", and the Reference values window with its template buttons.
+- fixed: `ui/dialogs/no_default_button.py`, called from the three windows' `showEvent` (and after the Reference values rows are rebuilt).
+- tests: tests/test_rw_report_window_fixes.py
+- evidence: test_no_button_of_the_report_windows_is_the_default
+- proof: ~/Desktop/ChromIQ-beta39-proof/report-window-fixes/ (before-en/de: the chooser photographed for Return on four widgets; after-en/de: none).
+
+### B8-883 · FIXED, awaiting confirmation · An Update that only flipped "Show detailed data" changed the report's scope (challenge C, C10)
+- blocks release: no
+- status: FIXED
+- note: RW-fix, beta 39; a reading of §24.2 ("the name follows what the report covers"), spec §24.9
+- found by: challenge C of beta 39 (finding 10; c2 diffs/080).
+- cause: `_document_scope` compares the members with the list the window holds, and a report's borrowed measurements leave with it (`_drop_borrowed_sources`): a "Multiple cals" report of two of three calibrations, opened after the "All cals" one was deleted, found 2 of 2 and an Update named it "All cals".
+- fixed: `_write_the_document` keeps the recorded scope when the Update covers the same measurements (compared from the project down); a change of membership still renames it.
+- tests: tests/test_rw_report_window_fixes.py
+- evidence: test_the_scope_rule_on_the_document_writer, test_an_update_that_changes_what_it_covers_is_still_renamed
+- proof: ~/Desktop/ChromIQ-beta39-proof/report-window-fixes/after-c2 (W2-Calibration-e06: "Multiple cals" after the Update).
+
+### B8-884 · FIXED, awaiting confirmation · "Already generated for this run" counted another project's reports; labels and rows that said "run" (challenge C, C12; K30 leftovers)
+- blocks release: no
+- status: FIXED
+- note: RW-fix, beta 39; the count is still the list's (K25), the words follow it; spec §24.9
+- found by: challenge C of beta 39 (finding 12) and the K30 hand-back.
+- fixed: `_generated_types_line` says "Already generated for these measurements" / "Für diese Messungen bereits erzeugt" unless every counted folder is the window's run's own (`_dirs_are_the_runs_own`); the list's title follows ("Reports generated for these measurements" / "Für diese Messungen erzeugte Berichte"); "Report type (runN):" and "Judged against (runN):" name the run only while every tick is its own (`_ticks_are_the_runs_own`); a calibration's row in Included Measurements reads "· 1 measurement" / "· 1 Messung", not "· 1 run".
+- tests: tests/test_rw_report_window_fixes.py
+- evidence: test_already_generated_says_these_measurements_across_projects, test_the_c6_state_one_profiling_source_other_run_ticked, test_a_calibration_row_counts_measurements_not_runs
+- proof: ~/Desktop/ChromIQ-beta39-proof/report-window-fixes/ (B0, C0, A1 in before/after, EN and DE).
+
+### B8-885 · FIXED, awaiting confirmation · A Grey and tone check drew colour-accuracy limit lines; demo texts from before the ISO values shipped (K30 leftovers)
+- blocks release: no
+- status: FIXED
+- note: RW-fix, beta 39; spec §17 item 4 (a line sits at the limit the report was judged against), §23
+- found by: the K30 hand-back.
+- fixed: `_accuracy_thresholds` draws the Avg / Max lines only for rows the report type judges (`rows_for_report_type`), and the graph's description calls the patches measured, not judged, when none is; `scripts/make_report_limit_demos.py`: the README's paragraph on the two unbuilt ISO documents (values ship, documents not built, conditional on `shipped_iso_sets`), the Custom columns' paragraph and the four Custom runs' chart notes ("placeholders under a permission condition" is gone); `scripts/make_release_demo_package.py`: the README's opening no longer says the package holds "no licensed reference values (ISO…)".
+- tests: tests/test_rw_report_window_fixes.py
+- evidence: test_a_grey_and_tone_check_draws_no_colour_accuracy_limit, test_the_demo_texts_follow_the_shipped_iso_values
+- proof: ~/Desktop/ChromIQ-beta39-proof/report-window-fixes/ (before-en/D1 with the two lines, after-en/D1 and after-de/D1 without; pkg-after built and verified).
+
+### B8-886 · FIXED, awaiting confirmation · Picking a borrowed run's own report unloaded it, and Generate then wrote a new report without asking (GAP 0)
+- blocks release: no
+- status: FIXED
+- note: RW-fix, beta 39; against confirmed K4 (§13.8) and "a report is shown whole" (§13.11); spec §24.9
+- found by: the research round for Knut's answers (~/Desktop/ChromIQ-beta39-proof/answers-for-knut-v2/GAP.md section 0; drive/out-run1, out-run2, steps 4a to 4d).
+- cause: a Verification window on run 2 opened on a report across run 2 and run 1, so run 1's dates were BORROWED; "Add Profile's Measurements…" with a run 1 `.ti3` matched the loaded source and left it borrowed; picking run 1's "One date" report ran `_drop_borrowed_sources` first, which unloaded run 1, so the picked report was no longer listed: "Report shown" landed on run 2's "2026-12-29 One date" while the page showed 2026-12-08, and `_document_being_updated` found nothing, so Generate wrote a new run 2 "All dates" report with no question.
+- fixed: `_drop_borrowed_sources(keep_for=entry)` keeps the sources the report being opened covers; `_append_source` makes a borrowed measurement the user adds the user's; `_on_generate_report` never writes a loaded report the list no longer holds as a new one: it first loads what "Report shown" names (`_load_what_the_list_names`) and asks about that.
+- tests: tests/test_rw_report_window_fixes.py, tests/test_beta37_a_report_is_shown_whole.py (unchanged, green)
+- evidence: test_picking_a_borrowed_runs_own_report_keeps_it_and_asks, test_a_borrowed_measurement_the_user_adds_is_the_users
+- proof: ~/Desktop/ChromIQ-beta39-proof/report-window-fixes/gap0-before (the research driver on cad1b0a9: shown "2026-12-29 One date", a new run 2 report written) and gap0-after (shown and loaded "2026-12-08 One date", Generate greyed with its reason, nothing written).
