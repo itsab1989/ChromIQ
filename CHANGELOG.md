@@ -1,17 +1,73 @@
 # Changelog
 
-## Unreleased
+## v4.3.0-beta.39
+
+**Knut's rulings of 23 September: calibration reports, reports across runs and
+projects, the ISO 12647 values, one set of metric names, a much bigger demo
+package, and every report and file action checked on screen from several
+sides.**
+
+### Added
 
 - **The ISO 12647-7 and ISO 12647-8 values ship, values only**, on DIN's
   written statement of 23 September that a standard's values alone are not
   reproduction, and with Knut's yes. The two read-only ISO columns now judge
-  and can be chosen for a report and for a run; the Custom column beside each
-  keeps its researched starting limits; a licence holder's own figures still
-  win their rows; and every sentence that said ChromIQ ships no ISO values
-  says what it ships. The greyed ISO report types now say only that they are
-  still being built. The demo package has runs judged against both ISO
-  columns, every row they limit crossing its limit and coming back, from two
-  charts each.
+  and can be chosen; the Custom column beside each keeps Knut's researched
+  starting limits; a licence holder's own figures still win their rows.
+- **Run type Calibration makes reports**: every report type except the
+  Printing record, saved in the calibration's own `cal/reports/`, named Cal,
+  Multiple cals and All cals, and titled "Calibration of Printer".
+- **A report can cover several profile runs or several projects**, judged
+  against the report's own limit set. "Edit limits..." then opens a "This
+  report" column that changes this report only.
+- **Projects kept in different folders can share a report**, saved in the
+  ChromIQ folder's `reports/`.
+- **A new demo package**, `ChromIQ-Demo-Projects_v4.3.0-beta.39.zip`, replaces
+  the report-limits demos: every limit, metric and rule is tested from at
+  least two sides, on five realistic paper classes, including values exactly
+  on a limit and 0.001 either side.
+- **The Printing record explains every value it cannot show**, and every N-A
+  note says what the chart lacks.
+- Evenness is judged in absolute Lab, and a grey ramp needs roughly evenly
+  spaced steps.
+
+### Changed
+
+- **One name per metric everywhere**, in i1Profiler's order with its unit, for
+  example "Average ΔE00, all patches". A row whose limit is "–" is left out of
+  every report type; figures with no limit sit under "For information (no
+  limit applies)".
+- **Every loaded report can be generated again**, including the one the window
+  opens on: Generate report asks whether to update it, create a new one or
+  cancel, and an update renames the report to match what it covers.
+- The one-page summary prints the judged figures, and says so.
+- A greyed Generate report always says why, on its own line under the buttons.
+- Every help text that beta 39 made false is rewritten, and the new behaviour
+  is described in the help icons and cards.
+- German: one word each for chart, aim value, patch and note in the report,
+  and "Lauf" for a run in the windows that mixed several words.
+
+### Fixed
+
+- **Building a chart with FROM PROFILE GAMUT as the first chart of a session
+  never finished, and under Run type Verification it moved the run's profile
+  and profiling measurement into `runs/runN/old/<date>/`.** It finishes now,
+  and no verification build touches the run's profile. If you ever saw
+  Generate stay greyed after FROM PROFILE GAMUT, check that folder: moving the
+  `.icc` and `.ti3` back into `runs/runN/` restores them.
+- **An update never quietly drops measurements**: it is refused when a covered
+  project cannot be found, asks before leaving out a measurement gone from
+  disk, and refuses a report that would cover nothing.
+- **Renaming a project or deleting a profile run keeps saved reports right**:
+  every report that names the project or its runs follows, and a report of
+  another project with the same or a former name is never touched.
+- In a read-only folder a delete or an update changes nothing, and the message
+  names the folder and what to do.
+- "Report shown" always names the report that is loaded.
+- Pressing Return in the report window no longer opens the file chooser.
+- Report PDFs no longer print a blank page or a heading alone at a page foot.
+- A report across runs says which runs it judges, and a calibration report no
+  longer calls itself profiling.
 
 ## v4.3.0-beta.38
 
