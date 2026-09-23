@@ -246,6 +246,12 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
         "Report-Limits-Renamed: a report across projects, the several-projects Run description",
         "Report-Notes-Every-Reason: B8-845's texts",
     ]),
+    ("§24", "K30: every loaded report can be generated again", [
+        "Report-Limits-Report-Folders, Run type Calibration: opens on All cals; Generate asks; Update renames it Multiple cals",
+        "Report-Limits-Report-Folders/run1 + run2: Edit limits… edits the report's own limits",
+        "Report-Limits-Report-Folders-Second moved into a sub-folder: a report of both projects goes to the ChromIQ folder's reports/",
+        "Report-Limits-Report-Types, Run type Calibration: the calibration title and Scope",
+    ]),
     ("§17", "Trend graphs for the judged metrics", [
         "Report-Limits-Threshold-Series/run1: eleven dates",
         "Report-Limits-Border-Values/run1..run4: three dates hugging the limit line",

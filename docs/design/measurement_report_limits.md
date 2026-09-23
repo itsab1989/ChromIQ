@@ -117,6 +117,7 @@ result awaiting his confirmation. The other §20 gaps stay open.
 | §19.12 | Knut's eight i1Pro presets built in (K1); the demo pack follows every rule (K15) | 2026-09-22, 5781159382, 5781197240, 5776517563; 2026-09-23, 5787117741 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
 | §19.13 | "New report…" on a bound run shows the run's own set, and says so | 2026-09-22, 5776479532 | agreed ("as you said and recommend"); built before beta 34, confirmed by Knut 2026-09-23 (5794311113) |
 | §22 | K28: the judged figures on the one-page summary; one vocabulary; a "–" row leaves everywhere; "For information (no limit applies)"; the general N-A rule; the several-runs Run description; B8-845's texts | 2026-09-23, 5795087247 | agreed; built in beta 39 (B8-849), NOT confirmed |
+| §24 | K30: every loaded report can be generated again and Update renames it; limits belong to the report across places; projects in two folders share the ChromIQ folder's reports/; a lone project's heading; the words of a report across places and of a calibration | 2026-09-23, 5798461562 | agreed; built in beta 39 (B8-852 to B8-859), NOT confirmed; the one-run limits window is an open question (B8-853) |
 | §20 | Rulings not built, or built without a test or proof (G1 to G13) | 2026-09-22 to 2026-09-23 | gaps, listed one by one |
 
 Related documents: `unified_measurement_management.md` (the life of a
@@ -2510,9 +2511,11 @@ What was built:
 * **Generate is live** with several places loaded, under Verification,
   Profiling and Calibration. The two several-places sentences on the button
   are gone. It still refuses, and says why, when: a ticked measurement is
-  outside a ChromIQ project or the projects are in two folders (Knut names
+  outside a ChromIQ project ~~or the projects are in two folders~~ (Knut names
   ONE folder for a report across projects, `<ChromIQ default
-  folder>/reports/`); every ticked measurement belongs to another place (a
+  folder>/reports/`; **SUPERSEDED by K30 (§24.4): projects in two folders are
+  no longer refused, their report goes to `<ChromIQ folder>/reports/`**);
+  every ticked measurement belongs to another place (a
   report of that place alone belongs to that place's own window, whose run
   type and set it would be filed under); a profiling sheet and verifications
   are ticked together (FC-2, unchanged); under Calibration, a ticked
@@ -2554,9 +2557,12 @@ What was built:
   (the leak fixed in §13.11's amendment).
 * **The limit-set controls with several places loaded.** "Judged against"
   is live: it chooses the report's own set and binds no run, even when a
-  run among the places is locked; its tooltip says so. "Show limits…" and
+  run among the places is locked; its tooltip says so. ~~"Show limits…" and
   "Unlock this run's limits" stay greyed with their existing sentences:
-  limits are edited, and a lock lifted, for one profile run at a time.
+  limits are edited, and a lock lifted, for one profile run at a time.~~
+  **SUPERSEDED by K30 (§24.3, Knut 5798461562):** the limits button is live
+  and edits the REPORT's own limits ("This report"); "Unlock this run's
+  limits" stays greyed. ⏳ Awaiting confirmation. **Confirmed by:** *nobody yet.*
 * **One measurement, one row.** A profiling sheet gathers every run's sheet
   of its project; a second source that gathers a sheet already loaded no
   longer lists it twice.
@@ -2579,7 +2585,7 @@ Record (G7).
   `test_a_date_whose_run_has_the_reports_set_keeps_its_record`,
   `test_the_saved_report_shows_the_verdicts_it_recorded`,
   `test_a_report_across_projects_lives_in_the_folder_across_them`,
-  `test_projects_in_two_folders_have_no_folder_across_them`,
+  `test_projects_in_two_folders_share_the_chromiq_folder` (renamed and retargeted by K30, §24.4),
   `test_update_and_delete_of_a_report_across_projects`,
   `test_a_calibration_report_across_projects`,
   `test_a_sheet_another_source_gathers_again_is_one_row`; and
@@ -3751,13 +3757,16 @@ What was built:
   several projects under "Reports including multiple projects", last. *This
   is our reading of "grouped ... according to the project name" for the case
   with one project: say if a lone project should carry its heading too.*
+  **ANSWERED by Knut, "ok" (5798461562): a lone project carries its heading
+  (§24.5).**
 * **The window opens on the newest report covering its calibration**
   (§13.12's rule). When that is a report across projects ("All cals" in the
   demo pack), it loads the calibrations it covers (§13.11, "a report is shown
   whole"), ~~and Generate is greyed until "New report…" is chosen~~
   (**superseded by G7, §13.13**: Generate is live, and Update rewrites the
   report across projects). *Say if a Calibration window should open on its
-  own "Cal" report instead.*
+  own "Cal" report instead.* **ANSWERED by Knut (5798461562): *"No. Open on
+  most recent report."*, and Generate is live over it (§24.1).**
 * **Generate report** writes a report of the window's own calibration into
   `<project>/cal/reports/` (one file, one document, as for one dated
   verification). "New report…" starts from the Preferences default type,
@@ -4606,3 +4615,148 @@ by fixture, `tests/helpers/iso_files.py`); the demo pack has runs bound to
 both read-only columns, designed from the file at build time; driven on
 screen after the fill (`~/Desktop/ChromIQ-beta39-proof/iso-12647-ships/after-fill/`);
 **not confirmed**.
+## 24. K30: every loaded report can be generated again, limits belong to the report, projects in two folders, and the words of a report across places (#182, 2026-09-23, beta 39)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+**Ruled by:** Knut, #182
+[5798461562](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5798461562)
+(2026-09-23), answering our 5794100213 / 5795122579 questions; and the
+challenge rounds A and B of beta 39 (`~/Desktop/ChromIQ-beta39-proof/challenge-A-behaviour/`,
+`challenge-B-text/`). The rulings are agreed from that day; what was built
+from them (B8-852 to B8-859) waits for his confirmation. Proof:
+`~/Desktop/ChromIQ-beta39-proof/k30/` (REPORT.md, EN and DE, on screen,
+with PDFs). Tests: `tests/test_k30_rulings.py`, each proved red on the
+mutation in its docstring (`k30/mutations.txt`). This section SUPERSEDES the
+clauses marked so in §13.11, §13.13 and §18.12.
+
+**24.1 A loaded report can always be generated again.** *"The reports
+settings are loaded, and the user should be able to modify the settings and
+select Generate Report, which then gives a popup window where user can choose
+to update selected report or create a new report, or cancel. This is the
+standard behaviour I have specified for all reports that are loaded, also
+those loading when report window is opened."* Since G7 (§13.13) no path greys
+Generate for a loaded report because it spans places; the one that remained
+for a report across projects (projects in two folders) is gone with 24.4.
+Driven: a Calibration window opens on its newest report ("All cals" in the
+demo pack), Generate is live, a press with nothing changed asks
+(M-REPORT-UNCHANGED-UPDATE-OR-NEW) and Cancel writes nothing; with a setting
+changed it asks M-REPORT-UPDATE-OR-NEW. The window still opens on the most
+recent report (*"No. Open on most recent report."*). Generate is still greyed,
+each time with its reason, for: a measurement outside every ChromIQ project, a
+profiling sheet and verifications ticked together (FC-2), ticks all in
+another place, under Calibration a profile run's measurement ticked (24.8),
+and a calibration whose measurement is not on disk (24.8).
+
+**24.2 Update renames the report.** *"If update is chosen, then name of the
+report is updated too, according to the settings, as per standard
+behaviour."* It already was: the scope flag is worked out from the
+measurements the press covers (`_document_scope`), so an "All cals" report
+updated with one project unticked is named "Multiple cals", with the
+"updated" stamp of §13.8. Pinned by a test and driven.
+
+**24.3 Limits belong to the report, across places.** *"Why is editing limits
+is per run? I have not specified this. I have specified the opposite that all
+settings belong to a report, not a specific run"*. With measurements of more
+than one place loaded, the limits button is live and reads "Edit limits…";
+the Report limits window's first column is **"This report"**, editable, and
+its **"Used for this report"** row picks the report's set. A change binds,
+unlocks and rewrites no run and no saved report: it is the report's own
+limits for the session, the red line comes up, and Generate report writes
+them into the document (`compliance.thresholds`, `edited`), asking Update /
+Create New / Cancel when a report is selected. The Colour accuracy graph's
+Avg / Max lines follow the report's limits (they followed the window's run).
+Choosing another set in "Judged against" drops the edited numbers.
+
+> **⚠ NOT DECIDED: THE WINDOW WITH ONE PROFILE RUN.** With one place loaded,
+> the limits window still edits THE RUN's limits, and "Judged against"
+> still binds the run, as §5 builds them. Moving that to the report too would
+> change behaviour Knut confirmed on 2026-09-23 (§19.6 "Unlock this run's
+> limits", §19.13 "New report… on a bound run shows the run's own set"), which
+> this round may not decide. It is asked of him (B8-853).
+
+**24.4 Projects in two folders share the ChromIQ folder's `reports/`.** *"I
+propose that the ChromIQ default folder is always used, in this situation, no
+matter if one of the projects, or both, are kept is sub folders of ChromIQ
+default folder."* A report of projects side by side in one folder stays in
+that folder's `reports/` (§13.11, §18.8); a report of projects in different
+folders is written to `<ChromIQ folder>/reports/` (Preferences' output folder,
+else `~/ChromIQ`), is listed and counted from there, its PDF is offered there,
+and Delete moves it to `<ChromIQ folder>/old/<stamp>/`. The refusal "the
+projects are in one folder" is gone. "Where are my files?", the help of
+"Report shown" and the help of "Included measurements…" say so.
+
+**24.5 A lone project carries its heading.** *"ok"*. In a Calibration window
+whose list holds one project's calibration and offers no report of another
+project, that project's reports sit under a heading with its name. Profiling
+and Verification keep §13.12's rule (one run, no heading).
+
+**24.6 A "–" row leaves every report type.** *"Yes, all report types. It was
+a general rule."* Confirmed of the code (the Printing record included) and
+pinned by a test.
+
+**24.7 The words of a report across places, of a calibration, and of what a
+row judges (challenge B).**
+* B1: several runs or projects, "This report judges the profiles built in
+  P, run 1; P, run 2. Each was verified … The measurements it covers, and the
+  profile run each comes from, are listed under Report Scope."; the title
+  names every chart when they differ across places.
+* B8: across places, Report Scope lists one line per place ("P, run 1
+  (P-verify)"), so the several-runs notice can be answered from it.
+* B2 / B10: a calibration's report is titled "Measurement Report -
+  Calibration of Printer" (a third Preferences line, "Calibration
+  measurements:"); its Scope says "The following calibration measurements are
+  included: P, calibration · 1 measurement".
+* B3 (§22.1): How to read says the verdict words judge the within-gamut
+  figures only where a row shown is fed by the split and the type grades; the
+  detailed table puts a row that counts every patch (grey balance, ramps)
+  under "All patches", and its note under the table says "The Result judges
+  the within-gamut figures" only where a row in it uses the split.
+* B4 (§17 item 4): a Printing record's Colour accuracy graph draws no limit
+  line and its description calls the patches measured, not judged.
+* B7 (§19.1): "This verdict was recorded against the limit set X when the
+  report was made."; "These figures show how one profile holds up over
+  time …"; the detailed intro no longer tells the reader to tick a checkbox.
+  The German heading "So liest du diesen Bericht" became "So ist dieser
+  Bericht zu lesen" (no "du" in report text).
+* B9: the "Worst patches" heading is the first row of its table, which does
+  not break across a page.
+* B11 (German, Measurement Report texts only): Testchart (never Testform),
+  Zielwert (never Sollwert), Anmerkung for a numbered note (never Hinweis),
+  "innerhalb des Profil-Gamuts".
+* B6: the Report limits intro speaks of the one "Reference values…" button
+  below, in English and German. Since the ISO values ship (§23) the sentence
+  is shown only when neither ISO set is selectable.
+* B5: the release demo package's run descriptions and README use the §22.2
+  names, explain no ChromIQ control, state the project count once and point
+  at `scripts/make_release_demo_package.py`.
+
+**24.8 The Calibration window (challenge A).**
+* F3: a calibration stores no type, so the line "The runs loaded here were set
+  to different report types…" no longer appears in a Calibration window.
+* F4: a profile run's measurement ticked beside the window's own calibration:
+  Generate stays greyed (a calibration report covers calibrations only) and
+  says so, not "Every ticked measurement belongs to another profile run".
+* F5: a calibration whose measurement is not on disk (moved to `cal/old/` by
+  a new chart) opens with its saved reports listed and openable; Generate is
+  greyed with its reason; a window with nothing loaded has no live "Unlock
+  this run's limits".
+* F6: the orange strip names every row the page cannot answer, on every sheet
+  it shows, not the window's own sheet only.
+
+**Built:** `workflow/measurement_report.py::chromiq_folder`,
+`document_home`, `across_places_refusal`, `shared_report_folders`;
+`ui/dialogs/thresholds_dialog.py::ReportLimitsColumn`, `report_column`;
+`ui/dialogs/measurement_report_dialog.py::_open_report_limits_window`,
+`_sticky_limits`, `_doc_settings`, `_thresholds`, `_sync_limit_controls`,
+`_grouped_documents`, `_types_of_loaded_runs`, `_sync_type_combo`,
+`_mismatch_text`, `_report_kind`, `_places_of`, `_what_this_report_judges`,
+`_report_profile_name`, `_report_title`, `_scope_html`, `_how_to_read_html`,
+`_run_detail_html`, `_trend_plan`, `_trend_extras`, `_verdict_provenance`,
+`_report_dir`, `_a_calibration_with_saved_reports`;
+`ui/dialogs/tools_dialogs.py::_report_seed`; `core/settings.py`
+(`report_title_calibration`); `ui/dialogs/settings_dialog.py`;
+`ui/file_guide.py`; the demo generators (B5).
+**Status:** agreed; built in beta 39 (B8-852 to B8-859), NOT confirmed.

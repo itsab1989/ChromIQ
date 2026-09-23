@@ -26411,6 +26411,87 @@ would reach.
 - open for Knut: whether a shipped standard's values should also become the
   Custom columns' starting numbers, which §2a's order reads as no.
 
+### B8-852 · FIXED, awaiting confirmation · K30: every loaded report can be generated again, Update renames it, a lone project carries its heading, a "–" row leaves the Printing record
+- blocks release: no
+- status: FIXED
+- note: built in beta 39, awaiting Knut's confirmation (spec §24.1, §24.2, §24.5, §24.6)
+- ruled by: Knut, #182 5798461562 (2026-09-23): *"The reports settings are loaded, and the user should be able to modify the settings and select Generate Report, which then gives a popup window ... This is the standard behaviour I have specified for all reports that are loaded, also those loading when report window is opened."*; *"If update is chosen, then name of the report is updated too"*; "ok" to a lone project's heading; *"Yes, all report types"* for "–".
+- built: since G7 no path greys Generate over a loaded report for spanning places; the last one (projects in two folders) goes with B8-854. Update was already renamed by `_document_scope`; now pinned. `_grouped_documents` gives a Calibration window's lone project its heading. The "–" rule was already general.
+- tests: tests/test_k30_rulings.py, tests/test_calibration_reports.py
+- evidence: test_the_report_a_window_opens_on_can_be_updated_and_is_renamed, test_a_lone_project_carries_its_heading_under_calibration, test_a_dash_row_leaves_the_printing_record, test_a_calibration_window_lists_counts_and_writes_its_own_reports
+- proof: ~/Desktop/ChromIQ-beta39-proof/k30/ (drive-en-3, drive-de-2: A1 photographs; drive-en, drive-de: A5 notes).
+
+### B8-853 · OPEN · K30: limits belong to the report across places; the one-run window is a question for Knut
+- blocks release: no
+- status: OPEN
+- note: the across-places half is built in beta 39 and awaits confirmation (spec §24.3); the one-run half is not decided
+- ruled by: Knut, #182 5798461562: *"Why is editing limits is per run? I have not specified this. I have specified the opposite that all settings belong to a report, not a specific run"*.
+- built: with several places loaded "Edit limits…" is live and opens the Report limits window with a "This report" column (`ReportLimitsColumn`, in memory only) and a "Used for this report" row; a change is the report's own limits for the session (`_report_own_limits`), raises the red line, is written into the document by Generate report (Update / Create New / Cancel) and binds, unlocks or rewrites no run. The Colour accuracy graph's Avg / Max lines now follow the limits the page is judged against (`_thresholds`), which they did not.
+- open: with ONE place loaded the window still edits the run's limits and "Judged against" still binds the run (spec §5). Making those the report's too would change §19.6 and §19.13, which Knut confirmed on 2026-09-23. Asked of him, not decided here.
+- tests: tests/test_k30_rulings.py, tests/test_report_window_limit_controls.py
+- evidence: test_across_places_the_limits_window_edits_the_reports_own_limits, test_one_run_loaded_the_limits_window_is_still_the_runs, test_a_set_picked_for_the_report_in_the_limits_window, test_two_runs_loaded_the_pulldown_chooses_the_reports_set
+- proof: ~/Desktop/ChromIQ-beta39-proof/k30/drive-en, drive-de (A3 photographs; the runs' meta.json compared before and after).
+
+### B8-854 · FIXED, awaiting confirmation · K30: projects in two folders share the ChromIQ folder's reports/
+- blocks release: no
+- status: FIXED
+- note: built in beta 39, awaiting Knut's confirmation (spec §24.4)
+- ruled by: Knut, #182 5798461562: *"the ChromIQ default folder is always used, in this situation, no matter if one of the projects, or both, are kept is sub folders of ChromIQ default folder. Help card 'Where are my files?' must explain this, as well as help text for the report shown and 'Included measurements...' field."*
+- built: `workflow/measurement_report.py::chromiq_folder`; `document_home` sends projects not side by side to `<ChromIQ folder>/reports/`; `across_places_refusal` no longer refuses them; `shared_report_folders` reads the ChromIQ folder's `reports/`; `_report_dir` offers the PDF there. Help: "Where are my files?", "Report shown", "Adding profiles' measurements".
+- tests: tests/test_g7_reports_across_places.py
+- evidence: test_projects_in_two_folders_share_the_chromiq_folder
+- proof: ~/Desktop/ChromIQ-beta39-proof/k30/drive-en, drive-de (A4: Report-Limits-Report-Folders-Second moved into a sub-folder; the file lists before and after; the help card photographs in drive-en-2, drive-de-2).
+
+### B8-855 · FIXED, awaiting confirmation · K30 (challenge B B1, B2, B8, B10): a report across places names every run it judges; a calibration's report is titled and scoped as one
+- blocks release: no
+- status: FIXED
+- note: built in beta 39, awaiting Knut's confirmation (spec §24.7)
+- found by: challenge round B of beta 39 (~/Desktop/ChromIQ-beta39-proof/challenge-B-text/REPORT.md, B1, B2, B8, B10).
+- built: `_places_of`, `_what_this_report_judges` (several places: every project and run), `_report_profile_name` (every chart across places), `_report_kind` ("calibration"), `_report_title` with the new `report_title_calibration` (Preferences line "Calibration measurements:"), `_scope_html` (one line per place; "The following calibration measurements are included:").
+- tests: tests/test_k30_rulings.py
+- evidence: test_a_report_across_runs_names_every_run_it_judges, test_a_calibration_report_has_its_own_title_and_scope
+- proof: ~/Desktop/ChromIQ-beta39-proof/k30/drive-en, drive-de (A3-05, A3-06, B2 photographs and the calibration PDF pages).
+
+### B8-856 · FIXED, awaiting confirmation · K30 (challenge B B3, B4, B7, B9): within-gamut only where a row uses it, no limit line on a record, no ChromIQ mechanics in the report, a heading kept with its table
+- blocks release: no
+- status: FIXED
+- note: built in beta 39, awaiting Knut's confirmation (spec §24.7; §22.1, §17 item 4, §19.1)
+- found by: challenge round B of beta 39 (B3, B4, B7, B9).
+- built: `_how_to_read_html`, `_run_detail_html` (a row that counts every patch sits under "All patches"; the Result sentence only with a split row), `_trend_plan` / `_trend_extras` (no line on a Printing record, its own description), `_verdict_provenance`, the detailed intro, the "Compare a profile" paragraph, the German heading "So ist dieser Bericht zu lesen", the "Worst patches" table.
+- tests: tests/test_k30_rulings.py, tests/test_a_saved_report_keeps_its_verdict.py
+- evidence: test_the_guide_says_within_gamut_only_where_a_row_uses_it, test_grey_rows_sit_under_all_patches_on_a_split_sheet, test_a_printing_record_draws_no_limit_line, test_the_report_text_explains_no_chromiq_control, test_worst_patches_heading_travels_with_its_table, test_a_recorded_verdict_says_plainly_that_the_spin_boxes_cannot_move_it
+- proof: ~/Desktop/ChromIQ-beta39-proof/k30/drive-en, drive-de (B3, B4 photographs; B2 PDF pages for B9).
+
+### B8-857 · FIXED, awaiting confirmation · K30 (challenge B B5 / challenge A F7): the demo package speaks the §22.2 names and says what it is
+- blocks release: no
+- status: FIXED
+- note: built in beta 39, awaiting Knut's confirmation; the README's paragraph on the read-only ISO columns is still the pre-§23 text (left for the ISO work)
+- found by: challenge round B of beta 39 (B5) and challenge A (F7).
+- built: the run descriptions, date stories and README of scripts/make_report_limit_demos.py, make_notes_demo.py and make_evenness_demo.py use the §22.2 names, explain no ChromIQ control, state the project count once (counted on disk), say the build takes a few minutes and point at scripts/make_release_demo_package.py; the §24 index row has its demonstrations in make_release_demo_package.py.
+- tests: tests/test_the_release_demo_package.py
+- evidence: test_every_live_ruling_in_the_spec_index_names_its_demonstration, test_the_built_package_verifies
+- proof: ~/Desktop/ChromIQ-beta39-proof/k30/pkg-after (built and verified), pkg-after.log.
+
+### B8-858 · FIXED, awaiting confirmation · K30 (challenge B B6, B11): the German Report limits intro, and one German word each in the Measurement Report
+- blocks release: no
+- status: FIXED
+- note: built in beta 39, awaiting Knut's confirmation (spec §24.7)
+- found by: challenge round B of beta 39 (B6, B11).
+- built: the Report limits intro speaks of the one "Reference values…" button below, in English and German (shown only while neither ISO set is selectable). German, Measurement Report texts only: Testchart, Zielwert, Anmerkung, "innerhalb des Profil-Gamuts"; 26 values changed by hand.
+- tests: tests/test_k30_rulings.py
+- evidence: test_the_german_report_limits_intro_is_german_and_true, test_the_german_report_uses_one_word_each
+- proof: ~/Desktop/ChromIQ-beta39-proof/k30/drive-en (B6), drive-de texts.
+
+### B8-859 · FIXED, awaiting confirmation · K30 (challenge A F3 to F6): the Calibration window's own sentences, a calibration without its measurement, the strip names every row
+- blocks release: no
+- status: FIXED
+- note: built in beta 39, awaiting Knut's confirmation (spec §24.8); F2 (the grey-step rule on From Profile Gamut charts) is Knut's ruling to make and is untouched
+- found by: challenge round A of beta 39 (F3, F4, F5, F6; ~/Desktop/ChromIQ-beta39-proof/challenge-A-behaviour/A3, A1-primed).
+- built: `_types_of_loaded_runs` skips a calibration (it stores no type); `_sync_type_combo` gives the true reason when a profile run's measurement is ticked under Calibration; `_a_calibration_with_saved_reports`, `__init__`, `_gather_runs`, `tools_dialogs._report_seed` open a calibration whose measurement is in `cal/old/` on its saved reports, Generate greyed with its reason, and an empty window's unlock box is not live; `_mismatch_text` reads every sheet the page shows.
+- tests: tests/test_k30_rulings.py
+- evidence: test_a_calibration_window_never_says_runs_were_set_to_types, test_a_run_measurement_beside_the_calibration_gets_the_true_reason, test_a_calibration_with_no_measurement_lists_its_saved_reports, test_an_empty_window_offers_no_unlock, test_the_strip_names_rows_of_every_sheet_on_the_page
+- proof: ~/Desktop/ChromIQ-beta39-proof/k30/drive-en, drive-de (F3, F5 photographs and notes). F6 is proved by its test only: the primed From Profile Gamut chart of challenge A is not in the demo pack.
+
 ### B8-860 · FIXED · FROM PROFILE GAMUT as the first build of a session never finished, and a verification build moved the run's profile into old/
 - blocks release: yes
 - status: FIXED
