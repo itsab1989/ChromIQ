@@ -5071,7 +5071,79 @@ class MeasurementReportDialog(QDialog):
                 updating = None             # *"'Create New' … will perform the
                                             # same function as if 'New report…'
                                             # option is selected."*
-        self._write_the_document(ctx, reports, updating)
+        # AN UPDATE NEVER DROPS A MEASUREMENT IT CANNOT FIND IN SILENCE
+        # (challenge C, beta 39, #1 and #11): `_update_leaves_out`.
+        leave_out: "set[str]" = set()
+        if updating is not None:
+            leave_out = self._update_leaves_out(updating)
+            if leave_out is None:
+                return
+        self._write_the_document(ctx, reports, updating, leave_out=leave_out)
+
+    def _update_leaves_out(self, updating: dict) -> "set[str] | None":
+        """What an Update of *updating* may leave out: the identities of the
+        measurements the user agreed to drop, an empty set when nothing is
+        lost, None when the press stops (refused, or the user cancelled).
+
+        The rule is `workflow.measurement_report.update_losses`; the words
+        are M-REPORT-UPDATE-NOT-FOUND (a covered measurement no side can
+        find: refused) and M-REPORT-UPDATE-LEAVES-OUT (measurements no longer
+        on disk: asked, Cancel the default)."""
+        from ui.warning_sign import inform
+        from workflow import measurement_messages as M
+        from workflow.measurement_report import (GONE_PROJECT,
+                                                 document_measurement_key,
+                                                 update_losses)
+        recorded = [m for m in ((updating.get("doc") or {}).get("measurements")
+                                or []) if isinstance(m, dict)]
+        members = [{"dir": str(r.get("_origin_dir") or ""),
+                    "created": str(r.get("created") or ""),
+                    "ti3": str(r.get("ti3") or ""),
+                    "key": document_measurement_key(
+                        r.get("_origin_dir") or "", str(r.get("created") or ""),
+                        str(r.get("ti3") or ""))}
+                   for r in self._runs_for_document() if r.get("_origin_dir")]
+        losses = update_losses(recorded, members,
+                               self._entry_homes(updating))
+        if not losses:
+            return set()
+        missing = "\n".join(M.report_gone_line(e) for e in losses)
+        for e in losses:
+            log.info("the report covers %s (%s), which is not there: %s",
+                     e.get("dir"), e.get("created"), e.get("reason"))
+        if any(e.get("reason") == GONE_PROJECT for e in losses):
+            inform(self, *M.CATALOGUE["M-REPORT-UPDATE-NOT-FOUND"].render(
+                missing=missing))
+            return None
+        title, body = M.CATALOGUE["M-REPORT-UPDATE-LEAVES-OUT"].render(
+            missing=missing)
+        if not self._ask_leave_out(title, body):
+            return None
+        return {str(e["key"]) for e in losses if e.get("key")}
+
+    def _ask_leave_out(self, title: str, body: str) -> bool:
+        """M-REPORT-UPDATE-LEAVES-OUT's two buttons; True for "Update without
+        them". Kept on the instance while it is up, so a driver can
+        photograph it and press a real button."""
+        from PyQt6.QtWidgets import QMessageBox
+        from ui.widgets import fit_message_box_buttons
+        from ui.warning_sign import set_question_icon
+        box = QMessageBox(self)
+        set_question_icon(box)
+        box.setWindowTitle(title)
+        box.setText(title)
+        box.setInformativeText(body)
+        go = box.addButton(tr("Update without them"),
+                           QMessageBox.ButtonRole.AcceptRole)
+        cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
+        box.setDefaultButton(cancel)
+        fit_message_box_buttons(box)
+        self._leave_out_box = box
+        try:
+            box.exec()
+            return box.clickedButton() is go
+        finally:
+            self._leave_out_box = None
 
     def _one_page_wants_one_measurement(self) -> bool:
         """True when the press was refused and the user was told why (B8-591).
@@ -5198,7 +5270,8 @@ class MeasurementReportDialog(QDialog):
         return "cancel"
 
     def _write_the_document(self, ctx, reports: list,
-                            updating: "dict | None" = None) -> None:
+                            updating: "dict | None" = None, *,
+                            leave_out: "set[str] | None" = None) -> None:
         """Write the page in front of the user as a saved report.
 
         **ONE FUNCTION FOR BOTH BUTTONS**, which is Knut's own sentence: *"The
@@ -5243,6 +5316,12 @@ class MeasurementReportDialog(QDialog):
         # no block, is not touched by this, and is its own one-file document.
         when = _dt.now()
         now_iso = when.isoformat(timespec="seconds")
+        # WHAT THE USER AGREED TO LEAVE OUT (`_update_leaves_out`): gone from
+        # the disk, so gone from what this press covers and writes.
+        leave_out = set(leave_out or ())
+        if leave_out:
+            reports = [r for r in reports
+                       if self._run_key(r) not in leave_out]
         # **AN UPDATE KEEPS THE DOCUMENT'S OWN id AND ITS OWN created**, which
         # is the whole of *"keep the current selected report"*: the entry stays
         # the same entry in the list, its name still leads with the moment it
@@ -5285,7 +5364,8 @@ class MeasurementReportDialog(QDialog):
                     "key": document_measurement_key(
                         r.get("_origin_dir") or "", str(r.get("created") or ""),
                         str(r.get("ti3") or ""))}
-                   for r in self._runs_for_document() if r.get("_origin_dir")]
+                   for r in self._runs_for_document() if r.get("_origin_dir")
+                   and self._run_key(r) not in leave_out]
         detail = self._tick_state()
         scope = self._document_scope(members)
         # **WHERE THIS DOCUMENT LIVES (K23).** Decided from what it COVERS,
@@ -5558,6 +5638,8 @@ class MeasurementReportDialog(QDialog):
                          old_doc_file)
             except OSError as exc:               # noqa: BLE001
                 log.warning("could not remove %s: %s", old_doc_file, exc)
+        #: The folders that stopped the press, for M-REPORT-NOT-WRITABLE.
+        self._unwritable_folders = sorted(str(p) for p in _stuck)
         self._say_generated(saved, failed)
         self._forget_limits()
         # THE FILE IT JUST WROTE IS WHAT THE PAGE SHOWS, AND IT IS IN THE LIST.
@@ -5666,6 +5748,7 @@ class MeasurementReportDialog(QDialog):
         A failure still speaks, because nothing else on the page would say so.
         """
         from ui.warning_sign import warn
+        from workflow import measurement_messages as M
         from workflow.measurement_report import report_type_name
         name = tr(report_type_name(self._report_type_now()))
         if saved and not failed:
@@ -5676,6 +5759,10 @@ class MeasurementReportDialog(QDialog):
                 "Saved {count} of {total}. The rest could not be written; the "
                 "log says why.").format(count=len(saved),
                                         total=len(saved) + len(failed)))
+        elif failed and getattr(self, "_unwritable_folders", None):
+            # WHICH FOLDER, AND WHAT TO DO (challenge C, beta 39, #8).
+            warn(self, *M.CATALOGUE["M-REPORT-NOT-WRITABLE"].render(
+                folders="\n".join(self._unwritable_folders)))
         elif failed:
             warn(self, tr("Report not generated"), tr(
                 "Nothing could be written. The log says why."))
@@ -8592,21 +8679,20 @@ class MeasurementReportDialog(QDialog):
             what=entry.get("label", ""), n=len(paths), where=str(dest))
         if not self._confirm(title, body):
             return
-        try:
-            dest.mkdir(parents=True, exist_ok=True)
-            for path in paths:
-                target = dest / path.name
-                n = 1
-                while target.exists():
-                    target = dest / f"{path.stem}_{n}{path.suffix}"
-                    n += 1
-                shutil.move(str(path), str(target))
-                log.info("report moved to old/: %s -> %s", path, target)
-        except OSError as exc:
-            log.warning("could not move %s: %s", dest, exc)
-            warn(self, title, str(exc))
+        # ALL OR NOTHING, AND IN WORDS (challenge C, beta 39, #7): a
+        # read-only folder left the report in old/ AND in the list, under a
+        # raw "[Errno 13]". `move_report_files` moves every file or none.
+        from core.file_manager import move_report_files
+        moved, stuck = move_report_files(paths, dest)
+        if stuck is not None:
+            log.warning("the report was not moved to %s: %s cannot be "
+                        "changed", dest, stuck)
+            warn(self, *M.CATALOGUE["M-REPORT-DELETE-FAILED"].render(
+                folder=str(stuck)))
             self._reload_sources()
             return
+        for path, target in zip(paths, moved):
+            log.info("report moved to old/: %s -> %s", path, target)
         for r, name in members:
             key = self._run_key(r)
             if self._chosen_reports.get(key) == name:

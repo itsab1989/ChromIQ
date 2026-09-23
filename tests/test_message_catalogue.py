@@ -178,6 +178,18 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # 5794078008.)
                                  "M-PROJECT-FOLDER-RENAMED",
                                  "M-PROJECT-FOLDER-RENAME-FAILED",
+                                 # Challenge C of beta 39, 2026-09-23: an
+                                 # Update never drops a covered measurement
+                                 # in silence (refused when nobody can find
+                                 # it, asked when it is gone from disk), a
+                                 # Delete that cannot move says so in words,
+                                 # and a refused press names the folder.
+                                 # The behaviour is the safe one; the words
+                                 # are ours.
+                                 "M-REPORT-UPDATE-NOT-FOUND",
+                                 "M-REPORT-UPDATE-LEAVES-OUT",
+                                 "M-REPORT-DELETE-FAILED",
+                                 "M-REPORT-NOT-WRITABLE",
                                  # #182, 2026-09-19: Knut overruled his own
                                  # K.1 ("Generate report always creates a new
                                  # report"). Pressed with a report selected and

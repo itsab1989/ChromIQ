@@ -2926,12 +2926,126 @@ M_REPORT_ONE_PAGE_ONE_DATE = _m(
     "report type instead.",
     approved=False)
 
+# --- PROPOSED (challenge C, beta 39, #1): an Update that would narrow a
+# report to what this side can find ------------------------------------------
+#
+# Update rewrites a report about every measurement it covers (§13.13). From a
+# side that could not find one of them (a project renamed or moved, measured
+# with the demo pack's Report-Limits-Renamed), it archived the whole report
+# and rewrote it about the one date it found. No rule lets an Update drop a
+# covered measurement it cannot find, so it refuses and says which and why.
+# {missing} is one `report_gone_line` per measurement.
+M_REPORT_UPDATE_NOT_FOUND = _m(
+    "M-REPORT-UPDATE-NOT-FOUND",
+    "This report cannot be updated from here",
+    "The selected report covers measurements that ChromIQ cannot find:\n\n"
+    "{missing}\n\n"
+    "Updating it now would rewrite the report without them, so nothing was "
+    "changed. Put the project back in the folder beside this one, or open "
+    "the report from a project that can reach them, and try again. "
+    "“Create New” writes a new report of what is ticked and leaves "
+    "this one as it is.",
+    approved=False)
+
+# --- PROPOSED (challenge C, beta 39, #11): the Update leaves out
+# measurements that are no longer on disk, and asks first --------------------
+#
+# §13.11 leaves out a folder that no longer holds its measurement. An Update
+# did that in silence, and one such date was enough to retire a report across
+# projects into a one-date report. The question names them; the user chooses.
+M_REPORT_UPDATE_LEAVES_OUT = _m(
+    "M-REPORT-UPDATE-LEAVES-OUT",
+    "Some measurements of this report are no longer on disk",
+    "The selected report covers measurements that are no longer on disk:\n\n"
+    "{missing}\n\n"
+    "Updating it now leaves them out, and the report then covers only what "
+    "is still there. The report as it is now is kept in the old folder "
+    "first.\n\n"
+    "What do you want to do?",
+    approved=False)
+
+# --- PROPOSED (challenge C, beta 39, #7): Delete Selected Report could not
+# move the report ----------------------------------------------------------
+#
+# In a read-only folder the move copied the report into old/ and left the
+# original, so the report existed twice, and the window showed Python's own
+# "[Errno 13] Permission denied: '/Users/…'". The move is now all or nothing.
+M_REPORT_DELETE_FAILED = _m(
+    "M-REPORT-DELETE-FAILED",
+    "The report could not be moved to the old folder",
+    "ChromIQ could not change this folder:\n\n{folder}\n\n"
+    "Nothing was moved, and the report is still in the list. The usual "
+    "reason is that the folder is read-only. Give yourself permission to "
+    "change it, or copy the project somewhere you may write, and try "
+    "again.",
+    approved=False)
+
+# --- PROPOSED (challenge C, beta 39, #8): an Update or a new report in a
+# folder ChromIQ may not write in --------------------------------------------
+#
+# The press was already all or nothing; the window said only "Nothing could
+# be written. The log says why." It now names the folders and the remedy.
+M_REPORT_NOT_WRITABLE = _m(
+    "M-REPORT-NOT-WRITABLE",
+    "The report was not written",
+    "ChromIQ is not allowed to write in:\n\n{folders}\n\n"
+    "A report is written whole or not at all, so nothing was changed. Give "
+    "yourself permission to change that folder, or copy the project "
+    "somewhere you may write, and try again.",
+    approved=False)
+
+#: The reasons `report_gone_line` gives, one module constant each so the
+#: extractor resolves ``tr(NAME)`` (challenge C, beta 39).
+_GONE_PROJECT = "ChromIQ cannot find this project"
+_GONE_RUN = "its profile run was deleted"
+_GONE_FOLDER = "its folder is no longer in the project"
+_GONE_FILE = "its measurement file is no longer in its folder"
+_GONE_PLACE_RUN = "{project}, run {run}, {when}: {why}"
+_GONE_PLACE_CAL = "{project}, calibration, {when}: {why}"
+
+
+def report_gone_line(entry: dict) -> str:
+    """One line of M-REPORT-UPDATE-NOT-FOUND's or M-REPORT-UPDATE-LEAVES-OUT's
+    ``{missing}``: where the measurement was, when it was measured, and why
+    it is not there (an entry of `workflow.measurement_report.update_losses`).
+    """
+    from pathlib import PurePath
+    from core.report_refs import DELETED_RUN_SUFFIX
+    reason = str(entry.get("reason") or "")
+    if reason == "project":
+        why = tr(_GONE_PROJECT)
+    elif reason == "run_deleted":
+        why = tr(_GONE_RUN)
+    elif reason == "file":
+        why = tr(_GONE_FILE)
+    else:
+        why = tr(_GONE_FOLDER)
+    parts = list(PurePath(str(entry.get("dir") or "")).parts)
+    when = str(entry.get("created") or "").replace("T", " ")[:16]
+    if parts and parts[-1] == "cal":
+        project = parts[-2] if len(parts) >= 2 else ""
+        return "•  " + tr(_GONE_PLACE_CAL).format(
+            project=project, when=when, why=why)
+    run, project = "", ""
+    if "runs" in parts:
+        i = len(parts) - 1 - parts[::-1].index("runs")
+        project = parts[i - 1] if i >= 1 else ""
+        run = parts[i + 1] if i + 1 < len(parts) else ""
+    if run.endswith(DELETED_RUN_SUFFIX):
+        run = run[:-len(DELETED_RUN_SUFFIX)]
+    num = run[3:] if run.startswith("run") else run
+    return "•  " + tr(_GONE_PLACE_RUN).format(
+        project=project, run=num, when=when, why=why)
+
+
 CATALOGUE = {m.id: m for m in (
     M_LIMIT_RECOMMENDED,
     M_REPORT_CHART_MISMATCH, M_REPORT_CHART_MISMATCH_LAYOUT,
     M_THRESHOLDS_NOT_CERTIFICATION, M_REPORT_DELETE,
     M_REPORT_UPDATE_OR_NEW, M_REPORT_UNCHANGED_UPDATE_OR_NEW,
     M_REPORT_ONE_PAGE_ONE_DATE,
+    M_REPORT_UPDATE_NOT_FOUND, M_REPORT_UPDATE_LEAVES_OUT,
+    M_REPORT_DELETE_FAILED, M_REPORT_NOT_WRITABLE,
     M_REPLACE_PARTIAL, M_REPLACE_COMPLETE, M_TI3_MISMATCH,
     M_REPLACE_UNCOUNTABLE,
     M_IMPORT_REPLACE_CONFIRM, M_IMPORT_REPLACE_PROJECT_CONFIRM,

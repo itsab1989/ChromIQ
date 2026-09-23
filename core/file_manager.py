@@ -2742,6 +2742,77 @@ def archive_report_files(paths, when: "datetime | None" = None, *,
     return done, failed
 
 
+def move_report_files(paths, dest: Path) -> "tuple[list[Path], Path | None]":
+    """Move saved report files into *dest*, ALL OR NOTHING (challenge C,
+    beta 39, #7): ``([where each went], None)``, or ``([], folder)`` with
+    the folder that stopped it and every file where it was.
+
+    `shutil.move` out of a read-only folder cannot rename, so it COPIES and
+    then fails to delete: the report was in ``old/`` and still in the list,
+    twice on disk. So every source folder and the destination are asked
+    first, each file then moves by `os.rename` (or copy and unlink across
+    volumes), and a step that fails anyway puts back every file already
+    moved and removes the folders this made.
+    """
+    import shutil
+    srcs = [Path(p) for p in paths]
+    dest = Path(dest)
+    for p in srcs:
+        if not os.access(p.parent, os.W_OK | os.X_OK):
+            return [], p.parent
+    probe = dest
+    while not probe.exists() and probe.parent != probe:
+        probe = probe.parent
+    if not os.access(probe, os.W_OK | os.X_OK):
+        return [], probe
+    made: "list[Path]" = []
+    up = dest
+    while not up.exists() and up.parent != up:
+        made.append(up)
+        up = up.parent
+    done: "list[tuple[Path, Path]]" = []
+    try:
+        dest.mkdir(parents=True, exist_ok=True)
+        for p in srcs:
+            target = dest / p.name
+            n = 1
+            while target.exists():
+                target = dest / f"{p.stem}_{n}{p.suffix}"
+                n += 1
+            try:
+                os.rename(p, target)
+            except OSError as exc:
+                if exc.errno != errno.EXDEV:
+                    raise
+                shutil.copy2(p, target)
+                try:
+                    p.unlink()
+                except OSError:
+                    target.unlink()
+                    raise
+            done.append((p, target))
+    except OSError as exc:
+        log.warning("could not move the report files into %s (%s); putting "
+                    "back the %d already moved", dest, exc, len(done))
+        for src, target in reversed(done):
+            try:
+                os.rename(target, src)
+            except OSError:
+                try:
+                    shutil.copy2(target, src)
+                    target.unlink()
+                except OSError:
+                    log.error("could not put %s back to %s", target, src)
+        for d in made:                     # innermost first
+            try:
+                d.rmdir()
+            except OSError:
+                pass
+        failed = Path(getattr(exc, "filename", "") or dest)
+        return [], (failed.parent if failed.suffix == ".json" else failed)
+    return [t for _s, t in done], None
+
+
 # ---------------------------------------------------------------------------
 # Project — the work_dir root
 # ---------------------------------------------------------------------------
@@ -3479,6 +3550,42 @@ class Project:
 
         self.write_readme()
         log.info("Renamed project stem %s -> %s at %s", old_stem, new_stem, self._root)
+        self._rename_report_references([old_stem, *_was_former], new_stem)
+
+    def _rename_report_references(self, olds: "list[str]",
+                                  new_stem: str) -> None:
+        """**THE REPORTS THAT NAME THE PROJECT GET ITS NEW NAME (challenge C,
+        beta 39, #2).** A saved report records its measurements by folder,
+        and a report across projects lives OUTSIDE the project, in
+        ``<ChromIQ folder>/reports/``: after a rename it went on naming the
+        old folder, the other project's window found "1 of the 3", and an
+        Update from that side narrowed the report to what it found.
+
+        `core.report_refs` rewrites only those references (the recorded
+        folders and the stems), in the project's reports, the folder across
+        projects and the projects beside it, all or nothing and archiving
+        nothing. Never fatal: the rename has already succeeded, and a report
+        that could not be rewritten is still found through ``former_names``
+        (`workflow.measurement_report.resolve_recorded_folder`)."""
+        try:
+            from core.report_refs import (apply_plan, plan_is_writable,
+                                          rename_references_plan)
+            plan = rename_references_plan(self._root, olds, new_stem)
+            if not plan:
+                return
+            stuck = plan_is_writable(plan)
+            if stuck:
+                log.warning("the reports that name %s were left as they are: "
+                            "ChromIQ may not write in %s; they are still "
+                            "found by the project's former name", new_stem,
+                            ", ".join(str(s) for s in stuck))
+                return
+            if apply_plan(plan):
+                log.info("renamed %s in %d report(s) that name the project",
+                         new_stem, len(plan.changes))
+        except Exception:                             # noqa: BLE001
+            log.warning("could not rewrite the reports that name %s",
+                        new_stem, exc_info=True)
 
     # ---- run access
     def run(self, run_id: str) -> Run:

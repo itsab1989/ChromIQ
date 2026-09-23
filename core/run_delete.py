@@ -643,6 +643,20 @@ def delete_run(project, plan: DeletePlan) -> str:
     run_dir = plan.path
     if run_dir is None or not run_dir.exists():
         raise DeleteFailed([str(run_dir)])
+    # **THE REPORTS THAT NAME THE RUNS BY NUMBER ARE RENUMBERED TOO
+    # (challenge C, beta 39, #4).** Worked out, and checked writable, BEFORE
+    # anything moves: a report that could not follow the renumbering would
+    # name run 3 after run 3 had become run 2, which is how a one-run record
+    # was listed as "Multiple runs" and an All runs report found "1 of the 5".
+    refs = _report_references_plan(project, plan)
+    stuck = _unwritable(refs)
+    if stuck:
+        raise DeleteFailed([str(s) for s in stuck], reason=tr(
+            "Nothing was deleted. Deleting this run renumbers the runs after "
+            "it, and the saved reports that name those runs by number must "
+            "be renumbered with them, but ChromIQ is not allowed to change "
+            "the reports in the folders below. Make them writable, or move "
+            "the project somewhere you may write, and try again."))
     # TO THE TRASH — see `delete_verification`. This one matters most: the
     # renumbering below assumes the run really is gone, and a half-deleted run
     # folder would be renumbered around.
@@ -684,9 +698,87 @@ def delete_run(project, plan: DeletePlan) -> str:
         raise DeleteFailed([str(root)]) from exc
 
     _rewrite_metas(project, plan)
+    _apply_report_references(
+        _moved_with_the_runs(refs, project, plan) if refs is not None
+        else None)
     survivors = [f"run{i}" for i in range(1, len(_surviving(project, plan)) + 1)]
     project.set_runs(survivors, current=survivors[-1] if survivors else "run1")
     return survivors[-1] if survivors else "run1"
+
+
+def _report_references_plan(project, plan: DeletePlan):
+    """The saved reports' run references this delete changes
+    (`core.report_refs.run_references_plan`), or None when there are none or
+    they cannot be worked out. Every name the project answers to counts, as
+    a report records the name of the day it was written."""
+    try:
+        from core.report_refs import run_references_plan
+        root = Path(project.root)
+        names = {root.name, str(getattr(project, "target_name", "") or "")}
+        try:
+            import json as _json
+            data = _json.loads((root / "project.json").read_text(
+                encoding="utf-8"))
+            names |= {n for n in (data.get("former_names") or [])
+                      if isinstance(n, str)}
+        except Exception:      # noqa: BLE001
+            pass
+        refs = run_references_plan(root, names, dict(plan.renumbering),
+                                   plan.run_id)
+        # The deleted run's own reports go to the Trash with it.
+        gone = root / "runs" / plan.run_id
+        for f in [f for f in refs.changes if _under(f, gone)]:
+            refs.changes.pop(f)
+        return refs or None
+    except Exception:          # noqa: BLE001
+        log.warning("could not work out the reports this delete renumbers",
+                    exc_info=True)
+        return None
+
+
+def _under(path: Path, folder: Path) -> bool:
+    try:
+        Path(path).relative_to(folder)
+        return True
+    except ValueError:
+        return False
+
+
+def _moved_with_the_runs(refs, project, plan: DeletePlan):
+    """*refs* with every file inside a renumbered run named where it is now:
+    the plan was made before the folders moved."""
+    from core.report_refs import RefPlan
+    runs = Path(project.root) / "runs"
+    out = RefPlan(unreadable=list(refs.unreadable))
+    for f, change in refs.changes.items():
+        for old, new in plan.renumbering:
+            if _under(f, runs / old):
+                f = runs / new / Path(f).relative_to(runs / old)
+                break
+        out.changes[f] = change
+    return out
+
+
+def _unwritable(refs) -> list:
+    if refs is None:
+        return []
+    from core.report_refs import plan_is_writable
+    return plan_is_writable(refs)
+
+
+def _apply_report_references(refs) -> None:
+    """Write the renumbered references, all or nothing. After the folders
+    have moved there is nothing to roll back to, so a failure here is logged
+    (the pre-flight above makes it unlikely), never raised."""
+    if refs is None:
+        return
+    from core.report_refs import apply_plan
+    if apply_plan(refs):
+        log.info("renumbered the runs named in %d saved report(s)",
+                 len(refs.changes))
+    else:
+        log.error("the saved reports could not be renumbered with the runs; "
+                  "they may name a run by its old number")
 
 
 def _surviving(project, plan: DeletePlan) -> list:

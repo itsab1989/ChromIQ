@@ -1909,7 +1909,185 @@ def resolve_recorded_folder(d: "str | Path", homes, *,
             is_project = False
         if is_project and _ok(beside / rel):
             return beside / rel
+    # 3b. **A PROJECT BESIDE A HOME THAT WAS CALLED THAT (challenge C, beta
+    # 39, #2).** A rename keeps the old name in ``former_names``, and a
+    # report across projects written before it (or one the rename could
+    # not rewrite) still names the old folder. Looked up by the recorded
+    # name alone, the renamed project was never found from the other side:
+    # "1 of the 3", and an Update narrowed the report to what it found.
+    # Only an UNAMBIGUOUS claim counts: two projects that both answer to
+    # the name (a duplicate and its original, both renamed) are neither.
+    claims = _projects_answering_to(rname, homes)
+    if len(claims) == 1 and _ok(claims[0] / rel):
+        return claims[0] / rel
     return d
+
+
+#: Why a measurement a saved report covers is not there any more
+#: (`update_losses`). The words are `measurement_messages.report_gone_line`'s.
+GONE_PROJECT = "project"        # no project of the recorded name can be found
+GONE_RUN = "run_deleted"        # its profile run was deleted (bar Delete)
+GONE_FOLDER = "folder"          # the project is there, the folder is not
+GONE_FILE = "file"              # the folder is there, the measurement is not
+
+
+def _gone_reason(d: str, name: str, homes, *, one_project: bool
+                 ) -> "tuple[str, Path | None]":
+    """``(reason, folder)`` for one recorded measurement: reason "" when its
+    measurement file is on disk; *folder* where it is (or would be)."""
+    from core.report_refs import DELETED_RUN_SUFFIX
+    rel = project_relative(d)
+    parts = rel.split("/")
+    if len(parts) >= 2 and parts[0] == "runs" \
+            and parts[1].endswith(DELETED_RUN_SUFFIX):
+        return GONE_RUN, None
+    folder = resolve_recorded_folder(d, homes, one_project=one_project)
+    if folder is None:
+        return GONE_FOLDER, None
+    try:
+        there = folder.is_dir()
+    except OSError:
+        there = False
+    if not there:
+        project = _project_folder_of(Path(str(folder)))
+        try:
+            known = project is not None and (project / "project.json").is_file()
+        except OSError:
+            known = False
+        return (GONE_FOLDER if known else GONE_PROJECT), None
+    if name:
+        ti3 = folder / name
+        if not ti3.is_file():
+            alts = {renamed_file_name(name, d, folder),
+                    current_chart_name(name, folder)} - {None, "", name}
+            if not any((folder / a).is_file() for a in alts):
+                return GONE_FILE, folder
+    return "", folder
+
+
+def update_losses(recorded, members, homes) -> "list[dict]":
+    """Every measurement an UPDATE of a saved report would lose without the
+    user choosing it (challenge C, beta 39, #1 and #11), oldest first.
+
+    *recorded* is the report's own list (``document.measurements``),
+    *members* what the press would write (``{"dir", "created", "ti3",
+    "key"}`` of each measurement it covers), *homes* the project folders the
+    report's files are in (`resolve_recorded_folder`).
+
+    * A recorded measurement the press does NOT cover and that cannot be
+      found on disk: the report would be narrowed to what this side found.
+      Measured: an Update from the side that could not find a renamed
+      project archived the whole report and rewrote it about one date.
+    * A measurement the press DOES cover whose measurement file is gone
+      (the window shows it from its saved record): §13.11 leaves such a
+      folder out, and the Update must say so before it rewrites.
+
+    A recorded measurement that IS found and simply is not ticked is not
+    here: leaving that out is what the user chose. Each entry is the
+    recorded (or member) dict with ``reason`` (a ``GONE_*``) and, for a
+    member, ``key``, the identity the press would leave out. Never raises.
+    """
+    homes = [Path(str(h)) for h in (homes or []) if h]
+    dirs = [str(m.get("dir") or "") for m in (recorded or [])
+            if isinstance(m, dict)]
+    one = len({measurement_place(d)[0] for d in dirs if d}) <= 1
+
+    def _ident(d: str, created: str) -> tuple:
+        from core.file_manager import nfc
+        project = _project_folder_of(Path(str(d)))
+        pname = nfc(project.name) if project is not None else ""
+        return (pname, project_relative(d), str(created or "")[:19])
+
+    covered: "set[tuple]" = set()
+    out: "list[dict]" = []
+    for m in members or []:
+        d = str(m.get("dir") or "")
+        if not d:
+            continue
+        covered.add(_ident(d, m.get("created")))
+        try:
+            reason, _f = _gone_reason(d, str(m.get("ti3") or ""), [],
+                                      one_project=True)
+        except Exception:                              # noqa: BLE001
+            reason = ""
+        if reason:
+            out.append({**m, "reason": reason})
+    for m in recorded or []:
+        if not isinstance(m, dict):
+            continue
+        d = str(m.get("dir") or "")
+        if not d:
+            continue
+        try:
+            reason, folder = _gone_reason(d, str(m.get("ti3") or ""), homes,
+                                          one_project=one)
+        except Exception:                              # noqa: BLE001
+            continue
+        if folder is not None and _ident(str(folder), m.get("created")) \
+                in covered:
+            continue
+        if _ident(d, m.get("created")) in covered:
+            continue
+        if reason:
+            out.append({**{k: v for k, v in m.items() if k != "key"},
+                        "reason": reason})
+    out.sort(key=lambda e: str(e.get("created") or ""))
+    return out
+
+
+def _projects_answering_to(name: str, homes) -> "list[Path]":
+    """The projects beside any of *homes* (not the homes themselves) whose
+    names (`names_of_project`) include *name*, NFC. Never raises."""
+    out: "list[Path]" = []
+    seen: "set[str]" = set()
+    for h in homes or []:
+        parent = Path(str(h)).parent
+        if str(parent) in seen:
+            continue
+        seen.add(str(parent))
+        try:
+            kids = sorted(parent.iterdir())
+        except OSError:
+            continue
+        for c in kids:
+            try:
+                if not (c / "project.json").is_file():
+                    continue
+            except OSError:
+                continue
+            if any(str(c) == str(Path(str(x))) for x in homes):
+                continue
+            if name in names_of_project(c) and c not in out:
+                out.append(c)
+    return out
+
+
+def current_chart_name(chart: str, origin_dir: "str | Path | None") -> str:
+    """*chart*, a name a saved report recorded, as the project whose folder
+    *origin_dir* is inside is called NOW (challenge C, beta 39, #3).
+
+    A report written before a rename names the chart by the project's old
+    name (``X-verify``), and the Report Scope went on printing it under the
+    renamed project. When the name starts with one of the project's former
+    names (`names_of_project`) followed by one of ChromIQ's own separators,
+    that part becomes the folder's name; anything else is left alone."""
+    from core.file_manager import nfc
+    name = str(chart or "")
+    if not name or not origin_dir:
+        return name
+    home = project_home_of(origin_dir)
+    if home is None:
+        return name
+    now = nfc(home.name)
+    n = nfc(name)
+    if n == now or n.startswith(now) and n[len(now):len(now) + 1] in "-._":
+        return name
+    for old in sorted(names_of_project(home) - {now}, key=len, reverse=True):
+        if n == old:
+            return home.name
+        if n.startswith(old) and n[len(old):len(old) + 1] in ("-", ".", "_"):
+            return home.name + n[len(old):]
+    return name
 
 
 def renamed_file_name(name: str, recorded_dir: "str | Path",
@@ -3017,7 +3195,8 @@ def recorded_thresholds(report: dict) -> "tuple[float, float] | None":
 
 def _run_label(r: dict) -> str:
     """A run's ``Profile @ date`` label for warning lists (no quotes)."""
-    return f'{r.get("chart") or "?"} @ {str(r.get("created") or "")[:19]}'
+    chart = current_chart_name(r.get("chart") or "", r.get("_origin_dir"))
+    return f'{chart or "?"} @ {str(r.get("created") or "")[:19]}'
 
 
 def report_scope(runs: "list[dict]") -> dict:
@@ -3035,7 +3214,10 @@ def report_scope(runs: "list[dict]") -> dict:
 
     profiles: "dict[str, dict]" = {}
     for r in runs:
-        name = r.get("chart") or "?"
+        # THE NAME IT HAS NOW (challenge C, beta 39, #3): a report saved
+        # before a rename names the chart by the project's old name.
+        name = current_chart_name(r.get("chart") or "",
+                                  r.get("_origin_dir")) or "?"
         p = profiles.setdefault(name, {"name": name, "instruments": [], "n": 0})
         p["instruments"].append(r.get("instrument") or "Unknown instrument")
         p["n"] += 1

@@ -384,6 +384,20 @@ MESSAGE_DEMOS: "dict[str, list[str]]" = {
     "M-REPORT-NOT-SAVED": [
         "not reachable from data: needs a disk that refuses the write",
     ],
+    # Challenge C of beta 39 (B8-870, B8-873): each needs one step outside
+    # ChromIQ first, which the package cannot ship in that state.
+    "M-REPORT-UPDATE-NOT-FOUND": [
+        "the pack's reports/: move Report-Limits-Report-Folders-Second out of the folder, then Update the 2027-01-14 09:00 report from Report-Limits-Report-Folders",
+    ],
+    "M-REPORT-UPDATE-LEAVES-OUT": [
+        "the pack's reports/: delete the .ti3 of Report-Limits-Report-Folders-Second's 2027-01-05 date, then Update the 2027-01-14 09:00 report from Report-Limits-Report-Folders",
+    ],
+    "M-REPORT-DELETE-FAILED": [
+        "Report-Limits-Report-Folders/run1: make verifications/reports read-only, then Delete Selected Report on the 2026-12-21 09:30 report",
+    ],
+    "M-REPORT-NOT-WRITABLE": [
+        "Report-Limits-Report-Folders/run1: make verifications/reports read-only, then Update the 2026-12-21 09:30 report",
+    ],
     "M-VERIFY-PREFLIGHT": [
         "Report-Limits-Evenness/run3: Measure tab, Run type Verification, before the first measurement",
     ],
