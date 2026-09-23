@@ -26271,3 +26271,77 @@ would reach.
   "Average ΔE00, control strip" for "Control-strip patches, average"); and that
   "all patches" now names a within-gamut population on a split sheet, the
   within-gamut fact being said in the text rather than in the name.
+
+### B8-850 · FIXED, awaiting confirmation · K29: one release demo package, every rule from more than one side, on real paper classes
+- blocks release: no
+- status: FIXED
+- note: built in beta 39, awaiting Knut's confirmation; the release step must attach the new asset
+- ruled by: Knut, #182 5795310999 (2026-09-23); our reply 5795332493.
+- **One package.** `scripts/make_release_demo_package.py` builds
+  `ChromIQ-Demo-Projects_v<APP_VERSION>/`: every project of
+  `make_report_limit_demos` (with the report-folder, calibration and rename
+  seeds and the demo chart presets), `Report-Limits-Evenness` and
+  `Report-Notes-Every-Reason` (in no release asset before), ONE `README.txt`,
+  and `COVERAGE.md` / `coverage-matrix.json` computed from the saved reports:
+  every row of the spec index (parsed from the spec, an unmapped live row
+  fails the build), every metric row, every (row, limit set) cell, verdict
+  word, N-A reason, report type, run type, report location, §M message and
+  help-worthy behaviour, with the projects that exercise it. `--zip` writes
+  `ChromIQ-Demo-Projects_v<APP_VERSION>.zip`; `--verify <folder|zip>`
+  recomputes the matrix from the files and refuses a package with a missed
+  design, an unmapped ruling, a measurable row short of 2 trip + 2 pass
+  angles, or a path of the build machine in any text file.
+- **New angle projects** (in `PROJECTS`, checked by the same
+  intended-against-actual machinery): Paper-Classes (one run per paper class,
+  each on its own chart, instrument layout, set, report type and printing;
+  one of them an i1Pro printtarg layout, one a single-measurement series,
+  one a From Profile Gamut chart), Border-Values (exactly on a limit, 0.001
+  over, 0.001 under, on four rows/sets/charts; the build refuses a border
+  date whose SAVED value is not its number), Second-Route (Knut's matrix
+  again on a different chart and paper per set), Renamed (built under
+  another name, given a report across projects, renamed with
+  `Project.rename`). Evenness run4/run5 gain the drift and the blotch, so
+  each evenness row trips on three charts.
+- **Paper classes**: glossy RC with OBA (96.0 / 1.2 / -7.5), baryta
+  (95.5 / 0.4 / -2.0), matte rag (94.5 / 0.4 / 3.5), uncoated office
+  (94.0 / 1.8 / -11.0, CIE whiteness 131), newsprint-like (84.0 / 0.3 / 5.5).
+  The values are ours; each rests on a cited public fact (Wikipedia, a
+  Canson datasheet, papersizes.org); nothing licensed, nobody's measurements.
+- **Path hygiene**: every saved report recorded the absolute folder of its
+  measurements, so a pack built on a Desktop carried the builder's home
+  folder into a public download (every earlier `ChromIQ-Report-Limit-Demos.zip`
+  did). The package rewrites the build root to `/ChromIQ-demo-build/<root>`,
+  which also makes every project a moved project; driven on screen, the
+  moved projects list and open their reports.
+- **Fixed in the generator**: the build at 4d604098 was red (6 of 109 dates):
+  since K28a (B8-483) every From Profile Gamut chart reads
+  `grey_steps_bunched` on both grey rows; `ROWS_GAMUT` no longer expects them.
+- **Found on screen, for Knut / not fixed (spec binding)**: (1) a report
+  across two projects written before one of them was renamed covers 2
+  measurements when opened from the renamed project and only 1 ("1 of the 2
+  measurements recorded for this profile run") when opened from the other
+  project, which cannot find the renamed project's folder; (2) opened from
+  the renamed project, its scope still names the chart by the OLD name
+  (`Report-Limits-Before-Rename-verify`); (3) on a sheet judged in absolute
+  Lab and on a From Profile Gamut chart the paper class is not visible,
+  because the generator designs every patch, paper included, at a distance
+  from the chart's aim (office paper's unrecorded sheet reads L* 100.4);
+  stated in the README; (4) once, after closing the report window on
+  Border-Values/run4, an "Add measurements" file chooser was open with no
+  click that asked for it; not reproduced, cause unknown.
+- tests: tests/test_the_release_demo_package.py (9 fast, 4 slow; the slow
+  ones build the package once into `$TMPDIR/chromiq-release-demo-cache`,
+  keyed by the generators, workflow/, core/ and the spec, kept by the sweep).
+- proof: ~/Desktop/ChromIQ-beta39-proof/demo-package/ (DESIGN.md with its
+  hostile review, REPORT.md, COVERAGE.md, build.log, verify.log, drive/ with
+  photographs, page texts and the app log).
+- release: `python scripts/make_release_demo_package.py dist --zip`, then
+  `--verify dist/ChromIQ-Demo-Projects_v<ver>.zip`, then
+  `gh release upload v<ver> dist/ChromIQ-Demo-Projects_v<ver>.zip`. It
+  replaces `ChromIQ-Report-Limit-Demos.zip`; the release notes must say so.
+- evidence: test_every_live_ruling_in_the_spec_index_names_its_demonstration,
+  test_the_paper_classes_say_what_their_sources_say,
+  test_a_build_path_cannot_reach_the_public_package,
+  test_border_dates_step_one_thousandth_either_side_of_the_limit,
+  test_the_built_package_verifies,
+  test_every_measurable_row_is_tripped_and_passed_from_two_angles
