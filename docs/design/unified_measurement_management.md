@@ -1408,8 +1408,18 @@ one line and the window carries the paragraph. (2) Since most sets already
 leave these rows out, is the behaviour he wants actually the ISO sets' one, and
 should the ISO-derived sets stop showing rows nothing can answer?
 
-*The pre-flight's one line, appended under its metric list and only when the
-chart really falls short of something:*
+**Question (1) ANSWERED, 2026-09-23** ([5795087247](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5795087247),
+*"Leave the window wider as previously specified"*, R2 of 5781645939). From
+beta 39 the pre-flight carries the FULL paragraph below, heading and body, in a
+box widened to 968 px; measured on screen it is 827 px tall in English and 875
+in German. The one line stays, used only where the shown box would not fit the
+screen's work area (a 13-inch Air with the Dock at the bottom, about 860 px).
+`docs/design/measurement_report_limits.md` §21.3. The WORDING of both is
+unchanged and still waits here. Question (2) was answered in the same comment
+(the general rule for unanswerable rows) and is not built by this change.
+
+*The pre-flight's one line, appended under its metric list only when the chart
+really falls short of something AND the wide box would not fit the screen:*
 
 > A metric this chart cannot answer is never judged and can never make the report fail. Whether it is shown at all is decided by the limit set, and the window named above says how to change that.
 

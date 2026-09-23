@@ -19495,8 +19495,11 @@ would reach.
   specification is reported and approved, not corrected.
 - evidence: test_the_pass_side_answers_them
 
-### B8-483 · OPEN · There is no spacing requirement on either ramp, and Knut expected one
-- status: OPEN
+### B8-483 · FIXED · There is no spacing requirement on either ramp, and Knut expected one
+- status: FIXED
+- note: FIXED for the grey ramp in beta 39 (B8-846, spec §21.2): Knut ruled
+  it on 2026-09-23 (5795087247). The 30 to 70 % ramp has no ruling; Q2 stays
+  the open question.
 - blocks release: no
 - Knut, in the same message that asked for this pack: *"there migth also be a
   requirement that the selected patches have a certain distance between each
@@ -25706,9 +25709,13 @@ would reach.
 - proof: 5 mutations, each proved red; on screen
   `~/Desktop/ChromIQ-beta38-proof/evenness-60/`.
 
-### B8-830 · OPEN · E8: evenness is judged in absolute Lab in every published test (research)
+### B8-830 · FIXED · E8: evenness is judged in absolute Lab in every published test (research)
 - blocks release: no
-- status: OPEN
+- status: FIXED
+- note: FIXED in beta 39 (B8-846, spec §21.1): Knut answered "Yes"
+  (5795087247)
+- evidence: test_a_white_mapped_sheet_is_read_as_measured_for_evenness,
+  test_the_paper_is_not_counted_as_unevenness
 - note: research done, behaviour NOT changed (Knut decides)
 - found by: Knut, #182 5789263863 (E8): "Do an investigation to see what is
   normal practice."
@@ -25979,9 +25986,13 @@ would reach.
   project stays open unrenamed, as M-PROJECT-FOLDER-RENAME-FAILED says; with
   "Leave it as it is" gone, should the three choices come back instead?
 
-### B8-842 · OPEN · F5: deleting a report across projects creates `<output folder>/old/<stamp>/`
+### B8-842 · FIXED · F5: deleting a report across projects creates `<output folder>/old/<stamp>/`
 - blocks release: no
-- status: OPEN
+- status: FIXED
+- note: answered by Knut, 2026-09-23 (5795087247): "Yes", that is the
+  place, and it must be visible in "Where are my files?"; the help card rows
+  are built in beta 39 (B8-846, spec §21.4)
+- evidence: test_the_folder_guide_shows_the_chromiq_folders_own_old
 - found by: the beta 38 challenge round (F5), L2-list [D1]: "Delete Selected
   Report" on the 2027-01-14 report across projects moved it to
   `<output>/old/2026-09-23_130246/`, a new top-level folder beside the user's
@@ -26109,3 +26120,41 @@ would reach.
   the page with no readings; (5) the guide's INFO bullet promises "the note
   under the results names the rows" for a report that judges nothing, and no
   such note exists on the record.
+
+### B8-846 · FIXED · K28a: evenness in absolute Lab, the grey ramp's spacing, the wider pre-flight, the ChromIQ folder's old/
+- blocks release: no
+- status: FIXED
+- note: built in beta 39, awaiting Knut's confirmation (spec §21)
+- ruled by: Knut, #182 5795087247 (2026-09-23); our summary 5795122579.
+- **E8 (§21.1).** Evenness reads the sheet as measured whatever its intent.
+  On a sheet the ΔE00 rows read media-relative, the AIMS are carried onto the
+  paper (aim XYZ x paper / D50) rather than the readings divided by it.
+  Measured: without that, a relative print on a paper of L* 95.5 read its
+  own paper tint as unevenness (noise 0.18 -> 1.0, a failing drift passed);
+  with it the noise is 0.17. That aim step is OUR construction and is the
+  part to confirm.
+- **B8-483 (§21.2).** `pick_even_grey_steps`: 8 or more positions evenly
+  spaced from the ramp's darkest to its lightest level, each with a grey level
+  within `GREY_SPACING_TOL` = 4 % of full scale; new reason
+  `grey_steps_bunched`. 181 of 181 built-in charts keep their grey rows; the
+  demo pack's Q1 is refused and became R14; the demo ramps that were uneven
+  by accident were re-spaced.
+- **R2 (§21.3).** The full M-VERIFY-UNCHECKED-METRICS paragraph in the
+  pre-flight, box 968 px wide; measured 827 px (English) and 875 (German)
+  tall. Where the SHOWN frame would not fit the work area the one line comes
+  back (German at 860 px: 731 tall). The guard is asked after showing because
+  the size hint before `exec()` read 683 for a frame of 827.
+- **Folder guide (§21.4).** "Your ChromIQ folder/" with `reports/` and `old/`,
+  and the project's own `old/`.
+- open, for Knut: (1) confirm the aim step of E8; (2) should the grey
+  statistics run over the picked steps only (today: every grey, §3);
+  (3) should the report's "How the colours were judged" line say that
+  evenness is read as measured.
+- tests: tests/test_beta39_k28a.py (17, every one proved red on its
+  mutation, 20 mutations in
+  ~/Desktop/ChromIQ-beta39-proof/k28-a/mutations.txt).
+- proof: ~/Desktop/ChromIQ-beta39-proof/k28-a/
+- evidence: test_a_white_mapped_sheet_is_read_as_measured_for_evenness,
+  test_a_bunched_ramp_is_refused_and_says_where,
+  test_a_screen_too_short_for_the_wide_box_gets_the_one_line,
+  test_the_folder_guide_shows_the_chromiq_folders_own_old

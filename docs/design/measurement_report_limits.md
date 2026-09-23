@@ -85,7 +85,11 @@ result awaiting his confirmation). The rule of
 | §16.6 | E2 page coverage at 75 % | 2026-09-23, 5789539407 | superseded by 60 % (5792912682) |
 | §16.6 | E2 page coverage at 60 %, from the "Measured from Preview" margins | 2026-09-23, 5792912682 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
 | §16.6 | E4 the i1Pro 3 Plus 11 by 14 presets as their own case | 2026-09-23, 5789263863, 5792928823 | agreed; checked, confirmed by Knut 2026-09-23 (5794311113) |
-| §16.6 | E8 judge evenness in absolute Lab? | 2026-09-23, 5789263863 | research done, his decision open (§20) |
+| §16.6 | E8 judge evenness in absolute Lab? | 2026-09-23, 5789263863 | superseded by his answer "Yes" (5795087247, §21.1) |
+| §21.1 | E8 evenness always judged in absolute Lab, whatever the print's intent | 2026-09-23, 5795087247 | agreed; built in beta 39, awaiting confirmation. Supersedes the "same yardstick" clause of §16.1 item 1 |
+| §21.2 | B8-483 the grey ramp's required steps picked roughly evenly spaced, within a few percent of full scale | 2026-09-22, 5775993270; 2026-09-23, 5795087247 | agreed; built in beta 39 (4 % of full scale), awaiting confirmation (gap G13 built) |
+| §21.3 | R2 the pre-flight widened to show the full paragraph (*"Leave the window wider as previously specified"*) | 2026-09-22, 5781645939; 2026-09-23, 5795087247 | agreed; built in beta 39, awaiting confirmation (gap G5 built) |
+| §21.4 | A report deleted across projects goes to `<ChromIQ default folder>/old/<date>/`, shown in "Where are my files?" | 2026-09-23, 5795087247 | folder agreed ("Yes"); the help card rows built in beta 39, awaiting confirmation |
 | §17 | Trend graphs for the judged metrics, each with its own limit line (K20/K21) | 2026-09-23, 5785414710, 5787117741, 5787380408 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
 | §17.1 | Every graph explains its lines, its red x and itself (K25 graphs) | 2026-09-23, 5789263863, 5789532633 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
 | §17.1 | A limit word slides along its line off a data line | as first built | superseded by §18.9 (stays at the left end) |
@@ -100,7 +104,7 @@ result awaiting his confirmation). The rule of
 | §19.4 | The paper white line prints L\*, a\* and b\* (K5) | 2026-09-22, 5781159382 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
 | §19.5 | The verification pre-flight: only before the first measurement, a generic count (K2) | 2026-09-22, 5777667003, 5781159382, 5784377277 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
 | §19.6 | "Unlock this run's limits" is dim with fewer than two dated verifications | 2026-09-22, 5777805448 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
-| §19.7 | Before printing, say that a metric the chart cannot answer can be set to "-" | 2026-09-22, 5774104083 | agreed; built, confirmed by Knut 2026-09-23 (5794311113). Its layout ruling R2 is NOT built (gap G5) |
+| §19.7 | Before printing, say that a metric the chart cannot answer can be set to "-" | 2026-09-22, 5774104083 | agreed; built, confirmed by Knut 2026-09-23 (5794311113). Its layout ruling R2 is built in beta 39 (§21.3) |
 | §19.8 | Sheets with different patch counts: an information note, set apart from body text (R4) | 2026-09-22, 5774104083, 5781645939 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
 | §19.9 | A report type says which metrics it judges; "Restore defaults"; the per-type column cancelled | 2026-09-22, 5777326491 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) (the sentence has no test: gap G9) |
 | §19.10 | Restore Used Chart restores the chart's fields only | 2026-09-22, 5774852534, 5775260868 | agreed; built, confirmed by Knut 2026-09-23 (5794311113) |
@@ -306,8 +310,9 @@ number is in a clause ChromIQ does not hold or may not show).
   patch against its own reference value under the report's yardstick, average
   and largest. The ramp counts patches with max(R,G,B) − min(R,G,B) ≤ 1.0; it
   is eligible with at least 8 distinct levels (the paper patch counts as a
-  level), a lightest level ≥ 90 and a darkest ≤ 10; the paper patch is left
-  out of the statistics, composite black stays in. This is the same
+  level), a lightest level ≥ 90 and a darkest ≤ 10, and (since beta 39,
+  §21.2) at least 8 of its levels roughly evenly spaced; the paper patch is
+  left out of the statistics, composite black stays in. This is the same
   arithmetic as the ISO near-neutral rows; the standards' aim is
   characterization data, ChromIQ's aim is the chart's design (footnote ²).
   TR 015's substrate-relative aim is deliberately not used: a perfect
@@ -2647,16 +2652,21 @@ can say a row was left unanswered.
 [5794311113](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5794311113)).
 This section records the method he ruled and what was built from it (B8-814),
 and he has confirmed the built behaviour (§16 and §16.5b). His eight questions
-below were answered on 2026-09-23 except E8, which stays open (§16.6, gap G8):
-evenness is not yet judged in absolute Lab, and nothing here decides it.
+below were answered on 2026-09-23 except E8, which he answered the same
+day (5795087247, *"Yes"*): evenness is judged in absolute Lab whatever the
+print's intent. That answer supersedes one clause of item 1 of §16.1 and is
+recorded in §21.1.
 
 ### 16.1 The method
 
 For one measured sheet:
 
 1. **Every patch against its own expected colour.** The residual is the
-   measured Lab minus the aim Lab the ΔE00 rows already use, in the same
-   yardstick (absolute, or media-relative where the report normalises) and
+   measured Lab minus the aim Lab the ΔE00 rows already use, ~~in the same
+   yardstick (absolute, or media-relative where the report normalises)~~
+   **SUPERSEDED by E8** ([5795087247](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5795087247), §21.1): the
+   readings are always as measured (absolute Lab); on a sheet the report reads
+   media-relative, the aims are carried onto the paper instead. And
    with the same patches left out (the eight declared cube corners of a FROM
    PROFILE GAMUT chart). Where the report separates colours the profile could
    never print, only the within-gamut patches count, as they do for the words.
@@ -2912,7 +2922,8 @@ for the three records below.
 
 **✅ CONFIRMED (E2 and E4).** **Confirmed by:** Knut, 2026-09-23 (#182
 comment [5794311113](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5794311113)).
-E8 is research only, with his decision open (gap G8), and is not confirmed.
+E8 was research only here; Knut answered it the same day (5795087247,
+*"Yes"*), built in beta 39 and recorded in §21.1.
 **Ruled by:** Knut, 2026-09-23 (5789263863 E2, E4, E8; E2 approved at 75 % in
 5789539407, then **lowered to 60 %** in
 [5792912682](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5792912682):
@@ -2989,7 +3000,7 @@ expectation holds**, against ChromIQ default (1.5 / 1.0):
 `tests/test_beta38_i1pro3plus_evenness.py` pins each preset's grid, coverage,
 estimated noise and answer.
 
-**E8, researched, NOT changed.** The published uniformity tests (ISO 12647-7
+**E8, researched here; answered and built in beta 39 (§21.1).** The published uniformity tests (ISO 12647-7
 §4.3.3, ISO 12647-8 §4.2.2.1, Idealliance) compare absolute CIELAB readings of
 the same patch at different places on one sheet; none normalises to paper
 white. The recommendation (judge evenness in absolute Lab whatever the other
@@ -3000,7 +3011,8 @@ rows use) waits for Knut. Findings:
 
 * **E2/E4-a.** Answered: 60 % (5792912682).
 * **E4-b.** Answered: the 11 by 14 chart (5792928823).
-* **E8.** Judge evenness in absolute Lab always?
+* **E8.** Judge evenness in absolute Lab always? **Answered: "Yes"
+  (5795087247), §21.1.**
 
 **Record (E2, page coverage).**
 * **Rule:** a page counts for evenness only when its patches cover at least
@@ -3054,9 +3066,10 @@ rows use) waits for Knut. Findings:
 * **Proof:** `~/Desktop/ChromIQ-beta38-proof/evenness-60/`.
 * **Status:** agreed; the checked result is confirmed. **Confirmed by:** Knut, 2026-09-23 (#182 comment [5794311113](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5794311113)).
 
-**Record (E8, the yardstick).** Research done, behaviour NOT changed: the
+**Record (E8, the yardstick).** Research done here; **superseded by the
+record in §21.1**, which builds his answer. As it stood in beta 38: the
 published tests compare absolute CIELAB, and the recommendation to judge
-evenness in absolute Lab always waits for Knut's decision (B8-830,
+evenness in absolute Lab always waited for Knut's decision (B8-830,
 `~/Desktop/ChromIQ-beta38-proof/evenness-followups/E8-research.md`). Listed as
 G8 in §20.
 
@@ -3831,7 +3844,7 @@ proposed in `unified_measurement_management.md`.
   because the full paragraph took the popup past a 13 inch screen. **Knut then
   ruled (R2, 5781645939): *"The popup window can be made wider, so that it does
   not become as tall, and no scrolling is needed in that window. The current
-  text shown in beta 34 was ok."* That is NOT built** (gap G5).
+  text shown in beta 34 was ok."* Built in beta 39, §21.3.**
 * **Verified by:** `tests/test_knuts_two_warnings_of_2026_09_22.py::`
   `test_the_set_really_decides_whether_such_a_row_is_shown`,
   `test_the_message_says_what_decides_it_and_qualifies_the_lever`,
@@ -3842,7 +3855,7 @@ proposed in `unified_measurement_management.md`.
 * **Status:** agreed; the part that is built is confirmed. **Confirmed by:**
   Knut, 2026-09-23 (#182 comment
   [5794311113](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5794311113)).
-  R2 not built (gap G5).
+  R2 built in beta 39 (§21.3), awaiting confirmation.
 
 ### 19.8 Sheets with different patch counts: an information note (R4)
 
@@ -4006,12 +4019,202 @@ built waits on a question to him or on work not yet done.
 | G2 | K7 a metric whose threshold is "-" disappears from Report Results, the Overview, the detailed data and the graph | 5781159382, 2026-09-22 | NOT built. Question 3 of 5784140521 (the Overview table too?) unanswered |
 | G3 | K8 report rows with no Report limits row (Paper white L\*, Black L\*, the per-colour ΔE00 rows, Spread): which limit each belongs to, and should notes say so | 5781159382, 2026-09-22 | Answered by measurement in 5784140521; question 4 (keep them under "For information", or remove) unanswered. Not built |
 | G4 | R1 the one-page summary: *"keep 1"*, and analyse option 3 with the Run description limited to 2 lines | 5781645939, 2026-09-22 | Option 1 is what runs. Option 3 analysed (`~/Desktop/ChromIQ-beta36-proof/design-R3-R2-R1/`): it did not fit A4 with a 2-line description. Question 7 unanswered; the 2-line limit and its help text NOT built |
-| G5 | R2 the pre-flight popup made wider so the full beta 34 paragraph fits with no scrolling | 5781645939, 2026-09-22 | NOT built: the popup carries one line (§19.7). Question 13 of 5784140521 re-asked it with a shorter paragraph; unanswered |
+| G5 | R2 the pre-flight popup made wider so the full beta 34 paragraph fits with no scrolling | 5781645939, 2026-09-22; 5795087247, 2026-09-23 | **Built in beta 39** (§21.3): *"Leave the window wider as previously specified."* |
 | G6 | R3 the ISO-derived sets stop showing rows nothing can answer (*"agreed, do that"*) | 5781645939, 2026-09-22 | NOT built. Questions 5 and 6 of 5784140521 (by reason or by set; should the full report still name what was left out) unanswered |
 | G7 | One report, one limit set, applied to every measurement it includes, across runs (§13.9) | 5773668311, 2026-09-22; rule confirmed 5794311113, 2026-09-23 | Rule **confirmed by Knut, 2026-09-23** (5794311113): *"the report's own limit set applies to every included measurement, whatever each run is bound to"*, which answers question 8 of 5784140521. **Not built yet (beta 39)**: graded reports are still narrowed to one set's measurements |
-| G8 | E8 judge evenness in absolute Lab (*"Do an investigation to see what is normal practice."*) | 5789263863, 2026-09-23 | Research done (B8-830); his decision open; behaviour unchanged |
+| G8 | E8 judge evenness in absolute Lab (*"Do an investigation to see what is normal practice."*) | 5789263863, 5795087247, 2026-09-23 | **Built in beta 39** (§21.1): he answered *"Yes"* |
 | G9 | Built rulings with no test that goes red: the type-covers sentence (§19.9); the "New report…" set tooltip (§19.13) | 5777326491, 5776479532, 2026-09-22 | Built, unpinned |
 | G10 | Built rulings with no on-screen proof folder of their own: K19 (§13.10), K22 (§19.2), K10 (§19.3), the unlock box (§19.6), the ISO cap (§14.6); K12 only inside round A; B8-526's proof folder gone | as listed | Tests only |
 | G11 | Graph details he answered with no test: the line colours (grey Avg and Max, a colour per new metric), the tab scroll arrows staying as they are | 5789263863, 2026-09-23 | Built as he answered, unpinned |
 | G12 | Notes wherever a verdict is shown, including the Printing record's detailed sections, suppressed where none is (*"OK"*); and *"Yes, check that all notes are printed"* (all 19 absence notes on screen) | 5774852534, 5775260868, 2026-09-22 | **Built in beta 39, awaiting confirmation** (§12 CH-31a, B8-845): the record explains its N-A rows and gives no verdict word in its detailed sections; every type's detailed table carries the document's note numbers. All 27 reason codes (the 19 plus the 8 evenness codes) driven on screen and saved to PDF, `~/Desktop/ChromIQ-beta39-proof/notes/REPORT.md`; `printing_unrecorded` prints only as an INFO reason from a report saved before 2026-09-13 (never N-A). Five questions in B8-845 |
-| G13 | B8-483 the grey ramp subset evenly spaced, no two picked patches close enough to lump (*"How close can two patches picked come to each other"*) | 5775993270, 5776479532, 2026-09-22 | Proposed (no gap under 8 %, none over 22 % of the range), awaiting his word; NOT built |
+| G13 | B8-483 the grey ramp subset evenly spaced, no two picked patches close enough to lump (*"How close can two patches picked come to each other"*) | 5775993270, 5776479532, 2026-09-22; 5795087247, 2026-09-23 | **Built in beta 39** (§21.2), 4 % of full scale |
+
+## 21. K28: evenness in absolute Lab, the grey ramp's spacing, the wider pre-flight, the ChromIQ folder's old/ (#182, beta 39)
+
+**⏳ AWAITING CONFIRMATION.** **Confirmed by:** *nobody yet.* The four
+rulings are Knut's
+([5795087247](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5795087247),
+2026-09-23, answering our questions; our summary
+[5795122579](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5795122579)),
+so they are agreed; what was BUILT from them waits for his confirmation.
+Registered as B8-846. Proof: `~/Desktop/ChromIQ-beta39-proof/k28-a/`.
+
+### 21.1 E8: evenness is judged in absolute Lab, whatever the print's intent
+
+**Record.**
+* **Rule:** *"E8: judge evenness in absolute Lab always, whatever the print's
+  intent? … Answer: Yes."* The research behind the question:
+  `~/Desktop/ChromIQ-beta38-proof/evenness-followups/E8-research.md` (every
+  published uniformity test compares absolute CIELAB readings of one sheet
+  with itself).
+* **SUPERSEDES** the clause of §16.1 item 1 (confirmed 2026-09-23) that the
+  residual is taken *"in the same yardstick (absolute, or media-relative where
+  the report normalises)"*. The rest of §16 stands.
+* **Built as:**
+  * the READINGS are always the sheet as measured (`absolute_lab` in
+    `build_report`); nothing is divided by the lightest patch for evenness;
+  * on a sheet the ΔE00 rows read media-relative (printed through its profile
+    with an intent that maps paper white, against a design or device
+    reference), each AIM is carried onto the paper instead:
+    aim XYZ × paper white / D50 (`aims_on_the_paper`), the ICC.1 6.3.2.2
+    scaling run the other way. **This part is our construction, not Knut's
+    words, and is the thing to confirm.** Why it is there, measured on the
+    837-patch demo chart printed relative on a paper of L\* 95.5, b\* -3
+    (`e8_three_ways.txt`): the readings as measured against the ideal-paper
+    design aims make the paper's own tint read as unevenness, colour by
+    colour, which raised the sheet's noise from 0.18 to 1.0 and turned a
+    drift that fails (1.51) into a pass (1.33). One scale on every aim cannot
+    make one ninth differ from another; with it the noise is 0.17 and the
+    drift fails again (1.47). The paper white is the same lightest patch the
+    ΔE00 rows use (`lightest_and_darkest`, the one rule);
+  * a sheet printed absolute, or against a colorimetric reference, keeps its
+    aims as designed: nothing changes for it;
+  * the evenness block records `"yardstick": "absolute"` and `"aims":
+    "on_the_paper"` or `"as_designed"`;
+  * the evenness help text says the readings are taken as measured, and that
+    on such a sheet each aim is carried onto the paper;
+  * **not changed:** the report's "How the colours were judged" line
+    describes the ΔE00 rows only. Whether it should also say that evenness is
+    read as measured is an open question (report rendering, not built here).
+* **Built:** `workflow/measurement_report.py::build_report` (the
+  `evenness_ref` wiring), `aims_on_the_paper`, `evenness_block`;
+  `workflow/compliance_sets.py::_D_EVENNESS`; the demo's run8
+  (`scripts/make_evenness_demo.py`).
+* **Verified by:** `tests/test_beta39_k28a.py::`
+  `test_a_white_mapped_sheet_is_read_as_measured_for_evenness`,
+  `test_the_paper_is_not_counted_as_unevenness`,
+  `test_an_absolute_sheet_keeps_its_aims_as_designed`,
+  `test_aims_on_the_paper_is_one_scale_for_every_patch`,
+  `test_the_help_text_says_evenness_is_read_as_measured`.
+* **Proof:** on screen, run8 of the evenness demo: dates 2026-10-08 and
+  2026-10-15 judged (blotch: from-the-mean FAIL 1.17, noise 0.24 / 0.14);
+  `e8_before_after.txt`, `e8_three_ways.txt`.
+* **Status:** agreed; built; awaiting confirmation.
+
+### 21.2 B8-483: the grey ramp's required steps are roughly evenly spaced
+
+**Record.**
+* **Rule:** *"pick the required number of steps out of a longer neutral ramp
+  so that they are roughly evenly spaced, within a few percent of full scale,
+  so the chosen steps are not bunched together. Build it that way? … Yes."*
+  His original words (5775993270): *"the patches that represent the minimum
+  number should be picked out from the existing neutral grey patches, and
+  those should have an approximate even spacing, else the outer black and
+  white positions can be fulfilled, but the patches between them cramped into
+  lumps"*.
+* **Built as** (`pick_even_grey_steps`, asked after the three existing
+  conditions of §3):
+  * m positions evenly spaced from the ramp's own darkest to its own lightest
+    grey level (the end rules, ≤ 10 and ≥ 90, are unchanged);
+  * for each position, the nearest grey level on the chart, which must lie
+    within **`GREY_SPACING_TOL` = 4.0 device units, i.e. 4 % of full scale**
+    of it (inclusive) and be a different level from the pick before;
+  * m starts at the required 8 and the first m that works is taken, up to the
+    number of distinct levels. More than 8 is allowed because a perfectly
+    even 11-step ramp (0, 10 … 100) holds no 8 steps within 4 of an 8-step
+    spacing (14.3 is 4.3 from both 10 and 20) and is not bunched;
+  * so two neighbouring picks are never more than 100 / 7 + 2 × 4 = **22.3 %**
+    of full scale apart on a full ramp, the ceiling proposed to him on
+    2026-09-22 (5776479532);
+  * a ramp that fails reads N-A on both grey rows with the new reason
+    `grey_steps_bunched`; the note names the level nothing is near (*"none lies
+    within 4 of the level 13.4 on a scale from 0 (black) to 100 (white)"*),
+    and the presets window says *"The grey steps on this chart are bunched
+    together"*. It is a patch shortfall, so it decides the star;
+  * **the statistics are unchanged**: the average and largest ΔCh still run
+    over every grey patch (§3). The picked levels are recorded in the block
+    (`picked_levels`) and decide only whether the ramp meets the step rule.
+    Whether the figure should be taken over the picked steps only is an open
+    question.
+* **Measured:** all 181 built-in charts that had an eligible grey ramp keep
+  it (at 3, 4 or 5 alike); the demo pack's Q1 chart (0, then seven steps
+  within 90.0 to 93.6) is refused and is now requirement R14's FAIL side.
+  The demo charts whose ramps were uneven by accident (the pairs R05 to R10,
+  R08's ramp, the surface pairs' ramp kept off the cube faces, and Q2) were
+  re-spaced so each pair still moves one requirement only
+  (`make_verification_preset_demos.py`, whose `--check` reads 14
+  requirements, 32 presets, 0 not doing what they claim).
+* **Built:** `workflow/measurement_report.py::GREY_SPACING_TOL`,
+  `pick_even_grey_steps`, `grey_balance_block`, `REASON_GREY_STEPS_BUNCHED`;
+  `workflow/preset_eligibility.py::PATCH_SHORTFALL_REASONS`;
+  `ui/dialogs/preset_verification_dialog.py::reason_line`;
+  `ui/dialogs/measurement_report_dialog.py::_reason_sentence` (one entry);
+  `workflow/compliance_sets.py::_D_GREY_RAMP`, `_R_GREY_RAMP`.
+* **Verified by:** `tests/test_beta39_k28a.py::`
+  `test_a_bunched_ramp_is_refused_and_says_where`,
+  `test_an_even_ramp_with_more_steps_than_required_passes`,
+  `test_the_tolerance_is_four_and_inclusive`,
+  `test_the_statistics_still_cover_every_grey`,
+  `test_no_built_in_chart_loses_its_grey_rows`,
+  `test_the_help_text_quotes_the_tolerance`,
+  `test_the_na_note_names_the_level_and_tells_nothing_to_do`,
+  `test_the_presets_window_counts_it_as_a_patch_shortfall`;
+  `tests/test_the_demo_presets_pair_on_every_requirement.py` (R14, and an
+  independent reimplementation of the rule).
+* **Proof:** on screen, "Which presets can be used for verification?" on the
+  R14 FAIL and PASS presets and the control, with the picked steps.
+* **Status:** agreed; built; awaiting confirmation.
+
+### 21.3 R2: the pre-flight is widened to show the full paragraph
+
+**Record.**
+* **Rule:** R2 (5781645939): *"The popup window can be made wider, so that it
+  does not become as tall, and no scrolling is needed in that window. The
+  current text shown in beta 34 was ok."*; asked again with a shorter
+  paragraph at 810 px or today's at 970 px: *"Leave the window wider as
+  previously specified."*
+* **SUPERSEDES** the one-line pre-flight of §19.7 (B8-773) wherever the screen
+  can hold the wide box.
+* **Built as:**
+  * where the chart falls short, the pre-flight carries the FULL
+    M-VERIFY-UNCHECKED-METRICS paragraph (its heading and body, the presets
+    window's own text) in place of the one line;
+  * the box wraps its text at `PREFLIGHT_TEXT_WIDTH` = 920 px (a box 968 px
+    wide), held inside Qt's own width ceiling (screen width − 480, less the
+    margins) so the text is never broken mid-word;
+  * **the 13-inch guard.** Once the box is on screen, its frame is compared
+    with the screen's work area; if it does not fit, the one line goes back
+    in (the beta 38 popup). Asked of the SHOWN frame because the size hint
+    before `exec()` read 683 px for a frame that opened at 827.
+* **Measured on screen** (this machine, work area 1079 px): English 968 × 827
+  px, German 968 × 875. A 13-inch MacBook Air has about 918 px of work area
+  with the Dock hidden or at the side, so both fit; with the Dock at the
+  bottom about 860, where English (827) fits and German (875) falls back to
+  the one line (driven with the guard handed 860: German frame 731 px, the OK
+  button and the tick on screen). Qt's width ceiling on a 1470 px wide Air is
+  990 (derived from the ceiling measured here, not measured on an Air), so
+  the 968 box fits its width.
+* **Built:** `ui/tabs/tab_measure.py::PREFLIGHT_TEXT_WIDTH`,
+  `preflight_text_width`, `_preflight_fits`,
+  `_verification_preflight_message(short=)`,
+  `_show_verification_preflight_now`.
+* **Verified by:** `tests/test_beta39_k28a.py::`
+  `test_the_width_is_held_inside_qts_own_ceiling`,
+  `test_a_screen_too_short_for_the_wide_box_gets_the_one_line`,
+  `test_the_popup_is_widened_and_guarded`;
+  `tests/test_knuts_two_warnings_of_2026_09_22.py::`
+  `test_the_preflight_says_it_too_when_the_chart_falls_short` (rewritten: it
+  asserted the one line).
+* **Proof:** photographs of the whole popup, English and German, and the
+  German fallback at 860 px.
+* **Status:** agreed; built; awaiting confirmation.
+
+### 21.4 The ChromIQ folder's own old/ in "Where are my files?"
+
+**Record.**
+* **Rule:** *"Deleting a report across projects moves it to <ChromIQ default
+  folder>/old/<date>/ … Is that the right place? Answer: Yes. This
+  outside-of-project folder also needs to be visible in the help card for
+  'Where are my files?'"*
+* **Built as:** the folder diagram gains a root "Your ChromIQ folder/"
+  (~/ChromIQ or the custom output folder) with `reports/` (reports across
+  several projects) and `old/` (such a report after "Delete Selected Report",
+  in a folder named with the moment). The project's own `old/` (a report
+  across several of its runs, deleted) was missing from the diagram and is
+  added beside it. The files table's cross-project row names the old/
+  destination too.
+* **Built:** `ui/file_guide.py::_structure`, the files table.
+* **Verified by:** `tests/test_beta39_k28a.py::`
+  `test_the_folder_guide_shows_the_chromiq_folders_own_old`.
+* **Proof:** on screen, the card scrolled to the rows, English and German.
+* **Status:** folder agreed; the help card rows built; awaiting confirmation.
