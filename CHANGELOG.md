@@ -1,5 +1,53 @@
 # Changelog
 
+## v4.3.0-beta.38
+
+**Knut's rulings of 23 September: the report list grouped by project and run,
+graphs that explain themselves, evenness at 60 % page coverage, and his rulings
+recorded and confirmed in the design specification.**
+
+### Added
+
+- **"Report shown" is grouped** by run and by project, with "Reports including
+  multiple runs" and "Reports including multiple projects". The grouping is
+  there from the start whenever a report it offers covers more than one run.
+- **Profiling reports are named** Run1, Run2, Multiple runs and All runs, and
+  the window counts "Already generated for these measurements".
+- **Every trend graph explains itself.** Each limit label has a description
+  (a tooltip on screen, the same text under the graph in the PDF), each graph
+  has a short description in the PDF, and every legend carries its unit.
+- **A red x marks a date whose value was not judged**, at the height of the
+  nearest measured dates; two on one date sit one above the other.
+- **A project whose folder name no longer matches its project name** is
+  offered a rename: to the folder's name, to a new name, or Cancel.
+- The design specification records every ruling since beta 34, with where it
+  is built, the tests that guard it and the on-screen proof; Knut has
+  confirmed them.
+
+### Changed
+
+- **Evenness page coverage**: a page's patches must cover at least 60 % of it
+  (worked out from the Measured from Preview margins). Knut's multi-page i1Pro
+  3 Plus charts can now be judged on evenness.
+- **The Colour accuracy graph plots the judged (within-gamut) figures**, the
+  same numbers the verdict uses.
+- "Bound, and locked" is explained in the help instead of in the report.
+- Limit labels stay at the left end of their line.
+- With Run type Calibration the report window opens empty for now; Knut's new
+  calibration reports come in beta 39.
+
+### Fixed
+
+- **Renaming a project whose folder name differed only in upper or lower case
+  moved the built profile aside** and left the project half renamed. A rename
+  is now planned first, refused before anything moves if it cannot finish, and
+  undone if a step fails.
+- A renamed copy of a project no longer pulls the original project's
+  measurements into its report window.
+- A rename now also renames the chart's control-strip file.
+- A cancelled or elsewhere-saved PDF no longer leaves an empty reports folder.
+- A report across projects is listed and counted again.
+
 ## v4.3.0-beta.37
 
 **Knut's rulings of 22 and 23 September: where reports live, what the report
