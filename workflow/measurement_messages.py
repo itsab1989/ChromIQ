@@ -1118,12 +1118,12 @@ M_VERIFY_UNCHECKED_METRICS = _m(
     "What the report does with a metric this chart cannot answer",
     "It is never judged, and it can never make the report fail.\n\n"
     "Whether it appears at all is decided by the limit set the report is "
-    "judged against. Where the set puts a real limit on the metric, the row is "
-    "shown reading N-A, and on a report type that carries notes it also "
-    "carries one saying what the row needed. Where the set puts no limit on "
-    "it, the row is left out; that is what ChromIQ's own sets do with the "
+    "judged against. Where the set puts a real limit on the metric, the "
+    "metric is shown reading N-A, and on a report type that carries notes it "
+    "also carries one saying what it needed. Where the set puts no limit on "
+    "it, the metric is left out; that is what ChromIQ's own sets do with the "
     "metrics above.\n\n"
-    "To leave a row out yourself, set that metric's threshold to zero in the "
+    "To leave a metric out yourself, set its threshold to zero in the "
     "run's limits, where those limits can still be edited. The box shows zero "
     "as “–”.",
     approved=False)

@@ -1420,9 +1420,11 @@ verification", under the list of what the chart cannot answer:*
 >
 > It is never judged, and it can never make the report fail.
 >
-> Whether it appears at all is decided by the limit set the report is judged against. Where the set puts a real limit on the metric, the row is shown reading N-A, and on a report type that carries notes it also carries one saying what the row needed. Where the set puts no limit on it, the row is left out; that is what ChromIQ's own sets do with the metrics above.
+> Whether it appears at all is decided by the limit set the report is judged against. Where the set puts a real limit on the metric, the metric is shown reading N-A, and on a report type that carries notes it also carries one saying what it needed. Where the set puts no limit on it, the metric is left out; that is what ChromIQ's own sets do with the metrics above.
 >
-> To leave a row out yourself, set that metric's threshold to zero in the run's limits, where those limits can still be edited. The box shows zero as “–”.
+> To leave a metric out yourself, set its threshold to zero in the run's limits, where those limits can still be edited. The box shows zero as “–”.
+
+*Revised 2026-09-23 for beta 38: the paragraph said "row" four times in the one window Knut's beta 25 item 4 cleared of the word; it says "metric" now. Still PROPOSED.*
 
 *Neither window is report text, which is why they may name a control: his other
 ruling of the same day is that no report text explains how to use ChromIQ, and

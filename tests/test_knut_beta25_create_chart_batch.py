@@ -361,6 +361,16 @@ def test_nothing_this_window_shows_a_reader_says_row(window, qapp):
     window._tree.setCurrentItem(items[0])
     qapp.processEvents()
     shown.append(_detail_text(window))
+    # THE CHART'S OWN ROWS ARE NOT TABLE ROWS (beta 38, E2). Item 4 is about
+    # calling a metric a "row". "9 strips and 9 rows" is the patch grid on the
+    # page, the evenness floor Knut ruled in those words, and it first reached
+    # this pane when the page-coverage floor gave the first preset in the list
+    # an evenness shortfall. That same shortfall exposed four "row"s in
+    # M-VERIFY-UNCHECKED-METRICS and one in the evenness remedy, which now say
+    # "metric". MUTATION: put "the row is shown reading N-A" back and this
+    # goes red.
+    shown = [re.sub(r"\bstrips and \d+ rows\b", "strips and N patch-lines", s)
+             for s in shown]
     bad = [s for s in shown if re.search(r"\brows?\b", s, re.I)]
     assert not bad, f"still says 'row': {[b[:80] for b in bad]}"
 

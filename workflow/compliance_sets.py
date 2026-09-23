@@ -522,7 +522,7 @@ _D_EVENNESS = (
 _R_EVENNESS = (
     "Use a chart whose pages hold at least 9 strips and 9 rows, with patches "
     "covering at least 75 % of the page, and enough patches that about 30 "
-    "land in each ninth of the page. If a row reads a difference, measure the same sheet "
+    "land in each ninth of the page. If a metric reads a difference, measure the same sheet "
     "again before looking for a cause, since an instrument that drifts during "
     "a long reading makes the strips read last differ from the first.")
 
