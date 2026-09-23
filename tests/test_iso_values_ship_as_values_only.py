@@ -297,6 +297,37 @@ def test_the_install_script_refuses_half_a_set_and_names_rows_not_values(tmp_pat
     assert target.read_text(encoding="utf-8") == before, "a refused set was written"
 
 
+def test_the_install_script_drops_a_null_cell_and_still_refuses_a_null_judged_row(tmp_path):
+    """The template the Report limits window writes carries `null` for a row
+    the standard gives no figure for. That is "no figure", the same as the row
+    being absent: it must not refuse the set, and it must not ship. A row
+    ChromIQ JUDGES that is only null is still missing.
+
+    MUTATION: stop dropping null cells in the script and the first half goes
+    red (the set is refused); drop them AFTER the check and the null judged
+    row ships as a hole and the second half goes red."""
+    target = tmp_path / "iso12647.json"
+    target.write_text(REPO_FILE.read_text(encoding="utf-8"), encoding="utf-8")
+    full = _fake_set("iso_12647_8")
+    unjudged = sorted(set(cs._ISO_ROWS["iso_12647_8"]) - _judgeable("iso_12647_8"))
+    assert unjudged, "no row of this set is left unjudged; pick another shape"
+    src = tmp_path / "source.json"
+    src.write_text(json.dumps({"iso_12647_8": {**full, unjudged[0]: None}}),
+                   encoding="utf-8")
+    got = _run(src, "--set", "8", "--target", target)
+    assert got.returncode == 0, got.stdout
+    written = json.loads(target.read_text(encoding="utf-8"))["iso_12647_8"]
+    assert unjudged[0] not in written and None not in written.values()
+
+    judged = sorted(_judgeable("iso_12647_8"))[0]
+    before = target.read_text(encoding="utf-8")
+    src.write_text(json.dumps({"iso_12647_8": {**full, judged: None}}),
+                   encoding="utf-8")
+    got = _run(src, "--set", "8", "--target", target)
+    assert got.returncode == 1 and "missing" in got.stdout and judged in got.stdout
+    assert target.read_text(encoding="utf-8") == before
+
+
 def test_the_install_script_check_writes_nothing(tmp_path):
     target = tmp_path / "iso12647.json"
     target.write_text(REPO_FILE.read_text(encoding="utf-8"), encoding="utf-8")

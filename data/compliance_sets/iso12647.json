@@ -1,5 +1,44 @@
 {
   "_readme": "Tolerance values of the two ISO value sets of the Measurement Report (issue #182). Each set object below is either EMPTY or COMPLETE, never partly filled. A COMPLETE set holds the standard's values only: one number, or [number, \"should\"] for a recommendation, per row that standard limits, under ChromIQ's own row ids (workflow/compliance_sets.py ROWS). No wording, table, figure or page of the standard is in this file or anywhere else in ChromIQ; the row names, help texts and layout are ChromIQ's own. Shipping the values is based on the written statement of DIN's legal department of 2026-09-23 (#182, question S-2): \"wenn Sie definitiv nur Werte aus der Norm verwenden – keine Bilder, keine Seiten, keine Texte, dann fällt das nicht unter Vervielfältigung.\" (If you definitely use only values from the standard, no images, no pages, no texts, that does not count as reproduction.) It applies to ISO 12647-7:2016 and ISO 12647-8:2021 alike. The values are filled in only on the owner's explicit go-ahead, with scripts/install_iso_12647_values_into_repo.py. An EMPTY set is one ChromIQ does not ship: every cell of its read-only column reads '?' (or '–' / '✕'), and it cannot be chosen for a run. Either way a licence holder can still supply values from their own copy, from the Report limits window under 'Reference values...' or through CHROMIQ_COMPLIANCE_ISO_FILE; a number they supply takes the place of the shipped one for that row. The two Custom columns never start from the shipped values, only from a licence holder's own.",
-  "iso_12647_7": {},
-  "iso_12647_8": {}
+  "iso_12647_7": {
+    "substrate_de00_max": 3.0,
+    "substrate_overprinted_de00_max": 3.0,
+    "solids_de00_max": 3.0,
+    "cmy_solids_dhab_max": 2.5,
+    "spot_solids_de00_max": 2.5,
+    "control_strip_de00_avg": 2.5,
+    "control_strip_de00_max": 5.0,
+    "grey_balance_neutral_ramp_avg": 2.0,
+    "grey_balance_neutral_ramp_max": 3.5,
+    "all_de00_avg": 2.5,
+    "all_de00_p95": 5.0,
+    "outer_gamut_226_de00_avg": 2.5,
+    "uniformity_sd": 0.5,
+    "uniformity_de00_max_from_mean": 2.0,
+    "repeatability_de00_max": 2.0,
+    "permanence_de00_max": 2.5,
+    "light_fastness": 3.0,
+    "stabilization_minutes_max": 30.0
+  },
+  "iso_12647_8": {
+    "substrate_de00_max": 3.0,
+    "spot_solids_de00_max": 3.5,
+    "control_strip_de00_avg": 2.5,
+    "control_strip_de00_p95": 5.0,
+    "grey_balance_neutral_ramp_avg": 2.5,
+    "grey_balance_neutral_ramp_max": 4.0,
+    "all_de00_avg": 2.5,
+    "all_de00_p95": 5.0,
+    "surface_gamut_de00_avg": 3.0,
+    "ramps_30_70_dl_max": 2.0,
+    "uniformity_sd": 1.5,
+    "uniformity_de00_max_from_mean": 2.0,
+    "macro_uniformity_score": 50.0,
+    "repeatability_de00_max": 2.5,
+    "permanence_de00_max": 4.5,
+    "fading_24h_de00_max": 1.5,
+    "light_fastness": 3.0,
+    "stabilization_minutes_max": 30.0,
+    "tone_value_limits": 2.0
+  }
 }

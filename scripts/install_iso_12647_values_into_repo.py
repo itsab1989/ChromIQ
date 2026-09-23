@@ -22,6 +22,9 @@ A set is copied only when it is COMPLETE: only row ids ChromIQ knows that
 standard limits (`compliance_sets._ISO_ROWS`), every one of them that ChromIQ
 can judge present (a row it cannot measure reads ✕ whatever it holds, so it
 may be left out), and every cell a finite number or `[number, "should"]`.
+A `null` cell is the template's "no figure for this row" and is dropped
+before the check, exactly as if the row were absent: it never ships, and a
+row ChromIQ judges that is only null is still refused as missing.
 Anything else is refused whole, naming the ROW IDS
 that are wrong (row ids are ChromIQ's own names, not the standard's content)
 and never a value. The output is counts and True/False only.
@@ -102,6 +105,12 @@ def main(argv=None) -> int:
         return 2
 
     ids = list(SET_FOR.values()) if a.set == "both" else [SET_FOR[a.set]]
+    dropped = {}
+    for sid in ids:
+        cells = source.get(sid)
+        if isinstance(cells, dict):
+            source[sid] = {r: v for r, v in cells.items() if v is not None}
+            dropped[sid] = len(cells) - len(source[sid])
     problems = [p for sid in ids for p in check_set(sid, source.get(sid))]
     for p in problems:
         print("refused:", p)
@@ -109,7 +118,8 @@ def main(argv=None) -> int:
         return 1
 
     for sid in ids:
-        print(f"{sid}: {len(source[sid])} cells in the source, all valid; "
+        print(f"{sid}: {len(source[sid])} cells in the source, all valid "
+              f"({dropped.get(sid, 0)} null cells dropped); "
               f"already equal in the repository file: "
               f"{target.get(sid) == source[sid]}")
     if a.check:
