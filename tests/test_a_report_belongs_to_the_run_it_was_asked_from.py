@@ -185,7 +185,9 @@ def test_the_run_stops_saying_it_has_no_report(tmp_path, qapp, monkeypatch):
         _generate(dlg, monkeypatch, qapp)
         dlg._forget_limits()
         dlg._sync_limit_controls()
-        assert "Already generated for this run" in dlg._type_blurb_full, (
+        # K26: a Profiling window says "for these measurements".
+        assert "Already generated for these measurements" in \
+            dlg._type_blurb_full, (
             dlg._type_blurb_full)
         assert _count(dlg._type_blurb_full) == before + 1, (
             dlg._type_blurb_full)

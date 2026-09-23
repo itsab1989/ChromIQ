@@ -1538,8 +1538,8 @@ M_PROJECT_FOLDER_RENAMED = _m(
     "named \u201c{name}\u201d",
     "ChromIQ finds a project's charts, measurements, profiles and reports by "
     "the name of its folder, so until the two match it finds none of them. "
-    "This happens when a project folder is copied or renamed outside "
-    "ChromIQ, for example duplicated in Finder.\n\n"
+    "This happens when a project folder is copied, duplicated or renamed "
+    "outside ChromIQ.\n\n"
     "Rename the project to \u201c{new}\u201d so its files carry that name "
     "too, or leave it as it is.",
     approved=False)

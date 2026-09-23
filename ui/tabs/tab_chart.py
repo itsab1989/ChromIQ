@@ -8275,7 +8275,7 @@ class TabChart(QWidget):
         field, then the user should be given the option, with a popup window,
         to rename the project."* The field shows the folder's name, the files
         and project.json carry the old one, and every run looks its files up
-        by the folder's name, so such a project (a Finder duplicate, "X
+        by the folder's name, so such a project (a duplicate, "X
         copy") finds none of them: the report window of a duplicated demo
         project opened empty.
 

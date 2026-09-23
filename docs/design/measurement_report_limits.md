@@ -1637,7 +1637,9 @@ What was built, and the assumptions it rests on (each is his to overturn):
   why, as an unbuilt type is (§10), not hidden.
 * **A measurement with no run** (a file outside any project, and a
   calibration) keeps every type, as before. *Assumption:* a calibration is not
-  a profile run, so the rule is not applied to it.
+  a profile run, so the rule is not applied to it. **Overturned for
+  calibration by K26 (§18.1):** under Run type Calibration the window makes
+  no report at all and opens empty.
 * **Preferences "Report type, default" applies to every measurement that is
   not a profiling measurement** (verifications, calibrations and files outside
   a project), so the Printing record is greyed there, and a stored Printing
@@ -1756,9 +1758,13 @@ what was built from it (B8-826); nobody has confirmed the built behaviour.
 What was built:
 
 * **Names.** Unchanged: "One date", "Multiple dates", "All dates" on every
-  entry, profiling and verification alike.
+  entry, profiling and verification alike. **Amended by K26 (§18.6):** on a
+  Profiling window they are "Run1", "Run2", …, "Multiple runs", "All runs".
 * **Whether the list is grouped** is decided by the measurements in "Included
   measurements" (the folders §13.11 reads, of the profile bar's Run type):
+
+  **Amended by K26 (§18.10):** the reports the list OFFERS count as well, so
+  one report covering two profile runs groups the list from the start.
 
   | the measurements come from | headings |
   |---|---|
@@ -2362,7 +2368,8 @@ packs (`~/Desktop/ChromIQ-beta38-proof/graphs/REPORT.md`):
     keeps clear of the graph's own lines, points and red x. Where the left
     end of its line is crossed by a data line it moves along its own line to
     the first clear place; where there is none it stays at the left end. A
-    word is never left out.
+    word is never left out. **Withdrawn by K26 (§18.9):** a word stays at the
+    left end of its line even over a data line; nothing slides.
 12. **Every limit word has a description.** Pointing at the word on screen
     shows it as a tooltip; the PDF prints the same text under the graph, one
     line per limit line, marked with a short dotted stroke in the line's
@@ -2389,10 +2396,128 @@ packs (`~/Desktop/ChromIQ-beta38-proof/graphs/REPORT.md`):
       beside it is withheld too). When a date beside it gets a point, the x
       moves up by the same rule.
 
-    The neighbours are the dates immediately beside it on the axis. Pointing
+    The neighbours are the dates immediately beside it on the axis
+    (**amended by K26, §18.9:** the NEAREST dates that have a value). Pointing
     at the x shows *"<date>, <metric>: not judged, because <the same sentence
     as the results table's N-A>."*; the PDF prints the same text under the
     graph, after the line descriptions, marked with a red ×.
 16. **Unchanged:** the tab scroll arrows; and a report of one measurement
     still shows "A trend graph needs at least two measurement runs…" in its
     graphs, with no red x.
+
+## 18. K26: Knut's rulings on the beta 37 and K25 questions (#182, 2026-09-23)
+
+### ⏳ AWAITING CONFIRMATION
+
+**Ruled by:** Knut, #182 comments 5792484060 (the answers) and 5792576954
+(group "Report shown" from the start); our reply 5792508391.
+**Confirmed by:** *nobody yet.* This records his rulings and what was built
+from them (B8-832), driven on screen (`~/Desktop/ChromIQ-beta38-proof/k26/`).
+Nobody has confirmed the built behaviour.
+
+**18.1 Run type Calibration makes no report.** *"Run type= Calibration should
+not allow any reports, and the measurement report window should have
+disabled/locked selection fields ... The measurement report window should not
+load any text or reports and open as empty."*
+
+* The window asks the profile bar (the window's parents, as §13.12 reads the
+  Run type). Under Calibration it loads nothing, whatever measurement the
+  door hands it: the Tools menu and every "Open measurement report" button of
+  the Measure tab reach the same constructor. The report view is blank, the
+  graphs are hidden, and every selection field and report button is disabled:
+  "Report shown", Add / Remove / Clear, the measurement list, Select all /
+  Deselect all, Report type, Judged against, Show limits…, Unlock, "Show
+  detailed data for each run", Generate report, Delete Selected Report, Save
+  report as PDF…, Reveal folder. Close and the help icons stay live.
+  The Measure tab's own report button, which asked for a measurement first
+  ("Measure this chart first"), opens this window under Calibration.
+* In place of "Already generated…" a red line reads *"Measurement reports can
+  only be made with Run type Profiling or Verification"*; its tooltip says
+  what to change (§M-PROPOSED, M-REPORT-NOT-FOR-CALIBRATION).
+* A window with no profile bar behind it cannot know the Run type and behaves
+  as before.
+* The Report type help no longer says a calibration can have any type.
+* **Not changed, and asked (B8-832):** the report the Measure tab writes by
+  itself after a calibration measurement.
+
+**18.2 "Bound, and locked" left the report.** *"Remove it from the report, and
+make sure this information is in the relevant help text."* The paragraph is
+gone from "How to read this report". The same two sentences are in the "Judged
+against" help; the help card's glossary already had "Bound" and "Locked", and
+its "Locked" entry no longer says an unlock recalculates the saved reports
+(nothing is recalculated since B8-391).
+
+**18.3 The Printing record keeps "Judged against".** *"keep the judged against
+row, which defines the thresholds shown."* Nothing changed.
+
+**18.4 The Colour accuracy graph plots the judged figures.** *"Yes, use the
+within-gamut figures."* Each date plots what its verdict judged
+(`graded_de00`): the within-gamut figures where the sheet's colours were split
+by the profile's gamut, all patches where they were not. With a within-gamut
+date on the axis the two "all patches" legend entries read "all judged
+patches", and the PDF description says the figures are within the profile's
+gamut where the sheet was split by it. The Avg / Max lines are unchanged.
+
+**18.5 A project whose folder is not named what its files carry** (a Finder
+duplicate, "X copy"). *"the user should be given the option, with a popup
+window, to rename the project. This interface and function should already
+exist and just has to be modified a tiny bit to allow this case."*
+
+* When a project is opened and its `project.json` name is not its folder's
+  name, the existing rename chooser comes up before anything of the project is
+  shown, with its heading and introduction from M-PROJECT-FOLDER-RENAMED
+  (§M-PROPOSED) and two choices: **Rename the project to "<name>"** and
+  **Leave it as it is**. <name> is what the "Printer profile project name"
+  field shows.
+* Rename renames every ChromIQ file carrying the old name, and the manifest,
+  in place; a folder whose name ChromIQ would not give a project (a space, as
+  in "X copy") becomes "X-copy" as every rename does. A failure is reported
+  (M-PROJECT-FOLDER-RENAME-FAILED) and nothing else runs.
+* A project with a built profile is offered the same rename; the option says
+  the profile keeps the name written inside it. *Assumption:* the ordinary
+  rename refuses a built profile, but refusing here leaves the copy unable to
+  find any of its files (asked, B8-832).
+
+**18.6 Profiling names.** *"When run type is set to Profiling: The name tags
+become Run1, Run2, ..., then Multiple runs and All runs"*. On a Profiling
+window a report of one measurement is named after the run it covers, one of
+several but not all is "Multiple runs", all of them "All runs". Verification
+keeps "One date", "Multiple dates", "All dates". The grouping of §13.12 stays.
+
+**18.7 "for these measurements".** On a Profiling window the line under
+"Report shown" reads "Already generated for these measurements: …" (and "No
+report has been generated for these measurements yet."). Verification keeps
+"for this run".
+
+**18.8 `<output folder>/reports/`** is created only by the first report across
+projects. Opening, listing, counting and loading create nothing there, which
+a test pins. Driven: while the window holds measurements of two projects,
+Generate report is greyed ("Measurements from more than one place are
+loaded"), so the window itself writes no report across projects today.
+*Found, not changed (another change set owns it):* "Save report
+as PDF…" creates the report's folder before its file chooser opens, so a
+cancelled PDF of a page across projects leaves `<output folder>/reports/`
+behind, empty.
+
+**18.9 The red x and the limit words.**
+
+* A red x takes the NEAREST date on each side that has a value: at that value
+  when one side has one, at the mean when both do, just above the x-axis when
+  neither does (§17.1 item 15, amended).
+* Two red crosses on one date whose places would overlap sit one above the
+  other, one tooltip box apart (13 px), the later metric above; below instead
+  when above would leave the plot.
+* A limit word placed inside the plot stays at the left end of its line even
+  over a data line, as on Colour accuracy before beta 38 (§17.1 item 11,
+  amended). The tooltips and the PDF descriptions stay.
+
+**18.10 "Report shown" is grouped from the start** (5792576954: *"'Report
+shown' should be grouped from the start, because one of the reports it offers
+covers two profile runs."*). Whether the list has headings is decided by the
+measurements in "Included measurements in report" AND by what the reports it
+offers cover: one report covering two profile runs groups it before that
+report is selected.
+
+**18.11 The evenness demo** (*"Fix it."*): on a synthetic sheet no patch that is
+not the paper reads lighter than the lightest paper patch, so the noisy date's
+paper white is the paper (`scripts/make_evenness_demo.py`).

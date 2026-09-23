@@ -140,9 +140,9 @@ def test_every_door_hands_the_window_a_parent_that_knows_the_run_type():
     import re
     measure = (ROOT / "ui" / "tabs" / "tab_measure.py").read_text(
         encoding="utf-8")
-    calls = re.findall(r"MeasurementReportDialog\(([^,]+),\s*([^,]+),",
+    calls = re.findall(r"MeasurementReportDialog\(([^,()]+),\s*([^,()]+)[,)]",
                        measure)
-    assert len(calls) >= 4, calls
+    assert len(calls) >= 5, calls
     assert all(parent.strip() == "self" for _s, parent in calls), calls
     assert "self._target_ctl" in measure
     tools = (ROOT / "ui" / "dialogs" / "tools_dialogs.py").read_text(
@@ -582,3 +582,37 @@ def test_the_printing_record_keeps_its_judged_against_row(tmp_path, qapp):
         assert ">Judged against</td>" in page
     finally:
         dlg.close()
+
+
+def test_the_measure_tab_button_opens_the_empty_window_under_calibration(
+        qapp, monkeypatch):
+    """The Measure tab's own "Measurement report" button asked for a
+    measurement first and, with the calibration chart not measured, said
+    "Measure this chart first". Under Run type Calibration it opens the
+    window, which opens empty and says why.
+
+    MUTATION, proven red: drop the ``if calibration:`` branch from
+    `TabMeasure._open_measurement_report` (the "measure first" message
+    comes instead of the window)."""
+    from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+    from ui.tabs import tab_measure as tm
+    opened, told = [], []
+    monkeypatch.setattr(MeasurementReportDialog, "exec",
+                        lambda self: opened.append(self) or 0)
+    monkeypatch.setattr(tm, "inform", lambda *a, **k: told.append(a),
+                        raising=False)
+    fake = QWidget()
+    fake._target_ctl = SimpleNamespace(target=SimpleNamespace(
+        run_type="calibration", is_calibration=lambda: True))
+    from core.settings import AppSettings
+    fake._settings = AppSettings()
+    fake._ti1_path = None
+    fake._is_verification_run = lambda: False
+    try:
+        tm.TabMeasure._open_measurement_report(fake)
+        assert len(opened) == 1 and told == []
+        assert opened[0]._calibration_locked
+    finally:
+        for d in opened:
+            d.deleteLater()
+        fake.deleteLater()

@@ -15171,6 +15171,20 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
     def _open_measurement_report(self) -> None:
         """Open the measurement-report viewer for the current chart's .ti3."""
         from ui.dialogs.measurement_report_dialog import MeasurementReportDialog
+        # **RUN TYPE CALIBRATION: THE WINDOW, EMPTY (#182 K26).** Knut: the
+        # window "should not load any text or reports and open as empty".
+        # This button asked for a measurement first and, with the
+        # calibration chart not yet measured, answered with "Measure this
+        # chart first", a promise of a report that Run type Calibration no
+        # longer makes. It opens the window, which says so itself.
+        ctl = getattr(self, "_target_ctl", None)
+        try:
+            calibration = bool(ctl is not None and ctl.target.is_calibration())
+        except Exception:                                # noqa: BLE001
+            calibration = False
+        if calibration:
+            MeasurementReportDialog(self._settings, self).exec()
+            return
         ti3 = self._ti1_path.with_suffix(".ti3") if self._ti1_path else None
         # A verification's measurements live in DATED folders, never beside
         # the shared chart — so the beside-the-chart guess above never finds

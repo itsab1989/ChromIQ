@@ -25427,9 +25427,10 @@ would reach.
   `tests/test_beta37_round_fixes.py`, `tests/test_beta37_report_text.py`,
   `tests/test_beta37_a_preflight_asked_while_one_is_open_is_not_lost.py`.
 
-### B8-819 · OPEN · Question for Knut: Run type Calibration lists and counts every report type (beta 37, A-F2)
+### B8-819 · FIXED · Question for Knut: Run type Calibration lists and counts every report type (beta 37, A-F2)
 - blocks release: no
-- status: OPEN
+- status: FIXED
+- answered: Knut 5792484060 Q1: no report under Calibration; built in B8-832 (§18.1)
 - found by: challenge round A, F2 (only with Preferences > Calibration options
   on). With Run type Calibration the window maps to "every type" (§13.10
   assumption "a calibration keeps every type"): it lists and counts profiling
@@ -25440,10 +25441,14 @@ would reach.
   window list, count and generate, and should it refuse measurements that
   are not the calibration's? Not changed: the §13.10 assumption is his to
   overturn.
+- evidence:
+  test_a_calibration_window_opens_empty_and_locked
+  test_the_other_run_types_are_untouched
 
-### B8-820 · OPEN · Question for Knut: the "Bound, and locked" paragraph against K18 (beta 37, B-H4)
+### B8-820 · FIXED · Question for Knut: the "Bound, and locked" paragraph against K18 (beta 37, B-H4)
 - blocks release: no
-- status: OPEN
+- status: FIXED
+- answered: Knut 5792484060 Q2: removed from the report, kept in the help; built in B8-832 (§18.2)
 - found by: challenge round B, H4. The report guide's "Bound, and locked."
   paragraph explains how ChromIQ copies a limit set onto a run at its first
   dated verification and locks it at the second. K18 (5785414710) says report
@@ -25451,29 +25456,39 @@ would reach.
   the paragraph on 2026-09-11 ("be specific in the explanation ..."). It is
   also untrue of a report made after unlocking and changing the set. Kept as
   it is; question: keep, reword as a statement about the report, or remove.
+- evidence:
+  test_bound_and_locked_is_explained_in_the_help_not_the_report
 
-### B8-821 · OPEN · Question for Knut: should a Printing record keep its "Judged against" row? (beta 37, B-H3)
+### B8-821 · FIXED · Question for Knut: should a Printing record keep its "Judged against" row? (beta 37, B-H3)
 - blocks release: no
-- status: OPEN
+- status: FIXED
+- answered: Knut 5792484060 Q3: keep it; nothing to change, now pinned (B8-832, §18.3)
 - found by: challenge round B, H3. The Printing record grades nothing; its
   standard caveat and "This verdict was recorded ..." line are removed
   (B8-818). The results still end in a "Judged against" row naming each
   sheet's set (e.g. "Custom ISO 12647-7 / Quick check / ChromIQ default"),
   which his earlier design asked for. Question: keep the row on a record that
   judges nothing, or drop it for that type.
+- evidence:
+  test_the_printing_record_keeps_its_judged_against_row
 
-### B8-822 · OPEN · Question for Knut: the colour-accuracy graph plots all-patches figures under a within-gamut verdict (beta 37, B-M6)
+### B8-822 · FIXED · Question for Knut: the colour-accuracy graph plots all-patches figures under a within-gamut verdict (beta 37, B-M6)
 - blocks release: no
-- status: OPEN
+- status: FIXED
+- answered: Knut 5792484060 Q4: plot the within-gamut figures; built in B8-832 (§18.4)
 - found by: challenge round B, M6. On a split sheet the verdict words judge the
   within-gamut figures (1.36 on 2026-12-01 in the Border-Conditions demo),
   while the Colour accuracy trend plots the all-patches figure (1.95) against
   the Avg line. Question: plot the within-gamut figures (the ones judged), the
   all-patches ones (as now), or both with a legend saying which.
+- evidence:
+  test_the_accuracy_trend_plots_what_the_verdict_judged
+  test_the_graph_says_its_figures_are_the_judged_ones
 
-### B8-823 · OPEN · Question for Knut: a project duplicated in Finder opens with an empty report window (beta 37, A-F5)
+### B8-823 · FIXED · Question for Knut: a project duplicated in Finder opens with an empty report window (beta 37, A-F5)
 - blocks release: no
-- status: OPEN
+- status: FIXED
+- answered: Knut 5792484060 Q5: offer the rename chooser; built in B8-832 (§18.5)
 - found by: challenge round A, F5. "Report-Limits-Report-Folders copy" opens
   as target "...-copy", while every file inside keeps the old stem, so the
   window finds no measurement. Checked by reading the code: `Run.stem` has
@@ -25482,10 +25497,13 @@ would reach.
   or duplicated project find its files by the stem they carry (rename them,
   or read the stem from `project.json`), or say that the copy's files are
   named for another project.
+- evidence:
+  test_a_finder_duplicate_is_offered_the_rename_and_renamed
 
-### B8-824 · OPEN · Question for Knut: the noisy demo date's white patch (beta 37, B-M4)
+### B8-824 · FIXED · Question for Knut: the noisy demo date's white patch (beta 37, B-M4)
 - blocks release: no
-- status: OPEN
+- status: FIXED
+- answered: Knut 5792484060 Q6: fix the generator; built in B8-832 (§18.11)
 - found by: challenge round B, M4. On the evenness demo's noisy date
   (2026-10-22) "Paper white & darkest black" reads "White (337) - L* 100.0,
   a* -16.6, b* 90.1" while the cube-corner table names 343 White and 337
@@ -25495,6 +25513,8 @@ would reach.
   demo whose noise can move the paper-white pick acceptable, or should the
   demo keep the paper patches noise-free (and should the report guard the
   lightest-patch rule with the chart's own white).
+- evidence:
+  test_the_evenness_demo_noisy_date_takes_the_paper_as_paper_white
 
 ### B8-825 · FIXED · Recheck before beta 37: a report's borrowed measurements stayed loaded, and the window could not generate
 - blocks release: no
@@ -25601,7 +25621,7 @@ would reach.
   test_a_withheld_date_stays_on_the_axis_with_its_reason
   test_the_red_x_is_painted_red_where_the_rule_puts_it
   test_every_tab_places_its_words_by_the_accuracy_rule
-  test_a_word_inside_the_plot_moves_off_a_data_line
+  test_a_word_inside_the_plot_stays_at_the_left_end_over_a_data_line
   test_hovering_a_word_or_a_red_x_shows_the_text_the_pdf_prints
   test_every_graph_description_fits_two_lines_in_the_pdf
   test_the_pdf_prints_the_description_above_and_the_key_under
@@ -25698,3 +25718,74 @@ would reach.
   test_no_pump_between_accepting_the_file_chooser_and_the_next_yield
   test_no_pump_after_clicking_a_question_either
   test_the_next_step_pumps_again
+
+### B8-832 · FIXED · K26: Knut's rulings on the beta 37 and K25 questions, built
+- blocks release: no
+- status: FIXED
+- note: built as ruled; the behaviour awaits confirmation (spec §18 of
+  `docs/design/measurement_report_limits.md`)
+- found by: Knut, #182 5792484060 (answers to B8-819..824 and the K25 list
+  and graph questions) and 5792576954 (group "Report shown" from the start).
+- fix:
+  * Run type Calibration: the report window loads nothing, draws nothing,
+    locks every selection field and report button, and shows a red line
+    where "Already generated…" stands (M-REPORT-NOT-FOR-CALIBRATION,
+    §M-PROPOSED); every door reaches it through the one constructor, and
+    the Measure tab's report button opens it instead of "Measure this chart
+    first";
+  * "Bound, and locked." left the report; the same sentences are in the
+    "Judged against" help; the glossary's "Locked" entry no longer promises
+    a recalculation;
+  * the Colour accuracy graph plots `graded_de00` (within gamut where the
+    sheet was split), with "all judged patches" in the legend;
+  * a project opened from a folder not named what its files carry is offered
+    the existing rename chooser in a folder mode (M-PROJECT-FOLDER-RENAMED,
+    M-PROJECT-FOLDER-RENAME-FAILED); `rename_existing_project` now renames the
+    files of a folder that needs no move;
+  * Profiling names Run1 / Run2 / Multiple runs / All runs, and "Already
+    generated for these measurements";
+  * the red x takes the nearest dates with a value; two crosses on one date
+    stack; a limit word stays at the left end (the K25 slide undone);
+  * "Report shown" is grouped when the reports it offers cover more than one
+    profile run;
+  * the evenness demo keeps every non-paper patch below the paper's L*.
+- verified, not changed: `<output folder>/reports/` is created only by the
+  first report across projects (pinned). Driven: Generate report is greyed
+  while the window holds measurements of two projects ("Measurements from
+  more than one place are loaded"), so the window itself never writes a
+  report across projects. Found: "Save report as PDF…" makes
+  its folder before the chooser opens, so a cancelled PDF across projects
+  leaves an empty `<output folder>/reports/`; `_export_pdf` belongs to the
+  concurrent PDF change set and is left to it.
+- proof: 26 mutations, each proved red; on screen
+  `~/Desktop/ChromIQ-beta38-proof/k26/REPORT.md` (`scripts/drive_k26.py`).
+- evidence:
+  test_a_calibration_window_opens_empty_and_locked
+  test_the_other_run_types_are_untouched
+  test_every_door_hands_the_window_a_parent_that_knows_the_run_type
+  test_the_measure_tab_button_opens_the_empty_window_under_calibration
+  test_the_type_help_no_longer_promises_a_calibration_every_type
+  test_bound_and_locked_is_explained_in_the_help_not_the_report
+  test_the_accuracy_trend_plots_what_the_verdict_judged
+  test_the_graph_says_its_figures_are_the_judged_ones
+  test_the_judged_description_fits_two_lines
+  test_a_finder_duplicate_is_offered_the_rename_and_renamed
+  test_leave_it_as_it_is_writes_nothing
+  test_a_folder_already_named_as_chromiq_would_is_renamed_in_place
+  test_a_project_whose_names_agree_is_not_asked
+  test_the_chooser_offers_two_choices_in_its_folder_mode
+  test_the_evenness_demo_noisy_date_takes_the_paper_as_paper_white
+  test_a_profiling_window_names_reports_after_their_runs
+  test_a_verification_window_keeps_its_date_names
+  test_a_profiling_window_with_nothing_generated_says_these_measurements
+  test_report_shown_is_grouped_from_the_start
+  test_the_shared_reports_folder_waits_for_a_report_across_projects
+  test_the_printing_record_keeps_its_judged_against_row
+  test_the_red_x_height_follows_knuts_three_cases
+  test_two_red_crosses_on_one_date_sit_one_above_the_other
+  test_the_stacking_rule_stays_inside_the_plot
+  test_a_word_inside_the_plot_stays_at_the_left_end_over_a_data_line
+- open, for Knut: whether "should not allow any reports" also stops the
+  report the Measure tab writes by itself after a calibration measurement
+  (not changed); whether a project with a BUILT profile may be renamed this
+  way (built: offered, and the option says the profile keeps its inner name).

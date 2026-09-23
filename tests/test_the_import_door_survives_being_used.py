@@ -541,6 +541,11 @@ def test_a_project_that_did_not_open_is_never_filed_into(qapp, tmp_path,
     s = AppSettings()
     s.set("custom_output_path", str(work))
     win = MainWindow(s)
+    # "Kept-Here" is a copy of Demo-Report-Matrix under another folder name,
+    # which is exactly what K26 offers to rename on open; this test is about
+    # the import door, so the offer is declined.
+    from ui.dialogs import target_change_dialog as tcd
+    monkeypatch.setattr(tcd.TargetChangeDialog, "exec", lambda self: 0)
     win._tab_chart.open_project_manifest(work / "Kept-Here" / "project.json")
     for _ in range(20):
         qapp.processEvents()

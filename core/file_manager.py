@@ -4139,7 +4139,7 @@ class FileManager:
         NOT its folder's name; None when they agree or cannot be read (#182
         K26, Knut 5792484060, Q5).
 
-        A project copied or renamed outside ChromIQ (Finder's "X copy") keeps
+        A project copied or renamed outside ChromIQ (a duplicate "X copy") keeps
         the old name inside, and `Run.stem` is the folder's name, so such a
         project finds none of its charts, measurements or reports. Compared in
         NFC, as `Project.rename` compares names. Reads only."""

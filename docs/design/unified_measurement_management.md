@@ -2561,7 +2561,7 @@ profile project name" field shows.*
 
 > **This project's folder is called “{folder}”, but its files are named “{name}”**
 >
-> ChromIQ finds a project's charts, measurements, profiles and reports by the name of its folder, so until the two match it finds none of them. This happens when a project folder is copied or renamed outside ChromIQ, for example duplicated in Finder.
+> ChromIQ finds a project's charts, measurements, profiles and reports by the name of its folder, so until the two match it finds none of them. This happens when a project folder is copied, duplicated or renamed outside ChromIQ.
 >
 > Rename the project to “{new}” so its files carry that name too, or leave it as it is.
 

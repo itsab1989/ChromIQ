@@ -94,7 +94,7 @@ Grouped as the Tools pull-down groups them (`ui/tools_popup.py:49`).
 | **Average measurements** `average` | ● | ✕ | ● | ✕ | ● | Combines repeated reads of *this* chart. A New run has no measurement to average |
 | **Merge measurements** `merge` | ● | ✕ | ● | ✕ | ● | Same reasoning as averaging |
 | **Inspect a measurement** `ti3_info` | ○ | ○ | ○ | ○ | ○ | Read-only on any file |
-| **Measurement report** `measurement_report` | ● | ✕ | ● | ✕ | ● | Reports on a measurement this selection has; a New run has none |
+| **Measurement report** `measurement_report` | ● | ✕ | ● | ✕ | ● | Reports on a measurement this selection has; a New run has none. S5: the window opens EMPTY and locked, with a red line (K26, `measurement_report_limits.md` §18.1, awaiting confirmation) |
 
 ### Charts & patch sets
 
