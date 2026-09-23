@@ -3564,6 +3564,11 @@ What was built:
   several projects under "Reports including multiple projects", last. *This
   is our reading of "grouped ... according to the project name" for the case
   with one project: say if a lone project should carry its heading too.*
+* **The window opens on the newest report covering its calibration**
+  (§13.12's rule). When that is a report across projects ("All cals" in the
+  demo pack), it loads the calibrations it covers (§13.11, "a report is shown
+  whole"), and Generate is greyed until "New report…" is chosen. *Say if a
+  Calibration window should open on its own "Cal" report instead.*
 * **Generate report** writes a report of the window's own calibration into
   `<project>/cal/reports/` (one file, one document, as for one dated
   verification). "New report…" starts from the Preferences default type,

@@ -2514,6 +2514,136 @@ def seed_report_folders(root: Path,
     return lines
 
 
+#: #182 beta 39 (Knut 5794078008): the projects that carry a calibration, in
+#: order. Two are the report-folder projects; the third makes "Multiple cals"
+#: reachable (a report of two calibrations while three are listed).
+CAL_PROJECTS = (FOLDERS_PROJECT, FOLDERS_OTHER_PROJECT,
+                "Report-Limits-Report-Types")
+
+#: What `seed_calibrations` wrote, as README lines. Filled at build time.
+CAL_MANIFEST: "list[str]" = []
+
+
+def seed_calibrations(dest: Path) -> "list[str]":
+    """Give the report-folder projects a measured calibration and its reports
+    (#182 beta 39).
+
+    Knut, 5794078008: Run type Calibration makes reports after all, every type
+    but the Printing record, *"stored and read from project_name/cal/
+    reports/"*, and a report across projects *"in the <ChromIQ default
+    folder>/reports/"*, named "Cal", "Multiple cals" or "All cals". So each
+    project of `CAL_PROJECTS` that is in the pack gets:
+
+    * ``cal/<project>-cal.ti3`` (and ``.ti2``): its run1 profiling sheet,
+      dated as a calibration of its own, since a calibration chart is printed
+      raw exactly as that sheet was;
+    * the report ChromIQ writes by itself after a calibration measurement,
+      "Cal", the Preferences default type (Full colour check), judged against
+      the default set, in ``cal/reports/``.
+
+    The first project's calibration also holds a Colour summary of it, and a
+    Printing record the way beta 38's automatic report could write one (never
+    listed or counted under Calibration). Then, with the app's own functions:
+    a report of the first two calibrations ("Multiple cals" while three are
+    in the pack) and one of all three ("All cals"), each a document file in
+    the pack's own ``reports/`` and a verdict record in each ``cal/reports/``.
+    """
+    from core.file_manager import Calibration, REPORTS_DIRNAME
+    from workflow.measurement_report import (
+        KIND_CALIBRATION, REPORT_TYPE_FULL, REPORT_TYPE_RECORD,
+        REPORT_TYPE_SUMMARY, ROLE_RECORD, SCOPE_ALL_DATES,
+        SCOPE_MULTIPLE_DATES, build_report, document_file, document_home,
+        document_measurement_key, new_document_id, rewrite_report,
+        stamp_document, stamp_verdict)
+    from workflow.run_compliance import run_limits
+    lines: "list[str]" = []
+    lim = run_limits(None, {}, "chromiq_default")
+
+    def rel(p):
+        return str(Path(p).relative_to(dest))
+
+    cals: "list[tuple[Path, Path, dict]]" = []
+    for i, name in enumerate(CAL_PROJECTS):
+        root = dest / name
+        sheet = root / "runs" / "run1" / f"{name}.ti3"
+        if not (root / "project.json").is_file() or not sheet.is_file():
+            continue
+        cal = Calibration(root)
+        cal.ensure_dir()
+        ti3 = cal.dir / f"{cal.stem}.ti3"
+        kept = [l for l in sheet.read_text(encoding="utf-8").splitlines()
+                if not l.startswith(('KEYWORD "CHROMIQ_MEASURED"',
+                                     "CHROMIQ_MEASURED ",
+                                     "TARGET_INSTRUMENT "))]
+        ti3.write_text("\n".join(kept) + "\n", encoding="utf-8")
+        ti2 = sheet.with_suffix(".ti2")
+        if ti2.is_file():
+            shutil.copy2(ti2, cal.dir / f"{cal.stem}.ti2")
+        when = f"2027-01-2{i}T09:00:00"
+        stamp_profiling(ti3, when)
+        rep = build_report(ti3, argyll_bin=str(ARGYLL))
+        stamp_verdict(rep, lim.limits, set_id=lim.set_id,
+                      set_label=lim.label_en, edited=lim.edited)
+        path = file_report(json.loads(json.dumps(rep)), ti3, None,
+                           KIND_CALIBRATION, when)
+        lines.append(f"  {name}: its calibration, measured {when[:10]}")
+        lines.append(f"      the measurement:   {rel(ti3)}")
+        lines.append(f"      the automatic report (Cal, Full colour check): "
+                     f"{rel(path)}")
+        if i == 0:
+            p2 = file_report(json.loads(json.dumps(rep)), ti3, None,
+                             KIND_CALIBRATION, when, type_id=REPORT_TYPE_SUMMARY,
+                             n=2)
+            lines.append(f"      a Colour summary (Cal): {rel(p2)}")
+            p3 = file_report(json.loads(json.dumps(rep)), ti3, None, None,
+                             when, type_id=REPORT_TYPE_RECORD, n=3)
+            lines.append(f"      a Printing record as beta 38 could write it "
+                         f"(never listed under Calibration): {rel(p3)}")
+        cals.append((cal.dir, ti3, rep))
+
+    def across(members, scope, when, what):
+        when_dt = datetime.fromisoformat(when)
+        doc_id = new_document_id(when_dt)
+        recorded = [{"dir": str(d), "created": str(r.get("created") or ""),
+                     "ti3": t.name,
+                     "key": document_measurement_key(
+                         d, str(r.get("created") or ""), t.name)}
+                    for d, t, r in members]
+        lines.append(f"  {what}")
+        for d, t, r in members:
+            body = json.loads(json.dumps(r))
+            body.pop("document", None)
+            body["report_type"] = REPORT_TYPE_FULL
+            stamp_document(body, doc_id=doc_id, created=when,
+                           type_id=REPORT_TYPE_FULL,
+                           compliance=body.get("compliance"), detail=False,
+                           measurements=recorded, scope=scope,
+                           role=ROLE_RECORD)
+            out = d / REPORTS_DIRNAME / f"report_{when_dt:%Y-%m-%d_%H-%M-%S}.json"
+            rewrite_report(out, body)
+            lines.append(f"      verdict record:    {rel(out)}")
+        doc = document_file(doc_id=doc_id, created=when,
+                            type_id=REPORT_TYPE_FULL,
+                            compliance=members[0][2].get("compliance"),
+                            detail=False, measurements=recorded, scope=scope)
+        home = document_home([d for d, _t, _r in members])
+        home.mkdir(parents=True, exist_ok=True)
+        out = home / f"report_{when_dt:%Y-%m-%d_%H-%M-%S}.json"
+        rewrite_report(out, doc)
+        lines.append(f"      the report:        {rel(out)}")
+
+    if len(cals) >= 2:
+        across(cals[:2],
+               SCOPE_MULTIPLE_DATES if len(cals) > 2 else SCOPE_ALL_DATES,
+               "2027-01-25T09:00:00",
+               "ACROSS TWO CALIBRATIONS, Full colour check ("
+               + ("Multiple cals" if len(cals) > 2 else "All cals") + "):")
+    if len(cals) >= 3:
+        across(cals, SCOPE_ALL_DATES, "2027-01-26T09:00:00",
+               "ACROSS ALL THREE CALIBRATIONS, Full colour check (All cals):")
+    return lines
+
+
 #: See `--survey` in `main`.
 SURVEY = False
 SURVEY_FAULTS: "list[str]" = []
@@ -4106,6 +4236,9 @@ def main(argv=None) -> int:
             dest / FOLDERS_PROJECT,
             other if (not args.only or FOLDERS_OTHER_PROJECT in args.only)
             and other.is_dir() else None)
+        # #182 beta 39: the calibrations and their reports, after the
+        # shared `reports/` above has been emptied and refilled.
+        CAL_MANIFEST[:] = seed_calibrations(dest)
     shutil.rmtree(cache_root, ignore_errors=True)
 
     # THE DEMO PRESETS (#182, Knut 2026-09-19), built by their own generator.
@@ -5905,6 +6038,22 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
         a("  Second): each project's name, its runs under it, and \"Reports")
         a("  including multiple projects\" for the two reports that span")
         a("  both, which live in this pack's own reports/ folder.")
+        a("")
+    if CAL_MANIFEST:
+        a("")
+        a("RUN TYPE CALIBRATION (#182 beta 39, Knut 5794078008)")
+        a("------------------------------------------------------")
+        a("")
+        a("With Preferences > Calibration options on and Run type")
+        a("Calibration, the report window opens on the project's calibration")
+        a("and lists its reports from cal/reports/, and a report across")
+        a("projects from the pack's own reports/. Every type but the")
+        a("Printing record. Names: Cal, Multiple cals, All cals.")
+        a("")
+        lines.extend(CAL_MANIFEST)
+        a("")
+        a("Add another project's cal/<name>-cal.ti3 with \"Add Profile's")
+        a("Measurements...\" and \"Report shown\" is grouped by project.")
         a("")
     return "\n".join(lines) + "\n"
 
