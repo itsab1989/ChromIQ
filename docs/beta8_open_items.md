@@ -26937,3 +26937,14 @@ would reach.
 - tests: tests/test_the_report_type_row_never_covers_the_list.py
 - evidence: test_no_control_of_the_settings_frame_covers_another (default, minimum and 979 px widths, at the window's floor and ceiling), test_the_list_shows_whole_rows_and_scrolls_for_the_rest; both mutations (the `+ 4` back, the fit disabled) red.
 - proof: ~/Desktop/ChromIQ-beta39-proof/list-combo-overlap/ (before-en/, after-en/, geometry-en.json, the two crops).
+
+### B8-922 · FIXED, awaiting confirmation · Parameter rows in Create Chart > MANUAL drew their control over their own label
+- blocks release: no
+- status: FIXED
+- note: beta 39
+- found by: Basti, 2026-09-24, two photographs of v4.3.0-beta.30 (targen Basic: "D Print RGB (recommended)", "T■rough Optimisation (slow):", "S 0"; printtarg Basic with the layout engine off: "M ColorMunki…", "D▢ble density", "P A4 Portrait", "P 1,000"), and the same on the current code.
+- cause: measured on screen at 21993bf7 (1728x1080, 1440x1025, 900x650, EN and DE, engine on and off): every ParameterWidget label kept its 190 px, and the row's QHBoxLayout placed the control at x=8 when it stretches (combo, check box, plain spin box) or x=186 when it is capped at 90 px, instead of x=198. f3834ae8 (2026-09-21, first shipped in beta.30) made the name an `ElidingLabel`, whose size policy is `Ignored`; `QWidgetItem::sizeHint` zeroes an Ignored width after applying the fixed minimum, so the layout budgeted 0 px for a label that still painted 190 px. Rows whose label is a plain QLabel (Pages, Triple density) or an expert check box were never affected. 7 rows engine on, 12 engine off; chartread/colprof/profcheck rows share the class.
+- fixed: `ParameterWidget._build` gives the label size policy `Fixed` after pinning its width; elision is unchanged.
+- tests: tests/test_a_parameter_row_keeps_its_label_column.py
+- evidence: every parameters.yaml row at 492 and 700 px, and the real MANUAL panel with every section unfolded, engine on and off; with the one line reverted all four are red, and test_the_row_check_can_see_the_fault puts `Ignored` back and must see it.
+- proof: ~/Desktop/ChromIQ-beta39-proof/targen-label-overlap/ (00-basti-*, drive-shots-before-*/, drive-shots-after-*/, rows.json per drive).

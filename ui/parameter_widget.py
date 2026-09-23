@@ -11,6 +11,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QLineEdit,
     QPushButton,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -290,6 +291,15 @@ class ParameterWidget(QWidget):
         else:
             lbl = ElidingLabel(name + ":", self)
             lbl.setFixedWidth(190)
+            # FIXED, NOT THE `Ignored` ElidingLabel ASKS FOR. `Ignored` zeroes
+            # the label's size hint AFTER the fixed width is applied, so the
+            # row's QHBoxLayout hands the label cell 0 px whenever the control
+            # beside it stretches (a combo, the -G check box, a plain spin box)
+            # and puts the control at x=8, on top of a label that still paints
+            # 190 px wide (B8-922: "D Print RGB", "T■rough Optimisation",
+            # "S 0"). The width is pinned anyway, so elision is unchanged.
+            lbl.setSizePolicy(QSizePolicy.Policy.Fixed,
+                              QSizePolicy.Policy.Preferred)
             lbl.setWordWrap(False)
             lbl.setObjectName("param_label")
             self._label = lbl
