@@ -2601,6 +2601,121 @@ Record (G7).
 * **Status:** rule agreed and confirmed; the built result ⏳ awaiting
   confirmation. **Confirmed by:** *nobody yet.*
 
+### 13.14 What a rename, a run delete and a read-only folder do to saved reports (challenge C, beta 39)
+
+#### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.* No rule of Knut's covers these cases; what
+follows is the obviously safe behaviour that was BUILT after tester C of
+beta 39 found it missing (`~/Desktop/ChromIQ-beta39-proof/challenge-C-files/
+REPORT.md`, items 1, 2, 3, 4, 7, 8 and 11), driven on screen before and after
+(`~/Desktop/ChromIQ-beta39-proof/challenge-C-fixes/`). Registered as B8-870
+to B8-873. Every point is a question for Knut.
+
+What the tester measured, on the demo pack:
+
+* an **Update** of a report across projects, from the side that could not
+  find one of its measurements (the other project renamed), archived the
+  whole report and rewrote it about the one date it had found (§13.13 says
+  an Update rewrites it about every date it covers); a date whose `.ti3` was
+  deleted did the same, and one such date retired a report across projects
+  into a one-date report;
+* after a **rename**, the reports in `<ChromIQ folder>/reports/` kept the
+  old folder name: the other side showed "1 of the 3", calibration reports
+  1 cal, and the renamed side's Report Scope named the chart by its old name;
+* the bar's **Delete of a profile run** renumbered the later runs and
+  rewrote their `meta.json` only: a one-run record of run 3 (now run 2) was
+  listed as "Multiple runs", an All runs report found "1 of the 5";
+* **Delete Selected Report** in a read-only folder copied the report into
+  `old/` and left the original, under a raw "[Errno 13] Permission denied";
+  **Update** there said only "The log says why."
+
+What was built:
+
+* **An Update never drops a covered measurement in silence.** Before it
+  writes, it compares what the report records with what the press would
+  cover (`workflow.measurement_report.update_losses`). A recorded
+  measurement it cannot find because its PROJECT cannot be found refuses the
+  press, writes nothing, and names each measurement and why
+  (M-REPORT-UPDATE-NOT-FOUND). A measurement whose project is there but whose
+  run was deleted, whose dated folder is gone or whose `.ti3` is gone (§13.11
+  leaves such a folder out) is ASKED about (M-REPORT-UPDATE-LEAVES-OUT,
+  Cancel the default); "Update without them" writes the report without them,
+  archived first as every Update is. A measurement that is found and merely
+  not ticked is left out as before: that is the user's choice.
+* **A rename rewrites every report that names the project.** `Project.rename`
+  (the name field's rename and the folder-renamed window, B8-841, both end
+  there) rewrites, in the project's own reports, the folder across projects
+  beside it and the reports of the projects beside it, exactly the
+  references to the project: the recorded folders and keys of each
+  `document.measurements` entry, and in the project's own reports the `ti3`,
+  `chart` and `profile` stems (`core.report_refs`). All or nothing,
+  archiving nothing, each file's modification time kept (the window decides
+  which report is the newest by it). A report outside the project is not
+  rewritten for a name that another project beside it still has: that is a
+  Finder duplicate's original, and those reports are its own.
+* **A renamed project is found by its former name.** A report the rename did
+  not rewrite (written before this, or in a folder ChromIQ may not write)
+  still names the old folder; `resolve_recorded_folder` now also looks for
+  the ONE project beside the report's projects that has that name in its
+  `former_names` (none when two claim it).
+* **The Scope names the chart by the project's current name**
+  (`current_chart_name`): a name that starts with one of the project's
+  former names is printed with the current one.
+* **A run delete renumbers the reports with the runs.** Every report of the
+  project, the folder across projects beside it and the projects beside it
+  that names a run by number is rewritten with `meta.json`: `runs/run3`
+  becomes `runs/run2`, and a reference to the DELETED run becomes
+  `runs/run2.deleted`, which is on no disk, so it can never point at the run
+  that took its number (an Update of that report then says "its profile run
+  was deleted"). Checked writable before anything moves; a report that could
+  not follow refuses the delete with nothing changed.
+* **Delete Selected Report is all or nothing** (`move_report_files`): every
+  source folder and the destination are asked first, and a step that fails
+  anyway puts back what moved and removes the folders it made; the window
+  says which folder and what to do (M-REPORT-DELETE-FAILED).
+* **A refused Update or Generate names the folder** it may not write in and
+  the remedy (M-REPORT-NOT-WRITABLE). A failure that is not a folder
+  ChromIQ may not write in keeps the older sentence.
+* Nothing under an `old/` folder is ever rewritten: an archive is history.
+
+Questions for Knut:
+
+1. An Update whose covered project cannot be found is REFUSED outright, with
+   no "update without it" button, because a report across projects would
+   otherwise be narrowed from the side that happens not to see the other
+   project. Is refusing right, or should the user be offered the choice as
+   for a deleted measurement?
+2. A measurement gone from disk (its run deleted, its folder or `.ti3`
+   removed) is left out of an Update only when the user says so. Is the
+   question right, or should §13.11's "left out" apply without asking?
+3. A rename rewrites the reports of OTHER projects (the verdict records of
+   a report across projects) and of the folder across projects, touching
+   only their references to the renamed project. Is that acceptable, given
+   that §13.13 otherwise writes nothing into another project's folder?
+4. A reference to a deleted run becomes `runs/runN.deleted`. Should the
+   report instead be told the run is gone in some other visible way (a note
+   in its Scope)?
+5. A run delete is refused when a report that must be renumbered cannot be
+   written. Is that right, or should the run be deleted and the report left
+   naming the old number?
+
+Record (challenge C, beta 39).
+* **Rule:** none of Knut's covers these cases; this is the safe behaviour,
+  awaiting his ruling on the five questions above.
+* **Built:** `core/report_refs.py`; `core/file_manager.py::Project.rename`
+  (`_rename_report_references`), `move_report_files`;
+  `core/run_delete.py::delete_run`; `workflow/measurement_report.py::
+  update_losses`, `resolve_recorded_folder` (step 3b), `current_chart_name`,
+  `report_scope`; `workflow/measurement_messages.py` (the four messages,
+  `report_gone_line`); `ui/dialogs/measurement_report_dialog.py::
+  _update_leaves_out`, `_ask_leave_out`, `_on_delete_report`,
+  `_say_generated` (B8-870 to B8-873).
+* **Verified by:** `tests/test_challenge_c_report_files.py` (11 tests, each
+  red on the mutation in its docstring).
+* **Proof:** `~/Desktop/ChromIQ-beta39-proof/challenge-C-fixes/`.
+* **Status:** ⏳ awaiting confirmation. **Confirmed by:** *nobody yet.*
+
 ## 15. ChromIQ's own two repeatability rows (#182, 2026-09-22)
 
 **⏳ AWAITING CONFIRMATION.** **Ruled by:** Knut, 2026-09-22, on issue #182:

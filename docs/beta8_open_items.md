@@ -26542,3 +26542,105 @@ would reach.
   `<name>.icc` and `<name>.ti3` from `runs/runN/old/<stamp>/` into
   `runs/runN/`, then Profiling, Restore Used Chart for the chart (only when
   `runs/runN/chart/` exists, i.e. the run was measured in ChromIQ).
+
+### B8-870 · FIXED, awaiting confirmation · An Update narrowed a report to what one side could find, and dropped a gone date in silence
+- blocks release: no
+- status: FIXED
+- number: 870 to 873 are this round's (challenge C fixes); 852 to 869 are
+  held by other work running at the same time.
+- where: commits "C-fix: ..." on the challenge C fix worktree, spec §13.14
+  of `docs/design/measurement_report_limits.md` (awaiting confirmation);
+  §M-PROPOSED M-REPORT-UPDATE-NOT-FOUND and M-REPORT-UPDATE-LEAVES-OUT.
+- found by: tester C of beta 39, items 1 (MAJOR) and 11
+  (`~/Desktop/ChromIQ-beta39-proof/challenge-C-files/REPORT.md`, c3b-rename
+  A2 to A4, c4-bar B2).
+- measured before (288d4f64, on screen): the 2029-12-01 report across
+  Report-Limits-Paper-Classes and the renamed Report-Limits-Renamed, Updated
+  from the Paper side, archived the document file into `reports/old/`,
+  removed it from `reports/` and rewrote the Paper date's record as a one-date
+  report; with the other project moved away, the same.
+- built: `workflow.measurement_report.update_losses` compares what the report
+  records with what the press covers; a covered measurement whose project
+  cannot be found refuses the press, writing nothing, and the window names
+  each measurement and why; one whose run was deleted, folder removed or
+  `.ti3` deleted is asked about, Cancel the default, and "Update without
+  them" leaves it out (archived first). A found measurement that is not
+  ticked is left out as before.
+- evidence: the challenge C file in tests/
+  (test_an_update_that_cannot_find_a_covered_project_is_refused,
+  test_a_measurement_gone_from_disk_is_left_out_only_when_the_user_agrees),
+  each red on the mutation in its docstring.
+- proof: `~/Desktop/ChromIQ-beta39-proof/challenge-C-fixes/` parts A and C,
+  before and after.
+- open for Knut: questions 1 and 2 of §13.14.
+
+### B8-871 · FIXED, awaiting confirmation · A rename left every report across projects naming the old folder, and the Scope the old chart name
+- blocks release: no
+- status: FIXED
+- where: as B8-870; spec §13.14.
+- found by: tester C of beta 39, items 2 (MAJOR) and 3 (c3b-rename B1 to B4,
+  pages A1, B2); the builder had reported the first half.
+- measured before (288d4f64, on screen): Report-Limits-Report-Folders-Second
+  renamed on disk and answered "Rename the project" in the folder-renamed
+  window (B8-841): not one report outside the project changed; from
+  Report-Folders the 2027-01-14 report covered "1 of the 3", the Multiple cals
+  report held 1 cal and All cals 2 of 3; the pack's Report-Limits-Renamed side
+  printed "Report-Limits-Before-Rename-verify" in its Scope.
+- built: `Project.rename` rewrites, all or nothing and archiving nothing, the
+  references to the project (recorded folders, keys, and in its own reports
+  the ti3/chart/profile stems) in its own reports, the folder across
+  projects and the projects beside it (`core/report_refs.py`), keeping each
+  file's modification time; never for a name another project beside it still
+  has (a duplicate's original). `resolve_recorded_folder` also finds the one
+  project beside that has the recorded name in `former_names`. The Scope
+  prints the chart under the project's current name (`current_chart_name`).
+- evidence: the challenge C file in tests/
+  (test_a_rename_rewrites_every_report_that_names_the_project,
+  test_a_duplicates_original_is_not_rewritten,
+  test_a_renamed_project_is_found_by_its_former_name,
+  test_the_scope_names_the_chart_by_the_projects_current_name), and
+  test_a_renamed_duplicate_loads_its_own_other_run, which caught the first
+  cut stamping every rewritten file "now".
+- proof: `~/Desktop/ChromIQ-beta39-proof/challenge-C-fixes/` parts A and B.
+- open for Knut: question 3 of §13.14.
+
+### B8-872 · FIXED, awaiting confirmation · The bar's Delete of a run renumbered the runs but not the reports that name them
+- blocks release: no
+- status: FIXED
+- where: as B8-870; `core/run_delete.py::delete_run`; spec §13.14.
+- found by: tester C of beta 39, item 4 (MAJOR; c4-bar Q2, Q3, P3).
+- measured before (288d4f64, on screen): Report-Limits-Paper-Classes, an All
+  runs report of six runs, then Delete of run 2: each later run's one-run
+  record was listed as "Multiple runs" and the All runs report covered
+  "1 of the 5".
+- built: the references are worked out and checked writable before the run
+  goes to the Trash, and written with `meta.json`: `runs/run3` becomes
+  `runs/run2`, a reference to the deleted run `runs/run2.deleted`; a report
+  that could not follow refuses the delete with nothing changed.
+- evidence: the challenge C file in tests/
+  (test_deleting_a_run_renumbers_the_reports_that_name_runs,
+  test_a_run_delete_whose_reports_cannot_follow_deletes_nothing).
+- proof: `~/Desktop/ChromIQ-beta39-proof/challenge-C-fixes/` part D (the
+  Trash is a sandbox folder in that drive).
+- open for Knut: questions 4 and 5 of §13.14.
+
+### B8-873 · FIXED, awaiting confirmation · Delete in a read-only folder left the report twice, and a refused Update said only "The log says why."
+- blocks release: no
+- status: FIXED
+- where: as B8-870; §M-PROPOSED M-REPORT-DELETE-FAILED and
+  M-REPORT-NOT-WRITABLE.
+- found by: tester C of beta 39, items 7 (MINOR) and 8 (TEXT; c5-restore O2,
+  O4).
+- measured before (288d4f64, on screen): with
+  `runs/run1/verifications/reports` read-only, Delete Selected Report copied
+  the report into `verifications/old/<stamp>/` and left the original, and
+  showed "[Errno 13] Permission denied: '/Users/…'"; Update wrote nothing and
+  said "Nothing could be written. The log says why."
+- built: `core.file_manager.move_report_files` moves every file or none
+  (folders asked first, a failed step put back, the folders it made
+  removed); the window names the folder and the remedy in both cases.
+- evidence: the challenge C file in tests/
+  (test_moving_report_files_is_all_or_nothing,
+  test_delete_in_a_read_only_folder_moves_nothing_and_says_why,
+  test_an_update_in_a_read_only_folder_names_the_folder).
+- proof: `~/Desktop/ChromIQ-beta39-proof/challenge-C-fixes/` part E.
