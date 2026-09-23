@@ -25248,7 +25248,8 @@ would reach.
   sets 1.5 / 1.0 (BUILT); E4 the star stays, verify an i1Pro 3 Plus multi-page
   preset; E5 the Custom columns keep 1.5 / 1.0; E6 keep; E7 1.0 confirmed; E2
   page coverage from the Measured-from-Preview margins at 75 % (5789539407,
-  for beta 38); E8 investigate normal practice (beta 38).
+  for beta 38; lowered to 60 % in 5792912682, B8-828); E8 investigate normal
+  practice (beta 38).
 - found by: building B8-814; each is written out in
   `docs/design/measurement_report_limits.md` §16.5.
 - E1 a page under 9 by 9 in a multi-page chart is left out (built) or refuses
@@ -25630,30 +25631,39 @@ would reach.
   date with NO value (the chart could not supply the row) should also get a
   red x (not built: only a value withheld from judging does).
 
-### B8-828 · FIXED · E2: a page counts for evenness only when its patches cover 75 % of it
+### B8-828 · FIXED · E2: a page counts for evenness only when its patches cover 60 % of it
 - blocks release: no
 - status: FIXED
 - note: built as ruled; the behaviour awaits confirmation (spec §16.6)
-- found by: Knut, #182 5789263863 (E2), approved at 75 % in 5789539407.
+- found by: Knut, #182 5789263863 (E2), approved at 75 % in 5789539407,
+  lowered to 60 % in 5792912682
+  (https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5792912682):
+  "lower the threshold to 60%. instrument's minimum margins are general rules
+  that not always works."
 - fix: `workflow/page_coverage.py` computes each page's share from the four
   "Measured from Preview" margins (engine geometry, else the page TIFF, else a
   derived geometry; a dated snapshot borrows the identical live chart's
   pages). `evenness_from_residuals` leaves a page under
-  `EVENNESS_MIN_PAGE_COVERAGE` (0.75, one constant) out, as a page under 9 by
-  9 is. Two new reasons: `evenness_page_coverage_too_small` (note: "the
-  patches on page N of the measured chart cover X % of the page; at least 75 %
-  is needed") and `evenness_no_page_geometry` (a file reason). Report, presets
-  window and pre-flight all ask it. Help text and
+  `EVENNESS_MIN_PAGE_COVERAGE` (0.60, one constant; 0.75 as first built) out,
+  as a page under 9 by 9 is. Two new reasons:
+  `evenness_page_coverage_too_small` (note: "the patches on page N of the
+  measured chart cover X % of the page; at least 60 % is needed") and
+  `evenness_no_page_geometry` (a file reason). Report, presets window and
+  pre-flight all ask it. Help text (all 13 catalogues) and
   M-REPORT-CHART-MISMATCH-LAYOUT name it. Spec §16.6.
-- consequence, measured: 123 of the 172 built-in engine presets now fail it,
-  among them Knut's 572-patch i1Pro A4 chart (68.4 %) and every i1Pro 3 Plus
-  preset (see B8-829). The evenness demo's judged run is now the 837-patch
-  no-clip chart (80.1 %).
-- proof: 16 mutations, each proved red;
-  on screen `~/Desktop/ChromIQ-beta38-proof/evenness-followups/`.
+- consequence, measured over the 172 built-in engine presets: at 60 % four
+  are refused by coverage (the half-page i1Pro 312 / 324 charts on A4 and
+  Letter, 34 to 37 %), twelve by the 9 by 9 grid first, and 156 pass both
+  floors. At 75 % it was 123 refused by coverage, 12 by the grid, 37 passing.
+  Knut's 572-patch i1Pro A4 chart (68.4 %) and the i1Pro 3 Plus family
+  (64.6 to 74.7 %, see B8-829) now pass the floor. The evenness demo shows the
+  refusal on run6 (312 patches, 37.3 %).
+- proof: 19 mutations for this entry, each proved red against a green
+  baseline; on screen `~/Desktop/ChromIQ-beta38-proof/evenness-60/` (60 %)
+  and `~/Desktop/ChromIQ-beta38-proof/evenness-followups/` (75 %).
 - evidence:
   test_knuts_formula_on_the_margins
-  test_the_floor_is_75_percent_and_inclusive
+  test_the_floor_is_60_percent_and_inclusive
   test_the_floor_is_one_constant
   test_an_uncovered_page_is_left_out_and_the_others_judged
   test_a_chart_with_no_page_geometry_is_na_and_stays_off_the_strip
@@ -25662,21 +25672,32 @@ would reach.
   test_a_built_chart_reads_what_measured_from_preview_shows
   test_a_dated_snapshot_borrows_the_live_charts_pages_only_if_identical
   test_the_presets_window_and_the_preflight_ask_the_same_floor
-- open, for Knut: keep 75 %, lower it, or measure against the area inside
-  the instrument's minimum margins.
+  test_the_built_in_engine_presets_against_the_60_percent_floor
 
-### B8-829 · OPEN · E4: the i1Pro 3 Plus presets as their own evenness case
+### B8-829 · FIXED · E4: the i1Pro 3 Plus presets as their own evenness case
 - blocks release: no
-- status: OPEN
-- note: checked and pinned in tests; no code change of its own; the question is Knut's
-- found by: Knut, #182 5789263863 (E4).
+- status: FIXED
+- note: no code change of its own; answered by the 60 % floor (B8-828), and
+  the behaviour awaits confirmation (spec §16.6)
+- found by: Knut, #182 5789263863 (E4): "It is likely a one page target will
+  not fulfil the requirement, but a multipage preset should then be possible
+  to use." The chart is the 11 by 14 one (5792928823).
 - finding: 24 presets; the grid is 11 by 14 (A4), 11 by 13 (Letter), 16 by
-  21 (A3), 7 by 12 (84 patches), not 11 by 15. By grid and noise alone the
-  one-page A4 and Letter charts cannot be judged and every multi-page chart
-  and the one-page A3 can. With E2 at 75 % none can: 65.3 % (A4), 64.6 %
-  (Letter), 74.7 % (A3) of the page is covered.
-- evidence: tests/test_beta38_i1pro3plus_evenness.py (4 mutations, red).
-- open, for Knut: the 75 % collision (B8-828); which chart "11 by 15" meant.
+  21 (A3), 7 by 12 (84 patches). Every page covers 65.3 % (A4), 64.6 %
+  (Letter) or 74.7 % (A3), so at 60 % Knut's expectation holds: 20 of the 24
+  answer both evenness rows. The four refused are all one page: the two
+  84-patch charts by the grid (7 strips), the A4 154 and Letter 143 by the
+  noise of a typical print (2.0 / 1.2 against ChromIQ default's 1.5 / 1.0).
+  Every chart of two pages or more answers (noise 1.39 / 0.84 at two pages,
+  falling), and so does the one-page A3 (1.24 / 0.75). At 75 % none answered.
+- evidence:
+  test_each_presets_grid_and_coverage_as_predicted
+  test_each_presets_estimated_noise_on_a_typical_print
+  test_a_one_page_i1pro3plus_chart_fails_and_a_multi_page_one_answers
+  test_the_family_splits_four_refused_twenty_answering
+  test_a_real_build_agrees_with_the_prediction
+- proof: 5 mutations, each proved red; on screen
+  `~/Desktop/ChromIQ-beta38-proof/evenness-60/`.
 
 ### B8-830 · OPEN · E8: evenness is judged in absolute Lab in every published test (research)
 - blocks release: no
