@@ -26948,3 +26948,39 @@ would reach.
 - tests: tests/test_a_parameter_row_keeps_its_label_column.py
 - evidence: every parameters.yaml row at 492 and 700 px, and the real MANUAL panel with every section unfolded, engine on and off; with the one line reverted all four are red, and test_the_row_check_can_see_the_fault puts `Ignored` back and must see it.
 - proof: ~/Desktop/ChromIQ-beta39-proof/targen-label-overlap/ (00-basti-*, drive-shots-before-*/, drive-shots-after-*/, rows.json per drive).
+
+### B8-923 · FIXED, awaiting confirmation · A run delete of a project in a sub-folder of the ChromIQ folder left the other projects' reports naming its old run numbers
+- blocks release: yes
+- severity: BLOCKER
+- status: FIXED
+- where: `core/report_refs.py` (`report_files_referring`, `_chromiq_folder_places`).
+- found by: second check R3 of beta 39 (`~/Desktop/ChromIQ-beta39-proof/second-check-R3/attack/SUB3`, SUB4, SUB5): Report-Limits-Report-Folders moved into `projects/Group/`, found there by every other project's report (`resolve_recorded_folder` step 3c, B8-919). Bar Delete of its run 1 renumbered only its own reports; Second's `runs/run1/reports/` and its verification's record still named `Folders/runs/run1`, which is now the former run 2, and the window loaded that as the report's measurement with no note.
+- cause: `report_files_referring` searched the project, `<parent>/reports`, `<ChromIQ>/reports` and the projects BESIDE it; in `Group/` those are only Group's projects, so the projects at the ChromIQ folder's top level and in other sub-folders (and the folder across projects it was moved out of) were never searched.
+- fixed: every project the app resolves a reference from is searched, each once: the projects beside it and the ChromIQ folder's projects at its top level and one level down (step 3c's search), plus `<ChromIQ>/reports` and `<ChromIQ>/<sub-folder>/reports`; archives (`old/`) never. Which reference is this project's is still `refers_here`'s rule, unchanged.
+- tests: tests/test_r3_references_follow_a_project_in_a_sub_folder.py (8; mutation "search only the projects beside it" 5 red, mutation "renumber by name without refers_here" 2 red).
+- evidence: test_a_run_delete_in_a_sub_folder_renumbers_every_other_projects_report, test_after_the_delete_no_other_report_loads_the_former_run_2, test_a_namesake_in_another_sub_folder_is_never_rewritten, test_each_file_is_searched_once_and_archives_never, test_the_normal_layout_still_follows
+- proof: ~/Desktop/ChromIQ-beta39-proof/second-check-R3-fixes/ before/SUB5 and after/SUB5 (on screen; refdiffs/P2-delete-run1-of-moved.txt: before 0 of Second's two records rewritten, after both; listings/ with sha1 of every file before and after each act).
+
+### B8-924 · FIXED, awaiting confirmation · "Rename the project" of a project in a sub-folder left the other projects' reports under the old name
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- where: `core/report_refs.py` (`report_files_referring`, shared with B8-923).
+- found by: second check R3 of beta 39 (`attack/SUB2`): Folders moved into `Group/` and renamed there; Second's reports kept the old name, a later run delete did not renumber them, and a fresh project of the old name in the root then captured them.
+- cause: the same search gap as B8-923 (`rename_references_plan` uses `report_files_referring`).
+- fixed: by B8-923's search; `rename_references_plan` unchanged.
+- tests: tests/test_r3_references_follow_a_project_in_a_sub_folder.py
+- evidence: test_a_rename_in_a_sub_folder_rewrites_every_other_projects_report, test_a_fresh_project_of_the_old_name_captures_nothing_after_a_rename (both red under the pre-R3 search).
+- proof: ~/Desktop/ChromIQ-beta39-proof/second-check-R3-fixes/ before/SUB2 and after/SUB2 (refdiffs/T1-move-and-rename.txt: Second's four records rewritten after, none before; T2: renumbered after; T3: the fresh root project's delete touches only its own reports).
+
+### B8-925 · FIXED, awaiting confirmation · An Update of a report whose own measurements were all gone took the window's other measurements
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- where: `ui/dialogs/measurement_report_dialog.py` (`_update_leaves_out`, `_restore_the_documents_view`, `_documents_own_are_gone`), `workflow/measurement_report.py` (`update_may_cover`, `recorded_dir_kind`).
+- found by: second check R3 of beta 39 (`attack/UPDNL2`): every verification `.ti3` of Folders run 1 removed, "2026-12-21 09:00 · Full colour check · All dates" selected: the list showed the two profiling sheets ticked under it, the guard counted them, M-REPORT-UPDATE-LEAVES-OUT said the report "covers only what is still there", and "Update without them" rewrote the verification report (same id, all_dates) about the profiling sheets.
+- cause: `_restore_the_documents_view` ticked every row when the report names none of them (a rule meant for a moved project), and `_update_leaves_out` decided NOTHING-LEFT / LEAVES-OUT on whatever was ticked, of any kind.
+- fixed: a report whose every recorded measurement is gone from disk ticks no row; an Update covers only measurements of a kind the report records (a verification report never takes a profiling sheet, `update_may_cover`), and the NOTHING-LEFT / LEAVES-OUT decision is made on those. No new message text.
+- tests: tests/test_r3_an_update_keeps_to_its_own_measurements.py (mutation "no all-gone rule" 1 red, mutation "members = everything pressed" 1 red).
+- evidence: test_no_other_measurement_is_ticked_under_a_report_that_is_all_gone, test_an_update_never_takes_another_kinds_measurements, test_update_may_cover_keeps_to_the_reports_kind, test_an_update_with_its_own_measurements_there_still_works
+- proof: ~/Desktop/ChromIQ-beta39-proof/second-check-R3-fixes/ before/ and after/ UPDNL2 (after: 0 rows ticked, Generate greyed "No measurement is ticked") and UPDNL3 (the sheets ticked by hand: before, a new document covering them was written and the old one archived; after, M-REPORT-UPDATE-NOTHING-LEFT and 0 file changes, photographs/W3-update-then.png).

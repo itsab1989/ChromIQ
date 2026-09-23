@@ -21,8 +21,10 @@ the report, and neither told the reports:
 This module rewrites exactly those references and nothing else, in every
 report file that can hold one: the project's own (every ``reports/`` folder
 under it), the folder across projects beside it, the ChromIQ folder's
-``reports/`` (§24.4, B8-920), and the reports of the projects beside it (a
-verdict record of a report across projects carries the document's list).
+``reports/`` and its sub-folders' (§24.4, B8-920, B8-923), and the reports
+of every other project a reference could be read from: the projects beside
+it and the ChromIQ folder's, top level and one level down (a verdict record
+of a report across projects carries the document's list).
 Archives (anything under an ``old/`` folder) are history and are never
 touched, and nothing is archived: the content of a report does
 not change, only the name it uses for a folder that has itself moved.
@@ -113,22 +115,66 @@ def _sibling_projects(project_root: Path) -> "list[Path]":
     return out
 
 
+def _chromiq_root() -> "Path | None":
+    """The ChromIQ folder (`workflow.measurement_report.chromiq_folder`);
+    None when it cannot be worked out."""
+    try:
+        from workflow import measurement_report as mr
+        return Path(str(mr.chromiq_folder()))
+    except Exception:                                  # noqa: BLE001
+        return None
+
+
 def _chromiq_reports() -> "Path | None":
     """``<ChromIQ folder>/reports``, where a report across projects that are
     NOT side by side lives (K30, §24.4); None when it cannot be worked out."""
-    try:
-        from workflow import measurement_report as mr
-        return Path(str(mr.chromiq_folder())) / "reports"
-    except Exception:                                  # noqa: BLE001
-        return None
+    root = _chromiq_root()
+    return root / "reports" if root is not None else None
+
+
+def _chromiq_folder_places() -> "tuple[list[Path], list[Path]]":
+    """``(projects, across folders)`` of the ChromIQ folder, the way
+    `workflow.measurement_report.resolve_recorded_folder` looks for a
+    project (its step 3c): every project at its top level and one level
+    down, and every folder across projects there (``<ChromIQ>/reports`` and
+    ``<ChromIQ>/<sub-folder>/reports``). Hidden folders and ``old/`` are not
+    searched, and nothing inside a project is taken for a sub-folder. Never
+    raises."""
+    root = _chromiq_root()
+    projects: "list[Path]" = []
+    acrosses: "list[Path]" = []
+    if root is None:
+        return projects, acrosses
+
+    def _is_project(c: Path) -> bool:
+        try:
+            return (c / "project.json").is_file()
+        except OSError:
+            return False
+
+    def _kids(folder: Path) -> "list[Path]":
+        try:
+            return sorted(c for c in folder.iterdir()
+                          if c.is_dir() and not c.name.startswith(".")
+                          and c.name not in ("reports", "old"))
+        except OSError:
+            return []
+
+    acrosses.append(root / "reports")
+    for c in _kids(root):
+        if _is_project(c):
+            projects.append(c)
+            continue
+        acrosses.append(c / "reports")
+        projects += [g for g in _kids(c) if _is_project(g)]
+    return projects, acrosses
 
 
 def report_files_referring(project_root: Path, *, outside: bool = True
                            ) -> "list[Path]":
     """The report files that may name *project_root*'s folders: its own, and
-    with *outside* every folder a report across places is filed in (the
-    folder across projects beside it, and the ChromIQ folder's) and every
-    project beside it.
+    with *outside* every folder a report across places is filed in and every
+    other project a report could name it from, each searched once.
 
     **THE ChromIQ FOLDER'S reports/ WAS MISSING (B8-920).** §24.4 files a
     report across projects in two different folders in ``<ChromIQ folder>/
@@ -136,23 +182,44 @@ def report_files_referring(project_root: Path, *, outside: bool = True
     in a sub-folder of the ChromIQ folder (or outside it) that is not the
     folder beside it, so the
     report was never searched: after a rename it went on naming the old
-    folder, after a run delete the old run numbers."""
+    folder, after a run delete the old run numbers.
+
+    **AND SO WERE THE PROJECTS OUTSIDE ITS OWN SUB-FOLDER (second check R3,
+    beta 39, B8-923).** A project moved into ``<ChromIQ>/Group/`` is found
+    by every other project's report (`resolve_recorded_folder`, step 3c),
+    but only the projects BESIDE it were searched, which in ``Group/`` are
+    the other projects of ``Group/``. Deleting its run 1 renumbered its own
+    reports and left every other project's naming ``runs/run1``, and their
+    windows then loaded the former run 2 as that report's measurement. So
+    every project the app resolves a reference from is searched now: the
+    ChromIQ folder's projects at its top level and one level down, and the
+    projects beside this one wherever it is. Which reference in them is
+    this project's is still `refers_here`'s question, not this one's."""
     project_root = Path(project_root)
     files = _reports_under(project_root)
-    if outside:
-        acrosses = [project_root.parent / "reports"]
-        mine = _chromiq_reports()
-        if mine is not None and not any(_same_folder(mine, a)
-                                        for a in acrosses):
-            acrosses.append(mine)
-        for across in acrosses:
-            try:
-                files += sorted(p for p in across.glob("report_*.json")
-                                if p.is_file())
-            except OSError:
-                pass
-        for sib in _sibling_projects(project_root):
-            files += _reports_under(sib)
+    if not outside:
+        return files
+    projects, acrosses = _chromiq_folder_places()
+    acrosses = [project_root.parent / "reports", *acrosses]
+    projects = [*_sibling_projects(project_root), *projects]
+    seen = {os.path.realpath(str(project_root))}
+    done: "set[str]" = set()
+    for across in acrosses:
+        key = os.path.realpath(str(across))
+        if key in done or _inside_folder(across, project_root):
+            continue
+        done.add(key)
+        try:
+            files += sorted(p for p in across.glob("report_*.json")
+                            if p.is_file())
+        except OSError:
+            pass
+    for other in projects:
+        key = os.path.realpath(str(other))
+        if key in seen:
+            continue
+        seen.add(key)
+        files += _reports_under(other)
     return files
 
 

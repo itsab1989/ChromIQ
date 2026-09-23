@@ -5310,20 +5310,34 @@ class MeasurementReportDialog(QDialog):
         from workflow import measurement_messages as M
         from workflow.measurement_report import (GONE_PROJECT,
                                                  document_measurement_key,
-                                                 update_losses)
+                                                 update_losses,
+                                                 update_may_cover)
         recorded = [m for m in ((updating.get("doc") or {}).get("measurements")
                                 or []) if isinstance(m, dict)]
-        members = [{"dir": str(r.get("_origin_dir") or ""),
+        pressed = [{"dir": str(r.get("_origin_dir") or ""),
                     "created": str(r.get("created") or ""),
                     "ti3": str(r.get("ti3") or ""),
                     "key": document_measurement_key(
                         r.get("_origin_dir") or "", str(r.get("created") or ""),
                         str(r.get("ti3") or ""))}
                    for r in self._runs_for_document() if r.get("_origin_dir")]
+        # **AN UPDATE COVERS THE REPORT'S OWN KIND OF MEASUREMENT (second
+        # check R3, beta 39, B8-925).** With every verification of a report
+        # gone, the window held the run's profiling sheets, this counted
+        # them as what was "still there", and "Update without them" rewrote
+        # the verification report about sheets it had never covered. What
+        # the report cannot cover by its kind is never written into it, and
+        # the NOTHING-LEFT / LEAVES-OUT decision is made on the rest.
+        members = update_may_cover(recorded, pressed)
+        foreign = {str(m["key"]) for m in pressed if m not in members}
+        if foreign:
+            log.info("an Update of %s leaves out %d measurement(s) of "
+                     "another kind than the report's", updating.get("key"),
+                     len(foreign))
         losses = update_losses(recorded, members,
                                self._entry_homes(updating))
         if not losses:
-            return set()
+            return foreign
         missing = "\n".join(M.report_gone_line(e) for e in losses)
         for e in losses:
             log.info("the report covers %s (%s), which is not there: %s",
@@ -5347,7 +5361,7 @@ class MeasurementReportDialog(QDialog):
             missing=missing)
         if not self._ask_leave_out(title, body):
             return None
-        return lost
+        return lost | foreign
 
     def _ask_leave_out(self, title: str, body: str) -> bool:
         """M-REPORT-UPDATE-LEAVES-OUT's two buttons; True for "Update without
@@ -8973,8 +8987,42 @@ class MeasurementReportDialog(QDialog):
                 keys = moved
         if not (keys & here) and covers and (covers & here):
             keys = set(covers)
+        # **AND A REPORT WHOSE OWN MEASUREMENTS ARE ALL GONE TICKS NOTHING
+        # (second check R3, beta 39, B8-925).** "Names no row that is here"
+        # left every row ticked, and with every verification of a report
+        # removed from disk those rows were the run's PROFILING sheets: the
+        # list showed them ticked under a verification report, and an Update
+        # then covered them. The rule above is for a report whose
+        # measurements are on disk somewhere this window did not match; one
+        # whose every recorded measurement is gone has nothing here to tick.
+        if keys and here and not (keys & here) \
+                and self._documents_own_are_gone(doc, covers, here):
+            log.info("none of the selected report's measurements is on "
+                     "disk; no row of the list is ticked under it")
+            self._hidden_runs = set(here)
+            return
         self._hidden_runs = (here - keys) if (keys & here) else set()
         # The caller repaints, and `_refresh` is what draws the rows (B8-521).
+
+    def _documents_own_are_gone(self, doc, covers, here) -> bool:
+        """Whether EVERY measurement *doc* records is gone from disk
+        (`update_losses`, read from the projects of *covers* and *here*, as
+        `_recorded_keys_where_they_are_now` reads them). False when it
+        records none or the question cannot be answered. Never raises."""
+        from workflow.measurement_report import project_home_of, update_losses
+        try:
+            recorded = [m for m in ((doc or {}).get("measurements") or [])
+                        if isinstance(m, dict) and m.get("dir")]
+            if not recorded:
+                return False
+            homes: "list[Path]" = []
+            for k in list(covers or ()) + list(here or ()):
+                h = project_home_of(str(k).split("|", 1)[0])
+                if h is not None and h not in homes:
+                    homes.append(h)
+            return len(update_losses(recorded, [], homes)) >= len(recorded)
+        except Exception:                              # noqa: BLE001
+            return False
 
     def _recorded_keys_where_they_are_now(self, missing, here,
                                           covers=None) -> "set[str]":

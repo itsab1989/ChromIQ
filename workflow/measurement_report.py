@@ -2015,6 +2015,38 @@ def _gone_reason(d: str, name: str, homes, *, one_project: bool
     return "", folder
 
 
+def recorded_dir_kind(d: "str | Path") -> str:
+    """The kind of measurement a folder a saved report RECORDS holds, by the
+    folder's name alone (the project may have moved since): ``cal`` is a
+    calibration, a dated folder under ``verifications`` a verification, and
+    anything else a profiling sheet."""
+    p = Path(str(d))
+    if _is_cal(p):
+        return KIND_CALIBRATION
+    return KIND_VERIFICATION if _is_dated(p) else KIND_PROFILING
+
+
+def update_may_cover(recorded, members) -> "list[dict]":
+    """The *members* an UPDATE of a saved report may cover: those of a kind
+    the report records (`recorded_dir_kind`), in order (second check R3,
+    beta 39, B8-925).
+
+    An Update rewrites a report about ITS measurements. With every
+    verification of a report gone, the window listed the run's two
+    profiling sheets ticked under it, and "Update without them" rewrote the
+    verification report (same id, "All dates") to cover sheets it had never
+    covered. A report of one kind never takes another kind's measurements;
+    a report that records none (written before the document record) takes
+    what the press covers, as before. Never raises."""
+    kinds = {recorded_dir_kind(str(m.get("dir") or ""))
+             for m in (recorded or [])
+             if isinstance(m, dict) and m.get("dir")}
+    if not kinds:
+        return list(members or [])
+    return [m for m in (members or [])
+            if recorded_dir_kind(str(m.get("dir") or "")) in kinds]
+
+
 def update_losses(recorded, members, homes) -> "list[dict]":
     """Every measurement an UPDATE of a saved report would lose without the
     user choosing it (challenge C, beta 39, #1 and #11), oldest first.
