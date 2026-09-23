@@ -2860,7 +2860,9 @@ M_THRESHOLDS_NOT_CERTIFICATION = _m(
     # set ships, is supplied, or holds nothing.
     "A read-only column named after a standard is judged against that "
     "standard's published tolerance values, where ChromIQ ships them or a "
-    "licence holder has supplied them, and reads ? where neither is so. A "
+    "licence holder has supplied them. Such a column reads “–” for a row "
+    "the standard puts no limit on, and ? where it limits the row but no "
+    "number has been supplied for it. A "
     "Custom column starts from a licence holder's figures where there are "
     "any, and otherwise from limits researched from industry practice and "
     "ChromIQ's own numbers, neither of which is that standard's. "

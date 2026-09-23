@@ -472,3 +472,16 @@ def test_r2_21_the_package_readme_carries_no_developer_note():
     text = P.package_readme(m, limit, [], [])
     assert not P.developer_notes_in(text), P.developer_notes_in(text)[:5]
     assert "seen on screen" not in text and "each a round" not in text
+
+
+def test_r2_the_not_certification_note_reads_dash_and_question_mark_as_the_legend():
+    """Since §23 a shipped set shows "–" for a row the standard does not
+    limit, and "?" only where it limits the row with no number supplied; the
+    note said "reads ? where neither is so". MUTATION: put that clause back."""
+    body = M.CATALOGUE["M-THRESHOLDS-NOT-CERTIFICATION"].body
+    assert "reads ? where neither is so" not in body
+    assert "reads “–” for a row the standard puts no limit on" in body
+    assert "? where it limits the row but no number has been supplied" in body
+    de = DE[body]
+    assert "wo beides nicht zutrifft" not in de
+    assert "„–“" in de and "keine Zahl bereitgestellt" in de
