@@ -29,8 +29,9 @@ def _old_dirs(run):
     return out
 
 
-@pytest.mark.xfail(strict=True, reason="R3A-2: a moved document ticks its "
-                   "leftover member, so 'Nothing was changed' + Update widens it")
+# R3A-2: FIXED 2026-09-23 with K23; this was a strict xfail and is now the
+# guard. MUTATION: drop the project-relative match in
+# `_restore_the_documents_view` and the moved copy ticks the leftover: red.
 def test_a_moved_document_does_not_tick_the_date_an_update_took_out(
         two_dates, qapp, tmp_path, monkeypatch):
     import shutil

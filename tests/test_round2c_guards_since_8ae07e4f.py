@@ -287,8 +287,13 @@ def test_the_pdf_name_carries_the_LAST_update_not_the_first(two_dates, qapp):
                                every_measurement=True, detail=True)
         entry = next(d for d in dlg._saved_documents(dlg._run_ctx.run)
                      if d["key"] == key)
-        for r, name in entry["members"]:
-            p = Path(str(r.get("_origin_dir"))) / "reports" / name
+        # K23: a document of two dates is its document file (`entry["file"]`,
+        # in `verifications/reports/`) and its two verdict records.
+        paths = [Path(str(r.get("_origin_dir"))) / "reports" / name
+                 for r, name in entry["members"]]
+        if entry.get("file"):
+            paths.append(Path(str(entry["file"])))
+        for p in paths:
             rep = json.loads(p.read_text(encoding="utf-8"))
             rep[DOCUMENT_BLOCK]["updated"] = ["2026-01-01T10:00:00",
                                               "2026-02-02T11:00:00"]

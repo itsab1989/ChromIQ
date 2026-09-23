@@ -634,11 +634,16 @@ def test_every_entry_carries_its_own_settings_in_its_name(tmp_path, qapp):
 
 
 def test_delete_moves_every_file_of_the_document(tmp_path, qapp):
-    """L.7, on a document that spans two dated verifications of one run: its
-    files go to the RUN's `verifications/old/`, and nothing is destroyed.
+    """L.7, on a document that spans two dated verifications of one run: it
+    goes to the RUN's `verifications/old/`, and nothing is destroyed.
 
-    MUTATION: move only the file the page is drawn from, or `unlink` instead of
-    moving, and this goes red.
+    **K23 (Knut, 2026-09-23): what moves is the DOCUMENT FILE.** A document of
+    several dates lives in `runN/verifications/reports/`, and each date keeps
+    its own verdict record, which "is not a report": it stays in the date's
+    folder, so the date keeps its verdict after the report is deleted.
+
+    MUTATION: `unlink` instead of moving, move the records with it, or move
+    nothing, and this goes red.
     """
     s, _fm, run, vs = _messy_project(tmp_path, dates=2)
     dlg = _dialog(s, vs[-1].measurement_ti3, qapp)
@@ -647,22 +652,25 @@ def test_delete_moves_every_file_of_the_document(tmp_path, qapp):
         _start_fresh(dlg, qapp)
         _every_measurement(dlg, qapp)
         before = set(_files(run))
+        home = run.verifications_dir / "reports"
         dlg._on_generate_report()
         qapp.processEvents()
         written = sorted(set(_files(run)) - before)
         assert len(written) == 2, written
+        doc_files = sorted(home.glob("report_*.json"))
+        assert len(doc_files) == 1, doc_files
         rows = {d["key"]: n for n, d in enumerate(
             dlg._saved_documents(dlg._run_ctx.run))}
         _pick(dlg, rows[dlg._loaded_doc_id], qapp)
         dlg._on_delete_report()
         qapp.processEvents()
+        assert not doc_files[0].exists(), f"{doc_files[0]} is still live"
         for p in written:
-            assert not Path(p).exists(), f"{p} is still live"
+            assert Path(p).exists(), f"the date's verdict record {p} went too"
         old = list((run.verifications_dir / "old").glob("*/report_*.json"))
-        assert len(old) == 2, (
-            f"a document spanning two dates left {len(old)} files in "
+        assert [o.name for o in old] == [doc_files[0].name], (
+            f"a document spanning two dates left {old} in "
             f"{run.verifications_dir / 'old'}")
-        assert set(_files(run)) == before, "another report went with it"
     finally:
         dlg.close()
 

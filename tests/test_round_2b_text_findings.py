@@ -96,7 +96,8 @@ def test_a_saved_type_the_kind_no_longer_allows_is_a_change(tmp_path, qapp,
     try:
         key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_FULL,
                                every_measurement=True, detail=True)
-        for f in _files(run):
+        for f in _files(run) + sorted(  # K23: and the document file
+                (run.verifications_dir / "reports").glob("report_*.json")):
             p = json.loads(f.read_text(encoding="utf-8"))
             doc = p.get("document") or {}
             if doc.get("id") == key.split(":", 1)[1]:
@@ -129,7 +130,8 @@ def test_a_saved_type_the_kind_no_longer_allows_is_a_change(tmp_path, qapp,
         dlg._on_generate_report()
         qapp.processEvents()
         assert seen == ["Settings were modified for the selected report"], seen
-        for f in _files(run):
+        for f in _files(run) + sorted(  # K23: and the document file
+                (run.verifications_dir / "reports").glob("report_*.json")):
             doc = (json.loads(f.read_text(encoding="utf-8")).get("document")
                    or {})
             if doc.get("id") == key.split(":", 1)[1]:

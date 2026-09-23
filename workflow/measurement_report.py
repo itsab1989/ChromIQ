@@ -1367,6 +1367,51 @@ def document_scope_of(doc: "dict | None") -> str:
     return SCOPE_ALL_DATES if doc.get("all_runs") else SCOPE_MULTIPLE_DATES
 
 
+#: **K23, THE TWO PARTS OF A DOCUMENT OF SEVERAL MEASUREMENTS.** Knut,
+#: 2026-09-23 (#182, comments 5787117741 and 5787380408): a report of ONE
+#: measurement lives in that measurement's own `reports/`; a report of several
+#: dates of one profile run lives in `runN/verifications/reports/`; a report
+#: across profile runs in `<project>/reports/`. And, accepted in the same
+#: exchange, every dated verification keeps its own small verdict record in
+#: its own folder, because the lock and the comparability of the dates are
+#: built on it, and that record "is not a report, it is never listed or
+#: counted".
+#:
+#: So a document of several measurements is written as:
+#:
+#: * one file whose block says ``"role": "document"``, in `document_home`;
+#: * one file per measurement written, in that measurement's folder, whose
+#:   block says ``"role": "record"``: the same full per-measurement report
+#:   ChromIQ has always written, verdict and all, so every reader of a date's
+#:   verdict (the trend, `_gather_runs`, recalculation, the delete rule) goes
+#:   on finding it under the same `report_*.json` name.
+#:
+#: A block with NO role is what every file before K23 carries and what a
+#: one-measurement document still carries: that file is the report and the
+#: record at once. An older ChromIQ ignores the key, sees the records share
+#: one id, and shows the document once, which is the downgrade we want.
+ROLE_RECORD = "record"
+ROLE_DOCUMENT = "document"
+DOCUMENT_ROLES = (ROLE_RECORD, ROLE_DOCUMENT)
+
+
+def document_role(report_or_block: "dict | None") -> str:
+    """``"record"``, ``"document"`` or "" for a saved report or its block."""
+    if not isinstance(report_or_block, dict):
+        return ""
+    block = report_or_block.get(DOCUMENT_BLOCK)
+    if not isinstance(block, dict):
+        block = report_or_block
+    role = block.get("role")
+    return role if isinstance(role, str) and role in DOCUMENT_ROLES else ""
+
+
+def is_verdict_record(report_or_block: "dict | None") -> bool:
+    """True for a measurement's verdict record of a several-measurement
+    document (K23): kept, read for the verdict, never listed or counted."""
+    return document_role(report_or_block) == ROLE_RECORD
+
+
 #: **DOES A SECOND UPDATE APPEND A SECOND STAMP, OR REPLACE THE FIRST?**
 #: Knut ruled that **Update** appends *" - updated <date> <time>"* to the
 #: selected report's name (2026-09-19, #182) and did not say what a SECOND
@@ -1398,7 +1443,8 @@ def stamp_document(report: dict, *, doc_id: str, created: str, type_id: str,
                    compliance: "dict | None", detail: bool,
                    measurements: "list[dict]", scope: str = "",
                    all_runs: bool = False,
-                   updated: "list[str] | None" = None) -> dict:
+                   updated: "list[str] | None" = None,
+                   role: str = "") -> dict:
     """Record, on one file, which DOCUMENT it belongs to and how that document
     was made. Returns *report*, stamped in place.
 
@@ -1441,6 +1487,14 @@ def stamp_document(report: dict, *, doc_id: str, created: str, type_id: str,
     # does for a block written before this field existed.
     if scope in DOCUMENT_SCOPES:
         report[DOCUMENT_BLOCK]["scope"] = scope
+    # **WHICH PART OF A DOCUMENT THIS FILE IS (K23).** Left out for a document
+    # of one measurement, which is one file that is both the report and that
+    # measurement's verdict record, exactly as every file before K23. A
+    # document of several measurements is a DOCUMENT FILE in its own folder
+    # (`document_home`) plus a VERDICT RECORD in each measurement's folder;
+    # see `ROLE_RECORD`.
+    if role in DOCUMENT_ROLES:
+        report[DOCUMENT_BLOCK]["role"] = role
     return report
 
 
@@ -1505,6 +1559,11 @@ def recorded_document(report: "dict | None") -> "dict | None":
         out["scope"] = scope
     else:
         out.pop("scope", None)
+    role = d.get("role")
+    if isinstance(role, str) and role in DOCUMENT_ROLES:
+        out["role"] = role
+    else:
+        out.pop("role", None)
     return out
 
 
@@ -1609,8 +1668,189 @@ def list_reports(run_dir: str | Path) -> list[Path]:
     return sorted(reports.glob("report_*.json"))
 
 
+def _is_dated(d: Path) -> bool:
+    from core.file_manager import VERIFICATIONS_DIRNAME
+    return d.parent.name == VERIFICATIONS_DIRNAME
+
+
+def _run_folder_of(d: Path) -> Path:
+    """The profile run a measurement folder belongs to: the run itself, or
+    the run above a dated verification folder."""
+    return d.parent.parent if _is_dated(d) else d
+
+
+def _project_folder_of(d: Path) -> "Path | None":
+    """The project a measurement folder belongs to, or None outside a
+    ``<project>/runs/runN`` layout."""
+    run = _run_folder_of(d)
+    return run.parent.parent if run.parent.name == "runs" else None
+
+
+def measurement_dir_kind(d: "str | Path") -> str:
+    """The kind a measurement FOLDER holds: a dated verification folder is
+    ``verification``; anything else (a run's own folder, a loose file's
+    folder) is ``profiling``."""
+    return KIND_VERIFICATION if _is_dated(Path(str(d))) else KIND_PROFILING
+
+
+def project_relative(d: "str | Path") -> str:
+    """A measurement folder named from the project down
+    (``runs/run1/verifications/<date>``), or the whole path outside a
+    project layout.
+
+    **A PROJECT MOVES.** Every downloaded demo pack has, and so has every
+    project restored from a backup; a document records its measurements by
+    ABSOLUTE folder (`document_measurement_key`), so a comparison on the whole
+    path finds nothing after a move. Named from `runs/` down, it finds the
+    same folders wherever the project now lives (K23, and B8-810 R3A-2).
+    """
+    parts = Path(str(d)).parts
+    for i in range(len(parts) - 2, -1, -1):
+        if parts[i] == "runs":
+            return "/".join(parts[i:])
+    return str(Path(str(d)))
+
+
+def relative_measurement_key(key: str) -> str:
+    """`document_measurement_key` with its folder made `project_relative`."""
+    head, sep, tail = str(key).partition("|")
+    return project_relative(head) + sep + tail if sep else str(key)
+
+
+def document_home(member_dirs) -> "Path | None":
+    """The ``reports`` folder a document covering *member_dirs* lives in (K23).
+
+    Knut, 2026-09-23: *"For single measurements: …/runN/verifications/
+    <date_time>/reports/. For multiple measurements within same measurement
+    set (within same profile run): …/runN/verifications/reports/. For
+    multiple measurements across different measurement sets of different
+    profile runs: …/printer_profile_project_name/reports/"*, and for a
+    profiling sheet *"…/runN/reports/"* or the project's.
+
+    ======================================  ================================
+    the document covers                     it lives in
+    ======================================  ================================
+    one folder                              ``<that folder>/reports``
+    several dates of ONE profile run        ``<run>/verifications/reports``
+    anything across profile runs            ``<project>/reports``
+    ======================================  ================================
+
+    Outside a project layout (loose files, which have no run to save into)
+    it answers with the folders' common ancestor, so it never raises. None
+    for an empty list. Nothing is created here.
+    """
+    import os
+    from core.file_manager import REPORTS_DIRNAME, VERIFICATIONS_DIRNAME
+    dirs: "list[Path]" = []
+    seen: "set[str]" = set()
+    for d in member_dirs or []:
+        if not str(d):
+            continue
+        d = Path(str(d))
+        if str(d) not in seen:
+            seen.add(str(d))
+            dirs.append(d)
+    if not dirs:
+        return None
+    if len(dirs) == 1:
+        return dirs[0] / REPORTS_DIRNAME
+    runs = {str(_run_folder_of(d)) for d in dirs}
+    if len(runs) == 1 and all(_is_dated(d) for d in dirs):
+        return _run_folder_of(dirs[0]) / VERIFICATIONS_DIRNAME / REPORTS_DIRNAME
+    projects = {str(_project_folder_of(d)) for d in dirs}
+    project = _project_folder_of(dirs[0])
+    if len(projects) == 1 and project is not None:
+        return project / REPORTS_DIRNAME
+    try:
+        return Path(os.path.commonpath([str(d) for d in dirs])) / REPORTS_DIRNAME
+    except ValueError:
+        return dirs[0] / REPORTS_DIRNAME
+
+
+def shared_report_folders(measurement_dirs) -> "list[Path]":
+    """The folders where a document of SEVERAL of these measurements may
+    live: each dated verification's ``verifications/reports`` and each
+    project's ``reports``. A measurement's own ``reports`` is not here; it is
+    read as it always was."""
+    from core.file_manager import REPORTS_DIRNAME, VERIFICATIONS_DIRNAME
+    out: "list[Path]" = []
+    seen: "set[str]" = set()
+    for d in measurement_dirs or []:
+        d = Path(str(d))
+        cands = []
+        if _is_dated(d):
+            cands.append(d.parent.parent / VERIFICATIONS_DIRNAME
+                         / REPORTS_DIRNAME)
+        project = _project_folder_of(d)
+        if project is not None:
+            cands.append(project / REPORTS_DIRNAME)
+        for c in cands:
+            if str(c) not in seen:
+                seen.add(str(c))
+                out.append(c)
+    return out
+
+
+def shared_documents(measurement_dirs) -> "list[tuple[Path, dict]]":
+    """``[(file, block)]`` for every document FILE in the shared folders
+    (`shared_report_folders`) that covers at least one of *measurement_dirs*.
+
+    **WHAT A DOCUMENT COVERS IS WHAT IT RECORDS**, compared from the project
+    down (`project_relative`) so a moved project still finds its documents.
+    A file there that is not a report object, carries no document block or
+    is a verdict record is not a document of several measurements: ChromIQ
+    never wrote one, and this skips it rather than guess what it covers.
+    Oldest first by file name. Never raises.
+    """
+    here = {project_relative(d) for d in (measurement_dirs or []) if str(d)}
+    out: "list[tuple[Path, dict]]" = []
+    for folder in shared_report_folders(measurement_dirs):
+        try:
+            paths = (sorted(folder.glob("report_*.json"))
+                     if folder.is_dir() else [])
+        except OSError:
+            continue
+        for path in paths:
+            try:
+                rep = json.loads(read_text(path))
+            except Exception:                    # noqa: BLE001
+                continue
+            block = recorded_document(report_object(rep))
+            if block is None or is_verdict_record(block):
+                continue
+            covers = {project_relative(m.get("dir") or "")
+                      for m in block.get("measurements") or []
+                      if m.get("dir")}
+            if covers & here:
+                out.append((path, block))
+    return out
+
+
+def document_file(*, doc_id: str, created: str, type_id: str,
+                  compliance: "dict | None", detail: bool,
+                  measurements: "list[dict]", scope: str = "",
+                  updated: "list[str] | None" = None) -> dict:
+    """The DOCUMENT FILE of a document of several measurements (K23).
+
+    It carries what the document is (its block, `stamp_document`, with
+    ``role: document``) and the three top-level keys a reader of any report
+    file asks first, and NO measurement data: each measurement's numbers and
+    verdict are in its own verdict record, where they have always been, and
+    the page is drawn from those.
+    """
+    body = {"schema": REPORT_SCHEMA, "created": str(created),
+            "report_type": str(type_id or ""),
+            "compliance": dict(compliance) if isinstance(compliance, dict)
+            else None}
+    return stamp_document(body, doc_id=doc_id, created=created,
+                          type_id=type_id, compliance=compliance,
+                          detail=detail, measurements=measurements,
+                          scope=scope, updated=updated, role=ROLE_DOCUMENT)
+
+
 def generated_report_types(run, kind: "str | None" = None,
-                           default_type: str = "") -> "dict[str, int]":
+                           default_type: str = "",
+                           measurement_dirs=None) -> "dict[str, int]":
     """``{type_id: how many}`` for the reports a RUN has already produced.
 
     **Knut, 2026-09-11:** *"A user should be allowed to print several report
@@ -1646,21 +1886,34 @@ def generated_report_types(run, kind: "str | None" = None,
     round 3A R3A-3), not as today's full report.
     """
     out: "dict[str, int]" = {}
-    if run is None:
-        return out
     from workflow.run_compliance import report_type_default_for
-    try:
-        verifs = [v.dir for v in run.verifications() if v.exists()]
-    except Exception as exc:                     # noqa: BLE001
-        log.warning("could not list the reports of a run: %s", exc)
-        return out
-    if kind == KIND_PROFILING:
-        dirs = [(run.dir, KIND_PROFILING)]
-    elif kind == KIND_VERIFICATION:
-        dirs = [(d, KIND_VERIFICATION) for d in verifs]
+    if measurement_dirs is not None:
+        # **THE FOLDERS OF THE MEASUREMENTS IN THE LIST (K23).** Knut: the
+        # reports counted *"must look in the folders that are relevant for the
+        # measurements added in the 'Included measurements..' list"*. The
+        # window hands them over; the kind still decides which of them count.
+        dirs = []
+        for d in measurement_dirs:
+            if not str(d):
+                continue
+            dk = measurement_dir_kind(d)
+            if kind is None or dk == kind:
+                dirs.append((Path(str(d)), dk))
     else:
-        dirs = ([(run.dir, KIND_PROFILING)]
-                + [(d, KIND_VERIFICATION) for d in verifs])
+        if run is None:
+            return out
+        try:
+            verifs = [v.dir for v in run.verifications() if v.exists()]
+        except Exception as exc:                     # noqa: BLE001
+            log.warning("could not list the reports of a run: %s", exc)
+            return out
+        if kind == KIND_PROFILING:
+            dirs = [(run.dir, KIND_PROFILING)]
+        elif kind == KIND_VERIFICATION:
+            dirs = [(d, KIND_VERIFICATION) for d in verifs]
+        else:
+            dirs = ([(run.dir, KIND_PROFILING)]
+                    + [(d, KIND_VERIFICATION) for d in verifs])
     allowed = set(report_types_for_kind(kind))
     # **IT COUNTS REPORTS, NOT FILES (B8-593).** Knut, 2026-09-20: *"The Text
     # 'Already generated for this run: Full colour check (11), Printing Record
@@ -1686,6 +1939,11 @@ def generated_report_types(run, kind: "str | None" = None,
             except (OSError, ValueError):
                 continue
             block = recorded_document(doc)
+            # **A VERDICT RECORD IS NOT A REPORT (K23).** It is one date's
+            # recorded result of a document of several measurements, and that
+            # document is counted once, from its own folder, below.
+            if is_verdict_record(block):
+                continue
             doc_id = str((block or {}).get("id") or "")
             if doc_id:
                 if doc_id in seen:
@@ -1705,6 +1963,18 @@ def generated_report_types(run, kind: "str | None" = None,
             if tid not in allowed:
                 continue
             out[tid] = out.get(tid, 0) + 1
+    # **AND THE DOCUMENTS OF SEVERAL MEASUREMENTS, WHERE THEY LIVE (K23)**:
+    # `runN/verifications/reports/` and `<project>/reports/`, each counted
+    # once, and only when it covers one of these measurements.
+    for _path, block in shared_documents([d for d, _k in dirs]):
+        doc_id = str(block.get("id") or "")
+        if doc_id in seen:
+            continue
+        seen.add(doc_id)
+        tid = str(block.get("type") or "")
+        if not tid or tid not in allowed:
+            continue
+        out[tid] = out.get(tid, 0) + 1
     return out
 
 

@@ -2469,7 +2469,9 @@ class MeasurementReportDialog(QDialog):
             covered = {Path(r["_origin_dir"]).name
                        for r in runs if r.get("_origin_dir")}
             for d in sorted(p for p in vroot.iterdir() if p.is_dir()):
-                if d.name in covered or d.name == "old":
+                # `reports` is where a document of several dates lives (K23),
+                # never a date.
+                if d.name in covered or d.name in ("old", "reports"):
                     continue
                 cand = d / ti3.name
                 if cand.is_file():
@@ -4277,7 +4279,9 @@ class MeasurementReportDialog(QDialog):
         update.
         """
         from datetime import datetime as _dt
-        from workflow.measurement_report import (document_measurement_key,
+        from workflow.measurement_report import (ROLE_RECORD, document_file,
+                                                 document_home,
+                                                 document_measurement_key,
                                                  document_updated_stamps,
                                                  new_document_id, report_type,
                                                  rewrite_report,
@@ -4353,6 +4357,26 @@ class MeasurementReportDialog(QDialog):
                    for r in self._runs_for_document() if r.get("_origin_dir")]
         detail = self._tick_state()
         scope = self._document_scope(members)
+        # **WHERE THIS DOCUMENT LIVES (K23).** Decided from what it COVERS,
+        # the list just built, and by the one rule the counter and the list
+        # use (`document_home`). One measurement: its own `reports/`, one
+        # file that is the report and the verdict record at once, exactly as
+        # before. Several: a document file in the home, and each file this
+        # press writes into a measurement's folder is that measurement's
+        # VERDICT RECORD (role "record"), never listed and never counted.
+        home = document_home([m["dir"] for m in members])
+        several = len({m["dir"] for m in members}) > 1
+        file_role = ROLE_RECORD if several else ""
+        #: The document file it had before this press (Update only), which
+        #: is rewritten in place when the home has not moved, and archived
+        #: and removed when it has, or when the document now covers one
+        #: measurement and so has no document file.
+        old_doc_file = (Path(str(updating["file"]))
+                        if updating is not None and updating.get("file")
+                        else None)
+        keep_doc_file = (old_doc_file is not None and several
+                         and home is not None
+                         and old_doc_file.parent.resolve() == home.resolve())
         saved, failed = [], []
         # **EVERY FILE THIS PRESS REWRITES IS COPIED INTO old/ FIRST (D23).**
         # Update rewrites the document's files in place, and so does the
@@ -4402,10 +4426,28 @@ class MeasurementReportDialog(QDialog):
             if not _ok:
                 _stuck.add(_rdir.resolve() if _rdir.exists()
                            else Path(str(origin)).resolve())
+        # …AND THE DOCUMENT FILE (K23): the one it has, which is rewritten or
+        # archived and removed, and the home a new one goes into, which must
+        # be writable or creatable from the nearest folder that exists.
+        if old_doc_file is not None and old_doc_file.exists():
+            _dir = old_doc_file.parent
+            _old = _dir / "old"
+            if not (os.access(old_doc_file, os.W_OK)
+                    and os.access(_dir, os.W_OK)) or (
+                        _old.exists() and not os.access(_old, os.W_OK)):
+                _stuck.add(_dir.resolve())
+        if several and home is not None and not keep_doc_file:
+            _up = home
+            while not _up.exists() and _up.parent != _up:
+                _up = _up.parent
+            if not os.access(_up, os.W_OK):
+                _stuck.add(home.resolve())
         _unarchived: "set[Path]" = set()
-        if existing and not _stuck:
-            _archived, _unarchived = archive_report_files(
-                [p for p in existing.values() if p.exists()], when)
+        _to_archive = [p for p in existing.values() if p.exists()]
+        if old_doc_file is not None and old_doc_file.exists():
+            _to_archive.append(old_doc_file)
+        if _to_archive and not _stuck:
+            _archived, _unarchived = archive_report_files(_to_archive, when)
             for _rdir, _to in _archived.items():
                 log.info("archived the reports in %s to %s before updating",
                          _rdir, _to)
@@ -4465,7 +4507,7 @@ class MeasurementReportDialog(QDialog):
                                compliance=rep.get("compliance"),
                                detail=detail,
                                measurements=members, scope=scope,
-                               updated=updated)
+                               updated=updated, role=file_role)
                 if here is not None and here.exists():
                     # **THE SAME FILE, THE SAME NAME, THE SAME DATE.** An
                     # update must not leave two live reports of one press
@@ -4500,11 +4542,43 @@ class MeasurementReportDialog(QDialog):
                            type_id=_tid_for_block,
                            compliance=leftover.get("compliance"),
                            detail=detail,
-                           measurements=members, scope=scope, updated=updated)
+                           measurements=members, scope=scope, updated=updated,
+                           # K23: no longer covered, so no longer the
+                           # report; it stays as the date's verdict record.
+                           role=ROLE_RECORD)
             try:
                 rewrite_report(path, leftover)
             except OSError as exc:               # noqa: BLE001
                 log.warning("could not rewrite %s: %s", path, exc)
+        # **THE DOCUMENT FILE, WHERE THE DOCUMENT LIVES (K23).** Written only
+        # when something of the press was written and nothing was refused, so
+        # a document file never names a press that left no record.
+        if several and home is not None and saved and not _blocked:
+            first = next((json.loads(read_text(p)) for p in saved[:1]), {})
+            body = document_file(
+                doc_id=doc_id, created=doc_created, type_id=_tid_for_block,
+                compliance=(first or {}).get("compliance"), detail=detail,
+                measurements=members, scope=scope, updated=updated)
+            try:
+                if keep_doc_file and old_doc_file.exists():
+                    rewrite_report(old_doc_file, body)
+                else:
+                    save_report(body, home.parent)
+            except OSError as exc:               # noqa: BLE001
+                log.warning("could not write the document file in %s: %s",
+                            home, exc)
+                failed.append(str(home))
+        # …AND THE ONE IT HAD, WHEN IT NO LONGER LIVES THERE: archived above
+        # with the rest of the press (D23), so removing it loses nothing.
+        if (old_doc_file is not None and not keep_doc_file and saved
+                and not _blocked and old_doc_file.exists()
+                and old_doc_file.parent.resolve() not in _unarchived):
+            try:
+                old_doc_file.unlink()
+                log.info("the document moved, its old file is in old/: %s",
+                         old_doc_file)
+            except OSError as exc:               # noqa: BLE001
+                log.warning("could not remove %s: %s", old_doc_file, exc)
         self._say_generated(saved, failed)
         self._forget_limits()
         # THE FILE IT JUST WROTE IS WHAT THE PAGE SHOWS, AND IT IS IN THE LIST.
@@ -5427,22 +5501,32 @@ class MeasurementReportDialog(QDialog):
         # run's own folder, a verification's in its dated folders), and so do
         # the types; `generated_report_types` asks the same two questions.
         kind = self._window_kind()
-        try:
-            verifs = {str(v.dir) for v in run.verifications()}
-        except Exception:                            # noqa: BLE001
-            verifs = set()
-        mine = ({str(run.dir)} if kind == KIND_PROFILING
-                else verifs if kind == KIND_VERIFICATION
-                else {str(run.dir)} | verifs)
+        # **THE FOLDERS OF THE MEASUREMENTS IN THE LIST (K23).** Knut,
+        # 2026-09-23: the reports listed and counted *"must look in the
+        # folders that are relevant for the measurements added in the
+        # 'Included measurements..' list"*. This asked the window's RUN for
+        # its folders; it now asks the list, still by the profile bar's kind,
+        # and `_generated_types_line` hands the same folders to the counter.
+        mine = set(self._measurement_dirs_of_the_list(run, kind))
         allowed = set(report_types_for_kind(kind))
         docs: "dict[str, dict]" = {}
         order: "list[str]" = []
+        #: {document id: [(row, file name)]} for the VERDICT RECORDS of a
+        #: document of several measurements (K23). A record is never an
+        #: entry of its own; it is a member of the document it records.
+        records: "dict[str, list]" = {}
+        from workflow.measurement_report import (is_verdict_record,
+                                                 shared_documents)
         for r in self._history:
             origin = str(r.get("_origin_dir") or "")
             if origin not in mine:
                 continue
             for name in (r.get("_all_report_files") or []):
                 doc = self._document_of(origin, name, r)
+                if is_verdict_record(doc):
+                    records.setdefault(str(doc.get("id") or ""), []).append(
+                        (r, name))
+                    continue
                 key = document_key_of(doc, Path(origin) / "reports" / name)
                 entry = docs.get(key)
                 if entry is None:
@@ -5453,6 +5537,27 @@ class MeasurementReportDialog(QDialog):
                 when = _report_order(origin, name)
                 if when > entry["order"]:
                     entry["order"] = when
+        # **AND THE DOCUMENTS OF SEVERAL MEASUREMENTS, FROM WHERE THEY LIVE
+        # (K23)**: `runN/verifications/reports/` and `<project>/reports/`.
+        # Each is listed once, when it covers a measurement in the list, with
+        # its own file (`entry["file"]`, which Update rewrites and Delete
+        # moves) and its verdict records as members, so the page is drawn
+        # from the records exactly as a document's files always were.
+        for path, block in shared_documents(sorted(mine)):
+            key = document_key_of(block, path)
+            origin = path.parent.parent
+            entry = docs.get(key)
+            if entry is None:
+                entry = docs[key] = {"key": key, "doc": block,
+                                     "members": [], "order": ()}
+                order.append(key)
+            entry["file"] = path
+            entry["doc"] = block
+            entry["members"].extend(records.get(str(block.get("id") or ""),
+                                                []))
+            when = _report_order(origin, path.name)
+            if when > entry["order"]:
+                entry["order"] = when
         out = [docs[k] for k in order
                if self._entry_type(docs[k]) in allowed]
         for entry in out:
@@ -5486,6 +5591,48 @@ class MeasurementReportDialog(QDialog):
         # and `_report_order` is this window's one answer to "which of these
         # was written last".
         out.sort(key=lambda e: e["order"], reverse=True)
+        return out
+
+    def _measurement_dirs_of_the_list(self, run,
+                                      kind: "str | None") -> "list[str]":
+        """The folders of the measurements in "Included measurements" whose
+        reports this window lists and counts, of *kind* (None keeps both), in
+        list order (K23).
+
+        One answer for the two readouts, so "Report shown" and "Already
+        generated" look in the same folders by construction.
+
+        **WHICH ROWS.** Every row of the window's own run, and every row the
+        user ADDED (a measurement loaded as another source). Not the other
+        runs' sheets a Profiling window gathers by itself for the trend over a
+        printer's builds (#40): those are history drawn beside the run, and
+        counting their reports would make "Already generated for this run"
+        name reports of another run and open the window on another run's
+        report (measured: a window opened on run 2 came up about run 1, and
+        Generate then had nothing of run 2 ticked). Whether Knut wants those
+        counted as well is asked in the K23 register entry.
+        """
+        from workflow.measurement_report import measurement_dir_kind
+        if run is None:
+            return []
+        own = {str(run.dir)}
+        try:
+            own |= {str(v.dir) for v in run.verifications()}
+        except Exception:                            # noqa: BLE001
+            pass
+        wanted: "set[str]" = set(own)
+        for src in getattr(self, "_sources", None) or []:
+            rows = src.get("runs") or []
+            if any(str(r.get("_origin_dir") or "") in own for r in rows):
+                continue                  # the window's own source
+            wanted |= {str(r.get("_origin_dir") or "") for r in rows}
+        out: "list[str]" = []
+        for r in getattr(self, "_history", None) or []:
+            origin = str(r.get("_origin_dir") or "")
+            if not origin or origin in out or origin not in wanted:
+                continue
+            if kind is None or measurement_dir_kind(origin) == kind:
+                out.append(origin)
         return out
 
     def _entry_type(self, entry: dict) -> str:
@@ -5847,7 +5994,13 @@ class MeasurementReportDialog(QDialog):
         The rule is unchanged and is applied to every file the document is made
         of: the only saved report of a dated verification is kept, because that
         verdict is this run's record of that date (§5).
+
+        **A DOCUMENT WITH A DOCUMENT FILE IS NEVER REFUSED (K23).** Deleting
+        it moves that one file (`_on_delete_report`); its verdict records stay
+        in their dates' folders, so no date loses its verdict.
         """
+        if entry.get("file"):
+            return ""
         for r, name in (entry.get("members") or []):
             why = self._saved_delete_refusal(r, name)
             if why:
@@ -6663,6 +6816,21 @@ class MeasurementReportDialog(QDialog):
         # which measurements carry a FILE of this document, read off the disk
         # by `_saved_documents`, so it is right wherever the project now lives
         # and is the same set the recorded keys named before the move.
+        #
+        # **AND FIRST, THE SAME MEASUREMENTS NAMED FROM THE PROJECT DOWN
+        # (K23, B8-810 R3A-2).** The file fallback below reads which
+        # measurements carry a file of this document, and a measurement an
+        # Update took OUT still carries one (it keeps its verdict), so a
+        # narrowed document came back wider once the project had moved, and
+        # an Update then put the date back. The recorded list is the truth
+        # about what the document covers; only its absolute folder went
+        # stale, so it is compared from `runs/` down before anything else.
+        if not (keys & here) and keys:
+            from workflow.measurement_report import relative_measurement_key
+            rel = {relative_measurement_key(k) for k in keys}
+            moved = {h for h in here if relative_measurement_key(h) in rel}
+            if moved:
+                keys = moved
         if not (keys & here) and covers and (covers & here):
             keys = set(covers)
         self._hidden_runs = (here - keys) if (keys & here) else set()
@@ -6729,6 +6897,20 @@ class MeasurementReportDialog(QDialog):
         paths = [Path(str(r.get("_origin_dir") or "")) / "reports" / name
                  for r, name in members]
         dest = document_old_dir([p.parent.parent for p in paths], _dt.now())
+        doc_file = entry.get("file")
+        if doc_file:
+            # **A DOCUMENT OF SEVERAL MEASUREMENTS (K23) MOVES ITS DOCUMENT
+            # FILE, AND ONLY THAT.** Its verdict records are the dates' own
+            # results, "not a report" (Knut, 2026-09-23), and they stay. The
+            # destination is L.7's, read off where the file lives:
+            # `verifications/reports/` -> `verifications/old/<stamp>/`, and
+            # `<project>/reports/` -> `<project>/old/<stamp>/`. Asked of the
+            # file and not of the recorded folders, which name where the
+            # project USED to be when it has moved.
+            doc_file = Path(str(doc_file))
+            paths = [doc_file]
+            dest = (doc_file.parent.parent / "old"
+                    / _dt.now().strftime("%Y-%m-%d_%H%M%S"))
         if dest is None:
             return
         title, body = M.CATALOGUE["M-REPORT-DELETE"].render(
@@ -7240,9 +7422,11 @@ class MeasurementReportDialog(QDialog):
             return ""
         from workflow.measurement_report import (generated_report_types,
                                                  report_type_name)
+        kind = self._window_kind()
         counts = generated_report_types(
-            run, self._window_kind(),
-            str(self._settings.get("report_default_type", "") or ""))
+            run, kind,
+            str(self._settings.get("report_default_type", "") or ""),
+            measurement_dirs=self._measurement_dirs_of_the_list(run, kind))
         if not counts:
             return tr("No report has been generated for this run yet.")
         names = ", ".join(
@@ -7287,9 +7471,11 @@ class MeasurementReportDialog(QDialog):
             return ""
         from workflow.measurement_report import (generated_report_types,
                                                  report_type_name)
+        kind = self._window_kind()
         counts = generated_report_types(
-            run, self._window_kind(),
-            str(self._settings.get("report_default_type", "") or ""))
+            run, kind,
+            str(self._settings.get("report_default_type", "") or ""),
+            measurement_dirs=self._measurement_dirs_of_the_list(run, kind))
         if not counts:
             return ""
         return "\n".join(

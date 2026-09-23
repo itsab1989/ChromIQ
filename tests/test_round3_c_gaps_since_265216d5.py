@@ -140,7 +140,10 @@ def test_a_leftover_member_is_restamped_with_a_type_its_kind_allows(
         key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_FULL,
                                every_measurement=True, detail=True)
         doc_id = key.split(":", 1)[1]
-        for f in _files(run):
+        # K23: a document of two dates is its document file in
+        # `verifications/reports/` AND its two verdict records.
+        for f in _files(run) + sorted(
+                (run.verifications_dir / "reports").glob("report_*.json")):
             p = json.loads(f.read_text(encoding="utf-8"))
             doc = p.get("document") or {}
             if doc.get("id") == doc_id:

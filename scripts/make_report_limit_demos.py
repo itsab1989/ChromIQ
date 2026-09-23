@@ -48,6 +48,10 @@ Read `PROJECTS` for the current shape. In outline, what each project is for:
                                      holding reports of three types at once,
                                      so the "Already generated for this run"
                                      line has something to count.
+    Report-Limits-Report-Folders     where every kind of report lives (K23):
+                                     one date, several dates of one run,
+                                     across runs, profiling, a legacy report
+                                     of several dates and a deleted one.
     Report-Limits-Custom-Columns     the two Custom columns, with numbers.
     Report-Limits-Border-Conditions  the edges: a chart with no grey ramp, a
                                      raw sheet, a sheet with no printing
@@ -1816,6 +1820,30 @@ TYPES_DE_DEFAULT: "list[Date]" = [
        []),
 ]
 
+#: K23 (Knut, 2026-09-23): the dates of Report-Limits-Report-Folders. Their
+#: numbers are not the point, where their reports LIVE is, so two stories are
+#: reused with ChromIQ default: one date with one bad patch, the others clean.
+_FOLDERS_BAD = Design(bulk=0.90, shoulder=1.50, peak=4.50, tail=1.20,
+                      grey_dch=0.50)
+_FOLDERS_OK = Design(bulk=0.80, shoulder=1.40, peak=2.20, tail=1.60,
+                     grey_dch=0.50)
+FOLDERS_RUN1: "list[Date]" = [
+    _d("2026-12-01_100000", "2026-12-01T10:00:00", "First check",
+       "A clean sheet.", _FOLDERS_OK, []),
+    _d("2026-12-08_100000", "2026-12-08T10:00:00", "One patch goes wrong",
+       "A single patch at 4.5 carries 'All patches, largest' over 3.0.",
+       _FOLDERS_BAD, ["all_de00_max"]),
+    _d("2026-12-15_100000", "2026-12-15T10:00:00", "Clean again",
+       "The outlier is gone.", _FOLDERS_OK, []),
+]
+FOLDERS_RUN2: "list[Date]" = [
+    _d("2026-12-22_100000", "2026-12-22T10:00:00", "The new profile, first check",
+       "A clean sheet.", _FOLDERS_OK, []),
+    _d("2026-12-29_100000", "2026-12-29T10:00:00", "One patch goes wrong",
+       "A single patch at 4.5 carries 'All patches, largest' over 3.0.",
+       _FOLDERS_BAD, ["all_de00_max"]),
+]
+
 TYPES_DE_TIGHT: "list[Date]" = [
     _d("2026-11-03_100000", "2026-11-03T10:00:00",
        "One patch out, tight column",
@@ -2305,6 +2333,149 @@ def file_report(rep: dict, ti3: Path, run, kind: str, when: str, *,
         old.unlink()
     name = f"report_{when_dt:%Y-%m-%d_%H-%M-%S}" + ("" if n <= 1 else f"_{n}")
     return rewrite_report(reports / f"{name}.json", rep)
+
+
+#: K23: the project that shows where every kind of report lives.
+FOLDERS_PROJECT = "Report-Limits-Report-Folders"
+
+#: What `seed_report_folders` wrote, as lines for the README. Filled at build
+#: time from what is really on disk, never typed in by hand.
+FOLDERS_MANIFEST: "list[str]" = []
+
+
+def seed_report_folders(root: Path) -> "list[str]":
+    """Give Report-Limits-Report-Folders every place a report can live (K23).
+
+    Knut, 2026-09-23, #182: *"Make sure the demo projects have created runs
+    and projects that tests all variations of the above locations of reports
+    and report types and run type."* The runs already hold, from `build_run`,
+    one report of one date of every verification type and each profiling
+    sheet's Printing record. This adds, with the app's own functions and in
+    the app's own shapes:
+
+    * a report of ALL three dates of run1 (Full colour check) and one of TWO
+      of them (Grey and tone check): a document file in
+      `run1/verifications/reports/` and a verdict record in each date;
+    * a LEGACY report of two dates, written the way beta 36 wrote it: one
+      file per date sharing an id, no role, no document file;
+    * a DELETED report of two dates: its document file already moved into
+      `run1/verifications/old/<stamp>/` the way Delete moves it, its records
+      left in the dates, so nothing of it may be listed or counted;
+    * a report across run1 and run2 of verifications (Full colour check) and
+      one of the two profiling sheets (Printing record), both in the
+      project's own `reports/`;
+    * on run2's second date, a report saved by an older ChromIQ with no
+      document record at all.
+
+    Returns the README lines, which name each file it wrote.
+    """
+    import re as _re
+    from core.file_manager import REPORTS_DIRNAME, VERIFICATIONS_DIRNAME
+    from workflow.measurement_report import (
+        REPORT_TYPE_GREY as _GREY, REPORT_TYPE_RECORD as _RECORD,
+        ROLE_RECORD, SCOPE_ALL_DATES, SCOPE_MULTIPLE_DATES, document_file,
+        document_home, document_measurement_key, new_document_id,
+        report_type, rewrite_report, set_report_type, stamp_document)
+    runs = sorted((root / "runs").glob("run*"), key=lambda p: p.name)
+    run1, run2 = runs[0], runs[1]
+
+    def dates(rd):
+        return sorted(d for d in (rd / VERIFICATIONS_DIRNAME).iterdir()
+                      if d.is_dir() and _re.fullmatch(r"\d{4}-\d{2}-\d{2}_\d{6}",
+                                                      d.name))
+
+    def base(folder):
+        """The measurement's own report, as `build_run` filed it."""
+        first = sorted((folder / REPORTS_DIRNAME).glob("report_*.json"))[0]
+        return json.loads(first.read_text(encoding="utf-8"))
+
+    def member(folder, rep):
+        return {"dir": str(folder), "created": str(rep.get("created") or ""),
+                "ti3": str(rep.get("ti3") or ""),
+                "key": document_measurement_key(folder,
+                                                str(rep.get("created") or ""),
+                                                str(rep.get("ti3") or ""))}
+
+    def free(folder, when):
+        folder.mkdir(parents=True, exist_ok=True)
+        stem = f"report_{when:%Y-%m-%d_%H-%M-%S}"
+        path, n = folder / f"{stem}.json", 2
+        while path.exists():
+            path, n = folder / f"{stem}_{n}.json", n + 1
+        return path
+
+    lines: "list[str]" = []
+
+    def rel(p):
+        return str(Path(p).relative_to(root.parent))
+
+    def write(folders, type_id, when, *, legacy=False, what=""):
+        when_dt = datetime.fromisoformat(when)
+        reps = [base(f) for f in folders]
+        members = [member(f, r) for f, r in zip(folders, reps)]
+        doc_id = new_document_id(when_dt)
+        one_run_of_dates = (
+            all(f.parent.name == VERIFICATIONS_DIRNAME for f in folders)
+            and len({str(f.parent) for f in folders}) == 1)
+        scope = (SCOPE_ALL_DATES if one_run_of_dates and len(folders)
+                 == len(dates(folders[0].parent.parent))
+                 else SCOPE_MULTIPLE_DATES)
+        written = []
+        for f, rep in zip(folders, reps):
+            rep = json.loads(json.dumps(rep))
+            rep.pop("document", None)
+            if type_id != report_type(rep):
+                set_report_type(rep, type_id)
+            stamp_document(rep, doc_id=doc_id, created=when, type_id=type_id,
+                           compliance=rep.get("compliance"), detail=False,
+                           measurements=members, scope=scope,
+                           role="" if legacy else ROLE_RECORD)
+            written.append(rewrite_report(free(f / REPORTS_DIRNAME, when_dt),
+                                          rep))
+        doc_path = None
+        if not legacy:
+            body = document_file(doc_id=doc_id, created=when, type_id=type_id,
+                                 compliance=reps[0].get("compliance"),
+                                 detail=False, measurements=members,
+                                 scope=scope)
+            doc_path = rewrite_report(free(document_home(folders), when_dt),
+                                      body)
+        lines.append(f"  {what}")
+        if doc_path is not None:
+            lines.append(f"      the report:        {rel(doc_path)}")
+        for p in written:
+            lines.append(f"      {'a file of it:' if legacy else 'verdict record:'}"
+                         f"     {rel(p)}")
+        return doc_path
+
+    d1, d2 = dates(run1), dates(run2)
+    write(d1[:2], REPORT_TYPE_FULL, "2026-12-20T09:00:00", legacy=True,
+          what="LEGACY, several dates of run1, written as beta 36 did "
+               "(listed and counted once, never moved):")
+    gone = write([d1[0], d1[2]], REPORT_TYPE_FULL, "2026-12-20T09:30:00",
+                 what="DELETED, two dates of run1 (not listed, not counted; "
+                      "its records stay):")
+    old = (run1 / VERIFICATIONS_DIRNAME / "old" / "2026-12-20_094500")
+    old.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(gone), str(old / gone.name))
+    lines.append(f"      moved by Delete to: {rel(old / gone.name)}")
+    write(d1, REPORT_TYPE_FULL, "2026-12-21T09:00:00",
+          what="ALL DATES of run1, Full colour check:")
+    write(d1[1:], _GREY, "2026-12-21T09:30:00",
+          what="TWO DATES of run1, Grey and tone check:")
+    write([d1[-1], d2[0]], REPORT_TYPE_FULL, "2026-12-30T09:00:00",
+          what="ACROSS run1 and run2, verifications, Full colour check:")
+    write([run1, run2], _RECORD, "2026-12-30T09:30:00",
+          what="ACROSS run1 and run2, profiling sheets, Printing record:")
+    # A REPORT SAVED BEFORE THE DOCUMENT RECORD EXISTED (a 4.2 file).
+    older = base(d2[1])
+    older.pop("document", None)
+    p = rewrite_report(free(d2[1] / REPORTS_DIRNAME,
+                            datetime.fromisoformat("2026-12-29T12:00:00")),
+                       older)
+    lines.append("  OLDER CHROMIQ, one date of run2, no document record:")
+    lines.append(f"      the report:        {rel(p)}")
+    return lines
 
 
 #: See `--survey` in `main`.
@@ -3311,6 +3482,24 @@ PROJECTS = [
                      "regenerate it with one: this run exists to show what the "
                      "report says when a chart cannot supply a row."),
     ]),
+    (FOLDERS_PROJECT, [
+        RunPlan("Where reports live (K23). Every dated check keeps a report "
+                "of its own of each verification type on its first date, the "
+                "profiling sheet keeps its Printing record, and "
+                "`seed_report_folders` adds a report of several dates, a "
+                "legacy one written the way beta 36 wrote it, a deleted one, "
+                "and reports across both runs.",
+                CHART_SMALL, CHART_MEDIUM, "chromiq_default", FOLDERS_RUN1,
+                report_type=REPORT_TYPE_FULL, unlocked=True, lock="unlocked",
+                also_generate=(REPORT_TYPE_SUMMARY, REPORT_TYPE_GREY)),
+        RunPlan("The second profile run. Its first date holds a Colour "
+                "summary as well, its second date a report saved by an "
+                "older ChromIQ with no document record, and it shares two "
+                "reports with run1 in the project's own reports folder.",
+                CHART_SMALL, CHART_MEDIUM, "chromiq_default", FOLDERS_RUN2,
+                report_type=REPORT_TYPE_FULL, unlocked=True, lock="unlocked",
+                also_generate=(REPORT_TYPE_SUMMARY,)),
+    ]),
     ("Report-Limits-Custom-Columns", [
         RunPlan("The Custom ISO 12647-7 column, which starts from ChromIQ's "
                 "own numbers and not from that standard's published values.",
@@ -3859,7 +4048,9 @@ def main(argv=None) -> int:
     for name, plans in PROJECTS:
         if args.only and name not in args.only:
             continue
-        build_project(dest, name, plans, cache_root, results, lock_rows)
+        root = build_project(dest, name, plans, cache_root, results, lock_rows)
+        if name == FOLDERS_PROJECT:
+            FOLDERS_MANIFEST[:] = seed_report_folders(root)
     shutil.rmtree(cache_root, ignore_errors=True)
 
     # THE DEMO PRESETS (#182, Knut 2026-09-19), built by their own generator.
@@ -4589,6 +4780,9 @@ def support_coverage(dest: Path) -> dict:
             doc = json.loads(rep.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
+        # A DOCUMENT FILE (K23) holds no measurement, so it has no rows.
+        if (doc.get("document") or {}).get("role") == "document":
+            continue
         rv = row_values(doc) or {}
         if not rv:
             continue
@@ -4758,6 +4952,9 @@ def message_coverage(dest: Path) -> dict:
                 try:
                     rep = json.loads(rep_path.read_text(encoding="utf-8"))
                 except (OSError, ValueError):
+                    continue
+                # A DOCUMENT FILE (K23) holds no measurement to judge.
+                if (rep.get("document") or {}).get("role") == "document":
                     continue
                 date = (rep_path.parent.parent.name
                         if rep_path.parent.parent != rd else "profiling")
@@ -5620,6 +5817,28 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
     a("them and they are most of the weight. printtarg rebuilds them from the")
     a("chart's .ti1 at any time.")
     a("")
+    if FOLDERS_MANIFEST:
+        a("WHERE A REPORT LIVES (K23, Report-Limits-Report-Folders)")
+        a("--------------------------------------------------------")
+        a("")
+        a("Knut, 2026-09-23: a report of ONE measurement lives in that")
+        a("measurement's own reports/ folder; a report of several dates of one")
+        a("profile run in runN/verifications/reports/; a report across profile")
+        a("runs in the project's own reports/. Each date also keeps its own")
+        a("verdict record in its own folder, which is never listed or counted.")
+        a("Every date of this project holds a one-date report of each")
+        a("verification type on its first date, each run's profiling sheet its")
+        a("Printing record, and these, written by the generator with the app's")
+        a("own functions:")
+        a("")
+        lines.extend(FOLDERS_MANIFEST)
+        a("")
+        a("Open run1 as a Verification and the list holds the one-date")
+        a("reports, the all-dates and two-dates reports, the legacy one, and")
+        a("the report across both runs; never the deleted one. Open run1 as")
+        a("Profiling and it holds the Printing record and the report across")
+        a("both profiling sheets.")
+        a("")
     return "\n".join(lines) + "\n"
 
 

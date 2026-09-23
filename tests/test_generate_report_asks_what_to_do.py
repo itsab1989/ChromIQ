@@ -943,6 +943,15 @@ def test_a_member_the_update_drops_still_agrees_with_its_document(
 
         blocks = {k: json.loads(p.read_text(encoding="utf-8"))["document"]
                   for k, p in files.items()}
+        # K23: the ONE thing they may disagree on is their part in it. The
+        # document now covers one measurement, so that measurement's file IS
+        # the document (no role), and the one taken out is kept as its date's
+        # verdict record (role "record"), never listed or counted.
+        roles = {k: b.pop("role", "") for k, b in blocks.items()}
+        assert roles[dropped] == "record", roles
+        assert sorted(roles.values()) == ["", "record"], roles
+        assert not list((run.verifications_dir / "reports").glob(
+            "report_*.json")), "a document of one date kept a document file"
         assert len({json.dumps(b, sort_keys=True) for b in blocks.values()}) == 1, (
             "the two files of one document disagree about what it is:\n"
             + "\n".join(f"  {k}: {b}" for k, b in blocks.items()))
