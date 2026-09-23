@@ -1359,18 +1359,24 @@ _IDENTICAL_TO_KEY = {
     # untranslated German string, not a bigger budget, and is fixed rather than
     # recorded. COUNTED with this file's own helper on the tree this commit
     # leaves behind.
+    # RE-MEASURED 2026-09-23, K25 (the grouped "Report shown" list, #182):
+    # five new keys ("Run{number}", two group headings, two guide rows),
+    # English in the twelve under the beta rule, so each rises by exactly 5.
+    # The two M-REPORT-DELETE keys were renamed in place and reset to the new
+    # English. German by hand, does not move. The other ledger, `_BUDGET`,
+    # rose by 4 in the same commit ("Run{number}" is under 25 characters).
     "de": 139,
-    "es": 1019,
-    "fr": 1041,
-    "it": 1030,
-    "ja": 1005,
-    "nl": 1046,
-    "no": 1031,
-    "pl": 1023,
-    "pt": 1021,
-    "ru": 994,
-    "sv": 1032,
-    "zh_CN": 999,
+    "es": 1024,
+    "fr": 1046,
+    "it": 1035,
+    "ja": 1010,
+    "nl": 1051,
+    "no": 1036,
+    "pl": 1028,
+    "pt": 1026,
+    "ru": 999,
+    "sv": 1037,
+    "zh_CN": 1004,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1397,7 +1403,7 @@ _IDENTICAL_TO_KEY = {
     # in Ukrainian, so the pointer could not match whatever the user read.
     # Nothing else changed. The ceiling is re-measured DOWN here rather than
     # left where it was, so the next rise still has to justify itself.
-    "uk": 1241,
+    "uk": 1246,
 }
 
 

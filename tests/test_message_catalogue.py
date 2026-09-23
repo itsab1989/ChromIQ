@@ -733,10 +733,27 @@ def test_no_message_carries_markdown_that_would_reach_the_screen():
         assert not found, f"{mid} would show Markdown on screen: {found}"
 
 
+#: Messages whose "(s)" is the DESIGN AUTHORITY'S OWN WORDING, each with where
+#: he gave it. Not a licence: the house rule stands for every other message,
+#: and an entry here needs his words, not ours.
+#:
+#: M-REPORT-DELETE: Knut, #182 comment 5789263863 (K25, Q5), *"You could say
+#: 'the measurement(s) it describes', to make it simple."* The message counts
+#: FILES ({n}); a report of several measurements is one document file since
+#: K23, so {n} cannot choose between "measurement" and "measurements".
+_BRACKETED_PLURAL_BY_RULING = {"M-REPORT-DELETE": "the measurement(s) it describes"}
+
+
 def test_no_message_uses_a_bracketed_plural():
-    """House rule, and the model follows it too."""
+    """House rule, and the model follows it too. An entry in
+    `_BRACKETED_PLURAL_BY_RULING` may carry exactly the phrase he gave and no
+    other "(s)"."""
     for mid, msg in sorted(M.CATALOGUE.items()):
-        assert "(s)" not in msg.title + msg.body, mid
+        text = msg.title + msg.body + (getattr(msg, "body_one", "") or "")
+        ruled = _BRACKETED_PLURAL_BY_RULING.get(mid)
+        if ruled:
+            text = text.replace(ruled, "")
+        assert "(s)" not in text, mid
 
 
 def test_the_uncatalogued_window_list_does_not_grow():

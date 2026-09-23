@@ -128,14 +128,23 @@ def test_every_saved_report_of_the_run_is_offered(tmp_path, qapp):
         dlg.close()
 
 
-def test_the_selector_never_offers_another_run_s_reports(tmp_path, qapp):
-    """Everything this window WRITES is its own run's, for the reason
-    `_recalculate_run` gives at length. A window gathers the whole project's
-    history to draw the trend (#40); offering to delete out of that list would
-    be the widest reach in the window.
+def test_a_profiling_window_offers_every_run_s_printing_record_grouped(
+        tmp_path, qapp):
+    """**K25 REVERSED WHAT THIS TEST USED TO PIN.** It was
+    `test_the_selector_never_offers_another_run_s_reports`: a Profiling
+    window gathers the whole project's history for the trend (#40) and must
+    not list the other runs' reports. Knut, 2026-09-23 (5789263863):
+    *"'Already generated for this run' and 'Report shown' shall list and count
+    every run's Printing records if the rules are fulfilled"*, the rules being
+    the folders the measurements in "Included measurements" point to.
 
-    MUTATION: drop the `mine` filter from `_saved_report_choices` and this goes
-    red.
+    So run 2's report IS offered now, under a "Run2" heading, and the window
+    still OPENS on its own run's report, which is what the old filter
+    protected (`_open_on_the_latest_report`).
+
+    MUTATION: put back the skip of the window's own source in
+    `_measurement_dirs_of_the_list` (``if any(... in own for r in rows):
+    continue``) and this goes red: run 2's report leaves the list.
     """
     from tests.test_import_measurement_module import _cgats, _PATCHES
     from workflow.measurement_report import build_report, save_report
@@ -166,8 +175,12 @@ def test_the_selector_never_offers_another_run_s_reports(tmp_path, qapp):
         # and failed on a window that was filtering correctly.
         keys = [_key(dlg, i) for i in range(_count(dlg))]
         assert keys, "the selector is empty, so this proves nothing"
-        assert not any(str(run2.dir) in k for k in keys), (
-            f"the selector offers another run's report: {keys}")
+        assert any(str(run2.dir) in k for k in keys), (
+            f"run 2's Printing record is not offered: {keys}")
+        texts = [_text(dlg, i).strip() for i in range(_count(dlg))]
+        assert "Run1" in texts and "Run2" in texts, texts
+        assert str(run.dir) in str(dlg._saved_combo.currentData() or ""), (
+            "the window opened on another run's report")
         assert p2.is_file()
     finally:
         dlg.close()

@@ -683,9 +683,12 @@ def test_a_straddling_row_is_pushed_by_breaking_after_the_row_above(qapp):
         "border and padding are painted overleaf — the thin empty band of #164")
 
 
+# RE-MEASURED 2026-09-23, K25: "Where are my files" gained two rows (the saved
+# reports in verifications/reports/ and <project>/reports/, Knut Q6), 13 -> 14
+# on BOTH sizes, measured, not assumed.
 @pytest.mark.parametrize("page,expect", [
-    ("A4", {"main_actions": 3, "file_guide": 13}),
-    ("Letter", {"main_actions": 3, "file_guide": 13}),
+    ("A4", {"main_actions": 3, "file_guide": 14}),
+    ("Letter", {"main_actions": 3, "file_guide": 14}),
 ])
 def test_the_price_of_whole_rows_is_pinned(qapp, tmp_path, page, expect):
     """Keeping a row whole costs very little once the page skip is gone.

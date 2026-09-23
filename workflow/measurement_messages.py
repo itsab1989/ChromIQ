@@ -2659,19 +2659,24 @@ M_REPORT_CHART_MISMATCH_LAYOUT = _m(
 # false of this one. It also spoke of one FILE, and an entry in the list is now
 # one DOCUMENT, which may be one file per measurement it covers (B8-383). Still
 # PROPOSED: neither wording has been approved.
+# REVISED 2026-09-23 for Knut's K25 answer (5789263863, Q5): the one-file body
+# said "the measurement it describes" about a report of several dates, because
+# since K23 a report of several measurements is ONE document file. {n} counts
+# FILES, not measurements, so it cannot choose the word; his own words do:
+# *"You could say 'the measurement(s) it describes', to make it simple."*
 M_REPORT_DELETE = _m(
     "M-REPORT-DELETE",
     "Delete this report from the list?",
     "This report is taken out of the list of generated reports:\n\n{what}\n\n"
     "Its {n} files are moved here:\n\n{where}\n\n"
     "Nothing is destroyed. The files stay on your disk in that folder, and "
-    "the measurements they describe are not touched.",
+    "the measurement(s) it describes are not touched.",
     body_one=(
         "This report is taken out of the list of generated reports:\n\n"
         "{what}\n\n"
         "Its file is moved here:\n\n{where}\n\n"
         "Nothing is destroyed. The file stays on your disk in that folder, "
-        "and the measurement it describes is not touched."),
+        "and the measurement(s) it describes are not touched."),
     count_key="n",
     approved=False)
 

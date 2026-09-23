@@ -205,7 +205,7 @@ def test_the_orphan_rule_is_what_is_saving_those_sheets(qapp, tmp_path,
 
 
 @pytest.mark.parametrize("key,pages", [
-    ("first_profile", 2), ("cmyk_n", 1), ("file_guide", 13),
+    ("first_profile", 2), ("cmyk_n", 1), ("file_guide", 14),
 ])
 def test_us_letter_costs_no_more_sheets_than_a4(qapp, tmp_path, key, pages):
     """US Letter's shorter body must not buy a sheet for one grey line.
@@ -219,6 +219,9 @@ def test_us_letter_costs_no_more_sheets_than_a4(qapp, tmp_path, key, pages):
     the Measurement Report work's folders and files were added to it. Both
     sizes still agree. Re-measure before editing, and never edit only one
     number here to make a run green.
+
+    Re-measured 2026-09-23 (K25): "file_guide" 13 -> 14 on A4 AND Letter, for
+    the two saved-report rows Knut asked for (Q6).
     """
     for size in _SIZES:
         _pdf, got, _pr = _print_card(key, size, tmp_path)

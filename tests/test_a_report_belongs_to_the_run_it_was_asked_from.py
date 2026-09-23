@@ -157,7 +157,17 @@ def test_the_filed_report_carries_that_runs_own_numbers(tmp_path, qapp,
 
 def test_the_run_stops_saying_it_has_no_report(tmp_path, qapp, monkeypatch):
     """The symptom the user reads. Before the fix the line under the pulldown
-    never changed, because the file went to another run."""
+    never changed, because the file went to another run.
+
+    **K25 (Knut, 2026-09-23) CHANGED THE STARTING POINT, NOT THE POINT.** A
+    Profiling window now counts every run's Printing record its list points
+    to (*"'Already generated for this run' and 'Report shown' shall list and
+    count every run's Printing records"*), and run 1's sheet is in run 2's
+    list, so the line starts at ONE rather than at "No report has been
+    generated". The fault this pins is unchanged: the press on run 2 must
+    file a report that the line then counts, so the count must RISE.
+    """
+    import re
     s, _proj, run1, run2 = _two_run_project(tmp_path, qapp)
     dlg = _window_on(s, run1.measurement_ti3, qapp)
     try:
@@ -165,14 +175,22 @@ def test_the_run_stops_saying_it_has_no_report(tmp_path, qapp, monkeypatch):
     finally:
         dlg.close()
 
+    def _count(text: str) -> int:
+        return sum(int(n) for n in re.findall(r": (\d+)", text))
+
     dlg = _window_on(s, run2.measurement_ti3, qapp)
     try:
-        assert "No report has been generated" in dlg._type_blurb_full
+        before = _count(dlg._type_blurb_full)
+        assert before == 1, dlg._type_blurb_full
         _generate(dlg, monkeypatch, qapp)
         dlg._forget_limits()
         dlg._sync_limit_controls()
         assert "Already generated for this run" in dlg._type_blurb_full, (
             dlg._type_blurb_full)
+        assert _count(dlg._type_blurb_full) == before + 1, (
+            dlg._type_blurb_full)
+        assert list((run2.dir / "reports").glob("report_*.json")), (
+            "the press on run 2 filed nothing in run 2")
     finally:
         dlg.close()
 

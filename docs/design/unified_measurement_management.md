@@ -2266,6 +2266,14 @@ VERIFICATION cannot be deleted, because that verdict is the record §5 keeps
 comparable across dates, so the button is disabled and a line beside it says
 so. That rule waits for approval with the wording.*
 
+*REVISED 2026-09-23 for Knut's K25 answer (#182 comment 5789263863, Q5). Since
+K23 a report of several measurements is ONE document file, so the one-file
+body said "the measurement it describes" about a report of several dates.
+`{n}` counts files, not measurements, and cannot choose the word, so both
+bodies now use his own: "You could say 'the measurement(s) it describes', to
+make it simple." The one-file body is the same text with "Its file is moved
+here" and "The file stays". Still unapproved as a whole.*
+
 > **Delete this report from the list?**
 >
 > This report is taken out of the list of generated reports:
@@ -2276,7 +2284,7 @@ so. That rule waits for approval with the wording.*
 >
 > {where}
 >
-> Nothing is destroyed. The files stay on your disk in that folder, and the measurements they describe are not touched.
+> Nothing is destroyed. The files stay on your disk in that folder, and the measurement(s) it describes are not touched.
 
 ### M-REPORT-UPDATE-OR-NEW · PROPOSED · Generate report, with a selected report whose settings were changed — Measurement Report
 

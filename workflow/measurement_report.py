@@ -1767,14 +1767,43 @@ def document_home(member_dirs) -> "Path | None":
         return dirs[0] / REPORTS_DIRNAME
 
 
+def measurement_place(d: "str | Path") -> "tuple[str, str]":
+    """``(project, run)`` a measurement folder belongs to, as folder NAMES
+    (K25, the grouping of "Report shown").
+
+    By name, not by path, because a project MOVES (every downloaded demo
+    pack has) and a document records the folders it covered where they were
+    when it was written. A folder outside a ``<project>/runs/runN`` layout
+    (a loose file's folder) is its own "run", and the folder above it its
+    "project", so it never raises and never invents a run number.
+    """
+    d = Path(str(d))
+    run = _run_folder_of(d)
+    project = _project_folder_of(d)
+    if project is None:
+        return (run.parent.name, run.name)
+    return (project.name, run.name)
+
+
 def shared_report_folders(measurement_dirs) -> "list[Path]":
     """The folders where a document of SEVERAL of these measurements may
-    live: each dated verification's ``verifications/reports`` and each
-    project's ``reports``. A measurement's own ``reports`` is not here; it is
-    read as it always was."""
+    live: each dated verification's ``verifications/reports``, each
+    project's ``reports``, and the folder `document_home` files a report
+    across PROJECTS in. A measurement's own ``reports`` is not here; it is
+    read as it always was.
+
+    **THE LAST ONE WAS MISSING (K25).** A report covering two projects is
+    filed in the projects' common folder (`document_home`: for two projects
+    in one output folder, ``<output>/reports``), and nothing read that
+    folder, so such a report was written, never listed and never counted.
+    It is now read for every project's parent, and for the common folder of
+    all the projects given when they are not side by side.
+    """
+    import os
     from core.file_manager import REPORTS_DIRNAME, VERIFICATIONS_DIRNAME
     out: "list[Path]" = []
     seen: "set[str]" = set()
+    projects: "list[Path]" = []
     for d in measurement_dirs or []:
         d = Path(str(d))
         cands = []
@@ -1784,10 +1813,23 @@ def shared_report_folders(measurement_dirs) -> "list[Path]":
         project = _project_folder_of(d)
         if project is not None:
             cands.append(project / REPORTS_DIRNAME)
+            if str(project) not in {str(p) for p in projects}:
+                projects.append(project)
         for c in cands:
             if str(c) not in seen:
                 seen.add(str(c))
                 out.append(c)
+    across: "list[Path]" = [p.parent / REPORTS_DIRNAME for p in projects]
+    if len(projects) > 1:
+        try:
+            across.append(Path(os.path.commonpath(
+                [str(p) for p in projects])) / REPORTS_DIRNAME)
+        except ValueError:
+            pass
+    for c in across:
+        if str(c) not in seen:
+            seen.add(str(c))
+            out.append(c)
     return out
 
 

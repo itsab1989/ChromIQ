@@ -937,19 +937,24 @@ _BUDGET = {
     # untranslated German string, not a bigger budget, and is fixed rather than
     # recorded. COUNTED with this file's own helper on the tree this commit
     # leaves behind.
+    # RE-MEASURED 2026-09-23, K25 (the grouped "Report shown" list, #182):
+    # two headings and two "Where are my files" rows, all of 25 characters
+    # or more, so the twelve rise by exactly 4; the two M-REPORT-DELETE keys
+    # were renamed in place and were already English there. German by hand,
+    # does not move. COUNTED off the tree, BOTH ledgers in the same commit.
     "de": 14,
-    "es": 742,
-    "fr": 743,
-    "it": 742,
-    "ja": 742,
-    "nl": 742,
-    "no": 742,
-    "pl": 742,
-    "pt": 742,
-    "ru": 741,
-    "sv": 742,
-    "zh_CN": 741,
-    "uk": 942,
+    "es": 746,
+    "fr": 747,
+    "it": 746,
+    "ja": 746,
+    "nl": 746,
+    "no": 746,
+    "pl": 746,
+    "pt": 746,
+    "ru": 745,
+    "sv": 746,
+    "zh_CN": 745,
+    "uk": 946,
 }
 
 

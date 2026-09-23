@@ -5804,15 +5804,21 @@ class MeasurementReportDialog(QDialog):
         One answer for the two readouts, so "Report shown" and "Already
         generated" look in the same folders by construction.
 
-        **WHICH ROWS.** Every row of the window's own run, and every row the
-        user ADDED (a measurement loaded as another source). Not the other
-        runs' sheets a Profiling window gathers by itself for the trend over a
-        printer's builds (#40): those are history drawn beside the run, and
-        counting their reports would make "Already generated for this run"
-        name reports of another run and open the window on another run's
-        report (measured: a window opened on run 2 came up about run 1, and
-        Generate then had nothing of run 2 ticked). Whether Knut wants those
-        counted as well is asked in the K23 register entry.
+        **WHICH ROWS: EVERY ROW IN THE LIST (K25).** Knut, 2026-09-23, on a
+        Profiling window: *"'Already generated for this run' and 'Report
+        shown' shall list and count every run's Printing records if the rules
+        are fulfilled ... The combination of measurements added in the
+        'Included measurements...' and the locations defined by the added
+        measurements ... defines ... where to search for Printing records."*
+
+        This used to skip the other runs' sheets a Profiling window gathers
+        by itself for the trend over a printer's builds (#40), and the K23
+        entry asked him whether it should. That is his answer: every row the
+        list holds names a folder, ticked or not, and those folders are read.
+        The reason the skip existed (a window opened on run 2 came up on run
+        1's newer report) is handled where it arose, in
+        `_open_on_the_latest_report`, which opens on the newest report of
+        the window's OWN run.
         """
         from workflow.measurement_report import measurement_dir_kind
         if run is None:
@@ -5824,10 +5830,9 @@ class MeasurementReportDialog(QDialog):
             pass
         wanted: "set[str]" = set(own)
         for src in getattr(self, "_sources", None) or []:
-            rows = src.get("runs") or []
-            if any(str(r.get("_origin_dir") or "") in own for r in rows):
-                continue                  # the window's own source
-            wanted |= {str(r.get("_origin_dir") or "") for r in rows}
+            wanted |= {str(r.get("_origin_dir") or "")
+                       for r in (src.get("runs") or [])}
+        wanted.discard("")
         # THE WINDOW'S OWN RUN ALWAYS, whether or not a row of it is in the
         # list (K24: a window on a dated verification with the bar on
         # Profiling still counts the run's Printing record).
@@ -6418,6 +6423,158 @@ class MeasurementReportDialog(QDialog):
         return tr("The only saved report of a dated verification is kept: its "
                   "verdict is this run's record of that date.")
 
+    def _own_place(self, ctx=None) -> "tuple[str, str] | None":
+        """``(project, run)`` of the window's own profile run, by folder
+        name (`measurement_place`), or None outside a run."""
+        from workflow.measurement_report import measurement_place
+        if ctx is None:
+            ctx = self._context_run()
+        if ctx is None or getattr(ctx, "run", None) is None:
+            return None
+        return measurement_place(ctx.run.dir)
+
+    def _entry_places(self, entry: dict) -> "set[tuple[str, str]]":
+        """Every ``(project, run)`` one entry of "Report shown" COVERS (K25).
+
+        What the document RECORDS it covers (its measurements' folders), and
+        the folders of the files it is made of; by folder NAME, so a moved
+        project (every downloaded demo pack) groups the same as it did where
+        it was written. Knut: a report is grouped by *"what a report
+        includes"*, which is the recorded list, not only the measurements this
+        window happens to have loaded.
+        """
+        from workflow.measurement_report import measurement_place
+        dirs = [str(m.get("dir") or "")
+                for m in ((entry.get("doc") or {}).get("measurements") or [])
+                if isinstance(m, dict)]
+        dirs += [str(r.get("_origin_dir") or "")
+                 for r, _n in (entry.get("members") or [])]
+        return {measurement_place(d) for d in dirs if d}
+
+    def _grouped_documents(self, run, docs: list) -> list:
+        """The rows of "Report shown" below "New report…", in order (K25).
+
+        ``[("heading", text, tooltip, level)]`` and ``[("entry", doc)]``.
+
+        Knut, 2026-09-23 (5789263863 and 5789532633): the report NAMES stay
+        ("One date", "Multiple dates", "All dates"), and the list is grouped
+        by where the included measurements come from:
+
+        ==========================================  ============================
+        the measurements in "Included measurements"  headings
+        ==========================================  ============================
+        one profile run                              none, as before
+        several runs of one project                  Run1, Run2, ...
+        several projects                             the project, then Run1, ...
+        ==========================================  ============================
+
+        and *"IF a report has included multiple measurements belonging to
+        more than one project, then those reports are grouped in a separate
+        group-heading ... 'Reports including multiple projects'"*.
+
+        **THE LIST DECIDES WHETHER THERE ARE HEADINGS; THE REPORT DECIDES
+        WHICH ONE IT IS UNDER.** Whether the list is grouped is his first
+        sentence, about the measurements ADDED (`_measurement_dirs_of_the_
+        list`, the folders the list and the counter already read). Where one
+        report goes is what it covers (`_entry_places`): one run, under that
+        run; several runs of one project, under that project's "Reports
+        including multiple runs" (not in his text; asked, B8-826); more than
+        one project, under "Reports including multiple projects", last.
+
+        Projects: the window's own first, the others by name. Runs in number
+        order (run2 before run10). Inside a group, the order `docs` already
+        has: newest first.
+        """
+        import re as _re
+        from workflow.measurement_report import measurement_place
+        kind = self._window_kind()
+        listed = {measurement_place(d)
+                  for d in self._measurement_dirs_of_the_list(run, kind)}
+        if len(listed) <= 1 or not docs:
+            return [("entry", d) for d in docs]
+        own = self._own_place() or next(iter(sorted(listed)))
+        MULTI_RUNS, MULTI_PROJECTS = "\x00runs", "\x00projects"
+        buckets: "dict[tuple[str, str], list]" = {}
+        for d in docs:
+            places = self._entry_places(d) or {own}
+            projects = {p for p, _r in places}
+            if len(projects) > 1:
+                key = ("", MULTI_PROJECTS)
+            elif len(places) > 1:
+                key = (next(iter(projects)), MULTI_RUNS)
+            else:
+                key = next(iter(places))
+            buckets.setdefault(key, []).append(d)
+        projects = sorted({k[0] for k in buckets if k[1] != MULTI_PROJECTS}
+                          | {p for p, _r in listed},
+                          key=lambda p: (p != own[0], p.casefold()))
+        several_projects = len(projects) > 1 or (
+            ("", MULTI_PROJECTS) in buckets)
+
+        def _run_order(name: str):
+            m = _re.fullmatch(r"run(\d+)", name)
+            return (0, int(m.group(1)), "") if m else (1, 0, name.casefold())
+
+        def _run_heading(name: str) -> str:
+            m = _re.fullmatch(r"run(\d+)", name)
+            return (tr("Run{number}").format(number=m.group(1)) if m
+                    else name)
+
+        out: list = []
+        sub = 1 if several_projects else 0
+        for proj in projects:
+            runs = sorted((k[1] for k in buckets
+                           if k[0] == proj and k[1] not in (MULTI_RUNS,
+                                                            MULTI_PROJECTS)),
+                          key=_run_order)
+            if not runs and (proj, MULTI_RUNS) not in buckets:
+                continue
+            if several_projects:
+                out.append(("heading", proj, proj, 0))
+            for r in runs:
+                out.append(("heading", _run_heading(r), f"{proj}/runs/{r}",
+                            sub))
+                out.extend(("entry", d) for d in buckets[(proj, r)])
+            if (proj, MULTI_RUNS) in buckets:
+                out.append(("heading", tr("Reports including multiple runs"),
+                            proj, sub))
+                out.extend(("entry", d) for d in buckets[(proj, MULTI_RUNS)])
+        if ("", MULTI_PROJECTS) in buckets:
+            out.append(("heading", tr("Reports including multiple projects"),
+                        "", 0))
+            out.extend(("entry", d) for d in buckets[("", MULTI_PROJECTS)])
+        return out
+
+    @staticmethod
+    def _add_report_group_heading(combo, text: str, tooltip: str,
+                                  level: int) -> None:
+        """One non-selectable heading row in "Report shown" (K25).
+
+        **THE CREATE CHART PRESET PULLDOWN'S MECHANISM, as Knut asked** (*"the
+        group-headings are the same type of feature that the preset pulldown
+        list has"*): `TabChart._add_builtin_group_heading` puts a separator
+        before a group and a bold row with no data whose model item is
+        disabled, so it can be read and not chosen, and it carries no key, so
+        nothing can dispatch on it even if selection were ever re-enabled.
+
+        A sub-heading (a run under a project) is the same row, indented, and
+        gets no separator of its own: the separator marks where a PROJECT
+        starts, which is what a reader scanning the list needs to find.
+        """
+        if level == 0:
+            combo.insertSeparator(combo.count())
+        combo.addItem(("    " * level) + text, None)
+        i = combo.count() - 1
+        font = combo.font()
+        font.setBold(True)
+        combo.setItemData(i, font, Qt.ItemDataRole.FontRole)
+        if tooltip:
+            combo.setItemData(i, tooltip, Qt.ItemDataRole.ToolTipRole)
+        model = combo.model()
+        item = model.item(i) if hasattr(model, "item") else None
+        if item is not None:
+            item.setEnabled(False)
+
     def _sync_saved_reports(self, run) -> None:
         """Fill the list of generated reports, and say what may be pressed.
 
@@ -6430,6 +6587,7 @@ class MeasurementReportDialog(QDialog):
             return
         docs = self._saved_documents(run)
         want = self._loaded_doc_id
+        grouped: list = []
         combo.blockSignals(True)
         try:
             combo.clear()
@@ -6445,7 +6603,20 @@ class MeasurementReportDialog(QDialog):
                       "Reports. Nothing is written until you press Generate "
                       "report."),
                 Qt.ItemDataRole.ToolTipRole)
-            for d in docs:
+            # **GROUPED BY WHERE THE MEASUREMENTS COME FROM (K25).** Knut,
+            # 2026-09-23: the names stay, *"but are grouped according to which
+            # measurement sets have been added, where they come from, and
+            # what a report includes"*. `_grouped_documents` decides; a
+            # heading is the Create Chart preset pulldown's kind of row
+            # (`_add_report_group_heading`), and it carries no key, so nothing
+            # can land on it or dispatch on it.
+            grouped = self._grouped_documents(run, docs)
+            for row in grouped:
+                if row[0] == "heading":
+                    _k, text, tip, level = row
+                    self._add_report_group_heading(combo, text, tip, level)
+                    continue
+                d = row[1]
                 combo.addItem(d["label"], d["key"])
                 combo.setItemData(combo.count() - 1, d["label"],
                                   Qt.ItemDataRole.ToolTipRole)
@@ -6462,10 +6633,11 @@ class MeasurementReportDialog(QDialog):
             # second copy of it is exactly how the window came to say "New
             # report…" over settings that were not its defaults (R24-F1).
             lands = self._entry_the_list_lands_on(docs)
-            i = next((n for n, d in enumerate(docs) if d["key"] == lands), -1)
-            # +1 for the "New report…" row above them; -1 (nothing matched)
-            # and the new-report state both land on it.
-            combo.setCurrentIndex(i + 1 if i >= 0 else 0)
+            # BY KEY, NEVER BY POSITION (K25): headings sit between the
+            # entries, so "its place in `docs` plus one" is no longer its row.
+            # Nothing matched and the new-report state both land on row 0.
+            i = combo.findData(lands) if lands else -1
+            combo.setCurrentIndex(i if i >= 0 else 0)
         finally:
             combo.blockSignals(False)
         # **THE ROW STAYS ON SCREEN WITH NOTHING IN IT (L.9).** The pulldown
@@ -6487,9 +6659,12 @@ class MeasurementReportDialog(QDialog):
             self._set_saved_note("")
             self._delete_report_btn.setEnabled(False)
             return
+        # A GROUPED LIST IS NOT ONE RUN'S (K25), so the label stops naming
+        # one: its headings say which run each report belongs to.
+        is_grouped = any(row[0] == "heading" for row in grouped)
         self._saved_label.setText(
             tr("Report shown ({run}):").format(run=run.dir.name)
-            if run is not None else tr("Report shown:"))
+            if run is not None and not is_grouped else tr("Report shown:"))
         entry = self._chosen_document(docs)
         why = self._delete_refusal_for(entry) if entry else ""
         # ONE LINE, AND THE REFUSAL IS THE ONE WORTH READING. A reader who is
@@ -6837,6 +7012,20 @@ class MeasurementReportDialog(QDialog):
         # change which report a window opens on for every project made before
         # this beta. It is B8-492, open, and it is his to settle with the rest
         # of that ruling.
+        #
+        # **THE WINDOW'S OWN RUN FIRST (K25).** A Profiling window now lists
+        # every run's Printing records (Knut, 5789263863), so "the newest
+        # document" may be another run's: a window opened on run 1 would come
+        # up on run 2's report, which is the fault that kept other runs out of
+        # the list until now (measured again with this change: a window opened
+        # on run 2 came up on run 1's report, ticked run 1 only, and Generate
+        # wrote run 1's folder). The newest document covering the window's
+        # own run is what "the latest report created" means for that window.
+        # A run with none opens exactly as it did when the other runs were not
+        # listed at all: on "New report…" with its defaults.
+        own = self._own_place(ctx)
+        if own is not None:
+            docs = [d for d in docs if own in self._entry_places(d)]
         first = next((d for d in docs if d.get("doc")), None)
         if first is not None:
             self._apply_document(first)
