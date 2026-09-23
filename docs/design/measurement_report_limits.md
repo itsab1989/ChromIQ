@@ -19,6 +19,83 @@ is reported and approved before it is fixed. Here every section still waits
 for confirmation, so the binding part today is the *record* of what was built
 and why, not a confirmed behaviour.
 
+## Index of Knut's rulings, beta 34 to beta 38 (2026-09-22 and 2026-09-23)
+
+Knut, #182, 2026-09-23
+([5792874817](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5792874817)):
+*"Record all verified and agreed behaviour into the design specification
+document, so that it is kept and changes are compared against agreed behaviour
+to protect against wrong implementations in the future."*
+
+Every ruling he gave on #182 from the morning of 2026-09-22 (his beta 32
+review, built into beta 35) to beta 38 is listed here, with the section that
+records it. Each such section carries a **Record** block: the rule in plain
+words (his words where they are the rule), the comment and date, **Built:**
+where in the code, **Verified by:** the tests that go red if the rule breaks,
+**Proof:** the on-screen proof folder, and its **Status**. A comment number
+`N` is `https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-N`.
+
+What the status words mean. **Agreed** means Knut gave the rule, so it is agreed
+behaviour from the day he gave it. Whether what was BUILT from it is right is a
+separate question, and it stays open until he confirms it: every such section
+still says *Confirmed by: nobody yet*. Nothing in this index is confirmed.
+
+| section | subject | Knut's ruling | status |
+|---|---|---|---|
+| §11 | "Bound, and locked" explained in the report | 2026-09-11 | superseded by §18.2 (removed from the report) |
+| §11 | "This report covers n of the total": counted by run type and by the list (K14) | 2026-09-22, 5781159382 | agreed; built, awaiting confirmation |
+| §13.8 | Generate asks about a selected report even when nothing changed (K4) | 2026-09-22, 5781159382 | agreed; built, awaiting confirmation |
+| §13.8 | An Update re-creates a report by today's rules; an older report keeps its text until then | 2026-09-22, 5773668311 | agreed; built, awaiting confirmation |
+| §13.9 | A report that judges nothing keeps every ticked measurement (K16) | 2026-09-22, 5781159382 | agreed; built, awaiting confirmation |
+| §13.9 | One report, one limit set, applied to every measurement it includes, across runs | 2026-09-22, 5773668311 | agreed; NOT built for verifications (gap G7, §20) |
+| §13.10 | Report types by run type; the automatic report follows (K13) | 2026-09-22, 5781159382 | agreed; built, awaiting confirmation |
+| §13.10 | "The measurement decides, not the bar" | assumption, 2026-09-22 | superseded by K24 (the profile bar decides) |
+| §13.10 | A calibration keeps every report type | assumption, 2026-09-22 | superseded by §18.1 (no report under Calibration) |
+| §13.10 | A saved report of a disallowed type is "shown as recorded" | assumption, 2026-09-22 | superseded by K19 (not offered in the list) |
+| §13.10 | The report type can be chosen with two runs' measurements added (K17) | 2026-09-22, 5781159382 | agreed; built, awaiting confirmation |
+| §13.10 | Counts and list hold only the types the run type allows (K19) | 2026-09-23, 5785414710 | agreed; built, awaiting confirmation |
+| §13.10 | The profile bar's Run type decides what the window lists and counts (K24) | 2026-09-23, 5787117741 | agreed; built, awaiting confirmation |
+| §13.11 | Where a report lives, and which folders the list reads (K23) | 2026-09-23, 5787117741, 5787380408 | agreed; built, awaiting confirmation |
+| §13.11 | Update moves an older report into the new place; Delete leaves each date's verdict record | 2026-09-23, 5789263863 | agreed; built, awaiting confirmation |
+| §13.11 | "Save report as PDF" opens the report's own reports/ folder (K9) | 2026-09-22, 5781159382 | agreed; built, awaiting confirmation |
+| §13.11 | A new report's PDF name carries that report's own time (K12) | 2026-09-22, 5781159382 | agreed; built, awaiting confirmation |
+| §13.12 | "Report shown" grouped by run and by project (K25) | 2026-09-23, 5789263863, 5789532633 | agreed; built, awaiting confirmation |
+| §13.12 | "Names stay" on a Profiling window | our reading of 5789532633 | superseded by §18.6 (a misreading: Profiling names are Run1, Run2, …) |
+| §14 | A ChromIQ set never carries a "recommended" note (K3) | 2026-09-22, 5781159382 | agreed; built, awaiting confirmation |
+| §14 | The ISO COND cap is retired; the caveat carries the qualification | 2026-09-22, 5774852534 | agreed; built, awaiting confirmation |
+| §14.5 | The guide explains what COND meant before ChromIQ 4.3.0 | 2026-09-21 | superseded by K18 (§19.1) |
+| §16 | Evenness: method, noise guard, 9 by 9, limits, cause notes (F1 answers 1 to 5) | 2026-09-22, 5785774676 | agreed; built, awaiting confirmation |
+| §16 | 9 by 9 stays the minimum grid (12 by 12 considered and dropped) | 2026-09-23, 5787380408 | agreed; built, awaiting confirmation |
+| §16.5 | E1 a page under 9 by 9 is left out, the others judged | 2026-09-23, 5789263863 | agreed; built, awaiting confirmation |
+| §16.5 | E3 tight and quick at half and double (0.75 / 0.5, 3.0 / 2.0) | as first built | superseded by E3 (all three ChromIQ sets 1.5 / 1.0) |
+| §16.5 | E3 all three ChromIQ sets carry 1.5 / 1.0 | 2026-09-23, 5789263863 | agreed; built, awaiting confirmation |
+| §16.5 | E4 the evenness rows do not take a preset's star | 2026-09-23, 5789263863 | agreed; built, awaiting confirmation |
+| §16.5 | E5 / E6 Custom columns 1.5 / 1.0; rows stay in the ISO structure | 2026-09-23, 5789263863 | agreed; built, awaiting confirmation |
+| §16.5 | E7 1.0 on the from-the-mean row | 2026-09-23, 5789263863 | agreed (Knut: "confirmed", of the value); built, awaiting confirmation |
+| §16.6 | E2 page coverage at 75 % | 2026-09-23, 5789539407 | superseded by 60 % (5792912682) |
+| §16.6 | E2 page coverage at 60 %, from the "Measured from Preview" margins | 2026-09-23, 5792912682 | agreed; built, awaiting confirmation |
+| §16.6 | E4 the i1Pro 3 Plus 11 by 14 presets as their own case | 2026-09-23, 5789263863, 5792928823 | agreed; checked, awaiting confirmation |
+| §16.6 | E8 judge evenness in absolute Lab? | 2026-09-23, 5789263863 | research done, his decision open (§20) |
+| §17 | Trend graphs for the judged metrics, each with its own limit line (K20/K21) | 2026-09-23, 5785414710, 5787117741, 5787380408 | agreed; built, awaiting confirmation |
+| §17.1 | Every graph explains its lines, its red x and itself (K25 graphs) | 2026-09-23, 5789263863, 5789532633 | agreed; built, awaiting confirmation |
+| §17.1 | A limit word slides along its line off a data line | as first built | superseded by §18.9 (stays at the left end) |
+| §17.1 | A red x's neighbours are the dates directly beside it | 2026-09-23, 5789263863 | superseded by §18.9 (nearest dates with a value) |
+| §18.1 to §18.11 | K26: Calibration, Bound and locked, Judged against row, within-gamut graph, folder rename, Profiling names, "these measurements", shared folder, red x, grouping from the start, demo white | 2026-09-23, 5792484060, 5792576954 | agreed; built, awaiting confirmation |
+| §19.1 | Report text is for a customer: no ChromIQ how-to, no history (K18) | 2026-09-22, 5774852534; 2026-09-23, 5785414710 | agreed; built, awaiting confirmation |
+| §19.2 | An N-A note names what the measured chart lacks, nothing to do (K22) | 2026-09-23, 5787117741 | agreed; built, awaiting confirmation. Supersedes S2w "each names the thing to change" (2026-09-18) |
+| §19.3 | The one-page summary gives its numbers with their unit (K10) | 2026-09-22, 5781159382 | agreed; built, awaiting confirmation |
+| §19.4 | The paper white line prints L\*, a\* and b\* (K5) | 2026-09-22, 5781159382 | agreed; built, awaiting confirmation |
+| §19.5 | The verification pre-flight: only before the first measurement, a generic count (K2) | 2026-09-22, 5777667003, 5781159382, 5784377277 | agreed; built, awaiting confirmation |
+| §19.6 | "Unlock this run's limits" is dim with fewer than two dated verifications | 2026-09-22, 5777805448 | agreed; built, awaiting confirmation |
+| §19.7 | Before printing, say that a metric the chart cannot answer can be set to "-" | 2026-09-22, 5774104083 | agreed; built, awaiting confirmation. Its layout ruling R2 is NOT built (gap G5) |
+| §19.8 | Sheets with different patch counts: an information note, set apart from body text (R4) | 2026-09-22, 5774104083, 5781645939 | agreed; built, awaiting confirmation |
+| §19.9 | A report type says which metrics it judges; "Restore defaults"; the per-type column cancelled | 2026-09-22, 5777326491 | agreed; built, awaiting confirmation (the sentence has no test: gap G9) |
+| §19.10 | Restore Used Chart restores the chart's fields only | 2026-09-22, 5774852534, 5775260868 | agreed; built, awaiting confirmation |
+| §19.11 | A per-target row a stored block lacks opens on its default | 2026-09-22, 5775260868 | agreed; built, awaiting confirmation |
+| §19.12 | Knut's eight i1Pro presets built in (K1); the demo pack follows every rule (K15) | 2026-09-22, 5781159382, 5781197240, 5776517563; 2026-09-23, 5787117741 | agreed; built, awaiting confirmation |
+| §19.13 | "New report…" on a bound run shows the run's own set, and says so | 2026-09-22, 5776479532 | agreed ("as you said and recommend"); built before beta 34, awaiting confirmation |
+| §20 | Rulings not built, or built without a test or proof (G1 to G13) | 2026-09-22 to 2026-09-23 | gaps, listed one by one |
+
 Related documents: `unified_measurement_management.md` (the life of a
 measurement; §M-PROPOSED holds this feature's two messages),
 `verification_printing_and_target.md` (how a verification sheet is printed and
@@ -878,6 +955,10 @@ and from ChromIQ's own numbers where there are none. Either way the values are
 applied to the chart you printed rather than to that standard's own chart and
 control strip. Same fact, stated positively.
 
+> **Wording superseded by K18 (§19.1), 2026-09-23.** "the chart you printed"
+> is now "the printed test chart": report text is written for a customer who
+> never sees the chart. The fact the paragraph states is unchanged.
+
 **AND THE CAP IT USED TO EXPLAIN IS GONE, ON KNUT'S RULING OF 2026-09-22.** The
 paragraph ended "so their Overall reads COND at best" until that day. He struck
 it: *"Implement this. The note is sufficient. Most users are just interested in
@@ -931,6 +1012,13 @@ against that copy so the dates can be compared, a later change in Preferences
 does not reach a bound run, and the copy is locked once a second dated
 verification has been measured.
 
+> **SUPERSEDED by K26 (§18.2), Knut 2026-09-23
+> ([5792484060](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5792484060) Q2):**
+> *"Remove it from the report, and make sure this information is in the
+> relevant help text."* The paragraph is no longer in the report; the same
+> sentences are in the "Judged against" help. The two paragraphs above it
+> stand.
+
 **THE REPORT IS A DOCUMENT PRINTED FOR SOMEONE WHO HAS NEVER SEEN THE WINDOW
 (Knut, beta 20, 2026-09-17).** *"the text must be written as if it is a
 separate document printed for a customer, and that customer knows nothing of
@@ -974,6 +1062,27 @@ sheets against the project's profiling measurements ("recorded for this
 project's profile runs"). A document mixing both kinds keeps the old count.
 Whatever is counted is still read off the disk, never out of the window.*
 **Confirmed by:** *nobody yet.*
+
+**Record (K14).**
+* **Rule:** the "This report covers n of the total" sentence counts only what
+  relates to the run type and to the measurements in "Included measurements":
+  *"it should only show relating to run type is Profiling, and the
+  measurements selected in included measurements input box."* A report that
+  covers everything it could cover says nothing.
+* **Ruling:** Knut, 2026-09-22,
+  [5781159382](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5781159382)
+  (K14 of B8-778).
+* **Built:** the Report Scope count in `ui/dialogs/measurement_report_dialog.py`
+  (B8-790, commit a52c8fdb); wording reworked by B8-799 ("profile run", a
+  count instead of "these runs").
+* **Verified by:** `tests/test_the_report_reads_as_a_printed_document.py::`
+  `test_a_printing_record_counts_the_projects_profiling_measurements`,
+  `test_a_verification_report_of_every_date_of_its_run_says_nothing`,
+  `test_the_total_is_what_the_project_records_not_what_is_loaded`.
+* **Proof:** `~/Desktop/ChromIQ-beta36-proof/K14-coverage-count/` (beta 35 "1
+  of the 18"; fixed "1 of the 3 measurements recorded for this project's
+  profile runs").
+* **Status:** agreed; the built result awaits Knut's confirmation.
 
 **Still open, and it is Knut's:** a measurement left out is no longer named
 anywhere at all, including in the WINDOW. If he wants the window (not the
@@ -1408,6 +1517,65 @@ The popup's wording is **M-REPORT-UPDATE-OR-NEW**, in §M-PROPOSED of
 Delete moving a report to `reports/old/date_ReportId`. All of it is from the
 same comment and all of it moves files a user already has.
 
+> **Since built, on later rulings:** the folders in §13.11 (K23), what each run
+> type offers in §13.10 (K13), the Profiling names in §18.6 (K26). The
+> paragraph above is kept as the state of 2026-09-19.
+
+**⏳ K4, 2026-09-22: Generate asks even when nothing was changed.**
+**Confirmed by:** *nobody yet.*
+
+**Record (K4).**
+* **Rule:** with a report selected in "Report shown", Generate report never
+  writes a new report without asking. Knut: *"I clicked Generate Report button
+  (without any settings having been changed.). This resulted in a new report
+  being created, without user being asked if I want to create a new or update
+  the selected"*. This widens K.7: the question is asked whether or not a
+  setting changed. With nothing changed its headline says so
+  (M-REPORT-UNCHANGED-UPDATE-OR-NEW, §M-PROPOSED, not approved); the three
+  buttons are K.7's. Adding or removing a measurement, or a saved type the
+  run type no longer allows, counts as a change (B8-799, B8-809).
+* **Ruling:** Knut, 2026-09-22,
+  [5781159382](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5781159382)
+  (K4 of B8-778).
+* **Built:** `_document_being_updated` in
+  `ui/dialogs/measurement_report_dialog.py` (B8-792, commit 265216d5). Update
+  archives every file it rewrites into `reports/old/` first, and writes all or
+  nothing (`core/file_manager.py::archive_report_files`, B8-782, B8-793).
+* **Verified by:** `tests/test_generate_report_asks_what_to_do.py::`
+  `test_the_question_is_asked_only_when_both_halves_of_his_sentence_hold`,
+  `test_the_unchanged_question_says_nothing_was_changed`,
+  `test_update_copies_every_file_it_rewrites_into_old_first`,
+  `test_a_file_whose_archive_fails_is_not_rewritten`,
+  `test_an_update_that_cannot_write_one_date_writes_none_of_them`;
+  `tests/test_round3_a_features_since_265216d5.py::`
+  `test_adding_a_measurement_is_a_change_to_the_selected_report`.
+* **Proof:** `~/Desktop/ChromIQ-beta36-proof/K4-generate-unchanged/` and
+  `~/Desktop/ChromIQ-beta36-proof/D23-update-archives/`.
+* **Status:** agreed; the built result awaits Knut's confirmation.
+
+**Record (an Update re-creates the report; an older report keeps its text).**
+* **Rule:** *"If a report was made before 21 September that report would
+  contain the results and report text at the time the report was saved. Only
+  if a user updates that report after 21 September that report would be
+  re-created fully with all new wordings and changes done for a release of the
+  app after that date. So the settings used belong to the report that is
+  created"*. Opening a saved report shows it as saved; Update rebuilds it with
+  today's wording and rules, the previous version archived first. His
+  2026-09-23 answer (5789263863, Q2) says the same of a report written before
+  the K23 folders: *"Yes, update it."*
+* **Ruling:** Knut, 2026-09-22,
+  [5773668311](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5773668311).
+* **Built:** Update is `_write_the_document` / `rewrite_report` (K.7a); a saved
+  report is read, never rewritten, on open (§14.5, §5).
+* **Verified by:** `tests/test_generate_report_asks_what_to_do.py::`
+  `test_update_copies_every_file_it_rewrites_into_old_first`;
+  `tests/test_k23_report_folders.py::`
+  `test_a_legacy_document_of_several_dates_counts_once_and_stays`,
+  `test_update_rewrites_the_document_file_in_place_and_archives_it`.
+* **Proof:** `~/Desktop/ChromIQ-beta36-proof/D23-update-archives/`.
+* **Status:** agreed; the built result awaits Knut's confirmation. This answers
+  question 9 of our 5784140521 as far as his words go.
+
 ## 14. The verdict ruling of 2026-09-21: COND retired, and the metric note
 
 **⏳ Awaiting confirmation.** **Confirmed by:** *nobody yet.*
@@ -1496,6 +1664,72 @@ defined and still explained in the report's own guide, which now says it is an
 Overall word, that rows do not use it, and what it meant on a row in a report
 saved before ChromIQ 4.3.0. Generating the report again judges it by today's
 rule.
+
+> **The guide's history clause is SUPERSEDED by K18 (§19.1), Knut 2026-09-23:**
+> *"A report text shall never explain something in the past, only the current
+> functionality ... Only explain what the meaning of COND is and how to
+> understand it when it occurs."* The guide now defines COND by its meaning
+> only, with no ChromIQ version in it. A saved COND is still shown as
+> recorded and still defined.
+
+### 14.6 Records of the verdict rulings of 2026-09-22
+
+**⏳ Awaiting confirmation.** **Confirmed by:** *nobody yet.*
+
+**Record (the ISO COND cap is retired).**
+* **Rule:** a column named after a standard reads PASS or FAIL for the metrics
+  that ran, like every other column: *"Implement this. The note is
+  sufficient."* The qualification lives in the caveat under the results
+  (and in the one-page summary's footer), which says the chart is not the
+  standard's, the metrics are ChromIQ's own, and a PASS is an indication, not
+  proof. The overall result is PASS or FAIL for what was checked; a metric
+  that could not be checked is N-A with a note saying why, and never makes a
+  column COND (*"The overall results must show PASS or FAIL for the metrics
+  that were executed"*, 5774104083).
+* **Ruling:** Knut, 2026-09-22,
+  [5774852534](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5774852534)
+  and [5774104083](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5774104083).
+* **Built:** `workflow/compliance_sets.py::set_summary` (the cap removed, the
+  COND case answered first) and `STANDARD_CAVEAT` (B8-760, commits 44e36ca1,
+  4eed2a45; B8-769, B8-770); the caveat text corrected for a Custom set by K18
+  (B8-808).
+* **Verified by:** `tests/test_a_custom_iso_column_carries_the_same_caveat.py::`
+  `test_every_row_within_its_limit_reads_PASS_and_still_carries_the_caveat`,
+  `test_the_caveat_says_it_is_not_proof`,
+  `test_no_user_facing_string_still_teaches_the_retired_cap`,
+  `test_the_glossary_says_what_replaced_it`;
+  `tests/test_a_saved_pass_under_a_standard_is_never_bare.py::`
+  `test_the_caveat_is_in_the_report_body_and_the_pdf`;
+  `tests/test_the_one_page_summary_prints_on_one_page.py::`
+  `test_a_standard_named_column_gets_the_caveat_on_this_page`,
+  `test_it_is_still_one_page_with_the_caveat_on_it`;
+  `tests/test_an_absence_never_makes_a_column_conditional.py::`
+  `test_and_the_one_cause_that_does_remain_still_reaches_it`.
+* **Proof:** no on-screen folder recorded for this change; the caveat on the
+  page appears in the beta 36 and 37 report photographs
+  (`~/Desktop/ChromIQ-beta36-proof/final-challenge/`). Gap G10 (§20).
+* **Status:** agreed; the built result awaits Knut's confirmation.
+
+**Record (K3: no "standard" note under a set that is not a standard).**
+* **Rule:** a note about what "the standard" calls recommended is printed only
+  under a set derived from a standard. Knut, on Quick check: *"The test refers
+  to the standard, which is not used as reference or to compare results
+  against for the current settings. This is a bug."* A ChromIQ set never
+  carries a recommendation, whatever an older stored copy of it says; nothing
+  on disk is rewritten.
+* **Ruling:** Knut, 2026-09-22,
+  [5781159382](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5781159382)
+  (K3 of B8-778), with §14.1 point 5.
+* **Built:** `workflow/compliance_sets.py::set_marks_recommendations`, read by
+  every reader of a stored copy (B8-795, commit cbf4f083).
+* **Verified by:** `tests/test_a_note_about_a_standard_needs_a_standard.py::`
+  `test_a_chromiq_set_never_carries_a_recommendation`,
+  `test_the_quick_check_page_says_nothing_about_a_standard`,
+  `test_a_set_derived_from_a_standard_keeps_its_note`,
+  `test_the_runs_own_copy_is_read_without_the_relic`,
+  `test_the_loaded_quick_check_documents_limits_carry_no_recommendation`.
+* **Proof:** `~/Desktop/ChromIQ-beta36-proof/K3-standard-note/`.
+* **Status:** agreed; the built result awaits Knut's confirmation.
 
 ### 13.9 "Show all measurement runs" is REMOVED, and the ticks decide (Knut, 2026-09-20)
 
@@ -1610,6 +1844,51 @@ each run type offers, and what a Profiling run's default becomes when the
 current default is withdrawn from it, is his decision. B8-598. **He decided it
 on 2026-09-22: see §13.10.**
 
+**Record (K16, R.3 on a report that judges nothing).**
+* **Rule:** R.3 above, reported broken on beta 34: *"I then tried to select 2
+  of the three measurements and generate report, and selecting Create New in
+  popup window. The new report is created, but the report is named with flag
+  'One date', and the 2 selected measurements were automatically changed to one
+  selection. This is wrong, as reported before."* A Printing record, which
+  judges nothing, covers exactly the ticked measurements whatever sets they
+  were once judged against; with two of three ticked it is "Multiple dates"
+  (on a Profiling window "Multiple runs", §18.6).
+* **Ruling:** Knut, 2026-09-22,
+  [5781159382](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5781159382)
+  (K16 of B8-778).
+* **Built:** `_one_limit_set` in `ui/dialogs/measurement_report_dialog.py`
+  narrows only a report that judges (B8-786, commit 8ae07e4f).
+* **Verified by:** `tests/test_a_report_is_written_against_one_limit_set.py::`
+  `test_a_printing_record_keeps_every_ticked_measurement`,
+  `test_profiling_sheets_are_not_narrowed_under_any_type`.
+* **Proof:** `~/Desktop/ChromIQ-beta36-proof/K16-two-of-three/`.
+* **Status:** agreed; the built result awaits Knut's confirmation.
+
+**Record (one report, one limit set, across runs). NOT BUILT as ruled: gap G7
+(§20).**
+* **Rule:** a report is judged against ITS OWN limit set, and that one set is
+  applied to every measurement the report includes, even when they belong to
+  different profile runs whose own reports used other sets: *"The project
+  across both profile runs' verification measurements have only one defined
+  limit set ... The same settings are used in that report to check the metrics
+  for the selected measurements to include, even if the measurements belong in
+  separate profile runs dated verification runs."* And: *"It does not matter
+  if one report uses a metric as recommendation ('should') and the other report
+  uses required ('shall'), those reports are separate."*
+* **Ruling:** Knut, 2026-09-22,
+  [5773668311](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5773668311).
+* **Built:** not as ruled. `_one_limit_set` still narrows a GRADED report to
+  the measurements judged against one set (his ruling of 2026-09-16), so
+  verifications judged against different sets and ticked together lose all but
+  one set's dates (B8-786 "NOT decided here", B8-793 A-4). Question 8 of our
+  [5784140521](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5784140521)
+  asked which rule wins and has no answer yet; his words above, given earlier
+  the same day, read as an answer.
+* **Verified by:** nothing pins the ruled behaviour.
+* **Proof:** none.
+* **Status:** agreed rule, not built; needs Knut to confirm that 5773668311
+  settles question 8 before it is built.
+
 ### 13.10 Which report types each run type offers (Knut, 2026-09-22)
 
 **⏳ AWAITING CONFIRMATION.** **Ruled by:** Knut, #182 comment 5781159382,
@@ -1628,10 +1907,13 @@ what was built from it (B8-778 K13); nobody has confirmed the built behaviour.
 
 What was built, and the assumptions it rests on (each is his to overturn):
 
-* **The measurement decides, not the bar.** The report window has no run type
-  of its own; it is opened on a measurement, so that measurement's kind is
-  used: a run's own sheet is profiling, a dated verification is verification.
-  The automatic report asks the same question the same way.
+* ~~**The measurement decides, not the bar.**~~ **SUPERSEDED by K24 (below),
+  2026-09-23:** the profile bar's Run type decides; the measurement is asked
+  only by a window with no bar behind it. *As first built:* the report window
+  had no run type of its own; it was opened on a measurement, so that
+  measurement's kind was used: a run's own sheet is profiling, a dated
+  verification is verification. The automatic report asks the same question
+  the same way (it has no window, so this half stands).
 * **Profiling: Printing record only. Verification: every buildable type but
   the Printing record.** The others are shown greyed with a sentence saying
   why, as an unbuilt type is (§10), not hidden.
@@ -1646,7 +1928,9 @@ What was built, and the assumptions it rests on (each is his to overturn):
   record default (legal until beta 35) is read as Full colour check. Nothing
   on disk is rewritten.
 * **A saved report of a type its kind no longer allows** (a Printing record
-  of a verification saved by beta 34) is shown as recorded, and Update or
+  of a verification saved by beta 34) ~~is shown as recorded~~ (**SUPERSEDED
+  by K19 below:** it is no longer offered in the list or counted; it stays on
+  disk untouched), and Update or
   Create New writes the type the kind allows; the question then says the
   settings were modified, because they will be. A saved report that records
   NO type follows its run (§10), so a profiling sheet's is labelled and drawn
@@ -1670,9 +1954,100 @@ list only the types the window's kind allows, from the folders that kind lives
 in (a profiling sheet's reports in the run's folder, a verification's in its
 dated folders). This **narrows the bullet above**: a saved report of a type its
 kind no longer allows is no longer offered in the list at all (it stays on
-disk, untouched), where it was shown as recorded. *Assumption:* "run type" here
-is the window's measurement, as in the first bullet; adding a measurement of
-the other kind makes it the window's subject (B8-803 is open on that).
+disk, untouched), where it was shown as recorded. ~~*Assumption:* "run type"
+here is the window's measurement, as in the first bullet; adding a measurement
+of the other kind makes it the window's subject (B8-803 is open on that).~~
+**SUPERSEDED by K24 (below):** "run type" is the profile bar's.
+
+**⏳ K17 and K24, 2026-09-22 and 2026-09-23.** **Confirmed by:** *nobody yet.*
+
+**Record (K13).**
+* **Rule:** his words at the head of this section. Profiling offers only the
+  Printing record; Verification offers every type but the Printing record;
+  the report written by itself after a Profiling measurement is a Printing
+  record; after a Verification measurement it is Preferences' default unless
+  the run chose another; the Report type help says which types are available
+  when.
+* **Ruling:** Knut, 2026-09-22,
+  [5781159382](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5781159382)
+  (K13 of B8-778).
+* **Built:** `workflow/measurement_report.py::report_types_for_kind`,
+  `workflow/run_compliance.py::report_type_default_for` (B8-787, commit
+  c9b6ee9d); the greyed types and their sentence in
+  `ui/dialogs/measurement_report_dialog.py`; Preferences greys the Printing
+  record.
+* **Verified by:** `tests/test_the_report_type_pulldown_stores_on_the_run.py::`
+  `test_a_profiling_measurement_offers_only_the_printing_record`,
+  `test_a_verification_never_offers_the_printing_record`,
+  `test_a_forced_printing_record_on_a_verification_is_refused_and_writes_nothing`,
+  `test_the_automatic_report_of_a_profiling_measurement_is_a_printing_record`;
+  `tests/test_the_measurement_report_defaults_are_knuts.py::`
+  `test_a_printing_record_default_is_refused_for_a_verification`.
+* **Proof:** `~/Desktop/ChromIQ-beta36-proof/K13-types-by-run-type/`.
+* **Status:** agreed; the built result awaits Knut's confirmation.
+
+**Record (K17).**
+* **Rule:** with measurements of two profile runs added, the report type can
+  still be chosen: *"I select some measurements from both sets, but now I am
+  not allowed to select report type at all."* The choice is the window's for
+  the session and is written to neither run; a greyed Generate report says
+  why in its tooltip, and the advice it gives works ("Remove Profile's
+  Measurements…").
+* **Ruling:** Knut, 2026-09-22,
+  [5781159382](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5781159382)
+  (K17 of B8-778).
+* **Built:** the type pulldown and Generate tooltip in
+  `ui/dialogs/measurement_report_dialog.py` (B8-785, commit 17353929; the
+  tooltip's advice corrected by B8-789 and B8-799).
+* **Verified by:** `tests/test_the_report_type_pulldown_stores_on_the_run.py::`
+  `test_with_two_runs_ticked_the_type_can_be_chosen_and_neither_run_is_written`,
+  `test_a_greyed_generate_says_why_when_two_runs_are_ticked`,
+  `test_the_advice_generates_tooltip_gives_really_brings_generate_back`;
+  `tests/test_round_2b_text_findings.py::`
+  `test_a_measurement_in_no_run_says_why_generate_is_grey`.
+* **Proof:** `~/Desktop/ChromIQ-beta36-proof/K17-two-runs-type/`.
+* **Status:** agreed; the built result awaits Knut's confirmation.
+
+**Record (K19).**
+* **Rule:** his words quoted above: "Already generated…" and "Report shown"
+  count and list only report types the Run type allows (a verification's
+  types under Verification, the Printing record under Profiling), from the
+  folders of the measurements in the list.
+* **Ruling:** Knut, 2026-09-23,
+  [5785414710](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5785414710).
+* **Built:** `workflow/measurement_report.py::generated_report_types`,
+  `ui/dialogs/measurement_report_dialog.py::_saved_documents` (B8-809, commit
+  8930cead).
+* **Verified by:** `tests/test_k19_counts_follow_the_run_type.py::`
+  `test_a_verification_counts_no_profiling_record`,
+  `test_each_filter_holds_on_its_own`, `test_the_list_offers_only_the_kinds_types`,
+  `test_an_untyped_report_is_counted_as_it_is_labelled`.
+* **Proof:** no on-screen folder of its own (tests only); its folder rules
+  were driven with K23 in `~/Desktop/ChromIQ-beta37-proof/report-folders/`.
+  Gap G10 (§20).
+* **Status:** agreed; the built result awaits Knut's confirmation.
+
+**Record (K24).**
+* **Rule:** *"The open measurement window strictly shows and lists and counts
+  report types that are allowed according to the set 'run type' in the
+  profile bar. So a user must exit the measurement report window and change run
+  type to profiling, then enter measurement report window again, in order to
+  show, list and count reports of 'printing record' type."* Adding a
+  measurement of the other kind never changes what the window is.
+* **Ruling:** Knut, 2026-09-23,
+  [5787117741](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5787117741).
+* **Built:** `ui/dialogs/measurement_report_dialog.py::_window_kind` asks
+  `_bar_kind` (the profile bar through the window's parents); only a window
+  with no bar falls back to the measurement (B8-812, commit 749fc27e). One
+  press that would write both kinds is refused (B8-803, B8-811).
+* **Verified by:** `tests/test_k24_the_bar_decides_the_kind.py::`
+  `test_a_verification_bar_keeps_the_window_a_verification`,
+  `test_a_profiling_bar_makes_a_profiling_window`;
+  `tests/test_final_round_before_beta36.py::`
+  `test_both_kinds_loaded_generate_is_refused_and_says_why`.
+* **Proof:** `~/Desktop/ChromIQ-beta37-proof/report-folders/` (the K24 case in
+  its REPORT.md) and `~/Desktop/ChromIQ-beta37-proof/fixes/f4-probe/`.
+* **Status:** agreed; the built result awaits Knut's confirmation.
 
 ### 13.11 Where a report lives, and which folders the list reads (K23, Knut 2026-09-23)
 
@@ -1744,6 +2119,103 @@ What was built:
   report across run1 and run2 opened from run2 showed one date, Generate said
   "Nothing was changed", and Update rewrote it about that one date.
 
+**Record (K23).**
+* **Rule:** his folder rule quoted at the head of this section, for a
+  verification and for a profiling run; the counted and listed reports come
+  from the folders the measurements in "Included measurements" point to, of
+  the Run type's kinds only. Each date keeps its own verdict record, never
+  listed or counted; reports already on disk stay where they are and are shown
+  and counted by what they cover (*"Yes, leave them where they are, and show
+  and count them by what they cover."*). And his test requirement: *"Every
+  setting, variety, type that may occur ... must be tested multiple times,
+  using demo project data, on screen on real app, while monitoring what
+  happens in files and locations"*.
+* **Ruling:** Knut, 2026-09-23,
+  [5787117741](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5787117741)
+  and [5787380408](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5787380408)
+  (accepting our 5787131342).
+* **Built:** `workflow/measurement_report.py::document_home`,
+  `shared_report_folders`; `core/file_manager.py::archive_report_files`; the
+  list and line in `ui/dialogs/measurement_report_dialog.py`
+  (`_saved_documents`, `_measurement_dirs_of_the_list`,
+  `_load_the_documents_other_measurements`, `_drop_borrowed_sources`)
+  (B8-816, commits 11cd81a3, 2dc9a43f; B8-818 A-F1; B8-825). The demo pack's
+  Report-Limits-Report-Folders holds every combination.
+* **Verified by:** `tests/test_k23_report_folders.py` (21 tests), among them
+  `test_where_a_document_lives`,
+  `test_several_dates_write_one_document_file_and_a_record_per_date`,
+  `test_a_deleted_document_leaves_its_records_unlisted_and_uncounted`,
+  `test_a_legacy_document_of_several_dates_counts_once_and_stays`,
+  `test_a_cross_run_document_is_listed_where_it_covers_and_nowhere_else`,
+  `test_update_to_one_date_retires_the_document_file_and_back`,
+  `test_the_cross_run_path_a_profiling_window_has`;
+  `tests/test_beta37_a_report_is_shown_whole.py::`
+  `test_opening_run2_on_the_cross_run_report_loads_run1s_date`,
+  `test_picking_the_report_in_the_list_loads_it_whole_and_writes_nothing`,
+  `test_new_report_unloads_what_the_cross_run_report_loaded`.
+* **Proof:** `~/Desktop/ChromIQ-beta37-proof/report-folders/`,
+  `~/Desktop/ChromIQ-beta37-proof/fixes/`, `~/Desktop/ChromIQ-beta37-proof/r1-fixed/`.
+* **Status:** agreed; the built result awaits Knut's confirmation.
+
+**Record (K25 Q2 and Q3: Update moves, Delete leaves the records).**
+* **Rule:** an Update of a report of several dates written before K23 rewrites
+  it in the new place and layout, its old files archived in `old/` first
+  (*"Yes, update it."*). Delete Selected Report moves the report to `old/` and
+  leaves each date's verdict record, because that record is the date's result
+  (*"Yes."*).
+* **Ruling:** Knut, 2026-09-23,
+  [5789263863](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5789263863)
+  (the report-folder questions 2 and 3).
+* **Built:** as described under "Update" and "Delete Selected Report" above.
+* **Verified by:** `tests/test_k23_report_folders.py::`
+  `test_update_rewrites_the_document_file_in_place_and_archives_it`,
+  `test_a_deleted_document_leaves_its_records_unlisted_and_uncounted`,
+  `test_a_legacy_document_of_several_dates_counts_once_and_stays`.
+* **Proof:** `~/Desktop/ChromIQ-beta37-proof/report-folders/`.
+* **Status:** agreed; the built result awaits Knut's confirmation.
+
+**Record (K9: the PDF folder).**
+* **Rule:** "Save report as PDF…" opens at the `reports/` folder the report's
+  own measurements and the Run type decide, as the file-structure help card
+  says; *"Make sure this is tested on screen on working app for all the levels
+  the report feature should save reports and pdfs in."* The PDF folder follows
+  where the document lives (this section).
+* **Ruling:** Knut, 2026-09-22,
+  [5781159382](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5781159382)
+  (K9 of B8-778).
+* **Built:** `ui/dialogs/measurement_report_dialog.py::_report_dir` and
+  `_export_pdf`, which now logs the folder and the file (B8-794, commit
+  1bd6ea22). A cancelled save leaves no empty folder behind (commit 78a4f00b).
+* **Verified by:** `tests/test_the_report_reads_as_a_printed_document.py::`
+  `test_a_report_of_several_profiling_runs_is_saved_in_the_projects_reports`;
+  `tests/test_k23_report_folders.py::test_the_pdf_folder_agrees_with_where_the_document_lives`;
+  `tests/test_k26_rulings.py::test_a_cancelled_pdf_save_leaves_no_reports_folder`.
+* **Proof:** `~/Desktop/ChromIQ-beta36-proof/K9-pdf-folder/` (all four levels,
+  on screen). Not driven: the OS-native save dialog, which no driver can
+  operate; ChromIQ hands it the same folder.
+* **Status:** agreed; the built result awaits Knut's confirmation.
+
+**Record (K12: the PDF name).**
+* **Rule:** a PDF's suggested name carries the time of the report it is made
+  from, never the previous PDF's: *"the pre-filled in name in the file dialog
+  is the same as the previous PDF I created, even though the report I now made
+  the pdf for has a different created time."* An updated report's name carries
+  its last update.
+* **Ruling:** Knut, 2026-09-22,
+  [5781159382](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5781159382)
+  (K12 of B8-778).
+* **Built:** `ui/dialogs/measurement_report_dialog.py::_report_filename` reads
+  the document's time (B8-783), and the page records which document it shows
+  as it is drawn (B8-793 A-3, A-6).
+* **Verified by:** `tests/test_measurement_report.py::`
+  `test_the_pdf_name_carries_the_documents_time_not_the_windows`;
+  `tests/test_generate_report_asks_what_to_do.py::`
+  `test_after_an_update_the_pdf_is_not_offered_the_earlier_pdfs_name`,
+  `test_a_page_that_is_no_longer_the_saved_document_takes_neither_its_time_nor_its_name`.
+* **Proof:** no on-screen folder of its own; driven inside
+  `~/Desktop/ChromIQ-beta36-proof/round-A-report-fixes/`.
+* **Status:** agreed; the built result awaits Knut's confirmation.
+
 ### 13.12 "Report shown" is grouped; the names stay (K25, Knut 2026-09-23)
 
 **⏳ AWAITING CONFIRMATION.** **Ruled by:** Knut, #182 comments 5789263863
@@ -1757,9 +2229,14 @@ what was built from it (B8-826); nobody has confirmed the built behaviour.
 
 What was built:
 
-* **Names.** Unchanged: "One date", "Multiple dates", "All dates" on every
-  entry, profiling and verification alike. **Amended by K26 (§18.6):** on a
-  Profiling window they are "Run1", "Run2", …, "Multiple runs", "All runs".
+* **Names.** ~~Unchanged: "One date", "Multiple dates", "All dates" on every
+  entry, profiling and verification alike.~~ **SUPERSEDED by K26 (§18.6): this
+  bullet was a misreading.** His correction 5789532633 was about Run type
+  Verification only; for Profiling his first message stood, and he said so
+  plainly in 5792484060: *"No, both are used. I was very very clear about
+  this"*. On a Profiling window the names are "Run1", "Run2", …, "Multiple
+  runs", "All runs"; on a Verification window "One date", "Multiple dates",
+  "All dates". The grouping below applies to both.
 * **Whether the list is grouped** is decided by the measurements in "Included
   measurements" (the folders §13.11 reads, of the profile bar's Run type):
 
@@ -1810,12 +2287,58 @@ What was built:
 * **"Where are my files" (Q6)** has rows for the saved reports in
   `runs/runN/verifications/reports/` and the project's `reports/`.
 
-Open with Knut (B8-826): whether "Reports including multiple runs" is the
-right place for a report across runs of one project; whether a one-run list
-should stay flat when a report across runs covers one of its measurements;
-whether "Already generated for this run" should say "for these measurements"
-now that it counts other runs; and whether a report across projects belongs
-outside every project.
+~~Open with Knut (B8-826)~~ **All four ANSWERED by Knut, 2026-09-23
+([5792484060](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5792484060)
+and [5792576954](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5792576954)),
+built in §18:** "Reports including multiple runs" inside the project, *"That
+is ok."*; a list is grouped from the start when a report it offers covers two
+profile runs (§18.10); "for these measurements" on a Profiling window
+(§18.7); a report across projects in `<output folder>/reports/`, a folder made
+only by the first such report (§18.8). He also ruled (Q6) that no other
+PROJECT is loaded: only the other project's measurements are added to
+"Included measurements", and the report opens with the settings it was made
+with. That is what "a report is shown whole" (§13.11) does.
+
+**Record (K25, the list).**
+* **Rule:** his words at the head of this section and in §18.6. Under Run type
+  Verification: one run's measurements, flat, "One date" / "Multiple dates" /
+  "All dates"; several runs of one project, grouped under `Run1`, `Run2`;
+  several projects, the project name as main heading and `Run1`, `Run2` under
+  it; a report including measurements of more than one project under
+  "Reports including multiple projects". Under Profiling the same grouping,
+  with the Run names of §18.6. *"For both run type=verification and run
+  type=profiling the report names are grouped according to which measurement
+  sets have been added, where they come from (location of files), and what a
+  report includes"*. On a Profiling window, "Already generated…" and "Report
+  shown" list and count every run's Printing records the included
+  measurements point to; the report written at the end of a measurement covers
+  that one measurement, and its graphs show the "at least two measurements"
+  text (5789532633). M-REPORT-DELETE says "the measurement(s) it describes";
+  "Where are my files" lists `verifications/reports/` and `<project>/reports/`.
+* **Ruling:** Knut, 2026-09-23,
+  [5789263863](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5789263863)
+  (Q1 to Q6), [5789532633](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5789532633),
+  and the corrections in 5792484060 and 5792576954 (§18.6, §18.10).
+* **Built:** `ui/dialogs/measurement_report_dialog.py::_grouped_documents`,
+  `_add_report_group_heading`, `_measurement_dirs_of_the_list`,
+  `_open_on_the_latest_report`, `_load_the_documents_other_measurements`;
+  `workflow/measurement_report.py::shared_report_folders` (B8-826, commits
+  7566f20d to bb177b8f).
+* **Verified by:** `tests/test_report_shown_is_grouped_by_run_and_project.py::`
+  `test_one_run_is_not_grouped`, `test_several_runs_are_grouped_under_run_headings`,
+  `test_a_heading_can_be_seen_and_not_chosen`,
+  `test_several_projects_are_grouped_by_project_then_run`,
+  `test_a_report_across_projects_is_counted`,
+  `test_profiling_lists_and_counts_every_run_s_printing_record`,
+  `test_a_profiling_window_opens_on_its_own_run_s_report`,
+  `test_the_automatic_record_of_one_measurement_ticks_one`,
+  `test_the_delete_message_says_measurement_s`,
+  `test_the_file_guide_names_the_shared_report_folders`,
+  `test_a_report_across_projects_loads_the_other_project_from_where_it_is_now`;
+  `tests/test_trend_graphs_explain_themselves.py::`
+  `test_one_measurement_still_shows_the_two_measurement_text`.
+* **Proof:** `~/Desktop/ChromIQ-beta38-proof/report-list/`.
+* **Status:** agreed; the built result awaits Knut's confirmation.
 
 
 ## 15. ChromIQ's own two repeatability rows (#182, 2026-09-22)
@@ -2107,7 +2630,10 @@ a\*, b\*)", which was the standards' statistic and is not the one computed.
 
 1.5 is Knut's (Q4: *"keep 1.5 for pairwise row"*). 1.0 is Basti's proposal
 that Knut leaned towards (*"largest diff 1.0 I think may be ok … I am not
-sure though"*) and is **awaiting his confirmation**. The reason the two differ:
+sure though"*) and then ruled on 2026-09-23 (E7, 5789263863: *"confirmed."*),
+so the NUMBER is agreed; the built behaviour still waits, as everywhere here.
+The three ChromIQ sets carried half and double (0.75 / 0.5, 3.0 / 2.0) until
+E3 (**superseded**, 5789263863: *"Yes"* to 1.5 / 1.0 in all three). The reason the two differ:
 with nine areas, 1.125 D ≤ P ≤ 2 D, so a blotch trips the from-the-mean row
 first and a gradient trips the pairwise row first; both at 1.5 would make the
 second row never say anything the first had not.
@@ -2172,6 +2698,18 @@ measured noise.
 
 ### 16.5 Questions for Knut
 
+**All eight ANSWERED on 2026-09-23**
+([5789263863](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5789263863)),
+except E8, whose decision waits on research (§16.6). His answers, in short:
+E1 *"a page under 9 × 9 is left out and the other pages are judged"*; E2 yes,
+from the "Measured from Preview" margins (§16.6); E3 *"Yes"*, 1.5 / 1.0 in all
+three ChromIQ sets; E4 *"No"*, the rows do not take the star, check an i1Pro 3
+Plus multi-page preset (§16.6); E5 *"I do not have any other numbers"*, so the
+Custom columns keep 1.5 / 1.0; E6 *"Yes"*, the rows stay in the read-only ISO
+columns, filled by the file round trip; E7 *"confirmed"*; E8 *"Do an
+investigation to see what is normal practice."* The questions as they were put
+follow.
+
 * **E1. A short last page.** "At least 9 columns and 9 rows per page": built
   as "a page under 9 by 9 is left out and the chart is judged on the rest",
   and the report names the pages left out. Or should such a page refuse the
@@ -2207,6 +2745,80 @@ measured noise.
   the one area printed lighter, the whole sheet shifted by a colour-dependent
   amount, the noise rose from 0.3 to 3.7 and both rows read N-A. Should
   evenness always be judged in absolute Lab, whatever the other rows use?
+
+### 16.5b Records of the evenness rulings
+
+**⏳ Awaiting confirmation.** **Confirmed by:** *nobody yet.*
+
+**Record (the method, F1 answers 1 to 5).**
+* **Rule:** each patch against its own expected colour, averaged per area
+  (*"yes, do it"*); no verdict while the sheet's own noise (95th percentile) is
+  not below the limit, not the stricter half-limit version (*"Your suggestion
+  is good. Do not use the stricter version."*); keep 9 by 9, *"so dividing
+  into areas is good to show which area of the page gives an out of accepted
+  (or normal) results"*; 1.5 pairwise; notes on likely causes *"in the help
+  text, but also as notes on the results in the report text, for any report
+  type that has enabled this metric"*; and *"This feature must be implemented
+  all the places where metrics are judged, like the Create Chart button 'Which
+  presets can be used for verification', the warning popup message when
+  entering Measure tab, and the measurement report etc."*
+* **Ruling:** Knut, 2026-09-22,
+  [5785774676](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5785774676),
+  on the analysis in 5784750595; the earlier rulings of 5745765820 (remainder
+  to the middle band, pages pooled).
+* **Built:** `workflow/measurement_report.py::evenness_from_residuals`,
+  `evenness_block`, `evenness_withheld`, `EVENNESS_MIN_GRID`,
+  `EVENNESS_SHUFFLES`, `EVENNESS_SEED`; the presets window and pre-flight
+  through `workflow/preset_eligibility.py` (B8-814, commit 63aafc37; the noise
+  note B8-818).
+* **Verified by:** `tests/test_evenness_across_the_sheet.py` (26 tests), among
+  them `test_the_remainder_goes_to_the_middle_band`,
+  `test_the_positions_come_from_the_chart_and_not_from_the_file_order`,
+  `test_a_gradient_across_the_sheet_fails_the_pairwise_row_first`,
+  `test_one_area_off_fails_the_from_mean_row_first`,
+  `test_a_noisy_sheet_is_not_judged_and_says_its_noise`,
+  `test_the_noise_rule_is_strictly_below`, `test_the_noise_is_reproducible`,
+  `test_the_causes_note_is_customer_text`,
+  `test_the_report_names_the_area_by_the_labels_printed_on_it`,
+  `test_the_predicted_grid_is_the_grid_the_engine_builds`;
+  `tests/test_beta37_evenness_noise_is_not_a_patch_count.py::`
+  `test_the_noise_note_names_the_noise_and_the_limit_and_no_patch_count`.
+* **Proof:** `~/Desktop/ChromIQ-beta36-proof/F1-evenness/` (the analysis),
+  `~/Desktop/ChromIQ-beta37-proof/evenness/` (on screen),
+  `~/Desktop/ChromIQ-beta37-proof/fixes/` (the noise note, English and German).
+* **Status:** agreed; the built result awaits Knut's confirmation.
+
+**Record (9 by 9 stays).**
+* **Rule:** *"First I would like to using 12x12 ... but then I see that the
+  i1Pro 3 Plus charts have 11 x 14 charts. Thus 9x9 as minimum it must be."*
+* **Ruling:** Knut, 2026-09-23,
+  [5787380408](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5787380408).
+* **Built:** `EVENNESS_MIN_GRID` = 9, one constant.
+* **Verified by:** `tests/test_evenness_across_the_sheet.py::test_nine_by_nine_is_the_floor_exactly`;
+  `tests/test_beta38_evenness_page_coverage.py::test_the_grid_floor_is_asked_first`.
+* **Proof:** `~/Desktop/ChromIQ-beta37-proof/evenness/`.
+* **Status:** agreed; the built result awaits Knut's confirmation.
+
+**Record (E1, E3, E4, E5, E6, E7).**
+* **Rule:** E1 a page under 9 by 9 is left out and the other pages judged; E3
+  1.5 / 1.0 in ChromIQ default, tight and Quick check (**supersedes** half and
+  double); E4 the rows never take a preset's star, the feedback says which
+  metrics a chart can and cannot answer; E5 the Custom columns start from
+  1.5 / 1.0; E6 both rows stay in the read-only ISO columns, with no number
+  until a licence holder's file supplies one; E7 1.0 on the from-the-mean row.
+* **Ruling:** Knut, 2026-09-23,
+  [5789263863](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5789263863).
+* **Built:** `workflow/compliance_sets.py` factory limits (commit 86083f46 for
+  E3); `evenness_from_residuals` for E1; `workflow/preset_eligibility.py` for
+  E4.
+* **Verified by:** `tests/test_evenness_across_the_sheet.py::`
+  `test_a_short_last_page_is_left_out_not_fatal`,
+  `test_the_limits_knut_gave_and_the_half_and_double_rule` (it asserts 1.5 /
+  1.0 in all five editable sets and nothing in the two read-only ones, despite
+  its name), `test_a_preset_not_laid_out_yet_says_so_and_keeps_its_star`,
+  `test_the_rows_are_computable_under_their_own_heading`.
+* **Proof:** `~/Desktop/ChromIQ-beta37-proof/evenness/`.
+* **Status:** agreed; the built result awaits Knut's confirmation.
 
 ### 16.6 Beta 38: page coverage (E2), the i1Pro 3 Plus case (E4), the yardstick research (E8)
 
@@ -2300,6 +2912,64 @@ rows use) waits for Knut. Findings:
 * **E4-b.** Answered: the 11 by 14 chart (5792928823).
 * **E8.** Judge evenness in absolute Lab always?
 
+**Record (E2, page coverage).**
+* **Rule:** a page counts for evenness only when its patches cover at least
+  **60 %** of it, computed from the four "Measured from Preview" margins
+  (*"Could the Measured from Preview numbers be used to calculate, so that
+  these things are not re-measured on-screen? 9 strips and 9 rows may still
+  cover just a limited part of a page, thus the uniformity test has limited
+  value."*; *"Yes"*; then *"lower the threshold to 60%. instrument's minimum
+  margins are general rules that not always works."*). The report, the presets
+  window and the pre-flight ask the same floor.
+* **SUPERSEDED:** the 75 % floor of 5789539407, built first (commit bbeb82b7),
+  which shut out 123 of 172 built-in engine presets.
+* **Ruling:** Knut, 2026-09-23,
+  [5789263863](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5789263863) (E2),
+  [5789539407](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5789539407) (75 %),
+  [5792912682](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5792912682) (60 %).
+* **Built:** `workflow/page_coverage.py`;
+  `workflow/measurement_report.py::EVENNESS_MIN_PAGE_COVERAGE` (0.60, one
+  constant) in `evenness_from_residuals`; the reasons
+  `evenness_page_coverage_too_small` and `evenness_no_page_geometry`
+  (B8-828, commits bbeb82b7, c0a319b0).
+* **Verified by:** `tests/test_beta38_evenness_page_coverage.py::`
+  `test_knuts_formula_on_the_margins`, `test_the_floor_is_60_percent_and_inclusive`,
+  `test_the_floor_is_one_constant`,
+  `test_an_uncovered_page_is_left_out_and_the_others_judged`,
+  `test_a_chart_with_no_page_geometry_is_na_and_stays_off_the_strip`,
+  `test_the_note_names_the_page_and_its_share_rounded_down`,
+  `test_a_built_chart_reads_what_measured_from_preview_shows`,
+  `test_a_dated_snapshot_borrows_the_live_charts_pages_only_if_identical`,
+  `test_the_presets_window_and_the_preflight_ask_the_same_floor`,
+  `test_the_built_in_engine_presets_against_the_60_percent_floor`,
+  `test_the_help_text_quotes_the_floor`.
+* **Proof:** `~/Desktop/ChromIQ-beta38-proof/evenness-60/` (60 %) and
+  `~/Desktop/ChromIQ-beta38-proof/evenness-followups/` (75 %, superseded).
+* **Status:** agreed; the built result awaits Knut's confirmation.
+
+**Record (E4, the i1Pro 3 Plus case).**
+* **Rule:** *"It is likely a one page target will not fulfil the requirement,
+  but a multipage preset should then be possible to use. This should be
+  checked and verified as a separate case"*; the chart is the 11 by 14 one.
+* **Ruling:** Knut, 2026-09-23,
+  [5789263863](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5789263863),
+  [5792928823](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5792928823).
+* **Built:** no code of its own; answered by the 60 % floor (B8-829).
+* **Verified by:** `tests/test_beta38_i1pro3plus_evenness.py::`
+  `test_each_presets_grid_and_coverage_as_predicted`,
+  `test_each_presets_estimated_noise_on_a_typical_print`,
+  `test_a_one_page_i1pro3plus_chart_fails_and_a_multi_page_one_answers`,
+  `test_the_family_splits_four_refused_twenty_answering`,
+  `test_a_real_build_agrees_with_the_prediction`.
+* **Proof:** `~/Desktop/ChromIQ-beta38-proof/evenness-60/`.
+* **Status:** agreed; the checked result awaits Knut's confirmation.
+
+**Record (E8, the yardstick).** Research done, behaviour NOT changed: the
+published tests compare absolute CIELAB, and the recommendation to judge
+evenness in absolute Lab always waits for Knut's decision (B8-830,
+`~/Desktop/ChromIQ-beta38-proof/evenness-followups/E8-research.md`). Listed as
+G8 in §20.
+
 ## 17. Trend graphs for the judged metrics (#182 K20/K21, 2026-09-23)
 
 ### ⏳ AWAITING CONFIRMATION
@@ -2366,6 +3036,45 @@ driven on screen on the demo packs:
     compare on a chart's first date, so on three dates it can have one value;
     that value was in the table and missing from the graph.
 
+**Record (K20/K21).**
+* **Rule:** a trend graph is shown, and printed, only for metrics that have
+  values tested against a threshold: *"a graph is only shown and printed IF the
+  metric has values tested agains a threshold."* Each metric that benefits gets
+  a graph, *"each group show maximum two metrics with their own independent
+  threshold level line, no more... and that each metric within a group are
+  related metrics"*; a dotted line sits at the threshold the report was judged
+  against and *"shall dynamically follow the threshold settings relevant for
+  the report"*; a line far from the data is out of view until the data comes
+  near it; Colour accuracy may print twice as tall in the PDF; keep the Paper
+  white L\* graph and add "Paper white, diff". His follow-ups of 5789263863:
+  each new line in its metric's colour, Avg and Max stay grey (*"Yes."*); the
+  line words are *"ok"*; the tab scroll arrows *"should stay as is"*; average
+  plus 95th percentile for the control strip (*"I think so."*).
+* **Ruling:** Knut,
+  [5785414710](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5785414710) (2026-09-22),
+  [5787117741](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5787117741),
+  [5787380408](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5787380408),
+  [5789263863](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5789263863) (2026-09-23).
+* **Built:** `ui/dialogs/measurement_report_dialog.py::_judged_trend_limits`,
+  `_trend_plan`, `_PDF_ACCURACY_SCALE`, `_TrendChart`;
+  `workflow/measurement_report.py::report_trend` (B8-817, commit 1d29569c).
+* **Verified by:** `tests/test_trend_graphs_for_judged_metrics.py` (12 tests):
+  `test_every_group_holds_at_most_two_related_rows_that_exist`,
+  `test_the_paper_white_tabs_are_both_there_in_knuts_order`,
+  `test_a_tab_shows_only_while_one_of_its_rows_is_judged`,
+  `test_each_line_sits_at_the_limit_the_report_was_judged_against`,
+  `test_only_the_judged_rows_of_a_group_are_plotted`,
+  `test_a_report_that_judges_nothing_shows_none_of_the_new_tabs`,
+  `test_a_line_outside_the_data_range_neither_shows_nor_moves_the_axis`,
+  `test_a_withheld_evenness_value_is_not_plotted_against_its_limit`,
+  `test_the_pdf_prints_the_shown_tabs_and_leaves_the_hidden_out`,
+  `test_colour_accuracy_is_printed_twice_as_tall`;
+  `tests/test_beta37_round_fixes.py::test_a_series_with_one_value_is_drawn_as_a_point`.
+  Not pinned by any test: the line colours (grey Avg / Max, a colour per new
+  metric) and the tab scroll arrows (gap G11, §20).
+* **Proof:** `~/Desktop/ChromIQ-beta37-proof/graphs/`.
+* **Status:** agreed; the built result awaits Knut's confirmation.
+
 ### 17.1 Every graph explains itself (#182 K25, 2026-09-23)
 
 #### ⏳ AWAITING CONFIRMATION
@@ -2421,6 +3130,39 @@ packs (`~/Desktop/ChromIQ-beta38-proof/graphs/REPORT.md`):
 16. **Unchanged:** the tab scroll arrows; and a report of one measurement
     still shows "A trend graph needs at least two measurement runs…" in its
     graphs, with no red x.
+
+**Record (K25, the graphs).**
+* **Rule:** *"Make sure to also implement the feature in Colour accuracy tab
+  dictating what happens when a threshold label comes close to a graph's line,
+  or y-axis labels etc."*; every label described under its graph in the PDF,
+  the same text as a tooltip on screen; at most a two-line description above
+  each printed graph; units on every data label; a withheld date as a small
+  red x at the neighbouring value, the mean of both neighbours, or just above
+  the x-axis, explained by tooltip and in the PDF. One measurement: the
+  existing "at least two" text (5789532633). Items 11 and 15 were then amended
+  by K26 (§18.9): the word stays at the left end, the neighbours are the
+  nearest dates with a value; a date the chart could not supply gets no red x
+  (*"No."*).
+* **Ruling:** Knut, 2026-09-23,
+  [5789263863](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5789263863)
+  (graph answers 2 and 5), [5789532633](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5789532633).
+* **Built:** `ui/dialogs/measurement_report_dialog.py::_TrendChart`,
+  `_LIMIT_NOTES`, `_TREND_ABOUT`, `_with_unit`, `_withheld_mark_value`,
+  `_export_pdf` (B8-827, commit 9f216988).
+* **Verified by:** `tests/test_trend_graphs_explain_themselves.py::`
+  `test_the_red_x_height_follows_knuts_three_cases`,
+  `test_a_withheld_date_stays_on_the_axis_with_its_reason`,
+  `test_the_red_x_is_painted_red_where_the_rule_puts_it`,
+  `test_every_tab_places_its_words_by_the_accuracy_rule`,
+  `test_hovering_a_word_or_a_red_x_shows_the_text_the_pdf_prints`,
+  `test_a_line_out_of_view_is_still_described_and_says_so`,
+  `test_every_shown_tab_has_units_and_a_note_per_line`,
+  `test_every_graph_description_fits_two_lines_in_the_pdf`,
+  `test_the_pdf_prints_the_description_above_and_the_key_under`,
+  `test_every_limit_word_has_a_note_written_for_it`,
+  `test_one_measurement_still_shows_the_two_measurement_text`.
+* **Proof:** `~/Desktop/ChromIQ-beta38-proof/graphs/`.
+* **Status:** agreed; the built result awaits Knut's confirmation.
 
 ## 18. K26: Knut's rulings on the beta 37 and K25 questions (#182, 2026-09-23)
 
@@ -2538,3 +3280,399 @@ report is selected.
 **18.11 The evenness demo** (*"Fix it."*): on a synthetic sheet no patch that is
 not the paper reads lighter than the lightest paper patch, so the noisy date's
 paper white is the paper (`scripts/make_evenness_demo.py`).
+
+**Record (K26).** **Ruling:** Knut, 2026-09-23,
+[5792484060](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5792484060)
+and [5792576954](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5792576954);
+each item quotes him above. **Proof:** `~/Desktop/ChromIQ-beta38-proof/k26/`
+(`scripts/drive_k26.py`: drive-calib, drive-gamut, drive-rename, drive-list,
+drive-shared, drive-redx). **Status:** every item agreed; the built result
+awaits Knut's confirmation. Commits 1ecea062, c198d508, 78a4f00b (B8-832).
+
+| item | built | verified by (`tests/test_k26_rulings.py` unless named) |
+|---|---|---|
+| 18.1 Calibration | `measurement_report_dialog.py::_bar_run_type`, `_is_calibration_window`, `_calibration_controls`, `_lock_for_calibration`; M-REPORT-NOT-FOR-CALIBRATION in `workflow/measurement_messages.py` | `test_a_calibration_window_opens_empty_and_locked`, `test_the_other_run_types_are_untouched`, `test_every_door_hands_the_window_a_parent_that_knows_the_run_type`, `test_the_measure_tab_button_opens_the_empty_window_under_calibration`, `test_the_type_help_no_longer_promises_a_calibration_every_type` |
+| 18.2 Bound, and locked | `_bound_and_locked_help` (the "Judged against" help); the paragraph removed from the report guide | `tests/test_report_window_limit_controls.py::test_bound_and_locked_is_explained_in_the_help_not_the_report` |
+| 18.3 Judged against row | nothing changed | `test_the_printing_record_keeps_its_judged_against_row` |
+| 18.4 within-gamut graph | `_series_is_within_gamut`, `_METRIC_LABELS_JUDGED`, `_TREND_ABOUT_DE_JUDGED`; `workflow/measurement_report.py::graded_de00` | `test_the_accuracy_trend_plots_what_the_verdict_judged`, `test_the_graph_says_its_figures_are_the_judged_ones`, `test_the_judged_description_fits_two_lines` |
+| 18.5 folder rename | `ui/tabs/tab_chart.py::_offer_rename_for_a_renamed_folder`; `ui/dialogs/target_change_dialog.py::_build_folder_renamed_ui`; `core/file_manager.py::rename_existing_project` | `test_a_finder_duplicate_is_offered_the_rename_and_renamed`, `test_leave_it_as_it_is_writes_nothing`, `test_a_folder_already_named_as_chromiq_would_is_renamed_in_place`, `test_a_project_whose_names_agree_is_not_asked`, `test_the_chooser_offers_two_choices_in_its_folder_mode` |
+| 18.6 Profiling names | `_scope_tag`, `_run_tag` | `test_a_profiling_window_names_reports_after_their_runs`, `test_a_verification_window_keeps_its_date_names` |
+| 18.7 "these measurements" | the line under "Report shown" | `test_a_profiling_window_with_nothing_generated_says_these_measurements` |
+| 18.8 shared folder | `document_home`; `_export_pdf` removes a folder it made when nothing was saved | `test_the_shared_reports_folder_waits_for_a_report_across_projects`, `test_a_cancelled_pdf_save_leaves_no_reports_folder` |
+| 18.9 red x and words | `_withheld_mark_value`, `_stack_withheld_marks`, `_WITHHELD_STACK_PX` | `tests/test_trend_graphs_explain_themselves.py::test_the_red_x_height_follows_knuts_three_cases`, `test_two_red_crosses_on_one_date_sit_one_above_the_other`, `test_the_stacking_rule_stays_inside_the_plot`, `test_a_word_inside_the_plot_stays_at_the_left_end_over_a_data_line` |
+| 18.10 grouped from the start | `_grouped_documents` counts what the offered reports cover | `test_report_shown_is_grouped_from_the_start` |
+| 18.11 demo white | `scripts/make_evenness_demo.py` | `test_the_evenness_demo_noisy_date_takes_the_paper_as_paper_white` |
+
+Still open with Knut from this section (B8-832): whether "should not allow any
+reports" also stops the report the Measure tab writes by itself after a
+calibration measurement (not changed), and whether a project with a BUILT
+profile may be renamed by 18.5 (built: offered, and the option says the
+profile keeps its inner name).
+
+## 19. Report text, pre-flight and window rulings of 2026-09-22 and 2026-09-23
+
+**⏳ AWAITING CONFIRMATION.** **Confirmed by:** *nobody yet.* This section
+records rulings that had no home in §10 to §18. Each is agreed behaviour from
+the day Knut gave it; nobody has confirmed that what was built from it is
+right.
+
+### 19.1 Report text is written for a customer (K18)
+
+**Record.**
+* **Rule:** *"The report text itself shall not say anything about how to use
+  the ChromIQ tool. The report may be given to a customer and knows nothing
+  about ChromIQ, and shall not be presented with information on the usage of
+  ChromIQ. This is a general rule for all text generated for the reports."*
+  (5774852534). And: *"A report text shall never explain something in the
+  past, only the current functionality ... the text shall never explain any
+  ChromIQ related functions or user related notes and tips for ChromIQ."*
+  (5785414710). So: no "you", no window vocabulary, no ChromIQ history; "the
+  test chart used" and "the printed test chart" in place of "this chart" and
+  "the chart you printed"; *"when a report judges nothing"* in place of "when
+  you chose a report type that judges nothing"; the standard caveat true of a
+  Custom set, a PASS being an indication *"as long as the defined limits stay
+  within the limits defined by the standard"*. The windows (pre-flight,
+  presets window, help) may name ChromIQ controls: they are not report text.
+  This sharpens the beta 20 rule already in §11 ("a separate document printed
+  for a customer").
+* **Ruling:** Knut, 2026-09-22,
+  [5774852534](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5774852534),
+  and 2026-09-23,
+  [5785414710](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5785414710).
+* **Built:** the report guide, metric blurbs, notes and summaries in
+  `ui/dialogs/measurement_report_dialog.py` and
+  `workflow/compliance_sets.py::STANDARD_CAVEAT` (B8-808 commit 8930cead,
+  B8-811 commit fe6e9b64, B8-818 commit 7ef2fac4; "Bound, and locked" left the
+  report by K26, §18.2).
+* **Verified by:** `tests/test_final_round_before_beta36.py::`
+  `test_the_guide_explains_no_chromiq_mechanics`,
+  `test_the_recorded_verdict_sentence_names_no_ChromIQ_action`;
+  `tests/test_beta37_report_text.py::test_no_metric_blurb_speaks_to_the_reader`,
+  `test_the_report_neither_speaks_to_the_reader_nor_explains_chromiq`,
+  `test_what_the_rising_numbers_mean_is_a_statement_not_advice`;
+  `tests/test_beta37_round_fixes.py::`
+  `test_a_printing_record_carries_no_standard_caveat_and_no_provenance`;
+  `tests/test_a_recommended_metric_carries_a_note.py::`
+  `test_a_stored_COND_verdict_is_still_a_word_the_app_defines`.
+* **Proof:** `~/Desktop/ChromIQ-beta36-proof/final-challenge/`,
+  `~/Desktop/ChromIQ-beta37-proof/challenge-B/`, `~/Desktop/ChromIQ-beta37-proof/fixes/`.
+* **Status:** agreed; the built result awaits Knut's confirmation.
+
+### 19.2 An N-A note names what the measured chart lacks (K22)
+
+**Record.**
+* **Rule:** *"could you instead state what is missing, without mentioning
+  what to add? ... the rule becomes 'each names the thing missing in the
+  measured chart'."* Every reason behind an N-A note says what is missing in
+  "the measured chart" and gives no instruction. **SUPERSEDES** S2w of
+  2026-09-18 ("each names the thing to change", `issue_182_answers.md`). The
+  window's own help keeps its levers, because that is ChromIQ talking to its
+  user.
+* **Ruling:** Knut, 2026-09-23,
+  [5787117741](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5787117741).
+* **Built:** `ui/dialogs/measurement_report_dialog.py::_reason_sentence` and
+  `_note_the_absences` (B8-813, commit 2bba3053); the evenness reasons in §16.3.
+* **Verified by:** `tests/test_final_round_before_beta36.py::`
+  `test_every_na_note_names_what_is_missing_and_nothing_to_do`;
+  `tests/test_the_five_rows_that_had_no_detection.py::`
+  `test_every_new_reason_becomes_a_sentence_that_says_what_to_do`;
+  `tests/test_beta37_report_text.py::`
+  `test_the_closing_sentence_says_why_and_not_what_a_row_needs`.
+* **Proof:** none of its own (tests only). Gap G10.
+* **Status:** agreed; the built result awaits Knut's confirmation.
+
+### 19.3 Numbers carry their unit (K10)
+
+**Record.**
+* **Rule:** *"The results does not say the normal proper units or ΔE00. These
+  things do not take much space and should always be present when presenting
+  numbers."* The one-page summary reads "Average difference 0.87 ΔE00; Largest
+  2.75 ΔE00". The graphs follow the same rule (§17.1 item 14).
+* **Ruling:** Knut, 2026-09-22,
+  [5781159382](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5781159382)
+  (K10 of B8-778).
+* **Built:** the one-page result line (B8-796, commit 28e27723).
+* **Verified by:** `tests/test_t1_is_one_page_to_hand_over.py::`
+  `test_the_result_line_gives_its_numbers_with_their_unit`.
+* **Proof:** none of its own (tests only). Gap G10.
+* **Status:** agreed; the built result awaits Knut's confirmation.
+
+### 19.4 The paper white line prints L\*, a\* and b\* (K5)
+
+**Record.**
+* **Rule:** a swatch can always be read against its numbers: *"'Paper white &
+  darkest black' Shows White (1) - L\* 100.0 ... But the colored box in front
+  of white shows as light blue."* The line prints L\*, a\* and b\* whenever the
+  record carries them, never "nan" or "-0.0". The blue was the demo data (a
+  D65 white), fixed with K15 (§19.12).
+* **Ruling:** Knut, 2026-09-22,
+  [5781159382](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5781159382)
+  (K5 of B8-778).
+* **Built:** `workflow/measurement_report.py::point_lab` and the "Paper white &
+  darkest black" section (B8-779 commit 6bf0601e, B8-793 A-7).
+* **Verified by:** `tests/test_one_paper_white_has_one_answer.py::`
+  `test_the_swatch_line_prints_a_and_b_as_well_as_l`,
+  `test_the_line_never_prints_nan_or_minus_zero`.
+* **Proof:** `~/Desktop/ChromIQ-beta36-proof/K5-paper-white/`.
+* **Status:** agreed; the built result awaits Knut's confirmation.
+
+### 19.5 The verification pre-flight (K2 and the beta 32 findings)
+
+**Record.**
+* **Rule:** the "Before you measure this verification chart" window appears
+  only while a chart exists without a measurement, before measuring starts:
+  *"The message should appear if only if a chart exists without a
+  measurement, before a user starts to measure."* A run with a measured
+  dated verification never shows it again (*"Are you checking the location of
+  the ti3 file in the same location as the chart? for verification runs the
+  ti3 file is in the dated folder"*). Its count is generic, over every report
+  type and limit set, because no report exists yet: *"This chart can answer
+  17 of the 18 metrics that available report types and limit sets can use."*
+  The opening sentence is clear; the "finished page images" clause is gone.
+  Wording: M-VERIFY-PREFLIGHT, §M-PROPOSED of
+  `unified_measurement_management.md`, not approved.
+* **Ruling:** Knut, 2026-09-22,
+  [5777667003](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5777667003)
+  (beta 32), [5781159382](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5781159382)
+  (K2, beta 34), [5784377277](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5784377277)
+  (beta 35, still seen).
+* **Built:** `ui/tabs/tab_measure.py::_verification_preflight_due`,
+  `_run_has_a_measured_verification` (B8-765, B8-776 commit 528b7cfc, B8-784);
+  `workflow/preset_eligibility.py::rows_any_report_can_ask`, `assess_any`.
+* **Verified by:** `tests/test_the_verification_preflight_fires_for_its_preconditions.py::`
+  `test_not_owed_on_a_new_dated_verification_once_the_run_has_history`,
+  `test_the_window_says_what_the_presets_window_says`,
+  `test_the_window_frames_it_with_the_catalogue`;
+  `tests/test_adversary_k2_528b7cfc.py::`
+  `test_GAP_history_is_read_from_the_SELECTED_profile_run_not_the_current_one`,
+  `test_GAP_an_empty_first_date_does_not_hide_a_measured_later_one`;
+  `tests/test_round_c_guards_since_beta35.py::`
+  `test_a_dated_folder_printed_but_never_read_is_not_history`;
+  `tests/test_beta37_a_preflight_asked_while_one_is_open_is_not_lost.py::`
+  `test_a_request_met_by_an_open_window_is_made_again_when_it_closes`.
+* **Proof:** `~/Desktop/ChromIQ-beta36-proof/K2-preflight-history/`,
+  `~/Desktop/ChromIQ-beta36-proof/K2-knuts-own-project/` (his own project),
+  `~/Desktop/ChromIQ-beta36-proof/adversary-k2/`.
+* **Status:** agreed; the built result awaits Knut's confirmation. Question 14
+  of 5784140521 (a date holding only `reads/read1.ti3`, and one whose
+  measurement a Replace moved to `old/`) is his and unanswered.
+
+### 19.6 "Unlock this run's limits" with fewer than two dated verifications
+
+**Record.**
+* **Rule:** *"Since there is only one dated verification, and the judged
+  agains selection box is editable, it does not make sense to allow to unlock.
+  The checkbox should be greyed out and not clickable, but a tool-tip should
+  say that the limit set and the Edit Limit button will by default be locked
+  when two or more dated verification runs exist"*.
+* **Ruling:** Knut, 2026-09-22,
+  [5777805448](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5777805448).
+* **Built:** the enable rule follows `locked` in
+  `ui/dialogs/measurement_report_dialog.py` (B8-766, commit d8ad16b7); the
+  tooltip names the two-date lock.
+* **Verified by:** `tests/test_report_window_limit_controls.py::`
+  `test_the_unlock_box_is_dead_while_there_is_nothing_to_unlock`;
+  `tests/test_final_round_before_beta36.py::`
+  `test_after_clear_list_unlock_says_nothing_is_loaded`.
+* **Proof:** none of its own (tests only). Gap G10.
+* **Status:** agreed; the built result awaits Knut's confirmation.
+
+### 19.7 Before printing: a metric the chart cannot answer, and "-"
+
+**Record.**
+* **Rule:** the pre-flight and "Which presets can be used for verification?"
+  tell the user that a report judging a metric the chart cannot answer will
+  carry a note for it, and that the metric can be turned off in Report limits
+  (threshold "-") for a cleaner report to hand a customer: *"This type of
+  information allows the user to understand that it is possible to change the
+  report text to be more clean"*. Said only where the chart really falls
+  short. Wording: M-VERIFY-UNCHECKED-METRICS, §M-PROPOSED, not approved.
+* **Ruling:** Knut, 2026-09-22,
+  [5774104083](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5774104083)
+  (the place for it confirmed in 5774852534).
+* **Built:** the two windows' paragraph (B8-767, commit 44e36ca1; rewritten by
+  B8-773). The pre-flight carries ONE line pointing at the presets window,
+  because the full paragraph took the popup past a 13 inch screen. **Knut then
+  ruled (R2, 5781645939): *"The popup window can be made wider, so that it does
+  not become as tall, and no scrolling is needed in that window. The current
+  text shown in beta 34 was ok."* That is NOT built** (gap G5).
+* **Verified by:** `tests/test_knuts_two_warnings_of_2026_09_22.py::`
+  `test_the_set_really_decides_whether_such_a_row_is_shown`,
+  `test_the_message_says_what_decides_it_and_qualifies_the_lever`,
+  `test_the_preset_window_prints_it_under_a_chart_that_falls_short`,
+  `test_and_never_under_a_chart_that_falls_short_of_nothing`,
+  `test_the_preflight_says_it_too_when_the_chart_falls_short`.
+* **Proof:** `~/Desktop/ChromIQ-beta35-proof/preflight-height/`.
+* **Status:** agreed; built in part, awaiting confirmation; R2 not built.
+
+### 19.8 Sheets with different patch counts: an information note (R4)
+
+**Record.**
+* **Rule:** *"it is not an error, and a user may want to compare the outputs
+  from different charts, but there should be a warning informing that some of
+  the measurements selected to be included in the report are using different
+  charts with different number of patches measured, and thus the results for
+  judged metrics may differ slightly"* (5774104083), and it must be *"a clear
+  information note, not the same font and colour as other bread-text, so that
+  the note is not hidden"* (R4, 5781645939), in no warning colour. Wording:
+  M-REPORT-PATCH-COUNTS-DIFFER, §M-PROPOSED, not approved.
+* **Ruling:** Knut, 2026-09-22,
+  [5774104083](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5774104083),
+  [5781645939](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5781645939).
+* **Built:** `report_scope`'s `notes` key and the note box in
+  `ui/dialogs/measurement_report_dialog.py` (B8-768 commit 44e36ca1, B8-774,
+  B8-797 commit f19e9ca2).
+* **Verified by:** `tests/test_knuts_two_warnings_of_2026_09_22.py::`
+  `test_two_patch_counts_make_one_note_in_column_order`,
+  `test_a_sheet_with_no_recorded_count_is_not_a_second_count`,
+  `test_the_note_is_never_appended_to_the_red_warning_block`,
+  `test_the_rendered_note_carries_the_counts_and_is_not_the_fail_colour`,
+  `test_the_note_is_set_apart_from_body_text`.
+* **Proof:** `~/Desktop/ChromIQ-beta36-proof/R4-note-box/`.
+* **Status:** agreed; the built result awaits Knut's confirmation.
+
+### 19.9 A report type says which metrics it judges; "Restore defaults"
+
+**Record.**
+* **Rule:** the Report limits window and the report say which rows the chosen
+  type covers, and every column's "Restore this column" button reads "Restore
+  defaults". The per-report-type "This Report Type Checks" column he proposed
+  is **cancelled**: *"I think that these two things are sufficient for now.
+  cancel the design of making a checkmark for each report type."*
+* **Ruling:** Knut, 2026-09-22,
+  [5777029221](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5777029221)
+  (the request) and
+  [5777326491](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5777326491)
+  (the ruling).
+* **Built:** `ui/dialogs/measurement_report_dialog.py::_type_covers_sentence`,
+  read from `workflow/measurement_report.py::REPORT_TYPE_ROWS`; the button in
+  `ui/dialogs/thresholds_dialog.py` (commit 6456b7ec, in beta 34; B8-763).
+* **Verified by:** the button: `tests/test_a_short_button_is_short_on_screen.py::`
+  `test_the_ceiling_is_the_windows_own_small_button` (it matches on "Restore
+  defaults"). **The sentence: no test** (gap G9).
+* **Proof:** `~/Desktop/ChromIQ-beta34-proof/challenge-round-38/`.
+* **Status:** agreed; the built result awaits Knut's confirmation.
+
+### 19.10 Restore Used Chart restores the chart's fields only
+
+**Record.**
+* **Rule:** *"The Description and the seven compliance fields are the run's
+  and stay."* What belongs to neither chart nor run survives too (*"It sounds
+  like they should survive too."*). What the chart owns is restored as it was
+  when the measurement started, including the absence of a control-strip
+  declaration: *"The restore shall restore what existed at the time when the
+  chart was backed up ... and if that chart did not have a control-strip
+  declaration, then the restored chart in verifications/ folder should not
+  have it either."* The limit binding stays on the run (*"keep 'the binding
+  stays on the run'"*, 5775993270).
+* **Ruling:** Knut, 2026-09-22,
+  [5774852534](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5774852534),
+  [5775260868](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5775260868),
+  [5775993270](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5775993270).
+* **Built:** `workflow/verify_chart_snapshot.py::CHART_META_KEYS`; the previous
+  file is archived first (B8-740, commit 13a6e7dc). B8-731 (the control-strip
+  case) is correct behaviour by his ruling.
+* **Verified by:** `tests/test_a_restore_archives_the_side_file_it_overwrites.py::`
+  `test_restore_takes_only_the_charts_fields_from_the_snapshot`,
+  `test_a_snapshot_meta_that_cannot_be_read_changes_no_live_field`,
+  `test_the_replaced_side_file_is_archived_before_it_is_overwritten`.
+* **Proof:** `~/Desktop/ChromIQ-beta36-proof/B8-740-restore/`.
+* **Status:** agreed; the built result awaits Knut's confirmation.
+
+### 19.11 A per-target row the stored block lacks opens on its default
+
+**Record.**
+* **Rule:** switching to a target whose saved settings have no entry for an
+  option puts that option on its documented default, not the previous
+  target's value (*"You fix seems reasonable."*). The calibration's own rows
+  are left alone while the calibration is the selected target. This belongs
+  to `per_target_settings.md` and is recorded here because it was ruled in the
+  same batch.
+* **Ruling:** Knut, 2026-09-22,
+  [5775260868](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5775260868).
+* **Built:** `ui/tabs/tab_chart.py::load_target_settings` (B8-732, commit
+  2cb9e3fe).
+* **Verified by:** `tests/test_a_fresh_run_opens_on_its_own_defaults.py::`
+  `test_a_row_the_stored_block_lacks_opens_on_its_default`.
+* **Proof:** `~/Desktop/ChromIQ-beta36-proof/B8-732-fixed/`.
+* **Status:** agreed; the built result awaits Knut's confirmation.
+
+### 19.12 Knut's i1Pro presets (K1) and the demo pack (K15)
+
+**Record.**
+* **Rule:** his eight 7.5 mm i1Pro "Maximised - No Clip-border" presets are
+  built in like the others (*"to be added as built-in like the others"*). The
+  demo projects follow every rule the app follows: report names, run types,
+  the Create Chart verification presets that must really trigger FAIL where
+  they claim to (*"The demo projects package must be updated to follow all the
+  rules"*), and every report location, report type and run type combination
+  (*"Make sure the demo projects have created runs and projects that tests all
+  variations of the above locations of reports and report types and run
+  type."*, 5787117741).
+* **Ruling:** Knut, 2026-09-22,
+  [5781159382](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5781159382) (K1),
+  [5781197240](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5781197240),
+  [5776517563](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5776517563) (K15);
+  2026-09-23, [5787117741](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5787117741).
+* **Built:** the presets and their registration in `ui/tabs/tab_chart.py`
+  (B8-801, commit 6313bc9f, `docs/dev_builtin_presets.md`);
+  `scripts/make_report_limit_demos.py`, `scripts/make_verification_preset_demos.py`,
+  `scripts/make_evenness_demo.py` (B8-804 commit 3484e0a9, B8-807, and the
+  K23 and K25 packs).
+* **Verified by:** `tests/test_i1pro75_maximised_builtin_presets.py::`
+  `test_chart_builds_with_the_sheet_pages_and_patches_its_name_promises`,
+  `test_every_chart_registered`, `test_they_are_offered_in_the_verification_window`;
+  `tests/test_the_demo_pack_covers_every_report_type.py::`
+  `test_the_pack_prints_on_paper_and_not_on_the_d65_white`,
+  `test_no_plan_gives_a_verification_a_type_its_kind_refuses`;
+  `tests/test_the_demo_pack_says_what_its_own_data_shows.py::`
+  `test_a_paper_white_on_a_colour_patch_stops_the_build`;
+  `tests/test_the_demo_presets_pair_on_every_requirement.py::`
+  `test_each_pair_shows_under_the_choice_its_name_gives`.
+* **Proof:** `~/Desktop/ChromIQ-beta36-proof/K1-i1pro-presets/`,
+  `~/Desktop/ChromIQ-beta36-proof/K15-demo-pack/`,
+  `~/Desktop/ChromIQ-beta36-proof/B8-807-demo-pack/`,
+  `~/Desktop/ChromIQ-beta37-proof/report-folders/demo-pack/`,
+  `~/Desktop/ChromIQ-beta38-proof/report-list/demo-pack/`.
+* **Status:** agreed; the built result awaits Knut's confirmation.
+
+### 19.13 "New report…" on a bound run shows the run's own set
+
+**Record.**
+* **Rule:** Preferences supplies the default when the run has no bound set; a
+  bound run shows its own set, and the window says so (*"so as you said and
+  recommend"*). This keeps §5: a report is never stamped with numbers the run
+  is not bound to.
+* **Ruling:** Knut, 2026-09-22,
+  [5776479532](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5776479532)
+  (B8-526, recorded in B8-764; the register entry B8-526 itself still reads
+  OPEN).
+* **Built:** before beta 34: the "Judged against" tooltip under "New report…"
+  in `ui/dialogs/measurement_report_dialog.py` (B8-526).
+* **Verified by:** no test is named for this ruling (gap G9).
+* **Proof:** the register names `~/Desktop/ChromIQ-beta28-proof/knut-beta26-review/defaults/`,
+  which is no longer on disk (gap G10).
+* **Status:** agreed; the built result awaits Knut's confirmation.
+
+## 20. Rulings not built, or built without a test or proof
+
+**⏳ AWAITING CONFIRMATION.** **Confirmed by:** *nobody yet.* Every item is a
+rule Knut gave or a request he made; each says what exists today. None is to
+be built without re-reading his comment first, and every one that is not
+built waits on a question to him or on work not yet done.
+
+| # | ruling | comment, date | what exists |
+|---|---|---|---|
+| G1 | K6 one vocabulary for the metric names, in the graphs, "Overview of Measurement Metrics", Report limits, help and messages: *"Make sure we are using the correct names in the reports, windows, help text, warnings, popup messages etc."* | 5781159382, 2026-09-22 | NOT built. Questions 1 and 2 of 5784140521 (the exact i1Profiler-style names; which population a table shows) unanswered; the graph's population is settled by §18.4 |
+| G2 | K7 a metric whose threshold is "-" disappears from Report Results, the Overview, the detailed data and the graph | 5781159382, 2026-09-22 | NOT built. Question 3 of 5784140521 (the Overview table too?) unanswered |
+| G3 | K8 report rows with no Report limits row (Paper white L\*, Black L\*, the per-colour ΔE00 rows, Spread): which limit each belongs to, and should notes say so | 5781159382, 2026-09-22 | Answered by measurement in 5784140521; question 4 (keep them under "For information", or remove) unanswered. Not built |
+| G4 | R1 the one-page summary: *"keep 1"*, and analyse option 3 with the Run description limited to 2 lines | 5781645939, 2026-09-22 | Option 1 is what runs. Option 3 analysed (`~/Desktop/ChromIQ-beta36-proof/design-R3-R2-R1/`): it did not fit A4 with a 2-line description. Question 7 unanswered; the 2-line limit and its help text NOT built |
+| G5 | R2 the pre-flight popup made wider so the full beta 34 paragraph fits with no scrolling | 5781645939, 2026-09-22 | NOT built: the popup carries one line (§19.7). Question 13 of 5784140521 re-asked it with a shorter paragraph; unanswered |
+| G6 | R3 the ISO-derived sets stop showing rows nothing can answer (*"agreed, do that"*) | 5781645939, 2026-09-22 | NOT built. Questions 5 and 6 of 5784140521 (by reason or by set; should the full report still name what was left out) unanswered |
+| G7 | One report, one limit set, applied to every measurement it includes, across runs (§13.9) | 5773668311, 2026-09-22 | NOT built: graded reports are still narrowed to one set's measurements. Question 8 of 5784140521 |
+| G8 | E8 judge evenness in absolute Lab (*"Do an investigation to see what is normal practice."*) | 5789263863, 2026-09-23 | Research done (B8-830); his decision open; behaviour unchanged |
+| G9 | Built rulings with no test that goes red: the type-covers sentence (§19.9); the "New report…" set tooltip (§19.13) | 5777326491, 5776479532, 2026-09-22 | Built, unpinned |
+| G10 | Built rulings with no on-screen proof folder of their own: K19 (§13.10), K22 (§19.2), K10 (§19.3), the unlock box (§19.6), the ISO cap (§14.6); K12 only inside round A; B8-526's proof folder gone | as listed | Tests only |
+| G11 | Graph details he answered with no test: the line colours (grey Avg and Max, a colour per new metric), the tab scroll arrows staying as they are | 5789263863, 2026-09-23 | Built as he answered, unpinned |
+| G12 | Notes wherever a verdict is shown, including the Printing record's detailed sections, suppressed where none is (*"OK"*); and *"Yes, check that all notes are printed"* (all 19 absence notes on screen) | 5774852534, 5775260868, 2026-09-22 | Commitments listed in B8-780; neither the detailed-section notes nor a drive of all 19 notes is recorded as done |
+| G13 | B8-483 the grey ramp subset evenly spaced, no two picked patches close enough to lump (*"How close can two patches picked come to each other"*) | 5775993270, 5776479532, 2026-09-22 | Proposed (no gap under 8 %, none over 22 % of the range), awaiting his word; NOT built |
