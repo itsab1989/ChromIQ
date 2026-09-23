@@ -52,6 +52,11 @@ Read `PROJECTS` for the current shape. In outline, what each project is for:
                                      one date, several dates of one run,
                                      across runs, profiling, a legacy report
                                      of several dates and a deleted one.
+    Report-Limits-Report-Folders-Second
+                                     a second project (K25), so "Report
+                                     shown" is grouped by project and run;
+                                     two reports span both projects and live
+                                     in the pack's own reports/ folder.
     Report-Limits-Custom-Columns     the two Custom columns, with numbers.
     Report-Limits-Border-Conditions  the edges: a chart with no grey ramp, a
                                      raw sheet, a sheet with no printing
@@ -1844,6 +1849,16 @@ FOLDERS_RUN2: "list[Date]" = [
        _FOLDERS_BAD, ["all_de00_max"]),
 ]
 
+#: K25 (Knut, 2026-09-23): the dates of the SECOND project the report list is
+#: grouped across. Two dates, clean then one bad patch, same designs.
+FOLDERS_OTHER_RUN1: "list[Date]" = [
+    _d("2027-01-05_100000", "2027-01-05T10:00:00", "Another project, first check",
+       "A clean sheet.", _FOLDERS_OK, []),
+    _d("2027-01-12_100000", "2027-01-12T10:00:00", "One patch goes wrong",
+       "A single patch at 4.5 carries 'All patches, largest' over 3.0.",
+       _FOLDERS_BAD, ["all_de00_max"]),
+]
+
 TYPES_DE_TIGHT: "list[Date]" = [
     _d("2026-11-03_100000", "2026-11-03T10:00:00",
        "One patch out, tight column",
@@ -2337,13 +2352,16 @@ def file_report(rep: dict, ti3: Path, run, kind: str, when: str, *,
 
 #: K23: the project that shows where every kind of report lives.
 FOLDERS_PROJECT = "Report-Limits-Report-Folders"
+#: K25: a second project, so "Report shown" can be grouped by project.
+FOLDERS_OTHER_PROJECT = "Report-Limits-Report-Folders-Second"
 
 #: What `seed_report_folders` wrote, as lines for the README. Filled at build
 #: time from what is really on disk, never typed in by hand.
 FOLDERS_MANIFEST: "list[str]" = []
 
 
-def seed_report_folders(root: Path) -> "list[str]":
+def seed_report_folders(root: Path,
+                        other: "Path | None" = None) -> "list[str]":
     """Give Report-Limits-Report-Folders every place a report can live (K23).
 
     Knut, 2026-09-23, #182: *"Make sure the demo projects have created runs
@@ -2475,6 +2493,24 @@ def seed_report_folders(root: Path) -> "list[str]":
                        older)
     lines.append("  OLDER CHROMIQ, one date of run2, no document record:")
     lines.append(f"      the report:        {rel(p)}")
+    # **AND A SECOND PROJECT (K25).** Knut, 2026-09-23: "Report shown" is
+    # grouped by project and run, and *"IF a report has included multiple
+    # measurements belonging to more than one project, then those reports are
+    # grouped in a separate group-heading ... 'Reports including multiple
+    # projects'"*. So the second project holds a report of its two dates, and
+    # two reports span both projects: `document_home` files those in the
+    # projects' common folder, which in the pack is its own `reports/`.
+    if other is not None and (other / "runs").is_dir():
+        o1 = sorted((other / "runs").glob("run*"), key=lambda p: p.name)[0]
+        od = dates(o1)
+        write(od, REPORT_TYPE_FULL, "2027-01-13T09:00:00",
+              what="ALL DATES of the second project's run1, Full colour check:")
+        write([d1[-1], od[0]], REPORT_TYPE_FULL, "2027-01-14T09:00:00",
+              what="ACROSS TWO PROJECTS, verifications, Full colour check "
+                   "(in the pack's own reports folder):")
+        write([run1, o1], _RECORD, "2027-01-14T09:30:00",
+              what="ACROSS TWO PROJECTS, profiling sheets, Printing record "
+                   "(in the pack's own reports folder):")
     return lines
 
 
@@ -3500,6 +3536,17 @@ PROJECTS = [
                 report_type=REPORT_TYPE_FULL, unlocked=True, lock="unlocked",
                 also_generate=(REPORT_TYPE_SUMMARY,)),
     ]),
+    (FOLDERS_OTHER_PROJECT, [
+        RunPlan("A SECOND project for the grouped report list (K25). Add its "
+                "measurements to a window on Report-Limits-Report-Folders and "
+                "\"Report shown\" groups by project, then by run. It holds a "
+                "report of both its dates, and shares two reports with "
+                "Report-Limits-Report-Folders in the pack's own reports "
+                "folder: \"Reports including multiple projects\".",
+                CHART_SMALL, CHART_MEDIUM, "chromiq_default",
+                FOLDERS_OTHER_RUN1, report_type=REPORT_TYPE_FULL,
+                unlocked=True, lock="unlocked"),
+    ]),
     ("Report-Limits-Custom-Columns", [
         RunPlan("The Custom ISO 12647-7 column, which starts from ChromIQ's "
                 "own numbers and not from that standard's published values.",
@@ -4048,9 +4095,17 @@ def main(argv=None) -> int:
     for name, plans in PROJECTS:
         if args.only and name not in args.only:
             continue
-        root = build_project(dest, name, plans, cache_root, results, lock_rows)
-        if name == FOLDERS_PROJECT:
-            FOLDERS_MANIFEST[:] = seed_report_folders(root)
+        build_project(dest, name, plans, cache_root, results, lock_rows)
+    # AFTER EVERY PROJECT IS BUILT (K25): the seed writes reports across
+    # Report-Folders and its second project, so both must exist first.
+    if (dest / FOLDERS_PROJECT).is_dir() and (
+            not args.only or FOLDERS_PROJECT in args.only):
+        shutil.rmtree(dest / "reports", ignore_errors=True)
+        other = dest / FOLDERS_OTHER_PROJECT
+        FOLDERS_MANIFEST[:] = seed_report_folders(
+            dest / FOLDERS_PROJECT,
+            other if (not args.only or FOLDERS_OTHER_PROJECT in args.only)
+            and other.is_dir() else None)
     shutil.rmtree(cache_root, ignore_errors=True)
 
     # THE DEMO PRESETS (#182, Knut 2026-09-19), built by their own generator.
@@ -5838,6 +5893,18 @@ def readme(results: list, _lock_rows: "list[dict]", _cov: dict,
         a("the report across both runs; never the deleted one. Open run1 as")
         a("Profiling and it holds the Printing record and the report across")
         a("both profiling sheets.")
+        a("")
+        a("THE LIST IS GROUPED (K25). The report names stay; \"Report shown\"")
+        a("gets headings from where the measurements in \"Included")
+        a("measurements\" come from:")
+        a("  one run (run1 as Verification): no headings;")
+        a("  several runs of one project (run1 as Profiling, which lists every")
+        a("  run's sheet; or run1 as Verification with a run2 date added):")
+        a("  Run1, Run2, and \"Reports including multiple runs\";")
+        a("  several projects (add a date of Report-Limits-Report-Folders-")
+        a("  Second): each project's name, its runs under it, and \"Reports")
+        a("  including multiple projects\" for the two reports that span")
+        a("  both, which live in this pack's own reports/ folder.")
         a("")
     return "\n".join(lines) + "\n"
 
