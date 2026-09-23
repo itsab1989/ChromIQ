@@ -299,8 +299,15 @@ def test_the_wording_counts_one_result_and_two_differently(qapp, tmp_path):
     assert "{c} patches" in M.M_CHART_ITEM_MEASUREMENT
     assert "{c} patches" in M.M_CHART_W4.body
     assert "{v} dated verification runs" in M.M_CHART_W4.body
+    # One exemption list for the whole suite, each entry the design
+    # authority's own words (see `_BRACKETED_PLURAL_BY_RULING`).
+    from tests.test_message_catalogue import _BRACKETED_PLURAL_BY_RULING
     for msg in M.CATALOGUE.values():
-        assert "(s)" not in msg.title + msg.body, msg.id
+        text = msg.title + msg.body
+        ruled = _BRACKETED_PLURAL_BY_RULING.get(msg.id)
+        if ruled:
+            text = text.replace(ruled, "")
+        assert "(s)" not in text, msg.id
     assert "(s)" not in M.M_CHART_NOPAGES_SOME + M.M_CHART_NOPAGES_NONE
 
 
