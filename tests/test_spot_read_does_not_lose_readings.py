@@ -77,6 +77,14 @@ def _dialog(cls=SpotReadDialog):
     d = cls(ArgyllRunner(s), s)
     d.asked = []
     d.show()
+    # WAIT FOR THE ACTIVATION. In the release gate of beta 39 (18643 passed,
+    # this one red; green alone every time) the window was not yet active
+    # when the test set the focus, so there was no focus widget at all and
+    # the precondition read "NoneType". Same shape as the button-focus test
+    # of test_space_bar_focus.py, fixed the same night.
+    from PyQt6.QtTest import QTest
+    d.activateWindow()
+    QTest.qWaitForWindowActive(d, 2000)
     QApplication.processEvents()
     return d
 
