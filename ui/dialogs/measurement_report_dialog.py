@@ -163,6 +163,58 @@ _METRIC_LINE = {
     "max_all":   "#e0574b", "max_low95": "#9f82ff",
 }
 
+#: **THE JUDGED-METRIC TREND TABS (#182 K20/K21).** Knut, 5787117741: *"each
+#: group show maximum two metrics with their own independent threshold level
+#: line, no more... and that each metric within a group are related
+#: metrics"*; 5787380408 adds "Paper white, diff". A tab is shown, and printed,
+#: only when one of its rows was judged for the document (`_trend_plan`).
+#:
+#: ``(key, title, ((row_id, line word, colour), ...))``, lazy so tr() runs in
+#: the active language. The legend is the row's own label from ``ROWS``, so
+#: the graph names a metric exactly as the results table does; the WORD is the
+#: short name of its dotted line, which has to fit the 40 px axis margin.
+#:
+#: The control strip plots its average and its 95th percentile, not its
+#: largest: the 95th percentile is the same kind of number as the largest
+#: without jumping on one misread patch, and one spike is what stretches a
+#: 0-anchored axis and flattens the small drift a trend is for.
+_TREND_GROUPS = (
+    ("paper_diff", lambda: tr("Paper white, diff"), (
+        ("substrate_de00_max", lambda: tr("Max"), "#8a8a8a"),)),
+    ("grey", lambda: tr("Grey balance (ΔCh)"), (
+        ("grey_balance_neutral_ramp_avg", lambda: tr("Avg"), "#56d6a5"),
+        ("grey_balance_neutral_ramp_max", lambda: tr("Max"), "#e0574b"))),
+    ("tone", lambda: tr("Tone (ΔL*)"), (
+        ("ramps_30_70_dl_max", lambda: tr("Max"), "#37bcd6"),)),
+    ("strip", lambda: tr("Control strip (ΔE00)"), (
+        ("control_strip_de00_avg", lambda: tr("Avg"), "#56d6a5"),
+        ("control_strip_de00_p95", lambda: tr("P95"), "#9f82ff"))),
+    ("repeat", lambda: tr("Repeatability (ΔE00)"), (
+        ("repeat_patches_de00_max", lambda: tr("Sheet"), "#37bcd6"),
+        ("repeat_measurement_de00_max", lambda: tr("Again"), "#e0864b"))),
+    ("evenness", lambda: tr("Evenness (ΔE00)"), (
+        ("uniformity_sd", lambda: tr("Pairs"), "#e0574b"),
+        ("uniformity_de00_max_from_mean", lambda: tr("Mean"), "#37bcd6"))),
+)
+
+
+def _trend_row_value(pt: dict, row_id: str, limit=None):
+    """One judged row's value in a trend point, or None.
+
+    An evenness value whose own noise is not below *limit* is None: the
+    results table reads N-A for it (`evenness_withheld`), and a point drawn
+    against the same limit line would say what the table refuses to."""
+    v = (pt.get("rows") or {}).get(row_id)
+    if v is None or limit is None:
+        return v
+    from workflow.compliance_sets import Limit
+    from workflow.measurement_report import evenness_withheld
+    noise = (pt.get("rows_noise") or {}).get(row_id)
+    if evenness_withheld(row_id, {"value": v, "noise_p95": noise},
+                         Limit.value(float(limit))):
+        return None
+    return v
+
 # The report body is one self-contained HTML document, shown in a QTextBrowser
 # AND saved to PDF. Inline colours beat any widget stylesheet, so a fixed
 # light-theme palette rendered the on-screen report as #333 text on the dark
@@ -776,6 +828,14 @@ def _is_raw_drift(r: dict) -> bool:
 from ui.pdf_layout import paginate_tables as _paginate_tables  # noqa: E402
 
 
+#: The height of one trend chart in the PDF, at its 640 px render width.
+_PDF_TREND_H = 176
+#: Colour accuracy is printed this many times taller (#182, Knut 5787117741:
+#: *"a y-axis on the graph that is, for ex. twice as tall as the graph on
+#: screen"*), so a change of a tenth of a ΔE00 between dates stays visible.
+_PDF_ACCURACY_SCALE = 2
+
+
 class _TrendChart(QWidget):
     """A compact multi-line chart of a printer's measurement history over time
     (#40, Knut). Generic: each instance plots one GROUP of related metrics
@@ -794,10 +854,11 @@ class _TrendChart(QWidget):
         self._dec = 1
         self._auto = False
         self._thresholds: "tuple[float, float] | None" = None
+        self._limit_lines: list = []
         self.setMinimumHeight(150)
 
     def set_data(self, series, metrics, dark=True, y_max=None, dec=1,
-                 auto=False, thresholds=None) -> None:
+                 auto=False, thresholds=None, limit_lines=None) -> None:
         def has_any(pt) -> bool:
             return any(acc(pt) is not None for _, _, acc in metrics)
         self._series = [p for p in (series or []) if has_any(p)]
@@ -812,6 +873,11 @@ class _TrendChart(QWidget):
         # (avg, max) Pass thresholds drawn as dotted guide lines (accuracy chart),
         # or None (Knut).
         self._thresholds = thresholds
+        # #182 K20/K21: one dotted limit line PER METRIC on the judged-metric
+        # tabs, ``[(value, word, QColor)]``, drawn by the same code as the
+        # pair above. The pair keeps its own name and grey pen: it is what
+        # the R24-F3 guard watches, and its two lines serve five metrics.
+        self._limit_lines = list(limit_lines or [])
         # NB: visibility is owned by the container (the tab widget), NOT the
         # chart — a per-widget setVisible here fought the tab stack and made all
         # three pages paint on top of each other before layout settled.
@@ -819,6 +885,23 @@ class _TrendChart(QWidget):
 
     def has_trend(self) -> bool:
         return len(self._series) >= 2
+
+    def _y_range(self) -> "tuple[float, float]":
+        """The plotted y-range, from the DATA alone.
+
+        A limit line never widens it (Knut, 5787117741: a threshold far from
+        the trend *"is outside of the view shown for the y-scale, until a
+        change in the measurement happens that creates a dip/spike large
+        enough to change the y-scale"*), so a small drift keeps its height."""
+        import math
+        vals = [v for pt in self._series for _, _, acc in self._metrics
+                if (v := acc(pt)) is not None]
+        if self._auto and vals:
+            dmin, dmax = min(vals), max(vals)
+            pad = 0.3 if (dmax - dmin) < 1e-9 else (dmax - dmin) * 0.15
+            return (math.floor((dmin - pad) * 10.0) / 10.0,
+                    math.ceil((dmax + pad) * 10.0) / 10.0)
+        return 0.0, (self._y_max if self._y_max else max(vals + [1.0]) * 1.12)
 
     def _legend_rows(self, fm, L, w) -> int:
         """How many rows the legend needs at this width — the plot top must
@@ -890,16 +973,7 @@ class _TrendChart(QWidget):
                    "them."))
             p.end()
             return
-        vals = [v for pt in pts for _, _, acc in self._metrics
-                if (v := acc(pt)) is not None]
-        if self._auto and vals:
-            dmin, dmax = min(vals), max(vals)
-            pad = 0.3 if (dmax - dmin) < 1e-9 else (dmax - dmin) * 0.15
-            vmin = math.floor((dmin - pad) * 10.0) / 10.0
-            vmax = math.ceil((dmax + pad) * 10.0) / 10.0
-        else:
-            vmin = 0.0
-            vmax = self._y_max if self._y_max else max(vals + [1.0]) * 1.12
+        vmin, vmax = self._y_range()
         span = max(1e-6, vmax - vmin)
         n = len(pts)
 
@@ -931,13 +1005,23 @@ class _TrendChart(QWidget):
             for q in poly:
                 p.drawEllipse(q, 2.4, 2.4)
 
-        # Pass-threshold guide lines (accuracy chart only) — dotted, and only
+        # Limit lines: the accuracy chart's grey Avg / Max pair, or one line
+        # per metric on a judged-metric tab (#182 K20/K21) — dotted, and only
         # while they fall inside the visible y-range (Knut).
-        if self._thresholds:
-            tpen = QPen(QColor(150, 150, 150) if self._dark else QColor(120, 120, 120))
-            tpen.setStyle(Qt.PenStyle.DotLine); tpen.setWidthF(1.2)
-            thr = [(tv, tlab) for tv, tlab in zip(self._thresholds, (tr("Avg"), tr("Max")))
+        grey_line = QColor(150, 150, 150) if self._dark else QColor(120, 120, 120)
+        lines = ([(tv, tlab, None) for tv, tlab in
+                  zip(self._thresholds, (tr("Avg"), tr("Max")))]
+                 if self._thresholds else list(self._limit_lines))
+        if lines:
+            thr = [(tv, tlab) for tv, tlab, _c in lines
                    if isinstance(tv, (int, float)) and vmin <= tv <= vmax]
+            pens = []
+            for tv, _tlab, tcol in lines:
+                if not (isinstance(tv, (int, float)) and vmin <= tv <= vmax):
+                    continue
+                tpen = QPen(QColor(tcol) if tcol is not None else grey_line)
+                tpen.setStyle(Qt.PenStyle.DotLine); tpen.setWidthF(1.2)
+                pens.append(tpen)
             # Default: the label sits outside the plot in the left margin, aligned
             # with the y-axis numbers. But a threshold can land ON a y-axis number
             # (e.g. Avg 2.0 with a gridline at 2.0), overlapping it — so if EITHER
@@ -959,7 +1043,7 @@ class _TrendChart(QWidget):
             collide = any(abs(ty - ay) < 9.0 for ty in thr_ys for ay in axis_ys)
             if len(thr_ys) == 2 and abs(thr_ys[0] - thr_ys[1]) < 11.0:
                 collide = True
-            for (tv, tlab), yy in zip(thr, thr_ys):
+            for (tv, tlab), yy, tpen in zip(thr, thr_ys, pens):
                 p.setPen(tpen)
                 p.drawLine(QPointF(L, yy), QPointF(L + w, yy))
             p.setPen(QPen(fg, 1.0))
@@ -2171,10 +2255,22 @@ class MeasurementReportDialog(QDialog):
         self._trend_white = _TrendChart(self)
         self._trend_black = _TrendChart(self)
         self._trend_corners = _TrendChart(self)
+        # #182 K20/K21: one tab per judged-metric group, hidden until one of
+        # its rows is judged (`_trend_plan`). "Paper white, diff" sits beside
+        # the L* graph it complements (Knut, 5787380408).
+        self._trend_groups = {key: _TrendChart(self)
+                              for key, _t, _m in _TREND_GROUPS}
         self._trend_tabs.addTab(self._trend_de, tr("Colour accuracy (ΔE00)"))
         self._trend_tabs.addTab(self._trend_white, tr("Paper white (L*)"))
+        for key, title, _m in _TREND_GROUPS[:1]:
+            self._trend_tabs.addTab(self._trend_groups[key], title())
         self._trend_tabs.addTab(self._trend_black, tr("Darkest black (L*)"))
         self._trend_tabs.addTab(self._trend_corners, tr("Cube corners"))
+        for key, title, _m in _TREND_GROUPS[1:]:
+            self._trend_tabs.addTab(self._trend_groups[key], title())
+        for chart in self._trend_groups.values():
+            self._trend_tabs.setTabVisible(
+                self._trend_tabs.indexOf(chart), False)
         self._trend_tabs.setVisible(False)
         v.addWidget(self._trend_tabs)
 
@@ -2269,7 +2365,8 @@ class MeasurementReportDialog(QDialog):
                 return layout.minimumSize().height() - cap
 
             charts = (self._trend_de, self._trend_white,
-                      self._trend_black, self._trend_corners)
+                      self._trend_black, self._trend_corners,
+                      *self._trend_groups.values())
             # **THE FRAME'S OWN AIR GOES BEFORE THE DOCUMENT DOES (B8-460).**
             # The ladder used to put Generate report and Delete Selected Report
             # side by side here; Knut's beta-25 mockup has all four buttons on
@@ -4805,22 +4902,31 @@ class MeasurementReportDialog(QDialog):
         with self._as_the_document_was_built():
             if self._trend_de.has_trend():
                 # Render each grouped chart off-screen (the live tabs only lay
-                # out the current one) and embed it as a resource. Kept compact
-                # so all four trend charts fit on the one trend page (Knut).
-                avg_thr, max_thr = self._thresholds()
-                for i, (_c, title, metrics, y_max, dec, auto) in enumerate(
-                        self._trend_configs()):
+                # out the current one) and embed it as a resource. The same
+                # plan as the tabs (`_trend_plan`), so a hidden tab is not
+                # printed (#182 K20/K21).
+                for i, (_c, title, metrics, y_max, dec, auto, thr, lines,
+                        shown) in enumerate(self._trend_plan()):
+                    if not shown:
+                        continue
+                    # COLOUR ACCURACY PRINTS TWICE AS TALL (Knut, 5787117741:
+                    # *"printing the chart in the PDF with a y-axis on the
+                    # graph that is, for ex. twice as tall as the graph on
+                    # screen"*), so a small change between dates stays
+                    # visible; the charts then flow over more than one page.
+                    ch_h = _PDF_TREND_H * (_PDF_ACCURACY_SCALE
+                                          if _c is self._trend_de else 1)
                     tmp = _TrendChart()
-                    tmp.resize(640, 176)
-                    thr = (avg_thr, max_thr) if _c is self._trend_de else None
+                    tmp.resize(640, ch_h)
                     tmp.set_data(self._trend_series, metrics, dark=False,
-                                 y_max=y_max, dec=dec, auto=auto, thresholds=thr)
+                                 y_max=y_max, dec=dec, auto=auto, thresholds=thr,
+                                 limit_lines=lines)
                     # Render at 3× and display at the same 600px layout width: a
                     # plain grab() gave a ~96-dpi raster that printed visibly
                     # blurry next to the vector text (Sebastian, 2026-08-10).
                     from PyQt6.QtGui import QImage
                     scale = 3
-                    img = QImage(640 * scale, 176 * scale,
+                    img = QImage(640 * scale, ch_h * scale,
                                  QImage.Format.Format_ARGB32_Premultiplied)
                     img.fill(0xFFFFFFFF)
                     ip = QPainter(img)
@@ -4830,10 +4936,17 @@ class MeasurementReportDialog(QDialog):
                     url = QUrl(f"chart://{i}")
                     doc.addResource(QTextDocument.ResourceType.ImageResource,
                                     url, img)
+                    # ONE CELL PER CHART, title and picture together, so
+                    # `_paginate_tables` moves a whole chart to the next page
+                    # rather than leaving its title at the foot of this one:
+                    # with Colour accuracy twice as tall and up to ten charts,
+                    # the trend section now runs over several pages.
                     charts_html += (
+                        "<table cellspacing='0' cellpadding='0'><tr><td>"
                         "<div style='font-size:16px;font-weight:bold;"
                         "margin-top:4px'>" + html.escape(title) + "</div>"
-                        f"<img src='chart://{i}' width='600'>" + _gap())
+                        f"<img src='chart://{i}' width='600'>"
+                        "</td></tr></table>" + _gap())
             runs = self._runs_for_report()
             doc.setHtml(self._pdf_html(runs, charts_html))
             # THE HEADER DESCRIBES THE SAME ROWS AS THE BODY (round B,
@@ -12316,16 +12429,78 @@ class MeasurementReportDialog(QDialog):
     def _pdf_html(self, runs: list, charts_html: str) -> str:
         return self._report_body_html(runs, for_pdf=True, charts_html=charts_html)
 
+    def _judged_trend_limits(self) -> "dict[str, float]":
+        """``{row_id: limit}`` for every trend row the DOCUMENT judged.
+
+        #182 K20/K21. Judged means a PASS, FAIL or COND on that row for some
+        measurement of `_runs_for_document()` that is not a raw drift check,
+        read from `_verdict_rows`, which is what the results table prints. The
+        limit is the threshold that verdict was given against, so the dotted
+        line sits at the number printed beside the word: a saved report's
+        recorded set, or the run's set when judged live. Newest measurement
+        wins if two disagree, which `_one_limit_set` should make impossible.
+        """
+        from workflow.compliance_sets import COND, FAIL, PASS
+        from workflow.measurement_report import TREND_ROW_IDS
+        if not self._sources:
+            return {}
+        want = set(TREND_ROW_IDS)
+        out: "dict[str, float]" = {}
+        for r in self._runs_for_document():
+            if _is_raw_drift(r):
+                continue
+            rows, _rec = self._verdict_rows(r)
+            for x in rows:
+                rid = x.get("row_id") or x.get("key")
+                thr = x.get("threshold")
+                if (rid in want and x.get("word") in (PASS, FAIL, COND)
+                        and isinstance(thr, (int, float))):
+                    out[rid] = float(thr)
+        return out
+
+    def _trend_plan(self) -> list:
+        """Every trend tab as ``(chart, title, metrics, y_max, dec, auto,
+        thresholds, limit_lines, shown)``, in tab order.
+
+        ONE ANSWER for the live tabs and the PDF, so a tab hidden on screen is
+        never printed and a printed one never drawn with other lines. The four
+        original tabs are always shown (Knut: keep them); a judged-metric tab
+        is shown when at least one of its rows was judged, and plots only its
+        judged rows, each with its own dotted line (`_TREND_GROUPS`)."""
+        from workflow.compliance_sets import ROW_BY_ID
+        avg_thr, max_thr = self._thresholds()
+        plan = []
+        for chart, title, metrics, y_max, dec, auto in self._trend_configs():
+            thr = (avg_thr, max_thr) if chart is self._trend_de else None
+            plan.append((chart, title, metrics, y_max, dec, auto, thr, [], True))
+        judged = self._judged_trend_limits()
+        for key, title, rows in _TREND_GROUPS:
+            metrics, lines = [], []
+            for rid, word, col in rows:
+                if rid not in judged:
+                    continue
+                lim = judged[rid]
+                metrics.append((tr(ROW_BY_ID[rid].label), QColor(col),
+                                (lambda pt, rr=rid, ll=lim:
+                                 _trend_row_value(pt, rr, ll))))
+                lines.append((lim, word(), QColor(col)))
+            plan.append((self._trend_groups[key], title(), metrics, None, 1,
+                         False, None, lines, bool(metrics)))
+        plan.sort(key=lambda e: self._trend_tabs.indexOf(e[0]))
+        return plan
+
     def _update_trends(self, series: list, dark: bool) -> None:
         """Feed the grouped trend charts their metric sets. The tabs stay visible
         whenever a report is loaded — with a single run they show an empty chart
         and an explanatory message (Knut). The accuracy chart also gets the Pass
-        thresholds as dotted guide lines."""
-        avg_thr, max_thr = self._thresholds()
-        for chart, _title, metrics, y_max, dec, auto in self._trend_configs():
-            thr = (avg_thr, max_thr) if chart is self._trend_de else None
+        thresholds as dotted guide lines; a judged-metric tab gets one line per
+        metric and is hidden while none of its rows is judged (#182 K20/K21)."""
+        for (chart, _title, metrics, y_max, dec, auto, thr, lines,
+             shown) in self._trend_plan():
             chart.set_data(series, metrics, dark=dark, y_max=y_max, dec=dec,
-                           auto=auto, thresholds=thr)
+                           auto=auto, thresholds=thr, limit_lines=lines)
+            self._trend_tabs.setTabVisible(self._trend_tabs.indexOf(chart),
+                                           shown)
         show = bool(self._sources)
         self._trend_label.setVisible(show)
         self._trend_tabs.setVisible(show)

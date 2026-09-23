@@ -6059,5 +6059,16 @@
  "the measured chart has {s} strips and {r} rows on its largest page; at least {k} strips and {k} rows are needed on a page": "das gemessene Chart hat auf seiner größten Seite {s} Streifen und {r} Reihen; nötig sind mindestens {k} Streifen und {k} Reihen auf einer Seite",
  "the measured chart's layout does not say which strip and which row each patch was printed in": "die Anordnung des gemessenen Charts sagt nicht, in welchem Streifen und welcher Reihe jedes Messfeld gedruckt wurde",
  "{first} to {last}": "{first} bis {last}",
- "{list} and {last}": "{list} und {last}"
+ "{list} and {last}": "{list} und {last}",
+ "Paper white, diff": "Papierweiß, Abw.",
+ "Grey balance (ΔCh)": "Graubalance (ΔCh)",
+ "Tone (ΔL*)": "Tonwerte (ΔL*)",
+ "Control strip (ΔE00)": "Kontrollstreifen (ΔE00)",
+ "Repeatability (ΔE00)": "Wiederholbarkeit (ΔE00)",
+ "Evenness (ΔE00)": "Gleichmäßigkeit (ΔE00)",
+ "P95": "P95",
+ "Sheet": "Bogen",
+ "Again": "Erneut",
+ "Pairs": "Paare",
+ "Mean": "Mittel"
 }

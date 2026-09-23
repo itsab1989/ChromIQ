@@ -786,6 +786,14 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-23, the trend graphs for the judged metrics (#182
+    # K20/K21): eleven short keys (six tab titles, five limit-line words).
+    # German by hand; it rises by exactly ONE because "P95" is a statistical
+    # symbol written the same in German, like "Max" beside it. The twelve
+    # others carry the English under the beta rule and rise by 11. The other
+    # ledger, `_BUDGET` in `tests/test_help_cards_untranslated_are_tracked.py`,
+    # was re-measured in the same commit and does not move: it counts strings
+    # of 25 characters or more, and none of the eleven is that long.
     # RE-MEASURED 2026-09-23, the evenness rows (B8-814) merged onto K22/K24:
     # the new evenness strings are German by hand and English placeholders in
     # the twelve others. COUNTED off the merged tree, BOTH ledgers.
@@ -1342,18 +1350,18 @@ _IDENTICAL_TO_KEY = {
     # untranslated German string, not a bigger budget, and is fixed rather than
     # recorded. COUNTED with this file's own helper on the tree this commit
     # leaves behind.
-    "de": 141,
-    "es": 989,
-    "fr": 1011,
-    "it": 1000,
-    "ja": 975,
-    "nl": 1016,
-    "no": 1001,
-    "pl": 993,
-    "pt": 991,
-    "ru": 964,
-    "sv": 1002,
-    "zh_CN": 969,
+    "de": 142,
+    "es": 1000,
+    "fr": 1022,
+    "it": 1011,
+    "ja": 986,
+    "nl": 1027,
+    "no": 1012,
+    "pl": 1004,
+    "pt": 1002,
+    "ru": 975,
+    "sv": 1013,
+    "zh_CN": 980,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1380,7 +1388,7 @@ _IDENTICAL_TO_KEY = {
     # in Ukrainian, so the pointer could not match whatever the user read.
     # Nothing else changed. The ceiling is re-measured DOWN here rather than
     # left where it was, so the next rise still has to justify itself.
-    "uk": 1216,
+    "uk": 1227,
 }
 
 

@@ -539,6 +539,9 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-23, the trend graphs (#182 K20/K21): unchanged in
+    # every language, because the eleven new keys are all under 25 characters.
+    # Its twin `_IDENTICAL_TO_KEY` rose in the same commit.
     # RE-MEASURED 2026-09-23, the evenness rows (B8-814) merged onto K22/K24:
     # the new evenness strings are German by hand and English placeholders in
     # the twelve others. COUNTED off the merged tree, BOTH ledgers.

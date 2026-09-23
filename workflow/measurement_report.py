@@ -2025,6 +2025,39 @@ def list_project_reports(run_dir: str | Path) -> list[Path]:
     return sorted(paths, key=_created)
 
 
+#: The rows that get a trend tab of their own (#182 K20/K21, Knut
+#: 5787117741 and 5787380408). Grouped in the dialog, at most two per tab.
+TREND_ROW_IDS: "tuple[str, ...]" = (
+    "substrate_de00_max",
+    "grey_balance_neutral_ramp_avg", "grey_balance_neutral_ramp_max",
+    "ramps_30_70_dl_max",
+    "control_strip_de00_avg", "control_strip_de00_p95",
+    "repeat_patches_de00_max", "repeat_measurement_de00_max",
+    "uniformity_sd", "uniformity_de00_max_from_mean",
+)
+
+
+def _trend_row_values(report: dict) -> "tuple[dict, dict]":
+    """``({row_id: value}, {row_id: noise_p95})`` for :data:`TREND_ROW_IDS`.
+
+    Only rows with a number. The noise travels with an evenness value because
+    whether that value may be judged depends on the limit (`evenness_withheld`),
+    which the series does not know."""
+    try:
+        cells = row_values(report)
+    except Exception:  # noqa: BLE001 — a trend point must never take the window down
+        return {}, {}
+    vals, noise = {}, {}
+    for rid in TREND_ROW_IDS:
+        cell = cells.get(rid) or {}
+        if cell.get("value") is None:
+            continue
+        vals[rid] = float(cell["value"])
+        if cell.get("noise_p95") is not None:
+            noise[rid] = float(cell["noise_p95"])
+    return vals, noise
+
+
 def report_trend(reports: "list[dict]") -> "list[dict]":
     """A time series for the trend chart from a list of report dicts (#40).
 
@@ -2073,6 +2106,14 @@ def report_trend(reports: "list[dict]") -> "list[dict]":
         colour = (r.get("printing") or {}).get("colour")
         if colour:
             pt["printing_colour"] = colour
+        # #182 K20/K21: the judged rows that have a trend tab of their own,
+        # read through `row_values`, the one place a row's number comes from,
+        # so the graph plots exactly what the results table judges.
+        rows, noise = _trend_row_values(r)
+        if rows:
+            pt["rows"] = rows
+        if noise:
+            pt["rows_noise"] = noise
         if len(pt) > 2:                             # more than just created+chart
             series.append(pt)
     return series

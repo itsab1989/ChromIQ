@@ -25300,3 +25300,30 @@ would reach.
   test_a_cross_run_document_is_listed_where_it_covers_and_nowhere_else,
   test_update_to_one_date_retires_the_document_file_and_back; on screen in
   `~/Desktop/ChromIQ-beta37-proof/report-folders/`.
+
+### B8-817 · FIXED · K20/K21: trend graphs for the judged metrics, each with its own limit line
+- blocks release: no
+- status: FIXED (built); the behaviour awaits Knut's confirmation in §17 of
+  `docs/design/measurement_report_limits.md`.
+- found by: Knut, #182 5785414710 (the graph question and the missing limit
+  lines), ruled in 5787117741 (at most two related metrics per graph, each
+  with its own dotted line; a line out of range is out of view; Colour
+  accuracy may print twice as tall in the PDF) and 5787380408 (keep "Paper
+  white (L*)", add "Paper white, diff").
+- fix: six new tabs in the Measurement Report (Paper white, diff; Grey
+  balance; Tone; Control strip, average and 95th percentile; Repeatability;
+  Evenness), each shown and printed only when one of its rows was judged for
+  the document, each plotted row with a dotted line at the limit its verdict
+  was given against (`_judged_trend_limits`, read from `_verdict_rows`).
+  `report_trend` carries each row's value from `row_values`; one plan
+  (`_trend_plan`) feeds the tabs and the PDF. Colour accuracy prints twice as
+  tall (`_PDF_ACCURACY_SCALE`), each printed graph is one table so its title
+  moves with it.
+- open for Knut: coloured lines (one per metric) rather than the grey of
+  Avg / Max; the line words "Sheet", "Again", "Pairs", "Mean"; the tab bar
+  needs scroll arrows once more than about six tabs show at the window's
+  default width; whether the taller Colour accuracy graph is worth the
+  extra page.
+- guard: `tests/test_trend_graphs_for_judged_metrics.py`, 12 tests, each red
+  under the mutation its docstring names; on screen in
+  `~/Desktop/ChromIQ-beta37-proof/graphs/`.

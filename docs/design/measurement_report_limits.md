@@ -2095,3 +2095,64 @@ leaves out the two FILE reasons, which no patch can answer.
   the one area printed lighter, the whole sheet shifted by a colour-dependent
   amount, the noise rose from 0.3 to 3.7 and both rows read N-A. Should
   evenness always be judged in absolute Lab, whatever the other rows use?
+
+## 17. Trend graphs for the judged metrics (#182 K20/K21, 2026-09-23)
+
+### ⏳ AWAITING CONFIRMATION
+
+**Confirmed by:** *nobody yet.*
+
+What Knut asked for: 5785414710 (the graph question and the limit lines),
+answered by the proposal 5785894881 and his rulings 5787117741 ("graph
+question", "Limit lines") and 5787380408 (Paper white). What was built, as
+driven on screen on the demo packs:
+
+1. **The four tabs that existed stay as they were**: Colour accuracy (ΔE00)
+   with its dotted Avg and Max lines, Paper white (L*), Darkest black (L*)
+   and Cube corners. They show whenever a report is loaded. Darkest black
+   has no limit line, because no row judges it.
+2. **Six new tabs, one per group of related metrics, at most two metrics
+   each, each metric with its own dotted limit line:**
+
+   | tab | metrics (rows), line word | unit |
+   |---|---|---|
+   | Paper white, diff | Paper white, difference from the reference paper, "Max" | ΔE00 |
+   | Grey balance (ΔCh) | grey ramp average "Avg", largest "Max" | ΔCh |
+   | Tone (ΔL*) | single-colour ramps 30 % to 70 %, "Max" | ΔL* |
+   | Control strip (ΔE00) | average "Avg", 95th percentile "P95" | ΔE00 |
+   | Repeatability (ΔE00) | repeat patches on one sheet "Sheet", the same chart measured again "Again" | ΔE00 |
+   | Evenness (ΔE00) | nine locations "Pairs", largest difference from the mean "Mean" | ΔE00 |
+
+   "Paper white, diff" sits beside "Paper white (L*)"; the other five follow
+   "Cube corners" in the order Knut accepted them. The control strip plots
+   its average and its 95th percentile, not its largest: the 95th percentile
+   is the same kind of number as the largest without jumping on one misread
+   patch, which would stretch the axis and flatten the trend.
+3. **A new tab is shown, and printed in the PDF, only when at least one of
+   its rows was judged for the report**: some measurement the document
+   covers has a PASS, FAIL or COND on it. A row that is N-A, INFO or has no
+   limit in the set does not count, and a raw drift check is never judged.
+   Within a shown tab only the judged rows are plotted, so every plotted
+   line has its limit line. The legend names each metric exactly as the
+   results table does.
+4. **A limit line sits at the limit the report was judged against**: the
+   number printed beside the verdict in the results table (a saved report's
+   recorded set, or the run's set when it is judged live). The graphs are
+   redrawn together with the page, so after a change of "Judged against"
+   they follow it when the report is generated, like everything else on
+   the page. In the PDF they are drawn from the settings the document was
+   built with.
+5. **A line outside the plotted range is not in view.** The y-axis is scaled
+   from the measured values alone; it is never widened to bring a line into
+   view. The line appears once a measurement comes close enough to it.
+6. Each new line is dotted, in its metric's colour; its word sits in the
+   left margin beside the axis numbers, or at the line's left end when it
+   would collide with a number or with the other line (the Avg / Max rule).
+7. An evenness value the results table withholds because the sheet's own
+   noise is not below the limit is not plotted against that limit.
+8. The axes, the date labels and the note shown while fewer than two
+   measurements have a value are the same as on the other tabs.
+9. **The PDF**: Colour accuracy is printed twice as tall as before, so a
+   small change between dates stays visible; the other graphs keep their
+   height. Each graph is kept together with its title, and graphs that do
+   not fit move to the next page.
