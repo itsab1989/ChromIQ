@@ -1,5 +1,73 @@
 # Changelog
 
+## v4.3.0-beta.36
+
+**Knut's beta-34 and beta-35 findings, and a report written for the person it
+is handed to.**
+
+### Fixed
+
+- **"Before you measure this verification chart" no longer opens on a run
+  that already has measured dates.** The check looked for each date's
+  measurement under a name the app does not use, so it found none, on every
+  run. Proven in a real window on Knut's own project.
+- **"Already generated for this run" and "Report shown" agree, and follow the
+  run type.** A verification counts and lists only the report types a
+  verification can have; a profiling sheet only its Printing record. The
+  Printing records counted from the run's own folder are gone from a
+  verification's line.
+- **A verification report names its project and its run** ("This report
+  judges the profile built in Report-Limits-Threshold-Series, run 1."). It
+  named the verification chart's file and no run.
+- **Update writes all of a report or none of it.** An Update that cannot write
+  one date writes nothing, the previous version is kept in `reports/old/`
+  first, and an older report keeps its type when it is rebuilt.
+- **A profiling sheet loaded beside dated verifications can no longer be
+  saved as one report.** One press wrote one report type into both kinds of
+  folder, and the window then hid half of it, so it looked as if nothing had
+  been saved. Generate report is greyed with the reason; Save report as PDF
+  still works.
+- **Adding a measurement under a selected report counts as a change**, so
+  Generate asks the right question instead of "Nothing was changed".
+- **Restore Used Chart restores the chart and nothing of the run.** The run's
+  description, its limit set and its own record are kept.
+- **Switching to an older target no longer shows the previous target's value**
+  in an option that target was saved without; it opens on the default.
+- **In German, the "which presets" button no longer runs under its ⓘ.**
+- The paper white and darkest black lines print a* and b* as well as L*.
+- The one-page summary's numbers carry their unit (ΔE00).
+- No note about a standard under a limit set that is not one; ChromIQ's own
+  sets carry no "recommended" marks.
+
+### Changed
+
+- **Report text is written for the person the report is handed to.** It no
+  longer explains ChromIQ's history or how to use ChromIQ, it speaks of "the
+  test chart used" and "the printed test chart", and the note under a set
+  named after a standard now says its limits may differ from the standard's
+  published values, and that a PASS is an indication only as far as those
+  limits are within the standard's own.
+- **Which report types each run type offers.** A profiling measurement's
+  report is the Printing record; a verification can have every other type.
+  The report ChromIQ writes by itself after a measurement follows the same
+  rule, and the Report type help says when each is available.
+- **Generate asks what to do whenever a saved report is selected**: update it,
+  or create a new one with the same settings.
+- **The coverage sentence counts the measurements of the run type shown**,
+  and names the profile runs they came from.
+- **Save as PDF says where it saved.**
+
+### Added
+
+- **Knut's eight 7.5 mm i1Pro "Maximised - No Clip-border" presets** are built
+  in.
+
+### Demo projects
+
+- **The report-limit demo pack follows every rule the app follows today**, its
+  paper-white FAIL now sits on the paper, its charts open without a layout
+  warning, and its README says what its own data shows.
+
 ## v4.3.0-beta.35
 
 **A column named after a standard now reads PASS or FAIL, and the note says
