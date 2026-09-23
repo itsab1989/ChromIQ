@@ -1373,18 +1373,25 @@ _IDENTICAL_TO_KEY = {
     # others rises by exactly 26, the new keys carrying their English source
     # under the beta rule. COUNTED off the catalogues this change leaves
     # behind with the expression the test below uses.
+    # RE-MEASURED 2026-09-23, #182 beta 38 E2 (page coverage): nine new keys
+    # (the coverage notes, the two lines of the presets window, the pages left
+    # out) and three changed ones (the evenness help and remedy text, and
+    # M-REPORT-CHART-MISMATCH-LAYOUT). German by hand, does not move; the twelve
+    # others carry the English under the beta rule and each rises by exactly 9.
+    # COUNTED off the tree with this file's own expression, BOTH ledgers in the
+    # same commit.
     "de": 141,
-    "es": 1050,
-    "fr": 1072,
-    "it": 1061,
-    "ja": 1036,
-    "nl": 1077,
-    "no": 1062,
-    "pl": 1054,
-    "pt": 1052,
-    "ru": 1025,
-    "sv": 1063,
-    "zh_CN": 1030,
+    "es": 1059,
+    "fr": 1081,
+    "it": 1070,
+    "ja": 1045,
+    "nl": 1086,
+    "no": 1071,
+    "pl": 1063,
+    "pt": 1061,
+    "ru": 1034,
+    "sv": 1072,
+    "zh_CN": 1039,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1411,7 +1418,7 @@ _IDENTICAL_TO_KEY = {
     # in Ukrainian, so the pointer could not match whatever the user read.
     # Nothing else changed. The ceiling is re-measured DOWN here rather than
     # left where it was, so the next rise still has to justify itself.
-    "uk": 1272,
+    "uk": 1281,
 }
 
 

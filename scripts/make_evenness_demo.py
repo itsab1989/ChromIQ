@@ -6,9 +6,9 @@ JUDGED: every verification chart in it is a ColorMunki A4 or A3 chart with 6
 or 7 strips on a page, under Knut's 9 by 9 floor. This builds one project that
 can, beside the pack, so the rows can be driven on screen:
 
-* **run1**, Knut's own 572-patch i1Pro A4 preset laid out by the layout engine
-  (22 strips by 26 rows, about 60 patches in each ninth of the page), measured
-  four times:
+* **run1**, Knut's 837-patch i1Pro A4 preset with no clip border, laid out
+  by the layout engine (its patches cover 80 % of the page, about 90 in each
+  ninth), measured four times:
 
   1. evenly printed: both rows PASS;
   2. a drift across the strips, about 2.2 ΔE b* from one side to the other:
@@ -19,8 +19,14 @@ can, beside the pack, so the rows can be driven on screen:
 
 * **run2**, Knut's 84-patch i1Pro3 A4 preset (7 strips): both rows N-A
   because no page has 9 strips;
-* **run3**, the 572-patch chart again with no verification measured, so the
-  Measure tab's pre-flight is due on it.
+* **run3**, the 837-patch chart again with no verification measured, so the
+  Measure tab's pre-flight is due on it;
+* **run4** (#182 E2, beta 38), Knut's 572-patch i1Pro A4 preset: 22 strips by
+  26 rows, but with the i1Pro's 26 mm clip border and its 38 mm top its
+  patches cover 68 % of the page, under the 75 % floor, so both rows N-A;
+* **run5** (#182 E4, beta 38), Knut's 308-patch i1Pro 3 Plus A4 preset on two
+  pages, 11 strips by 14 rows each: the grid and the noise estimate would let
+  it be judged, and its patches cover 65 % of each page, so both rows N-A.
 
 The readings are SYNTHETIC: each patch is the chart's own aim plus the
 residual named above, so what every area should read is known in advance. The
@@ -46,8 +52,12 @@ sys.path.insert(0, str(HERE))
 NAME = "Report-Limits-Evenness"
 ARGYLL = Path(os.environ.get("CHROMIQ_ARGYLL_BIN", "/Applications/Argyll/bin"))
 SRGB = ARGYLL.parent / "ref" / "sRGB.icm"
-LARGE = "i1_w8_a4_572p_1page_portrait_w8_0mm"
+LARGE = "i1_w75max_a4_837p_1page_portrait_w7_5mm_maximised_no_clip_border"
 SMALL = "p3_a4_84p_1page_portrait_w25_0mm"
+#: #182 E2: 22 x 26 on one page, 68.4 % of it covered.
+UNCOVERED = "i1_w8_a4_572p_1page_portrait_w8_0mm"
+#: #182 E4: i1Pro 3 Plus, two pages of 11 x 14, 65.3 % of each covered.
+P3_TWO_PAGES = "p3_a4_308p_2pages_portrait_w16_0mm"
 
 #: (vid, when, title, residual(page, strip on page, row, strips, rows, rng))
 _SIGMA = 0.25
@@ -87,6 +97,12 @@ DATES_LARGE = [
 DATES_SMALL = [
     ("2026-10-01_110000", "2026-10-01T11:00:00", "even", _even),
 ]
+DATES_UNCOVERED = [
+    ("2026-10-01_120000", "2026-10-01T12:00:00", "even", _even),
+]
+DATES_P3 = [
+    ("2026-10-01_130000", "2026-10-01T13:00:00", "even", _even),
+]
 
 
 def _preset(slug: str):
@@ -111,6 +127,18 @@ def _lay_out(slug: str, folder: Path, stem: str) -> Path:
                   randomize=True)
     res, _ = build_from_recipe(str(folder / f"{stem}.ti1"), str(folder / stem),
                                rec)
+    # THE GEOMETRY THE APP RECORDS (#182 E2). Create Chart folds the engine's
+    # strips.json and the recipe into channels.json
+    # (`ChartCreator._embed_layout_geometry`); "Measured from Preview" and the
+    # evenness rows' page coverage read it from there.
+    import json
+    from dataclasses import asdict
+    lay = json.loads((folder / f"{stem}.strips.json").read_text(
+        encoding="utf-8"))
+    lay.update({"engine": "chromiq", "engine_version": 1, "seed": res.seed,
+                "recipe": asdict(rec)})
+    (folder / f"{stem}.channels.json").write_text(
+        json.dumps({"layout": lay}), encoding="utf-8")
     return Path(res.ti2_path)
 
 
@@ -227,17 +255,26 @@ def build(dest: Path) -> Path:
     proj = Project.create(root, NAME)
     run1 = proj.current_run()
     _run(proj, run1, LARGE, "X-Rite i1Pro 2",
-         "A 572-patch i1Pro sheet, 22 strips by 26 rows, measured four times: "
-         "evenly printed, with a drift across the strips, with one area "
-         "lighter, and noisy.", DATES_LARGE, 100)
+         "An 837-patch i1Pro sheet with no clip border, its patches covering "
+         "80 % of the page, measured four times: evenly printed, with a drift "
+         "across the strips, with one area lighter, and noisy.",
+         DATES_LARGE, 100)
     run2 = proj.new_run()
     _run(proj, run2, SMALL, "X-Rite i1Pro 3",
          "An 84-patch sheet with 7 strips on its page, fewer than the 9 "
          "evenness across the sheet needs.", DATES_SMALL, 200)
     run3 = proj.new_run()
     _run(proj, run3, LARGE, "X-Rite i1Pro 2",
-         "The same 572-patch chart as run 1, not measured yet: what the Measure "
+         "The same 837-patch chart as run 1, not measured yet: what the Measure "
          "tab says before the first verification.", [], 300)
+    run4 = proj.new_run()
+    _run(proj, run4, UNCOVERED, "X-Rite i1Pro 2",
+         "A 572-patch i1Pro sheet, 22 strips by 26 rows, whose patches cover "
+         "68 % of the page.", DATES_UNCOVERED, 400)
+    run5 = proj.new_run()
+    _run(proj, run5, P3_TWO_PAGES, "X-Rite i1Pro 3 Plus",
+         "A 308-patch i1Pro 3 Plus chart on two pages, 11 strips by 14 rows "
+         "each, whose patches cover 65 % of each page.", DATES_P3, 500)
     return root
 
 

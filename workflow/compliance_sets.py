@@ -476,9 +476,9 @@ _R_REPEAT_ACROSS = (
 #: carries the likely causes, which he asked for in the help text AND in the
 #: report: *"information on what type of faults may result in uniformity issues
 #: need to be mentioned in the help text, but also as notes on the results in
-#: the report text"*. The 9, the 500 and the 30 are
-#: `measurement_report.EVENNESS_MIN_GRID`, `EVENNESS_SHUFFLES` and the F1
-#: measurement; `tests/test_evenness_across_the_sheet.py` holds the sentence to
+#: the report text"*. The 9, the 75 %, the 500 and the 30 are
+#: `measurement_report.EVENNESS_MIN_GRID`, `EVENNESS_MIN_PAGE_COVERAGE`,
+#: `EVENNESS_SHUFFLES` and the F1 measurement; `tests/test_evenness_across_the_sheet.py` holds the sentence to
 #: the constants.
 _EVEN_CAUSES = (
     "An uneven sheet usually has one of these causes: banding from the "
@@ -504,8 +504,11 @@ _D_EVENNESS = (
     "out does. Each page is divided into three bands of strips and three "
     "bands of rows, whole strips and rows only, with any remainder in the "
     "middle band, and the same ninth of every page is counted together. Only "
-    "pages with at least 9 strips and 9 rows are used, so the chart needs at "
-    "least one such page.\n\n"
+    "pages with at least 9 strips and 9 rows whose patches cover at least "
+    "75 % of the page are used, so the chart needs at least one such page. "
+    "The share is worked out from the distance between each paper edge and "
+    "the first patch, the four margins Create Chart shows as Measured from "
+    "Preview.\n\n"
     "Every patch is compared with its own aim value, the same one the colour "
     "accuracy rows use, and the differences are averaged in each of the nine "
     "areas. No patches are matched by brightness or by grey.\n\n"
@@ -517,9 +520,9 @@ _D_EVENNESS = (
     "This method is ChromIQ's own. A standard that limits evenness reads it "
     "its own way, on its own chart.")
 _R_EVENNESS = (
-    "Use a chart whose pages hold at least 9 strips and 9 rows and enough "
-    "patches that about 30 land in each ninth of the page: the larger "
-    "built-in presets do. If a row reads a difference, measure the same sheet "
+    "Use a chart whose pages hold at least 9 strips and 9 rows, with patches "
+    "covering at least 75 % of the page, and enough patches that about 30 "
+    "land in each ninth of the page. If a row reads a difference, measure the same sheet "
     "again before looking for a cause, since an instrument that drifts during "
     "a long reading makes the strips read last differ from the first.")
 

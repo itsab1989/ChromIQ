@@ -167,14 +167,19 @@ LAYOUT_SHORTFALL_REASONS: "frozenset[str]" = frozenset({
     MR.REASON_EVENNESS_EMPTY_AREA,
     MR.REASON_EVENNESS_NOISY_PAIRWISE,
     MR.REASON_EVENNESS_NOISY_FROM_MEAN,
+    # #182 E2: no page of 9 by 9 covers 75 % of its paper. A chart laid out
+    # to fill more of the page answers it, so it is the layout's shortfall.
+    MR.REASON_EVENNESS_PAGE_COVERAGE,
 })
 #: …and the evenness codes that are about the chart FILE, not its size: no
-#: layout beside it, locations that do not read as strip and row, and a preset
-#: that has not been laid out yet (printtarg decides its grid when it runs).
+#: layout beside it, locations that do not read as strip and row, a preset
+#: that has not been laid out yet (printtarg decides its grid when it runs),
+#: and a chart whose files do not say where its patch block sits (#182 E2).
 OTHER_SHORTFALL_REASONS = OTHER_SHORTFALL_REASONS | frozenset({
     MR.REASON_EVENNESS_NO_LAYOUT,
     MR.REASON_EVENNESS_NO_POSITIONS,
     REASON_EVENNESS_LAID_OUT_LATER,
+    MR.REASON_EVENNESS_NO_PAGE_GEOMETRY,
 })
 
 #: **CHROMIQ'S OWN TWO REPEATABILITY ROWS ARE NOT IN EITHER SET ABOVE, because
@@ -281,7 +286,14 @@ def _predicted_grid(chart: Path, recipe: dict) -> dict:
         on_page = min(per_page, remaining) if per_page else remaining
         strips.append((on_page + steps - 1) // steps)
         remaining -= on_page
-    return MR.evenness_grid_from_layout(strips, steps, lay.total_patches)
+    # #182 E2: each page's coverage, from the same geometry widened the way
+    # "Measured from Preview" widens a built chart's.
+    from workflow.page_coverage import predicted_page_coverage
+    cov = predicted_page_coverage(rec, npat)
+    grid = MR.evenness_grid_from_layout(strips, steps, lay.total_patches,
+                                        coverage=cov["pages"])
+    grid["coverage_source"] = cov["source"]
+    return grid
 
 
 def _estimated_evenness(chart: Path, recipe: "dict | None") -> dict:
@@ -490,14 +502,24 @@ def chart_row_values(chart: "str | Path",
 def _layout_stamp(chart: Path) -> tuple:
     """The (mtime, size) of the ``.ti2`` beside a ``.ti1``, or ``()``: the
     evenness rows read the page grid from it, a second file, so it is part of
-    the key for the reason `_reference_stamp` gives."""
-    if chart.suffix.lower() == ".ti2":
-        return ()
-    try:
-        st = chart.with_suffix(".ti2").stat()
-    except OSError:
-        return ()
-    return (st.st_mtime_ns, st.st_size)
+    the key for the reason `_reference_stamp` gives.
+
+    #182 E2: and the page coverage reads the ``.channels.json`` and the page
+    images beside that ``.ti2``, so they are part of the key as well."""
+    from core.file_manager import stem_files
+    ti2 = chart if chart.suffix.lower() == ".ti2" else chart.with_suffix(".ti2")
+    out: list = []
+    for p in [ti2, ti2.with_suffix(".channels.json")] + sorted(
+            stem_files(ti2.parent, ti2.stem, ".tif", ".TIF", ".tiff",
+                       "_*.tif", "_*.TIF", "_*.tiff")):
+        if p == chart:
+            continue
+        try:
+            st = p.stat()
+        except OSError:
+            continue
+        out.append((p.name, st.st_mtime_ns, st.st_size))
+    return tuple(out)
 
 
 def _reference_stamp(chart: Path) -> tuple:
@@ -523,6 +545,8 @@ def clear_cache() -> None:
     """Forget every assessed chart (the tests, and a re-read on demand)."""
     _CACHE.clear()
     _PATCHES.clear()
+    from workflow import page_coverage
+    page_coverage.clear_cache()
 
 
 # ---------------------------------------------------------------------------

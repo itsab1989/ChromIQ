@@ -789,6 +789,16 @@ UNREACHABLE: "dict[str, str]" = {
         "engine presets of one page and 140 to 200 patches.",
     "evenness_noisy_from_mean":
         "As the row above.",
+    # #182 E2 (Knut, 2026-09-23): the page-coverage floor.
+    "evenness_page_coverage_too_small":
+        "Needs the page grid and the patch block's place on the page, which a "
+        "printtarg preset does not have until it is laid out. The built-in "
+        "ENGINE presets do, and the window shows this code on every i1Pro 3 "
+        "Plus chart (SHOWN_BY_BUILTINS).",
+    "evenness_no_page_geometry":
+        "Needs a laid-out chart with no engine geometry, no page image and no "
+        "derived rectangles beside it. A printtarg preset has no page grid "
+        "yet, so it stops at laid_out_later first.",
 }
 
 #: Of the codes above, the ones the window DOES show, on the built-in engine
@@ -797,7 +807,7 @@ UNREACHABLE: "dict[str, str]" = {
 #: appear, which is stronger than asserting they do not.
 SHOWN_BY_BUILTINS: "frozenset[str]" = frozenset({
     "evenness_grid_too_small", "evenness_noisy_pairwise",
-    "evenness_noisy_from_mean",
+    "evenness_noisy_from_mean", "evenness_page_coverage_too_small",
 })
 
 

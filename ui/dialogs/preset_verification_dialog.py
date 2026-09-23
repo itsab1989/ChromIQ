@@ -193,6 +193,16 @@ def reason_line(code: str) -> str:
             tr("Too few patches in each ninth of the page: on a typical print "
                "the chart's own noise would not be below this limit. The "
                "report measures the real noise on the printed sheet."),
+        # #182 E2 (Knut, 2026-09-23): the patch block's share of the page,
+        # from the same margins "Measured from Preview" shows.
+        MR.REASON_EVENNESS_PAGE_COVERAGE:
+            tr("On no page of this chart with at least {k} strips and {k} "
+               "rows do the patches cover at least {c} % of the page.").format(
+                   k=MR.EVENNESS_MIN_GRID,
+                   c=f"{MR.EVENNESS_MIN_PAGE_COVERAGE * 100:g}"),
+        MR.REASON_EVENNESS_NO_PAGE_GEOMETRY:
+            tr("This chart's files do not record where its patches sit on the "
+               "page, so how much of the page they cover is not known."),
         PE.REASON_EVENNESS_LAID_OUT_LATER:
             tr("This preset's page layout is decided when the chart is "
                "built, so whether each page has at least {k} strips and {k} "

@@ -2232,12 +2232,16 @@ balance: “Neutral grey ramp” with 16 steps)". Evenness is judged over nine a
 of one page, so what those rows lack is strips and rows on a page. Same headline,
 same `{set}` and `{rows}`.*
 
+*Revised 2026-09-23 for beta 38 (#182 E2): a page whose patches cover less than
+75 % of the paper is now left out as well (Knut, 5789263863, approved in
+5789539407), so the closing names that too. Still PROPOSED.*
+
 > **Some limits cannot be checked on this chart**
 >
 > The limit set {set} puts a limit on values this chart cannot supply, so these rows read N-A (not applicable):
 > {rows}
 >
-> A row that was not computed says nothing about the printer. Evenness is judged over nine areas of one page, so these rows want a chart laid out with more strips and more rows on a page. Make the change, print the chart again and measure it.
+> A row that was not computed says nothing about the printer. Evenness is judged over nine areas of one page, so these rows want a chart laid out with more strips and more rows on a page, and with patches that cover most of the page. Make the change, print the chart again and measure it.
 
 ### M-REPORT-DELETE · PROPOSED · one generated report is about to leave the list — Measurement Report
 

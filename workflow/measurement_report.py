@@ -2865,6 +2865,16 @@ REPEAT_ACROSS_MIN_PATCHES = 14
 #: sentence that quotes the floor reads it from here.
 EVENNESS_MIN_GRID = 9
 
+#: **KNUT'S SECOND FLOOR: THE PATCH BLOCK COVERS AT LEAST THIS SHARE OF THE
+#: PAGE** (#182 E2, 5789263863, approved at 75 % in 5789539407). *"9 strips and
+#: 9 rows may still cover just a limited part of a page, thus the uniformity
+#: test has limited value."* A page under it is left out of evenness exactly as
+#: a page under :data:`EVENNESS_MIN_GRID` is. The share is Knut's formula over
+#: the four "Measured from Preview" margins, computed in
+#: :mod:`workflow.page_coverage`. ONE CONSTANT, read by every sentence that
+#: quotes it.
+EVENNESS_MIN_PAGE_COVERAGE = 0.75
+
 #: How many times the patches are shuffled across the nine areas to measure
 #: the sheet's own noise. Knut, 2026-09-22, ruling 6, on the F1 proposal:
 #: *"Your suggestion is good. Do not use the stricter version."* A shuffle puts
@@ -2979,10 +2989,18 @@ REASON_EVENNESS_GRID_TOO_SMALL = "evenness_grid_too_small"
 REASON_EVENNESS_EMPTY_AREA = "evenness_empty_area"
 REASON_EVENNESS_NOISY_PAIRWISE = "evenness_noisy_pairwise"
 REASON_EVENNESS_NOISY_FROM_MEAN = "evenness_noisy_from_mean"
+#: #182 E2 (Knut, 2026-09-23): every page of at least 9 by 9 covers less than
+#: :data:`EVENNESS_MIN_PAGE_COVERAGE` of its paper with patches…
+REASON_EVENNESS_PAGE_COVERAGE = "evenness_page_coverage_too_small"
+#: …or the chart's files do not record where its patch block sits on the page
+#: (no engine geometry, no page image, no derived rectangles): a chart ChromIQ
+#: cannot lay out, such as an imported one.
+REASON_EVENNESS_NO_PAGE_GEOMETRY = "evenness_no_page_geometry"
 EVENNESS_REASONS: "tuple[str, ...]" = (
     REASON_EVENNESS_NO_LAYOUT, REASON_EVENNESS_NO_POSITIONS,
     REASON_EVENNESS_GRID_TOO_SMALL, REASON_EVENNESS_EMPTY_AREA,
     REASON_EVENNESS_NOISY_PAIRWISE, REASON_EVENNESS_NOISY_FROM_MEAN,
+    REASON_EVENNESS_PAGE_COVERAGE, REASON_EVENNESS_NO_PAGE_GEOMETRY,
 )
 #: The two of those that are about the measurement's FILES rather than the
 #: chart's patches: no layout beside the measurement, or one that cannot be
@@ -2991,6 +3009,7 @@ EVENNESS_REASONS: "tuple[str, ...]" = (
 #: name a row withheld for one of these (the row still reads N-A with its note).
 EVENNESS_FILE_REASONS: "tuple[str, ...]" = (
     REASON_EVENNESS_NO_LAYOUT, REASON_EVENNESS_NO_POSITIONS,
+    REASON_EVENNESS_NO_PAGE_GEOMETRY,
 )
 #: The two that are about the MEASUREMENT's noise: the sheet's own readings
 #: scatter too much for the rule to judge the row (Knut's ruling 6). A chart
@@ -3587,12 +3606,16 @@ def chart_grid(ti2_path: "str | Path | None") -> dict:
     if d.rgb is not None and len(d.rgb):
         for sid, v in zip(d.sample_ids, _rgb_to_0_100(np.asarray(d.rgb, float))):
             rgb[sid] = v
+    from workflow.page_coverage import chart_page_coverage
+    cov = chart_page_coverage(ti2_path, len(pages))
     return {"pages": pages, "rows": rows, "slot": slot,
-            "strip_label": strip_label, "row_label": row_label, "rgb": rgb}
+            "strip_label": strip_label, "row_label": row_label, "rgb": rgb,
+            "coverage": cov["pages"], "coverage_source": cov["source"]}
 
 
 def evenness_grid_from_layout(strips_per_page: "list[int]", rows: int,
-                              total: int) -> dict:
+                              total: int,
+                              coverage: "list | None" = None) -> dict:
     """The same grid for a chart that has not been laid out yet, from the
     layout arithmetic alone (the presets window).
 
@@ -3600,6 +3623,10 @@ def evenness_grid_from_layout(strips_per_page: "list[int]", rows: int,
     and only PERMUTE which patch lands in which slot, so how many patches each
     area holds does not depend on the seed. Synthetic ids ``"0" .. "total-1"``
     stand in for the patches; nothing reads them but the area arithmetic.
+
+    *coverage* is the per-page list :mod:`workflow.page_coverage` returns
+    (each a dict with ``coverage``, or None). Without it no page's coverage is
+    known, and the block says so (#182 E2).
     """
     starts = np.cumsum([0] + list(strips_per_page))
     k = np.arange(int(total))
@@ -3610,7 +3637,8 @@ def evenness_grid_from_layout(strips_per_page: "list[int]", rows: int,
     return {"pages": list(strips_per_page), "rows": int(rows),
             "ids": [str(x) for x in k], "page": page,
             "strip": s - starts[page], "row": r,
-            "strip_label": {}, "row_label": {}, "rgb": {}}
+            "strip_label": {}, "row_label": {}, "rgb": {},
+            "coverage": list(coverage) if coverage is not None else None}
 
 
 def _grid_arrays(grid: dict) -> "tuple[list, np.ndarray, np.ndarray, np.ndarray]":
@@ -3700,13 +3728,34 @@ def evenness_from_residuals(grid: dict, residuals, *,
         block["reason"] = grid["reason"]
         return block
     pages, rows = list(grid["pages"]), int(grid["rows"])
-    used = [p for p, s in enumerate(pages)
-            if s >= EVENNESS_MIN_GRID and rows >= EVENNESS_MIN_GRID]
+    big = [p for p, s in enumerate(pages)
+           if s >= EVENNESS_MIN_GRID and rows >= EVENNESS_MIN_GRID]
+    # #182 E2: THE SECOND FLOOR, PAGE BY PAGE. A page of 9 by 9 whose patch
+    # block covers less than EVENNESS_MIN_PAGE_COVERAGE of the paper is left
+    # out exactly as a smaller page is; a page whose coverage nobody can say
+    # is left out too, because the rule cannot be shown to hold on it.
+    cov = _page_coverages(grid.get("coverage"), len(pages))
+    used = [p for p in big
+            if cov[p] is not None and cov[p] >= EVENNESS_MIN_PAGE_COVERAGE]
     block["pages"] = [[int(s), rows] for s in pages]
     block["pages_used"] = [p + 1 for p in used]
     block["largest_page"] = [int(max(pages)), rows]
-    if not used:
+    block["min_coverage"] = EVENNESS_MIN_PAGE_COVERAGE
+    block["coverage"] = [None if c is None else round(float(c), 4)
+                         for c in cov]
+    block["coverage_source"] = grid.get("coverage_source") or ""
+    block["pages_small"] = [p + 1 for p in range(len(pages)) if p not in big]
+    block["pages_uncovered"] = [p + 1 for p in big
+                                if cov[p] is not None
+                                and cov[p] < EVENNESS_MIN_PAGE_COVERAGE]
+    block["pages_unmeasured"] = [p + 1 for p in big if cov[p] is None]
+    if not big:
         block["reason"] = REASON_EVENNESS_GRID_TOO_SMALL
+        return block
+    if not used:
+        block["reason"] = (REASON_EVENNESS_PAGE_COVERAGE
+                           if block["pages_uncovered"]
+                           else REASON_EVENNESS_NO_PAGE_GEOMETRY)
         return block
     ids, page, strip, row = _grid_arrays(grid)
     on_used = np.isin(page, used)
@@ -3773,6 +3822,17 @@ def evenness_from_residuals(grid: dict, residuals, *,
         })
     block["areas"] = area_rows
     return block
+
+
+def _page_coverages(coverage, n_pages: int) -> "list[float | None]":
+    """One share per page, 0..1, or None where it is not known."""
+    out: "list[float | None]" = [None] * int(n_pages)
+    for i, c in enumerate(list(coverage or [])[:int(n_pages)]):
+        if isinstance(c, dict):
+            c = c.get("coverage")
+        if isinstance(c, (int, float)):
+            out[i] = float(c)
+    return out
 
 
 def _band_labels(grid: dict, used: "list[int]", band: int) -> "list[list[str]]":

@@ -2201,6 +2201,82 @@ measured noise.
   amount, the noise rose from 0.3 to 3.7 and both rows read N-A. Should
   evenness always be judged in absolute Lab, whatever the other rows use?
 
+### 16.6 Beta 38: page coverage (E2), the i1Pro 3 Plus case (E4), the yardstick research (E8)
+
+**⏳ AWAITING CONFIRMATION.** **Ruled by:** Knut, 2026-09-23 (5789263863 E2,
+E4, E8; E2 approved at 75 % in 5789539407). **Confirmed by:** *nobody yet.*
+Registered as B8-828 (E2), B8-829 (E4) and B8-830 (E8). Proof:
+`~/Desktop/ChromIQ-beta38-proof/evenness-followups/`.
+
+**E2, built.** A page counts for evenness only when it has at least 9 strips
+and 9 rows AND its patch block covers at least
+`measurement_report.EVENNESS_MIN_PAGE_COVERAGE` (0.75, one constant) of the
+paper:
+
+    coverage = (paper width - left - right) x (paper height - top - bottom)
+               / (paper width x paper height)
+
+with left, right, top and bottom the distances from each paper edge to the
+first patch, which is what Create Chart's "Measured from Preview" shows.
+`workflow/page_coverage.py` reads them from the files beside the chart, in the
+panel's own order: the engine geometry in `<stem>.channels.json`
+(`margin_inspector.measure_from_engine`), else the page TIFF
+(`measure_margins`), else the derived patch rectangles a prebuilt bundle keeps.
+A dated verification's `chart/` snapshot holds no page images, so it borrows
+the live chart's while the live `.ti2` is byte for byte the snapshot's. The
+presets window predicts a built-in engine preset's coverage from the layout
+engine's own geometry, widened the way the panel widens a built chart.
+
+| case | result |
+|---|---|
+| no page reaches 9 by 9 | `evenness_grid_too_small`, as before (asked first) |
+| pages of 9 by 9 exist, none covers 75 % | `evenness_page_coverage_too_small`: *"the patches on page N of the measured chart cover X % of the page; at least 75 % is needed"* (several pages: *"pages 1, 2 … cover at most X % of their page"*). X is rounded DOWN to one decimal |
+| no file says where the patches sit | `evenness_no_page_geometry`: *"no file of the measured chart records where its patches sit on the page, so how much of the page they cover is not known"*. A file reason: left off the strip |
+| some pages pass, some do not | the others are judged; the notes name each page left out and why |
+
+The presets window and the pre-flight read the same arithmetic, with the
+lines *"On no page of this chart with at least 9 strips and 9 rows do the
+patches cover at least 75 % of the page."* and *"This chart's files do not
+record where its patches sit on the page, …"*. Neither takes the star (a
+layout shortfall). M-REPORT-CHART-MISMATCH-LAYOUT now ends "…and with patches
+that cover most of the page" (PROPOSED). The help text quotes the 75 %.
+
+**What it does to the built-ins, measured (engine presets, 172):** 123 fail
+the 75 % floor, 12 fail the grid first, 37 pass. Knut's own 572-patch i1Pro A4 chart
+covers **68.4 %** (margins 26.0 / 6.0 / 38.2 / 19.1 mm: the 26 mm clip
+border, 38 mm top and 19 mm bottom, which together leave the jig's 240 mm
+strip, cap an A4 portrait i1Pro page at 70.8 % even with no right margin). The
+evenness demo's judged run is therefore now his 837-patch "no clip border"
+chart (80.1 %), and the 572 chart is run 4, which reads N-A.
+
+**E4, checked.** The 24 i1Pro 3 Plus presets are 11 strips by **14** rows (A4),
+11 by **13** (Letter), 16 by 21 (A3) and 7 by 12 (the two 84-patch charts), not
+11 by 15. By the 9 by 9 floor and the noise rule alone, Knut's expectation
+holds: the one-page A4 and Letter charts are too noisy on a typical print
+(estimated 2.0 / 1.2 against 1.5 / 1.0), every chart of two pages or more can
+be judged, and so can the one-page A3. **With E2 at 75 %, none can:** the
+family's own margins (28 mm clip band, 40 top, 20 bottom, 10 right) leave
+65.3 % of an A4 page, 64.6 % of a Letter page and 74.7 % of an A3 page.
+`tests/test_beta38_i1pro3plus_evenness.py` pins both answers.
+
+**E8, researched, NOT changed.** The published uniformity tests (ISO 12647-7
+§4.3.3, ISO 12647-8 §4.2.2.1, Idealliance) compare absolute CIELAB readings of
+the same patch at different places on one sheet; none normalises to paper
+white. The recommendation (judge evenness in absolute Lab whatever the other
+rows use) waits for Knut. Findings:
+`~/Desktop/ChromIQ-beta38-proof/evenness-followups/E8-research.md`.
+
+**Questions for Knut (beta 38):**
+
+* **E2/E4-a.** At 75 % no i1Pro 3 Plus preset and no i1Pro A4 preset with a
+  clip border can ever be judged on evenness, the A3 i1Pro 3 Plus charts by 0.3
+  of a point. Keep 75 %, lower it (70 % admits the A3 family; 64 % admits A4
+  and Letter), or measure the block against the area inside the instrument's
+  own minimum margins instead of the whole paper?
+* **E4-b.** "11 columns by 15 rows per strip": the shipped presets are 11 by 14
+  (A4) and 11 by 13 (Letter). Is that the chart you meant?
+* **E8.** Judge evenness in absolute Lab always?
+
 ## 17. Trend graphs for the judged metrics (#182 K20/K21, 2026-09-23)
 
 ### ⏳ AWAITING CONFIRMATION

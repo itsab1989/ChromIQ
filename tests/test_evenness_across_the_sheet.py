@@ -45,10 +45,14 @@ DEFAULT = CS.effective_limits("chromiq_default", None)
 # a chart and a sheet this file controls
 # ---------------------------------------------------------------------------
 def _write_chart(folder: Path, pages=(12,), rows=12, seed=3,
-                 stem="chart") -> "tuple[Path, list]":
+                 stem="chart", coverage=0.85) -> "tuple[Path, list]":
     """A laid-out `.ti2`: *pages* strips per page, *rows* rows, every slot
     filled, patches shuffled over the slots so that id order says nothing
-    about position. Returns the path and ``[(sid, page, strip, row, rgb)]``."""
+    about position. Returns the path and ``[(sid, page, strip, row, rgb)]``.
+
+    *coverage* is the share of each page the patch block covers, written
+    beside the chart as a derived geometry (#182 E2), or None for a chart
+    whose files do not say where its patches sit."""
     rng = np.random.default_rng(seed)
     n = int(sum(pages)) * rows
     slots = rng.permutation(n)
@@ -79,6 +83,9 @@ def _write_chart(folder: Path, pages=(12,), rows=12, seed=3,
     folder.mkdir(parents=True, exist_ok=True)
     p = folder / f"{stem}.ti2"
     p.write_text("\n".join(lines), encoding="utf-8")
+    if coverage is not None:
+        from tests.page_geometry import write_page_geometry
+        write_page_geometry(p, pages, rows, coverage)
     return p, where
 
 
@@ -222,7 +229,7 @@ def test_the_pairwise_figure_is_the_largest_pair():
     MUTATION: take the second-largest pair in `_nine_numbers` and the figure
     drops to one area's own offset.
     """
-    grid = MR.evenness_grid_from_layout([12], 12, 144)
+    grid = MR.evenness_grid_from_layout([12], 12, 144, coverage=[1.0])
     strip, row = np.asarray(grid["strip"]), np.asarray(grid["row"])
     resid = np.zeros((144, 3))
     resid[(strip < 4) & (row < 4), 0] = 0.9           # area 0 lighter
@@ -243,7 +250,7 @@ def test_the_mean_counts_each_area_once(tmp_path):
     `_nine_numbers` (a centre that ignores the one area that is off) and the
     from-the-mean figure moves off the hand-computed value.
     """
-    grid = MR.evenness_grid_from_layout([11], 11, 121)   # bands 3/5/3
+    grid = MR.evenness_grid_from_layout([11], 11, 121, coverage=[1.0])   # bands 3/5/3
     ids = grid["ids"]
     resid = np.zeros((len(ids), 3))
     strip, row = np.asarray(grid["strip"]), np.asarray(grid["row"])
@@ -560,7 +567,7 @@ def test_the_estimate_reproduces_the_real_sheets_noise():
     MUTATION: calibrate `EVENNESS_TYPICAL_SIGMA` on the per-patch ΔE00 (0.4)
     and the estimate falls to about 0.5; this goes red.
     """
-    grid = MR.evenness_grid_from_layout([30], 9, 270)        # 30 per area
+    grid = MR.evenness_grid_from_layout([30], 9, 270, coverage=[1.0])        # 30 per area
     rng = np.random.default_rng(MR.EVENNESS_SEED)
     noise = rng.normal(0, MR.EVENNESS_TYPICAL_SIGMA, (270, 3))
     ev = MR.evenness_from_residuals(grid, noise,

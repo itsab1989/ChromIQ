@@ -14,6 +14,7 @@ from contextlib import contextmanager
 import copy
 import html
 import json
+import math
 import os
 import shutil
 from functools import partial
@@ -804,6 +805,41 @@ def _evenness_grid_sentence(r: "dict | None") -> str:
                              k=EVENNESS_MIN_GRID)
 
 
+def _coverage_pct(v) -> str:
+    """A page's coverage as a percentage with one decimal, ROUNDED DOWN, so a
+    page left out at 74.96 % never reads "75.0 %" beside "at least 75 %"."""
+    if not isinstance(v, (int, float)):
+        return "?"
+    return f"{math.floor(float(v) * 1000.0) / 10.0:.1f}"
+
+
+def _min_coverage_pct() -> str:
+    from workflow.measurement_report import EVENNESS_MIN_PAGE_COVERAGE
+    return f"{EVENNESS_MIN_PAGE_COVERAGE * 100:g}"
+
+
+def _evenness_coverage_sentence(r: "dict | None") -> str:
+    """Why evenness was withheld: every page of at least 9 by 9 has its patch
+    block cover less of the paper than Knut's floor (#182 E2). Written to his
+    K22 rule: it names what the measured chart lacks, and the figure."""
+    b = _evenness_block(r)
+    short = list(b.get("pages_uncovered") or [])
+    cov = list(b.get("coverage") or [])
+
+    def of(p):
+        return cov[p - 1] if 0 < p <= len(cov) else None
+    if len(short) == 1:
+        return tr("the patches on page {p} of the measured chart cover {x} % "
+                  "of the page; at least {k} % is needed").format(
+                      p=short[0], x=_coverage_pct(of(short[0])),
+                      k=_min_coverage_pct())
+    best = max((of(p) for p in short if of(p) is not None), default=None)
+    return tr("the patches on pages {p} of the measured chart cover at most "
+              "{x} % of their page; at least {k} % is needed").format(
+                  p=", ".join(str(p) for p in short), x=_coverage_pct(best),
+                  k=_min_coverage_pct())
+
+
 def _evenness_noise_sentence(r: "dict | None", key: str,
                              limit: "float | None" = None) -> str:
     """Why an evenness row was withheld by the noise rule (Knut, ruling 6).
@@ -893,7 +929,15 @@ def _evenness_where_sentence(r: "dict | None") -> str:
                         fm=_fmt(b.get("noise_from_mean_p95"), 2))
     used = b.get("pages_used") or []
     pages = b.get("pages") or []
-    left = [p for p in range(1, len(pages) + 1) if p not in used]
+    # #182 E2: a page is left out for one of three things it lacks, and each
+    # is named. A block saved before E2 has none of the three lists, and every
+    # page it left out was left out for the grid.
+    if "pages_small" in b:
+        left = list(b.get("pages_small") or [])
+    else:
+        left = [p for p in range(1, len(pages) + 1) if p not in used]
+    uncovered = list(b.get("pages_uncovered") or [])
+    unmeasured = list(b.get("pages_unmeasured") or [])
     if left:
         from workflow.measurement_report import EVENNESS_MIN_GRID
         out += " " + (tr("Page {p} has fewer than {k} strips or rows and is "
@@ -903,6 +947,27 @@ def _evenness_where_sentence(r: "dict | None") -> str:
                          "not counted.").format(
                              p=", ".join(str(x) for x in left),
                              k=EVENNESS_MIN_GRID))
+    if uncovered:
+        cov = list(b.get("coverage") or [])
+        if len(uncovered) == 1:
+            p = uncovered[0]
+            out += " " + tr("The patches on page {p} cover {x} % of the page, "
+                            "less than {k} %, so it is not counted.").format(
+                                p=p, x=_coverage_pct(cov[p - 1]
+                                                     if p <= len(cov) else None),
+                                k=_min_coverage_pct())
+        else:
+            out += " " + tr("The patches on pages {p} cover less than {k} % "
+                            "of their page, so they are not counted.").format(
+                                p=", ".join(str(x) for x in uncovered),
+                                k=_min_coverage_pct())
+    if unmeasured:
+        out += " " + (tr("Where the patches sit on page {p} is not recorded, "
+                         "so it is not counted.").format(p=unmeasured[0])
+                      if len(unmeasured) == 1 else
+                      tr("Where the patches sit on pages {p} is not recorded, "
+                         "so they are not counted.").format(
+                             p=", ".join(str(x) for x in unmeasured)))
     return out
 
 
@@ -8648,6 +8713,12 @@ class MeasurementReportDialog(QDialog):
                 "the measured chart's layout does not say which strip and "
                 "which row each patch was printed in"),
             "evenness_grid_too_small": _evenness_grid_sentence(r),
+            # #182 E2 (Knut, 2026-09-23), to the same K22 rule.
+            "evenness_page_coverage_too_small": _evenness_coverage_sentence(r),
+            "evenness_no_page_geometry": tr(
+                "no file of the measured chart records where its patches sit "
+                "on the page, so how much of the page they cover is not "
+                "known"),
             "evenness_empty_area": tr(
                 "one of the nine areas of the measured chart holds no patch "
                 "with an aim value"),

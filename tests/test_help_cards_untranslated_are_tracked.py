@@ -948,19 +948,26 @@ _BUDGET = {
     # or more, so the twelve rise by exactly 4; the two M-REPORT-DELETE keys
     # were renamed in place and were already English there. German by hand,
     # does not move. COUNTED off the tree, BOTH ledgers in the same commit.
+    # RE-MEASURED 2026-09-23, #182 beta 38 E2 (page coverage): nine new keys
+    # (the coverage notes, the two lines of the presets window, the pages left
+    # out) and three changed ones (the evenness help and remedy text, and
+    # M-REPORT-CHART-MISMATCH-LAYOUT). German by hand, does not move; the twelve
+    # others carry the English under the beta rule and each rises by exactly 9.
+    # COUNTED off the tree with this file's own expression, BOTH ledgers in the
+    # same commit.
     "de": 14,
-    "es": 770,
-    "fr": 771,
-    "it": 770,
-    "ja": 770,
-    "nl": 770,
-    "no": 770,
-    "pl": 770,
-    "pt": 770,
-    "ru": 769,
-    "sv": 770,
-    "zh_CN": 769,
-    "uk": 970,
+    "es": 779,
+    "fr": 780,
+    "it": 779,
+    "ja": 779,
+    "nl": 779,
+    "no": 779,
+    "pl": 779,
+    "pt": 779,
+    "ru": 778,
+    "sv": 779,
+    "zh_CN": 778,
+    "uk": 979,
 }
 
 

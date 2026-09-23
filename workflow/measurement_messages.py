@@ -2640,8 +2640,8 @@ M_REPORT_CHART_MISMATCH_LAYOUT = _m(
     "these rows read N-A (not applicable):\n{rows}\n\n"
     "A row that was not computed says nothing about the printer. Evenness is "
     "judged over nine areas of one page, so these rows want a chart laid out "
-    "with more strips and more rows on a page. Make the change, print the "
-    "chart again and measure it.",
+    "with more strips and more rows on a page, and with patches that cover "
+    "most of the page. Make the change, print the chart again and measure it.",
     approved=False)
 
 # --- PROPOSED (#182, 2026-09-16): deleting one saved report ------------------
