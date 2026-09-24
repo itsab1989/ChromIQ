@@ -28257,3 +28257,32 @@ would reach.
 - severity: MINOR
 - status: OPEN
 - found by: the proof of B8-1037 (`~/Desktop/ChromIQ-beta42-proof/challenge3-fixes/runs/after-de-dark/photographs/de-p01-gear-window-smallest.png`): the tree in "Built-in presets in the lists" draws its item tick boxes through Fusion from the palette, the same way the report list did, so on dark an unticked box is barely visible. Not changed here: B8-1037 was asked for the report's list, and the same rule for every item view (lists and trees app-wide) is a style-sheet decision that repaints every list in ChromIQ.
+
+### B8-1051 · FIXED, awaiting confirmation · Measure tab: option labels wrapped onto two lines where one line fits (Ukrainian, German, Italian and more)
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: Basti, 2026-09-24 (Ukrainian photograph, Measure, Guided): "Показувати лише виміряні патчі" and "Показувати значення патча при наведенні" side by side, and "Відтворення звуків під час вимірювання" beside "Зберегти звіт про вимірювання", each wrapped onto two lines. Measured before the fix on screen at 1500 x 1000 and at the narrowest window: the two preview options wrapped in uk, de and it (and, offscreen, in every language but en, ja, zh_CN), "sounds" in uk.
+- where: `ui/tabs/tab_measure.py` (`_make_live_preview_group`, the sound row under the tab); `ui/widgets.py` (`ReflowRow`: `spread`, `shrink_groups`).
+- fixed: both rows are `ReflowRow`s: the options stay side by side where both fit on one line each, and the second goes to its own line where they do not. `shrink_groups` keeps the row's minimum at a label's longest word, so no language widens the left panel (still 580 px, measured). "Save measurement report" is a `WrappingCheckBox` now, so it can never be cut.
+- tests: tests/test_the_measure_options_keep_one_line_each.py (`test_every_option_label_is_on_one_line`, all 14 languages; `test_a_long_label_cannot_widen_the_row`). Mutations: the old fixed rows (13 languages red); `shrink_groups` ignored (red).
+- evidence: test_every_option_label_is_on_one_line, test_a_long_label_cannot_widen_the_row
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge3-fixes/runs-1051/ (en, de, uk, it; Guided and Manual; default and narrowest; before and after) and crops/1051-*.
+
+### B8-1052 · FIXED, awaiting confirmation · Measure tab: the sounds ⓘ sat at the far right of the line, after the report option's ⓘ
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: Basti, 2026-09-24 (German photograph, beta 41, Measure, Guided): "Töne während der Messung" had its ⓘ at the far right, after "Messbericht speichern" and its ⓘ. His rule: every option's ⓘ directly after its own label, as in the Live-Vorschau options.
+- where: `ui/tabs/tab_measure.py` (the sound row; the "Each patch shows" row of the Live preview, whose ⓘ also sat at the far right).
+- fixed: each option and its ⓘ are one group of the row (a group never splits across lines); the "Each patch shows" ⓘ follows its pulldown.
+- tests: tests/test_the_measure_options_keep_one_line_each.py (`test_every_info_icon_sits_right_after_its_own_option`, en, de, uk). Mutations: the sounds ⓘ back after the report option (red); the stretch back before the "Each patch shows" ⓘ (red).
+- evidence: test_every_info_icon_sits_right_after_its_own_option
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge3-fixes/runs-1051/ (before and after, en, de, uk, it).
+
+### B8-1053 · OPEN · Measure tab: the other option rows keep their ⓘ in a right-hand column
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- register only: a design choice shared with the other tabs' parameter rows, for Basti.
+- found by: the look over the Measure tab asked for with B8-1052. Rows whose ⓘ sits at the far right after a stretch, away from the option it explains (Guided and Manual unless noted): Instrument port number; Strip recognition (the ⓘ after "Auto"); Suppress warning messages (-S); Skip initial calibration (-N, Manual); Patch-by-patch mode (-p); Refine / resume existing measurement (-r); Show overlay from existing measurement; Also use measurement data from the pre-conditioning profile; the Manual report-button row; the Additional Options rows (the ⓘ after the value field, which is itself right-aligned); the "Also save scanner-profiling files" card (shared with Check & Refine). The Import module has no such row. The same right-hand ⓘ column is how Create Chart, Build Profile and Check & Refine lay out their parameter rows, so moving only the Measure tab's would make it the odd one out; which way to go is Basti's call.

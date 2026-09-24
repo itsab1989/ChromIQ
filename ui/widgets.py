@@ -2948,12 +2948,22 @@ class ReflowRow(QWidget):
 
     def __init__(self, parent: QWidget | None = None, *,
                  spacing: int = 6, gap: "int | None" = None,
-                 line_spacing: int = 6) -> None:
+                 line_spacing: int = 6, spread: bool = False,
+                 shrink_groups: bool = False) -> None:
         super().__init__(parent)
         self._groups: list[list[QWidget]] = []
         self._spacing = spacing                   # inside a group
         self._gap = spacing if gap is None else max(gap, spacing)
         self._line_spacing = line_spacing
+        #: Several groups on one line: the slack goes BETWEEN them, so the
+        #: last group ends at the right edge (the Measure tab's two preview
+        #: options, B8-1051), instead of after them.
+        self._spread = spread
+        #: The row's minimum is each group's MINIMUM, not its hint: a group
+        #: whose label wraps (`WrappingCheckBox`) may be given less than one
+        #: line, so a long language cannot widen the panel the row sits in
+        #: (B8-1051). Off for buttons, which never shrink below their text.
+        self._shrink_groups = shrink_groups
         self._split_now: "list[list[int]] | None" = None
         v = QVBoxLayout(self)
         v.setContentsMargins(0, 0, 0, 0)
@@ -3005,7 +3015,14 @@ class ReflowRow(QWidget):
         less than one line needs (and it wraps); as tall as the lines it is
         on now."""
         h = super().minimumSizeHint()
-        widest = max((self._group_width(g) for g in self._groups), default=0)
+        if self._shrink_groups:
+            def width_of(g):
+                ws = [max(w.minimumSizeHint().width(), w.minimumWidth())
+                      for w in g if not w.isHidden()]
+                return sum(ws) + self._spacing * max(len(ws) - 1, 0)
+        else:
+            width_of = self._group_width
+        widest = max((width_of(g) for g in self._groups), default=0)
         return QSize(widest, h.height())
 
     def lines(self) -> int:
@@ -3036,9 +3053,12 @@ class ReflowRow(QWidget):
             for n, gi in enumerate(line):
                 if n:
                     h.addSpacing(self._gap - self._spacing)
+                    if self._spread:
+                        h.addStretch(1)
                 for w in self._groups[gi]:
                     h.addWidget(w)
-            h.addStretch(1)
+            if not (self._spread and len(line) > 1):
+                h.addStretch(1)
             v.addLayout(h)
         self.updateGeometry()
 

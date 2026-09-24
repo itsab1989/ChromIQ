@@ -2422,12 +2422,28 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
 
         # #131: master switch for measurement sounds (shared by both modes). The
         # individual sounds for each event are chosen in Preferences → Sounds.
-        sound_row = QHBoxLayout()
+        #
+        # **ON ONE LINE EACH WHERE THE ROW CANNOT HOLD BOTH (B8-1051).** In
+        # Ukrainian "Відтворення звуків під час вимірювання" wrapped onto two
+        # lines beside "Зберегти звіт про вимірювання", though it fits on one
+        # line of its own (Basti, 2026-09-24). A `ReflowRow`: the two options
+        # side by side where they fit, the report option on a second line
+        # where they do not. The row's minimum is a label's own
+        # (`shrink_groups`), so no language widens the panel.
+        #
+        # **EACH ⓘ DIRECTLY AFTER ITS OWN LABEL (B8-1052).** Basti, 2026-09-24,
+        # on a German photograph: the sounds ⓘ sat at the far right of the
+        # line, after "Messbericht speichern" and ITS ⓘ, so it read as a second
+        # help for the report. Each option and its ⓘ are one group now, as in
+        # the Live preview options, and a group never splits.
+        from ui.widgets import ReflowRow
+        sound_row = ReflowRow(btn_outer, spacing=6, gap=18,
+                              shrink_groups=True)
+        self._sound_row = sound_row
         self._sound_cb = WrappingCheckBox(
             tr("Play sounds during measurement"), btn_outer)
         self._sound_cb.setChecked(bool(self._settings.get("sound_enabled", False)))
         self._sound_cb.toggled.connect(self._on_sound_toggled)
-        sound_row.addWidget(self._sound_cb)
         # #182 (Knut, 2026-09-18, B8-388): *"The 'Save measurement report'
         # should be ON, visible in the settings on-screen (measurement tab?)
         # when 'Preferences -> reports' 'Save measurement report after each
@@ -2442,11 +2458,10 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # sound row rather than a row of its own because this tab's buttons are
         # levelled against every other tab's and a new row moves them (Basti,
         # 2026-08-07).
-        sound_row.addSpacing(18)
-        self._save_report_cb = QCheckBox(tr("Save measurement report"), btn_outer)
+        self._save_report_cb = WrappingCheckBox(
+            tr("Save measurement report"), btn_outer)
         self._save_report_cb.setChecked(
             bool(self._settings.get("save_measurement_report", True)))
-        sound_row.addWidget(self._save_report_cb)
         self._save_report_tip = TooltipButton(
             tr("Save measurement report"),
             tr("Writes a small dated report when the measurement finishes, in "
@@ -2464,10 +2479,6 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                "report, and the Measurement Report window can rebuild any of "
                "them from the measurement itself at any time."),
             btn_outer, min_width=460)
-        sound_row.addWidget(self._save_report_tip)
-        # Tooltip icon sits at the far right of the panel (Basti), not hugging
-        # the checkbox label.
-        sound_row.addStretch()
         self._sound_tip = TooltipButton(
             tr("Play sounds during measurement"),
             tr("Plays a short sound at each step of a measurement — a tick as "
@@ -2479,8 +2490,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                "Preferences → Sounds. This switch is remembered between "
                "sessions."),
             btn_outer, min_width=460)
-        sound_row.addWidget(self._sound_tip)
-        bo_layout.addLayout(sound_row)
+        sound_row.add_group(self._sound_cb, self._sound_tip)
+        sound_row.add_group(self._save_report_cb, self._save_report_tip)
+        bo_layout.addWidget(sound_row)
         bo_layout.addLayout(btn_row)
         lc_layout.addWidget(btn_outer)
 
@@ -2960,7 +2972,8 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         combo.currentIndexChanged.connect(
             lambda _i, p=prefix: self._on_view_control_changed(p))
         show_row.addWidget(combo)
-        show_row.addStretch(1)
+        # The ⓘ right after the control it explains, like the two options
+        # below it (B8-1052); the slack goes after it.
         show_row.addWidget(TooltipButton(
             tr("What each patch shows"),
             tr("Choose what the coloured patches in the preview show:\n\n"
@@ -2977,6 +2990,7 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "readings. (Screen colours are approximate; the numbers in your "
             "file are exact.)"),
             row))
+        show_row.addStretch(1)
         v.addLayout(show_row)
 
         # WRAPPING, NOT PLAIN. `QCheckBox` has no word wrap and clips
@@ -2996,12 +3010,19 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         # Two options share this row: "only measured" on the left with its help
         # icon right beside it, then a stretch, then "values on hover" with its
         # own help icon on the right (Basti).
-        om_row = QHBoxLayout()
-        om_row.setContentsMargins(0, 0, 0, 0)
-        om_row.setSpacing(0)
-        om_row.addWidget(only)
-        om_row.addSpacing(10)   # a little breathing room before the help icon
-        om_row.addWidget(TooltipButton(
+        #
+        # **…WHILE BOTH FIT ON ONE LINE EACH (B8-1051).** Side by side in a
+        # fixed row, each label got half the panel, and in Ukrainian both
+        # wrapped onto two lines ("Показувати лише виміряні / патчі") though
+        # either fits on one line of its own (Basti, 2026-09-24). A
+        # `ReflowRow` keeps the two side by side where they fit and puts the
+        # second on a line of its own where they do not; `shrink_groups`
+        # keeps the row's minimum at a label's own, so no language widens the
+        # panel.
+        from ui.widgets import ReflowRow
+        om_row = ReflowRow(row, spacing=10, gap=18, spread=True,
+                           shrink_groups=True)
+        only_tip = TooltipButton(
             tr("Show only measured patches"),
             tr("Turn this on to see your progress through the chart at a glance: "
             "every patch you have already read keeps its colour (or split), and "
@@ -3011,11 +3032,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "you've come and which rows are still to do. Turn it off to see the "
             "whole printed chart again. It only changes the preview, never your "
             "readings."),
-            row))
-        om_row.addStretch(1)
-        om_row.addWidget(tile)
-        om_row.addSpacing(10)   # same breathing room before its help icon
-        om_row.addWidget(TooltipButton(
+            row)
+        om_row.add_group(only, only_tip)
+        tile_tip = TooltipButton(
             tr("Show patch values on hover"),
             tr("Turn this on to inspect any patch you've already measured: point "
             "at it and a small card appears next to your mouse with the exact "
@@ -3031,8 +3050,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
             "'Expected & measured (split)' you get both colours and the ΔE; with "
             "'Expected colour only' or 'Measured colour only' you get just that "
             "one. It only reads out numbers — it never changes your readings."),
-            row))
-        v.addLayout(om_row)
+            row)
+        om_row.add_group(tile, tile_tip)
+        v.addWidget(om_row)
 
         # AIMING HELP — a CR30 row, hidden for every other instrument (#159).
         #
