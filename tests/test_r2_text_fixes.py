@@ -488,7 +488,9 @@ def test_r2_the_not_certification_note_reads_dash_and_question_mark_as_the_legen
     note said "reads ? where neither is so". MUTATION: put that clause back."""
     body = M.CATALOGUE["M-THRESHOLDS-NOT-CERTIFICATION"].body
     assert "reads ? where neither is so" not in body
-    assert "reads “–” for a row the standard puts no limit on" in body
+    # B8-979 (Knut, #182 5815435713): "–" is said only of a row ChromIQ can
+    # measure; one it cannot reads ✕ in every set.
+    assert "reads “–” for a row ChromIQ can measure that the standard puts no limit on" in body
     assert "? where it limits the row but no number has been supplied" in body
     de = DE[body]
     assert "wo beides nicht zutrifft" not in de
