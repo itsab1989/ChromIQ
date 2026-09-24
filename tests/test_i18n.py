@@ -786,6 +786,7 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-24, B40-A (B8-935 to B8-939): one key in, the "Judged against" tooltip for a set carried over from an earlier ChromIQ. German by hand, so it does not move; the twelve others carry the English and each rises by exactly 1. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-24, K31-A (B8-890 to B8-899) and K31-B (B8-900 to B8-909) cherry-picked onto beta 39 (B8-910 to B8-925). COUNTED, BOTH ledgers.
     # RE-MEASURED 2026-09-23, the R2 text fixes (B8-911 to B8-915) merged onto the help fixes. COUNTED, BOTH ledgers.
     # RE-MEASURED 2026-09-23, the beta 39 help fixes (B8-910) merged onto the R1 fixes. COUNTED, BOTH ledgers.
@@ -1430,17 +1431,17 @@ _IDENTICAL_TO_KEY = {
     # COUNTED off the tree with this file's own expression, BOTH ledgers in
     # the same commit.
     "de": 141,
-    "es": 1200,
-    "fr": 1222,
-    "it": 1211,
-    "ja": 1186,
-    "nl": 1227,
-    "no": 1212,
-    "pl": 1204,
-    "pt": 1202,
-    "ru": 1175,
-    "sv": 1213,
-    "zh_CN": 1180,
+    "es": 1201,
+    "fr": 1223,
+    "it": 1212,
+    "ja": 1187,
+    "nl": 1228,
+    "no": 1213,
+    "pl": 1205,
+    "pt": 1203,
+    "ru": 1176,
+    "sv": 1214,
+    "zh_CN": 1181,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1468,7 +1469,7 @@ _IDENTICAL_TO_KEY = {
     # Nothing else changed. The ceiling is re-measured DOWN here rather than
     # left where it was, so the next rise still has to justify itself.
     # +8 on 2026-09-23 for #182 S-2, the same eight as every other language.
-    "uk": 1363,
+    "uk": 1364,
 }
 
 

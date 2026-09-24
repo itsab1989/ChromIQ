@@ -3734,23 +3734,64 @@ class MeasurementReportDialog(QDialog):
                 # **A VERDICT RECORD IS NOT THE DATE'S OWN REPORT (K31).**
                 # Records an earlier ChromIQ wrote for a report of several
                 # dates are read-only history of THAT report (they speak only
-                # when it is loaded); the date's own row is its newest own
-                # report, and a record is drawn only when the date has
-                # nothing else, for its measured numbers alone.
-                from workflow.measurement_report import is_verdict_record
-                own = [r for r in group if not is_verdict_record(r)] or group
-                pick = own[0]
-                for r in own[1:]:
-                    if (_report_order(r.get("_origin_dir"),
-                                      r.get("_report_file"))
-                            >= _report_order(pick.get("_origin_dir"),
-                                             pick.get("_report_file"))):
-                        pick = r
+                # when it is loaded, through `want` above); the date's own row
+                # is its newest own report OF ONE DATE (§25.1).
+                #
+                # **AND NEITHER IS A PRE-K23 COPY, AND NOTHING STANDS IN FOR
+                # A MISSING ONE (B40-A 2 and 4).** This read `own = [...] or
+                # group`, so a date whose own report was gone was drawn from
+                # a record, verdict and all, and a date holding a newer copy
+                # of a report of several dates (what a build before K23 wrote
+                # into every date) was drawn from that copy. A date with no
+                # report of its own is a measurement with no saved report:
+                # its measured numbers, judged live and marked "(not saved)",
+                # exactly as a date measured with the report switched off.
+                # Every file stays listed through `_all_report_files`.
+                own = [r for r in group if self._is_own_one_date_report(r)]
+                if own:
+                    pick = own[0]
+                    for r in own[1:]:
+                        if (_report_order(r.get("_origin_dir"),
+                                          r.get("_report_file"))
+                                >= _report_order(pick.get("_origin_dir"),
+                                                 pick.get("_report_file"))):
+                            pick = r
+                else:
+                    pick = self._measured_numbers_only(group[-1])
             # EVERY report file of this measurement, so the selector can offer
             # them without reading the folder again.
             pick["_all_report_files"] = files
             out.append(pick)
         return out
+
+    @staticmethod
+    def _is_own_one_date_report(rep: "dict | None") -> bool:
+        """Is *rep* a date's own report of ONE date (§25.1)?
+
+        Not a verdict record (K23, role "record"), and not a copy of a
+        report of several dates that a build before K23 wrote into each
+        date's folder (no role, scope "Multiple" or "All dates"). A file
+        with no document block at all is a report of its one date, as it
+        always was."""
+        from workflow.measurement_report import (SCOPE_ONE_DATE,
+                                                 document_scope_of,
+                                                 is_verdict_record,
+                                                 recorded_document)
+        if not isinstance(rep, dict) or is_verdict_record(rep):
+            return False
+        return document_scope_of(recorded_document(rep)) == SCOPE_ONE_DATE
+
+    @staticmethod
+    def _measured_numbers_only(rep: dict) -> dict:
+        """A copy of *rep* that keeps what was MEASURED and drops what a
+        report said about it (B40-A 2): the row of a date with no report of
+        its own. It is judged live (``_fresh``) and names no file, so
+        nothing reads the other report's block or verdict as the date's."""
+        row = {k: v for k, v in rep.items()
+               if k not in ("verdict", "pass_thresholds", "compliance",
+                            "document", "report_type", "_report_file")}
+        row["_fresh"] = True
+        return row
 
     def _is_this_measurement(self, r: dict, ti3: Path,
                              dates_by_origin: "dict | None" = None) -> bool:
@@ -5308,6 +5349,44 @@ class MeasurementReportDialog(QDialog):
             return None
         return lost | foreign
 
+    def _update_would_orphan_a_date(self, updating: dict,
+                                    members: list) -> bool:
+        """Would updating *updating* to cover *members* take away the only
+        own report of a date (B40-A 3, §25.7)?
+
+        True when the report is a date's own report of one date, the Update
+        widens it to more than one measurement folder, and that date holds
+        no other own report of one date (`_is_own_one_date_report`; a
+        verdict record or a pre-K23 copy is none). A report of several
+        dates already, or one that stays on its date, is never affected."""
+        import json
+        if updating.get("file"):
+            return False                     # a document file, not a date's
+        if len({str(m.get("dir") or "") for m in members}) < 2:
+            return False                     # not widened to several dates
+        for r, name in (updating.get("members") or []):
+            folder = Path(str(r.get("_origin_dir") or "")) / "reports"
+            try:
+                this = json.loads(read_text(folder / name))
+            except Exception:                # noqa: BLE001
+                continue
+            if not self._is_own_one_date_report(this):
+                continue
+            spare = False
+            for p in folder.glob("report_*.json"):
+                if p.name == name:
+                    continue
+                try:
+                    spare = self._is_own_one_date_report(
+                        json.loads(read_text(p)))
+                except Exception:            # noqa: BLE001
+                    spare = False
+                if spare:
+                    break
+            if not spare:
+                return True
+        return False
+
     def _ask_leave_out(self, title: str, body: str) -> bool:
         """M-REPORT-UPDATE-LEAVES-OUT's two buttons; True for "Update without
         them". Kept on the instance while it is up, so a driver can
@@ -5567,6 +5646,26 @@ class MeasurementReportDialog(QDialog):
             inform(self, *M.CATALOGUE["M-REPORT-UPDATE-NOTHING-LEFT"].render(
                 missing=""))
             return
+        # **A DATE'S ONLY REPORT IS NOT WIDENED AWAY (B40-A 3, §25.7; Knut,
+        # #182 5806297940: "go for (a) Keep the date's own report").** Widening a report of one date to several
+        # dates (§25.2) archives its one-date file; when that file is the
+        # date's ONLY own report, the date is left with none, which is what
+        # Delete refuses (§25.6). So such an Update leaves the
+        # one-date report where it is, untouched, and writes the widened
+        # report as a NEW report of those dates: what Create New does. No
+        # message is added; the new report is what the list then shows.
+        if updating is not None and self._update_would_orphan_a_date(
+                updating, members):
+            log.info("the Update of %s would leave a date with no report of "
+                     "its own; the one-date report is kept and the report "
+                     "of %d dates is written as a new one (§25.7)",
+                     doc_id, len(members))
+            updating = None
+            doc = None
+            doc_id = new_document_id(when)
+            doc_created = now_iso
+            updated = []
+            existing = {}
         detail = self._tick_state()
         scope = self._document_scope(members)
         # **AN UPDATE THAT COVERS THE SAME MEASUREMENTS KEEPS ITS NAME'S
@@ -6480,12 +6579,27 @@ class MeasurementReportDialog(QDialog):
             if (self._loaded_doc_id == NEW_REPORT_KEY and run is not None
                     and not several and lim.set_id != self._default_set_id()):
                 d = SET_BY_ID.get(self._default_set_id())
-                set_tip = tr(
-                    "New reports of this profile run start on {set}, the run's "
-                    "own default, chosen in Edit limits. The default for new "
-                    "reports is {default}, in Preferences, Reports.").format(
-                        set=lim.set_label,
-                        default=tr(d.label) if d else self._default_set_id())
+                # **A SET AN OLDER ChromIQ BOUND THE RUN TO WAS CHOSEN BY
+                # NOBODY IN EDIT LIMITS (B40-A 5).** `bound` is that copy
+                # (§25.4, "Old files"); the sentence says where it came from
+                # and claims no one chose it.
+                if lim.bound:
+                    set_tip = tr(
+                        "New reports of this profile run start on {set}, the "
+                        "run's own default, carried over from an earlier "
+                        "version of ChromIQ. The default for new reports is "
+                        "{default}, in Preferences, Reports. Choose "
+                        "“Default for this run” in Edit limits to change "
+                        "it.")
+                else:
+                    set_tip = tr(
+                        "New reports of this profile run start on {set}, the "
+                        "run's own default, chosen in Edit limits. The default "
+                        "for new reports is {default}, in Preferences, "
+                        "Reports.")
+                set_tip = set_tip.format(
+                    set=lim.set_label,
+                    default=tr(d.label) if d else self._default_set_id())
             self._set_combo.setToolTip(set_tip)
             self._limits_btn.setToolTip(btn_tip)
             self._sync_type_combo(run, several)
@@ -7244,10 +7358,18 @@ class MeasurementReportDialog(QDialog):
         # to a report, not a specific run"*. Numbers edited in the limits
         # window with several places loaded are the report's, held here for
         # the session, written into the document by Generate report and
-        # never onto a run. With one place loaded they do not apply: that
-        # window's limits are its run's (section 5).
+        # never onto a run.
+        #
+        # **AND WITH ONE PROFILE RUN LOADED TOO (K31, B40-A 1).** This said
+        # `and self._several_runs()`, the pre-K31 rule that one place's limits
+        # were its run's (section 5). K31 gave every window the "This report"
+        # column (§25.3), so with one run loaded an edit there showed on the
+        # page and under the red line and was then dropped at Generate: the
+        # file carried the set's plain numbers and ``edited: False``. Driven
+        # on screen in `~/Desktop/ChromIQ-beta40-proof/challenge-A-behaviour/
+        # d2b` (E1, E2, E4, E8).
         own = getattr(self, "_report_own_limits", None)
-        if own is not None and self._several_runs():
+        if own is not None:
             return own
         sid = str(getattr(self, "_sticky_set", "") or "")
         if not sid:
@@ -7477,22 +7599,42 @@ class MeasurementReportDialog(QDialog):
         diagnostic: the two were counting different things. So the count uses
         the same test `_gather_runs` uses, and stops at two, because that is
         all this question needs to know.
+
+        **AND A VERDICT RECORD IS NOT A SPARE (K31, B40-A 2).** The count
+        took every readable file, so a record an earlier ChromIQ wrote into
+        the date for a report of several dates (§25.6: never a report, never
+        listed or counted) let the date's last own report go, and the record
+        then became the date's row. Driven on screen in
+        `~/Desktop/ChromIQ-beta40-proof/challenge-A-behaviour/d3` (X1-X4).
+        So the count is of the date's own reports of one date
+        (`_is_own_one_date_report`). A file this press would move that is
+        not one of them (a copy a build before K23 wrote of a report of
+        several dates) keeps the rule it had: refused only when it is the
+        last file of the date that is not a record.
         """
         import json
         from core.file_manager import VERIFICATIONS_DIRNAME
+        from workflow.measurement_report import is_verdict_record
         origin = Path(str(r.get("_origin_dir") or ""))
         if origin.parent.name != VERIFICATIONS_DIRNAME:
             return ""
         try:
-            spares = 0
+            own: "list[str]" = []
+            others = 0
             for p in sorted((origin / "reports").glob("report_*.json")):
                 try:
-                    json.loads(read_text(p))
+                    rep = json.loads(read_text(p))
                 except Exception:             # noqa: BLE001
                     continue                  # not a verdict; see below
-                spares += 1
-                if spares > 1:
-                    break                     # two is all this has to know
+                # the class, not `self`: the rule is asked without a window
+                if MeasurementReportDialog._is_own_one_date_report(rep):
+                    own.append(p.name)
+                elif isinstance(rep, dict) and not is_verdict_record(rep):
+                    others += 1
+            if name in own or not name:
+                spares = len(own)
+            else:
+                spares = 2 if own else others
         except OSError:                       # unreadable: the answer it gave
             spares = len(r.get("_all_report_files") or [])
         if spares > 1:
@@ -8121,8 +8263,19 @@ class MeasurementReportDialog(QDialog):
         self._load_the_defaults()
         # A NEW REPORT IS ABOUT THE NEWEST FILE OF EACH MEASUREMENT, so the
         # document a click left behind stops choosing which file is drawn.
+        had_choices = bool(self._chosen_reports)
         self._chosen_reports.clear()
         self._hidden_runs = set()
+        # **AND THE ROWS ARE PICKED AGAIN (B40-A 4).** Which file a row is
+        # drawn from is decided when the folders are read
+        # (`_one_row_per_measurement`), so clearing the choice alone left
+        # every row on the file the previous report had chosen: after an old
+        # report of several dates had been loaded, a date's row stayed that
+        # report's verdict record under "New report…" (d3 run.log 381).
+        if had_choices and self._sources:
+            self._reread_sources()
+            self._rebuild_from_sources()     # repaints, through `_refresh`
+            return
         # The rows follow, through `_refresh` (B8-521).
         self._refresh()
 
@@ -8310,8 +8463,10 @@ class MeasurementReportDialog(QDialog):
         self._doc_sources = self._source_signature()
         self._forget_sticky_settings()
         # WHICH FILE OF EACH MEASUREMENT THE PAGE IS DRAWN FROM. Only the
-        # document's own measurements are touched: a row belonging to another
-        # run of the project is not this document's to move.
+        # document's own measurements are chosen: every other row is its
+        # date's own report, so what the previous report chose goes first
+        # (B40-A 4: a record it chose stayed a date's row after it).
+        self._chosen_reports.clear()
         for r, name in entry["members"]:
             self._chosen_reports[self._run_key(r)] = name
         # THE SUBJECT IS ONE OF ITS OWN MEASUREMENTS, the newest of them, so
@@ -8674,6 +8829,14 @@ class MeasurementReportDialog(QDialog):
         already put in `self._sources`, so on its own it would redraw the
         window from the file that has just been removed.
         """
+        self._reread_sources()
+        self._rebuild_from_sources()
+        # The disk moved under the list; the entry it now names is loaded.
+        self._load_what_the_list_names()
+
+    def _reread_sources(self) -> None:
+        """Gather every loaded measurement's rows off disk again, keeping the
+        subject; nothing is drawn (`_reload_sources`, `_start_new_report`)."""
         subject = self._run_key(self._report) if self._report else None
         for src in self._sources:
             try:
@@ -8687,9 +8850,6 @@ class MeasurementReportDialog(QDialog):
         self._report = next(
             (r for r in rows if subject and self._run_key(r) == subject),
             rows[-1] if rows else self._report)
-        self._rebuild_from_sources()
-        # The disk moved under the list; the entry it now names is loaded.
-        self._load_what_the_list_names()
 
     def _on_delete_report(self) -> None:
         """Move the selected document's files into an ``old/`` folder (L.7).

@@ -80,6 +80,9 @@ def _one_date_and_a_multi_date_report(tmp_path):
     from tests.test_import_measurement_module import _verify_env
     s, fm, _ctl, run1 = _verify_env(tmp_path)
     a, b = _dated(run1), _dated(run1)
+    # B40-A 2 (B8-936): a verdict record is no spare, so the second date's
+    # own report may be deleted only beside ANOTHER own report of it.
+    _save_doc([b.dir], [b.measurement_ti3])
     _save_doc([b.dir, a.dir], [b.measurement_ti3, a.measurement_ti3])
     return s, run1, a, b
 
@@ -95,10 +98,9 @@ def _one_date_key_of(dlg, v):
 
 def test_after_a_delete_the_shown_entry_is_the_loaded_report(tmp_path, qapp):
     """Challenge C, C5: a report loaded, a setting changed ("Show detailed
-    data" flipped), the report deleted. The list lands on the report across
-    both dates (the page's newest file); it must be LOADED, whole, with both
-    dates ticked, and Generate live, not a page that nobody loaded under a
-    name that says otherwise.
+    data" flipped), the report deleted. The list lands on another report;
+    it must be LOADED, whole, with its own dates ticked, and Generate live,
+    not a page that nobody loaded under a name that says otherwise.
 
     MUTATION, proven red: make `_load_what_the_list_names` return at once
     AND drop the reset of `_doc_settings_moved` in `_on_delete_report` (the
@@ -119,9 +121,16 @@ def test_after_a_delete_the_shown_entry_is_the_loaded_report(tmp_path, qapp):
         shown = str(dlg._saved_combo.currentData())
         assert shown.startswith("id:"), shown
         assert dlg._loaded_doc is not None
+        # WHOLE: its own measurements are the ticked ones. (B40-A 2: the
+        # second date's row is its remaining own report, never the record
+        # of the report across both dates, so the list may land on either.)
         ticked = {k for kind, _si, k in dlg._list_rows
                   if kind == "run" and k not in dlg._hidden_runs}
-        assert len(ticked) == 2, ticked
+        entry = next(e for e in dlg._saved_documents(dlg._run_ctx.run)
+                     if e["key"] == shown)
+        covers = {str(m.get("dir")) for m in
+                  ((entry.get("doc") or {}).get("measurements") or [])}
+        assert len(ticked) == max(1, len(covers)), (ticked, covers)
         assert dlg._generate_btn.isEnabled(), dlg._generate_btn.toolTip()
     finally:
         dlg.close()

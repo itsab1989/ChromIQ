@@ -5117,7 +5117,9 @@ date's verdict record" half of its K25 record), the G7 records and the
   the dates decide, its name follows ("Multiple dates", "All dates", or the
   run and project names across places), and its one-date file is archived
   into that date's `reports/old/<stamp>/` and taken out of the live folder,
-  never deleted.
+  never deleted. When that file is the date's ONLY own report, the report
+  of one date stays and the widened report is a new one (§25.7, Knut
+  5806297940).
 
 **25.3 The limit set belongs to the report (section 0c; G7 Q2).**
 * *"changing the reports settings does not change the report, and its
@@ -5222,7 +5224,53 @@ from the preferences default."*
 * A "New report…" whose ticks are all another run's starts on the window's
   run's own default, because that is the run the window was opened from.
 * The refusal to delete the only saved report of a dated verification (the
-  date's own report is its result) is unchanged.
+  date's own report is its result) is unchanged. It counts the date's own
+  reports of one date only: a verdict record, or a copy of a report of
+  several dates that a build before K23 wrote into each date, is not a
+  spare (B8-936).
+* A date whose folder holds no own report of one date (only records, or
+  only pre-K23 copies) is listed as a measurement with no saved report of
+  its own: its measured numbers, judged live against the report's set and
+  marked "(not saved)", as a date measured with the report switched off.
+  The files are still listed as the reports they belong to (B8-936,
+  B8-938).
+
+**25.7 Widening a date's ONLY report of one date: keep the date's own
+report (B8-937, beta 40 challenge A, finding 3).**
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+**Ruled by:** Knut, #182
+[5806297940](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5806297940)
+(2026-09-24): *"go for (a) Keep the date's own report."* The rule is his; the
+behaviour BUILT from it waits for his confirmation.
+
+* **The conflict.** §25.2 makes a report of one date, updated to cover more
+  dates, a report of those dates, and archives its one-date file. When that
+  file is the date's ONLY own report, the date is left with none, which is
+  exactly what Delete refuses (§25.6: the date's own report is its result).
+  Driven on screen in `~/Desktop/ChromIQ-beta40-proof/challenge-A-behaviour/
+  d1` (diffs/003-S2): after the Update the date read an old verdict record
+  as its row.
+* **The question we put to Knut.** *"An Update that widens a date's only report of
+  one date to several dates: should (a) the one-date report stay where it is,
+  untouched, and the widened report be written as a new report of those dates
+  (what Create New does); (b) ChromIQ ask first, naming the date that would
+  be left without a report of its own; or (c) the Update widen it as §25.2
+  says, leaving the date with no report of its own?"* We recommended (a),
+  and it was first built as the interim; Knut then ruled (a).
+* **Built: option (a).** It needs no new message text. An
+  Update that would widen the only own one-date report of any date it covers
+  leaves that file untouched and writes the widened report as a new report
+  (a new id, no "updated" stamp), in the folder the dates decide; the list
+  then shows both. When every such date keeps another own report of one date,
+  the Update widens as §25.2 says (id kept, the one-date file archived).
+  `_update_would_orphan_a_date`, `_write_the_document`;
+  `tests/test_b40a_report_model_fixes.py`
+  (`test_widening_a_dates_only_report_keeps_it_and_writes_a_new_one`,
+  `test_widening_a_report_the_date_has_a_spare_of_still_widens`).
 
 **Built:** `workflow/run_compliance.py` (`run_limits`, `set_run_default_set`,
 `run_default_set_id`, `new_report_type`; the binding and the lock removed);

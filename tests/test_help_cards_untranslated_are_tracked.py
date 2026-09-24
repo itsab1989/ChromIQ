@@ -539,6 +539,7 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-24, B40-A (B8-935 to B8-939): one key in, the "Judged against" tooltip for a set carried over from an earlier ChromIQ. German by hand, so it does not move; the twelve others carry the English and each rises by exactly 1. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-24, K31-A (B8-890 to B8-899) and K31-B (B8-900 to B8-909) cherry-picked onto beta 39 (B8-910 to B8-925). COUNTED, BOTH ledgers.
     # RE-MEASURED 2026-09-23, the R2 text fixes (B8-911 to B8-915) merged onto the help fixes. COUNTED, BOTH ledgers.
     # RE-MEASURED 2026-09-23, the beta 39 help fixes (B8-910) merged onto the R1 fixes. COUNTED, BOTH ledgers.
@@ -1002,18 +1003,18 @@ _BUDGET = {
     # intro is translated now). COUNTED off the tree, BOTH ledgers in the
     # same commit.
     "de": 13,
-    "es": 895,
-    "fr": 896,
-    "it": 895,
-    "ja": 895,
-    "nl": 895,
-    "no": 895,
-    "pl": 895,
-    "pt": 895,
-    "ru": 894,
-    "sv": 895,
-    "zh_CN": 894,
-    "uk": 1043,
+    "es": 896,
+    "fr": 897,
+    "it": 896,
+    "ja": 896,
+    "nl": 896,
+    "no": 896,
+    "pl": 896,
+    "pt": 896,
+    "ru": 895,
+    "sv": 896,
+    "zh_CN": 895,
+    "uk": 1044,
 }
 
 

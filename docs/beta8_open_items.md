@@ -27247,3 +27247,68 @@ would reach.
 - tests: tests/test_b40_report_preferences_do_not_leak_between_tests.py (mutation "fixture returns at once": 2 red)
 - evidence: test_2_the_next_test_starts_on_the_defaults, test_3_the_g7_order_that_failed_now_passes
 - proof: ~/Desktop/ChromIQ-beta40-proof/small-fixes/g7/ (the order run before and after).
+
+### B8-935 · FIXED, awaiting confirmation · With one profile run loaded, an edit in Edit limits' "This report" column was dropped at Generate
+- blocks release: yes
+- severity: BLOCKER
+- status: FIXED
+- note: beta 40, challenge A finding 1; spec §25.3 ("whether one profile run or many are loaded").
+- where: `ui/dialogs/measurement_report_dialog.py` (`_sticky_limits`).
+- found by: challenge A of beta 40 (`~/Desktop/ChromIQ-beta40-proof/challenge-A-behaviour/d2b`, E1, E2, E4, E8; diffs/002, 003): the red line promised the edit, and Create New and Update wrote the set's plain numbers with `edited: false`.
+- cause: `_sticky_limits` honoured `_report_own_limits` only `if ... self._several_runs()`, the pre-K31 rule that one place's limits were its run's; the K31 test checked `_report_own_limits`, never the written file.
+- fixed: the report's own limits apply however many runs are loaded.
+- tests: tests/test_b40a_report_model_fixes.py (mutation "and self._several_runs()" back: 2 red; the branch removed: 3 red).
+- evidence: test_an_edit_in_this_report_is_written_with_one_run_loaded[new], test_an_edit_in_this_report_is_written_with_one_run_loaded[update], test_an_edit_in_this_report_is_written_with_several_runs_loaded
+- proof: ~/Desktop/ChromIQ-beta40-proof/challenge-A-fixes/ (item 1, before and after, sha1 listings).
+
+### B8-936 · FIXED, awaiting confirmation · An old verdict record counted as a spare report, so a date's last own report could be deleted, and the record then became the date's row
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- note: beta 40, challenge A finding 2; spec §25.1, §25.6.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_saved_delete_refusal`, `_one_row_per_measurement`, `_is_own_one_date_report`, `_measured_numbers_only`).
+- found by: challenge A of beta 40 (`challenge-A-behaviour/d3`, X1 to X4; diffs/001-X2): Delete of 12-15's own report beside a record went through, and the record was the date's row afterwards.
+- cause: the delete rule counted every readable `report_*.json`; the row fallback was `own = [...] or group`.
+- fixed: the delete rule counts the date's own reports of one date (a pre-K23 copy being moved keeps its old rule); a date with no own report of one date is a measurement with no saved report of its own (measured numbers, judged live, "(not saved)"), and its files stay listed.
+- tests: tests/test_b40a_report_model_fixes.py (mutation "count every readable file": 1 red; mutation "or group": 1 red).
+- evidence: test_a_record_is_no_spare_for_the_delete_rule, test_a_date_with_only_a_record_has_no_report_row
+- proof: ~/Desktop/ChromIQ-beta40-proof/challenge-A-fixes/ (item 2).
+
+### B8-937 · FIXED, awaiting confirmation · Widening a date's only one-date report to several dates left the date with no report of its own
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- note: beta 40, challenge A finding 3; spec §25.7. §25.2 against §25.6.
+- ruled by: Knut, #182 [5806297940](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5806297940) (2026-09-24): *"go for (a) Keep the date's own report."* (built first as the interim we recommended, option a).
+- where: `ui/dialogs/measurement_report_dialog.py` (`_update_would_orphan_a_date`, `_write_the_document`).
+- found by: challenge A of beta 40 (`challenge-A-behaviour/d1`, diffs/003-S2).
+- cause: §25.2 archives the one-date file of a widened report; nothing asked whether it was the date's only one.
+- fixed (option a, as ruled): such an Update leaves the one-date file untouched and writes the widened report as a new report of those dates; no new message text. With a spare own report the Update widens as §25.2 says.
+- tests: tests/test_b40a_report_model_fixes.py (mutation "never orphan": 1 red; mutation "always orphan": 4 red), tests/test_k31_report_model.py (the §25.2 case now has a spare).
+- evidence: test_widening_a_dates_only_report_keeps_it_and_writes_a_new_one, test_widening_a_report_the_date_has_a_spare_of_still_widens, test_widening_a_one_date_report_makes_it_a_report_of_those_dates
+- proof: ~/Desktop/ChromIQ-beta40-proof/challenge-A-fixes/ (item 3).
+
+### B8-938 · FIXED, awaiting confirmation · A date's row kept a record or a pre-K23 copy after an old report had been loaded
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: beta 40, challenge A finding 4; spec §25.1, §25.6.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_one_row_per_measurement`, `_start_new_report`, `_apply_document`, `_reread_sources`).
+- found by: challenge A of beta 40 (`challenge-A-behaviour/d3`, run.log 196 to 198 and 381).
+- cause: the row fallback took the newest non-record file, which a pre-K23 copy of a report of several dates can be; and the file a loaded report chose for each of its dates stayed chosen after "New report…" (the choice was cleared, the rows were not picked again) or after another report was loaded.
+- fixed: rows are the dates' own reports of one date; "New report…" picks the rows again when a report had chosen files, and loading a report clears what the previous one chose.
+- tests: tests/test_b40a_report_model_fixes.py (mutation "any non-record file": 1 red; mutation "no re-gather in _start_new_report": 1 red).
+- evidence: test_a_pre_k23_copy_is_not_a_dates_row, test_rows_return_to_their_own_reports_after_an_old_document
+- proof: ~/Desktop/ChromIQ-beta40-proof/challenge-A-fixes/ (item 4).
+
+### B8-939 · FIXED, awaiting confirmation · The "Judged against" tooltip said a set carried over from an older ChromIQ was "chosen in Edit limits"
+- blocks release: no
+- severity: TEXT
+- status: FIXED
+- note: beta 40, challenge A finding 5; spec §25.4 ("Old files"), §25.5.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_sync_limit_controls`); `data/i18n/*.json` (German by hand, the twelve others English under the beta rule).
+- found by: challenge A of beta 40 (`challenge-A-behaviour/d3`, Z-run2-new-report.png).
+- fixed: a bound set (a copy an earlier ChromIQ stored on the run) reads "the run's own default, carried over from an earlier version of ChromIQ", and names the row that changes it; a default chosen in Edit limits keeps its sentence.
+- tests: tests/test_b40a_report_model_fixes.py (mutation "the old sentence for the bound case": 1 red).
+- evidence: test_a_carried_over_set_is_not_said_to_be_chosen_in_edit_limits
+- proof: ~/Desktop/ChromIQ-beta40-proof/challenge-A-fixes/ (item 5).

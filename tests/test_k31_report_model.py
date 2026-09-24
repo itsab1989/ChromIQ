@@ -276,17 +276,21 @@ def test_widening_a_one_date_report_makes_it_a_report_of_those_dates(
 
     MUTATION: skip the retirement of the files the new shape no longer has
     (`retire`) in `_write_the_document` and this goes red (the date keeps a
-    one-date file of a report that now covers two)."""
+    one-date file of a report that now covers two).
+
+    B40-A 3: the date holds a SECOND own report here. Widening a date's ONLY
+    own report writes a new report instead (§25.7, Knut 5806297940,
+    `tests/test_b40a_report_model_fixes.py`)."""
     from workflow.measurement_report import (SCOPE_ONE_DATE,
                                              recorded_document)
     proj, run1, run2, d1, d2 = _two_run_project(tmp_path)
     first = d2[0]
     own = sorted((first.dir / "reports").glob("report_*.json"))[0]
     doc_id = recorded_document(json.loads(own.read_text(encoding="utf-8")))["id"]
+    _automatic_report(run2, first)                   # the date's spare
     dlg = _window(_settings(), first.measurement_ti3, qapp, "verification")
     try:
-        entry = _entry_for(dlg, first.dir)
-        _pick(dlg, entry["key"], qapp)
+        _pick(dlg, f"id:{doc_id}", qapp)
         dlg._select_all_btn.click()
         qapp.processEvents()
         _press(dlg, qapp, "update")
