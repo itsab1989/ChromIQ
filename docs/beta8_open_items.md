@@ -27506,3 +27506,15 @@ would reach.
 - tests: tests/test_b41_the_list_and_its_buttons_keep_their_height.py (the beta 40 code: 16 of 30 px in English, 13 of 30 in German, red; mutation "no column floor" in `_list_box`: 3 red)
 - evidence: test_the_list_and_its_buttons_keep_their_height_at_every_size, test_the_list_is_never_lower_than_the_buttons_beside_it; tests/test_the_report_type_row_never_covers_the_list.py and tests/test_b40_report_window_buttons_fit_at_the_minimum_width.py kept green
 - proof: ~/Desktop/ChromIQ-beta41-proof/small-fixes/p2-before-en, p2-before-de, p2-after-en, p2-after-de (photographs/*-3-minimum-size.png), p2/ (test outputs).
+
+### B8-957 · FIXED, awaiting confirmation · The German trend graphs printed their limit values with a decimal point
+- blocks release: no
+- severity: TEXT
+- status: FIXED
+- note: beta 41
+- where: `ui/dialogs/measurement_report_dialog.py` (`_limit_value_text`, used by `_limit_line_note`: the tooltip of a limit line's word and the key under the graph in the PDF).
+- found by: the beta 40 second check: "Bereiche (1.5 ΔE00)" in a German report whose sentences write "59,4" (`_level_text`, B8-950).
+- fixed: the value takes the decimal mark of the report's language (`_DECIMAL_COMMA`, the list `_level_text` already reads): "Mittel (2,0 ΔE00)", "Bereiche (1,5 ΔE00)"; English keeps "1.5".
+- tests: tests/test_b41_limit_line_values_use_the_decimal_mark.py (mutation "no comma": 2 red)
+- evidence: test_german_writes_a_decimal_comma, test_english_keeps_its_point, test_the_graph_in_german_describes_its_line_with_a_comma
+- proof: ~/Desktop/ChromIQ-beta41-proof/small-fixes/p34-before-de, p34-after-de (driver-notes.txt "line:", the text of each limit line's tooltip), p3/.

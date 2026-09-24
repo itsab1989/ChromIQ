@@ -445,10 +445,15 @@ def _same_folder(a: "Path", b: "Path") -> bool:
 
 
 def _limit_value_text(v: float, unit: str) -> str:
-    """``1.5 ΔE00``: one decimal, two when the limit has them (0.75)."""
+    """``1.5 ΔE00``: one decimal, two when the limit has them (0.75), with
+    the decimal mark of the report's language (B8-957: German printed
+    "Bereiche (1.5 ΔE00)" in a report that writes "59,4" elsewhere)."""
+    from core.i18n import current_language
     s = f"{float(v):.2f}"
     if s.endswith("0"):
         s = s[:-1]
+    if current_language() in _DECIMAL_COMMA:
+        s = s.replace(".", ",")
     return f"{s} {unit}".strip()
 
 
