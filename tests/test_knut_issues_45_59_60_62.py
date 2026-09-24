@@ -359,8 +359,10 @@ def test_comparable_presets_lists_ti1_backed(qapp, settings):
     t = TabChart(ArgyllRunner(settings), FileManager(settings), settings)
     groups = t.comparable_presets()
     assert groups, "built-in ti1 presets should be listed"
-    for group_label, items in groups:               # grouped by instrument
-        assert group_label and items
+    for n, (group_label, items) in enumerate(groups):   # grouped by instrument
+        # the user's own presets come first with no heading, as in Create
+        # Chart (beta 41); every other group names its instrument
+        assert items and (group_label or n == 0)
         for label, path in items:
             assert label and Path(path).is_file() and str(path).endswith(".ti1")
 

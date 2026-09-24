@@ -229,11 +229,17 @@ QPlainTextEdit:disabled, QTextEdit:disabled {{
     background: {LM_BG_SURFACE};
     border-color: {LM_BORDER};
 }}
-QSpinBox:disabled::up-button,   QSpinBox:disabled::down-button,
-QDoubleSpinBox:disabled::up-button, QDoubleSpinBox:disabled::down-button {{
+/* THE STATE GOES ON THE SUB-CONTROL: `QSpinBox::up-button:disabled`, never
+   `QSpinBox:disabled::up-button`. Written the second way (until beta 41) Qt
+   painted every ENABLED plain QComboBox / QSpinBox in the disabled colour:
+   the beige pulldowns in Patch distribution and Preferences > Reports.
+   Only NoScrollComboBox escaped, through its per-widget sheet.
+   tests/test_the_patch_distribution_pulldown_matches_create_chart.py */
+QSpinBox::up-button:disabled,   QSpinBox::down-button:disabled,
+QDoubleSpinBox::up-button:disabled, QDoubleSpinBox::down-button:disabled {{
     background: {LM_BG_SURFACE};
 }}
-QComboBox:disabled::drop-down {{ background: {LM_BG_SURFACE}; }}
+QComboBox::drop-down:disabled {{ background: {LM_BG_SURFACE}; }}
 QComboBox {{
     padding-right: 28px;
 }}

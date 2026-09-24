@@ -3789,7 +3789,8 @@ BUILTIN_PRESET_GROUPS: list[tuple[str, list[tuple[str, str, str]]]] = [
     # because the CR30 is a round hand-held colorimeter with no Argyll layout of
     # its own. Placed BEFORE Scanner at Basti's request: "i want them listed for
     # the cr30 in both preset dropdowns / speechbubble overlay before the
-    # scanner section".
+    # scanner section", and again in beta 41: "put them before scanner
+    # presets".
     (_group_heading(_CR30_GROUP), [
         *_KNUT_GROUP_ENTRIES[_CR30_GROUP],
     ]),
@@ -3815,31 +3816,65 @@ def _marked_overlay_label(key: str, label: str) -> str:
     return p.marked_name if p is not None else label
 
 
+#: The heading of the user's own presets in :func:`preset_dropdown_groups`:
+#: none. Create Chart lists them straight under "none", above the built-ins.
+USER_PRESET_GROUP = ""
+
+
+def preset_dropdown_groups(
+        presets: dict) -> list[tuple[str, list[tuple[str, str, str]]]]:
+    """THE ORDER OF THE CREATE CHART PRESETS DROPDOWN, for every list that
+    offers presets: ``[(heading, [(combo_label, overlay_label, key), …]), …]``.
+
+    The user's own presets come first, under :data:`USER_PRESET_GROUP` (no
+    heading), in the order ``presets`` gives them (``load_presets`` sorts by the
+    shown name), and a user file that shadows a built-in's label or key is
+    dropped. EVERY user preset, whatever instrument it is for: Basti, beta 41,
+    *"user saved presets go to the very top of the whole list for every
+    instrument"*. Then the built-ins, grouped by instrument exactly as
+    :data:`BUILTIN_PRESET_GROUPS` has them. For a user preset all three slots
+    are its name; tell it from a built-in with ``key in BUILTIN_PRESET_KEYS``.
+
+    Basti, beta 41: the "Compare with profile" pulldown kept its own copy of
+    this list and put the user's presets LAST under a "Custom presets" heading,
+    so his 26 CR30 presets sat below Red River Paper there and at the top in
+    Create Chart. One function now answers the order for both.
+    """
+    user = [(str(n), str(n), str(n)) for n in presets
+            if n not in BUILTIN_PRESET_LABELS and n not in BUILTIN_PRESET_KEYS]
+    return [(USER_PRESET_GROUP, user),
+            *((instr, list(entries)) for instr, entries in BUILTIN_PRESET_GROUPS)]
+
+
 def comparable_presets(settings) -> list[tuple[str, list[tuple[str, "Path"]]]]:
     """Presets whose patch set exists on disk, grouped for the #66 "Compare with
-    profile" dropdown: ``[(group, [(label, .ti1 path), …]), …]`` — built-in
-    presets by instrument plus a "Custom presets" group for user presets that
-    bundled a .ti1. Re-read on each call (newly saved / deleted presets appear or
-    disappear by themselves). Shared by the Tools 3D viewer and the TI2 editor."""
+    profile" dropdown: ``[(group, [(label, .ti1 path), …]), …]``, in the order
+    and under the headings of the Create Chart Presets dropdown
+    (:func:`preset_dropdown_groups`): the user's presets that bundled a .ti1
+    first with no heading (group ``""``), then the built-ins by instrument.
+    A built-in row shows its overlay label (the chart's name without the
+    "Full layout setup" marker, which says nothing about a patch set).
+    Re-read on each call (newly saved / deleted presets appear or disappear by
+    themselves). Shared by the Tools 3D viewer and the TI2 editor."""
+    presets = _load_tab_presets("create_chart", settings)
     groups: list[tuple[str, list[tuple[str, Path]]]] = []
-    for instr, entries in BUILTIN_PRESET_GROUPS:
+    for heading, entries in preset_dropdown_groups(presets):
         items: list[tuple[str, Path]] = []
-        for _combo, overlay_label, key in entries:
-            asset = TabChart._builtin_ti1_asset(key)
-            if asset:
+        for _combo, label, key in entries:
+            if key not in BUILTIN_PRESET_KEYS:
+                data = presets.get(key)
+                if not (isinstance(data, dict) and data.get("attached_ti1")):
+                    continue
+                p = _preset_sidecar_path("create_chart", key, ".ti1")
+            else:
+                asset = TabChart._builtin_ti1_asset(key)
+                if not asset:
+                    continue
                 p = resource_path(asset)
-                if p.is_file():
-                    items.append((overlay_label, p))
+            if p.is_file():
+                items.append((label, p))
         if items:
-            groups.append((instr, items))
-    custom: list[tuple[str, Path]] = []
-    for name, data in _load_tab_presets("create_chart", settings).items():
-        if isinstance(data, dict) and data.get("attached_ti1"):
-            sc = _preset_sidecar_path("create_chart", str(name), ".ti1")
-            if sc.is_file():
-                custom.append((str(name), sc))
-    if custom:
-        groups.append((tr("Custom presets"), custom))
+            groups.append((heading, items))
     return groups
 
 
@@ -10006,15 +10041,19 @@ class TabChart(QWidget):
         self._preset_combo.blockSignals(True)
         self._preset_combo.clear()
         self._preset_combo.addItem(tr("none"), userData=None)
-        # User presets first, then the built-ins below them. A preset saved with
-        # "generate on select" gets a ▶ prefix so the user knows picking it
-        # starts the chart, not just loads values. userData stays the bare name.
-        for name in presets:
-            if name in BUILTIN_PRESET_LABELS or name in BUILTIN_PRESET_KEYS:
-                continue  # never let a user file shadow a built-in entry
-            label = f"▶  {name}" if (isinstance(presets[name], dict)
-                                     and presets[name].get("auto_run")) else name
-            self._preset_combo.addItem(label, userData=name)
+        # User presets first, then the built-ins below them — the order
+        # `preset_dropdown_groups` gives, which the "Compare with profile"
+        # pulldown reads too. A preset saved with "generate on select" gets a ▶
+        # prefix so the user knows picking it starts the chart, not just loads
+        # values. userData stays the bare name.
+        groups = preset_dropdown_groups(presets)
+        for heading, entries in groups:
+            if heading != USER_PRESET_GROUP:
+                continue
+            for _c, _o, name in entries:
+                label = f"▶  {name}" if (isinstance(presets[name], dict)
+                                         and presets[name].get("auto_run")) else name
+                self._preset_combo.addItem(label, userData=name)
         # Built-in presets, pinned below the user's own and grouped by the
         # instrument they target. Groups (and the order within each) follow the
         # shared BUILTIN_PRESET_GROUPS registry verbatim — no re-sorting — so the
@@ -10025,7 +10064,7 @@ class TabChart(QWidget):
         # (instrument, label, key, tooltip)
         builtins = [
             (instr, combo_label, key, self._builtin_tooltip(key))
-            for instr, entries in BUILTIN_PRESET_GROUPS
+            for instr, entries in groups if instr != USER_PRESET_GROUP
             for (combo_label, _overlay_label, key) in entries
         ]
         prev_instr: str | None = None

@@ -27518,3 +27518,29 @@ would reach.
 - tests: tests/test_b41_limit_line_values_use_the_decimal_mark.py (mutation "no comma": 2 red)
 - evidence: test_german_writes_a_decimal_comma, test_english_keeps_its_point, test_the_graph_in_german_describes_its_line_with_a_comma
 - proof: ~/Desktop/ChromIQ-beta41-proof/small-fixes/p34-before-de, p34-after-de (driver-notes.txt "line:", the text of each limit line's tooltip), p3/.
+
+### B8-960 · FIXED, awaiting confirmation · Two pulldowns (Patch distribution, Preferences > Reports) had a beige field in Light, and every plain pulldown and spin box painted its disabled colour while enabled
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: beta 41
+- where: `ui/light_styles.py`, `ui/styles.py`, `ui/neutral_styles.py` (the disabled rule for the combo's drop-down and the spin boxes' buttons).
+- found by: Basti's screenshots of 2026-09-24 (Patch distribution "Compare with profile:", then Preferences > Reports "Report type, default").
+- cause (measured): all three app stylesheets wrote the state BEFORE the sub-control, `QComboBox:disabled::drop-down` and `QSpinBox:disabled::up-button`. Written that way Qt painted every ENABLED plain `QComboBox` / `QSpinBox` in the disabled colour (Light #f7f4ef, Dark #1a1a1a, Neutral #e2e2e2, against #ffffff / #1f1f1f / #ffffff for the other pulldowns), and a disabled combo's drop-down never got its own colour. `NoScrollComboBox` escaped only through its per-widget sheet (`ui.widgets._input_bg_qss`), so the two plain combos were the ones seen.
+- fixed: `QComboBox::drop-down:disabled`, `QSpinBox::up-button:disabled` (and down-button, QDoubleSpinBox), once in each sheet. Measured after: enabled plain combo and spin box #ffffff / #1f1f1f / #ffffff, disabled #f7f4ef / #1a1a1a / #e2e2e2 with the drop-down in the same colour.
+- audit (on screen, every appearance): 54 enabled pulldowns on show across the main window's tabs, every Preferences tab, all 18 Tools windows and Patch distribution; before: 2 differ from Create Chart's Presets field in each appearance (Patch distribution, Preferences > Reports), after: 0.
+- tests: tests/test_the_patch_distribution_pulldown_matches_create_chart.py (mutations "selector back" in each of the three sheets: 1 red each)
+- evidence: test_every_pulldown_matches_create_chart_in_every_appearance
+- proof: ~/Desktop/ChromIQ-beta41-proof/patch-distribution-pulldown/drive-{light,dark,neutral}-{before,after} (photographs, pulldowns.json, driver-notes.txt), mutations.txt.
+
+### B8-961 · FIXED, awaiting confirmation · The "Compare with profile" list put the user's presets last under "Custom presets"
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: beta 41. The star overlay never listed user presets and still does not.
+- where: `ui/tabs/tab_chart.py` (`preset_dropdown_groups`, new, used by `_populate_preset_combo` and `comparable_presets`), `ui/dialogs/patch_cube_dialog.py` (no heading for the user block).
+- found by: Basti's screenshot of 2026-09-24: his 26 CR30 presets under "Custom presets" below Red River Paper, where Create Chart lists them at the top.
+- fixed: one function gives the order to both lists: every preset the user saved, for any instrument, at the very top with no heading (Basti: "user saved presets go to the very top of the whole list for every instrument"), then the built-in groups, CR30 before Scanner ("put them before scanner presets"), Red River Paper last. The compare list shows only presets with a patch set, and a built-in's chart name without the "Full layout setup" marker, as before.
+- tests: tests/test_the_patch_distribution_pulldown_matches_create_chart.py (mutations: user block last as "Custom presets", a "Custom presets" heading in the dialog, user CR30 presets filed under the CR30 heading, CR30 after Scanner: 1 red each)
+- evidence: test_the_list_is_create_charts_order_and_grouping, test_the_group_order_is_pinned_in_both_lists
+- proof: ~/Desktop/ChromIQ-beta41-proof/patch-distribution-pulldown/drive-*-after/photographs/*-B*, *-D* (Create Chart and Patch distribution lists open, top and scrolled to the CR30 group).

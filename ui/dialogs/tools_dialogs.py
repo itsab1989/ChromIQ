@@ -2476,6 +2476,34 @@ def open_tool_dialog(
     ``initial_chart`` pre-loads that editor with the Create Chart tab's current
     chart so it opens ready to edit (#45).
     """
+    dlg = build_tool_dialog(key, runner, settings, parent, on_apply=on_apply,
+                            initial_chart=initial_chart, project=project)
+    if dlg is not None:
+        dlg.exec()
+
+
+#: Every key :func:`build_tool_dialog` knows, in its order.
+TOOL_DIALOG_KEYS = (
+    "spot_read", "ti2_relayout", "average", "merge", "ti1_to_i1p",
+    "i1p_to_ti3", "i1p_to_ti1", "verify", "verify_profile", "profile_info",
+    "ti3_info", "measurement_report", "softproof", "device_link",
+    "devicelink_apply", "scanner_target", "scanner_profile", "translate",
+)
+
+
+def build_tool_dialog(
+    key: str,
+    runner: "ArgyllRunner",
+    settings: "AppSettings",
+    parent: QWidget | None = None,
+    on_apply: "Callable[[Path, str], bool | None] | None" = None,
+    initial_chart: "Path | None" = None,
+    project=None,
+) -> "QDialog | None":
+    """The dialog :func:`open_tool_dialog` opens for ``key``, built and not
+    shown, or None for an unknown key. Split out so a check can build every
+    tool window without entering its modal loop (beta 41, the pulldown audit).
+    """
     if key == "spot_read":
         from ui.dialogs.spot_read_dialog import SpotReadDialog
         dlg = SpotReadDialog(runner, settings, parent)
@@ -2527,5 +2555,5 @@ def open_tool_dialog(
         dlg = TranslationDialog(settings, parent)
     else:
         log.warning("Unknown tool key: %s", key)
-        return
-    dlg.exec()
+        return None
+    return dlg
