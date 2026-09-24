@@ -107,3 +107,35 @@ def test_report_dialog_does_not_leave_a_button_focused(app):
     _wait(300)
     assert not isinstance(app.focusWidget(), QAbstractButton)
     d.close()
+
+
+def test_defer_clear_reaches_a_window_that_is_not_active(app):
+    """The pass must clear the button a window will restore on activation,
+    even while that window is not the active one (`QApplication.focusWidget()`
+    is then None or another window's widget). This was the suite's
+    intermittent red under load, and a dialog shown behind another window in
+    the app. MUTATION, proven red: ask only `QApplication.focusWidget()`."""
+    from ui.widgets import defer_clear_button_focus
+    from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLineEdit
+    from PyQt6.QtTest import QTest
+    w = QWidget(); lay = QVBoxLayout(w)
+    btn = QPushButton("Do it", w); lay.addWidget(btn); lay.addWidget(QLineEdit(w))
+    other = QWidget(); QVBoxLayout(other).addWidget(QLineEdit(other))
+    try:
+        w.show(); app.setActiveWindow(w); w.activateWindow()
+        QTest.qWaitForWindowActive(w, 2000)
+        btn.setFocus()
+        if w.focusWidget() is not btn:
+            pytest.skip("the platform did not record the window's focus widget")
+        other.show(); app.setActiveWindow(other); other.activateWindow()
+        QTest.qWaitForWindowActive(other, 2000)
+        if app.activeWindow() is w:
+            pytest.skip("the platform did not move activation away")
+        defer_clear_button_focus(w)
+        _wait(300)
+        assert w.focusWidget() is not btn, (
+            "the inactive window still holds the button as its focus widget, "
+            "so activating it would hand the space bar to the button")
+    finally:
+        other.close(); w.close()
+        other.deleteLater(); w.deleteLater()

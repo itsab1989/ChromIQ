@@ -4113,10 +4113,25 @@ def defer_clear_button_focus(_root=None) -> None:
     from PyQt6.QtCore import QTimer
     from PyQt6.QtWidgets import QAbstractButton, QApplication
 
+    # ASK THE WINDOW TOO, NOT ONLY THE APPLICATION. `QApplication.focusWidget()`
+    # is None while the window is not active, so a pass that ran in such a
+    # moment cleared nothing, and the button got the focus back the instant
+    # the window was activated: a dialog shown while ChromIQ is in the
+    # background, and the suite's intermittent red on a loaded machine
+    # (test_space_bar_focus, three times in beta 42). The window keeps its own
+    # focus widget while inactive, and that is the one activation restores.
+    from PyQt6 import sip as _sip
     def _clear() -> None:
-        fw = QApplication.focusWidget()
-        if isinstance(fw, QAbstractButton):
-            fw.clearFocus()
+        cands = [QApplication.focusWidget()]
+        if _root is not None:
+            try:
+                if not _sip.isdeleted(_root):
+                    cands.append(_root.window().focusWidget())
+            except (RuntimeError, AttributeError):
+                pass
+        for fw in cands:
+            if isinstance(fw, QAbstractButton):
+                fw.clearFocus()
     for _delay in (0, 40, 150):
         QTimer.singleShot(_delay, _clear)
 

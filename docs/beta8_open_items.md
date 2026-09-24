@@ -28447,3 +28447,14 @@ would reach.
 - status: OPEN
 - note: challenge 4 of beta 42. In Edit limits… opened from a Profiling window, where a new report is a Printing record, the "Default for this run" radios are still greyed by Preferences' "Report type, default" when that is an ISO type (§32.1 says so, so this is a question, not a fault). Question for Knut: should that row follow the Preferences type there, or be free, since a profile run's own reports are never of an ISO type?
 - proof: ~/Desktop/ChromIQ-beta42-proof/challenge-4/runs/en-s1/driver-report.json (`s1_el_rundef_radios`)
+
+### B8-1042 · FIXED, awaiting confirmation · A button focused in a window that was not active kept the focus, so the space bar could still press it
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: seen as the suite's intermittent red in `test_space_bar_focus.py::test_defer_clear_button_focus_drops_a_focused_button` three times in beta 42 (loaded machine; green alone).
+- where: `ui/widgets.py::defer_clear_button_focus`.
+- cause: each pass asked only `QApplication.focusWidget()`, which is None while the window is not active; a pass in such a moment cleared nothing, and activation handed the focus back to the button. In the app: a dialog shown while ChromIQ is behind another window.
+- fixed: each pass also clears the button the window itself holds as its focus widget.
+- tests: tests/test_space_bar_focus.py::test_defer_clear_reaches_a_window_that_is_not_active (red on the old code).
+- evidence: test_defer_clear_reaches_a_window_that_is_not_active
