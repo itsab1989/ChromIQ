@@ -104,6 +104,13 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 # M-VERIFY-NO-CONTROL-STRIP left this set on 2026-09-19: Knut was asked for
 # the wording and answered "Yes, message text approved." A message leaves
 # here only that way, which is the whole point of pinning the set.
+# K33 (Knut, #182 5816565326, 2026-09-24): "All messages under 'C. Message
+# texts waiting for your approval' are approved." Twelve of the C list left
+# this set with that answer. Six stay: M-REPORT-UPDATE-OR-NEW and
+# M-REPORT-UNCHANGED-UPDATE-OR-NEW (reordered for K32), M-REPORT-DELETE-FAILED
+# and M-REPORT-NOT-WRITABLE (re-challenge R2), M-VERIFY-UNCHECKED-METRICS
+# (K31) and M-THRESHOLDS-NOT-CERTIFICATION (B8-978) were each revised after
+# the post he answered, so the words he approved are not the words shipped.
 AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # #159, 2026-08-30. The magnet guard used to
                                  # recognise ONE unit's stored white-tile value
@@ -145,7 +152,6 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # shipped so he can review it as a working
                                  # example, so it is a proposal for him and
                                  # not settled wording.
-                                 "M-VERIFY-PREFLIGHT",
                                  # #182, 2026-09-22, the same conversation.
                                  # Knut asked for two more pieces of text: one
                                  # telling a reader BEFORE printing that a
@@ -156,11 +162,8 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # patches. Both are his request and neither is
                                  # his wording, so both wait here.
                                  "M-VERIFY-UNCHECKED-METRICS",
-                                 "M-REPORT-PATCH-COUNTS-DIFFER",
-                                 "M-REPORT-CHART-MISMATCH",
                                  # beta 37, round B M7: the same strip when
                                  # only the evenness rows are short.
-                                 "M-REPORT-CHART-MISMATCH-LAYOUT",
                                  # beta 40 challenge B (B8-942): the strip's
                                  # closing without the grey-ramp lever.
                                  "M-REPORT-CHART-MISMATCH-NO-GREY",
@@ -170,7 +173,6 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # before a non-beta. Nothing in the model
                                  # governs removing a report, so the window and
                                  # its one refusal wait here.
-                                 "M-REPORT-DELETE",
                                  # #182 K26, 2026-09-23: Knut ruled that a
                                  # project opened from a folder not named what
                                  # its files carry is offered the rename
@@ -179,8 +181,6 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # with them, was WITHDRAWN for beta 39: Knut
                                  # retracted "no reports under Calibration",
                                  # 5794078008.)
-                                 "M-PROJECT-FOLDER-RENAMED",
-                                 "M-PROJECT-FOLDER-RENAME-FAILED",
                                  # Challenge C of beta 39, 2026-09-23: an
                                  # Update never drops a covered measurement
                                  # in silence (refused when nobody can find
@@ -189,8 +189,6 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # and a refused press names the folder.
                                  # The behaviour is the safe one; the words
                                  # are ours.
-                                 "M-REPORT-UPDATE-NOT-FOUND",
-                                 "M-REPORT-UPDATE-LEAVES-OUT",
                                  # Re-challenge R1 of beta 39: an Update that
                                  # would leave a report of nothing is refused.
                                  "M-REPORT-UPDATE-NOTHING-LEFT",
@@ -492,14 +490,12 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # that cannot be printed, measured or
                                  # built from, in silence. The guard is
                                  # new and so is the WORDING.
-                                 "M-IMPORT-NOT-A-CHART",
 
                                  # #182, 2026-09-21. The note a bracketed
                                  # limit points at, asked for by Knut in the
                                  # message that retired COND as a row word.
                                  # The WORDING is new and unreviewed; what he
                                  # ruled on is that such a note must exist.
-                                 "M-LIMIT-RECOMMENDED",
                                  # 2026-09-20, #182 (B8-591). Knut removed
                                  # "Show all measurement runs" from the design
                                  # with the feature behind it, and most of the
@@ -517,7 +513,7 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # Generate now stops and says so and moves no
                                  # tick. The BEHAVIOUR is his ruling; the
                                  # WORDING is new and waits here.
-                                 "M-REPORT-ONE-PAGE-ONE-DATE"}
+                                 }
 # Round 2 of the import-door review added four and Basti approved all four on
 # 2026-09-02, so they never sat in this set for longer than one branch:
 # M-IMPORT-NOT-OPENED, M-IMPORT-FOLDER-EXISTS, M-IMPORT-REPLACE-FOLDER-CONFIRM

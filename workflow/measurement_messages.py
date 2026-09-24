@@ -1027,7 +1027,7 @@ M_VERIFY_PREFLIGHT = _m(
     "For the verification workflow end to end, see the help card “Check a "
     "finished profile (verification run)” behind the question mark at the "
     "top right of the window.",
-    approved=False)
+    approved=True)
 
 #: The paragraph M-VERIFY-PREFLIGHT carries only when a metric is missing that
 #: nothing but FROM PROFILE GAMUT can supply. Knut asked the reader to be
@@ -1164,7 +1164,7 @@ M_REPORT_PATCH_COUNTS_DIFFER = _m(
     "before its last strip. Either way it is not a fault and nothing here is "
     "wrong, but a small change between such sheets is not necessarily a "
     "change in the printer.",
-    approved=False)
+    approved=True)
 
 
 # --- PROPOSED: the how-was-this-sheet-printed question ---------------------
@@ -1547,7 +1547,7 @@ M_PROJECT_FOLDER_RENAMED = _m(
     "\u2022  Choose another name: you type the name the project is to have, "
     "and its folder and files are renamed to it in the same way.\n\n"
     "\u2022  Cancel: nothing is changed, and the project is closed.",
-    approved=False)
+    approved=True)
 
 #: #182, Knut 5794078008: the window offers exactly three choices, each
 #: explained by a bullet in its text, and no "Leave it as it is". ``{built}``
@@ -1593,7 +1593,7 @@ M_PROJECT_FOLDER_RENAME_FAILED = _m(
     "Nothing was changed, and the project is open as it was. Its files still "
     "carry the name \u201c{name}\u201d, so ChromIQ does not find them in the "
     "folder \u201c{folder}\u201d.",
-    approved=False)
+    approved=True)
 
 #: What M-PROJECT-FOLDER-RENAME-FAILED says went wrong, in words (#182 beta
 #: 38, F6). The window printed the exception, which for the commonest cause
@@ -2029,7 +2029,7 @@ M_IMPORT_NOT_A_CHART = _m(
     "unchanged.\n\nOpen the “.ti2” file that sits beside the page "
     "images instead. It carries the same name as they do, without the page "
     "number.",
-    approved=False)
+    approved=True)
 
 # --- PROPOSED: the two ways a spot-read session can be thrown away --------
 #
@@ -2731,7 +2731,7 @@ M_REPORT_CHART_MISMATCH = _m(
     "Create Chart (for the grey balance: “Neutral grey ramp” with 16 steps), "
     "and the control strip wants the chart to declare one. Make the change, "
     "print the chart again and measure it.",
-    approved=False)
+    approved=True)
 
 # --- PROPOSED (#182, 2026-09-24, beta 40 challenge B): the same strip when no
 # row it lists is a grey row a device grey ramp answers -----------------------
@@ -2769,7 +2769,7 @@ M_REPORT_CHART_MISMATCH_LAYOUT = _m(
     "judged over nine areas of one page, so these rows want a chart laid out "
     "with more strips and more rows on a page, and with patches that cover "
     "most of the page. Make the change, print the chart again and measure it.",
-    approved=False)
+    approved=True)
 
 # M-REPORT-NOT-FOR-CALIBRATION (#182 K26, beta 38) is WITHDRAWN, never having
 # been approved: Knut retracted the ruling it spoke for (5794078008, "The run
@@ -2810,7 +2810,7 @@ M_REPORT_DELETE = _m(
         "Nothing is destroyed. The file stays on your disk in that folder, "
         "and the measurement(s) it describes are not touched."),
     count_key="n",
-    approved=False)
+    approved=True)
 
 # --- PROPOSED (#182, Knut 2026-09-19): Generate report with a selected report
 # whose settings have been changed --------------------------------------------
@@ -2923,7 +2923,7 @@ M_LIMIT_RECOMMENDED = _m(
     "The standard calls this metric recommended rather than required, so it "
     "may be applied optionally. Its limit is shown in brackets. It was applied "
     "here, and the result is reported the same way as every other row.",
-    approved=False)
+    approved=True)
 
 # --- PROPOSED (#182, Knut B8-591): the one-page summary covers ONE
 # measurement, and a user who has ticked several must be TOLD rather than
@@ -2950,7 +2950,7 @@ M_REPORT_ONE_PAGE_ONE_DATE = _m(
     "click “Generate report” again. “Deselect all” clears them all if that is "
     "quicker. To keep every measurement you have ticked, choose another "
     "report type instead.",
-    approved=False)
+    approved=True)
 
 # --- PROPOSED (challenge C, beta 39, #1): an Update that would narrow a
 # report to what this side can find ------------------------------------------
@@ -2971,7 +2971,7 @@ M_REPORT_UPDATE_NOT_FOUND = _m(
     "the report from a project that can reach them, and try again. "
     "“Create New” writes a new report of what is ticked and leaves "
     "this one as it is.",
-    approved=False)
+    approved=True)
 
 # --- PROPOSED (challenge C, beta 39, #11): the Update leaves out
 # measurements that are no longer on disk, and asks first --------------------
@@ -2988,7 +2988,7 @@ M_REPORT_UPDATE_LEAVES_OUT = _m(
     "is still there. The report as it is now is kept in the old folder "
     "first.\n\n"
     "What do you want to do?",
-    approved=False)
+    approved=True)
 
 # --- PROPOSED (re-challenge R1, beta 39, #4): an Update that would leave a
 # report of nothing ----------------------------------------------------------
