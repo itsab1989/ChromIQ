@@ -1,5 +1,29 @@
 # Changelog
 
+## v4.3.0-beta.41
+
+**Pulldowns look the same everywhere, and every preset list has one order.**
+
+### Changed
+
+- **Every preset list has the same order**: your own saved presets at the
+  top, then the built-in presets grouped by instrument. The Patch
+  distribution window's "Compare with profile" list uses the same list as
+  Create Chart.
+- Settings no longer shows a translation credit.
+
+### Fixed
+
+- **Two pulldowns had a light-brown field** instead of the normal one:
+  Patch distribution's "Compare with profile" and Preferences > Reports >
+  "Report type, default". Every pulldown and number field now looks the same
+  in Light, Dark and Neutral.
+- The measurement list and its Select all / Deselect all buttons keep their
+  height at the smallest report window.
+- The limit values on the trend graphs use the language's decimal mark.
+- A report always reads the project it recorded while that project still
+  exists, never a copy or a project of the same name.
+
 ## v4.3.0-beta.40
 
 **Knut's K31 rulings: a report owns its settings, and one name per metric.**
