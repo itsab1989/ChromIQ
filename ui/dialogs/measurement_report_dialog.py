@@ -8462,6 +8462,17 @@ class MeasurementReportDialog(QDialog):
         self._doc_created = self._document_created_stamp(entry)
         self._doc_sources = self._source_signature()
         self._forget_sticky_settings()
+        # **THE REPORT'S OWN LIMITS ARE THIS REPORT'S, NOT THE LAST ONE'S
+        # (beta 40 second check, finding 1).** Numbers typed into "This
+        # report" for one report and never generated stayed in
+        # `_report_own_limits`; picking another report and ticking any control
+        # made `_sticky_limits` hand them back, and Update wrote them into the
+        # other report as `edited: True`. A report loaded here brings its own:
+        # the numbers it was saved with when they were edited, nothing
+        # otherwise (so a later touch keeps an edited report's numbers too).
+        doc_lim = self._document_limits()
+        self._report_own_limits = (
+            doc_lim if doc_lim is not None and doc_lim.edited else None)
         # WHICH FILE OF EACH MEASUREMENT THE PAGE IS DRAWN FROM. Only the
         # document's own measurements are chosen: every other row is its
         # date's own report, so what the previous report chose goes first

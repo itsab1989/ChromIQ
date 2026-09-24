@@ -386,3 +386,83 @@ def test_a_carried_over_set_is_not_said_to_be_chosen_in_edit_limits(
         assert "earlier version of ChromIQ" in tip, tip
     finally:
         dlg.close()
+
+
+# --------------------------------------------------------------------------
+# 6. the report's own limits belong to the report they were typed for
+#    (beta 40 second check, finding 1)
+# --------------------------------------------------------------------------
+def _touch_a_control(dlg, qapp):
+    chk = dlg._detail_check
+    chk.setChecked(not chk.isChecked())
+    qapp.processEvents()
+
+
+def test_an_edit_for_one_report_is_not_written_into_another(
+        tmp_path, qapp, monkeypatch):
+    """Numbers typed into "This report" for one report and never generated
+    stayed in `_report_own_limits`; picking another report, ticking "Show
+    detailed data" and pressing Update wrote them into THAT report as
+    ``edited: True``.
+
+    MUTATION: drop the `_report_own_limits` assignment in `_apply_document`
+    and this goes red (the second date's file carries 0.4, edited True)."""
+    proj, run1, run2, d1, d2 = _two_run_project(tmp_path)
+    _edit_this_report(monkeypatch)
+    root = Path(proj.root)
+    dlg = _window(_settings(), d2[-1].measurement_ti3, qapp, "verification")
+    try:
+        first = _entry_for(dlg, d2[-1].dir)
+        _pick(dlg, first["key"], qapp)
+        dlg._on_open_limits()
+        qapp.processEvents()
+        assert dlg._report_limits().limits["all_de00_avg"].number == 0.4
+        other = _entry_for(dlg, d2[0].dir)
+        _pick(dlg, other["key"], qapp)
+        _touch_a_control(dlg, qapp)
+        before = _tree(root)
+        _press(dlg, qapp, "update")
+    finally:
+        dlg.close()
+    files = _written(before, root)
+    assert len(files) == 1, files
+    assert str(d2[0].dir) in str(files[0]), files
+    rep = json.loads(files[0].read_text(encoding="utf-8"))
+    num, edited = _avg_limit(rep["compliance"])
+    assert (num, edited) != (0.4, True), rep["compliance"]
+    assert not edited, rep["compliance"]
+
+
+def test_an_edited_report_keeps_its_numbers_after_a_control_moves(
+        tmp_path, qapp, monkeypatch):
+    """The other half: a report SAVED with edited numbers, loaded, a control
+    ticked and Update pressed, is rewritten with its own edited numbers, not
+    the set's plain ones.
+
+    MUTATION: assign None to `_report_own_limits` in `_apply_document`
+    whatever the document holds and this goes red."""
+    proj, run1, run2, d1, d2 = _two_run_project(tmp_path)
+    _edit_this_report(monkeypatch)
+    root = Path(proj.root)
+    dlg = _window(_settings(), d2[-1].measurement_ti3, qapp, "verification")
+    try:
+        entry = _entry_for(dlg, d2[-1].dir)
+        _pick(dlg, entry["key"], qapp)
+        dlg._on_open_limits()
+        qapp.processEvents()
+        _press(dlg, qapp, "update")
+    finally:
+        dlg.close()
+    dlg = _window(_settings(), d2[-1].measurement_ti3, qapp, "verification")
+    try:
+        entry = _entry_for(dlg, d2[-1].dir)
+        _pick(dlg, entry["key"], qapp)
+        _touch_a_control(dlg, qapp)
+        before = _tree(root)
+        _press(dlg, qapp, "update")
+    finally:
+        dlg.close()
+    files = _written(before, root)
+    assert len(files) == 1, files
+    rep = json.loads(files[0].read_text(encoding="utf-8"))
+    assert _avg_limit(rep["compliance"]) == (0.4, True), rep["compliance"]
