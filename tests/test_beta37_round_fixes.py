@@ -106,6 +106,9 @@ def _settings(tmp_path):
 
 _CAVEAT = "It is not proof that the print meets the standard"
 _PROVENANCE = "This verdict was recorded against the limit set"
+#: B8-948: a column judged just now (a changed report, or "New report…")
+#: says so instead of "recorded".
+_PROVENANCE_NOW = "is judged against this report's limit set"
 
 
 def test_a_printing_record_carries_no_standard_caveat_and_no_provenance(
@@ -130,7 +133,7 @@ def test_a_printing_record_carries_no_standard_caveat_and_no_provenance(
         text = _visible(dlg)
         assert "not graded" in text
         assert _CAVEAT not in text, "a record that grades nothing explains a PASS"
-        assert _PROVENANCE not in text, (
+        assert _PROVENANCE not in text and _PROVENANCE_NOW not in text, (
             "a record that grades nothing says where its verdict came from")
         # "Judged against" stays: Knut's earlier design names the set, and
         # whether it should is a question put to him (the register)
@@ -161,6 +164,7 @@ def test_a_graded_verification_keeps_both(qapp, tmp_path):
         dlg._detail_check.setChecked(True)
         text = _visible(dlg)
         assert _CAVEAT in text
-        assert _PROVENANCE in text
+        # the type was changed, so the page is judged just now (B8-948)
+        assert _PROVENANCE_NOW in text and _PROVENANCE not in text
     finally:
         dlg.deleteLater()

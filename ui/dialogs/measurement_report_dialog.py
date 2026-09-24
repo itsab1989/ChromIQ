@@ -291,45 +291,32 @@ def _trend_row_value(pt: dict, row_id: str, limit=None):
 #: One sentence per limit line, keyed by the row the line belongs to. The
 #: accuracy chart's grey pair is keyed by the two rows `legacy_pair` reads.
 #: Composed with the line's word and value by `_limit_line_note`.
+def _limit_note_for(rid: str):
+    """The note of one row's limit line: "the limit for “<name>”.", the name
+    being the row's version 1 name (K31) or, given, the name this document
+    prints for it (the within-gamut name on a split document)."""
+    def note(name: "str | None" = None) -> str:
+        from workflow.compliance_sets import ROW_BY_ID
+        return tr("the limit for “{metric}”.").format(
+            metric=name or tr(ROW_BY_ID[rid].label))
+    return note
+
+
 _LIMIT_NOTES = {
     # K28: the two lines of the Colour accuracy graph name their rows by the
-    # rows' own names, as the legend beside them does.
-    "all_de00_avg": lambda: tr(
-        "the limit for “{metric}”.").format(
-            metric=_METRIC_LABELS["avg_all"]()),
-    "all_de00_max": lambda: tr(
-        "the limit for “{metric}”.").format(
-            metric=_METRIC_LABELS["max_all"]()),
-    "substrate_de00_max": lambda: tr(
-        "the limit for the difference between the bare paper and the "
-        "reference paper."),
-    "grey_balance_neutral_ramp_avg": lambda: tr(
-        "the limit for the average colour cast over the steps of the grey "
-        "ramp."),
-    "grey_balance_neutral_ramp_max": lambda: tr(
-        "the limit for the colour cast of the worst single step of the grey "
-        "ramp."),
-    "ramps_30_70_dl_max": lambda: tr(
-        "the limit for the maximum lightness difference on the ramps between "
-        "30 % and 70 %."),
-    "control_strip_de00_avg": lambda: tr(
-        "the limit for the average colour difference of the control-strip "
-        "patches."),
-    "control_strip_de00_p95": lambda: tr(
-        "the limit for the colour difference that 95 % of the control-strip "
-        "patches stay under."),
-    "repeat_patches_de00_max": lambda: tr(
-        "the limit for the maximum difference between patches of the same "
-        "colour on one sheet."),
-    "repeat_measurement_de00_max": lambda: tr(
-        "the limit for the maximum difference when the same chart is "
-        "measured again."),
-    "uniformity_sd": lambda: tr(
-        "the limit for the maximum difference between any two of the nine "
-        "areas of the sheet."),
-    "uniformity_de00_max_from_mean": lambda: tr(
-        "the limit for the maximum difference between one of the nine areas "
-        "and the mean of all nine."),
+    # rows' own names, as the legend beside them does. **AND SO DOES EVERY
+    # OTHER LINE (B8-945, beta 40 challenge B, 6).** The grey, tone,
+    # repeatability, strip and evenness lines described their metric in
+    # words of their own ("the colour cast of the worst single step of the
+    # grey ramp") while K31 gave every row ONE name, which the legend beside
+    # the line prints. One sentence, the row's name in it.
+    rid: _limit_note_for(rid) for rid in (
+        "all_de00_avg", "all_de00_max", "substrate_de00_max",
+        "grey_balance_neutral_ramp_avg", "grey_balance_neutral_ramp_max",
+        "ramps_30_70_dl_max", "control_strip_de00_avg",
+        "control_strip_de00_p95", "repeat_patches_de00_max",
+        "repeat_measurement_de00_max", "uniformity_sd",
+        "uniformity_de00_max_from_mean")
 }
 
 #: What each graph is and what it shows, printed above it in the PDF: at
@@ -465,11 +452,14 @@ def _limit_value_text(v: float, unit: str) -> str:
     return f"{s} {unit}".strip()
 
 
-def _limit_line_note(word: str, value: float, unit: str, row_id: str) -> str:
-    """The sentence a limit line's word stands for, on screen and in print."""
+def _limit_line_note(word: str, value: float, unit: str, row_id: str,
+                     name: "str | None" = None) -> str:
+    """The sentence a limit line's word stands for, on screen and in print.
+    *name* is the row's name as the document prints it (B8-944: "…, within
+    gamut" on a split document, as the legend beside the line)."""
     return tr("{word} ({value}): {text}").format(
         word=word, value=_limit_value_text(value, unit),
-        text=_LIMIT_NOTES[row_id]())
+        text=_LIMIT_NOTES[row_id](name))
 
 
 def _with_unit(label: str, unit: str) -> str:
@@ -804,6 +794,21 @@ def _fmt(v, dec: int = 2) -> str:
     if isinstance(v, str):
         return html.escape(v)          # already formatted (the 3-decimal FAIL case)
     return f"{v:.{dec}f}" if isinstance(v, (int, float)) else "—"
+
+
+#: Languages whose decimal separator is a comma (B8-950). A level printed
+#: inside a sentence follows the sentence's language: "59,4" in German.
+_DECIMAL_COMMA = frozenset({"de", "es", "fr", "it", "nl", "no", "pl", "pt",
+                            "ru", "sv", "uk"})
+
+
+def _level_text(v) -> str:
+    """A level (a tone value, an L*, a grey level) as a sentence prints it:
+    as short as it is (``50``, ``59.4``), with the decimal comma of the
+    report's language."""
+    from core.i18n import current_language
+    t = f"{float(v or 0):g}"
+    return t.replace(".", ",") if current_language() in _DECIMAL_COMMA else t
 
 
 def _small_sample_sentence(r: "dict | None") -> str:
@@ -1979,8 +1984,8 @@ class MeasurementReportDialog(QDialog):
             "  • Profiling runs: after building a profile, check how faithfully "
             "the chart reproduced.\n"
             "  • Verification runs: the most valuable habit: print a small chart "
-            "THROUGH your finished profile (a colour-managed print, the "
-            "“Verification measurement” option on the Measure tab), measure it "
+            "THROUGH your finished profile (a colour-managed print, made "
+            "with Run type Verification), measure it "
             "every so often, and save a report each time. When the Pass/Fail "
             "results start slipping, that's your sign the printer has drifted far "
             "enough to re-profile. A tiny verification chart is enough; you're "
@@ -1997,7 +2002,8 @@ class MeasurementReportDialog(QDialog):
             "Tick the measurements the report is to cover: it covers exactly "
             "those, and nothing else. “Select all” and “Deselect all” beside "
             "the list tick and untick every row at once. The trend graphs "
-            "need at least two runs; with a single run each graph is drawn empty "
+            "need at least two measurements; with a single measurement each "
+            "graph is drawn empty "
             "and says so. Only combine profiles from the SAME printer (see "
             "below).\n\n"
             "The sections\n"
@@ -2366,7 +2372,7 @@ class MeasurementReportDialog(QDialog):
             tr("Save report as PDF…: writes the whole report (this window's "
                "contents, laid out for print with the ChromIQ heading and page "
                "numbers) to a PDF and opens it. The trend graphs are included only "
-               "when the report has two or more runs.\n\n"
+               "when the report has two or more measurements.\n\n"
                "Where it is saved: in the reports folder of the place the "
                "report's ticked measurements cover, whichever profile run "
                "this window was opened from; the save dialog offers it, and "
@@ -2881,9 +2887,9 @@ class MeasurementReportDialog(QDialog):
                "was made with. To judge earlier measurements against another "
                "set, tick them in a report and generate it.\n\n"
                "Edit limits… opens the whole table: this report's own limits "
-               "in its first column, “This report”, beside every set. With "
-               "one profile run loaded it also sets which limit set new "
-               "reports of that run start on.\n\n"
+               "in its first column, “This report”, beside every set. When "
+               "every measurement ticked is of one profile run, it also sets "
+               "which limit set new reports of that run start on.\n\n"
                "A new report starts on the limit set chosen in Preferences, "
                "Reports, unless its profile run has a default of its own, "
                "chosen in Edit limits…, which then wins.\n\n"
@@ -6548,14 +6554,11 @@ class MeasurementReportDialog(QDialog):
             self._limits_btn.setMinimumWidth(self._limits_btn.sizeHint().width())
             self._set_combo.setEnabled(True)
             self._limits_btn.setEnabled(True)
-            if run is not None and not several:
-                # The run is named only while the ticks are its own (K30).
-                self._judged_label.setText(
-                    tr("Judged against ({run}):").format(run=run.dir.name)
-                    if self._ticks_are_the_runs_own(run)
-                    else tr("Judged against:"))
-            else:
-                self._judged_label.setText(tr("Judged against:"))
+            # **NO RUN IN THE LABEL (B8-946).** Since K31 the set is the
+            # REPORT's, not a run's, so "Judged against (run1):" tied it to
+            # a run it no longer belongs to (and printed "run1" in English in
+            # every language).
+            self._judged_label.setText(tr("Judged against:"))
             if not self._sources and self._ti3 is None:
                 set_tip = tr("No measurement is loaded yet.")
                 btn_tip = set_tip
@@ -6567,11 +6570,19 @@ class MeasurementReportDialog(QDialog):
                     "it changes only the settings of the report shown: nothing "
                     "is judged again or written until you press Generate "
                     "report.")
+                # **AND WHAT ELSE THE WINDOW CHANGES, AT ONCE (B8-943, §25.3).**
+                # "A change applies to this report only" was false of every
+                # column but the first: the Preferences sets and "Default for
+                # new reports" are written the moment they are changed, as in
+                # Preferences, Reports. The sentence now says both.
                 btn_tip = tr(
                     "Opens the limits of the report shown, in the first column "
-                    "“This report”, beside every limit set. A change applies "
-                    "to this report only and is applied when you press "
-                    "Generate report.")
+                    "“This report”, beside every limit set. A change in “This "
+                    "report” applies to this report only and is applied when "
+                    "you press Generate report. The other columns and “Default "
+                    "for new reports” are the settings of Preferences, Reports: "
+                    "a change there is stored at once and changes no saved "
+                    "report.")
             # **AND WHY IT IS NOT THE PREFERENCES DEFAULT, WHEN IT IS NOT
             # (B8-526, K31).** Under "New report…" the set is the run's own
             # default when it has one (chosen in Edit limits, or bound by an
@@ -9245,10 +9256,8 @@ class MeasurementReportDialog(QDialog):
         # written to neither run (`_on_type_chosen`). §10 only ever asked for
         # the fallback below when the runs DISAGREE.
         self._type_combo.setEnabled(True)
-        self._type_label.setText(
-            tr("Report type ({run}):").format(run=run.dir.name)
-            if run is not None and not several
-            and self._ticks_are_the_runs_own(run) else tr("Report type:"))
+        # B8-946: the type is the REPORT's since K31; no run in its label.
+        self._type_label.setText(tr("Report type:"))
         self._type_combo.setToolTip("")
         # (K31: runs no longer carry a report type, so the line that said the
         # loaded runs "were set to different report types" has nothing left
@@ -9814,8 +9823,9 @@ class MeasurementReportDialog(QDialog):
                 "none lies within {tol} of the level {level} on a scale from "
                 "0 (black) to 100 (white), and {n} roughly evenly spaced "
                 "steps from black to white are needed").format(
-                    tol=f"{_MR.GREY_SPACING_TOL:g}", n=_MR.GREY_MIN_LEVELS,
-                    level=f"{float(gb.get('missing_level') or 0):g}"),
+                    tol=_level_text(_MR.GREY_SPACING_TOL),
+                    n=_MR.GREY_MIN_LEVELS,
+                    level=_level_text(gb.get('missing_level'))),
             "no_white": tr("the grey ramp in the measured chart does not reach "
                            "white"),
             "no_black": tr("the grey ramp in the measured chart does not reach "
@@ -9830,12 +9840,16 @@ class MeasurementReportDialog(QDialog):
             # rule on the 30 to 70 % band. Names the tone value nothing is
             # near, as the grey sentence above names its level.
             "ramp_steps_bunched": tr(
+                # B8-950: the tolerance carries its unit, percentage points
+                # of tone value, and the level its language's decimal mark.
                 "the mid-tone steps of the measured chart are bunched "
-                "together: none lies within {tol} of the tone value {level} %, "
-                "and {n} roughly evenly spaced steps between 30 % and 70 % on "
-                "one ramp are needed").format(
-                    tol=f"{_MR.RAMP_SPACING_TOL:g}", n=_MR.RAMP_MIN_STEPS,
-                    level=f"{float((r.get('ramps_30_70') or {}).get('missing_level') or 0):g}"),
+                "together: none lies within {tol} percentage points of the "
+                "tone value {level} %, and {n} roughly evenly spaced steps "
+                "between 30 % and 70 % on one ramp are needed").format(
+                    tol=_level_text(_MR.RAMP_SPACING_TOL),
+                    n=_MR.RAMP_MIN_STEPS,
+                    level=_level_text((r.get('ramps_30_70') or {}).get(
+                        'missing_level'))),
             # K31 option (a): on a chart built FROM PROFILE GAMUT the grey
             # steps are its neutral aims, placed by their L*.
             "too_few_neutral_aims": tr(
@@ -9848,8 +9862,9 @@ class MeasurementReportDialog(QDialog):
                 "none lies within {tol} of the lightness L* {level}, and {n} "
                 "roughly evenly spaced steps from its black to its white are "
                 "needed").format(
-                    tol=f"{_MR.GREY_SPACING_TOL:g}", n=_MR.GREY_MIN_LEVELS,
-                    level=f"{float(gb.get('missing_level') or 0):g}"),
+                    tol=_level_text(_MR.GREY_SPACING_TOL),
+                    n=_MR.GREY_MIN_LEVELS,
+                    level=_level_text(gb.get('missing_level'))),
             "neutral_aims_no_white": tr(
                 "the neutral aims of the measured chart do not reach within "
                 "{reach} L* of its lightest aim").format(
@@ -10106,8 +10121,18 @@ class MeasurementReportDialog(QDialog):
             _pages = [x for x in self._runs_for_document() if x] or [r]
         except Exception:                               # noqa: BLE001
             _pages = [r]
-        if r not in _pages:
-            _pages = [r] + _pages
+        # **THE SUBJECT AS THE PAGE JUDGES IT (B8-942).** The raw subject was
+        # put in front of the page's sheets whenever it was not among them,
+        # and the page's sheets are COPIES judged against the report's set, so
+        # it always was: the strip then read the date's own saved verdict (its
+        # own set, its own edited numbers) and named rows the page did not
+        # show. Its judged copy is used, or nothing when the page has it.
+        _keys = {self._run_key(x) for x in _pages}
+        if self._run_key(r) not in _keys:
+            try:
+                _pages = self._judged_by_the_document([r]) + _pages
+            except Exception:                           # noqa: BLE001
+                _pages = [r] + _pages
         for _sheet in _pages:
             _rows_here, _rec = self._verdict_rows(_sheet)
             for _row in _rows_here:
@@ -10151,19 +10176,36 @@ class MeasurementReportDialog(QDialog):
         from workflow.measurement_report import EVENNESS_ROWS
         lines = []
         for rid, reason, row, sheet in missing:
-            label = tr(ROW_BY_ID[rid].label) if rid in ROW_BY_ID else str(rid)
+            # THE NAME THE PAGE PRINTS (B8-944): "…, within gamut" on a
+            # document whose judged sheets are split, as Report Results.
+            label = (self._row_name(rid, _pages) if rid in ROW_BY_ID
+                     else str(rid))
             lines.append("• " + label + ": "
                          + self._reason_sentence(reason, sheet, row))
-        lim = self._window_limits()
+        # THE REPORT'S OWN SET, which is what the page is judged against
+        # (B8-942); `_window_limits` is only where a new report STARTS.
+        lim = self._report_limits()
         # WHEN EVERY ROW LISTED IS AN EVENNESS ROW, THE REMEDY IS THE LAYOUT
         # (round B before beta 37, M7). The general closing sends a reader to
         # add patches in Create Chart "(for the grey balance: “Neutral grey
         # ramp” with 16 steps)", and a round photographed it under a list
         # holding nothing but the two evenness rows: what they lack is strips
         # and rows on one page, which is the layout, not a patch set.
+        # …AND THE GREY LEVER ONLY WHERE A GREY ROW IS LISTED FOR A DEVICE
+        # GREY RAMP (B8-942). The general closing names "Neutral grey ramp"
+        # with 16 steps; under a list with no grey row, or for the grey rows
+        # of a FROM PROFILE GAMUT chart (its grey steps are its neutral aims,
+        # §26.5, whose lever is a larger chart), that lever is false.
+        from workflow.measurement_messages import (
+            M_REPORT_CHART_MISMATCH_NO_GREY)
+        _grey_on_a_device_ramp = any(
+            str(rid).startswith("grey_balance")
+            and sheet.get("reference_source") != "colorimetric"
+            for rid, _r, _x, sheet in missing)
         msg = (M_REPORT_CHART_MISMATCH_LAYOUT
                if all(rid in EVENNESS_ROWS for rid, _r, _x, _s in missing)
-               else M_REPORT_CHART_MISMATCH)
+               else M_REPORT_CHART_MISMATCH if _grey_on_a_device_ramp
+               else M_REPORT_CHART_MISMATCH_NO_GREY)
         title, body = msg.render(set=lim.set_label, rows="\n".join(lines))
         return title + "\n" + body
 
@@ -10642,6 +10684,15 @@ class MeasurementReportDialog(QDialog):
         # challenge B B7; spec 19.1, K18).** "...and this run's current limits
         # do not change it" explained how the app keeps a verdict; the reader
         # of a report holds no run and no limits.
+        # **"RECORDED" ONLY OF A SAVED REPORT (B8-948, K18).** Under "New
+        # report…", before Generate, every column is a copy judged just now,
+        # which carries a verdict like a saved one; the sentence said it was
+        # "recorded … when the report was made" of a report not yet made.
+        if recorded and self._is_judged_now(r):
+            return tr(
+                "This sheet is judged against this report's limit set "
+                "{label}."
+            ).format(label=label)
         if recorded:
             return tr(
                 "This verdict was recorded against the limit set {label} when "
@@ -10662,13 +10713,14 @@ class MeasurementReportDialog(QDialog):
                 "This date has no saved report of its own, so its words are "
                 "worked out against this report's limit set {label}."
             ).format(label=label)
+        # K18 (B8-948): a statement about the report, never about which
+        # version of ChromIQ saved it.
         return tr(
-            "Nothing is wrong with this report. It was saved by a version of "
-            "ChromIQ that did not yet keep the verdict together with the "
-            "measurements, so no PASS or FAIL of its own was stored for it. "
-            "The results above are therefore worked out against this "
-            "report's limit set {label}: they are not the verdict this sheet "
-            "was given on the day it was measured."
+            "Nothing is wrong with this report. Its saved file for this sheet "
+            "holds the measurements without a PASS or FAIL of its own, so the "
+            "results above are worked out against this report's limit set "
+            "{label}: they are not a verdict this sheet was given on the day "
+            "it was measured."
         ).format(label=label)
 
     def _thresholds_cell(self, r: dict) -> str:
@@ -10794,7 +10846,30 @@ class MeasurementReportDialog(QDialog):
         ctx = self._run_ctx
         if ctx is None or self._several_runs():
             return None
+        # **AND THE REPORT ITSELF MUST BE OF THAT ONE RUN (B8-940, §25.5).**
+        # `_several_runs` counts SOURCES, and a Profiling window's history is
+        # every run of its project from one source, so a report of three
+        # profile runs offered a live "Default for this run" row for the
+        # window's run. The row is about the report's run; a report whose
+        # ticked measurements lie in more than one profile run has none.
+        if len(self._profile_runs_of_the_report()) > 1:
+            return None
         return ctx.run
+
+    def _profile_runs_of_the_report(self) -> "set[str]":
+        """The profile runs (folders) the ticked measurements lie in; a
+        measurement in no run counts as a place of its own."""
+        from workflow.run_compliance import run_context_for
+        dirs: "set[str]" = set()
+        try:
+            rows = self._runs_for_report()
+        except Exception:                                # noqa: BLE001
+            rows = []
+        for r in rows or ():
+            origin = r.get("_origin_dir") or ""
+            c = run_context_for(origin) if origin else None
+            dirs.add(str(c.run.dir) if c else f"external:{origin}")
+        return dirs
 
     def _open_report_limits_window(self) -> None:
         """The limits window of THE REPORT ON SCREEN (#182 K30, K31).
@@ -11037,6 +11112,12 @@ class MeasurementReportDialog(QDialog):
         cache[key] = (r, c)
         return c
 
+    def _is_judged_now(self, r: dict) -> bool:
+        """Whether *r* is a copy `_judged_live` made just now, and so carries
+        a verdict no saved report holds yet (B8-948)."""
+        cache = getattr(self, "_judged_cache", None) or {}
+        return any(v[1] is r for v in cache.values())
+
     def _nothing_is_ticked(self) -> bool:
         """True when the user has unticked every measurement there is.
 
@@ -11220,11 +11301,31 @@ class MeasurementReportDialog(QDialog):
             for p in sc["profiles"])
         d0, d1 = sc["date_range"]
         ind = "margin:0 0 0 1.6em"
-        intro = (tr("The following profile verification runs are included:")
-                 if verification
-                 else tr("The following calibration measurements are "
-                         "included:") if calibration
-                 else tr("The following profiles' measurement runs are included:"))
+        # **SINGULAR OVER ONE ENTRY (B8-951).** The headings were plural
+        # whatever the list under them held: "The following profiles'
+        # measurement runs are included:" over one profile's one run, and
+        # "calibration measurements" over "· 1 measurement". A heading about
+        # groups counts the groups; one about measurements counts them.
+        n_groups = len(sc["profiles"])
+        n_total = sum(int(p.get("n") or 0) for p in sc["profiles"])
+        if verification:
+            intro = (tr("The following profile verification run is included:")
+                     if n_groups == 1
+                     else tr("The following profile verification runs are "
+                             "included:"))
+        elif calibration:
+            intro = (tr("The following calibration measurement is included:")
+                     if n_total == 1
+                     else tr("The following calibration measurements are "
+                             "included:"))
+        elif n_groups == 1:
+            intro = (tr("The following profile's measurement run is "
+                        "included:") if n_total == 1
+                     else tr("The following profile's measurement runs are "
+                             "included:"))
+        else:
+            intro = tr("The following profiles' measurement runs are "
+                       "included:")
         # THE RUN'S DESCRIPTION, AT THE TOP OF THIS SECTION. Knut, 2026-09-11,
         # asked whether the one-page report should carry a customer or job
         # name: *"No customer or job name per today. But print the run's
@@ -11900,9 +12001,11 @@ class MeasurementReportDialog(QDialog):
             "<p>" + html.escape(tr(
                 "This report compares what the instrument measured against the "
                 "chart's design colours (the reference values the chart was built "
-                "from). Every number is a colour difference (\u0394E00): 0 is a perfect "
-                "match, 1\u20132 is barely visible, and 10 or more is clearly "
-                "different.")) + "</p>"
+                "from). Most numbers are colour differences in \u0394E00: 0 is a "
+                "perfect match, 1\u20132 is barely visible, and 10 or more is "
+                "clearly different. The others name their own unit: \u0394Ch "
+                "for a colour cast, \u0394L* for a lightness difference, L* for "
+                "a lightness.")) + "</p>"
             # **ONE LIST, AND EVERY NAME IN IT IS A REAL METRIC'S OWN NAME
             # (B8-592).** Knut, 2026-09-20: *"The report text section 'How to
             # read this report' lists all the metrics that a report uses, but
@@ -12269,7 +12372,7 @@ class MeasurementReportDialog(QDialog):
                     f"font-weight:{weight}'>{html.escape(word_label(word))}"
                     f"{mark}</td>")
 
-        self._names_split = self._doc_is_split(runs)
+        self._names_split = self._names_within_gamut(runs)
 
         def label_of(rid):
             row = ROW_BY_ID.get(rid)
@@ -12329,13 +12432,12 @@ class MeasurementReportDialog(QDialog):
                and not r.get("_fresh") for r in runs):
             notes += (
                 f"<div style='{note_css}'>" + html.escape(tr(
+                    # K18 (B8-948): about the report, not ChromIQ's past.
                     "A column judged against “not recorded” is not a "
-                    "fault, and nothing is missing from it. That report was "
-                    "saved by a version of ChromIQ that did not yet keep the "
-                    "verdict together with the measurements, so its words "
-                    "are worked out against the limit set this report is "
-                    "judged against. Every report saved from now on keeps the "
-                    "verdict it was given on the day.")) + "</div>")
+                    "fault, and nothing is missing from it. Its saved file "
+                    "holds the measurements without a verdict of its own, so "
+                    "its words are worked out against the limit set this "
+                    "report is judged against.")) + "</div>")
         if any(r.get("_fresh") for r in runs):
             notes += (
                 f"<div style='{note_css}'>" + html.escape(tr(
@@ -12830,7 +12932,7 @@ class MeasurementReportDialog(QDialog):
         if not runs:
             return self._empty_html()
         # K31: whether the judged names say "within gamut" in this document.
-        self._names_split = self._doc_is_split(runs)
+        self._names_split = self._names_within_gamut(runs)
         # A plain "Created: …" line — at the top of the window body, and under
         # the title + spectrum line in the PDF (Knut). The profile line that used
         # to be here is dropped; Report Scope already lists it.
@@ -13441,13 +13543,21 @@ class MeasurementReportDialog(QDialog):
                      else _TREND_ABOUT_DE_WITHIN_GAMUT())
         if chart is self._trend_de and ungraded:
             return {"line_notes": [], "withheld": [], "about": about}
+        # THE NAME THE LEGEND BESIDE THE LINE PRINTS (B8-944): "…, within
+        # gamut" on a document holding a split sheet, the plain name on any
+        # other, decided for the document exactly as `_trend_configs` does.
+        _names_runs = self._document_runs_for_graphs()
         if chart is self._trend_de:
             avg_thr, max_thr = self._accuracy_thresholds()
             notes = [_limit_line_note(tr("Avg"), avg_thr, "ΔE00",
-                                      "all_de00_avg")
+                                      "all_de00_avg",
+                                      self._row_name("all_de00_avg",
+                                                     _names_runs))
                      if isinstance(avg_thr, (int, float)) else "",
                      _limit_line_note(tr("Max"), max_thr, "ΔE00",
-                                      "all_de00_max")
+                                      "all_de00_max",
+                                      self._row_name("all_de00_max",
+                                                     _names_runs))
                      if isinstance(max_thr, (int, float)) else ""]
             return {"line_notes": notes, "withheld": [], "about": about}
         rows = dict((k, r) for k, _t, r in _TREND_GROUPS).get(key)
@@ -13460,7 +13570,8 @@ class MeasurementReportDialog(QDialog):
                 continue
             lim = judged[rid]
             notes.append(_limit_line_note(word(), lim, ROW_BY_ID[rid].unit,
-                                          rid))
+                                          rid, self._row_name(rid,
+                                                              _names_runs)))
             withheld.append(lambda pt, rr=rid, ll=lim:
                             _trend_withheld_reason(pt, rr, ll))
         return {"line_notes": notes, "withheld": withheld, "about": about}
@@ -13515,6 +13626,24 @@ class MeasurementReportDialog(QDialog):
         gamut (K31: the judged names then say "within gamut")."""
         return any((r or {}).get("gamut_split") for r in (runs or []))
 
+    def _names_within_gamut(self, runs: "list | None") -> bool:
+        """Whether this document names its judged figures "within gamut":
+        a JUDGED sheet of it was split by the profile's gamut (B8-944).
+
+        **SPLIT IS NOT ENOUGH.** "…, within gamut" says the figure the word
+        judged is the within-gamut one. A profiling sheet is never graded
+        (§3) and a Printing record judges nothing, so on those the name
+        claimed a judgement nobody made, over a page that showed no split at
+        all (beta 40 challenge B, 8). They print the plain names."""
+        try:
+            if MeasurementReportDialog._ungraded_by_type(self):
+                return False
+        except Exception:                                # noqa: BLE001
+            pass
+        return any((r or {}).get("gamut_split")
+                   and (r or {}).get("is_verification")
+                   for r in (runs or []))
+
     def _row_name(self, rid: str, runs: "list | None" = None) -> str:
         """One row's name as this document prints it: the ROWS label, or its
         within-gamut name when a sheet of the document is split by the
@@ -13522,7 +13651,7 @@ class MeasurementReportDialog(QDialog):
         (K31, Knut #182 5801677743; `compliance_sets.row_name`). *runs*
         decides when given; otherwise the document being rendered does."""
         from workflow.compliance_sets import row_name
-        split = (MeasurementReportDialog._doc_is_split(runs)
+        split = (MeasurementReportDialog._names_within_gamut(self, runs)
                  if runs is not None
                  else bool(getattr(self, "_names_split", False)))
         return tr(row_name(rid, split))
@@ -13531,12 +13660,18 @@ class MeasurementReportDialog(QDialog):
         """Whether one of the two evenness rows is in this run's part of the
         report: in its verdict rows, which a "–" limit and the report type
         have already filtered (K31, the "How evenness was judged" line)."""
+        from workflow.compliance_sets import N_A
         from workflow.measurement_report import EVENNESS_ROWS
         try:
             rows, _rec = self._verdict_rows(r)
         except Exception:      # noqa: BLE001 — an explanatory line, never a gate
             return False
+        # **A ROW THAT WAS JUDGED, NOT A ROW THAT IS LISTED (B8-941).** The
+        # line says how evenness WAS judged, and it was printed above two
+        # evenness rows that both read N-A: nothing had been judged. An N-A
+        # evenness row does not count (§26.1, correction awaiting Knut).
         return any((x.get("row_id") or x.get("key")) in EVENNESS_ROWS
+                   and x.get("word") != N_A and x.get("value") is not None
                    for x in rows)
 
     def _printing_block_html(self, r: dict) -> str:
@@ -14225,6 +14360,10 @@ class MeasurementReportDialog(QDialog):
         # same runs the Report Results grid numbers, so the detailed tables'
         # markers and the grid's cannot disagree about which note is note 1.
         numbering = self._note_numbering(runs)
+        # A CALIBRATION IS NO PROFILE (B8-952): its chart is the project's
+        # calibration chart, and "Profile name: <name>-cal" named a profile
+        # that does not exist.
+        _calibration = self._report_kind(runs) == "calibration"
         for idx, run in enumerate(runs):
             brk = "page-break-before:always;" if idx > 0 else ""
             out.append(
@@ -14235,7 +14374,9 @@ class MeasurementReportDialog(QDialog):
                     date=str(run.get("created") or ""), n=run.get("patches", 0)))
                 + "</h3>"
                 f"<div style='color:{_C['dim']};margin-bottom:4px'>"
-                + html.escape(tr("Profile name: {name}").format(
+                + html.escape((tr("Calibration chart: {name}")
+                               if _calibration
+                               else tr("Profile name: {name}")).format(
                     name=run.get("chart") or "")) + "</div>"
                 + self._run_detail_html(run, numbering))
         return "".join(out)

@@ -27312,3 +27312,169 @@ would reach.
 - tests: tests/test_b40a_report_model_fixes.py (mutation "the old sentence for the bound case": 1 red).
 - evidence: test_a_carried_over_set_is_not_said_to_be_chosen_in_edit_limits
 - proof: ~/Desktop/ChromIQ-beta40-proof/challenge-A-fixes/ (item 5).
+
+### B8-940 · FIXED, awaiting confirmation · Edit limits offered a live "Default for this run" row for a report of several profile runs
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- note: beta 40, challenge B finding 1; spec §25.5 ("shown when the window is opened from a report of one profile run"), now recording that "one profile run" is the report's (awaiting confirmation). German by hand for the two help sentences.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_run_for_its_own_default`, `_profile_runs_of_the_report`, the "Judged against" help), `ui/dialogs/welcome_dialog.py` (Dictionary "Report limits (window)").
+- found by: challenge B of beta 40 (`~/Desktop/ChromIQ-beta40-proof/challenge-B-text/en2/photographs/en-profiling-04-report-limits.png`): a Profiling report of three runs of Report-Limits-Threshold-Series, the row shown and live.
+- cause: the row asked `_several_runs`, which counts SOURCES; a Profiling window lists every run's sheet of its project from one source.
+- fixed: the row is built only when every ticked measurement lies in the window's one profile run. The help now reads "When every measurement ticked is of one profile run, it also sets which limit set new reports of that run start on." (DE "Sind alle angehakten Messungen aus einem einzigen Profillauf, legt sie auch fest, …").
+- tests: tests/test_b40b_report_text_fixes.py (mutation "no report-runs check": red)
+- evidence: test_the_run_default_row_is_hidden_for_a_report_of_several_runs, test_the_judged_against_help_says_when_the_row_is_there
+- proof: ~/Desktop/ChromIQ-beta40-proof/challenge-B-fixes/ (REPORT.md item 1, en/ and de/ photographs *-profiling-04-report-limits.png, dump run_default_row).
+
+### B8-941 · FIXED, awaiting confirmation · "How evenness was judged" was printed while both evenness rows read N-A
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- note: beta 40, challenge B finding 2; spec §26.1, correction recorded there for Knut to confirm (an N-A evenness row does not count). No text changed.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_evenness_row_is_in_report`).
+- found by: challenge B of beta 40 (`challenge-B-text/en/photographs/en-split-02-How_this_ver.png`).
+- fixed: the line is printed only where an evenness row of the sheet was judged (it carries a value; its word is not N-A).
+- tests: tests/test_b40b_report_text_fixes.py (mutation "any evenness row": red), tests/test_k31_metrics.py (its rows now carry a value)
+- evidence: test_the_evenness_line_is_not_printed_over_two_n_a_rows, test_the_evenness_line_is_there_only_with_an_evenness_row
+- proof: ~/Desktop/ChromIQ-beta40-proof/challenge-B-fixes/ (item 2, the split and evenness scenes, page text and PDF text).
+
+### B8-942 · FIXED, awaiting confirmation · The "cannot be checked" strip read the dates' own reports and named a grey-ramp lever on a FROM PROFILE GAMUT chart
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- note: beta 40, challenge B finding 3; spec §26.5; §M-PROPOSED M-REPORT-CHART-MISMATCH-NO-GREY (new, the wording waits for approval). German by hand.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_mismatch_text`), `workflow/measurement_messages.py` (`M_REPORT_CHART_MISMATCH_NO_GREY`, `CATALOGUE`), `docs/design/unified_measurement_management.md`.
+- found by: challenge B of beta 40 (`challenge-B-text/en2/photographs/en-fpg-01-new-report.png`): FPG verification, New report, ChromIQ default; the strip named "Maximum ΔE00, control strip, lowest 95 %" (judged against the dates' own reports and their edited numbers, not the page's set) and closed with "Neutral grey ramp" with 16 steps, a row not in its list and a lever §26.5 rules out.
+- cause: the raw subject was put in front of the page's judged copies whenever it was not among them, which it never is; the set named was `_window_limits` (where a new report starts), not `_report_limits`; and the one closing named the grey ramp whatever the list held.
+- fixed: the subject's JUDGED copy is used (or nothing, when the page has it), the report's own set is named, the row names are the page's ("…, within gamut" on a split document), and the closing names the grey ramp only when a grey row is listed for a device grey ramp; otherwise M-REPORT-CHART-MISMATCH-NO-GREY, whose closing names no grey lever.
+- tests: tests/test_b40b_report_text_fixes.py (mutations "raw subject prepended", "window's set", "always the grey closing": each red), tests/test_message_catalogue.py, tests/test_the_release_demo_package.py (the new message is PROPOSED and demonstrated: Report-Limits-Every-Limit-Set/run10, Report-Limits-Custom-Columns/run1)
+- evidence: test_the_strip_names_only_the_rows_the_page_shows, test_the_grey_lever_is_named_only_for_a_device_grey_row, test_the_no_grey_closing_is_catalogued_and_proposed
+- proof: ~/Desktop/ChromIQ-beta40-proof/challenge-B-fixes/ (item 3, en/de fpg scene: mismatch_text, mismatch_tip, photographs *-fpg-01-new-report.png).
+
+### B8-943 · FIXED, awaiting confirmation · Edit limits' tooltip said a change applies to this report only while its Preferences half writes at once
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: beta 40, challenge B finding 4; spec §25.3, correction recorded there for Knut to confirm. Decision: the behaviour is kept (the Preferences columns beside "This report" have always written at once, and "Default for new reports" is one of them) and the text is made true, rather than holding one half of the Preferences settings until Close. German by hand.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_sync_limit_controls`, the "Edit limits…" tooltip), `ui/dialogs/thresholds_dialog.py` (the "Default for new reports" radios' tooltip from a report).
+- found by: challenge B of beta 40 (`challenge-B-text/en/dump-en.json`, split: `prefs_default_after_click` chromiq_tight before Close and without Generate).
+- fixed: "A change in “This report” applies to this report only and is applied when you press Generate report. The other columns and “Default for new reports” are the settings of Preferences, Reports: a change there is stored at once and changes no saved report." The radios add "This is the setting of Preferences, Reports: a click here stores it at once, without Generate report, and changes no saved report."
+- tests: tests/test_b40b_report_text_fixes.py (mutation "no tooltip sentence": red)
+- evidence: test_the_preferences_default_radio_writes_at_once_and_says_so
+- proof: ~/Desktop/ChromIQ-beta40-proof/challenge-B-fixes/ (item 4, dump limits_btn_tip, default_radio_tips, prefs_default_after_click).
+
+### B8-944 · FIXED, awaiting confirmation · One figure, two names: "…, within gamut" in the legend, the plain name in the limit-line note and the strip, and on a Printing record of a profiling sheet
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: beta 40, challenge B findings 5, 7 and 8; spec §26.4.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_names_within_gamut`, `_row_name`, `_trend_extras`, `_limit_line_note`, `_mismatch_text`).
+- found by: challenge B of beta 40 (`challenge-B-text/en/pdf-pages/en-split/text.txt` page 7; `en2/profiling-page.txt`).
+- fixed: the limit-line notes and the strip use the name the document prints; and a document names its judged figures "within gamut" only where a JUDGED sheet is split (a verification sheet, a type that judges): a profiling sheet (never graded) and a Printing record (judges nothing) print the plain names.
+- tests: tests/test_b40b_report_text_fixes.py (mutations "note without the name" x2, "split is enough": each red)
+- evidence: test_a_split_verification_names_its_limit_lines_within_gamut, test_a_profiling_sheet_or_a_printing_record_uses_the_plain_names
+- proof: ~/Desktop/ChromIQ-beta40-proof/challenge-B-fixes/ (items 5, 7, 8; PDF text of the split and profiling scenes).
+
+### B8-945 · FIXED, awaiting confirmation · The grey, tone, strip, repeatability and evenness limit-line notes described their metric instead of quoting its name
+- blocks release: no
+- severity: TEXT
+- status: FIXED
+- note: beta 40, challenge B finding 6; spec §26.3 (one name per row). The key "the limit for “{metric}”." already had its German; ten keys left every catalogue.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_LIMIT_NOTES`, `_limit_note_for`).
+- fixed: every limit line reads "the limit for “<the row's name>”.", as Colour accuracy's did.
+- tests: tests/test_b40b_report_text_fixes.py, tests/test_trend_graphs_explain_themselves.py
+- evidence: test_every_limit_line_note_quotes_the_rows_name, test_hovering_a_word_or_a_red_x_shows_the_text_the_pdf_prints, test_every_limit_word_has_a_note_written_for_it
+- proof: ~/Desktop/ChromIQ-beta40-proof/challenge-B-fixes/ (item 6, PDF text).
+
+### B8-946 · FIXED, awaiting confirmation · "Report type (run1):" and "Judged against (run1):" tied the report's own type and set to a run
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: beta 40, challenge B finding 10; K31 (the type and the set are the report's). The two keys left every catalogue; German showed "(run1)" in English.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_sync_limit_controls`, `_sync_type_combo`).
+- fixed: "Report type:" and "Judged against:" always.
+- tests: tests/test_b40b_report_text_fixes.py, tests/test_report_window_limit_controls.py, tests/test_rw_report_window_fixes.py
+- evidence: test_the_type_and_set_labels_name_no_run, test_a_measured_run_is_not_locked, test_the_c6_state_one_profiling_source_other_run_ticked
+- proof: ~/Desktop/ChromIQ-beta40-proof/challenge-B-fixes/ (item 10, dump type_label / judged_label, photographs *-01-new-report.png).
+
+### B8-947 · FIXED, awaiting confirmation · "No profile run's limits change." in the "Used for this report" tooltip
+- blocks release: no
+- severity: TEXT
+- status: FIXED
+- note: beta 40, challenge B finding 11. German by hand.
+- where: `ui/dialogs/thresholds_dialog.py`.
+- fixed: "Judge this report against this set. The choice is this report's: it is applied when you press Generate report, and no saved report changes."
+- tests: tests/test_b40b_report_text_fixes.py
+- evidence: test_the_type_and_set_labels_name_no_run
+- proof: ~/Desktop/ChromIQ-beta40-proof/challenge-B-fixes/ (item 11, dump used_radio_tips).
+
+### B8-948 · FIXED, awaiting confirmation · Report text explained past ChromIQ versions, and called a verdict judged just now "recorded … when the report was made"
+- blocks release: no
+- severity: TEXT
+- status: FIXED
+- note: beta 40, challenge B finding 12; spec §19.1 (K18: no ChromIQ history in report text). German by hand.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_verdict_provenance`, `_is_judged_now`, the "not recorded" note of `_report_results_html`).
+- fixed: "Nothing is wrong with this report. Its saved file for this sheet holds the measurements without a PASS or FAIL of its own, so …"; the note "… Its saved file holds the measurements without a verdict of its own, so …" (the sentence about "every report saved from now on" is gone); and under "New report…" before Generate a column reads "This sheet is judged against this report's limit set {label}." ("recorded" is said only of a saved report).
+- tests: tests/test_b40b_report_text_fixes.py (mutation "no judged-now branch": red), tests/test_a_saved_report_keeps_its_verdict.py, tests/test_a_report_never_saved_is_not_blamed_on_an_older_chromiq.py
+- evidence: test_a_verdict_judged_just_now_is_not_called_recorded, test_no_report_text_explains_an_earlier_chromiq, test_an_unrecorded_verdict_does_not_read_as_a_fault, test_a_report_that_really_is_old_is_still_named_as_one
+- proof: ~/Desktop/ChromIQ-beta40-proof/challenge-B-fixes/ (item 12, page text of the New report scenes).
+
+### B8-949 · FIXED, awaiting confirmation · "ChromIQ measures no tone value" beside the tone-ramp rows ChromIQ judges
+- blocks release: no
+- severity: TEXT
+- status: FIXED
+- note: beta 40, challenge B finding 15. German by hand.
+- where: `workflow/compliance_sets.py` (`tone_value_limits` note).
+- fixed: "ChromIQ measures the lightness of tone steps, not the tone value (dot area) of the lightest and darkest tones this row limits".
+- tests: tests/test_b40b_report_text_fixes.py
+- evidence: test_the_old_words_are_gone_and_the_new_ones_are_there
+- proof: ~/Desktop/ChromIQ-beta40-proof/challenge-B-fixes/ (item 15).
+
+### B8-950 · FIXED, awaiting confirmation · The bunched-steps notes printed "within 4" with no unit and a decimal point in German
+- blocks release: no
+- severity: TEXT
+- status: FIXED
+- note: beta 40, challenge B finding 16; spec §26.2 (the quoted note corrected there, awaiting confirmation). German by hand ("Prozentpunkten").
+- where: `ui/dialogs/measurement_report_dialog.py` (`_level_text`, `_DECIMAL_COMMA`, `_reason_sentence`).
+- fixed: "none lies within 4 percentage points of the tone value 50 %"; every level in the three bunched notes (grey level, tone value, L*) is printed with the decimal mark of the report's language ("59,4" in German).
+- tests: tests/test_b40b_report_text_fixes.py (mutation "no decimal comma": red)
+- evidence: test_a_level_carries_the_decimal_mark_of_its_language, test_the_old_words_are_gone_and_the_new_ones_are_there, test_the_na_note_and_the_presets_window_name_the_bunching
+- proof: ~/Desktop/ChromIQ-beta40-proof/challenge-B-fixes/ (item 16).
+
+### B8-951 · FIXED, awaiting confirmation · Report Scope's headings were plural over a single entry
+- blocks release: no
+- severity: TEXT
+- status: FIXED
+- note: beta 40, challenge B finding 32. Four new keys, German by hand.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_scope_html`).
+- fixed: a heading about groups counts the groups ("The following profile verification run is included:"), one about measurements counts them ("The following calibration measurement is included:"), and a profiling document over one profile says "profile's" ("… measurement run is included:" / "… measurement runs are included:").
+- tests: tests/test_b40b_report_text_fixes.py (mutation "plural heading": red), tests/test_k30_rulings.py
+- evidence: test_a_heading_over_one_entry_is_singular, test_a_calibration_report_has_its_own_title_and_scope
+- proof: ~/Desktop/ChromIQ-beta40-proof/challenge-B-fixes/ (item 32, page text of the cal and profiling scenes).
+
+### B8-952 · FIXED, awaiting confirmation · A calibration report spoke of a profile and of a verification chart
+- blocks release: no
+- severity: TEXT
+- status: FIXED
+- note: beta 40, challenge B finding 33. German by hand.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_detailed_section_html`), `workflow/compliance_sets.py` (`repeat_measurement_de00_max` blurb).
+- fixed: a calibration's detailed data reads "Calibration chart: <name>" (not "Profile name: <name>-cal"); the repeat-measurement blurb says "answered by measuring the same chart more than once" (not "one verification chart").
+- tests: tests/test_b40b_report_text_fixes.py (mutation "always Profile name": red)
+- evidence: test_a_calibration_report_names_no_profile, test_the_old_words_are_gone_and_the_new_ones_are_there
+- proof: ~/Desktop/ChromIQ-beta40-proof/challenge-B-fixes/ (item 33, cal scene page text).
+
+### B8-953 · FIXED, awaiting confirmation · Seven help and report sentences said what was not so, or were not sentences
+- blocks release: no
+- severity: TEXT
+- status: FIXED
+- note: beta 40, challenge B findings 9, 14, 17, 23, 24, 28 and 30. German by hand; the twelve other languages carry the English under the beta rule.
+- where: `ui/dialogs/measurement_report_dialog.py` (the window guide and Save/PDF help, How to read), `workflow/compliance_sets.py` (`_D_EVENNESS`), `scripts/make_report_limit_demos.py` (run descriptions), `data/i18n/de.json`.
+- fixed: (9) the trend graphs "need at least two measurements" / "two or more measurements" (DE "Messungen", no "Durchgänge", no "Läufe"); (14) the nonexistent "“Verification measurement” option on the Measure tab" is "made with Run type Verification" (DE "mit dem Lauftyp Verifizierung"); (17) the demo run descriptions and the pack's own set labels say "limits edited for its reports" (K31), never "for this run"; (23) DE "Grenzwertsatz", never "Grenzwertset"; (24) DE "die Anmerkung unter den Ergebnissen", the word the report prints ("Anmerkungen zu …"); (28) EN "On a typical print this takes about 30 patches in each area, roughly 270 on a page."; (30) How to read: "Most numbers are colour differences in ΔE00 … The others name their own unit: ΔCh for a colour cast, ΔL* for a lightness difference, L* for a lightness."
+- tests: tests/test_b40b_report_text_fixes.py
+- evidence: test_the_old_words_are_gone_and_the_new_ones_are_there, test_the_german_terms_are_the_reports_own, test_the_demo_descriptions_speak_of_the_reports_limits
+- proof: ~/Desktop/ChromIQ-beta40-proof/challenge-B-fixes/ (items 9, 14, 17, 23, 24, 28, 30; the demo package rebuilt and verified, pkg-build.log, pkg-verify.log).
+
+### B8-954 · OPEN · The German terminology sweep of challenge B, left for the owner
+- blocks release: no
+- status: OPEN
+- note: beta 40, challenge B findings 18 to 22, 25 to 27 and 31 (`~/Desktop/ChromIQ-beta40-proof/challenge-B-text/REPORT.md`, "DE term splits"). Not changed, by the brief: which word wins in each pair is Basti's call (German is his language), and a sweep touches hundreds of strings. The pairs found: Bogen / Blatt; Messfeld / Farbfeld / Feld; Zielwert / Design / Soll(farbe); "im Gamut" (three spellings); "Gemessen an" where the report means "judged against" (Bewertet gegen); tiefstes / dunkelstes Schwarz; many synonyms for one English term; three spellings of the Preferences path (Einstellungen → Berichte, Einstellungen, Berichte, …). Items 23 (Grenzwertsatz) and 24 (Anmerkung) were fixed in B8-953 because each had one answer the report already prints. For Basti.

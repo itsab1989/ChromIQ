@@ -866,8 +866,16 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
             self._default_group.addButton(rb)
             rb.setChecked(col == self._default_set)
             rb.toggled.connect(self._on_default_toggled)
-            rb.setToolTip(tr("A new report starts on this limit set, unless "
-                             "its profile run has a default of its own."))
+            _tip = tr("A new report starts on this limit set, unless its "
+                      "profile run has a default of its own.")
+            if self._buffer is None:
+                # B8-943: from the report window this row is Preferences,
+                # written at once, and nothing else in the window says so.
+                _tip += " " + tr(
+                    "This is the setting of Preferences, Reports: a click "
+                    "here stores it at once, without Generate report, and "
+                    "changes no saved report.")
+            rb.setToolTip(_tip)
             self._default_radios[col] = rb
             g.addWidget(rb, 2, ci, Qt.AlignmentFlag.AlignRight)
             self._column_widgets[col].append(rb)
@@ -913,8 +921,10 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                 rb.setChecked(col == self._run_set_id)
                 rb.setEnabled(bool(self._run_editable))
                 rb.setToolTip(
-                    tr("Judge this report against this set. No profile "
-                       "run's limits change."))
+                    # B8-947: since K31 no run HAS limits of its own.
+                    tr("Judge this report against this set. The choice is "
+                       "this report's: it is applied when you press Generate "
+                       "report, and no saved report changes."))
                 rb.toggled.connect(self._on_run_set_toggled)
                 self._run_set_radios[col] = rb
                 g.addWidget(rb, 3, ci, Qt.AlignmentFlag.AlignRight)

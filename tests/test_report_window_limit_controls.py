@@ -137,7 +137,8 @@ def test_a_measured_run_is_not_locked(qapp, tmp_path):
         from PyQt6.QtWidgets import QCheckBox
         assert not any("Unlock" in c.text()
                        for c in dlg.findChildren(QCheckBox))
-        assert "run1" in dlg._judged_label.text()
+        # B8-946: the set is the report's, so its label names no run.
+        assert dlg._judged_label.text() == "Judged against:"
     finally:
         dlg.deleteLater()
 

@@ -1760,8 +1760,8 @@ GLOSSARY += [
         "Reports. From the Measurement Report its first column, “This "
         "report”, holds the report's own limits, which a change there "
         "affects only; it is also where the default set for new reports is "
-        "chosen, and, with one profile run loaded, the one that run's new "
-        "reports start on.")),
+        "chosen, and, when every measurement of the report is of one profile "
+        "run, the one that run's new reports start on.")),
     (tr("Reference values (window)"),
      tr("The one door to other people's numbers, reached from Report limits. "
         "It has two halves that must not be confused: the ISO half, where a "

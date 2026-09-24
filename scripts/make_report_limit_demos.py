@@ -3108,7 +3108,7 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
                       else ("grid" if isinstance(plan.verify_chart,
                                                  GridChartRecipe)
                             else "ordinary")),
-            "set": limits_rec.label_en + (" (edited for this run)"
+            "set": limits_rec.label_en + (" (edited for its reports)"
                                           if limits_rec.edited else ""),
             "type": plan.report_type,
             "date": date.vid,
@@ -4142,7 +4142,7 @@ PROJECTS = [
                 CHART_SMALL, CHART_SMALL, "chromiq_quick", SERIES_ONE_DATE),
     ]),
     ("Report-Limits-Isolated-Rows", [
-        RunPlan("'Average ΔE00, lowest 95 %' isolated by limits edited for this run.",
+        RunPlan("'Average ΔE00, lowest 95 %' isolated by limits edited for its reports.",
                 CHART_MEDIUM, CHART_MEDIUM, "chromiq_default", SERIES_BEST95,
                 edited_limits={"all_de00_avg": 6.0, "worst5_de00_avg": 8.0,
                                "best95_de00_avg": 2.0, "all_de00_max": 9.0,
@@ -4154,7 +4154,7 @@ PROJECTS = [
         # right one to judge it on, and it puts a fifth size under the
         # supported/not-supported table below.
         RunPlan("'Maximum ΔE00, lowest 95 % (95th percentile)' isolated by limits edited for "
-                "this run, on the package's largest verification sheet.",
+                "its reports, on the package's largest verification sheet.",
                 CHART_WIDE, CHART_LARGE, "chromiq_default", SERIES_P95,
                 edited_limits={"all_de00_avg": 9.0, "worst5_de00_avg": 9.0,
                                "best95_de00_avg": 9.0, "all_de00_max": 9.0,
@@ -4163,14 +4163,14 @@ PROJECTS = [
                 CHART_SMALL, CHART_SMALL, "chromiq_tight",
                 SERIES_TWO_DATES_UNLOCKED),
         RunPlan("'Grey balance of the grey ramp, average' isolated by limits "
-                "edited for this run.",
+                "edited for its reports.",
                 CHART_SMALL, CHART_MEDIUM, "chromiq_default", SERIES_GREY_AVG,
                 edited_limits={"all_de00_avg": 6.0, "worst5_de00_avg": 6.0,
                                "best95_de00_avg": 6.0, "all_de00_max": 9.0,
                                "all_de00_p95": 9.0}),
         RunPlan("'Single-colour ramps 30 % to 70 %, largest lightness "
                 "difference', which no shipped limit set judges, given a "
-                "limit edited for this run.",
+                "limit edited for its reports.",
                 CHART_MEDIUM, CHART_MEDIUM, "chromiq_default", SERIES_RAMP,
                 edited_limits={"all_de00_avg": 9.0, "worst5_de00_avg": 9.0,
                                "best95_de00_avg": 9.0, "all_de00_max": 9.0,
@@ -4202,7 +4202,7 @@ PROJECTS = [
                 CHART_SMALL, CHART_MEDIUM, "chromiq_quick", TYPES_DE_QUICK,
                 report_type=REPORT_TYPE_SUMMARY),
         RunPlan("Grey and tone check, ChromIQ default, with a limit edited for "
-                "this run on the tone-ramp row, so all three of its rows "
+                "its reports on the tone-ramp row, so all three of its rows "
                 "carry a word.",
                 CHART_MEDIUM, CHART_MEDIUM, "chromiq_default",
                 TYPES_GREY_DEFAULT, report_type=REPORT_TYPE_GREY,
@@ -4346,7 +4346,7 @@ PROJECTS = [
     # reports of this package.
     ("Report-Limits-Profile-Gamut", [
         RunPlan("The three rows only a From-profile-gamut chart can answer, "
-                "one at a time, isolated by limits edited for this run.",
+                "one at a time, isolated by limits edited for its reports.",
                 CHART_MEDIUM, CHART_GAMUT, "chromiq_default",
                 GAMUT_ISOLATION,
                 # 17 of the 29 rungs, measured: the eight corners, three
@@ -4390,7 +4390,7 @@ PROJECTS = [
     # `declare_for_chart`, and run4 below is a chart it refuses.
     ("Report-Limits-Strip-And-Gamut", [
         RunPlan("ChromIQ's own control-strip declaration, with each of the "
-                "three strip rows isolated by limits edited for this run.",
+                "three strip rows isolated by limits edited for its reports.",
                 CHART_MEDIUM, CHART_MEDIUM, "chromiq_default",
                 STRIP_ISOLATION,
                 edited_limits=fill_limits(
@@ -4405,14 +4405,14 @@ PROJECTS = [
                      "Delete it and all three strip rows go back to reading "
                      "'this chart declares no control strip'."),
         RunPlan("The surface of the device cube, isolated by limits edited for "
-                "this run.",
+                "its reports.",
                 CHART_MEDIUM, CHART_MEDIUM, "chromiq_default",
                 SURFACE_ISOLATION,
                 edited_limits=fill_limits(
                     "chromiq_default", relax=RELAX_ALL,
                     keep=("surface_gamut_de00_avg",))),
         RunPlan("The most saturated quarter of the chart, isolated by limits "
-                "edited for this run.",
+                "edited for its reports.",
                 CHART_MEDIUM, CHART_MEDIUM, "chromiq_default",
                 OUTER_ISOLATION,
                 edited_limits=fill_limits(
@@ -4520,7 +4520,7 @@ PROJECTS = [
                 CHART_MEDIUM, CHART_MEDIUM, "chromiq_default", PAPER_NEWS,
                 paper_class="newsprint"),
         RunPlan("A From Profile Gamut chart on brightened glossy paper, the "
-                "paper white isolated by limits edited for this run.",
+                "paper white isolated by limits edited for its reports.",
                 CHART_MEDIUM, CHART_GAMUT_SMALL, "chromiq_default",
                 PAPER_GAMUT_WHITE, paper_class="glossy_oba", expect_strip_p95=False,
                 edited_limits=fill_limits(
@@ -4546,7 +4546,7 @@ PROJECTS = [
                 CHART_SMALL, CHART_MEDIUM, "chromiq_quick", BORDER_QUICK_MAX,
                 paper_class="matte_rag"),
         RunPlan("'Average ΔE00, lowest 95 %' on 2.0, isolated by limits edited for "
-                "this run, on the five-page chart.",
+                "its reports, on the five-page chart.",
                 CHART_MEDIUM, CHART_LARGE, "chromiq_default", BORDER_BEST95,
                 edited_limits=fill_limits(
                     "chromiq_default", relax=RELAX_ALL,
@@ -5903,7 +5903,7 @@ def type_set_coverage(dest: Path) -> dict:
             lim = run_limits(run, {})
             label = set_label(lim.set_id, lim.label_en)
             if lim.edited:
-                label += " (edited for this run)"
+                label += " (edited for its reports)"
             name = f"{pd.name.replace('Report-Limits-', '')}/{rd.name}"
             rows.append({"run": name, "type": report_type_name(tid),
                          "set": label})

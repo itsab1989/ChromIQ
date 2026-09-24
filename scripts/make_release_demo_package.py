@@ -370,6 +370,12 @@ MESSAGE_DEMOS: "dict[str, list[str]]" = {
     "M-REPORT-CHART-MISMATCH-LAYOUT": [
         "Report-Limits-Evenness/run2: the evenness rows on a 7-strip page",
     ],
+    # B8-942: the strip's closing without the grey-ramp lever, when no grey
+    # row is listed for a device grey ramp.
+    "M-REPORT-CHART-MISMATCH-NO-GREY": [
+        "Report-Limits-Every-Limit-Set/run10: the control strip's 95th percentile and the evenness rows, no grey row",
+        "Report-Limits-Custom-Columns/run1: the rows that need a reference file, and the evenness rows",
+    ],
     "M-REPORT-DELETE": [
         "Report-Limits-Report-Folders/run1: Delete Selected Report on the all-dates report",
         "the pack's reports/: Delete a report across two projects",

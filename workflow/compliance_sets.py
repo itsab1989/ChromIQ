@@ -582,7 +582,7 @@ _D_EVENNESS = (
     "The report also measures the sheet's own noise: it shuffles the patches "
     "across the nine areas 500 times and takes the 95th percentile of what "
     "the same arithmetic reads. A row is judged only when that noise is below "
-    "the row's limit. With a typical print that wants about 30 patches in "
+    "the row's limit. On a typical print this takes about 30 patches in "
     "each area, roughly 270 on a page.\n\n"
     # K31: `IN_GAMUT_LABELS`, the evenness rows among them.
     "Where the report splits a sheet's colours into those within the "
@@ -735,7 +735,7 @@ ROWS: "tuple[Row, ...]" = (
         remedy=_R_REPEAT_WITHIN),
     Row("repeat_measurement_de00_max", "repeatability",
         "Maximum ΔE00, the same chart measured again", "ΔE00", "build",
-        blurb='Whether the same file prints the same colour on another sheet and on another day. This is the question behind asking whether a printer is steady, and it is answered by measuring one verification chart more than once.',
+        blurb='Whether the same file prints the same colour on another sheet and on another day. This is the question behind asking whether a printer is steady, and it is answered by measuring the same chart more than once.',
         detect=_D_REPEAT_ACROSS,
         remedy=_R_REPEAT_ACROSS),
     # -- Evenness across the sheet (Knut, #182, 2026-09-22)
@@ -788,7 +788,14 @@ ROWS: "tuple[Row, ...]" = (
         note="needs the rub apparatus of the standard",
         blurb='How long a print needs before it is stable enough to measure, and whether the surface survives handling.'),
     Row("tone_value_limits", "not_evaluated", "Tone value reproduction limits", "",
-        "unmeasurable", note="ChromIQ measures no tone value",
+        # B8-949: "measures no tone value" sat beside the tone ramp rows,
+        # which ChromIQ does judge; what it does not measure is this row's
+        # quantity, the tone value (dot area) of the lightest and darkest
+        # tones.
+        "unmeasurable",
+        note=("ChromIQ measures the lightness of tone steps, not the tone "
+              "value (dot area) of the lightest and darkest tones this row "
+              "limits"),
         blurb='Whether the lightest and darkest tones that should print separately actually do.'),
     Row("measurement_condition", "not_evaluated",
         "Measurement condition (M0, M1, M2) stated and matched", "",

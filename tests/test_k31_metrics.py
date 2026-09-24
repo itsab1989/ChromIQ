@@ -250,7 +250,8 @@ def test_both_evenness_help_icons_carry_the_approved_text():
 
 def _printing(dlg, monkeypatch, row_ids):
     monkeypatch.setattr(dlg, "_verdict_rows", lambda r: (
-        [{"row_id": rid, "word": "PASS"} for rid in row_ids], False))
+        [{"row_id": rid, "word": "PASS", "value": 1.0} for rid in row_ids],
+        False))
     r = {"is_verification": True, "yardstick": "media-relative",
          "printing": {"colour": "through-profile", "intent": "relative"}}
     return _text(dlg._printing_block_html(r))

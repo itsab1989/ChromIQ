@@ -369,11 +369,11 @@ def test_an_unrecorded_verdict_does_not_read_as_a_fault(qapp, tmp_path):
     try:
         note = dlg._verdict_provenance(_report(), recorded=False)
         assert "Nothing is wrong with this report" in note
-        assert "did not yet keep the verdict" in note
+        assert "holds the measurements without a PASS or FAIL" in note
         # …and it must not read as a fresh verdict either: it says the words
         # are not the ones given on the day (K31: judged against the report's
         # own limit set, and no run's limits exist to "change them").
-        assert "not the verdict this sheet was given" in note
+        assert "not a verdict this sheet was given" in note
         assert "this run's limits" not in note
         grid = dlg._report_results_html([_report()])
         assert "is not a fault" in grid

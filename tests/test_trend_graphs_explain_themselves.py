@@ -336,9 +336,8 @@ def test_hovering_a_word_or_a_red_x_shows_the_text_the_pdf_prints(qapp):
     chart.show()
     _paint(chart)
     printed = [t for _k, _c, t in chart.descriptions()]
-    assert printed[0] == ("Areas (0.7 ΔE00): the limit for the maximum "
-                          "difference between any two of the nine areas of "
-                          "the sheet.")
+    assert printed[0] == ("Areas (0.7 ΔE00): the limit for “Maximum ΔE00, "
+                          "between two of the nine sheet areas”.")
     assert printed[1].startswith("2026-01-03, Areas (ΔE00): not judged")
     for rect, text in chart._hits:
         assert text in printed

@@ -2733,6 +2733,26 @@ M_REPORT_CHART_MISMATCH = _m(
     "print the chart again and measure it.",
     approved=False)
 
+# --- PROPOSED (#182, 2026-09-24, beta 40 challenge B): the same strip when no
+# row it lists is a grey row a device grey ramp answers -----------------------
+#
+# The closing above names a lever for the grey balance, "Neutral grey ramp"
+# with 16 steps, and it was printed whatever the list held: under a list with
+# no grey row in it, and on a FROM PROFILE GAMUT chart, whose grey steps are
+# its neutral aims and whose lever is a larger chart, never grey steps
+# (§26.5 of `measurement_report_limits.md`). Same headline, same {set} and
+# {rows}; the closing names no grey lever.
+M_REPORT_CHART_MISMATCH_NO_GREY = _m(
+    "M-REPORT-CHART-MISMATCH-NO-GREY",
+    "Some limits cannot be checked on this chart",
+    "The limit set {set} puts a limit on values this chart cannot supply, so "
+    "these rows read N-A (not applicable):\n{rows}\n\n"
+    "A row that was not computed says nothing about the printer. Each reason "
+    "above names what that row needs: most want patches added to the chart in "
+    "Create Chart, and the control strip wants the chart to declare one. Make "
+    "the change, print the chart again and measure it.",
+    approved=False)
+
 # --- PROPOSED (#182, 2026-09-23): the same strip when only evenness is short --
 #
 # Round B before beta 37, M7: under a list holding only the two evenness rows
@@ -3120,6 +3140,7 @@ def report_gone_line(entry: dict) -> str:
 CATALOGUE = {m.id: m for m in (
     M_LIMIT_RECOMMENDED,
     M_REPORT_CHART_MISMATCH, M_REPORT_CHART_MISMATCH_LAYOUT,
+    M_REPORT_CHART_MISMATCH_NO_GREY,
     M_THRESHOLDS_NOT_CERTIFICATION, M_REPORT_DELETE,
     M_REPORT_UPDATE_OR_NEW, M_REPORT_UNCHANGED_UPDATE_OR_NEW,
     M_REPORT_ONE_PAGE_ONE_DATE,

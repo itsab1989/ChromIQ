@@ -28,7 +28,9 @@ import os
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 #: The clause that may only be said of a report actually found on disk.
-BLAMES_AN_OLD_VERSION = "did not yet keep the verdict together with the"
+#: B8-948 (K18): the sentence no longer names an older ChromIQ; this is the
+#: clause that says a saved file holds no verdict of its own.
+BLAMES_AN_OLD_VERSION = "holds the measurements without a PASS or FAIL"
 
 
 def _run_with_no_saved_report(tmp_path, qapp):

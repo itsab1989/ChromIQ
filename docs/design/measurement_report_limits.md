@@ -5141,6 +5141,24 @@ date's verdict record" half of its K25 record), the G7 records and the
 * What the window may still write, neither of which is a report's setting:
   which COLUMNS the limits window shows (a view setting remembered per profile
   run, K-b), and the run's own default for new reports (§25.5).
+* **Correction for Knut to confirm (B8-943, beta 40 challenge B, 4).** The
+  list above left out the Preferences half of the window, which the window
+  has always written: the columns beside "This report" are the app-wide sets,
+  and a number changed there, or a click on the **"Default for new reports"**
+  row, is stored in Preferences, Reports at once, exactly as from Preferences
+  itself, before Close and without Generate report. No saved report changes
+  by it, and the report on screen does not either (its set is its own). The
+  "Edit limits…" tooltip said *"A change applies to this report only"*, which
+  was true of the first column only; it now says both halves: a change in
+  "This report" applies to this report only and is applied by Generate
+  report, and the other columns and "Default for new reports" are the
+  settings of Preferences, Reports, stored at once. The "Default for new
+  reports" radios opened from a report say the same in their tooltip. We kept
+  the behaviour and made the text true, rather than hold the Preferences
+  click until Close, because the columns beside it (the same Preferences
+  sets) have always written at once, and one half of the Preferences
+  settings waiting for Close while the other half does not would be a second
+  rule to learn.
 
 **25.4 "Unlock this run's limits" and the run lock are removed (section 2).**
 *"I agree that the 'Unlock this run's limits' is no longer needed."*
@@ -5198,7 +5216,14 @@ from the preferences default."*
   default set. The run's own default is chosen in the Report limits window's
   row **"Default for this run"**, shown when the window is opened from a
   report of one profile run (with several runs loaded there is no one run to
-  give a default to). Choosing the same set as the Preferences default clears
+  give a default to). **"One profile run" is the report's (B8-940, beta 40
+  challenge B, 1):** every ticked measurement lies in that run. A Profiling
+  window lists every run's sheet of its project from one source, so the row
+  was shown, and live, for a report of three profile runs; it is now hidden
+  whenever the ticked measurements lie in more than one run (or a measurement
+  in no run is among them). The "Judged against" help says so: *"When every
+  measurement ticked is of one profile run, it also sets which limit set new
+  reports of that run start on."* Choosing the same set as the Preferences default clears
   the run's own, so the run follows Preferences again. The row writes only
   that run's `meta.json`; no report changes. The Preferences row is now
   called **"Default for new reports"** (it was "Default for new runs").
@@ -5323,6 +5348,14 @@ approved."*).
   makes the paper the white, …"). The Dictionary entry "Judged relative to
   paper white (media-relative)" says the same in one sentence and names the
   new line.
+* **Correction for Knut to confirm (B8-941, beta 40 challenge B, 2).** An
+  evenness row that reads **N-A** does not count as "in the report" for this
+  line: nothing was judged, so a line saying how evenness *was* judged is not
+  true of it. The line is printed only when at least one evenness row of that
+  sheet carries a value (PASS, FAIL or INFO). Found on screen: both evenness
+  rows N-A (too few strips on the page) under the line "How evenness was
+  judged: … by comparing the nine areas of this sheet". The approved wording
+  is unchanged.
 * Neither text is a message window, so neither is in §M; both are recorded
   here as the approved wording.
 * **Built:** `ui/dialogs/measurement_report_dialog.py::_printing_block_html`,
@@ -5343,9 +5376,14 @@ package to test the requirements for this metric with the new rule."*).
   grey ramp. An axis that has the count and span but not the spacing is
   refused with the new reason **`ramp_steps_bunched`**, and the note names the
   tone value nothing is near: *"the mid-tone steps of the measured chart are
-  bunched together: none lies within 4 of the tone value 50 %, and 3 roughly
+  bunched together: none lies within 4 percentage points of the tone value
+  50 %, and 3 roughly
   evenly spaced steps between 30 % and 70 % on one ramp are needed"*. A chart
   short of steps or span keeps `no_ramp`.
+  *Corrected in beta 40 challenge B (B8-950):* the tolerance carries its unit
+  ("percentage points" of tone value; it read "within 4 of"), and the level
+  is printed with the decimal comma of the report's language ("59,4" in
+  German). Awaiting confirmation with the rest of this section.
 * The metric's help icon states the rule; its lever names Single Channel Steps
   (-s) and Grey Axis Steps (-g); the presets window says *"The mid-tone steps
   of this chart's tone ramps are bunched together: no ramp has 3 of them

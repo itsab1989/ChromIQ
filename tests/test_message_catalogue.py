@@ -161,6 +161,9 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # beta 37, round B M7: the same strip when
                                  # only the evenness rows are short.
                                  "M-REPORT-CHART-MISMATCH-LAYOUT",
+                                 # beta 40 challenge B (B8-942): the strip's
+                                 # closing without the grey-ramp lever.
+                                 "M-REPORT-CHART-MISMATCH-NO-GREY",
                                  "M-THRESHOLDS-NOT-CERTIFICATION",
                                  # #182, 2026-09-16: the design authority asked
                                  # for a way to select and delete saved reports
