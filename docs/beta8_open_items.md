@@ -27630,3 +27630,68 @@ would reach.
 - tests: tests/test_extra_high_seeds_only_default_margins.py; tests/test_the_layout_labels_are_never_clipped.py. Mutations: the row hidden in area-first again (6 red), not greyed (6 red), one tooltip for both modes (6 red), the label wrapping again (3 red, fr/it/pt).
 - evidence: test_max_strip_length_is_greyed_in_area_first_for_every_instrument, test_a_loaded_area_first_preset_greys_it_too, test_the_two_tooltips_say_why_and_where_in_english, test_the_two_tooltips_are_german_in_german
 - proof: ~/Desktop/ChromIQ-beta42-proof/b8-965-968/ (before/, after/, compare-area-first-*.png).
+
+### B8-969 · FIXED, awaiting confirmation · An Extra-high detour moved a chosen layout's patch block: the seed set "Patch area alignment" to centre-left unchecked
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- decided by: Basti, 2026-09-24, the B8-965 rule: a density change seeds its defaults ONLY into what is still at default; anything a preset set or the user chose is never overwritten. Applied to every field the seed writes.
+- note: beta 42 challenge, item 1. Same class as B8-965, which guarded the four margins only.
+- where: `ui/dialogs/layout_options_panel.py` (`_apply_mode_defaults`, `_mark_align_chosen`, `_align_chosen`, `set_recipe`, `apply_to_recipe`); `workflow/layout_engine/presets.py` (`LayoutRecipe.align_explicit`).
+- found by: the beta 42 challenge drive (`~/Desktop/ChromIQ-beta42-proof/challenge/runs/detour-typed-default`, `detour-redriver-patch`).
+- cause: `_apply_mode_defaults` wrote three fields: the margins (guarded since B8-965), the base margin and "Patch area alignment". The alignment went to centre-left whatever it was and nobody moved it back, so High -> Extra-high -> High built a different chart at the same visible density.
+- measured before (on screen): typed T20 R6 B6 L6 at High, block 47 mm from the top and 39 mm from the bottom; after the detour 54 / 32 mm, alignment centre-left. Red River ColorMunki A4 2052p 8 pages: top-left -> centre-left.
+- fixed: the seed runs only when the margins themselves are seeded (at default and not locked); then the base margin only when it is still the default one (5 or 6 mm), and the alignment only when nobody picked it. A person's pick of the alignment (a change, or a re-pick of the row shown) and a recipe somebody chose (`layout_explicit`) make it theirs. A layout nobody chose still gets Guided's page (#93): 5 mm margins, 5 mm base margin, block centre-left.
+- after (on screen): typed T20 R6 B6 L6: 47 / 39 mm before and after the detour, recipe unchanged in every field, alignment top-left; the Red River preset: recipe unchanged in every field.
+- tests: tests/test_an_extra_high_detour_changes_nothing_chosen.py. Mutations: the beta-42 `_apply_mode_defaults` back (10 red), a picked alignment not remembered (3 red).
+- evidence: test_typed_margins_come_back_from_the_detour_identical, test_a_red_river_preset_comes_back_from_the_detour_identical, test_the_red_river_preset_in_its_own_area_first_layout_too, test_a_picked_alignment_is_kept_while_default_margins_are_seeded, test_a_picked_top_left_is_a_choice_too, test_a_layout_nobody_chose_still_gets_guideds_page, test_a_non_default_base_margin_is_not_seeded
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge-fixes/ (before/, after/).
+
+### B8-970 · FIXED, awaiting confirmation · Under "Use instrument margins" Extra-high still changed the base margin 6 -> 5 into the recipe and the build
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: beta 42 challenge, item 5. B8-963 left the locked boxes alone and still wrote `_border = 5` (and the alignment) under the lock.
+- where: `ui/dialogs/layout_options_panel.py` (`_apply_mode_defaults`).
+- found by: the beta 42 challenge drive (`challenge/runs/cmD-patch-en`, a fresh ColorMunki panel, which starts locked).
+- fixed: nothing is seeded while the lock is on: not the boxes, not the base margin, not the alignment. The lock is the user's choice of the whole page.
+- tests: tests/test_an_extra_high_detour_changes_nothing_chosen.py (mutation: base margin and alignment seeded under the lock again, 1 red).
+- evidence: test_nothing_is_seeded_under_the_instrument_margins_lock
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge-fixes/ (before/lock-fresh, after/lock-fresh).
+
+### B8-971 · FIXED, awaiting confirmation · Typed margins equal to a default value were seeded with 5 mm after Save as Defaults and a restart
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: beta 42 challenge, item 6 (found by reading the code).
+- where: `workflow/layout_engine/presets.py` (`LayoutRecipe.margins_explicit`, `align_explicit`, `from_build_kwargs`); `ui/dialogs/layout_options_panel.py` (`apply_to_recipe`, `set_recipe`); `ui/tabs/tab_chart.py` (`_layout_recipe_values` drops the two flags from the "modified" comparison).
+- cause: typing a margin marked it chosen for the session only; `get_recipe` wrote `layout_explicit` from the four instrument-defaulted answers alone, so the saved recipe said nobody chose its margins, and 6/6/6/6 (or the instrument's own) read as default after a restart.
+- fixed: two recipe flags, `margins_explicit` and `align_explicit`, written by the panel when a person typed a margin / picked the alignment and the recipe does not already own its layout; read back on load. Absent from older dicts and from build kwargs, so those read as "nobody chose", as before.
+- tests: tests/test_an_extra_high_detour_changes_nothing_chosen.py; tests/test_layout_presets.py (the full round trip carries both). Mutations: the flag never written (2 red), written and never read (2 red).
+- evidence: test_typed_default_valued_margins_are_still_typed_after_a_restart, test_a_picked_alignment_is_still_picked_after_a_restart, test_nothing_typed_is_nothing_chosen_after_a_restart, test_the_flags_are_not_written_twice_for_a_chosen_layout, test_old_dicts_and_build_kwargs_read_as_nobody_chose
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge-fixes/ (before/typed-sixes-restart, after/typed-sixes-restart). On screen the fault did not show before either: that drive also picked "Prioritise patch size", which sets `layout_explicit` and so already protected the margins after the restart. The pure typed path (margins only) is proved by the tests.
+
+### B8-972 · FIXED, awaiting confirmation · A Guided build was logged with the Manual panel's layout
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: beta 42 challenge, item 3.
+- where: `ui/tabs/tab_chart.py` (`_log_chart_build`).
+- found by: the beta 42 challenge drive (`challenge/runs/guided-cm-en.console.txt`): "in guided: patch set targen | manual panel: CM, A4, area_first, density 2, 12x12 grid, margins T34.0 ..." for a chart Guided built patch-first, density 1, 6 mm.
+- fixed: in Guided the line describes Guided's own recipe (what `_engine_build_kwargs` hands the engine, with the base margin on every side), labelled "guided"; Manual is unchanged.
+- tests: tests/test_the_guided_build_log_describes_guided.py (mutation: Guided logs the Manual panel again, 2 red).
+- evidence: test_a_guided_build_is_logged_with_guideds_own_recipe, test_guided_extra_high_is_logged_as_density_3_at_its_own_margin, test_a_manual_build_is_still_logged_with_the_manual_panel
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge-fixes/ (before/guided-cm, after/guided-cm).
+
+### B8-973 · FIXED, awaiting confirmation · The patch set editor's heading was cut mid-word in Ukrainian and Portuguese
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: beta 42 challenge, item 2. B8-962 said "every dialog masthead"; it gave the label its ink as a minimum width, which a squeezed row does not honour.
+- where: `ui/tab_header.py` (`_InkTitleLabel(wrap=)`, `TabHeader(wrap_title=)`, `dialog_masthead`); `ui/dialogs/ti2_relayout_dialog.py` (the three editor headings, `Ti2RelayoutDialog.showEvent`).
+- found by: the beta 42 challenge drive (`challenge/runs/headings-uk`, `headings-pt`): label 433 px for 482 px of ink, 349 for 415.
+- cause: the editor sets `setMinimumSize(1000, 620)`, which switches off the layout's own minimum, so a source row wider than the window (1,227 px in Portuguese, 1,274 in Ukrainian) squeezes every item below its minimum, the heading included.
+- fixed: a dialog heading (every `dialog_masthead` and the editor's three) wraps between words when it is given less than its one-line ink; its minimum is its longest word. The editor's window is at least as wide as its rows' minimum on first show (capped at the work area). The tabs keep one line.
+- tests: tests/test_a_long_dialog_heading_wraps_instead_of_being_cut.py (14 languages, pixels). Mutations: the editor floor removed (es, pt red), the editor heading not wrapping (pt red), `dialog_masthead` not wrapping (14 red).
+- evidence: test_the_patch_set_editor_heading_is_whole_in_every_language, test_a_dialog_masthead_wraps_when_the_window_is_narrow, test_a_tab_heading_stays_on_one_line
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge-fixes/ (before/heading-*, after/heading-*).

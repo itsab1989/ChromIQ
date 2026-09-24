@@ -1,7 +1,7 @@
 """Reusable step-header widget shown at the top of each workflow tab."""
 from __future__ import annotations
 
-from PyQt6.QtCore import QEvent, Qt
+from PyQt6.QtCore import QEvent, QSize, Qt
 from PyQt6.QtGui import QColor, QFont, QPainter
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QLabel, QSizePolicy, QVBoxLayout, QWidget
 
@@ -40,24 +40,63 @@ class _InkTitleLabel(QLabel):
 
     SPARE = 2
 
-    def _ink_width(self) -> int:
+    def __init__(self, text: str, parent=None, *, wrap: bool = False) -> None:
+        super().__init__(text, parent)
+        #: A DIALOG heading may wrap onto a second line (beta 42 challenge,
+        #: item 2). B8-962 gave the label its ink as a MINIMUM, and a minimum is
+        #: only a request: a dialog that sets its own minimum width
+        #: (`setMinimumWidth(620)` in the patch set editor) switches off the
+        #: layout's, so a row that cannot fit squeezes every item below its
+        #: minimum. Measured on screen: "Упорядкуй і перефарбуй свої плями"
+        #: 433 px wide for 482 px of ink, "Organize e recolora as suas
+        #: amostras" 349 for 415, both cut mid-word. So a wrapping heading
+        #: asks for its whole ink on one line (`sizeHint`), accepts its
+        #: longest WORD as its minimum, and breaks between words when the
+        #: window gives it less. The tabs keep one line (`wrap=False`): their
+        #: column is sized by the heading, and a tab heading on two lines
+        #: would move the module buttons under it.
+        self._wrap = bool(wrap)
+        if self._wrap:
+            self.setWordWrap(True)
+            # The spare pixels are a MARGIN here, so a line broken to the
+            # label's width still has them for its last glyph's overhang.
+            self.setContentsMargins(0, 0, self.SPARE, 0)
+
+    def _ink(self, text: str) -> int:
         from PyQt6.QtGui import QFontMetrics
+        if not text:
+            return 0
+        fm = QFontMetrics(self.font())
+        return max(fm.tightBoundingRect(text).right() + 1,
+                   fm.boundingRect(text).right() + 1)
+
+    def _ink_width(self) -> int:
         self.ensurePolished()
         text = self.text()
         if not text:
             return 0
-        fm = QFontMetrics(self.font())
-        ink = max(fm.tightBoundingRect(text).right() + 1,
-                  fm.boundingRect(text).right() + 1)
         m = self.contentsMargins()
-        return ink + self.SPARE + m.left() + m.right()
+        spare = 0 if self._wrap else self.SPARE     # the margin holds it
+        return self._ink(text) + spare + m.left() + m.right()
+
+    def _widest_word(self) -> int:
+        self.ensurePolished()
+        m = self.contentsMargins()
+        return max((self._ink(w) for w in self.text().split()), default=0) \
+            + m.left() + m.right()
 
     def sizeHint(self):  # noqa: N802
+        if self._wrap:
+            w = self._ink_width()
+            return QSize(w, self.heightForWidth(w))
         s = super().sizeHint()
         s.setWidth(max(s.width(), self._ink_width()))
         return s
 
     def minimumSizeHint(self):  # noqa: N802
+        if self._wrap:
+            w = self._widest_word()
+            return QSize(w, self.heightForWidth(self._ink_width()))
         s = super().minimumSizeHint()
         s.setWidth(max(s.width(), self._ink_width()))
         return s
@@ -81,9 +120,14 @@ class TabHeader(QWidget):
         tooltip_body: str | None = None,
         tooltip_color: str | None = None,
         trailing_widget: QWidget | None = None,
+        wrap_title: bool = False,
     ) -> None:
         super().__init__(parent)
-        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
+        # A wrapping title needs the header to grow when it takes a second
+        # line; a one-line header is never taller than its hint.
+        self.setSizePolicy(QSizePolicy.Policy.Preferred,
+                           QSizePolicy.Policy.Preferred if wrap_title
+                           else QSizePolicy.Policy.Maximum)
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 8)
         root.setSpacing(4)
@@ -110,7 +154,7 @@ class TabHeader(QWidget):
         title_row.setContentsMargins(0, 0, 0, 0)
         title_row.setSpacing(10)
 
-        self._title_lbl = _InkTitleLabel(title_text, self)
+        self._title_lbl = _InkTitleLabel(title_text, self, wrap=wrap_title)
         # No color rule — inherit from active theme (LM_TEXT_MAIN in light,
         # TEXT_MAIN in dark) so the title stays legible on either bg.
         self._title_lbl.setStyleSheet(
@@ -352,7 +396,7 @@ def dialog_masthead(
     header = TabHeader(
         eyebrow, title, accent, parent,
         tooltip_title=tooltip_title, tooltip_body=tooltip_body,
-        tooltip_color=accent,
+        tooltip_color=accent, wrap_title=True,
     )
     head.addWidget(header, 1, Qt.AlignmentFlag.AlignVCenter)
     # WHERE IN THE RUN THIS WINDOW BELONGS, taken from the accent it already

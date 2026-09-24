@@ -1022,7 +1022,7 @@ class _NewChartDialog(QDialog):
         head.setContentsMargins(16, 12, 16, 0)
         head.addWidget(TabHeader(
             tr("NEW PATCH SET · SETUP"), tr("Set up your patch set"),
-            _acc(), self), 0, Qt.AlignmentFlag.AlignVCenter)
+            _acc(), self, wrap_title=True), 0, Qt.AlignmentFlag.AlignVCenter)
         GradientOverlay(accent_for(SPEC_MAGENTA), parent=self, alpha=15,
                         height=95, on_top=False)
         head.addStretch(1)
@@ -4684,7 +4684,8 @@ class _AddPatchesDialog(_NewChartDialog):
         head = QHBoxLayout()
         head.setContentsMargins(16, 12, 16, 0)
         head.addWidget(TabHeader(
-            tr("EXTEND THE CHART"), tr("Add patches"), _acc(), self),
+            tr("EXTEND THE CHART"), tr("Add patches"), _acc(), self,
+            wrap_title=True),
             0, Qt.AlignmentFlag.AlignVCenter)
         GradientOverlay(accent_for(SPEC_MAGENTA), parent=self, alpha=15,
                         height=95, on_top=False)
@@ -5000,7 +5001,7 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
         # magenta accent.
         src.addWidget(TabHeader(
             tr("CHART PATCH SET · EDITOR"), tr("Arrange and recolour your patches"),
-            _acc(), self), 0, Qt.AlignmentFlag.AlignVCenter)
+            _acc(), self, wrap_title=True), 0, Qt.AlignmentFlag.AlignVCenter)
         GradientOverlay(accent_for(SPEC_MAGENTA), parent=self, alpha=15,
                         height=95, on_top=False)
         src.addSpacing(16)
@@ -8815,6 +8816,26 @@ class Ti2RelayoutDialog(WorkAreaClamped, QDialog):
         if getattr(self, "_work_area_sized_once", False):
             return
         self._work_area_sized_once = True
+        # AND NEVER NARROWER THAN ITS OWN ROWS (beta 42 challenge, item 2).
+        # `setMinimumSize(1000, 620)` switches the layout's own minimum off, so
+        # a source row wider than 1000 px (the heading, two source buttons,
+        # Undo / Redo, the readout: 1,105 px in Portuguese) was squeezed below
+        # every item's minimum, and the heading was the item that gave: cut
+        # mid-word on screen in Ukrainian and Portuguese. The heading now
+        # wraps (`TabHeader(wrap_title=True)`), which shrinks that row's
+        # minimum to its longest word; this makes the window at least that
+        # wide, so the wrap has the width its line breaks were computed for.
+        # Capped at the work area: a screen narrower than the rows is a
+        # separate fault, not one to hide by opening off the edge.
+        from PyQt6.QtGui import QGuiApplication
+        need = self.layout().minimumSize().width() if self.layout() else 0
+        screen = self.screen() or QGuiApplication.primaryScreen()
+        if screen is not None:
+            need = min(need, screen.availableGeometry().width())
+        if need > self.minimumWidth():
+            self.setMinimumWidth(need)
+            if self.width() < need:
+                self.resize(need, self.height())
         cap_h = self._work_area_cap(self.height())
         # The minimum height (620) is the floor below which this window's rows
         # start to overlap; never resize below it, for the same reason
