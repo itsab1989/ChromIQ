@@ -25036,6 +25036,7 @@ would reach.
   "paper white" and drawn in the Paper white trend. Whether ChromIQ should
   prefer the chart's device-white patch, or say "this chart has no paper
   patch", is a design question (the media-relative yardstick divides by it).
+  DECIDED by Knut, #182 5817809396 (A10 (a)); built for beta 42 as B8-1014.
 - F4 German names one thing three ways in one group box ("Vorgaben",
   "Voreinstellungen:", "Presets"): Basti's call.
 - F30 the demo runs' descriptions state the lock state in English at build
@@ -26049,6 +26050,8 @@ would reach.
   §18.8).
 - not changed; for Knut: whether (1) should sort by the report's own date,
   and whether (2) is right (the document records both runs).
+- (1) DECIDED by Knut, #182 5817809396 (A9, newest first by the report's own
+  creation date); built for beta 42 as B8-1013. (2) and (3) stay open.
 
 ### B8-844 · FIXED · Knut 5794078008: Run type Calibration makes reports (replaces §18.1's empty window)
 - blocks release: no
@@ -26444,7 +26447,7 @@ would reach.
 ### B8-853 · OPEN · K30: limits belong to the report across places; the one-run window is a question for Knut
 - blocks release: no
 - status: FIXED
-- note: the across-places half is built in beta 39 and awaits confirmation (spec §24.3); the one-run half is not decided
+- note: the across-places half is built in beta 39 and awaits confirmation (spec §24.3); the one-run half was decided by K31 (spec §25.3), and its run default (A1 of 5802027116, option (a), built in beta 40) was accepted by Knut, #182 5817809396
 - ruled by: Knut, #182 5798461562: *"Why is editing limits is per run? I have not specified this. I have specified the opposite that all settings belong to a report, not a specific run"*.
 - built: with several places loaded "Edit limits…" is live and opens the Report limits window with a "This report" column (`ReportLimitsColumn`, in memory only) and a "Used for this report" row; a change is the report's own limits for the session (`_report_own_limits`), raises the red line, is written into the document by Generate report (Update / Create New / Cancel) and binds, unlocks or rewrites no run. The Colour accuracy graph's Avg / Max lines now follow the limits the page is judged against (`_thresholds`), which they did not.
 - answered: by K31 (B8-894, spec §25): with one profile run loaded the limits window is the REPORT's too ("This report"), and "Judged against" binds nothing. Before K31: with ONE place loaded the window still edits the run's limits and "Judged against" still binds the run (spec §5). Making those the report's too would change §19.6 and §19.13, which Knut confirmed on 2026-09-23. Asked of him, not decided here.
@@ -28087,3 +28090,62 @@ would reach.
 - severity: MINOR
 - status: OPEN
 - found by: K35. `BuiltinPresetPopup` paints its rows itself, so a screen reader sees one unnamed widget; K35 gave it a keyboard (Up/Down, Return, Right/Left on the arrow, Escape), not an accessibility interface. The "Select preset" pulldown is a real list: its arrow rows carry an accessible text ("34 more presets, collapsed / expanded").
+
+### B8-1011 · FIXED, awaiting confirmation · Report Scope says when a profile run the report covered has since been deleted
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5817809396 (A6 of 5802027116, "the recommended is accepted": add the Scope line). Spec §31.1; §13.14 question 4. Measured before: a report of three runs with run 2 deleted showed two measurements and no word about the third. Now M-REPORT-SCOPE-RUN-DELETED (PROPOSED, §M-PROPOSED) at the foot of Report Scope, window and PDF, naming the run by the number it had when the report was written. German by hand.
+- where: `workflow/measurement_report.py::deleted_runs_of`; `workflow/measurement_messages.py` (M_REPORT_SCOPE_RUN_DELETED, `deleted_runs_label`); `ui/dialogs/measurement_report_dialog.py::_scope_deleted_runs_html`.
+- tests: tests/test_k34_knuts_section_a.py. Mutations: the call left out of `_scope_html` (red); the line printed for every saved report (red).
+- evidence: test_report_scope_names_a_deleted_profile_run, test_a_report_with_every_run_there_says_nothing_of_the_kind, test_the_deleted_runs_are_read_off_the_document
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k34/ (*-a6-*.png).
+
+### B8-1012 · FIXED, awaiting confirmation · The folder-renamed window: a rename that fails says why, then the three choices come back
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5817809396 (A8, answer (b)). Spec §31.2. Before: after M-PROJECT-FOLDER-RENAME-FAILED the project stayed open, not renamed, and ChromIQ found none of its files. Now the three choices (rename to the folder's name, choose another name, Cancel which closes the project) come back after the message; Cancel is always one of them, so there is no loop without an exit. No new text.
+- where: `ui/tabs/tab_chart.py` (`_offer_rename_for_a_renamed_folder`, `_folder_renamed_choice`).
+- tests: tests/test_k34_knuts_section_a.py. Mutations: `return "failed"` after the message again (red); Cancel ignored after a failure (red).
+- evidence: test_a_failed_rename_says_why_and_offers_the_choices_again, test_cancel_after_a_failed_rename_closes_the_project
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k34/ (*-a8-*.png).
+
+### B8-1013 · FIXED, awaiting confirmation · "Report shown": newest first by the report's own creation date, not the file's time
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5817809396 (A9, "yes", newest first). Answers B8-843 (1). Spec §31.3. The order inside each heading is the document's own `created`; a report with no document date falls back to the stamp in its file name (`report_YYYY-MM-DD_HH-MM-SS`), then to the file's time; the file time is only the tie-break. Copied or restored files now sort by their date.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_report_created_at`, `_saved_documents`).
+- tests: tests/test_k34_knuts_section_a.py. Mutation: sort on the file time alone again (red).
+- evidence: test_the_order_is_the_reports_own_creation_date, test_the_window_lists_a_copied_report_by_its_own_date
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k34/ (*-a9-*.png).
+
+### B8-1014 · FIXED, awaiting confirmation · Paper white is the chart's own paper patch; with none it reads N-A with a note and nothing is judged relative to the paper
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- note: Knut, #182 5817809396 (A10 (a)). Answers B8-806 F13. Spec §31.4. The paper patch is the patch printed with no ink (RGB: every channel at 100; CMY(K)/n-colour: every channel at 0, defined for when the report reads those spaces); the lightest of them when there are several. With none: "Paper white" reads N-A with a numbered note (M-REPORT-NO-PAPER-PATCH, PROPOSED) in the detailed section and the Overview table, no point in the Paper white (L*) graph, and a sheet that would have been divided by the paper white is judged in absolute Lab. Every place that picked "the lightest patch" checked and listed in §31.4. A report saved before it is worked out again when read (`ALWAYS_BUILT_BLOCKS` gains `paper_patch`, found on screen). Two test fixtures scaled the chart's device values along with the readings, which is no re-measurement of one chart; they now scale only the readings. German by hand.
+- where: `workflow/measurement_report.py` (`paper_patch_rows`, `paper_white_row`, `_device_values_of`, `measurement_facts`, `build_report`); `ui/dialogs/measurement_report_dialog.py` (`_note_numbering`, `_numbered_notes_from`, `_note_sentence`, `_run_detail_html`, the Overview's paper white cell); `scripts/make_report_limit_demos.py` (`apply_design`, `paper_white_lines`).
+- tests: tests/test_k34_knuts_section_a.py; tests/test_an_averaged_measurement_is_its_own_measurement.py and tests/test_a_report_row_keeps_its_own_measurement.py (fixtures); tests/test_the_demo_pack_says_what_its_own_data_shows.py (README line). Mutations: the lightest patch again (red); the lightest as fallback (red); the lightest as the yardstick's anchor (red); the RGB rule for every space (red); no note row (red); a note row for every sheet (red).
+- evidence: test_the_paper_white_is_the_paper_patch_not_the_lightest_reading, test_a_chart_with_no_paper_patch_records_no_paper_white, test_a_report_saved_before_the_paper_patch_is_worked_out_again, test_a_relative_print_with_no_paper_patch_is_judged_in_absolute_lab, test_the_window_reads_n_a_with_a_numbered_note, test_no_ink_is_every_channel_at_full_in_rgb_and_zero_in_ink_spaces
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k34/ (*-a10-*.png).
+
+### B8-1015 · FIXED, awaiting confirmation · "Paper white, difference from the reference paper" on a FROM PROFILE GAMUT chart compares the paper with the profile's media white
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- note: Knut, #182 5817809396 (A11, "yes"). Answers B8-804 point 1. Spec §31.5. MEASURED FIRST on the beta 41 code and the challenge-2 pack: 51 dated FROM PROFILE GAMUT verifications in 4 projects, every one compared the paper with L* 100.00 / 0.01 / -0.01 (device white read as sRGB); the profiles describe L* 94.0 to 96.0; a paper of exactly the profile's white (95.5 / 0.21 / 1.41) reads 2.98 ΔE00 against it. Now the reference records the profile's media white (CHROMIQ_PROFILE_WHITE_LAB) and the bare-paper corner aims at it; an older reference asks the run's own built profile; with neither the old comparison stays. Other charts unchanged (N-A without a colorimetric reference; a Fogra set compares with its own paper). Not changed, put to Knut: the other seven corners keep their ideal aims, and the declared control strip includes them.
+- where: `workflow/gamut_target.py` (`profile_media_white_lab`, `GamutSelection`, `write_colorimetric_reference`, `read_colorimetric_reference`); `workflow/measurement_report.py` (`paper_corner_ids`, `paper_reference_of`, `build_report`).
+- tests: tests/test_k34_knuts_section_a.py. Mutations: no W override when reading the reference (red); the header illuminant for the media white (red); no run-profile fallback (red); both overrides removed (red, the row reads 2.98).
+- evidence: test_the_reference_records_the_profiles_media_white, test_the_paper_row_compares_the_paper_with_the_profiles_white, test_an_older_reference_asks_the_runs_own_profile, test_with_nothing_to_ask_the_row_keeps_its_old_comparison, test_the_profile_white_is_read_from_the_profiles_wtpt
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k34/ (*-a11-*.png; a11-measure-before.txt, a11-measure-after.txt).
+
+### B8-1016 · FIXED, awaiting confirmation · The demo pack designs a FROM PROFILE GAMUT paper against the profile's white, and a chart with no paper patch in absolute Lab
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: follows B8-1014 and B8-1015 (Knut, #182 5817809396). The generator placed every FROM PROFILE GAMUT paper on the ideal white (L* 100.0); against the profile's white its PASS dates would read 2.6 to 18.6. `apply_design` now places the paper from the corner's aim (the profile's white) and anchors a relative design on the paper patch; a chart with no paper patch is designed absolute, as the report now judges it. The README says a chart with no paper patch reads N-A.
+- where: `scripts/make_report_limit_demos.py` (`apply_design`, `paper_white_lines`).
+- tests: tests/test_the_release_demo_package.py (release tier: every measurable row tripped and passed from two angles); tests/test_the_demo_pack_says_what_its_own_data_shows.py::test_the_readme_explains_every_paper_that_is_not_the_pack_s.
+- evidence: test_every_measurable_row_is_tripped_and_passed_from_two_angles, test_the_readme_explains_every_paper_that_is_not_the_pack_s

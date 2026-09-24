@@ -94,6 +94,16 @@ points ChromIQ at their own copy. ChromIQ distributes nothing.
 
 ## 2. Knut's rulings
 
+> **CLOSED (A15 of 5802027116; Knut, 2026-09-24, [5817809396](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5817809396): "the recommended is
+> accepted").** The four chart layout questions of 2026-09-10 and 2026-09-11
+> that this section still carried as open are closed, settled by his later
+> rulings (5649810914) and the beta 9 to beta 18 text placement rounds: the
+> page note against the clip border text (§2, 2026-09-10, and §2c); "Clip"
+> also moving the right edge (§2c-i); the top strip labels holding their
+> distance from the edge (§2b, §2m-1); the 7 pt floor for strip letters and
+> row numbers (§2d, §2e). Closing them records no new behaviour: the sections
+> below keep their own status.
+
 ### 2026-09-07 (K-a to K-j)
 
 | Ref | Ruling |
@@ -251,7 +261,7 @@ prediction is only true while both read the same number.
   ruling does allow it, and the panel says so. **Flagged for Knut**: if he would
   rather the note printed on the band, that is a one-line change.
 
-### 2c-i. OPEN, and Knut's or Basti's call: "Clip" moves the RIGHT edge too
+### 2c-i. ~~OPEN, and Knut's or Basti's call~~ CLOSED 2026-09-24 (Knut, 5817809396, A15): "Clip" moves the RIGHT edge too
 
 Found in Knut's own log of 2026-09-10 (16:07:19, four lines, one per page of his
 100x150 chart on 4.2.3) and reported here rather than fixed, because the answer

@@ -8535,8 +8535,9 @@ class TabChart(QWidget):
     def _offer_rename_for_a_renamed_folder(self, root) -> bool:
         """Offer to rename a project whose folder is not called what its
         files are called (#182 K26, Knut 5792484060, Q5). ``"renamed"``,
-        ``"closed"`` (Cancel), ``"failed"`` (the rename was refused and said
-        so), or False when the names agree and nothing was asked.
+        ``"closed"`` (Cancel), or False when the names agree and nothing was
+        asked. A rename that is refused says so and the choices come back
+        (#182 A8), so an offer ends in one of the first two.
 
         Knut: *"If a project is opened where the root project folder is
         different than the defined name in 'Printer profile project name'
@@ -8581,20 +8582,58 @@ class TabChart(QWidget):
         # choose another name, or Cancel, which CLOSES the project.** "Leave
         # it as it is" is gone: it left a project open whose files ChromIQ
         # cannot find. A name window cancelled goes back to the choice.
+        from workflow import measurement_messages as M
+        # **A RENAME THAT FAILS BRINGS THE CHOICES BACK (#182 A8, Knut
+        # 5817809396, answer (b)).** The failure used to end here with the
+        # project open and not renamed, so ChromIQ found none of its files
+        # until it was closed and opened again. Now M-PROJECT-FOLDER-RENAME-
+        # FAILED says why and the three choices come back: another name, or
+        # Cancel, which closes the project. Cancel is always offered, so the
+        # loop always has an exit.
+        folder_name = new_name
+        while True:
+            new_name = self._folder_renamed_choice(
+                stored, folder_name, root, new_root, built)
+            if new_name is None:
+                log.info("project %s not renamed (files named %r): closed, "
+                         "as Cancel says", root, stored)
+                return "closed"
+            try:
+                self._file_mgr.rename_existing_project(root, new_name)
+            except (OSError, ValueError) as exc:
+                log.warning("renaming the project at %s to %r failed: %s; "
+                            "the choices are offered again", root, new_name,
+                            exc)
+                # IN WORDS, NOT A PATH (#182 beta 38, F6): the commonest
+                # cause, a name already taken, used to print as a bare path.
+                title, body = M.M_PROJECT_FOLDER_RENAME_FAILED.render(
+                    folder=root.name, new=new_name,
+                    error=M.rename_failure_reason(exc), name=stored)
+                InfoDialog(title, body, self, min_width=540).exec()
+                continue
+            break
+        log.info("project %s renamed to %r (its files carried %r)", root,
+                 new_name, stored)
+        return "renamed"
+
+    def _folder_renamed_choice(self, stored: str, folder_name: str, root,
+                               new_root, built: bool) -> "str | None":
+        """One pass of the folder-renamed window's three choices: the name to
+        rename to (the folder's own, or one typed in the project-name window),
+        or None for Cancel. A name window cancelled goes back to the choice
+        (Knut, 5794078008)."""
         from core.file_manager import same_entry as _same_entry
         from workflow import measurement_messages as M
         while True:
-            dlg = TargetChangeDialog(stored, new_name, root, new_root, self,
+            dlg = TargetChangeDialog(stored, folder_name, root, new_root, self,
                                      folder_renamed=True,
                                      built_profile=built)
             dlg.exec()
             action = dlg.result_action()
             if action == TargetChangeAction.CANCEL:
-                log.info("project %s not renamed (files named %r): closed, "
-                         "as Cancel says", root, stored)
-                return "closed"
+                return None
             if action == TargetChangeAction.RENAME:
-                break
+                return folder_name
             # "Choose another name": the existing project-name window, then
             # the same rename as the name field's (`rename_existing_project`).
             from ui.dialogs.name_prompt import ask_for_project_name
@@ -8604,30 +8643,13 @@ class TabChart(QWidget):
                     self._file_mgr.strip_workfile_ext(typed))
                 return cand.exists() and not _same_entry(cand, _root)
             texts = M.folder_renamed_texts(folder=root.name, name=stored,
-                                           new=new_name, built=built)
-            typed = ask_for_project_name(self, prefill=new_name,
+                                           new=folder_name, built=built)
+            typed = ask_for_project_name(self, prefill=folder_name,
                                          body=texts["name_body"],
                                          exists=_taken)
             if typed:
-                new_name = self._file_mgr._sanitise(
+                return self._file_mgr._sanitise(
                     self._file_mgr.strip_workfile_ext(typed))
-                break
-        try:
-            self._file_mgr.rename_existing_project(root, new_name)
-        except (OSError, ValueError) as exc:
-            log.warning("renaming the project at %s to %r failed: %s",
-                        root, new_name, exc)
-            from workflow import measurement_messages as M
-            # IN WORDS, NOT A PATH (#182 beta 38, F6): the commonest cause,
-            # a name already taken, used to print as a bare path.
-            title, body = M.M_PROJECT_FOLDER_RENAME_FAILED.render(
-                folder=root.name, new=new_name,
-                error=M.rename_failure_reason(exc), name=stored)
-            InfoDialog(title, body, self, min_width=540).exec()
-            return "failed"
-        log.info("project %s renamed to %r (its files carried %r)", root,
-                 new_name, stored)
-        return "renamed"
 
     def _close_after_folder_rename_cancelled(self) -> None:
         """Close the project whose folder-renamed window was cancelled: the

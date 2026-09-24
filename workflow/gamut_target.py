@@ -167,6 +167,13 @@ class GamutSelection:
     targets: "list[tuple[int, tuple[float, float, float], tuple[float, ...]]]" = field(default_factory=list)
     #: The §9a corners: (device, ideal sRGB Lab), appended after the targets.
     corners: "list[tuple[tuple[float, ...], tuple[float, float, float]]]" = field(default_factory=list)
+    #: #182 A11 (Knut, 5817809396): the paper THE PROFILE DESCRIBES, its media
+    #: white (``wtpt``) as L*a*b* D50, and the profile's file name. The row
+    #: "Paper white, difference from the reference paper" compares the bare
+    #: paper of the printed chart with this, so it asks "is this the paper the
+    #: profile was made for". None when the profile carries no media white.
+    profile_white_lab: "tuple[float, float, float] | None" = None
+    profile_name: str = ""
 
     @property
     def achieved(self) -> int:
@@ -175,6 +182,23 @@ class GamutSelection:
     @property
     def total_patches(self) -> int:
         return len(self.targets) + len(self.corners)
+
+
+def profile_media_white_lab(profile: "Path | str"
+                            ) -> "tuple[float, float, float] | None":
+    """The profile's media white (its ``wtpt`` tag) as L*a*b* D50, rounded to
+    four places, or None when the file has no readable one (#182 A11).
+
+    This is the paper the profile was measured on: what a bare patch of that
+    paper reads, in absolute colorimetry. Never raises."""
+    try:
+        from workflow.icc_info import read_icc
+        lab = read_icc(Path(profile)).white_lab
+    except Exception:                                  # noqa: BLE001
+        return None
+    if lab is None:
+        return None
+    return tuple(round(float(v), 4) for v in lab)
 
 
 def load_master_labs(path: "Path | None" = None) -> "list[tuple[float, float, float]]":
@@ -403,7 +427,9 @@ def select_gamut_targets(
     selection = GamutSelection(
         master_version=MASTER_SET_VERSION, master_total=len(labs),
         in_gamut_total=0, requested=int(count),
-        intent=intent, margin=margin)
+        intent=intent, margin=margin,
+        profile_white_lab=profile_media_white_lab(profile),
+        profile_name=profile.name)
 
     # THE ROUND TRIP ALONE IS NOT THE QUESTION: A COLOUR IS REACHABLE ONLY IF
     # ITS INK AMOUNT EXISTS. `-fif` extrapolates outside the device cube, and
@@ -588,6 +614,16 @@ def write_colorimetric_reference(selection: GamutSelection, out_path: Path) -> P
         f'CHROMIQ_IN_GAMUT "{selection.in_gamut_total}"',
         f'CHROMIQ_REQUESTED "{selection.requested}"',
         f'CHROMIQ_CORNER_IDS "{" ".join(str(i) for i in corner_ids)}"',
+    ]
+    # #182 A11: the paper the profile describes, which the paper white row
+    # compares the bare paper with. Written only when it is known, so a reader
+    # of an older file can tell "not recorded" from any value.
+    if selection.profile_white_lab is not None:
+        lines.append('CHROMIQ_PROFILE_WHITE_LAB "{}"'.format(
+            " ".join(f"{float(v):.4f}" for v in selection.profile_white_lab)))
+    if selection.profile_name:
+        lines.append(f'CHROMIQ_PROFILE "{selection.profile_name}"')
+    lines += [
         "",
         "NUMBER_OF_FIELDS 10",
         "BEGIN_DATA_FORMAT",
@@ -677,6 +713,23 @@ def read_colorimetric_reference(path: Path) -> "dict | None":
     if not labs:
         return None
     corner_ids = set((keywords.get("CHROMIQ_CORNER_IDS") or "").split())
+    profile_white = None
+    try:
+        vals = [float(v) for v in
+                (keywords.get("CHROMIQ_PROFILE_WHITE_LAB") or "").split()]
+        if len(vals) == 3:
+            profile_white = tuple(vals)
+    except ValueError:
+        profile_white = None
+    if profile_white is not None:
+        # #182 A11: THE BARE-PAPER CORNER AIMS AT THE PAPER THE PROFILE
+        # DESCRIBES, not at device white read as sRGB (an ideal L* 100). One
+        # rule for every reader of this file: the report, the demo pack's
+        # generator and the presets window.
+        from workflow.measurement_report import paper_corner_ids
+        for sid in paper_corner_ids({"corner_ids": corner_ids,
+                                     "devices": devices}):
+            labs[sid] = tuple(profile_white)
     return {
         "labs": labs,
         "devices": devices,
@@ -686,6 +739,9 @@ def read_colorimetric_reference(path: Path) -> "dict | None":
         "margin": keywords.get("CHROMIQ_MARGIN", ""),
         "master_total": keywords.get("CHROMIQ_MASTER_TOTAL", ""),
         "in_gamut": keywords.get("CHROMIQ_IN_GAMUT", ""),
+        #: #182 A11: None in a file written before beta 42.
+        "profile_white_lab": profile_white,
+        "profile": keywords.get("CHROMIQ_PROFILE", ""),
     }
 
 

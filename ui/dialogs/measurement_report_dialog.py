@@ -789,6 +789,12 @@ ALWAYS_BUILT_BLOCKS: "tuple[str, ...]" = (
     "repeat_within_sheet", "repeat_across_sheets",
     # evenness across the sheet (Knut, 2026-09-22)
     "evenness",
+    # #182 A10/A11 (Knut, 5817809396, beta 42): whether the chart has a paper
+    # patch. A report without it took its paper white from the LIGHTEST
+    # reading and, on a FROM PROFILE GAMUT chart, compared the paper with an
+    # ideal white; it is worked out again from its measurement, as every
+    # block above was, and the saved verdict is carried across untouched.
+    "paper_patch",
 )
 
 
@@ -1271,6 +1277,48 @@ def _report_order(origin, name) -> tuple:
     return (ns, _report_file_order(name))
 
 
+def _report_created_at(entry: dict) -> str:
+    """When one entry of "Report shown" was CREATED, as ISO text, for the
+    order inside a group (#182 A9, Knut 5817809396: *"the recommended is
+    accepted"*, newest first by the report's own creation date).
+
+    **FROM THE DOCUMENT, NOT FROM THE FILE.** The list was ordered by the
+    time the files were written (`_report_order`), so reports ChromIQ wrote
+    itself came out right and copied or restored files did not: a demo
+    project listed 2026-12-08 before 2026-12-15 (B8-843). A copy keeps what
+    the file SAYS, so the order is read from there:
+
+    1. the document's own ``created`` (every report since the document block,
+       B8-383; an Update keeps it, spec §13.8);
+    2. **a report with no document date** (written before the document
+       block): the stamp `save_report` put in its file name,
+       ``report_YYYY-MM-DD_HH-MM-SS``, the second it was saved;
+    3. a name in no such shape: the file's own time, the only evidence left.
+
+    The file time stays the tie-break (`_saved_documents` sorts on this and
+    then on ``order``), so two reports of one second keep the order they were
+    written in."""
+    import re as _re
+    doc = entry.get("doc") or {}
+    created = str(doc.get("created") or "")
+    if _re.match(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}", created):
+        return created[:19]
+    names = []
+    if entry.get("file") is not None:
+        names.append(Path(str(entry["file"])).name)
+    names += [str(n) for _r, n in (entry.get("members") or [])]
+    for name in names:
+        m = _re.match(r"report_(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})-(\d{2})",
+                      name)
+        if m:
+            return f"{m.group(1)}T{m.group(2)}:{m.group(3)}:{m.group(4)}"
+    order = entry.get("order") or ()
+    if order and order[0]:
+        return datetime.fromtimestamp(order[0] / 1e9).isoformat(
+            timespec="seconds")
+    return ""
+
+
 def _dir_ident(d: "Path") -> str:
     """A directory's identity on the disk, or its path when it has none.
 
@@ -1291,6 +1339,19 @@ def _dir_ident(d: "Path") -> str:
             return str(d.resolve())
         except OSError:
             return str(d)
+
+
+#: #182 A10: the note code of a sheet with no paper patch, and the key its
+#: "Paper white" line takes in the one note numbering (it is no limit row).
+NOTE_NO_PAPER_PATCH = "no_paper_patch"
+PAPER_WHITE_NOTE_ROW = "paper_white"
+
+
+def _no_paper_patch(r: dict) -> bool:
+    """Whether the report of this sheet records that its chart has NO paper
+    patch (#182 A10, `measurement_report.paper_white_row`). False for a
+    report written before beta 42, which records nothing either way."""
+    return isinstance(r, dict) and r.get("paper_patch") is False
 
 
 def _is_raw_drift(r: dict) -> bool:
@@ -7385,10 +7446,12 @@ class MeasurementReportDialog(QDialog):
                 r, name = entry["members"][0]
                 entry["label"] = self._saved_report_label(
                     r, name, with_stamp=True)
-        # Newest first: the one a reader is most likely to want is at the top,
-        # and `_report_order` is this window's one answer to "which of these
-        # was written last".
-        out.sort(key=lambda e: e["order"], reverse=True)
+        # Newest first: the one a reader is most likely to want is at the top.
+        # BY THE REPORT'S OWN CREATION DATE (#182 A9, `_report_created_at`),
+        # and the file time (`_report_order`) only breaks a tie, so a copied
+        # or restored report sorts where its date puts it.
+        out.sort(key=lambda e: (_report_created_at(e), e["order"]),
+                 reverse=True)
         return out
 
     def _measurement_dirs_of_the_list(self, run,
@@ -10562,6 +10625,10 @@ class MeasurementReportDialog(QDialog):
         """
         if code and self._NOTE_TEXT_SEP in code:
             return code.split(self._NOTE_TEXT_SEP, 1)[1]
+        if code == NOTE_NO_PAPER_PATCH:
+            # #182 A10: §M text (M-REPORT-NO-PAPER-PATCH, proposed)
+            from workflow import measurement_messages as M
+            return M.M_REPORT_NO_PAPER_PATCH.render()[1]
         return {
             "printing_unrecorded": tr(
                 "How this sheet was printed is not recorded, so the grey rows "
@@ -10611,7 +10678,9 @@ class MeasurementReportDialog(QDialog):
             sentence = self._note_sentence(code)
             if not sentence:
                 continue
-            labels = [self._row_name(rid) if rid in ROW_BY_ID else str(rid)
+            labels = [self._row_name(rid) if rid in ROW_BY_ID
+                      else tr("Paper white") if rid == PAPER_WHITE_NOTE_ROW
+                      else str(rid)
                       for rid in rids]
             # "; " and not ", ": since K28 the names carry commas of their
             # own ("Average ΔE00, all patches"), and two of them joined by a
@@ -10640,6 +10709,15 @@ class MeasurementReportDialog(QDialog):
                 continue
             rows, _rec = self._verdict_rows(r)
             merged.extend(rows)
+        # #182 A10: A SHEET WITH NO PAPER PATCH carries a numbered note on
+        # its "Paper white" line, which is no limit row, so the line is put
+        # into the one numbering as a row of its own (after the limit rows,
+        # so no row's number moves).
+        for r in runs or ():
+            if _is_raw_drift(r) or not _no_paper_patch(r):
+                continue
+            merged.append({"row_id": PAPER_WHITE_NOTE_ROW,
+                           "notes": [NOTE_NO_PAPER_PATCH]})
         return numbered_notes(merged)
 
     def _measured_not_graded(self, r: dict) -> "list[tuple[str, str]]":
@@ -12380,8 +12458,47 @@ class MeasurementReportDialog(QDialog):
                                runs=len(_run_names or ()))
             out += (f"<div style='color:{_C['dim']};margin-top:6px'>"
                     + html.escape(note) + "</div>")
-        return (out + self._scope_warnings_html(sc["warnings"])
+        return (out + self._scope_deleted_runs_html()
+                + self._scope_warnings_html(sc["warnings"])
                 + self._scope_notes_html(sc.get("notes") or []))
+
+    def _scope_deleted_runs_html(self) -> str:
+        """#182 A6 (Knut, 5817809396): the shown report covered a profile run
+        that has since been deleted, and Report Scope says so.
+
+        The bar's Delete renumbers the later runs, and a saved report's
+        reference to the deleted run becomes ``runs/runN.deleted``, which no
+        folder answers: the page then shows fewer measurements than the report
+        was written about, and until beta 42 only an Update said why
+        (M-REPORT-UPDATE-LEAVES-OUT). The words are M-REPORT-SCOPE-RUN-DELETED.
+        Empty for "New report…" (nothing saved is shown) and for a report
+        that names no deleted run. Never raises."""
+        try:
+            entry = self._document_being_updated()
+        except Exception:                              # noqa: BLE001
+            entry = None
+        if not entry:
+            return ""
+        from workflow import measurement_messages as M
+        from workflow.measurement_report import (deleted_runs_of,
+                                                 measurement_place)
+        doc = entry.get("doc") or {}
+        gone = deleted_runs_of(doc)
+        if not gone:
+            return ""
+        projects = set()
+        for m in (doc.get("measurements") or []):
+            if isinstance(m, dict) and m.get("dir"):
+                try:
+                    projects.add(measurement_place(str(m["dir"]))[0])
+                except Exception:                      # noqa: BLE001
+                    pass
+        runs = M.deleted_runs_label(gone, len(projects) > 1)
+        title, body = M.M_REPORT_SCOPE_RUN_DELETED.render(count=len(gone),
+                                                          runs=runs)
+        return (f"<div style='color:{_C['dim']};margin-top:10px'><b>"
+                + html.escape(title) + "</b><br>" + html.escape(body)
+                + "</div>")
 
     def _scope_notes_html(self, notes: list) -> str:
         """Report Scope's PLAIN notes, in the dim note colour.
@@ -13442,9 +13559,17 @@ class MeasurementReportDialog(QDialog):
         # printed a dash here while the detailed section below printed the very
         # same paper white as *L\* 95.4*. `point_lightness` is the one reader.
         from workflow.measurement_report import point_lightness
+        _white_num = num(lambda r: point_lightness(r.get("paper_white")), 1)
+
+        def _white_cell(r):
+            # #182 A10: a chart with no paper patch reads N-A here too
+            if _no_paper_patch(r) and not r.get("paper_white"):
+                from workflow.compliance_sets import N_A, word_label
+                return ("<td align='right'>"
+                        + html.escape(word_label(N_A)) + "</td>")
+            return _white_num(r)
         row_getters += [
-            (tr("Paper white L*"),
-             num(lambda r: point_lightness(r.get("paper_white")), 1)),
+            (tr("Paper white L*"), _white_cell),
             (tr("Darkest black L*"),
              num(lambda r: point_lightness(r.get("max_black")), 1)),
         ]
@@ -14966,7 +15091,8 @@ class MeasurementReportDialog(QDialog):
 
         _info_heading_done = False
         w, b = r.get("paper_white"), r.get("max_black")
-        if w and b:
+        _no_paper = _no_paper_patch(r) and not w
+        if (w or _no_paper) and b:
             # **WHAT THE FILE CARRIES, AND NO KeyError WHEN IT CARRIES LESS.**
             # This read `w['hex']`, `w['loc']` and `w['lab'][0]` straight out of
             # the record, and a report holding paper white as a bare
@@ -15020,7 +15146,32 @@ class MeasurementReportDialog(QDialog):
                          + html.escape(tr("Paper white and darkest black "
                                           "(L*)"))
                          + "</div>")
-            parts.append(_line(w, tr("White")) + _line(b, tr("Black")))
+            if _no_paper:
+                # #182 A10 (Knut, 5817809396): NO PAPER PATCH, NO PAPER
+                # WHITE. The line reads N-A with its numbered note, the same
+                # number the list under Report Results gives it.
+                from workflow.compliance_sets import N_A, word_label
+                from workflow.measurement_report import (note_label,
+                                                         note_numbers_for)
+                _pnums = (numbering if numbering is not None
+                          else self._note_numbering([r]))
+                _pn = note_numbers_for({"notes": [NOTE_NO_PAPER_PATCH]},
+                                       _pnums)
+                _mk = ("<sup>&nbsp;" + html.escape(" ".join(
+                    note_label(n) for n in _pn)) + "</sup>") if _pn else ""
+                parts.append("<div>" + html.escape(tr("White")) + " - "
+                             + html.escape(word_label(N_A)) + _mk + "</div>"
+                             + _line(b, tr("Black")))
+                _said = {n: (wh, s) for (n, wh, s)
+                         in self._numbered_notes_from(_pnums)}
+                _mine = [(n,) + _said[n] for n in _pn if n in _said]
+                if _mine:
+                    parts.append(self._notes_list_html(
+                        _mine,
+                        f"color:{_C['faint']};font-size:10px;margin-top:4px",
+                        closing=False))
+            else:
+                parts.append(_line(w, tr("White")) + _line(b, tr("Black")))
 
         corners = r.get("corners") or []
         if corners:

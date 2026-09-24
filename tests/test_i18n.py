@@ -786,6 +786,7 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-24, K34 (B8-1011 to B8-1016: M-REPORT-SCOPE-RUN-DELETED's title and two bodies, M-REPORT-NO-PAPER-PATCH's title and body, "Paper white" as a note's label) rebased onto K35 (B8-1021 to B8-1024). German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 6 here and 5 in the echo budget ("Paper white" is under 25 characters). COUNTED off the rebased tree, BOTH ledgers.
     # RE-MEASURED 2026-09-24, K35 (B8-1021 to B8-1024: the curated built-in presets, the gear button's window, the arrow rows, the Manual Presets help with the gear line). German by hand; the others carry the English under the beta rule. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-24, B8-1008 (the trend title names no printer) merged. COUNTED off the merged tree, BOTH ledgers.
     # RE-MEASURED 2026-09-24, challenge round 2 fixes (B8-1001 to B8-1007) merged onto K33 (B8-991 to B8-999). German by hand; the others carry the English under the beta rule. COUNTED off the merged tree, BOTH ledgers.
@@ -1441,17 +1442,17 @@ _IDENTICAL_TO_KEY = {
     # COUNTED off the tree with this file's own expression, BOTH ledgers in
     # the same commit.
     "de": 141,
-    "es": 1246,
-    "fr": 1268,
-    "it": 1257,
-    "ja": 1232,
-    "nl": 1273,
-    "no": 1258,
-    "pl": 1250,
-    "pt": 1248,
-    "ru": 1221,
-    "sv": 1259,
-    "zh_CN": 1226,
+    "es": 1252,
+    "fr": 1274,
+    "it": 1263,
+    "ja": 1238,
+    "nl": 1279,
+    "no": 1264,
+    "pl": 1256,
+    "pt": 1254,
+    "ru": 1227,
+    "sv": 1265,
+    "zh_CN": 1232,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1479,7 +1480,7 @@ _IDENTICAL_TO_KEY = {
     # Nothing else changed. The ceiling is re-measured DOWN here rather than
     # left where it was, so the next rise still has to justify itself.
     # +8 on 2026-09-23 for #182 S-2, the same eight as every other language.
-    "uk": 1406,
+    "uk": 1412,
 }
 
 

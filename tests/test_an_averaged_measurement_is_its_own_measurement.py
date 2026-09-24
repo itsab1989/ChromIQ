@@ -199,13 +199,17 @@ def _two_sheets(tmp_path):
     control caught it. Every channel is scaled here, which is what
     `_measure_again` does and for the same recorded reason.
     """
-    from tests.test_import_measurement_module import _cgats, _PATCHES
+    from tests.test_a_report_row_keeps_its_own_measurement import (
+        _measure_again)
     run = tmp_path / "runs" / "run1"
     run.mkdir(parents=True)
     for name, factor in (("a.ti3", 1.0), ("b.ti3", 0.90)):
-        (run / name).write_text(
-            _cgats("CTI3", [(r * factor, g * factor, b * factor)
-                            for r, g, b in _PATCHES]), encoding="utf-8")
+        # THE READINGS SCALED, THE DEVICE VALUES KEPT (#182 A10): the paper
+        # white is the patch printed with no ink, and a sheet whose device
+        # values were scaled too would have none.
+        class _R:                                      # noqa: N801
+            measurement_ti3 = run / name
+        _measure_again(_R, factor, 0)
     return run
 
 

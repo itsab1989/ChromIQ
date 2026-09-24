@@ -3068,6 +3068,60 @@ M_RUN_DELETE_REPORTS_LOCKED = _m(
     count_key="count",
     approved=False)
 
+# --- PROPOSED (#182 A6, Knut 5817809396): Report Scope names a profile run
+# the report covered that has since been deleted --------------------------
+#
+# The bar's Delete renumbers the later runs and turns a saved report's
+# reference to the deleted run into ``runs/runN.deleted``, which no folder
+# ever answers. The report then shows fewer measurements than it was written
+# about, and only an Update said why. Report text (window and PDF), so it is
+# written for a reader of the document: nothing about ChromIQ's buttons.
+# ``{runs}`` is `deleted_runs_label`'s: "run 2", "run 2 and run 4", or with
+# the project's name when the report covers more than one project.
+M_REPORT_SCOPE_RUN_DELETED = _m(
+    "M-REPORT-SCOPE-RUN-DELETED",
+    "Part of this report has since been deleted",
+    "This report also covered {count} profile runs that have since been "
+    "deleted ({runs} when the report was written). Their measurements are no "
+    "longer in the report.",
+    body_one="This report also covered a profile run that has since been "
+    "deleted ({runs} when the report was written). Its measurements are no "
+    "longer in the report.",
+    count_key="count",
+    approved=False)
+
+#: How `M_REPORT_SCOPE_RUN_DELETED` names one deleted run (A6). Module
+#: constants, because the extractor resolves ``tr(NAME)`` only for those.
+_DELETED_RUN = "run {n}"
+_DELETED_RUN_OF = "{project}, run {n}"
+_DELETED_RUNS_JOIN = "{first} and {last}"
+
+
+def deleted_runs_label(entries: "list[tuple[str, str]]",
+                       several_projects: bool) -> str:
+    """``{runs}`` of M-REPORT-SCOPE-RUN-DELETED for ``[(project, n)]``."""
+    names = [tr(_DELETED_RUN_OF).format(project=p, n=n) if several_projects
+             else tr(_DELETED_RUN).format(n=n) for p, n in entries]
+    if len(names) <= 1:
+        return "".join(names)
+    return tr(_DELETED_RUNS_JOIN).format(first=", ".join(names[:-1]),
+                                         last=names[-1])
+
+
+# --- PROPOSED (#182 A10, Knut 5817809396): a chart with no paper patch ------
+#
+# "Paper white" was the lightest measured patch; on a chart with no patch
+# printed with no ink that is a light colour or grey, which was printed as
+# the paper, drawn in its graph and divided into the readings. It now reads
+# N-A with this numbered note. Report text: for a reader of the document.
+M_REPORT_NO_PAPER_PATCH = _m(
+    "M-REPORT-NO-PAPER-PATCH",
+    "This chart has no paper patch",
+    "This chart has no patch printed with no ink, so the paper white could "
+    "not be measured, and nothing on this sheet is judged relative to the "
+    "paper.",
+    approved=False)
+
 #: The two remedies of M-REPORT-DELETE-FAILED (re-challenge R2, #8). "Copy
 #: the project" is only a remedy for a report that lives in a project; a
 #: report across projects lives in the folder that holds them, and copying
@@ -3152,6 +3206,7 @@ CATALOGUE = {m.id: m for m in (
     M_REPORT_UPDATE_NOTHING_LEFT,
     M_REPORT_DELETE_FAILED, M_REPORT_NOT_WRITABLE,
     M_RUN_DELETE_REPORTS_LOCKED,
+    M_REPORT_SCOPE_RUN_DELETED, M_REPORT_NO_PAPER_PATCH,
     M_REPLACE_PARTIAL, M_REPLACE_COMPLETE, M_TI3_MISMATCH,
     M_REPLACE_UNCOUNTABLE,
     M_IMPORT_REPLACE_CONFIRM, M_IMPORT_REPLACE_PROJECT_CONFIRM,

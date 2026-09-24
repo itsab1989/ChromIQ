@@ -100,15 +100,17 @@ def test_the_readme_explains_every_paper_that_is_not_the_pack_s(gen):
     results = [
         {"project": "Report-Limits-Strip-And-Gamut", "run": "run4",
          "date": "2028-11-23_100000", "chart": "grid",
-         "print": "through-profile", "has_paper_patch": False,
-         "paper_white": {"loc": "125", "lab": [82.26, -0.05, 0.51]}},
+         "print": "through-profile", "has_paper_patch": False},
         {"project": "Report-Limits-Border-Conditions", "run": "run3",
          "date": "2026-12-03_100000", "chart": "ordinary", "print": "raw",
          "has_paper_patch": True,
          "paper_white": {"loc": "1", "lab": [94.52, 0.22, 1.73]}},
     ]
     text = " ".join(gen.paper_white_lines(results))
-    assert "has no paper patch" in text and "L* 82" in text
+    # #182 A10: no paper patch, no paper white; it reads N-A (it was the
+    # lightest patch, an L* 82 grey, before beta 42)
+    assert "has no paper patch" in text and "N-A" in text
+    assert "L* 82" not in text
     assert "Border-Conditions/run3" in text and "raw" in text
 
 

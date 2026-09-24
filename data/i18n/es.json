@@ -6211,5 +6211,11 @@
  "⟳ Rotate 90°": "⟳ Girar 90°",
  "⤢ Dock back": "⤢ Volver a acoplar",
  "⤢ Pop out": "⤢ Desacoplar",
- "＋ Add another scan to average": "＋ Añadir otro escaneo para promediar"
+ "＋ Add another scan to average": "＋ Añadir otro escaneo para promediar",
+ "Paper white": "Paper white",
+ "Part of this report has since been deleted": "Part of this report has since been deleted",
+ "This chart has no paper patch": "This chart has no paper patch",
+ "This chart has no patch printed with no ink, so the paper white could not be measured, and nothing on this sheet is judged relative to the paper.": "This chart has no patch printed with no ink, so the paper white could not be measured, and nothing on this sheet is judged relative to the paper.",
+ "This report also covered a profile run that has since been deleted ({runs} when the report was written). Its measurements are no longer in the report.": "This report also covered a profile run that has since been deleted ({runs} when the report was written). Its measurements are no longer in the report.",
+ "This report also covered {count} profile runs that have since been deleted ({runs} when the report was written). Their measurements are no longer in the report.": "This report also covered {count} profile runs that have since been deleted ({runs} when the report was written). Their measurements are no longer in the report."
 }

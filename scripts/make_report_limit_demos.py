@@ -1024,10 +1024,22 @@ def apply_design(ti3: Path, ti2: Path, design: Design,
     rgb = np.asarray(data.rgb, dtype=float)
     xyz = np.asarray(data.xyz, dtype=float)
 
+    # #182 A10 (Knut, 5817809396): A CHART WITH NO PAPER PATCH IS NEVER JUDGED
+    # RELATIVE TO THE PAPER. The report takes the paper white from the patch
+    # printed with no ink, and without one it stays in absolute Lab whatever
+    # the printing, so the design is laid out absolute too.
+    if relative and not any(float(px.min()) >= DEVICE_WHITE_MIN
+                            for px in rgb):
+        relative = False
     # The anchor: fakeread's own paper white, the lightest reading on the sheet.
     # In ABSOLUTE mode there is no anchor, so the normalisation is the identity
     # and the numbers below are read straight off the sheet.
     wi = int(np.argmax(xyz[:, 1]))
+    if relative:
+        # the report's anchor: the lightest PATCH PRINTED WITH NO INK (A10)
+        _paper = [i for i, px in enumerate(rgb)
+                  if float(px.min()) >= DEVICE_WHITE_MIN]
+        wi = max(_paper, key=lambda i: float(xyz[i, 1]))
     white = xyz[wi].copy() if relative else np.array(_D50, dtype=float)
     if float(white.min()) <= 0.0:
         raise SystemExit(f"{ti3}: the lightest patch has a zero channel")
@@ -5235,11 +5247,15 @@ def paper_white_lines(results: list) -> "list[str]":
     """
     runs: "dict[str, dict]" = {}
     for r in results:
+        key = f"{r['project'].replace('Report-Limits-', '')}/{r['run']}"
         pw = r.get("paper_white") or {}
         lab = pw.get("lab")
         if not isinstance(lab, (list, tuple)) or len(lab) != 3:
+            # #182 A10: a chart with no paper patch records no paper white.
+            if not r.get("has_paper_patch", True):
+                e = runs.setdefault(key, {"r": r, "labs": {}})
+                e.setdefault("dates", []).append(str(r["date"])[:10])
             continue
-        key = f"{r['project'].replace('Report-Limits-', '')}/{r['run']}"
         e = runs.setdefault(key, {"r": r, "labs": {}})
         e["labs"].setdefault(tuple(round(float(v), 2) for v in lab),
                              []).append(str(r["date"])[:10])
@@ -5252,15 +5268,18 @@ def paper_white_lines(results: list) -> "list[str]":
         seen = "; ".join(f"{L:.2f} / {a:.2f} / {b:.2f} on "
                          + ", ".join(ds) for (L, a, b), ds in labs.items())
         if not r.get("has_paper_patch", True):
-            (L, a, b), = list(labs)[:1] or [(0.0, 0.0, 0.0)]
-            kind = "grey" if math.hypot(a, b) < 2.0 else "colour"
-            out.append(f"{key}: this chart has no paper patch, so its 'paper "
-                       f"white' is the lightest patch, an L* {L:.0f} {kind} "
-                       f"({seen}).")
+            # #182 A10 (Knut, 5817809396): no paper patch, no paper white.
+            # Before beta 42 the report took the lightest patch instead.
+            dates = ", ".join(e.get("dates") or []) or seen
+            out.append(f"{key}: this chart has no paper patch (no patch "
+                       f"printed with no ink), so the report's Paper white "
+                       f"reads N-A with a note, and nothing is judged "
+                       f"relative to the paper ({dates}).")
         elif r.get("chart") == "gamut":
             out.append(f"{key}: a From Profile Gamut chart. Its paper is the "
-                       f"chart's white cube corner, put on the chart's own aim "
-                       f"and moved toward yellow by the date's designed paper "
+                       f"chart's white cube corner, put on the paper its "
+                       f"profile describes (the profile's media white) and "
+                       f"moved toward yellow by the date's designed paper "
                        f"difference: {seen}.")
         elif r.get("paper", "default") != "default" and all(
                 max(abs(x - p) for x, p in zip(k, r["paper_lab"])) <= 0.1

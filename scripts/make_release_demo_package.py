@@ -334,6 +334,13 @@ RULE_DEMOS: "list[tuple[str, str, list[str]]]" = [
         "Report-Limits-Every-Limit-Set/run1: Measurement Report, the (i) beside \"Judged against\": a wide window, and the paragraph on when to use which set",
         "Report-Limits-Custom-Columns/run1: Edit limits, the two Custom columns start from Knut's K33 figures (15 researched, 5 ChromIQ's own, each)",
     ]),
+    ("§31", "K34:", [
+        "Report-Limits-Report-Folders: Profiling, run1, Delete (the bar); then Verification, run1: the report across both runs, Report Scope names the deleted run",
+        "Report-Limits-Report-Folders/run1: Report shown, each heading newest first by the report's own date",
+        "Report-Limits-Strip-And-Gamut/run4: a chart with no paper patch, Paper white reads N-A with its note",
+        "Report-Limits-Profile-Gamut/run1..run2: Paper white, difference from the reference paper, against the profile's own paper white, PASS and FAIL",
+        "a Finder duplicate of any project beside a folder that already has the new name: the rename fails, and the choices come back",
+    ]),
     ("§20", "Rulings not built", [
         "listed in the spec, one gap at a time; the package demonstrates the built ones above",
     ]),
@@ -415,6 +422,12 @@ MESSAGE_DEMOS: "dict[str, list[str]]" = {
     ],
     "M-REPORT-UPDATE-LEAVES-OUT": [
         "the pack's reports/: delete the .ti3 of Report-Limits-Report-Folders-Second's 2027-01-05 date, then Update the 2027-01-14 09:00 report from Report-Limits-Report-Folders",
+    ],
+    "M-REPORT-SCOPE-RUN-DELETED": [
+        "Report-Limits-Report-Folders: Profiling, run1, Delete (the bar), then Verification, run1 (was run2): show the report across both runs; Report Scope names run 1",
+    ],
+    "M-REPORT-NO-PAPER-PATCH": [
+        "Report-Limits-Strip-And-Gamut/run4: a chart with no paper patch; New report…, detailed data: Paper white reads N-A with its note",
     ],
     "M-REPORT-UPDATE-NOTHING-LEFT": [
         "Report-Limits-Report-Folders/run1: delete the .ti3 of the 2026-12-08 date, then Update the 2026-12-08 10:00 One date report",

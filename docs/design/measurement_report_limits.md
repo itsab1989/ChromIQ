@@ -123,6 +123,7 @@ result awaiting his confirmation. The other §20 gaps stay open.
 | §20 | Rulings not built, or built without a test or proof (G1 to G13) | 2026-09-22 to 2026-09-23 | gaps, listed one by one |
 | §29 | A row ChromIQ cannot measure reads ✕ in every limit set, never "–" | 2026-09-24, 5815435713 | agreed; built for beta 42 (B8-979), NOT confirmed |
 | §30 | K33: "Any" beside "All metrics", the presets window's intro, why 18 and not 21, Knut's figures in both Custom ISO sets, the ISO report types offered, a wider "Judged against" help that says when to use which set | 2026-09-24, 5816565326 | ruled by Knut; built for beta 42 (B8-992 to B8-998), NOT confirmed; three figures and the count put back to him |
+| §31 | K34: a deleted profile run named in Report Scope; a failed folder rename brings the choices back; "Report shown" by the report's own date; the paper patch, N-A without one; a FROM PROFILE GAMUT chart's reference paper is its profile's media white | 2026-09-24, 5817809396 | recommendations accepted by Knut; built for beta 42 (B8-1011 to B8-1016), NOT confirmed; two message texts proposed |
 
 Related documents: `unified_measurement_management.md` (the life of a
 measurement; §M-PROPOSED holds this feature's two messages),
@@ -327,10 +328,12 @@ of the shipped defaults; a row nobody has set takes the new number. Proved by
 `tests/test_a_users_own_limit_survives_a_new_default.py`, which asserts the
 defaults actually moved before it asserts anything survived them.
 
-**OPEN, PUT TO KNUT AND NOT ANSWERED HERE.** In the ISO values file he sent two
-days earlier, two of the six rows the two sets share were looser in 12647-8
-than in 12647-7. In this file all six are identical across the two sets. He has
-been asked whether that is deliberate; what he sent is what is built.
+**~~OPEN, PUT TO KNUT AND NOT ANSWERED HERE.~~ ANSWERED: DELIBERATE (A13).**
+In the ISO values file he sent two days earlier, two of the six rows the two
+sets share were looser in 12647-8 than in 12647-7. In this file all six are
+identical across the two sets. Asked whether that is deliberate (A13 of
+5802027116), Knut answered, 2026-09-24, [5817809396](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5817809396): *"The six identical
+rows are deliberate."* What he sent is what is built, and nothing changes.
 
 Factory values (Knut K4/Q1): ChromIQ default 2.0 / 2.0 / 2.0 / 3.0 / 3.0 on
 the five ΔE00 rows; tight 1.0 / 1.0 / 1.0 / 1.5 / 1.5; quick 4.0 / 4.0 / 4.0 /
@@ -2826,7 +2829,14 @@ B8-918 and B8-919):
   reference is rewritten only when it resolves to this project, never when
   its recorded folder is another existing project.
 
-Questions for Knut:
+**DECIDED (Knut, 2026-09-24, [5817809396](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5817809396), answering A3 to A7 of
+5802027116: *"the recommended is accepted"*).** Question 1 (A3): refuse, as
+built. Question 2 (A4): ask, as built. Question 3 (A5): yes. Question 4 (A6):
+add the Scope line, built for beta 42 (§31.1, B8-1011). Question 5 (A7):
+refuse, as built. These are decided rules; the built behaviour still waits for
+his confirmation. Questions 6 and 7 were not in that post and stay open.
+
+Questions for Knut (1 to 5 decided above):
 
 1. An Update whose covered project cannot be found is REFUSED outright, with
    no "update without it" button, because a report across projects would
@@ -3843,7 +3853,9 @@ gamut where the sheet was split by it. The Avg / Max lines are unchanged.
 does, "Average, all patches (ΔE00)", where it said "Average ΔE, all patches".
 
 **18.5 A project whose folder is not named what its files carry** (a Finder
-duplicate, "X copy"). *"the user should be given the option, with a popup
+duplicate, "X copy"). **Amended by §31.2 (A8, Knut [5817809396](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5817809396), answer
+(b)):** a rename that fails says why and then offers the three choices again;
+it no longer leaves the project open, not renamed. *"the user should be given the option, with a popup
 window, to rename the project. This interface and function should already
 exist and just has to be modified a tiny bit to allow this case."*
 
@@ -5258,7 +5270,8 @@ date's verdict record" half of its K25 record), the G7 records and the
   set is the run's default for new reports, and its stored copy is used as
   that default's numbers.
 
-**25.5 Where "New report…" starts.** *"the starting choice for 'New
+**25.5 Where "New report…" starts.** *(A1 of 5802027116, the run's own
+default, "(a)": decided by Knut, 2026-09-24, [5817809396](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5817809396), as built here.)* *"the starting choice for 'New
 report...' should be the the defaults in preferences -> reports first, then
 the default in the Edit limits for that run, if it changed to be different
 from the preferences default."*
@@ -5299,7 +5312,8 @@ from the preferences default."*
 * A "New report…" whose ticks are all another run's starts on the window's
   run's own default, because that is the run the window was opened from.
 * The refusal to delete the only saved report of a dated verification (the
-  date's own report is its result) is unchanged. It counts the date's own
+  date's own report is its result) is unchanged. *(A2 of 5802027116, "(a)
+  keep the refusal": decided by Knut, 2026-09-24, [5817809396](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5817809396).)* It counts the date's own
   reports of one date only: a verdict record, or a copy of a report of
   several dates that a build before K23 wrote into each date, is not a
   spare (B8-936).
@@ -6173,3 +6187,202 @@ sets normally would be used for."*
   each proved red on its mutation.
 
 **Status:** built for beta 42 (B8-992 to B8-999), NOT confirmed.
+
+
+## 31. K34: Knut's answers to section A of 5802027116: a deleted run in Report Scope, a failed folder rename, the order of "Report shown", the paper patch, the reference paper of a FROM PROFILE GAMUT chart (#182, 2026-09-24, beta 42)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+**Ruled by:** Knut, #182
+[5817809396](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5817809396)
+(2026-09-24), answering section A of our post
+[5802027116](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5802027116):
+*"For all the other topics under "A. Questions that need your decision": the
+recommended is accepted."* The recommendation he accepted is the rule; what
+was BUILT from it waits for his confirmation. Proof:
+`~/Desktop/ChromIQ-beta42-proof/knut-k34/` (on screen, EN and DE, before and
+after; REPORT.md). Register: B8-1011 to B8-1016.
+
+**31.1 A report that covers a deleted profile run says so in Report Scope
+(A6, B8-1011).** The profile bar's Delete renumbers the later runs and turns
+a saved report's reference to the deleted run into `runs/runN.deleted`
+(§13.14), which no folder answers. Measured before the change: a report of
+three runs, run 2 deleted, showed two measurements and said nothing about the
+third; only an Update said "its profile run was deleted". Now, while a saved
+report that names such a run is shown, Report Scope (window and PDF) ends
+with M-REPORT-SCOPE-RUN-DELETED (**PROPOSED**, §M-PROPOSED):
+
+> **Part of this report has since been deleted**
+> This report also covered a profile run that has since been deleted (run 2
+> when the report was written). Its measurements are no longer in the report.
+
+The run is named by the number it had when the report was written, because
+the run now called run 2 is a different one (the later runs were numbered
+again). With several deleted runs the plural body names them all ("run 2 and
+run 4"); a report across projects names each with its project ("P, run 2").
+"New report…" never carries the line: nothing saved is shown. German by hand.
+
+**31.2 The folder-renamed window when the rename fails (A8 (b), B8-1012).**
+If the chosen rename fails (for example a folder with the new name is already
+there), M-PROJECT-FOLDER-RENAME-FAILED says why, as before, and then the
+three choices come back: rename to the folder's name, choose another name, or
+Cancel, which closes the project (§18.5, Knut 5794078008). Before, the project
+stayed open, not renamed, and ChromIQ found none of its files until it was
+closed and opened again. Cancel is always one of the three, so the window
+never loops without an exit. The message's words are unchanged (approved);
+its last sentence ("the project is open as it was") is still true at the
+moment it is shown.
+
+**31.3 "Report shown": newest first by the report's own creation date (A9,
+B8-1013, answers B8-843 (1)).** Inside each heading the order was the time the
+FILES were written, so reports ChromIQ wrote itself came out right and copied
+or restored ones did not (a demo project listed 2026-12-08 before 2026-12-15).
+Now the order is read from the report:
+
+1. the document's own `created` (every report since B8-383; an Update keeps
+   it, §13.8);
+2. **fallback for a report without a document date** (written before the
+   document block): the stamp `save_report` writes into its file name,
+   `report_YYYY-MM-DD_HH-MM-SS`, the second it was saved;
+3. a file name in no such shape: the file's own time, the only evidence left.
+
+The file time stays only as the tie-break between two reports of the same
+second. The groups and their order are unchanged (§13.12).
+
+**31.4 Paper white is the chart's own paper patch (A10 (a), B8-1014, answers
+B8-806 F13).** "Paper white" was the lightest measured patch. It is now the
+patch printed with NO INK:
+
+| device space | the paper patch |
+|---|---|
+| RGB (every chart the report reads today) | every channel at 100 (device 100, 100, 100), within 0.5 |
+| CMY, CMYK and any n-colour ink space | every channel at 0, within 0.5. `parse_ti3` refuses such a measurement for the report today ("only RGB charts are supported"), so this row is defined for the day it is lifted, in `paper_patch_rows`, the same rule `reference_sets.paper_lab` already uses for a reference file |
+
+Of several paper patches (most charts carry more than one), the lightest, so
+a chart WITH a paper patch reads exactly the patch it read before unless a
+coloured patch was lighter than the paper. A measurement with no device
+columns (an i1Profiler export of a chart it did not generate) takes the
+device values from its chart by SAMPLE_ID, as the rest of the report pairs
+it.
+
+**A chart with no paper patch:**
+* "Paper white" reads **N-A** with a numbered note, in the detailed section's
+  "Paper white and darkest black" and in the Overview table; the note is
+  M-REPORT-NO-PAPER-PATCH (**PROPOSED**): *"This chart has no patch printed
+  with no ink, so the paper white could not be measured, and nothing on this
+  sheet is judged relative to the paper."* It takes the document's one
+  numbering (after the limit rows' notes, so no row's number moves) and is
+  listed under the name "Paper white". German by hand.
+* The Paper white (L\*) graph draws no point for that sheet (no paper white
+  is recorded); the darkest black is recorded and drawn as before.
+* **Nothing is judged relative to the paper.** What that touches, and what
+  it does instead:
+
+| what used the paper white | with no paper patch |
+|---|---|
+| the media-relative yardstick (a sheet printed through its profile with an intent that maps paper white, against the chart's design or device reference: pairing 3, `verification_printing_and_target.md`): every reading divided by the paper white | the sheet is judged in **absolute Lab** as measured (`yardstick_no_paper` recorded); the note says nothing is judged relative to the paper |
+| evenness on such a sheet: each aim carried onto the paper (§21.1) | aims as designed, readings as measured |
+| the five ΔE00 rows, the worst patches, the cube corners, grey balance, the tone ramps and the control strip on such a sheet | judged in absolute Lab, as on a sheet printed absolute |
+| "Paper white, difference from the reference paper" | unchanged: it reads the chart's declared white CORNER (only a FROM PROFILE GAMUT chart answers it, and it always carries one); N-A without it, as before |
+| the paper white line, the Overview row, the Paper white (L\*) graph | N-A with the note / no point |
+| a sheet printed absolute, or against a colorimetric reference | nothing changes: it was never divided by the paper |
+
+* **Every place that picked "the lightest patch", checked:**
+  `measurement_report.measurement_facts` (the recorded paper white) and the
+  yardstick in `build_report` now take the paper patch;
+  `lightest_and_darkest` keeps only its DARKEST half's use (the darkest black
+  is still the darkest reading, which is what that line says);
+  `measurement_report.GREY_LIGHTEST_MIN` and the neutral-aim reach are about
+  grey steps, not the paper, unchanged; `reference_convert._PAPER_IS_THE_LIGHTEST`
+  already takes the NO-INK patch of an i1Profiler file; `ti3_analysis`
+  (the ".ti3 analysis" Tool's paper/ink contrast of a PROFILING chart, not
+  the report) still takes the lightest reading, unchanged and not asked;
+  the demo generator (`make_report_limit_demos.apply_design`) now anchors on
+  the paper patch and designs a chart without one in absolute Lab.
+* **A report saved before beta 42 is worked out again from its measurement
+  when the window reads it**, as for every block the builder has since
+  written (`ALWAYS_BUILT_BLOCKS` gains `paper_patch`; the saved verdict is
+  carried across untouched, §6). Found on screen: without it, "New report…"
+  on the demo pack's no-paper-patch run still printed the L\* 82 grey as
+  White, because every date there had a saved report.
+
+**31.5 The reference paper of a FROM PROFILE GAMUT chart is the profile's
+media white (A11, B8-1015, answers B8-804 point 1).** Measured first, on the
+current build (beta 41 code, the challenge-2 copy of the release demo pack,
+51 dated FROM PROFILE GAMUT verifications in 4 projects): the row compared
+the bare paper with the reference's W corner, which `gamut_target` writes as
+device white read as sRGB: **L\* 100.00, a\* 0.01, b\* -0.01** on every one
+of them. The pack's profiles describe papers of L\* 94.0 to 96.0 (for
+example 95.51 / 0.20 / 1.40 in Report-Limits-Profile-Gamut), and the pack
+had designed its papers against the ideal white (every paper read L\* 100.0).
+A real paper of exactly the profile's white, 95.5 / 0.21 / 1.41, reads
+**2.98 ΔE00** against that ideal, on every sheet. Our note of B8-804 was
+right.
+
+Built, as Knut accepted:
+* The chart's colorimetric reference records the paper the profile
+  describes, its media white (`wtpt`, L\*a\*b\* D50), as
+  `CHROMIQ_PROFILE_WHITE_LAB`, and the profile's file name as
+  `CHROMIQ_PROFILE` (`gamut_target.select_gamut_targets`,
+  `write_colorimetric_reference`).
+* The bare-paper corner (the declared corner at device white) AIMS AT THAT
+  PAPER wherever the reference is read (`read_colorimetric_reference`, and
+  `build_report` for an older reference), so the row, the cube-corner table's
+  "Expected" white and a control-strip rung on that patch read one
+  comparison. The other seven corners keep their ideal aims (§9a rule 2).
+* **An older reference** (every FROM PROFILE GAMUT chart built before beta
+  42) records no white: the run's own built profile, the profile such a chart
+  of that run is built from, is asked instead
+  (`paper_reference_of`, recorded as `paper_reference_from: run_profile`).
+* **Old behaviour kept for other charts:** with neither (no white recorded
+  and no profile in the run) the row keeps the old comparison with the W
+  corner's own aim. On every other chart the row is N-A as before (it needs
+  a colorimetric reference, §3). A Fogra reference set keeps comparing with
+  the paper THAT reference describes (`reference_sets.substrate_de00`).
+* Measured after, the same 51 dates of the same (unrebuilt) pack: the row
+  reads 2.63 to 18.57 against the profiles' own whites, where it read 0.52 to
+  9.01 against the ideal. The pack's papers had been designed on the ideal
+  white (every one reads L\* 100.0), so on that pack no date passes any more
+  until it is rebuilt.
+* **The demo pack:** `make_report_limit_demos.apply_design` designs the paper
+  from the corner's aim, which is now the profile's white, so a rebuilt pack
+  again demonstrates PASS and FAIL for this row (checked by the release
+  tier's `tests/test_the_release_demo_package.py`, B8-1016).
+* **Noticed, not changed (a question for Knut):** the six ink corners and
+  black keep the ideal sRGB aims (L\* 100 white, the textbook primaries),
+  and the control strip ChromIQ declares on a verification chart includes
+  those corners, so its ΔE00 carries the gap between the ideal primaries and
+  what the printer can print. §9a keeps the corners out of the five ΔE00
+  statistics for exactly that reason; the strip was not asked about.
+
+**31.6 Decided without a change (A1 to A5, A7, A13 to A16).** Recorded where
+the specification asked them: A3, A4, A5 and A7 are §13.14's questions 1, 2,
+3 and 5 (refuse, ask, yes, refuse: as built); A1 is §25.5's run default
+(the "Default for this run" row, built in beta 40); A2 is §25.6's refusal to
+delete a dated verification's only report (kept); A14 keeps the title
+naming the verification chart (B8-811 FC-6; not a question in this
+document); A13 is recorded in §2a; A15 in `issue_182_answers.md` §2; A16 in
+`reference_charts_and_cmyk_to_rgb.md`. These are DECIDED by Knut's answer;
+none of them is "confirmed" behaviour by it, which is section B of the post.
+
+* **Built:** `workflow/measurement_report.py` (`paper_patch_rows`,
+  `paper_white_row`, `_device_values_of`, `measurement_facts`, the yardstick
+  in `build_report`, `paper_corner_ids`, `paper_reference_of`,
+  `deleted_runs_of`); `workflow/gamut_target.py`
+  (`profile_media_white_lab`, `GamutSelection.profile_white_lab`,
+  `write_colorimetric_reference`, `read_colorimetric_reference`);
+  `workflow/measurement_messages.py` (M-REPORT-SCOPE-RUN-DELETED,
+  M-REPORT-NO-PAPER-PATCH, `deleted_runs_label`);
+  `ui/dialogs/measurement_report_dialog.py` (`_scope_deleted_runs_html`,
+  `_report_created_at`, `_saved_documents`, `_note_numbering`,
+  `_run_detail_html`, the Overview's paper white cell);
+  `ui/tabs/tab_chart.py` (`_offer_rename_for_a_renamed_folder`,
+  `_folder_renamed_choice`); `scripts/make_report_limit_demos.py`
+  (`apply_design`, `paper_white_lines`).
+* **Verified by:** `tests/test_k34_knuts_section_a.py` (20 tests, each red on
+  the mutation in its docstring), and the release tier's
+  `tests/test_the_release_demo_package.py`.
+
+**Status:** built for beta 42 (B8-1011 to B8-1016), NOT confirmed.

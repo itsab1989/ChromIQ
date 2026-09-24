@@ -200,6 +200,68 @@ def corners_block(rgb100, lab, ref, data,
     return out
 
 
+#: Where a FROM PROFILE GAMUT chart's reference paper came from (#182 A11).
+PAPER_REF_FROM_CHART = "chart"        # recorded in the reference at build time
+PAPER_REF_FROM_RUN = "run_profile"    # an older reference: the run's profile
+
+
+def paper_corner_ids(cref: "dict | None") -> "list[str]":
+    """The declared corner ids of a colorimetric reference that are the bare
+    paper: device white (`paper_patch_rows`) by the ink amount the reference
+    itself records. Empty when it records none. Never raises."""
+    if not cref:
+        return []
+    devices = cref.get("devices") or {}
+    ids = [sid for sid in sorted(cref.get("corner_ids") or ())
+           if sid in devices]
+    if not ids:
+        return []
+    rows = paper_patch_rows([devices[s] for s in ids], "RGB")
+    return [ids[i] for i in rows]
+
+
+def paper_reference_of(cref: "dict | None", ti3_path: "Path | str | None"
+                       ) -> "tuple[tuple[float, float, float], str] | None":
+    """``(Lab, where from)`` of the paper a FROM PROFILE GAMUT chart's profile
+    describes, or None (#182 A11, Knut 5817809396).
+
+    **MEASURED BEFORE IT WAS CHANGED (beta 41 build, the release demo pack):**
+    the row "Paper white, difference from the reference paper" compared the
+    bare paper with the reference's W corner, which `gamut_target` writes as
+    device white read as sRGB: L* 100.0, a* 0.01, b* -0.01, an ideal white. The
+    pack's profiles describe papers of L* 94.0 to 96.0, so a real paper of the
+    profile's own white read about 3 ΔE00 on every sheet. Knut: compare it with
+    the paper the chart's profile describes, the profile's media white.
+
+    The reference records that white since beta 42 (``CHROMIQ_PROFILE_WHITE_LAB``).
+    A reference written before has none, and the run's own built profile is
+    asked instead: the profile a FROM PROFILE GAMUT chart of that run is built
+    from. None when neither can answer, and the row then keeps its old
+    comparison with the W corner's aim. Never raises.
+    """
+    if cref and cref.get("profile_white_lab") is not None:
+        try:
+            return (tuple(float(v) for v in cref["profile_white_lab"]),
+                    PAPER_REF_FROM_CHART)
+        except (TypeError, ValueError):
+            pass
+    if ti3_path is None:
+        return None
+    try:
+        from workflow.run_compliance import run_context_for
+        from workflow.gamut_target import profile_media_white_lab
+        ctx = run_context_for(ti3_path)
+        if ctx is None:
+            return None
+        icc = ctx.run.built_profile_icc()
+        if not icc.is_file():
+            return None
+        lab = profile_media_white_lab(icc)
+        return (lab, PAPER_REF_FROM_RUN) if lab is not None else None
+    except Exception:                                  # noqa: BLE001
+        return None
+
+
 def _srgb_hex(xyz100: "tuple[float, float, float]") -> str:
     """D50 XYZ (0..100) → #rrggbb for display (Bradford to D65, sRGB gamma)."""
     x, y, z = (v / 100.0 for v in xyz100)
@@ -635,6 +697,99 @@ def lightest_and_darkest(lab) -> "tuple[int, int] | None":
     return int(np.argmax(Ls)), int(np.argmin(Ls))
 
 
+#: **THE PAPER PATCH IS THE PATCH PRINTED WITH NO INK (#182 A10, B8-806).**
+#: Knut, 5817809396, accepting recommendation (a): *"Use the chart's own white
+#: patch (device value 100, 100, 100) when there is one, and when there is
+#: none say "This chart has no paper patch": Paper white reads N-A, and
+#: nothing is judged relative to the paper."* Until beta 42 "Paper white" was
+#: the LIGHTEST measured patch, and on a chart with no bare paper patch that is
+#: a light colour or grey (an L* 82 grey on one demo chart), which was then
+#: printed as the paper, drawn in its graph and divided into every reading of
+#: a sheet judged relative to the paper.
+#:
+#: How close to the corner counts as no ink, on Argyll's 0..100 device scale.
+#: A device value is a request, not a measurement, so the honest tolerance is
+#: rounding: 0.5 is one code value of 255 (0.39) with room to spare, and far
+#: from any real light tint (a 97 % tint is 3 units away).
+PAPER_PATCH_TOL = 0.5
+
+
+def paper_patch_rows(device100, space: str = "RGB") -> "list[int]":
+    """The rows of *device100* (device values, 0..100) printed with no ink.
+
+    WHICH CORNER IS "NO INK" DEPENDS ON THE SPACE, the same rule
+    `workflow.reference_sets.paper_lab` follows for a reference file:
+
+    * **RGB** (additive, the only space the report reads today): every
+      channel at its maximum, 100, 100, 100;
+    * **CMY, CMYK and every n-colour ink space** (subtractive): every channel
+      at 0. `parse_ti3` refuses such a measurement for the report today
+      ("only RGB charts are supported"), so this branch answers the question
+      for the day it is lifted rather than leaving it to be guessed then.
+
+    Empty when there are no device values or no such row. Never raises.
+    """
+    try:
+        arr = np.asarray(device100, dtype=float)
+    except (TypeError, ValueError):
+        return []
+    if arr.ndim != 2 or not len(arr):
+        return []
+    if str(space or "RGB").upper().startswith("RGB"):
+        hit = (arr >= 100.0 - PAPER_PATCH_TOL).all(axis=1)
+    else:
+        hit = (arr <= PAPER_PATCH_TOL).all(axis=1)
+    return [int(i) for i in np.flatnonzero(hit)]
+
+
+def paper_white_row(lab, device100, space: str = "RGB") -> "int | None":
+    """The reading that is the paper white: of the rows printed with no ink
+    (`paper_patch_rows`), the lightest; None when the chart has none (A10).
+
+    The lightest OF THE PAPER PATCHES, so a chart that carries several bare
+    patches (most do) gives exactly the patch it gave before beta 42, and only
+    a chart without one changes."""
+    rows = paper_patch_rows(device100, space)
+    if not rows or lab is None:
+        return None
+    try:
+        return max(rows, key=lambda i: float(lab[i][0]))
+    except (IndexError, TypeError, ValueError):
+        return None
+
+
+def _device_values_of(data, ti3_path: "Path | None" = None):
+    """Device values (0..100) per reading of *data*, or None.
+
+    From the measurement's own device columns; for a measurement that carries
+    none (an i1Profiler export of a chart it did not generate, `parse_ti3`),
+    from the chart it is paired with, by SAMPLE_ID, which is how the rest of
+    the report pairs it. None when neither can say."""
+    rgb = getattr(data, "rgb", None)
+    if rgb is not None and len(rgb):
+        return _rgb_to_0_100(np.asarray(rgb, dtype=float))
+    if ti3_path is None:
+        return None
+    try:
+        ti2 = _find_reference_ti2(Path(ti3_path))
+        if not ti2.is_file():
+            return None
+        chart = parse_ti3(ti2)
+        if chart.rgb is None or not len(chart.rgb):
+            return None
+        by_id = dict(zip(chart.sample_ids,
+                         _rgb_to_0_100(np.asarray(chart.rgb, dtype=float))))
+        rows = [by_id.get(sid) for sid in data.sample_ids]
+        if any(r is None for r in rows):
+            # a reading the chart does not name cannot be the paper; give it
+            # a value no paper test can pass
+            rows = [r if r is not None else np.array([50.0, 50.0, 50.0])
+                    for r in rows]
+        return np.asarray(rows, dtype=float)
+    except Exception:                                  # noqa: BLE001
+        return None
+
+
 def measurement_facts(ti3_path: "str | Path", *, data=None,
                       lab=None) -> dict:
     """What a saved report records ABOUT ITS OWN MEASUREMENT. THE ONE RULE.
@@ -656,9 +811,26 @@ def measurement_facts(ti3_path: "str | Path", *, data=None,
     extremes = lightest_and_darkest(lab)
     if extremes is None:
         return {"patches": data.n_patches}
-    wi, bi = extremes
+    _lightest, bi = extremes
+    # THE PAPER IS THE PATCH WITH NO INK, not the lightest reading (A10).
+    wi = paper_white_row(lab, _device_values_of(data, ti3_path))
+    if wi is None:
+        # "This chart has no paper patch": no paper white is recorded, and
+        # `paper_patch` says why, so a reader can tell it from a report
+        # written before beta 42 (which carries neither key's absence).
+        return {
+            "patches": data.n_patches,
+            "paper_patch": False,
+            "max_black": {
+                "loc": (data.sample_locs[bi] if data.sample_locs
+                        else data.sample_ids[bi]),
+                "lab": [round(v, 2) for v in lab[bi]],
+                "hex": _srgb_hex(tuple(data.xyz[bi])),
+            },
+        }
     return {
         "patches": data.n_patches,
+        "paper_patch": True,
         "paper_white": {
             "loc": data.sample_locs[wi] if data.sample_locs else data.sample_ids[wi],
             "lab": [round(v, 2) for v in lab[wi]],
@@ -912,6 +1084,22 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
                 "master_total": cref["master_total"],
                 "in_gamut": cref["in_gamut"],
             }
+            # #182 A11 (Knut, 5817809396): the paper the chart's profile
+            # describes, which "Paper white, difference from the reference
+            # paper" compares the bare paper with. Recorded in the reference
+            # since beta 42; for an older reference, the run's own profile.
+            _pw = paper_reference_of(cref, ti3_path)
+            if _pw is not None:
+                report["colorimetric"]["paper_reference_lab"] = [
+                    round(float(v), 2) for v in _pw[0]]
+                report["colorimetric"]["paper_reference_from"] = _pw[1]
+                # THE BARE-PAPER CORNER AIMS AT THAT PAPER, so the row, the
+                # cube-corner table and a control-strip rung on that patch all
+                # read one comparison. (`read_colorimetric_reference` has done
+                # this already for a reference that records the white.)
+                ref = dict(ref)
+                for _sid in paper_corner_ids(cref):
+                    ref[_sid] = tuple(float(v) for v in _pw[0])
     if state == STATE_CONVERTED_REF_MISSING:
         ref_source = "colorimetric-missing"          # §9.1: refuse, never guess
     elif ref_source != "colorimetric":
@@ -975,9 +1163,15 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
         white_mapping = (_col == "through-profile"
                          and (_intent not in ("", "absolute")
                               or _route == "external-cm"))
-        _extremes = lightest_and_darkest(lab)
-        if white_mapping and _extremes is not None:
-            white_xyz = np.asarray(data.xyz[_extremes[0]], dtype=float)
+        # THE PAPER PATCH, NOT THE LIGHTEST READING (A10). With no paper
+        # patch nothing is judged relative to the paper: the sheet stays in
+        # absolute Lab, and the paper white line's note says so.
+        _wi = paper_white_row(lab, rgb100 if rgb100 is not None
+                              else _device_values_of(data, ti3_path))
+        if white_mapping and _wi is None:
+            report["yardstick_no_paper"] = True
+        if white_mapping and _wi is not None:
+            white_xyz = np.asarray(data.xyz[_wi], dtype=float)
             if float(white_xyz.min()) > 0.0:
                 _d50 = np.array([96.42, 100.0, 82.49])
                 lab = [xyz_to_lab(tuple(
@@ -2043,6 +2237,34 @@ GONE_PROJECT = "project"        # no project of the recorded name can be found
 GONE_RUN = "run_deleted"        # its profile run was deleted (bar Delete)
 GONE_FOLDER = "folder"          # the project is there, the folder is not
 GONE_FILE = "file"              # the folder is there, the measurement is not
+
+
+def deleted_runs_of(doc: "dict | None") -> "list[tuple[str, str]]":
+    """``[(project, run number)]`` of the profile runs a saved report covered
+    that have since been deleted, in the report's own order (#182 A6).
+
+    The bar's Delete turns such a reference into ``runs/runN.deleted``
+    (`core.report_refs`), and N is the number the run had when the report
+    was written. Empty for a report that names no deleted run. Never raises.
+    """
+    from core.report_refs import DELETED_RUN_SUFFIX
+    out: "list[tuple[str, str]]" = []
+    for m in ((doc or {}).get("measurements") or []):
+        if not isinstance(m, dict):
+            continue
+        parts = list(Path(str(m.get("dir") or "")).parts)
+        if "runs" not in parts:
+            continue
+        i = len(parts) - 1 - parts[::-1].index("runs")
+        run = parts[i + 1] if i + 1 < len(parts) else ""
+        if not run.endswith(DELETED_RUN_SUFFIX):
+            continue
+        num = run[:-len(DELETED_RUN_SUFFIX)]
+        num = num[3:] if num.startswith("run") else num
+        entry = (parts[i - 1] if i >= 1 else "", num)
+        if entry not in out:
+            out.append(entry)
+    return out
 
 
 def _gone_reason(d: str, name: str, homes, *, one_project: bool
@@ -5096,6 +5318,10 @@ def row_values(report: dict) -> "dict[str, dict]":
     corners = {c.get("name"): c for c in (report.get("corners") or [])}
     if report.get("reference_source") == "colorimetric":
         w = corners.get("W")
+        # #182 A11: the W corner's aim is the paper the chart's profile
+        # describes since beta 42 (`paper_reference_of`, set in
+        # `build_report`), so its ΔE00 is this row. A report written before
+        # carries the ideal-white aim until it is updated.
         if w and w.get("present") and w.get("de") is not None:
             put("substrate_de00_max", w["de"])
         else:

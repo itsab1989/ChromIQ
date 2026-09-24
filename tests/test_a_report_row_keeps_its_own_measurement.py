@@ -77,7 +77,19 @@ def _measure_again(run, factor: float, when: float) -> None:
     """
     from tests.test_import_measurement_module import _cgats, _PATCHES
     shifted = [(r * factor, g * factor, b * factor) for r, g, b in _PATCHES]
-    run.measurement_ti3.write_text(_cgats("CTI3", shifted), encoding="utf-8")
+    text = _cgats("CTI3", shifted)
+    # THE READINGS CHANGE, THE CHART DOES NOT (#182 A10). Measuring again
+    # reads the same patches, so the device values stay the chart's own and
+    # only the colour columns move. Scaling them too left the sheet with no
+    # patch printed with no ink, and since beta 42 the paper white is that
+    # patch, not the lightest reading.
+    lines = text.splitlines()
+    i0 = lines.index("BEGIN_DATA") + 1
+    for k, (r, g, b) in enumerate(_PATCHES):
+        cells = lines[i0 + k].split()
+        cells[2:5] = [f"{r:.4f}", f"{g:.4f}", f"{b:.4f}"]
+        lines[i0 + k] = " ".join(cells)
+    run.measurement_ti3.write_text("\n".join(lines) + "\n", encoding="utf-8")
     os.utime(run.measurement_ti3, (when, when))
 
 

@@ -1,7 +1,10 @@
 # Charts that aim at a reference condition, and the CMYK to RGB question
 
-**Status: ANALYSIS, awaiting a ruling. Nothing here is built and nothing here is
-confirmed behaviour.** Sections 1 to 6 answer the two questions asked on
+**Status: CLOSED FOR THIS RELEASE (Knut, 2026-09-24, [5817809396](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5817809396), A16 of
+5802027116: "the recommended is accepted").** Nothing here is built and nothing
+here is confirmed behaviour; it may be reopened after the release if charts
+built towards a reference condition are wanted. ~~ANALYSIS, awaiting a
+ruling.~~ Sections 1 to 6 answer the two questions asked on
 2026-09-12 in issue #182. Sections 7 to 12 answer the two asked on 2026-09-13,
 about an iterative RGB search and about where a profiling patch set comes from.
 It records the measurements so nobody has to make them again.
