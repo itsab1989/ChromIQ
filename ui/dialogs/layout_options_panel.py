@@ -319,6 +319,11 @@ class LayoutOptionsPanel(QWidget):
         #: replace margins nobody chose and never ones somebody did (Basti,
         #: 2026-09-24, B8-965).
         self._margins_chosen = False
+        #: The same question for "Patch area alignment": True once a PERSON
+        #: picked it, or a recipe somebody chose was loaded. The Extra-high
+        #: seed moves the block to centre-left only while this is False
+        #: (B8-965, extended to every field the seed writes).
+        self._align_chosen = False
         #: True once a PERSON has set one of the ten label-style controls, or a
         #: recipe that already owned its style was loaded. Mirrors
         #: `LayoutRecipe.label_style_explicit` in both directions.
@@ -1674,6 +1679,11 @@ class LayoutOptionsPanel(QWidget):
         ):
             self.patch_align.addItem(_lbl, _key)
         self.patch_align.currentIndexChanged.connect(self._emit)
+        # A person's pick is theirs (B8-965): see `_apply_mode_defaults`.
+        # `activated` too, because a re-pick of the row already shown is an
+        # answer and `currentIndexChanged` is silent for it.
+        self.patch_align.currentIndexChanged.connect(self._mark_align_chosen)
+        self.patch_align.activated.connect(self._mark_align_chosen)
         # Clip-border width (i1/p3, clip mode only) — reserved left zone for the
         # scanner's paper clip; printtarg hard-codes 26 mm, we make it adjustable.
         self.clip_width = small_mm(top=100.0)
@@ -2687,45 +2697,67 @@ class LayoutOptionsPanel(QWidget):
     def _apply_mode_defaults(self, *_a) -> None:
         """Seed the Guided-matching defaults when the user picks a mode that has
         its own preset. ColorMunki Extra-high density mirrors Guided's triple
-        density exactly: 5 mm margins on every side (clip already defaults off for
-        CM). Skipped during load so a loaded recipe's own margins win (#93,
-        Sebastian)."""
+        density: 5 mm margins on every side, a 5 mm base margin and the block
+        centred on the left (clip already defaults off for CM). Skipped during
+        load so a loaded recipe's own values win (#93, Sebastian).
+
+        ONLY WHAT IS STILL AT DEFAULT IS SEEDED (B8-965, Basti 2026-09-24),
+        and that goes for EVERY field this writes, not only the four margins.
+        The first B8-965 fix guarded the margins and still moved "Patch area
+        alignment" to centre-left unchecked, and nothing moved it back: a
+        chosen layout (T20 R6 B6 L6 typed, or a Red River preset set to
+        top-left) came back from an Extra-high detour with its block 7 mm
+        lower, and the same visible density built a different chart.
+
+        The three fields go together, because together they ARE Guided's
+        Extra-high page: the centred block is centred between Guided's 5 mm
+        margins. So nothing is seeded unless the margins are (default, and
+        not locked by "Use instrument margins", B8-963); then the base margin
+        only if it is still the default one, and the alignment only if nobody
+        picked it. A density change therefore never overwrites what a preset
+        set or a person chose, and a chosen layout comes back from High ->
+        Extra-high -> High as the identical recipe.
+        """
         if self._loading or self.mode is None or self.instr is None:
             return
         if (self.instr.currentData() == "CM"
                 and self.mode.currentData() == "extrahigh"):
-            # ONLY MARGINS NOBODY CHOSE ARE SEEDED (B8-965, Basti 2026-09-24).
-            # The #93 seed predates Knut's ColorMunki presets, whose margins he
-            # set on paper; it replaced them (and anything typed) with 5 mm, and
-            # going back to High or Hand-held never gave them back, so the same
-            # visible density built a different chart depending on the detour.
-            # Default margins still get Guided's 5 mm, as #93 wants; chosen ones
-            # are left exactly as they are, and so is the base margin that goes
-            # with them.
-            seed = self._margins_at_default()
-            self._loading = True
             # A LOCKED BOX IS NOT SEEDED (B8-963). With "Use instrument
             # margins" ticked the four boxes are disabled and say they are
             # locked to the instrument's minimums; writing 5 mm into them
             # anyway built the chart at 5 mm while the tick and the tooltip
-            # still promised the instrument's margins, and nobody could type
-            # them back. The lock is the user's explicit choice and wins over
-            # this default; unticking still restores what was there before.
+            # still promised the instrument's margins. The lock is the user's
+            # explicit choice and wins over this default, and so does
+            # everything that belongs to the same page: the base margin (it
+            # went 6 -> 5 into the recipe and the build under the lock) and
+            # the alignment.
             locked = (hasattr(self, "use_instr_margins")
                       and self.use_instr_margins.isChecked())
-            if seed and not locked:
+            if locked or not self._margins_at_default():
+                return
+            self._loading = True
+            try:
                 for k in ("t", "r", "b", "l"):
                     self.margins[k].setValue(5.0)
-            if seed:
-                self._border = 5.0                   # base margin, = Guided
-            # Guided centres the patch block (the small extra gap below the strip
-            # labels Sebastian liked); match it here.
-            if hasattr(self, "patch_align"):
-                j = self.patch_align.findData("center-left")
-                if j >= 0:
-                    self.patch_align.setCurrentIndex(j)
-            self._loading = False
+                if round(float(self._border), 1) in (5.0, 6.0):
+                    self._border = 5.0               # base margin, = Guided
+                # Guided centres the patch block (the small extra gap below
+                # the strip labels Sebastian liked); match it, unless a person
+                # or a preset put the block somewhere.
+                if hasattr(self, "patch_align") and not self._align_chosen:
+                    j = self.patch_align.findData("center-left")
+                    if j >= 0:
+                        self.patch_align.setCurrentIndex(j)
+            finally:
+                self._loading = False
             self._emit()
+
+    def _mark_align_chosen(self, *_a) -> None:
+        """"Patch area alignment" changed: a PERSON's change makes it theirs.
+        The app's own writes (a recipe load, the Extra-high seed) hold
+        `_loading`."""
+        if not self._loading:
+            self._align_chosen = True
 
     def _mark_margins_chosen(self, *_a) -> None:
         """A margin box changed. Only a PERSON's change makes the margins
@@ -5293,7 +5325,13 @@ class LayoutOptionsPanel(QWidget):
         # one of these owns all four. It errs towards leaving a value alone.
         # The margins follow the same rule (B8-965): a recipe somebody chose
         # owns its margins, the app's own starting point does not.
-        self._margins_chosen = bool(getattr(r, "layout_explicit", False))
+        # A person's typed margins or picked alignment ride in their own
+        # flags (`margins_explicit`, `align_explicit`) for a recipe whose
+        # layout is otherwise nobody's, so Save as Defaults and a restart keep
+        # them chosen (B8-965): typed 6/6/6/6 is still typed tomorrow.
+        _lx = bool(getattr(r, "layout_explicit", False))
+        self._margins_chosen = _lx or bool(getattr(r, "margins_explicit", False))
+        self._align_chosen = _lx or bool(getattr(r, "align_explicit", False))
         if bool(getattr(r, "layout_explicit", False)):
             self._layout_answered.update(self.INSTRUMENT_DEFAULTED)
         else:
@@ -5471,6 +5509,15 @@ class LayoutOptionsPanel(QWidget):
         # preset carries the answer with it, so re-loading it is protected from
         # the instrument defaults exactly as the original was.
         r.layout_explicit = bool(self._layout_answered)
+        # WHOSE MARGINS, WHOSE ALIGNMENT? (B8-965) Typing a margin or picking
+        # an alignment is not one of the four answers above, so it used to be
+        # lost with the session: after Save as Defaults and a restart, typed
+        # margins that happen to equal a default (6/6/6/6, or the instrument's
+        # own) looked like nobody's and Extra-high seeded 5 mm into them.
+        # Written only where `layout_explicit` does not already say it, so a
+        # recipe that owns its whole layout is not recorded twice.
+        r.margins_explicit = bool(self._margins_chosen and not r.layout_explicit)
+        r.align_explicit = bool(self._align_chosen and not r.layout_explicit)
         # WHOSE STYLE IS THIS? False until a person answers (or a recipe that
         # already owned its style was loaded) — see LayoutRecipe.
         r.label_style_explicit = self._label_style_touched

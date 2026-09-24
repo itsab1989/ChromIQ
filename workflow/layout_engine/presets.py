@@ -141,6 +141,16 @@ class LayoutRecipe:
     # Absent from every dict written before this change, so `from_dict` leaves
     # it False and those recipes behave exactly as they do today.
     layout_explicit: bool = False
+    # The same question for two things a person can choose WITHOUT answering
+    # one of the four above: the page margins (typed into the boxes) and
+    # "Patch area alignment". Only the ColorMunki Extra-high seed reads them
+    # (B8-965, Basti 2026-09-24: a density change seeds only what is still at
+    # default). A typed 6/6/6/6 equals the default in number and is still
+    # somebody's, so the numbers cannot answer this either. Written only where
+    # `layout_explicit` does not already say it; absent from older dicts, so
+    # `from_dict` leaves them False and those recipes behave as they did.
+    margins_explicit: bool = False
+    align_explicit: bool = False
     spacer_width_mm: float = 0.0   # 0 = instrument default
     inter_patch_mm: float = 0.0    # extra gap between patches
     strip_gap_mm: float = 0.0      # extra gap BETWEEN strips (adds to row pitch)
@@ -343,6 +353,8 @@ class LayoutRecipe:
             # Likewise not in build_kwargs: a chart that stored raw kwargs
             # reconstructs as "nobody chose", i.e. today's behaviour.
             layout_explicit=bool(d.get("layout_explicit", False)),
+            margins_explicit=bool(d.get("margins_explicit", False)),
+            align_explicit=bool(d.get("align_explicit", False)),
             indicator_font=d.get("indicator_font", "JetBrains Mono"),
             indicator_size_mm=float(d.get("indicator_size_mm") or 0.0),
             indicator_bold=bool(d.get("indicator_bold", False)),

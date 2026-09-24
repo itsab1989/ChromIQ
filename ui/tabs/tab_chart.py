@@ -7776,6 +7776,12 @@ class TabChart(QWidget):
         overlay = getattr(self._settings, "apply_indicator_style", None)
         d = (overlay(r) if overlay is not None else r).to_dict()
         d.pop("label_style_explicit", None)
+        # Who chose the margins / the alignment (B8-965) is provenance, not a
+        # value on the sheet: a preset loaded by name owns both through
+        # `layout_explicit`, so the panel reports them there and not here, and
+        # "same layout, differently recorded" must not light "modified".
+        d.pop("margins_explicit", None)
+        d.pop("align_explicit", None)
         d.pop("seed", None)
         # …and the tick that belongs to the seed, for the same reason: a preset
         # never stores it, so a chart that does would always read as "modified".
@@ -24948,56 +24954,60 @@ class TabChart(QWidget):
         user or the live preview asked for it, which is the whole question.
         """
         try:
-            rec = self._manual_layout_panel.get_recipe().to_dict() \
-                if getattr(self, "_manual_layout_panel", None) is not None else {}
-            # SAY WHICH MODULE IS SPEAKING, AND LOG THE OTHER ONE TOO.
-            #
-            # This line reads the MANUAL panel whatever built the chart, so a
-            # Guided build was logged with Manual's numbers. Basti's log of
-            # 2026-08-26 says "A4" for a sheet Guided had just built as A4R —
-            # and I diagnosed the wrong field from it, because the line looked
-            # like a description of the chart and was a description of the
-            # other module's widgets.
-            #
-            # The mismatch is the interesting part, not noise to tidy away: it
-            # is exactly the "the panel disagrees with the sheet" condition that
-            # produced the bug. So log both, labelled, and let a reader see the
-            # gap.
             mode = self._current_mode()
+            # SAY WHAT THE BUILDING MODULE BUILT (beta 42 challenge, item 3).
+            #
+            # This line used to read the MANUAL panel whatever built the chart,
+            # labelled "manual panel", on the theory that the gap between the
+            # two modules was worth seeing (Basti's log of 2026-08-26 said
+            # "A4" for a sheet Guided had built as A4R). In practice the line
+            # reads as a description of the chart, and a Guided ColorMunki
+            # build (patch-first, density 1, 6 mm) was logged as "manual
+            # panel: CM, A4, area_first, density 2, 12x12 grid, margins T34.0
+            # ...", the Manual preset that happened to be loaded. In Guided it
+            # now describes Guided's own recipe: what `_engine_build_kwargs`
+            # hands the engine, read back through the recipe the chart's
+            # sidecar records. Guided has no margin boxes; the engine lays it
+            # out with the base margin on every side (`instruments.build`).
+            if mode == "guided":
+                from workflow.layout_engine.presets import LayoutRecipe
+                kw = self._creator._engine_build_kwargs(self._collect_guided())
+                rec = LayoutRecipe.from_build_kwargs(kw).to_dict()
+                m = kw.get("margins") or (float(kw.get("border", 6.0)),) * 4
+                (rec["margin_top"], rec["margin_right"],
+                 rec["margin_bottom"], rec["margin_left"]) = tuple(m)
+                who = "guided"
+            else:
+                panel = getattr(self, "_manual_layout_panel", None)
+                rec = panel.get_recipe().to_dict() if panel is not None else {}
+                who = "manual panel"
             # THE GRID IS AN AREA-FIRST SETTING, AND ONLY THERE A FACT (B8-964).
             # This line used to print the area columns x rows whatever the
             # layout mode, so a patch-first chart built as 32 strips of 15
             # was logged as "44x14 grid" at every density, and Basti read
             # that as "density changes nothing". Say which layout mode and
-            # which density/mode the panel holds, and print the grid only
+            # which density/mode the recipe holds, and print the grid only
             # where the layout uses it.
             lay = str(rec.get("layout_mode") or "patch_first")
             grid = (f"{rec.get('area_cols')}x{rec.get('area_rows')} grid"
                     if lay == "area_first" else
                     "grid from patch size (area grid unused)")
-            log.info("chart build (%s) in %s: patch set %s | manual panel: %s, "
+            log.info("chart build (%s) in %s: patch set %s | %s: %s, "
                      "%s, %s, %s, %s, margins T%s R%s B%s L%s",
-                     trigger, mode, getattr(ti1_path, "name", ti1_path),
+                     trigger, mode, getattr(ti1_path, "name", ti1_path), who,
                      rec.get("instrument"), rec.get("paper"), lay,
                      _recipe_mode_word(rec), grid,
                      rec.get("margin_top"), rec.get("margin_right"),
                      rec.get("margin_bottom"), rec.get("margin_left"))
-            if mode != "manual":
-                # What the module that is actually building will hand the
-                # engine — the numbers that describe the sheet.
-                try:
-                    kw = self._creator._engine_build_kwargs(
-                        self._collect_guided()) if mode == "guided" else {}
-                    log.info("chart build (%s) in %s: engine kwargs %s",
-                             trigger, mode,
-                             {k: kw.get(k) for k in
-                              ("instrument", "paper", "border", "patch_w_mm")
-                              if k in kw})
-                except Exception:      # noqa: BLE001
-                    log.debug("could not log the building module's geometry",
-                              exc_info=True)
+            if mode == "guided":
+                # The raw numbers the engine is handed, as before.
+                log.info("chart build (%s) in %s: engine kwargs %s",
+                         trigger, mode,
+                         {k: kw.get(k) for k in
+                          ("instrument", "paper", "border", "patch_w_mm")
+                          if k in kw})
         except Exception:      # noqa: BLE001 — a log line must never break a build
-            pass
+            log.debug("could not log the chart build", exc_info=True)
 
     def _chart_build_in_flight(self) -> bool:
         """True while a chart is being built and has not come back yet.
