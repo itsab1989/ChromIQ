@@ -7,6 +7,7 @@ pre-shuffled "Preserve Patch Order" (-r) chart isn't left fixed-order and can be
 measured bidirectionally — the situation that produced the pharmacist's
 mistagged charts.
 """
+import os
 import tempfile
 from pathlib import Path
 
@@ -21,6 +22,11 @@ from core.argyll_runner import ArgyllRunner  # noqa: E402
 from core.file_manager import FileManager  # noqa: E402
 from core.settings import AppSettings  # noqa: E402
 from ui.tabs.tab_chart import TabChart  # noqa: E402
+
+#: Files made here go into ONE folder the suite's sweep takes by name
+#: (`chromiq-test-*`), not loose into $TMPDIR: 42,523 settings .ini files
+#: and 4,024 .ti2 files had piled up there by 2026-09-24.
+_TMP_DIR = tempfile.mkdtemp(prefix="chromiq-test-files-")
 
 
 @pytest.fixture(scope="module")
@@ -64,7 +70,9 @@ def _make_ti2(vals, steps, kw):
             rows.append(f'{sid} "{letter}{j}" {r} {g} {b}')
     text = (_HEAD.format(kw=kw) + f"NUMBER_OF_SETS {sid}\nBEGIN_DATA\n"
             + "\n".join(rows) + "\nEND_DATA\n")
-    p = Path(tempfile.mkstemp(suffix=".ti2")[1])
+    fd, name = tempfile.mkstemp(suffix=".ti2", dir=_TMP_DIR)
+    os.close(fd)                     # mkstemp opens it; nothing else did
+    p = Path(name)
     p.write_text(text, encoding="utf-8")
     return p
 

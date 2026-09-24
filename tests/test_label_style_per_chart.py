@@ -38,6 +38,11 @@ from core.settings import DEFAULTS, INDICATOR_STYLE_KEYS  # noqa: E402
 from workflow.layout_engine import instruments               # noqa: E402
 from workflow.layout_engine.presets import LayoutRecipe      # noqa: E402
 
+#: Files made here go into ONE folder the suite's sweep takes by name
+#: (`chromiq-test-*`), not loose into $TMPDIR: 42,523 settings .ini files
+#: and 4,024 .ti2 files had piled up there by 2026-09-24.
+_TMP_DIR = tempfile.mkdtemp(prefix="chromiq-test-files-")
+
 _PT = 25.4 / 72.0          # Knut's Preferences held 12 pt
 
 
@@ -47,7 +52,7 @@ def _settings(**style):
 
     from core.settings import AppSettings
     s = AppSettings()
-    s._qs = QSettings(tempfile.mktemp(suffix=".ini"), QSettings.Format.IniFormat)
+    s._qs = QSettings(tempfile.mktemp(suffix=".ini", dir=_TMP_DIR), QSettings.Format.IniFormat)
     for k, v in style.items():
         s.set(k, v)
     return s

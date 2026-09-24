@@ -100,3 +100,50 @@ def test_the_drivers_in_scripts_do_the_same():
     assert not bad, (
         "these drivers make a temp folder nothing will ever sweep: "
         + "; ".join(f"{k} line {v}" for k, v in bad.items()))
+
+
+def _loose_temp_files(path: Path):
+    """Every ``mktemp()`` / ``mkstemp()`` in *path* that names no ``dir=``."""
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+    except SyntaxError:
+        return []
+    out = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        fn = node.func
+        # the `tempfile` module's, not pytest's `tmp_path_factory.mktemp`,
+        # which pytest removes itself
+        if isinstance(fn, ast.Attribute):
+            if not (isinstance(fn.value, ast.Name) and fn.value.id == "tempfile"):
+                continue
+            name = fn.attr
+        else:
+            name = getattr(fn, "id", "")
+        if name not in ("mktemp", "mkstemp"):
+            continue
+        if any(k.arg == "dir" for k in node.keywords) or len(node.args) >= 3:
+            continue
+        out.append(node.lineno)
+    return out
+
+
+@pytest.mark.parametrize("path", sorted(
+    p for p in (_ROOT / "tests").glob("test_*.py")
+    if p.name not in _EXEMPT))
+def test_no_test_file_drops_a_loose_temp_file(path):
+    """**AND NO LOOSE FILES EITHER.** The sweep takes FOLDERS; a file made by
+    ``mktemp()`` or ``mkstemp()`` straight into ``$TMPDIR`` is never removed.
+    Measured 2026-09-24: 42,523 settings ``tmp*.ini`` files from three tests'
+    ``QSettings(tempfile.mktemp(suffix=".ini"))`` and 4,024 ``.ti2`` files
+    from one ``mkstemp``. Give it ``dir=`` a ``chromiq-test-*`` folder, or use
+    ``tmp_path``.
+
+    MUTATION: write ``tempfile.mktemp(suffix=".ini")`` in any test file and
+    this goes red."""
+    bad = _loose_temp_files(path)
+    assert not bad, (
+        f"{path.name} makes a loose temp file at line(s) "
+        f"{', '.join(str(n) for n in bad)}: pass dir= a chromiq-test-* "
+        "folder, or use tmp_path.")
