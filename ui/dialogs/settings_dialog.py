@@ -3297,22 +3297,11 @@ class SettingsDialog(QDialog):
         _ink(credit2, "#606060", " font-size: 11px;", level="faint")
         outer.addWidget(credit2)
 
-        # **A TRANSLATION SOMEBODY GAVE US IS CREDITED IN THE APP THEY GAVE IT
-        # TO.** LackiUA contributed the whole Ukrainian catalogue on issue #198
-        # and was named nowhere: not in the CHANGELOG, not in the README, not
-        # on the site and not here. Found by challenge round 32.
-        #
-        # A LINE OF ITS OWN, not an addition to the line above, deliberately.
-        # `credit2` is one tr() key that thirteen catalogues already carry; a
-        # name appended to it would retire that key and put the whole sentence
-        # back into English in twelve languages to add four words. This one
-        # grows as more translations are contributed, and the contributors'
-        # names are proper nouns that every language renders the same way.
-        credit3 = QLabel(
-            tr("Translations contributed by: LackiUA (Ukrainian)"), self)
-        credit3.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        _ink(credit3, "#606060", " font-size: 11px;", level="faint")
-        outer.addWidget(credit3)
+        # NO TRANSLATION CREDIT IN THE APP. Basti, 2026-09-24: *"in settings i
+        # don't want to have the translations contributed credits. the
+        # translation was ai generated and caused more trouble than good"*.
+        # The line "Translations contributed by: …" was removed here; the
+        # README and CHANGELOG entries were left as they are.
 
         self._update_status = QLabel("", self)
         self._update_status.setStyleSheet("font-size: 11px;")

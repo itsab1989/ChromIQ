@@ -183,22 +183,23 @@ CONTRIBUTED: "dict[str, str]" = {
 }
 
 
-@pytest.mark.parametrize("code", sorted(CONTRIBUTED))
-def test_a_contributed_translation_is_credited_in_the_app(code):
-    """**A CREDIT IN A FILE THE USER NEVER OPENS IS NOT A CREDIT.** The same
-    rule `test_a_credit_nobody_can_read_is_not_a_credit.py` applies to bundled
-    reference data: the source is named where the thing is used. A translation
-    is used in the running app, so the name belongs in the running app.
-    """
+def test_the_app_credits_no_translation():
+    """**NO TRANSLATION CREDIT IN THE APP (Basti, 2026-09-24).** *"in settings
+    i don't want to have the translations contributed credits. the
+    translation was ai generated and caused more trouble than good"*. This
+    used to require the opposite (a contributed translation credited in the
+    running app); the credit in the repository below is unchanged.
+
+    MUTATION: put a tr("Translations contributed by: …") line back in
+    `settings_dialog.py` and this goes red."""
     import sys
     sys.path.insert(0, str(ROOT / "scripts"))
     from i18n_extract import extract_keys
-    who = CONTRIBUTED[code]
-    assert code in _codes(), f"{code} is credited here and ships no catalogue"
-    named = [k for k in extract_keys() if who in k]
-    assert named, (
-        f"{who} contributed the {_english_names()[code]} translation and is "
-        "named in no user-facing string in the app")
+    named = [k for k in extract_keys()
+             if "Translations contributed by" in k
+             or any(who in k for who in CONTRIBUTED.values())]
+    assert not named, f"the app credits a translation again: {named}"
+
 
 
 @pytest.mark.parametrize("code", sorted(CONTRIBUTED))

@@ -539,6 +539,7 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-24, the translation credit removed from Settings (Basti). COUNTED, BOTH ledgers.
     # RE-MEASURED 2026-09-24, B40-B (B8-940 to B8-952), the beta 40 challenge B text fixes: German by hand; the twelve others carry the new English under the beta rule. COUNTED off the tree with this file's own expression, BOTH ledgers.
     # RE-MEASURED 2026-09-24, B40-A (B8-935 to B8-939): one key in, the "Judged against" tooltip for a set carried over from an earlier ChromIQ. German by hand, so it does not move; the twelve others carry the English and each rises by exactly 1. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-24, K31-A (B8-890 to B8-899) and K31-B (B8-900 to B8-909) cherry-picked onto beta 39 (B8-910 to B8-925). COUNTED, BOTH ledgers.
@@ -1004,18 +1005,18 @@ _BUDGET = {
     # intro is translated now). COUNTED off the tree, BOTH ledgers in the
     # same commit.
     "de": 13,
-    "es": 894,
-    "fr": 895,
-    "it": 894,
-    "ja": 894,
-    "nl": 894,
-    "no": 894,
-    "pl": 894,
-    "pt": 894,
-    "ru": 893,
-    "sv": 894,
-    "zh_CN": 893,
-    "uk": 1042,
+    "es": 893,
+    "fr": 894,
+    "it": 893,
+    "ja": 893,
+    "nl": 893,
+    "no": 893,
+    "pl": 893,
+    "pt": 893,
+    "ru": 892,
+    "sv": 893,
+    "zh_CN": 892,
+    "uk": 1041,
 }
 
 
