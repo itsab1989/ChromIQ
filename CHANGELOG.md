@@ -36,6 +36,10 @@
 
 - A number changed in the "This report" column of Edit limits is applied
   when only one profile run is loaded.
+- A number typed for one report is never carried into another report picked
+  afterwards, and an edited report keeps its numbers when it is updated.
+- "How evenness was judged" is printed only where an evenness row was judged,
+  and the warning over the report names the limits the page is judged against.
 - An old verdict record from an earlier beta never stands in for a date's own
   report, and a date's last report of its own cannot be deleted.
 - The report window's buttons wrap onto a second row at the smallest window
