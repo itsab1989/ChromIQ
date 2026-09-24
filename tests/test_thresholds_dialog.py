@@ -64,17 +64,17 @@ def a_hand_marked_recommendation(tmp_path, monkeypatch):
     3.0 is ChromIQ default's own maximum. No figure from any standard is used
     here or anywhere in this suite.
     """
-    import json
-
+    # SINCE B8-978 (Knut, #182 5815346140) A VALUES FILE NO LONGER REACHES A
+    # CUSTOM COLUMN: it fills only the read-only one. The mechanisms under
+    # test are unchanged, so the recommendation is put where a Custom
+    # column's numbers now come from, its defaults.
     from workflow import compliance_sets as cs
-    f = tmp_path / "iso12647-marked.json"
-    f.write_text(json.dumps({
-        "iso_12647_7": {"grey_balance_neutral_ramp_avg": [3.0, "should"]},
-        "iso_12647_8": {},
-    }), encoding="utf-8")
-    monkeypatch.setenv(cs.ISO_DATA_ENV, str(f))
+    rid = "grey_balance_neutral_ramp_avg"
+    monkeypatch.setitem(cs._CUSTOM_INDUSTRY, "iso_12647_7",
+                        {**cs._CUSTOM_INDUSTRY["iso_12647_7"],
+                         rid: cs.Limit.should(3.0)})
     cs.reset_iso_cache()
-    yield "custom_iso_12647_7", "grey_balance_neutral_ramp_avg", 3.0
+    yield "custom_iso_12647_7", rid, 3.0
     cs.reset_iso_cache()
 
 

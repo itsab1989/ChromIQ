@@ -65,12 +65,16 @@ def a_marked_set(tmp_path, monkeypatch):
     the shipping loader, so what is exercised is the path a licence holder's
     file takes and not a fixture that re-implements it.
     """
+    # SINCE B8-978 (Knut, #182 5815346140) A VALUES FILE NO LONGER REACHES A
+    # CUSTOM COLUMN, so the file's own ``[number, "should"]`` form is read back
+    # through the shipping loader into the column it now fills: the read-only
+    # ISO 12647-7 set, where a licence holder's recommendation really lands.
     f = tmp_path / "iso12647.json"
     f.write_text(json.dumps({"iso_12647_7": {RID: [3.0, "should"]},
                              "iso_12647_8": {}}), encoding="utf-8")
     monkeypatch.setenv(cs.ISO_DATA_ENV, str(f))
     cs.reset_iso_cache()
-    yield "custom_iso_12647_7"
+    yield "iso_12647_7"
     cs.reset_iso_cache()
 
 

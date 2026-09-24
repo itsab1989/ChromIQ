@@ -27706,6 +27706,7 @@ would reach.
 - cause: §2a's first source, "a licence holder's own values file", took precedence over `_CUSTOM_INDUSTRY` on every row the file answered.
 - fixed: a Custom column always starts from Knut's industry figures, then ChromIQ's own numbers; any values file, shipped or the user's own, fills only the read-only ISO column. The window's texts no longer say the Custom column starts from supplied figures. German by hand; the eleven others were already English on these keys.
 - tests: tests/test_compliance_sets.py::test_a_licence_holders_own_file_never_fills_a_custom_column (red on the old code); two older tests changed to the new rule.
+- evidence: test_a_licence_holders_own_file_never_fills_a_custom_column
 - proof: ~/Desktop/ChromIQ-beta42-proof/custom-iso-industry/ (before/, after/: photograph, limits.json; drive.py, run.sh, fake_user_values.json).
 ### B8-974 · FIXED, awaiting confirmation · "Which presets can be used for verification?" could not show which chart answers every metric: "All metrics", the default
 - blocks release: no

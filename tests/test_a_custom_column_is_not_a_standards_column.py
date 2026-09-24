@@ -118,13 +118,13 @@ def test_the_guide_is_true_whether_or_not_the_figures_are_supplied(tmp_path,
         ro = C.effective_limits("iso_12647_7", None)
         assert [r for r in ro.values() if r.is_numeric], (
             "the premise: supplying figures fills the read-only column")
-        # "An editable column ... starts from those supplied figures where
-        # there are any": the Custom column must take the SUPPLIED number.
+        # Since 2026-09-24 (Knut, #182 5815346140, B8-978) a Custom column
+        # never takes a supplied figure: it is an alternative to the standard
+        # and starts from the industry defaults whatever file is present.
         cu = C.factory_limits("custom_iso_12647_7")
-        assert cu["all_de00_avg"].is_numeric
-        assert abs(cu["all_de00_avg"].number - 2.5) < 1e-9, (
-            "the Custom column did not start from the supplied figure, so the "
-            "guide's clause about it is false")
+        assert cu["all_de00_avg"] == C.custom_defaults("iso_12647_7")["all_de00_avg"], (
+            "the Custom column took the supplied figure; it must start from "
+            "the industry defaults")
         # "...and from ChromIQ's own numbers where there are none": a row the
         # file said nothing about still carries a placeholder.
         assert cu["all_de00_max"].is_numeric
