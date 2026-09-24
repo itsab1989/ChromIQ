@@ -62,6 +62,14 @@ def test_defer_clear_button_focus_drops_a_focused_button(app):
     # dialog is active by the time anyone can press Space, which is the case
     # the function exists for.
     from PyQt6.QtTest import QTest
+    # ALONE ON THE SCREEN. In the beta 41 gates this failed twice on a loaded
+    # machine and never alone or beside any single file: a window an earlier
+    # test on the same worker left shown can take the activation back after
+    # the last pass. The function is about ONE window being shown, so the
+    # test shows only that one.
+    for other in app.topLevelWidgets():
+        if other is not w and other.isVisible():
+            other.hide()
     QTest.qWaitForWindowActive(w, 2000)
     btn.setFocus()
     if app.focusWidget() is not btn:
@@ -77,7 +85,7 @@ def test_defer_clear_button_focus_drops_a_focused_button(app):
     # the focus then never leaves the button.
     import time
     cleared = False
-    deadline = time.monotonic() + 3.0
+    deadline = time.monotonic() + 5.0
     while time.monotonic() < deadline:
         _wait(10)
         if not isinstance(app.focusWidget(), QAbstractButton):

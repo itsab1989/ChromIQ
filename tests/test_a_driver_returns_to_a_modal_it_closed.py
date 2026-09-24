@@ -174,6 +174,16 @@ def test_the_next_step_pumps_again(userdrive, qapp, tmp_path, monkeypatch):
         seen["pumped"] = dd.app.calls - before
 
     monkeypatch.setattr(d, "app", d.app)
-    d.run(script)
+    # A quit() timer an earlier test left on this worker ends `run`'s event
+    # loop after the first step (beta 41 gate, loaded machine, `seen` empty).
+    # Flush what is already queued, and say so plainly if the loop still ends
+    # before the step this test is about.
+    for _ in range(3):
+        qapp.processEvents()
+    rc = d.run(script)
+    assert rc == 0, "the driven script raised; see the drive's notes"
+    assert "pumped" in seen, (
+        "run() returned before the second step: the event loop was ended from "
+        "outside the drive (a stray quit), not by the guard under test")
     assert seen.get("pumped", 0) > 0, (
         "pump() stayed inert in the step after the one that closed a modal")
