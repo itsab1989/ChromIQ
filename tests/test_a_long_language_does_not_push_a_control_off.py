@@ -540,8 +540,11 @@ def test_a_tab_heading_is_wide_enough_for_its_INK(qapp, code):
     for it, so the string "fits" by every width calculation and the ink does
     not.
 
-    MUTATION: delete the `self._fit_title_ink()` call from `changeEvent` in
-    `ui/tab_header.py` and this goes red in all three.
+    MUTATION (since B8-962): make `_InkTitleLabel.sizeHint` and
+    `minimumSizeHint` in `ui/tab_header.py` return QLabel's answer unchanged
+    and this goes red in uk and de. It sets the font by hand, so it could not see B8-962;
+    `tests/test_a_serif_heading_keeps_its_last_letter.py` builds the heading
+    the way the app does.
     """
     from PyQt6.QtGui import QFont, QFontMetrics
     from ui.tab_header import TabHeader

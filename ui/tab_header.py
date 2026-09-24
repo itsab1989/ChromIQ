@@ -11,6 +11,58 @@ from ui.tooltip_button import TooltipButton
 from core.i18n import tr
 
 
+class _InkTitleLabel(QLabel):
+    """A one-line label whose size hints cover its INK, not only its advance.
+
+    B8-962 (Basti, 2026-09-24, beta.40): the "Update available" masthead cut
+    the last "e". The earlier fix (`TabHeader._fit_title_ink`, 2026-09-21)
+    measured the ink once and pinned it as a minimum width, and that number
+    was measured in the WRONG FONT whenever nothing re-fitted after the
+    stylesheet was applied. Measured on screen, 2x: the heading paints in
+    Georgia 30 px at 85 % spacing, advance 189, ink 191, and the label was
+    189 wide with a minimum of 88, which is the ink of the unpolished 13 px
+    default font the fit ran on in `__init__`. The tabs escaped only because
+    `apply_theme` calls `set_appearance`, which re-fits; a dialog built after
+    the theme was applied never hears it, and a `FontChange` on the LABEL
+    never reaches the header's `changeEvent` anyway.
+
+    So the ink is no longer a number stored at one moment: it is part of the
+    size hint, asked for by the layout each time it lays the label out, from
+    the font the label is polished into.
+
+    `SPARE` is 2 px past the integer ink box, and both are needed: at 2x the
+    antialiased edge of a round last glyph lands one DEVICE pixel past the
+    box the metrics round to ("Build ICC profile", "ICC-Profil erstellen",
+    "Створіть тестову діаграму" each photographed with ink in the column the
+    box said was empty), and the rest is the pixel of air the heading is
+    promised.
+    """
+
+    SPARE = 2
+
+    def _ink_width(self) -> int:
+        from PyQt6.QtGui import QFontMetrics
+        self.ensurePolished()
+        text = self.text()
+        if not text:
+            return 0
+        fm = QFontMetrics(self.font())
+        ink = max(fm.tightBoundingRect(text).right() + 1,
+                  fm.boundingRect(text).right() + 1)
+        m = self.contentsMargins()
+        return ink + self.SPARE + m.left() + m.right()
+
+    def sizeHint(self):  # noqa: N802
+        s = super().sizeHint()
+        s.setWidth(max(s.width(), self._ink_width()))
+        return s
+
+    def minimumSizeHint(self):  # noqa: N802
+        s = super().minimumSizeHint()
+        s.setWidth(max(s.width(), self._ink_width()))
+        return s
+
+
 class TabHeader(QWidget):
     """Inline accent stroke before step label, large title below.
 
@@ -58,7 +110,7 @@ class TabHeader(QWidget):
         title_row.setContentsMargins(0, 0, 0, 0)
         title_row.setSpacing(10)
 
-        self._title_lbl = QLabel(title_text, self)
+        self._title_lbl = _InkTitleLabel(title_text, self)
         # No color rule — inherit from active theme (LM_TEXT_MAIN in light,
         # TEXT_MAIN in dark) so the title stays legible on either bg.
         self._title_lbl.setStyleSheet(
@@ -131,7 +183,6 @@ class TabHeader(QWidget):
         )
 
     def set_appearance(self, _mode: str) -> None:
-        self._fit_title_ink()
         """Re-paint the accent stroke and eyebrow for a new appearance.
 
         `MainWindow.apply_theme` broadcasts to every descendant that has this
@@ -139,6 +190,7 @@ class TabHeader(QWidget):
         else would refresh them: before this, a header built under Light kept
         its tab hue after a switch to Neutral.
         """
+        self._fit_title_ink()
         self._paint_accent()
 
     def _fit_title_ink(self) -> None:
@@ -171,21 +223,16 @@ class TabHeader(QWidget):
         a `t`. This is why it looked like a Ukrainian problem: Ukrainian is
         merely the language whose headings are longest and whose final letters
         are round.
+
+        B8-962 (2026-09-24): the ink is now part of the label's own size
+        hints (`_InkTitleLabel`), computed from the polished font whenever the
+        layout asks. A minimum width stored here was a measurement of whatever
+        font the label had at the moment of the call, and a dialog masthead
+        was measured in the 13 px default font and kept 88 px as its minimum.
+        What is left is to drop any stored minimum and ask the layout again.
         """
-        from PyQt6.QtGui import QFontMetrics
-        text = self._title_lbl.text()
-        if not text:
-            return
-        fm = QFontMetrics(self._title_lbl.font())
-        advance = fm.horizontalAdvance(text)
-        ink = max(fm.tightBoundingRect(text).right() + 1,
-                  fm.boundingRect(text).right() + 1)
-        # Only ever raises, and only by the overhang: a heading whose ink sits
-        # inside its advance is left exactly as it was.
-        if ink > advance:
-            self._title_lbl.setMinimumWidth(ink)
-        else:
-            self._title_lbl.setMinimumWidth(0)
+        self._title_lbl.setMinimumWidth(0)
+        self._title_lbl.updateGeometry()
 
     def changeEvent(self, event) -> None:  # noqa: N802
         """Re-fit whenever the FONT this is painted in can have changed.

@@ -27549,3 +27549,16 @@ would reach.
 - tests: tests/test_the_patch_distribution_pulldown_matches_create_chart.py (mutations: user block last as "Custom presets", a "Custom presets" heading in the dialog, user CR30 presets filed under the CR30 heading, CR30 after Scanner: 1 red each)
 - evidence: test_the_list_is_create_charts_order_and_grouping, test_the_group_order_is_pinned_in_both_lists
 - proof: ~/Desktop/ChromIQ-beta41-proof/patch-distribution-pulldown/drive-*-after/photographs/*-B*, *-D* (Create Chart and Patch distribution lists open, top and scrolled to the CR30 group).
+
+### B8-962 · FIXED, awaiting confirmation · The "Update available" and "Patch distribution" headings cut the right edge of their last letter
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: beta 42. The fix for the same fault on the tab headings (2026-09-21) covered them only because the theme broadcast re-ran it.
+- where: `ui/tab_header.py` (`_InkTitleLabel`, new; `TabHeader._fit_title_ink`).
+- found by: Basti's screenshot of 2026-09-24 (beta 40, the Update available window, last "e" cut).
+- cause (measured on screen at 2x, Georgia 30 px at 85 % spacing): `_fit_title_ink` stored the ink width as the label's minimum once, from whatever font the label had at that moment. In `__init__` that is the unpolished 13 px default, not the Georgia 30 px its stylesheet gives it on polish, and in a dialog nothing ran the fit again (the tabs are re-fitted by `apply_theme -> set_appearance`; the label's own FontChange never reaches the header's `changeEvent`). Update available: advance 189, ink 191, label 189 wide with a minimum of 88; Patch distribution 204 / 206 / 204 / 92; German and Ukrainian the same. The tabs that were fitted still had 0 device px of air (the antialiased edge sits one device pixel past the integer ink box).
+- fixed: the title label's `sizeHint` and `minimumSizeHint` include its ink, measured from the polished font every time the layout asks, plus 2 px. After, on screen at 2x in Light, Dark and Neutral, EN, DE and UK: every tab heading, Update available, Measurement Report and Patch distribution has 3 to 7 device px between its last inked column and the label's edge (before: 0 on every dialog masthead but Measurement Report, and 0 to 2 on the tabs).
+- tests: tests/test_a_serif_heading_keeps_its_last_letter.py (every TabHeader title, 14 languages, pixels of the rendered label; mutations: size hints back to QLabel's, and the beta 41 `ui/tab_header.py`: 14 red each)
+- evidence: test_every_heading_has_air_after_its_last_letter
+- proof: ~/Desktop/ChromIQ-beta41-proof/heading-last-letter/ (photographs/{before,after}-*, *.json, zoom-update-before-vs-after.png, zoom-patchcube-before-vs-after.png).
