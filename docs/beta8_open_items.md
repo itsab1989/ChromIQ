@@ -27188,3 +27188,62 @@ would reach.
 - blocks release: no
 - status: OPEN
 - note: K31, beta 40; spec §26.6. Knut: "use your recommendation, then if Sebastian says differently you can alter it." Nothing changed in the code.
+
+### B8-926 · FIXED, awaiting confirmation · The report window read a namesake project in the ChromIQ folder for a recorded project that was still there
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- note: beta 40
+- where: `workflow/measurement_report.py` (`resolve_recorded_folder`, step 3c).
+- found by: the beta 40 brief: step 3c (B8-919) looked for the one project in the ChromIQ folder (top level or one level down) that answers to the recorded name BEFORE it looked at the recorded folder, while the rewrite side (`core.report_refs.refers_here`, B8-920) already refused such a reference.
+- measured before (on screen, `~/Desktop/ChromIQ-beta40-proof/small-fixes/before/P1-en`): Report-Limits-Report-Folders in the ChromIQ folder, Report-Limits-Report-Folders-Second kept outside it; a report across both made in the window (Add Profile's Measurements…, Generate) lands in `<ChromIQ folder>/reports`; a Finder copy of Second put in `<ChromIQ folder>/Group/`. Folders' window, reopened on that report, read both of Second's dates from the COPY (2 of 2); after, from the recorded Second (2 of 2, 0 from the copy).
+- fixed: a recorded folder that still holds a project (`project.json`) is that project; step 3c runs only when it is gone, and still only when exactly one candidate answers.
+- tests: tests/test_b40_an_existing_recorded_project_wins_over_a_namesake.py (mutation "no still-there return": 2 red)
+- evidence: test_the_recorded_project_wins_over_one_namesake, test_a_gone_recorded_folder_still_finds_the_one_namesake, test_the_window_reads_the_recorded_project_not_its_copy
+- proof: ~/Desktop/ChromIQ-beta40-proof/small-fixes/before/P1-en and after/P1-en (photographs/, driver-notes.txt "loaded from", diffs/).
+
+### B8-927 · FIXED, awaiting confirmation · At the 760 px minimum width the report window drew its buttons over each other and cut the detail box
+- blocks release: no
+- status: FIXED
+- note: beta 40; German by hand: "Profilmessungen hinzufügen…" / "Profilmessungen entfernen…" (were "Messungen eines Profils …"), in the buttons and the five help texts that name them
+- where: `ui/widgets.py` (`ReflowRow`), `ui/dialogs/measurement_report_dialog.py` (`_reflow_row`, `_keep_the_list_inside_the_window`, `_rewrap_beside_the_pulldown`).
+- found by: second check R3 of beta 39, `~/Desktop/ChromIQ-beta39-proof/second-check-R3/rerun/de-all/photographs/G3-why-minimum.png` ("Ausgewählten Bericht…" under "Bericht als PDF speich…").
+- measured before (on screen at 16da4232, `before/MIN-*/geometry-*.json`, K31's tree: the Unlock box is gone and "Grenzwerte bearbeiten…" has its 215 px): German, the add / remove / clear row asked 759 px of the frame's 694 and overlapped twice; the four action buttons asked about 857 of 716 and overlapped twice; "Detaildaten für jeden Lauf anzeigen" had 216 of 243 px. English: "Delete Selected Report" under "Save report as PDF…", "Show detailed data for each run" 205 of 220. The window's hard minimum (760) is below what the one-line rows ask, so Qt squeezed them. And the German hint beside "Report shown" was fitted to two lines of its old, wider label and drawn on three, the first and last cut.
+- fixed: the three rows (add / remove / clear, the type's icon and the detail box, the four action buttons) are `ReflowRow`s: a group that does not fit starts a second line; a button never gets less than its text asks. The German add / remove labels are shorter, so that row stays one line. The height the wrapped rows add is found by the window's ladder (`_keep_the_list_inside_the_window`: the report view to 120 px, then the trend charts by what is still missing, never below 100 px, and back before the list gets a row back), measured 1027 / 1035 px of 1039 at 760 px. The hint and the Delete note are fitted again once the layout has given them their new width.
+- tests: tests/test_b40_report_window_buttons_fit_at_the_minimum_width.py (mutation "_split returns one line": 3 red)
+- evidence: test_nothing_overlaps_or_is_cut_at_the_minimum_width, test_a_row_too_short_for_one_line_takes_two, test_no_control_of_the_settings_frame_covers_another
+- proof: ~/Desktop/ChromIQ-beta40-proof/small-fixes/before/MIN-en, MIN-de and after/MIN-en, MIN-de (photographs MIN-default-*, MIN-minimum-*, geometry-*.json, driver-notes.txt: after, the only entries left in the cut / overlap lists are the tab bar's own two scroll arrows and the "Already generated" line, which elides by design with its "show all" link).
+
+### B8-928 · FIXED, awaiting confirmation · Report Scope counted three dates of one profile run as "3 verification runs"
+- blocks release: no
+- status: FIXED
+- note: beta 40; no new text (the words are the list header's "measurement" / "measurements", "Messung" / "Messungen")
+- where: `ui/dialogs/measurement_report_dialog.py` (`_scope_html`, `_count_label`).
+- found by: second check R3 of beta 39, `~/Desktop/ChromIQ-beta39-proof/second-check-R3/rerun/en-all/pdfs/I4-iso-12647-8-en/page-01.png`: "Report-Limits-Every-Limit-Set-verify, Instrument: X-Rite ColorMunki · 3 verification runs" for three dates of run 9, while the list header and the running header count measurements.
+- fixed: a verification document counts its dates as measurements, as a calibration already did; a profiling document still counts runs. The two keys "verification run" / "verification runs" had no other use and left every catalogue.
+- tests: tests/test_b40_report_scope_counts_dated_verifications_as_measurements.py, tests/test_the_one_page_summary_is_about_one_sheet.py
+- evidence: test_two_dates_of_one_run_are_two_measurements, test_one_date_is_one_measurement, test_the_german_words_are_the_list_headers_own, test_the_page_and_its_heading_are_about_the_same_sheet
+- proof: ~/Desktop/ChromIQ-beta40-proof/small-fixes/before/PDF-en and after/PDF-en (pdfs/, page-01 renders, texts/PDF-1-scope.txt).
+
+### B8-929 · FIXED, awaiting confirmation · Two English expert parameter names were elided in Create Chart > MANUAL
+- blocks release: no
+- status: FIXED
+- note: beta 40
+- where: `ui/parameter_widget.py` (`_build`, `NAME_CELL_MAX`), `ui/widgets.py` (`ElidingCheckBox.sizeHint`).
+- found by: the beta 40 brief; measured on screen (`before/CHK-en/rows-engine-*-en.json`): an expert row's check box was pinned to the 190 px name column and left its name 166 px after the indicator; "Body-Centered Cubic Steps:" needs 175 px (elided to "Body-Centered Cubic St…", engine on and off) and "Include Calibration File (no apply):" 209 px ("Include Calibration File (…", engine off). German: none elided.
+- fixed: the check box is at least 190 px and grows to what the whole name asks, up to 260 px; the control beside it gives the room. Past 260 px a name still elides with its tooltip (a long language).
+- tests: tests/test_a_parameter_row_keeps_its_label_column.py (mutation "setFixedWidth(190) back": 6 red)
+- evidence: test_an_expert_name_longer_than_the_column_shows_whole, test_a_name_past_the_cap_still_elides_with_its_tooltip, test_the_manual_panel_rows_keep_their_labels, test_no_parameter_row_draws_over_its_label
+- proof: ~/Desktop/ChromIQ-beta40-proof/small-fixes/before/CHK-en and after/CHK-en (photographs CHK-bcc-*, CHK-cal-engine-off-en, rows-engine-on/off-*.json: 1 and 2 elided before, 0 after; DE 0 and 0 both).
+
+### B8-930 · FIXED, awaiting confirmation · tests/test_g7_reports_across_places.py failed when a test before it on the same worker changed the report Preferences
+- blocks release: no
+- status: FIXED
+- note: beta 40; the fault was in the tests, not the app
+- where: `tests/conftest.py` (`_report_preferences_start_default`).
+- found by: the K31 merge tier (`~/Desktop/ChromIQ-beta40-proof/k31-merge/tier.txt`): 2 failed (`test_the_saved_report_shows_the_verdicts_it_recorded` "N-A" for "PASS"; `test_a_report_across_projects_lives_in_the_folder_across_them` "Grey and tone check: 2"), green alone.
+- cause: `test_k31_report_model.py::test_new_report_starts_on_preferences_then_the_runs_own_default` sets `report_default_type` to Grey and tone check in the per-WORKER settings store and never puts it back; since K31 a new report starts on the Preferences type, so a later file on that worker wrote Grey and tone reports. Reproduced every time with `pytest -p no:xdist tests/test_k31_report_model.py tests/test_g7_reports_across_places.py` (2 failed, the same two); which files share a worker changes each run under `--dist loadfile`.
+- fixed: an autouse setup fixture puts `report_default_type`, `report_default_show_details` and `compliance_default_set` back to their defaults before every test (the `_no_leaked_session_restore` pattern).
+- tests: tests/test_b40_report_preferences_do_not_leak_between_tests.py (mutation "fixture returns at once": 2 red)
+- evidence: test_2_the_next_test_starts_on_the_defaults, test_3_the_g7_order_that_failed_now_passes
+- proof: ~/Desktop/ChromIQ-beta40-proof/small-fixes/g7/ (the order run before and after).
