@@ -27474,7 +27474,9 @@ would reach.
 - evidence: test_the_old_words_are_gone_and_the_new_ones_are_there, test_the_german_terms_are_the_reports_own, test_the_demo_descriptions_speak_of_the_reports_limits
 - proof: ~/Desktop/ChromIQ-beta40-proof/challenge-B-fixes/ (items 9, 14, 17, 23, 24, 28, 30; the demo package rebuilt and verified, pkg-build.log, pkg-verify.log).
 
-### B8-954 · OPEN · The German terminology sweep of challenge B, left for the owner
+### B8-954 · DEFERRED · The German terminology sweep of challenge B, left for the owner
 - blocks release: no
-- status: OPEN
+- status: DEFERRED
+- decided by: Basti, 2026-09-24 ("german is ok i think")
+- because: the owner, whose language German is, read the German as it stands and found it acceptable, so no word pair is swept; the reading-guide heading "So ist dieser Bericht zu lesen" stays as well. A later sweep only if he or a German user asks for one.
 - note: beta 40, challenge B findings 18 to 22, 25 to 27 and 31 (`~/Desktop/ChromIQ-beta40-proof/challenge-B-text/REPORT.md`, "DE term splits"). Not changed, by the brief: which word wins in each pair is Basti's call (German is his language), and a sweep touches hundreds of strings. The pairs found: Bogen / Blatt; Messfeld / Farbfeld / Feld; Zielwert / Design / Soll(farbe); "im Gamut" (three spellings); "Gemessen an" where the report means "judged against" (Bewertet gegen); tiefstes / dunkelstes Schwarz; many synonyms for one English term; three spellings of the Preferences path (Einstellungen → Berichte, Einstellungen, Berichte, …). Items 23 (Grenzwertsatz) and 24 (Anmerkung) were fixed in B8-953 because each had one answer the report already prints. For Basti.
