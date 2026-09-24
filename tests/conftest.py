@@ -465,6 +465,53 @@ def _no_leaked_session_restore():
         pass
 
 
+#: The Preferences > Reports values a NEW report in the report window starts
+#: from (K31: "the starting choice for 'New report...' should be the defaults
+#: in preferences -> reports first"). See `_report_preferences_start_default`.
+_REPORT_START_KEYS = ("report_default_type", "report_default_show_details",
+                      "compliance_default_set")
+
+
+@pytest.fixture(autouse=True)
+def _report_preferences_start_default():
+    """Start every test with the report window's Preferences at their
+    defaults, whatever the test before it left in the store (B8-930).
+
+    THE G7 FLAKE. `tests/test_g7_reports_across_places.py` failed twice in
+    one full tier (`test_the_saved_report_shows_the_verdicts_it_recorded`:
+    "N-A" where the document recorded "PASS";
+    `test_a_report_across_projects_lives_in_the_folder_across_them`: "Grey
+    and tone check: 2" where it wanted "Full colour check: 2"), passed alone
+    and in other tiers. Reproduced every time as
+
+        pytest -p no:xdist tests/test_k31_report_model.py \\
+               tests/test_g7_reports_across_places.py
+
+    `test_k31_report_model.py::test_new_report_starts_on_preferences_then_
+    the_runs_own_default` sets `report_default_type` to Grey and tone check
+    through `tests/test_calibration_reports.py::_settings`, which writes into
+    `AppSettings`, one store per WORKER PROCESS (`pytest_configure`), and
+    never puts it back. Since K31 a new report starts on that Preferences
+    type, so every later file on that worker whose `_settings()` asks for
+    nothing wrote Grey and tone reports. Which files follow it on a worker
+    changes from run to run under `--dist loadfile`: that is the whole of
+    the intermittency. The code is right (Preferences decide); the tests
+    leaked state.
+
+    IN SETUP, for the reason `_no_leaked_session_restore` gives: a test that
+    sets these keys does so in its own body, after this has run.
+    """
+    import core.settings as _cs
+    if isinstance(_cs.QSettings, type):
+        return                  # not sandboxed: never touch the real store
+    try:
+        qs = _cs.QSettings("ChromIQ", "ChromIQ")
+        for key in _REPORT_START_KEYS:
+            qs.remove(key)      # -> back to DEFAULTS
+    except Exception:      # noqa: BLE001 — a repair must never fail a test
+        pass
+
+
 @pytest.fixture(autouse=True)
 def _no_real_usb_device_list(monkeypatch):
     """NO TEST MAY DEPEND ON WHAT IS PLUGGED INTO THE MACHINE RUNNING IT.
