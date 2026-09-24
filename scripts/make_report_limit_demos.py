@@ -972,7 +972,11 @@ def apply_design(ti3: Path, ti2: Path, design: Design,
                  ref_labs: "dict[str, tuple] | None" = None,
                  corner_ids: "set[str] | None" = None,
                  corner_devices: "dict[str, tuple] | None" = None,
-                 strip_ids: "list[str] | None" = None) -> "dict[str, float]":
+                 strip_ids: "list[str] | None" = None,
+                 paper_white_lab: "tuple | None" = None,
+                 strip_corner_aims: "dict[str, tuple] | None" = None,
+                 corner_budgets: "tuple[float, float] | None" = None
+                 ) -> "dict[str, float]":
     """Rewrite the measurement's XYZ so the chart's statistics are the design's.
 
     THE DESIGN IS LAID OUT IN THE YARDSTICK THE REPORT ACTUALLY USES, which is
@@ -1024,23 +1028,34 @@ def apply_design(ti3: Path, ti2: Path, design: Design,
     rgb = np.asarray(data.rgb, dtype=float)
     xyz = np.asarray(data.xyz, dtype=float)
 
-    # #182 A10 (Knut, 5817809396): A CHART WITH NO PAPER PATCH IS NEVER JUDGED
-    # RELATIVE TO THE PAPER. The report takes the paper white from the patch
-    # printed with no ink, and without one it stays in absolute Lab whatever
-    # the printing, so the design is laid out absolute too.
+    # #182 A10 (Knut, 5817809396): the report takes the paper white from the
+    # patch printed with no ink. #182 K37 (Knut, 5822758830): a sheet whose
+    # chart has none is judged relative to the paper white of the PROFILE it
+    # was printed through, (e), and only when no profile can be read, (b),
+    # stays in absolute Lab. The caller hands the profile's white over
+    # (`paper_white_lab`, the run's profile, as the report reads it), and the
+    # design anchors on it; without one the design is laid out absolute.
+    profile_anchor = False
     if relative and not any(float(px.min()) >= DEVICE_WHITE_MIN
                             for px in rgb):
-        relative = False
+        if paper_white_lab is not None:
+            profile_anchor = True
+        else:
+            relative = False
     # The anchor: fakeread's own paper white, the lightest reading on the sheet.
     # In ABSOLUTE mode there is no anchor, so the normalisation is the identity
     # and the numbers below are read straight off the sheet.
     wi = int(np.argmax(xyz[:, 1]))
-    if relative:
+    if relative and not profile_anchor:
         # the report's anchor: the lightest PATCH PRINTED WITH NO INK (A10)
         _paper = [i for i, px in enumerate(rgb)
                   if float(px.min()) >= DEVICE_WHITE_MIN]
         wi = max(_paper, key=lambda i: float(xyz[i, 1]))
-    white = xyz[wi].copy() if relative else np.array(_D50, dtype=float)
+    if profile_anchor:
+        # K37 (e): an anchor OFF the sheet, so no patch of it is pinned
+        white = np.asarray(_lab_to_xyz100(paper_white_lab), dtype=float)
+    else:
+        white = xyz[wi].copy() if relative else np.array(_D50, dtype=float)
     if float(white.min()) <= 0.0:
         raise SystemExit(f"{ti3}: the lightest patch has a zero channel")
     scale = white / np.array(_D50)
@@ -1077,7 +1092,7 @@ def apply_design(ti3: Path, ti2: Path, design: Design,
     # and every other patch shifts with it: measured on the mid-tone grid
     # chart, a sheet designed for 0.6 dE00 came back reading 14.1.
     anchor_free: "set[int]" = set()
-    if relative and not whites:
+    if relative and not whites and not profile_anchor:
         anchor_free = {wi}
 
     greys = [i for i in grey_stat_indices(
@@ -1291,10 +1306,30 @@ def apply_design(ti3: Path, ti2: Path, design: Design,
                 # report's paper white is not the chart's white patch.
                 s = _solve_scale(r, _PAPER_DRIFT, design.white_de)
                 new_lab[ci] = tuple(r[k] + _PAPER_DRIFT[k] * s for k in range(3))
+            elif (strip_corner_aims and name in ("C", "M", "Y", "K")
+                  and data.sample_ids[ci] in strip_corner_aims
+                  and not (name == "K" and design.solid_de is not None)):
+                # #182 K37 (i): ON A FROM PROFILE GAMUT CHART A CORNER HAS TWO
+                # AIMS. The report compares it with its IDEAL value in the
+                # corner rows and with the profile's PREDICTION in the control
+                # strip, and on these profiles the two lie 1.8 to 6.1 ΔE00
+                # apart. A solid (and the black) is judged by both, so it is
+                # placed between them (`_between_two_aims`), keeping the hue
+                # difference from the ideal the date designs exactly.
+                new_lab[ci] = _between_two_aims(
+                    r, strip_corner_aims[data.sample_ids[ci]],
+                    design.cmy_dh if name != "K" else None,
+                    corner_budgets)
             elif name in ("C", "M", "Y") and design.cmy_dh is not None:
                 new_lab[ci] = _rotate_hue(r, design.cmy_dh)
             elif name == "K" and design.solid_de is not None:
                 new_lab[ci] = _place(r, measured[ci], design.solid_de)
+            elif strip_corner_aims and data.sample_ids[ci] in strip_corner_aims:
+                # K37 (i): the overprints R, G, B are judged only in the
+                # strip (and shown, for information, in the corner table), so
+                # they go on the profile's prediction, which is also what a
+                # real printer prints.
+                new_lab[ci] = tuple(strip_corner_aims[data.sample_ids[ci]])
             else:
                 new_lab[ci] = tuple(r)
 
@@ -1316,6 +1351,10 @@ def apply_design(ti3: Path, ti2: Path, design: Design,
     if strip_ids and (design.strip_bulk is not None
                       or design.strip_avg is not None):
         at = {sid: i for i, sid in enumerate(data.sample_ids)}
+        # K37 (i): the aims the REPORT compares the strip with, the corner
+        # rungs on the profile's prediction on a FROM PROFILE GAMUT chart.
+        sref = dict(ref)
+        sref.update(strip_corner_aims or {})
         # The population the REPORT takes the three rows over: a declared id
         # that is in this measurement and carries a reference value
         # (`control_strip_block`, which counts those two conditions as one k).
@@ -1338,7 +1377,7 @@ def apply_design(ti3: Path, ti2: Path, design: Design,
             # Solve the bulk EXACTLY. `_place` lands every free rung on its
             # target dE00, so the strip's mean is linear in the bulk value and
             # there is nothing to iterate.
-            fixed = sum(_de(new_lab.get(i, measured[i]), ref[data.sample_ids[i]])
+            fixed = sum(_de(new_lab.get(i, measured[i]), sref[data.sample_ids[i]])
                         for i in spoken_for)
             n_bulk = len(free) - len(extras)
             if n_bulk < 1:
@@ -1418,6 +1457,74 @@ def apply_design(ti3: Path, ti2: Path, design: Design,
         out[i] = tuple(rel * scale)
     _rewrite_xyz(ti3, out)
     return predicted
+
+
+#: #182 K37 (i): the budgets `_between_two_aims` shares a solid's gap by when
+#: the run's limit set puts no number on a row: its difference from the IDEAL
+#: (the solid-colour row, 2.0 in Custom ISO 12647-7) and from the profile's
+#: PREDICTION (a control-strip rung, whose largest-difference row is 3.0 in
+#: Custom ISO 12647-8).
+CORNER_IDEAL_BUDGET = 2.0
+CORNER_STRIP_BUDGET = 3.0
+
+
+def _corner_budgets(limits) -> "tuple[float, float]":
+    """(solid-colour row, largest control-strip rung): the run's own limits
+    where they carry a number, else the defaults above."""
+    def num(rid, default):
+        lim = (limits or {}).get(rid)
+        n = getattr(lim, "number", None) if lim is not None else None
+        return float(n) if n else default
+    return (num("solids_de00_max", CORNER_IDEAL_BUDGET),
+            num("control_strip_de00_max", CORNER_STRIP_BUDGET))
+
+
+def _between_two_aims(ideal, pred, dh: "float | None",
+                      budgets: "tuple[float, float] | None" = None) -> tuple:
+    """A solid placed between its ideal value and the profile's prediction.
+
+    L* and chroma move a fraction t of the way from the ideal to the
+    prediction; the hue is turned FROM THE IDEAL, toward the prediction's
+    hue, by exactly the hue difference *dh* the date designs (0 when it
+    designs none), so `cmy_solids_dhab_max` still reads what the date asks.
+    t is 0 when the ideal already lies inside 85 % of the strip's budget;
+    otherwise the t nearest the prediction that keeps the difference from
+    the ideal inside 85 % of the solid-colour budget (a grid of 51 steps)."""
+    Li, ai, bi = (float(v) for v in ideal)
+    Lp, ap, bp = (float(v) for v in pred)
+    ci, cp = math.hypot(ai, bi), math.hypot(ap, bp)
+    hi, hp = math.atan2(bi, ai), math.atan2(bp, ap)
+    sign = 1.0 if math.sin(hp - hi) >= 0 else -1.0
+    best, best_score = tuple(ideal), None
+    for k in range(51):
+        t = k / 50.0
+        L = Li + t * (Lp - Li)
+        c = ci + t * (cp - ci)
+        want = float(dh or 0.0)
+        if c > 1e-9 and ci > 1e-9 and want > 0:
+            half = min(1.0, want / (2.0 * math.sqrt(ci * c)))
+            dth = 2.0 * math.asin(half)
+        else:
+            dth = 0.0
+        h = hi + sign * dth
+        cand = (L, c * math.cos(h), c * math.sin(h))
+        b_ideal, b_strip = budgets or (CORNER_IDEAL_BUDGET,
+                                       CORNER_STRIP_BUDGET)
+        # THE SOLID-COLOUR ROW FIRST: it is judged only on this kind of chart,
+        # so no other run can show it passing; the strip rows are judged on
+        # the ordinary charts as well. Inside 85 % of its budget, then as
+        # near the prediction as that allows. Where the gap is wider than both
+        # budgets together (the tight column), the strip carries the rest.
+        if k == 0 and _de(cand, pred) <= 0.85 * b_strip:
+            # the ideal already satisfies the strip: nothing to share, and a
+            # date that designs "constant lightness and chroma" keeps it
+            return cand
+        if _de(cand, ideal) > 0.85 * b_ideal and k:
+            continue
+        score = _de(cand, pred) / b_strip
+        if best_score is None or score < best_score:
+            best, best_score = cand, score
+    return best
 
 
 #: The band `measurement_report.ramps_block` reads, and the spread it allows a
@@ -2924,6 +3031,7 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
     # chart. Everything downstream — the design, the corner rows, the strip —
     # reads this and not the .ti2's own XYZ.
     from workflow.gamut_target import (corner_sample_ids,
+                                       profile_media_white_lab,
                                        read_colorimetric_reference)
     cref_labs = None
     corner_ids: "set[str]" = set()
@@ -2937,6 +3045,12 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
         # reference file, like the report, and not re-derived here.
         corner_devices = dict(cref.get("devices") or {})
         corner_ids = {str(i) for i in corner_sample_ids(gsel)}
+        # #182 K37 (i): what the report compares the strip's seven ink and
+        # black corner rungs with on such a chart, asked the way it asks.
+        from workflow.measurement_report import corner_predictions_through
+        strip_corner_aims = corner_predictions_through(cref, icc, ARGYLL)
+    else:
+        strip_corner_aims = None
 
     # THE APP DECLARES THE STRIP, on every verification chart, because the app
     # declares one on every verification chart it files (B8-405). What the
@@ -3078,7 +3192,12 @@ def build_run(proj, run, plan: RunPlan, cache_root: Path,
             ti3, work / f"{vstem}.ti2", date.design, gamut,
             relative=plan.print_colour == "through-profile" and cref_labs is None,
             ref_labs=cref_labs, corner_ids=corner_ids,
-            corner_devices=corner_devices, strip_ids=strip_ids)
+            corner_devices=corner_devices, strip_ids=strip_ids,
+            strip_corner_aims=strip_corner_aims,
+            corner_budgets=_corner_budgets(limits_rec.limits),
+            # K37 (e): a relative sheet of a chart with no paper patch is
+            # judged against the run's profile's paper white, as here
+            paper_white_lab=profile_media_white_lab(icc))
         stamp(ti3, date.when, meta.instrument)
         shutil.move(str(ti3), str(v.dir / f"{vstem}.ti3"))
         cdir = snapshot(v.dir, vstem, work)
@@ -3703,6 +3822,16 @@ def matrix_dates(set_id: str, kind: str) -> "list[Date]":
         over = _replace(over, ramp_dl=None, repeat_split=None)
         inside = _replace(inside, ramp_dl=None, repeat_split=None)
     rows = matrix_rows(set_id, kind)
+    # #182 K37 (i): ON A FROM PROFILE GAMUT CHART THE TIGHT COLUMN CANNOT BE
+    # MET BY THE SOLIDS AND THE STRIP AT ONCE. A solid is judged against its
+    # ideal value in "Solid colours, largest" and against the profile's
+    # prediction in the control strip, and on this package's profiles the
+    # two lie 3.0 to 4.9 ΔE00 apart, more than the tight column's 1.5 and
+    # 1.5 together. The solid row is kept inside (no other chart kind can
+    # show it passing) and the strip's largest difference stays over; its
+    # PASS in this column is shown on the ordinary chart of the same column.
+    corner_bound = (["control_strip_de00_max"]
+                    if kind == "gamut" and set_id == "chromiq_tight" else [])
     # The repeat row of the second date crosses only in a column that numbers
     # it; a read-only ISO column does not (no standard limits ChromIQ's own
     # repeatability rows), so there the second date is simply back inside.
@@ -3777,8 +3906,11 @@ def matrix_dates(set_id: str, kind: str) -> "list[Date]":
         # on the date every other row recovers, and recovers on the third.
         _d(f"2028-{m}-{d2}_100000", f"2028-{m}-{d2}T10:00:00",
            ("The same sheet, every row back inside but one" if repeat_row
+            and not corner_bound else
+            "The same sheet, every row back inside but two" if repeat_row
             else "The same sheet, every row back inside"),
-           back_story, inside, repeat_row),
+           back_story + _CORNER_BOUND_STORY * bool(corner_bound), inside,
+           repeat_row + corner_bound),
         _d(f"2028-{m}-{d3}_100000", f"2028-{m}-{d3}T10:00:00",
            "Measured again, and steady",
            ("The same sheet as the date before, measured again. Every row is "
@@ -3786,9 +3918,21 @@ def matrix_dates(set_id: str, kind: str) -> "list[Date]":
             "between the two." if repeat_row else
             "The same sheet as the date before, measured again. Every row "
             "the column numbers is inside its limit, because nothing moved "
-            "between the two."),
-           inside, []),
+            "between the two.") + _CORNER_BOUND_STORY * bool(corner_bound),
+           inside, list(corner_bound)),
     ]
+
+
+#: K37 (i): why the tight column's FROM PROFILE GAMUT dates never bring the
+#: strip's largest difference back (see `matrix_dates`).
+_CORNER_BOUND_STORY = (
+    " Except 'Control-strip patches, largest difference': on a chart built "
+    "from the profile's gamut the solid inks are compared with their ideal "
+    "values in 'Solid colours, largest' and with the profile's prediction in "
+    "the control strip, and on this profile the two lie further apart than "
+    "this column's two limits together, so the solids are kept inside the "
+    "solid-colour row and the strip stays over. The ordinary chart of the "
+    "same column shows that row passing.")
 
 
 #: The FROM PROFILE GAMUT project's own dates: the three rows that exist

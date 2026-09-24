@@ -204,6 +204,21 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # DELETED and M-REPORT-NO-PAPER-PATCH were
                                  # APPROVED by Knut in 5820871320, K36-3 and
                                  # K36-4, and left this set.)
+                                 # #182 K37 (Knut, 5822758830, answer 1): a
+                                 # white-mapped sheet whose chart has no
+                                 # paper patch is judged against its
+                                 # profile's paper white, (e), with a note;
+                                 # (b) absolute Lab with a note only when no
+                                 # profile can be read. His behaviour, our
+                                 # words.
+                                 "M-REPORT-PAPER-WHITE-FROM-PROFILE",
+                                 "M-REPORT-JUDGED-ABSOLUTE-NO-PAPER-WHITE",
+                                 # K37 (i) (Knut, 5823088098 "Yes do so"): a
+                                 # FROM PROFILE GAMUT sheet's strip corners
+                                 # against the profile's prediction; the note
+                                 # our post promised, in our words.
+                                 "M-REPORT-STRIP-CORNERS-PREDICTED",
+                                 "M-REPORT-STRIP-CORNERS-IDEAL",
                                  # #182, 2026-09-19: Knut overruled his own
                                  # K.1 ("Generate report always creates a new
                                  # report"). Pressed with a report selected and

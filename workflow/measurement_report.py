@@ -203,6 +203,18 @@ def corners_block(rgb100, lab, ref, data,
 #: Where a FROM PROFILE GAMUT chart's reference paper came from (#182 A11).
 PAPER_REF_FROM_CHART = "chart"        # recorded in the reference at build time
 PAPER_REF_FROM_RUN = "run_profile"    # an older reference: the run's profile
+#: #182 K37: the profile the sheet was printed through (its print record).
+PAPER_REF_FROM_PRINT = "printed_through"
+
+#: #182 K37: what ``report["paper_white_used"]["from"]`` says. The sheet's own
+#: paper patch; the profile's media white, (e); no paper white could be had
+#: for a sheet that wanted one, (b), judged in absolute Lab; or the sheet is
+#: not judged relative to a paper at all (absolute by its printing, or a
+#: colorimetric reference).
+PAPER_WHITE_FROM_SHEET = "sheet"
+PAPER_WHITE_FROM_PROFILE = "profile"
+PAPER_WHITE_UNAVAILABLE = "unavailable"
+PAPER_WHITE_NOT_USED = "not_used"
 
 
 def paper_corner_ids(cref: "dict | None") -> "list[str]":
@@ -245,21 +257,147 @@ def paper_reference_of(cref: "dict | None", ti3_path: "Path | str | None"
                     PAPER_REF_FROM_CHART)
         except (TypeError, ValueError):
             pass
+    got = _run_profile_white(ti3_path)
+    return (got[0], PAPER_REF_FROM_RUN) if got is not None else None
+
+
+def _run_profile_white(ti3_path: "Path | str | None"
+                       ) -> "tuple[tuple[float, float, float], str] | None":
+    """``(media white Lab, profile file name)`` of the run's own built
+    profile for the measurement at *ti3_path*, or None. THE ONE WAY a report
+    asks a run's profile for its paper: `paper_reference_of` (A11) and
+    `profile_paper_white` (K37) both come here. Never raises."""
+    icc = _run_profile_path(ti3_path)
+    if icc is None:
+        return None
+    try:
+        from workflow.gamut_target import profile_media_white_lab
+        lab = profile_media_white_lab(icc)
+        return (lab, icc.name) if lab is not None else None
+    except Exception:                                  # noqa: BLE001
+        return None
+
+
+def _run_profile_path(ti3_path: "Path | str | None") -> "Path | None":
+    """The run's own built profile for the measurement at *ti3_path*, when it
+    is on disk, else None. THE ONE PROFILE a report asks about a run's paper
+    (`_run_profile_white`, A11 and K37) and about the corners of a FROM
+    PROFILE GAMUT chart (`profile_corner_predictions`, K37 (i)): the profile
+    such a chart of that run is built from. Never raises."""
     if ti3_path is None:
         return None
     try:
         from workflow.run_compliance import run_context_for
-        from workflow.gamut_target import profile_media_white_lab
         ctx = run_context_for(ti3_path)
         if ctx is None:
             return None
         icc = ctx.run.built_profile_icc()
-        if not icc.is_file():
-            return None
-        lab = profile_media_white_lab(icc)
-        return (lab, PAPER_REF_FROM_RUN) if lab is not None else None
+        return icc if icc.is_file() else None
     except Exception:                                  # noqa: BLE001
         return None
+
+
+#: #182 K37 (i), what ``report["control_strip"]["corner_aims"]["from"]`` says
+#: on a FROM PROFILE GAMUT chart: the seven ink and black corners were
+#: compared with the profile's prediction, or (no profile or no ArgyllCMS to
+#: ask) with their ideal values as before.
+CORNER_AIMS_FROM_PROFILE = "profile"
+CORNER_AIMS_IDEAL = "ideal"
+#: …and on every other report: its strip holds no such corner.
+CORNER_AIMS_NOT_APPLICABLE = "not_applicable"
+
+
+def profile_corner_predictions(cref: "dict | None",
+                               ti3_path: "Path | str | None",
+                               argyll_bin: "str | Path | None"
+                               ) -> "tuple[dict[str, tuple], str] | None":
+    """``({sample id: Lab}, profile file name)``: what the profile predicts
+    for the seven ink and black cube corners of a FROM PROFILE GAMUT chart,
+    or None when it cannot be asked (#182 K37 (i), Knut 5823088098 "Yes do
+    so", on our 5823015844).
+
+    The corner's DEVICE value (the solid, the overprint, the composite black)
+    run forward through the run's own built profile (`_run_profile_path`, the
+    profile the paper white is read from too) with the chart's own intent, so
+    the rung is judged the way every other patch of such a chart is: against
+    the colour the profile says that ink amount prints. The bare-paper corner
+    is not here: it aims at the profile's paper since §31.5. None without a
+    profile, without ArgyllCMS, or when the lookup fails. Never raises.
+    """
+    if not cref or not argyll_bin:
+        return None
+    icc = _run_profile_path(ti3_path)
+    if icc is None:
+        return None
+    got = corner_predictions_through(cref, icc, argyll_bin)
+    return (got, icc.name) if got is not None else None
+
+
+def corner_predictions_through(cref: "dict | None", icc: "Path | str",
+                               argyll_bin: "str | Path | None"
+                               ) -> "dict[str, tuple] | None":
+    """``{sample id: Lab}``: *icc*'s forward prediction for the seven ink and
+    black corners *cref* declares, with the chart's own intent; None when it
+    cannot be asked. The one lookup `profile_corner_predictions` makes, and
+    the one the demo generator makes for the charts it designs."""
+    if not cref or not argyll_bin:
+        return None
+    devices = dict(cref.get("devices") or {})
+    paper = set(paper_corner_ids(cref))
+    ids = [sid for sid in sorted(cref.get("corner_ids") or ())
+           if sid in devices and sid not in paper]
+    if not ids:
+        return None
+    try:
+        from workflow.gamut_target import intent_letter
+        from workflow.xicclu_runner import forward_lab
+        labs = forward_lab([tuple(float(v) for v in devices[sid])
+                            for sid in ids], icc, argyll_bin,
+                           intent=intent_letter(str(cref.get("intent") or "")))
+    except Exception as exc:                           # noqa: BLE001
+        log.debug("corner predictions skipped: %s", exc)
+        return None
+    if len(labs) != len(ids):
+        return None
+    return {sid: tuple(float(v) for v in lab) for sid, lab in zip(ids, labs)}
+
+
+def profile_paper_white(printing: "dict | None",
+                        ti3_path: "Path | str | None") -> "dict | None":
+    """The paper white of the profile a sheet was printed through, for a
+    sheet whose chart has no paper patch (#182 K37, Knut 5822758830: *"(e),
+    with a numbered note on the sheet, and (b) only when no profile can be
+    read"*), or None when no profile can be read (then (b)).
+
+    ``{"lab": [L, a, b], "source": PAPER_REF_FROM_PRINT | PAPER_REF_FROM_RUN,
+    "profile": "<file name>"}``.
+
+    In order: the profile the print record names, when that file is still on
+    disk (a sheet ChromIQ printed through its profile records it); else the
+    run's own built profile, the profile such a sheet of that run is printed
+    through and the one `paper_reference_of` asks for a FROM PROFILE GAMUT
+    chart (A11). Both read the profile's media white the same way
+    (`gamut_target.profile_media_white_lab`): the paper the profile was
+    measured on. Never raises.
+    """
+    try:
+        from workflow.gamut_target import profile_media_white_lab
+        cand = (printing or {}).get("profile_path")
+        if cand:
+            icc = Path(str(cand))
+            if icc.is_file():
+                lab = profile_media_white_lab(icc)
+                if lab is not None:
+                    return {"lab": [round(float(v), 2) for v in lab],
+                            "source": PAPER_REF_FROM_PRINT,
+                            "profile": icc.name}
+    except Exception:                                  # noqa: BLE001
+        pass
+    got = _run_profile_white(ti3_path)
+    if got is None:
+        return None
+    return {"lab": [round(float(v), 2) for v in got[0]],
+            "source": PAPER_REF_FROM_RUN, "profile": got[1]}
 
 
 def _srgb_hex(xyz100: "tuple[float, float, float]") -> str:
@@ -1067,12 +1205,14 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
                                              chart_conversion_state,
                                              colorimetric_reference_for)
     state = chart_conversion_state(ref_ti2 if ref_ti2.is_file() else None)
+    _cref = None
     if state == STATE_CONVERTED:
         from workflow.gamut_target import read_colorimetric_reference
         cref = read_colorimetric_reference(colorimetric_reference_for(ref_ti2))
         if cref is None:
             state = STATE_CONVERTED_REF_MISSING
         else:
+            _cref = cref
             ref = cref["labs"]
             ref_source = "colorimetric"
             corner_ids = set(cref["corner_ids"])
@@ -1153,6 +1293,9 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
     # they describe the paper and ink, not the profile. Everything downstream
     # (corners, ΔE00, worst patches) inherits the chosen yardstick.
     report["yardstick"] = "absolute"
+    #: #182 K37: which paper white the colours were judged relative to, on
+    #: every report (so a report saved before it is worked out again, §6).
+    report["paper_white_used"] = {"from": PAPER_WHITE_NOT_USED}
     #: #182 E8: the aims EVENNESS compares the absolute readings with. The
     #: ΔE00 aims as they are, unless the sheet is read media-relative below.
     evenness_ref = None
@@ -1168,10 +1311,29 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
         # absolute Lab, and the paper white line's note says so.
         _wi = paper_white_row(lab, rgb100 if rgb100 is not None
                               else _device_values_of(data, ti3_path))
-        if white_mapping and _wi is None:
-            report["yardstick_no_paper"] = True
+        white_xyz = None
         if white_mapping and _wi is not None:
             white_xyz = np.asarray(data.xyz[_wi], dtype=float)
+            report["paper_white_used"] = {"from": PAPER_WHITE_FROM_SHEET}
+        if white_mapping and _wi is None:
+            report["yardstick_no_paper"] = True
+            # #182 K37 (Knut, 5822758830): "(e), with a numbered note on the
+            # sheet, and (b) only when no profile can be read". (e): the
+            # paper white of the profile the sheet was printed through, the
+            # paper that profile was measured on. (b): none can be read, and
+            # the sheet stays in absolute Lab with a note on every row that
+            # moves. Measured on the demo pack (§33 of the design record).
+            _pp = profile_paper_white(printing, ti3_path)
+            if _pp is not None:
+                from workflow.ti3_analysis import _lab_to_xyz_array
+                white_xyz = np.asarray(_lab_to_xyz_array(
+                    np.asarray([_pp["lab"]], dtype=float))[0], dtype=float)
+                report["paper_white_used"] = dict(
+                    _pp, **{"from": PAPER_WHITE_FROM_PROFILE})
+            else:
+                report["paper_white_used"] = {
+                    "from": PAPER_WHITE_UNAVAILABLE}
+        if white_xyz is not None:
             if float(white_xyz.min()) > 0.0:
                 _d50 = np.array([96.42, 100.0, 82.49])
                 lab = [xyz_to_lab(tuple(
@@ -1181,6 +1343,10 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
                 # #182 E8: evenness keeps the READINGS as measured and
                 # carries the AIMS onto this paper instead (see below).
                 evenness_ref = aims_on_the_paper(ref, white_xyz)
+            else:
+                # a paper reading with a zero channel cannot divide anything:
+                # the sheet stays as measured, and the record says so
+                report["paper_white_used"] = {"from": PAPER_WHITE_NOT_USED}
 
     # The eight cube corners (paper white, composite black, the six ink
     # primaries/secondaries) — the patch the chart DECLARES as each corner
@@ -1382,10 +1548,46 @@ def build_report(ti3_path: str | Path, worst_n: int = 16,
     # …and the control strip, which is a DECLARATION rather than a measurement:
     # it needs the chart file, not the device values, so it is written whether
     # or not the measurement carries device columns.
+    #
+    # #182 K37 (i) (Knut, 5823088098): ON A FROM PROFILE GAMUT CHART the
+    # seven ink and black corner rungs of the strip are compared with the
+    # profile's PREDICTION for their device value, the in-gamut corner, as
+    # every other patch of such a chart is. The cube-corner table and its
+    # graph keep the ideal values (§32.5, Knut's "no"). Without a profile to
+    # ask, today's comparison stays and the block says so.
+    strip_ref = ref
+    corner_aims = None
+    # written on EVERY report, so one saved before K37 (i) is worked out
+    # again when the window reads it (ALWAYS_BUILT_BLOCKS, §6)
+    report["strip_corner_aims"] = {"from": CORNER_AIMS_NOT_APPLICABLE}
+    if ref_source == "colorimetric" and _cref is not None:
+        _pred = profile_corner_predictions(_cref, ti3_path, argyll_bin)
+        if _pred is not None:
+            strip_ref = dict(ref)
+            strip_ref.update(_pred[0])
+            corner_aims = {"from": CORNER_AIMS_FROM_PROFILE,
+                           "profile": _pred[1],
+                           "ids": sorted(_pred[0])}
+        else:
+            corner_aims = {"from": CORNER_AIMS_IDEAL}
     report["control_strip"] = control_strip_block(
-        lab, ref, data.sample_ids,
+        lab, strip_ref, data.sample_ids,
         control_strip_declaration(ti3_path,
                                   ref_ti2 if ref_ti2.is_file() else None))
+    if corner_aims is not None:
+        _decl_ids = set()
+        try:
+            _decl = control_strip_declaration(
+                ti3_path, ref_ti2 if ref_ti2.is_file() else None)
+            _decl_ids = set((_decl or {}).get("ids") or ())
+        except Exception:                              # noqa: BLE001
+            pass
+        _corners_in_strip = sorted(
+            (set(_cref.get("corner_ids") or ())
+             - set(paper_corner_ids(_cref))) & _decl_ids)
+        if _corners_in_strip:
+            corner_aims["in_strip"] = _corners_in_strip
+            report["strip_corner_aims"] = corner_aims
     return report
 
 
@@ -4191,6 +4393,38 @@ NOTE_RECOMMENDED_LIMIT = "recommended_limit"
 #: failure would read as an excuse for it.
 NOTE_EVENNESS_CAUSES = "evenness_causes"
 
+#: #182 K37, (b) of Knut's answer 5822758830: a sheet printed with an intent
+#: that maps white to the paper, whose chart has no paper patch, and for which
+#: no profile could be read to take the paper white from, is judged in
+#: absolute Lab. The text is `measurement_messages.
+#: M_REPORT_JUDGED_ABSOLUTE_NO_PAPER_WHITE`.
+NOTE_JUDGED_ABSOLUTE_NO_PAPER_WHITE = "absolute_no_paper_white"
+
+#: #182 K37 (i), Knut 5823088098: on a FROM PROFILE GAMUT chart a corner
+#: patch has two comparisons (the ideal value in the cube-corner table, the
+#: profile's prediction in the control strip), and the strip rows say so. The
+#: texts are `measurement_messages.M_REPORT_STRIP_CORNERS_PREDICTED` and, when
+#: no profile could be asked, `M_REPORT_STRIP_CORNERS_IDEAL`.
+NOTE_STRIP_CORNERS_PREDICTED = "strip_corners_predicted"
+NOTE_STRIP_CORNERS_IDEAL = "strip_corners_ideal"
+
+#: The rows whose numbers such a sheet moves, measured in §32.6: the five
+#: colour-difference statistics, the three control-strip rows, the two gamut
+#: populations, both grey-balance rows, the 30 to 70 % tone ramps and the two
+#: evenness rows (less, because evenness compares areas with each other).
+#: Not the two repeatability rows (readings against readings), and not the
+#: rows that need a colorimetric reference (such a sheet never has one).
+ROWS_MOVED_BY_THE_PAPER_WHITE: "tuple[str, ...]" = (
+    "all_de00_avg", "best95_de00_avg", "worst5_de00_avg", "all_de00_max",
+    "all_de00_p95",
+    "control_strip_de00_avg", "control_strip_de00_max",
+    "control_strip_de00_p95",
+    "surface_gamut_de00_avg", "outer_gamut_226_de00_avg",
+    "grey_balance_neutral_ramp_avg", "grey_balance_neutral_ramp_max",
+    "ramps_30_70_dl_max",
+    "uniformity_sd", "uniformity_de00_max_from_mean",
+)
+
 
 def _distinct_levels(levels: "list[float]", tol: float = GREY_LEVEL_TOL) -> int:
     """How many distinct values a sorted list holds when values within *tol*
@@ -5482,6 +5716,30 @@ def row_values(report: dict) -> "dict[str, dict]":
             out[rid]["noise_p95"] = ev.get(f"noise_{key}_p95")
         else:
             put(rid, None, ev.get("reason") or REASON_EVENNESS_NO_LAYOUT)
+
+    # -- #182 K37, (b): a sheet that should have been judged relative to its
+    # paper white and could not be (no paper patch, no profile to read one
+    # from) is judged in absolute Lab, and every row that moves carries a
+    # note saying why it may read worse than the print is.
+    # -- #182 K37 (i): on a FROM PROFILE GAMUT chart the strip's corner rungs
+    # are compared with the profile's prediction (or, with no profile to ask,
+    # with their ideal values): the three strip rows say which.
+    _ca = (report.get("strip_corner_aims") or {}).get("from")
+    _ca_note = {CORNER_AIMS_FROM_PROFILE: NOTE_STRIP_CORNERS_PREDICTED,
+                CORNER_AIMS_IDEAL: NOTE_STRIP_CORNERS_IDEAL}.get(_ca)
+    if _ca_note:
+        for rid in _CS_ROWS:
+            cell = out.get(rid)
+            if cell and cell["value"] is not None:
+                cell["notes"].append(_ca_note)
+
+    if (report.get("paper_white_used") or {}).get("from") \
+            == PAPER_WHITE_UNAVAILABLE:
+        for rid in ROWS_MOVED_BY_THE_PAPER_WHITE:
+            cell = out.get(rid)
+            if cell and cell["value"] is not None \
+                    and NOTE_JUDGED_ABSOLUTE_NO_PAPER_WHITE not in cell["notes"]:
+                cell["notes"].append(NOTE_JUDGED_ABSOLUTE_NO_PAPER_WHITE)
     return out
 
 

@@ -28338,6 +28338,7 @@ would reach.
 - tests: tests/test_k36_knuts_5820871320.py (mutations: no "Verification run" entry, red; the old scope heading, red); the older scope tests re-pointed to the new words.
 - evidence: test_the_dictionary_defines_the_three_terms, test_the_report_scope_uses_the_terms
 - proof: ~/Desktop/ChromIQ-beta42-proof/knut-k36/ (*-k3-*).
+- accepted: the three Dictionary definitions are **Accepted by Knut**, #182 5822998064 (2026-09-24): *"Perfect. Accepted."* (wording of the definitions; spec §32.3). The rest of the sweep stays open as B8-1066.
 
 ### B8-1066 · OPEN · The rest of the run-terminology sweep: help texts and tooltips outside the help cards and the report
 - blocks release: no
@@ -28356,19 +28357,20 @@ would reach.
 - evidence: test_the_no_paper_patch_note_names_the_sheet_not_the_report, test_the_scope_run_deleted_message_is_approved
 - proof: ~/Desktop/ChromIQ-beta42-proof/knut-k36/ (*-k4-02).
 
-### B8-1068 · OPEN, question for Knut · FROM PROFILE GAMUT cube corners: ideal aims kept; the control strip still carries them
+### B8-1068 · ANSWERED, built as B8-1085 to B8-1088 · FROM PROFILE GAMUT cube corners: ideal aims kept; the control strip still carries them
 - blocks release: no
 - severity: MINOR
 - status: OPEN
 - note: Knut, 5820871320 (K36-5): the other seven corners stay on their ideal aims ("no"). Analysis in spec §32.5 (demo pack 1.8 to 6.1 ΔE00 between the ideal and the profile's prediction; a vendor profile of a real printer 5.8 to 47.8). No code change. Question for Knut: leave the seven ink and black corners out of the control-strip rows on a FROM PROFILE GAMUT chart, as §9a leaves them out of the five ΔE00 statistics?
 - proof: ~/Desktop/ChromIQ-beta42-proof/knut-k36/analysis/k36_5*.txt
 
-### B8-1069 · OPEN, question for Knut · A white-mapping sheet whose chart has no paper patch: recommend the profile's media white as the paper
+### B8-1069 · ANSWERED, built as B8-1081 to B8-1084 · A white-mapping sheet whose chart has no paper patch: recommend the profile's media white as the paper
 - blocks release: no
 - severity: MAJOR
 - status: OPEN
 - note: Knut, 5820871320 (K36-6). Analysis in spec §32.6: judged in absolute Lab (B8-1014) such a sheet reads 1.6 to 2.9 ΔE00 higher on the averages and up to 5 on the ramps for papers of L* 94 to 96, and "Average ΔE00, all patches" turns PASS to FAIL on 10 or 11 of 12 demo sheets under Custom ISO 12647-7. A manufacturer's brightness figure cannot be used; a published L*a*b* only under matching conditions. Recommended (e), the profile's media white, with a numbered note; (b) only without a readable profile. Not built.
 - proof: ~/Desktop/ChromIQ-beta42-proof/knut-k36/analysis/k36_6*.
+- answered: Knut, 5822758830 (answer 1): *"Recommendation: (e), with a numbered note on the sheet, and (b) only when no profile can be read."* Built for beta 42 as B8-1081 to B8-1084 (spec §33).
 
 ### B8-1071 · FIXED, awaiting confirmation · Editing any number in Report limits / Edit limits un-greyed the "Default for new reports" radios an ISO default type holds
 - blocks release: no
@@ -28458,3 +28460,76 @@ would reach.
 - fixed: each pass also clears the button the window itself holds as its focus widget.
 - tests: tests/test_space_bar_focus.py::test_defer_clear_reaches_a_window_that_is_not_active (red on the old code).
 - evidence: test_defer_clear_reaches_a_window_that_is_not_active
+
+### B8-1081 · FIXED, awaiting confirmation · A white-mapped sheet whose chart has no paper patch is judged against the paper white of its profile, (e)
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- note: Knut, 5822758830. Spec §33.2. The profile the print record names (when on disk), else the run's own built profile (the reader §31.5 uses); its media white scales the readings media-relative. "Paper white" still reads N-A and draws no graph point. The line carries M-REPORT-PAPER-WHITE-FROM-PROFILE (PROPOSED) in place of M-REPORT-NO-PAPER-PATCH, whose "judged as measured, in absolute Lab" would be false there; the approved message is unchanged and stays wherever it is true. "How the colours were judged" names the profile. A report saved before is rebuilt (`paper_white_used` in ALWAYS_BUILT_BLOCKS). EN + German by hand; both ledgers re-measured.
+- where: `workflow/measurement_report.py` (`profile_paper_white`, `_run_profile_white`, `build_report`); `workflow/measurement_messages.py`; `ui/dialogs/measurement_report_dialog.py` (`_paper_white_note_code`, `_note_numbering`, the printing block).
+- tests: tests/test_k37_paper_white_from_the_profile.py
+- evidence: test_e_judges_a_sheet_with_no_paper_patch_against_the_runs_profile, test_e_prefers_the_profile_the_print_record_names, test_a_sheet_printed_absolute_is_never_given_a_profile_white, test_an_e_sheet_carries_the_profile_note_not_the_absolute_one, test_the_paper_white_graph_draws_no_point_for_an_e_sheet, test_a_report_saved_before_k37_is_worked_out_again
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k37/ (after-e-*, before-e-*, after-control-*).
+
+### B8-1082 · FIXED, awaiting confirmation · With no profile to read, the sheet stays in absolute Lab and each row it moves carries a note, (b)
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Spec §33.3. M-REPORT-JUDGED-ABSOLUTE-NO-PAPER-WHITE (PROPOSED) on the five ΔE00 rows, the control strip, the gamut populations, grey balance, the 30 to 70 % ramps and evenness, one number; not on the repeatability rows. M-REPORT-NO-PAPER-PATCH stays on the Paper white line.
+- where: `workflow/measurement_report.py` (`row_values`, `ROWS_MOVED_BY_THE_PAPER_WHITE`); `ui/dialogs/measurement_report_dialog.py` (`_note_sentence`).
+- tests: tests/test_k37_paper_white_from_the_profile.py
+- evidence: test_b_stays_absolute_and_notes_every_row_the_paper_white_moves, test_the_b_note_is_not_on_an_e_sheet_or_a_sheet_with_its_paper, test_a_b_sheet_keeps_the_approved_note_and_adds_the_b_note
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k37/ (after-b-*).
+
+### B8-1083 · FIXED, awaiting confirmation · K36-6 re-measured on the built (e): within 0.2 ΔE00 on the averages, the ISO flip gone
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Spec §33.4. 12 demo sheets: (e) minus media-relative on the averages 0.00 on the profile's own paper and -0.03 median [-0.10, +0.21] with a 1 ΔE00 paper drift; Custom ISO 12647-7 "Average ΔE00, all patches" changed on 0 and 1 of 12 sheets, where absolute Lab changed 11 and 10.
+- tests: tests/test_k37_paper_white_from_the_profile.py (the rule the numbers were measured on)
+- evidence: test_e_judges_a_sheet_with_no_paper_patch_against_the_runs_profile
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k37/analysis/k37_measure.py, k37_measure.txt
+
+### B8-1084 · OPEN · The Paper white (L*) graph with no paper white on any date says "needs at least two measurements"
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- note: Seen on screen in K37 (and already so since B8-1014 for any chart with no paper patch): two dates are ticked, neither records a paper white, and the graph shows the generic placeholder "A trend graph needs at least two measurements. Add another measurement, or tick more…", which is not the reason. New wording would go through §M-PROPOSED; not changed here.
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k37/after-e-en/photographs/en-05-paper-white-graph.png
+
+### B8-1085 · FIXED, awaiting confirmation · FROM PROFILE GAMUT: the control strip compares its seven ink and black corner patches with the profile's prediction
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- note: Knut, 5823088098 ("Yes do so") on our 5823015844 (i), answering B8-1068. Spec §34.1. Only the three control-strip rows; the cube-corner table, its graph and the corner rows keep the ideal values. The prediction is the run's own built profile run forward with the chart's intent (the same profile the paper white is read from, `_run_profile_path`), for charts made before and after. No profile or no ArgyllCMS: the ideal comparison stays. Every other chart kind unchanged. A saved report is rebuilt (`strip_corner_aims` in ALWAYS_BUILT_BLOCKS).
+- where: `workflow/measurement_report.py` (`profile_corner_predictions`, `corner_predictions_through`, `build_report`).
+- tests: tests/test_k37_paper_white_from_the_profile.py
+- evidence: test_i_the_strip_compares_the_corners_with_the_profiles_prediction, test_i_the_corner_table_keeps_the_ideal_values, test_i_an_ordinary_chart_is_unchanged, test_i_a_report_saved_before_it_is_worked_out_again
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k37/ (before-i-*, after-i-rebuilt-*).
+
+### B8-1086 · FIXED, awaiting confirmation · The strip rows say a corner patch is compared two ways (or, without a profile, with its ideal value)
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Spec §34.2. M-REPORT-STRIP-CORNERS-PREDICTED and M-REPORT-STRIP-CORNERS-IDEAL (both PROPOSED, §M-PROPOSED), one numbered note on the strip rows that carry a verdict. EN + German by hand; both ledgers re-measured.
+- where: `workflow/measurement_messages.py`; `workflow/measurement_report.py` (`row_values`); `ui/dialogs/measurement_report_dialog.py` (`_note_sentence`).
+- tests: tests/test_k37_paper_white_from_the_profile.py
+- evidence: test_i_the_strip_rows_carry_the_two_comparisons_note, test_i_without_a_profile_the_strip_keeps_the_ideal_and_says_so
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k37/ (after-i-rebuilt-*, after-i-rebuilt-noprofile-*).
+
+### B8-1087 · FIXED, awaiting confirmation · The demo generator places a FROM PROFILE GAMUT chart's corners where a printer would, and every rebuilt date matches its design
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Spec §34.3. On the shipped pack the change moved the strip by +1.16 (average) and +1.66 (largest) median and turned 24 strip verdicts PASS to FAIL, because the generator put every corner exactly on its ideal value. Now R, G, B go on the prediction and C, M, Y, K between the two aims (`_between_two_aims`, designed hue kept, inside 85 % of the run's own solid-colour limit). The four projects rebuilt: 102 of 102 dates as designed; Second-Route's strip passes where its dates are designed to pass (it failed on 10 of them before).
+- where: `scripts/make_report_limit_demos.py`.
+- tests: tests/test_k37_paper_white_from_the_profile.py; the release tier's demo-package tests.
+- evidence: test_i_the_demo_generator_places_a_solid_between_its_two_aims
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k37/analysis/k37i_*.txt, rebuilt-subset/generator-build.txt
+
+### B8-1088 · OPEN, for Knut · The tight column cannot pass both the solids and the strip on a FROM PROFILE GAMUT chart
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- note: Spec §34.3. With 1.5 on "Solid colours, largest" and 1.5 on the strip's largest difference, and the ideal and predicted solid 3.0 to 4.9 ΔE00 apart on the demo profiles, no patch meets both. The demo keeps the solid row inside and designs the strip's largest difference over on those two runs (Every-Limit-Set/run4, Second-Route/run4), with a sentence on each date. On a real printer the same will hold more strongly: its solids against the ideal sRGB primaries. Worth Knut's eye; no change asked.
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k37/analysis/rebuilt-subset/generator-build.txt

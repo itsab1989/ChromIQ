@@ -124,6 +124,8 @@ result awaiting his confirmation. The other §20 gaps stay open.
 | §29 | A row ChromIQ cannot measure reads ✕ in every limit set, never "–" | 2026-09-24, 5815435713 | agreed; built for beta 42 (B8-979), NOT confirmed |
 | §30 | K33: "Any" beside "All metrics", the presets window's intro, why 18 and not 21, Knut's figures in both Custom ISO sets, the ISO report types offered, a wider "Judged against" help that says when to use which set | 2026-09-24, 5816565326 | ruled by Knut; built for beta 42 (B8-992 to B8-998), NOT confirmed; three figures and the count put back to him |
 | §31 | K34: a deleted profile run named in Report Scope; a failed folder rename brings the choices back; "Report shown" by the report's own date; the paper patch, N-A without one; a FROM PROFILE GAMUT chart's reference paper is its profile's media white | 2026-09-24, 5817809396 | recommendations accepted by Knut; built for beta 42 (B8-1011 to B8-1016), NOT confirmed; two message texts proposed |
+| §33 | K37: a white-mapped sheet whose chart has no paper patch is judged against the paper white of the profile it was printed through, with a numbered note; absolute Lab with a note on each row only when no profile can be read | 2026-09-24, 5822758830 | recommendation (e) accepted by Knut; built for beta 42 (B8-1081 to B8-1084), NOT confirmed; two message texts proposed |
+| §34 | K37 (i): on a FROM PROFILE GAMUT chart the control strip compares its seven ink and black corner patches with the profile's prediction, the cube-corner table keeps the ideal values, and a note says so | 2026-09-24, 5823088098 (our 5823015844) | approved by Knut; built for beta 42 (B8-1085 to B8-1088), NOT confirmed; two message texts proposed |
 
 Related documents: `unified_measurement_management.md` (the life of a
 measurement; §M-PROPOSED holds this feature's two messages),
@@ -6292,7 +6294,7 @@ it.
 
 | what used the paper white | with no paper patch |
 |---|---|
-| the media-relative yardstick (a sheet printed through its profile with an intent that maps paper white, against the chart's design or device reference: pairing 3, `verification_printing_and_target.md`): every reading divided by the paper white | the sheet is judged in **absolute Lab** as measured (`yardstick_no_paper` recorded); the note says nothing on that sheet is judged relative to the paper (worded per measured sheet since §32.4); the consequences are analysed in §32.6 |
+| the media-relative yardstick (a sheet printed through its profile with an intent that maps paper white, against the chart's design or device reference: pairing 3, `verification_printing_and_target.md`): every reading divided by the paper white | **amended by §33 (K37):** the sheet is judged media-relative with the paper white of the profile it was printed through, the note M-REPORT-PAPER-WHITE-FROM-PROFILE says so; only when no profile can be read is it judged in **absolute Lab** as measured, with M-REPORT-NO-PAPER-PATCH on the line and M-REPORT-JUDGED-ABSOLUTE-NO-PAPER-WHITE on each row that moves (`yardstick_no_paper` recorded in both cases; `paper_white_used` says which). Before §33: absolute Lab in every case (analysed in §32.6) |
 | evenness on such a sheet: each aim carried onto the paper (§21.1) | aims as designed, readings as measured |
 | the five ΔE00 rows, the worst patches, the cube corners, grey balance, the tone ramps and the control strip on such a sheet | judged in absolute Lab, as on a sheet printed absolute |
 | "Paper white, difference from the reference paper" | unchanged: it reads the chart's declared white CORNER (only a FROM PROFILE GAMUT chart answers it, and it always carries one); N-A without it, as before |
@@ -6521,6 +6523,12 @@ are kept, defined so that they fit that model:
 * **Calibration run**: the project's one calibration (Run type Calibration),
   in its "cal" folder. Its reports judge its measurement; no ISO type.
 
+**Accepted by Knut** (the wording of these three Dictionary definitions),
+#182 [5822998064](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5822998064)
+(2026-09-24): *"Perfect. Accepted."* This accepts the three definitions as
+worded; it does not confirm the rest of §32, and the sweep of the other help
+texts (B8-1066, below) stays open.
+
 So M-REPORT-SCOPE-RUN-DELETED's "profile run" is the numbered run, whichever
 of its measurements the report covered: its words stand and it is APPROVED
 (Knut: *"Given the above, the message is accepted."*).
@@ -6598,6 +6606,8 @@ There are also consequences for the code to change this."*
   acting on is independent of it: **question for Knut**, should the seven
   ink and black corners be left out of the control-strip rows on a FROM
   PROFILE GAMUT chart, as they are left out of the five ΔE00 statistics?
+* **Answered (5822998064, 5823088098):** not left out; compared in the
+  strip with the profile's prediction instead, option (i). Built, §34.
 
 **32.6 A sheet printed through its profile with a white-mapping intent whose
 chart has no paper patch (K36-6, B8-1069; analysis, not built).** Knut:
@@ -6669,6 +6679,7 @@ manufacturer's brightness value for the paper used."*
     same instrument when the profile was built. Error only from batch,
     ageing and instrument drift, typically under 1 ΔE00, so about 0.2 on the
     averages. Available in every case that is affected.
+* **Answered by Knut (5822758830): (e), with (b) only without a profile; built, §33.**
 * Recommendation, NOT built (it is not (b), and it changes which numbers a
   report shows): **(e)**, with a numbered note saying that the paper white
   was taken from the profile's media white because the chart has no paper
@@ -6695,3 +6706,315 @@ manufacturer's brightness value for the paper used."*
 
 **Status:** 32.1 to 32.4 built for beta 42 (B8-1061 to B8-1067), NOT
 confirmed; 32.5 and 32.6 analysed, questions with Knut.
+
+
+## 33. K37: a white-mapped sheet whose chart has no paper patch is judged against its profile's paper white (#182, 2026-09-24, beta 42)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+**Ruled by:** Knut, #182
+[5822758830](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5822758830)
+(2026-09-24), answer 1, on the recommendation of §32.6: *"Recommendation:
+(e), with a numbered note on the sheet, and (b) only when no profile can be
+read."* The recommendation he accepted is the rule; what was BUILT from it
+waits for his confirmation. Proof: `~/Desktop/ChromIQ-beta42-proof/knut-k37/`
+(on screen, EN and DE, before and after; REPORT.md; `analysis/`). Register:
+B8-1081 to B8-1084.
+
+**33.1 Which sheets.** A sheet printed through its profile with an intent that
+maps white to the paper (the print record's colour `through-profile` with an
+intent other than absolute, or the route `external-cm`), judged against the
+chart's design or device reference, whose chart has NO patch printed with no
+ink (§31.4). Every other sheet is unchanged: a sheet with a paper patch still
+uses its own paper patch, and the profile's white is never used then; an
+absolute or raw print, a sheet with no print record and a colorimetric
+reference are judged as measured, as before.
+
+**33.2 (e): the paper white of the profile (B8-1081).** In order:
+
+1. the profile the print record names (`profile_path`), when that file is
+   still on disk: the profile the sheet went through;
+2. else the run's own built profile, the profile such a sheet of that run is
+   printed through and the one §31.5 (A11) asks for a FROM PROFILE GAMUT
+   chart. One reader serves both (`_run_profile_white`).
+
+The profile's media white (`wtpt`, `gamut_target.profile_media_white_lab`) is
+put into XYZ and every reading is scaled by it onto D50, exactly as a sheet's
+own paper patch is (ICC media-relative colorimetry); evenness carries its aims
+onto that paper (`aims_on_the_paper`, §21.1). The report records it as
+`paper_white_used = {"from": "profile", "source": "printed_through" |
+"run_profile", "profile": <file name>, "lab": [L, a, b]}`.
+
+* **"Paper white" still reads N-A**: the sheet's paper was not measured, and
+  the profile's white is not written as the sheet's paper white. The Paper
+  white (L\*) graph draws no point for such a sheet, as for every sheet with
+  no paper patch (§31.4). Seen on screen and not changed: with no point on
+  either date, that graph says "A trend graph needs at least two
+  measurements", which is the existing placeholder and not the reason
+  (B8-1084).
+* **The note on the "Paper white" line** is M-REPORT-PAPER-WHITE-FROM-PROFILE
+  (**PROPOSED**, §M-PROPOSED), filled in per sheet with the profile's file
+  name and its white:
+
+  > The chart of this measured sheet has no patch printed with no ink, so
+  > the paper white of this sheet could not be measured. The sheet was
+  > printed with an intent that maps white to the paper, so its colours are
+  > judged relative to the paper white recorded in the profile {profile}
+  > (L\* {L}, a\* {a}, b\* {b}), which is the paper that profile was made
+  > for. If this sheet's paper differs from it (another batch, or paper that
+  > has aged), the results can be off by a little. Only the sheets that
+  > carry this note are affected, not the rest of the report.
+
+  Two sheets through one profile share one number; two through different
+  profiles get one each.
+* **M-REPORT-NO-PAPER-PATCH (approved) and this rule.** Its second sentence,
+  "Every colour on this sheet is therefore judged as measured, in absolute
+  Lab, and none relative to the paper", is FALSE on an (e) sheet. So on such a
+  sheet the (e) note takes its place (it also says why Paper white reads N-A);
+  M-REPORT-NO-PAPER-PATCH stays, word for word, on every sheet with no paper
+  patch that is judged in absolute Lab, which is where it is true. No approved
+  word changes.
+* **"How the colours were judged"** (the printing block) reads, on such a
+  sheet: *"relative to the paper white recorded in the profile {profile},
+  because this sheet's chart has no paper patch: the print mapped white to the
+  paper, so the paper itself is not counted against the profile"* (report
+  text, not a §M message; new, for Knut to read with the two notes).
+
+**33.3 (b): no profile can be read (B8-1082).** Neither the print record's
+profile nor a built profile in the run: the sheet is judged in absolute Lab,
+as before K37 (`paper_white_used = {"from": "unavailable"}`).
+M-REPORT-NO-PAPER-PATCH stays on the "Paper white" line, and every row the
+paper white moves carries M-REPORT-JUDGED-ABSOLUTE-NO-PAPER-WHITE
+(**PROPOSED**), one number for all of them, where the row has a verdict:
+
+> This sheet was printed with an intent that maps white to the paper, so its
+> colours should be judged relative to its paper white. Its chart has no
+> patch printed with no ink, and no profile could be read to take the paper
+> white from, so these rows are judged as measured, in absolute Lab. The
+> paper's own lightness and tint then count against every colour, so these
+> results can read worse than the print is (on typical papers by about 1.5
+> to 3 ΔE00 on the averages), and a limit can fail for that reason alone.
+> Only the sheets that carry this note are affected.
+
+The rows (`ROWS_MOVED_BY_THE_PAPER_WHITE`, from §32.6): the five ΔE00
+statistics, the three control-strip rows, the surface-gamut and outer-gamut
+averages, both grey-balance rows, the 30 % to 70 % ramps and the two evenness
+rows. Not the repeatability rows (readings against readings) and not the rows
+that need a colorimetric reference (such a sheet never has one).
+
+**33.4 Measured (B8-1083).** `analysis/k37_measure.py`, the K36-6 script
+re-run on the built code: the same 12 relative-intent sheets of the demo pack
+(copy of the challenge-2 pack), each with its paper patch, put onto a
+simulated paper, then reported three ways by `build_report`: media-relative
+on the sheet's own paper patch (the right answer), (e) with the paper patch
+ignored and the run's profile read as the app reads it, and (b). Built (e)
+minus media-relative, median [min, max] over the 12 sheets:
+
+| row | paper = the profile's white | the profile's white + about 1 ΔE00 (batch, ageing) |
+|---|---|---|
+| Average ΔE00, all patches | +0.00 [-0.00, +0.00] | -0.03 [-0.10, +0.19] |
+| Average ΔE00, lowest 95 % | +0.00 | -0.03 [-0.10, +0.21] |
+| Average ΔE00, control strip | +0.00 | +0.03 [-0.01, +0.12] |
+| Average ΔE00, surface-gamut patches | +0.00 | -0.00 [-0.07, +0.29] |
+| Maximum ΔE00, lowest 95 % | +0.00 [+0.00, +0.01] | +0.24 [-0.06, +0.42] |
+| Maximum ΔCh, grey balance | +0.00 | +0.56 [+0.41, +0.72] |
+| Maximum ΔL\*, ramps 30 % to 70 % | -0.00 | -0.33 [-0.43, +0.39] |
+
+(b), absolute, on the same sheets: +2.12 [+1.34, +2.60] and +1.89 [+1.03,
++2.26] on "Average ΔE00, all patches". Under Custom ISO 12647-7 "Average
+ΔE00, all patches" changed verdict on **0 of 12** sheets under (e) on the
+profile's paper and **1 of 12** with the 1 ΔE00 drift (a border sheet, FAIL
+to PASS), where (b) turned PASS to FAIL on 11 and 10 of 12. Every verdict of
+the set: 0 of 240 changed under (e) on the profile's paper, 2 of 240 with the
+drift; (b) changed 85 and 80.
+
+A paper the profile was NOT made for is outside the rule's premise and was
+measured for honesty: against the four fixed papers of §32.6, (e) moved
+"Average ΔE00, all patches" by +0.12, +0.68, +1.26 and +0.42 (median; the
+L\* 96 / 1.5 / -5 OBA paper is about 6 ΔE00 from the profile's white), still
+below absolute Lab's +1.64 to +2.87.
+
+On screen (the packs below): the chart's two dates with their paper patches
+read "Maximum ΔE00, all patches" 2.25 / 1.10 media-relative; the same
+measurements with the paper patches taken out read 3.53 / 3.24 FAIL on the
+tree before (absolute), 2.26 / 1.10 under (e), and 3.53 / 3.38 FAIL with the
+(b) note when the run's profile is moved away.
+
+**33.5 The demo pack.** No demo sheet is this case: the one chart without a
+paper patch (Report-Limits-Strip-And-Gamut/run4) ships with no print record
+on purpose, so it stays absolute and keeps M-REPORT-NO-PAPER-PATCH.
+`make_report_limit_demos.apply_design` now anchors a relative design of a
+chart with no paper patch on the run's profile's white (`paper_white_lab`),
+so a future run of that shape is designed the way the report reads it. The
+release package lists both new messages with the one step outside ChromIQ that
+raises each (`MESSAGE_DEMOS`).
+
+**33.6 A report saved before K37** carries no `paper_white_used` and is worked
+out again from its measurement when the window reads it (`ALWAYS_BUILT_BLOCKS`,
+§6; the saved verdict carried across untouched).
+
+* **Built:** `workflow/measurement_report.py` (`profile_paper_white`,
+  `_run_profile_white`, `paper_reference_of` on the shared reader,
+  `PAPER_WHITE_*`, `paper_white_used`, the yardstick in `build_report`,
+  `NOTE_JUDGED_ABSOLUTE_NO_PAPER_WHITE`, `ROWS_MOVED_BY_THE_PAPER_WHITE`,
+  `row_values`); `workflow/measurement_messages.py` (the two messages);
+  `ui/dialogs/measurement_report_dialog.py` (`_paper_white_from_profile`,
+  `_paper_white_note_code`, `_note_numbering`, `_note_sentence`, the Paper
+  white line, the printing block, `ALWAYS_BUILT_BLOCKS`);
+  `scripts/make_report_limit_demos.py` (`apply_design`);
+  `scripts/make_release_demo_package.py` (`MESSAGE_DEMOS`, `RULE_DEMOS`);
+  `scripts/drive_b42_k37.py` (the drive).
+* **Verified by:** `tests/test_k37_paper_white_from_the_profile.py` (9 tests,
+  each red on the mutation in its docstring, `analysis/k37_mutations.txt`).
+
+**Status:** built for beta 42 (B8-1081 to B8-1084), NOT confirmed; two
+message texts and the "How the colours were judged" line proposed.
+
+
+## 34. K37 (i): on a FROM PROFILE GAMUT chart the control strip compares its corner patches with the profile's prediction (#182, 2026-09-24, beta 42)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+**Ruled by:** Knut, #182
+[5823088098](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5823088098)
+(2026-09-24): *"Regarding "May we build (i) for beta 42?": Answer: Yes do
+so."* The proposal he approved is ours,
+[5823015844](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5823015844),
+answering his question in
+[5822998064](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5822998064)
+(*"is it possible to instead choose those seven other cube corners (black,
+cyan, magenta, yellow, red, green, blue) to be the corner values within the
+gamut? IS that a solution that improves the outcome?"*): *"(i) Keep the same
+patches, and judge them in the control strip against the colour the profile
+predicts for them. … The cube-corner table and its trend graph keep the ideal
+values, as you decided, so their meaning does not change. … A short note
+would say so. This applies only to FROM PROFILE GAMUT charts; every other
+chart kind is unchanged."* This answers §32.5's question. Proof:
+`~/Desktop/ChromIQ-beta42-proof/knut-k37/` (before-i-*, after-i-*). Register:
+B8-1085 to B8-1088.
+
+**34.1 What is compared with what (B8-1085).** On a FROM PROFILE GAMUT chart
+(a colorimetric reference), in the three control-strip rows only, each of the
+seven ink and black corner rungs (composite black, cyan, magenta, yellow,
+red, green, blue; the rungs `solid_*` of `workflow/control_strip.py`, found by
+the chart's own corner declaration) is compared with the Lab the profile
+predicts for its device value (`profile_corner_predictions`: the device value
+run forward through the profile with the chart's own intent, `xicclu -ff`).
+The bare-paper rung keeps the profile's paper (§31.5). Every other rung is
+unchanged: it already aims at the profile's colour.
+
+* **The profile:** the run's own built profile, the one a FROM PROFILE GAMUT
+  chart of that run is built from and the one §31.5 and §33 read the paper
+  white from (`_run_profile_path`, one reader for all three). This holds for
+  charts made before and after this change: the prediction is not stored in
+  the chart; it is asked when the report is built. (A limit of that: if the
+  profile was rebuilt after the chart was made, the prediction is the new
+  profile's, while the chart's other aims were chosen through the old one.
+  The report's "the profile has been rebuilt since this sheet was printed"
+  line already says when that is the case.)
+* **Unchanged, as Knut decided in §32.5:** the cube-corner table, the corner
+  trend graph, "Solid colours, largest", "Cyan, magenta and yellow solids,
+  largest hue difference" and "Paper white, difference from the reference
+  paper" keep the ideal (and §31.5 paper) aims.
+* **No profile, or no ArgyllCMS to ask:** today's comparison with the ideal
+  values stays (`strip_corner_aims = {"from": "ideal"}`), and the strip rows
+  say so.
+* **Every other chart kind:** unchanged (`{"from": "not_applicable"}`).
+* The report records `strip_corner_aims` (from, profile, which ids); a report
+  saved before is worked out again when the window reads it
+  (`ALWAYS_BUILT_BLOCKS`, §6).
+
+**34.2 The note (B8-1086).** On such a sheet the three control-strip rows,
+wherever they carry a verdict, carry one numbered note,
+M-REPORT-STRIP-CORNERS-PREDICTED (**PROPOSED**, §M-PROPOSED):
+
+> On this sheet the chart's solid ink, overprint and black patches are
+> compared two ways. In the cube-corner table each is compared with its
+> ideal value, which shows how far this printer's colour is from the ideal
+> one. In the control-strip rows each is compared with the colour the
+> profile predicts for it, like every other patch of this chart, which shows
+> how accurately it was printed.
+
+and, when no profile could be read, M-REPORT-STRIP-CORNERS-IDEAL
+(**PROPOSED**):
+
+> No profile could be read to predict the colours of this sheet's solid ink,
+> overprint and black patches, so in the control-strip rows they are
+> compared with their ideal values, as in the cube-corner table. That
+> difference is mostly how far this printer's colours are from the ideal
+> ones, not a printing error, so these rows can read worse than the print
+> is. Only the sheets that carry this note are affected.
+
+The note is on the rows and not on the cube-corner table: the table has no
+verdict to number. Its text names the table, so a reader of either finds the
+other. German by hand.
+
+**34.3 Measured on the demo pack (B8-1087).** `analysis/k37i_strip.py`,
+`k37i_compare.txt`, `k37i_rebuilt_summary.txt`.
+
+* **The shipped pack as it is (challenge-2 copy, 51 FROM PROFILE GAMUT
+  dates), the tree before against the built code:** the strip's average rose
+  by +1.16 median [+1.00, +1.80], its largest difference by +1.66 [+0.00,
+  +3.49], and against the set each date was saved with 24 strip verdicts
+  turned PASS to FAIL (none the other way). That is the pack's own design,
+  not the printer: the generator put every corner EXACTLY on its ideal value
+  (so the corner rows could be designed), which no printer can do, and the
+  corner then sits the whole ideal-to-prediction gap (1.4 to 8.1 ΔE00 for the six inks on
+  these profiles, blue the largest) from what the strip now compares it
+  with.
+* **So the generator was adjusted, and the four projects that hold such
+  charts rebuilt with it** (`--only`, 102 dated verifications, 102 matching
+  their design; `analysis/rebuilt-subset/generator-build.txt`). The overprints
+  R, G, B (judged only in the strip) go on the prediction, which is what a
+  printer prints; the solids C, M, Y and the black (judged by the corner rows
+  too) go between their two aims (`_between_two_aims`): the designed hue
+  difference from the ideal kept exactly, inside 85 % of the run's own
+  solid-colour limit, and otherwise as near the prediction as that allows.
+  Measured on the rebuilt dates: every strip verdict is the one its date
+  designs. On Report-Limits-Second-Route, whose profile lies furthest from
+  the ideal, the strip's largest difference on the dates designed to pass
+  fell from 3.93 to 11.12 (the ideal comparison, FAIL on 10 dates designed to
+  pass) to 2.34 to 5.89, and those dates now PASS.
+* **One cell cannot be met on this kind of chart and is now designed over:**
+  the tight column (ChromIQ tight, 1.5 on "Solid colours, largest" and 1.5 on
+  the strip's largest difference). The ideal and the prediction of a solid
+  lie 3.0 to 4.9 ΔE00 apart on these profiles, more than both limits
+  together, so the solids are kept inside the solid-colour row (no other
+  chart kind can show it passing) and "Control-strip patches, largest
+  difference" stays over on that column's FROM PROFILE GAMUT dates
+  (Every-Limit-Set/run4, Second-Route/run4); the dates say so, and the same
+  column's ordinary chart shows the row passing. This is Knut's decision
+  meeting physics, and worth his eye: on a real printer the solids against
+  their ideal values will usually read well over a tight limit.
+
+**34.4 On screen.** Report-Limits-Second-Route/run2, "New report…", every
+date, judged against Custom ISO 12647-7 (chosen the same way in every drive):
+before, the strip rows carry no note; after, on the rebuilt pack, the two
+strip rows carry M-REPORT-STRIP-CORNERS-PREDICTED ("1)"), largest 2.34 PASS on
+the dates designed to pass; with the run's profile moved away and the saved
+reports removed, the same rows carry M-REPORT-STRIP-CORNERS-IDEAL and read
+6.83 FAIL. The cube-corner table reads the ideal comparison in all three.
+(Under Custom ISO 12647-7, which is not this run's own set, "Solid colours,
+largest" fails on the rebuilt dates: the generator places the solids inside
+the run's OWN limit, ChromIQ default's.)
+
+* **Built:** `workflow/measurement_report.py` (`_run_profile_path`,
+  `profile_corner_predictions`, `corner_predictions_through`,
+  `CORNER_AIMS_*`, `strip_corner_aims`, `strip_ref` in `build_report`,
+  `NOTE_STRIP_CORNERS_*` in `row_values`); `workflow/measurement_messages.py`;
+  `ui/dialogs/measurement_report_dialog.py` (`_note_sentence`,
+  `ALWAYS_BUILT_BLOCKS`); `scripts/make_report_limit_demos.py`
+  (`_between_two_aims`, `_corner_budgets`, `corner_bound` in
+  `matrix_dates`, the strip solver on the strip's own aims);
+  `scripts/make_release_demo_package.py`; `scripts/drive_b42_k37.py` (scene
+  i).
+* **Verified by:** `tests/test_k37_paper_white_from_the_profile.py`
+  (`test_i_*`, 7 tests, each red on the mutation in its docstring,
+  `analysis/k37_mutations.txt`), and the release tier's demo-package tests.
+
+**Status:** built for beta 42 (B8-1085 to B8-1088), NOT confirmed; two
+message texts proposed.

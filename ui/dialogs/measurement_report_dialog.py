@@ -795,6 +795,15 @@ ALWAYS_BUILT_BLOCKS: "tuple[str, ...]" = (
     # ideal white; it is worked out again from its measurement, as every
     # block above was, and the saved verdict is carried across untouched.
     "paper_patch",
+    # #182 K37 (Knut, 5822758830): which paper white a sheet printed with a
+    # white-mapping intent was judged relative to. A report without it judged
+    # such a sheet with no paper patch in absolute Lab; it is worked out
+    # again, the saved verdict carried across as above.
+    "paper_white_used",
+    # #182 K37 (i) (Knut, 5823088098): what a FROM PROFILE GAMUT chart's
+    # corner rungs of the control strip were compared with. A report without
+    # it compared them with their ideal values; it is worked out again.
+    "strip_corner_aims",
 )
 
 
@@ -1352,6 +1361,49 @@ def _no_paper_patch(r: dict) -> bool:
     patch (#182 A10, `measurement_report.paper_white_row`). False for a
     report written before beta 42, which records nothing either way."""
     return isinstance(r, dict) and r.get("paper_patch") is False
+
+
+#: #182 K37: the note code of a sheet judged relative to its PROFILE's paper
+#: white, (e). It carries its own sentence after `_NOTE_TEXT_SEP` (the profile
+#: and its white are the sheet's), so two sheets through one profile share a
+#: number and two through different profiles do not.
+NOTE_PAPER_WHITE_FROM_PROFILE = "paper_white_from_profile"
+
+
+def _paper_white_from_profile(r: dict) -> "dict | None":
+    """The profile's paper white a sheet with no paper patch was judged
+    relative to (#182 K37, (e)), or None."""
+    from workflow.measurement_report import PAPER_WHITE_FROM_PROFILE
+    used = (r or {}).get("paper_white_used") if isinstance(r, dict) else None
+    if isinstance(used, dict) and used.get("from") == PAPER_WHITE_FROM_PROFILE \
+            and isinstance(used.get("lab"), (list, tuple)) \
+            and len(used["lab"]) == 3:
+        return used
+    return None
+
+
+def _paper_white_note_code(r: dict) -> "str | None":
+    """The note code the "Paper white" line of this sheet carries, or None.
+
+    * no paper patch, judged relative to the profile's paper white (K37,
+      (e)): M-REPORT-PAPER-WHITE-FROM-PROFILE, filled in for this sheet;
+    * no paper patch otherwise: M-REPORT-NO-PAPER-PATCH (A10), whose words
+      ("judged as measured, in absolute Lab") are true of such a sheet and
+      FALSE of an (e) sheet, which is why the two never share a line."""
+    if not _no_paper_patch(r) or r.get("paper_white"):
+        return None
+    used = _paper_white_from_profile(r)
+    if used is None:
+        return NOTE_NO_PAPER_PATCH
+    from workflow import measurement_messages as M
+
+    def _n(v) -> str:
+        return f"{round(float(v), 1) + 0.0:.1f}"
+    said = M.M_REPORT_PAPER_WHITE_FROM_PROFILE.render(
+        profile=str(used.get("profile") or ""),
+        L=_n(used["lab"][0]), a=_n(used["lab"][1]), b=_n(used["lab"][2]))[1]
+    return (NOTE_PAPER_WHITE_FROM_PROFILE
+            + MeasurementReportDialog._NOTE_TEXT_SEP + said)
 
 
 def _is_raw_drift(r: dict) -> bool:
@@ -10838,6 +10890,20 @@ class MeasurementReportDialog(QDialog):
             # #182 A10: §M text (M-REPORT-NO-PAPER-PATCH, proposed)
             from workflow import measurement_messages as M
             return M.M_REPORT_NO_PAPER_PATCH.render()[1]
+        from workflow.measurement_report import \
+            NOTE_JUDGED_ABSOLUTE_NO_PAPER_WHITE
+        if code == NOTE_JUDGED_ABSOLUTE_NO_PAPER_WHITE:
+            # #182 K37, (b): §M text (proposed)
+            from workflow import measurement_messages as M
+            return M.M_REPORT_JUDGED_ABSOLUTE_NO_PAPER_WHITE.render()[1]
+        from workflow.measurement_report import (NOTE_STRIP_CORNERS_IDEAL,
+                                                 NOTE_STRIP_CORNERS_PREDICTED)
+        if code in (NOTE_STRIP_CORNERS_PREDICTED, NOTE_STRIP_CORNERS_IDEAL):
+            # #182 K37 (i): §M text (proposed)
+            from workflow import measurement_messages as M
+            return (M.M_REPORT_STRIP_CORNERS_PREDICTED
+                    if code == NOTE_STRIP_CORNERS_PREDICTED
+                    else M.M_REPORT_STRIP_CORNERS_IDEAL).render()[1]
         return {
             "printing_unrecorded": tr(
                 "How this sheet was printed is not recorded, so the grey rows "
@@ -10922,11 +10988,16 @@ class MeasurementReportDialog(QDialog):
         # its "Paper white" line, which is no limit row, so the line is put
         # into the one numbering as a row of its own (after the limit rows,
         # so no row's number moves).
+        # #182 K37: on a sheet judged relative to its profile's paper white
+        # the line carries M-REPORT-PAPER-WHITE-FROM-PROFILE instead.
         for r in runs or ():
-            if _is_raw_drift(r) or not _no_paper_patch(r):
+            if _is_raw_drift(r):
+                continue
+            _code = _paper_white_note_code(r)
+            if _code is None:
                 continue
             merged.append({"row_id": PAPER_WHITE_NOTE_ROW,
-                           "notes": [NOTE_NO_PAPER_PATCH]})
+                           "notes": [_code]})
         return numbered_notes(merged)
 
     def _measured_not_graded(self, r: dict) -> "list[tuple[str, str]]":
@@ -14940,7 +15011,17 @@ class MeasurementReportDialog(QDialog):
                          tr("could not be checked"), False))
         # Pairing 3: say WHICH yardstick judged the sheet, in plain words,
         # so a media-relative score can never be mistaken for an absolute one.
-        if r.get("yardstick") == "media-relative":
+        _pw_prof = _paper_white_from_profile(r)
+        if r.get("yardstick") == "media-relative" and _pw_prof is not None:
+            # #182 K37, (e): not the sheet's own paper white, which its chart
+            # has no patch for, but the one its profile records.
+            rows.append((tr("How the colours were judged"), tr(
+                "relative to the paper white recorded in the profile "
+                "{profile}, because this sheet's chart has no paper patch: the "
+                "print mapped white to the paper, so the paper itself is not "
+                "counted against the profile").format(
+                    profile=str(_pw_prof.get("profile") or "")), False))
+        elif r.get("yardstick") == "media-relative":
             rows.append((tr("How the colours were judged"), tr(
                 "relative to this sheet's own paper white — the print mapped "
                 "white to the paper, so the paper itself is not counted "
@@ -15416,8 +15497,9 @@ class MeasurementReportDialog(QDialog):
                                                          note_numbers_for)
                 _pnums = (numbering if numbering is not None
                           else self._note_numbering([r]))
-                _pn = note_numbers_for({"notes": [NOTE_NO_PAPER_PATCH]},
-                                       _pnums)
+                _pn = note_numbers_for(
+                    {"notes": [_paper_white_note_code(r)
+                               or NOTE_NO_PAPER_PATCH]}, _pnums)
                 _mk = ("<sup>&nbsp;" + html.escape(" ".join(
                     note_label(n) for n in _pn)) + "</sup>") if _pn else ""
                 parts.append("<div>" + html.escape(tr("White")) + " - "

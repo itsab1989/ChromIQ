@@ -3141,6 +3141,81 @@ M_REPORT_NO_PAPER_PATCH = _m(
     "affected, not the rest of the report.",
     approved=True)   # Knut, #182 5820871320
 
+
+# --- PROPOSED (#182 K37, Knut 5822758830, answer 1): a sheet printed with an
+# intent that maps white to the paper, whose chart has no paper patch -------
+#
+# Knut: *"Recommendation: (e), with a numbered note on the sheet, and (b)
+# only when no profile can be read."* (§32.6 and §33 of
+# `docs/design/measurement_report_limits.md`.)
+#
+# (e) The sheet is judged relative to the paper white of the profile it was
+# printed through (else the run's own profile). M-REPORT-NO-PAPER-PATCH says
+# "every colour on this sheet is therefore judged as measured, in absolute
+# Lab", which is FALSE on such a sheet, so this note takes its place on that
+# sheet's "Paper white" line and says both things: why the paper white reads
+# N-A, and where the paper white the colours were judged against came from.
+# The approved message stays on every sheet where its words are true.
+M_REPORT_PAPER_WHITE_FROM_PROFILE = _m(
+    "M-REPORT-PAPER-WHITE-FROM-PROFILE",
+    "Paper white taken from the profile",
+    "The chart of this measured sheet has no patch printed with no ink, so "
+    "the paper white of this sheet could not be measured. The sheet was "
+    "printed with an intent that maps white to the paper, so its colours are "
+    "judged relative to the paper white recorded in the profile {profile} "
+    "(L* {L}, a* {a}, b* {b}), which is the paper that profile was made for. "
+    "If this sheet's paper differs from it (another batch, or paper that has "
+    "aged), the results can be off by a little. Only the sheets that carry "
+    "this note are affected, not the rest of the report.",
+    approved=False)
+
+# (b) No profile could be read, so the sheet stays in absolute Lab. The note
+# travels with every row whose verdict that moves (the colour-difference,
+# control-strip, gamut, grey-balance, tone-ramp and evenness rows of that
+# sheet), so a reader of a FAIL sees why it may not be the print's fault.
+# M-REPORT-NO-PAPER-PATCH stays on the sheet's "Paper white" line: on this
+# sheet its words are true.
+M_REPORT_JUDGED_ABSOLUTE_NO_PAPER_WHITE = _m(
+    "M-REPORT-JUDGED-ABSOLUTE-NO-PAPER-WHITE",
+    "Judged without a paper white",
+    "This sheet was printed with an intent that maps white to the paper, so "
+    "its colours should be judged relative to its paper white. Its chart has "
+    "no patch printed with no ink, and no profile could be read to take the "
+    "paper white from, so these rows are judged as measured, in absolute "
+    "Lab. The paper's own lightness and tint then count against every colour, "
+    "so these results can read worse than the print is (on typical papers by "
+    "about 1.5 to 3 ΔE00 on the averages), and a limit can fail for that "
+    "reason alone. Only the sheets that carry this note are affected.",
+    approved=False)
+
+# --- PROPOSED (#182 K37 (i), Knut 5823088098 "Yes do so", on our
+# 5823015844): on a FROM PROFILE GAMUT chart the control strip's seven ink
+# and black corner rungs are compared with the profile's prediction; the
+# cube-corner table keeps the ideal values. The note on the three
+# control-strip rows says a corner patch has two comparisons. ---------------
+M_REPORT_STRIP_CORNERS_PREDICTED = _m(
+    "M-REPORT-STRIP-CORNERS-PREDICTED",
+    "A corner patch is compared two ways",
+    "On this sheet the chart's solid ink, overprint and black patches are "
+    "compared two ways. In the cube-corner table each is compared with its "
+    "ideal value, which shows how far this printer's colour is from the ideal "
+    "one. In the control-strip rows each is compared with the colour the "
+    "profile predicts for it, like every other patch of this chart, which "
+    "shows how accurately it was printed.",
+    approved=False)
+
+# ...and when no profile can be read to ask: today's comparison stays.
+M_REPORT_STRIP_CORNERS_IDEAL = _m(
+    "M-REPORT-STRIP-CORNERS-IDEAL",
+    "Corner patches compared with their ideal values",
+    "No profile could be read to predict the colours of this sheet's solid "
+    "ink, overprint and black patches, so in the control-strip rows they are "
+    "compared with their ideal values, as in the cube-corner table. That "
+    "difference is mostly how far this printer's colours are from the ideal "
+    "ones, not a printing error, so these rows can read worse than the print "
+    "is. Only the sheets that carry this note are affected.",
+    approved=False)
+
 #: The two remedies of M-REPORT-DELETE-FAILED (re-challenge R2, #8). "Copy
 #: the project" is only a remedy for a report that lives in a project; a
 #: report across projects lives in the folder that holds them, and copying
@@ -3226,6 +3301,9 @@ CATALOGUE = {m.id: m for m in (
     M_REPORT_DELETE_FAILED, M_REPORT_NOT_WRITABLE,
     M_RUN_DELETE_REPORTS_LOCKED,
     M_REPORT_SCOPE_RUN_DELETED, M_REPORT_NO_PAPER_PATCH,
+    M_REPORT_PAPER_WHITE_FROM_PROFILE,
+    M_REPORT_JUDGED_ABSOLUTE_NO_PAPER_WHITE,
+    M_REPORT_STRIP_CORNERS_PREDICTED, M_REPORT_STRIP_CORNERS_IDEAL,
     M_REPLACE_PARTIAL, M_REPLACE_COMPLETE, M_TI3_MISMATCH,
     M_REPLACE_UNCOUNTABLE,
     M_IMPORT_REPLACE_CONFIRM, M_IMPORT_REPLACE_PROJECT_CONFIRM,
