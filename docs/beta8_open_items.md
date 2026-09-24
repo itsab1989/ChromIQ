@@ -22512,7 +22512,12 @@ would reach.
 - evidence: test_the_readme_states_the_right_number_and_names_every_language,
   test_the_site_states_the_right_number_everywhere_it_states_one,
   test_every_shipped_language_is_announced_in_the_changelog,
-  test_a_contributed_translation_is_credited_in_the_app
+  test_a_contributed_translation_is_credited_in_the_repository
+- note (2026-09-24): the credit line in Preferences is REMOVED on Basti's
+  ruling (*"in settings i don't want to have the translations contributed
+  credits. the translation was ai generated and caused more trouble than
+  good"*); the README and CHANGELOG credits stay. The in-app guard is now
+  its opposite, test_the_app_credits_no_translation.
 ### B8-701 · FIXED · Help cards printed a trailing sheet with nothing on it at all
 - blocks release: no
 - status: FIXED
