@@ -60,7 +60,13 @@ def test_the_column_is_marked_fresh(tmp_path, qapp):
         assert reps[0].get("_fresh") is True, (
             "a report built live is not marked _fresh, so the window reads it "
             "as one an older ChromIQ saved and stripped the verdict from")
-        assert dlg._recorded(reps[0]) is None, (
+        # THE ROW AS LOADED, not the page's copy: since K32 (§25.3 in a
+        # Profiling window too) the page judges a fresh row live against the
+        # report's set, so the copy carries a verdict nobody saved. What this
+        # guards is the fixture: nothing on disk recorded one.
+        raw = next(r for r in dlg._history
+                   if dlg._run_key(r) == dlg._run_key(reps[0]))
+        assert dlg._recorded(raw) is None, (
             "this fixture is meant to have NO saved verdict; if it has one the "
             "test below proves nothing")
     finally:

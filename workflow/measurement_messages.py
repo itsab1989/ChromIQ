@@ -2833,9 +2833,11 @@ M_REPORT_UPDATE_OR_NEW = _m(
     # headline is not a sentence (`tests/test_message_catalogue.py`),
     # and he ended the whole block "(or similar)". Nothing else moved.
     "Settings were modified for the selected report",
+    # K32 (Knut, #182 5813851807, beta 41): Create New comes FIRST, in the
+    # list as on the buttons, because it is the safe answer and the default.
     "What do you want to do?\n\n"
-    "1. Update selected report with selected settings.\n"
-    "2. Create new report with selected settings.\n"
+    "1. Create new report with selected settings.\n"
+    "2. Update selected report with selected settings.\n"
     "3. Cancel",
     approved=False)
 
@@ -2848,9 +2850,10 @@ M_REPORT_UPDATE_OR_NEW = _m(
 M_REPORT_UNCHANGED_UPDATE_OR_NEW = _m(
     "M-REPORT-UNCHANGED-UPDATE-OR-NEW",
     "Nothing was changed for the selected report",
+    # K32: the same order as M-REPORT-UPDATE-OR-NEW's, Create New first.
     "What do you want to do?\n\n"
-    "1. Update selected report, worked out again by this version of ChromIQ.\n"
-    "2. Create new report with the same settings.\n"
+    "1. Create new report with the same settings.\n"
+    "2. Update selected report, worked out again by this version of ChromIQ.\n"
     "3. Cancel",
     approved=False)
 

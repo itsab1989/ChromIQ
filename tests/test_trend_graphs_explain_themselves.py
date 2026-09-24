@@ -203,13 +203,15 @@ def _grey_chart(values, lines, notes):
 @pytest.mark.parametrize("key", [k for k, _t, _r in mrd._TREND_GROUPS])
 def test_every_tab_places_its_words_by_the_accuracy_rule(qapp, key):
     """Each judged tab's words sit in the left margin while they fit there,
-    and move inside the plot, the upper line's word above it and the lower
-    one's below, when a word would land on an axis number or on the other
-    word: the Colour accuracy rule, on every tab.
+    and move inside the plot, one above the other, when a word would land on
+    an axis number or on the other word: the Colour accuracy rule, on every
+    tab. Since K32 each word is decided on its own and inside the plot goes
+    to the side of its line that prints over the least
+    (`_place_limit_words`, `tests/test_k32_limit_words.py`).
 
-    MUTATION, proven red: compute ``collide`` only for the accuracy pair
-    (``collide = collide and bool(self._thresholds)``): the words stay in the
-    margin on top of the axis numbers."""
+    MUTATION, proven red: drop the axis-number test from the margin's
+    ``fits`` in `_place_limit_words`: the words stay in the margin on top of
+    the axis numbers."""
     rows = dict((k, r) for k, _t, r in mrd._TREND_GROUPS)[key]
     words = [w() for _rid, w, _c in rows]
     # axis 0 .. 2.24 (data max 2.0 * 1.12): numbers at 0, 1.12, 2.24

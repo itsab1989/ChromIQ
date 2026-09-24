@@ -181,7 +181,7 @@ def _help_icon_beside(widget):
 
 
 # --------------------------------------------------------------------------
-# 3. THE TEXT BESIDE "Report shown" WRAPS, AND STOPS AT TWO LINES
+# 3. THE TEXT BESIDE "Report shown" WRAPS, AND STOPS AT THREE LINES (K32)
 # --------------------------------------------------------------------------
 def test_the_hint_beside_report_shown_wraps_to_two_lines(report_window):
     """Knut: *"This text is cut off and the window must be far too wide to see
@@ -208,7 +208,9 @@ def test_the_hint_beside_report_shown_wraps_to_two_lines(report_window):
     assert note.wordWrap(), "the label still shows one elided line"
     assert note.isVisible()
     fm = QFontMetrics(note.font())
-    assert note.maximumHeight() <= 2 * fm.lineSpacing() + 2, (
+    from ui.dialogs.measurement_report_dialog import _BESIDE_PULLDOWN_LINES
+    assert _BESIDE_PULLDOWN_LINES == 3, "K32: Knut asked for three lines"
+    assert note.maximumHeight() <= 3 * fm.lineSpacing() + 2, (
         "an uncapped wrapped label is what took this window off an 800 px "
         "screen twice")
     assert note.toolTip() == long, "the whole sentence is still readable"
@@ -238,9 +240,9 @@ def test_a_sentence_too_long_for_two_lines_is_cut_not_stretched(report_window):
     assert room > 20, "the layout has not given the label a width yet"
     used = fm.boundingRect(QRect(0, 0, room, 10_000),
                            int(Qt.TextFlag.TextWordWrap), note.text()).height()
-    assert used <= 2 * fm.lineSpacing() + 2, (
-        f"the text needs {used} px where two lines are "
-        f"{2 * fm.lineSpacing() + 2}")
+    assert used <= 3 * fm.lineSpacing() + 2, (
+        f"the text needs {used} px where three lines are "
+        f"{3 * fm.lineSpacing() + 2}")
     assert note.text().endswith("…"), note.text()[-40:]
 
 
@@ -405,3 +407,33 @@ def second_project(tmp_path, qapp):
     rep["created"] = "2026-09-05T10:00:00"
     mr.save_report(rep, p.parent)
     return p
+
+
+def test_a_sentence_of_three_lines_is_shown_whole(report_window):
+    """K32, Knut on beta 41 (#182 5815133233): *"The text field should always
+    wrap to up to 3 lines (since there is space for this vertically), and if
+    still not enough space for the text, then end text with "..." as
+    usual."* A sentence that needs three lines at the label's width is shown
+    whole, with no "…", and all three lines fit the label's height.
+
+    MUTATION, proved to land: `_BESIDE_PULLDOWN_LINES = 2`."""
+    dlg = report_window
+    note = dlg._saved_note
+    dlg._set_saved_note("x")
+    room = note.width()
+    assert room > 20
+    two = 2 * note.fontMetrics().lineSpacing() + 2
+    three = 3 * note.fontMetrics().lineSpacing() + 2
+    words = []
+    text = ""
+    while True:                      # the shortest sentence past two lines
+        words.append("measurement")
+        text = " ".join(words)
+        note.setText(text)
+        if note.heightForWidth(room) > two:
+            break
+    assert note.heightForWidth(room) <= three, "past three lines already"
+    dlg._set_saved_note(text)
+    assert note.text() == text, note.text()[-40:]
+    assert not note.text().endswith("…")
+    assert note.heightForWidth(room) <= note.maximumHeight()

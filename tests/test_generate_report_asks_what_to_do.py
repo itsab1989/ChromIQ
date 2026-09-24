@@ -548,7 +548,9 @@ def test_the_question_is_the_catalogue_message_with_his_three_buttons(
         title, body = M.CATALOGUE["M-REPORT-UPDATE-OR-NEW"].render()
         assert seen["title"] == title
         assert seen["body"] == body
-        assert seen["buttons"] == ["Update", "Create New", "Cancel"], seen
+        # K32 put Create New first (`test_create_new_is_first_and_the_default`
+        # checks where each one is PAINTED; this is the order they are held).
+        assert seen["buttons"] == ["Create New", "Update", "Cancel"], seen
         assert M.CATALOGUE["M-REPORT-UPDATE-OR-NEW"].approved is False, (
             "the wording has not been approved, so it must be marked proposed")
     finally:
@@ -1402,3 +1404,83 @@ def test_an_update_that_cannot_write_one_date_writes_none_of_them(
         if locked is not None:
             os.chmod(locked, stat.S_IRWXU)
         dlg.close()
+
+
+# ---------------------------------------------------------------------------
+# K32 — Create New first, and the default
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize("language", ["en", "de"])
+@pytest.mark.parametrize("modified", [True, False])
+def test_create_new_is_first_and_the_default(two_dates, qapp, monkeypatch,
+                                             language, modified):
+    """K32, Knut on beta 41 (#182 5813851807): *"Move Create New button to be
+    the first button on the left and Update button to be the middle button.
+    Make sure bullet list description also has same sequence, Create New
+    button in first bullet etc. The Create New button should be default
+    selected, so than an enter would Create New by default (Safest)."*
+
+    Asked of BOTH variants of the question (settings modified, and nothing
+    changed), in English and in German, on the real box shown on screen: the
+    buttons' PAINTED x positions, the default button, what Enter presses, and
+    the numbered list read line by line against the button labels.
+
+    MUTATIONS, each proved to land: add Update before Create New (order red);
+    `setDefaultButton(cancel)` or `(upd)` (default and Enter red); put the
+    "Update" line back first in either catalogue body (bullet order red, in
+    both languages, because German follows its own key).
+    """
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtTest import QTest
+    from PyQt6.QtWidgets import QMessageBox
+    from core import i18n
+    from core.i18n import tr
+    from workflow import measurement_messages as M
+    from workflow.measurement_report import REPORT_TYPE_FULL
+    before = i18n.current_language()
+    s, _fm, _run, vs = two_dates
+    i18n.set_language(language)
+    dlg = _window(s, vs[-1].measurement_ti3, qapp)
+    try:
+        key = _a_real_document(dlg, qapp, type_id=REPORT_TYPE_FULL,
+                               every_measurement=True, detail=True)
+        _pick_key(dlg, key, qapp)
+        del dlg._ask_update_or_create_new
+        if modified:
+            dlg._detail_check.setChecked(not dlg._detail_check.isChecked())
+            qapp.processEvents()
+        seen: "dict[str, object]" = {}
+
+        def _exec(box):
+            box.show()
+            qapp.processEvents()
+            btns = sorted(box.buttons(),
+                          key=lambda b: b.mapTo(box, b.rect().topLeft()).x())
+            seen["painted"] = [b.text().replace("&", "") for b in btns]
+            seen["default"] = (box.defaultButton().text().replace("&", "")
+                               if box.defaultButton() else None)
+            seen["body"] = box.informativeText()
+            QTest.keyClick(box, Qt.Key.Key_Return)
+            qapp.processEvents()
+            return 0
+        monkeypatch.setattr(QMessageBox, "exec", _exec)
+        assert dlg._ask_update_or_create_new() == "new", (
+            "Enter did not create a new report")
+        new, upd, cancel = tr("Create New"), tr("Update"), tr("Cancel")
+        assert seen["painted"] == [new, upd, cancel], seen
+        assert seen["default"] == new, seen
+        mid = ("M-REPORT-UPDATE-OR-NEW" if modified
+               else "M-REPORT-UNCHANGED-UPDATE-OR-NEW")
+        assert seen["body"] == M.CATALOGUE[mid].render()[1]
+        lines = [ln for ln in str(seen["body"]).splitlines()
+                 if ln[:2] in ("1.", "2.", "3.")]
+        assert len(lines) == 3, lines
+        # Each numbered line names its button's action, in that language.
+        creates = {"en": "Create new report", "de": "Neuen Bericht"}[language]
+        updates = {"en": "Update selected report",
+                   "de": "Ausgewählten Bericht"}[language]
+        assert lines[0].startswith("1. " + creates), lines
+        assert lines[1].startswith("2. " + updates), lines
+        assert lines[2] == "3. " + cancel, lines
+    finally:
+        dlg.close()
+        i18n.set_language(before or "en")

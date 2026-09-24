@@ -594,6 +594,25 @@ _PDF_TEXT_W = 679.0
 #: The share of a metric table's width its Metric column keeps (H1).
 _METRIC_COL_SHARE = "32%"
 
+#: How many lines the sentence beside "Report shown" may take before it is
+#: shortened with "…" (K32, Knut on beta 41: "wrap to up to 3 lines").
+_BESIDE_PULLDOWN_LINES = 3
+
+#: The fewest dated columns a metric table in the WINDOW holds before it
+#: continues below (K32, Knut on beta 41, #182 5814107188: "The on-screen
+#: report in the measurement window should show at least 4 columns of
+#: included measurements before braking the table"). The PDF is fitted to
+#: the paper alone, because a column past the page edge is cut off.
+_SCREEN_MIN_RUN_COLS = 4
+
+#: How far past the text width a table may measure and still fit. Qt's table
+#: layout rounds the Metric column's percentage share up: measured on the
+#: Overview of four dates, the same table is 679 px wide without the share
+#: and 680 px with it, and the old half-pixel allowance then halved the table
+#: to two dates a block in the PDF and the window alike (K32). One pixel is
+#: 0.26 mm of a 15 mm margin; a real overflow is a column, tens of pixels.
+_TABLE_FIT_SLACK_PX = 1.5
+
 
 def _words_broken_across_lines(doc) -> "list[str]":
     """The texts of *doc* whose layout breaks a WORD over two lines.
@@ -626,7 +645,7 @@ def _table_fits_the_page(table_html: str, width: float = _PDF_TEXT_W) -> bool:
     doc.setHtml(f"<div style=\"font-family:'{family}';font-size:12px\">"
                 + table_html + "</div>")
     doc.setPageSize(QSizeF(width, 100_000))
-    return (doc.size().width() <= width + 0.5
+    return (doc.size().width() <= width + _TABLE_FIT_SLACK_PX
             and not _words_broken_across_lines(doc))
 
 
@@ -1332,6 +1351,122 @@ def _trend_key_html(descriptions: list) -> str:
             + "".join(rows) + "</div>")
 
 
+#: How close (px) a word in the left margin may come to a y-axis number's
+#: centre, or to another margin word's, before the two would print over each
+#: other. The first is the rule the margin always had (9, which keeps the
+#: 10 px numerals apart); the second is a whole word box (14), so two words in
+#: the margin never touch (K32: no limit word may overlap another; it was 11,
+#: and two boxes 11 px apart share 3 px).
+_WORD_AXIS_GAP = 9.0
+_WORD_WORD_GAP = 14.0
+
+
+def _segment_length_in(rect: "QRectF", a: "QPointF", b: "QPointF") -> float:
+    """How much of the segment a-b lies inside *rect*, in px (sampled)."""
+    import math
+    n = max(2, int(math.hypot(b.x() - a.x(), b.y() - a.y()) / 2.0) + 1)
+    step = math.hypot(b.x() - a.x(), b.y() - a.y()) / (n - 1)
+    inside = 0
+    for k in range(n):
+        t = k / (n - 1)
+        if rect.contains(QPointF(a.x() + (b.x() - a.x()) * t,
+                                 a.y() + (b.y() - a.y()) * t)):
+            inside += 1
+    return inside * step
+
+
+def _word_conflict(rect: "QRectF", own_y: float, line_ys: "list[float]",
+                   polys: list, marks: list, taken: list) -> float:
+    """What a limit word placed in *rect* would print over, as one number:
+    another word or a red x above all, then another limit line, then the
+    length of data line under it (K32)."""
+    r = rect.adjusted(-1.0, -1.0, 1.0, 1.0)
+    score = 0.0
+    for other in taken:
+        if r.intersects(other):
+            score += 1000.0
+    for m in marks:
+        if r.intersects(m):
+            score += 500.0
+    for ly in line_ys:
+        if ly is not own_y and r.top() <= ly <= r.bottom():
+            score += 50.0
+    if r.top() <= own_y <= r.bottom():
+        score += 30.0                    # clamped onto its own line
+    for poly in polys:
+        for q in poly:
+            if r.contains(q):
+                score += 5.0             # a data point's dot
+        for a, b in zip(poly, poly[1:]):
+            score += _segment_length_in(r, a, b)
+    return score
+
+
+def _place_limit_words(words: list, *, L: float, T: float, h: float,
+                       axis_ys: "list[float]", polys: list,
+                       marks: list) -> list:
+    """Where each limit word of a trend graph goes: ``[(QRectF, where)]`` in
+    the order of *words*, which are ``(line y, text width)``.
+
+    **THE RULE, ONE FOR EVERY GRAPH, THE WINDOW AND THE PDF (K32, Knut on
+    beta 41, #182 5814107188).**
+
+    1. **The left margin, centred on its line**, when it fits there: the word
+       is no wider than the margin, and it lands on no y-axis number
+       (`_WORD_AXIS_GAP`) and on no word already put in the margin
+       (`_WORD_WORD_GAP`). This is the Colour accuracy placement Knut
+       pointed at.
+    2. **Otherwise at the left end of its line** (K26: "it stays at the left
+       end even over a line"), **above or below it, on the side that
+       conflicts least** (`_word_conflict`): with another word or a red x
+       first, then with another limit line, then with the data lines. On a
+       tie, above.
+
+    A word decided alone: one that does not fit the margin no longer sends
+    the others inside with it, which is what put Grey balance's "Avg" under
+    its line with a free margin beside it.
+    """
+    line_ys = [y for y, _w in words]
+    out: list = [None] * len(words)
+    taken: "list[QRectF]" = []
+    margin_room = L - 4.0 - 2.0
+    # The margin first, top to bottom, so a later word never displaces one
+    # already there.
+    order = sorted(range(len(words)), key=lambda i: words[i][0])
+    for i in order:
+        y, tw = words[i]
+        fits = (tw <= margin_room
+                and all(abs(y - ay) >= _WORD_AXIS_GAP for ay in axis_ys)
+                and all(abs(y - out[j][0].center().y()) >= _WORD_WORD_GAP
+                        for j in range(len(words))
+                        if out[j] is not None and out[j][1] == "margin"))
+        if fits:
+            rect = QRectF(L - 4.0 - tw - 2.0, y - 7.0, tw + 4.0, 14.0)
+            out[i] = (rect, "margin")
+            taken.append(rect)
+    for i in order:
+        if out[i] is not None:
+            continue
+        y, tw = words[i]
+        best = None
+        # Just above and just below the line first; a step further out on
+        # either side only when both of those print over something (another
+        # word most of all, which near the plot's edge the clamp can cause),
+        # at a small cost per step so the word stays by its own line.
+        for step in range(0, 5):
+            for where, top in (("above", y - 16.0 - 15.0 * step),
+                               ("below", y + 2.0 + 15.0 * step)):
+                top = min(max(top, T), T + h - 14.0)
+                rect = QRectF(L + 4.0 - 1.0, top, tw + 2.0, 14.0)
+                score = (_word_conflict(rect, y, line_ys, polys, marks, taken)
+                         + 2.0 * step)
+                if best is None or score < best[0]:
+                    best = (score, rect, where)
+        out[i] = (best[1], best[2])
+        taken.append(best[1])
+    return out
+
+
 class _TrendChart(QWidget):
     """A compact multi-line chart of a printer's measurement history over time
     (#40, Knut). Generic: each instance plots one GROUP of related metrics
@@ -1597,12 +1732,15 @@ class _TrendChart(QWidget):
                        f"{vmin + span * frac:.{self._dec}f}")
             p.setPen(QPen(grid, 1.0))
 
-        # One polyline per metric.
+        # One polyline per metric. Kept (K32) so the limit words can be
+        # placed where they cross the least of them.
+        self._polys = []
         for _lbl, col, acc in self._metrics:
             poly = [xy(i, v) for i, pt in enumerate(pts)
                     if (v := acc(pt)) is not None]
             if not poly:
                 continue
+            self._polys.append(poly)
             p.setPen(QPen(col, 2.0))
             for a, b in zip(poly, poly[1:]):
                 p.drawLine(a, b)
@@ -1619,6 +1757,7 @@ class _TrendChart(QWidget):
 
         # THE RED X (K25, Knut 5789263863): a date whose value was withheld,
         # at its neighbour's height, their mean, or just above the x-axis.
+        self._marks = []
         xpen = QPen(QColor(_WITHHELD_RED), 2.0)
         xpen.setCapStyle(Qt.PenCapStyle.RoundCap)
         arm = _WITHHELD_ARM
@@ -1636,6 +1775,7 @@ class _TrendChart(QWidget):
             box = QRectF(c.x() - arm - 3, c.y() - arm - 3,
                          2 * arm + 6, 2 * arm + 6)
             self._hits.append((box, text))
+            self._marks.append(box)
 
         # Limit lines: the accuracy chart's grey Avg / Max pair, or one line
         # per metric on a judged-metric tab (#182 K20/K21) — dotted, and only
@@ -1652,68 +1792,54 @@ class _TrendChart(QWidget):
                 tpen = QPen(QColor(tcol) if tcol is not None else grey_line)
                 tpen.setStyle(Qt.PenStyle.DotLine); tpen.setWidthF(1.2)
                 pens.append(tpen)
-            # Default: the label sits outside the plot in the left margin, aligned
-            # with the y-axis numbers. But a threshold can land ON a y-axis number
-            # (e.g. Avg 2.0 with a gridline at 2.0), overlapping it — so if EITHER
-            # label would collide, put BOTH just above their own line at the left
-            # tip instead (Knut). y-axis numbers are at fracs 0 / 0.5 / 1.
+            # WHERE EACH WORD GOES (K32, Knut on beta 41, #182 5814107188).
+            # *"If there is no space on the left edge for the threshold label
+            # (maybe because the label then would crash with the y-axis
+            # numbered axis labels), then the label should find a better
+            # location, like on top or below the threshold line it belongs
+            # to ... the label must be placed on the top or bottom side that
+            # has the least conflict with other graph lines or other
+            # horizontal threshold lines. This must be a general rule for all
+            # the graphs label placement for the threshold lines."* Until
+            # then one word that did not fit the margin sent EVERY word of
+            # the graph inside, the upper above and the lower below whatever
+            # was drawn there: on Grey balance the Avg word left a free margin
+            # for a place under its line, on a data line. Now each word is
+            # placed on its own, by `_place_limit_words`, the one rule every
+            # tab and the PDF use.
             axis_ys = [T + h * (1.0 - f) for f in (0.0, 0.5, 1.0)]
+            #: The plot as this paint laid it out, for a test and a driver
+            #: to measure the words against.
+            self._plot_geom = (T, h, list(axis_ys))
             thr_ys = [T + h * (1.0 - (tv - vmin) / span) for tv, _ in thr]
-            # Collide when a label would land on a y-axis number — or on the
-            # OTHER threshold's label: on a large y-range Avg 2.0 and Max 3.0
-            # map to almost the same pixel, and the two words printed over
-            # each other (Sebastian, 2026-08-10). Dropping the words entirely
-            # in that case looked clean in isolation but read as a regression
-            # on real reports ("the Max and Avg labels are gone" — Knut,
-            # 2026-08-11): the words must ALWAYS be drawn. So: clean margin
-            # placement when it fits; otherwise both words move inside the
-            # plot at the lines' left tips, the UPPER line's word above it
-            # and the LOWER line's word below it, so the two diverge instead
-            # of stacking however close the lines sit.
-            #
-            # THE SAME RULE ON EVERY GRAPH (K25): this code is the only place
-            # any tab's limit words are placed, and a test pins it per tab.
-            collide = any(abs(ty - ay) < 9.0 for ty in thr_ys for ay in axis_ys)
-            if len(thr_ys) == 2 and abs(thr_ys[0] - thr_ys[1]) < 11.0:
-                collide = True
             for (tv, tlab), yy, tpen in zip(thr, thr_ys, pens):
                 p.setPen(tpen)
                 p.drawLine(QPointF(L, yy), QPointF(L + w, yy))
             p.setPen(QPen(fg, 1.0))
             fm = p.fontMetrics()
-            if not collide:
-                for (tv, tlab), yy, note in zip(thr, thr_ys, notes):
-                    p.drawText(QRectF(0, yy - 7, L - 4, 14),
+            placed = _place_limit_words(
+                [(yy, fm.horizontalAdvance(tlab)) for (_tv, tlab), yy
+                 in zip(thr, thr_ys)],
+                L=L, T=T, h=h, axis_ys=axis_ys,
+                polys=getattr(self, "_polys", []),
+                marks=getattr(self, "_marks", []))
+            #: ``[(QRectF, where, line y)]`` per drawn word, for a test and a
+            #: driver to measure what was placed where ("margin" / "above" /
+            #: "below").
+            self._word_boxes = []
+            for (tv, tlab), yy, note, (rect, where) in zip(thr, thr_ys, notes,
+                                                           placed):
+                if where == "margin":
+                    p.drawText(QRectF(0, rect.center().y() - 7, L - 4, 14),
                                Qt.AlignmentFlag.AlignRight
-                               | Qt.AlignmentFlag.AlignVCenter,
-                               tlab)
-                    tw = fm.horizontalAdvance(tlab)
-                    if note:
-                        self._hits.append(
-                            (QRectF(L - 4 - tw - 2, yy - 7, tw + 4, 14), note))
-            else:
-                order = sorted(range(len(thr)), key=lambda i: thr_ys[i])
-                for rank, i in enumerate(order):
-                    yy, tlab = thr_ys[i], thr[i][1]
-                    above = rank == 0          # the upper line's word above it
-                    top = yy - 16 if above else yy + 2
-                    # never outside the plot: clamp, keeping above/below sense
-                    top = min(max(top, T), T + h - 14)
-                    # **AT THE LEFT END OF ITS LINE, ALWAYS (K26, Knut
-                    # 5792484060, graph Q4: "Do as implemented in Colour
-                    # accuracy tab ... it stays at the left end even over a
-                    # line").** Beta 38's first cut slid the word along its
-                    # line off a data line; that is undone, and the tooltip
-                    # and the PDF description it gained stay.
-                    left = L + 4
-                    p.drawText(QRectF(left, top, 80, 14),
+                               | Qt.AlignmentFlag.AlignVCenter, tlab)
+                else:
+                    p.drawText(QRectF(rect.left() + 1, rect.top(), 80, 14),
                                Qt.AlignmentFlag.AlignLeft
-                               | Qt.AlignmentFlag.AlignVCenter,
-                               tlab)
-                    box = QRectF(left - 1, top, fm.horizontalAdvance(tlab) + 2,
-                                 14)
-                    if notes[i]:
-                        self._hits.append((box, notes[i]))
+                               | Qt.AlignmentFlag.AlignVCenter, tlab)
+                self._word_boxes.append((QRectF(rect), where, yy))
+                if note:
+                    self._hits.append((QRectF(rect), note))
 
         # X axis: a tick under EVERY measurement point plus as many dated labels
         # (YYYY-MM-DD) as fit without overlapping — always the first and last —
@@ -2937,6 +3063,12 @@ class MeasurementReportDialog(QDialog):
         # separate tabbed charts. Paper white (~L*100) and black (~L*10) are too
         # far apart to read a trend on one axis, so they get a chart each.
         self._trend_tabs = QTabWidget(self)
+        # K32 (Knut, #182 5814390886): with more graph tabs than fit, a part
+        # of the next hidden tab shows at each edge and an arrow with nothing
+        # to scroll to is greyed out (`ui/peek_tab_bar.py`). Set before the
+        # first tab is added, as QTabWidget requires.
+        from ui.peek_tab_bar import PeekTabBar
+        self._trend_tabs.setTabBar(PeekTabBar(self._trend_tabs))
         # The "Trend over time" heading rides in the tab row's free corner
         # instead of a row of its own — that row's height is exactly what the
         # charts were missing on screens where every pixel counts.
@@ -3020,10 +3152,16 @@ class MeasurementReportDialog(QDialog):
         # measurement a door hands in is loaded under every Run type, and
         # what a Calibration window lists, counts and writes is decided by its
         # kind (`_window_kind`, KIND_CALIBRATION).
+        #: Whether the window was opened with nothing to show (K32): the
+        #: empty page then says why, in the words of the bar's run type.
+        self._opened_empty = True
         if initial_ti3 is not None and (
                 Path(initial_ti3).exists()
                 or _a_calibration_with_saved_reports(Path(initial_ti3))):
+            self._opened_empty = False
             self._load(Path(initial_ti3))
+        else:
+            self._view.setHtml(self._empty_html())
 
     # ---- Run type Calibration (#182 beta 39) ------------------------------
     def _is_calibration_window(self) -> bool:
@@ -4082,9 +4220,13 @@ class MeasurementReportDialog(QDialog):
             }.get(colour, tr("printing method not recorded"))
         return f"{when} — {label}"
 
-    def _rebuild_from_sources(self) -> None:
+    def _rebuild_from_sources(self, repaint: bool = True) -> None:
         """Recompute the history, the profile list and button states, then repaint
-        the trend + report."""
+        the trend + report.
+
+        *repaint* False (K32) redraws the list and the buttons only: the page
+        and the graphs stay the document they are, and the red line says
+        whether the settings on screen still match it."""
         self._history = sorted(
             (r for s in self._sources for r in s["runs"]),
             key=lambda r: str(r.get("created") or ""))
@@ -4137,6 +4279,11 @@ class MeasurementReportDialog(QDialog):
         # THE LATEST REPORT, WITH ITS OWN SETTINGS, ONCE PER WINDOW (B8-388).
         # Before `_refresh`, so the page is drawn with those settings already
         # on it rather than drawn twice.
+        if not repaint:
+            self._forget_limits()
+            self._sync_limit_controls()
+            self._show_stale_banner()
+            return
         before = len(self._sources)
         self._open_on_the_latest_report()
         if len(self._sources) != before:
@@ -4570,16 +4717,45 @@ class MeasurementReportDialog(QDialog):
         if not paths:
             return
         added, failed = 0, []
+        had_sources = bool(self._sources)
+        before = {self._run_key(r) for s in self._sources for r in s["runs"]}
         for path in paths:
             try:
                 if self._append_source(self._as_ti3(Path(path)), origin=Path(path)):
                     added += 1
             except Exception as exc:  # noqa: BLE001
                 failed.append(f"{Path(path).name} — {exc}")
-        if added:
-            # The first source's own measurement, not the newest thing in its
-            # history — which, since the history spans the project's runs, is
-            # routinely another run's (see `_subject_of`).
+        if added and had_sources:
+            # **ADDED MEASUREMENTS COME IN UNTICKED, AND THE PAGE DOES NOT MOVE
+            # (K32, Knut on beta 41, #182 5815133233).** *"When adding new
+            # measurement sets, they should by default not be checked, and
+            # even if they were checked, the currently selected report should
+            # get a warning that the settings for the report has been
+            # modified ... and the report never automatically updated without
+            # first clicking generate report."* Adding run 2's measurements to
+            # run 1's window ticked them and drew the report again with them
+            # in, under the selected report's name, with no red line.
+            #
+            # So the new rows are unticked, and unticked in what the document
+            # was built with as well (it did not cover them), so the page, the
+            # PDF and the red line all go on describing the document on
+            # screen. Ticking one is a changed setting like any other: the red
+            # line comes up and Generate asks.
+            new = {self._run_key(r) for s in self._sources
+                   for r in s["runs"]} - before
+            self._hidden_runs |= new
+            built = getattr(self, "_doc_built_with", None)
+            if built is not None:
+                built = list(built)
+                built[3] = tuple(sorted(set(built[3]) | new))
+                self._doc_built_with = tuple(built)
+            self._rebuild_from_sources(repaint=False)
+        elif added:
+            # AN EMPTY WINDOW HAS NO REPORT TO KEEP: the first measurements
+            # added fill it, ticked, as they always have (a K32 decision, put
+            # to Knut). The first source's own measurement, not the newest
+            # thing in its history, which, since the history spans the
+            # project's runs, is routinely another run's (see `_subject_of`).
             self._report = self._subject_of(self._sources[0])
             self._rebuild_from_sources()
         if failed and not added:
@@ -4628,6 +4804,7 @@ class MeasurementReportDialog(QDialog):
 
     def _on_clear_list(self) -> None:
         self._sources = []
+        self._opened_empty = False       # the user emptied it (K32)
         self._borrowed_sources = set()
         self._report, self._ti3 = None, None
         # **NO SAVED REPORT SURVIVES THE CLEAR (round 2A, R2A-6).** The
@@ -5563,10 +5740,21 @@ class MeasurementReportDialog(QDialog):
         box.setWindowTitle(title)
         box.setText(title)
         box.setInformativeText(body)
-        upd = box.addButton(tr("Update"), QMessageBox.ButtonRole.AcceptRole)
+        # K32 (Knut, #182 5813851807): "Move Create New button to be the
+        # first button on the left and Update button to be the middle button
+        # ... The Create New button should be default selected, so that an
+        # enter would Create New by default (Safest)." Both are AcceptRole, and
+        # a QDialogButtonBox lays the FIRST accept button out first and the
+        # rest after it in the order they were added (Qt's AlternateRole
+        # slot), so the order of these two lines IS the order on screen, on
+        # every platform: `WinButtonLayoutStyle` pins the Windows layout, with
+        # the reject button last. Nothing is lost by pressing Enter: a new
+        # report leaves the selected one as it was.
         new = box.addButton(tr("Create New"), QMessageBox.ButtonRole.AcceptRole)
+        upd = box.addButton(tr("Update"), QMessageBox.ButtonRole.AcceptRole)
         cancel = box.addButton(tr("Cancel"), QMessageBox.ButtonRole.RejectRole)
-        box.setDefaultButton(cancel)
+        box.setDefaultButton(new)
+        box.setEscapeButton(cancel)
         fit_message_box_buttons(box)
         self._update_or_new_box = box
         try:
@@ -8028,7 +8216,17 @@ class MeasurementReportDialog(QDialog):
         self._set_saved_note(why)
 
     def _wrap_beside_the_pulldown(self, label, full: str) -> None:
-        """Put *full* on the line beside "Report shown", wrapped to TWO lines.
+        """Put *full* on the line beside "Report shown", wrapped to THREE lines.
+
+        **K32 (Knut on beta 41, #182 5815133233): THREE LINES, THEN "…".**
+        *"The text field should always wrap to up to 3 lines (since there is
+        space for this vertically), and if still not enough space for the
+        text, then end text with "..." as usual."* It was capped at two, and
+        a label fitted to two lines at one width was sometimes drawn at a
+        narrower one on three, its first and last lines cut by the two-line
+        height. The cap is `_BESIDE_PULLDOWN_LINES`; the height is pinned to
+        it, so a third line is drawn whole, and `resizeEvent` fits the text
+        again once the layout has given the label its new width.
 
         **KNUT, BETA 26 (B8-524).** *"To the right of the Report shown and its
         help icon, there is a text 'The only saved report of a dated....'. This
@@ -8051,7 +8249,7 @@ class MeasurementReportDialog(QDialog):
         """
         from PyQt6.QtGui import QFontMetrics
         fm = QFontMetrics(label.font())
-        two = 2 * fm.lineSpacing() + 2
+        two = _BESIDE_PULLDOWN_LINES * fm.lineSpacing() + 2
         # **THE ROOM IS THE LABEL'S OWN WIDTH ONCE IT HAS ONE**, and the
         # window's only before the first layout. `_set_saved_note` measured
         # `self.width() - label.x() - 40` because a label's width is zero
@@ -11090,15 +11288,23 @@ class MeasurementReportDialog(QDialog):
         Old verdict records are therefore read-only history: they speak only
         for the report they were written for (§25).
 
-        Profiling sheets are never graded (§3), so a Profiling window keeps
-        its rows as they are.
+        **A PROFILING WINDOW TOO (K32, Knut on beta 41, #182 5813851807).**
+        This used to return a Profiling window's rows untouched, on the
+        grounds that a profiling sheet is never graded (§3). Not grading is
+        the REPORT TYPE's business: the Printing record already prints INFO
+        in every judged cell. What the early return really did was keep each
+        sheet's OWN verdict record, so the Printing record listed the rows,
+        the graph tabs and the "Judged against" line of the set each sheet's
+        automatic report had used (ChromIQ default on every demo sheet), not
+        the set the report was made against. Knut chose Custom ISO 12647-7,
+        pressed Generate, and got a report headed "Judged against: ChromIQ
+        default" without its solids, control strip, gamut and tone rows.
+        §25.3 is one set for the whole report, always, and the Printing record
+        is a report.
         """
-        from workflow.measurement_report import (KIND_PROFILING,
-                                                 recorded_document,
+        from workflow.measurement_report import (recorded_document,
                                                  recorded_judgement)
         if not rows:
-            return rows
-        if self._window_kind() == KIND_PROFILING:
             return rows
         doc = self._document_settings()
         doc_id = str((doc or {}).get("id") or "")
@@ -11255,8 +11461,15 @@ class MeasurementReportDialog(QDialog):
                     for label, get in row_getters]
             return self._metric_table(dates, rows)
 
+        floor_cols = max(1, int(getattr(self, "_table_min_cols", 1) or 1))
+
         def split(k: int) -> "list[list]":
             n = len(runs)
+            if floor_cols > 1:
+                # THE WINDOW FILLS EACH TABLE BEFORE STARTING THE NEXT (K32):
+                # "at least 4 columns ... before braking the table", so five
+                # dates at four a table are 4 + 1, never shared out as 3 + 2.
+                return [runs[i:i + k] for i in range(0, n, k)]
             m = -(-n // k) if n else 0
             out, i = [], 0
             for j in range(m):
@@ -11265,12 +11478,37 @@ class MeasurementReportDialog(QDialog):
                 i += size
             return out
 
+        # **THE WIDTH OF THE MEDIUM IT IS DRAWN FOR (K32).** The PDF's text
+        # width for the PDF; the page's own width in the window, never fewer
+        # than `_SCREEN_MIN_RUN_COLS` dates a table (Knut: "at least 4
+        # columns ... before braking the table"). The window was fitted to the
+        # PDF's 679 px however wide it was, and so showed what the paper had
+        # room for, with "plenty of space between columns".
+        width = float(getattr(self, "_table_width", None) or _PDF_TEXT_W)
+        floor = max(1, min(len(runs),
+                           int(getattr(self, "_table_min_cols", 1) or 1)))
         best: "list[str]" = []
-        for k in range(min(_MAX_RUN_COLS, max(1, len(runs))), 0, -1):
+        for k in range(min(_MAX_RUN_COLS, max(1, len(runs))), floor - 1, -1):
             best = [table(c) for c in split(k)]
-            if all(_table_fits_the_page(t) for t in best):
+            if all(_table_fits_the_page(t, width) for t in best):
                 break
         return "".join(best)
+
+    def _screen_table_width(self) -> float:
+        """The width a metric table has in the window's page, in pixels: the
+        report view's viewport less the document's margins (K32).
+
+        Read when the page is drawn. Before the window is first shown the
+        viewport has no size of its own yet, and the window's own width is
+        the better guess of what it will have."""
+        view = getattr(self, "_view", None)
+        if view is None:
+            return _PDF_TEXT_W
+        vp = view.viewport().width()
+        if not view.isVisible():
+            vp = max(vp, self.width() - 40)
+        margin = view.document().documentMargin() if view.document() else 4.0
+        return max(200.0, float(vp) - 2.0 * float(margin) - 2.0)
 
     def _scope_html(self, runs: list, dropped: "list | None" = None) -> str:
         """Report Scope (Knut): which profiles + instruments are included, the run
@@ -12570,6 +12808,21 @@ class MeasurementReportDialog(QDialog):
         for line in _said:
             notes += (f"<div style='{note_css}'>"
                       + html.escape(line) + "</div>")
+        # **AND WHY ITS GRAPHS ARE ONLY FOUR (K32, Knut on beta 41, #182
+        # 5813851807).** A graph of a judged metric is shown only when one of
+        # its rows was judged (§17 item 3, Knut's own rule: "a graph is only
+        # shown and printed IF the metric has values tested against a
+        # threshold"), and a Printing record judges nothing, so it carries
+        # the four graphs that need no limit. Knut read the missing graphs as
+        # a fault: "nothing in the report seems to say why metrics are
+        # missing, if it was deliberate, or it is a clear bug". Said here,
+        # under the results, where the window and the PDF both print it.
+        if self._ungraded_by_type() and runs:
+            notes += (f"<div style='{note_css}'>" + html.escape(tr(
+                "This report is not graded, so it carries no graph of a "
+                "judged metric: each of those graphs is drawn against its "
+                "limit. The graphs it carries show colour accuracy, paper "
+                "white, darkest black and the cube corners.")) + "</div>")
         # **THE "Not computed on this chart" BLOCK USED TO BE HERE, AND IT IS
         # GONE BECAUSE KNUT REPLACED THE MECHANISM.** It printed every N-A row
         # and its reason as prose under the heading "Not computed on this
@@ -12972,6 +13225,10 @@ class MeasurementReportDialog(QDialog):
             _LIGHT_REPORT))
         if not runs:
             return self._empty_html()
+        # K32: the metric tables are fitted to the medium this body is for.
+        self._table_width = (_PDF_TEXT_W if for_pdf
+                             else self._screen_table_width())
+        self._table_min_cols = 1 if for_pdf else _SCREEN_MIN_RUN_COLS
         # K31: whether the judged names say "within gamut" in this document.
         self._names_split = self._names_within_gamut(runs)
         # A plain "Created: …" line — at the top of the window body, and under
@@ -13652,8 +13909,38 @@ class MeasurementReportDialog(QDialog):
     def _empty_html(self) -> str:
         self._use_theme_palette()
         return (f"<div style='color:{_C['faint']};padding:24px'>"
-                + html.escape(tr("Open a measurement file to see its report."))
-                + "</div>")
+                + html.escape(self._empty_text()) + "</div>")
+
+    def _empty_text(self) -> str:
+        """What the empty page says (K32, Knut on beta 41, #182 5814558912
+        and 5814673639).
+
+        A window opened on a selection with nothing measured opens EMPTY, and
+        says so in the words of the bar's run type, with the two ways forward
+        Knut named: *"awaiting the user to add measurements ... or go out and
+        perform a verification measurement"*. Anything else (a list the user
+        cleared, a window with no bar) keeps the old sentence."""
+        if getattr(self, "_opened_empty", False) and not self._sources:
+            from workflow.measurement_report import (KIND_CALIBRATION,
+                                                     KIND_PROFILING,
+                                                     KIND_VERIFICATION)
+            found, kind = self._bar_kind()
+            if found and kind == KIND_VERIFICATION:
+                return tr("This verification run has no dated measurement "
+                          "yet, so there is nothing to report on. Measure its "
+                          "chart on the Measure tab, or add measurements with "
+                          "“Add Profile's Measurements…”.")
+            if found and kind == KIND_PROFILING:
+                return tr("No profile run of this project has a measurement "
+                          "yet, so there is nothing to report on. Measure a "
+                          "chart on the Measure tab, or add measurements with "
+                          "“Add Profile's Measurements…”.")
+            if found and kind == KIND_CALIBRATION:
+                return tr("This calibration has no measurement yet, so there "
+                          "is nothing to report on. Measure it on the Measure "
+                          "tab, or add measurements with “Add Profile's "
+                          "Measurements…”.")
+        return tr("Open a measurement file to see its report.")
 
     def _error_html(self, msg: str) -> str:
         self._use_theme_palette()

@@ -2375,12 +2375,22 @@ on its own does not say that the SELECTED report is what gets updated.*
 `measurement_report_limits.md` ("Generate report always writes a NEW report").
 §13.8 of that document carries the ruling, his words and his date.*
 
+*K32, 2026-09-24 (Knut on beta 41, #182 5813851807), his words and so his
+approval of the change: "Move Create New button to be the first button on the
+left and Update button to be the middle button. Make sure bullet list
+description also has same sequence, Create New button in first bullet etc. The
+Create New button should be default selected, so than an enter would Create New
+by default (Safest)." The buttons now read **Create New**, **Update**,
+**Cancel** from the left, Create New is the default button (Enter creates a new
+report, Escape cancels), and the numbered list follows the buttons. The same
+applies to M-REPORT-UNCHANGED-UPDATE-OR-NEW below.*
+
 > **Settings were modified for the selected report**
 >
 > What do you want to do?
 >
-> 1. Update selected report with selected settings.
-> 2. Create new report with selected settings.
+> 1. Create new report with selected settings.
+> 2. Update selected report with selected settings.
 > 3. Cancel
 
 ### M-REPORT-UNCHANGED-UPDATE-OR-NEW · PROPOSED · Generate report, with a selected report and nothing changed — Measurement Report
@@ -2403,9 +2413,12 @@ dated record by today's rules is put to him.*
 >
 > What do you want to do?
 >
-> 1. Update selected report, worked out again by this version of ChromIQ.
-> 2. Create new report with the same settings.
+> 1. Create new report with the same settings.
+> 2. Update selected report, worked out again by this version of ChromIQ.
 > 3. Cancel
+
+*K32, 2026-09-24: the list and the buttons in M-REPORT-UPDATE-OR-NEW's new
+order, Create New first and the default (Knut, #182 5813851807).*
 
 ### M-REPORT-ONE-PAGE-ONE-DATE · PROPOSED · Generate report, with several measurements ticked on a one-page type — Measurement Report
 

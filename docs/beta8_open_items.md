@@ -27721,3 +27721,112 @@ would reach.
 - evidence: test_judged_against_offers_all_metrics, test_the_window_opens_on_all_metrics_every_time, test_all_metrics_asks_every_metric_not_the_rows_a_set_switches_on, test_the_column_total_is_every_metric
 - proof: ~/Desktop/ChromIQ-beta42-proof/all-metrics/ (before-en, before-de, after-en, after-de; REPORT.md).
 - open for Knut: with All metrics no preset answers all 18 (0 of 185; built-ins reach 15), because the three reference metrics need a FROM PROFILE GAMUT chart. Whether "All metrics" should also ignore the Report type pulldown (today Grey and tone check still narrows it to 3).
+### B8-981 · FIXED, awaiting confirmation · The Update / Create New question: Create New first, and the default
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- decided by: Knut, #182 5813851807 (beta 41): "Move Create New button to be the first button on the left and Update button to be the middle button. Make sure bullet list description also has same sequence ... The Create New button should be default selected, so than an enter would Create New by default (Safest)."
+- where: `ui/dialogs/measurement_report_dialog.py::_ask_update_or_create_new` (the one method that asks both variants); `workflow/measurement_messages.py` M-REPORT-UPDATE-OR-NEW and M-REPORT-UNCHANGED-UPDATE-OR-NEW (bodies reordered, still PROPOSED); §M of `unified_measurement_management.md`; K.7e in §13.8 of `measurement_report_limits.md`.
+- fixed: buttons from the left Create New, Update, Cancel (both AcceptRole; a QDialogButtonBox lays out the first accept button first and the rest in added order); Create New is the default button, Escape is Cancel; the numbered list follows the buttons in both variants. German rekeyed by hand.
+- measured on screen: before, painted order Update, Create New, Cancel and default Cancel (Enter cancelled); after, Create New, Update, Cancel, default Create New, Return creates a new report (drive `knut` and `verify`, EN and DE).
+- tests: tests/test_generate_report_asks_what_to_do.py::test_create_new_is_first_and_the_default (both variants x EN/DE). Mutations: Update added first (4 red), default Cancel (4 red), default Update (4 red), either catalogue body back in the old order (2 red each).
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k32/ (before-en, after-en, after-de: *-question.png).
+- evidence: test_create_new_is_first_and_the_default, test_the_question_is_the_catalogue_message_with_his_three_buttons
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k32/ (before-*/, after-*/, *.console.txt, k32-found.json in each).
+
+### B8-982 · FIXED, awaiting confirmation · A Printing record listed the rows of each sheet's own set, not of the report's
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- decided by: §25.3 (one set for the whole report, always; Knut 5801677743). Found by Knut, #182 5813851807.
+- note: `_judged_by_the_document` returned a Profiling window's rows untouched ("profiling sheets are never graded"), so every column kept its own automatic report's verdict record: the Printing record's results, its "Judged against" line and its heading named ChromIQ default when Custom ISO 12647-7 was chosen, and the solids, control strip, paper white, gamut and tone rows were missing. Not N-A, not deliberate: the report's set was simply not applied. Not caused by the different patch counts (that note is only information). Driven on Report-Limits-Evenness (Knut's PDF project): 11 rows before, 20 after, heading "Judged against: Custom ISO 12647-7".
+- where: `ui/dialogs/measurement_report_dialog.py::_judged_by_the_document`.
+- tests: tests/test_k32_report_rows_and_switch.py::test_a_printing_record_lists_the_rows_of_the_reports_own_set. Mutation: the early return back (red).
+- evidence: test_a_printing_record_lists_the_rows_of_the_reports_own_set
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k32/ (before-*/, after-*/, *.console.txt, k32-found.json in each).
+
+### B8-983 · FIXED, awaiting confirmation (text) · A Printing record's graphs are only four: the report now says why
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: §17 item 3 (Knut's confirmed rule: a graph of a judged metric only when one of its rows was judged) makes a Printing record, which judges nothing, show the four graphs that need no limit. Deliberate; what was missing is a sentence (Knut: "nothing in the report seems to say why metrics are missing"). Added under the results, in the window and the PDF, only on a Printing record. Question for Knut: should a Printing record draw the metric graphs without limit lines instead?
+- tests: test_a_printing_record_says_why_it_has_only_four_graphs (mutations: sentence dropped; printed on every type).
+- evidence: test_a_printing_record_says_why_it_has_only_four_graphs
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k32/ (before-*/, after-*/, *.console.txt, k32-found.json in each).
+
+### B8-984 · FIXED, awaiting confirmation · Switching Run type to Verification froze the window for 3 s
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- scope: the worst stall; the rest measured and left, see the note
+- note: measured on screen, Report-Limits-Evenness, no profiler: Profiling to Verification, handler 1.12 s then one stall of 3.17 s; after 1.10 s and at most 0.97 s. The stall was the Create Chart tab's preset-eligibility warm-up (`TabChart._warm_one_preset_batch`): four charts a tick whatever they cost, and a chart with page TIFFs costs ~0.57 s (`chart_grid` -> `margin_inspector._patch_area_bbox`, full-page numpy means), 8.7 s of warming in all. Now a tick stops after 50 ms, at least one chart. Left as measured: the handler's 0.55 s parse of 180 preset charts (`verification_preset_rows`, first switch only, cached after) and a single heavy chart's ~0.6 to 1 s.
+- where: `ui/tabs/tab_chart.py::_warm_one_preset_batch`, `_PRESET_WARM_BUDGET_S` (Create Chart file: two small hunks, in a separate commit).
+- tests: tests/test_k32_report_rows_and_switch.py::test_a_warming_tick_gives_the_event_loop_back_after_its_budget. Mutation: four a tick again (red).
+- evidence: test_a_warming_tick_gives_the_event_loop_back_after_its_budget
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k32/ (before-*/, after-*/, *.console.txt, k32-found.json in each).
+
+### B8-985 · FIXED, awaiting confirmation · The Overview (and Results) table: at least four dates a table on screen, fitted to the window
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- decided by: Knut, #182 5814107188 (approved as described).
+- note: two faults. (1) `_table_fit` allowed 0.5 px over the PDF text width, and Qt rounds the 32 % Metric share up: the Overview of four dates measured 680 px against 679 and was halved to two dates a table, in the PDF and the window. (2) The window used the PDF's 679 px however wide it was. Now: 1.5 px slack; the window fits the tables to its own page width (viewport less margins) with never fewer than 4 dates a table, filled first (5 dates: 4 + 1); the PDF keeps its page width and even split. The page is laid out when drawn; a later resize reflows the same tables.
+- measured on screen: Report-Limits-Evenness run1, 4 dates: before 2 + 2 at every width; after one table of 4 at 1046 px and at 768 px viewport.
+- tests: tests/test_k32_overview_columns.py (3). Mutations: slack 0.5 (1 red), window fitted to the PDF width (1), no floor in the window (2), floor ignored in the search (1), tables shared out evenly in the window (1).
+- evidence: test_each_medium_gets_its_own_width_and_floor, test_a_narrow_window_still_shows_four_dates_a_table, test_one_pixel_of_rounding_is_not_an_overflow
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k32/ (before-*/, after-*/, *.console.txt, k32-found.json in each).
+
+### B8-986 · FIXED, awaiting confirmation · Limit words on the graphs: each placed on its own, at the left edge when there is room
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- decided by: Knut, #182 5814107188 (approved as described): left edge centred on the line when it fits; otherwise above or below at the line's left end, on the side with the least conflict.
+- note: one word that did not fit the margin sent every word inside, upper above and lower below whatever was drawn there (Grey balance "Avg" under its line, on a data line, with a free margin). Now `_place_limit_words` decides each word: the margin when it is narrow enough and clear of the axis numbers (9 px) and of another margin word (14 px, a whole box); else above/below/further out, scored words and red x first, then limit lines, then data line length under it. Every graph, window and PDF.
+- tests: tests/test_k32_limit_words.py (Knut's case; the side with less data; every graph x 60 seeded shapes x 2 sizes, measured on the paint's own boxes). Mutations: axis test dropped (16 red), "below" dropped (15), placed words ignored (10), margin never (15), one sends all (11).
+- on screen: every visible graph of Report-Limits-Evenness run1 with Custom ISO 12647-7, default and narrow, checked by the same rules in the drive.
+- evidence: test_knuts_grey_balance_avg_goes_to_the_margin_when_there_is_room, test_a_word_inside_goes_to_the_side_with_less_data_under_it, test_every_graph_places_every_word_by_the_one_rule
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k32/ (before-*/, after-*/, *.console.txt, k32-found.json in each).
+
+### B8-987 · FIXED, awaiting confirmation · The graph tab bar shows that more tabs are hidden, and greys an arrow with nowhere to go
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- decided by: Knut, #182 5814390886 (approved as described).
+- where: `ui/peek_tab_bar.py::PeekTabBar` (reusable QTabBar; only the report's graph tabs use it).
+- fixed: left end: first tab at the edge, left arrow grey; right end: last tab against the arrows, right arrow grey; between: both live and a fifth of each hidden neighbour shows (Knut: between 1/6 and 1/4); a click on a partly shown tab selects it and brings it whole. Labels drawn at Qt's own tab place moved by the painter (the style sheet style places a label from the bar's layout, which painted blank tabs once scrolled: photographed and fixed).
+- tests: tests/test_k32_peek_tab_bar.py (4 widths, both directions, click, EN and DE). Mutations: PEEK 0 (6 red), left arrow always live (5), right end like the middle (4), click without bringing whole (1).
+- evidence: test_both_ends_and_the_middle_follow_knuts_rules, test_a_partly_shown_tab_is_selected_and_comes_whole, test_german_titles_follow_the_same_rules
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k32/ (before-*/, after-*/, *.console.txt, k32-found.json in each).
+
+### B8-988 · FIXED, awaiting confirmation · A run with nothing measured opened the report window on another kind of measurement
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- decided by: Knut, #182 5814558912 and 5814673639: an empty list, nothing added automatically, under Verification and Profiling.
+- note: `tools_dialogs._report_seed`: a verification run with no dated verification fell through to the run's profiling sheet, and the window listed all eight runs' sheets, all ticked (Report-Limits-Evenness run 3; Knut's text says Every-Limit-Set, but the project with his shape is Evenness). A profile run with no sheet borrowed its newest dated verification (before: 5 rows). Now each run type seeds only its own kind; nothing at all when there is none, and the empty page says why in the run type's words. The Measure tab's button already answered "Measure this chart first" there and is unchanged. Calibration was already right.
+- tests: tests/test_k32_report_rows_and_switch.py (three tests, each red on its mutation).
+- evidence: test_a_verification_run_with_no_date_seeds_nothing, test_a_profiling_run_never_borrows_a_verification, test_an_empty_window_says_why_in_its_run_types_words
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k32/ (before-*/, after-*/, *.console.txt, k32-found.json in each).
+
+### B8-989 · FIXED, awaiting confirmation · The sentence beside "Report shown" wraps to three lines before "…"
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- decided by: Knut, #182 5815133233 (approved as described).
+- where: `ui/dialogs/measurement_report_dialog.py::_wrap_beside_the_pulldown`, `_BESIDE_PULLDOWN_LINES`.
+- measured on screen (Report-Limits-Profile-Gamut, the Delete refusal): before, EN narrow and DE mid/narrow cut to two lines with "…"; after, three whole lines (label 48 px for 48 px) and "…" only in DE at 820 px.
+- tests: tests/test_every_control_the_report_window_builds_is_on_screen.py (cap 3; a three-line sentence shown whole). Mutation: cap 2 (2 red).
+- evidence: test_a_sentence_of_three_lines_is_shown_whole, test_a_sentence_too_long_for_two_lines_is_cut_not_stretched
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k32/ (before-*/, after-*/, *.console.txt, k32-found.json in each).
+
+### B8-990 · FIXED, awaiting confirmation · Adding measurements rewrote the selected report without Generate
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- scope: the add path; four other paths listed in §28.10 of the limits record as questions for Knut
+- decided by: Knut, #182 5815133233.
+- note: added sets came in ticked and `_rebuild_from_sources` redrew the page with them, under the selected report's name and with no red line. Now unticked, the page kept, and the document's built state records them as not covered, so the red line and the PDF stay true; ticking one raises the red line. An empty window is filled ticked as before.
+- measured on screen (Profile-Gamut run 1, Verification, run 2's 2028-06-29 added), EN and DE: before, three rows ticked, page changed, no red line; after, unticked, page identical, red line once one is ticked and the page still identical.
+- tests: tests/test_k32_adding_never_rewrites_the_report.py. Mutation: the old path for every add (red).
+- evidence: test_added_measurements_come_in_unticked_and_the_page_stays
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k32/ (before-*/, after-*/, *.console.txt, k32-found.json in each).

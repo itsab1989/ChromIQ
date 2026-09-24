@@ -1587,6 +1587,7 @@ with it; nobody has confirmed that what it does is what it should do.
 | K.7b | **Create New** is "New report…" followed by Generate: a new report, with the settings on screen. |
 | K.7c | **Cancel** aborts Generate report. Nothing is written. |
 | K.7d | **A report created the first time carries no trailing "saved" stamp**, because its creation time is at the beginning of its name. |
+| K.7e | **Create New is first and the default** (K32, Knut on beta 41, #182 5813851807): *"Move Create New button to be the first button on the left and Update button to be the middle button. Make sure bullet list description also has same sequence, Create New button in first bullet etc. The Create New button should be default selected, so than an enter would Create New by default (Safest)."* Buttons from the left: **Create New**, **Update**, **Cancel**; Enter creates a new report; the numbered list is in the same order. Both variants of the question (settings modified, nothing changed). |
 | K.8 | **All five settings of a selected report are restored** when it is selected and when the window opens on it: the included-measurements ticks, Report type, Judged against, "Show all measurement runs" and "Show detailed data for each run". This supersedes the half of B8-388 that left the two tick boxes to Preferences. |
 
 **What the build does with them, measured (B8-490, B8-491).**
@@ -3560,6 +3561,8 @@ driven on screen on the demo packs:
 6. Each new line is dotted, in its metric's colour; its word sits in the
    left margin beside the axis numbers, or at the line's left end when it
    would collide with a number or with the other line (the Avg / Max rule).
+   *(The placement is SUPERSEDED by §28.5, Knut's K32 ruling of
+   2026-09-24: each word is placed on its own.)*
 7. An evenness value the results table withholds because the sheet's own
    noise is not below the limit is not plotted against that limit.
 8. The axes, the date labels and the note shown while fewer than two
@@ -5648,3 +5651,114 @@ contradicted. Register: B8-974.
   DE, before and after).
 
 **Status:** built for beta 42 (B8-974), NOT confirmed.
+
+## 28. K32: the question's order, the Printing record's rows, the Overview on screen, the limit words, the tab bar, an empty list (#182, beta 42)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+**Ruled by:** Knut, #182
+[5813851807](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5813851807),
+[5814107188](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5814107188),
+[5814390886](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5814390886),
+[5814558912](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5814558912)
+and 5814673639 (2026-09-24). Where he described the behaviour, the description
+is his ruling; what was BUILT waits for his confirmation. Proof:
+`~/Desktop/ChromIQ-beta42-proof/knut-k32/` (on screen, EN and DE, before and
+after). Register: B8-969 to B8-978.
+
+**27.1 The Update / Create New question** (K.7e in §13.8): buttons from the
+left Create New, Update, Cancel; Create New is the default (Enter), Escape is
+Cancel; the numbered list in the same order; both variants
+(M-REPORT-UPDATE-OR-NEW and M-REPORT-UNCHANGED-UPDATE-OR-NEW, §M).
+
+**27.2 A Printing record lists the rows of the report's own set.** §25.3 holds
+for a Profiling window too: every sheet is judged against the report's set,
+so the Printing record's results (all INFO, N-A with its note), its "Judged
+against" line and its heading name that set. It listed each sheet's own
+automatic report's rows (ChromIQ default on every demo sheet): a fault, not
+a design. The different patch counts had nothing to do with it.
+
+**27.3 A Printing record says why it has four graphs.** §17 item 3 is
+unchanged (a judged metric's graph only where one of its rows was judged).
+Under the results of a Printing record, window and PDF: *"This report is not
+graded, so it carries no graph of a judged metric: each of those graphs is
+drawn against its limit. The graphs it carries show colour accuracy, paper
+white, darkest black and the cube corners."* German: *"Dieser Bericht wird
+nicht bewertet, daher enthält er keine Grafik einer bewerteten Kennzahl: Jede
+dieser Grafiken wird gegen ihren Grenzwert gezeichnet. Die enthaltenen
+Grafiken zeigen Farbgenauigkeit, Papierweiß, dunkelstes Schwarz und die
+Würfelecken."* **Question for Knut:** should a Printing record draw the
+judged metrics' graphs without limit lines instead?
+
+**27.4 Metric tables on screen.** The window fits its metric tables (Report
+Results and the Overview) to its own page width, never fewer than four dates
+a table, each table filled before the next begins (five dates are 4 + 1); the PDF
+fits them to the paper and shares the dates out evenly, as before. A table may be 1.5 px over the text
+width (Qt's rounding of the Metric column's share), which had halved a four
+date table in both. The page is laid out when it is drawn.
+
+**27.5 Limit words (amends §17 item 6).** Each word on its own: in the left
+margin, centred on its line, when it is no wider than the margin and clear of
+the axis numbers and of another margin word; otherwise at the left end of its
+line, above or below it (a step further out only when both print over
+something), on the side that prints over least: another word or a red x
+first, then another limit line, then data lines. Every graph, window and PDF.
+
+**27.6 The graph tab bar.** With more tabs than fit: at the left end the
+first tab at the edge and the left arrow greyed; at the right end the last tab
+against the arrows and the right arrow greyed; between, both arrows live and
+a fifth of each hidden neighbour showing (inside Knut's 1/6 to 1/4); a partly
+shown tab is clicked like any tab and comes whole. `ui/peek_tab_bar.py`,
+reusable, used only here.
+
+**27.7 Nothing measured, nothing listed.** Opened on a selection with nothing
+of its own kind measured, the Measurement Report's list is empty and nothing
+is added from anywhere else: a verification run with no dated verification
+(it listed the project's profiling sheets), a Profiling window when no run of
+the project has a sheet (a run with no sheet borrowed a dated verification),
+a calibration with no measurement (already so). The empty page says why:
+*"This verification run has no dated measurement yet, so there is nothing to
+report on. Measure its chart on the Measure tab, or add measurements with
+“Add Profile's Measurements…”."* / *"No profile run of this project has a
+measurement yet, …"* / *"This calibration has no measurement yet, …"*
+(German by hand in the catalogue). The Measure tab's own button still says
+"Measure this chart first" there.
+
+**27.8 Switching Run type (measured, not a ruling).** Profiling to
+Verification on Report-Limits-Evenness held the window for 1.1 s and then
+3.2 s: the Create Chart tab's preset warm-up took four charts a tick, 0.57 s
+each with page TIFFs. A tick now stops after 50 ms; the longest stall is one
+chart (about 1 s on this machine).
+
+**27.9 The sentence beside "Report shown"** (Knut, 5815133233): wrapped to up
+to three lines, each drawn whole, and only then shortened with "…" (the whole
+sentence stays in its tooltip). It was capped at two.
+
+**27.10 Adding measurements never rewrites the report** (Knut, 5815133233):
+measurements added with "Add Profile's Measurements…" to a window that already
+shows a report come in UNTICKED; the page, the graphs and the PDF stay the
+report on screen, and ticking an added row is a changed setting like any other
+(the red line, and Generate asks). A window that was EMPTY is filled, ticked,
+as before (our decision, put to Knut: it has no report to keep).
+**Audit of every other way the page could change without Generate** (by
+reading the code, the add path also driven):
+* Report type, Judged against, "Show detailed data", a tick, Select all,
+  Deselect all, the Report limits window: the red line only (unchanged).
+* Choosing an entry in "Report shown", "New report…", Generate, Delete
+  Selected Report: these ARE the act of showing or writing a report.
+* **Remove Profile's Measurements… redraws the page at once** without the
+  removed measurements. Not changed: the page, the PDF and Generate read one
+  list of measurements, so a removed one cannot stay on the page without being
+  written by the next Generate. **Question for Knut:** keep, or keep the page
+  and refuse the PDF until Generate?
+* **Clear List** empties the page and deselects the report (round 2A, R2A-6).
+  Not changed; same question.
+* **Adding a file that is already listed and has changed on disk** reads it
+  again and redraws the page, keeping the red line (R21-F1). Not changed;
+  **question:** redraw, or keep the page and raise the red line?
+* **While Generate is greyed** (nothing ticked, a measurement outside every
+  project), a setting change redraws at once, because there is no press to
+  wait for (the adversary round that found a red line asking for a dead
+  button). Not changed; **question** whether this exception stands.

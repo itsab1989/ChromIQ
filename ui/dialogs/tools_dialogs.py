@@ -2449,10 +2449,28 @@ def _report_seed(parent, project) -> "Path | None":
         if run is None:
             return None
         dated = [v for v in run.verifications() if v.exists()]
-        if ctl is not None and ctl.target.is_verification() and dated:
-            return dated[-1].measurement_ti3
+        # **A SELECTION WITH NOTHING MEASURED OPENS AN EMPTY LIST (K32, Knut
+        # on beta 41, #182 5814558912 and 5814673639).** A verification run
+        # with no dated verification fell through to the run's PROFILING
+        # sheet, and the window, which lists every run's sheet beside the one
+        # it opens on, showed Report-Limits-Evenness run 3 with eight
+        # measurements ticked, none of them a verification. Knut: *"Then
+        # "Include measurements..." list should be empty, awaiting the user
+        # to add measurements ... or go out and perform a verification
+        # measurement."* And the same for Profiling: a profile run with no
+        # sheet borrowed its newest dated VERIFICATION. Now each run type
+        # seeds only its own kind of measurement: a verification its newest
+        # date, a profiling run its sheet (or, when it has none, the newest
+        # sheet of the project's other runs, which that window lists anyway),
+        # and nothing at all when there is none.
+        if ctl is not None and ctl.target.is_verification():
+            return dated[-1].measurement_ti3 if dated else None
         if run.measurement_ti3.exists():
             return run.measurement_ti3
+        if ctl is not None and project is not None:
+            sheets = [r.measurement_ti3 for r in project.all_runs()
+                      if r.measurement_ti3.exists()]
+            return sheets[-1] if sheets else None
         if dated:
             return dated[-1].measurement_ti3
     except Exception:      # noqa: BLE001 — seeding is best-effort
