@@ -14210,6 +14210,9 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
                 run, overrides,
                 str(self._settings.get("compliance_default_set",
                                        DEFAULT_SET_ID) or DEFAULT_SET_ID)).set_id
+            # K36-1: an ISO type is judged against an ISO set
+            from workflow.measurement_report import set_held_to_type
+            set_id = set_held_to_type(type_id, set_id)
         except Exception:      # noqa: BLE001 — the defaults are a fair answer
             log.debug("could not read the run's report settings", exc_info=True)
             if not set_id:
@@ -15110,8 +15113,36 @@ class TabMeasure(Cr30CalibrationMixin, QWidget):
         default_set = str(self._settings.get("compliance_default_set",
                                              "chromiq_default") or "chromiq_default")
         ctx = run_context_for(ti3)
-        return run_limits(ctx.run if ctx is not None else None, overrides,
-                          default_set)
+        lim = run_limits(ctx.run if ctx is not None else None, overrides,
+                         default_set)
+        # **K36-1 (Knut, #182 5820871320): a report of an ISO type is judged
+        # against an ISO set.** The type this report is written as is the
+        # Preferences type fitted to the measurement's kind, and the set is
+        # chosen elsewhere, so the two can disagree; the set then follows
+        # the type, as choosing the type in the report window moves it.
+        try:
+            from workflow.measurement_report import (KIND_CALIBRATION,
+                                                     KIND_PROFILING,
+                                                     KIND_VERIFICATION,
+                                                     measurement_dir_kind)
+            from workflow.run_compliance import (limits_held_to_type,
+                                                 new_report_type)
+            if ctx is not None:
+                kind = (KIND_VERIFICATION
+                        if getattr(ctx, "verification", None) is not None
+                        else KIND_PROFILING)
+            else:
+                kind = (KIND_CALIBRATION
+                        if measurement_dir_kind(Path(ti3).parent)
+                        == KIND_CALIBRATION else None)
+            tid = new_report_type(
+                str(self._settings.get("report_default_type", "") or ""),
+                kind)
+            lim = limits_held_to_type(lim, tid, overrides)
+        except Exception:                            # noqa: BLE001
+            log.debug("could not hold the set to the report type",
+                      exc_info=True)
+        return lim
 
     def _maybe_save_measurement_report(self, ti3) -> None:
         """When the Settings option is on, build + save a dated accuracy report

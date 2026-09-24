@@ -28286,3 +28286,86 @@ would reach.
 - status: OPEN
 - register only: a design choice shared with the other tabs' parameter rows, for Basti.
 - found by: the look over the Measure tab asked for with B8-1052. Rows whose ⓘ sits at the far right after a stretch, away from the option it explains (Guided and Manual unless noted): Instrument port number; Strip recognition (the ⓘ after "Auto"); Suppress warning messages (-S); Skip initial calibration (-N, Manual); Patch-by-patch mode (-p); Refine / resume existing measurement (-r); Show overlay from existing measurement; Also use measurement data from the pre-conditioning profile; the Manual report-button row; the Additional Options rows (the ⓘ after the value field, which is itself right-aligned); the "Also save scanner-profiling files" card (shared with Check & Refine). The Import module has no such row. The same right-hand ⓘ column is how Create Chart, Build Profile and Check & Refine lay out their parameter rows, so moving only the Measure tab's would make it the odd one out; which way to go is Basti's call.
+
+
+
+### B8-1061 · FIXED, awaiting confirmation · An ISO report type sets "Judged against" to its standard's set, and only the four ISO sets can be chosen beside it
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- note: Knut, #182 5820871320 (K36-1): *"I think (a), but a user should only be allowed to select between the 4 ISO options in judged against, and the other options are greyed while having selected Validation print check or Contract proof check."* Spec §32.1. Before (measured on screen, `knut-k36/before-*/…-k1-02/03`): choosing Contract proof check left "Judged against" on ChromIQ default, every set choosable, and Generate wrote "Contract proof check · ChromIQ default". Now the set moves to ISO 12647-7:2016 values; ChromIQ default, ChromIQ tight and Quick check are greyed with the reason; the four ISO sets stay choosable. The Report type help no longer says any set goes with any type.
+- where: `workflow/measurement_report.py` (`ISO_JUDGED_AGAINST`, `set_allowed_for_type`, `set_held_to_type`); `ui/dialogs/measurement_report_dialog.py` (`_on_type_chosen`, `_on_set_chosen`, `_grey_the_sets_the_type_refuses`, `_set_refused_by_type_line`, `_PAIRING_HELP`).
+- tests: tests/test_k36_knuts_5820871320.py (mutations: `set_allowed_for_type` returns True, red; no set move in `_on_type_chosen`, red; no greying in `_sync_limit_controls`, red).
+- evidence: test_the_rule_itself, test_choosing_an_iso_type_sets_its_standards_set_and_greys_the_rest
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k36/ (*-k1-02, *-k1-03, *-k1-04).
+
+### B8-1062 · FIXED, awaiting confirmation · The same rule wherever a report type and a limit set are chosen together
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: K36-1, "apply the same rule in every place". Edit limits… "Used for this report" pairs with the report's type; "Default for new reports" (Edit limits… and Preferences' Report limits…) and "Default for this run" pair with Preferences' default type; Preferences' "Report type, default" moves the default set to the type's standard's set (buffered, Save keeps an ISO set beside an ISO type); the presets window's Report type moves its Judged against the same way (All metrics stays); a new report, the report written after a measurement and the verification pre-flight start an ISO type on its standard's set when the starting set is not an ISO one. Nothing is written onto a run. The Preferences type help said the ISO types "cannot be chosen yet" (stale since B8-994); corrected.
+- where: `ui/dialogs/thresholds_dialog.py::_hold_radio_to_type`; `ui/dialogs/settings_dialog.py::_on_default_type_chosen` and Save; `ui/dialogs/preset_verification_dialog.py::_on_type_changed`; `workflow/run_compliance.py::limits_held_to_type`; `ui/tabs/tab_measure.py` (`_report_limits_for`, `_preflight_selection`); `ui/dialogs/measurement_report_dialog.py::_hold_the_set_to_the_type`.
+- tests: tests/test_k36_knuts_5820871320.py (mutations: `_hold_radio_to_type` returns at once, red; the Preferences pulldown not connected, red; the presets window's type on `_on_choice_changed`, red; `limits_held_to_type` returns lim, red; `_hold_the_set_to_the_type` not called, red).
+- evidence: test_the_limits_window_greys_the_radios_the_type_refuses, test_preferences_move_the_default_set_with_an_iso_default_type, test_the_presets_window_follows_the_same_rule, test_the_automatic_report_holds_the_set_to_the_type, test_a_new_report_starts_on_an_iso_set_when_the_default_type_is_iso
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k36/ (*-kp-*, *-kv-*).
+
+### B8-1063 · FIXED, awaiting confirmation · A saved report of an ISO type judged against another set opens as saved and is not generated again with that pair
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: K36-1, the older documents. Driven on screen: the before tree wrote "Contract proof check · ChromIQ default"; the after tree opens it with that pair on the pulldowns, Generate greyed and the reason under it, both pulldowns live; choosing ISO 12647-7 brings Generate back with the red line, and Generate asks M-REPORT-UPDATE-OR-NEW (answered Cancel). Nothing on disk is rewritten.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_type_refuses_the_set`, `_type_refuses_the_set_line`, the Generate state in `_sync_type_combo`, the refusal in `_on_generate_report`).
+- tests: tests/test_k36_knuts_5820871320.py (mutation: the pair branch of the Generate state removed, red).
+- evidence: test_a_saved_report_with_the_old_pair_opens_as_saved_and_is_not_generated_again
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k36/after-*/photographs/*-k1s-01 … -04.
+
+### B8-1064 · FIXED, awaiting confirmation · A calibration run offers no ISO report type; every limit set stays choosable
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, 5820871320 (K36-2): *"No, but the limit sets can still be chosen"*. Reverses B8-994 for Calibration only (spec §32.2). The two types are shown greyed with their reason; the Report type help says so.
+- where: `workflow/measurement_report.py::report_types_for_kind`; `ui/dialogs/measurement_report_dialog.py` (`_sync_type_combo`, the Report type help).
+- tests: tests/test_k36_knuts_5820871320.py (mutation: the ISO types back into the calibration kind, red).
+- evidence: test_a_calibration_run_offers_no_iso_type_but_every_set
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k36/ (*-k2-*).
+
+### B8-1065 · FIXED, awaiting confirmation · "Profile run", "verification run" and "calibration run" are defined in the Dictionary and used by the help cards and the report text
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, 5820871320 (K36-3) and 5821015462 (every help card). Spec §32.3. The Dictionary gains "Verification run"; "Profile run" ("One attempt at building (or checking)…") and "Calibration run" are rewritten, and the Run type entry names the three. Help cards: "profiling run", "a Verification run" (three cards), the file guide's "profiling runs". Report text: Report Scope's headings ("profile verification run", "profile's measurement run" -> the three terms), a profiling report's count ("profile runs"), "Detailed data per measurement", "Measurement of {date}, {n} patches", and "measurements" where "runs" meant measurements (four strings). German by hand; both ledgers re-measured.
+- where: `ui/dialogs/welcome_dialog.py` (GLOSSARY, two cards), `ui/getting_started.py`, `ui/main_actions.py`, `ui/file_guide.py`, `ui/dialogs/measurement_report_dialog.py` (`_scope_html`, the detailed section, warnings, trend placeholder).
+- tests: tests/test_k36_knuts_5820871320.py (mutations: no "Verification run" entry, red; the old scope heading, red); the older scope tests re-pointed to the new words.
+- evidence: test_the_dictionary_defines_the_three_terms, test_the_report_scope_uses_the_terms
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k36/ (*-k3-*).
+
+### B8-1066 · OPEN · The rest of the run-terminology sweep: help texts and tooltips outside the help cards and the report
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- note: K36-3's full sweep is over the 60-string threshold of the brief, so it stopped after the Dictionary, the help cards, the report text and the §M messages. Inventory: 574 `tr()` literals name a run in some form; 87 of them use a term the Dictionary does not define or use a defined one loosely ("profiling run", "measurement run", "each run" / "every run" / "several runs" / "these runs" meaning measurements, "this run's", a capitalised "Verification run" mid-sentence). By file: ui/tabs/tab_measure.py 17, ui/dialogs/measurement_report_dialog.py 15 (window help and tooltips, e.g. "Show detailed data for each run" and its help), ui/measurement_target_bar.py 8 ("Duplicating works on a profiling run"), ui/file_guide.py 8, ui/dialogs/settings_dialog.py 7 ("Profiling measurement runs:", "Verification measurement runs:", "a direct profiling run"), ui/tabs/tab_chart.py 6, ui/dialogs/welcome_dialog.py 5, ui/main_window.py 4, ui/main_actions.py 4, ui/getting_started.py 4, core/run_delete.py 3, ui/ti2_loader.py 2, ui/tabs/tab_print.py 1, ui/masthead_header.py 1, ui/dialogs/thresholds_dialog.py 1, ui/dialogs/layout_options_panel.py 1; also ui/gamut_panel.py and ui/tabs/tab_profile.py ("profiling run"). Most help-card hits were read and use "run" as the profile run's short name, consistent with the Dictionary; two plural "verification runs" meaning the checks of one run (ui/main_actions.py "the verification runs checked against it", ui/getting_started.py "give your verification runs a different chart") are left for this item. Each string needs reading in context and German by hand; §M texts among them go through §M-PROPOSED.
+- where: the files above.
+
+### B8-1067 · FIXED, awaiting confirmation · M-REPORT-NO-PAPER-PATCH names the measured sheet, and both K34 messages are approved
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, 5820871320 (K36-4): *"do you mean the "chart sheet" or do you mean "nothing in this report"? … Then this message is accepted."* The code decides it per measured sheet (spec §32.4); the body now says so and says the rest of the report is not affected. APPROVED with 5820871320. M-REPORT-SCOPE-RUN-DELETED approved as worded (*"Given the above, the message is accepted"*): "profile run" is the Dictionary's term. Both moved from §M-PROPOSED to §M.
+- where: `workflow/measurement_messages.py`; `docs/design/unified_measurement_management.md`; `tests/test_message_catalogue.py`.
+- tests: tests/test_k36_knuts_5820871320.py (mutation: the old body, red); tests/test_message_catalogue.py.
+- evidence: test_the_no_paper_patch_note_names_the_sheet_not_the_report, test_the_scope_run_deleted_message_is_approved
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k36/ (*-k4-02).
+
+### B8-1068 · OPEN, question for Knut · FROM PROFILE GAMUT cube corners: ideal aims kept; the control strip still carries them
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- note: Knut, 5820871320 (K36-5): the other seven corners stay on their ideal aims ("no"). Analysis in spec §32.5 (demo pack 1.8 to 6.1 ΔE00 between the ideal and the profile's prediction; a vendor profile of a real printer 5.8 to 47.8). No code change. Question for Knut: leave the seven ink and black corners out of the control-strip rows on a FROM PROFILE GAMUT chart, as §9a leaves them out of the five ΔE00 statistics?
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k36/analysis/k36_5*.txt
+
+### B8-1069 · OPEN, question for Knut · A white-mapping sheet whose chart has no paper patch: recommend the profile's media white as the paper
+- blocks release: no
+- severity: MAJOR
+- status: OPEN
+- note: Knut, 5820871320 (K36-6). Analysis in spec §32.6: judged in absolute Lab (B8-1014) such a sheet reads 1.6 to 2.9 ΔE00 higher on the averages and up to 5 on the ramps for papers of L* 94 to 96, and "Average ΔE00, all patches" turns PASS to FAIL on 10 or 11 of 12 demo sheets under Custom ISO 12647-7. A manufacturer's brightness figure cannot be used; a published L*a*b* only under matching conditions. Recommended (e), the profile's media white, with a numbered note; (b) only without a readable profile. Not built.
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k36/analysis/k36_6*.

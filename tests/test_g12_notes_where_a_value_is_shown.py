@@ -58,7 +58,7 @@ def _record_dialog(tmp_path):
 
 def _detail_part(body: str) -> str:
     from core.i18n import tr
-    k = body.find(_html.escape(tr("Detailed data per measurement run")))
+    k = body.find(_html.escape(tr("Detailed data per measurement")))
     assert k >= 0, "the detailed section is not in the document"
     return body[k:]
 
@@ -255,7 +255,7 @@ def test_a_graded_detailed_table_carries_the_documents_note_numbers(tmp_path,
         body = dlg._report_body_html(reps, for_pdf=True)
         detail = _detail_part(body)
         results = body[:body.find(_html.escape(
-            tr("Detailed data per measurement run")))]
+            tr("Detailed data per measurement")))]
         noted = {rid for (_n, _c, rids) in nums for rid in rids}
         labels = {rid: tr(ROW_BY_ID[rid].label) for rid in noted
                   if rid in ROW_BY_ID}

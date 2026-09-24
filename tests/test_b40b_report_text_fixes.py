@@ -462,10 +462,11 @@ def test_a_heading_over_one_entry_is_singular(tmp_path, qapp):
         assert "run is included" in txt, txt
     finally:
         dlg.deleteLater()
-    for k, g in (("The following profile verification run is included:",
-                  "Der folgende Profil-Verifizierungslauf ist enthalten:"),
-                 ("The following calibration measurement is included:",
-                  "Die folgende Kalibrierungsmessung ist enthalten:")):
+    # K36-3 (Knut, #182 5820871320): the Dictionary's terms
+    for k, g in (("The following verification run is included:",
+                  "Der folgende Verifizierungslauf ist enthalten:"),
+                 ("The following calibration run is included:",
+                  "Der folgende Kalibrierungslauf ist enthalten:")):
         assert DE[k] == g
 
 

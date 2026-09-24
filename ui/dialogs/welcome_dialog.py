@@ -620,7 +620,7 @@ WORKFLOWS: list[dict] = [
                   "way.")),
               (tr("Who this is for"),
                tr("Consumer and prosumer inkjet printers usually give better "
-                  "results from a plain profiling run with no calibration "
+                  "results from a plain profile run with no calibration "
                   "step at all. Reach for this when your printer's own "
                   "documentation asks for linearisation, when you are "
                   "following an ArgyllCMS guide that calls for it, or when "
@@ -753,7 +753,7 @@ WORKFLOWS: list[dict] = [
              ((tr("“Which presets can be used for verification?” answers this "
                   "for you"),
                tr("That button appears under “Select preset:” in the Presets "
-                  "frame, and only on a Verification run, because a profiling "
+                  "frame, and only on a verification run, because a profiling "
                   "chart is chosen on quite different grounds. It lists every "
                   "preset ChromIQ ships and every preset of your own against "
                   "the metrics a report of the type you pick, judged against "
@@ -1185,8 +1185,19 @@ GLOSSARY: list[tuple[str, str]] = [
      tr("The darkest colour a printer and paper can produce. Everything darker in an image gets squeezed up to this level.")),
     (tr("Calibration"),
      tr("Bringing a device to a fixed, repeatable state (e.g. printer ink limits or a monitor's brightness). Done BEFORE profiling — a profile describes a device, calibration sets it.")),
+    # K36-3 (Knut, #182 5820871320): one of the three terms that tell the
+    # reports' scopes apart, with "Profile run" and "Verification run".
     (tr("Calibration run"),
-     tr("The round trip that produces your printer's calibration file: make the calibration chart, print it, measure it, then create the .cal from those readings. It is not a profile run — nothing is built from it — but every profile run in the project can use its result. Choose it under “Run type” in the Profile-run bar above the tabs; a project keeps exactly one calibration, in its “cal” folder.")),
+     tr("The round trip that produces your printer's calibration file: make "
+        "the calibration chart, print it, measure it, then create the .cal "
+        "from those readings. It is not a profile run, because no profile is "
+        "built from it, but every profile run in the project can use its "
+        "result. Choose it with “Run type” set to Calibration in the "
+        "Profile-run bar above the tabs; a project keeps exactly one "
+        "calibration run, in its “cal” folder. A measurement report of the "
+        "calibration run judges its measurement against a limit set, as a "
+        "verification run's does; the two ISO report types are not offered "
+        "for it.")),
     (tr("Chart / test chart"),
      tr("A printed page of colour patches with known device values. Measuring what the printer actually made of them is the raw material of a profile. Also called a target.")),
     (tr("chartread"),
@@ -1476,11 +1487,32 @@ GLOSSARY += [
      tr("The finished .icc / .icm file a project produces — the thing you "
         "install and pick in a print dialog. A project makes exactly one; it "
         "takes the project's name so it's easy to recognise later.")),
+    # **THE THREE TERMS OF A REPORT'S SCOPE (K36-3).** Knut, #182
+    # 5820871320: *"Maybe a the terms to differentiate between the different
+    # reports' scope could be ... "profile run", "verification run" and
+    # "calibration run"? ... the wording used is recorded in the help card
+    # Dictionary, so it is clearly defined."* A profile run is the numbered
+    # run; its verification run is the checks of its profile (Run type
+    # Verification); the calibration run is the project's one calibration.
     (tr("Profile run"),
-     tr("One attempt at building (or checking) a profile inside a project. A "
-        "project can hold several — run1, run2, … — so you can try again "
-        "without losing earlier work. The Profile-run bar chooses which one "
-        "you're working in.")),
+     tr("One numbered run of a project (run 1, run 2, …), chosen with "
+        "“Profile run” in the Profile-run bar above the tabs. It holds "
+        "everything that belongs to one profile: its chart, the profiling "
+        "measurement of that chart, the profile built from it, and its "
+        "verification run. A project can hold several profile runs, so you "
+        "can try again without losing earlier work. With “Run type” set to "
+        "Profiling you work on the profile run itself, and a measurement "
+        "report of it is a Printing record of its profiling measurement, "
+        "which is never judged.")),
+    (tr("Verification run"),
+     tr("The checks of one profile run's finished profile, made with “Run "
+        "type” set to Verification. It belongs to its profile run and has the "
+        "same number: it holds that run's verification chart and one dated "
+        "verification measurement for every check, in the run's "
+        "“verifications” folder, so the same chart can be measured again "
+        "month after month. A measurement report of a verification run judges "
+        "its dated measurements against a limit set and can follow them over "
+        "time. A verification run never changes the profile.")),
     (tr("Run description"),
      tr("Your own words for what one particular run is: the paper, the finish, "
         "the chart size — whatever makes it different from the other runs in "
@@ -1520,16 +1552,18 @@ GLOSSARY += [
         "when a measurement is not spectral those options stay switched "
         "off.")),
     (tr("Run type (Calibration / Profiling / Verification)"),
-     tr("What you are working on right now, chosen in the Profile-run bar above the tabs. "
-        "The list reads in the order of the work. Calibration prepares the "
-        "printer itself, before any profile is built; there is one per "
-        "project, and it needs no run. Profiling builds the profile — "
-        "chart, measurement, .icc — and is what you want most of the time, "
-        "which is why it is the one already selected. Verification checks "
-        "a finished profile by measuring a chart printed through it; its "
-        "results are kept in the run's “verifications” folder, dated, and "
-        "never change the profile. Calibration appears only while calibration "
-        "options are switched on in Preferences.")),
+     tr("What you are working on right now, chosen in the Profile-run bar "
+        "above the tabs. The list reads in the order of the work. Calibration "
+        "works on the project's calibration run, which prepares the printer "
+        "itself before any profile is built; there is one per project, and it "
+        "needs no profile run. Profiling works on the profile run itself (its "
+        "chart, measurement and .icc) and is what you want most of the time, "
+        "which is why it is the one already selected. Verification works on "
+        "the profile run's verification run, which checks the finished "
+        "profile by measuring a chart printed through it; its results are "
+        "kept in the run's “verifications” folder, dated, and never change "
+        "the profile. Calibration appears only while calibration options are "
+        "switched on in Preferences.")),
     (tr("old/ folder"),
      tr("Where ChromIQ moves files it would otherwise overwrite — every "
         "displaced chart, measurement or profile is kept in a dated “old” "

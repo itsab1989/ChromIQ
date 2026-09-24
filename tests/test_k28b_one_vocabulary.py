@@ -350,7 +350,7 @@ def test_the_run_description_belongs_to_the_documents_own_run(tmp_path, qapp):
         assert dlg._several_places_notice(one) == ""
         two = one + [{"_origin_dir": str(a1.dir), "ti3": "x.ti3"}]
         assert dlg._run_description(two) == ""
-        assert "several runs" in dlg._several_places_notice(two)
+        assert "several profile runs" in dlg._several_places_notice(two)   # K36-3
         across = one + [{"_origin_dir": str(b1.dir), "ti3": "x.ti3"}]
         assert "several projects" in dlg._several_places_notice(across)
         # and it is on the page, under the heading, in place of the WINDOW's
@@ -364,7 +364,7 @@ def test_the_run_description_belongs_to_the_documents_own_run(tmp_path, qapp):
             r["_origin_dir"] = str(a1.dir if runs.index(r) % 2 else a2.dir)
         page = _text(dlg._scope_html(runs))
         assert tr("Run description") in page
-        assert "several runs" in page
+        assert "several profile runs" in page   # K36-3
         assert "A run one" not in page and "A run two" not in page
         assert "the window's own run" not in page
     finally:

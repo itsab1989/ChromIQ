@@ -200,13 +200,10 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # had no headline and a list heading that
                                  # was false. Our words.
                                  "M-RUN-DELETE-REPORTS-LOCKED",
-                                 # #182 A6 and A10 (Knut, 5817809396,
-                                 # beta 42): he accepted the BEHAVIOUR (a
-                                 # Report Scope line for a deleted profile
-                                 # run; a numbered note when a chart has no
-                                 # paper patch). The words are ours.
-                                 "M-REPORT-SCOPE-RUN-DELETED",
-                                 "M-REPORT-NO-PAPER-PATCH",
+                                 # (#182 A6 and A10: M-REPORT-SCOPE-RUN-
+                                 # DELETED and M-REPORT-NO-PAPER-PATCH were
+                                 # APPROVED by Knut in 5820871320, K36-3 and
+                                 # K36-4, and left this set.)
                                  # #182, 2026-09-19: Knut overruled his own
                                  # K.1 ("Generate report always creates a new
                                  # report"). Pressed with a report selected and

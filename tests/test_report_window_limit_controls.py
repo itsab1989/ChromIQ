@@ -441,7 +441,7 @@ def test_the_scope_section_has_air_under_the_run_description(qapp, tmp_path):
         html = dlg._scope_html(dlg._runs_for_report())
         assert "A described run" in html
         head, _, tail = html.partition("A described run")
-        intro = "The following profile"
+        intro = "The following verification run"   # K36-3
         assert intro in tail
         between = tail[:tail.index(intro)]
         assert _gap() in between, (

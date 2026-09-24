@@ -207,6 +207,29 @@ def run_limits(run: "Run | None", overrides: "dict | None",
         known=known, columns=list(meta.compliance_columns or []))
 
 
+def limits_held_to_type(lim: RunLimits, type_id: str,
+                        overrides: "dict | None") -> RunLimits:
+    """*lim*, or the report type's own standard's set when a NEW report of
+    *type_id* may not be judged against *lim* (K36-1, Knut #182 5820871320).
+
+    The starting choice of a new report is the Preferences type beside the
+    run's own default set, else the Preferences set, and the two are chosen
+    in different places, so they can disagree: Preferences on "Contract
+    proof check (ISO 12647-7)" with a run whose own default is ChromIQ
+    default. A new report of an ISO type is judged against an ISO set, so
+    the set moves to the type's standard's (ISO 12647-7 for the Contract
+    proof check), exactly as choosing the type in the window moves it.
+    Nothing is written: the run's own default stays what it is.
+    """
+    from workflow.measurement_report import set_held_to_type
+    sid = set_held_to_type(type_id, lim.set_id)
+    if sid == lim.set_id or not is_known_set(sid):
+        return lim
+    return RunLimits(sid, set_label(sid), effective_limits(sid, overrides),
+                     label_en=SET_BY_ID[sid].label, bound=False,
+                     columns=list(lim.columns or []))
+
+
 def set_run_default_set(run: Run, set_id: str, preferences_default: str) -> None:
     """Record which limit set new reports of *run* start from (K31).
 

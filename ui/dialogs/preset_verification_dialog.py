@@ -797,7 +797,7 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
         bb.rejected.connect(self.reject)
         outer.addWidget(bb)
 
-        self._type_combo.currentIndexChanged.connect(self._on_choice_changed)
+        self._type_combo.currentIndexChanged.connect(self._on_type_changed)
         self._set_combo.currentIndexChanged.connect(self._on_choice_changed)
         self._only_star.toggled.connect(self._on_choice_changed)
         self._sort_combo.currentIndexChanged.connect(self._on_sort_changed)
@@ -812,6 +812,44 @@ class PresetVerificationDialog(WorkAreaClamped, QDialog):
     # -- slots (bound methods, never lambdas) ----------------------------
     def _on_choice_changed(self, *_a) -> None:
         self.refresh()
+
+    def _on_type_changed(self, *_a) -> None:
+        """**K36-1 (Knut, #182 5820871320)**, the same rule as the report
+        window: choosing an ISO report type moves "Judged against" to its
+        standard's set, and while it is chosen only "All metrics" and the
+        four ISO sets can be chosen; the others are greyed and say why."""
+        tid = self.current_type()
+        iso = MR.REPORT_TYPE_ISO_SET.get(tid)
+        self._set_combo.blockSignals(True)
+        try:
+            if iso:
+                i = self._set_combo.findData(iso)
+                if i >= 0:
+                    self._set_combo.setCurrentIndex(i)
+            self._grey_the_sets_the_type_refuses()
+        finally:
+            self._set_combo.blockSignals(False)
+        self.refresh()
+
+    def _grey_the_sets_the_type_refuses(self) -> None:
+        from PyQt6.QtGui import QStandardItemModel
+        model = self._set_combo.model()
+        if not isinstance(model, QStandardItemModel):
+            return
+        tid = self.current_type()
+        for i in range(self._set_combo.count()):
+            sid = str(self._set_combo.itemData(i) or "")
+            item = model.item(i)
+            if item is None or sid not in CS.SET_BY_ID:
+                continue
+            ok = not tid or MR.set_allowed_for_type(tid, sid)
+            item.setEnabled(ok)
+            item.setToolTip(tr(CS.SET_BY_ID[sid].blurb) if ok else tr(
+                "Not with the report type “{type}”: it is judged against one "
+                "of the four ISO limit sets (ISO 12647-7, ISO 12647-8, Custom "
+                "ISO 12647-7, Custom ISO 12647-8). Choose another report type "
+                "to judge against this set."
+            ).format(type=tr(MR.report_type_name(tid))))
 
     def _on_sort_changed(self, *_a) -> None:
         """Re-sort only: the assessments do not change with the order."""

@@ -331,10 +331,18 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                  run=None, run_editable: bool = False,
                  buffer: "dict | None" = None,
                  report_column: bool = True,
-                 run_default=None) -> None:
+                 run_default=None, report_type: str = "",
+                 default_type: str = "") -> None:
         super().__init__(parent)
         self._settings = settings
         self._run = run
+        #: K36-1 (Knut, #182 5820871320): the report type of the report shown
+        #: ("Used for this report" pairs with it) and the Preferences default
+        #: type ("Default for new reports" and "Default for this run" pair
+        #: with it). An ISO type allows only the four ISO sets; the others
+        #: are greyed, still visible, and say why.
+        self._report_type = str(report_type or "")
+        self._default_type = str(default_type or "")
         #: K30/K31: the first column is always a REPORT's own limits
         #: (`ReportLimitsColumn`). The keyword is kept for older callers.
         self._report_column = run is not None
@@ -892,6 +900,7 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                     "here stores it at once, without Generate report, and "
                     "changes no saved report.")
             rb.setToolTip(_tip)
+            self._hold_radio_to_type(rb, col, self._default_type)
             self._default_radios[col] = rb
             g.addWidget(rb, 2, ci, Qt.AlignmentFlag.AlignRight)
             self._column_widgets[col].append(rb)
@@ -941,6 +950,7 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                     tr("Judge this report against this set. The choice is "
                        "this report's: it is applied when you press Generate "
                        "report, and no saved report changes."))
+                self._hold_radio_to_type(rb, col, self._report_type)
                 rb.toggled.connect(self._on_run_set_toggled)
                 self._run_set_radios[col] = rb
                 g.addWidget(rb, 3, ci, Qt.AlignmentFlag.AlignRight)
@@ -971,10 +981,28 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
                     "instead of the default for new reports. Choose the same "
                     "set as the default for new reports to follow Preferences "
                     "again. No saved report changes."))
+                self._hold_radio_to_type(rb, col, self._default_type)
                 rb.toggled.connect(self._on_run_default_toggled)
                 self._run_default_radios[col] = rb
                 g.addWidget(rb, 4, ci, Qt.AlignmentFlag.AlignRight)
                 self._column_widgets[col].append(rb)
+
+    @staticmethod
+    def _hold_radio_to_type(rb, col: str, type_id: str) -> None:
+        """Grey *rb* when a report of *type_id* may not be judged against
+        *col* (K36-1, Knut #182 5820871320), and say why. A radio already
+        on (a saved choice from before the rule) stays on and greyed."""
+        from workflow.measurement_report import (report_type_name,
+                                                 set_allowed_for_type)
+        if not type_id or set_allowed_for_type(type_id, col):
+            return
+        rb.setEnabled(False)
+        rb.setToolTip(tr(
+            "Not with the report type “{type}”: it is judged against one of "
+            "the four ISO limit sets (ISO 12647-7, ISO 12647-8, Custom ISO "
+            "12647-7, Custom ISO 12647-8). Choose another report type to "
+            "judge against this set."
+        ).format(type=tr(report_type_name(type_id))))
 
     def _build_rows(self) -> None:
         """The scrolled half: the groups and their limit rows."""

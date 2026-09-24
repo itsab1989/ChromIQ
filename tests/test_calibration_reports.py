@@ -165,7 +165,10 @@ def test_a_calibration_offers_every_type_but_the_printing_record():
                                              report_types_for_kind)
     got = report_types_for_kind(KIND_CALIBRATION)
     assert REPORT_TYPE_RECORD not in got
-    assert set(got) == set(REPORT_TYPES) - {REPORT_TYPE_RECORD}
+    # K36-2 (Knut, #182 5820871320): and not the two ISO types
+    from workflow.measurement_report import REPORT_TYPE_ISO_SET
+    assert set(got) == (set(REPORT_TYPES) - {REPORT_TYPE_RECORD}
+                        - set(REPORT_TYPE_ISO_SET))
 
 
 def test_the_folders_of_a_calibration(tmp_path):
@@ -539,8 +542,10 @@ def test_the_type_help_says_what_a_calibration_can_have():
     from ui.dialogs.measurement_report_dialog import _types_and_pairing_help
     text = _types_and_pairing_help()
     assert "no report is made" not in text
-    assert ("With Run type Calibration, the calibration's measurement can "
-            "have every type but the Printing record") in text
+    # K36-2: every type but the Printing record and the two ISO types
+    assert ("With Run type Calibration, the calibration run's measurement "
+            "can have every type but the Printing record and the two ISO "
+            "types") in text
     assert "A calibration or a file outside a project" not in text
 
 

@@ -3068,8 +3068,15 @@ M_RUN_DELETE_REPORTS_LOCKED = _m(
     count_key="count",
     approved=False)
 
-# --- PROPOSED (#182 A6, Knut 5817809396): Report Scope names a profile run
-# the report covered that has since been deleted --------------------------
+# --- APPROVED (#182 A6, Knut 5817809396; words approved in 5820871320):
+# Report Scope names a profile run the report covered that has since been
+# deleted ------------------------------------------------------------------
+#
+# Knut, 5820871320: *"Given the above, the message is accepted"*, the above
+# being that "profile run", "verification run" and "calibration run" are
+# defined in the Dictionary help card and used the same way everywhere
+# (K36-3). "Profile run" here is that defined term: the numbered run (run 2),
+# whichever of its measurements the report covered.
 #
 # The bar's Delete renumbers the later runs and turns a saved report's
 # reference to the deleted run into ``runs/runN.deleted``, which no folder
@@ -3088,7 +3095,7 @@ M_REPORT_SCOPE_RUN_DELETED = _m(
     "deleted ({runs} when the report was written). Its measurements are no "
     "longer in the report.",
     count_key="count",
-    approved=False)
+    approved=True)   # Knut, #182 5820871320
 
 #: How `M_REPORT_SCOPE_RUN_DELETED` names one deleted run (A6). Module
 #: constants, because the extractor resolves ``tr(NAME)`` only for those.
@@ -3108,19 +3115,31 @@ def deleted_runs_label(entries: "list[tuple[str, str]]",
                                          last=names[-1])
 
 
-# --- PROPOSED (#182 A10, Knut 5817809396): a chart with no paper patch ------
+# --- APPROVED (#182 A10, Knut 5817809396; words approved in 5820871320): a
+# chart with no paper patch -------------------------------------------------
 #
 # "Paper white" was the lightest measured patch; on a chart with no patch
 # printed with no ink that is a light colour or grey, which was printed as
 # the paper, drawn in its graph and divided into the readings. It now reads
 # N-A with this numbered note. Report text: for a reader of the document.
+#
+# **PER MEASURED SHEET, NOT PER REPORT (K36-4).** Knut, 5820871320: *"do you
+# mean the "chart sheet" or do you mean "nothing in this report"? Make sure
+# the text cannot be misunderstood. Then this message is accepted."* The code
+# decides it per measurement: `build_report` finds the paper patch and
+# chooses the yardstick for each measured sheet on its own, and the note is
+# attached to that sheet's "Paper white" line. A report can hold sheets of
+# several charts, so the words name the sheet and say that the rest of the
+# report is not affected.
 M_REPORT_NO_PAPER_PATCH = _m(
     "M-REPORT-NO-PAPER-PATCH",
     "This chart has no paper patch",
-    "This chart has no patch printed with no ink, so the paper white could "
-    "not be measured, and nothing on this sheet is judged relative to the "
-    "paper.",
-    approved=False)
+    "The chart of this measured sheet has no patch printed with no ink, so "
+    "the paper white of this sheet could not be measured. Every colour on "
+    "this sheet is therefore judged as measured, in absolute Lab, and none "
+    "relative to the paper. Only the sheets that carry this note are "
+    "affected, not the rest of the report.",
+    approved=True)   # Knut, #182 5820871320
 
 #: The two remedies of M-REPORT-DELETE-FAILED (re-challenge R2, #8). "Copy
 #: the project" is only a remedy for a report that lives in a project; a

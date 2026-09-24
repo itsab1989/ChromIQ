@@ -4166,6 +4166,12 @@ class SettingsDialog(QDialog):
                 _it = _m.item(_row) if hasattr(_m, "item") else None
                 if _it is not None:
                     _it.setEnabled(False)
+        # K36-1 (Knut, #182 5820871320): choosing an ISO type as the default
+        # also makes its standard's set the default limit set. `activated`
+        # and not `currentIndexChanged`: only a user's choice moves the set,
+        # never the pulldown being filled from the stored settings.
+        self._report_type_default_combo.activated.connect(
+            self._on_default_type_chosen)
         _type_row.addWidget(self._report_type_default_combo, 1)
         _type_row.addWidget(TooltipButton(
             tr("Report type, default"),
@@ -4183,9 +4189,14 @@ class SettingsDialog(QDialog):
                "project. A verification is never a Printing record, so that "
                "type cannot be chosen here. A profiling measurement's report "
                "is always the Printing record, whatever this is set to.\n\n"
-               "The two ISO entries are shown and cannot be chosen yet. "
-               "Pointing at one in the Measurement Report window says "
-               "why.\n\n"
+               "Choosing one of the two ISO types also makes its "
+               "standard's set the default limit set in Report limits…. "
+               "While an ISO type is the default, the default limit set is "
+               "one of the four ISO sets (ISO 12647-7, ISO 12647-8, Custom "
+               "ISO 12647-7, Custom ISO 12647-8), and the others cannot be "
+               "chosen there. A calibration run's report is never of an ISO "
+               "type: it starts as a Full colour check, and any limit set "
+               "may be chosen for it.\n\n"
                "Default: Full colour check"),
             self))
         gl.addLayout(_type_row)
@@ -6143,8 +6154,11 @@ class SettingsDialog(QDialog):
         from core.settings import store_compliance_overrides
         buf = getattr(self, "_compliance_buffer", None) or {}
         store_compliance_overrides(s, buf.get("overrides") or {})
-        s.set("compliance_default_set",
-              str(buf.get("default_set") or "chromiq_default"))
+        # K36-1: an ISO default type keeps an ISO default set
+        from workflow.measurement_report import set_held_to_type
+        s.set("compliance_default_set", set_held_to_type(
+            str(self._report_type_default_combo.currentData() or ""),
+            str(buf.get("default_set") or "chromiq_default")))
         if "columns" in buf:
             s.set("compliance_columns_shown", str(buf.get("columns") or ""))
         # #182 (Knut, B8-388). An empty currentData is the pulldown's heading
@@ -7030,9 +7044,31 @@ class SettingsDialog(QDialog):
                 "default_set": str(self._settings.get("compliance_default_set",
                                                       "chromiq_default")),
             }
-        dlg = ThresholdsDialog(self._settings, self, buffer=buf)
+        dlg = ThresholdsDialog(
+            self._settings, self, buffer=buf,
+            # K36-1: "Default for new reports" pairs with the default type
+            default_type=str(self._report_type_default_combo.currentData()
+                             or ""))
         dlg.exec()
         dlg.deleteLater()
+
+    def _on_default_type_chosen(self, index: int) -> None:
+        """K36-1: an ISO report type chosen as the default makes its
+        standard's set the default limit set (buffered, written on Save)."""
+        from workflow.measurement_report import REPORT_TYPE_ISO_SET
+        tid = str(self._report_type_default_combo.itemData(index) or "")
+        sid = REPORT_TYPE_ISO_SET.get(tid)
+        if not sid:
+            return
+        buf = getattr(self, "_compliance_buffer", None)
+        if buf is None:
+            from core.settings import compliance_overrides_of
+            buf = self._compliance_buffer = {
+                "overrides": compliance_overrides_of(self._settings),
+                "default_set": str(self._settings.get(
+                    "compliance_default_set", "chromiq_default")),
+            }
+        buf["default_set"] = sid
 
     def _restore_defaults(self) -> None:
         self._settings.reset_to_defaults()

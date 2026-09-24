@@ -1793,7 +1793,7 @@ class _TrendChart(QWidget):
             p.drawText(
                 QRectF(L + 10, T, w - 20, h),
                 Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap,
-                tr("A trend graph needs at least two measurement runs. "
+                tr("A trend graph needs at least two measurements. "
                    "Add another measurement, or tick more of the measurements "
                    "in the list above. “Select all” ticks every one of "
                    "them."))
@@ -2000,8 +2000,9 @@ _WHEN_HELP = (
     "The two ISO types are for a print that has to answer to a "
     "printing condition somebody else supplied: Validation print check for "
     "a validation print, Contract proof check for a contract proof. Either "
-    "can be chosen while that standard's values are loaded, as they are "
-    "when ChromIQ is installed; if one is greyed, pointing at it says why.")
+    "can be chosen for a verification run while that standard's values are "
+    "loaded, as they are when ChromIQ is installed; if one is greyed, "
+    "pointing at it says why.")
 _PAIRING_HELP = (
     "Which limit set suits which type. Full colour check and Colour summary "
     "are the everyday pair for ChromIQ default, the set for checking a profile "
@@ -2020,8 +2021,11 @@ _PAIRING_HELP = (
     "would otherwise have used. The two ISO types belong with the matching "
     "ISO set: the read-only one, which holds that standard's published "
     "values, or the Custom ISO set of the same number, the industry-practice "
-    "alternative you can tune. Any set can be chosen with any type; the "
-    "pairs above are the usual habits, not rules.")
+    "alternative you can tune. For those two types that is a rule: choosing "
+    "one sets “Judged against” to its standard's set, and only the four ISO "
+    "sets can be chosen beside it; the others are greyed. Every other type "
+    "can be judged against any set, and the pairs above are the usual "
+    "habits, not rules.")
 #: The minimum width of the "Judged against" and "Report type" help windows
 #: (K33, B8-992). Measured on screen before: both opened 616 x 971 px on a
 #: 1728 x 1079 screen, the body scrolling. At 900 a line holds about 130
@@ -2118,8 +2122,9 @@ def _types_and_pairing_help() -> str:
         "measurement is judged, so it can have every other type, and the "
         "Printing record is not offered for it. A measurement outside any "
         "project can have any type ChromIQ can produce. With Run type "
-        "Calibration, the calibration's measurement can have every type but "
-        "the Printing record, as a verification can. The report ChromIQ "
+        "Calibration, the calibration run's measurement can have every type "
+        "but the Printing record and the two ISO types; its limit set can "
+        "still be an ISO one. The report ChromIQ "
         "writes by itself after a measurement follows the same rule. The "
         "type you choose belongs to the report shown and is stored with it "
         "when you press Generate report, never on a profile run.")
@@ -5798,6 +5803,12 @@ class MeasurementReportDialog(QDialog):
             log.info("Generate refused: a profiling sheet and dated "
                      "verifications are loaded together")
             return
+        # K36-1: an ISO type with a set that is not one of the four ISO sets
+        # is a saved report's pair, never a new one (the button says why).
+        if self._type_refuses_the_set():
+            log.info("Generate refused: %s is not judged against %s",
+                     self._report_type_now(), self._report_limits().set_id)
+            return
         # MEASUREMENTS FROM MORE THAN ONE PLACE ARE NO LONGER REFUSED (#182
         # beta 39, G7). The refusal stood here because a report across runs
         # could only be written as one run's (A-F1, before beta 37); it is
@@ -7241,6 +7252,7 @@ class MeasurementReportDialog(QDialog):
             self._set_combo.setToolTip(set_tip)
             self._limits_btn.setToolTip(btn_tip)
             self._sync_type_combo(run, several)
+            self._grey_the_sets_the_type_refuses()
             self._sync_saved_reports(run)
             self._set_strip(self._mismatch_text())
             # **AND THE ROWS ARE DRAWN HERE, IN THE ONE PLACE EVERY DOOR GOES
@@ -8957,6 +8969,11 @@ class MeasurementReportDialog(QDialog):
         # report's own numbers below.
         self._session_type = ""
         self._report_own_limits = None
+        # K36-1: an ISO type starts on an ISO set
+        try:
+            self._hold_the_set_to_the_type()
+        except Exception:                                # noqa: BLE001
+            log.debug("could not hold the set to the type", exc_info=True)
         chk = getattr(self, "_detail_check", None)
         if chk is not None:
             chk.blockSignals(True)
@@ -9847,6 +9864,7 @@ class MeasurementReportDialog(QDialog):
         current = self._report_type_now()
         from workflow.measurement_report import (KIND_CALIBRATION,
                                                  KIND_PROFILING,
+                                                 REPORT_TYPE_ISO_SET,
                                                  report_types_for_kind)
         kind = self._window_kind()
         allowed = report_types_for_kind(kind)
@@ -9880,6 +9898,18 @@ class MeasurementReportDialog(QDialog):
                 Qt.ItemDataRole.ToolTipRole)
             if not built:
                 self._disable_item(model, i)
+            elif tid not in allowed and kind == KIND_CALIBRATION \
+                    and tid in REPORT_TYPE_ISO_SET:
+                # K36-2 (Knut, #182 5820871320): *"No, but the limit sets can
+                # still be chosen, if the user wants to use those metrics and
+                # threshold values in the report."*
+                self._disable_item(model, i)
+                self._type_combo.setItemData(
+                    i, tr("Not for a calibration run: the two ISO report "
+                          "types are for verification runs. A calibration "
+                          "run's report can still be judged against an ISO "
+                          "limit set, chosen in “Judged against”."),
+                    Qt.ItemDataRole.ToolTipRole)
             elif tid not in allowed:
                 # SHOWN AND REFUSED, like an unbuilt type, and it says why.
                 self._disable_item(model, i)
@@ -10048,6 +10078,15 @@ class MeasurementReportDialog(QDialog):
         live = ((cal_ok if calibration else run is not None)
                 and not mixed and not cal_missing
                 and bool(self._reports_to_generate()))
+        # **K36-1: AN ISO TYPE IS JUDGED AGAINST AN ISO SET (Knut, #182
+        # 5820871320).** A saved report written before the rule may pair one
+        # with another set; it opens as it was saved, and a NEW Generate of
+        # that pair (Create New or Update) is refused with the way out. The
+        # two pulldowns are that way out, so they stay live.
+        live_but_for_the_pair = live
+        if live and self._type_refuses_the_set():
+            live = False
+            self._generate_btn.setToolTip(self._type_refuses_the_set_line())
         if not live and not self._generate_btn.toolTip():
             # **EVERY GREYED GENERATE CARRIES ITS REASON (C6).** The two
             # states no sentence above covers: an empty window, and a list
@@ -10064,7 +10103,7 @@ class MeasurementReportDialog(QDialog):
             self._generate_btn.setToolTip("")
         self._generate_btn.setEnabled(live)
         self._set_generate_why("" if live else self._generate_btn.toolTip())
-        self._grey_what_cannot_help(live)
+        self._grey_what_cannot_help(live_but_for_the_pair)
         # The red line's words follow the button (B8-1034).
         self._word_the_stale_line()
         # **THE BOX THAT WIDENED THE REPORT IS GONE (B8-590), AND SO IS THE
@@ -10377,7 +10416,81 @@ class MeasurementReportDialog(QDialog):
             self._sync_type_combo_to(current)
             return
         self._session_type = type_id
+        # **K36-1 (Knut, #182 5820871320): CHOOSING AN ISO TYPE SETS "JUDGED
+        # AGAINST" TO ITS STANDARD'S SET** (ISO 12647-8 for the Validation
+        # print check, ISO 12647-7 for the Contract proof check). The user may
+        # then move among the four ISO sets; the others are greyed.
+        from workflow.measurement_report import REPORT_TYPE_ISO_SET
+        iso_set = REPORT_TYPE_ISO_SET.get(type_id)
+        if iso_set and iso_set != self._report_limits().set_id:
+            self._report_own_limits = None
+            self._settings_touched(type_id=type_id, set_id=iso_set)
+            return
         self._settings_touched(type_id=type_id)
+
+    def _type_refuses_the_set(self) -> bool:
+        """Does the report type on screen refuse the limit set on screen
+        (K36-1): an ISO type beside a set that is not one of the four ISO
+        sets? Only a saved report written before the rule can show that
+        pair, and only a new Generate is refused for it."""
+        from workflow.measurement_report import set_allowed_for_type
+        try:
+            return not set_allowed_for_type(self._report_type_now(),
+                                            self._report_limits().set_id)
+        except Exception:                                # noqa: BLE001
+            return False
+
+    def _type_refuses_the_set_line(self) -> str:
+        """Why Generate is greyed over that pair (K36-1)."""
+        from workflow.measurement_report import report_type_name
+        return tr(
+            "A report of the type “{type}” is judged against one of the four "
+            "ISO limit sets. This report was saved with another set and is "
+            "shown as it was saved. Choose an ISO set in “Judged against”, or "
+            "another report type, to generate it again."
+        ).format(type=tr(report_type_name(self._report_type_now())))
+
+    @staticmethod
+    def _set_refused_by_type_line(type_id: str) -> str:
+        """The tooltip of a greyed "Judged against" entry (K36-1)."""
+        from workflow.measurement_report import report_type_name
+        return tr(
+            "Not with the report type “{type}”: it is judged against one of "
+            "the four ISO limit sets (ISO 12647-7, ISO 12647-8, Custom ISO "
+            "12647-7, Custom ISO 12647-8). Choose another report type to "
+            "judge against this set."
+        ).format(type=tr(report_type_name(type_id)))
+
+    def _grey_the_sets_the_type_refuses(self) -> None:
+        """Grey, and leave visible, every "Judged against" entry the report
+        type on screen does not allow (K36-1), each saying why."""
+        combo = getattr(self, "_set_combo", None)
+        if combo is None:
+            return
+        from workflow.measurement_report import set_allowed_for_type
+        tid = self._report_type_now()
+        model = combo.model()
+        for i in range(combo.count()):
+            sid = str(combo.itemData(i) or "")
+            if not sid or set_allowed_for_type(tid, sid):
+                continue
+            self._disable_item(model, i)
+            combo.setItemData(i, self._set_refused_by_type_line(tid),
+                              Qt.ItemDataRole.ToolTipRole)
+
+    def _hold_the_set_to_the_type(self) -> None:
+        """A NEW report's starting pair, held to K36-1: with an ISO type and
+        a starting set (the run's own default, else Preferences) that is not
+        an ISO set, the set starts on the type's own standard's set. Nothing
+        is written: this is the window's choice for the report shown."""
+        from workflow.measurement_report import (REPORT_TYPE_ISO_SET,
+                                                 set_allowed_for_type)
+        tid = self._report_type_now()
+        if tid not in REPORT_TYPE_ISO_SET:
+            return
+        lim = self._sticky_limits() or self._window_limits()
+        if not set_allowed_for_type(tid, lim.set_id):
+            self._sticky_set = REPORT_TYPE_ISO_SET[tid]
 
     def _sync_type_combo_to(self, type_id: str) -> None:
         """Put the pulldown back on *type_id* without re-entering the handler."""
@@ -11531,6 +11644,12 @@ class MeasurementReportDialog(QDialog):
         shown = self._report_limits()
         if not set_id or set_id == shown.set_id:
             return
+        from workflow.measurement_report import set_allowed_for_type
+        if not set_allowed_for_type(self._report_type_now(), set_id):
+            # K36-1: the entry is greyed; a keyboard or a style that ignores
+            # the flag must not choose it either.
+            self._sync_set_combo_to(shown.set_id)
+            return
         self._report_own_limits = None
         self._settings_touched(set_id=set_id)
 
@@ -11631,9 +11750,13 @@ class MeasurementReportDialog(QDialog):
                 cols_before = []
         column = ReportLimitsColumn(lim, columns=cols_before)
         before = limits_to_json(lim.limits)
-        dlg = ThresholdsDialog(self._settings, self, run=column,
-                               run_editable=True, report_column=True,
-                               run_default=own_run)
+        dlg = ThresholdsDialog(
+            self._settings, self, run=column, run_editable=True,
+            report_column=True, run_default=own_run,
+            # K36-1: the radios each row pairs with a report type
+            report_type=self._report_type_now(),
+            default_type=str(self._settings.get("report_default_type", "")
+                             or ""))
         self._report_limits_dialog = dlg          # for a driver
         try:
             dlg.exec()
@@ -12196,7 +12319,7 @@ class MeasurementReportDialog(QDialog):
         def _count_label(n: int) -> str:
             if calibration or verification:
                 return tr("measurement") if n == 1 else tr("measurements")
-            return tr("run") if n == 1 else tr("runs")
+            return tr("profile run") if n == 1 else tr("profile runs")
 
         items = "".join(
             "<li>" + html.escape(p["name"]) + ", "
@@ -12214,24 +12337,28 @@ class MeasurementReportDialog(QDialog):
         # groups counts the groups; one about measurements counts them.
         n_groups = len(sc["profiles"])
         n_total = sum(int(p.get("n") or 0) for p in sc["profiles"])
+        #
+        # **THE DICTIONARY'S THREE TERMS (K36-3, Knut #182 5820871320).** A
+        # group under a verification is one verification run (the checks of
+        # one profile run), under a calibration one calibration run (one per
+        # project), and each counts its dated measurements; a profiling
+        # report counts profile runs, one profiling measurement each. The
+        # headings said "profile verification run" and "profile's measurement
+        # run", two terms nothing defined.
         if verification:
-            intro = (tr("The following profile verification run is included:")
+            intro = (tr("The following verification run is included:")
                      if n_groups == 1
-                     else tr("The following profile verification runs are "
+                     else tr("The following verification runs are "
                              "included:"))
         elif calibration:
-            intro = (tr("The following calibration measurement is included:")
-                     if n_total == 1
-                     else tr("The following calibration measurements are "
+            intro = (tr("The following calibration run is included:")
+                     if n_groups == 1
+                     else tr("The following calibration runs are "
                              "included:"))
-        elif n_groups == 1:
-            intro = (tr("The following profile's measurement run is "
-                        "included:") if n_total == 1
-                     else tr("The following profile's measurement runs are "
-                             "included:"))
+        elif n_total == 1:
+            intro = tr("The following profile run is included:")
         else:
-            intro = tr("The following profiles' measurement runs are "
-                       "included:")
+            intro = tr("The following profile runs are included:")
         # THE RUN'S DESCRIPTION, AT THE TOP OF THIS SECTION. Knut, 2026-09-11,
         # asked whether the one-page report should carry a customer or job
         # name: *"No customer or job name per today. But print the run's
@@ -12779,9 +12906,9 @@ class MeasurementReportDialog(QDialog):
                       "list below shows the measurements included from each "
                       "project.")
         if len(run_keys) > 1:
-            return tr("This report includes measurements from several runs, "
-                      "so no single run description is given. The list below "
-                      "shows the measurements included.")
+            return tr("This report includes measurements from several "
+                      "profile runs, so no single run description is given. "
+                      "The list below shows the measurements included.")
         return ""
 
     def _scope_warnings_html(self, warnings: list) -> str:
@@ -12798,10 +12925,10 @@ class MeasurementReportDialog(QDialog):
                 blocks.append(
                     "<div><b>" + html.escape(tr("Warning — mixed instruments.")) + "</b> "
                     + html.escape(tr(
-                        "Every run in a report should come from the same instrument "
-                        "and the same printer; the report cannot tell printers apart. "
-                        "These runs use a different instrument from the majority "
-                        "({dom}):").format(dom=w["dominant"]))
+                        "Every measurement in a report should come from the same "
+                        "instrument and the same printer; the report cannot tell "
+                        "printers apart. These measurements use a different "
+                        "instrument from the majority ({dom}):").format(dom=w["dominant"]))
                     + "</div><ul>" + lis + "</ul>")
             elif w["kind"] == "printing":
                 # #130 feature A (Q3): the trend changes meaning where the
@@ -12852,8 +12979,9 @@ class MeasurementReportDialog(QDialog):
                 blocks.append(
                     "<div><b>" + html.escape(tr("Warning — missing cube colours.")) + "</b> "
                     + html.escape(tr(
-                        "These runs are missing one or more of the eight cube "
-                        "corners, so their cube-corner figures are less meaningful:"))
+                        "These measurements are missing one or more of the eight "
+                        "cube corners, so their cube-corner figures are less "
+                        "meaningful:"))
                     + "</div><ul>" + lis + "</ul>")
         return (f"<div style='color:{_C['fail']};margin-top:10px'>"
                 + "".join(blocks) + "</div>")
@@ -13330,7 +13458,7 @@ class MeasurementReportDialog(QDialog):
                      and self._detail_check.isChecked())
         if detail_on:
             intro = tr("The following results are extracted from the detailed "
-                       "Colour accuracy data shown below for each measurement run.")
+                       "Colour accuracy data shown below for each measurement.")
         elif len(runs) <= 1:
             # K30 (B7, spec 19.1): the report does not tell its reader which
             # checkbox to tick in a window they do not have.
@@ -15382,7 +15510,7 @@ class MeasurementReportDialog(QDialog):
         """The opt-in 'Detailed data per measurement run' section: each run on its
         own page, led by a 'Measurement run — date — N patches' heading and the
         profile name (Knut)."""
-        out = [_h2(tr("Detailed data per measurement run"), page_break=True)]
+        out = [_h2(tr("Detailed data per measurement"), page_break=True)]
         # ONE NUMBERING FOR THE WHOLE DOCUMENT (CH-32), worked out over the
         # same runs the Report Results grid numbers, so the detailed tables'
         # markers and the grid's cannot disagree about which note is note 1.
@@ -15397,7 +15525,7 @@ class MeasurementReportDialog(QDialog):
                 f"<h3 style='color:{_C["head"]};{brk}"
                 f"border-bottom:1px solid {_C['hair']};"
                 f"margin:12px 0 2px'>"
-                + html.escape(tr("Measurement run — {date} — {n} patches").format(
+                + html.escape(tr("Measurement of {date}, {n} patches").format(
                     date=str(run.get("created") or ""), n=run.get("patches", 0)))
                 + "</h3>"
                 f"<div style='color:{_C['dim']};margin-bottom:4px'>"

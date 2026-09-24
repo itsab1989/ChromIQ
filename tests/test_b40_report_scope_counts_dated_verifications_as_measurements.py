@@ -36,7 +36,7 @@ def test_two_dates_of_one_run_are_two_measurements(two_dated):
     txt = _text(dlg._scope_html(runs))
     assert "· 2 measurements" in txt, txt
     assert "verification runs" not in txt.replace(
-        "The following profile verification runs are included:", ""), txt
+        "The following verification runs are included:", ""), txt
 
 
 def test_one_date_is_one_measurement(two_dated):

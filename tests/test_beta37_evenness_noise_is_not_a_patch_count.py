@@ -42,7 +42,7 @@ def test_the_noise_note_names_the_noise_and_the_limit_and_no_patch_count(
         # table lists the notes it points at as well, with the same numbers,
         # so the whole body carries each sentence twice when "Show detailed
         # data" is on; the count below is of the list under the grid.
-        text = text.split("Detailed data per measurement run")[0]
+        text = text.split("Detailed data per measurement")[0]
         notes = [s for s in re.split(r"\s\d+\)\s", text)
                  if "noise here is" in s]
         assert len(notes) == 2, "one note per evenness row withheld"

@@ -146,7 +146,7 @@ def _alternatives() -> "list[tuple[str, str]]":
          tr("Tools ▸ “Convert i1Profiler → TI3”, or browse for a .ti3 file on "
             "Build Profile or Check & Refine.")),
         (tr("Check a profile"),
-         tr("Check & Refine ▸ “Analyse Profile Quality”, a Verification run "
+         tr("Check & Refine ▸ “Analyse Profile Quality”, a verification run "
             "with its measurement report, or the independent checks under "
             "Tools ▸ Profiles.")),
         (tr("Read a few patches without a chart"),

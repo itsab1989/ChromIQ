@@ -475,7 +475,7 @@ def test_a_calibration_report_has_its_own_title_and_scope(tmp_path, qapp):
             dlg._report_title(runs)
         scope = _html.unescape(re.sub(r"<[^>]+>", " ", dlg._scope_html(runs)))
         # B8-951: one measurement under a singular heading.
-        assert "The following calibration measurement is included:" in scope
+        assert "The following calibration run is included:" in scope   # K36-3
         assert "P, calibration" in scope and "1 measurement" in scope, scope
         assert "measurement runs are included" not in scope
     finally:

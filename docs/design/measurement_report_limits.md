@@ -6143,7 +6143,10 @@ cause was not a per-chart condition: both were declared unbuilt in
   as for every type; the help's existing words stand: the ISO types belong with
   the matching ISO set, "the pairs above are the usual habits, not rules".
   **Question for Knut:** should choosing one of them also switch "Judged
-  against" to its standard's set?
+  against" to its standard's set? **Answered in §32.1** (Knut, 5820871320): yes,
+  and while one is chosen only the four ISO sets can be chosen. The
+  sentence below, "the pairs above are the usual habits, not rules", no
+  longer holds for these two types; the help says so.
 * With no values of that standard loaded, the entry is greyed and says:
   *"Not available: no values of this standard are loaded. They ship with
   ChromIQ; if they are missing, supply them with “Reference values…” in the
@@ -6289,7 +6292,7 @@ it.
 
 | what used the paper white | with no paper patch |
 |---|---|
-| the media-relative yardstick (a sheet printed through its profile with an intent that maps paper white, against the chart's design or device reference: pairing 3, `verification_printing_and_target.md`): every reading divided by the paper white | the sheet is judged in **absolute Lab** as measured (`yardstick_no_paper` recorded); the note says nothing is judged relative to the paper |
+| the media-relative yardstick (a sheet printed through its profile with an intent that maps paper white, against the chart's design or device reference: pairing 3, `verification_printing_and_target.md`): every reading divided by the paper white | the sheet is judged in **absolute Lab** as measured (`yardstick_no_paper` recorded); the note says nothing on that sheet is judged relative to the paper (worded per measured sheet since §32.4); the consequences are analysed in §32.6 |
 | evenness on such a sheet: each aim carried onto the paper (§21.1) | aims as designed, readings as measured |
 | the five ΔE00 rows, the worst patches, the cube corners, grey balance, the tone ramps and the control strip on such a sheet | judged in absolute Lab, as on a sheet printed absolute |
 | "Paper white, difference from the reference paper" | unchanged: it reads the chart's declared white CORNER (only a FROM PROFILE GAMUT chart answers it, and it always carries one); N-A without it, as before |
@@ -6360,7 +6363,7 @@ Built, as Knut accepted:
   pack rebuilt from this tree: every one of the 51 dates now aims at its
   profile's own white (L\* 94.0 to 96.0), the papers read 0.52 to 1.52 on
   the PASS dates and 3.02 to 9.02 on the FAIL dates, as designed.
-* **Noticed, not changed (a question for Knut):** the six ink corners and
+* **Answered "no" by Knut (5820871320), analysed in §32.5:** the six ink corners and
   black keep the ideal sRGB aims (L\* 100 white, the textbook primaries),
   and the control strip ChromIQ declares on a verification chart includes
   those corners, so its ΔE00 carries the gap between the ideal primaries and
@@ -6396,3 +6399,282 @@ none of them is "confirmed" behaviour by it, which is section B of the post.
   `tests/test_the_release_demo_package.py`.
 
 **Status:** built for beta 42 (B8-1011 to B8-1016), NOT confirmed.
+
+
+## 32. K36: an ISO report type is judged against an ISO set, no ISO type for a calibration run, the three terms of a report's scope, the paper-patch note, and two analyses (#182, 2026-09-24, beta 42)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+**Ruled by:** Knut, #182
+[5820871320](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5820871320)
+(2026-09-24), answering our
+[5820168457](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5820168457)
+and the ISO question before it; and 5821015462 (*"also check all the help
+cards to get the right wording used"*). Where he described the behaviour, the
+description is his ruling; what was BUILT waits for his confirmation. Proof:
+`~/Desktop/ChromIQ-beta42-proof/knut-k36/` (on screen, EN and DE, before and
+after; REPORT.md; `analysis/`). Register: B8-1061 to B8-1069.
+
+**32.1 An ISO report type is judged against an ISO set (K36-1, B8-1061 to
+B8-1063).** Knut: *"I think (a), but a user should only be allowed to select
+between the 4 ISO options in judged against, and the other options are
+greyed while having selected Validation print check or Contract proof check.
+Then the user still has room for playing around with limit values."*
+
+* Choosing "Validation print check (ISO 12647-8)" or "Contract proof check
+  (ISO 12647-7)" sets "Judged against" to that standard's read-only set
+  (ISO 12647-8:2021 values, ISO 12647-7:2016 values), always, and drops the
+  report's own edited numbers as any change of set does (K30).
+* While such a type is chosen, "Judged against" offers only ISO 12647-7,
+  ISO 12647-8, Custom ISO 12647-7 and Custom ISO 12647-8; ChromIQ default,
+  ChromIQ tight and Quick check are shown greyed, each with the tooltip
+  *"Not with the report type “{type}”: it is judged against one of the four
+  ISO limit sets (…). Choose another report type to judge against this
+  set."* The user may move among the four. Choosing any other type makes
+  every set choosable again and leaves the set where it is.
+* **Every place both are chosen together:**
+
+| place | what pairs with what | behaviour |
+|---|---|---|
+| Measurement Report window | "Report type" with "Judged against" | as above |
+| Edit limits…, row "Used for this report" | the report's type | the three ChromIQ radios greyed with the same tooltip |
+| Edit limits… and Preferences' Report limits…, row "Default for new reports"; Edit limits…, row "Default for this run" | Preferences' "Report type, default" | greyed the same way while that default is an ISO type |
+| Preferences, Reports, "Report type, default" | the default limit set | choosing an ISO type makes its standard's set the default set (buffered, written by Save); Save keeps an ISO default set beside an ISO default type |
+| "Which presets can be used for verification?" | its Report type with its Judged against | choosing an ISO type moves Judged against to its standard's set; ChromIQ's three sets greyed; "All metrics" stays choosable (it is not a set). This refines §30.1's "individually change" for the two ISO types only |
+| a new report ("New report…"), the report written after a measurement, the verification pre-flight | Preferences' type with the run's own default set, else Preferences' set | an ISO type with a non-ISO starting set starts on the type's standard's set (`set_held_to_type`, `limits_held_to_type`); nothing is written onto the run |
+
+* **A saved report that combines an ISO type with another set** (every
+  report written before this rule could): it opens as it was saved, the two
+  pulldowns showing its own pair. A NEW Generate of that pair is refused:
+  Generate is greyed and the line under it says *"A report of the type
+  “{type}” is judged against one of the four ISO limit sets. This report was
+  saved with another set and is shown as it was saved. Choose an ISO set in
+  “Judged against”, or another report type, to generate it again."* The two
+  pulldowns stay live because they are the way out (`_grey_what_cannot_help`
+  is asked without this reason; "Show detailed data" is greyed with Generate
+  as before). Choosing an ISO set raises the red line and Generate asks
+  M-REPORT-UPDATE-OR-NEW, unchanged (measured on screen:
+  `knut-k36/after-*/photographs/*-k1s-*`). Nothing on disk is rewritten.
+* The Report type help's "Any set can be chosen with any type" now says the
+  two ISO types are the exception.
+
+**32.2 A calibration run offers no ISO report type (K36-2, B8-1064).** Knut:
+*"[Should a Calibration run offer the two ISO types at all?] No, but the limit
+sets can still be chosen, if the user wants to use those metrics and threshold
+values in the report."* This reverses §30.6 (B8-994) for Calibration only.
+`report_types_for_kind(KIND_CALIBRATION)` is every type but the Printing
+record and the two ISO types; the two are shown greyed with *"Not for a
+calibration run: the two ISO report types are for verification runs. A
+calibration run's report can still be judged against an ISO limit set,
+chosen in “Judged against”."* Every limit set, the four ISO ones included,
+stays choosable for a calibration report (32.1 does not reach it, no ISO type
+being possible). A Preferences default of an ISO type is fitted to the kind,
+so a calibration's report starts as a Full colour check.
+
+**32.3 The three terms of a report's scope (K36-3, B8-1065, B8-1066).**
+Knut: *"when saying "profile run" do you mean the report was for measurements
+when run type is profiling? Maybe a the terms to differentiate between the
+different reports' scope could be (suggest something better if you want)
+"profile run", "verification run" and "calibration run"? Maybe the message
+should take this into account too, and that the wording used is recorded in
+the help card Dictionary, so it is clearly defined. Then the use of these
+terms should be standardised in all help text and report texts, so that
+there is no confusing terms being used."*
+
+Inventory first (the user-facing catalogue, 6,222 strings): "profile run" in
+108, "verification run" in 36, "calibration run" in 3, "profiling run" in 9,
+"measurement run" in 10, "profiling / verification / calibration
+measurement" in 49, "run type" in 71; 574 `tr()` literals in the code name a
+run in some form. The app's own meaning of "profile run" is the NUMBERED run
+(the "Profile run" box of the Profile-run bar, `runs/runN/`), which holds its
+profiling measurement AND its verifications, and "verification run" was
+already used for that run seen with Run type Verification. Knut's three terms
+are kept, defined so that they fit that model:
+
+* **Profile run**: one numbered run of a project (run 1, run 2, …), holding
+  one profile's chart, profiling measurement, profile and verification run.
+  A measurement report of it (Run type Profiling) is a Printing record of its
+  profiling measurement.
+* **Verification run**: the checks of one profile run's finished profile
+  (Run type Verification): its verification chart and a dated verification
+  measurement per check, in the run's "verifications" folder. Its reports
+  judge the dated measurements.
+* **Calibration run**: the project's one calibration (Run type Calibration),
+  in its "cal" folder. Its reports judge its measurement; no ISO type.
+
+So M-REPORT-SCOPE-RUN-DELETED's "profile run" is the numbered run, whichever
+of its measurements the report covered: its words stand and it is APPROVED
+(Knut: *"Given the above, the message is accepted."*).
+
+Changed to the terms: the three Dictionary entries (Verification run new,
+Profile run and Calibration run rewritten) and the Run type entry; the help
+cards' "profiling run" and "a Verification run"; the file guide's "profiling
+runs"; the report text: Report Scope's headings ("The following verification
+run(s) / profile run(s) / calibration run(s) is/are included:", where it read
+"profile verification run" and "profile's measurement run"), a profiling
+report's count ("· 3 profile runs"), "Detailed data per measurement",
+"Measurement of {date}, {n} patches", "measurements" where "runs" meant
+measurements (the mixed-instrument and missing-corner warnings, the trend
+graph's empty line, the several-places line). A dated verification is still
+counted as a measurement (B8-928). German by hand (Profillauf,
+Verifizierungslauf, Kalibrierungslauf).
+
+**The rest of the sweep is OPEN (B8-1066):** the full sweep is over the
+60-string threshold, so the other help texts and tooltips (87 flagged strings
+of the 574, in 16 files) wait in the register with their list.
+
+**32.4 M-REPORT-NO-PAPER-PATCH names the sheet (K36-4, B8-1067).** Knut:
+*"do you mean the "chart sheet" or do you mean "nothing in this report"? Make
+sure the text cannot be misunderstood. Then this message is accepted."* The
+code decides it PER MEASURED SHEET: `build_report` finds the paper patch and
+chooses the yardstick for each measurement on its own, and the note is on
+that sheet's "Paper white" line (one number shared by every sheet that
+carries it). Now: *"The chart of this measured sheet has no patch printed
+with no ink, so the paper white of this sheet could not be measured. Every
+colour on this sheet is therefore judged as measured, in absolute Lab, and
+none relative to the paper. Only the sheets that carry this note are
+affected, not the rest of the report."* APPROVED (§M).
+
+**32.5 The other seven cube corners of a FROM PROFILE GAMUT chart (K36-5,
+B8-1068; analysis, no change).** Knut: *"no. It is the ideal corner values
+that are put into the ti1 file of a chart, and they are used and compared
+against that. IS there a disadvantage in doing this? or the other method?
+There are also consequences for the code to change this."*
+
+* What "Expected" is today. The .ti1 carries the corners' INK amounts
+  (device 0 / 100); the Lab a corner is compared with lives in the chart's
+  colorimetric reference (`…-reference.ti3`), where `gamut_target` writes
+  each device corner read as sRGB (`_corner_ideal_labs`), and since §31.5
+  the white corner the profile's paper. So a corner's ΔE00 is the distance of
+  this printer's primary from an ideal sRGB primary, plus any drift.
+* Measured. On the demo pack (synthetic profiles close to sRGB) the ideal and
+  the profile's prediction differ by 1.8 to 6.1 ΔE00 for the six ink corners
+  and 0.1 for black (`analysis/k36_5.txt`). Through a vendor profile of a
+  real printer (Epson ET-8500, Premium Luster) they differ by 5.8 (red) to
+  47.8 (green), black 4.0 (`analysis/k36_5_vendor_profile_corners.txt`).
+* Ideal aims (today). For: fixed and printer-independent, the same reading
+  every chart kind uses, so the corner trend compares across charts, profile
+  rebuilds and projects; no dependency on the profile's accuracy; nothing to
+  change. Against: the number is not an accuracy figure (it is mostly the
+  printer's gamut), and on a real printer it is large on every sheet.
+  §9a already keeps the corners out of the five ΔE00 statistics for that
+  reason, but **the control strip ChromIQ declares on a verification chart
+  includes the corners**, so the three control-strip rows carry the gap too,
+  and a set that limits them can fail a print for its gamut.
+* Profile-predicted aims. For: the corners would measure accuracy like
+  every other patch of the chart (whose aims are the profile's reachable
+  colours), and the control strip would mean what it says. Against: the aims
+  depend on the profile, so corner trends across profiles stop comparing;
+  charts made before would keep ideal aims unless the run's profile is asked
+  (as §31.5 does for white), which re-works old reports' numbers on an
+  Update; the aims come from the profile under test.
+* Code that would change: `gamut_target.select_gamut_targets`,
+  `write_colorimetric_reference`, `read_colorimetric_reference` (profile
+  aims for `CORNER_DEVICES`, recorded with their source), `build_report`'s
+  fallback for older references (`paper_reference_of` generalised), §9a
+  rule 2, the control strip, the corner trend graph's meaning,
+  `make_report_limit_demos.apply_design`, their tests and the release demo
+  pack.
+* Recommendation: keep "no", as Knut decided. The one disadvantage worth
+  acting on is independent of it: **question for Knut**, should the seven
+  ink and black corners be left out of the control-strip rows on a FROM
+  PROFILE GAMUT chart, as they are left out of the five ΔE00 statistics?
+
+**32.6 A sheet printed through its profile with a white-mapping intent whose
+chart has no paper patch (K36-6, B8-1069; analysis, not built).** Knut:
+*"'A sheet printed relative', do you mean printed as relative intent? You
+have to analyse the consequence in doing this, or other alternatives, so
+that best and most correct way is practiced. I suspect the metrics that this
+affects should get a note that explains why the results may be off, but that
+the metrics are still performed and judged, with the possible effect that
+results may be effected or even fail... Make the analysis to check what is
+best. The user could also as an alternative be asked to enter the
+manufacturer's brightness value for the paper used."*
+
+* What "printed relative" means in the code: the print record says
+  `colour: through-profile` with an intent other than absolute (relative
+  colorimetric, perceptual or saturation), or the route `external-cm`, and
+  the chart's reference is its design or device values. Such a sheet is
+  normally read MEDIA-RELATIVE: every XYZ reading is scaled by the sheet's
+  paper white onto D50 (ICC media-relative colorimetry) before it is
+  compared. With no paper patch (B8-1014) it is compared as measured.
+* Measured on the demo pack (`analysis/k36_6.txt`, `k36_6_measure.py`):
+  12 such sheets (5 runs), each re-printed in simulation on four papers
+  (the sheet put onto the ideal paper, then onto the paper P); judged
+  media-relative (the right answer) and absolute (as built). Absolute minus
+  media-relative, median over the sheets:
+
+| row | L* 95.5 / 0.2 / 1.4 | L* 94 / 0.5 / 3 (warm) | L* 96 / 1.5 / -5 (OBA) | L* 96 / 0 / 0 |
+|---|---|---|---|---|
+| Average ΔE00, all patches | +1.96 | +2.88 | +2.20 | +1.64 |
+| Maximum ΔE00, lowest 95 % | +2.55 | +3.71 | +3.56 | +2.22 |
+| Average ΔE00, control strip | +2.01 | +3.03 | +2.40 | +1.66 |
+| Average ΔE00, surface-gamut patches | +1.88 | +2.80 | +2.09 | +1.56 |
+| Maximum ΔCh, grey balance | +1.00 | +2.46 | +4.38 | +0.05 |
+| Maximum ΔL*, ramps 30 % to 70 % | +3.61 | +4.96 | +3.20 | +3.20 |
+
+  Under Custom ISO 12647-7 "Average ΔE00, all patches" turned PASS to FAIL
+  on 10 or 11 of the 12 sheets on every paper. The error is a BIAS, always
+  upward and of known cause (the paper's own tone and lightness), not noise.
+  Evenness (4 sheets, `k36_6_even.txt`): an even sheet's "between two of the
+  nine areas" rose from 0.10 to 0.53 to 0.76, because the offset differs by
+  colour and the areas hold different colours; 4 of 16 verdicts changed.
+* Every row affected on such a sheet: the five ΔE00 statistics, the three
+  control-strip rows, the surface-gamut and outer-gamut averages, the solid
+  colours (ΔE00 and ΔH*ab), both grey-balance rows, the 30 % to 70 % ramps,
+  the two evenness rows (less), and the cube-corner table and worst patches
+  (information). Not affected: the two repeatability rows (readings compared
+  with readings), the paper white and darkest black lines, and "Paper white,
+  difference from the reference paper" (it needs a colorimetric reference,
+  which is never read media-relative).
+* The options:
+  * (a) absolute, as built: every row biased upward by 1.6 to 5 on typical
+    papers; verdicts wrong in a known direction, silently apart from the
+    paper white note.
+  * (b) absolute plus a numbered note on each affected row: honest, but the
+    FAIL words stay wrong for a reason ChromIQ knows; a report with a
+    customer-facing FAIL and a note saying "may be off" is the weakest kind
+    of verdict.
+  * (c) N-A: correct, loses every row of the sheet.
+  * (d) a paper white the user types: a manufacturer's ISO brightness
+    (ISO 2470-1, R457, a %) or CIE whiteness (ISO 11475) is ONE number about
+    blue reflectance and cannot be turned into L*a*b*: it is not usable. Some
+    makers publish CIE L*a*b*, usable only when its illuminant, observer,
+    measurement condition (M0 / M1 / M2) and backing match the user's
+    instrument; on an OBA paper M0 against M2 alone moves b* by several
+    units. A typed white about 1 ΔE00 off the sheet's paper moved the
+    averages by about 0.2 and the maxima by about 0.5 (`standin` column).
+  * (e) the profile's media white: the sheet was printed THROUGH that
+    profile (its file is in the print record, and it is the run's own
+    profile), and the profile's media white is this paper, measured by the
+    same instrument when the profile was built. Error only from batch,
+    ageing and instrument drift, typically under 1 ΔE00, so about 0.2 on the
+    averages. Available in every case that is affected.
+* Recommendation, NOT built (it is not (b), and it changes which numbers a
+  report shows): **(e)**, with a numbered note saying that the paper white
+  was taken from the profile's media white because the chart has no paper
+  patch (a §M-PROPOSED text); (b) only when no profile can be read; the
+  profile's white never used when the chart has a paper patch. **Question
+  for Knut.**
+
+* **Built:** `workflow/measurement_report.py` (`ISO_JUDGED_AGAINST`,
+  `set_allowed_for_type`, `set_held_to_type`, `report_types_for_kind`);
+  `workflow/run_compliance.py::limits_held_to_type`;
+  `ui/dialogs/measurement_report_dialog.py` (`_on_type_chosen`,
+  `_on_set_chosen`, `_grey_the_sets_the_type_refuses`,
+  `_hold_the_set_to_the_type`, `_type_refuses_the_set`, the Generate state,
+  `_sync_type_combo`, `_scope_html`, the report help texts);
+  `ui/dialogs/thresholds_dialog.py::_hold_radio_to_type`;
+  `ui/dialogs/settings_dialog.py::_on_default_type_chosen`;
+  `ui/dialogs/preset_verification_dialog.py::_on_type_changed`;
+  `ui/tabs/tab_measure.py` (`_report_limits_for`, `_preflight_selection`);
+  `workflow/measurement_messages.py`; `ui/dialogs/welcome_dialog.py`
+  (GLOSSARY); `ui/getting_started.py`, `ui/main_actions.py`,
+  `ui/file_guide.py`.
+* **Verified by:** `tests/test_k36_knuts_5820871320.py` (14 tests, each red
+  on the mutation in its docstring, `analysis/mutations.txt`).
+
+**Status:** 32.1 to 32.4 built for beta 42 (B8-1061 to B8-1067), NOT
+confirmed; 32.5 and 32.6 analysed, questions with Knut.

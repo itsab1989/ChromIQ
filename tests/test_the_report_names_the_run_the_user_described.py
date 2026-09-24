@@ -51,9 +51,12 @@ def test_a_described_run_says_so_at_the_top_of_the_scope(tmp_path, qapp):
             assert needle in body, f"for_pdf={for_pdf}: the description is nowhere"
             # …at the TOP of the scope, before the list of what is included
             from core.i18n import tr
-            intro = _html.escape(tr(
-                "The following profile verification runs are included:"))
-            if intro in body:
+            # K36-3: the heading names the Dictionary's "verification run"
+            intro = next((i for i in (
+                _html.escape(tr("The following verification run is included:")),
+                _html.escape(tr("The following verification runs are included:")))
+                if i in body), None)
+            if intro is not None:
                 assert body.index(needle) < body.index(intro), \
                     "the description is below the list it is supposed to head"
     finally:

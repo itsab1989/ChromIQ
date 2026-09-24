@@ -3331,6 +3331,40 @@ REPORT_TYPE_ISO_SET: "dict[str, str]" = {
 }
 
 
+#: **K36-1 (Knut, #182 5820871320): AN ISO REPORT TYPE IS JUDGED AGAINST
+#: AN ISO SET.** *"I think (a), but a user should only be allowed to select
+#: between the 4 ISO options in judged against, and the other options are
+#: greyed while having selected Validation print check or Contract proof
+#: check. Then the user still has room for playing around with limit
+#: values."* These are the four. Choosing an ISO type moves "Judged against"
+#: to its own standard's set (`REPORT_TYPE_ISO_SET`); the user may then move
+#: among the four, and every other set is shown greyed.
+ISO_JUDGED_AGAINST: "tuple[str, ...]" = (
+    "iso_12647_7", "iso_12647_8", "custom_iso_12647_7", "custom_iso_12647_8",
+)
+
+
+def set_allowed_for_type(type_id: str, set_id: str) -> bool:
+    """May a NEW report of *type_id* be judged against *set_id* (K36-1)?
+
+    Every set, for every type but the two ISO types; for those, only the four
+    ISO sets. A saved report that combines them otherwise was written before
+    this rule and opens as it was saved; only a new Generate is held to it.
+    """
+    return (type_id not in REPORT_TYPE_ISO_SET
+            or str(set_id or "") in ISO_JUDGED_AGAINST)
+
+
+def set_held_to_type(type_id: str, set_id: str) -> str:
+    """*set_id*, or, when *type_id* does not allow it, the type's own
+    standard's set (K36-1): what a NEW report of that type is judged
+    against when the starting choice (Preferences, the run's own default)
+    is not an ISO set."""
+    if set_allowed_for_type(type_id, set_id):
+        return set_id
+    return REPORT_TYPE_ISO_SET[type_id]
+
+
 def iso_type_values_missing(type_id: str) -> bool:
     """True when *type_id* is an ISO type whose standard's values are not
     loaded (neither shipped nor supplied), so it cannot be produced."""
@@ -3413,8 +3447,18 @@ def report_types_for_kind(kind: "str | None") -> "tuple[str, ...]":
     # **RUN TYPE CALIBRATION: EVERY TYPE BUT THE PRINTING RECORD (#182 beta
     # 39).** Knut, 5794078008: *"Allowed report types are all except the
     # printing record"*. This replaces K26's "no report at all" (§18.1).
-    if kind in (KIND_VERIFICATION, KIND_CALIBRATION):
+    if kind == KIND_VERIFICATION:
         return tuple(t for t in REPORT_TYPES if t != REPORT_TYPE_RECORD)
+    # **AND NOT THE TWO ISO TYPES (K36-2).** Knut, #182 5820871320, asked
+    # whether a Calibration run should offer them: *"No, but the limit sets
+    # can still be chosen, if the user wants to use those metrics and
+    # threshold values in the report."* So "Judged against" keeps every set
+    # for a calibration report, the ISO sets included (K36-1 does not reach
+    # it, because no ISO type can be chosen here).
+    if kind == KIND_CALIBRATION:
+        return tuple(t for t in REPORT_TYPES
+                     if t != REPORT_TYPE_RECORD
+                     and t not in REPORT_TYPE_ISO_SET)
     return tuple(REPORT_TYPES)
 
 
