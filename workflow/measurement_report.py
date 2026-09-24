@@ -1887,7 +1887,10 @@ def resolve_recorded_folder(d: "str | Path", homes, *,
        home: that home, because a report of one project is only ever filed
        inside that project (`document_home`); None when it is not there;
     3. a project of the recorded name beside a home (a report across
-       projects names its other projects that way);
+       projects names its other projects that way); 3b, the one project
+       beside a home that answers to the name; 3c, only when the recorded
+       folder no longer holds a project, the one project in the ChromIQ
+       folder (top level or one level down) that answers to it;
     4. the recorded folder itself, for a project that is none of these.
 
     With *must_exist* a folder counts only when it is on disk. Never raises.
@@ -1945,6 +1948,18 @@ def resolve_recorded_folder(d: "str | Path", homes, *,
     # and Generate said "Nothing was changed". The ChromIQ folder and its
     # sub-folders are searched for the ONE project that answers to the
     # recorded name (`names_of_project`); two that do are neither.
+    #
+    # **ONLY WHEN THE RECORDED FOLDER IS GONE (B8-926).** A recorded folder
+    # that still holds a project IS that project: a namesake elsewhere in
+    # the ChromIQ folder is another project of the same name, and taking it
+    # filled the report window with that project's dates. The rewrite side
+    # (`core.report_refs.refers_here`) already refused such a reference.
+    try:
+        still_there = (recorded / "project.json").is_file()
+    except OSError:
+        still_there = False
+    if still_there:
+        return d
     found = _projects_in_the_chromiq_folder(rname, homes)
     if len(found) == 1 and _ok(found[0] / rel):
         return found[0] / rel
