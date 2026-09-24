@@ -9,10 +9,10 @@ Driven on screen 2026-09-24 (A3+ 616p ColorMunki preset): margins 33/6/10/6
 with the tick on, Extra-high -> 5/5/5/5 with the tick STILL on, strip
 283.5 mm -> 316.6 mm.
 
-The unlocked case is NOT changed here: Sebastian's #93 rule (Extra-high seeds
-Guided's 5 mm margins) still applies, and whether it should spare a preset's
-own margins is an open decision for Basti/Knut. The second test pins that the
-fix did not quietly take that decision.
+The unlocked case keeps Sebastian's #93 rule (Extra-high seeds Guided's 5 mm
+margins) for margins still at their default; since B8-965 (Basti, 2026-09-24)
+a preset's or typed margins are left alone, see
+tests/test_extra_high_seeds_only_default_margins.py.
 
 B8-964. The build log printed the AREA grid (columns x rows) whatever the
 layout mode, so a patch-first chart of 32 strips of 15 was logged as
@@ -74,9 +74,10 @@ def test_extra_high_does_not_write_into_locked_instrument_margins(app):
 
 
 def test_unlocked_extra_high_still_seeds_guideds_margins(app):
-    """#93 (Sebastian): unchanged by B8-963. Whether a preset's margins should
-    survive this is an open decision, not something this fix settles."""
-    p = _cm_panel()
+    """#93 (Sebastian): unchanged by B8-963, for margins still at their
+    default. A preset's or typed margins are kept since B8-965 (Basti,
+    2026-09-24): tests/test_extra_high_seeds_only_default_margins.py."""
+    p = _cm_panel(margins=(6.0, 6.0, 6.0, 6.0))
     assert not p.use_instr_margins.isChecked()
     p.mode.setCurrentIndex(p.mode.findData("extrahigh"))
     assert _margins(p) == [5.0, 5.0, 5.0, 5.0]

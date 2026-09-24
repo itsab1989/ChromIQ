@@ -310,6 +310,15 @@ class LayoutOptionsPanel(QWidget):
         #: control that is NOT in here, and may never overwrite one that is.
         #: Mirrors `LayoutRecipe.layout_explicit` in both directions.
         self._layout_answered: set = set()
+        #: True once the four page margins are SOMEBODY'S CHOICE: typed by a
+        #: person, or carried by a recipe somebody chose (a preset picked by
+        #: name, a chart's own recorded layout, the editor's carry-back: every
+        #: such load arrives with `layout_explicit`). False on a fresh panel and
+        #: after a load of the app's own starting point (the factory store,
+        #: `default_recipe`, Reset). Only the Extra-high seed reads it: it may
+        #: replace margins nobody chose and never ones somebody did (Basti,
+        #: 2026-09-24, B8-965).
+        self._margins_chosen = False
         #: True once a PERSON has set one of the ten label-style controls, or a
         #: recipe that already owned its style was loaded. Mirrors
         #: `LayoutRecipe.label_style_explicit` in both directions.
@@ -1610,6 +1619,9 @@ class LayoutOptionsPanel(QWidget):
         pg = QGroupBox(tr("Page geometry"), self)
         gg = QGridLayout(pg)
         self.margins = {k: small_mm(top=60.0) for k in ("t", "r", "b", "l")}
+        # A margin a person typed is theirs (B8-965): see `_margins_at_default`.
+        for _sb in self.margins.values():
+            _sb.valueChanged.connect(self._mark_margins_chosen)
         # One row per edge (Top/Right/Bottom/Left), each with a live inch readout
         # — Knut's "list all 4 margins, mm and inch" (#93).
         _mlabels = {"t": tr("Top"), "r": tr("Right"), "b": tr("Bottom"),
@@ -1718,9 +1730,19 @@ class LayoutOptionsPanel(QWidget):
                        "in mm. Leave at “auto” to use the instrument's limit (set "
                        "per instrument/paper in Preferences → Instrument Limits). Some "
                        "scanners can't read a strip past a certain length; lower "
-                       "this if long strips misread. Only used in “Prioritise patch "
-                       "size” — area-first fills the page and warns if a strip is "
-                       "longer than the instrument's ruler instead."), self))
+                       "this if long strips misread.\n\n"
+                       "Only used in “Prioritise patch size”. In “Prioritise "
+                       "chart area” the box is greyed out: there the chart area "
+                       "and the grid decide the strips, and a strip longer than "
+                       "the instrument's ruler is reported under the preview "
+                       "instead."), self))
+        # ONE LINE, ALWAYS. This row is now shown in both layout modes
+        # (B8-968), and in French, Italian and Portuguese its wrapping label
+        # took a second line in a row sized for one: measured 22 px given,
+        # 30 needed ("Longueur max. de bande :"), top of the text cut off. It
+        # did so in patch-first before too, where no test looked. Not wrapping
+        # makes the label ask for its whole width instead.
+        self._max_strip_row[0].setWordWrap(False)
         self._offset_row = add_row(gg, 5, tr("Chart offset (mm):"),
                 cell(self.offx, QLabel("×", self), self.offy),
                 tip=TooltipButton(
@@ -2672,6 +2694,15 @@ class LayoutOptionsPanel(QWidget):
             return
         if (self.instr.currentData() == "CM"
                 and self.mode.currentData() == "extrahigh"):
+            # ONLY MARGINS NOBODY CHOSE ARE SEEDED (B8-965, Basti 2026-09-24).
+            # The #93 seed predates Knut's ColorMunki presets, whose margins he
+            # set on paper; it replaced them (and anything typed) with 5 mm, and
+            # going back to High or Hand-held never gave them back, so the same
+            # visible density built a different chart depending on the detour.
+            # Default margins still get Guided's 5 mm, as #93 wants; chosen ones
+            # are left exactly as they are, and so is the base margin that goes
+            # with them.
+            seed = self._margins_at_default()
             self._loading = True
             # A LOCKED BOX IS NOT SEEDED (B8-963). With "Use instrument
             # margins" ticked the four boxes are disabled and say they are
@@ -2682,10 +2713,11 @@ class LayoutOptionsPanel(QWidget):
             # this default; unticking still restores what was there before.
             locked = (hasattr(self, "use_instr_margins")
                       and self.use_instr_margins.isChecked())
-            if not locked:
+            if seed and not locked:
                 for k in ("t", "r", "b", "l"):
                     self.margins[k].setValue(5.0)
-            self._border = 5.0                       # base margin, = Guided
+            if seed:
+                self._border = 5.0                   # base margin, = Guided
             # Guided centres the patch block (the small extra gap below the strip
             # labels Sebastian liked); match it here.
             if hasattr(self, "patch_align"):
@@ -2694,6 +2726,62 @@ class LayoutOptionsPanel(QWidget):
                     self.patch_align.setCurrentIndex(j)
             self._loading = False
             self._emit()
+
+    def _mark_margins_chosen(self, *_a) -> None:
+        """A margin box changed. Only a PERSON's change makes the margins
+        chosen: every write the app makes itself (a recipe load, the Extra-high
+        seed) holds `_loading`, and "Use instrument margins" writes with the
+        signals blocked."""
+        if not self._loading:
+            self._margins_chosen = True
+
+    def _margins_at_default(self) -> bool:
+        """Whether the four margins are still the DEFAULT, which is what the
+        Extra-high seed may replace (B8-965).
+
+        Two conditions, both needed. Nobody chose them: not typed, and not
+        loaded from a recipe somebody chose (`_margins_chosen`). And they are
+        values the app itself starts this instrument and paper with: the
+        recipe default (`default_recipe`, 6 mm), the instrument's own margins
+        that "Use instrument margins" fills in (Preferences -> Instrument
+        Limits, else the engine geometry) and leaves behind when unticked on a
+        fresh panel, or the 5 mm this seed wrote itself, so a second visit to
+        Extra-high changes nothing. A recipe that carries other margins without
+        saying who chose them (one saved before the flag existed, the Save as
+        Defaults recipe) is somebody's choice too, and its numbers say so."""
+        if self._margins_chosen:
+            return False
+        inst, paper = self._current_instrument_paper()
+        inst, paper = inst or "i1", paper or "A4"
+        defaults = [(5.0, 5.0, 5.0, 5.0), (6.0, 6.0, 6.0, 6.0)]
+        try:
+            from workflow.layout_engine.presets import default_recipe
+            d = default_recipe(inst, paper)
+            defaults.append((d.margin_top, d.margin_right,
+                             d.margin_bottom, d.margin_left))
+        except Exception:      # noqa: BLE001 -- a default, never fatal
+            pass
+        fn = getattr(self, "_threshold_lookup", None)
+        try:
+            thr = fn(inst, paper) if fn is not None else None
+        except Exception:      # noqa: BLE001
+            thr = None
+        if thr:
+            try:
+                defaults.append(tuple(float(thr.get(k)) for k in "TRBL"))
+            except (TypeError, ValueError):
+                pass
+        try:
+            from workflow.layout_engine import instruments as _ins
+            g = _ins.geom_from_build_kwargs(
+                {"instrument": inst, "paper": paper,
+                 "layout_mode": "patch_first"})
+            defaults.append((g.margin_t, g.margin_r, g.margin_b, g.margin_l))
+        except Exception:      # noqa: BLE001
+            pass
+        have = tuple(round(self.margins[k].value(), 1) for k in ("t", "r", "b", "l"))
+        return any(have == tuple(round(float(v), 1) for v in want)
+                   for want in defaults)
 
     def _sync_instrument_widgets(self, inst: str) -> None:
         """Show/hide the instrument-specific layout controls for *inst*.
@@ -3524,11 +3612,11 @@ class LayoutOptionsPanel(QWidget):
         _patch_first_rows = [getattr(self, "_patch_size_row", []),
                              getattr(self, "_patch_scale_row", []),
                              getattr(self, "_patch_align_row", []),
-                             getattr(self, "_max_strip_row", []),
                              getattr(self, "_offset_row", [])]
         for row in _patch_first_rows:
             for w in row:
                 w.setVisible(not area)
+        self._sync_max_strip_for_layout(area)
         for w in (getattr(self, "nolimit", None), getattr(self, "_nolimit_tip", None)):
             if w is not None:
                 w.setVisible(not area)
@@ -3568,6 +3656,60 @@ class LayoutOptionsPanel(QWidget):
     # ------------------------------------------------------------------
     # A HONEYCOMB HAS ONE FREE DIMENSION, AND THE PANEL OFFERED TWO.
     # ------------------------------------------------------------------
+    def _sync_max_strip_for_layout(self, area: bool) -> None:
+        """"Max strip length" is GREYED OUT in "Prioritise chart area", with a
+        tooltip that says why, and live in "Prioritise patch size" (B8-968,
+        Basti 2026-09-24).
+
+        It used to be hidden in area-first, which left a person who had set it
+        in patch-first no way to see that it had stopped counting. In
+        area-first the strips run from the top of the chart area to the
+        bottom whatever the box says (`geometry.py`: only area-first fills
+        past the ruler), so the box stays in view, disabled, and keeps its
+        value for when the layout goes back to patch-first. Every instrument
+        alike: the rule is the layout mode's, not an instrument's. The (i)
+        beside it stays clickable."""
+        row = getattr(self, "_max_strip_row", None)
+        if not row:
+            return
+        for w in row[:2]:                  # the label and the box (+ inch)
+            w.setVisible(True)
+            w.setEnabled(not area)
+        if len(row) > 2:
+            row[2].setVisible(True)
+            row[2].setEnabled(True)
+        tip = self.max_strip_tooltip(area)
+        for w in (row[0], row[1], self.max_strip):
+            w.setToolTip(tip)
+
+    @staticmethod
+    def max_strip_tooltip(area_first: bool) -> str:
+        """The hover text of "Max strip length" in each layout mode (B8-968)."""
+        if area_first:
+            return tr(
+                "Greyed out: it has no effect in “Prioritise chart area”.\n\n"
+                "In this layout the chart area and the grid decide the strips. "
+                "The chart area is the page minus the margins, and the patches "
+                "are sized so that every strip runs from the top of that area "
+                "to the bottom. A cap on the strip length has nothing to act "
+                "on here, so it is not used. The value in the box is kept and "
+                "counts again when you switch back.\n\n"
+                "To make the strips shorter in this layout, raise the Top or "
+                "Bottom margin. If your instrument reads against a ruler (the "
+                "i1Pro and the i1Pro 3 Plus, or a “Strip length limit” set in "
+                "Preferences → Instrument Limits), a strip longer than the "
+                "ruler is still built, and the warnings under the preview say "
+                "so.\n\n"
+                "Max strip length applies in “Prioritise patch size”: choose "
+                "it under “Create layout” and this box caps how long a strip "
+                "may get.")
+        return tr(
+            "Caps how long a single strip (column of patches) may get, in mm. "
+            "“auto” uses the instrument's own limit.\n\n"
+            "This applies only in “Prioritise patch size”. In “Prioritise "
+            "chart area” the box is greyed out, because there the chart area "
+            "and the grid decide the strips.")
+
     def _sync_hex_flat_top_visibility(self) -> None:
         """Show the turn only on a CR30 honeycomb.
 
@@ -5149,6 +5291,9 @@ class LayoutOptionsPanel(QWidget):
         # One flag for the group, exactly as `label_style_explicit` covers ten
         # fields: a recipe is authored as a whole, so a saved chart that owns
         # one of these owns all four. It errs towards leaving a value alone.
+        # The margins follow the same rule (B8-965): a recipe somebody chose
+        # owns its margins, the app's own starting point does not.
+        self._margins_chosen = bool(getattr(r, "layout_explicit", False))
         if bool(getattr(r, "layout_explicit", False)):
             self._layout_answered.update(self.INSTRUMENT_DEFAULTED)
         else:

@@ -786,6 +786,7 @@ def test_every_deliberate_exception_says_why():
 # round's table described this tree. Counted with the same expression the
 # test below uses, never adjusted upward.
 _IDENTICAL_TO_KEY = {
+    # RE-MEASURED 2026-09-24, B42 (B8-965, B8-968): the Max strip length tooltips, two keys in and the (i) help text changed. German by hand, does not move; the twelve others carry the English under the beta rule and each rises by exactly 3. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-24, the translation credit removed from Settings (Basti). COUNTED, BOTH ledgers.
     # RE-MEASURED 2026-09-24, B40-B (B8-940 to B8-952), the beta 40 challenge B text fixes: German by hand; the twelve others carry the new English under the beta rule. COUNTED off the tree with this file's own expression, BOTH ledgers.
     # RE-MEASURED 2026-09-24, B40-A (B8-935 to B8-939): one key in, the "Judged against" tooltip for a set carried over from an earlier ChromIQ. German by hand, so it does not move; the twelve others carry the English and each rises by exactly 1. COUNTED off the tree, BOTH ledgers.
@@ -1433,17 +1434,17 @@ _IDENTICAL_TO_KEY = {
     # COUNTED off the tree with this file's own expression, BOTH ledgers in
     # the same commit.
     "de": 141,
-    "es": 1197,
-    "fr": 1219,
-    "it": 1208,
-    "ja": 1183,
-    "nl": 1224,
-    "no": 1209,
-    "pl": 1201,
-    "pt": 1199,
-    "ru": 1172,
-    "sv": 1210,
-    "zh_CN": 1177,
+    "es": 1200,
+    "fr": 1222,
+    "it": 1211,
+    "ja": 1186,
+    "nl": 1227,
+    "no": 1212,
+    "pl": 1204,
+    "pt": 1202,
+    "ru": 1175,
+    "sv": 1213,
+    "zh_CN": 1180,
     # RE-MEASURED 2026-09-22, and it RISES BY THREE ON PURPOSE, which is the
     # one direction this ledger is not normally allowed to move. The three are
     # `chartread`, `colprof` and `scanin`: ArgyllCMS EXECUTABLE NAMES, which
@@ -1471,7 +1472,7 @@ _IDENTICAL_TO_KEY = {
     # Nothing else changed. The ceiling is re-measured DOWN here rather than
     # left where it was, so the next rise still has to justify itself.
     # +8 on 2026-09-23 for #182 S-2, the same eight as every other language.
-    "uk": 1359,
+    "uk": 1362,
 }
 
 
