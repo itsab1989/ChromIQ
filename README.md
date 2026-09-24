@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-4.2.5-7c5cff">
+  <img alt="Version" src="https://img.shields.io/badge/version-4.2.7-7c5cff">
   <img alt="Downloads" src="https://img.shields.io/endpoint?url=https://itsab1989.github.io/github-traffic-downloads-dashboard/assets/badges/itsab1989_ChromIQ-downloads.json">
   <img alt="Platforms" src="https://img.shields.io/badge/platforms-macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-2a9d8f">
   <img alt="License" src="https://img.shields.io/badge/license-GPLv3-blue">
@@ -30,6 +30,15 @@ Under the hood it drives [**ArgyllCMS**](https://www.argyllcms.com/), the
 gold-standard open-source colour engine, through a friendly five-step wizard.
 ArgyllCMS does all the colour science; ChromIQ gives it a calm, guided interface
 so you never have to memorise a single flag.
+
+> [!TIP]
+> **What is new in 4.3** (in beta now, not yet in the 4.2 download): the
+> [Measurement Report](#measurement-report-new-in-43) with six report types,
+> limit sets that include the published values of ISO 12647-7 and ISO 12647-8,
+> trend graphs and PDF reports; 185 built-in chart presets (154 in 4.2) with a
+> gear button to choose which are listed; and a Ukrainian translation. The
+> current beta is on the
+> [releases page](https://github.com/itsab1989/ChromIQ/releases).
 
 > [!NOTE]
 > **New to printer profiling?** That's exactly who ChromIQ is for. Every screen
@@ -200,6 +209,19 @@ Choose Guided or Manual, name your target, and click **Generate Chart**. The
 patch grid appears in the preview on the right. Optionally tick **Refinement
 profile** to base a second, improved pass on an existing `.icc`/`.icm`.
 
+Or start from one of **185 ready-made chart presets** (154 in 4.2), grouped by
+instrument: ColorMunki / i1Studio / ColorChecker Studio, i1Pro / i1Pro 2 /
+i1Pro 3, i1Pro 3 Plus, CR30, scanner, and Red River Paper.
+
+**New in 4.3:** the **gear button** beside the presets folder opens every
+built-in preset with a tick box. The ticked ones are listed directly; the rest
+wait under an arrow at the end of their group, so nothing is removed. ChromIQ
+starts you on a few per instrument and paper size, and only the changes you
+make are kept, so a later release can still improve that starting list. On a
+verification run, **Which presets can be used for verification?** lists every
+preset against the metrics the report you plan asks of a chart, and says which
+of them each chart can answer, and why not.
+
 ### Step 2 — Print Chart
 Pick your printer and print the chart. **On macOS the native print dialog is now
 the default** — ChromIQ opens the OS print sheet and *locks the driver's colour
@@ -228,7 +250,8 @@ reading on **Space** or **Enter** so the instrument is never nudged by its own
 button. A magnet near the measuring opening (a laptop lid under the paper is
 enough) makes a CR30 return its white-tile value instead of your patch;
 ChromIQ learns that value and refuses such a reading rather than writing it
-into your profile. Twenty ready-made CR30 charts are in the Presets dropdown.
+into your profile. Twenty-six ready-made CR30 charts are in the Presets
+dropdown (twenty in 4.2; six more in 4.3).
 On Windows, **Preferences ▸ Instrument drivers…** installs the drivers for
 ArgyllCMS's instruments and for the CR30 from one place, and **Tools ▸
 Instruments** writes a Bluetooth report for when the instrument will not
@@ -497,8 +520,49 @@ on their own, outside the five-step flow:
   file live in the project's `cal/` folder, shared by every run, and each
   profile records which calibration it was built with.
 - **Verification runs, kept as history.** Measure a chart printed *through* a
-  finished profile and the result is filed by date with its own report — earlier
+  finished profile and the result is filed by date with its own report. Earlier
   checks are never overwritten, so you can watch a profile drift over months.
+
+### Measurement Report (new in 4.3)
+Any measurement becomes a **Measurement Report**, from the Measure tab or from
+**Tools ▸ Measurement report (accuracy & drift)**. Choose what kind of document
+you need and which set of limits it is judged against. ChromIQ measures every
+metric your chart can answer, marks each one PASS or FAIL against its limit,
+and names the ones this chart cannot answer, and why.
+
+- **Six report types**: Colour summary (one page), Full colour check, Grey and
+  tone check, Printing record (not graded), Validation print check
+  (ISO 12647-8) and Contract proof check (ISO 12647-7). The run type decides
+  what is offered: the sheet a profile was built from gets a printing record;
+  a verification or a calibration gets the judged types.
+- **Limit sets**, in the **Report limits** window:
+  - ChromIQ's own: **ChromIQ default** (2.0 on the averages, 3.0 on the
+    maxima), **ChromIQ tight** (half of that) and **Quick check** (twice it);
+  - **ISO 12647-7:2016 values** (contract proofs) and **ISO 12647-8:2021
+    values** (validation prints), the standards' published tolerance values,
+    read-only;
+  - **Custom ISO 12647-7** and **Custom ISO 12647-8**, alternatives to each
+    standard that start from limits researched from industry practice and
+    ChromIQ's own numbers, not the standard's, and are yours to change.
+
+  One report uses one limit set for every measurement in it.
+- **Grey balance, tone ramps and evenness**: the grey ramp is judged for
+  colour cast, the mid-tone ramps with it, and the sheet is split into nine
+  areas and compared, so a band or an uneven dry-down shows up as a number.
+- **Trend graphs**: every judged metric over time, across your dated
+  verifications, each with its own limit line.
+- **Save report as PDF**: the whole report, or the one-page summary to hand
+  over with a job.
+
+> [!IMPORTANT]
+> **ChromIQ measures against published values; it does not certify.** The
+> ISO 12647 values are applied to the chart you printed, not to that
+> standard's own control strip and chart, so a report can never say that a
+> print conforms to a standard. What ChromIQ does is measure as many of the
+> standard's values as your chart allows, say which it checked and which it
+> did not, and let you follow them over time. Requirements ChromIQ cannot
+> measure at all stay in the limits table, marked ✕, so you can see what the
+> standard asks.
 
 ### A calm, modern app
 - **Light, Dark and Neutral** appearance, or **System (Auto)**, which follows
@@ -510,7 +574,7 @@ on their own, outside the five-step flow:
 - **Fourteen languages, complete**: English plus German, Spanish, French,
   Italian, Dutch, Portuguese, Swedish, Norwegian, Polish, Russian, Ukrainian,
   Japanese and Chinese. Every button, message, tooltip and help text, not just
-  the menus.
+  the menus. Ukrainian is new in 4.3.
 - **Per-tab onboarding tooltips**, **live command preview**, and a **zoomable
   multi-channel TIFF preview** (RGB, CMYK, extended-gamut).
 - **Session restore**, **rotating log file**, and a built-in **update checker**.
