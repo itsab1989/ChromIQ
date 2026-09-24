@@ -347,10 +347,18 @@ def test_nothing_waits_for_a_button_that_cannot_be_pressed(tmp_path, qapp):
     data", freeze the document, and read a red line telling them to press a
     greyed-out button. Those settings did nothing at all, ever.
 
-    The rule is: the document waits only when the button can build it.
+    The rule was: the document waits only when the button can build it.
 
-    MUTATION: drop the `isEnabled()` branch from `_settings_touched` and this
-    goes red.
+    **KNUT OVERRULED THE EXCEPTION (#182 5816794672):** *"Changing the
+    settings while Generate Report is greyed out and it is not allowed or
+    possible to generate a report, then it makes no sense to allow changing
+    settings. The report text should never automatically be updated in any
+    situation."* So the page is kept, the settings that cannot un-grey the
+    button are greyed with it, and no red line asks for a dead button
+    (B8-601 still holds: with nothing ticked the line stays down).
+
+    MUTATIONS: let `_settings_touched` redraw while Generate is greyed (the
+    page changes); drop `_grey_what_cannot_help` (the box stays live).
     """
     dlg, run, fm = _dialog(tmp_path, qapp)
     try:
@@ -374,10 +382,14 @@ def test_nothing_waits_for_a_button_that_cannot_be_pressed(tmp_path, qapp):
             "nothing is ticked and the button is still live, so this test is "
             "no longer about the state it was written for")
         before = dlg._view.toHtml()
+        assert not dlg._detail_check.isEnabled(), (
+            "a setting that cannot un-grey Generate is still live")
+        assert not dlg._type_combo.isEnabled()
+        assert not dlg._set_combo.isEnabled()
         dlg._detail_check.setChecked(not dlg._detail_check.isChecked())
         qapp.processEvents()
-        assert dlg._view.toHtml() != before, (
-            "the document waited for a button that cannot be pressed")
+        assert dlg._view.toHtml() == before, (
+            "the report text changed without Generate")
         assert not dlg._stale_label.isVisible(), (
             "a red line is telling the reader to press a disabled button")
     finally:

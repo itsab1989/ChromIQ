@@ -613,6 +613,14 @@ _SCREEN_MIN_RUN_COLS = 4
 #: 0.26 mm of a 15 mm margin; a real overflow is a column, tens of pixels.
 _TABLE_FIT_SLACK_PX = 1.5
 
+#: A metric table's width in the WINDOW (challenge 2 of beta 42, #3): not
+#: 100%, which Qt lays out up to one pixel wider than the page (217 of 1204
+#: tables measured, 1 to 8 dates, 600 to 1800 px), so the page was one pixel
+#: wider than the view and carried a horizontal scroll bar. 99.9% still ran
+#: over in 18 of those, 99.8% in 1, 99.6% and 99.5% in none; 99.5% keeps at
+#: least 3 px spare at the window's narrowest page (about 700 px).
+_SCREEN_TABLE_WIDTH = "99.5%"
+
 
 def _words_broken_across_lines(doc) -> "list[str]":
     """The texts of *doc* whose layout breaks a WORD over two lines.
@@ -1359,6 +1367,12 @@ def _trend_key_html(descriptions: list) -> str:
 #: and two boxes 11 px apart share 3 px).
 _WORD_AXIS_GAP = 9.0
 _WORD_WORD_GAP = 14.0
+#: What a limit word placed with ANOTHER limit line between it and its own
+#: costs in `_place_limit_words`: more than printing over a red x (500), a
+#: limit line (50) or data, because a word read against the wrong line gives
+#: the wrong limit; less than printing over another word (1000), which reads
+#: as neither.
+_WORD_PAST_ANOTHER_LINE = 800.0
 
 
 def _segment_length_in(rect: "QRectF", a: "QPointF", b: "QPointF") -> float:
@@ -1460,6 +1474,17 @@ def _place_limit_words(words: list, *, L: float, T: float, h: float,
                 rect = QRectF(L + 4.0 - 1.0, top, tw + 2.0, 14.0)
                 score = (_word_conflict(rect, y, line_ys, polys, marks, taken)
                          + 2.0 * step)
+                # **BESIDE ITS OWN LINE, NEVER PAST ANOTHER ONE (challenge 2
+                # of beta 42, #4).** With Max's word in the margin and the
+                # Avg line a few pixels under it, Avg's word went a step up
+                # and landed ABOVE the Max line: clear of everything, and
+                # read as Max's. A place with another limit line between the
+                # word and its own line costs more than anything but another
+                # word, so the word takes the side away from the other line.
+                cy = rect.center().y()
+                if any(ly != y and min(cy, y) < ly < max(cy, y)
+                       for ly in line_ys):
+                    score += _WORD_PAST_ANOTHER_LINE
                 if best is None or score < best[0]:
                     best = (score, rect, where)
         out[i] = (best[1], best[2])
@@ -3768,16 +3793,22 @@ class MeasurementReportDialog(QDialog):
                 # settings they moved.
                 if not self._source_has_moved_on(s):
                     return False
-                built = getattr(self, "_doc_built_with", None)
                 self._reread_one_source(s)
                 # **`_rebuild_from_sources`, NOT `_render`.** The history rows,
                 # the profile list and the button states all come from
                 # `self._sources`, and a repaint that skips them redraws the
                 # document from rows that were replaced a line above.
-                self._rebuild_from_sources()
-                if built is not None:
-                    self._doc_built_with = built
-                    self._show_stale_banner()
+                #
+                # **AND THE PAGE IS NOT REDRAWN (Knut, #182 5816794672):**
+                # *"re-adding a file that changed on disk ... should result in
+                # the red warning text appearing that settings have changed,
+                # and never automatically change a report."* The list reads
+                # the file again; the page, the graphs and the PDF stay the
+                # report on screen, and the red line says the measurement it
+                # covers has moved on (`_page_coverage_moved`, which compares
+                # the file's disk stamp).
+                with self._keeping_the_page():
+                    self._rebuild_from_sources()
                 return False
         key = keys[0]
         name, runs = self._gather_runs(ti3)
@@ -4310,7 +4341,10 @@ class MeasurementReportDialog(QDialog):
         self._size_profile_list()
         self._show_the_colour_scale_note()
         has = bool(self._sources)
-        self._pdf_btn.setEnabled(has)
+        # A kept page is still a report on screen, and its PDF can be saved
+        # with the list emptied under it (Knut, 2026-09-18: the button is
+        # greyed only "if no report is loaded in the window at all").
+        self._pdf_btn.setEnabled(has or self._page_shows_a_report())
         self._reveal_btn.setEnabled(has)
         self._clear_btn.setEnabled(has)
         self._update_source_buttons()
@@ -4755,7 +4789,11 @@ class MeasurementReportDialog(QDialog):
         if not paths:
             return
         added, failed = 0, []
-        had_sources = bool(self._sources)
+        # A WINDOW SHOWING A REPORT HAS A REPORT TO KEEP, whether or not its
+        # list still holds anything (Knut, #182 5816794672): after Clear List
+        # the page is still the report, so what is added comes in unticked
+        # like any other add, and only Generate draws a new page.
+        had_sources = bool(self._sources) or self._page_shows_a_report()
         before = {self._run_key(r) for s in self._sources for r in s["runs"]}
         for path in paths:
             try:
@@ -4787,6 +4825,10 @@ class MeasurementReportDialog(QDialog):
                 built = list(built)
                 built[3] = tuple(sorted(set(built[3]) | new))
                 self._doc_built_with = tuple(built)
+            # after Clear List the list had no subject left; the page keeps
+            # its own (`_the_page_as_drawn`), the list takes the first added
+            if self._report is None and self._sources:
+                self._report = self._subject_of(self._sources[0])
             self._rebuild_from_sources(repaint=False)
         elif added:
             # AN EMPTY WINDOW HAS NO REPORT TO KEEP: the first measurements
@@ -4838,7 +4880,15 @@ class MeasurementReportDialog(QDialog):
             self._ti3 = first.get("ti3") or first["dir"] / f'{first["name"]}.ti3'
         else:
             self._report, self._ti3 = None, None
-        self._rebuild_from_sources()
+        # **THE PAGE STAYS THE REPORT IT IS (Knut, #182 5816794672).**
+        # *"Remove Profile's Measurements, Clear List, re-adding a file that
+        # changed on disk, these should all result in the red warning text
+        # appearing that settings have changed, and never automatically
+        # change a report."* The list and the buttons follow the removal;
+        # the page, the graphs and the PDF stay the document on screen
+        # (`_keeping_the_page`), and the red line says it no longer matches.
+        with self._keeping_the_page():
+            self._rebuild_from_sources()
 
     def _on_clear_list(self) -> None:
         self._sources = []
@@ -4854,7 +4904,13 @@ class MeasurementReportDialog(QDialog):
         self._loaded_doc = None
         self._doc_created = ""
         self._doc_sources = None
-        self._rebuild_from_sources()
+        # …AND THE PAGE IS KEPT (Knut, #182 5816794672): the list empties,
+        # the report on screen does not, and the red line comes up. What was
+        # R2A-6's reason for deselecting the report still holds: nothing in
+        # the list is that report any more, so "Report shown" is "New
+        # report…" and Generate cannot Update it.
+        with self._keeping_the_page():
+            self._rebuild_from_sources()
 
     #: The five controls that describe WHAT REPORT TO MAKE, as opposed to which
     #: measurements exist. Knut, 2026-09-14, having asked for this and been
@@ -4961,12 +5017,22 @@ class MeasurementReportDialog(QDialog):
         # where there is nothing to press they do so again.
         #
         # Read AFTER `_sync_limit_controls`, which is what recomputes it.
-        btn = getattr(self, "_generate_btn", None)
-        if btn is not None and btn.isEnabled():
-            self._show_stale_banner()
+        #
+        # **AND NOW NOT EVEN THERE (Knut, #182 5816794672).** *"The report text
+        # should never automatically be updated in any situation, as a report
+        # is a record of history and shall never we changed unless
+        # deliberately done by a user."* A setting moved while Generate is
+        # greyed keeps the page and raises the line like any other; the
+        # controls that cannot un-grey Generate are greyed with it
+        # (`_grey_what_cannot_help`), so the dead-button trap the adversary
+        # round found is not reached by moving them. The only page this still
+        # draws is the first one, in a window that has never drawn a report.
+        if getattr(self, "_doc_built_with", None) is None \
+                and not self._page_shows_a_report():
+            self._refresh_trend()
+            self._render()
             return
-        self._refresh_trend()
-        self._render()
+        self._show_stale_banner()
 
     def _remember_what_is_on_screen(self, type_id: str = "",
                                     set_id: str = "") -> None:
@@ -5017,7 +5083,13 @@ class MeasurementReportDialog(QDialog):
         it would be a window whose line is up and whose button asks nothing.
         """
         built = getattr(self, "_doc_built_with", None)
-        return bool(built is not None and tuple(built) != self._doc_settings())
+        # …AND WHAT THE PAGE COVERS (Knut, #182 5816794672): a measurement
+        # removed, a list cleared, a file changed on disk and re-read. The
+        # page is kept for each of them, so each is a difference between the
+        # page and what Generate would now write.
+        return bool(built is not None and (
+            tuple(built) != self._doc_settings()
+            or self._page_coverage_moved()))
 
     def _show_stale_banner(self) -> None:
         if getattr(self, "_stale_label", None) is None:
@@ -5033,9 +5105,16 @@ class MeasurementReportDialog(QDialog):
         # The second half of its own sentence is what is left, and it is the
         # honest instruction here: put the setting back. Ticking a measurement
         # brings the line, and the button, straight back.
+        #
+        # …EXCEPT WHEN THE PAGE HAS LOST WHAT IT WAS DRAWN FROM (Knut, #182
+        # 5816794672): a measurement it covers removed, the list cleared, a
+        # file changed on disk. The page is kept for those, so the line is
+        # the only thing saying the report on screen is no longer the list's,
+        # whatever is ticked.
         self._stale_label.setVisible(
             self._settings_were_modified()
-            and not self._nothing_is_ticked())
+            and (not self._nothing_is_ticked()
+                 or self._page_lost_what_it_covers()))
         # **THE PDF DOOR STAYS OPEN, AND THE PDF IS WHAT IS ON SCREEN
         # (B8-364).** Round 21 measured the fault: with the pulldown on `Colour
         # summary (one page)`, the red line up and the document still reading
@@ -5100,8 +5179,23 @@ class MeasurementReportDialog(QDialog):
         # Found by the adversary pass over B8-590, in this round's own work:
         # "Deselect all" is what makes the transient empty list easy to reach,
         # and it is a button this round added.
+        #
+        # **AND ONLY A DOOR THAT SHOWS A REPORT DRAWS (Knut, #182
+        # 5816794672).** *"The report text should never automatically be
+        # updated in any situation."* Inside `_keeping_the_page` (Remove
+        # Profile's Measurements, Clear List, a file re-read because it
+        # changed on disk, a Generate that wrote nothing) the page on screen
+        # is left exactly as it is, nothing is stamped, and the red line is
+        # asked again. Everything else that reaches here is Generate, a
+        # report chosen in "Report shown", "New report…", a delete, or the
+        # window's first page.
+        if getattr(self, "_keep_page", 0) and self._page_shows_a_report():
+            self._show_stale_banner()
+            return
         if not self._nothing_is_ticked():
             self._doc_built_with = self._doc_settings()
+            self._page_covers = self._coverage_now()
+            self._page_snapshot = self._snapshot_of_the_page()
         self._show_stale_banner()
         self._note_which_document_the_page_is()
         if not self._sources:
@@ -5111,6 +5205,100 @@ class MeasurementReportDialog(QDialog):
         self._view.setHtml(
             self._report_body_html(self._runs_for_report(), for_pdf=False))
         self._remember_how_it_was_built()
+
+    @contextmanager
+    def _keeping_the_page(self):
+        """Inside this block nothing redraws the page or the graphs: the list,
+        the buttons and the red line follow what changed, the report on
+        screen does not (Knut, #182 5816794672)."""
+        self._keep_page = getattr(self, "_keep_page", 0) + 1
+        try:
+            yield
+        finally:
+            self._keep_page -= 1
+
+    def _page_shows_a_report(self) -> bool:
+        """Is a report drawn on the page, from measurements (not the empty
+        page)? What `_keeping_the_page` keeps, and what makes an add come in
+        unticked even when the list itself was cleared."""
+        snap = getattr(self, "_page_snapshot", None)
+        return bool(snap and snap.get("sources"))
+
+    def _coverage_now(self) -> tuple:
+        """What a page drawn now would cover: each TICKED measurement with
+        the disk stamp of the file it was read from. Compared with the page's
+        own (`_page_covers`), so a removed measurement, a cleared list and a
+        file that changed on disk are each a change the red line names."""
+        hidden = getattr(self, "_hidden_runs", set()) or set()
+        out = []
+        for s in getattr(self, "_sources", None) or []:
+            stamp = tuple(s.get("stamp") or ())
+            for r in s.get("runs") or []:
+                key = self._run_key(r)
+                if key not in hidden:
+                    out.append((repr(key), stamp))
+        return tuple(sorted(out))
+
+    def _page_lost_what_it_covers(self) -> bool:
+        """Is a measurement the page covers gone from the list, or re-read
+        from a file that changed? (Ticks alone never answer yes.)"""
+        covers = getattr(self, "_page_covers", None)
+        if not covers:
+            return False
+        listed = set()
+        for s in getattr(self, "_sources", None) or []:
+            stamp = tuple(s.get("stamp") or ())
+            for r in s.get("runs") or []:
+                listed.add((repr(self._run_key(r)), stamp))
+        return any(c not in listed for c in covers)
+
+    def _page_coverage_moved(self) -> bool:
+        """Has what the page covers moved since it was drawn?"""
+        covers = getattr(self, "_page_covers", None)
+        return covers is not None and covers != self._coverage_now()
+
+    def _snapshot_of_the_page(self) -> dict:
+        """The measurements the page is drawn from, copied, so the PDF of a
+        page `_keeping_the_page` kept is still that page (Knut, 2026-09-18:
+        *"clicking the button always generates a pdf from the currently
+        loaded report text"*)."""
+        return {
+            "sources": [dict(s, runs=list(s.get("runs") or []))
+                        for s in (getattr(self, "_sources", None) or [])],
+            "history": list(getattr(self, "_history", None) or []),
+            "report": getattr(self, "_report", None),
+            "ti3": getattr(self, "_ti3", None),
+            "run_ctx": getattr(self, "_run_ctx", None),
+            "project_dirs": set(getattr(self, "_project_dirs", None) or ()),
+        }
+
+    @contextmanager
+    def _the_page_as_drawn(self):
+        """The measurements the page on screen was drawn from, for the length
+        of the block (a PDF of the page). A page whose list has not moved is
+        its own snapshot, and nothing is swapped."""
+        snap = getattr(self, "_page_snapshot", None)
+        moved = bool(snap) and (
+            self._page_coverage_moved()
+            or [str(s.get("origin")) for s in snap["sources"]]
+            != [str(s.get("origin")) for s in (self._sources or [])])
+        if not moved:
+            yield
+            return
+        names = ("_sources", "_history", "_report", "_ti3", "_run_ctx",
+                 "_project_dirs")
+        held = {n: getattr(self, n, None) for n in names}
+        try:
+            self._sources = [dict(s, runs=list(s["runs"]))
+                             for s in snap["sources"]]
+            self._history = list(snap["history"])
+            self._report, self._ti3 = snap["report"], snap["ti3"]
+            self._run_ctx = snap["run_ctx"]
+            self._project_dirs = set(snap["project_dirs"])
+            yield
+        finally:
+            for n, v in held.items():
+                setattr(self, n, v)
 
     def _source_signature(self) -> tuple:
         """Which measurements are loaded, as a comparable value (round 2B)."""
@@ -5196,6 +5384,10 @@ class MeasurementReportDialog(QDialog):
 
     def _refresh_trend(self) -> None:
         """Repaint the trend charts from the report's current run set."""
+        # The graphs are part of the page: kept with it (Knut, #182
+        # 5816794672; `_keeping_the_page`).
+        if getattr(self, "_keep_page", 0) and self._page_shows_a_report():
+            return
         from ui.theme import has_dark_ground, resolve_mode
         from workflow.measurement_report import report_trend
         # WHICH KIND OF GROUND, not "is it not light". `!= "light"` had room for
@@ -5734,6 +5926,41 @@ class MeasurementReportDialog(QDialog):
         docs = self._saved_documents(ctx.run if ctx is not None else None)
         return next((d for d in docs if d["key"] == key), None)
 
+    def _differs_from_the_saved_report(self) -> bool:
+        """Do the report's settings on screen differ from the SELECTED saved
+        report's own limit set or type?
+
+        **ASKED OF THE FILE, NOT OF THE PAGE (challenge 2 of beta 42, #1b).**
+        `_settings_were_modified` compares the controls with the page, and a
+        page redrawn without Generate had taken the new set as its own: the
+        question then said *"Nothing was changed for the selected report"*
+        and Update rewrote a report judged against ChromIQ default as
+        ChromIQ tight. The page is no longer redrawn that way (Knut, #182
+        5816794672), and this is the second lock on the same door: whatever
+        the page says, a set, a type or a detail box that is not the saved
+        report's own is a change.
+        """
+        doc = getattr(self, "_loaded_doc", None)
+        key = str(getattr(self, "_loaded_doc_id", "") or "")
+        if not isinstance(doc, dict) or not key or key == NEW_REPORT_KEY:
+            return False
+
+        def _data(name: str) -> str:
+            combo = getattr(self, name, None)
+            try:
+                return str(combo.currentData() or "") if combo else ""
+            except RuntimeError:
+                return ""
+        comp = doc.get("compliance") or {}
+        saved_set = str(comp.get("set_id") or "")
+        if saved_set and _data("_set_combo") and saved_set != _data("_set_combo"):
+            return True
+        saved_type = str(doc.get("type") or "")
+        if saved_type and _data("_type_combo") \
+                and saved_type != _data("_type_combo"):
+            return True
+        return False
+
     def _ask_update_or_create_new(self) -> str:
         """Knut's three-button question: ``"update"``, ``"new"`` or ``"cancel"``.
 
@@ -5768,6 +5995,7 @@ class MeasurementReportDialog(QDialog):
                          not in (None, self._source_signature()))
         modified = (self._settings_were_modified()
                     or sources_moved
+                    or self._differs_from_the_saved_report()
                     or self._fit_to_kind(self._report_type_now())
                     != self._report_type_now())
         title, body = M.CATALOGUE[
@@ -6126,7 +6354,8 @@ class MeasurementReportDialog(QDialog):
         else:
             # **A PRESS THAT WROTE NOTHING MAY NOT TAKE THE RED LINE DOWN
             # (R29-F2).**
-            self._refresh()
+            with self._keeping_the_page():
+                self._refresh()
             self._doc_built_with = was_built
             self._show_stale_banner()
 
@@ -6247,6 +6476,19 @@ class MeasurementReportDialog(QDialog):
     def _export_pdf(self) -> None:
         """Write the full report — all data, the trend charts and a plain-language
         guide to reading them — as a PDF, then open it for viewing (Knut)."""
+        # **FROM THE MEASUREMENTS THE PAGE WAS DRAWN FROM.** After Remove
+        # Profile's Measurements, Clear List or a re-read file the page is
+        # kept (Knut, #182 5816794672) and the list is not what it was drawn
+        # from; the PDF is the page (Knut, 2026-09-18). So the whole export
+        # runs once more inside `_the_page_as_drawn`.
+        page = getattr(self, "_the_page_as_drawn", None)
+        if page is not None and not getattr(self, "_exporting_the_page", False):
+            self._exporting_the_page = True
+            try:
+                with page():
+                    return self._export_pdf()
+            finally:
+                self._exporting_the_page = False
         if not self._report or not self._ti3:
             return
         from PyQt6.QtCore import QMarginsF, QRectF, QSizeF, QUrl
@@ -9353,7 +9595,17 @@ class MeasurementReportDialog(QDialog):
         and a dated verification (final round FC-2)."""
         from workflow.run_compliance import run_context_for
         kinds = set()
+        # **ONLY WHAT IS TICKED (challenge 2 of beta 42, #1c).** A press
+        # writes the ticked measurements and nothing else
+        # (`_reports_to_generate`), so an unticked sheet of the other kind
+        # cannot put one type into both kinds of folder, which is all FC-2
+        # refuses. Counting it greyed Generate the moment the project's own
+        # profiling sheet was added to a verification window, unticked as
+        # K32 adds it.
+        hidden = getattr(self, "_hidden_runs", set()) or set()
         for r in getattr(self, "_history", None) or []:
+            if self._run_key(r) in hidden:
+                continue
             origin, ti3 = r.get("_origin_dir"), r.get("ti3")
             if not origin or not ti3:
                 continue
@@ -9642,12 +9894,15 @@ class MeasurementReportDialog(QDialog):
         # and said, as several places are.
         mixed = self._kinds_are_mixed()
         if mixed:
+            # TICKED, NOT LOADED (challenge 2 of beta 42, #1c): an unticked
+            # measurement of the other kind no longer greys the button, so
+            # the sentence names the tick as the way out as well.
             self._generate_btn.setToolTip(tr(
                 "Measurements of a profiling sheet and of verifications are "
-                "loaded together, and each has its own kind of report. Remove "
-                "one kind from the list with Remove Profile's Measurements… "
-                "to save a report. Save report as PDF… saves the report shown "
-                "here."))
+                "ticked together, and each has its own kind of report. "
+                "Untick one kind, or remove it with Remove Profile's "
+                "Measurements…, to save a report. Save report as PDF… saves "
+                "the report shown here."))
         # UNDER CALIBRATION ONLY A CALIBRATION IS WRITTEN, whatever else is
         # loaded: a run's measurement left first in the list after a Remove
         # would otherwise be written as a calibration type into a profiling
@@ -9689,6 +9944,7 @@ class MeasurementReportDialog(QDialog):
             self._generate_btn.setToolTip("")
         self._generate_btn.setEnabled(live)
         self._set_generate_why("" if live else self._generate_btn.toolTip())
+        self._grey_what_cannot_help(live)
         # **THE BOX THAT WIDENED THE REPORT IS GONE (B8-590), AND SO IS THE
         # RULE THAT FORCED IT OFF.** A one-measurement list needed "Show all
         # measurement runs" turned off and greyed (B8-392); a one-page summary
@@ -9739,7 +9995,10 @@ class MeasurementReportDialog(QDialog):
         """
         det = getattr(self, "_detail_check", None)
         if det is not None:
-            det.setEnabled(not one_page)
+            # …and greyed with Generate (`_grey_what_cannot_help`).
+            gen = getattr(self, "_generate_btn", None)
+            det.setEnabled(not one_page
+                           and (gen is None or gen.isEnabled()))
             det.setToolTip(tr(
                 "The one-page colour summary has no per-run detail section: it "
                 "is one page about one measurement, to print and hand over "
@@ -10054,9 +10313,40 @@ class MeasurementReportDialog(QDialog):
             self._mismatch.setText(one)
         else:
             self._mismatch.setWordWrap(False)
-            self._mismatch.setText(fm.elidedText(one, Qt.TextElideMode.ElideRight, width))
+            # **SHORTENED TO THE LABEL'S OWN TEXT AREA (challenge 2 of beta
+            # 42, #7).** It was shortened to the window's width less 60,
+            # which is wider than the strip's text area (the label's width
+            # less its 10 px padding and 1 px border a side): the "…" was
+            # drawn past the edge and cut to one dot. Only the shortening
+            # moved: the choice between two wrapped lines and one shortened
+            # line is asked exactly as before, because asking it of the
+            # label's own width changed WHEN the strip wraps, and a strip
+            # wrapped before the window's screen-fitting ladder ran took its
+            # height out of the trend charts (measured on screen: 150 to
+            # 62 px).
+            self._mismatch.setText(fm.elidedText(
+                one, Qt.TextElideMode.ElideRight,
+                min(width, self._strip_text_width())))
         self._mismatch.setToolTip(full)
         self._mismatch.setVisible(True)
+
+    #: The strip's padding and border, a side, as its style sheet sets them
+    #: ("padding: 6px 10px", "border: 1px"), for a label whose contents rect
+    #: does not already leave them out.
+    _STRIP_SIDE_PX = 11
+
+    def _strip_text_width(self) -> int:
+        """The width the strip's text may take: the label's own text area
+        once it is laid out, otherwise the window's width less the page's
+        margins and the strip's padding."""
+        lab = getattr(self, "_mismatch", None)
+        if lab is not None and lab.isVisible() and lab.width() > 50:
+            avail = lab.contentsRect().width()
+            if avail >= lab.width():
+                avail = lab.width() - 2 * self._STRIP_SIDE_PX
+        else:
+            avail = max(200, self.width() - 60) - 2 * self._STRIP_SIDE_PX
+        return max(100, int(avail) - 2)
 
     def resizeEvent(self, event) -> None:  # noqa: N802
         super().resizeEvent(event)
@@ -10083,6 +10373,11 @@ class MeasurementReportDialog(QDialog):
 
     def _rewrap_beside_the_pulldown(self) -> None:
         self._rewrap_queued = False
+        # the strip too, now that the label has its own width (#7)
+        lab = getattr(self, "_mismatch", None)
+        if (getattr(self, "_mismatch_full", "") and lab is not None
+                and lab.isVisible() and lab.width() > 50):
+            self._set_strip(self._mismatch_full)
         if getattr(self, "_saved_note_full", ""):
             self._set_saved_note(self._saved_note_full)
         if getattr(self, "_saved_hint_full", ""):
@@ -11407,6 +11702,102 @@ class MeasurementReportDialog(QDialog):
         cache[key] = (r, c)
         return c
 
+    def _grey_what_cannot_help(self, live: bool) -> None:
+        """With Generate greyed, grey the report settings that cannot un-grey
+        it: Report type, Judged against and "Show detailed data".
+
+        Knut, #182 5816794672: *"Changing the settings while Generate Report
+        is greyed out and it is not allowed or possible to generate a report,
+        then it makes no sense to allow changing settings."* Every reason
+        Generate is greyed for is answered in the LIST (tick, untick, add,
+        remove a measurement) or not at all, never by these three, so they
+        wait for the list and come back with the button. The list, its
+        buttons, "Report shown", Edit limits… and Save report as PDF… stay
+        live: they are how a reader un-greys Generate, looks at another
+        report, or keeps the one on screen.
+
+        Their tooltips stay readable on a greyed control, and the reason
+        Generate is greyed is printed under it (`_set_generate_why`).
+        """
+        for name in ("_type_combo", "_set_combo"):
+            w = getattr(self, name, None)
+            if w is not None:
+                w.setEnabled(bool(live))
+        # The detail box also answers to the one-page type, which greys it
+        # on its own (`_show_that_a_one_page_summary_is_one_sheet`); only
+        # the greying is added here.
+        det = getattr(self, "_detail_check", None)
+        if det is not None and not live:
+            det.setEnabled(False)
+
+    #: The four graphs a Printing record can carry, in tab order, with the
+    #: words the sentence under its results names them by.
+    _RECORD_GRAPHS = ("de", "white", "black", "corners")
+
+    def _graphs_drawn_for(self, runs: list) -> "list[str]":
+        """Which of the four graphs that need no limit are DRAWN for *runs*:
+        shown in the plan and holding at least two dates (a graph of one date
+        is the empty frame saying a trend needs two measurements, and the
+        PDF prints no graph at all then)."""
+        from workflow.measurement_report import report_trend
+        charts = {"de": self._trend_de, "white": self._trend_white,
+                  "black": self._trend_black,
+                  "corners": self._trend_corners}
+        series = report_trend(runs)
+        out = []
+        for chart, _t, metrics, _y, _d, _a, _thr, _l, shown in \
+                self._trend_plan():
+            key = next((k for k, c in charts.items() if c is chart), None)
+            if key is None or not shown:
+                continue
+            wh = [f for f in (self._trend_extras(chart).get("withheld")
+                              or []) if f is not None]
+            dated = sum(1 for pt in series
+                        if any(acc(pt) is not None for _n, _c, acc in metrics)
+                        or any(f(pt) for f in wh))
+            if dated >= 2:
+                out.append(key)
+        return [k for k in self._RECORD_GRAPHS if k in out]
+
+    def _record_graphs_sentence(self, runs: list) -> str:
+        """The sentence under a Printing record's results: why it carries no
+        graph of a judged metric, and WHICH graphs it does carry (K32, Knut
+        on beta 41, #182 5813851807).
+
+        **ONLY THE GRAPHS THAT ARE DRAWN (challenge 2 of beta 42, #5).** It
+        named all four whatever was drawn, and a record of one measurement
+        draws none: its tabs are empty frames saying a trend needs two
+        measurements, and its PDF has no graph at all."""
+        head = tr("This report is not graded, so it carries no graph of a "
+                  "judged metric: each of those graphs is drawn against its "
+                  "limit.")
+        drawn = self._graphs_drawn_for(runs)
+        if drawn == list(self._RECORD_GRAPHS):
+            return tr(
+                "This report is not graded, so it carries no graph of a "
+                "judged metric: each of those graphs is drawn against its "
+                "limit. The graphs it carries show colour accuracy, paper "
+                "white, darkest black and the cube corners.")
+        if not drawn and len(runs) <= 1:
+            return head + " " + tr(
+                "It carries no other graph either: a graph needs at least "
+                "two measurements, and this report has one.")
+        if not drawn:
+            return head + " " + tr(
+                "It carries no other graph either: the measurements it "
+                "covers have no values to draw one from.")
+        names = {"de": tr("colour accuracy"), "white": tr("paper white"),
+                 "black": tr("darkest black"),
+                 "corners": tr("the cube corners")}
+        words = [names[k] for k in drawn]
+        if len(words) == 1:
+            return head + " " + tr(
+                "The one graph it carries shows {graph}.").format(
+                    graph=words[0])
+        return head + " " + tr("The graphs it carries show {graphs}.").format(
+            graphs=tr("{list} and {last}").format(
+                list=", ".join(words[:-1]), last=words[-1]))
+
     def _is_judged_now(self, r: dict) -> bool:
         """Whether *r* is a copy `_judged_live` made just now, and so carries
         a verdict no saved report holds yet (B8-948)."""
@@ -11476,7 +11867,17 @@ class MeasurementReportDialog(QDialog):
                         + html.escape(label) + "</td>" + "".join(cells) + "</tr>")
         # page-break-inside:avoid keeps a whole chunk-table together — if it won't
         # fit, it moves to the next page rather than splitting rows (Knut #PDF4).
-        return ("<table width='100%' cellpadding='4' cellspacing='0' style='border-collapse:"
+        # **IN THE WINDOW, NOT QUITE ALL OF THE PAGE (challenge 2 of
+        # beta 42, #3).** A table of width 100% is laid out one pixel wider
+        # than the page (Qt rounds the Metric column's percentage share up,
+        # `_TABLE_FIT_SLACK_PX`), and in the window that pixel made the page
+        # wider than the view: a horizontal scroll bar of one pixel under
+        # every report with a metric table. `_SCREEN_TABLE_WIDTH` leaves that
+        # pixel inside the page at every window width and follows a resize,
+        # which a width in pixels would not. The PDF keeps 100% of the
+        # paper's text width.
+        width_attr = str(getattr(self, "_table_width_attr", "") or "100%")
+        return (f"<table width='{width_attr}' cellpadding='4' cellspacing='0' style='border-collapse:"
                 "collapse;font-size:11px;margin-bottom:10px;"
                 "page-break-inside:avoid'>"
                 + "".join(body) + "</table>")
@@ -12866,11 +13267,9 @@ class MeasurementReportDialog(QDialog):
         # missing, if it was deliberate, or it is a clear bug". Said here,
         # under the results, where the window and the PDF both print it.
         if self._ungraded_by_type() and runs:
-            notes += (f"<div style='{note_css}'>" + html.escape(tr(
-                "This report is not graded, so it carries no graph of a "
-                "judged metric: each of those graphs is drawn against its "
-                "limit. The graphs it carries show colour accuracy, paper "
-                "white, darkest black and the cube corners.")) + "</div>")
+            notes += (f"<div style='{note_css}'>"
+                      + html.escape(self._record_graphs_sentence(runs))
+                      + "</div>")
         # **THE "Not computed on this chart" BLOCK USED TO BE HERE, AND IT IS
         # GONE BECAUSE KNUT REPLACED THE MECHANISM.** It printed every N-A row
         # and its reason as prose under the heading "Not computed on this
@@ -13276,6 +13675,7 @@ class MeasurementReportDialog(QDialog):
         # K32: the metric tables are fitted to the medium this body is for.
         self._table_width = (_PDF_TEXT_W if for_pdf
                              else self._screen_table_width())
+        self._table_width_attr = "100%" if for_pdf else _SCREEN_TABLE_WIDTH
         self._table_min_cols = 1 if for_pdf else _SCREEN_MIN_RUN_COLS
         # K31: whether the judged names say "within gamut" in this document.
         self._names_split = self._names_within_gamut(runs)

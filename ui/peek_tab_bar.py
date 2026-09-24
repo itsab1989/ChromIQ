@@ -32,8 +32,9 @@ Measurement Report's graph tabs use it today.
 """
 from __future__ import annotations
 
-from PyQt6.QtCore import QPoint, QRect, QSize, Qt
-from PyQt6.QtGui import QMouseEvent
+from PyQt6.QtCore import QEvent, QPoint, QPointF, QRect, QSize, Qt
+from PyQt6.QtGui import (QColor, QIcon, QMouseEvent, QPainter, QPalette,
+                         QPixmap, QPolygonF)
 from PyQt6.QtWidgets import (QStyle, QStyleOptionTab, QStylePainter, QTabBar,
                              QToolButton)
 
@@ -42,6 +43,53 @@ from PyQt6.QtWidgets import (QStyle, QStyleOptionTab, QStylePainter, QTabBar,
 PEEK = 1.0 / 5.0
 #: The range the peek must stay in (what the tests hold it to).
 PEEK_MIN, PEEK_MAX = 1.0 / 6.0, 1.0 / 4.0
+
+#: How far a GREYED arrow's ink goes from the bar's ground towards the text
+#: colour: a quarter of the way, against the whole way for a live one.
+DEAD_ARROW_INK = 0.28
+
+#: The arrow's triangle, in logical pixels.
+ARROW_ICON = 10
+
+
+def arrow_colours(pal: QPalette) -> "tuple[QColor, QColor]":
+    """``(live, greyed)`` ink for the scroll arrows under *pal*.
+
+    Taken from the palette's text and ground and mixed here, NOT from the
+    palette's Disabled group: none of the app's three appearances writes that
+    group, so Qt's own disabled arrow came out in the live colour and a greyed
+    arrow looked exactly like a live one (challenge 2 of beta 42, #2; Knut's
+    rule, #182 5814390886, is that an arrow with nowhere to go is greyed OUT,
+    which is a thing a reader sees, not a flag)."""
+    live = QColor(pal.color(QPalette.ColorGroup.Active,
+                            QPalette.ColorRole.WindowText))
+    ground = QColor(pal.color(QPalette.ColorGroup.Active,
+                              QPalette.ColorRole.Window))
+    t = DEAD_ARROW_INK
+    dead = QColor(round(ground.red() + (live.red() - ground.red()) * t),
+                  round(ground.green() + (live.green() - ground.green()) * t),
+                  round(ground.blue() + (live.blue() - ground.blue()) * t))
+    return live, dead
+
+
+def _triangle(direction: str, colour: QColor, dpr: float) -> QPixmap:
+    """A filled triangle pointing *direction* ("left"/"right")."""
+    n = ARROW_ICON
+    pm = QPixmap(int(round(n * dpr)), int(round(n * dpr)))
+    pm.setDevicePixelRatio(dpr)
+    pm.fill(Qt.GlobalColor.transparent)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(colour)
+    a, b, m = 2.5, n - 2.5, n / 2.0
+    if direction == "left":
+        pts = [QPointF(b, 1.5), QPointF(b, n - 1.5), QPointF(a, m)]
+    else:
+        pts = [QPointF(a, 1.5), QPointF(a, n - 1.5), QPointF(b, m)]
+    p.drawPolygon(QPolygonF(pts))
+    p.end()
+    return pm
 
 
 class PeekTabBar(QTabBar):
@@ -52,14 +100,19 @@ class PeekTabBar(QTabBar):
         #: Index (into the VISIBLE tabs) of the first tab shown whole.
         self._first = 0
         self._hover = -1
+        # THE ARROWS ARE PAINTED HERE, NOT BY THE STYLE (challenge 2 of beta
+        # 42, #2): `arrow_colours` says why the style's disabled arrow was
+        # indistinguishable from a live one in all three appearances.
         self._left_btn = QToolButton(self)
-        self._left_btn.setArrowType(Qt.ArrowType.LeftArrow)
         self._right_btn = QToolButton(self)
-        self._right_btn.setArrowType(Qt.ArrowType.RightArrow)
         for b in (self._left_btn, self._right_btn):
             b.setAutoRaise(True)
             b.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+            b.setArrowType(Qt.ArrowType.NoArrow)
+            b.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+            b.setIconSize(QSize(ARROW_ICON, ARROW_ICON))
             b.hide()
+        self._paint_arrows()
         # Bound methods, never closures (CLAUDE.md: a self-capturing lambda
         # on a signal a widget's own child emits can fault PyQt6).
         self._left_btn.clicked.connect(self.scroll_left)
@@ -228,6 +281,27 @@ class PeekTabBar(QTabBar):
         self._place_arrows()
         self.update()
 
+    def _paint_arrows(self) -> None:
+        """Give each arrow a live and a greyed picture in this palette."""
+        live, dead = arrow_colours(self.palette())
+        dpr = max(1.0, float(self.devicePixelRatioF()), 2.0)
+        for btn, direction in ((self._left_btn, "left"),
+                               (self._right_btn, "right")):
+            icon = QIcon()
+            for mode in (QIcon.Mode.Normal, QIcon.Mode.Active,
+                         QIcon.Mode.Selected):
+                icon.addPixmap(_triangle(direction, live, dpr), mode)
+            icon.addPixmap(_triangle(direction, dead, dpr),
+                           QIcon.Mode.Disabled)
+            btn.setIcon(icon)
+        self._arrow_ink = (live.name(), dead.name())
+
+    def changeEvent(self, ev) -> None:  # noqa: N802
+        super().changeEvent(ev)
+        if ev.type() in (QEvent.Type.PaletteChange, QEvent.Type.StyleChange) \
+                and hasattr(self, "_right_btn"):
+            self._paint_arrows()
+
     # ---- Qt's hooks --------------------------------------------------------
     def minimumSizeHint(self) -> QSize:  # noqa: N802
         """Not the width of every tab: the window may be narrower than that,
@@ -362,4 +436,5 @@ class PeekTabBar(QTabBar):
                            self._right_btn.isVisible()
                            and self._right_btn.isEnabled()),
                 "arrows_shown": self._left_btn.isVisible(),
+                "arrow_ink": getattr(self, "_arrow_ink", None),
                 "area": self._area()}

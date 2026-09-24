@@ -27957,3 +27957,83 @@ would reach.
 - tests: tests/test_the_presets_window_sorts_within_each_group.py (both check-box states). Mutations: the default sorted alphabetically (red); the key reversed (red).
 - evidence: test_the_default_is_the_pulldown_order_and_the_list_is_unchanged, test_most_answered_sorts_within_each_group, test_the_pulldown_sits_right_of_the_tick_box
 - proof: ~/Desktop/ChromIQ-beta42-proof/knut-k33/ (after-en, after-de: *-02b-sort-by-open.png, *-02c-sorted-most-answered.png, *-02d-same-group-pulldown-order.png).
+### B8-1001 · FIXED, awaiting confirmation · The report page changed without Generate: a setting while Generate was greyed, Remove, Clear List, a re-read file; and the question said "Nothing was changed"
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- decided by: Knut, #182 5815133233 ("the report never automatically updated without first clicking generate report") and 5816794672 (2026-09-24: Remove Profile's Measurements, Clear List and re-adding a file that changed on disk "should all result in the red warning text appearing ... and never automatically change a report"; "it makes no sense to allow changing settings" while Generate is greyed; "The report text should never automatically be updated in any situation").
+- found by: challenge 2 of beta 42 (#1), on screen: Report-Limits-Evenness run 4, Verification. The project's own profiling sheet added (unticked) greyed Generate as "mixed kinds"; "Judged against" set to ChromIQ tight then redrew the page at once and re-stamped it as built with tight; removing the sheet left no red line; Generate asked "Nothing was changed for the selected report" and Update rewrote the saved report under ChromIQ tight.
+- where: `ui/dialogs/measurement_report_dialog.py`: `_settings_touched`, `_render`, `_keeping_the_page`, `_page_shows_a_report`, `_coverage_now`, `_page_coverage_moved`, `_page_lost_what_it_covers`, `_snapshot_of_the_page`, `_the_page_as_drawn`, `_export_pdf`, `_settings_were_modified`, `_show_stale_banner`, `_on_remove_profile`, `_on_clear_list`, `_append_source` (a changed file re-read), `_on_add_project`, `_differs_from_the_saved_report`, `_ask_update_or_create_new`, `_kinds_are_mixed`, `_grey_what_cannot_help`.
+- fixed: (a) the page, its graphs and its PDF change only through Generate, a report chosen in "Report shown", "New report…", Delete Selected Report and the window's first page; Remove, Clear List, a re-read file, a Generate that wrote nothing and any setting change keep the page and raise the red line (which now also compares what the page covers: each ticked measurement and its file's disk stamp). The PDF of a kept page is built from the measurements the page was drawn from. With Generate greyed, Report type, Judged against and "Show detailed data" are greyed too; the list and its buttons, "Report shown", Edit limits… and the PDF stay live. (b) the question after Generate also compares the controls with the selected saved report's own set and type, so it cannot say "Nothing was changed" over another set. (c) mixed kinds counts only ticked measurements (a press writes only those); its tooltip names the tick.
+- spec: `docs/design/measurement_report_limits.md` §28.10 rewritten with Knut's ruling quoted, the audit redone, and every condition that greys Generate listed with its reason text (awaiting confirmation).
+- tests: tests/test_c2_the_page_changes_only_with_generate.py (six tests). Mutations, each red: unticked rows count as mixed (1 red); `_settings_touched` redraws while greyed (2 red, with the amended older guard); the question ignores the saved report (1); no greying (2); Remove, Clear, the re-read each outside `_keeping_the_page` (1 each); the add after Clear asks only the list (1); coverage without the disk stamp (1); `_render` draws inside `_keeping_the_page` (4 of 6). Amended for Knut's ruling: `test_nothing_waits_for_a_button_that_cannot_be_pressed`, `test_an_external_file_is_judged_but_nothing_is_written`.
+- evidence: test_the_challenge_path_keeps_the_page_and_asks_honestly, test_the_question_asks_the_saved_report_not_only_the_page, test_with_generate_greyed_the_page_stays_and_the_settings_wait, test_remove_keeps_the_page_and_raises_the_line, test_clear_list_keeps_the_page_and_what_is_added_waits, test_a_file_changed_on_disk_and_added_again_keeps_the_page
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge2-fixes/ (before/, after/, REPORT.md; scene "rewrite").
+
+### B8-1002 · FIXED, awaiting confirmation · The graph tab bar's greyed arrow was painted exactly like a live one
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- found by: challenge 2 of beta 42 (#2), on screen in every appearance (crop-narrow-tabs-00/06): `isEnabled()` False, the pixels identical.
+- cause: none of the three palettes writes Qt's Disabled colour group, so the style drew a disabled arrow in the live colour.
+- where: `ui/peek_tab_bar.py` (`arrow_colours`, `_triangle`, `_paint_arrows`, `changeEvent`; `DEAD_ARROW_INK`).
+- fixed: the bar paints its own two arrows, live in the text colour and greyed at 0.28 of the way from the ground to it, and repaints them when the palette or style changes.
+- tests: tests/test_c2_a_greyed_tab_arrow_looks_greyed.py (light, dark, neutral; measured on the painted pixels of each button). Red on the code before the fix (dead = live, 129/129 in dark), and on `DEAD_ARROW_INK = 1.0` (3 red).
+- evidence: test_the_greyed_arrow_is_painted_fainter_than_the_live_one
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge2-fixes/ (scene "tabs", light, dark, neutral; the arrows cut out of the window photographs and measured).
+
+### B8-1003 · FIXED, awaiting confirmation · A one-pixel horizontal scroll bar under the report page
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: challenge 2 of beta 42 (#3), crop-wide-hscroll.png. Measured on screen before: the page was the view's width plus one at 1234, 1500 and 1700 px and at the minimum (760).
+- cause: a metric table of width 100% is laid out one pixel wider than its page (Qt rounds the Metric column's share up); measured on the table alone, 217 of 1204 layouts (1 to 8 dates, 600 to 1800 px).
+- where: `ui/dialogs/measurement_report_dialog.py` (`_SCREEN_TABLE_WIDTH`, `_metric_table`, `_report_body_html`).
+- fixed: the window's metric tables are 99.5% of the page (99.9% still ran over in 18 of the 1204, 99.8% in 1); it follows a resize, which a width in pixels would not. The PDF keeps 100%. B8-985 (at least four dates a table) untouched.
+- tests: tests/test_c2_the_report_page_is_never_wider_than_its_view.py. Mutation: `_SCREEN_TABLE_WIDTH = "100%"` (217 layouts over, red).
+- evidence: test_every_metric_table_fits_the_page_it_is_laid_out_in, test_the_page_fits_its_view_at_every_width_and_after_a_resize, test_the_pdf_keeps_the_papers_whole_width
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge2-fixes/ (scene "layout").
+
+### B8-1004 · FIXED, awaiting confirmation · A limit word stepped out of the margin landed beside the OTHER line
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: challenge 2 of beta 42 (#4): Colour accuracy under Custom ISO 12647-7, Max's word in the margin, Avg's line a few pixels under it; Avg's word went a step up, above the Max line.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_place_limit_words`, `_WORD_PAST_ANOTHER_LINE`).
+- fixed: a place with another limit line between the word and its own line costs 800 (more than a red x, a line or data; less than printing over another word), so the word takes the side away from the other line. B8-986's rules are unchanged, and `_check` in the K32 battery now holds every placement to the new rule too.
+- tests: tests/test_k32_limit_words.py (the challenge's case, and rule 5 of `_check` over the 60-shape battery of every graph). Mutation: `_WORD_PAST_ANOTHER_LINE = 0.0` (11 red).
+- evidence: test_a_word_stepped_out_of_the_margin_stays_beside_its_own_line, test_every_graph_places_every_word_by_the_one_rule
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge2-fixes/ (scene "words").
+
+### B8-1005 · FIXED, awaiting confirmation · The Printing record's sentence named four graphs a record of one measurement does not draw
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: challenge 2 of beta 42 (#5), runs/en-main/…/en-pr-04.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_record_graphs_sentence`, `_graphs_drawn_for`).
+- fixed: the sentence names only the graphs drawn (shown and with at least two dates), in tab order; all four is §28.3's sentence unchanged; none, with one measurement: "It carries no other graph either: a graph needs at least two measurements, and this report has one." English and German by hand; the other twelve carry the English under the beta rule. Both i18n ledgers re-measured in the same commit.
+- tests: tests/test_c2_a_printing_record_names_only_the_graphs_it_draws.py. Mutation: always the four-graph sentence (2 red).
+- evidence: test_one_measurement_names_no_graph_and_says_why, test_the_sentence_names_exactly_the_graphs_drawn, test_german_is_written_by_hand
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge2-fixes/ (scene "printing", EN and DE).
+
+### B8-1006 · FIXED, awaiting confirmation · The "Some limits cannot be checked" strip cut its own "…" to one dot
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: challenge 2 of beta 42 (#7, older than beta 42), crop-narrow-strip-end.png. Measured on screen before, at 820 px: a 758 px line in a 754 px text area.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_set_strip`, `_strip_text_width`, `_STRIP_SIDE_PX`, `_rewrap_beside_the_pulldown`).
+- fixed: the shortened line is fitted to the label's own text area (its width less the 10 px padding and 1 px border a side), and fitted again once the layout has given the label its width. The choice between two wrapped lines and one shortened line is asked exactly as before: asking it of the label's width too was tried first, and a strip wrapped before the window's screen-fitting ladder had run took its height out of the trend charts (measured on screen, 150 to 62 px; found by comparing the before and after photographs, not by any test).
+- tests: tests/test_c2_the_strip_is_shortened_inside_its_own_box.py. Mutation: shorten to the old `self.width() - 60` (red).
+- evidence: test_the_shortened_strip_fits_inside_its_box_at_every_width
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge2-fixes/ (scene "strip", EN and DE).
+
+### B8-1007 · FIXED, awaiting confirmation · `userdrive.Drive(appearance=…)` painted the appearance and left the setting the report reads
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- found by: challenge 2 of beta 42 (#8): a "dark" drive photographed a light report page in a dark window; every dark or neutral report photograph taken through `userdrive` was invalid.
+- where: `scripts/userdrive.py` (`Drive.__init__`).
+- fixed: the drive writes `appearance` to the (sandboxed) settings before the window is built, then applies it as `main.py` does, before and after the window exists.
+- tests: tests/test_c2_userdrive_sets_the_appearance_setting.py (dark, neutral, light). Mutation: the `settings.set("appearance", …)` line dropped (3 red).
+- evidence: test_the_drive_writes_the_appearance_it_paints
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge2-fixes/ (after/en-dark, after/en-neutral: `appearance_setting` in driver-report.json, and the page's own colours in the photographs).

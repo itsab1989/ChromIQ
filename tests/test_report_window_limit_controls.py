@@ -234,7 +234,11 @@ def test_an_external_file_is_judged_but_nothing_is_written(qapp, tmp_path):
     dlg = _dialog(_settings(tmp_path), ti3)
     try:
         assert dlg._run_ctx is None
-        assert dlg._set_combo.isEnabled()
+        # KNUT, #182 5816794672: with Generate greyed (a file in no project
+        # has no run to save into) the settings are greyed with it; the
+        # choice below is still the report's alone, and writes nothing.
+        assert not dlg._generate_btn.isEnabled()
+        assert not dlg._set_combo.isEnabled()
         idx = dlg._set_combo.findData("chromiq_tight")
         dlg._set_combo.setCurrentIndex(idx)
         dlg._on_set_chosen(idx)

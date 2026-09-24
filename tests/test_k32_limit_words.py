@@ -133,11 +133,17 @@ def _check(chart, where_msg=""):
         # the boxes and the polylines the paint recorded.
         others = [b for b, _w, _y in boxes if b is not rect]
 
+        def past(r):
+            c = r.center().y()
+            return any(ly != y and min(c, y) < ly < max(c, y)
+                       for ly in line_ys)
+
         def clear(r):
             return (not any(r.adjusted(-1, -1, 1, 1).intersects(b)
                             for b in others)
                     and not _crosses_a_line(r, line_ys)
-                    and _data_under(r, chart._polys) == 0.0)
+                    and _data_under(r, chart._polys) == 0.0
+                    and not past(r))
         beside = [QRectF(rect.left(), min(max(top, T), T + h - 14.0),
                          rect.width(), 14.0)
                   for top in (y - 16.0, y + 2.0)]
@@ -145,6 +151,20 @@ def _check(chart, where_msg=""):
             assert clear(rect), (where_msg, "the word is not in a clear place "
                                  "while one beside its line was", where,
                                  rect)
+        # 5. it is beside ITS OWN line: no other limit line between the word
+        # and its line (challenge 2 of beta 42, #4), unless every place the
+        # rule may choose from is past one too or prints over another word.
+        if past(rect):
+            spots = [QRectF(rect.left(),
+                            min(max(top, T), T + h - 14.0), rect.width(),
+                            14.0)
+                     for step in range(5)
+                     for top in (y - 16.0 - 15.0 * step,
+                                 y + 2.0 + 15.0 * step)]
+            assert all(past(r) or any(r.adjusted(-1, -1, 1, 1).intersects(b)
+                                      for b in others) for r in spots), (
+                where_msg, "the word is past another limit line with a "
+                "place beside its own line free", rect, y, line_ys)
 
 
 # ---------------------------------------------------------------------------
@@ -186,6 +206,35 @@ def test_a_word_inside_goes_to_the_side_with_less_data_under_it(qapp):
     [(rect, where, _y)] = down._word_boxes
     assert where == "above", (where, rect)
     _check(down, "data below")
+
+
+def test_a_word_stepped_out_of_the_margin_stays_beside_its_own_line(qapp):
+    """Challenge 2 of beta 42, #4, photographed on Colour accuracy under
+    Custom ISO 12647-7: Max's word in the margin, the Avg line a few pixels
+    under the Max line (too close for a second margin word), and data just
+    under Avg. Avg's word went a step up, ABOVE THE MAX LINE, where a reader
+    takes it for Max's. It must stay beside its own line: on the side away
+    from the Max line.
+
+    MUTATION, proved to land: `_WORD_PAST_ANOTHER_LINE = 0.0` (the old
+    scoring) puts it above the Max line again, here and in the battery
+    (`_check` rule 5)."""
+    # axis 0 .. 13.8 (data max 12.3 * 1.12); Max 3.0 is clear of the numbers,
+    # Avg 2.2 is about 7 px under it; data runs 12 to 20 px under Avg.
+    chart = _chart([[0.5, 0.6, 0.7, 12.3], [0.8, 0.9, 1.0, 6.0]],
+                   [(2.2, "Avg"), (3.0, "Max")], accuracy=True)
+    _paint(chart)
+    boxes = {chart._hits[k][1]: (r, w, y) for k, (r, w, y) in
+             enumerate(chart._word_boxes)}
+    r_max, w_max, y_max = boxes["note Max"]
+    r_avg, w_avg, y_avg = boxes["note Avg"]
+    assert w_max == "margin", boxes
+    assert w_avg != "margin", boxes
+    assert y_avg > y_max, "the Avg line is under the Max line in this case"
+    assert r_avg.center().y() > y_max, (
+        "Avg's word is above the Max line", r_avg, y_max, y_avg)
+    assert w_avg == "below", boxes
+    _check(chart, "challenge 2 #4")
 
 
 def test_a_word_wider_than_the_margin_goes_inside(qapp):

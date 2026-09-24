@@ -5730,14 +5730,25 @@ nicht bewertet, daher enthält er keine Grafik einer bewerteten Kennzahl: Jede
 dieser Grafiken wird gegen ihren Grenzwert gezeichnet. Die enthaltenen
 Grafiken zeigen Farbgenauigkeit, Papierweiß, dunkelstes Schwarz und die
 Würfelecken."* **Question for Knut:** should a Printing record draw the
-judged metrics' graphs without limit lines instead?
+judged metrics' graphs without limit lines instead? **Amended (challenge 2
+of beta 42, B8-1005, not confirmed):** the second sentence names only the
+graphs actually drawn. A record of one measurement draws none, and says
+instead *"It carries no other graph either: a graph needs at least two
+measurements, and this report has one."* (German: *"Er enthält auch keine
+andere Grafik: Eine Grafik braucht mindestens zwei Messungen, und dieser
+Bericht hat eine."*); a record that draws some names those, in tab order.
 
 **27.4 Metric tables on screen.** The window fits its metric tables (Report
 Results and the Overview) to its own page width, never fewer than four dates
 a table, each table filled before the next begins (five dates are 4 + 1); the PDF
 fits them to the paper and shares the dates out evenly, as before. A table may be 1.5 px over the text
 width (Qt's rounding of the Metric column's share), which had halved a four
-date table in both. The page is laid out when it is drawn.
+date table in both. The page is laid out when it is drawn. **Amended
+(challenge 2 of beta 42, B8-1003, not confirmed):** in the window a metric
+table is 99.5% of the page, not 100%: at 100% Qt laid it out one pixel wider
+than the page and the view carried a one-pixel horizontal scroll bar. The
+page is never wider than its view, at any width and after a resize; the PDF
+keeps 100%.
 
 **27.5 Limit words (amends §17 item 6).** Each word on its own: in the left
 margin, centred on its line, when it is no wider than the margin and clear of
@@ -5745,13 +5756,22 @@ the axis numbers and of another margin word; otherwise at the left end of its
 line, above or below it (a step further out only when both print over
 something), on the side that prints over least: another word or a red x
 first, then another limit line, then data lines. Every graph, window and PDF.
+**Amended (challenge 2 of beta 42, B8-1004, not confirmed):** a word stays
+beside its OWN line: a place with another limit line between the word and its
+line is taken only when every other place prints over another word. (Avg's
+word, with Max's in the margin a few pixels above, had stepped up past the
+Max line, where it read as Max's.)
 
 **27.6 The graph tab bar.** With more tabs than fit: at the left end the
 first tab at the edge and the left arrow greyed; at the right end the last tab
 against the arrows and the right arrow greyed; between, both arrows live and
 a fifth of each hidden neighbour showing (inside Knut's 1/6 to 1/4); a partly
 shown tab is clicked like any tab and comes whole. `ui/peek_tab_bar.py`,
-reusable, used only here.
+reusable, used only here. **Amended (challenge 2 of beta 42, B8-1002, not
+confirmed):** a greyed arrow is PAINTED greyed (about a quarter of the live
+arrow's contrast), in the light, dark and neutral appearances; the style had
+painted a disabled arrow exactly like a live one, because none of the three
+palettes sets Qt's disabled colours.
 
 **27.7 Nothing measured, nothing listed.** Opened on a selection with nothing
 of its own kind measured, the Measurement Report's list is empty and nothing
@@ -5782,26 +5802,124 @@ shows a report come in UNTICKED; the page, the graphs and the PDF stay the
 report on screen, and ticking an added row is a changed setting like any other
 (the red line, and Generate asks). A window that was EMPTY is filled, ticked,
 as before (our decision, put to Knut: it has no report to keep).
-**Audit of every other way the page could change without Generate** (by
-reading the code, the add path also driven):
+**Audit of every other way the page could change without Generate**, redone
+after Knut's ruling below (challenge 2 of beta 42; by reading every caller of
+`_render`, `_refresh` and `_refresh_trend`, and each path driven on screen,
+`~/Desktop/ChromIQ-beta42-proof/challenge2-fixes/`):
+
+**Knut's ruling, #182
+[5816794672](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5816794672)
+(2026-09-24)**, on the four paths the list below used to leave redrawing:
+
+> *"Remove Profile's Measurements, Clear List, re-adding a file that changed
+> on disk", these should all result in the red warning text appearing that
+> settings have changed, and never automatically change a report.*
+>
+> *In the case when not all settings have values, for ex. if the list of
+> "Included Measurements..." is empty or no measurement is selected, then it
+> would be natural that Generate Report is greyed out. Are there other cases
+> when the Generate Report button is greyed out?*
+>
+> *Changing the settings while Generate Report is greyed out and it is not
+> allowed or possible to generate a report, then it makes no sense to allow
+> changing settings. The report text should never automatically be updated in
+> any situation, as a report is a record of history and shall never we
+> changed unless deliberately done by a user.*
+
+What the window does now (built for beta 42, B8-1001; NOT confirmed):
+
+* **The page, its graphs and its PDF change only through a door that shows a
+  report:** Generate report, a report chosen in "Report shown", "New
+  report…", Delete Selected Report (which shows the next one), and the
+  window's first page. Every other path keeps the page as drawn.
 * Report type, Judged against, "Show detailed data", a tick, Select all,
-  Deselect all, the Report limits window: the red line only (unchanged).
-* Choosing an entry in "Report shown", "New report…", Generate, Delete
-  Selected Report: these ARE the act of showing or writing a report.
-* **Remove Profile's Measurements… redraws the page at once** without the
-  removed measurements. Not changed: the page, the PDF and Generate read one
-  list of measurements, so a removed one cannot stay on the page without being
-  written by the next Generate. **Question for Knut:** keep, or keep the page
-  and refuse the PDF until Generate?
-* **Clear List** empties the page and deselects the report (round 2A, R2A-6).
-  Not changed; same question.
-* **Adding a file that is already listed and has changed on disk** reads it
-  again and redraws the page, keeping the red line (R21-F1). Not changed;
-  **question:** redraw, or keep the page and raise the red line?
-* **While Generate is greyed** (nothing ticked, a measurement outside every
-  project), a setting change redraws at once, because there is no press to
-  wait for (the adversary round that found a red line asking for a dead
-  button). Not changed; **question** whether this exception stands.
+  Deselect all, the "This report" column of the limits window: the red line
+  only (unchanged). **The line now also compares what the page COVERS**
+  (each ticked measurement and the disk stamp of its file), not only the
+  settings.
+* **Remove Profile's Measurements**: the list loses the measurement; the
+  page, the graphs and the PDF stay the report on screen; the red line comes
+  up when the page covered what was removed (removing an added, unticked
+  measurement changes nothing). The PDF is built from the measurements the
+  page was drawn from, so it is still the page (Knut, 2026-09-18).
+* **Clear List**: the list empties, the page stays, the red line comes up,
+  Save report as PDF… stays live (the page is a report), Generate is greyed
+  ("No measurement is loaded"). "Report shown" moves to "New report…" as
+  before (R2A-6), so Generate can never Update a report that is no longer in
+  the list. Measurements added afterwards come in UNTICKED, as over any page
+  that shows a report.
+* **A file added again that changed on disk**: the list reads it again; the
+  page does not; the red line comes up.
+* **A setting changed while Generate is greyed**: the page stays. Report
+  type, Judged against and "Show detailed data" are GREYED while Generate is
+  (Knut: *"it makes no sense to allow changing settings"*), because no reason
+  Generate is greyed for is answered by those three. The list, its buttons
+  (tick, Select all, Deselect all, Add, Remove, Clear), "Report shown", Edit
+  limits… and Save report as PDF… stay live: they are how a reader un-greys
+  Generate, looks at another report, or keeps the one on screen. With
+  NOTHING ticked the red line stays down as B8-601 ruled (it would ask for a
+  press that cannot happen), unless the page has lost a measurement it
+  covered.
+* **The question after Generate** (M-REPORT-UPDATE-OR-NEW /
+  M-REPORT-UNCHANGED-UPDATE-OR-NEW) now also compares the controls with the
+  SELECTED SAVED REPORT's own limit set and type, so it cannot say "Nothing
+  was changed for the selected report" over a set that is not the saved
+  report's (the challenge drove exactly that, and Update rewrote a ChromIQ
+  default report as ChromIQ tight).
+* **Mixed kinds (FC-2) counts only TICKED measurements**: a press writes the
+  ticked ones and nothing else, so an unticked profiling sheet beside a
+  verification's dates (the way K32 adds it) no longer greys Generate. Its
+  tooltip now says "ticked together … Untick one kind, or remove it".
+
+**Every condition that greys Generate report, and the reason shown under it**
+(`_sync_type_combo`; the reason is the button's tooltip and the line under
+it, `_set_generate_why`). For Knut's question:
+
+1. No measurement in the list: *"No measurement is loaded. Add a profile's
+   measurements to the list to generate a report."*
+2. Every measurement unticked: *"No measurement is ticked in the list, so
+   there is nothing to report on. Tick one to generate a report."*
+3. A profiling sheet and dated verifications TICKED together (FC-2):
+   *"Measurements of a profiling sheet and of verifications are ticked
+   together, and each has its own kind of report. Untick one kind, or remove
+   it with Remove Profile's Measurements…, to save a report. Save report as
+   PDF… saves the report shown here."*
+4. Measurements of several places ticked and one of them is in no ChromIQ
+   project: *"A report across profile runs or projects is saved only when
+   every ticked measurement is in a ChromIQ project. Save report as PDF…
+   saves the report shown here."*
+5. The window's own measurement is in no profile run (a file opened from
+   outside a project): *"This measurement is not part of a profile run, so
+   there is no run to save a report into. Save report as PDF… saves the
+   report shown here."*
+6. Run type Calibration with a profile run's measurement ticked: *"With Run
+   type Calibration, a report covers calibrations only, and a profile run's
+   measurement is ticked. Untick it to save a report of the calibrations.
+   …"* (and the plural variant for {n} measurements).
+7. Run type Calibration on a measurement that is not a project's
+   calibration: *"With Run type Calibration, Generate report saves a report
+   of a project's calibration, and the measurement this window is on is not
+   one. …"*
+8. Run type Calibration whose calibration has not been measured since its
+   chart was made: *"The calibration has not been measured since its chart
+   was made, so there is no measurement to report on. Its earlier reports
+   can still be opened, and Save report as PDF… saves the report shown
+   here."*
+
+Of these, 1 and 2 are the two Knut named; 3, 4 and 6 are answered in the
+list (untick or remove); 5, 7 and 8 belong to the measurement the window
+was opened on, and in the usual case nothing in the window answers them. **Question for Knut:** in 5, 7 and 8 the window can never generate, so
+with the settings greyed its page is fixed at what it opened with: a file
+from outside a project can no longer be looked at against another limit set
+before saving its PDF. Keep that (his rule as written), or let such a
+window redraw on a setting change, since it holds no saved report to keep?
+
+**Proof:** `~/Desktop/ChromIQ-beta42-proof/challenge2-fixes/` (on screen, EN
+and DE, before and after). **Verified by:**
+`tests/test_c2_the_page_changes_only_with_generate.py` (six tests, one per
+path, each red on its mutation) and the two older guards it amends,
+`tests/test_the_report_waits_for_the_generate_button.py::test_nothing_waits_for_a_button_that_cannot_be_pressed`
+and `tests/test_report_window_limit_controls.py::test_an_external_file_is_judged_but_nothing_is_written`.
 
 ## 29. A row ChromIQ cannot measure reads ✕ in every limit set (#182, 2026-09-24, beta 42)
 

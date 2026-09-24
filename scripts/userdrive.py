@@ -115,10 +115,21 @@ class Drive:
         assert self.settings.get("custom_output_path", "") == str(self.work), \
             "SANDBOX FAILED"
 
+        # **THE APPEARANCE IS A SETTING, NOT ONLY A PALETTE (challenge 2 of
+        # beta 42, #8).** The palette and the style sheet alone left
+        # `appearance` at whatever the sandbox held, and every window that
+        # picks its own colours reads the SETTING (the Measurement Report's
+        # page, its strip, its graphs): a "dark" drive photographed a light
+        # report on a dark window. Written first, then applied as main.py
+        # applies it, before and after the window exists.
+        self.settings.set("appearance", appearance)
+        assert self.settings.get("appearance", "") == appearance, \
+            "the appearance setting did not take"
         from ui.main_window import MainWindow
         from ui.theme import apply_appearance
         apply_appearance(self.app, None, appearance)
         self.win = MainWindow(self.settings)
+        apply_appearance(self.app, self.win, appearance)
         self.win.resize(*size)
         self.win.show()
         self.win.raise_()

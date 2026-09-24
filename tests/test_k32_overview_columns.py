@@ -44,7 +44,9 @@ def _window(tmp_path, qapp, dates):
 def _dates_per_table(html: str) -> "list[int]":
     """How many dated columns each metric table of *html* holds."""
     return [t.count("<th align='right'")
-            for t in re.findall(r"<table width='100%' cellpadding='4'.*?</table>",
+            # any width: the window's tables are `_SCREEN_TABLE_WIDTH`, not
+            # 100% (challenge 2 of beta 42, #3)
+            for t in re.findall(r"<table width='[0-9.]+%' cellpadding='4'.*?</table>",
                                 html, flags=re.S)]
 
 
