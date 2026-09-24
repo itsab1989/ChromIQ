@@ -3118,6 +3118,16 @@ class MeasurementReportDialog(QDialog):
                     c.setMinimumHeight(
                         max(60, c.minimumHeight() - _over()))
             if _over() > 0:
+                # **THE VIEW'S LAST RUNG, SO THE LIST AND ITS BUTTONS DO NOT
+                # PAY (B8-956).** The list never goes below the natural height
+                # of Select all / Deselect all beside it now, which costs
+                # about 30 px on an 800 px screen (offscreen, measured: 752 px
+                # of 760 before, 780 after, and 17 px short once a report
+                # with wrapped notes is picked). The report view scrolls, so
+                # it gives them up, down to 60 px (three lines of text).
+                self._view.setMinimumHeight(
+                    max(60, self._view.minimumHeight() - _over()))
+            if _over() > 0:
                 # the last thing left: the list at two rows, as when even the
                 # plain minimum did not fit
                 self._size_profile_list(compact=True)
@@ -4175,39 +4185,58 @@ class MeasurementReportDialog(QDialog):
         n = len(self._list_rows)
         if rows is None:
             rows = 2 if compact else min(max(n, 1), self._LIST_VISIBLE_ROWS)
-        h = self._list_height(rows)
+        rows, h = self._list_box(rows)
         #: how many rows the list is sized to show, for the fit after show
         self._list_rows_shown = rows
         self._profile_list.setMinimumHeight(h)
         self._profile_list.setMaximumHeight(h)
-        # **AND THE TWO BUTTONS BESIDE IT MUST NOT MAKE THE ROW TALLER
-        # (B8-590).** They sit in a column to the right of the list, so the
-        # row is as tall as the taller of the two, and stacked at their
-        # natural height they outgrew a list compacted to two rows. Measured
-        # by `tests/test_install_rename_and_run_filter.py`: the window's
-        # minimum went from 780 to 782 and stopped fitting an 800 px screen,
-        # which is the whole point of `compact`. Capped to the list's own
-        # height, minus the spacing between them, so the column can never be
-        # the thing that decides.
-        # A MAXIMUM ALONE DOES NOTHING: measured, the two buttons stayed 30 px
-        # tall under `setMaximumHeight(16)`, because a QPushButton's
-        # `minimumSizeHint` is 30 and a minimum beats a maximum. So the floor
-        # is dropped as well, and only while the cap is actually tighter than
-        # the button's own idea of itself, which is the compact case and
-        # nothing else.
-        room = max(16, (h - 6) // 2)
+        # **THE TWO BUTTONS BESIDE IT KEEP THEIR OWN HEIGHT (B8-956).** They
+        # sit in a column to the right of the list. B8-590 capped them to a
+        # list compacted to two rows, so the row could never be taller than
+        # the list, and at the 760 px minimum size that squashed Select all /
+        # Deselect all to about half their height with the text touching the
+        # frame, over a list showing one date (beta 40 second check, a4-en
+        # and a4-de, *-3-minimum-size.png). The LIST now yields to them
+        # instead: `_list_box_height` never goes below the column's natural
+        # height, and the window's fitting gives up the report view and the
+        # charts first (`showEvent`, `_keep_the_list_inside_the_window`).
         for b in (getattr(self, "_select_all_btn", None),
                   getattr(self, "_deselect_all_btn", None)):
-            if b is None:
-                continue
-            natural = b.sizeHint().height()
-            if room < natural:
-                b.setMinimumHeight(0)
-                b.setMaximumHeight(room)
-            else:
+            if b is not None:
                 b.setMinimumHeight(0)
                 b.setMaximumHeight(16777215)
 
+    def _tick_column_height(self) -> int:
+        """Select all over Deselect all at their natural height, with the
+        spacing between them (B8-956)."""
+        btns = [b for b in (getattr(self, "_select_all_btn", None),
+                            getattr(self, "_deselect_all_btn", None))
+                if b is not None]
+        if not btns:
+            return 0
+        return sum(max(b.sizeHint().height(), b.minimumSizeHint().height())
+                   for b in btns) + 6 * (len(btns) - 1)
+
+    #: never fewer whole rows than this, whatever the window's height
+    _LIST_MIN_ROWS = 2
+
+    def _list_box(self, rows: int) -> "tuple[int, int]":
+        """``(rows, height)`` the list is given when *rows* rows are asked
+        (B8-956): whole rows, at least `_LIST_MIN_ROWS`, and never lower than
+        the column of buttons beside it. Rows are added (whole ones, so no
+        sliver of the next peeks in) until the column fits; past the last
+        row the list is simply taller than its content."""
+        n = len(self._list_rows)
+        rows = max(rows, self._LIST_MIN_ROWS)
+        column = self._tick_column_height()
+        h = self._list_height(rows)
+        while h < column and rows < n:
+            rows += 1
+            h = self._list_height(rows)
+        return rows, max(h, column)
+
+    def _list_box_height(self, rows: int) -> int:
+        return self._list_box(rows)[1]
 
     def _list_height(self, rows: int) -> int:
         """The list's height for *rows* whole rows, its frame included."""
@@ -4312,7 +4341,7 @@ class MeasurementReportDialog(QDialog):
         # tried without laying the window out once per try, and the list is
         # set once, which keeps this from answering its own relayout
         base = self._layout_need() - self._profile_list.maximumHeight()
-        over = base + self._list_height(wanted) - cap
+        over = base + self._list_box_height(wanted) - cap
         view = getattr(self, "_view", None)
         if over > 0 and view is not None and view.minimumHeight() > 150:
             # the report view scrolls, so it yields first, down to the
@@ -4320,8 +4349,10 @@ class MeasurementReportDialog(QDialog):
             view.setMinimumHeight(max(150, view.minimumHeight() - over))
             base = self._layout_need() - self._profile_list.maximumHeight()
         rows = wanted
-        while rows > 2 and base + self._list_height(rows) > cap:
+        while rows > 2 and base + self._list_box_height(rows) > cap:
             rows -= 1
+        # the rows the list will really show, the buttons' floor counted
+        rows = self._list_box(rows)[0]
         if rows != current:
             self._size_profile_list(rows=rows)
         # **AND THE VIEW'S NEXT RUNG OF `showEvent`'s LADDER (B8-927).** A
@@ -4352,6 +4383,11 @@ class MeasurementReportDialog(QDialog):
                 want = min(floor0, c.minimumHeight() - over)
                 if want != c.minimumHeight():
                     c.setMinimumHeight(want)
+        # and the view's last rung, as in `showEvent` (B8-956): the list's
+        # floor is the buttons' natural height, and the view scrolls
+        over = self._layout_need() - cap
+        if over > 0 and view is not None and view.minimumHeight() > 60:
+            view.setMinimumHeight(max(60, view.minimumHeight() - over))
         floor = min(self._layout_need(), cap)
         if floor != self.minimumHeight():
             self.setMinimumHeight(floor)

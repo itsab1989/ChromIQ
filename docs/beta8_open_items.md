@@ -27493,3 +27493,16 @@ would reach.
 - tests: tests/test_b41_a_recorded_project_wins_over_every_namesake.py (mutation "guard below 3b", i.e. the beta 40 code: 3 red; mutation "no copied-pack exception": test_a_copied_pack_still_reads_its_own_copy and the K25 test red)
 - evidence: test_a_copy_that_answers_to_the_name_beside_the_home_loses, test_a_copy_named_like_it_beside_the_home_loses, test_a_gone_recorded_folder_still_finds_the_namesakes, test_the_window_reads_the_recorded_project_not_the_copy_beside, test_a_copied_pack_still_reads_its_own_copy
 - proof: ~/Desktop/ChromIQ-beta41-proof/small-fixes/p1-before, p1-after (photographs/N3-doc-picked.png, driver-notes.txt "[N3] row"), p1/p1-result-after.txt (probe: A, B and C all answer the recorded folder).
+
+### B8-956 · FIXED, awaiting confirmation · At its minimum size the report window's list showed one date and Select all / Deselect all were squashed
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: beta 41. On an 800 px screen (the suite's offscreen screen) the GERMAN window at 760 px wide still does not fit: its "Report settings" frame alone needs 233 px there, because its button rows wrap, and Qt squeezes the frame by a few pixels whatever the list does (it did so before this fix too, by more). Not changed here; the English window fits.
+- where: `ui/dialogs/measurement_report_dialog.py` (`_size_profile_list`, `_list_box`, `_tick_column_height`, `showEvent`'s ladder, `_keep_the_list_inside_the_window`).
+- found by: the beta 40 second check (`~/Desktop/ChromIQ-beta40-proof/second-check/a4-en`, `a4-de`, `*-3-minimum-size.png`): B8-590 capped the two buttons to a list compacted to two rows (header and one date), so at the 760 px minimum they were drawn at about half their height with the text touching the frame.
+- measured before (on screen, `~/Desktop/ChromIQ-beta41-proof/small-fixes/p2-before-en`, `p2-before-de`, driver-notes.txt "buttons"): at the minimum size Select all at y 293 and Deselect all at y 315 (22 px apart for 30 px buttons), even at the default size 28 px apart; after (`p2-after-en`, `p2-after-de`): 36 px apart (30 + 6) at every size, the list showing its heading and three dates.
+- fixed: the list is never lower than the two buttons at their natural height (`_list_box`: whole rows added until the column fits, never fewer than two), the buttons are no longer capped, and the window's height fitting gives up the report view first: a last rung in `showEvent` and `_keep_the_list_inside_the_window` lets the view (which scrolls) go to 60 px before anything else.
+- tests: tests/test_b41_the_list_and_its_buttons_keep_their_height.py (the beta 40 code: 16 of 30 px in English, 13 of 30 in German, red; mutation "no column floor" in `_list_box`: 3 red)
+- evidence: test_the_list_and_its_buttons_keep_their_height_at_every_size, test_the_list_is_never_lower_than_the_buttons_beside_it; tests/test_the_report_type_row_never_covers_the_list.py and tests/test_b40_report_window_buttons_fit_at_the_minimum_width.py kept green
+- proof: ~/Desktop/ChromIQ-beta41-proof/small-fixes/p2-before-en, p2-before-de, p2-after-en, p2-after-de (photographs/*-3-minimum-size.png), p2/ (test outputs).
