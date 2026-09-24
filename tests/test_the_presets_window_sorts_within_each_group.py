@@ -79,6 +79,8 @@ def test_the_default_is_the_pulldown_order_and_the_list_is_unchanged(qapp, rows)
         assert labels != sorted(labels, key=str.lower)
     finally:
         dlg.close()
+        dlg.deleteLater()
+        QApplication.processEvents()
 
 
 @pytest.mark.parametrize("only_star", [False, True],
@@ -123,6 +125,8 @@ def test_most_answered_sorts_within_each_group(qapp, rows, only_star):
             [[r.label for r in m] for _g, m in before]
     finally:
         dlg.close()
+        dlg.deleteLater()
+        QApplication.processEvents()
 
 
 def test_the_pulldown_sits_right_of_the_tick_box(qapp, rows):
@@ -138,3 +142,5 @@ def test_the_pulldown_sits_right_of_the_tick_box(qapp, rows):
                    - combo.mapTo(dlg, combo.rect().center()).y()) <= 6
     finally:
         dlg.close()
+        dlg.deleteLater()
+        QApplication.processEvents()

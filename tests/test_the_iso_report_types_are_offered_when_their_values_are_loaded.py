@@ -87,6 +87,8 @@ def test_offered_for_a_verification_with_the_shipped_values(
         assert _html.escape(head) in body, body[:600]
     finally:
         dlg.close()
+        dlg.deleteLater()
+        QApplication.processEvents()
 
 
 @pytest.mark.parametrize("tid", [mr.REPORT_TYPE_ISO_8, mr.REPORT_TYPE_ISO_7])
@@ -101,6 +103,8 @@ def test_greyed_with_the_reason_when_no_values_are_loaded(
         assert "Reference values" in tip, tip
     finally:
         dlg.close()
+        dlg.deleteLater()
+        QApplication.processEvents()
 
 
 @pytest.mark.parametrize("tid", [mr.REPORT_TYPE_ISO_8, mr.REPORT_TYPE_ISO_7])

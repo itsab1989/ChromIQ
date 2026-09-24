@@ -49,9 +49,12 @@ def test_the_help_window_opens_wide(title, tmp_path, qapp):
         try:
             assert info.width() >= 900, info.width()
         finally:
+            info.close()
             info.deleteLater()
     finally:
         dlg.close()
+        dlg.deleteLater()
+        QApplication.processEvents()
 
 
 def test_the_paragraph_is_in_both_helps(tmp_path, qapp):
@@ -61,6 +64,8 @@ def test_the_paragraph_is_in_both_helps(tmp_path, qapp):
         assert tr(_ISO_USE_HELP) in buttons[tr("Judged against")].dialog_body()
     finally:
         dlg.close()
+        dlg.deleteLater()
+        QApplication.processEvents()
     from ui.dialogs.thresholds_dialog import ThresholdsDialog
     from ui.tooltip_button import TooltipButton
     from core.settings import AppSettings
@@ -71,6 +76,8 @@ def test_the_paragraph_is_in_both_helps(tmp_path, qapp):
         assert bodies and tr(_ISO_USE_HELP) in bodies[0]
     finally:
         lim.close()
+        lim.deleteLater()
+        QApplication.processEvents()
 
 
 def test_the_paragraph_says_what_each_set_is_for_and_claims_nothing():
