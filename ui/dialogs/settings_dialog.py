@@ -4225,22 +4225,35 @@ class SettingsDialog(QDialog):
             tr("Default measurement report title and file name"), self)
         tgl = QVBoxLayout(title_grp)
         tgl.setSpacing(8)
-        _pr = QHBoxLayout()
-        _pr.addWidget(QLabel(tr("Profiling measurement runs:"), self))
+        # ONE GRID, SO THE THREE BOXES START AT ONE LEFT EDGE. Knut, #182
+        # 5815501486 (2026-09-24): *"The three input boxes' left edges should
+        # be aligned to the left edge of the 'Verification measurement runs'
+        # input box."* Each line was its own QHBoxLayout, so each box started
+        # wherever its own label ended. The labels share column 0, which is
+        # as wide as the longest of them in whatever language is shown (in
+        # English that is "Verification measurement runs:", so the boxes line
+        # up with the one he named); the boxes share column 1 and take the
+        # rest of the width.
+        _tg = QGridLayout()
+        _tg.setHorizontalSpacing(8)
+        _tg.setVerticalSpacing(8)
+        _tg.setColumnStretch(1, 1)
         self._report_title_prof_edit = QLineEdit(self)
-        _pr.addWidget(self._report_title_prof_edit, 1)
-        tgl.addLayout(_pr)
-        _vr = QHBoxLayout()
-        _vr.addWidget(QLabel(tr("Verification measurement runs:"), self))
         self._report_title_verify_edit = QLineEdit(self)
-        _vr.addWidget(self._report_title_verify_edit, 1)
-        tgl.addLayout(_vr)
         # #182 K30 (B2): a calibration's report has its own title.
-        _cr = QHBoxLayout()
-        _cr.addWidget(QLabel(tr("Calibration measurements:"), self))
         self._report_title_cal_edit = QLineEdit(self)
-        _cr.addWidget(self._report_title_cal_edit, 1)
-        tgl.addLayout(_cr)
+        for _i, (_txt, _edit) in enumerate((
+                (tr("Profiling measurement runs:"),
+                 self._report_title_prof_edit),
+                (tr("Verification measurement runs:"),
+                 self._report_title_verify_edit),
+                (tr("Calibration measurements:"),
+                 self._report_title_cal_edit))):
+            _lab = QLabel(_txt, self)
+            _lab.setBuddy(_edit)
+            _tg.addWidget(_lab, _i, 0)
+            _tg.addWidget(_edit, _i, 1)
+        tgl.addLayout(_tg)
         _apn_row = QHBoxLayout()
         self._report_add_profile_check = QCheckBox(
             tr("Add profile name in title and file name"), self)
