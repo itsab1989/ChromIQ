@@ -1106,9 +1106,14 @@ def test_the_two_custom_columns_are_compared_on_their_NUMBERS(gen):
     facts = gen.custom_column_facts()
     if len(facts["custom_ids"]) < 2:
         pytest.skip("this ChromIQ does not offer both Custom columns")
-    assert facts["custom_shape_differs"], (
-        "the two columns no longer differ in shape, so the paragraph naming "
-        "the rows they differ on has nothing to name")
+    # THE SHAPE DIFFERENCE WAS ALL ✕ AGAINST "–", AND IT IS GONE. Until
+    # 2026-09-24 a row ChromIQ cannot measure read ✕ in the column whose
+    # standard limits it and "–" in the other; since Knut's 5815435713
+    # (B8-979) it reads ✕ in every column, so the two Custom columns now
+    # have the same shape and the README's shape paragraph (printed only
+    # when the numbers are the same, which they are not) has nothing to
+    # name. What stays asked is the half that matters: whatever IS named a
+    # shape difference may never carry a number.
     from workflow.compliance_sets import ROW_BY_ID, effective_limits
     a_ = effective_limits(facts["custom_ids"][0], {})
     b_ = effective_limits(facts["custom_ids"][1], {})

@@ -109,11 +109,15 @@ def test_chromiq_sets_define_no_limit_on_the_standards_only_rows():
     # "a value that can be tested against" for every measurable metric.
     # `uniformity_sd` left this list on 2026-09-23: Knut ruled a method for
     # the two evenness rows and 1.5 on the pairwise one in ChromIQ's own sets
-    # (B8-814), so ChromIQ default limits it now. The ✕ row below stays.
+    # (B8-814), so ChromIQ default limits it now.
     for rid in ("substrate_de00_max", "control_strip_de00_avg",
-                "outer_gamut_226_de00_avg", "surface_gamut_de00_avg",
-                "macro_uniformity_score"):
+                "outer_gamut_226_de00_avg", "surface_gamut_de00_avg"):
         assert f[rid].kind == "none", rid
+    # `macro_uniformity_score` LEFT THIS LIST ON 2026-09-24, and not because
+    # ChromIQ default limits it: it is a row ChromIQ cannot measure, and such
+    # a row reads ✕ in EVERY set now, ChromIQ's own included (Knut, #182
+    # 5815435713, B8-979). "–" would say "no limit on a row ChromIQ judges".
+    assert f["macro_uniformity_score"].kind == "unmeasurable"
 
 
 def test_an_iso_set_the_shipped_file_leaves_empty_reads_a_question_mark(monkeypatch):
@@ -305,7 +309,9 @@ def test_overrides_apply_to_editable_sets_only_and_keep_a_should_a_should():
     assert e["grey_balance_neutral_ramp_avg"] == Limit.value(2.0)
     assert e["all_de00_max"].kind == "none"
     assert e["all_de00_p95"].kind == "none"
-    assert e["macro_uniformity_score"].kind == "none"
+    # The override on a row ChromIQ cannot measure is still ignored; the row
+    # reads ✕ as it does in every set (B8-979), never the 1.0, never "–".
+    assert e["macro_uniformity_score"].kind == "unmeasurable"
     # A READ-ONLY SET TAKES NO OVERRIDE: it keeps exactly its factory cell,
     # which since #182 S-2 is the shipped figure (and ? where nothing ships).
     # The precondition keeps the check honest: were the shipped figure the

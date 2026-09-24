@@ -121,6 +121,7 @@ result awaiting his confirmation. The other §20 gaps stay open.
 | §25 | K31: a report is the only thing (no verdict records); Update and New report from any window; a widened one-date report becomes a report of those dates; the limit set belongs to the report, one set always; "Unlock this run's limits" and the run lock removed; New report starts on Preferences unless the run has its own default | 2026-09-23, 5801677743 (our 5798697107, 5801707986) | ruled by Knut; built in beta 40 (B8-890 to B8-899), the built result ⏳ awaiting confirmation |
 | §26 | K31 metrics: the "How evenness was judged" line and the evenness help text; rule A on the 30 to 70 % tone ramp; version 1 names everywhere, "within gamut" on a split sheet; "Within and beyond the gamut together"; a FROM PROFILE GAMUT chart's neutral aims as its grey steps | 2026-09-23, 5801677743 | agreed; built for beta 40 (B8-900 to B8-909), NOT confirmed |
 | §20 | Rulings not built, or built without a test or proof (G1 to G13) | 2026-09-22 to 2026-09-23 | gaps, listed one by one |
+| §29 | A row ChromIQ cannot measure reads ✕ in every limit set, never "–" | 2026-09-24, 5815435713 | agreed; built for beta 42 (B8-979), NOT confirmed |
 
 Related documents: `unified_measurement_management.md` (the life of a
 measurement; §M-PROPOSED holds this feature's two messages),
@@ -320,6 +321,9 @@ A cell is one of: a number (required), a number in brackets (recommended),
 `–` (the set puts no limit on the row), `✕` (ChromIQ cannot measure it; the
 row stays so the user sees what the standard asks, Knut K2/D16), `?` (the
 number is in a clause ChromIQ does not hold or may not show).
+**Amended by §29 (Knut, 2026-09-24, beta 42):** a row ChromIQ cannot measure
+reads `✕` in EVERY set, ChromIQ's own three included, and never `–`; `–` is
+left for a row ChromIQ can judge that the set puts no limit on.
 
 ## 3. What each row measures
 
@@ -5762,3 +5766,78 @@ reading the code, the add path also driven):
   project), a setting change redraws at once, because there is no press to
   wait for (the adversary round that found a red line asking for a dead
   button). Not changed; **question** whether this exception stands.
+
+## 29. A row ChromIQ cannot measure reads ✕ in every limit set (#182, 2026-09-24, beta 42)
+
+### ⏳ Awaiting confirmation
+
+**Confirmed by:** *nobody yet.*
+
+**Asked for by:** Knut, #182
+[5815435713](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5815435713)
+(2026-09-24), on Preferences > Reports > Report limits: *"Opening help text
+for 'Maximum deltaE00, spot colours'. The help text says '... and the cell
+shows a cross in every limit set.'. This is not true. The three ChromIQ limit
+sets show '-'. There are many other rows/metrics that ChromIQ does not
+evaluate, but still shows '-' and not 'x' for a limit set. I guess they should
+show x on all limit sets, when ChromIQ does not evaluate that metric at all."*
+Register: B8-979.
+
+It changes the cell rule of §2 (`✕` only where a standard limits the row,
+D16), which is recorded there as amended; the change is Knut's own ruling, so
+it is recorded rather than put to him as a fault.
+
+* **Rule:** every row whose status is "cannot be measured by ChromIQ" (twelve
+  rows today: three under Paper, the spot-colour row, and the eight under "Not
+  evaluated by ChromIQ") reads `✕` in every column of the Report limits
+  window: ChromIQ default, ChromIQ tight, Quick check, both read-only ISO
+  columns and both Custom columns, whether or not the standard behind a column
+  limits the row. `–` now means only "the set puts no limit on a row ChromIQ
+  can judge".
+* **A report's own column ("This report")** shows `✕` on those rows too. A
+  report saved before this change stored "–" (`null`) there in ChromIQ's own
+  three sets; it is SHOWN as `✕` and the stored copy is not rewritten by
+  looking at it.
+* **What does not change:** no verdict, no word and no count. These rows never
+  carry a value, and a `–` without a value and a `✕` both give no word, so a
+  Measurement Report's rows, its overall verdict and every "n of N" figure are
+  the same as before, in every set. A report saved before the change is not
+  called "(edited)": a stored "–" and a factory `✕` are the same yardstick
+  (neither carries a number). An override on such a row is still ignored.
+* **The texts are now true as written:** the row's help text ("the cell shows
+  a cross in every limit set"), the window's legend ("✕ ChromIQ cannot
+  measure it") and its title help ("✕ means ChromIQ cannot measure it at
+  all").
+* **One sentence is not, and is not changed here** because it is a §M
+  catalogue message (`M_THRESHOLDS_NOT_CERTIFICATION`) and new message text
+  needs approval: *"Such a column reads “–” for a row the standard puts no
+  limit on"*. A read-only ISO column now reads `✕` on a row its standard does
+  not limit when ChromIQ cannot measure that row (for example "Macro-uniformity
+  score" under ISO 12647-7). Proposed wording, for approval: *"Such a column
+  reads “–” for a row ChromIQ can measure that the standard puts no limit on,
+  and ? where it limits the row but no number has been supplied for it."*
+* **Also changed with it:** the demo pack's README paragraph on the two Custom
+  columns' "shape" difference has nothing to name any more. That difference
+  was entirely `✕` against `–` on these rows; it is printed only when the two
+  columns' numbers are the same, which they are not, so the README does not
+  change.
+* **Measured on screen, before:** 42 of the 84 cells of the twelve rows read
+  "–" (every row in the three ChromIQ columns; in the ISO and Custom columns
+  each row that standard does not limit), in English and German. **After:**
+  84 of 84 read `✕`, in both languages.
+* **Built:** `workflow/compliance_sets.py::mark_unmeasurable`,
+  `factory_limits`; `ui/dialogs/thresholds_dialog.py::ThresholdsDialog._limits_of`.
+* **Verified by:**
+  `tests/test_a_row_chromiq_cannot_measure_reads_a_cross_in_every_set.py`
+  (`test_every_set_reads_a_cross_on_every_row_chromiq_cannot_measure`,
+  `test_every_other_row_is_exactly_what_it_was`,
+  `test_the_cross_moves_no_count_and_no_limit_bearing_row`,
+  `test_a_copy_stored_before_the_ruling_is_not_called_edited`,
+  `test_the_report_judges_and_counts_exactly_as_before`,
+  `test_the_help_text_of_such_a_row_is_now_true`,
+  `test_a_reports_own_column_reads_the_cross_too`), each proved red on its
+  mutation.
+* **Proof:** `~/Desktop/ChromIQ-beta42-proof/x-and-prefs/` (on screen, EN and
+  DE, before and after).
+
+**Status:** built for beta 42 (B8-979), NOT confirmed.

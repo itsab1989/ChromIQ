@@ -27831,3 +27831,30 @@ would reach.
 - tests: tests/test_k32_adding_never_rewrites_the_report.py. Mutation: the old path for every add (red).
 - evidence: test_added_measurements_come_in_unticked_and_the_page_stays
 - proof: ~/Desktop/ChromIQ-beta42-proof/knut-k32/ (before-*/, after-*/, *.console.txt, k32-found.json in each).
+
+### B8-979 · FIXED, awaiting confirmation · A row ChromIQ cannot measure read "–" in the three ChromIQ limit sets while its help text promised a cross in every set
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5815435713 (2026-09-24). Spec: `docs/design/measurement_report_limits.md` §29 (amends the §2 cell rule), awaiting confirmation.
+- where: `workflow/compliance_sets.py` (`mark_unmeasurable`, `factory_limits`); `ui/dialogs/thresholds_dialog.py` (`_limits_of`, the "This report" column).
+- found by: Knut. Measured on screen before (EN and DE): 42 of the 84 cells of the twelve unmeasurable rows read "–": every row in ChromIQ default, tight and Quick check, and each row a standard does not limit in its ISO and Custom columns.
+- cause: `factory_limits` gave `✕` only where a standard limits the row (D16); a ChromIQ set, and a standard's column on a row that standard does not limit, fell through to "no limit".
+- fixed: a row with status "unmeasurable" reads `✕` in every set, and in a report's own column (a copy stored before shows `✕` and is not rewritten). No verdict, word or count moves: those rows never carry a value. A stored "–" is not called "(edited)". The help text, legend and title help are true as written; no string changed, so no translation work.
+- not changed: the §M message M-THRESHOLDS-NOT-CERTIFICATION still says an ISO column reads "–" for a row the standard puts no limit on; on the unmeasurable rows it now reads `✕`. Proposed wording in §29, for approval.
+- tests: tests/test_a_row_chromiq_cannot_measure_reads_a_cross_in_every_set.py. Mutations, each red: `factory_limits` returning the column unmarked (9 red), the mark spreading to every row that is not "now" (1 red), `is_edited` comparing kind (1 red), `row_verdict` giving INFO on a cross (1 red), the report's column shown unmarked (1 red). Four older tests pinned the old rule and were changed with the reason written beside each: `test_compliance_sets.py` (two), `test_thresholds_dialog.py::test_editable_and_read_only_columns_follow_the_rulings`, `test_the_demo_pack_covers_every_report_type.py::test_the_two_custom_columns_are_compared_on_their_NUMBERS` (the Custom columns' shape difference was all `✕` against "–" and is gone).
+- evidence: test_every_set_reads_a_cross_on_every_row_chromiq_cannot_measure, test_every_other_row_is_exactly_what_it_was, test_the_report_judges_and_counts_exactly_as_before, test_a_copy_stored_before_the_ruling_is_not_called_edited, test_a_reports_own_column_reads_the_cross_too
+- proof: ~/Desktop/ChromIQ-beta42-proof/x-and-prefs/ (before-en, before-de, after-en, after-de; REPORT.md).
+
+### B8-980 · FIXED, awaiting confirmation · Preferences > Reports: the three report-title boxes started at three different left edges
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- note: Knut, #182 5815501486 (2026-09-24): align the three boxes to the left edge of the "Verification measurement runs" box.
+- where: `ui/dialogs/settings_dialog.py` (`_build_reports_tab`, frame "Default measurement report title and file name").
+- found by: Knut. Measured on screen before: left edges 224, 243 and 216 px in English, 202, 209 and 208 px in German.
+- cause: each label and box was its own QHBoxLayout, so each box began where its own label ended.
+- fixed: the three labels and boxes share one grid; the label column is as wide as the longest label in the language shown (in English "Verification measurement runs:", the box Knut named), the boxes take the rest. Every label is whole and none runs under its box.
+- tests: tests/test_the_report_title_boxes_share_one_left_edge.py (every shipped language, at the opening width, 400 px wider and the narrowest the window goes). Mutation: each label and box back in a row of their own (15 red).
+- evidence: test_the_three_boxes_share_one_left_edge, test_in_english_the_edge_is_the_verification_boxs
+- proof: ~/Desktop/ChromIQ-beta42-proof/x-and-prefs/ (before-en, before-de, after-en, after-de; REPORT.md).

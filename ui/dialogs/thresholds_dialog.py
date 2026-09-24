@@ -787,7 +787,13 @@ class ThresholdsDialog(WorkAreaClamped, QDialog):
 
     def _limits_of(self, col: str) -> "dict[str, Limit]":
         if col == RUN_COLUMN:
-            return self._run_limits
+            # A REPORT'S STORED COPY READS ✕ THERE TOO. Every report saved
+            # before Knut's 5815435713 stored "–" on the rows ChromIQ cannot
+            # measure in its three own sets; the column beside the sets must
+            # not say otherwise. Shown only: the copy itself is not rewritten,
+            # and those rows are never judged whichever mark they carry.
+            from workflow.compliance_sets import mark_unmeasurable
+            return mark_unmeasurable(self._run_limits)
         return effective_limits(col, self._overrides)
 
     def _header_text(self, col: str) -> str:

@@ -92,8 +92,9 @@ def word_label(word: str) -> str:
 #: does not require, drawn in brackets and carrying a numbered note, but judged
 #: PASS / FAIL like any other limit (Knut, 2026-09-21); ``none`` the set
 #: defines no limit for this row (``–``); ``unknown`` the number is in a
-#: clause ChromIQ does not hold or may not show (``?``); ``unmeasurable`` the
-#: set defines a limit ChromIQ cannot measure at all (``✕``).
+#: clause ChromIQ does not hold or may not show (``?``); ``unmeasurable``
+#: ChromIQ cannot measure the row at all (``✕``, in every set since Knut's
+#: 5815435713: see :func:`mark_unmeasurable`).
 LIMIT_KINDS = ("value", "should", "none", "unknown", "unmeasurable")
 
 
@@ -208,7 +209,7 @@ def limit_text(limit: Limit) -> str:
 #: ``ref``: computable only against a reference file for the printing
 #: condition (N-A until one exists); ``unknown``: the population is in a
 #: clause ChromIQ does not hold (``?`` for every set that limits it);
-#: ``unmeasurable``: ChromIQ cannot evaluate it at all (``✕``; it stays in the
+#: ``unmeasurable``: ChromIQ cannot evaluate it at all (``✕`` in every set; it stays in the
 #: table so the user sees what a standard asks that ChromIQ does not do, Knut
 #: K2 / D16, and it is a note in the report, never a verdict, D11).
 ROW_STATUSES = ("now", "build", "ref", "unknown", "unmeasurable")
@@ -1681,16 +1682,43 @@ def reset_iso_cache() -> None:
     _iso_shipped = None
 
 
+def mark_unmeasurable(limits: "dict[str, Limit]") -> "dict[str, Limit]":
+    """*limits* with every row ChromIQ cannot measure reading ``✕``.
+
+    **A ROW CHROMIQ CANNOT MEASURE READS ✕ IN EVERY LIMIT SET.** Knut, #182
+    5815435713 (2026-09-24): the help text of such a row says *"the cell shows
+    a cross in every limit set"*, and the three ChromIQ columns showed ``–``,
+    as did an ISO or Custom column on a row that standard puts no limit on.
+    ``–`` says "the set puts no limit on a row ChromIQ judges", which is not
+    what those cells mean: nothing can be judged there, by any set. Until that
+    day ``✕`` appeared only where a standard limits the row (D16).
+
+    Applied to a set's factory column (:func:`factory_limits`) and, for
+    display, to a report's stored copy, which was written ``null`` on those
+    rows by every build before this rule. A copy of *limits*; rows not in it
+    are not added. Nothing is judged differently: :func:`row_verdict` gives
+    no word for a ``✕`` and none for a ``–`` without a value, and these rows
+    never have a value.
+    """
+    out = dict(limits)
+    for rid in out:
+        row = ROW_BY_ID.get(rid)
+        if row is not None and row.status == "unmeasurable":
+            out[rid] = Limit.unmeasurable()
+    return out
+
+
 def factory_limits(set_id: str) -> "dict[str, Limit]":
     """Every row's factory limit for *set_id* (a Custom set: its parent's).
 
-    An ``unmeasurable`` row that a set limits reads ``✕`` whatever the set's
-    number is: the cell says "the standard asks this, ChromIQ cannot measure
-    it" (D16), and such a row never carries a verdict.
+    An ``unmeasurable`` row reads ``✕`` in EVERY set, whatever the set's
+    number is and whether or not the set limits the row
+    (:func:`mark_unmeasurable`, Knut 5815435713); such a row never carries a
+    verdict.
     """
     s = SET_BY_ID.get(set_id)
     if s is None:
-        return {r.id: Limit.none() for r in ROWS}
+        return mark_unmeasurable({r.id: Limit.none() for r in ROWS})
     source = s.parent or s.id
     out: "dict[str, Limit]" = {}
     if source in _CHROMIQ_FACTORY:
@@ -1701,10 +1729,9 @@ def factory_limits(set_id: str) -> "dict[str, Limit]":
         numbers = _load_iso_numbers().get(source, {})
         touched = set(_ISO_ROWS.get(source, ()))
         for r in ROWS:
+            # (a row ChromIQ cannot measure is marked ✕ below, in every set)
             if r.id not in touched:
                 out[r.id] = Limit.none()
-            elif r.status == "unmeasurable":
-                out[r.id] = Limit.unmeasurable()
             else:
                 out[r.id] = numbers.get(r.id, Limit.unknown())
         # A CUSTOM SET ARRIVES WITH A NUMBER ON EVERY ROW CHROMIQ CAN MEASURE.
@@ -1742,7 +1769,7 @@ def factory_limits(set_id: str) -> "dict[str, Limit]":
                     out[rid] = defaults[rid]
                 elif out[rid].is_numeric:
                     out[rid] = Limit.unknown()
-    return out
+    return mark_unmeasurable(out)
 
 
 def effective_limits(set_id: str, overrides: "dict | None") -> "dict[str, Limit]":

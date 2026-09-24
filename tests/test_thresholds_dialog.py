@@ -122,10 +122,12 @@ def test_editable_and_read_only_columns_follow_the_rulings(qapp, tmp_path):
         # states of the shipped file, is pinned by the test above.
         for col in ("iso_12647_7", "iso_12647_8"):
             assert isinstance(_cell(dlg, col, "all_de00_avg"), QLabel), col
-        # a row a set defines no limit for reads – ; an unmeasurable row ✕ / –
+        # a row a set defines no limit for reads – ; an unmeasurable row ✕ in
+        # EVERY column, ChromIQ's own included (Knut, #182 5815435713, B8-979:
+        # it read – in the three ChromIQ columns until 2026-09-24)
         assert _cell(dlg, "iso_12647_7", "best95_de00_avg").text() == "–"
         assert _cell(dlg, "iso_12647_7", "substrate_gloss_class").text() == "✕"
-        assert _cell(dlg, "chromiq_default", "substrate_gloss_class").text() == "–"
+        assert _cell(dlg, "chromiq_default", "substrate_gloss_class").text() == "✕"
         # NO BRACKET ANYWHERE, IN ANY COLUMN, AS CHROMIQ SHIPS. Knut,
         # 2026-09-21. The grey pair carried one in all three ChromIQ sets and
         # `ramps_30_70_dl_max` in Custom ISO 12647-7; all four are ordinary
