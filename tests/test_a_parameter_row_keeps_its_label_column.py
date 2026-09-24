@@ -73,9 +73,20 @@ def _label_faults(pw) -> list[str]:
         return []
     out = []
     name = pw._param.get("name", pw.flag)
-    if pw._label is not None or pw._control is not None:
+    if pw._label is not None:
         if lab.width() != LABEL_W:
             out.append(f"{name}: label cell {lab.width()} px, not {LABEL_W}")
+    elif pw._control is not None:
+        # B8-929: an expert row's name check box is at least the column and
+        # grows, up to NAME_CELL_MAX, to show the whole name.
+        from PyQt6.QtWidgets import QCheckBox
+        from ui.parameter_widget import NAME_CELL_MAX
+        want = min(max(lab.sizeHint().width(), LABEL_W), NAME_CELL_MAX)
+        if lab.width() != want:
+            out.append(f"{name}: check box cell {lab.width()} px, not {want}")
+        if want < NAME_CELL_MAX and QCheckBox.text(lab) != lab.text():
+            out.append(f"{name}: name elided to {QCheckBox.text(lab)!r} in a "
+                       f"cell that had room for it")
     if pw._label is not None:
         painted = QLabel.text(pw._label)          # what is drawn, maybe elided
         need = pw._label.fontMetrics().horizontalAdvance(painted)
@@ -189,3 +200,41 @@ def test_the_manual_panel_rows_keep_their_labels(qapp, manual_tab, engine):
         if host.isVisible() and isinstance(host.layout(), QHBoxLayout):
             faults += [f"{type(host).__name__}: {x}" for x in _overlaps(host)]
     assert not faults, "\n".join(faults)
+
+
+def test_an_expert_name_longer_than_the_column_shows_whole(qapp):
+    """B8-929. Measured on screen (EN): "Body-Centered Cubic Steps:" needs
+    175 px and "Include Calibration File (no apply):" 209 px of the 166 px a
+    190 px check box leaves after its indicator; both were elided. The box
+    now grows to the whole name, the control beside it gives the room, and
+    nothing overlaps. A name made long enough for any font's metrics.
+
+    MUTATION, proven red: put `setFixedWidth(190)` back on the expert
+    check box in `ParameterWidget._build`."""
+    from PyQt6.QtWidgets import QCheckBox
+    from ui.parameter_widget import NAME_CELL_MAX
+    p = dict(next(x for x in _params()["printtarg"] if x.get("flag") == "-I"))
+    p["name"] = "Include Calibration File (no apply) now"
+    pw = _one_row(qapp, p, 492)
+    cb = pw._enable_check
+    need = cb.sizeHint().width()
+    assert LABEL_W < need <= NAME_CELL_MAX, need
+    assert QCheckBox.text(cb) == cb.text(), QCheckBox.text(cb)
+    assert cb.width() == need
+    assert not _label_faults(pw), _label_faults(pw)
+    assert not _overlaps(pw), _overlaps(pw)
+
+
+def test_a_name_past_the_cap_still_elides_with_its_tooltip(qapp):
+    """A long language keeps the elision: past NAME_CELL_MAX the name is
+    cut with an ellipsis and offered whole on hover."""
+    from PyQt6.QtWidgets import QCheckBox
+    from ui.parameter_widget import NAME_CELL_MAX
+    p = dict(next(x for x in _params()["printtarg"] if x.get("flag") == "-I"))
+    p["name"] = "Джерело відображення гами (відчуття + насиченість) і ще трохи"
+    pw = _one_row(qapp, p, 492)
+    cb = pw._enable_check
+    assert cb.width() == NAME_CELL_MAX
+    assert QCheckBox.text(cb) != cb.text()
+    assert cb.toolTip() == cb.text()
+    assert not _overlaps(pw), _overlaps(pw)

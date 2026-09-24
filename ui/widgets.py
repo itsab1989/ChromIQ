@@ -2957,6 +2957,21 @@ class ElidingCheckBox(QCheckBox):
     def text(self) -> str:  # type: ignore[override]
         return self._full_text
 
+    def sizeHint(self):  # type: ignore[override]
+        """The size the WHOLE name asks for, not the elided one (B8-929).
+
+        Qt measures the text it paints, which is the elided one once a
+        narrower width has elided it; a layout asked with that hint could
+        never hand the box back the room its name needs. A fixed width
+        ignores this, so every caller that pins the width is unchanged."""
+        h = super().sizeHint()
+        fm = self.fontMetrics()
+        extra = (fm.horizontalAdvance(self._full_text)
+                 - fm.horizontalAdvance(QCheckBox.text(self)))
+        if extra > 0:
+            h.setWidth(h.width() + extra)
+        return h
+
     def resizeEvent(self, event) -> None:
         super().resizeEvent(event)
         self._apply_elision()

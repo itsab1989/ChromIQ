@@ -24,6 +24,11 @@ from core.i18n import tr
 log = get_logger(__name__)
 
 
+#: The widest an expert row's name check box grows to show its whole name
+#: (B8-929). The name column is 190 px; past this a name elides.
+NAME_CELL_MAX = 260
+
+
 class ParameterWidget(QWidget):
     """One parameter row driven by a parameter definition dict from parameters.yaml."""
 
@@ -285,7 +290,18 @@ class ParameterWidget(QWidget):
         if self.expert_only:
             self._enable_check = ElidingCheckBox(name + ":", self)
             self._enable_check.setChecked(False)
-            self._enable_check.setFixedWidth(190)
+            # **AT LEAST THE COLUMN, AND AS WIDE AS THE NAME ASKS (B8-929).**
+            # The box shares the 190 px with its indicator, so a name got
+            # only 166 px of it: "Body-Centered Cubic Steps:" (175) and
+            # "Include Calibration File (no apply):" (209) were elided in
+            # English, measured on screen. The row's control has room to
+            # give, so the cell grows to the whole name, up to
+            # `NAME_CELL_MAX`; a longer name still elides there, with its
+            # tooltip, so a long language cannot push the control off.
+            self._enable_check.setMinimumWidth(190)
+            self._enable_check.setMaximumWidth(NAME_CELL_MAX)
+            self._enable_check.setSizePolicy(QSizePolicy.Policy.Fixed,
+                                             QSizePolicy.Policy.Preferred)
             self._enable_check.setObjectName("param_label")
             layout.addWidget(self._enable_check)
         else:
