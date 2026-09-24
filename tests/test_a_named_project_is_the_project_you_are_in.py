@@ -239,7 +239,7 @@ def test_a_file_with_no_chart_in_it_is_refused_before_anything_is_made(
 
 
 def test_the_refusal_says_the_catalogue_message_with_nothing_left_over():
-    """M-IMPORT-NOT-A-CHART is PROPOSED; the window still renders from §M."""
+    """M-IMPORT-NOT-A-CHART (approved in K33); the window renders from §M."""
     import inspect
     src = inspect.getsource(L._say_that_file_holds_no_chart)
     assert "measurement_messages" in src and "M_IMPORT_NOT_A_CHART" in src, (
@@ -247,9 +247,9 @@ def test_the_refusal_says_the_catalogue_message_with_nothing_left_over():
     title, body = M.M_IMPORT_NOT_A_CHART.render(name="testHex_02.tif")
     assert "{" not in title and "{" not in body
     assert "testHex_02.tif" in body
-    assert not M.M_IMPORT_NOT_A_CHART.approved, (
-        "the wording has not been reviewed; it must stay in §M-PROPOSED until "
-        "Knut or Basti approves it")
+    # Approved by Knut on 2026-09-24 (#182 5816565326, C18 of 5802027116).
+    assert M.M_IMPORT_NOT_A_CHART.approved, (
+        "Knut approved this wording in K33; it belongs in §M")
 
 
 def test_a_chart_already_inside_a_project_is_never_refused(qapp, tmp_path,

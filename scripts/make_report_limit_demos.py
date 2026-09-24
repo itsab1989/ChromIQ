@@ -2255,7 +2255,7 @@ BORDER_RAW_DRIFT: "list[Date]" = [
 CUSTOM_7_SERIES: "list[Date]" = [
     _d("2027-01-05_100000", "2027-01-05T10:00:00",
        "One patch over the largest-difference limit",
-       "A single patch at 4.5, over the 3.0 this column puts on 'Maximum "
+       "A single patch at 4.5, over the 2.0 this column puts on 'Maximum "
        "ΔE00, all patches', with 'Average ΔE00, highest 5 %' held under its own 2.0. "
        "ONE row "
        "crosses.",
@@ -2268,7 +2268,10 @@ CUSTOM_7_SERIES: "list[Date]" = [
        "measurement this chart cannot supply and stay N-A. A column named "
        "after a standard carries its caveat whatever the numbers do, and "
        "that note is what says the PASS is an indication and not proof.",
-       Design(bulk=0.80, shoulder=1.40, peak=2.20, tail=1.60, grey_dch=0.50),
+       # K33 (B8-998): Knut's 2.00 on 'Maximum ΔE00, all patches' in
+       # both Custom columns; the worst patch was 2.2, under the 3.0 it
+       # replaced, and is now 1.8.
+       Design(bulk=0.80, shoulder=1.40, peak=1.80, tail=1.60, grey_dch=0.50),
        []),
 ]
 
@@ -2281,19 +2284,24 @@ CUSTOM_7_SERIES: "list[Date]" = [
 #: not a 'recommended'/'should' type metric."*
 CUSTOM_8_SERIES: "list[Date]" = [
     _d("2027-02-02_100000", "2027-02-02T10:00:00",
-       "The hardest colours drift, and one ramp step goes dark",
-       "'Average ΔE00, highest 5 %' is about 2.7, over its 2.0, and the "
-       "middle step of the grey tone ramp is 3.0 too dark, over the 2.0 this "
-       "column puts on it. TWO rows cross, which is the most this design "
-       "allows, and neither is a recommendation: this column requires both.",
-       Design(bulk=0.80, shoulder=1.40, peak=2.75, tail=2.65, grey_dch=0.50,
+       "One patch goes far out, and one ramp step goes dark",
+       "A single patch at 2.75 is over the 2.0 this column puts on 'Maximum "
+       "ΔE00, all patches', with 'Average ΔE00, highest 5 %' held under its "
+       "own 2.0, and the middle step of the grey tone ramp is 3.0 too dark, "
+       "over the 2.0 this column puts on it. TWO rows cross, which is the "
+       "most this design allows, and neither is a recommendation: this "
+       "column requires both.",
+       # K33 (B8-998): with Knut's 2.00 on the maximum, the highest 5 % can
+       # no longer cross alone (its average is never above the maximum), so
+       # the row this date crosses beside the ramp is the maximum itself.
+       Design(bulk=0.80, shoulder=1.40, peak=2.75, tail=1.20, grey_dch=0.50,
               ramp_dl=3.0),
-       ["worst5_de00_avg", "ramps_30_70_dl_max"]),
+       ["all_de00_max", "ramps_30_70_dl_max"]),
     _d("2027-02-16_100000", "2027-02-16T10:00:00",
        "Both come back",
-       "The hardest colours settle and the ramp step is 1.0 out, inside its "
+       "The far patch settles and the ramp step is 1.0 out, inside its "
        "2.0. Both rows recover on the same date.",
-       Design(bulk=0.80, shoulder=1.40, peak=2.20, tail=1.60, grey_dch=0.50,
+       Design(bulk=0.80, shoulder=1.40, peak=1.80, tail=1.60, grey_dch=0.50,
               ramp_dl=1.0),
        []),
 ]
@@ -4005,8 +4013,13 @@ PAPER_OFFICE = _outlier_pair(
     "04", Design(bulk=0.80, shoulder=1.20, tail=1.00, grey_dch=0.40,
                  ramp_dl=2.6),
     Design(bulk=0.80, shoulder=1.20, tail=1.00, grey_dch=0.40, ramp_dl=1.0),
-    "the tone-ramp row (Custom ISO 12647-7 2.0), on a sheet whose printing "
-    "nobody recorded", ["ramps_30_70_dl_max"])
+    # K33 (B8-998): Knut's 2.00 on 'Maximum ΔE00, all patches' in this
+    # column. A ramp step 2.6 too dark is itself a patch more than 2.0 out,
+    # so that row now crosses with the ramp row; the story names both.
+    "the tone-ramp row (Custom ISO 12647-7 2.0), and with it 'Maximum ΔE00, "
+    "all patches' (2.0), which that one dark step also carries over, on a "
+    "sheet whose printing nobody recorded",
+    ["ramps_30_70_dl_max", "all_de00_max"])
 PAPER_NEWS: "list[Date]" = [
     _d("2029-05-03_100000", "2029-05-03T10:00:00",
        "Measured once, one patch far out",

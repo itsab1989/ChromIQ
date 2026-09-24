@@ -111,6 +111,7 @@ def test_proposed_messages_are_marked_as_such_in_the_document():
 # and M-REPORT-NOT-WRITABLE (re-challenge R2), M-VERIFY-UNCHECKED-METRICS
 # (K31) and M-THRESHOLDS-NOT-CERTIFICATION (B8-978) were each revised after
 # the post he answered, so the words he approved are not the words shipped.
+# The first two were then approved as reordered, #182 5818037438.
 AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # #159, 2026-08-30. The magnet guard used to
                                  # recognise ONE unit's stored white-tile value
@@ -206,10 +207,8 @@ AWAITING_APPROVAL: "set[str]" = {"M-VERIFY-NO-PROFILE", "M-VERIFY-NO-CHART",
                                  # now asks. He wrote the question himself and
                                  # ended it "(or similar)", so the WORDING is
                                  # his and waits here for him to confirm it.
-                                 "M-REPORT-UPDATE-OR-NEW",
                                  # K4 (Knut, beta 34): the same question when
                                  # NOTHING was changed; new wording, ours.
-                                 "M-REPORT-UNCHANGED-UPDATE-OR-NEW",
                                  "M-CM-NO-CCTIFF", "M-CM-CONVERT-FAILED",
                                  "M-CM-PROFCHECK-CONVERTED",
                                  # Feature B — wording agreed verbatim with

@@ -130,13 +130,21 @@ def test_the_message_says_what_decides_it_and_qualifies_the_lever():
 
 
 def test_both_messages_are_proposed_and_not_approved():
-    """They are Knut's REQUEST and not his wording, so neither may pass for
+    """They were Knut's REQUEST and not his wording, so neither could pass for
     approved. §M's rule, and the register in test_message_catalogue.py pins
-    the same two ids from the other side."""
-    for mid in ("M-VERIFY-UNCHECKED-METRICS", "M-REPORT-PATCH-COUNTS-DIFFER"):
-        assert mid in M.CATALOGUE, mid
-        assert not M.CATALOGUE[mid].approved, mid
-        assert mid in M.PROPOSED, mid
+    the same ids from the other side.
+
+    K33 (#182 5816565326, 2026-09-24): Knut approved section C of 5802027116.
+    M-REPORT-PATCH-COUNTS-DIFFER (C11) was unchanged since that post and is
+    approved; M-VERIFY-UNCHECKED-METRICS (C13) was reworded for K31 after it,
+    so it still waits."""
+    mid = "M-VERIFY-UNCHECKED-METRICS"
+    assert mid in M.CATALOGUE, mid
+    assert not M.CATALOGUE[mid].approved, mid
+    assert mid in M.PROPOSED, mid
+    mid = "M-REPORT-PATCH-COUNTS-DIFFER"
+    assert M.CATALOGUE[mid].approved, mid
+    assert mid not in M.PROPOSED, mid
 
 
 # ===========================================================================

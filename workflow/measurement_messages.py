@@ -2839,7 +2839,7 @@ M_REPORT_UPDATE_OR_NEW = _m(
     "1. Create new report with selected settings.\n"
     "2. Update selected report with selected settings.\n"
     "3. Cancel",
-    approved=False)
+    approved=True)
 
 # --- PROPOSED (#182, K4 of Knut's beta-34 batch, 2026-09-22) -----------------
 # Generate report pressed with a saved report selected and NOTHING changed. It
@@ -2855,7 +2855,7 @@ M_REPORT_UNCHANGED_UPDATE_OR_NEW = _m(
     "1. Create new report with the same settings.\n"
     "2. Update selected report, worked out again by this version of ChromIQ.\n"
     "3. Cancel",
-    approved=False)
+    approved=True)
 
 # --- PROPOSED (#182, Knut D11/D24): the note at the foot of the Report limits
 # window ----------------------------------------------------------------------

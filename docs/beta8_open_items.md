@@ -27859,13 +27859,14 @@ would reach.
 - evidence: test_the_three_boxes_share_one_left_edge, test_in_english_the_edge_is_the_verification_boxs
 - proof: ~/Desktop/ChromIQ-beta42-proof/x-and-prefs/ (before-en, before-de, after-en, after-de; REPORT.md).
 
-### B8-991 · DONE · Knut approved section C: twelve §M messages move out of §M-PROPOSED, six stay because they were revised after the post he answered
+### B8-991 · FIXED · Knut approved section C: fourteen §M messages move out of §M-PROPOSED, four stay because they were revised after the post he answered
 - blocks release: no
 - severity: MINOR
-- status: DONE
+- status: FIXED
 - decided by: Knut, #182 5816565326 (2026-09-24): "All messages under "C. Message texts waiting for your approval" are approved." Section C is in our post 5802027116 (2026-09-23 20:02 UTC), C1 to C19. And #182 5816616607 (2026-09-24), on the two wording points of 5816439574 about M-THRESHOLDS-NOT-CERTIFICATION: "both accepted".
 - approved (approved=True, moved to §M with "Approved by: Knut, 2026-09-24 (#182 5816565326)"): M-REPORT-DELETE (C3), M-REPORT-UPDATE-NOT-FOUND (C6), M-REPORT-UPDATE-LEAVES-OUT (C7), M-REPORT-ONE-PAGE-ONE-DATE (C8), M-REPORT-CHART-MISMATCH (C9), M-REPORT-CHART-MISMATCH-LAYOUT (C10), M-REPORT-PATCH-COUNTS-DIFFER (C11), M-VERIFY-PREFLIGHT (C12), M-LIMIT-RECOMMENDED (C14), M-PROJECT-FOLDER-RENAMED (C16), M-PROJECT-FOLDER-RENAME-FAILED (C17), M-IMPORT-NOT-A-CHART (C18). Each compared word for word with the catalogue as it stood when the post was written (563271f9): unchanged.
-- NOT approved, revised since the post (the words he approved are not the words shipped), still PROPOSED and to be put to him again: M-REPORT-UPDATE-OR-NEW (C1) and M-REPORT-UNCHANGED-UPDATE-OR-NEW (C2), numbered list reordered Create New first for his own K32 (ce02b778); M-REPORT-DELETE-FAILED (C4), its last sentence became `{remedy}` with a second remedy for a report outside a project (re-challenge R2, 8b56ad13); M-REPORT-NOT-WRITABLE (C5), "that folder" became "those folders" with a one-folder variant (R2); M-VERIFY-UNCHECKED-METRICS (C13), its last paragraph reworded for K31 but not in the words C13 proposed; M-THRESHOLDS-NOT-CERTIFICATION (C15), revised three times since: the "?" clause (R2, 44ffe4a6), the Custom-column sentence (B8-978, ea891346) and the "–" clause (B8-979, 086b18f0). Knut's 5816616607 accepts the "–" clause and keeps the ✕ sentence as it is (recorded in its §M-PROPOSED entry); the Custom-column sentence of B8-978 has not been put to him.
+- approved in their reordered text (Create New first, his K32, ce02b778): M-REPORT-UPDATE-OR-NEW (C1) and M-REPORT-UNCHANGED-UPDATE-OR-NEW (C2). Knut, #182 5817922257, said section C did not cover the reorder; #182 5818037438: "Yes, I approve those two messages." Both moved to §M with that reference.
+- NOT approved, revised since the post (the words he approved are not the words shipped), still PROPOSED and to be put to him again: M-REPORT-DELETE-FAILED (C4), its last sentence became `{remedy}` with a second remedy for a report outside a project (re-challenge R2, 8b56ad13); M-REPORT-NOT-WRITABLE (C5), "that folder" became "those folders" with a one-folder variant (R2); M-VERIFY-UNCHECKED-METRICS (C13), its last paragraph reworded for K31 but not in the words C13 proposed; M-THRESHOLDS-NOT-CERTIFICATION (C15), revised three times since: the "?" clause (R2, 44ffe4a6), the Custom-column sentence (B8-978, ea891346) and the "–" clause (B8-979, 086b18f0). Knut's 5816616607 accepts the "–" clause and keeps the ✕ sentence as it is (recorded in its §M-PROPOSED entry); the Custom-column sentence of B8-978 has not been put to him.
 - not in §M: C19 (the report's completeness sentence) is spec text, §15.6, not a catalogue message; nothing to flip.
 - where: `workflow/measurement_messages.py` (twelve `approved=True`); `docs/design/unified_measurement_management.md` (§M, §M-PROPOSED, the "Awaiting review" note); `tests/test_message_catalogue.py::AWAITING_APPROVAL`.
 - tests: tests/test_message_catalogue.py (69 passed): the approved twelve are headed APPROVED and sit in §M, the six still proposed sit in §M-PROPOSED, the note names exactly the proposed set.
@@ -27906,10 +27907,10 @@ would reach.
 - proof: ~/Desktop/ChromIQ-beta42-proof/knut-k33/ (before-sweep, after-sweep: every run's offered types; *-04-report-type-open.png).
 - open for Knut: should choosing one of them also switch "Judged against" to its standard's set?
 
-### B8-995 · ANSWERED, awaiting confirmation · "All metrics" counts 18, Knut counts 21: what the difference is
+### B8-995 · FIXED, awaiting confirmation · "All metrics" counts 18, Knut counts 21: what the difference is
 - blocks release: no
 - severity: MINOR
-- status: ANSWERED
+- status: FIXED
 - note: Knut, #182 5816565326. Measured: 32 rows, 12 ChromIQ cannot measure (✕ everywhere, §29), 20 computable; All metrics leaves out the two repeatability rows (not a property of a chart, §15): 18. All metrics ignores limit sets (§27), and before K33 both Custom columns already limited all 20, so adding limits cannot change it. No 21st computable row exists. The count line now says the two repeatability metrics are not counted. Spec §30.3.
 - where: `ui/dialogs/preset_verification_dialog.py::refresh`.
 - tests: tests/test_all_metrics_is_the_default_and_counts_every_metric.py::test_the_column_total_is_every_metric; tests/test_any_report_type_is_the_default_beside_all_metrics.py (the line under Any). Mutation: the sentence dropped (red).

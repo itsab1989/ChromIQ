@@ -191,16 +191,17 @@ def test_the_two_defaults_that_are_left_are_on_screen_and_default_on(tmp_path,
         assert getattr(d, "_report_all_runs_default_check", None) is None, (
             "“Show all measurement runs, by default” is still built")
         assert d._report_details_default_check.isChecked()
-        # …and the two ISO types are offered and refused, exactly as the report
-        # window offers them: shown, so the reason can be read; disabled, so
-        # they cannot be stored.
+        # …and the two ISO types are offered exactly as the report window
+        # offers them. Since K33 (B8-994) they can be produced while their
+        # values are loaded, which they are as ChromIQ ships, so they can be
+        # chosen here too.
         model = d._report_type_default_combo.model()
         from workflow.measurement_report import (REPORT_TYPE_ISO_7,
                                                  REPORT_TYPE_ISO_8)
         for tid in (REPORT_TYPE_ISO_7, REPORT_TYPE_ISO_8):
             row = d._report_type_default_combo.findData(tid)
             assert row >= 0, f"{tid} is not offered at all"
-            assert not model.item(row).isEnabled(), f"{tid} can be chosen"
+            assert model.item(row).isEnabled(), f"{tid} cannot be chosen"
     finally:
         d.deleteLater()
 

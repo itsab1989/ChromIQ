@@ -219,9 +219,10 @@ def test_nothing_says_chromiq_ships_no_values_once_a_set_ships(shipped, qapp):
     assert "no permission" not in t["columns"]
     assert "does not ship these numbers" not in t["why"], t["why"]
     assert "ChromIQ ships the published values of" in t["why"], t["why"]
-    # the ISO 12647-8 document is now simply unbuilt; -7 still waits on values
-    assert "may not include" not in t["type8"], t["type8"]
-    assert "may not include" in t["type7"], t["type7"]
+    # K33 (B8-994): the ISO 12647-8 document can be produced; -7 still
+    # waits on values, and says so
+    assert "no values of this standard are loaded" not in t["type8"], t["type8"]
+    assert "no values of this standard are loaded" in t["type7"], t["type7"]
 
 
 def test_the_empty_state_keeps_its_own_sentences(shipped, qapp):
@@ -231,7 +232,7 @@ def test_the_empty_state_keeps_its_own_sentences(shipped, qapp):
     # shipped; the empty state says what it is.
     assert "No values file supplied any, so they are empty here" in t["columns"], t["columns"]
     assert "does not ship these numbers" in t["why"]
-    assert "may not include" in t["type7"] and "may not include" in t["type8"]
+    assert "no values of this standard are loaded" in t["type7"] and "no values of this standard are loaded" in t["type8"]
 
 
 def test_both_sets_shipped_says_so_once(shipped, qapp):
@@ -240,7 +241,7 @@ def test_both_sets_shipped_says_so_once(shipped, qapp):
     assert t["columns"].count("which ship with ChromIQ") == 2, t["columns"]
     assert "is empty" not in t["columns"]
     assert "both ISO columns" in t["why"], t["why"]
-    assert "may not include" not in t["type7"] + t["type8"]
+    assert "no values of this standard are loaded" not in t["type7"] + t["type8"]
 
 
 # --------------------------------------------------------- the install step

@@ -551,8 +551,9 @@ def test_the_question_is_the_catalogue_message_with_his_three_buttons(
         # K32 put Create New first (`test_create_new_is_first_and_the_default`
         # checks where each one is PAINTED; this is the order they are held).
         assert seen["buttons"] == ["Create New", "Update", "Cancel"], seen
-        assert M.CATALOGUE["M-REPORT-UPDATE-OR-NEW"].approved is False, (
-            "the wording has not been approved, so it must be marked proposed")
+        # Approved as reordered: Knut, #182 5818037438 (2026-09-24).
+        assert M.CATALOGUE["M-REPORT-UPDATE-OR-NEW"].approved is True, (
+            "Knut approved this wording on 2026-09-24")
     finally:
         dlg.close()
 

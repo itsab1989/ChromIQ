@@ -162,8 +162,9 @@ def test_the_note_text_is_one_catalogue_entry_rendered_in_both_places():
     for forbidden in ("does not affect", "overall result", "excluded",
                       "still pass", "ignored"):
         assert forbidden not in low, (forbidden, a)
-    assert not M_LIMIT_RECOMMENDED.approved, \
-        "the wording has not been reviewed; it belongs in §M-PROPOSED"
+    # Approved by Knut on 2026-09-24 (#182 5816565326, C14 of 5802027116).
+    assert M_LIMIT_RECOMMENDED.approved, \
+        "Knut approved this wording in K33; it belongs in §M"
 
 
 # ------------------------------------------------------------ the aggregation
