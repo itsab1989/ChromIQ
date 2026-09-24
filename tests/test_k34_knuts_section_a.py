@@ -34,6 +34,19 @@ def qapp():
     return QApplication.instance() or QApplication([])
 
 
+def _dispose(dlg) -> None:
+    """Close AND delete a window this file opened, so no half-alive widget is
+    left for a later file's setStyleSheet on the same worker (the crash
+    062e7f28 records; it recurred twice in the gate until this file did the
+    same)."""
+    dlg.close()
+    parent = getattr(dlg, "_test_parent", None)
+    dlg.deleteLater()
+    if parent is not None:
+        parent.deleteLater()
+    QApplication.processEvents()
+
+
 def _sheet(path: Path, rows, kind: str = "CTI3") -> Path:
     """A CGATS file of ``[(rgb, xyz)]``: the device values and the readings
     given separately, so a sheet can have a paper patch that is NOT its
@@ -170,7 +183,7 @@ def test_the_window_reads_n_a_with_a_numbered_note(tmp_path, qapp):
         row = table[table.index("Paper white L*"):][:200]
         assert "N-A" in row, row
     finally:
-        dlg.close()
+        _dispose(dlg)
 
 
 def test_a_chart_with_its_paper_patch_carries_no_such_note(tmp_path, qapp):
@@ -186,7 +199,7 @@ def test_a_chart_with_its_paper_patch_carries_no_such_note(tmp_path, qapp):
         assert all(where != "Paper white"
                    for _n, where, _s in dlg._numbered_notes([rep]))
     finally:
-        dlg.close()
+        _dispose(dlg)
 
 
 # --------------------------------------------------------------------------
@@ -405,7 +418,7 @@ def test_the_window_lists_a_copied_report_by_its_own_date(tmp_path, qapp):
         _new_report_of_everything(dlg, qapp)
         _press(dlg, qapp)
     finally:
-        dlg.close()
+        _dispose(dlg)
     files = sorted((proj.root / "runs" / "run1" / "verifications"
                     / "reports").glob("report_*.json"))
     assert len(files) == 2, files
@@ -423,7 +436,7 @@ def test_the_window_lists_a_copied_report_by_its_own_date(tmp_path, qapp):
                if (d.get("doc") or {}).get("created") in stamps]
         assert got == list(reversed(stamps)), got
     finally:
-        dlg.close()
+        _dispose(dlg)
 
 
 # --------------------------------------------------------------------------
@@ -458,7 +471,7 @@ def _three_runs_one_report(tmp_path, qapp):
         _new_report_of_everything(dlg, qapp)
         _press(dlg, qapp)
     finally:
-        dlg.close()
+        _dispose(dlg)
     return proj
 
 
@@ -471,7 +484,7 @@ def _scope_of_the_report(proj, qapp):
         assert str(dlg._loaded_doc_id).startswith("id:"), dlg._loaded_doc_id
         return _html.unescape(dlg._scope_html(dlg._runs_for_document()))
     finally:
-        dlg.close()
+        _dispose(dlg)
 
 
 def test_report_scope_names_a_deleted_profile_run(tmp_path, qapp):
@@ -535,6 +548,7 @@ def chart_tab(tmp_path, qapp):
     t = TabChart(ArgyllRunner(s), fm, s)
     yield t, fm
     t.deleteLater()
+    QApplication.processEvents()
 
 
 def _duplicate_whose_name_is_taken(fm):

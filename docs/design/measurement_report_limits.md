@@ -6349,7 +6349,10 @@ Built, as Knut accepted:
 * **The demo pack:** `make_report_limit_demos.apply_design` designs the paper
   from the corner's aim, which is now the profile's white, so a rebuilt pack
   again demonstrates PASS and FAIL for this row (checked by the release
-  tier's `tests/test_the_release_demo_package.py`, B8-1016).
+  tier's `tests/test_the_release_demo_package.py`, B8-1016). Measured on the
+  pack rebuilt from this tree: every one of the 51 dates now aims at its
+  profile's own white (L\* 94.0 to 96.0), the papers read 0.52 to 1.52 on
+  the PASS dates and 3.02 to 9.02 on the FAIL dates, as designed.
 * **Noticed, not changed (a question for Knut):** the six ink corners and
   black keep the ideal sRGB aims (L\* 100 white, the textbook primaries),
   and the control strip ChromIQ declares on a verification chart includes
