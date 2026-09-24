@@ -793,7 +793,7 @@ ALWAYS_BUILT_BLOCKS: "tuple[str, ...]" = (
 
 
 def _h2(text: str, *, page_break: bool = False) -> str:
-    """A main section heading, matching 'Trend over time (this printer)' etc.
+    """A main section heading, matching 'Trend over time' etc.
 
     A styled div, not an <h2>: Qt sizes h-tags from the *application*
     default font and ignores any font-size set on or inside them, so a PDF
@@ -3135,7 +3135,7 @@ class MeasurementReportDialog(QDialog):
         # The "Trend over time" heading rides in the tab row's free corner
         # instead of a row of its own — that row's height is exactly what the
         # charts were missing on screens where every pixel counts.
-        self._trend_label = QLabel(tr("Trend over time (this printer)"), self)
+        self._trend_label = QLabel(tr("Trend over time"), self)
         self._trend_label.setStyleSheet(
             "font-weight:bold;padding:0 6px 2px 0")
         self._trend_label.setVisible(False)
@@ -13809,7 +13809,7 @@ class MeasurementReportDialog(QDialog):
                  self._report_results_html(runs, _present)]
         if for_pdf and charts_html:
             parts.append(
-                _h2(tr("Trend over time (this printer)"), page_break=True) + _gap()
+                _h2(tr("Trend over time"), page_break=True) + _gap()
                 + f"<div style='color:{_C['dim']};margin-bottom:6px'>" + html.escape(tr(
                     "A rising average or shifting white/black/colour over time "
                     "points to ageing inks, printer drift, or instrument drift."))

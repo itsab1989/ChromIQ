@@ -872,7 +872,7 @@ WORKFLOWS: list[dict] = [
                 "the trend."),
              False,
              ((tr("What the trend shows, and what it never mixes in"),
-               tr("“Trend over time (this printer)” plots colour accuracy, "
+               tr("“Trend over time” plots colour accuracy, "
                   "paper white, darkest black and the cube corners across "
                   "every dated check of this run, or, in a report across "
                   "runs or projects, across every measurement ticked in it. "

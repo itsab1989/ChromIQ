@@ -53,7 +53,13 @@ def _tabs(qapp, width, hidden=()):
 
 
 def _assert_rules(bar, where=""):
-    """Every rule, on the bar's own state."""
+    """Every rule, on the bar's own state.
+
+    Since Knut's #182 5817448879 (*"always start the row at the left edge and
+    let the tabs run up to the arrows, so there is never an empty gap"*) the
+    drawn row fills the whole scroll area in every state, and a peek that
+    fills the rest is no longer held to 1/6 to 1/4; the neighbour on the left
+    of a middle state still shows `PEEK` of its width."""
     st = bar.peek_state()
     vis, shown = st["visible"], st["shown"]
     first, last = st["first"], st["last"]
@@ -63,10 +69,17 @@ def _assert_rules(bar, where=""):
     # every tab between first and last is shown whole
     for k in range(first, last + 1):
         assert shown[vis[k]] == pytest.approx(1.0), (where, k, st)
-    # the neighbour on a hidden side peeks, between 1/6 and 1/4 of it
+    if st["arrows_shown"]:
+        # NO GAP: the row runs from the left edge to the arrows
+        assert st["clip"] == (0, st["area"] - 1), (where, st)
+        drawn = sum(max(0, min(r, st["area"] - 1) - max(l, 0) + 1)
+                    for l, r in (st["rects"][i] for i in vis))
+        assert drawn == st["area"], (where, "a gap in the row", drawn, st)
     if left_hidden:
         f = shown[vis[first - 1]]
-        assert PEEK_MIN - 0.02 <= f <= PEEK_MAX + 0.02, (where, "left", f)
+        assert f > 0.0, (where, "left", f)
+        if right_hidden:
+            assert PEEK_MIN - 0.02 <= f <= PEEK_MAX + 0.02, (where, "left", f)
         for k in range(first - 1):
             assert shown[vis[k]] == 0.0, (where, k)
     else:
@@ -74,7 +87,7 @@ def _assert_rules(bar, where=""):
         assert st["rects"][vis[0]][0] == 0 and st["clip"][0] == 0, (where, st)
     if right_hidden:
         f = shown[vis[last + 1]]
-        assert PEEK_MIN - 0.02 <= f <= PEEK_MAX + 0.02, (where, "right", f)
+        assert f > 0.0, (where, "right", f)
         for k in range(last + 2, len(vis)):
             assert shown[vis[k]] == 0.0, (where, k)
     elif st["arrows_shown"]:
@@ -91,9 +104,9 @@ def test_both_ends_and_the_middle_follow_knuts_rules(qapp, width):
     the right arrow is grey and the last tab is against the arrows.
 
     MUTATIONS, each proved to land: `PEEK = 0` (no peek: red in the middle);
-    the left arrow always enabled (red at the left end); the right end
-    clipped like the middle, leaving a gap before the arrows (red at the
-    right end)."""
+    the left arrow always enabled (red at the left end); the clip of the
+    middle and the right end ending where the whole tabs and a fifth of the
+    next one end (the K32 row before Knut's 5817448879: a gap)."""
     tw, bar = _tabs(qapp, width)
     try:
         st = _assert_rules(bar, "start")

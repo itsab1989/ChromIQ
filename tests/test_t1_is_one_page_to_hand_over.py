@@ -96,7 +96,7 @@ def test_it_carries_no_essay_and_no_trend_section(tmp_path, qapp):
         one = _text(dlg._report_body_html(_as(dlg, run, REPORT_TYPE_SUMMARY),
                                           for_pdf=True))
         for heading in ("How to read this report", "Report Results",
-                        "Trend over time (this printer)"):
+                        "Trend over time"):
             assert tr(heading) not in one, f"T1 still carries “{heading}”"
     finally:
         dlg.close()

@@ -822,7 +822,7 @@ def test_the_report_never_prints_a_page_that_is_a_heading_and_nothing_else(
     # Every main heading the report can write, taken from the report itself.
     headings = {re.sub(r"<[^>]+>", "", _h2(t)).strip() for t in (
         "How to read this report", "Report Results",
-        "Overview of Measurement Metrics", "Trend over time (this printer)",
+        "Overview of Measurement Metrics", "Trend over time",
         "Detailed data per measurement run")}
     stranded = [i + 1 for i, body in enumerate(bodies)
                 if len(body) == 1 and body[0] in headings]

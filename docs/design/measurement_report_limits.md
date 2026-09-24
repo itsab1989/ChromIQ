@@ -5772,6 +5772,22 @@ confirmed):** a greyed arrow is PAINTED greyed (about a quarter of the live
 arrow's contrast), in the light, dark and neutral appearances; the style had
 painted a disabled arrow exactly like a live one, because none of the three
 palettes sets Qt's disabled colours.
+**Amended by Knut, #182
+[5817448879](https://github.com/itsab1989/ChromIQ/issues/182#issuecomment-5817448879)
+(2026-09-24), built for beta 42 (B8-1008), not confirmed:** *"Do "The
+alternative would be to always start the row at the left edge and let the
+tabs run up to the arrows, so there is never an empty gap. ""* The row now
+fills the scroll area in every state: at the left end the first tab is at the
+edge and the next hidden tab fills the rest up to the arrows; in the middle
+the left neighbour shows a fifth of itself, the whole tabs follow and the
+next hidden tab fills the rest; at the right end the last tab is against the
+arrows and the left neighbour fills the rest from the edge. A peek that fills
+the rest is no longer held to 1/6..1/4. The greyed look of the arrows is kept.
+And: *"today, the title "Trend over time (this printer)" is shown between the
+tab-bar arrows and the right edge of the window. The graphs belong to the
+generated report, so "(this printer)" can be removed, giving more space for
+the tabs."* The title is "Trend over time" (German "Verlauf über die Zeit"),
+beside the tab bar, over the PDF's graphs and in the welcome window's help.
 
 **27.7 Nothing measured, nothing listed.** Opened on a selection with nothing
 of its own kind measured, the Measurement Report's list is empty and nothing

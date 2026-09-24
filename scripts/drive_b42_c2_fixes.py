@@ -434,28 +434,43 @@ def script_for(scenes, lang, look):
             sc = "tabs"
             yield from big_report()
             dlg = rec.pop("_dlg")
-            dlg.resize(820, dlg.height())
-            yield 1500
             bar = dlg._trend_tabs.tabBar()
-            for _ in range(15):
-                if not bar.peek_state()["arrows"][0]:
-                    break
-                bar.scroll_left()
-            d.pump(600)
-            out = []
-            for k in range(12):
-                ps = bar.peek_state()
-                name = f"{lang}-{look}-tabs-{k:02d}"
-                d.shot(dlg, name)
-                crop(name, bar, f"{name}-bar")
-                lft = ink(crop(name, bar._left_btn, f"{name}-left", pad=0))
-                rgt = ink(crop(name, bar._right_btn, f"{name}-right", pad=0))
-                out.append({"live": ps["arrows"], "left": lft, "right": rgt})
-                if not ps["arrows"][1]:
-                    break
-                bar._right_btn.click()
-                d.pump(500)
-            F(sc, f"arrows-{look}", out)
+            for wname, width in (("narrow", 820), ("wide", 1500)):
+                dlg.resize(width, dlg.height())
+                yield 1500
+                for _ in range(15):
+                    if not bar.peek_state()["arrows"][0]:
+                        break
+                    bar.scroll_left()
+                d.pump(600)
+                out = []
+                for k in range(12):
+                    ps = bar.peek_state()
+                    name = f"{lang}-{look}-{wname}-tabs-{k:02d}"
+                    d.shot(dlg, name)
+                    crop(name, bar, f"{name}-bar")
+                    lft = ink(crop(name, bar._left_btn, f"{name}-left", pad=0))
+                    rgt = ink(crop(name, bar._right_btn, f"{name}-right",
+                                   pad=0))
+                    area = ps["area"]
+                    drawn = sum(max(0, min(r, area - 1) - max(lo, 0) + 1)
+                                for lo, r in (ps["rects"][i]
+                                              for i in ps["visible"]))
+                    out.append({"live": ps["arrows"],
+                                "shown": {dlg._trend_tabs.tabText(i):
+                                          round(v, 2)
+                                          for i, v in ps["shown"].items()
+                                          if v},
+                                "clip": ps["clip"], "area": area,
+                                "gap_px": (area - drawn
+                                           if ps["arrows_shown"] else 0),
+                                "title": dlg._trend_label.text(),
+                                "left": lft, "right": rgt})
+                    if not ps["arrows"][1]:
+                        break
+                    bar._right_btn.click()
+                    d.pump(500)
+                F(sc, f"arrows-{look}-{wname}", out)
             dlg.close()
             yield 1500
 
@@ -576,7 +591,12 @@ def script_for(scenes, lang, look):
                 d.later(dlg._generate_btn.click)
                 yield 6000
                 txt = page(dlg)
-                start = L("This report is not graded")
+                # the first words of the sentence, in the window's language
+                start = L("This report is not graded, so it carries no graph "
+                          "of a judged metric: each of those graphs is drawn "
+                          "against its limit. The graphs it carries show "
+                          "colour accuracy, paper white, darkest black and "
+                          "the cube corners.")[:25]
                 sent = (txt[txt.index(start):txt.index(start) + 400]
                         if start in txt else None)
                 t = dlg._trend_tabs

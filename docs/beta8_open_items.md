@@ -28037,3 +28037,15 @@ would reach.
 - tests: tests/test_c2_userdrive_sets_the_appearance_setting.py (dark, neutral, light). Mutation: the `settings.set("appearance", …)` line dropped (3 red).
 - evidence: test_the_drive_writes_the_appearance_it_paints
 - proof: ~/Desktop/ChromIQ-beta42-proof/challenge2-fixes/ (after/en-dark, after/en-neutral: `appearance_setting` in driver-report.json, and the page's own colours in the photographs).
+
+### B8-1008 · FIXED, awaiting confirmation · The graph tab row left a gap before the arrows or at the left edge, and its title said "(this printer)"
+- blocks release: no
+- severity: MINOR
+- status: FIXED
+- decided by: Knut, #182 5817448879 (2026-09-24): "always start the row at the left edge and let the tabs run up to the arrows, so there is never an empty gap"; "(this printer)" can be removed from "Trend over time (this printer)", "giving more space for the tabs".
+- where: `ui/peek_tab_bar.py` (`_window`, `_first_of_the_right_end`); `ui/dialogs/measurement_report_dialog.py` (`_trend_label`, the PDF's heading over the graphs); `ui/dialogs/welcome_dialog.py` (the help that names the title).
+- fixed: the row fills the scroll area in every state: the peek on the side that ends the row takes what the whole tabs leave (the left neighbour at the right end, the right neighbour at the left end and in the middle); the middle's left neighbour still shows a fifth. The greyed arrows (B8-1002) are kept. The title is "Trend over time" / "Verlauf über die Zeit"; both i18n ledgers re-measured.
+- spec: `docs/design/measurement_report_limits.md` §28.6, amended with Knut's words (awaiting confirmation).
+- tests: tests/test_k32_peek_tab_bar.py (`_assert_rules` now holds every state to "no gap": the drawn row covers the whole area, 4 widths, EN and DE). Mutations: the K32 `_window` (6 red), `PEEK = 0` (6 red), the left arrow always live (5 red). tests/test_c2_the_trend_title_names_no_printer.py. Mutation: the old title key (red).
+- evidence: test_both_ends_and_the_middle_follow_knuts_rules, test_german_titles_follow_the_same_rules, test_the_window_and_the_pdf_say_trend_over_time, test_german_says_it_without_the_printer
+- proof: ~/Desktop/ChromIQ-beta42-proof/challenge2-fixes/ (scene "tabs": left end, middle and right end, narrow and wide, EN and DE, light, dark and neutral, before and after).

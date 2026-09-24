@@ -19,6 +19,11 @@ and what he asked for instead, which is what this bar does:
   arrows are live and both neighbours peek.
 * **A partly shown tab is a tab**: clicking it selects it as usual, and the
   bar then moves by the same rules so it is shown whole.
+* **No gap, ever** (Knut, #182 5817448879: *"always start the row at the
+  left edge and let the tabs run up to the arrows, so there is never an
+  empty gap"*): the row fills the whole scroll area in every state, and the
+  peek on the side that ends the row takes whatever the whole tabs leave, so
+  it is no longer held to 1/6..1/4 there.
 
 Qt's own scrolling tab bar cannot do this: its scroll offset is private and
 always puts the tab it scrolls to flush against the arrows. So this bar lays
@@ -155,12 +160,22 @@ class PeekTabBar(QTabBar):
         shifted left by *offset* px, and only clip_left <= x < clip_right is
         drawn.
 
-        The neighbour on each side that is hidden shows `PEEK` of its width.
-        The tabs are contiguous and keep their own widths, so a strip that
-        ends in a peek on the right is usually narrower than the scroll area,
-        and what is left over stays empty beside the arrows. At the right end
-        the last tab is flush with the arrows, and what is left over is at
-        the left, before the peeking tab."""
+        **THE ROW ALWAYS RUNS FROM THE LEFT EDGE TO THE ARROWS (Knut, #182
+        5817448879):** *"always start the row at the left edge and let the
+        tabs run up to the arrows, so there is never an empty gap."* So the
+        clip is always the whole scroll area, and the peeks take what the
+        whole tabs leave:
+
+        * at the left end the first tab is at the edge and the next hidden
+          tab on the right fills the rest up to the arrows;
+        * in the middle the hidden neighbour on the left shows `PEEK` of its
+          width, the whole tabs follow, and the next hidden tab on the right
+          fills the rest;
+        * at the right end the last tab is against the arrows and the hidden
+          neighbour on the left fills the rest from the edge.
+
+        A peek that fills the rest is not held to `PEEK_MIN`..`PEEK_MAX`
+        (K32): Knut chose no gap over an even peek."""
         vis = self._visible()
         ws = self._widths(vis)
         n = len(ws)
@@ -169,40 +184,30 @@ class PeekTabBar(QTabBar):
         if n == 0 or total <= area:
             return 0, n - 1, 0, 0, area
         lefts = [sum(ws[:k]) for k in range(n)]
-
-        def peek(k: int) -> int:
-            return int(round(ws[k] * PEEK)) if 0 <= k < n else 0
-
         end = self._first_of_the_right_end(ws, area)
         first = max(0, min(first, end))
         if first == end:
-            offset = total - area
-            pl = peek(first - 1) if first > 0 else 0
-            return (first, n - 1, offset,
-                    max(0, lefts[first] - offset - pl), area)
-        pl = peek(first - 1) if first > 0 else 0
+            # the last tab against the arrows; the left neighbour fills the
+            # rest from the edge
+            return first, n - 1, total - area, 0, area
+        pl = int(round(ws[first - 1] * PEEK)) if first > 0 else 0
         last = first
         while last + 1 < n:
             nxt = last + 1
             span = lefts[nxt] + ws[nxt] - lefts[first]
-            if pl + span + peek(nxt + 1) > area:
+            if pl + span > area:
                 break
             last = nxt
-        span = lefts[last] + ws[last] - lefts[first]
-        return (first, last, lefts[first] - pl, 0,
-                min(area, pl + span + peek(last + 1)))
+        return first, last, lefts[first] - pl, 0, area
 
     @staticmethod
     def _first_of_the_right_end(ws: "list[int]", area: int) -> int:
-        """The smallest first whole tab with which every tab after it fits,
-        with the tab before it peeking: where the bar stops going right."""
+        """The smallest first whole tab with which every tab after it fits:
+        where the bar stops going right. What is left before it is the left
+        neighbour's peek."""
         n = len(ws)
         first = n - 1
-        while first > 0:
-            span = sum(ws[first - 1:])
-            pl = int(round(ws[first - 2] * PEEK)) if first - 1 > 0 else 0
-            if pl + span > area:
-                break
+        while first > 0 and sum(ws[first - 1:]) <= area:
             first -= 1
         return first
 
