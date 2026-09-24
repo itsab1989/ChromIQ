@@ -3976,6 +3976,12 @@ def _preset_sheet_count(data: dict, chart: "Path | None", settings) -> int:
     return math.ceil(patches / per_sheet)
 
 
+#: How long one tick of the preset warming may run before it gives the event
+#: loop back (K32). A single chart with page TIFFs can still take longer; the
+#: budget only stops a tick from starting on the NEXT one.
+_PRESET_WARM_BUDGET_S = 0.05
+
+
 def verification_preset_rows(settings) -> list:
     """Every preset the "Which presets can be used for verification" window
     lists (#182).
@@ -10444,16 +10450,34 @@ class TabChart(QWidget):
         timer.start()
 
     def _warm_one_preset_batch(self) -> None:
-        """One batch of the warming above. A bound method; see its note."""
+        """One batch of the warming above. A bound method; see its note.
+
+        **A BATCH IS A TIME BUDGET, NOT A COUNT (K32, Knut on beta 41, #182
+        5813851807: "Changing from Profiling to Verification took several
+        seconds and it felt like the app was freezing").** It was four charts
+        per tick, whatever they cost. Measured on screen on the demo project
+        Report-Limits-Evenness: a chart with page TIFFs costs about 0.57 s
+        (`chart_grid` measures the patch block on every page), so four of
+        them held the event loop for 3.0 to 3.2 s in one piece right after
+        the switch, and 8.7 s of warming in all. Now a tick takes charts until
+        `_PRESET_WARM_BUDGET_S` is spent, at least one, so the window answers
+        between any two charts.
+        """
+        import time as _time
         from workflow import preset_eligibility as _pe
         charts = getattr(self, "_preset_warm_charts", None) or []
         at = int(getattr(self, "_preset_warm_at", 0))
-        end = min(len(charts), at + 4)
-        for c, recipe in charts[at:end]:
+        end = at
+        t0 = _time.monotonic()
+        while end < len(charts):
+            c, recipe = charts[end]
+            end += 1
             try:
                 _pe.chart_row_values(c, recipe)
             except Exception:   # noqa: BLE001 - one bad chart is not fatal
                 pass
+            if _time.monotonic() - t0 >= _PRESET_WARM_BUDGET_S:
+                break
         self._preset_warm_at = end
         if end >= len(charts):
             timer = getattr(self, "_preset_warm_timer", None)
