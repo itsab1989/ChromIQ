@@ -198,6 +198,7 @@ a = Analysis(
         *_native_licences,
         ('assets',           'assets'),
         ('data/parameters.yaml', 'data'),
+        ('data/preset_defaults.json', 'data'),
         ('data/i18n',        'data/i18n'),
         ('data/scanner_targets', 'data/scanner_targets'),
         ('data/compliance_sets', 'data/compliance_sets'),

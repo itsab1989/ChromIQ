@@ -770,6 +770,33 @@ be used for verification".
 
 ---
 
+## Which built-ins the lists show directly (#182 5818659478, beta 42)
+
+Every built-in is still in the Presets dropdown and the overlay, but only the
+**ticked** ones are listed directly; the rest of each group wait under an arrow
+row ("▸  N more presets") after the group's last ticked preset. Spec:
+`docs/design/curated_presets.md`.
+
+- **Shipped ticks:** `data/preset_defaults.json`, written by
+  `python scripts/make_preset_defaults.py` from the beta rule
+  (`core.curated_presets.beta_selection`, fed by
+  `ui.tabs.tab_chart.builtin_preset_facts`). `--table out.csv` writes the list
+  for Knut's users; `--from-table filled.csv` writes their answers back.
+  `tests/test_curated_builtin_presets.py` holds the file to the rule while its
+  `source` says "beta rule".
+- **Adding a built-in:** it is not ticked until the file says so, so it lands
+  under its group's arrow. Re-run the script (and commit the file) if it should
+  be listed directly.
+- **A person's choice:** the setting `builtin_presets_shown`, only their own
+  differences (`core.curated_presets.store_choices`), so a new release's
+  defaults never overwrite what they chose.
+- **The arrow row** is a combo entry whose userData starts with
+  `core.curated_presets.MORE_ROW_PREFIX`. It is enabled only while the list is
+  open (`_CappedComboBox.POPUP_ONLY_ROLE`), and `_on_preset_selected` refuses
+  it; code walking the combo's items must skip it (`is_more_row`).
+
+---
+
 ## Verify snippet
 
 ```python

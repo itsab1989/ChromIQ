@@ -28049,3 +28049,41 @@ would reach.
 - tests: tests/test_k32_peek_tab_bar.py (`_assert_rules` now holds every state to "no gap": the drawn row covers the whole area, 4 widths, EN and DE). Mutations: the K32 `_window` (6 red), `PEEK = 0` (6 red), the left arrow always live (5 red). tests/test_c2_the_trend_title_names_no_printer.py. Mutation: the old title key (red).
 - evidence: test_both_ends_and_the_middle_follow_knuts_rules, test_german_titles_follow_the_same_rules, test_the_window_and_the_pdf_say_trend_over_time, test_german_says_it_without_the_printer
 - proof: ~/Desktop/ChromIQ-beta42-proof/challenge2-fixes/ (scene "tabs": left end, middle and right end, narrow and wide, EN and DE, light, dark and neutral, before and after).
+
+### B8-1021 · FIXED, awaiting confirmation · Too many built-in presets: a gear button chooses which ones the two lists show, the rest wait under an arrow
+- blocks release: no
+- severity: FEATURE
+- status: FIXED
+- asked by: Knut, #182 5818659478 (2026-09-24): "Users have complained that the current numbers of presets are too many [...] Please add this also for beta 42."
+- where: `ui/tabs/tab_chart.py` (the gear `_preset_shown_btn`, `_populate_preset_combo`, `_apply_preset_collapse`, `_on_preset_more_row`, `_reveal_current_preset_group`, `_open_builtin_presets_shown`, `_CappedComboBox` arrow rows, the `_on_preset_selected` refusal); `ui/dialogs/builtin_presets_shown_dialog.py` (new); `ui/builtin_preset_popup.py` (arrow rows and keyboard); `core/curated_presets.py` (new); `assets/gear.svg`, `assets/gear_dark.svg`; `core/settings.py` (`builtin_presets_shown`).
+- built: a 28 px gear between the presets-folder button and the help icon. It opens "Built-in presets in the lists": every built-in under the pulldown's own headings, a tick box each, a group box that ticks the whole group and counts "N of M shown", three paragraphs that say what a tick does, and only a Close button; however the window is closed, the boxes are stored and both lists rebuilt. In "Select preset" and in the Built-in presets list each group shows its ticked presets, then "▸  N more presets", then the rest; the arrow turns down when open. In the pulldown the arrow opens by click, Return, Enter, Space or Right, closes with Left (Left on a revealed preset goes back up to it), the list stays open and nothing is chosen; the arrow is enabled only while the list is open, so Up/Down on the closed combo never lands on it or on a hidden preset, and the preset handler refuses it by any other road. The Built-in presets list gained the same arrow and a keyboard (it had none). "Compare with profile" (Tools, patch set editor) has no arrow but follows the same order, so its rows still read in Create Chart's order. User presets are untouched and stay on top. The help icon of the Presets frame names the gear; its em dashes went with the edit. English and German by hand; the twelve others carry the English under the beta rule; both i18n ledgers re-measured in the same commit.
+- spec: `docs/design/curated_presets.md` (new, ⏳ awaiting confirmation).
+- tests: tests/test_curated_builtin_presets.py (26). Mutations, each measured: Return/Enter not kept from the popup's ShortcutOverride (2 red), the arrow left enabled when the list closes (1 red), the slot's refusal removed (1 red), the rest not hidden (6 red), a click on the arrow not intercepted (1 red).
+- evidence: test_the_pulldown_lists_ticked_then_an_arrow_then_the_rest, test_the_keyboard_opens_the_arrow_and_the_list_stays_open, test_the_closed_combo_steps_over_the_arrow_and_the_hidden_rows, test_an_arrow_reaching_the_slot_is_put_back, test_the_window_stores_the_choice_and_a_restart_keeps_it, test_the_overlay_has_the_same_split_and_the_arrow_works_by_keyboard
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k35-presets/ (before-en, before-de, after-en, after-de; REPORT.md).
+
+### B8-1022 · FIXED, awaiting confirmation · The shipped list of shown built-ins is a data file, written by a script from Knut's beta rule, and a person's choice survives a later release
+- blocks release: no
+- severity: FEATURE
+- status: FIXED
+- asked by: Knut, #182 5818659478: "For the beta release, you could pre-select 4 presets for each type of paper size and instrument, so that the 4 selected are between 1 and 4 pages with different patch sizes, but skipping the smallest and the largest presets."
+- where: `data/preset_defaults.json` (new; in all three .spec files), `scripts/make_preset_defaults.py` (new), `core/curated_presets.beta_selection`, `ui/tabs/tab_chart.builtin_preset_facts`.
+- built: 62 of 185 shown for beta 42: ColorMunki 15, i1Pro 20, i1Pro 3 Plus 11, CR30 8, Scanner 6, Red River Paper 2. Per group and paper (A3 portrait and landscape one paper; a photo card in cm and mm one paper): more than four presets drops the fewest-patch and most-patch one; one to four sheets kept; four or fewer left all shown, else one per quarter by patch count, preferring a patch width not yet picked. The script also writes Knut's table (`--table`, .csv or .md: Name, Include as default [yes/no], Comments, and the key) and reads it back filled in (`--from-table`). A person's choice is stored as their own differences only (`builtin_presets_shown`), so a new shipped list moves only what they never touched.
+- tests: tests/test_curated_builtin_presets.py (`test_the_shipped_file_is_what_the_beta_rule_gives`, `test_the_beta_rule_keeps_knuts_words`, the four storage tests). Mutations: the smallest/largest drop removed (2 red), every preset stored instead of the differences (4 red).
+- evidence: test_the_shipped_file_is_what_the_beta_rule_gives, test_the_beta_rule_keeps_knuts_words, test_only_the_differences_are_stored, test_a_new_release_moves_only_what_the_person_never_touched
+- proof: ~/Desktop/ChromIQ-beta42-proof/knut-k35-presets/ (builtin-presets-for-knut.csv / .md, REPORT.md).
+- open: two near-twins are both shown on the 10 x 15 card (Pharmacist's and Knut's 600p/4 pages); the rule cannot tell them apart. Knut's users' table replaces the list for the release.
+
+### B8-1023 · OPEN · "Finder": the presets button already names each platform's file manager; one help text names Finder and Explorer and not Linux
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- register only, not swept, as asked.
+- found by: K35 (Knut's side note, #182 5818659478: "'...in Finder' is macOS related word. Windows and Linux should have their own word.").
+- measured: the Create Chart presets-folder tooltip and help (and the same ones on Measure, Build Profile and Check & Refine) already say `{manager}` from `core.platform_paths.file_manager_name` (Finder / File Explorer / "your file manager"), so on Windows and Linux they never said Finder. Of the tr() keys, exactly one other names Finder: Preferences, "Use the system file dialog" help (`ui/dialogs/settings_dialog.py`, "Windows File Explorer's Open window on Windows, Finder's on a Mac"), which names both and says nothing for Linux. No other user-facing "Finder" found.
+
+### B8-1024 · OPEN · The Built-in presets list is painted by hand and has no screen-reader interface
+- blocks release: no
+- severity: MINOR
+- status: OPEN
+- found by: K35. `BuiltinPresetPopup` paints its rows itself, so a screen reader sees one unnamed widget; K35 gave it a keyboard (Up/Down, Return, Right/Left on the arrow, Escape), not an accessibility interface. The "Select preset" pulldown is a real list: its arrow rows carry an accessible text ("34 more presets, collapsed / expanded").

@@ -539,6 +539,7 @@ _I18N = pathlib.Path(__file__).resolve().parent.parent / "data" / "i18n"
 # warning, all four hidden from `i18n_extract.unwrapped_literals` by a `+` in
 # the argument. German is written for all six.
 _BUDGET = {
+    # RE-MEASURED 2026-09-24, K35 (B8-1021 to B8-1024: the curated built-in presets, the gear button's window, the arrow rows, the Manual Presets help with the gear line). German by hand; the others carry the English under the beta rule. COUNTED off the tree, BOTH ledgers.
     # RE-MEASURED 2026-09-24, B8-1008 (the trend title names no printer) merged. COUNTED off the merged tree, BOTH ledgers.
     # RE-MEASURED 2026-09-24, challenge round 2 fixes (B8-1001 to B8-1007) merged onto K33 (B8-991 to B8-999). German by hand; the others carry the English under the beta rule. COUNTED off the merged tree, BOTH ledgers.
     # RE-MEASURED 2026-09-24, K33 (B8-992 to B8-999: the presets window's intro, Any and its count lines, the repeatability note, Sort by and its two entries, the ISO-use paragraph, the Custom blurbs, the refusal of an ISO type without values, the two report help paragraphs). German by hand; the twelve others carry the English under the beta rule. COUNTED off the tree, BOTH ledgers.
@@ -1012,18 +1013,18 @@ _BUDGET = {
     # intro is translated now). COUNTED off the tree, BOTH ledgers in the
     # same commit.
     "de": 13,
-    "es": 921,
-    "fr": 922,
-    "it": 921,
-    "ja": 921,
-    "nl": 921,
-    "no": 921,
-    "pl": 921,
-    "pt": 921,
-    "ru": 920,
-    "sv": 921,
-    "zh_CN": 920,
-    "uk": 1067,
+    "es": 928,
+    "fr": 929,
+    "it": 928,
+    "ja": 928,
+    "nl": 928,
+    "no": 928,
+    "pl": 928,
+    "pt": 928,
+    "ru": 927,
+    "sv": 928,
+    "zh_CN": 927,
+    "uk": 1074,
 }
 
 

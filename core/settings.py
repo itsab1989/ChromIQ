@@ -25,6 +25,12 @@ DEFAULTS: dict[str, Any] = {
     "spot_read_instrument":      "auto",
     "chart_paper":               "A4",
     "chart_pages":               1,
+    # Which BUILT-IN presets the Create Chart lists show directly (Knut, #182
+    # 5818659478), as a JSON object {preset key: shown}. It holds only the
+    # person's OWN decisions from the window behind the gear button; "" means
+    # "the shipped list" (data/preset_defaults.json). See
+    # core/curated_presets.py for why a copy of the defaults is never stored.
+    "builtin_presets_shown":     "",
     "chart_double_density":      False,
     "chart_disable_left_border": False,
     # Print info into the i1Pro left clip strip (auto-applies in guided when

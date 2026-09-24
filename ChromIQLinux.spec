@@ -152,6 +152,7 @@ a = Analysis(
         # `workflow/standard_targets.py` reads through `resource_path`.
         # `tests/test_the_three_specs_bundle_the_same_data.py` keeps them level.
         ('data/parameters.yaml', 'data'),
+        ('data/preset_defaults.json', 'data'),
         ('data/i18n',            'data/i18n'),
         ('data/scanner_targets', 'data/scanner_targets'),
         ('data/compliance_sets', 'data/compliance_sets'),

@@ -151,12 +151,14 @@ class BuiltinPresetButton(QToolButton):
 
 @dataclass(frozen=True)
 class _VisualRow:
-    """One painted line: an instrument header, or a selectable preset."""
-    kind:   str          # "header" | "item"
+    """One painted line: an instrument header, a selectable preset, or the
+    arrow that opens and closes a group's other presets."""
+    kind:   str          # "header" | "item" | "more"
     text:   str
-    key:    str | None   # preset key for "item" rows, else None
+    key:    str | None   # preset key for "item" rows, the group for "more"
     top:    int          # y of the row within the widget
     height: int
+    group:  str = ""     # the heading an "item" under an arrow belongs to
 
 
 class BuiltinPresetPopup(QWidget):
@@ -164,6 +166,14 @@ class BuiltinPresetPopup(QWidget):
 
     ``groups`` is ``[(instrument, [(overlay_label, key), …]), …]`` — exactly
     what the tab derives from BUILTIN_PRESET_GROUPS. Emits ``selected(key)``.
+
+    ``more`` is ``{instrument: [(overlay_label, key), …]}``: the presets of a
+    group that are NOT ticked in the window behind Create Chart's gear button
+    (#182 5818659478). They wait under an arrow row after the group's ticked
+    ones, pointing right while closed and down while open, exactly as in the
+    "Select preset" pulldown. A click on the arrow, or Return, Space or the
+    Right arrow key on it, opens the group and leaves the list open; Left
+    closes it again. Up and Down move through the rows, Return picks a preset.
     """
 
     selected = pyqtSignal(str)  # preset key
@@ -187,6 +197,7 @@ class BuiltinPresetPopup(QWidget):
         self,
         groups: list[tuple[str, list[tuple[str, str]]]],
         parent: QWidget | None = None,
+        more: dict[str, list[tuple[str, str]]] | None = None,
     ) -> None:
         super().__init__(parent)
         # NoDropShadowWindowHint suppresses the platform's own popup shadow (see
@@ -200,6 +211,9 @@ class BuiltinPresetPopup(QWidget):
         self.setMouseTracking(True)
 
         self._groups  = groups
+        self._more    = dict(more or {})
+        self._open: set[str] = set()
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self._mode    = "dark"
         self._palette = _PALETTE_DARK
         self._hover_index: int = -1
@@ -247,17 +261,76 @@ class BuiltinPresetPopup(QWidget):
             for label, key in entries:
                 self._rows.append(_VisualRow("item", label, key, y, self.ROW_H))
                 y += self.ROW_H
+            rest = self._more.get(instr) or []
+            if not rest:
+                continue
+            is_open = instr in self._open
+            self._rows.append(_VisualRow(
+                "more", self._more_text(len(rest), is_open), instr, y,
+                self.ROW_H))
+            y += self.ROW_H
+            if is_open:
+                for label, key in rest:
+                    self._rows.append(_VisualRow("item", label, key, y,
+                                                 self.ROW_H, group=instr))
+                    y += self.ROW_H
 
-    def _compute_size(self) -> None:
+    @staticmethod
+    def _more_text(count: int, is_open: bool) -> str:
+        words = (tr("1 more preset") if count == 1 else
+                 tr("{count} more presets").format(count=count))
+        return f"{'▾' if is_open else '▸'}  {words}"
+
+    def is_open(self, group: str) -> bool:
+        return group in self._open
+
+    def toggle_group(self, group: str, is_open: bool | None = None) -> None:
+        """Open or close a group's arrow. The panel keeps its top edge and
+        grows or shrinks below it, and the arrow row stays in view."""
+        if group not in self._more:
+            return
+        if is_open is None:
+            is_open = group not in self._open
+        if is_open:
+            self._open.add(group)
+        else:
+            self._open.discard(group)
+        scroll = self._scroll_y
+        self._build_rows()
+        self._compute_size(keep_scroll=scroll)
+        for i, row in enumerate(self._rows):
+            if row.kind == "more" and row.key == group:
+                self._hover_index = i
+                self._ensure_visible(i)
+                break
+        self.update()
+
+    def _ensure_visible(self, index: int) -> None:
+        row = self._rows[index]
+        top = row.top
+        if index > 0 and self._rows[index - 1].kind == "header":
+            top = self._rows[index - 1].top      # keep a group's heading with it
+        if top < self._scroll_y:
+            self._scroll_y = max(0, top)
+        elif row.top + row.height > self._scroll_y + self._viewport_h:
+            self._scroll_y = min(self._max_scroll,
+                                 row.top + row.height - self._viewport_h)
+
+    def _compute_size(self, keep_scroll: int = 0) -> None:
         item_fm   = QFontMetricsF(self._item_font)
         header_fm = QFontMetricsF(self._header_font)
         text_w = 0.0
-        for row in self._rows:
-            if row.kind == "item":
+        # Measured over EVERY preset, the ones under a closed arrow included,
+        # so the panel does not change width when an arrow is opened.
+        texts = [(r.kind, r.text) for r in self._rows]
+        for rest in self._more.values():
+            texts.extend(("item", label) for label, _k in rest)
+        for kind, text in texts:
+            if kind != "header":
                 # Items inset by ROW(6)+TEXT(12)+ITEM_INDENT on the left.
-                w = item_fm.horizontalAdvance(row.text) + self.ITEM_INDENT
+                w = item_fm.horizontalAdvance(text) + self.ITEM_INDENT
             else:
-                w = header_fm.horizontalAdvance(row.text)
+                w = header_fm.horizontalAdvance(text)
             text_w = max(text_w, w)
         inner = 2 * (6 + 12)
         panel_w = math.ceil(text_w) + inner + self.H_PAD + self.SCROLLBAR_W
@@ -269,7 +342,7 @@ class BuiltinPresetPopup(QWidget):
         cap_h = self.HEADER_H + self.MAX_VISIBLE_ITEMS * self.ROW_H
         self._viewport_h = min(self._content_h, cap_h)
         self._max_scroll = self._content_h - self._viewport_h
-        self._scroll_y = 0
+        self._scroll_y = max(0, min(keep_scroll, self._max_scroll))
 
         self._content_top = self.PANEL_MARGIN + self.TAIL_H + self.V_PAD
         panel_h = self._viewport_h + 2 * self.V_PAD
@@ -427,7 +500,7 @@ class BuiltinPresetPopup(QWidget):
         if not self._viewport_rect().contains(pt):
             return -1
         for i, row in enumerate(self._rows):
-            if row.kind != "item":
+            if row.kind == "header":
                 continue
             if self._row_rect(row).contains(pt):
                 return i
@@ -480,7 +553,47 @@ class BuiltinPresetPopup(QWidget):
         idx = self._index_at(pt)
         if idx < 0:
             return
-        key = self._rows[idx].key
+        self._activate(idx)
+
+    def _activate(self, idx: int) -> None:
+        row = self._rows[idx]
+        if row.kind == "more":
+            self.toggle_group(str(row.key))
+            return
+        key = row.key
         self.close()
         if key is not None:
             self.selected.emit(key)
+
+    def _selectable(self) -> list[int]:
+        return [i for i, r in enumerate(self._rows) if r.kind != "header"]
+
+    def keyPressEvent(self, event) -> None:  # noqa: N802
+        """The list by keyboard: Up and Down move, Return or Space picks a
+        preset or opens an arrow, Right opens and Left closes an arrow (Left on
+        a preset under an open arrow goes back up to it), Escape closes."""
+        rows = self._selectable()
+        key = event.key()
+        cur = self._hover_index
+        if key in (Qt.Key.Key_Down, Qt.Key.Key_Up) and rows:
+            if cur not in rows:
+                nxt = rows[0] if key == Qt.Key.Key_Down else rows[-1]
+            else:
+                pos = rows.index(cur) + (1 if key == Qt.Key.Key_Down else -1)
+                nxt = rows[max(0, min(len(rows) - 1, pos))]
+            self._hover_index = nxt
+            self._ensure_visible(nxt)
+            self.update()
+            return
+        if cur in rows:
+            row = self._rows[cur]
+            if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space):
+                self._activate(cur)
+                return
+            if row.kind == "more" and key in (Qt.Key.Key_Right, Qt.Key.Key_Left):
+                self.toggle_group(str(row.key), key == Qt.Key.Key_Right)
+                return
+            if row.kind == "item" and row.group and key == Qt.Key.Key_Left:
+                self.toggle_group(row.group, True)   # stays open, goes up
+                return
+        super().keyPressEvent(event)

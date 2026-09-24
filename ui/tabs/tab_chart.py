@@ -3821,6 +3821,48 @@ BUILTIN_PRESET_GROUPS: list[tuple[str, list[tuple[str, str, str]]]] = [
 ]
 
 
+#: One paper, two spellings: the "by Pharmacist" photo cards name the card in
+#: centimetres, Knut's in millimetres, and the A3+ bundle writes "A3+" where
+#: his family writes "A3Plus". Folded so each is ONE paper size to the curated
+#: list's beta rule (core.curated_presets.beta_selection).
+_PAPER_TOKEN_ALIASES = {"10x15cm": "100x150mm", "13x18cm": "130x180mm",
+                        "A3+": "A3Plus"}
+_NAME_FACTS_RE = re.compile(
+    r"(?:^|·\s)([A-Za-z0-9+]+)-(\d+)p-(\d+)pages?\b")
+
+
+def builtin_preset_facts() -> list[dict]:
+    """One dict per built-in, in the pulldown's order: ``key``, ``group`` (the
+    heading), ``name`` (the pulldown row without its ★ and "built-in"),
+    ``paper``, ``patches``, ``pages`` and ``width`` (patch width in mm, 0 when
+    the chart does not say).
+
+    Read from the NAME, which is the only field every kind of built-in has:
+    a prebuilt bundle stores no layout, and a landscape A3 chart stores its
+    sheet as "420x297" while its name says "A3", which is the paper a person
+    thinks in. What ``scripts/make_preset_defaults.py`` and the curated-list
+    tests feed to the beta rule.
+    """
+    out: list[dict] = []
+    for heading, entries in BUILTIN_PRESET_GROUPS:
+        for combo, overlay, key in entries:
+            m = _NAME_FACTS_RE.search(overlay)
+            paper = m.group(1) if m else "?"
+            paper = _PAPER_TOKEN_ALIASES.get(paper, paper)
+            p = KNUT_PRESETS_BY_KEY.get(key)
+            name = combo.replace("★", "").strip()
+            if name.endswith("·  built-in"):
+                name = name[: -len("·  built-in")].rstrip()
+            out.append({
+                "key": key, "group": heading, "name": name, "paper": paper,
+                "patches": int(m.group(2)) if m else 0,
+                "pages": int(m.group(3)) if m else 0,
+                "width": float(getattr(p, "patch_width_mm", 0.0) or 0.0)
+                if p is not None else 0.0,
+            })
+    return out
+
+
 def _marked_overlay_label(key: str, label: str) -> str:
     """The ★-overlay row for a built-in: its overlay label plus the "Full layout
     setup" marker when the preset carries one. The eleven prebuilt ("by
@@ -3872,7 +3914,16 @@ def comparable_presets(settings) -> list[tuple[str, list[tuple[str, "Path"]]]]:
     themselves). Shared by the Tools 3D viewer and the TI2 editor."""
     presets = _load_tab_presets("create_chart", settings)
     groups: list[tuple[str, list[tuple[str, Path]]]] = []
+    # THE SAME ORDER AS CREATE CHART, CURATION INCLUDED (#182 5818659478):
+    # Create Chart now lists a group's ticked built-ins first and the rest
+    # after its arrow. This list has no arrow (Knut named only the pulldown
+    # and the Built-in presets list), so it shows every row, in that order.
+    from core.curated_presets import shown_keys, split_group
+    shown = shown_keys(settings, BUILTIN_PRESET_KEYS)
     for heading, entries in preset_dropdown_groups(presets):
+        if heading != USER_PRESET_GROUP:
+            top, rest = split_group(entries, shown)
+            entries = top + rest
         items: list[tuple[str, Path]] = []
         for _combo, label, key in entries:
             if key not in BUILTIN_PRESET_KEYS:
@@ -4174,8 +4225,123 @@ class _CappedComboBox(NoScrollComboBox):
 
     _MAX_ROWS = 20
 
+    #: Emitted just before the list opens, so the tab can reveal the group of
+    #: a selection that sits under a closed arrow.
+    popup_about_to_show = pyqtSignal()
+
+    #: A row carrying True in this role is ENABLED ONLY WHILE THE LIST IS OPEN:
+    #: the arrow row of a curated group (#182 5818659478). Open, it has to be
+    #: reachable with the arrow keys, which skip a disabled row. Closed, Up and
+    #: Down on the combo step straight through the entries and would land on
+    #: it as if it were a preset; disabled, Qt steps over it.
+    POPUP_ONLY_ROLE = Qt.ItemDataRole.UserRole + 41
+    #: On an arrow row: the heading of the group it opens and closes.
+    MORE_ROLE = Qt.ItemDataRole.UserRole + 42
+    #: On a preset that waits under an arrow: the heading of its group.
+    MEMBER_ROLE = Qt.ItemDataRole.UserRole + 43
+
+    #: ``(row, action)`` for an arrow row, where action is "toggle" (a click,
+    #: Return, Enter or Space), "open" (Right), "close" (Left), or "parent"
+    #: (Left on a preset under an open arrow: go back up to the arrow). The
+    #: list stays open; the tab opens or closes the group.
+    more_row_triggered = pyqtSignal(int, str)
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        # view() builds the popup container, which installs ITS filters on the
+        # view and the viewport. Installed after those, ours runs first and
+        # can keep a click or Return on an arrow row from choosing it and
+        # closing the list.
+        view = self.view()
+        self._arrow_view = view
+        self._arrow_viewport = view.viewport()
+        view.installEventFilter(self)
+        self._arrow_viewport.installEventFilter(self)
+
+    #: The only events the filter looks at. Everything else leaves at once.
+    _ARROW_EVENTS = frozenset({2, 3, 4, 6, 51})   # press, release, dbl, key, override
+
+    def eventFilter(self, obj, event):  # noqa: N802 — Qt's name
+        # **THE TYPE IS ASKED FIRST, AND NOTHING OF THE COMBO BEFORE IT.** The
+        # view keeps sending events here while the combo itself is being
+        # destroyed; the first cut called `self.view()` on every one of them,
+        # which on a half-destroyed QComboBox rebuilds the popup container and
+        # SEGFAULTED a gate worker (measured: tests/test_a_long_dialog_heading_
+        # wraps_instead_of_being_cut.py teardown, `Fatal Python error` in this
+        # method). A key or a click cannot reach a combo being destroyed.
+        try:
+            et = event.type()
+            if int(et.value) not in self._ARROW_EVENTS:
+                return False
+            from PyQt6.QtCore import QEvent
+            view = self._arrow_view
+            if obj is self._arrow_viewport and et in (
+                    QEvent.Type.MouseButtonPress,
+                    QEvent.Type.MouseButtonRelease,
+                    QEvent.Type.MouseButtonDblClick):
+                idx = view.indexAt(event.position().toPoint())
+                if idx.isValid() and self.itemData(idx.row(), self.MORE_ROLE):
+                    if et == QEvent.Type.MouseButtonRelease \
+                            and event.button() == Qt.MouseButton.LeftButton:
+                        self.more_row_triggered.emit(idx.row(), "toggle")
+                    return True
+            elif obj is view and et == QEvent.Type.ShortcutOverride:
+                # THE POPUP TAKES RETURN AND ENTER HERE, NOT AS A KEY PRESS:
+                # its container chooses the current row and closes the list
+                # on the ShortcutOverride. Accepted and kept from it, the key
+                # comes back as the KeyPress below. Measured: without this,
+                # Return on an arrow row closed the list and opened nothing.
+                row = view.currentIndex().row()
+                if row >= 0 and self.itemData(row, self.MORE_ROLE) \
+                        and event.key() in (Qt.Key.Key_Return,
+                                            Qt.Key.Key_Enter):
+                    event.accept()
+                    return True
+            elif obj is view and et == QEvent.Type.KeyPress:
+                row = view.currentIndex().row()
+                key = event.key()
+                if row >= 0 and self.itemData(row, self.MORE_ROLE):
+                    action = {
+                        Qt.Key.Key_Return: "toggle", Qt.Key.Key_Enter: "toggle",
+                        Qt.Key.Key_Space: "toggle", Qt.Key.Key_Select: "toggle",
+                        Qt.Key.Key_Right: "open", Qt.Key.Key_Left: "close",
+                    }.get(key)
+                    if action:
+                        self.more_row_triggered.emit(row, action)
+                        return True
+                elif row >= 0 and key == Qt.Key.Key_Left \
+                        and self.itemData(row, self.MEMBER_ROLE):
+                    self.more_row_triggered.emit(row, "parent")
+                    return True
+        except Exception:      # noqa: BLE001 — an event filter must never raise
+            log.debug("preset list: arrow row event not handled", exc_info=True)
+        return super().eventFilter(obj, event)
+
+    def _set_popup_only_rows_enabled(self, on: bool) -> None:
+        model = self.model()
+        item_of = getattr(model, "item", None)
+        if item_of is None:
+            return
+        for row in range(self.count()):
+            if self.itemData(row, self.POPUP_ONLY_ROLE):
+                item = item_of(row)
+                if item is not None:
+                    item.setEnabled(on)
+
+    def hidePopup(self) -> None:  # noqa: N802
+        super().hidePopup()
+        self._set_popup_only_rows_enabled(False)
+
     def showPopup(self) -> None:  # noqa: N802
+        self.popup_about_to_show.emit()
+        self._set_popup_only_rows_enabled(True)
         super().showPopup()
+        self.fit_popup()
+
+    def fit_popup(self, *, rows_changed: bool = False) -> None:
+        """Cap the open list at :attr:`_MAX_ROWS` rows and anchor it under the
+        combo. Called again with *rows_changed* when an arrow row opens or
+        closes a group, which changes how many rows there are to show."""
         view = self.view()
         if view is None:
             return
@@ -4186,7 +4352,17 @@ class _CappedComboBox(NoScrollComboBox):
         container = view.window()            # the popup frame
         if container is None:
             return
-        if container.height() > max_h:
+        if rows_changed:
+            visible = sum(1 for r in range(self.count())
+                          if not view.isRowHidden(r))
+            frame = max(0, container.height() - view.viewport().height())
+            want = min(max_h, visible * row_h + frame)
+            if container.height() != want:
+                view.setVerticalScrollBarPolicy(
+                    Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+                container.setMaximumHeight(max_h)
+                container.resize(container.width(), want)
+        elif container.height() > max_h:
             view.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
             container.setMaximumHeight(max_h)
             container.resize(container.width(), max_h)
@@ -6177,18 +6353,38 @@ class TabChart(QWidget):
         self._preset_reveal_btn.clicked.connect(
             lambda: reveal_in_file_manager(tab_dir("create_chart"))
         )
+        # **THE GEAR: WHICH BUILT-INS THE LISTS SHOW.** Knut, #182 5818659478:
+        # *"Add another small button between the 'Open this tab's presets
+        # folder in Finder' and the help icon. Same size [...], but a symbol in
+        # side that indicates 'Settings'."* Same 28 px, same object name and
+        # the same themed-icon mechanism as its two neighbours, so it follows
+        # the appearance exactly as they do.
+        self._preset_shown_btn = QPushButton(w)
+        self._preset_shown_btn.setObjectName("icon_btn")
+        self._preset_shown_btn.setFixedSize(28, 28)
+        set_preset_icon(self._preset_shown_btn, "gear")
+        self._preset_shown_btn.setIconSize(QSize(14, 14))
+        self._preset_shown_btn.setToolTip(
+            tr("Choose which built-in presets are listed directly.\n"
+               "The others stay available under an arrow in each group."))
+        self._preset_shown_btn.setAccessibleName(
+            tr("Built-in presets in the lists"))
+        self._preset_shown_btn.clicked.connect(self._open_builtin_presets_shown)
         presets_row.addWidget(self._preset_add_btn, 0, 2)
         presets_row.addWidget(self._preset_del_btn, 0, 3)
         presets_row.addWidget(self._preset_reveal_btn, 0, 4)
+        presets_row.addWidget(self._preset_shown_btn, 0, 5)
         presets_row.addWidget(TooltipButton(
             tr("Manual Presets"),
             tr("Save and recall named snapshots of all Manual mode settings.\n\n"
             "  +  Save current parameter values as a new named preset.\n"
             "  −  Delete the currently selected preset.\n"
-            "  ▢  Open this tab's presets folder in {manager}.\n\n"
+            "  ▢  Open this tab's presets folder in {manager}.\n"
+            "  ⚙  Choose which built-in presets are listed directly; the\n"
+            "      others wait under an arrow (▸) in each group.\n\n"
             "Select a preset from the dropdown to instantly restore all\n"
             "values. The Default entry always resets to built-in defaults.\n\n"
-            "Presets are stored as plain .json files — one per preset —\n"
+            "Presets are stored as plain .json files, one per preset,\n"
             "in a ChromIQ folder under your system's Preferences / AppData\n"
             "/ config location. Use the folder button (▢) on the right of\n"
             "the preset row to open it. To share a preset, copy the .json\n"
@@ -6199,7 +6395,7 @@ class TabChart(QWidget):
             "Presets persist between sessions.").format(manager=file_manager_name()),
             w,
             min_width=600,
-        ), 0, 5)
+        ), 0, 6)
 
         # #182, Knut, beta 22: *"the function button I specified in Create
         # Chart, below the preset selection dropdown, which opens a window
@@ -6253,7 +6449,8 @@ class TabChart(QWidget):
         # own width and the ⓘ in column 5. "WELCHE PRESETS SIND FÜR DIE
         # VERIFIZIERUNG VERWENDBAR?" is wider than those four columns, so the
         # button drew into the ⓘ's cell and over it. In one row container
-        # spanning all five, the ⓘ follows the button whatever the language.
+        # spanning all six (five before the gear, #182 5818659478), the ⓘ
+        # follows the button whatever the language.
         self._preset_verify_row = QWidget(w)
         _pv = QHBoxLayout(self._preset_verify_row)
         _pv.setContentsMargins(0, 0, 0, 0)
@@ -6284,7 +6481,7 @@ class TabChart(QWidget):
         )
         _pv.addWidget(self._preset_verify_help, 0, Qt.AlignmentFlag.AlignVCenter)
         _pv.addStretch(1)
-        presets_row.addWidget(self._preset_verify_row, 1, 1, 1, 5)
+        presets_row.addWidget(self._preset_verify_row, 1, 1, 1, 6)
         # Knut's rule: this pair belongs to a verification run only.
         self._sync_preset_verify_visibility()
         layout.addWidget(presets_grp)
@@ -6728,6 +6925,12 @@ class TabChart(QWidget):
         # never on a programmatic `setCurrentIndex` — which is what the three
         # internal callers want anyway (two of them already block signals).
         self._preset_combo.activated.connect(self._on_preset_activated)
+        # The arrow rows of the curated built-ins (#182 5818659478). Bound
+        # methods, never lambdas: these signals come from the combo's own
+        # popup (CLAUDE.md, the fade-scroll crash).
+        self._preset_combo.more_row_triggered.connect(self._on_preset_more_row)
+        self._preset_combo.popup_about_to_show.connect(
+            self._reveal_current_preset_group)
         self._preset_add_btn.clicked.connect(self._on_preset_save)
         self._preset_del_btn.clicked.connect(self._on_preset_delete)
         self._manual_target_name_edit.textChanged.connect(self._check_for_cal_file)
@@ -10087,25 +10290,48 @@ class TabChart(QWidget):
         # exact same order. A separator line is drawn before the whole built-in
         # block (dividing it from the user presets) and again before each new
         # instrument group.
-        # (instrument, label, key, tooltip)
-        builtins = [
-            (instr, combo_label, key, self._builtin_tooltip(key))
-            for instr, entries in groups if instr != USER_PRESET_GROUP
-            for (combo_label, _overlay_label, key) in entries
-        ]
-        prev_instr: str | None = None
-        for instr, label, key, tip in builtins:
-            if instr != prev_instr:
-                self._preset_combo.insertSeparator(self._preset_combo.count())
-                # A real heading, in the Instrument field's own words (Knut,
-                # 2026-08-18): the overlay has always shown one, the dropdown
-                # only had a separator, so "i1Pro" had to be inferred from the
-                # rows — and it never said that those charts suit an i1Pro 2 or 3.
-                self._add_builtin_group_heading(instr)
-                prev_instr = instr
-            self._add_builtin_preset_item(
-                label, key, tip, disabled=key in DISABLED_BUILTIN_PRESET_KEYS
-            )
+        #
+        # **THE TICKED ONES FIRST, THEN AN ARROW, THEN THE REST** (Knut, #182
+        # 5818659478): *"after the last one above [...] there will be an arrow
+        # (pointing right when collapsed, pointing down when open), which then
+        # contains the list of all other presets for that group."* Every
+        # built-in is still an entry of this combo, so every key still resolves
+        # through findData (a stored selection, the overlay, the verification
+        # window's double-click); the rest are only hidden and disabled until
+        # the arrow is opened. core/curated_presets.py says what is ticked.
+        from core.curated_presets import MORE_ROW_PREFIX, shown_keys, split_group
+        shown = shown_keys(self._settings, BUILTIN_PRESET_KEYS)
+        for instr, entries in groups:
+            if instr == USER_PRESET_GROUP:
+                continue
+            self._preset_combo.insertSeparator(self._preset_combo.count())
+            # A real heading, in the Instrument field's own words (Knut,
+            # 2026-08-18): the overlay has always shown one, the dropdown
+            # only had a separator, so "i1Pro" had to be inferred from the
+            # rows — and it never said that those charts suit an i1Pro 2 or 3.
+            self._add_builtin_group_heading(instr)
+            top, rest = split_group(entries, shown)
+            for combo_label, _o, key in top:
+                self._add_builtin_preset_item(
+                    combo_label, key, self._builtin_tooltip(key),
+                    disabled=key in DISABLED_BUILTIN_PRESET_KEYS)
+            if not rest:
+                continue
+            self._preset_combo.addItem("", userData=MORE_ROW_PREFIX + instr)
+            arrow = self._preset_combo.count() - 1
+            cb = self._preset_combo
+            cb.setItemData(arrow, instr, cb.MORE_ROLE)
+            cb.setItemData(arrow, len(rest), Qt.ItemDataRole.UserRole + 44)
+            cb.setItemData(arrow, True, cb.POPUP_ONLY_ROLE)
+            item = cb.model().item(arrow)
+            if item is not None:
+                item.setEnabled(False)        # enabled only while the list is open
+            for combo_label, _o, key in rest:
+                self._add_builtin_preset_item(
+                    combo_label, key, self._builtin_tooltip(key),
+                    disabled=key in DISABLED_BUILTIN_PRESET_KEYS)
+                cb.setItemData(cb.count() - 1, instr, cb.MEMBER_ROLE)
+        self._apply_preset_collapse()
         if select_name is not None:
             # Match by userData (the bare name), not the shown text, which may
             # carry a ▶ prefix for auto-run presets.
@@ -10117,6 +10343,148 @@ class TabChart(QWidget):
         self._preset_del_btn.setEnabled(
             self._is_deletable_preset(self._preset_combo.currentIndex())
         )
+
+    # ------------------------------------------------------------------
+    # The curated built-ins: the arrow rows (#182 5818659478)
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _more_row_words(count: int) -> str:
+        return (tr("1 more preset") if count == 1 else
+                tr("{count} more presets").format(count=count))
+
+    @classmethod
+    def _more_row_text(cls, count: int, is_open: bool) -> str:
+        return f"{'▾' if is_open else '▸'}  {cls._more_row_words(count)}"
+
+    def _open_preset_groups(self) -> set:
+        """The groups whose arrow is open in the pulldown. Not a setting: it
+        lasts as long as the window, like any list someone has scrolled."""
+        opened = getattr(self, "_preset_groups_open", None)
+        if opened is None:
+            opened = self._preset_groups_open = set()
+        return opened
+
+    def _apply_preset_collapse(self) -> None:
+        """Show or hide every preset under an arrow, by the groups open now,
+        and turn each arrow to match: right when closed, down when open.
+
+        A hidden row is also DISABLED, because hiding is only the list's view
+        of it: Up and Down on the closed combo, and the mouse wheel, step
+        through the model and skip only a disabled row. Without that, the
+        arrow keys would walk into presets nobody can see.
+        """
+        cb = self._preset_combo
+        view = cb.view()
+        model = cb.model()
+        opened = self._open_preset_groups()
+        for row in range(cb.count()):
+            member = cb.itemData(row, cb.MEMBER_ROLE)
+            group = cb.itemData(row, cb.MORE_ROLE)
+            if member:
+                hidden = member not in opened
+                view.setRowHidden(row, hidden)
+                item = model.item(row)
+                if item is not None:
+                    item.setEnabled(not hidden and cb.itemData(row)
+                                    not in DISABLED_BUILTIN_PRESET_KEYS)
+            elif group:
+                count = int(cb.itemData(row, Qt.ItemDataRole.UserRole + 44) or 0)
+                is_open = group in opened
+                cb.setItemText(row, self._more_row_text(count, is_open))
+                state = tr("expanded") if is_open else tr("collapsed")
+                cb.setItemData(row, f"{self._more_row_words(count)}, {state}",
+                               Qt.ItemDataRole.AccessibleTextRole)
+                cb.setItemData(row, tr(
+                    "The other built-in presets of {group}. Click, or press "
+                    "Return or the Right arrow key, to show them; the Left "
+                    "arrow key hides them again. Choose which ones are listed "
+                    "directly with the gear button beside the presets folder "
+                    "button.").format(group=group), Qt.ItemDataRole.ToolTipRole)
+
+    def _preset_arrow_row(self, group: str) -> int:
+        cb = self._preset_combo
+        for row in range(cb.count()):
+            if cb.itemData(row, cb.MORE_ROLE) == group:
+                return row
+        return -1
+
+    def _on_preset_more_row(self, row: int, action: str) -> None:
+        """An arrow row was clicked or keyed in the open list: open or close
+        its group, and leave the list open with the arrow still current."""
+        cb = self._preset_combo
+        if action == "parent":
+            group = cb.itemData(row, cb.MEMBER_ROLE)
+        else:
+            group = cb.itemData(row, cb.MORE_ROLE)
+        if not group:
+            return
+        opened = self._open_preset_groups()
+        if action == "toggle":
+            is_open = group not in opened
+        elif action == "open":
+            is_open = True
+        elif action == "close":
+            is_open = False
+        else:                                   # "parent": just go back up
+            is_open = group in opened
+        if is_open:
+            opened.add(group)
+        else:
+            opened.discard(group)
+        self._apply_preset_collapse()
+        arrow = self._preset_arrow_row(group)
+        view = cb.view()
+        if arrow >= 0:
+            idx = cb.model().index(arrow, 0)
+            view.setCurrentIndex(idx)
+            view.scrollTo(idx)
+        cb.fit_popup(rows_changed=True)
+
+    def _reveal_current_preset_group(self) -> None:
+        """Opening the list on a preset that waits under a closed arrow opens
+        that arrow, so the list shows where the selection is."""
+        cb = self._preset_combo
+        member = cb.itemData(cb.currentIndex(), cb.MEMBER_ROLE)
+        opened = self._open_preset_groups()
+        if member and member not in opened:
+            opened.add(member)
+            self._apply_preset_collapse()
+
+    def _curated_dialog_groups(self) -> list:
+        """The window's groups: the pulldown's headings and order, each row the
+        overlay's label and the pulldown's tooltip."""
+        return [
+            (instr, [(_marked_overlay_label(key, overlay),
+                      self._builtin_tooltip(key), key)
+                     for (_combo, overlay, key) in entries])
+            for instr, entries in BUILTIN_PRESET_GROUPS
+        ]
+
+    def _open_builtin_presets_shown(self) -> None:
+        """The gear button: choose which built-ins the two lists show.
+
+        Knut: *"The window has only a Close button. Closing the window will
+        automatically apply the changes."* So whatever ends the window, its
+        boxes are stored and both lists rebuilt from them.
+        """
+        from core.curated_presets import shown_keys
+        from ui.dialogs.builtin_presets_shown_dialog import (
+            BuiltinPresetsShownDialog)
+        dlg = BuiltinPresetsShownDialog(
+            self._curated_dialog_groups(),
+            shown_keys(self._settings, BUILTIN_PRESET_KEYS), self)
+        self._builtin_presets_shown_dialog = dlg
+        dlg.exec()
+        self._apply_builtin_presets_shown(dlg.ticked())
+        self._builtin_presets_shown_dialog = None
+
+    def _apply_builtin_presets_shown(self, ticked: set) -> None:
+        from core.curated_presets import store_choices
+        store_choices(self._settings, ticked, BUILTIN_PRESET_KEYS)
+        current = self._preset_combo.currentData()
+        self._populate_preset_combo(
+            self._load_presets_from_settings(),
+            select_name=current if isinstance(current, str) else None)
 
     def _builtin_tooltip(self, key: str) -> str:
         """Combo/overlay tooltip for any built-in preset (per its kind)."""
@@ -10492,12 +10860,21 @@ class TabChart(QWidget):
         # same tuple slot, and that dialog is about a PATCH SET, where "Full
         # layout setup" would be 115 rows of noise about something it does not
         # show.
-        groups = [
-            (instr, [(_marked_overlay_label(key, overlay_label), key)
-                     for (_combo, overlay_label, key) in entries])
-            for instr, entries in BUILTIN_PRESET_GROUPS
-        ]
-        popup = BuiltinPresetPopup(groups, self)
+        #
+        # The same split as the "Select preset" pulldown (#182 5818659478):
+        # the ticked presets of a group, then an arrow over the rest.
+        from core.curated_presets import shown_keys, split_group
+        shown = shown_keys(self._settings, BUILTIN_PRESET_KEYS)
+        groups = []
+        more: dict[str, list[tuple[str, str]]] = {}
+        for instr, entries in BUILTIN_PRESET_GROUPS:
+            top, rest = split_group(entries, shown)
+            groups.append((instr, [(_marked_overlay_label(key, overlay_label), key)
+                                   for (_combo, overlay_label, key) in top]))
+            if rest:
+                more[instr] = [(_marked_overlay_label(key, overlay_label), key)
+                               for (_combo, overlay_label, key) in rest]
+        popup = BuiltinPresetPopup(groups, self, more=more)
         popup.set_appearance(resolve_mode(self._settings.get("appearance", "auto")))
         popup.selected.connect(self._activate_builtin_preset)
         # Keep a reference so the popup isn't garbage-collected while shown.
@@ -11079,6 +11456,15 @@ class TabChart(QWidget):
         # treated as a selection — restore the prior pick instead.
         if index > 0 and self._preset_combo.itemData(index) is None \
                 and not self._preset_combo.itemText(index):
+            self._revert_preset_combo()
+            return
+        # AN ARROW ROW IS NEVER A PRESET (#182 5818659478). The open list turns
+        # a click or a key on one into opening its group and never lets it
+        # through, and the closed combo cannot step onto it because it is
+        # disabled there; but a selection that reaches this slot by any other
+        # road is put back, before its userData can be read as a preset NAME.
+        from core.curated_presets import is_more_row
+        if is_more_row(self._preset_combo.itemData(index)):
             self._revert_preset_combo()
             return
         data = self._preset_combo.itemData(index)
