@@ -27480,3 +27480,16 @@ would reach.
 - decided by: Basti, 2026-09-24 ("german is ok i think")
 - because: the owner, whose language German is, read the German as it stands and found it acceptable, so no word pair is swept; the reading-guide heading "So ist dieser Bericht zu lesen" stays as well. A later sweep only if he or a German user asks for one.
 - note: beta 40, challenge B findings 18 to 22, 25 to 27 and 31 (`~/Desktop/ChromIQ-beta40-proof/challenge-B-text/REPORT.md`, "DE term splits"). Not changed, by the brief: which word wins in each pair is Basti's call (German is his language), and a sweep touches hundreds of strings. The pairs found: Bogen / Blatt; Messfeld / Farbfeld / Feld; Zielwert / Design / Soll(farbe); "im Gamut" (three spellings); "Gemessen an" where the report means "judged against" (Bewertet gegen); tiefstes / dunkelstes Schwarz; many synonyms for one English term; three spellings of the Preferences path (Einstellungen → Berichte, Einstellungen, Berichte, …). Items 23 (Grenzwertsatz) and 24 (Anmerkung) were fixed in B8-953 because each had one answer the report already prints. For Basti.
+
+### B8-955 · FIXED, awaiting confirmation · A Finder copy beside the home still won over a recorded project that was still there
+- blocks release: no
+- severity: MAJOR
+- status: FIXED
+- note: beta 41
+- where: `workflow/measurement_report.py` (`resolve_recorded_folder`, steps 3 and 3b).
+- found by: the beta 40 second check (`~/Desktop/ChromIQ-beta40-proof/second-check/p1-result.txt`, `tools/p1_resolve_probe.py`): B8-926 put the `still_there` guard in front of step 3c only, so step 3 (a project of the recorded name beside a home) and step 3b (the one project beside a home that answers to the name, e.g. "Q copy" with target_name Q) still took a namesake while the recorded Q was on disk. Probe cases A and B answered with the copy.
+- measured before (on screen, `~/Desktop/ChromIQ-beta41-proof/small-fixes/p1-before`): Report-Limits-Report-Folders-Second in the ChromIQ folder, Report-Limits-Report-Folders kept outside it; a report across both made in the window; a Finder copy "Report-Limits-Report-Folders copy" put beside the home, its 2026-12-15 measurement file removed. Reopened on that report, the window listed Second's two dates only (0 of Folders' 3), and Generate said "Nothing was changed". After (`p1-after`): Folders' three dates read from the recorded folder, 0 from the copy.
+- fixed: the `still_there` return now stands before step 3: a recorded folder that still holds a `project.json` is that project, and every namesake step (3, 3b, 3c) runs only when it is gone.
+- tests: tests/test_b41_a_recorded_project_wins_over_every_namesake.py (mutation "guard below 3b", i.e. the beta 40 code: 3 red)
+- evidence: test_a_copy_that_answers_to_the_name_beside_the_home_loses, test_a_copy_named_like_it_beside_the_home_loses, test_a_gone_recorded_folder_still_finds_the_namesakes, test_the_window_reads_the_recorded_project_not_the_copy_beside
+- proof: ~/Desktop/ChromIQ-beta41-proof/small-fixes/p1-before, p1-after (photographs/N3-doc-picked.png, driver-notes.txt "[N3] row"), p1/p1-result-after.txt (probe: A, B and C all answer the recorded folder).
